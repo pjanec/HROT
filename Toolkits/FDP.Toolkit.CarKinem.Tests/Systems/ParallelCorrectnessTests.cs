@@ -33,7 +33,7 @@ namespace CarKinem.Tests.Systems
             var trajectoryPool = new TrajectoryPoolManager();
             
             var spatialSystem = new SpatialHashSystem();
-            var kinematicsSystem = new CarKinematicsSystem(roadNetwork, trajectoryPool);
+            var kinematicsSystem = new CarKinematicsSystem(trajectoryPool);
             
             spatialSystem.Create(repo);
             kinematicsSystem.Create(repo);

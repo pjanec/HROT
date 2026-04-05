@@ -2,6 +2,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Components;
+using FDP.Toolkit.Physics.Systems;
 
 namespace FDP.Toolkit.Combat.Systems
 {
@@ -42,6 +43,13 @@ namespace FDP.Toolkit.Combat.Systems
     //   to FDP.Toolkit.CarKinem.Systems. FDP.Toolkit.Combat does not reference CarKinem,
     //   so the ordering attribute is omitted and maintained by registration order in
     //   SimulationLogicModule (GroundKinematicsModule.RegisterSystems then postSimGroup).
+    // When all three SystemGroup parameters in CombatModule.RegisterSystems point to the same
+    // flat _kernelGroup (SimHostApp cluster mode), SortSystems (Kahn's FIFO) would otherwise
+    // place HitResolutionSystem after BallisticsSystem — causing RaycastSolverSystem to always
+    // see Count=0 (cleared by the previous frame's HitResolution). The [UpdateAfter] below
+    // anchors Ballistics after HitResolution so the pipeline is:
+    //   RaycastSolverSystem → HitResolutionSystem → BallisticsSystem (fills batch for next frame).
+    [UpdateAfter(typeof(HitResolutionSystem))]
     public class BallisticsSystem : ComponentSystem
     {
         protected override void OnUpdate()

@@ -228,12 +228,15 @@ namespace FDP.Toolkit.Scenario
                     "A non-empty Guid is required to stamp Fdp.Kernel.EpisodeTag on loaded entities.");
 
             // Peek header for subsystem-type filter.
-            var headerNode = dom["Header"] as JsonObject;
-            var savedType  = headerNode?["SubsystemType"]?.GetValue<string>();
+            // Support both Pascal case ("Header"/"SubsystemType" from ScenarioSerializer.Serialize)
+            // and camelCase ("header"/"subsystemType" from HrotSerializerOptions.HrotJsonOptions).
+            var headerNode = (dom["Header"] ?? dom["header"]) as JsonObject;
+            var savedType  = headerNode?["SubsystemType"]?.GetValue<string>()
+                          ?? headerNode?["subsystemType"]?.GetValue<string>();
             if (!string.Equals(savedType, _subsystemType, StringComparison.Ordinal))
                 return; // Graceful subsystem mismatch — no entities created.
 
-            var entitiesNode = dom["Entities"] as JsonObject;
+            var entitiesNode = (dom["Entities"] ?? dom["entities"]) as JsonObject;
             if (entitiesNode == null)
                 throw new InvalidOperationException(
                     "[ScenarioSerializer] Deserialize: scenario DOM is missing or has a non-object 'Entities' node. " +

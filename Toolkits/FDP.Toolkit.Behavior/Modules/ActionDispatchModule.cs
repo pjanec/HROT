@@ -40,15 +40,17 @@ namespace FDP.Toolkit.Behavior.Modules
     /// <list type="number">
     ///   <item><see cref="LocomotionDispatcherSystem"/> with all supplied locomotion executors.</item>
     ///   <item><see cref="WeaponDispatcherSystem"/> with all supplied weapon executors.</item>
+    ///   <item><see cref="InteractionDispatcherSystem"/> with all supplied interaction executors.</item>
     /// </list>
     /// </summary>
     public sealed class ActionDispatchModule
     {
-        private readonly (ushort ActionId, IActionExecutor<LocomotionChannel> Executor)[] _locoExecutors;
-        private readonly (ushort ActionId, IActionExecutor<WeaponChannel>     Executor)[] _weaponExecutors;
+        private readonly (ushort ActionId, IActionExecutor<LocomotionChannel>    Executor)[] _locoExecutors;
+        private readonly (ushort ActionId, IActionExecutor<WeaponChannel>        Executor)[] _weaponExecutors;
+        private readonly (ushort ActionId, IActionExecutor<InteractionChannel>   Executor)[] _interactionExecutors;
 
         /// <summary>
-        /// Initialises the module with a set of locomotion and weapon executor registrations.
+        /// Initialises the module with a set of locomotion, weapon, and interaction executor registrations.
         /// </summary>
         /// <param name="locoExecutors">
         ///   Pairs of (actionId, executor) for locomotion. Each executor handles the
@@ -59,16 +61,22 @@ namespace FDP.Toolkit.Behavior.Modules
         ///   Pairs of (actionId, executor) for weapons. <c>null</c> or empty is valid
         ///   (no weapon dispatcher executors will be registered).
         /// </param>
+        /// <param name="interactionExecutors">
+        ///   Pairs of (actionId, executor) for interaction actions (e.g. EjectPassengers).
+        ///   <c>null</c> or empty is valid (no interaction dispatcher executors will be registered).
+        /// </param>
         public ActionDispatchModule(
-            (ushort, IActionExecutor<LocomotionChannel>)[] locoExecutors,
-            (ushort, IActionExecutor<WeaponChannel>)[]?    weaponExecutors = null)
+            (ushort, IActionExecutor<LocomotionChannel>)[]    locoExecutors,
+            (ushort, IActionExecutor<WeaponChannel>)[]?       weaponExecutors      = null,
+            (ushort, IActionExecutor<InteractionChannel>)[]?  interactionExecutors = null)
         {
-            _locoExecutors   = locoExecutors  ?? throw new ArgumentNullException(nameof(locoExecutors));
-            _weaponExecutors = weaponExecutors ?? Array.Empty<(ushort, IActionExecutor<WeaponChannel>)>();
+            _locoExecutors        = locoExecutors         ?? throw new ArgumentNullException(nameof(locoExecutors));
+            _weaponExecutors      = weaponExecutors       ?? Array.Empty<(ushort, IActionExecutor<WeaponChannel>)>();
+            _interactionExecutors = interactionExecutors  ?? Array.Empty<(ushort, IActionExecutor<InteractionChannel>)>();
         }
 
         /// <summary>
-        /// Registers the locomotion and weapon dispatcher systems — with all injected
+        /// Registers the locomotion, weapon, and interaction dispatcher systems — with all injected
         /// executors wired in — into the provided group.
         /// </summary>
         /// <param name="group">The simulation-phase <see cref="SystemGroup"/> to add into.</param>
@@ -86,8 +94,14 @@ namespace FDP.Toolkit.Behavior.Modules
             foreach (var (id, exec) in _weaponExecutors)
                 weaponDispatcher.RegisterExecutor(id, exec);
 
+            // ── Interaction dispatcher ────────────────────────────────────────
+            var interactionDispatcher = new InteractionDispatcherSystem();
+            foreach (var (id, exec) in _interactionExecutors)
+                interactionDispatcher.RegisterExecutor(id, exec);
+
             group.AddSystem(locoDispatcher);
             group.AddSystem(weaponDispatcher);
+            group.AddSystem(interactionDispatcher);
         }
     }
 }

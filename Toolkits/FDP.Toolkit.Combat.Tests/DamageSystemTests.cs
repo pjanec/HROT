@@ -202,10 +202,11 @@ namespace FDP.Toolkit.Combat.Tests
         /// entity will throw <see cref="InvalidOperationException"/>.
         ///
         /// <para>
-        /// <b>Part A (non-lethal baseline):</b> a 25-damage hit on a 100-HP target does NOT strip
-        /// capabilities — the entity survives and both <see cref="ActorCapabilities.CanMove"/> and
-        /// <see cref="ActorCapabilities.CanShoot"/> remain set.  This proves the stripping is
-        /// exclusively triggered by the lethal code path.
+        /// <b>Part A (non-lethal baseline):</b> a 25-damage hit on a 100-HP target strips only
+        /// <see cref="ActorCapabilities.CanMove"/> — the entity survives and
+        /// <see cref="ActorCapabilities.CanShoot"/> remains set.  This enables
+        /// <c>HsmDamageBridgeSystem</c> to detect the mobility-kill transition without requiring
+        /// a lethal hit.
         /// </para>
         ///
         /// <para>
@@ -253,8 +254,8 @@ namespace FDP.Toolkit.Combat.Tests
             Assert.True(_world.IsAlive(targetA),
                 "Non-lethal target must still be alive after a sub-lethal hit.");
             var capsAfterNonLethal = _world.GetComponent<ActorCapabilityState>(targetA);
-            Assert.True(capsAfterNonLethal.Capabilities.HasFlag(ActorCapabilities.CanMove),
-                "CanMove must NOT be stripped on a non-lethal hit.");
+            Assert.False(capsAfterNonLethal.Capabilities.HasFlag(ActorCapabilities.CanMove),
+                "CanMove must be stripped on a non-lethal hit (mobility-kill detection).");
             Assert.True(capsAfterNonLethal.Capabilities.HasFlag(ActorCapabilities.CanShoot),
                 "CanShoot must NOT be stripped on a non-lethal hit.");
 

@@ -26,8 +26,9 @@ namespace FDP.Toolkit.Behavior.Systems
                 var caps = World.GetComponent<ActorCapabilityState>(entity);
 
                 // Capability check: no shooting → fail the channel immediately.
-                if (!caps.Capabilities.HasFlag(ActorCapabilities.CanShoot)
-                    && channel.Status == NodeStatus.Running)
+                // Guard applies unconditionally (not only when Running) to prevent a
+                // first-activation bypass where Status is Inactive before OnEnter sets Running.
+                if (!caps.Capabilities.HasFlag(ActorCapabilities.CanShoot))
                 {
                     channel.Status = NodeStatus.Failure;
                     continue;

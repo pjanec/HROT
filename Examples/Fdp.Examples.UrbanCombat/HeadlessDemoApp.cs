@@ -348,7 +348,7 @@ namespace Fdp.Examples.UrbanCombat
             // SpatialHashSystem and CarKinematicsSystem are both [UpdateInGroup(SimulationSystemGroup)].
             // CarKinematicsSystem is [UpdateAfter(SpatialHashSystem)] — topological sort handles order.
             _simGroup.AddSystem(new SpatialHashSystem());
-            _simGroup.AddSystem(new CarKinematicsSystem(Road, _trajectoryPool));
+            _simGroup.AddSystem(new CarKinematicsSystem(_trajectoryPool));
 
             // ── PostSimulation group ─────────────────────────────────────────────────
             _postSimGroup = new PostSimulationSystemGroup();

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Kernel;
 
@@ -193,7 +194,46 @@ namespace FDP.Toolkit.Scenario
 
         private static readonly MethodInfo _createJsonValueGeneric =
             typeof(FdpAutoSerializer)
-                .GetMethod(nameof(CreateJsonValue), BindingFlags.NonPublic | BindingFlags.Static)!;
+                .GetMethod(nameof(CreateJsonValue), BindingFlags.NonPublic | BindingFlags.Static)!
+                .GetGenericMethodDefinition();
+
+        /// <summary>
+        /// JsonSerializerOptions that includes public fields in addition to properties.
+        /// Required for System.Numerics types (Vector3, Quaternion) which use public fields
+        /// rather than properties — the default System.Text.Json options skip fields entirely.
+        /// </summary>
+        private static readonly JsonSerializerOptions _fieldAwareOptions = new JsonSerializerOptions
+        {
+            IncludeFields = true,
+        };
+
+        /// <summary>
+        /// Serializes a value of type <typeparamref name="T"/> to a <see cref="JsonNode"/>
+        /// using <see cref="JsonSerializer"/> with <see cref="_fieldAwareOptions"/>.
+        /// Handles both primitive types (as JsonValue) and field-based structs like
+        /// <c>Vector3</c>/<c>Quaternion</c> (as JsonObject) correctly across JSON string roundtrips.
+        /// </summary>
+        private static JsonNode? SerializeFieldToNode<T>(T value)
+            => JsonSerializer.SerializeToNode(value, _fieldAwareOptions);
+
+        private static readonly MethodInfo _serializeFieldToNodeGeneric =
+            typeof(FdpAutoSerializer)
+                .GetMethod(nameof(SerializeFieldToNode), BindingFlags.NonPublic | BindingFlags.Static)!
+                .GetGenericMethodDefinition();
+
+        /// <summary>
+        /// Deserializes a <see cref="JsonNode"/> to type <typeparamref name="T"/>
+        /// using <see cref="_fieldAwareOptions"/>.
+        /// Handles both <see cref="JsonValue"/> (primitives) and <see cref="JsonObject"/>
+        /// (complex structs like Vector3, Quaternion) through the JSON roundtrip.
+        /// </summary>
+        private static T DeserializeNode<T>(JsonNode node)
+            => node.Deserialize<T>(_fieldAwareOptions)!;
+
+        private static readonly MethodInfo _deserializeNodeGeneric =
+            typeof(FdpAutoSerializer)
+                .GetMethod(nameof(DeserializeNode), BindingFlags.NonPublic | BindingFlags.Static)!
+                .GetGenericMethodDefinition();
 
         private static readonly MethodInfo _jsonNodeGetValueGeneric =
             typeof(JsonNode).GetMethod("GetValue", Type.EmptyTypes)
@@ -292,10 +332,11 @@ namespace FDP.Toolkit.Scenario
                 }
                 else
                 {
-                    // CreateJsonValue<fieldType>(comp.field)
+                    // SerializeFieldToNode<fieldType>(comp.field)
+                    // Handles both primitives (JsonValue) and nested structs (JsonObject)
                     jsonNodeExpr = Expression.Call(
                         null,
-                        _createJsonValueGeneric.MakeGenericMethod(field.FieldType),
+                        _serializeFieldToNodeGeneric.MakeGenericMethod(field.FieldType),
                         fieldAccess);
                 }
 
@@ -358,10 +399,12 @@ namespace FDP.Toolkit.Scenario
                 }
                 else
                 {
-                    // jsonObj["fieldName"].GetValue<fieldType>()
+                    // DeserializeNode<fieldType>(jsonObj["fieldName"])
+                    // Handles both JsonValue (primitives) and JsonObject (nested structs)
                     fieldValue = Expression.Call(
-                        itemAccess,
-                        _jsonNodeGetValueGeneric.MakeGenericMethod(field.FieldType));
+                        null,
+                        _deserializeNodeGeneric.MakeGenericMethod(field.FieldType),
+                        itemAccess);
                 }
 
                 memberBindings.Add(Expression.Bind(field, fieldValue));

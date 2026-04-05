@@ -114,7 +114,7 @@ public class CarKinemApp : FdpApplication
         _spatialSystem = new SpatialHashSystem();
         _formationSystem = new FormationTargetSystem(_formationTemplates, _trajectoryPool);
         _commandSystem = new VehicleCommandSystem();
-        _kinematicsSystem = new CarKinematicsSystem(_roadNetwork, _trajectoryPool);
+        _kinematicsSystem = new CarKinematicsSystem(_trajectoryPool);
         
         // Initialize Kernel Time
         var timeConfig = new TimeControllerConfig { Role = TimeRole.Standalone };

@@ -341,7 +341,20 @@ namespace Fdp.Kernel
 
         // IDs 160–199 are reserved for project specific application-level components.
 
-        // ── Reserved (200–255) ───────────────────────────────────────────────────
+        // ── Zone toolkit (201+) ─────────────────────────────────────────────────
+        // NOTE: IDs 20–79 are fully allocated across toolkit expansion blocks.
+        // ID 200 is reserved by FDP.Toolkit.Scenario (ScenarioComponentIds.ScenarioIgnoreTag).
+        // Zone-environment components start at 201.
+
+        /// <summary>
+        /// <c>ZoneEnvironmentData</c> — ECS singleton carrying the active zone's static environment
+        /// (road network blob, terrain reference).  Written by <c>ZoneManagerService</c> on scenario
+        /// load; read by <c>CarKinematicsSystem</c> to obtain road-graph data without constructor
+        /// injection.  Defined in <c>FDP.Toolkit.CarKinem</c>.
+        /// </summary>
+        public const byte ZoneEnvironmentData = 201;
+
+        // IDs 202–255 are reserved for future toolkit/zone components.
 
     }
 }

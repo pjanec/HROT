@@ -22,12 +22,10 @@ namespace CarKinem.Systems
     [UpdateAfter(typeof(FormationTargetSystem))]
     public class CarKinematicsSystem : ComponentSystem
     {
-        private readonly RoadNetworkBlob _roadNetwork;
         private readonly TrajectoryPoolManager _trajectoryPool;
         
-        public CarKinematicsSystem(RoadNetworkBlob roadNetwork, TrajectoryPoolManager trajectoryPool)
+        public CarKinematicsSystem(TrajectoryPoolManager trajectoryPool)
         {
-            _roadNetwork = roadNetwork;
             _trajectoryPool = trajectoryPool;
         }
 
@@ -54,6 +52,12 @@ namespace CarKinem.Systems
             _perfStopwatch?.Restart();
 
             float dt = DeltaTime;
+
+            // Read road network from ZoneEnvironmentData singleton (empty blob when no zone loaded).
+            // Never return early on absence — non-road vehicle physics must always run.
+            var roadNetwork = World.HasSingleton<ZoneEnvironmentData>()
+                ? World.GetSingleton<ZoneEnvironmentData>().RoadNetwork
+                : default; // empty blob — safe for non-road scenarios
             
             // Read spatial grid from singleton (Data-Oriented dependency)
             if (!World.HasSingleton<SpatialGridData>()) return;
@@ -79,7 +83,7 @@ namespace CarKinem.Systems
                 // Zero-allocation standard iteration
                 foreach (var entity in query)
                 {
-                    UpdateVehicle(entity, dt, spatialGrid);
+                    UpdateVehicle(entity, dt, spatialGrid, roadNetwork);
                 }
             }
             else
@@ -87,7 +91,7 @@ namespace CarKinem.Systems
                 // Kernel optimized parallel execution
                 query.ForEachParallel(entity =>
                 {
-                    UpdateVehicle(entity, dt, spatialGrid);
+                    UpdateVehicle(entity, dt, spatialGrid, roadNetwork);
                 });
             }
 
@@ -109,7 +113,8 @@ namespace CarKinem.Systems
         }
         
         // THREAD-SAFE: Method operates on unique entity and uses read-only shared data
-        private void UpdateVehicle(Entity entity, float dt, SpatialHashGrid spatialGrid)
+        private void UpdateVehicle(Entity entity, float dt, SpatialHashGrid spatialGrid,
+            RoadNetworkBlob roadNetwork)
         {
             var state = World.GetComponent<VehicleState>(entity);
             var tf = World.GetComponent<SimTransform>(entity);
@@ -135,7 +140,7 @@ namespace CarKinem.Systems
                 case KinematicsMode.RoadGraph:
                     // This updates nav state internal phase/progress, so we pass by ref
                     (targetPos, targetHeading, targetSpeed) = RoadGraphNavigator.UpdateRoadGraphNavigation(
-                        ref nav, pos2D, _roadNetwork);
+                        ref nav, pos2D, roadNetwork);
                     break;
                     
                 case KinematicsMode.CustomTrajectory:

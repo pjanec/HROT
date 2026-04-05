@@ -215,7 +215,7 @@ namespace Fdp.Examples.Scenarios.Replay
 
             // ── Kinematics module (DirectSystems pattern matching AutoDriveScenario) ─
             var spatialHash = new SpatialHashSystem();
-            var kinematics  = new CarKinematicsSystem(new RoadNetworkBlob(), new TrajectoryPoolManager())
+            var kinematics  = new CarKinematicsSystem(new TrajectoryPoolManager())
             {
                 ForceSerial = true   // deterministic: single-threaded partition-free
             };

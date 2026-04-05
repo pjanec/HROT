@@ -593,12 +593,26 @@ namespace Fdp.Examples.Scenarios.Integrated
 
         private void RegisterDoctrines()
         {
+            RegisterUrbanCombatDoctrines(_doctrineRegistry);
+        }
+
+        /// <summary>
+        /// Registers all UrbanCombat narrative doctrines into <paramref name="registry"/>.
+        ///
+        /// <para>Call this from any host (e.g. a cluster SimHostApp) that needs to execute
+        /// UrbanCombat entities loaded from a scenario file.  The instance-method overload
+        /// <c>RegisterDoctrines()</c> delegates here.</para>
+        /// </summary>
+        public static void RegisterUrbanCombatDoctrines(DoctrineRegistry registry)
+        {
+            if (registry == null) throw new ArgumentNullException(nameof(registry));
+
             // ── Civilian doctrines (BrainTier=0; TrafficBrainSystem absent — civilians static) ──
-            _doctrineRegistry.Register(DoctrineWanderCivil, "WanderCivil",
+            registry.Register(DoctrineWanderCivil, "WanderCivil",
                 new DoctrineDefinition { Name = "WanderCivil", BrainTier = 0 });
 
             // ── APC: HSM ConvoyEscort ─────────────────────────────────────────
-            _doctrineRegistry.Register(DoctrineConvoyEscort, "ConvoyEscort",
+            registry.Register(DoctrineConvoyEscort, "ConvoyEscort",
                 new DoctrineDefinition
                 {
                     Name          = "ConvoyEscort",
@@ -612,7 +626,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             infantryReg.Register("Action_AimAndFire",   BTreeNodes.Action_AimAndFire);
             infantryReg.Register("Action_HoldPosition", BTreeNodes.Action_HoldPosition);
             var infantryBlob = TreeCompiler.CompileFromJson(InfantryCombatJson);
-            _doctrineRegistry.Register(DoctrineInfantryCombat, "InfantryCombat",
+            registry.Register(DoctrineInfantryCombat, "InfantryCombat",
                 new DoctrineDefinition
                 {
                     Name             = "InfantryCombat",
@@ -626,7 +640,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             ambushReg.Register("Action_AimAndFire",   BTreeNodes.Action_AimAndFire);
             ambushReg.Register("Action_HoldPosition", BTreeNodes.Action_HoldPosition);
             var ambushBlob = TreeCompiler.CompileFromJson(AmbushJson);
-            _doctrineRegistry.Register(DoctrineAmbush, "Ambush",
+            registry.Register(DoctrineAmbush, "Ambush",
                 new DoctrineDefinition
                 {
                     Name             = "Ambush",
@@ -698,7 +712,7 @@ namespace Fdp.Examples.Scenarios.Integrated
 
                 // ── PostSim equivalent ──
                 new SpatialHashSystem(),
-                new CarKinematicsSystem(_road ?? throw new InvalidOperationException("Road not initialized"), _trajectoryPool!),
+                new CarKinematicsSystem(_trajectoryPool!),
                 new LinearKinematicsSystem(),
                 new BallisticsSystem(),
             };

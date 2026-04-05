@@ -43,7 +43,7 @@ namespace ModuleHost.Benchmarks
             
             // Create systems
             _spatialSystem = new SpatialHashSystem();
-            _kinematicsSystem = new CarKinematicsSystem(_roadNetwork, _trajectoryPool);
+            _kinematicsSystem = new CarKinematicsSystem(_trajectoryPool);
             
             _spatialSystem.Create(_repo);
             _kinematicsSystem.Create(_repo);

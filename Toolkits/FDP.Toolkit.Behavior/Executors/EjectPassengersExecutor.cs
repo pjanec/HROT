@@ -28,7 +28,10 @@ namespace FDP.Toolkit.Behavior.Executors
     public class EjectPassengersExecutor : IActionExecutor<InteractionChannel>
     {
         /// <inheritdoc/>
-        public void OnEnter(Entity entity, ref InteractionChannel channel, EntityRepository world) { }
+        public void OnEnter(Entity entity, ref InteractionChannel channel, EntityRepository world)
+        {
+            channel.Status = NodeStatus.Running;
+        }
 
         /// <inheritdoc/>
         public void Execute(Entity entity, ref InteractionChannel channel, EntityRepository world, float dt)

@@ -338,7 +338,7 @@ namespace Fdp.Examples.Scenarios.Network
             // so the Muscle kernel drives vehicle physics each tick.
             // Systems are manually Created with _muscleWorld before kernel.Initialize().
             var muscleSpatialHash = new SpatialHashSystem();
-            var muscleKinematics  = new CarKinematicsSystem(new RoadNetworkBlob(), new TrajectoryPoolManager())
+            var muscleKinematics  = new CarKinematicsSystem(new TrajectoryPoolManager())
             {
                 ForceSerial = true   // deterministic: no parallel partitioning in CI
             };

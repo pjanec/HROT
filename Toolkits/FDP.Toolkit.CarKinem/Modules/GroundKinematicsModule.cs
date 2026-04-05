@@ -81,7 +81,7 @@ namespace FDP.Toolkit.CarKinem.Modules
             group.AddSystem(new SpatialHashSystem());
             group.AddSystem(new FormationTargetSystem(FormationTemplates, TrajectoryPool));
             group.AddSystem(new VehicleCommandSystem());
-            group.AddSystem(new CarKinematicsSystem(_roadNetwork, TrajectoryPool));
+            group.AddSystem(new CarKinematicsSystem(TrajectoryPool));
             group.AddSystem(new NavigationExecutionSystem());
             // LinearKinematicsSystem was previously registered directly in SimulationLogicModule
             // because FDP.Toolkit.Physics→CarKinem made it circular.

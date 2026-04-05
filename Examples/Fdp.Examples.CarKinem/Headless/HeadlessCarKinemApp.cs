@@ -68,7 +68,7 @@ namespace Fdp.Examples.CarKinem.Headless
             _spatialSystem = new SpatialHashSystem();
             _formationSystem = new FormationTargetSystem(_formationTemplates, _trajectoryPool);
             _commandSystem = new VehicleCommandSystem();
-            _kinematicsSystem = new CarKinematicsSystem(_roadNetwork, _trajectoryPool);
+            _kinematicsSystem = new CarKinematicsSystem(_trajectoryPool);
             
             // Initialize Systems
             _spatialSystem.Create(Repository);

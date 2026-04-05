@@ -89,7 +89,7 @@ namespace Fdp.Examples.Scenarios.Kinematics
 
             // ── Systems ───────────────────────────────────────────────────────
             var spatialHash = new SpatialHashSystem();
-            var kinematics  = new CarKinematicsSystem(new RoadNetworkBlob(), new TrajectoryPoolManager())
+            var kinematics  = new CarKinematicsSystem(new TrajectoryPoolManager())
             {
                 ForceSerial = true   // deterministic: no parallel partitioning in CI
             };

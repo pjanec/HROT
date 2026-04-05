@@ -93,6 +93,13 @@ namespace FDP.Toolkit.Combat.Systems
                     }
                     World.DestroyEntity(evt.HitEntity);
                 }
+                else if (World.HasComponent<ActorCapabilityState>(evt.HitEntity))
+                {
+                    // Non-lethal hit: strip CanMove so HsmDamageBridgeSystem can detect
+                    // the mobility-kill transition (set→cleared) and inject MobilityLost.
+                    ref var caps = ref World.GetComponentRW<ActorCapabilityState>(evt.HitEntity);
+                    caps.Capabilities &= ~ActorCapabilities.CanMove;
+                }
 
                 // 8. Destroy the bullet entity (single-hit — bullet is consumed on impact).
                 World.DestroyEntity(bulletEntity);

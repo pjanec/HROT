@@ -39,7 +39,18 @@ namespace FDP.Toolkit.Orchestration.Handlers
 			_pendingJson = null;
 			_pendingTransactionId = null;
 
-			var scenarioId = intent.DomainPayload as string;
+			// DomainPayload may be a plain string (legacy / test path) or an
+			// EditLoadHandlerPayload record struct used by ClusterMaster's fan-out.
+			var scenarioId = intent.DomainPayload is EditLoadHandlerPayload elp
+				? elp.ScenarioId
+				: intent.DomainPayload as string;
+			System.Console.WriteLine(
+				$"[DIAG] RSL.PrepareAsync: op={intent.Operation} scenId='{scenarioId ?? "(null)"}' payloadType={intent.DomainPayload?.GetType().Name ?? "(null)"}");
+			FDP.Kernel.Logging.FdpLog<ReferenceScenarioLoadHandler>.Info(
+				"[ReferenceScenarioLoadHandler] PrepareAsync called. Operation={0}, ScenarioId={1}, PayloadType={2}",
+				intent.Operation,
+				scenarioId ?? "(null)",
+				intent.DomainPayload?.GetType().Name ?? "(null)");
 			if (string.IsNullOrWhiteSpace(scenarioId))
 				return System.Threading.Tasks.Task.FromResult<object?>(null);
 
@@ -53,6 +64,8 @@ namespace FDP.Toolkit.Orchestration.Handlers
 		/// <inheritdoc />
 		public void Commit(ExecuteNodeOpIntent intent, Fdp.Kernel.EntityRepository? repo)
 		{
+			System.Console.WriteLine(
+				$"[DIAG] RSL.Commit: txId={intent.TransactionId} pendingJson={(_pendingJson != null ? "set" : "null")} pendingTx={_pendingTransactionId} match={_pendingTransactionId == intent.TransactionId}");
 			if (_pendingJson == null || _pendingTransactionId != intent.TransactionId) return;
 
 			var targetRepo = repo ?? _world;

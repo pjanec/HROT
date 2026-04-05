@@ -33,7 +33,7 @@ namespace CarKinem.Tests.Systems
             var trajectoryPool = new TrajectoryPoolManager();
             
             var spatialSystem = new SpatialHashSystem();
-            var kinematicsSystem = new CarKinematicsSystem(roadNetwork, trajectoryPool);
+            var kinematicsSystem = new CarKinematicsSystem(trajectoryPool);
             
             spatialSystem.Create(repo);
             kinematicsSystem.Create(repo);
@@ -118,7 +118,7 @@ namespace CarKinem.Tests.Systems
             var roadNetwork = new RoadNetworkBuilder().Build(5f, 40, 40);
             var trajectoryPool = new TrajectoryPoolManager();
             var spatialSystem = new SpatialHashSystem();
-            var kinematicsSystem = new CarKinematicsSystem(roadNetwork, trajectoryPool);
+            var kinematicsSystem = new CarKinematicsSystem(trajectoryPool);
             
             spatialSystem.Create(repo);
             kinematicsSystem.Create(repo);
@@ -192,7 +192,7 @@ namespace CarKinem.Tests.Systems
             int trajId = trajectoryPool.RegisterTrajectory(new[] { new Vector2(0,0), new Vector2(100,0) });
 
             var spatialSystem = new SpatialHashSystem();
-            var kinematicsSystem = new CarKinematicsSystem(roadNetwork, trajectoryPool);
+            var kinematicsSystem = new CarKinematicsSystem(trajectoryPool);
             
             spatialSystem.Create(repo);
             kinematicsSystem.Create(repo);

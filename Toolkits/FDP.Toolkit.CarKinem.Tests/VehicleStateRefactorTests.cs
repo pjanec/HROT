@@ -37,7 +37,7 @@ namespace FDP.Toolkit.CarKinem.Tests
             // Dependencies
             var roadNetwork = new RoadNetworkBuilder().Build(10f, 10, 10);
             var trajectoryPool = new TrajectoryPoolManager();
-            var sys = new CarKinematicsSystem(roadNetwork, trajectoryPool);
+            var sys = new CarKinematicsSystem(trajectoryPool);
             
             var spatialSys = new SpatialHashSystem();
             spatialSys.Create(repo);
