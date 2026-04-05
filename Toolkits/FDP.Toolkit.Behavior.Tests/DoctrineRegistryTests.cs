@@ -85,5 +85,40 @@ namespace FDP.Toolkit.Behavior.Tests
             Assert.False(found);
             Assert.Null(result);
         }
+
+        // ── Test 4 — GetRegisteredNames: two doctrines ──────────────────────
+        /// <summary>
+        /// After registering two doctrines with different names, <see cref="DoctrineRegistry.GetRegisteredNames"/>
+        /// must return a list containing both names (order is unspecified).
+        /// </summary>
+        [Fact]
+        public void GetRegisteredNames_AfterTwoRegistrations_ReturnsBothNames()
+        {
+            var registry = new DoctrineRegistry();
+            registry.Register(1, "Alpha", new DoctrineDefinition { Name = "Alpha", BrainTier = BehaviorConstants.BrainTierBTree });
+            registry.Register(2, "Bravo", new DoctrineDefinition { Name = "Bravo", BrainTier = BehaviorConstants.BrainTierBTree });
+
+            var names = registry.GetRegisteredNames();
+
+            Assert.Contains("Alpha", names);
+            Assert.Contains("Bravo", names);
+            Assert.Equal(2, names.Count);
+        }
+
+        // ── Test 5 — GetRegisteredNames: empty registry ─────────────────────
+        /// <summary>
+        /// An empty registry must return an empty (non-null) list from
+        /// <see cref="DoctrineRegistry.GetRegisteredNames"/>.
+        /// </summary>
+        [Fact]
+        public void GetRegisteredNames_EmptyRegistry_ReturnsEmptyList_NotNull()
+        {
+            var registry = new DoctrineRegistry();
+
+            var names = registry.GetRegisteredNames();
+
+            Assert.NotNull(names);
+            Assert.Empty(names);
+        }
     }
 }

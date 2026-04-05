@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using Fbt.Runtime;
 using Fhsm.Kernel.Data;
 using FDP.Toolkit.Behavior.Components;
@@ -98,6 +99,13 @@ namespace FDP.Toolkit.Behavior
             int doctrineId,
             [MaybeNullWhen(false)] out DoctrineDefinition definition)
             => _definitions.TryGetValue(doctrineId, out definition);
+
+        /// <summary>
+        /// Returns a snapshot of all doctrine names currently registered.
+        /// The returned list is a copy of the internal key set and cannot mutate the registry.
+        /// </summary>
+        public IReadOnlyList<string> GetRegisteredNames()
+            => _nameToId.Keys.ToList();
 
         /// <summary>
         /// Reverse-maps a stable integer doctrine ID back to its registered name.
