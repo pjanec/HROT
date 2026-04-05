@@ -32,10 +32,10 @@ shared library, replacing `IExConLogic` dependencies with focused Port interface
 **Goal:** Create the four panels that have no ExCon predecessor — `SharedOrbatPanel` (with
 embarkation drag-and-drop), `PreviewPanel`, `ZoneEditorPanel`, and `SharedContextMenuPopulator`.
 
-- [ ] **EDIT1-N001** `SharedOrbatPanel` with ImGui embarkation drag-and-drop [details](./TASK-DETAIL.md#edit1-n001--sharedorbatpanel-with-embarkation-drag-and-drop)
-- [ ] **EDIT1-N002** `PreviewPanel` (`IPreviewController` — Edit/Preview toggle) [details](./TASK-DETAIL.md#edit1-n002--previewpanel-ipreviewcontroller)
-- [ ] **EDIT1-N003** `ZoneEditorPanel` (`IZoneAuthoringController` — road network + obstacle authoring) [details](./TASK-DETAIL.md#edit1-n003--zoneeditorpanel-izoneauthoringcontroller)
-- [ ] **EDIT1-N004** `SharedContextMenuPopulator` + `IEntityActionController` (entity + empty-map menus) [details](./TASK-DETAIL.md#edit1-n004--sharedcontextmenupopulator--ientityactioncontroller)
+- [x] **EDIT1-N001** `SharedOrbatPanel` with ImGui embarkation drag-and-drop [details](./TASK-DETAIL.md#edit1-n001--sharedorbatpanel-with-embarkation-drag-and-drop)
+- [x] **EDIT1-N002** `PreviewPanel` (`IPreviewController` — Edit/Preview toggle) [details](./TASK-DETAIL.md#edit1-n002--previewpanel-ipreviewcontroller)
+- [x] **EDIT1-N003** `ZoneEditorPanel` (`IZoneAuthoringController` — road network + obstacle authoring) [details](./TASK-DETAIL.md#edit1-n003--zoneeditorpanel-izoneauthoringcontroller)
+- [x] **EDIT1-N004** `SharedContextMenuPopulator` + `IEntityActionController` (entity + empty-map menus) [details](./TASK-DETAIL.md#edit1-n004--sharedcontextmenupopulator--ientityactioncontroller)
 
 ---
 

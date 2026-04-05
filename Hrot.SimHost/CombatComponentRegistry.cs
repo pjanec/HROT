@@ -38,6 +38,9 @@ namespace Hrot.SimHost
             world.RegisterEvent<LosCheckRequestEvent>();
             world.RegisterEvent<TargetVisibleEvent>();
             world.RegisterEvent<TargetHeardEvent>();
+
+            // Target seeding command (edit-1/EDIT1-E002)
+            world.RegisterEvent<SeedTargetCommand>();
         }
     }
 }

@@ -1,5 +1,6 @@
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Behavior.Events;
 using FDP.Toolkit.Navigation;
 
 namespace Hrot.SimHost
@@ -43,6 +44,10 @@ namespace Hrot.SimHost
             // CQRS navigation command — written by the Brain tier (MoveToExecutor)
             // and read by the Muscle tier (NavigationIntentBridgeSystem).
             world.RegisterComponent<NavigationIntent>();
+
+            // Embarkation commands (edit-1/EDIT1-E001)
+            world.RegisterEvent<EmbarkEntityCommand>();
+            world.RegisterEvent<DisembarkEntityCommand>();
         }
     }
 }
