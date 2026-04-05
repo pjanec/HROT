@@ -20,6 +20,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Hrot.ClusterRunner\Hrot.ClusterRunner.csproj" />
     <ProjectReference Include="..\Hrot.Editor\Hrot.Editor.csproj" />
     <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />

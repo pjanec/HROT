@@ -16,8 +16,9 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// </summary>
 public sealed class DistributedBrainMuscleIntegrationTests
 {
-    // Domain range starting after HrotRunnerHarness (100–199) and CgfHarness (200–299) ranges.
-    private static int _domainCounter = 299;
+    // Domain range starting after HrotRunnerHarness (100–199) and CgfHarness (200–219).
+    // Must stay within CycloneDDS valid range (0–232); previous value of 299 was out of range.
+    private static int _domainCounter = 219;
 
     private const int SpawnPropagationTimeoutMs  = 5_000;
     private const int MissionAssignmentTimeoutMs = 10_000;

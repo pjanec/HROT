@@ -34,8 +34,9 @@ public class CgfSubsystemTests : IDisposable
         var names = (IReadOnlyList<string>)namesProp!.GetValue(app)!;
 
         Assert.Contains("CgfLogicPack",         names);
+        Assert.Contains("GhostCleanup",          names);
         Assert.Contains("EntityStatesIngress",   names);
         Assert.Contains("ActuatorIntentsEgress", names);
-        Assert.Equal(3, names.Count);
+        Assert.Equal(4, names.Count);
     }
 }

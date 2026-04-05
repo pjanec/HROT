@@ -15,6 +15,8 @@
       "Args": { "TargetState": "OperatingReplay", "ExerciseId": "e2e-branch-src" } },
     { "Time": 12.0, "Action": "clusterop",
       "Args": { "TargetState": "OperatingLive", "ExerciseId": "e2e-branch-dst" } },
+    { "Time": 12.5, "Action": "wait",
+      "Args": { "seconds": 3.0 } },
     { "Time": 14.0, "Action": "spawn",
       "Args": { "x": 50.0, "y": 50.0, "z": 0.0 },
       "SaveResult": "entity_d" },

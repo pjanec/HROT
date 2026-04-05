@@ -121,7 +121,7 @@ namespace Hrot.NED.Descriptors.Orchestration
 
     [DdsTopic("SysOpStatus")]
     [DdsIdlFile("hrot-orchestration")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal)]
     public partial struct ClusterOpStatus
     {
         public Guid RequestId;

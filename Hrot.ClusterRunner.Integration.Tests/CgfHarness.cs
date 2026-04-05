@@ -28,6 +28,9 @@ public sealed class CgfHarness : IDisposable
     public int          DomainId { get; }
     public CgfSubsystem CgfSvc   { get; }
 
+    /// <summary>TestHook: direct access to CGF ghost ECS world for state assertions.</summary>
+    internal Fdp.Kernel.EntityRepository? World => CgfSvc.World;
+
     // ── Auto-increment constructor ────────────────────────────────────────────
 
     /// <summary>

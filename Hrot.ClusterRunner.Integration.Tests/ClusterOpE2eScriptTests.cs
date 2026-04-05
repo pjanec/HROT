@@ -18,10 +18,19 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// loads a JSON script from TestScripts/, and asserts that
 /// <see cref="HeadlessTestExecutor.RunAsync"/> returns 0 (pass).
 /// </summary>
+/// <remarks>
+/// In the <c>HeavyE2ETests</c> collection so it runs sequentially with
+/// <see cref="AllSubsystemsClusterTransitionTests"/> to avoid CPU starvation:
+/// both use wall-clock <c>Stopwatch</c> scheduling internally.
+/// </remarks>
+[Collection("HeavyE2ETests")]
 public sealed class ClusterOpE2eScriptTests
 {
     // Unique DDS domain IDs so parallel test runs don't interfere.
-    private const int DomainBase = 130;
+    // Must be above:
+    //   HrotRunnerHarness auto-counter (DomainIdBase=100, 46 runtime usages → 100–145)
+    //   AllSubsystemsClusterTransitionTests own counter (DomainBase=160 → 160–161)
+    private const int DomainBase = 170;
     private static int _domainSeq = DomainBase - 1;
     private static int NextDomainId() => Interlocked.Increment(ref _domainSeq);
 
@@ -74,7 +83,7 @@ public sealed class ClusterOpE2eScriptTests
             executor.RegisterHandler(new AssertPositionActionHandler(world, logger));
             executor.RegisterHandler(new AssertEntityCountActionHandler(world, logger));
             executor.RegisterHandler(new AddMovingTagActionHandler(world, logger));
-            executor.RegisterHandler(new ClusterOpActionHandler(clusterMaster, statusReader, logger));
+            executor.RegisterHandler(new ClusterOpActionHandler(clusterMaster, statusReader, logger, timeoutSeconds: 30.0));
         };
 
         return await executor.RunAsync().ConfigureAwait(false);

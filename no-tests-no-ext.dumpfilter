@@ -27,6 +27,8 @@
 - *.log
 #- FDP
 #+ FDP/Toolkits
-
++ Hrot.ClusterRunner.Integration.Tests
++ Hrot.Orchestrator.Integration.Tests
++ Hrot.SimHost.Integration.Tests
 
 

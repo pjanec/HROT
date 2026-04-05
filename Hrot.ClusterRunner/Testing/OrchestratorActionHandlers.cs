@@ -143,6 +143,17 @@ namespace Hrot.ClusterRunner.Testing
             }
 
             _log.LogDebug("sysop: enqueuing {OpType} request {Id}", request.OperationType, requestId);
+
+            // Wait for the ClusterOpStatus writer (OrchestratorSubsystem) to be discovered by
+            // this reader before enqueuing the request. Without this, a status published before
+            // DDS discovery completes is lost (Volatile QoS). Discovery can be temporarily slow
+            // after another test tears down a DDS-heavy domain (e.g. recording + replay test).
+            // Once statusReader matches the writer, the DDS participant table is settled enough
+            // for subsequent same-domain writer-reader pairs (NodeOpCommand) to also match quickly.
+            var discoveryDeadline = DateTime.UtcNow.AddSeconds(10.0);
+            while (_statusReader.CurrentStatus.CurrentCount == 0 && DateTime.UtcNow < discoveryDeadline)
+                await Task.Delay(50).ConfigureAwait(false);
+
             await _clusterMaster.HandleClusterOpRequestAsync(request).ConfigureAwait(false);
 
             // Poll until the matching SysOpStatus (non-InProgress) arrives or timeout.

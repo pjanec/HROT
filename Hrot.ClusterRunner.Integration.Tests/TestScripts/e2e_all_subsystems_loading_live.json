@@ -9,7 +9,7 @@
       "Args": {
         "TargetState": "OperatingLive",
         "ExerciseId": "e2e-all-01",
-        "TimeoutSeconds": 6.0
+        "TimeoutSeconds": 15.0
       }
     }
   ]

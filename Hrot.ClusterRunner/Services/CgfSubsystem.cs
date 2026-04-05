@@ -3,9 +3,12 @@ using Hrot.Map.Common;
 using Hrot.Map.Common.Translators;
 using Hrot.SimHost.Translators;
 using FDP.Toolkit.Behavior;
+using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using FDP.Framework.Runner;
+using Fdp.Kernel;
+using ModuleHost.Core.Abstractions;
 
 namespace Hrot.ClusterRunner.Services;
 
@@ -27,6 +30,9 @@ public sealed class CgfSubsystem : ISubsystem
     /// <summary>TestHook: exposes the ghost entity map for integration tests.</summary>
     internal NetworkEntityMap? GhostEntityMap => _entityMap;
 
+    /// <summary>TestHook: exposes the CGF ECS world for integration tests.</summary>
+    internal Fdp.Kernel.EntityRepository? World => _app?.World;
+
     /// <inheritdoc/>
     public void Initialize(SubsystemConfig config)
     {
@@ -39,11 +45,12 @@ public sealed class CgfSubsystem : ISubsystem
         var ghostCreation    = new GhostCreationSystem(_entityMap);
 
         _app.Install(new CgfLogicPack(doctrineRegistry, _entityMap));
+        _app.Install(new GhostCleanupModule(_entityMap));
         _app.Install(new EntityStatesIngressPack(
             PackRole.Ingress,
             _app.Participant,
             _entityMap,
-            _app.EventBus,
+            _app.World.Bus,
             ghostCreation,
             geoTransform));
         _app.Install(new ActuatorIntentsEgressPack(
@@ -71,5 +78,58 @@ public sealed class CgfSubsystem : ISubsystem
     {
         _app?.Dispose();
         _app = null;
+    }
+
+    // ── Ghost entity cleanup ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// ECS system that handles <see cref="DestroyEntityCommand"/> events on the world bus
+    /// for ghost entities. Unregisters the entity from the entity map and destroys it in the
+    /// ECS world. Runs in PostSimulation phase (after SwapBuffers) so it sees events published
+    /// during the Input phase in the same frame.
+    /// </summary>
+    [UpdateInPhase(SystemPhase.PostSimulation)]
+    private sealed class GhostDestructionSystem : IEcsModuleSystem
+    {
+        private readonly NetworkEntityMap _entityMap;
+
+        public GhostDestructionSystem(NetworkEntityMap entityMap)
+        {
+            _entityMap = entityMap;
+        }
+
+        public void Execute(ISimulationView view, float dt)
+        {
+            var world = view as EntityRepository;
+            if (world == null) return;
+
+            foreach (var cmd in view.ConsumeManagedEvents<DestroyEntityCommand>())
+            {
+                if (_entityMap.TryGetEntity(cmd.NetworkId, out var entity))
+                {
+                    _entityMap.Unregister(cmd.NetworkId, view.Tick);
+                    if (world.IsAlive(entity))
+                        world.DestroyEntity(entity);
+                }
+            }
+        }
+    }
+
+    /// <summary>Thin <see cref="IEcsModule"/> wrapper that installs <see cref="GhostDestructionSystem"/>.</summary>
+    private sealed class GhostCleanupModule : IEcsModule
+    {
+        public string Name => "GhostCleanup";
+        public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
+
+        private readonly GhostDestructionSystem _system;
+
+        public GhostCleanupModule(NetworkEntityMap entityMap)
+        {
+            _system = new GhostDestructionSystem(entityMap);
+        }
+
+        public void RegisterSystems(ISystemRegistry registry) => registry.RegisterSystem(_system);
+
+        public void Tick(ISimulationView view, float dt) { }
     }
 }

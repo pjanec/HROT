@@ -31,6 +31,12 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// that ExCon's <c>ClusterSlave.LocalStateIdForTest</c> reaches the expected state.
 /// This is only possible when <c>CommitState</c> is <em>not</em> dropped.</para>
 /// </summary>
+/// <remarks>
+/// In the <c>HeavyE2ETests</c> collection so it runs sequentially with
+/// <see cref="ClusterOpE2eScriptTests"/> to avoid CPU starvation:
+/// both use wall-clock <c>Stopwatch</c> scheduling internally.
+/// </remarks>
+[Collection("HeavyE2ETests")]
 public sealed class AllSubsystemsClusterTransitionTests
 {
     // Use domain IDs starting at 160 to avoid collisions with ClusterOpE2eScriptTests (130+).
