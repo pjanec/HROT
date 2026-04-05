@@ -34,10 +34,10 @@ engine receives in-memory structs only.
 
 - [x] **PACK3-Z001** `ZoneEnvironmentData` ECS singleton + `CarKinematicsSystem` singleton refactor [details](./TASK-DETAIL.md#pack3-z001--zoneenvironmentdata-ecs-singleton--carkinematicssystem-refactor)
 - [x] **PACK3-Z002** App-layer DTOs: `HrotScenarioEnvelopeDto`, `ScenarioHeaderDto`, `ZoneDefinitionDto`, `ZoneObstacleDto`, `HrotJsonOptions` [details](./TASK-DETAIL.md#pack3-z002--application-layer-dtos-for-scenario-envelope)
-- [ ] **PACK3-Z003** `IZoneManagerService` + `ZoneManagerService` (load road network + spawn obstacles) [details](./TASK-DETAIL.md#pack3-z003--izonmanagerservice-and-zonemanagerservice)
-- [ ] **PACK3-Z004** Custom load handlers: `HrotScenarioLoadHandler` (LoadingLive), `HrotEditLoadHandler` (LoadingEdit) [details](./TASK-DETAIL.md#pack3-z004--custom-load-handlers-hrotscenarioloadhandler-hroteditloadhandler)
-- [ ] **PACK3-Z005** `ScenarioFileService.SaveScenario` — serialise full `HrotScenarioEnvelopeDto` including Zones [details](./TASK-DETAIL.md#pack3-z005--scenariofileservice-save-with-zone-support)
-- [ ] **PACK3-Z006** Zone scenario load integration test (`ZoneScenarioLoadIntegrationTests`) [details](./TASK-DETAIL.md#pack3-z006--zone-scenario-load-integration-test)
+- [x] **PACK3-Z003** `IZoneManagerService` + `ZoneManagerService` (load road network + spawn obstacles) [details](./TASK-DETAIL.md#pack3-z003--izonmanagerservice-and-zonemanagerservice)
+- [x] **PACK3-Z004** Custom load handlers: `HrotScenarioLoadHandler` (LoadingLive), `HrotEditLoadHandler` (LoadingEdit) [details](./TASK-DETAIL.md#pack3-z004--custom-load-handlers-hrotscenarioloadhandler-hroteditloadhandler)
+- [x] **PACK3-Z005** `ScenarioFileService.SaveScenario` — serialise full `HrotScenarioEnvelopeDto` including Zones [details](./TASK-DETAIL.md#pack3-z005--scenariofileservice-save-with-zone-support)
+- [x] **PACK3-Z006** Zone scenario load integration test (`ZoneScenarioLoadIntegrationTests`) [details](./TASK-DETAIL.md#pack3-z006--zone-scenario-load-integration-test)
 
 ---
 
