@@ -21,5 +21,12 @@ namespace Hrot.Map.Common
         public const long Unit_TankPlatoon = 301;
         public const long Unit_InfantrySquad = 302;
         public const long Unit_TankPlatoon_Auto = 303;
+
+        // Civilian & Insurgent Types
+        public const long CivilianPedestrian = 501;
+        public const long CivilianCar = 502;
+        public const long MilitaryApc = 503;
+        public const long InfantrySoldier = 504;
+        public const long Insurgent = 505;
     }
 }
