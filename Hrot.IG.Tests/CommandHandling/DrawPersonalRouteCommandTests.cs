@@ -94,8 +94,6 @@ public class DrawPersonalRouteCommandTests : IDisposable
     public void CancelWithZeroPoints_SendsCancelledAck_NoCreateCalled()
     {
         var requestId = Guid.NewGuid();
-        var captured  = new List<MapCommandAck>();
-        _app.TestHook_SetCreateEntityRequestSink(_ => { }); // not needed; use gateway mock
 
         // Capture ACKs by intercepting the MapCommandAck writer indirectly via a sink.
         // The ACK is written to _mapCommandAckWriter which is set up by InitializeEmbedded.

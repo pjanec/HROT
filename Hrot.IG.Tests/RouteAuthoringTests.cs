@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
-using Hrot.NED.Common;
 using Hrot.Map.Common;
+using Hrot.Map.Common.Components;
+using FDP.Toolkit.NetworkSpawning.Events;
 using Xunit;
 
 namespace Hrot.IG.Tests;
@@ -14,24 +14,24 @@ namespace Hrot.IG.Tests;
 ///
 /// Verifies that <c>ParseCommandAndActivateAreaTool</c> activates a
 /// <see cref="PointSequenceTool"/> when <c>tkbType == TacGraphic_Route</c>,
-/// and that finishing the tool emits a well-formed <see cref="CreateEntityRequest"/>
-/// containing the three required descriptors.
+/// and that finishing the tool emits a well-formed <see cref="SpawnEntityCommand"/>
+/// with a <see cref="RoutePlan"/> in <see cref="SpawnEntityCommand.InitialComponents"/>.
 /// </summary>
 public class RouteAuthoringTests : System.IDisposable
 {
     private readonly IgApplication _app;
-    private readonly List<CreateEntityRequest> _captured = new();
+    private readonly List<SpawnEntityCommand> _captured = new();
 
     public RouteAuthoringTests()
     {
         _app = new IgApplication();
         _app.InitializeEmbedded(headless: true, domainIdOverride: 230);
-        _app.TestHook_SetCreateEntityRequestSink(req => _captured.Add(req));
+        _app.TestHook_SetSpawnCommandSink(cmd => _captured.Add(cmd));
     }
 
     public void Dispose()
     {
-        _app.TestHook_SetCreateEntityRequestSink(null);
+        _app.TestHook_SetSpawnCommandSink(null);
         _app.Dispose();
     }
 
@@ -44,7 +44,7 @@ public class RouteAuthoringTests : System.IDisposable
         new Vector2(500f, 600f),
     };
 
-    private CreateEntityRequest CaptureRequestFor(IReadOnlyList<Vector2> points)
+    private SpawnEntityCommand CaptureRequestFor(IReadOnlyList<Vector2> points)
     {
         _captured.Clear();
         _app.TestHook_ParseCommandAndActivateAreaTool(Guid.NewGuid(), "{\"tkbType\":8802}");
@@ -76,27 +76,21 @@ public class RouteAuthoringTests : System.IDisposable
     {
         _captured.Clear();
         _app.TestHook_ParseCommandAndActivateAreaTool(Guid.NewGuid(), "{\"tkbType\":8803}");
-        // No route tool is expected; do not assert IsPointSequenceToolActive since
-        // area authoring also uses PointSequenceTool — distinguish by the emitted request content.
-        // Finish with 3 points and check the EntityMaster descriptor type.
         _app.TestHook_DirectPointSequenceToolCommit(ThreePoints);
 
         if (_captured.Count == 1)
         {
-            var master = _captured[0].InitialDescriptors
-                .Find(d => d._d == EDescriptorType.dtEntityMaster);
-            Assert.NotEqual(TkbEntityTypes.TacGraphic_Route, master.EntityMaster.TkbType);
+            Assert.NotEqual(TkbEntityTypes.TacGraphic_Route, _captured[0].TkbType);
         }
-        // If no request was captured (area tool requires DDS and returns early), that
-        // is also acceptable for the non-route path — the key constraint is that
-        // the route-specific code was NOT reached.
+        // If no command was captured (area tool requires the sink to be set), that
+        // is also acceptable for the non-route path.
     }
 
-    // ── Emitted request shape ─────────────────────────────────────────────────
+    // ── Emitted command shape ─────────────────────────────────────────────────
 
     /// <summary>
     /// Finishing the route tool with 3 points must emit exactly one
-    /// <see cref="CreateEntityRequest"/> via the test sink.
+    /// <see cref="SpawnEntityCommand"/> via the test sink.
     /// </summary>
     [Fact]
     public void FinishCallback_3Points_EmitsExactlyOneRequest()
@@ -107,59 +101,57 @@ public class RouteAuthoringTests : System.IDisposable
     }
 
     /// <summary>
-    /// The emitted request must carry exactly 3 initial descriptors:
-    /// EntityMaster, GeoSpatial, and MapRoute.
+    /// The emitted command must carry route TkbType, InitialTransform (anchor = first waypoint)
+    /// and exactly 1 InitialComponent (RoutePlan).
     /// </summary>
     [Fact]
-    public void Request_HasExactlyThreeDescriptors()
+    public void Request_HasCorrectStructure()
     {
-        var req = CaptureRequestFor(ThreePoints);
+        var cmd = CaptureRequestFor(ThreePoints);
 
-        Assert.Equal(3, req.InitialDescriptors.Count);
+        Assert.Equal(TkbEntityTypes.TacGraphic_Route, cmd.TkbType);
+        Assert.True(cmd.InitialTransform.HasValue, "InitialTransform (first waypoint) must be set.");
+        Assert.NotNull(cmd.InitialComponents);
+        Assert.Single(cmd.InitialComponents!.OfType<RoutePlan>());
     }
 
     /// <summary>
-    /// The EntityMaster descriptor must advertise <c>TkbType == TacGraphic_Route</c>.
+    /// The EntityMaster TkbType must be <c>TacGraphic_Route</c>.
     /// </summary>
     [Fact]
     public void EntityMaster_TkbType_IsRoute()
     {
-        var req = CaptureRequestFor(ThreePoints);
+        var cmd = CaptureRequestFor(ThreePoints);
 
-        var master = req.InitialDescriptors.Find(d => d._d == EDescriptorType.dtEntityMaster);
-        Assert.Equal(TkbEntityTypes.TacGraphic_Route, master.EntityMaster.TkbType);
+        Assert.Equal(TkbEntityTypes.TacGraphic_Route, cmd.TkbType);
     }
 
     /// <summary>
-    /// The MapRoute descriptor must have the same number of waypoints as the input
-    /// points (one waypoint per canvas point, not filtered).
+    /// The <see cref="RoutePlan"/> must have the same number of waypoints as the input points.
     /// </summary>
     [Fact]
     public void MapRoute_HasCorrectWaypointCount()
     {
-        var req = CaptureRequestFor(ThreePoints);
+        var cmd = CaptureRequestFor(ThreePoints);
 
-        var mapRoute = req.InitialDescriptors.Find(d => d._d == EDescriptorType.dtMapRoute);
-        Assert.Equal(ThreePoints.Count, mapRoute.MapRoute.Points.Count);
+        var routePlan = cmd.InitialComponents!.OfType<RoutePlan>().Single();
+        Assert.Equal(ThreePoints.Count, routePlan.Waypoints.Count);
     }
 
     /// <summary>
-    /// The GeoSpatial descriptor's anchor position must equal the first waypoint's position
-    /// in the MapRoute descriptor — both derive from the same first input point.
+    /// The anchor position (InitialTransform) must match the first waypoint Cartesian position.
     /// </summary>
     [Fact]
     public void GeoSpatial_AnchorCorrespondsToFirstPoint()
     {
-        var req = CaptureRequestFor(ThreePoints);
+        var cmd = CaptureRequestFor(ThreePoints);
 
-        var geoSpatial = req.InitialDescriptors.Find(d => d._d == EDescriptorType.dtWorldPos);
-        var mapRoute   = req.InitialDescriptors.Find(d => d._d == EDescriptorType.dtMapRoute);
+        var routePlan    = cmd.InitialComponents!.OfType<RoutePlan>().Single();
+        var anchor       = cmd.InitialTransform!.Value.Position;
+        var firstWpPos   = routePlan.Waypoints[0].Position;
 
-        var anchor        = geoSpatial.WorldPos.Pos;
-        var firstWaypoint = mapRoute.MapRoute.Points[0].Position;
-
-        Assert.Equal(anchor.Latitude,  firstWaypoint.Latitude,  precision: 6);
-        Assert.Equal(anchor.Longitude, firstWaypoint.Longitude, precision: 6);
+        Assert.Equal(anchor.X, firstWpPos.X, precision: 2);
+        Assert.Equal(anchor.Y, firstWpPos.Y, precision: 2);
     }
 
     /// <summary>
@@ -176,20 +168,18 @@ public class RouteAuthoringTests : System.IDisposable
     }
 
     /// <summary>
-    /// The emitted request must have a non-empty <see cref="CreateEntityRequest.RequestId"/>
-    /// so the SimHost can correlate the response.
+    /// The emitted command must have a non-empty RequestId so SimHost can correlate the response.
     /// </summary>
     [Fact]
     public void Request_HasNonEmptyRequestId()
     {
-        var req = CaptureRequestFor(ThreePoints);
+        var cmd = CaptureRequestFor(ThreePoints);
 
-        Assert.NotEqual(Guid.Empty, req.RequestId);
+        Assert.NotEqual(Guid.Empty, cmd.RequestId);
     }
 
     /// <summary>
-    /// Supplying only 1 point (below the minimum of 2) must NOT emit a request —
-    /// the callback guard must reject the insufficient input silently.
+    /// Supplying only 1 point (below the minimum of 2) must NOT emit a command.
     /// </summary>
     [Fact]
     public void FinishCallback_1Point_DoesNotEmitRequest()

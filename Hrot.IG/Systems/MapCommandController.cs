@@ -1,8 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Numerics;
-using System.Text.Json;
-using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Hrot.IG.Abstractions;
@@ -91,14 +88,6 @@ public class MapCommandController
     /// the tool is finished the session is closed.
     /// </summary>
     private readonly Dictionary<Guid, bool> _pendingEntityRequests = new();
-
-    /// <summary>
-    /// Side-channel storage for pre-built <see cref="CreateEntityRequest"/> objects from the
-    /// area/route authoring pipeline. The <see cref="SpawnEntityCommandEgressTranslator"/> 
-    /// retrieves these via <see cref="TryDequeuePrebuilt"/> to write the full request to DDS
-    /// without losing any NED descriptors (dtMapVisualOverlay, dtMapRoute, etc.).
-    /// </summary>
-    private readonly Dictionary<Guid, CreateEntityRequest> _prebuiltRequests = new();
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -217,72 +206,27 @@ public class MapCommandController
     }
 
     /// <summary>
-    /// Called by <see cref="IgApplication"/> when the area-authoring tool commits a shape.
-    /// Stores the pre-built request in the side-channel dictionary so the egress translator can
-    /// retrieve it via <see cref="TryDequeuePrebuilt"/>, then publishes a <see cref="SpawnEntityCommand"/>
-    /// on the bus to signal the creation intent. <c>InitialComponents</c> is intentionally left null
-    /// to avoid conflicting with <see cref="FDP.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem"/>'s
-    /// ECS component registration path.
+    /// Called by the area/route authoring tool callback when the operator commits a shape.
+    /// Publishes the <see cref="SpawnEntityCommand"/> (which carries geometry via
+    /// <see cref="SpawnEntityCommand.InitialComponents"/>) directly onto the event bus.
+    /// The egress translator converts it to a <see cref="CreateEntityRequest"/> for DDS.
     /// </summary>
-    public void OnAreaEntityCreated(CreateEntityRequest request, bool isToolDone = true)
+    public void OnAreaEntityCreated(SpawnEntityCommand cmd, bool isToolDone = true)
     {
         if (_sessionRequestId == Guid.Empty)
         {
             FdpLog<MapCommandController>.Warn(
-                "[MapCommandController] OnAreaEntityCreated called with no active session — request dropped.");
+                "[MapCommandController] OnAreaEntityCreated called with no active session — command dropped.");
             return;
         }
 
-        // Store the fully-built request in the side-channel so the egress translator can
-        // retrieve it and write it verbatim to DDS (preserving dtMapVisualOverlay etc.).
-        _prebuiltRequests[request.RequestId] = request;
-
-        // Publish the intent command. InitialComponents is NOT set here — that would cause
-        // NetworkSpawningSystem to attempt ECS registration of NED struct types, which violates
-        // the component type constraint.
-        var cmd = new SpawnEntityCommand
-        {
-            NetworkId             = 0,
-            TkbType               = ExtractTkbType(request),
-            OwnerNodeId           = 0,
-            InitType              = ModuleHost.Core.Network.Interfaces.ReliableInitType.AllPeers,
-            RequestId             = request.RequestId,
-            InitialAttributesJson = request.InitialAttributesJson,
-        };
-
         _eventBus.PublishManaged(cmd);
-        _pendingEntityRequests[request.RequestId] = true;
+        _pendingEntityRequests[cmd.RequestId] = true;
 
         if (isToolDone)
             _toolFinished = true;
 
         TryCloseSessionIfComplete();
-    }
-
-    /// <summary>
-    /// Retrieves and removes a pre-built <see cref="CreateEntityRequest"/> that was registered
-    /// by <see cref="OnAreaEntityCreated"/>. Called by the egress translator to obtain the full
-    /// NED descriptor payload when writing to DDS.
-    /// </summary>
-    /// <param name="requestId">The <see cref="CreateEntityRequest.RequestId"/> to look up.</param>
-    /// <returns>The pre-built request if found; otherwise <c>null</c>.</returns>
-    internal CreateEntityRequest? TryDequeuePrebuilt(Guid requestId)
-    {
-        if (_prebuiltRequests.TryGetValue(requestId, out var req))
-        {
-            _prebuiltRequests.Remove(requestId);
-            return req;
-        }
-        return null;
-    }
-
-    private static long ExtractTkbType(CreateEntityRequest request)
-    {
-        if (request.InitialDescriptors == null) return 0;
-        foreach (var desc in request.InitialDescriptors)
-            if (desc._d == EDescriptorType.dtEntityMaster)
-                return desc.EntityMaster.TkbType;
-        return 0;
     }
 
     /// <summary>

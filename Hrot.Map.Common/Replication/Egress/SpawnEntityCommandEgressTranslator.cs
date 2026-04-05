@@ -8,6 +8,8 @@ using Fdp.Modules.Geographic;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.NetworkSpawning.Events;
+using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
@@ -21,18 +23,11 @@ namespace Hrot.Map.Common.Replication.Egress
     /// <see cref="FdpEventBus"/> into <see cref="CreateEntityRequest"/> DDS samples.
     ///
     /// <para>
-    /// Two paths are supported:
-    /// <list type="bullet">
-    ///   <item><b>Side-channel path:</b> If a pre-built <see cref="CreateEntityRequest"/> is
-    ///     available via the <c>tryGetPrebuilt</c> delegate (keyed by
-    ///     <see cref="SpawnEntityCommand.RequestId"/>), that request is written directly to DDS
-    ///     without re-serialisation, preserving all descriptors built in the area/route
-    ///     authoring pipelines (dtMapVisualOverlay, dtMapRoute, etc.).</item>
-    ///   <item><b>Standard path:</b> Otherwise the command fields are serialised into a new
-    ///     <see cref="CreateEntityRequest"/> containing <c>dtEntityMaster</c> (TKB type) and
-    ///     <c>dtWorldPos</c> (geographic position from canvas Cartesian via
-    ///     <see cref="IGeographicTransform"/>).</item>
-    /// </list>
+    /// All commands follow the standard path: command fields (including
+    /// <see cref="SpawnEntityCommand.InitialComponents"/>) are serialised into a new
+    /// <see cref="CreateEntityRequest"/> containing <c>dtEntityMaster</c>,
+    /// <c>dtWorldPos</c>, and — when geometry components are present —
+    /// <c>dtMapVisualOverlay</c> or <c>dtMapRoute</c> descriptors.
     /// </para>
     /// </summary>
     public class SpawnEntityCommandEgressTranslator : IDescriptorTranslator
@@ -46,14 +41,6 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly FdpEventBus _eventBus;
         private readonly IGeographicTransform? _geoTransform;
 
-        /// <summary>
-        /// Optional side-channel delegate provided by <see cref="IgApplication"/> that looks up
-        /// and removes a pre-built <see cref="CreateEntityRequest"/> keyed by the command's
-        /// <see cref="SpawnEntityCommand.RequestId"/>. When present, this takes priority over the
-        /// standard field-based construction path.
-        /// </summary>
-        private readonly Func<Guid, CreateEntityRequest?>? _tryGetPrebuilt;
-
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
 
@@ -61,9 +48,8 @@ namespace Hrot.Map.Common.Replication.Egress
         public SpawnEntityCommandEgressTranslator(
             DdsParticipant participant,
             FdpEventBus eventBus,
-            IGeographicTransform? geoTransform,
-            Func<Guid, CreateEntityRequest?>? tryGetPrebuilt = null)
-            : this(new DdsWriterAdapter<CreateEntityRequest>(participant, DdsTopicName), eventBus, geoTransform, tryGetPrebuilt)
+            IGeographicTransform? geoTransform)
+            : this(new DdsWriterAdapter<CreateEntityRequest>(participant, DdsTopicName), eventBus, geoTransform)
         {
         }
 
@@ -71,13 +57,11 @@ namespace Hrot.Map.Common.Replication.Egress
         internal SpawnEntityCommandEgressTranslator(
             IDdsWriter<CreateEntityRequest> writer,
             FdpEventBus eventBus,
-            IGeographicTransform? geoTransform,
-            Func<Guid, CreateEntityRequest?>? tryGetPrebuilt = null)
+            IGeographicTransform? geoTransform)
         {
-            _writer          = writer       ?? throw new ArgumentNullException(nameof(writer));
-            _eventBus        = eventBus     ?? throw new ArgumentNullException(nameof(eventBus));
-            _geoTransform    = geoTransform;
-            _tryGetPrebuilt  = tryGetPrebuilt;
+            _writer       = writer    ?? throw new ArgumentNullException(nameof(writer));
+            _eventBus     = eventBus  ?? throw new ArgumentNullException(nameof(eventBus));
+            _geoTransform = geoTransform;
         }
 
         /// <summary>
@@ -88,28 +72,11 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             foreach (var spawnCmd in _eventBus.ConsumeManaged<SpawnEntityCommand>())
             {
-                // Side-channel path: check if a fully-built CreateEntityRequest was stored
-                // by MapCommandController.OnAreaEntityCreated for this request ID.
-                if (_tryGetPrebuilt != null)
-                {
-                    var prebuilt = _tryGetPrebuilt(spawnCmd.RequestId);
-                    if (prebuilt.HasValue)
-                    {
-                        _writer.Write(prebuilt.Value);
-                        FdpLog<SpawnEntityCommandEgressTranslator>.Debug(
-                            "[Egress] SpawnCmd side-channel → CreateEntityRequest req={0}", prebuilt.Value.RequestId);
-                        continue;
-                    }
-                }
-
-                // Standard path: serialise fields to CreateEntityRequest.
-                {
-                    var request = BuildCreateEntityRequest(spawnCmd);
-                    _writer.Write(request);
-                    FdpLog<SpawnEntityCommandEgressTranslator>.Debug(
-                        "[Egress] SpawnCmd → CreateEntityRequest req={0} tkbType={1}",
-                        request.RequestId, spawnCmd.TkbType);
-                }
+                var request = BuildCreateEntityRequest(spawnCmd);
+                _writer.Write(request);
+                FdpLog<SpawnEntityCommandEgressTranslator>.Debug(
+                    "[Egress] SpawnCmd → CreateEntityRequest req={0} tkbType={1}",
+                    request.RequestId, spawnCmd.TkbType);
             }
         }
 
@@ -142,32 +109,143 @@ namespace Hrot.Map.Common.Replication.Egress
                 lat = lon = alt = 0.0;
             }
 
-            return new CreateEntityRequest
+            var descriptors = new List<EntityDescriptorUnion>
             {
-                RequestId  = cmd.RequestId == Guid.Empty ? Guid.NewGuid() : cmd.RequestId,
-                Owner      = default,
-                Flags      = 0,
-                InitialAttributesJson = cmd.InitialAttributesJson,
-                InitialDescriptors    = new List<EntityDescriptorUnion>
+                new EntityDescriptorUnion
                 {
-                    new EntityDescriptorUnion
+                    _d           = EDescriptorType.dtEntityMaster,
+                    EntityMaster = new EntityMaster { TkbType = cmd.TkbType },
+                },
+                new EntityDescriptorUnion
+                {
+                    _d       = EDescriptorType.dtWorldPos,
+                    WorldPos = new WorldPos
                     {
-                        _d           = EDescriptorType.dtEntityMaster,
-                        EntityMaster = new EntityMaster { TkbType = cmd.TkbType },
-                    },
-                    new EntityDescriptorUnion
-                    {
-                        _d       = EDescriptorType.dtWorldPos,
-                        WorldPos = new WorldPos
+                        Pos = new GeoPoint
                         {
-                            Pos = new GeoPoint
-                            {
-                                Latitude  = lat,
-                                Longitude = lon,
-                                Altitude  = alt,
-                            },
+                            Latitude  = lat,
+                            Longitude = lon,
+                            Altitude  = alt,
                         },
                     },
+                },
+            };
+
+            // Extract geometry descriptors from InitialComponents.
+            if (cmd.InitialComponents != null)
+            {
+                EditablePolyline? polyline = null;
+                MapOverlayStyle?  style    = null;
+                RoutePlan?        route    = null;
+
+                foreach (var component in cmd.InitialComponents)
+                {
+                    if      (component is EditablePolyline ep) polyline = ep;
+                    else if (component is MapOverlayStyle  ms) style    = ms;
+                    else if (component is RoutePlan        rp) route    = rp;
+                }
+
+                if (polyline != null)
+                    descriptors.Add(BuildOverlayDescriptor(polyline, style, cmd.InitialTransform?.Position));
+
+                if (route != null)
+                    descriptors.Add(BuildRouteDescriptor(route));
+            }
+
+            return new CreateEntityRequest
+            {
+                RequestId             = cmd.RequestId == Guid.Empty ? Guid.NewGuid() : cmd.RequestId,
+                Owner                 = default,
+                Flags                 = 0,
+                InitialAttributesJson = cmd.InitialAttributesJson,
+                InitialDescriptors    = descriptors,
+            };
+        }
+
+        /// <summary>
+        /// Builds a <c>dtMapVisualOverlay</c> descriptor from an <see cref="EditablePolyline"/>
+        /// and optional <see cref="MapOverlayStyle"/>. Entity-relative Cartesian XY points are
+        /// converted to relative geodetic offsets from the entity anchor.
+        /// </summary>
+        private EntityDescriptorUnion BuildOverlayDescriptor(
+            EditablePolyline polyline, MapOverlayStyle? style, Vector3? anchor)
+        {
+            var geoPoints = new List<GeoPoint>(polyline.Points?.Count ?? 0);
+
+            if (polyline.Points != null)
+            {
+                foreach (var relPt in polyline.Points)
+                {
+                    GeoPoint deltaGeo;
+                    if (_geoTransform != null && anchor.HasValue)
+                    {
+                        // Convert entity-relative Cartesian XY to relative geodetic offset.
+                        var absCart   = new Vector3(anchor.Value.X + relPt.X, anchor.Value.Y + relPt.Y, anchor.Value.Z);
+                        var (absLat, absLon, absAlt) = _geoTransform.ToGeodetic(absCart);
+                        var (refLat, refLon, refAlt) = _geoTransform.ToGeodetic(anchor.Value);
+                        deltaGeo = new GeoPoint
+                        {
+                            Latitude  = absLat - refLat,
+                            Longitude = absLon - refLon,
+                            Altitude  = absAlt - refAlt,
+                        };
+                    }
+                    else
+                    {
+                        // No geo-transform or no anchor: treat XY as lat/lon offsets directly.
+                        deltaGeo = new GeoPoint { Latitude = relPt.Y, Longitude = relPt.X, Altitude = 0.0 };
+                    }
+                    geoPoints.Add(deltaGeo);
+                }
+            }
+
+            string styleJson = style.HasValue ? style.Value.ToJson() : string.Empty;
+
+            return new EntityDescriptorUnion
+            {
+                _d = EDescriptorType.dtMapVisualOverlay,
+                MapVisualOverlay = new MapVisualOverlay
+                {
+                    PersistenceMode   = PersistenceMode.MODE_PERSISTENT,
+                    Points            = geoPoints,
+                    IsEditable        = true,
+                    IsClickable       = true,
+                    StyleOverrideJson = styleJson,
+                },
+            };
+        }
+
+        /// <summary>
+        /// Builds a <c>dtMapRoute</c> descriptor from a <see cref="RoutePlan"/>.
+        /// Cartesian waypoint positions are converted to geodetic coordinates.
+        /// </summary>
+        private EntityDescriptorUnion BuildRouteDescriptor(RoutePlan route)
+        {
+            var waypoints = new List<Waypoint>(route.Waypoints.Count);
+
+            foreach (var wp in route.Waypoints)
+            {
+                GeoPoint pos;
+                if (_geoTransform != null)
+                {
+                    var (wLat, wLon, wAlt) = _geoTransform.ToGeodetic(wp.Position);
+                    pos = new GeoPoint { Latitude = wLat, Longitude = wLon, Altitude = wAlt };
+                }
+                else
+                {
+                    // No geo-transform: treat Cartesian XYZ as lon/lat/alt.
+                    pos = new GeoPoint { Latitude = wp.Position.Y, Longitude = wp.Position.X, Altitude = wp.Position.Z };
+                }
+                waypoints.Add(new Waypoint { Position = pos, SpeedMetersPerSec = wp.TargetSpeed });
+            }
+
+            return new EntityDescriptorUnion
+            {
+                _d = EDescriptorType.dtMapRoute,
+                MapRoute = new MapRoute
+                {
+                    Points = waypoints,
+                    IsLoop = route.IsLoop,
                 },
             };
         }

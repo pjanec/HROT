@@ -303,11 +303,11 @@ public class IgApplication : IDisposable
     private DdsWriter<ContextMenuRequest>? _contextMenuRequestWriter;
 
     /// <summary>
-    /// Test-only callback: when non-null, receives every <see cref="CreateEntityRequest"/>
-    /// that would normally be forwarded to <see cref="_mapCommandController"/> or written via DDS.
-    /// Only set by <see cref="TestHook_SetCreateEntityRequestSink"/>.
+    /// Test-only callback: when non-null, receives every <see cref="SpawnEntityCommand"/>
+    /// that would normally be forwarded to <see cref="_mapCommandController"/> or published on the bus.
+    /// Only set by <see cref="TestHook_SetSpawnCommandSink"/>.
     /// </summary>
-    private Action<CreateEntityRequest>? _testCreateEntityRequestSink;
+    private Action<FDP.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>? _testSpawnCommandSink;
     /// <summary>
     /// Writer that publishes <see cref="MapCommandAck"/> responses back to the ExCon,
     /// correlating tool outcomes with the original <see cref="MapCommandRequest"/>.
@@ -893,15 +893,8 @@ public class IgApplication : IDisposable
                 }
 
                 // D005: ACL egress translators convert bus events back to DDS.
-                // The SpawnEntityCommandEgressTranslator receives a side-channel delegate so it can
-                // retrieve pre-built CreateEntityRequest objects from MapCommandController (area/route
-                // authoring). This avoids placing CreateEntityRequest in SpawnEntityCommand.InitialComponents,
-                // which would cause NetworkSpawningSystem to attempt invalid ECS registration.
-                // mapCmdCtrlRef is assigned after _mapCommandController is constructed below.
-                MapCommandController? mapCmdCtrlRef = null;
                 customTranslators.Add(new Hrot.Map.Common.Replication.Egress.SpawnEntityCommandEgressTranslator(
-                    participant, _world.Bus, _geoTransform,
-                    tryGetPrebuilt: id => mapCmdCtrlRef?.TryDequeuePrebuilt(id)));
+                    participant, _world.Bus, _geoTransform));
                 customTranslators.Add(new Hrot.Map.Common.Replication.Egress.UpdateEntityCommandEgressTranslator(
                     participant, _world.Bus, _entityMap, _geoTransform));
                 customTranslators.Add(new Hrot.Map.Common.Replication.Egress.DestroyEntityCommandEgressTranslator(
@@ -918,10 +911,6 @@ public class IgApplication : IDisposable
                     _canvas,
                     _world.Bus,
                     new CycloneDdsWriterIgAdapter<MapCommandAck>(_mapCommandAckWriter!));
-
-                // Wire the side-channel: SpawnEntityCommandEgressTranslator uses this delegate
-                // to retrieve pre-built CreateEntityRequest objects for area/route authoring.
-                mapCmdCtrlRef = _mapCommandController;
 
                 _contextMenuSystem.SetCacheMissWriter(
                     new CycloneDdsWriterIgAdapter<ContextMenuRequest>(_contextMenuRequestWriter!),
@@ -2077,15 +2066,15 @@ public class IgApplication : IDisposable
 
     /// <summary>
 
-    /// Internal test hook: injects a sink that captures every <see cref="CreateEntityRequest"/>
+    /// Internal test hook: injects a sink that captures every <see cref="SpawnEntityCommand"/>
 
-    /// emitted by route/area authoring tools. Bypasses the DDS writer so tests work headless.
+    /// emitted by route/area authoring tools. Bypasses the controller so tests work headless.
 
     /// </summary>
 
-    internal void TestHook_SetCreateEntityRequestSink(Action<CreateEntityRequest>? sink)
+    internal void TestHook_SetSpawnCommandSink(Action<FDP.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>? sink)
 
-        => _testCreateEntityRequestSink = sink;
+        => _testSpawnCommandSink = sink;
 
     /// <summary>
 
@@ -3763,7 +3752,7 @@ public class IgApplication : IDisposable
 
 
 
-        if (!_networkEnabled && _testCreateEntityRequestSink == null)
+        if (!_networkEnabled && _testSpawnCommandSink == null)
 
             return;
 
@@ -3856,123 +3845,50 @@ public class IgApplication : IDisposable
 
 
 
-            // Store vertices as RELATIVE geo offsets from the centroid (reference point).
-
-            // The overlay ingress translator converts these to relative Cartesian offsets.
-
-            var relGeoPoints = new List<GeoPoint>(absPositions.Count);
-
-            for (int i = 0; i < absPositions.Count; i++)
-
+            // Compute anchor (centroid) in Cartesian world space.
+            Vector3 anchorCartesian;
+            if (_geoTransform != null)
             {
-
-                relGeoPoints.Add(new GeoPoint
-
-                {
-
-                    Latitude  = absPositions[i].Lat - refLat,
-
-                    Longitude = absPositions[i].Lon - refLon,
-
-                    Altitude  = absPositions[i].Alt - refAlt,
-
-                });
-
+                anchorCartesian = _geoTransform.ToCartesian(refLat, refLon, refAlt);
+            }
+            else
+            {
+                anchorCartesian = new Vector3((float)refLon, (float)refLat, 0f);
             }
 
-
-
-            var request = new CreateEntityRequest
-
+            // Build entity-relative Cartesian XY for each vertex.
+            var relCartPoints = new List<Vector2>(absPositions.Count);
+            for (int i = 0; i < absPositions.Count; i++)
             {
-
-                RequestId = Guid.NewGuid(),
-
-                Owner     = default,
-
-                Flags     = 0,
-
-                InitialDescriptors = new List<EntityDescriptorUnion>
-
+                if (_geoTransform != null)
                 {
-
-                    new EntityDescriptorUnion
-
-                    {
-
-                        _d           = EDescriptorType.dtEntityMaster,
-
-                        EntityMaster = new EntityMaster { TkbType = TkbEntityTypes.TacGraphic_Area }
-
-                    },
-
-                    // Reference point: the entity's geographic position (centroid of the drawn polygon).
-
-                    // GeoSpatial ingress will set SimTransform to this position.
-
-                    new EntityDescriptorUnion
-
-                    {
-
-                        _d         = EDescriptorType.dtWorldPos,
-
-                        WorldPos = new WorldPos
-
-                        {
-
-                            Pos = new GeoPoint
-
-                            {
-
-                                Latitude  = refLat,
-
-                                Longitude = refLon,
-
-                                Altitude  = refAlt,
-
-                            }
-
-                        }
-
-                    },
-
-                    // Overlay: vertices stored as RELATIVE geo offsets from the reference point.
-
-                    new EntityDescriptorUnion
-
-                    {
-
-                        _d = EDescriptorType.dtMapVisualOverlay,
-
-                        MapVisualOverlay = new MapVisualOverlay
-
-                        {
-
-                            PersistenceMode   = PersistenceMode.MODE_PERSISTENT,
-
-                            Points            = relGeoPoints,
-
-                            IsEditable        = true,
-
-                            IsClickable       = true,
-
-                            StyleOverrideJson = styleJson,
-
-                        }
-
-                    }
-
+                    var absCart = _geoTransform.ToCartesian(absPositions[i].Lat, absPositions[i].Lon, 0.0);
+                    relCartPoints.Add(new Vector2(absCart.X - anchorCartesian.X, absCart.Y - anchorCartesian.Y));
                 }
+                else
+                {
+                    relCartPoints.Add(new Vector2(points[i].X - anchorCartesian.X, points[i].Y - anchorCartesian.Y));
+                }
+            }
 
+            var polyline = new EditablePolyline { Points = relCartPoints };
+            var style    = MapOverlayStyle.FromJson(styleJson);
+
+            var cmd = new FDP.Toolkit.NetworkSpawning.Events.SpawnEntityCommand
+            {
+                NetworkId      = 0,
+                TkbType        = TkbEntityTypes.TacGraphic_Area,
+                OwnerNodeId    = 0,
+                InitType       = ReliableInitType.AllPeers,
+                RequestId      = Guid.NewGuid(),
+                InitialTransform = new SimTransform { Position = anchorCartesian },
+                InitialComponents = new System.Collections.Generic.List<object> { polyline, style },
             };
 
-
-
-            if (_testCreateEntityRequestSink != null)
-                _testCreateEntityRequestSink(request);
+            if (_testSpawnCommandSink != null)
+                _testSpawnCommandSink(cmd);
             else if (_mapCommandController != null)
-                _mapCommandController.OnAreaEntityCreated(request, isToolDone: true);
-            // D005: SpawnEntityCommandEgressTranslator handles DDS write via bus.
+                _mapCommandController.OnAreaEntityCreated(cmd, isToolDone: true);
 
             _canvas.PopTool();
 
@@ -3987,12 +3903,13 @@ public class IgApplication : IDisposable
 
     /// <summary>
     /// Activates a <see cref="PointSequenceTool"/> configured for route authoring
-    /// (minimum 2 points). When finished, emits a <see cref="CreateEntityRequest"/>
-    /// with descriptors <c>dtEntityMaster</c>, <c>dtGeoSpatial</c>, and <c>dtMapRoute</c>.
+    /// (minimum 2 points). When finished, emits a <see cref="SpawnEntityCommand"/>
+    /// with <see cref="FDP.Toolkit.NetworkSpawning.Events.SpawnEntityCommand.InitialComponents"/>
+    /// carrying a <see cref="Hrot.Map.Common.Components.RoutePlan"/>.
     /// </summary>
     private void ActivateRouteAuthoringTool(Guid requestId)
     {
-        if (!_networkEnabled && _testCreateEntityRequestSink == null)
+        if (!_networkEnabled && _testSpawnCommandSink == null)
             return;
 
         if (_canvas.ActiveTool is PointSequenceTool)
@@ -4020,55 +3937,39 @@ public class IgApplication : IDisposable
                 return;
             }
 
-            // Convert each canvas 2D point to an absolute GeoPosition.
-            var waypoints = new List<Waypoint>(points.Length);
-            GeoPoint anchorPos = default;
+            // Convert each canvas 2D point to Cartesian world space and build RoutePlan.
+            // Canvas is XZ: canvas Y = world Z (North). Altitude (Vector3.Y) is 0 for authoring.
+            var routePlan = new Hrot.Map.Common.Components.RoutePlan { IsLoop = false };
+            Vector3 anchorCartesian = Vector3.Zero;
 
-            for (int i = 0; i < points.Length; i++)
+            routePlan.Mutate(wps =>
             {
-                // Canvas is XZ: canvas Y = world Z (North). Altitude (Vector3.Y) is 0 for authoring.
-                var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(points[i].X, 0f, points[i].Y));
-
-                var geoPos = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt };
-                waypoints.Add(new Waypoint { Position = geoPos, SpeedMetersPerSec = 0.0 });
-
-                if (i == 0) anchorPos = geoPos;
-            }
-
-            var request = new CreateEntityRequest
-            {
-                RequestId = Guid.NewGuid(),
-                Owner     = default,
-                Flags     = 0,
-                InitialDescriptors = new List<EntityDescriptorUnion>
+                for (int i = 0; i < points.Length; i++)
                 {
-                    new EntityDescriptorUnion
-                    {
-                        _d           = EDescriptorType.dtEntityMaster,
-                        EntityMaster = new EntityMaster { TkbType = TkbEntityTypes.TacGraphic_Route },
-                    },
-                    new EntityDescriptorUnion
-                    {
-                        _d         = EDescriptorType.dtWorldPos,
-                        WorldPos = new WorldPos { Pos = anchorPos },
-                    },
-                    new EntityDescriptorUnion
-                    {
-                        _d        = EDescriptorType.dtMapRoute,
-                        MapRoute  = new MapRoute
-                        {
-                            Points = waypoints,
-                            IsLoop = false,
-                        },
-                    },
-                },
+                    var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(points[i].X, 0f, points[i].Y));
+                    var cartPos = _geoTransform.ToCartesian(lat, lon, alt);
+
+                    wps.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = cartPos, TargetSpeed = 0f });
+
+                    if (i == 0) anchorCartesian = cartPos;
+                }
+            });
+
+            var cmd = new FDP.Toolkit.NetworkSpawning.Events.SpawnEntityCommand
+            {
+                NetworkId        = 0,
+                TkbType          = TkbEntityTypes.TacGraphic_Route,
+                OwnerNodeId      = 0,
+                InitType         = ReliableInitType.AllPeers,
+                RequestId        = Guid.NewGuid(),
+                InitialTransform = new SimTransform { Position = anchorCartesian },
+                InitialComponents = new System.Collections.Generic.List<object> { routePlan },
             };
 
-            if (_testCreateEntityRequestSink != null)
-                _testCreateEntityRequestSink(request);
+            if (_testSpawnCommandSink != null)
+                _testSpawnCommandSink(cmd);
             else if (_mapCommandController != null)
-                _mapCommandController.OnAreaEntityCreated(request, isToolDone: true);
-            // D005: SpawnEntityCommandEgressTranslator handles DDS write via bus.
+                _mapCommandController.OnAreaEntityCreated(cmd, isToolDone: true);
 
             _canvas.PopTool();
         });

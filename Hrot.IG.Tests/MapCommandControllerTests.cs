@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Hrot.NED.Messages;
+using Hrot.NED.Messages;   // CreateUpdateDeleteEntityAck, MapCommandAck
 using Hrot.IG.Abstractions;
 using Hrot.IG.Systems;
 using Hrot.ScenarioEditor.Tools;
@@ -124,10 +124,10 @@ public class MapCommandControllerTests
         var (_, bus, ackWriter, ctrl) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.BeginAreaAuthoringSession(requestId, Guid.NewGuid());
-        var areaRequest = new CreateEntityRequest { RequestId = Guid.NewGuid() };
-        ctrl.OnAreaEntityCreated(areaRequest, isToolDone: true);
+        var areaCmd = new SpawnEntityCommand { RequestId = Guid.NewGuid() };
+        ctrl.OnAreaEntityCreated(areaCmd, isToolDone: true);
         Assert.Single(DrainSpawnCmds(bus));
-        ctrl.OnCreateEntityAck(new CreateUpdateDeleteEntityAck { RequestId = areaRequest.RequestId, EntityId = 10, StatusCode = 0 });
+        ctrl.OnCreateEntityAck(new CreateUpdateDeleteEntityAck { RequestId = areaCmd.RequestId, EntityId = 10, StatusCode = 0 });
         Assert.Single(ackWriter.Written);
         Assert.Equal(requestId, ackWriter.Written[0].RequestId);
         Assert.Equal(MapCommandController.StatusFinished, ackWriter.Written[0].StatusCode);
@@ -169,7 +169,7 @@ public class MapCommandControllerTests
     public void OnAreaEntityCreated_WithoutBeginSession_IsDropped()
     {
         var (_, bus, _, ctrl) = BuildController();
-        ctrl.OnAreaEntityCreated(new CreateEntityRequest { RequestId = Guid.NewGuid() });
+        ctrl.OnAreaEntityCreated(new SpawnEntityCommand { RequestId = Guid.NewGuid() });
         Assert.Empty(bus.ConsumeManaged<SpawnEntityCommand>());
     }
 
@@ -178,7 +178,7 @@ public class MapCommandControllerTests
     {
         var (_, bus, _, ctrl) = BuildController();
         ctrl.BeginAreaAuthoringSession(Guid.NewGuid(), Guid.NewGuid());
-        ctrl.OnAreaEntityCreated(new CreateEntityRequest { RequestId = Guid.NewGuid() });
+        ctrl.OnAreaEntityCreated(new SpawnEntityCommand { RequestId = Guid.NewGuid() });
         Assert.Single(DrainSpawnCmds(bus));
     }
 }

@@ -46,11 +46,11 @@ engine receives in-memory structs only.
 **Goal:** Remove the hidden `tryGetPrebuilt` side-channel that bypasses the FDP event bus.
 Map tools must emit only pure domain events; the egress translator handles DDS translation.
 
-- [ ] **PACK3-A001** Purge `tryGetPrebuilt` delegate field and bypass block from `SpawnEntityCommandEgressTranslator` [details](./TASK-DETAIL.md#pack3-a001--purge-trygetprebuilt-from-spawnentitycommand-egresstranslator)
-- [ ] **PACK3-A002** Delete `_prebuiltRequests` cache and `TryDequeuePrebuilt` from `MapCommandController` [details](./TASK-DETAIL.md#pack3-a002--remove-dto-cache-from-mapcommandcontroller)
-- [ ] **PACK3-A003** Clean `IgApplication` composition root — remove side-channel lambda wiring [details](./TASK-DETAIL.md#pack3-a003--igapplication-composition-root-cleanup)
-- [ ] **PACK3-A004** Fix `AreaAuthoringTool` (and `RouteAuthoringTool`) to use `SpawnEntityCommand.InitialComponents` [details](./TASK-DETAIL.md#pack3-a004--fix-areaauthoringtool-to-use-initialcomponents)
-- [ ] **PACK3-A005** ACL verification tests (boundary unit, E2E area authoring, offline editor isolation) [details](./TASK-DETAIL.md#pack3-a005--acl-verification-tests)
+- [x] **PACK3-A001** Purge `tryGetPrebuilt` delegate field and bypass block from `SpawnEntityCommandEgressTranslator` [details](./TASK-DETAIL.md#pack3-a001--purge-trygetprebuilt-from-spawnentitycommand-egresstranslator)
+- [x] **PACK3-A002** Delete `_prebuiltRequests` cache and `TryDequeuePrebuilt` from `MapCommandController` [details](./TASK-DETAIL.md#pack3-a002--remove-dto-cache-from-mapcommandcontroller)
+- [x] **PACK3-A003** Clean `IgApplication` composition root — remove side-channel lambda wiring [details](./TASK-DETAIL.md#pack3-a003--igapplication-composition-root-cleanup)
+- [x] **PACK3-A004** Fix `AreaAuthoringTool` (and `RouteAuthoringTool`) to use `SpawnEntityCommand.InitialComponents` [details](./TASK-DETAIL.md#pack3-a004--fix-areaauthoringtool-to-use-initialcomponents)
+- [x] **PACK3-A005** ACL verification tests (boundary unit, E2E area authoring, offline editor isolation) [details](./TASK-DETAIL.md#pack3-a005--acl-verification-tests)
 
 ---
 
@@ -62,4 +62,4 @@ The canonical, transport-agnostic implementation lives in `FDP.Toolkit.Replicati
 - [x] **PACK3-N001** Create canonical `NetworkGatewaySystem` in `FDP.Toolkit.Replication.Systems` [details](./TASK-DETAIL.md#pack3-n001--relocate-networkgatewaysystem-to-fdptoolkitreplication)
 - [x] **PACK3-N002** Delete Cyclone-local clones and legacy `ModuleHost.Core` originals [details](./TASK-DETAIL.md#pack3-n002--delete-clones-and-legacy-originals)
 - [x] **PACK3-N003** Rewire `CycloneNetworkModule` to reference the Replication toolkit system [details](./TASK-DETAIL.md#pack3-n003--rewire-cyclonenetworkmodule)
-- [ ] **PACK3-N004** `NetworkGatewaySystem` integration test (SimHost + IG, `AllPeers` handshake, `EntityLifecycle.Active`) [details](./TASK-DETAIL.md#pack3-n004--networkgatewaysystem-integration-test)
+- [x] **PACK3-N004** `NetworkGatewaySystem` integration test (SimHost + IG, `AllPeers` handshake, `EntityLifecycle.Active`) [details](./TASK-DETAIL.md#pack3-n004--networkgatewaysystem-integration-test)
