@@ -95,7 +95,9 @@ namespace Hrot.CGF
             _timeKernel.Initialize();
 
             _simWorld  = new EntityRepository();
+            Map.Common.HrotSharedComponentRegistry.RegisterAll(_simWorld);
             _simKernel = new ModuleHostKernel(_simWorld, new EventAccumulator());
+            _simKernel.SetTimeController(new ProxyTimeController(_timeKernel));
             // Note: _simKernel.Initialize() is deferred until first Tick()
             // so callers can call Install() between construction and first tick.
 
@@ -217,5 +219,24 @@ namespace Hrot.CGF
             _participant.Dispose();
             FdpLog<CgfApplication>.Info("[CGF] Disposed.");
         }
+    }
+
+    class ProxyTimeController : ModuleHost.Core.Time.ITimeController
+    {
+        private readonly ModuleHostKernel _timeKernel;
+    
+        public ProxyTimeController(ModuleHostKernel timeKernel) 
+            => _timeKernel = timeKernel;
+
+        // Return the time state that was just calculated by the time kernel
+        public GlobalTime Update() => _timeKernel.CurrentTime;
+        public GlobalTime GetCurrentState() => _timeKernel.CurrentTime;
+    
+        // Stub out the rest of the interface
+        public void SetTimeScale(float scale) { }
+        public float GetTimeScale() => 1.0f;
+        public ModuleHost.Core.Time.TimeMode GetMode() => ModuleHost.Core.Time.TimeMode.Continuous;
+        public void SeedState(GlobalTime state) { }
+        public void Dispose() { }
     }
 }

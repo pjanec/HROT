@@ -7,6 +7,7 @@ using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core.Abstractions;
@@ -86,6 +87,12 @@ namespace Hrot.Map.Common.Replication.Ingress
 
                 if (sample.IsValid)
                 {
+                    // Skip ingress for entities the local node has authority over.
+                    // Without this check the local egress translator's own published
+                    // EntityMission sample loops back through DDS and overwrites the
+                    // ECS component set by MissionControlExecutionSystem in the same frame.
+                    if (view.HasAuthority(entity)) continue;
+
                     var queue = BuildQueue(sample.Data);
                     cmd.SetComponent(entity, queue);
                 }

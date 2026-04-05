@@ -441,6 +441,7 @@ public class MiniExConIntegrationTests
             if (!sample.IsValid) continue;
             var data = sample.Data;
             if (data.EntityId != entityId) continue;
+            if (data.Plan.Tasks == null || data.Plan.Tasks.Count == 0) continue; // wait for populated mission
             mission = data;
             return true;
         }

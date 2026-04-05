@@ -6,6 +6,7 @@ using Hrot.NED.Messages;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Helpers;
 using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Utilities;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Behavior.Events;
@@ -52,6 +53,12 @@ namespace Hrot.SimHost.Systems
     {
         private const string EntityNotFoundMessage  = "ERR_ENTITY_NOT_FOUND";
         private const string VersionConflictMessage = "ERR_VERSION_CONFLICT";
+
+        /// <summary>
+        /// Entity Mission descriptor ordinal — must match
+        /// <see cref="Hrot.Map.Common.Replication.Egress.EntityMissionEgressTranslator.DescriptorOrdinal"/>.
+        /// </summary>
+        private const long EntityMissionDescriptorOrdinal = 51L;
 
         /// <summary>
         /// Number of frames to retry a request whose target entity is not yet in the map.
@@ -147,7 +154,6 @@ namespace Hrot.SimHost.Systems
                         _retryQueue.Enqueue((intent, MaxEntityWaitFrames));
                         return;
                     }
-
                     var domainPlan = new DomainMissionPlan
                     {
                         ActiveTaskId = plan.ActiveTaskId,
@@ -164,6 +170,7 @@ namespace Hrot.SimHost.Systems
                     {
                         Plan = domainPlan
                     });
+                    SmartEgressUtil.MarkDirty(repo, entity, EntityMissionDescriptorOrdinal);
                     _taskOrder[intent.TargetEntityId] = orderedTaskIds;
 
                     currentVersion++;
@@ -206,6 +213,7 @@ namespace Hrot.SimHost.Systems
                     };
                     repo.SetComponent(entity, abortQueue);
                     repo.RemoveComponent<ActiveMissionPlan>(entity);
+                    SmartEgressUtil.MarkDirty(repo, entity, EntityMissionDescriptorOrdinal);
 
                     _taskOrder[intent.TargetEntityId] = new List<Guid>();
 

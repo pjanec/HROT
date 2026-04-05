@@ -437,7 +437,7 @@ namespace Hrot.SimHost
             MapVisualOverlayEgressTranslator? mapOverlay  = wgs84 != null ? new MapVisualOverlayEgressTranslator(ddsParticipant, entityMap, wgs84) : null;
             MapRouteEgressTranslator?         mapRoute    = wgs84 != null ? new MapRouteEgressTranslator(ddsParticipant, entityMap, wgs84) : null;
             var missionIngress = new EntityMissionIngressTranslator(ddsParticipant, entityMap, doctrineRegistry, ghostCreationSystem);
-            var missionEgress  = new EntityMissionEgressTranslator(ddsParticipant, entityMap);
+            var missionEgress  = new EntityMissionEgressTranslator(ddsParticipant, entityMap, doctrineRegistry);
 
             var simHostMod = new SimHostModule(
                 spawnSystem:        spawningSystem,
