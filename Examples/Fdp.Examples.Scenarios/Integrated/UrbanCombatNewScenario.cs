@@ -36,6 +36,7 @@ using FDP.Toolkit.Perception.Systems;
 using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Physics.Systems;
+using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Vis2D;
@@ -252,21 +253,18 @@ namespace Fdp.Examples.Scenarios.Integrated
             }
             """;
 
-        // ── Sequential latch flags (public for test assertions) ──────────────
+        // ── Validator (handles latch evaluation via TkbIdentity lookup) ─────────
 
-        private bool _latchAmbushFired     = false;
-        private bool _latchApcHalted       = false;
-        private bool _latchInsurgentHit    = false;
-        private bool _latchInsurgentKilled = false;
+        private readonly UrbanCombatValidator _validator = new();
 
         /// <summary>True once the Insurgent's WeaponChannel.ActiveAction == AimAndFire.</summary>
-        public bool LatchAmbushFired     => _latchAmbushFired;
+        public bool LatchAmbushFired     => _validator.LatchAmbushFired;
         /// <summary>True once the APC's LocomotionChannel.ActiveAction == 0 (MobilityLost processed).</summary>
-        public bool LatchApcHalted       => _latchApcHalted;
+        public bool LatchApcHalted       => _validator.LatchApcHalted;
         /// <summary>True once the Insurgent's health dropped below maximum.</summary>
-        public bool LatchInsurgentHit    => _latchInsurgentHit;
+        public bool LatchInsurgentHit    => _validator.LatchInsurgentHit;
         /// <summary>True once the Insurgent entity is no longer alive.</summary>
-        public bool LatchInsurgentKilled => _latchInsurgentKilled;
+        public bool LatchInsurgentKilled => _validator.LatchInsurgentKilled;
 
         // ── Entity handles ────────────────────────────────────────────────────
 
@@ -331,74 +329,7 @@ namespace Fdp.Examples.Scenarios.Integrated
         /// <inheritdoc/>
         public bool EvaluateTick(uint tick, EntityRepository world)
         {
-            // ── Latch 1: Insurgent fires (WeaponChannel.ActiveAction == AimAndFire) ──
-            if (!_latchAmbushFired)
-            {
-                if (world.IsAlive(_insurgent) &&
-                    world.GetComponent<WeaponChannel>(_insurgent).ActiveAction == CombatConstants.ActionIdAimAndFire)
-                {
-                    _latchAmbushFired = true;
-                }
-            }
-
-            // ── Latch 2: APC halted (LocomotionChannel.ActiveAction == 0 after MobilityLost) ──
-            if (!_latchApcHalted && _latchAmbushFired)
-            {
-                bool apcAlive = world.IsAlive(_apc);
-                bool halted   = !apcAlive   // APC destroyed (extreme edge case)
-                                || world.GetComponent<LocomotionChannel>(_apc).ActiveAction == 0;
-                if (halted)
-                    _latchApcHalted = true;
-            }
-
-            // ── Latch 3: Insurgent hit (health < max, or already dead) ──────────
-            if (!_latchInsurgentHit && _latchApcHalted)
-            {
-                if (!world.IsAlive(_insurgent))
-                {
-                    // Insurgent died — set both latch 3 and 4 simultaneously.
-                    _latchInsurgentHit    = true;
-                    _latchInsurgentKilled = true;
-                }
-                else
-                {
-                    float hp = world.GetComponent<FDP.Toolkit.Combat.Components.Health>(_insurgent).Current;
-                    if (hp < SoldierMaxHealth)
-                        _latchInsurgentHit = true;
-                }
-            }
-
-            // ── Latch 4: Insurgent killed ─────────────────────────────────────────
-            if (!_latchInsurgentKilled && _latchInsurgentHit)
-            {
-                if (!world.IsAlive(_insurgent))
-                    _latchInsurgentKilled = true;
-            }
-
-            // ── Latch 5 / Success: mission resumed (log + return true) ────────────
-            if (_latchInsurgentKilled)
-            {
-                // DEM1-D010: APC has no HSM recovery transition (stays Disabled).
-                // "Mission Resumed" reflects scenario narrative completion — the threat
-                // is neutralised.  The Latch5 test checks for this string in the log.
-                FdpLog<UrbanCombatNewScenario>.Info(
-                    $"[urbancombat] Phase 5 PASSED tick={tick} Mission Resumed " +
-                    $"apc_alive={world.IsAlive(_apc)} insurgent_alive={world.IsAlive(_insurgent)}");
-                return true;
-            }
-
-            // ── Timeout guard ─────────────────────────────────────────────────────
-            if (tick > 600)
-            {
-                throw new ScenarioFailureException(5,
-                    $"Grand demo timed out. Latches: " +
-                    $"ambush={_latchAmbushFired}, " +
-                    $"halt={_latchApcHalted}, " +
-                    $"hit={_latchInsurgentHit}, " +
-                    $"killed={_latchInsurgentKilled}");
-            }
-
-            return false;
+            return _validator.EvaluateTick(tick, world);
         }
 
         /// <inheritdoc/>
@@ -421,6 +352,9 @@ namespace Fdp.Examples.Scenarios.Integrated
             // Fdp.Kernel spatial primitives
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
+
+            // FDP.Toolkit.Replication
+            world.RegisterComponent<TkbIdentity>();
 
             // FDP.Toolkit.Behavior
             world.RegisterComponent<DoctrineState>();
@@ -854,6 +788,8 @@ namespace Fdp.Examples.Scenarios.Integrated
 
             var entity = world.CreateEntity();
             template.ApplyTo(world, entity);
+
+            world.AddComponent(entity, new TkbIdentity { TkbType = tkbTypeId });
 
             ref var tf   = ref world.GetComponentRW<SimTransform>(entity);
             tf.Position  = position;

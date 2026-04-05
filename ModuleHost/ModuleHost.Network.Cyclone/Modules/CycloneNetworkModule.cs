@@ -18,6 +18,7 @@ using FDP.Toolkit.Replication.Services;
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap; 
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 using INetworkTopology = Fdp.Interfaces.INetworkTopology;
+using NetworkGatewaySystem = FDP.Toolkit.Replication.Systems.NetworkGatewaySystem;
 
 namespace ModuleHost.Network.Cyclone.Modules
 {
