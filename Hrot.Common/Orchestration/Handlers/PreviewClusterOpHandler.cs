@@ -108,6 +108,20 @@ namespace Hrot.Common.Orchestration.Handlers
         /// </summary>
         internal EntityRepository? TestHook_Snap => _snap;
 
+        // ── Public convenience entry-points (used by EditorPreviewAdapter) ────
+
+        /// <summary>
+        /// Directly triggers the LoadingPreview snapshot without going through the
+        /// 2-phase commit protocol.  Use this from offline editor adapters.
+        /// </summary>
+        public void TriggerLoadingPreview() => LoadingPreviewCommit();
+
+        /// <summary>
+        /// Directly triggers the UnloadingPreview rewind without going through the
+        /// 2-phase commit protocol.  Use this from offline editor adapters.
+        /// </summary>
+        public void TriggerUnloadingPreview() => UnloadingPreviewCommit();
+
         // ── Private helpers ───────────────────────────────────────────────────
 
         private void LoadingPreviewCommit()

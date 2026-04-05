@@ -44,10 +44,10 @@ embarkation drag-and-drop), `PreviewPanel`, `ZoneEditorPanel`, and `SharedContex
 **Goal:** Define the pure FDP domain commands (`EmbarkEntityCommand`, `SeedTargetCommand`,
 `SpawnZoneObstacleCommand`, `UpdateZoneConfigCommand`) needed by all Editor authoring systems.
 
-- [ ] **EDIT1-E001** `EmbarkEntityCommand` + `DisembarkEntityCommand` (FDP.Toolkit.Behavior) [details](./TASK-DETAIL.md#edit1-e001--embarkentitycommand-and-disembarkentitycommand)
-- [ ] **EDIT1-E002** `SeedTargetCommand` (FDP.Toolkit.Perception) [details](./TASK-DETAIL.md#edit1-e002--seedtargetcommand)
-- [ ] **EDIT1-E003** `SpawnZoneObstacleCommand` + `UpdateZoneConfigCommand` (Hrot.Map.Common) [details](./TASK-DETAIL.md#edit1-e003--spawnzoneobstaclecommand-and-updatezoneconfigcommand)
-- [ ] **EDIT1-E004** Register all new events in `CognitiveComponentRegistry`, `CombatComponentRegistry`, `HrotSharedComponentRegistry` [details](./TASK-DETAIL.md#edit1-e004--register-new-events-in-component-registries)
+- [x] **EDIT1-E001** `EmbarkEntityCommand` + `DisembarkEntityCommand` (FDP.Toolkit.Behavior) [details](./TASK-DETAIL.md#edit1-e001--embarkentitycommand-and-disembarkentitycommand)
+- [x] **EDIT1-E002** `SeedTargetCommand` (FDP.Toolkit.Perception) [details](./TASK-DETAIL.md#edit1-e002--seedtargetcommand)
+- [x] **EDIT1-E003** `SpawnZoneObstacleCommand` + `UpdateZoneConfigCommand` (Hrot.Map.Common) [details](./TASK-DETAIL.md#edit1-e003--spawnzoneobstaclecommand-and-updatezoneconfigcommand)
+- [x] **EDIT1-E004** Register all new events in `CognitiveComponentRegistry`, `CombatComponentRegistry`, `HrotSharedComponentRegistry` [details](./TASK-DETAIL.md#edit1-e004--register-new-events-in-component-registries)
 
 ---
 

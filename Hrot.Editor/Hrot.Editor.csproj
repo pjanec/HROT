@@ -16,6 +16,8 @@
     <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
     <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
+    <ProjectReference Include="..\Hrot.UI.Common\Hrot.UI.Common.csproj" />
+    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>
