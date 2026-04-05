@@ -21,9 +21,9 @@
 **Goal:** Move `SpawnerPanel`, `MissionPanel`, and `ConfigPanel` from `Hrot.ExCon` to the
 shared library, replacing `IExConLogic` dependencies with focused Port interfaces.
 
-- [ ] **EDIT1-P001** Migrate `SpawnerPanel` → `Hrot.UI.Common` (wire to `ISpawnController`) [details](./TASK-DETAIL.md#edit1-p001--migrate-spawnerpanel-to-hrotuicommon)
-- [ ] **EDIT1-P002** Migrate `MissionPanel` → `Hrot.UI.Common` (dynamic doctrine catalog via `IMissionEditorService`) [details](./TASK-DETAIL.md#edit1-p002--migrate-missionpanel-with-dynamic-doctrine-catalog)
-- [ ] **EDIT1-P003** Migrate `ConfigPanel` → `Hrot.UI.Common` (wire to `IMapConfigController`) [details](./TASK-DETAIL.md#edit1-p003--migrate-configpanel-to-hrotuicommon)
+- [x] **EDIT1-P001** Migrate `SpawnerPanel` → `Hrot.UI.Common` (wire to `ISpawnController`) [details](./TASK-DETAIL.md#edit1-p001--migrate-spawnerpanel-to-hrotuicommon)
+- [x] **EDIT1-P002** Migrate `MissionPanel` → `Hrot.UI.Common` (dynamic doctrine catalog via `IMissionEditorService`) [details](./TASK-DETAIL.md#edit1-p002--migrate-missionpanel-with-dynamic-doctrine-catalog)
+- [x] **EDIT1-P003** Migrate `ConfigPanel` → `Hrot.UI.Common` (wire to `IMapConfigController`) [details](./TASK-DETAIL.md#edit1-p003--migrate-configpanel-to-hrotuicommon)
 
 ---
 
