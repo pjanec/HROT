@@ -23,6 +23,8 @@
     <ProjectReference Include="..\Hrot.ScenarioEditor\Hrot.ScenarioEditor.csproj" />
     <!-- Required for IgApplication reflection tests in ToolPresenceTests and RenderLayerPresenceTests -->
     <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
+    <!-- PACK3-Z005: ScenarioFileServiceZoneTests uses ZoneManagerService and DTOs -->
+    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
   </ItemGroup>
 
 </Project>

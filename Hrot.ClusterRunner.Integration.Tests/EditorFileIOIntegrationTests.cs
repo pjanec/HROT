@@ -60,10 +60,18 @@ public sealed class EditorFileIOIntegrationTests
 
             var json = File.ReadAllText(tempPath);
             using var doc = JsonDocument.Parse(json);
-            var subsysType = doc.RootElement
-                               .GetProperty("Header")
-                               .GetProperty("SubsystemType")
-                               .GetString();
+
+            // SaveScenario now uses HrotJsonOptions (camelCase); also accept PascalCase for
+            // compatibility with older FDP-serialiser-written files.
+            JsonElement header;
+            if (!doc.RootElement.TryGetProperty("Header", out header))
+                doc.RootElement.TryGetProperty("header", out header);
+
+            JsonElement typeElem;
+            if (!header.TryGetProperty("SubsystemType", out typeElem))
+                header.TryGetProperty("subsystemType", out typeElem);
+
+            var subsysType = typeElem.GetString();
 
             Assert.Equal("Hrot.Scenario", subsysType);
         }

@@ -13,6 +13,7 @@ using Fdp.Toolkit.Tkb;
 using Hrot.CGF;
 using Hrot.Editor;
 using Hrot.Map.Common;
+using Hrot.Map.Common.Services;
 using Hrot.Orchestrator;
 using Hrot.ScenarioEditor;
 using Hrot.ScenarioEditor.Services;
@@ -81,7 +82,8 @@ public sealed class EditorHarness : IDisposable
         var doctrineRegistry = new DoctrineRegistry();
         var clusterSlave     = new ClusterSlave(0, "EditorHarness");
         var serializer       = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
-        var fileService      = new ScenarioFileService(serializer, Bus);
+        var zoneService      = new ZoneManagerService();
+        var fileService      = new ScenarioFileService(serializer, Bus, zoneService);
         _fileService = fileService;
 
         // ── TKB + ELM + spawn system ─────────────────────────────────────────

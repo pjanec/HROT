@@ -26,6 +26,8 @@ using FDP.Toolkit.Navigation.Modules;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using Hrot.Common.Orchestration.Handlers;
+using Hrot.Map.Common.Services;
+using Hrot.SimHost.Orchestration.Handlers;
 using Hrot.Common.Scenario;
 using FDP.Toolkit.Perception.Modules;
 using FDP.Toolkit.Replication.Services;
@@ -374,12 +376,13 @@ namespace Hrot.SimHost
             if (scenarioSerializer != null)
             {
                 var scenarioLoader = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
+                var zoneService    = new ZoneManagerService();
 
                 clusterSlave.RegisterHandler(
-                    new ReferenceScenarioLoadHandler(scenarioSerializer, scenarioLoader, world));
+                    new HrotScenarioLoadHandler(scenarioSerializer, scenarioLoader, zoneService, world));
 
                 clusterSlave.RegisterHandler(
-                    new ReferenceEditLoadHandler(scenarioSerializer, scenarioLoader, world));
+                    new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(scenarioSerializer, scenarioLoader, zoneService, world));
 
                 clusterSlave.RegisterHandler(
                     new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world));

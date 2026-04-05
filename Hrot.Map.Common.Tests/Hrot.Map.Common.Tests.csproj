@@ -21,6 +21,17 @@
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
     <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
+    <!-- PACK3-Z003: ZoneManagerServiceTests needs ZoneEnvironmentData and PhysicsCollider types -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
+    <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- PACK3-Z003: sample road network used by ZoneManagerServiceTests -->
+    <Content Include="Assets\sample_road.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

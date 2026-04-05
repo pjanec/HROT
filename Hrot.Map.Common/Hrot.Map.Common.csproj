@@ -11,6 +11,9 @@
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Combat.Contracts\FDP.Toolkit.Combat.Contracts.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\Fdp.Toolkit.Geographic\Fdp.Toolkit.Geographic.csproj" />
+    <!-- PACK3-Z003: ZoneManagerService needs PhysicsCollider/PhysicsConstants + ZoneEnvironmentData/RoadNetworkLoader -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Commands\FDP.Toolkit.Commands.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.NetworkSpawning\FDP.Toolkit.NetworkSpawning.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Lifecycle\FDP.Toolkit.Lifecycle.csproj" />

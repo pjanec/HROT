@@ -33,6 +33,9 @@
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
     <ProjectReference Include="..\Hrot.ScenarioEditor\Hrot.ScenarioEditor.csproj" />
     <ProjectReference Include="..\FDP\Examples\Fdp.Examples.Scenarios\Fdp.Examples.Scenarios.csproj" />
+    <!-- PACK3-Z006: ZoneScenarioLoadIntegrationTests uses ZoneEnvironmentData and PhysicsCollider directly -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
   </ItemGroup>
 
   <ItemGroup>

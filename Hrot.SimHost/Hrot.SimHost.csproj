@@ -70,6 +70,8 @@
     <ProjectReference Include="..\FDP\Framework\FDP.Framework.Raylib\FDP.Framework.Raylib.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.ImGui\FDP.Toolkit.ImGui.csproj" />
+    <!-- PACK3-Z004: NodeBootstrapper uses HrotEditLoadHandler from ScenarioEditor -->
+    <ProjectReference Include="..\Hrot.ScenarioEditor\Hrot.ScenarioEditor.csproj" />
   </ItemGroup>
 
 </Project>
