@@ -3,6 +3,7 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
+using Hrot.UI.Common.Panels;
 using Hrot.ExCon.Services;
 using Hrot.Map.Common.Dds;
 using FDP.Toolkit.DER;

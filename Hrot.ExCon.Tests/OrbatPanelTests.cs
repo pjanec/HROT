@@ -1,6 +1,7 @@
 using Hrot.NED.Descriptors;
 using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
+using Hrot.UI.Common.Panels;
 using FDP.Toolkit.DER;
 using Xunit;
 using Moq;

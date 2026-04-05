@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.ExCon\Hrot.ExCon.csproj" />
+    <ProjectReference Include="..\Hrot.UI.Common\Hrot.UI.Common.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
   </ItemGroup>
 

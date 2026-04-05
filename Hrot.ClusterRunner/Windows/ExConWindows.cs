@@ -2,6 +2,8 @@ using System.Numerics;
 using FDP.Toolkit.ImGui.WindowManager;
 using Hrot.ExCon;
 using Hrot.ExCon.Panels;
+using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.Panels;
 
 namespace Hrot.ClusterRunner.Windows;
 
@@ -17,19 +19,19 @@ internal static class ExConWindowColor
 /// <summary>ExCon Map Configuration panel as a perspective-bound managed window.</summary>
 internal sealed class ExConConfigWindow : ManagedWindow
 {
-    private readonly ConfigPanel  _panel;
-    private readonly IExConLogic  _logic;
+    private readonly ConfigPanel         _panel;
+    private readonly IMapConfigController _ctrl;
 
-    public ExConConfigWindow(ConfigPanel panel, IExConLogic logic)
+    public ExConConfigWindow(ConfigPanel panel, IMapConfigController ctrl)
         : base("excon_config", "Map Configuration", "ExCon", WindowScope.PerspectiveBound)
     {
         _panel = panel;
-        _logic = logic;
+        _ctrl  = ctrl;
         IsOpen = true;
         TitleBarColor = ExConWindowColor.TitleBar;
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_logic);
+    protected override void DrawClientArea() => _panel.DrawContent(_ctrl);
 }
 
 /// <summary>ExCon ORBAT Tree panel as a perspective-bound managed window.</summary>
@@ -53,19 +55,21 @@ internal sealed class ExConOrbatWindow : ManagedWindow
 /// <summary>ExCon Selection &amp; Mission panel as a perspective-bound managed window.</summary>
 internal sealed class ExConMissionWindow : ManagedWindow
 {
-    private readonly MissionPanel _panel;
-    private readonly IExConLogic  _logic;
+    private readonly MissionPanel         _panel;
+    private readonly IMissionEditorService _svc;
+    private readonly IMapPickService       _pick;
 
-    public ExConMissionWindow(MissionPanel panel, IExConLogic logic)
+    public ExConMissionWindow(MissionPanel panel, IMissionEditorService svc, IMapPickService pick)
         : base("excon_mission", "Selection & Mission", "ExCon", WindowScope.PerspectiveBound)
     {
         _panel = panel;
-        _logic = logic;
+        _svc   = svc;
+        _pick  = pick;
         IsOpen = true;
         TitleBarColor = ExConWindowColor.TitleBar;
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_logic);
+    protected override void DrawClientArea() => _panel.DrawContent(_svc, _pick);
 }
 
 /// <summary>ExCon Data Monitor (interaction log) panel as a perspective-bound managed window.</summary>
@@ -89,19 +93,19 @@ internal sealed class ExConDataMonitorWindow : ManagedWindow
 /// <summary>ExCon Entity Spawner panel as a perspective-bound managed window.</summary>
 internal sealed class ExConSpawnerWindow : ManagedWindow
 {
-    private readonly SpawnerPanel _panel;
-    private readonly IExConLogic  _logic;
+    private readonly SpawnerPanel   _panel;
+    private readonly ISpawnController _spawn;
 
-    public ExConSpawnerWindow(SpawnerPanel panel, IExConLogic logic)
+    public ExConSpawnerWindow(SpawnerPanel panel, ISpawnController spawn)
         : base("excon_spawner", "Entity Spawner", "ExCon", WindowScope.PerspectiveBound)
     {
         _panel = panel;
-        _logic = logic;
+        _spawn = spawn;
         IsOpen = true;
         TitleBarColor = ExConWindowColor.TitleBar;
     }
 
-    protected override void DrawClientArea() => _panel.DrawContent(_logic);
+    protected override void DrawClientArea() => _panel.DrawContent(_spawn);
 }
 
 /// <summary>ExCon Diagnostics panel as a perspective-bound managed window.</summary>

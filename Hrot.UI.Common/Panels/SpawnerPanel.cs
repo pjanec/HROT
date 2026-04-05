@@ -1,10 +1,9 @@
 using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
 using ImGuiNET;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
+using Hrot.UI.Common.Facades;
+using System.Text.Json;
 
-namespace Hrot.ExCon.Panels;
+namespace Hrot.UI.Common.Panels;
 
 /// <summary>
 /// A lightweight, immutable entry in the <see cref="SpawnerPanel"/> catalog
@@ -16,7 +15,7 @@ namespace Hrot.ExCon.Panels;
 public sealed record TkbCatalogEntry(long TkbId, string Name);
 
 /// <summary>
-/// ExCon UI panel that lets the operator browse the TKB entity type catalog,
+/// Shared UI panel that lets the operator browse the TKB entity type catalog,
 /// search/filter entries, choose a force affiliation, and activate the map
 /// placement tool.
 ///
@@ -24,7 +23,7 @@ public sealed record TkbCatalogEntry(long TkbId, string Name);
 /// (<see cref="FilteredEntries"/>) is rebuilt whenever
 /// <see cref="SearchFilter"/> changes and cached as a plain
 /// <see cref="List{T}"/>; <see cref="Draw"/> iterates it with a plain
-/// <c>for</c>-loop (CODE-STANDARDS §4).</para>
+/// <c>for</c>-loop.</para>
 ///
 /// <para><b>Case-insensitive filter</b>: matching uses
 /// <see cref="StringComparison.OrdinalIgnoreCase"/> so "t-72", "T-72", and
@@ -46,23 +45,21 @@ public sealed class SpawnerPanel
 
     // ── State ─────────────────────────────────────────────────────────────────
 
-    private string          _searchFilter = string.Empty;
-    private long            _selectedType = 0;
-    private eForceIdentifier _affiliation = eForceIdentifier.FORCE_FRIENDLY;
+    private string           _searchFilter = string.Empty;
+    private long             _selectedType = 0;
+    private eForceIdentifier _affiliation  = eForceIdentifier.FORCE_FRIENDLY;
 
     // ── Area authoring style state ─────────────────────────────────────────────
 
     /// <summary>Fill colour hex string for the next area overlay (RRGGBBAA).</summary>
-    private string _fillColorHex   = "#FF000050";
+    private string _fillColorHex  = "#FF000050";
 
     /// <summary>Border line thickness (pixels) for the next area overlay.</summary>
-    private float  _lineThickness   = 2.0f;
+    private float  _lineThickness  = 2.0f;
 
     // ── Constructors ──────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Creates a panel pre-loaded with the given catalog entries.
-    /// </summary>
+    /// <summary>Creates a panel pre-loaded with the given catalog entries.</summary>
     public SpawnerPanel(IEnumerable<TkbCatalogEntry> catalog)
     {
         _catalog         = catalog?.ToList() ?? new List<TkbCatalogEntry>();
@@ -78,7 +75,6 @@ public sealed class SpawnerPanel
     /// <summary>
     /// Substring filter applied to catalog names.
     /// Setting this property immediately rebuilds <see cref="FilteredEntries"/>.
-    /// Comparison is case-insensitive.
     /// </summary>
     public string SearchFilter
     {
@@ -106,8 +102,6 @@ public sealed class SpawnerPanel
 
     /// <summary>
     /// Handles the operator selecting a catalog entry.
-    /// Exposed as a separate method so tests can assert the selection
-    /// side-effect without an active ImGui frame.
     /// </summary>
     public void HandleTypeSelected(long tkbId)
     {
@@ -124,94 +118,72 @@ public sealed class SpawnerPanel
 
     /// <summary>
     /// Handles the "ACTIVATE PLACEMENT TOOL" button press.
-    /// Serializes the current affiliation into <c>initialPropertiesJson</c> and
-    /// calls <see cref="IExConLogic.StartPlacementMode"/> with the selected type.
+    /// Serialises the current affiliation into <c>initialPropertiesJson</c> and
+    /// calls <see cref="ISpawnController.StartPlacementMode"/> with the selected type.
     /// </summary>
-    public void HandleActivatePlacementTool(IExConLogic logic)
+    public void HandleActivatePlacementTool(ISpawnController spawn)
     {
-        ArgumentNullException.ThrowIfNull(logic);
-        var patch = new EntityPropertyPatch
-        {
-            Affiliation = _affiliation
-        };
-        var propsJson = JsonConvert.SerializeObject(patch, new JsonSerializerSettings
-        {
-            NullValueHandling = NullValueHandling.Ignore,
-            Converters = { new StringEnumConverter() }
-        });
-        logic.StartPlacementMode(_selectedType, propsJson);
+        ArgumentNullException.ThrowIfNull(spawn);
+        var propsJson = JsonSerializer.Serialize(new { Affiliation = _affiliation.ToString() });
+        spawn.StartPlacementMode(_selectedType, propsJson);
     }
 
     /// <summary>
     /// Handles the "DRAW AREA" button press.
-    /// Calls <see cref="IExConLogic.StartAreaAuthoringMode"/> with the current
-    /// style settings (<see cref="_fillColorHex"/>, <see cref="_lineThickness"/>).
+    /// Calls <see cref="ISpawnController.StartAreaAuthoringMode"/> with the current style settings.
     /// </summary>
-    public void HandleStartAreaAuthoring(IExConLogic logic)
+    public void HandleStartAreaAuthoring(ISpawnController spawn)
     {
-        ArgumentNullException.ThrowIfNull(logic);
-
-        string styleJson = System.Text.Json.JsonSerializer.Serialize(new
+        ArgumentNullException.ThrowIfNull(spawn);
+        string styleJson = JsonSerializer.Serialize(new
         {
             FillColor     = _fillColorHex,
             LineThickness = _lineThickness
         });
-
-        logic.StartAreaAuthoringMode(styleJson);
+        spawn.StartAreaAuthoringMode(styleJson);
     }
 
     /// <summary>
     /// Handles the "DRAW ROUTE" button press.
-    /// Calls <see cref="IExConLogic.StartRouteAuthoringMode"/> to activate the
-    /// standalone <c>TacGraphic_Route</c> authoring pipeline on the IG canvas.
+    /// Calls <see cref="ISpawnController.StartRouteAuthoringMode"/>.
     /// </summary>
-    public void HandleStartRouteAuthoring(IExConLogic logic)
+    public void HandleStartRouteAuthoring(ISpawnController spawn)
     {
-        ArgumentNullException.ThrowIfNull(logic);
-        logic.StartRouteAuthoringMode();
+        ArgumentNullException.ThrowIfNull(spawn);
+        spawn.StartRouteAuthoringMode();
     }
 
-    // ── Draw stub (Phase P9) ──────────────────────────────────────────────────
+    // ── Draw ──────────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Renders the spawner panel via ImGui.
-    /// Called once per frame from the application shell (Phase P9).
-    ///
-    /// <para>Uses a combo box to select an entity type from
-    /// <see cref="_filteredEntries"/> so that the currently selected item is
-    /// always visible in the combo header and the popup takes minimal vertical
-    /// space.</para>
+    /// Called once per frame from the application shell.
     /// </summary>
-    public void Draw(IExConLogic logic)
+    public void Draw(ISpawnController spawn)
     {
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
-        ExConPanelColors.Push();
         ImGui.Begin("Entity Spawner");
-        ExConPanelColors.Pop();
-
-        DrawContent(logic);
-
+        DrawContent(spawn);
         ImGui.End();
     }
 
     /// <summary>
     /// Renders only the panel body content (no <c>ImGui.Begin</c>/<c>End</c>).
-    /// Called by the Window Manager when this panel is hosted as a
-    /// <see cref="ManagedWindow"/>; also called by <see cref="Draw"/> in standalone mode.
+    /// Called by the Window Manager when this panel is hosted as a managed window;
+    /// also called by <see cref="Draw"/> in standalone mode.
     /// </summary>
-    public void DrawContent(IExConLogic logic)
+    public void DrawContent(ISpawnController spawn)
     {
         string filterBuf = _searchFilter;
         if (ImGui.InputText("Search", ref filterBuf, PanelConstants.FilterTextMaxLength))
             SearchFilter = filterBuf;
 
-        // Combo box — shows selected entry in the header and filtered list in the popup.
         string previewText = GetSelectedPreviewText();
         if (ImGui.BeginCombo("Entity Type", previewText))
         {
             for (int i = 0; i < _filteredEntries.Count; i++)
             {
-                var entry      = _filteredEntries[i];
+                var entry       = _filteredEntries[i];
                 bool isSelected = entry.TkbId == _selectedType;
                 if (ImGui.Selectable($"{entry.Name} (Type:{entry.TkbId})", isSelected))
                     HandleTypeSelected(entry.TkbId);
@@ -231,7 +203,7 @@ public sealed class SpawnerPanel
             HandleAffiliationChange((eForceIdentifier)aff);
 
         if (ImGui.Button("ACTIVATE PLACEMENT TOOL"))
-            HandleActivatePlacementTool(logic);
+            HandleActivatePlacementTool(spawn);
 
         ImGui.Separator();
         ImGui.Text("Area Style");
@@ -239,20 +211,16 @@ public sealed class SpawnerPanel
         ImGui.SliderFloat("Line Thickness", ref _lineThickness, 1.0f, 10.0f);
 
         if (ImGui.Button("DRAW AREA"))
-            HandleStartAreaAuthoring(logic);
+            HandleStartAreaAuthoring(spawn);
 
         ImGui.SameLine();
 
         if (ImGui.Button("DRAW ROUTE"))
-            HandleStartRouteAuthoring(logic);
+            HandleStartRouteAuthoring(spawn);
     }
 
-    // ── Private filter rebuild ────────────────────────────────────────────────
+    // ── Private helpers ───────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Returns the display text for the combo header based on the currently selected type.
-    /// Searches the full catalog so the name remains visible even when the filter is active.
-    /// </summary>
     private string GetSelectedPreviewText()
     {
         if (_selectedType == 0) return "(none)";

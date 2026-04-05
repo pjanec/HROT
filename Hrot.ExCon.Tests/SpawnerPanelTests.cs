@@ -1,5 +1,6 @@
 using Hrot.NED.Descriptors;
-using Hrot.ExCon.Panels;
+using Hrot.UI.Common.Panels;
+using Hrot.UI.Common.Facades;
 using Moq;
 
 namespace Hrot.ExCon.Tests;
@@ -215,38 +216,38 @@ public class SpawnerPanelTests
     [Fact]
     public void HandleActivatePlacementTool_CallsStartPlacementMode()
     {
-        var logic = new Mock<IExConLogic>();
+        var spawn = new Mock<ISpawnController>();
         var panel = new SpawnerPanel(SampleCatalog);
         panel.HandleTypeSelected(103L);
         panel.HandleAffiliationChange(eForceIdentifier.FORCE_OPPOSING);
 
-        panel.HandleActivatePlacementTool(logic.Object);
+        panel.HandleActivatePlacementTool(spawn.Object);
 
-        logic.Verify(l => l.StartPlacementMode(103L, It.Is<string?>(s => s != null && s.Contains("FORCE_OPPOSING"))), Times.Once);
+        spawn.Verify(s => s.StartPlacementMode(103L, It.Is<string?>(p => p != null && p.Contains("FORCE_OPPOSING"))), Times.Once);
     }
 
     [Fact]
     public void HandleActivatePlacementTool_PassesCorrectTkbType()
     {
-        var logic = new Mock<IExConLogic>();
+        var spawn = new Mock<ISpawnController>();
         var panel = new SpawnerPanel(SampleCatalog);
         panel.HandleTypeSelected(200L);
 
-        panel.HandleActivatePlacementTool(logic.Object);
+        panel.HandleActivatePlacementTool(spawn.Object);
 
-        logic.Verify(l => l.StartPlacementMode(200L, It.IsAny<string?>()), Times.Once);
+        spawn.Verify(s => s.StartPlacementMode(200L, It.IsAny<string?>()), Times.Once);
     }
 
     [Fact]
     public void HandleActivatePlacementTool_PassesCorrectAffiliation()
     {
-        var logic = new Mock<IExConLogic>();
+        var spawn = new Mock<ISpawnController>();
         var panel = new SpawnerPanel(SampleCatalog);
         panel.HandleAffiliationChange(eForceIdentifier.FORCE_FRIENDLY);
 
-        panel.HandleActivatePlacementTool(logic.Object);
+        panel.HandleActivatePlacementTool(spawn.Object);
 
-        logic.Verify(l => l.StartPlacementMode(It.IsAny<long>(), It.Is<string?>(s => s != null && s.Contains("FORCE_FRIENDLY"))), Times.Once);
+        spawn.Verify(s => s.StartPlacementMode(It.IsAny<long>(), It.Is<string?>(p => p != null && p.Contains("FORCE_FRIENDLY"))), Times.Once);
     }
 
     [Fact]
@@ -261,12 +262,12 @@ public class SpawnerPanelTests
     [Fact]
     public void HandleStartAreaAuthoring_CallsStartAreaAuthoringMode()
     {
-        var logic = new Mock<IExConLogic>();
+        var spawn = new Mock<ISpawnController>();
         var panel = new SpawnerPanel(SampleCatalog);
 
-        panel.HandleStartAreaAuthoring(logic.Object);
+        panel.HandleStartAreaAuthoring(spawn.Object);
 
-        logic.Verify(l => l.StartAreaAuthoringMode(It.IsAny<string>()), Times.Once);
+        spawn.Verify(s => s.StartAreaAuthoringMode(It.IsAny<string>()), Times.Once);
     }
 
     [Fact]
@@ -281,12 +282,12 @@ public class SpawnerPanelTests
     [Fact]
     public void HandleStartRouteAuthoring_CallsStartRouteAuthoringMode()
     {
-        var logic = new Mock<IExConLogic>();
+        var spawn = new Mock<ISpawnController>();
         var panel = new SpawnerPanel(SampleCatalog);
 
-        panel.HandleStartRouteAuthoring(logic.Object);
+        panel.HandleStartRouteAuthoring(spawn.Object);
 
-        logic.Verify(l => l.StartRouteAuthoringMode(), Times.Once);
+        spawn.Verify(s => s.StartRouteAuthoringMode(), Times.Once);
     }
 
     [Fact]
@@ -301,12 +302,12 @@ public class SpawnerPanelTests
     [Fact]
     public void HandleActivatePlacementTool_NoTypeSelected_PassesZeroTkbId()
     {
-        var logic = new Mock<IExConLogic>();
+        var spawn = new Mock<ISpawnController>();
         var panel = new SpawnerPanel(SampleCatalog);
         // No HandleTypeSelected called — _selectedType stays at default 0
 
-        panel.HandleActivatePlacementTool(logic.Object);
+        panel.HandleActivatePlacementTool(spawn.Object);
 
-        logic.Verify(l => l.StartPlacementMode(0L, It.IsAny<string?>()), Times.Once);
+        spawn.Verify(s => s.StartPlacementMode(0L, It.IsAny<string?>()), Times.Once);
     }
 }

@@ -5,6 +5,7 @@ using FDP.Toolkit.DER;
 using ImGuiNET;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using Hrot.UI.Common.Panels;
 
 namespace Hrot.ExCon.Panels;
 

@@ -1,7 +1,8 @@
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
-using Hrot.ExCon.Panels;
-using Hrot.ExCon.Services;
+using Hrot.UI.Common.Panels;
+using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.Models;
 using Moq;
 
 namespace Hrot.ExCon.Tests;
@@ -20,15 +21,14 @@ public class MissionPanelTests
 {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static (MissionPanel Panel, Mock<IExConLogic> Logic, Mock<IMissionEditorService> MissionSvc)
+    private static (MissionPanel Panel, Mock<IMissionEditorService> MissionSvc, Mock<IMapPickService> PickSvc)
         CreateSut(int selectedEntityId = 0)
     {
         var missionSvc = new Mock<IMissionEditorService>();
-        var logic      = new Mock<IExConLogic>();
-        logic.Setup(l => l.MissionEditorService).Returns(missionSvc.Object);
+        var pickSvc    = new Mock<IMapPickService>();
 
         var panel = new MissionPanel { SelectedEntityId = selectedEntityId };
-        return (panel, logic, missionSvc);
+        return (panel, missionSvc, pickSvc);
     }
 
     private static MissionPlan BuildPlan(params string[] behaviorIds)
@@ -120,12 +120,12 @@ public class MissionPanelTests
     [Fact]
     public void HandleJump_WithSelection_CallsSendControlCommandJump()
     {
-        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 5);
+        var (panel, missionSvc, _) = CreateSut(selectedEntityId: 5);
         missionSvc.Setup(s => s.SendControlCommandAsync(
             It.IsAny<long>(), It.IsAny<eMissionCommandType>(), It.IsAny<Guid>()))
-            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 1 });
+            .ReturnsAsync(new MissionCommitResult(true, 1));
 
-        panel.HandleJump(logic.Object);
+        panel.HandleJump(missionSvc.Object);
 
         missionSvc.Verify(s => s.SendControlCommandAsync(
             5L,
@@ -137,9 +137,9 @@ public class MissionPanelTests
     [Fact]
     public void HandleJump_NoSelection_DoesNotCallService()
     {
-        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 0);
+        var (panel, missionSvc, _) = CreateSut(selectedEntityId: 0);
 
-        panel.HandleJump(logic.Object);
+        panel.HandleJump(missionSvc.Object);
 
         missionSvc.Verify(s => s.SendControlCommandAsync(
             It.IsAny<long>(),
@@ -160,12 +160,12 @@ public class MissionPanelTests
     [Fact]
     public void HandleAbort_WithSelection_CallsSendControlCommandAbortAll()
     {
-        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 7);
+        var (panel, missionSvc, _) = CreateSut(selectedEntityId: 7);
         missionSvc.Setup(s => s.SendControlCommandAsync(
             It.IsAny<long>(), It.IsAny<eMissionCommandType>(), It.IsAny<Guid>()))
-            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 1 });
+            .ReturnsAsync(new MissionCommitResult(true, 1));
 
-        panel.HandleAbort(logic.Object);
+        panel.HandleAbort(missionSvc.Object);
 
         missionSvc.Verify(s => s.SendControlCommandAsync(
             7L,
@@ -177,9 +177,9 @@ public class MissionPanelTests
     [Fact]
     public void HandleAbort_NoSelection_DoesNotCallService()
     {
-        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 0);
+        var (panel, missionSvc, _) = CreateSut(selectedEntityId: 0);
 
-        panel.HandleAbort(logic.Object);
+        panel.HandleAbort(missionSvc.Object);
 
         missionSvc.Verify(s => s.SendControlCommandAsync(
             It.IsAny<long>(),
@@ -200,12 +200,12 @@ public class MissionPanelTests
     [Fact]
     public void HandleJump_SendsJumpToTask_NotAbortAll()
     {
-        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 3);
+        var (panel, missionSvc, _) = CreateSut(selectedEntityId: 3);
         missionSvc.Setup(s => s.SendControlCommandAsync(
             It.IsAny<long>(), It.IsAny<eMissionCommandType>(), It.IsAny<Guid>()))
-            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 1 });
+            .ReturnsAsync(new MissionCommitResult(true, 1));
 
-        panel.HandleJump(logic.Object);
+        panel.HandleJump(missionSvc.Object);
 
         missionSvc.Verify(s => s.SendControlCommandAsync(
             It.IsAny<long>(),
@@ -222,12 +222,12 @@ public class MissionPanelTests
     [Fact]
     public void HandleAbort_SendsAbortAll_NotJumpToTask()
     {
-        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 3);
+        var (panel, missionSvc, _) = CreateSut(selectedEntityId: 3);
         missionSvc.Setup(s => s.SendControlCommandAsync(
             It.IsAny<long>(), It.IsAny<eMissionCommandType>(), It.IsAny<Guid>()))
-            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 1 });
+            .ReturnsAsync(new MissionCommitResult(true, 1));
 
-        panel.HandleAbort(logic.Object);
+        panel.HandleAbort(missionSvc.Object);
 
         missionSvc.Verify(s => s.SendControlCommandAsync(
             It.IsAny<long>(),
@@ -258,15 +258,10 @@ public class MissionPanelTests
     }
 
     [Fact]
-    public void HandleConflictResult_VersionConflict_SetsHasConflictAlertTrue()
+    public void HandleConflictResult_FailureResult_SetsHasConflictAlertTrue()
     {
         var panel  = new MissionPanel();
-        var result = new MissionCommitResult
-        {
-            Success      = false,
-            ErrorCode    = PanelConstants.VersionConflictErrorCode,
-            ErrorMessage = PanelConstants.VersionConflictErrorMessage
-        };
+        var result = new MissionCommitResult(false, 0, PanelConstants.VersionConflictErrorMessage);
 
         panel.HandleConflictResult(result);
 
@@ -274,15 +269,10 @@ public class MissionPanelTests
     }
 
     [Fact]
-    public void HandleConflictResult_VersionConflict_StoresErrorMessage()
+    public void HandleConflictResult_FailureResult_StoresErrorMessage()
     {
         var panel  = new MissionPanel();
-        var result = new MissionCommitResult
-        {
-            Success      = false,
-            ErrorCode    = PanelConstants.VersionConflictErrorCode,
-            ErrorMessage = PanelConstants.VersionConflictErrorMessage
-        };
+        var result = new MissionCommitResult(false, 0, PanelConstants.VersionConflictErrorMessage);
 
         panel.HandleConflictResult(result);
 
@@ -293,12 +283,7 @@ public class MissionPanelTests
     public void HandleConflictResult_SuccessResult_DoesNotSetAlert()
     {
         var panel  = new MissionPanel();
-        var result = new MissionCommitResult
-        {
-            Success   = true,
-            ErrorCode = 0,
-            NewVersion = 2
-        };
+        var result = new MissionCommitResult(true, 2);
 
         panel.HandleConflictResult(result);
 
@@ -306,21 +291,15 @@ public class MissionPanelTests
     }
 
     [Fact]
-    public void HandleConflictResult_FailureWithOtherErrorCode_DoesNotSetConflictAlert()
+    public void HandleConflictResult_AnyFailure_SetsConflictAlert()
     {
-        // Error code != 7 (e.g. timeout, permission error) should NOT trigger
-        // the version-conflict modal.
+        // Any non-success result (regardless of message) triggers the conflict alert.
         var panel  = new MissionPanel();
-        var result = new MissionCommitResult
-        {
-            Success      = false,
-            ErrorCode    = 1,
-            ErrorMessage = "Some other error"
-        };
+        var result = new MissionCommitResult(false, 0, "Some other error");
 
         panel.HandleConflictResult(result);
 
-        Assert.False(panel.HasConflictAlert);
+        Assert.True(panel.HasConflictAlert);
     }
 
     [Fact]
@@ -331,15 +310,10 @@ public class MissionPanelTests
     }
 
     [Fact]
-    public void HandleConflictResult_ConflictWithNullMessage_FallsBackToConstant()
+    public void HandleConflictResult_FailureWithNullMessage_FallsBackToConstant()
     {
         var panel  = new MissionPanel();
-        var result = new MissionCommitResult
-        {
-            Success      = false,
-            ErrorCode    = PanelConstants.VersionConflictErrorCode,
-            ErrorMessage = null   // null message from ACK
-        };
+        var result = new MissionCommitResult(false, 0, null);
 
         panel.HandleConflictResult(result);
 
@@ -351,12 +325,7 @@ public class MissionPanelTests
     public void DismissConflict_ClearsAlertAndMessage()
     {
         var panel  = new MissionPanel();
-        panel.HandleConflictResult(new MissionCommitResult
-        {
-            Success   = false,
-            ErrorCode = PanelConstants.VersionConflictErrorCode,
-            ErrorMessage = PanelConstants.VersionConflictErrorMessage
-        });
+        panel.HandleConflictResult(new MissionCommitResult(false, 0, PanelConstants.VersionConflictErrorMessage));
         Assert.True(panel.HasConflictAlert);
 
         panel.DismissConflict();
@@ -449,14 +418,14 @@ public class MissionPanelTests
     [Fact]
     public void Commit_CallsMissionEditorService()
     {
-        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 7);
+        var (panel, missionSvc, _) = CreateSut(selectedEntityId: 7);
         panel.SetDraftPlan(BuildPlan("MoveToLocation"), baseVersion: 2);
 
         missionSvc
             .Setup(s => s.CommitMissionAsync(7, It.IsAny<MissionPlan>(), 2))
-            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 3 });
+            .ReturnsAsync(new MissionCommitResult(true, 3));
 
-        panel.HandleCommit(logic.Object);
+        panel.HandleCommit(missionSvc.Object);
 
         missionSvc.Verify(s => s.CommitMissionAsync(
             7,
@@ -468,7 +437,7 @@ public class MissionPanelTests
     [Fact]
     public void Commit_DisabledWhileInFlight()
     {
-        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 7);
+        var (panel, missionSvc, _) = CreateSut(selectedEntityId: 7);
         panel.SetDraftPlan(BuildPlan("MoveToLocation"), baseVersion: 2);
 
         var tcs = new TaskCompletionSource<MissionCommitResult>();
@@ -476,7 +445,7 @@ public class MissionPanelTests
             .Setup(s => s.CommitMissionAsync(7, It.IsAny<MissionPlan>(), 2))
             .Returns(tcs.Task);
 
-        panel.HandleCommit(logic.Object);
+        panel.HandleCommit(missionSvc.Object);
 
         Assert.True(panel.CommitInFlight);
         Assert.False(panel.CommitButtonEnabled);
@@ -520,12 +489,12 @@ public class MissionPanelTests
     [Fact]
     public void HandleJump_WithSelection_SetsCommitInFlight()
     {
-        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 5);
+        var (panel, missionSvc, _) = CreateSut(selectedEntityId: 5);
         missionSvc.Setup(s => s.SendControlCommandAsync(
             It.IsAny<long>(), It.IsAny<eMissionCommandType>(), It.IsAny<Guid>()))
-            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 1 });
+            .ReturnsAsync(new MissionCommitResult(true, 1));
 
-        panel.HandleJump(logic.Object);
+        panel.HandleJump(missionSvc.Object);
 
         Assert.True(panel.CommitInFlight);
     }
@@ -533,12 +502,12 @@ public class MissionPanelTests
     [Fact]
     public void HandleAbort_WithSelection_SetsCommitInFlight()
     {
-        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 5);
+        var (panel, missionSvc, _) = CreateSut(selectedEntityId: 5);
         missionSvc.Setup(s => s.SendControlCommandAsync(
             It.IsAny<long>(), It.IsAny<eMissionCommandType>(), It.IsAny<Guid>()))
-            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 1 });
+            .ReturnsAsync(new MissionCommitResult(true, 1));
 
-        panel.HandleAbort(logic.Object);
+        panel.HandleAbort(missionSvc.Object);
 
         Assert.True(panel.CommitInFlight);
     }
@@ -615,13 +584,13 @@ public class MissionPanelTests
     [Fact]
     public void HandleForceCommit_CallsCommitWithBaseVersionZero()
     {
-        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 3);
+        var (panel, missionSvc, _) = CreateSut(selectedEntityId: 3);
         panel.SetDraftPlan(BuildPlan("MoveToLocation"), baseVersion: 99);
         missionSvc.Setup(s => s.CommitMissionAsync(
                 It.IsAny<long>(), It.IsAny<MissionPlan>(), It.IsAny<long>()))
-            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 100 });
+            .ReturnsAsync(new MissionCommitResult(true, 100));
 
-        panel.HandleForceCommit(logic.Object);
+        panel.HandleForceCommit(missionSvc.Object);
 
         missionSvc.Verify(
             s => s.CommitMissionAsync(3L, It.IsAny<MissionPlan>(), 0L),
@@ -631,20 +600,15 @@ public class MissionPanelTests
     [Fact]
     public void HandleForceCommit_DismissesConflictAlert()
     {
-        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 2);
+        var (panel, missionSvc, _) = CreateSut(selectedEntityId: 2);
         panel.SetDraftPlan(BuildPlan("MoveToLocation"), baseVersion: 1);
-        panel.HandleConflictResult(new MissionCommitResult
-        {
-            Success      = false,
-            ErrorCode    = PanelConstants.VersionConflictErrorCode,
-            ErrorMessage = PanelConstants.VersionConflictErrorMessage
-        });
+        panel.HandleConflictResult(new MissionCommitResult(false, 0, PanelConstants.VersionConflictErrorMessage));
         Assert.True(panel.HasConflictAlert);
         missionSvc.Setup(s => s.CommitMissionAsync(
                 It.IsAny<long>(), It.IsAny<MissionPlan>(), It.IsAny<long>()))
-            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 2 });
+            .ReturnsAsync(new MissionCommitResult(true, 2));
 
-        panel.HandleForceCommit(logic.Object);
+        panel.HandleForceCommit(missionSvc.Object);
 
         Assert.False(panel.HasConflictAlert);
     }
@@ -654,12 +618,7 @@ public class MissionPanelTests
     {
         var (panel, _, _) = CreateSut(selectedEntityId: 2);
         panel.SetDraftPlan(BuildPlan("MoveToLocation"), baseVersion: 1);
-        panel.HandleConflictResult(new MissionCommitResult
-        {
-            Success      = false,
-            ErrorCode    = PanelConstants.VersionConflictErrorCode,
-            ErrorMessage = PanelConstants.VersionConflictErrorMessage
-        });
+        panel.HandleConflictResult(new MissionCommitResult(false, 0, PanelConstants.VersionConflictErrorMessage));
         Assert.True(panel.HasConflictAlert);
         Assert.True(panel.DraftPlan.HasValue);
 
@@ -668,4 +627,42 @@ public class MissionPanelTests
         Assert.False(panel.HasConflictAlert);
         Assert.False(panel.DraftPlan.HasValue);
     }
+
+    // ── BATCH-02 new tests: DrawContent calls GetAvailableBehaviors ───────────
+
+    /// <summary>
+    /// Verifies that DrawContent calls GetAvailableBehaviors with the currently
+    /// selected entity ID before any ImGui rendering. This test works without an
+    /// ImGui context because the service call precedes all ImGui calls.
+    /// </summary>
+    [Fact]
+    public void DrawContent_CallsGetAvailableBehaviors_WithSelectedEntityId()
+    {
+        var (panel, missionSvc, pickSvc) = CreateSut(selectedEntityId: 42);
+        missionSvc.Setup(s => s.GetAvailableBehaviors(42L))
+            .Returns(new List<string> { "Ambush" }.AsReadOnly());
+
+        // DrawContent calls GetAvailableBehaviors before the ImGui guard.
+        panel.DrawContent(missionSvc.Object, pickSvc.Object);
+
+        missionSvc.Verify(s => s.GetAvailableBehaviors(42L), Times.Once);
+    }
+
+    /// <summary>
+    /// Verifies that DrawContent calls GetAvailableBehaviors even when there is
+    /// no active mission plan (empty entity). Uses a counting mock.
+    /// </summary>
+    [Fact]
+    public void DrawContent_NoSelection_StillCallsGetAvailableBehaviors()
+    {
+        var (panel, missionSvc, pickSvc) = CreateSut(selectedEntityId: 0);
+        missionSvc.Setup(s => s.GetAvailableBehaviors(0L))
+            .Returns(Array.Empty<string>());
+
+        panel.DrawContent(missionSvc.Object, pickSvc.Object);
+
+        // Even with no selection the service is called to get behaviors for entity 0.
+        missionSvc.Verify(s => s.GetAvailableBehaviors(0L), Times.Once);
+    }
 }
+

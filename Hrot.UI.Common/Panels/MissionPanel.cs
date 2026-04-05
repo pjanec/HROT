@@ -1,24 +1,25 @@
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
-using Hrot.ExCon.Services;
 using FDP.Kernel.Logging;
-using FDP.Toolkit.Behavior;
-using BehaviorConstants = FDP.Toolkit.Behavior.BehaviorConstants;
 using ImGuiNET;
 using System.Text.Json;
+using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.Models;
 
-namespace Hrot.ExCon.Panels;
+namespace Hrot.UI.Common.Panels;
 
 /// <summary>
-/// ExCon UI panel that displays the currently selected entity's identity and
-/// mission plan, and provides buttons to send jump / abort control commands
-/// via <see cref="Hrot.ExCon.Services.IMissionEditorService"/>.
+/// Shared UI panel that displays the currently selected entity's mission plan
+/// and provides buttons to send control commands (jump / abort) and to edit
+/// mission task sequences.
+///
+/// <para>Depends on <see cref="IMissionEditorService"/> for mission reads and
+/// commits, and <see cref="IMapPickService"/> for async map-pick operations.</para>
 ///
 /// <para><b>Testing:</b> all UI-triggered logic lives in public
-/// <c>Handle*</c> methods that accept an <see cref="IExConLogic"/>; tests can
-/// call these directly with a Moq mock to assert side-effects without an ImGui
-/// render frame.</para>
+/// <c>Handle*</c> methods that accept the service interfaces directly; tests can
+/// call these without an ImGui render frame.</para>
 /// </summary>
 public sealed class MissionPanel
 {
@@ -27,11 +28,11 @@ public sealed class MissionPanel
     private int _selectedEntityId = 0;
 
     private MissionPlan? _draftPlan;
-    private long _draftBaseVersion;
-    private int _draftEntityId;
+    private long         _draftBaseVersion;
+    private int          _draftEntityId;
 
-    private bool _commitInFlight;
-    private Task<MissionCommitResult>? _pendingCommit;
+    private bool                          _commitInFlight;
+    private Task<MissionCommitResult>?    _pendingCommit;
 
     // ── Map-pick pending state ─────────────────────────────────────────────────
 
@@ -50,25 +51,15 @@ public sealed class MissionPanel
     /// <summary>Task index that the current pending pick is targeting.</summary>
     private int _pendingPickTaskIndex = -1;
 
-    private readonly string[] _behaviorIds;
-
-    private const int DoctrineIdMoveToLocation = 1;
-    private const int DoctrineIdFollowRoute    = 2;
-    private const int DoctrineIdJoinFormation  = 3;
-    private const int DoctrineIdIdle           = 4;
-    private const int BehaviorCatalogCapacity  = 4;
-
-    private const string BehaviorNameMoveToLocation = "MoveToLocation";
-    private const string BehaviorNameFollowRoute    = "FollowRoute";
-    private const string BehaviorNameJoinFormation  = "JoinFormation";
-    private const string BehaviorNameIdle           = "Idle";
-
-    // ── Trigger types (BUG2-M002) ─────────────────────────────────────────────
+    // ── Trigger types ─────────────────────────────────────────────────────────
 
     private static readonly string[] _triggerTypes =
     {
         "DoctrineFinished", "TimerElapsed", "ReachedDestination", "HealthCritical", "UnderAttack"
     };
+
+    private const string BehaviorNameMoveToLocation = "MoveToLocation";
+    private const string BehaviorNameFollowRoute    = "FollowRoute";
 
     /// <summary>Returns the default params string for the given trigger type.</summary>
     public static string GetDefaultTriggerParams(string triggerType) => triggerType switch
@@ -80,21 +71,14 @@ public sealed class MissionPanel
 
     // ── Construction ─────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Creates a new mission panel with a locally-built doctrine registry used
-    /// to populate the BehaviorId dropdown.
-    /// </summary>
-    public MissionPanel()
-    {
-        var registry = new DoctrineRegistry();
-        _behaviorIds = BuildBehaviorList(registry);
-    }
+    /// <summary>Creates a new mission panel.</summary>
+    public MissionPanel() { }
 
-    // ── Public state accessor ─────────────────────────────────────────────────
+    // ── Public state accessors ────────────────────────────────────────────────
 
     /// <summary>
     /// The entity currently shown by the panel.
-    /// Set to 0 (no selection) or a valid DER entity ID.
+    /// Set to 0 (no selection) or a valid entity ID.
     /// </summary>
     public int SelectedEntityId
     {
@@ -111,26 +95,13 @@ public sealed class MissionPanel
     /// <summary>True when the commit button should be enabled.</summary>
     public bool CommitButtonEnabled => CanCommit;
 
-    /// <summary>
-    /// The current optimistic-lock base version used for mission commits.
-    /// Exposed for unit-test assertions (e.g. verifying that an abort ACK
-    /// updates the version).
-    /// </summary>
+    /// <summary>The current optimistic-lock base version used for mission commits.</summary>
     internal long TestHook_DraftBaseVersion => _draftBaseVersion;
 
     // ── Task icon helper (public for testability) ─────────────────────────────
 
     /// <summary>
     /// Returns a single Unicode glyph that visually represents the task state.
-    ///
-    /// <list type="table">
-    ///   <listheader><term>State</term><description>Glyph</description></listheader>
-    ///   <item><term>Active (isActive = true)</term><description>▶</description></item>
-    ///   <item><term>TASK_DONE</term><description>✓</description></item>
-    ///   <item><term>TASK_FAILED</term><description>✗</description></item>
-    ///   <item><term>TASK_SKIPPED</term><description>⏭</description></item>
-    ///   <item><term>TASK_PLANNED (default)</term><description>⏹</description></item>
-    /// </list>
     /// </summary>
     public static string GetTaskIcon(MissionTask task, bool isActive)
     {
@@ -141,7 +112,7 @@ public sealed class MissionPanel
             eTaskState.TASK_DONE    => "✓",
             eTaskState.TASK_FAILED  => "✗",
             eTaskState.TASK_SKIPPED => "⏭",
-            _                       => "⏹"   // TASK_PLANNED and anything else
+            _                       => "⏹"
         };
     }
 
@@ -149,16 +120,14 @@ public sealed class MissionPanel
 
     /// <summary>
     /// Handles the "JUMP" button press: sends a
-    /// <see cref="eMissionCommandType.CMD_JUMP_TO_TASK"/> control command for
-    /// the currently selected entity and tracks the response so that
-    /// <see cref="PollCommitCompletion"/> can update <c>_draftBaseVersion</c>.
+    /// <see cref="eMissionCommandType.CMD_JUMP_TO_TASK"/> control command.
     /// </summary>
-    public void HandleJump(IExConLogic logic)
+    public void HandleJump(IMissionEditorService service)
     {
-        ArgumentNullException.ThrowIfNull(logic);
+        ArgumentNullException.ThrowIfNull(service);
         if (_selectedEntityId == 0) return;
 
-        _pendingCommit = logic.MissionEditorService.SendControlCommandAsync(
+        _pendingCommit  = service.SendControlCommandAsync(
             _selectedEntityId,
             eMissionCommandType.CMD_JUMP_TO_TASK,
             Guid.Empty);
@@ -167,16 +136,14 @@ public sealed class MissionPanel
 
     /// <summary>
     /// Handles the "ABORT" button press: sends a
-    /// <see cref="eMissionCommandType.CMD_ABORT_ALL"/> control command for the
-    /// currently selected entity and tracks the response so that
-    /// <see cref="PollCommitCompletion"/> can update <c>_draftBaseVersion</c>.
+    /// <see cref="eMissionCommandType.CMD_ABORT_ALL"/> control command.
     /// </summary>
-    public void HandleAbort(IExConLogic logic)
+    public void HandleAbort(IMissionEditorService service)
     {
-        ArgumentNullException.ThrowIfNull(logic);
+        ArgumentNullException.ThrowIfNull(service);
         if (_selectedEntityId == 0) return;
 
-        _pendingCommit = logic.MissionEditorService.SendControlCommandAsync(
+        _pendingCommit  = service.SendControlCommandAsync(
             _selectedEntityId,
             eMissionCommandType.CMD_ABORT_ALL,
             Guid.Empty);
@@ -188,9 +155,9 @@ public sealed class MissionPanel
     /// <summary>Creates a fresh draft plan and assigns a base version.</summary>
     public void SetDraftPlan(MissionPlan plan, long baseVersion)
     {
-        _draftPlan = ClonePlan(plan);
+        _draftPlan        = ClonePlan(plan);
         _draftBaseVersion = baseVersion;
-        _draftEntityId = _selectedEntityId;
+        _draftEntityId    = _selectedEntityId;
     }
 
     /// <summary>Appends a new default task to the draft plan.</summary>
@@ -201,12 +168,12 @@ public sealed class MissionPanel
         var tasks = GetDraftTasks();
         tasks.Add(new MissionTask
         {
-            TaskId         = Guid.NewGuid(),
+            TaskId          = Guid.NewGuid(),
             ExecutingEngine = string.Empty,
-            BehaviorId     = string.Empty,
-            BehaviorParams = string.Empty,
-            Triggers       = new List<MissionTrigger> { new MissionTrigger { Type = "DoctrineFinished" } },
-            State          = eTaskState.TASK_PLANNED
+            BehaviorId      = string.Empty,
+            BehaviorParams  = string.Empty,
+            Triggers        = new List<MissionTrigger> { new MissionTrigger { Type = "DoctrineFinished" } },
+            State           = eTaskState.TASK_PLANNED
         });
     }
 
@@ -224,7 +191,7 @@ public sealed class MissionPanel
     {
         if (!TryGetDraftTasks(out var tasks)) return;
         if (fromIndex < 0 || fromIndex >= tasks.Count) return;
-        if (toIndex < 0 || toIndex >= tasks.Count) return;
+        if (toIndex   < 0 || toIndex   >= tasks.Count) return;
         if (fromIndex == toIndex) return;
 
         var task = tasks[fromIndex];
@@ -238,9 +205,9 @@ public sealed class MissionPanel
         if (!TryGetDraftTasks(out var tasks)) return;
         if (index < 0 || index >= tasks.Count) return;
 
-        var task = tasks[index];
+        var task       = tasks[index];
         task.BehaviorId = behaviorId ?? string.Empty;
-        tasks[index] = task;
+        tasks[index]   = task;
     }
 
     /// <summary>Updates the draft task BehaviorParams JSON at the specified index.</summary>
@@ -249,9 +216,9 @@ public sealed class MissionPanel
         if (!TryGetDraftTasks(out var tasks)) return;
         if (index < 0 || index >= tasks.Count) return;
 
-        var task = tasks[index];
+        var task           = tasks[index];
         task.BehaviorParams = behaviorParams ?? string.Empty;
-        tasks[index] = task;
+        tasks[index]       = task;
     }
 
     /// <summary>Updates the trigger type at the given task/trigger index and resets params to defaults.</summary>
@@ -262,11 +229,11 @@ public sealed class MissionPanel
         var task = tasks[taskIndex];
         if (task.Triggers != null && triggerIndex >= 0 && triggerIndex < task.Triggers.Count)
         {
-            var trigger = task.Triggers[triggerIndex];
+            var trigger   = task.Triggers[triggerIndex];
             trigger.Type   = newType;
             trigger.Params = GetDefaultTriggerParams(newType);
             task.Triggers[triggerIndex] = trigger;
-            tasks[taskIndex] = task;
+            tasks[taskIndex]           = task;
         }
     }
 
@@ -278,10 +245,10 @@ public sealed class MissionPanel
         var task = tasks[taskIndex];
         if (task.Triggers != null && triggerIndex >= 0 && triggerIndex < task.Triggers.Count)
         {
-            var trigger = task.Triggers[triggerIndex];
+            var trigger   = task.Triggers[triggerIndex];
             trigger.Params = newParams ?? string.Empty;
             task.Triggers[triggerIndex] = trigger;
-            tasks[taskIndex] = task;
+            tasks[taskIndex]           = task;
         }
     }
 
@@ -301,16 +268,15 @@ public sealed class MissionPanel
     }
 
     /// <summary>Starts an async mission commit for the current draft plan.</summary>
-    public void HandleCommit(IExConLogic logic)
+    public void HandleCommit(IMissionEditorService service)
     {
-        ArgumentNullException.ThrowIfNull(logic);
+        ArgumentNullException.ThrowIfNull(service);
         if (!CanCommit) return;
 
         var plan = _draftPlan!.Value;
-        FdpLog<MissionPanel>.Info("[ExCon] Commit triggered: entityId={0} taskCount={1} baseVersion={2}",
+        FdpLog<MissionPanel>.Info("[UI.Common] Commit triggered: entityId={0} taskCount={1} baseVersion={2}",
             _selectedEntityId, plan.Tasks?.Count ?? 0, _draftBaseVersion);
-        _pendingCommit = logic.MissionEditorService
-            .CommitMissionAsync(_selectedEntityId, plan, _draftBaseVersion);
+        _pendingCommit  = service.CommitMissionAsync(_selectedEntityId, plan, _draftBaseVersion);
         _commitInFlight = true;
     }
 
@@ -318,82 +284,70 @@ public sealed class MissionPanel
     /// Handles "Force Commit": commits the current draft overriding any OCC version check
     /// by passing <c>baseVersion == 0</c>.
     /// </summary>
-    public void HandleForceCommit(IExConLogic logic)
+    public void HandleForceCommit(IMissionEditorService service)
     {
-        ArgumentNullException.ThrowIfNull(logic);
+        ArgumentNullException.ThrowIfNull(service);
         if (!CanCommit) return;
         var plan = _draftPlan!.Value;
-        FdpLog<MissionPanel>.Info("[ExCon] Force Commit: entity={0} tasks={1}",
+        FdpLog<MissionPanel>.Info("[UI.Common] Force Commit: entity={0} tasks={1}",
             _selectedEntityId, plan.Tasks?.Count ?? 0);
-        _pendingCommit  = logic.MissionEditorService.CommitMissionAsync(_selectedEntityId, plan, 0);
+        _pendingCommit  = service.CommitMissionAsync(_selectedEntityId, plan, 0);
         _commitInFlight = true;
         DismissConflict();
     }
 
-    // ── Conflict alert (ExCon.10.3) ────────────────────────────────────────────
+    // ── Conflict alert ─────────────────────────────────────────────────────────
 
     private string? _conflictMessage;
 
-    /// <summary>
-    /// True when a version-conflict commit result is pending user acknowledgement.
-    /// </summary>
+    /// <summary>True when a version-conflict commit result is pending user acknowledgement.</summary>
     public bool HasConflictAlert => _conflictMessage is not null;
 
-    /// <summary>
-    /// The conflict error message to show in the ImGui modal.
-    /// <c>null</c> when no alert is active.
-    /// </summary>
+    /// <summary>The conflict error message to show in the ImGui modal. <c>null</c> when no alert is active.</summary>
     public string? ConflictMessage => _conflictMessage;
 
     /// <summary>
-    /// Inspects a <see cref="MissionCommitResult"/> and, when it represents an
-    /// optimistic-lock version conflict
-    /// (<see cref="MissionCommitResult.ErrorCode"/> ==
-    /// <see cref="PanelConstants.VersionConflictErrorCode"/>), stores the error
-    /// message so <see cref="Draw"/> can surface an ImGui modal to the operator.
+    /// Inspects a <see cref="MissionCommitResult"/> and, when it represents a failure,
+    /// stores the error message so <see cref="Draw"/> can surface an ImGui modal.
     /// </summary>
     public void HandleConflictResult(MissionCommitResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
-        if (!result.Success && result.ErrorCode == PanelConstants.VersionConflictErrorCode)
+        if (!result.Success)
             _conflictMessage = result.ErrorMessage ?? PanelConstants.VersionConflictErrorMessage;
     }
 
-    /// <summary>
-    /// Clears the active conflict alert.  Call when the operator dismisses the
-    /// conflict modal.
-    /// </summary>
+    /// <summary>Clears the active conflict alert.</summary>
     public void DismissConflict() => _conflictMessage = null;
 
     // ── Map-pick handlers (public for testability) ────────────────────────────
 
     /// <summary>
     /// Initiates an async location pick for the <c>MoveToLocation</c> task at
-    /// <paramref name="index"/>.  The panel polls <see cref="PollPickCompletion"/>
-    /// each frame and writes the JSON params when the pick resolves.
+    /// <paramref name="index"/>.
     /// </summary>
-    public void HandlePickLocation(int index, IExConLogic logic)
+    public void HandlePickLocation(int index, IMapPickService pick)
     {
-        ArgumentNullException.ThrowIfNull(logic);
+        ArgumentNullException.ThrowIfNull(pick);
         if (!TryGetDraftTasks(out _)) return;
         if (index < 0) return;
 
         _pendingPickTaskIndex = index;
-        _pendingLocationPick  = logic.MapPickService.PickLocationAsync();
+        _pendingLocationPick  = pick.PickLocationAsync();
     }
 
     /// <summary>
-    /// Initiates an async entity pick for the <c>FollowRoute</c> (or similar)
-    /// task at <paramref name="index"/>.
+    /// Initiates an async entity pick for the <c>FollowRoute</c> task at
+    /// <paramref name="index"/>.
     /// </summary>
-    public void HandlePickEntity(int index, IExConLogic logic, string[] filterPresets)
+    public void HandlePickEntity(int index, IMapPickService pick, string[]? filterPresets)
     {
-        ArgumentNullException.ThrowIfNull(logic);
+        ArgumentNullException.ThrowIfNull(pick);
         if (!TryGetDraftTasks(out _)) return;
         if (index < 0) return;
 
         _pendingPickTaskIndex = index;
-        _pendingEntityPick    = logic.MapPickService.PickEntityAsync(filterPresets);
+        _pendingEntityPick    = pick.PickEntityAsync(filterPresets);
     }
 
     /// <summary>True when an async location pick is in flight for any task.</summary>
@@ -405,13 +359,7 @@ public sealed class MissionPanel
     // ── JSON helpers for MoveToLocation / FollowRoute params ─────────────────
 
     /// <summary>
-    /// Builds the canonical <c>MoveToLocation</c> behavior-params JSON:
-    /// <c>{"targetLat":…,"targetLon":…,"speed":…,"arrivalRadius":…}</c>.
-    /// The speed and arrival radius are set to the panel defaults
-    /// (<see cref="PanelConstants.MoveToLocationDefaultSpeed"/> and
-    /// <see cref="PanelConstants.MoveToLocationDefaultArrivalRadius"/>) so
-    /// the SimHost does not receive a zero-speed command when the operator uses
-    /// the "Pick Location" workflow without specifying these values explicitly.
+    /// Builds the canonical <c>MoveToLocation</c> behavior-params JSON.
     /// </summary>
     internal static string BuildMoveToLocationParams(double lat, double lon)
         => string.Create(System.Globalization.CultureInfo.InvariantCulture,
@@ -420,15 +368,13 @@ public sealed class MissionPanel
             $",\"arrivalRadius\":{PanelConstants.MoveToLocationDefaultArrivalRadius}}}");
 
     /// <summary>
-    /// Builds the canonical <c>FollowRoute</c> behavior-params JSON:
-    /// <c>{"routeEntityId":…}</c>.
+    /// Builds the canonical <c>FollowRoute</c> behavior-params JSON.
     /// </summary>
     internal static string BuildFollowRouteParams(int routeEntityId)
         => $"{{\"routeEntityId\":{routeEntityId}}}";
 
     /// <summary>
     /// Tries to parse lat/lon from a <c>MoveToLocation</c> params JSON string.
-    /// Returns <c>false</c> when the JSON is empty or malformed.
     /// </summary>
     internal static bool TryParseMoveToLocationParams(string json, out double lat, out double lon)
     {
@@ -452,7 +398,6 @@ public sealed class MissionPanel
 
     /// <summary>
     /// Tries to parse the route entity ID from a <c>FollowRoute</c> params JSON string.
-    /// Returns <c>false</c> when the JSON is empty or malformed.
     /// </summary>
     internal static bool TryParseFollowRouteParams(string json, out int routeEntityId)
     {
@@ -472,33 +417,31 @@ public sealed class MissionPanel
         return false;
     }
 
+    // ── Draw ──────────────────────────────────────────────────────────────────
 
-
-    /// <summary>
-    /// Renders the panel via ImGui.
-    /// Called once per frame from the application shell (Phase P9).
-    /// </summary>
-    public void Draw(IExConLogic logic)
+    /// <summary>Renders the panel via ImGui. Called once per frame from the application shell.</summary>
+    public void Draw(IMissionEditorService service, IMapPickService pick)
     {
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
-        ExConPanelColors.Push();
         ImGui.Begin("Selection & Mission");
-        ExConPanelColors.Pop();
-
-        DrawContent(logic);
-
+        DrawContent(service, pick);
         ImGui.End();
     }
 
     /// <summary>
     /// Renders only the panel body content (no <c>ImGui.Begin</c>/<c>End</c>).
-    /// Called by the Window Manager when this panel is hosted as a
-    /// <see cref="ManagedWindow"/>; also called by <see cref="Draw"/> in standalone mode.
+    /// Calls <see cref="IMissionEditorService.GetAvailableBehaviors"/> each frame
+    /// before the ImGui guard so that tests can verify the call without a render context.
     /// </summary>
-    public void DrawContent(IExConLogic logic)
+    public void DrawContent(IMissionEditorService service, IMapPickService pick)
     {
+        // Refresh behavior list before any ImGui calls so tests can verify without a render ctx.
+        var behaviors = service.GetAvailableBehaviors(_selectedEntityId);
+
         PollCommitCompletion();
         PollPickCompletion();
+
+        if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
 
         if (_selectedEntityId == 0)
         {
@@ -506,39 +449,19 @@ public sealed class MissionPanel
             return;
         }
 
-        var entity = logic.Repo.GetEntity(_selectedEntityId);
-        if (entity == null)
-        {
-            ImGui.Text("Entity not found");
-            return;
-        }
+        SyncDraftFromSnapshot(service);
 
-        SyncDraftFromSnapshot(logic);
+        var planToShow = _draftPlan;
 
-        // Two-ACK pending guard: disable all controls while entity lifecycle handshake is in progress.
-        bool isPending = IsPendingGuardActive(logic);
-        if (isPending)
-        {
-            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.7f, 0f, 1f),
-                "[Constructing across network...]");
-            ImGui.BeginDisabled();
-        }
-
-        var info    = entity.HasDescriptor<Hrot.NED.Descriptors.EntityInfo>()    ? entity.GetDescriptor<Hrot.NED.Descriptors.EntityInfo>()    : default;
-        var mission = entity.HasDescriptor<EntityMission>() ? entity.GetDescriptor<EntityMission>() : default;
-
-        var planToShow = _draftPlan ?? mission.Plan;
-
-        ImGui.Text($"Selected: {info.Name}");
         ImGui.Text($"ID: {_selectedEntityId}");
 
-        if (planToShow.Tasks != null)
+        if (planToShow.HasValue && planToShow.Value.Tasks != null)
         {
             ImGui.Text("Mission:");
-            for (int i = 0; i < planToShow.Tasks.Count; i++)
+            for (int i = 0; i < planToShow.Value.Tasks.Count; i++)
             {
-                var task    = planToShow.Tasks[i];
-                bool active = task.TaskId == planToShow.ActiveTaskId;
+                var task   = planToShow.Value.Tasks[i];
+                bool active = task.TaskId == planToShow.Value.ActiveTaskId;
 
                 ImGui.Text($"{GetTaskIcon(task, active)} {i + 1}.");
                 ImGui.SameLine();
@@ -549,11 +472,11 @@ public sealed class MissionPanel
 
                 if (ImGui.BeginCombo($"Behavior##{i}", behaviorLabel))
                 {
-                    for (int b = 0; b < _behaviorIds.Length; b++)
+                    for (int b = 0; b < behaviors.Count; b++)
                     {
-                        bool selected = task.BehaviorId == _behaviorIds[b];
-                        if (ImGui.Selectable(_behaviorIds[b], selected))
-                            HandleEditBehaviorId(i, _behaviorIds[b]);
+                        bool selected = task.BehaviorId == behaviors[b];
+                        if (ImGui.Selectable(behaviors[b], selected))
+                            HandleEditBehaviorId(i, behaviors[b]);
                         if (selected) ImGui.SetItemDefaultFocus();
                     }
                     ImGui.EndCombo();
@@ -561,21 +484,16 @@ public sealed class MissionPanel
 
                 string paramsBuffer = task.BehaviorParams ?? string.Empty;
 
-                // ─── Behavior-specific parameter editor ──────────────────────
-                // MoveToLocation and FollowRoute get a map-pick button instead of
-                // a raw JSON text field to prevent operators from having to type
-                // raw coordinates or numeric entity IDs by hand.
                 if (task.BehaviorId == BehaviorNameMoveToLocation)
                 {
-                    DrawMoveToLocationParams(i, paramsBuffer, logic);
+                    DrawMoveToLocationParams(i, paramsBuffer, pick);
                 }
                 else if (task.BehaviorId == BehaviorNameFollowRoute)
                 {
-                    DrawFollowRouteParams(i, paramsBuffer, logic);
+                    DrawFollowRouteParams(i, paramsBuffer, pick);
                 }
                 else
                 {
-                    // Generic fallback: raw JSON text editor for other behaviors.
                     var paramsSize = new System.Numerics.Vector2(
                         ImGui.GetContentRegionAvail().X,
                         ImGui.GetTextLineHeightWithSpacing() * PanelConstants.MissionBehaviorParamsEditorLines);
@@ -625,21 +543,16 @@ public sealed class MissionPanel
                         HandleAddTrigger(i, "DoctrineFinished");
                 }
 
-                if (ImGui.SmallButton($"Up##{i}"))
-                    HandleMoveTask(i, i - 1);
+                if (ImGui.SmallButton($"Up##{i}"))   HandleMoveTask(i, i - 1);
                 ImGui.SameLine();
-                if (ImGui.SmallButton($"Down##{i}"))
-                    HandleMoveTask(i, i + 1);
+                if (ImGui.SmallButton($"Down##{i}")) HandleMoveTask(i, i + 1);
                 ImGui.SameLine();
-                if (ImGui.SmallButton($"Delete##{i}"))
-                    HandleDeleteTask(i);
+                if (ImGui.SmallButton($"Delete##{i}")) HandleDeleteTask(i);
 
                 ImGui.Separator();
             }
 
-            if (ImGui.Button("+ Add Task"))
-                HandleAddTask();
-
+            if (ImGui.Button("+ Add Task")) HandleAddTask();
             ImGui.SameLine();
 
             if (HasConflictAlert)
@@ -653,16 +566,13 @@ public sealed class MissionPanel
                 }
                 ImGui.SameLine();
                 if (ImGui.Button("Force Commit (Overwrite)"))
-                    HandleForceCommit(logic);
+                    HandleForceCommit(service);
             }
             else
             {
-                // Capture the enabled state once before the button so that HandleCommit()
-                // changing CommitButtonEnabled mid-frame cannot cause a mismatched
-                // BeginDisabled / EndDisabled pair (Task-7 fix).
                 bool commitEnabled = CommitButtonEnabled;
                 if (!commitEnabled) ImGui.BeginDisabled();
-                if (ImGui.Button("Commit")) HandleCommit(logic);
+                if (ImGui.Button("Commit")) HandleCommit(service);
                 if (!commitEnabled) ImGui.EndDisabled();
 
                 if (_draftPlan.HasValue)
@@ -670,21 +580,12 @@ public sealed class MissionPanel
                     ImGui.SameLine();
                     if (ImGui.Button("Discard Draft")) ClearDraft();
                 }
-                if (ImGui.Button("JUMP"))  HandleJump(logic);
+                if (ImGui.Button("JUMP"))  HandleJump(service);
                 ImGui.SameLine();
-                if (ImGui.Button("ABORT")) HandleAbort(logic);
+                if (ImGui.Button("ABORT")) HandleAbort(service);
             }
         }
-
-        if (isPending) ImGui.EndDisabled();
     }
-
-    /// <summary>
-    /// Returns <c>true</c> when the pending guard is active for the currently
-    /// selected entity. Exposed for unit testing without requiring an ImGui context.
-    /// </summary>
-    public bool IsPendingGuardActive(IExConLogic logic)
-        => _selectedEntityId != 0 && logic.IsEntityPending(_selectedEntityId);
 
     // ── Draft helpers ───────────────────────────────────────────────────────
 
@@ -707,8 +608,8 @@ public sealed class MissionPanel
         var plan = _draftPlan!.Value;
         if (plan.Tasks == null)
         {
-            plan.Tasks = new List<MissionTask>();
-            _draftPlan = plan;
+            plan.Tasks  = new List<MissionTask>();
+            _draftPlan  = plan;
         }
         return plan.Tasks;
     }
@@ -725,20 +626,14 @@ public sealed class MissionPanel
         return true;
     }
 
-    private void SyncDraftFromSnapshot(IExConLogic logic)
+    private void SyncDraftFromSnapshot(IMissionEditorService service)
     {
-        if (_selectedEntityId == 0)
-        {
-            ClearDraft();
-            return;
-        }
+        if (_selectedEntityId == 0) { ClearDraft(); return; }
+        if (_draftPlan.HasValue && _draftEntityId == _selectedEntityId) return;
 
-        if (_draftPlan.HasValue && _draftEntityId == _selectedEntityId)
-            return;
-
-        var (plan, version) = logic.MissionEditorService.GetMissionSnapshot(_selectedEntityId);
-        _draftBaseVersion = version;
-        _draftEntityId = _selectedEntityId;
+        var (plan, version) = service.GetMissionSnapshot(_selectedEntityId);
+        _draftBaseVersion  = version;
+        _draftEntityId     = _selectedEntityId;
 
         _draftPlan = plan.HasValue
             ? ClonePlan(plan.Value)
@@ -747,9 +642,9 @@ public sealed class MissionPanel
 
     private void ClearDraft()
     {
-        _draftPlan = null;
+        _draftPlan        = null;
         _draftBaseVersion = 0;
-        _draftEntityId = 0;
+        _draftEntityId    = 0;
     }
 
     private void PollCommitCompletion()
@@ -760,11 +655,8 @@ public sealed class MissionPanel
         MissionCommitResult result;
         if (_pendingCommit.IsFaulted)
         {
-            result = new MissionCommitResult
-            {
-                Success = false,
-                ErrorMessage = _pendingCommit.Exception?.GetBaseException().Message
-            };
+            result = new MissionCommitResult(false, 0,
+                _pendingCommit.Exception?.GetBaseException().Message);
         }
         else
         {
@@ -772,33 +664,27 @@ public sealed class MissionPanel
         }
 
         _commitInFlight = false;
-        _pendingCommit = null;
+        _pendingCommit  = null;
 
         if (result.Success)
         {
-            FdpLog<MissionPanel>.Info("[ExCon] Commit succeeded: entityId={0} newVersion={1}",
+            FdpLog<MissionPanel>.Info("[UI.Common] Commit succeeded: entityId={0} newVersion={1}",
                 _selectedEntityId, result.NewVersion);
             _draftBaseVersion = result.NewVersion;
         }
         else
         {
-            FdpLog<MissionPanel>.Warn("[ExCon] Commit failed: entityId={0} errorCode={1} error={2}",
-                _selectedEntityId, result.ErrorCode, result.ErrorMessage);
+            FdpLog<MissionPanel>.Warn("[UI.Common] Commit failed: entityId={0} error={1}",
+                _selectedEntityId, result.ErrorMessage);
             HandleConflictResult(result);
         }
     }
 
-    /// <summary>
-    /// Internal test hook: manually drives the commit-completion polling cycle.
-    /// Equivalent to calling <see cref="Draw"/> with a valid logic and an empty plan view.
-    /// </summary>
+    /// <summary>Internal test hook: manually drives the commit-completion polling cycle.</summary>
     internal void TestHook_PollCommitCompletion() => PollCommitCompletion();
 
-    /// <summary>
-    /// Internal test hook: clears the draft plan and dismisses the conflict alert.
-    /// Simulates the "Discard Draft (Reload)" button in the conflict UI.
-    /// </summary>
-    internal void TestHook_ClearDraftAndDismissConflict()
+    /// <summary>Internal test hook: clears the draft plan and dismisses the conflict alert.</summary>
+    public void TestHook_ClearDraftAndDismissConflict()
     {
         ClearDraft();
         DismissConflict();
@@ -812,14 +698,14 @@ public sealed class MissionPanel
         var clone = new MissionPlan
         {
             ActiveTaskId = plan.ActiveTaskId,
-            Tasks = new List<MissionTask>(plan.Tasks?.Count ?? 0)
+            Tasks        = new List<MissionTask>(plan.Tasks?.Count ?? 0)
         };
 
         if (plan.Tasks == null) return clone;
 
         for (int i = 0; i < plan.Tasks.Count; i++)
         {
-            var task = plan.Tasks[i];
+            var task   = plan.Tasks[i];
             var copied = task;
             if (task.Triggers != null)
                 copied.Triggers = new List<MissionTrigger>(task.Triggers);
@@ -834,12 +720,7 @@ public sealed class MissionPanel
 
     // ── Behavior-specific parameter editors ───────────────────────────────────
 
-    /// <summary>
-    /// Draws the parameter UI for a <c>MoveToLocation</c> task: shows the
-    /// current location summary and a "Pick Location" button that triggers an
-    /// async location pick via the map canvas.
-    /// </summary>
-    private void DrawMoveToLocationParams(int taskIndex, string currentParams, IExConLogic logic)
+    private void DrawMoveToLocationParams(int taskIndex, string currentParams, IMapPickService pick)
     {
         bool pickingThis = IsLocationPickPending && _pendingPickTaskIndex == taskIndex;
 
@@ -857,16 +738,11 @@ public sealed class MissionPanel
         {
             ImGui.SameLine();
             if (ImGui.SmallButton($"Pick Location##{taskIndex}"))
-                HandlePickLocation(taskIndex, logic);
+                HandlePickLocation(taskIndex, pick);
         }
     }
 
-    /// <summary>
-    /// Draws the parameter UI for a <c>FollowRoute</c> task: shows the
-    /// current route entity ID and a "Pick Route" button that triggers an
-    /// async entity pick filtered to the <c>road_graphs</c> layer.
-    /// </summary>
-    private void DrawFollowRouteParams(int taskIndex, string currentParams, IExConLogic logic)
+    private void DrawFollowRouteParams(int taskIndex, string currentParams, IMapPickService pick)
     {
         bool pickingThis = IsEntityPickPending && _pendingPickTaskIndex == taskIndex;
 
@@ -884,22 +760,17 @@ public sealed class MissionPanel
         {
             ImGui.SameLine();
             if (ImGui.SmallButton($"Pick Route##{taskIndex}"))
-                HandlePickEntity(taskIndex, logic, new[] { PanelConstants.FilterPresetRoadGraphs });
+                HandlePickEntity(taskIndex, pick, new[] { PanelConstants.FilterPresetRoadGraphs });
         }
     }
 
     // ── Pick completion polling ────────────────────────────────────────────────
 
-    /// <summary>
-    /// Checks pending pick tasks. When a task completes this frame the result
-    /// is written into the draft mission plan as a JSON params string and the
-    /// pending task state is cleared.
-    /// </summary>
     private void PollPickCompletion()
     {
         if (_pendingLocationPick?.IsCompleted == true)
         {
-            int idx = _pendingPickTaskIndex;
+            int idx  = _pendingPickTaskIndex;
             var task = _pendingLocationPick;
 
             _pendingLocationPick  = null;
@@ -907,18 +778,18 @@ public sealed class MissionPanel
 
             if (!task.IsFaulted && !task.IsCanceled && idx >= 0)
             {
-                var pos  = task.Result;
+                var pos   = task.Result;
                 string json = BuildMoveToLocationParams(pos.Latitude, pos.Longitude);
                 HandleEditBehaviorParams(idx, json);
                 FdpLog<MissionPanel>.Info(
-                    "[ExCon] LocationPick resolved: task={0} lat={1:F4} lon={2:F4}",
+                    "[UI.Common] LocationPick resolved: task={0} lat={1:F4} lon={2:F4}",
                     idx, pos.Latitude, pos.Longitude);
             }
         }
 
         if (_pendingEntityPick?.IsCompleted == true)
         {
-            int idx = _pendingPickTaskIndex;
+            int idx  = _pendingPickTaskIndex;
             var task = _pendingEntityPick;
 
             _pendingEntityPick    = null;
@@ -927,33 +798,11 @@ public sealed class MissionPanel
             if (!task.IsFaulted && !task.IsCanceled && idx >= 0)
             {
                 int entityId = task.Result;
-                string json = BuildFollowRouteParams(entityId);
+                string json  = BuildFollowRouteParams(entityId);
                 HandleEditBehaviorParams(idx, json);
                 FdpLog<MissionPanel>.Info(
-                    "[ExCon] EntityPick resolved: task={0} entityId={1}", idx, entityId);
+                    "[UI.Common] EntityPick resolved: task={0} entityId={1}", idx, entityId);
             }
         }
-    }
-
-    private static string[] BuildBehaviorList(DoctrineRegistry registry)
-    {
-        var names = new List<string>(BehaviorCatalogCapacity)
-        {
-            BehaviorNameMoveToLocation,
-            BehaviorNameFollowRoute,
-            BehaviorNameJoinFormation,
-            BehaviorNameIdle
-        };
-
-        registry.Register(DoctrineIdMoveToLocation, BehaviorNameMoveToLocation,
-            new DoctrineDefinition { Name = BehaviorNameMoveToLocation, BrainTier = BehaviorConstants.BrainTierBTree });
-        registry.Register(DoctrineIdFollowRoute, BehaviorNameFollowRoute,
-            new DoctrineDefinition { Name = BehaviorNameFollowRoute, BrainTier = BehaviorConstants.BrainTierBTree });
-        registry.Register(DoctrineIdJoinFormation, BehaviorNameJoinFormation,
-            new DoctrineDefinition { Name = BehaviorNameJoinFormation, BrainTier = BehaviorConstants.BrainTierBTree });
-        registry.Register(DoctrineIdIdle, BehaviorNameIdle,
-            new DoctrineDefinition { Name = BehaviorNameIdle, BrainTier = BehaviorConstants.BrainTierBTree });
-
-        return names.ToArray();
     }
 }

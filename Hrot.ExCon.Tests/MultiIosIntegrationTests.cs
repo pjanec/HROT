@@ -2,10 +2,15 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
+using Hrot.UI.Common.Panels;
+using Hrot.UI.Common.Models;
 using Hrot.ExCon.Services;
 using Hrot.Common.Events;
 using FDP.Toolkit.DER;
 using Fdp.Kernel;
+using ExConPanelConst = Hrot.ExCon.Panels.PanelConstants;
+using UiPanelConst    = Hrot.UI.Common.Panels.PanelConstants;
+using UiMissionResult = Hrot.UI.Common.Models.MissionCommitResult;
 
 namespace Hrot.ExCon.Tests;
 
@@ -57,7 +62,7 @@ internal sealed class IosClient : IDisposable
         Bus.Publish(new MissionControlAckEvent
         {
             RequestId  = intent.RequestId,
-            ErrorCode  = PanelConstants.VersionConflictErrorCode,
+            ErrorCode  = ExConPanelConst.VersionConflictErrorCode,
             NewVersion = 0
         });
         Bus.SwapBuffers();
@@ -216,8 +221,8 @@ public class MultiIosIntegrationTests
 
             // Client B was rejected with a version conflict.
             Assert.False(resultB.Success);
-            Assert.Equal(PanelConstants.VersionConflictErrorCode, resultB.ErrorCode);
-            Assert.Equal(PanelConstants.VersionConflictErrorMessage, resultB.ErrorMessage);
+            Assert.Equal(ExConPanelConst.VersionConflictErrorCode, resultB.ErrorCode);
+            Assert.Equal(UiPanelConst.VersionConflictErrorMessage, resultB.ErrorMessage);
         }
     }
 
@@ -260,10 +265,11 @@ public class MultiIosIntegrationTests
             await taskA;
             var resultB = await taskB;
 
-            clientB.MissionPanel.HandleConflictResult(resultB);
+            clientB.MissionPanel.HandleConflictResult(
+                new UiMissionResult(resultB.Success, resultB.NewVersion, resultB.ErrorMessage));
 
             Assert.True(clientB.MissionPanel.HasConflictAlert);
-            Assert.Equal(PanelConstants.VersionConflictErrorMessage,
+            Assert.Equal(UiPanelConst.VersionConflictErrorMessage,
                          clientB.MissionPanel.ConflictMessage);
         }
     }
@@ -285,7 +291,8 @@ public class MultiIosIntegrationTests
             var resultA = await taskA;
 
             // Client A received a success; the conflict panel should not activate.
-            clientA.MissionPanel.HandleConflictResult(resultA);
+            clientA.MissionPanel.HandleConflictResult(
+                new UiMissionResult(resultA.Success, resultA.NewVersion, resultA.ErrorMessage));
 
             Assert.False(clientA.MissionPanel.HasConflictAlert);
         }
@@ -308,7 +315,8 @@ public class MultiIosIntegrationTests
             await taskA;
             var resultB = await taskB;
 
-            clientB.MissionPanel.HandleConflictResult(resultB);
+            clientB.MissionPanel.HandleConflictResult(
+                new UiMissionResult(resultB.Success, resultB.NewVersion, resultB.ErrorMessage));
             Assert.True(clientB.MissionPanel.HasConflictAlert);
 
             // Operator dismisses the modal.

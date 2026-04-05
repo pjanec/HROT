@@ -10,6 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Shared UI panel library -->
+    <ProjectReference Include="..\Hrot.UI.Common\Hrot.UI.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Hrot data model and map types -->
     <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
     <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />

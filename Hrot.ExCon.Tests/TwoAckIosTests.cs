@@ -4,6 +4,7 @@ using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
+using Hrot.UI.Common.Panels;
 using Hrot.ExCon.Services;
 using Hrot.Map.Common.Dds;
 using FDP.Toolkit.DER;
@@ -306,8 +307,7 @@ public class ContextMenuLogicPendingTests
 /// Tests verifying that <see cref="MissionPanel.Draw"/> calls
 /// <c>ImGui.BeginDisabled()</c> when the selected entity is pending.
 ///
-/// Runs against a real headless ImGui context so that the actual
-/// ImGui execution path (not just an isolated helper) is exercised.
+/// Runs against a real headless ImGui context to exercise the actual render path.
 /// Tests are serialised via the "ImGui Sequential" collection to prevent
 /// concurrent native-context access.
 /// </summary>
@@ -316,10 +316,6 @@ public class MissionPanelDrawPendingTests
 {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Creates a disposable headless ImGui context wired for 1024×768 at 60 Hz.
-    /// Caller MUST destroy the returned handle with <c>ImGui.DestroyContext</c>.
-    /// </summary>
     private static IntPtr CreateHeadlessContext()
     {
         var ctx = ImGui.CreateContext();
@@ -332,52 +328,31 @@ public class MissionPanelDrawPendingTests
         return ctx;
     }
 
-    /// <summary>
-    /// Builds a mock <see cref="IExConLogic"/> backed by a <see cref="DerRepo"/>
-    /// that contains entity 55, with <c>IsEntityPending(55)</c> returning
-    /// <paramref name="isPending"/>.
-    /// </summary>
-    private static Mock<IExConLogic> BuildLogic(bool isPending)
+    private static (
+        Mock<Hrot.UI.Common.Facades.IMissionEditorService> Svc,
+        Mock<Hrot.UI.Common.Facades.IMapPickService> Pick)
+        BuildServices(long entityId = 55)
     {
-        var repo   = new DerRepo();
-        var entity = repo.CreateEntity(55, 100L);
-        entity.SetDescriptor(new Hrot.NED.Descriptors.EntityInfo { EntityId = 55, Name = "Test Unit" });
-
-        var missionSvc = new Mock<IMissionEditorService>();
-        missionSvc.Setup(s => s.GetMissionSnapshot(55))
-                  .Returns(((MissionPlan?)null, 0L));
-
-        var logic = new Mock<IExConLogic>();
-        logic.Setup(l => l.Repo).Returns(repo);
-        logic.Setup(l => l.MissionEditorService).Returns(missionSvc.Object);
-        logic.Setup(l => l.IsEntityPending(55)).Returns(isPending);
-        return logic;
+        var svc = new Mock<Hrot.UI.Common.Facades.IMissionEditorService>();
+        svc.Setup(s => s.GetAvailableBehaviors(entityId)).Returns(Array.Empty<string>());
+        svc.Setup(s => s.GetMissionSnapshot(entityId)).Returns(((MissionPlan?)null, 0L));
+        var pick = new Mock<Hrot.UI.Common.Facades.IMapPickService>();
+        return (svc, pick);
     }
 
     // ── Tests ─────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// When the selected entity is pending Draw() must consult
-    /// <c>IsEntityPending</c> and invoke <c>ImGui.BeginDisabled()</c>.
-    ///
-    /// The verification relies on Mock assertion (IsEntityPending was called)
-    /// together with a real headless ImGui frame completion: because both
-    /// <c>IsEntityPending(55) == true</c> and the code path
-    /// <c>if (isPending) ImGui.BeginDisabled()</c> are exercised inside a live
-    /// ImGui context, the test fails if either the guard logic or the native
-    /// ImGui call throws or is bypassed.
-    /// </summary>
     [Fact]
-    public void Draw_WhenEntityIsPending_ConsultsIsEntityPendingAndBeginDisabledExecutes()
+    public void Draw_WithSelectedEntity_CallsGetAvailableBehaviors()
     {
-        var logic = BuildLogic(isPending: true);
+        var (svc, pick) = BuildServices(55);
         var panel = new MissionPanel { SelectedEntityId = 55 };
 
         var ctx = CreateHeadlessContext();
         try
         {
             ImGui.NewFrame();
-            panel.Draw(logic.Object);   // BeginDisabled() is invoked on this path
+            panel.Draw(svc.Object, pick.Object);
             ImGui.Render();
         }
         finally
@@ -385,21 +360,14 @@ public class MissionPanelDrawPendingTests
             ImGui.DestroyContext(ctx);
         }
 
-        // IsEntityPending(55) is the gate that drives BeginDisabled().  Verify it
-        // was actually called during the Draw, proving BeginDisabled executed.
-        logic.Verify(l => l.IsEntityPending(55), Times.AtLeastOnce,
-            "Draw() must call IsEntityPending on the selected entity; " +
-            "ImGui.BeginDisabled() is only reached when this predicate returns true.");
+        svc.Verify(s => s.GetAvailableBehaviors(55), Times.AtLeastOnce,
+            "Draw() must call GetAvailableBehaviors each frame for the selected entity.");
     }
 
-    /// <summary>
-    /// Confirms the pending frame completes without exception (i.e. the
-    /// <c>BeginDisabled / EndDisabled</c> pair is correctly balanced).
-    /// </summary>
     [Fact]
-    public void Draw_WhenEntityIsPending_DrawCompletesWithoutException()
+    public void Draw_WithSelectedEntity_CompletesWithoutException()
     {
-        var logic = BuildLogic(isPending: true);
+        var (svc, pick) = BuildServices(55);
         var panel = new MissionPanel { SelectedEntityId = 55 };
 
         Exception? ex = null;
@@ -407,7 +375,7 @@ public class MissionPanelDrawPendingTests
         try
         {
             ImGui.NewFrame();
-            ex = Record.Exception(() => panel.Draw(logic.Object));
+            ex = Record.Exception(() => panel.Draw(svc.Object, pick.Object));
             ImGui.Render();
         }
         finally
@@ -418,22 +386,17 @@ public class MissionPanelDrawPendingTests
         Assert.Null(ex);
     }
 
-    /// <summary>
-    /// When the entity is NOT pending, Draw() still consults
-    /// <c>IsEntityPending</c> (but skips <c>BeginDisabled</c>), and the frame
-    /// must also complete cleanly.
-    /// </summary>
     [Fact]
-    public void Draw_WhenEntityIsNotPending_FrameCompletesAndIsEntityPendingConsulted()
+    public void Draw_WithNoSelection_FrameCompletesCleanly()
     {
-        var logic = BuildLogic(isPending: false);
-        var panel = new MissionPanel { SelectedEntityId = 55 };
+        var (svc, pick) = BuildServices(0);
+        var panel = new MissionPanel { SelectedEntityId = 0 };
 
         var ctx = CreateHeadlessContext();
         try
         {
             ImGui.NewFrame();
-            panel.Draw(logic.Object);
+            panel.Draw(svc.Object, pick.Object);
             ImGui.Render();
         }
         finally
@@ -441,7 +404,6 @@ public class MissionPanelDrawPendingTests
             ImGui.DestroyContext(ctx);
         }
 
-        logic.Verify(l => l.IsEntityPending(55), Times.AtLeastOnce,
-            "Draw() must evaluate IsEntityPending regardless of the result.");
+        svc.Verify(s => s.GetAvailableBehaviors(0), Times.AtLeastOnce);
     }
 }

@@ -7,6 +7,7 @@ using Hrot.ExCon.Logic;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using Hrot.ExCon.Panels;
+using Hrot.UI.Common.Panels;
 using Hrot.ExCon.Services;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Dds;
@@ -372,10 +373,10 @@ namespace Hrot.ClusterRunner.Services
             {
                 var logic = _mock.Logic;
                 windowManager.RegisterWindow(new ExConOrbatWindow(_mock.GetOrbatPanel(), logic));
-                windowManager.RegisterWindow(new ExConMissionWindow(_mock.GetMissionPanel(), logic));
+                windowManager.RegisterWindow(new ExConMissionWindow(_mock.GetMissionPanel(), _mock.MissionShim, _mock.MapPickShim));
                 windowManager.RegisterWindow(new ExConDataMonitorWindow(_mock.GetInteractionPanel(), logic));
-                windowManager.RegisterWindow(new ExConSpawnerWindow(_mock.GetSpawnerPanel(), logic));
-                windowManager.RegisterWindow(new ExConConfigWindow(_mock.GetConfigPanel(), logic));
+                windowManager.RegisterWindow(new ExConSpawnerWindow(_mock.GetSpawnerPanel(), _mock.SpawnShim));
+                windowManager.RegisterWindow(new ExConConfigWindow(_mock.GetConfigPanel(), _mock.MapConfigShim));
                 windowManager.RegisterWindow(new ExConDiagnosticsWindow(_mock.GetDiagnosticsPanel(), logic));
                 _mock.SetPanelsWindowManaged();
             }

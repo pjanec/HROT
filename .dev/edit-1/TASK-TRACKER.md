@@ -10,9 +10,9 @@
 **Goal:** Create the new shared ImGui project and define all Port interfaces, shared DTOs,
 `DoctrineCatalog`, and `DoctrineRegistry` extension — the contracts every other phase depends on.
 
-- [ ] **EDIT1-L001** Create `Hrot.UI.Common` project + all nine Facade interfaces + shared DTOs [details](./TASK-DETAIL.md#edit1-l001--create-hrotuicommon-project--all-facade-interfaces)
-- [ ] **EDIT1-L002** `DoctrineCatalog` in `Hrot.Map.Definitions` (TKB-to-doctrine mapping) [details](./TASK-DETAIL.md#edit1-l002--doctrinecatalog-in-hrotmapdefinitions)
-- [ ] **EDIT1-L003** `DoctrineRegistry.GetRegisteredNames()` + `TryGetId()` methods [details](./TASK-DETAIL.md#edit1-l003--doctrineregistrygetregisterednames)
+- [x] **EDIT1-L001** Create `Hrot.UI.Common` project + all nine Facade interfaces + shared DTOs [details](./TASK-DETAIL.md#edit1-l001--create-hrotuicommon-project--all-facade-interfaces)
+- [x] **EDIT1-L002** `DoctrineCatalog` in `Hrot.Map.Definitions` (TKB-to-doctrine mapping) [details](./TASK-DETAIL.md#edit1-l002--doctrinecatalog-in-hrotmapdefinitions)
+- [x] **EDIT1-L003** `DoctrineRegistry.GetRegisteredNames()` + `TryGetId()` methods [details](./TASK-DETAIL.md#edit1-l003--doctrineregistrygetregisterednames)
 
 ---
 
