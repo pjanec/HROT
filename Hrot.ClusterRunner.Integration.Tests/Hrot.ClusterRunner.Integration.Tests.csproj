@@ -32,6 +32,7 @@
     <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
     <ProjectReference Include="..\Hrot.ScenarioEditor\Hrot.ScenarioEditor.csproj" />
+    <ProjectReference Include="..\FDP\Examples\Fdp.Examples.Scenarios\Fdp.Examples.Scenarios.csproj" />
   </ItemGroup>
 
   <ItemGroup>

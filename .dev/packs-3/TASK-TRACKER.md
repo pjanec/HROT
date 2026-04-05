@@ -21,8 +21,8 @@ shared validation logic; prove the Editor Preview/Rewind and full cluster lifecy
 
 - [x] **PACK3-U001** Extract `UrbanCombatValidator` with `TkbIdentity`-based dynamic entity resolution [details](./TASK-DETAIL.md#pack3-u001--extract-urbancombatvalidator)
 - [x] **PACK3-U002** Simplify `UrbanCombatNewScenario` to delegate `EvaluateTick` to the new validator [details](./TASK-DETAIL.md#pack3-u002--simplify-urbancombatscenario)
-- [ ] **PACK3-U003** Editor Preview/Rewind integration test (`EditorPreviewAndSaveIntegrationTests`) [details](./TASK-DETAIL.md#pack3-u003--editor-preview--rewind-integration-test)
-- [ ] **PACK3-U004** Urban Combat file lifecycle integration test (auto-extract → full cluster → validate) [details](./TASK-DETAIL.md#pack3-u004--urban-combat-file-lifecycle-integration-test)
+- [x] **PACK3-U003** Editor Preview/Rewind integration test (`EditorPreviewAndSaveIntegrationTests`) [details](./TASK-DETAIL.md#pack3-u003--editor-preview--rewind-integration-test)
+- [x] **PACK3-U004** Urban Combat file lifecycle integration test (auto-extract → full cluster → validate) [details](./TASK-DETAIL.md#pack3-u004--urban-combat-file-lifecycle-integration-test)
 
 ---
 
@@ -32,8 +32,8 @@ shared validation logic; prove the Editor Preview/Rewind and full cluster lifecy
 obstacles) that are loaded before entity spawning. Strict ACL: app-layer DTOs only; FDP
 engine receives in-memory structs only.
 
-- [ ] **PACK3-Z001** `ZoneEnvironmentData` ECS singleton + `CarKinematicsSystem` singleton refactor [details](./TASK-DETAIL.md#pack3-z001--zoneenvironmentdata-ecs-singleton--carkinematicssystem-refactor)
-- [ ] **PACK3-Z002** App-layer DTOs: `HrotScenarioEnvelopeDto`, `ScenarioHeaderDto`, `ZoneDefinitionDto`, `ZoneObstacleDto`, `HrotJsonOptions` [details](./TASK-DETAIL.md#pack3-z002--application-layer-dtos-for-scenario-envelope)
+- [x] **PACK3-Z001** `ZoneEnvironmentData` ECS singleton + `CarKinematicsSystem` singleton refactor [details](./TASK-DETAIL.md#pack3-z001--zoneenvironmentdata-ecs-singleton--carkinematicssystem-refactor)
+- [x] **PACK3-Z002** App-layer DTOs: `HrotScenarioEnvelopeDto`, `ScenarioHeaderDto`, `ZoneDefinitionDto`, `ZoneObstacleDto`, `HrotJsonOptions` [details](./TASK-DETAIL.md#pack3-z002--application-layer-dtos-for-scenario-envelope)
 - [ ] **PACK3-Z003** `IZoneManagerService` + `ZoneManagerService` (load road network + spawn obstacles) [details](./TASK-DETAIL.md#pack3-z003--izonmanagerservice-and-zonemanagerservice)
 - [ ] **PACK3-Z004** Custom load handlers: `HrotScenarioLoadHandler` (LoadingLive), `HrotEditLoadHandler` (LoadingEdit) [details](./TASK-DETAIL.md#pack3-z004--custom-load-handlers-hrotscenarioloadhandler-hroteditloadhandler)
 - [ ] **PACK3-Z005** `ScenarioFileService.SaveScenario` — serialise full `HrotScenarioEnvelopeDto` including Zones [details](./TASK-DETAIL.md#pack3-z005--scenariofileservice-save-with-zone-support)

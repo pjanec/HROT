@@ -25,15 +25,19 @@ namespace Hrot.SimHost
         public static void RegisterAll(EntityRepository world)
         {
             world.RegisterComponent<DoctrineState>();
+            world.RegisterComponent<SimTier>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();
             world.RegisterComponent<ActorCapabilityState>();
+            world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<BrainBlackboard>();
             world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<BrainHsm64>();
             world.RegisterComponent<MissionPlanQueue>();
+            world.RegisterComponent<PassengerBuffer>();
+            world.RegisterComponent<IsEmbarkedTag>();
             world.RegisterComponent<Hrot.SimHost.Components.MissionAdapterState>();
 
             // CQRS navigation command — written by the Brain tier (MoveToExecutor)

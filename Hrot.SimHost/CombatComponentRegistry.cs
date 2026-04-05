@@ -1,6 +1,7 @@
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Perception.Components;
+using FDP.Toolkit.Perception.Events;
 using FDP.Toolkit.Physics.Components;
 
 namespace Hrot.SimHost
@@ -31,6 +32,12 @@ namespace Hrot.SimHost
             world.RegisterComponent<Health>();
             world.RegisterComponent<BallisticProjectile>();
             world.RegisterComponent<PhysicsCollider>();
+
+            // ── Perception pipeline events ────────────────────────────────────
+            world.RegisterEvent<AudioStimulusEvent>();
+            world.RegisterEvent<LosCheckRequestEvent>();
+            world.RegisterEvent<TargetVisibleEvent>();
+            world.RegisterEvent<TargetHeardEvent>();
         }
     }
 }

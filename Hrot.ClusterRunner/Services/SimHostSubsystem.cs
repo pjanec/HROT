@@ -73,6 +73,13 @@ namespace Hrot.ClusterRunner.Services
         /// <summary>TestHook: exposes the <see cref="NetworkEntityMap"/>.</summary>
         internal NetworkEntityMap TestHook_EntityMap => App.TestHook_EntityMap;
 
+        /// <summary>
+        /// TestHook: exposes the <see cref="DoctrineRegistry"/> so integration tests can
+        /// register scenario-specific doctrines before transitioning the cluster to OperatingLive.
+        /// </summary>
+        internal FDP.Toolkit.Behavior.DoctrineRegistry TestHook_DoctrineRegistry
+            => App.TestHook_DoctrineRegistry;
+
         /// <summary>TestHook: spawns an entity and returns its network ID.</summary>
         internal long TestHook_SpawnEntity(long tkbType, GeoPoint position)
             => App.TestHook_SpawnEntity(tkbType, position);

@@ -41,6 +41,7 @@ using FDP.Kernel.Logging;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Perception.Components;
+using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
@@ -111,8 +112,14 @@ namespace Hrot.SimHost
         /// </summary>
         public SimHostVisualization? Visualization => _vis;
 
+        // ── Doctrine registry ─────────────────────────────────────────────────
+        private DoctrineRegistry? _doctrineRegistry;
+
         // ── SimLogic ─────────────────────────────────────────────────────────
         private SimulationLogicModule? _simLogicModule;
+
+        // ── Physics ───────────────────────────────────────────────────────────
+        private PhysicsToolkitModule? _physicsModule;
 
         // ── Orchestration (CGF1-S0104 / CMC-S016) ────────────────────────────
         private FDP.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
@@ -294,6 +301,7 @@ namespace Hrot.SimHost
 
             // ── 6. Doctrine registry ──────────────────────────────────────────
             var doctrineRegistry = new DoctrineRegistry();
+            _doctrineRegistry = doctrineRegistry;
             unsafe
             {
                 doctrineRegistry.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
@@ -344,7 +352,15 @@ namespace Hrot.SimHost
             // Build ScenarioSerializer for production scenario load/save (CGF1-S0307 / CGF1-S0302).
             // Must be built after RegisterSimComponents so the auto-serializer compiles
             // delegates for all registered component types.
-            var scenarioSerializer = new ScenarioSerializerBuilder("Hrot.SimHost").Build();
+            // These translators replace the auto-serializer stubs for components that contain
+            // fixed-size buffers or InlineArrays embedding Entity cross-references.
+            // The auto-serialiser produces empty/truncated JSON for those fields, zeroing
+            // entity handles on every round-trip.
+            var scenarioSerializer = new ScenarioSerializerBuilder("Hrot.SimHost")
+                .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
+                .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
+                .RegisterTranslator(new Hrot.SimHost.Serializers.WeaponChannelTranslator())
+                .Build();
 
             // CheckpointIOWorker: starts its background I/O thread here; owned by SimHostApp
             // and disposed in Shutdown().
@@ -397,6 +413,12 @@ namespace Hrot.SimHost
             });
 
             // ── 9. Toolkit modules ────────────────────────────────────────────
+            // Physics: allocate RaycastBatchData singleton so BallisticsSystem and
+            // RaycastSolverSystem operate (guards inside those systems return early
+            // when the singleton is absent).
+            _physicsModule = new PhysicsToolkitModule();
+            _physicsModule.Initialize(_world);
+
             var geoModule = new GeographicModule(wgs84);
             _kernel.RegisterModule(geoModule);
 
@@ -635,6 +657,8 @@ namespace Hrot.SimHost
             _checkpointWorker = null;
 
             // ── Dispose simulation resources ──────────────────────────────────
+            _physicsModule?.Dispose();
+            _physicsModule = null;
             _vis?.Dispose();
             _vis = null;
             _idAllocator?.Dispose();
@@ -672,6 +696,14 @@ namespace Hrot.SimHost
 
         /// <summary>TestHook: exposes the <see cref="NetworkEntityMap"/> after initialization.</summary>
         public NetworkEntityMap TestHook_EntityMap => _entityMap
+            ?? throw new InvalidOperationException("SimHostApp is not initialized.");
+
+        /// <summary>
+        /// TestHook: exposes the <see cref="DoctrineRegistry"/> so integration tests can
+        /// register scenario-specific doctrines (e.g. UrbanCombat) before transitioning the
+        /// cluster to OperatingLive.
+        /// </summary>
+        public DoctrineRegistry TestHook_DoctrineRegistry => _doctrineRegistry
             ?? throw new InvalidOperationException("SimHostApp is not initialized.");
 
         /// <summary>TestHook: current kernel simulation time in seconds. Updates every frame.</summary>

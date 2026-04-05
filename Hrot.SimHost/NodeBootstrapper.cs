@@ -143,6 +143,10 @@ namespace Hrot.SimHost
                     weaponExecutors: new (ushort, IActionExecutor<WeaponChannel>)[]
                     {
                         (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor()),
+                    },
+                    interactionExecutors: new (ushort, IActionExecutor<InteractionChannel>)[]
+                    {
+                        (BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor()),
                     }));
             }
 
@@ -352,10 +356,6 @@ namespace Hrot.SimHost
                     localTempRoot));
             }
 
-            // Wire ReferenceLiveLoadHandler for cold PrepareLive / FinalizeLive.
-            clusterSlave.RegisterHandler(new ReferenceLiveLoadHandler(
-                checkpointWorker, controller, localTempRoot));
-
             // Wire ReferenceCheckpointHandler when a checkpoint worker is provided (CGF1-S0303).
             if (checkpointWorker != null)
                 clusterSlave.RegisterHandler(new ReferenceCheckpointHandler(
@@ -384,6 +384,11 @@ namespace Hrot.SimHost
                 clusterSlave.RegisterHandler(
                     new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world));
             }
+
+            // Wire ReferenceLiveLoadHandler AFTER the scenario handler so it only claims
+            // FinalizeLive and cold PrepareLive (when no scenario serializer was registered).
+            clusterSlave.RegisterHandler(new ReferenceLiveLoadHandler(
+                checkpointWorker, controller, localTempRoot));
 
             return clusterSlave;
         }

@@ -1341,21 +1341,28 @@ public sealed class ClusterMaster : IDisposable
     /// <param name="scenarioId">Logical scenario identifier (sub-directory under NAS root).</param>
     /// <param name="requestId">Originating <see cref="ClusterOpRequest.RequestId"/>; used to
     /// surface <see cref="ClusterOpStatus.Failure"/> if the gateway copy fails.</param>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when no <see cref="StorageGatewayModule"/> or NAS base path has been
-    /// configured — both are required for prefetch to proceed.
-    /// </exception>
+    /// <remarks>
+    /// When no <see cref="StorageGatewayModule"/> is configured (e.g. in headless tests where
+    /// scenario files are pre-staged locally), the prefetch step is skipped silently; the
+    /// assumption is that the file is already present on the node's local staging directory.
+    /// </remarks>
     private void ExecutePrefetchScenario(string scenarioId, Guid requestId)
     {
         if (_gateway == null)
-            throw new InvalidOperationException(
-                "[Orchestrator] PrefetchScenario step requires a StorageGatewayModule to be registered. " +
-                "Call SetStorageGateway() before issuing load transitions with a ScenarioId.");
+        {
+            FdpLog<ClusterMaster>.Info(
+                "[Orchestrator] PrefetchScenario for '{0}' skipped — no StorageGatewayModule configured. " +
+                "Assuming files are pre-staged locally.", scenarioId);
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(_nasBasePath))
-            throw new InvalidOperationException(
-                "[Orchestrator] PrefetchScenario step requires a non-empty NAS base path. " +
-                "Call SetStorageGateway() with a valid nasBasePath before issuing load transitions.");
+        {
+            FdpLog<ClusterMaster>.Info(
+                "[Orchestrator] PrefetchScenario for '{0}' skipped — no NAS base path configured. " +
+                "Assuming files are pre-staged locally.", scenarioId);
+            return;
+        }
 
         var targets = BuildNodeDistributionTargets(scenarioId);
 

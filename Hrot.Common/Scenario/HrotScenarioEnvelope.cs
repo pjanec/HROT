@@ -21,7 +21,11 @@ public static class HrotScenarioEnvelope
         try
         {
             var node = JsonNode.Parse(jsonText);
-            return node?["Header"]?["SubsystemType"]?.GetValue<string>();
+            // Try Pascal case first (ScenarioSerializer.Serialize output), then camelCase
+            // (HrotSerializerOptions.HrotJsonOptions output) for forward compatibility.
+            return node?["Header"]?["SubsystemType"]?.GetValue<string>()
+                ?? node?["header"]?["SubsystemType"]?.GetValue<string>()
+                ?? node?["header"]?["subsystemType"]?.GetValue<string>();
         }
         catch
         {
