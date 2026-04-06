@@ -973,21 +973,11 @@ public class IgApplication : IDisposable
 
 
 
-        // B. SpawningModule ÔÇö processes SpawnEntityCommand / DestroyEntityCommand
-
-        INetworkIdAllocator idAllocator = _networkEnabled && ddsAllocator != null
-
-            ? ddsAllocator
-
-            : new IgSequentialIdAllocator();
-
-        var spawningSystem = new NetworkSpawningSystem(
-
-            tkb, elm, _entityMap, idAllocator,
-
-            IgNetworkConstants.LocalNodeId);
-
-        _kernel.RegisterModule(new SpawningModule(spawningSystem));
+        // B. Ghost destruction — replaces SpawningModule so IG does not duplicate entities.
+        // SpawnEntityCommand is forwarded to SimHost via SpawnEntityCommandEgressTranslator;
+        // SimHost creates the authoritative ghost which DDS replicates back.
+        // GhostDestructionSystem tears down those ghosts on EntityMaster DISPOSE.
+        _kernel.RegisterGlobalSystem(new GhostDestructionSystem(_entityMap));
 
 
 
@@ -4131,6 +4121,41 @@ public class IgApplication : IDisposable
             => _inner = inner ?? throw new ArgumentNullException(nameof(inner));
 
         public void Write(T sample) => _inner.Write(sample);
+    }
+
+    // ── Ghost entity cleanup ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Handles <see cref="DestroyEntityCommand"/> events (published when SimHost sends
+    /// EntityMaster DISPOSE) by unregistering and destroying the local ghost entity.
+    /// Replaces <see cref="SpawningModule"/> so the IG no longer acts as an authoritative
+    /// spawner and thus avoids duplicate local entities.
+    /// </summary>
+    [UpdateInPhase(SystemPhase.PostSimulation)]
+    private sealed class GhostDestructionSystem : IEcsModuleSystem
+    {
+        private readonly NetworkEntityMap _entityMap;
+
+        public GhostDestructionSystem(NetworkEntityMap entityMap)
+        {
+            _entityMap = entityMap;
+        }
+
+        public void Execute(ISimulationView view, float dt)
+        {
+            var world = view as EntityRepository;
+            if (world == null) return;
+
+            foreach (var cmd in view.ConsumeManagedEvents<DestroyEntityCommand>())
+            {
+                if (_entityMap.TryGetEntity(cmd.NetworkId, out var entity))
+                {
+                    _entityMap.Unregister(cmd.NetworkId, view.Tick);
+                    if (world.IsAlive(entity))
+                        world.DestroyEntity(entity);
+                }
+            }
+        }
     }
 }
 

@@ -47,4 +47,29 @@ public class DestroyEntityCommandEgressTranslatorTests
         Assert.Equal(1, writer.Publishes.Count);
         Assert.Equal(42, writer.Publishes[0].EntityId);
     }
+
+    /// <summary>
+    /// When a <see cref="DestroyEntityCommand"/> has <c>Reason == "EntityMaster disposed"</c>
+    /// the translator must NOT forward a <see cref="DeleteEntityRequest"/> to the server.
+    /// This prevents the echo-loop described in BUG2 where a remote disposal notification
+    /// would be reflected back to SimHost, causing a spurious Error Code 3.
+    /// </summary>
+    [Fact]
+    public void DestroyEntityCommand_EntityMasterDisposedReason_IsNotForwarded()
+    {
+        var bus        = new FdpEventBus();
+        var writer     = new CapturingWriter<DeleteEntityRequest>();
+        var translator = new DestroyEntityCommandEgressTranslator(writer, bus);
+
+        bus.PublishManaged(new DestroyEntityCommand
+        {
+            NetworkId = 99L,
+            Reason    = "EntityMaster disposed",
+        });
+        bus.SwapBuffers();
+
+        translator.PollIngress(null!, null!);
+
+        Assert.Equal(0, writer.Publishes.Count);
+    }
 }

@@ -7,10 +7,13 @@ using FDP.Toolkit.Behavior;
 using FDP.Toolkit.ImGui.Abstractions;
 using FDP.Toolkit.ImGui.Adapters;
 using FDP.Toolkit.ImGui.Panels;
+using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Scenario;
 using FDP.Toolkit.Time.Controllers;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Components;
@@ -19,6 +22,7 @@ using FDP.Toolkit.Vis2D.Layers;
 using Hrot.CGF;
 using Hrot.ClusterRunner.Windows;
 using Hrot.Common.Orchestration.Handlers;
+using Hrot.Common.Scenario;
 using Hrot.Editor;
 using Hrot.Editor.Adapters;
 using Hrot.Editor.Events;
@@ -27,16 +31,21 @@ using Hrot.Editor.Rendering;
 using Hrot.Editor.UI;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Config;
+using Hrot.Map.Common.Services;
 using Hrot.Orchestrator;
 using Hrot.ScenarioEditor;
 using Hrot.ScenarioEditor.Services;
 using Hrot.ScenarioEditor.Adapters;
 using Hrot.ScenarioEditor.Tools;
 using Hrot.SimHost;
+using Hrot.SimHost.Modules;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
 using ModuleHost.Core;
 using ModuleHost.Core.Abstractions;
+using ModuleHost.Core.Network.Interfaces;
+// Disambiguate IMapCameraProvider: Hrot.SimHost.Modules also defines this interface.
+using IMapCameraProvider = FDP.Framework.Runner.IMapCameraProvider;
 using FdpEntityInspectorPanel = FDP.Toolkit.ImGui.Panels.EntityInspectorPanel;
 using FdpEventBrowserPanel    = FDP.Toolkit.ImGui.Panels.EventBrowserPanel;
 using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;
@@ -166,6 +175,16 @@ namespace Hrot.ClusterRunner.Services
             }
         }
 
+        // ── Nested helper: offline sequential ID allocator ────────────────────
+
+        private sealed class SequentialIdAllocator : INetworkIdAllocator
+        {
+            private long _next = 1000;
+            public long AllocateId()            => _next++;
+            public void Reset(long startId = 0) => _next = startId;
+            public void Dispose() { }
+        }
+
         // ── Internal test accessors ───────────────────────────────────────────
 
         /// <summary>Internal test hook: direct access to the ECS world.</summary>
@@ -205,6 +224,20 @@ namespace Hrot.ClusterRunner.Services
             var clusterSlave     = new ClusterSlave(0, "Editor", _world.Bus);
             var fileService      = EditorBootstrap.CreateFileService();
 
+            // ── 3b. TKB + ELM + offline spawning ─────────────────────────────
+            var tkbDb       = HrotEnvironment.CreateTkb();
+            var elm         = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
+            var idAllocator = new SequentialIdAllocator();
+            var spawnSys    = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: 0);
+
+            // ── 3c. Offline scenario load handler ─────────────────────────────
+            var scenarioSerializer = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
+            var storageProvider    = new LocalDiskStorageProvider(EditorBootstrap.ScenariosRoot);
+            var scenarioLoader     = new HrotScenarioLoader(storageProvider, "Hrot.Scenario");
+            var zoneService        = new ZoneManagerService();
+            clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
+                scenarioSerializer, scenarioLoader, zoneService, _world));
+
             // ── 4. Module registration (offline — no translator packs) ────────
             var simHostCorePack  = new SimHostCoreLogicPack(entityMap);
             var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, entityMap);
@@ -220,6 +253,10 @@ namespace Hrot.ClusterRunner.Services
             // components (PassengerBuffer, TargetMemory, etc.) exist when systems are created.
             SimHostComponentRegistry.RegisterAll(_world);
             _kernel.RegisterModule(new EditorSystemsModule(_world));
+
+            // ── 4c. ELM + offline spawning module ────────────────────────────
+            _kernel.RegisterModule(elm);
+            _kernel.RegisterModule(new SimHostModule(spawnSys));
 
             // ── 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ──
             var logicPacks = new List<IEcsModule> { simHostCorePack, cgfLogicPackInst };
@@ -421,8 +458,10 @@ namespace Hrot.ClusterRunner.Services
                 }
                 else
                 {
-                    // Empty map click — offer measurement tool placeholder.
-                    builder.AddItem("Measurement Tool", () => { });
+                    if (_contextMenuHandler != null)
+                        Hrot.UI.Common.Menus.SharedContextMenuPopulator.PopulateEmptyMapMenu(builder, _contextMenuHandler);
+                    else
+                        builder.AddItem("Measurement Tool", () => { });
                 }
 
                 ImGuiNET.ImGui.EndPopup();
@@ -575,7 +614,8 @@ namespace Hrot.ClusterRunner.Services
                     }
 
                     case Hrot.Editor.EditorTool.Measure:
-                        // Measure tool is a placeholder — no-op for now.
+                        if (_canvas != null)
+                            _canvas.PushTool(new Hrot.ScenarioEditor.Tools.MeasureTool());
                         break;
                 }
             }

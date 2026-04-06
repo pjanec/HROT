@@ -22,6 +22,7 @@ namespace Hrot.Editor.Tools
 
         private readonly float _radius;
         private MapCanvas? _canvas;
+        private Vector2 _currentMousePos;
 
         /// <param name="radius">Preview radius indicator drawn at the cursor.</param>
         /// <param name="onPlaced">
@@ -44,7 +45,11 @@ namespace Hrot.Editor.Tools
         public void Update(float dt) { }
 
         /// <inheritdoc/>
-        public void Draw(RenderContext ctx) { }
+        public void Draw(RenderContext ctx)
+        {
+            if (_canvas != null)
+                Raylib_cs.Raylib.DrawCircleLinesV(_currentMousePos, _radius, Raylib_cs.Color.Red);
+        }
 
         /// <inheritdoc/>
         public bool HandleClick(Vector2 worldPos, MouseButton button)
@@ -67,7 +72,11 @@ namespace Hrot.Editor.Tools
         public bool HandleDrag(Vector2 worldPos, Vector2 delta) => false;
 
         /// <inheritdoc/>
-        public bool HandleHover(Vector2 worldPos) => false;
+        public bool HandleHover(Vector2 worldPos)
+        {
+            _currentMousePos = worldPos;
+            return false;
+        }
 
         /// <inheritdoc/>
         public bool HandleKeyPressed(KeyboardKey key)

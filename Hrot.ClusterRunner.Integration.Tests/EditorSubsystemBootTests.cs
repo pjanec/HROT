@@ -1,10 +1,14 @@
 using System;
 using System.Numerics;
 using FDP.Framework.Runner;
+using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.Replication.Components;
 using Hrot.ClusterRunner.Configuration;
 using Hrot.ClusterRunner.Services;
 using Hrot.Editor;
 using Hrot.Editor.Events;
+using Hrot.Map.Common;
+using ModuleHost.Core.Network.Interfaces;
 using Fdp.Kernel;
 using Xunit;
 
@@ -371,6 +375,70 @@ public sealed class EditorSubsystemBootTests
                 System.IO.Directory.Delete(cleanDir, recursive: true);
         }
 
+        subsystem.Shutdown();
+    }
+
+    // ── T-ES21: SpawnEntityCommand creates an entity (BUG1 regression) ────────
+
+    /// <summary>
+    /// Verifies that publishing a <see cref="SpawnEntityCommand"/> on the bus while
+    /// running headless causes an ECS entity to appear in the world.
+    /// This exercises the TKB + EntityLifecycleModule + NetworkSpawningSystem
+    /// pipeline that was missing from <see cref="EditorSubsystem"/> before the BUG1 fix.
+    /// </summary>
+    [Fact]
+    public void SpawnEntityCommand_OnBus_CreatesEntityInWorld()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+
+        // Publish a SpawnEntityCommand for Tank_M1Abrams (tkbType 100).
+        // NetworkId=0 causes the SimHostModule's NetworkSpawningSystem to
+        // allocate a local ID via the offline SequentialIdAllocator.
+        subsystem.World.Bus.PublishManaged(new SpawnEntityCommand
+        {
+            TkbType     = TkbEntityTypes.Tank_M1Abrams,  // 100
+            NetworkId   = 0,
+            OwnerNodeId = 0,
+            InitType    = ReliableInitType.None,
+        });
+
+        // Pump until entity appears (or timeout).
+        bool appeared = false;
+        for (int i = 0; i < 10 && !appeared; i++)
+        {
+            subsystem.Update(0.016f);
+            appeared = subsystem.World.EntityCount > 0;
+        }
+
+        Assert.True(appeared, "Entity should appear in the world after SpawnEntityCommand (BUG1)");
+
+        subsystem.Shutdown();
+    }
+
+    // ── T-ES22: ActivateMeasureTool in headless does not throw (BUG6 regression)
+
+    /// <summary>
+    /// Verifies that the Measure tool activation event is correctly handled by
+    /// <see cref="EditorSubsystem"/> without throwing. In headless mode the canvas
+    /// is unavailable; the handler should silently no-op rather than crash.
+    /// </summary>
+    [Fact]
+    public void ActivateEditorToolEvent_Measure_HeadlessDoesNotThrow()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+
+        subsystem.World.Bus.PublishManaged(new ActivateEditorToolEvent(EditorTool.Measure));
+
+        // Two updates so the SwapBuffers cycle exposes the event in the read buffer.
+        var ex = Record.Exception(() =>
+        {
+            subsystem.Update(0.016f);
+            subsystem.Update(0.016f);
+        });
+
+        Assert.Null(ex);
         subsystem.Shutdown();
     }
 }

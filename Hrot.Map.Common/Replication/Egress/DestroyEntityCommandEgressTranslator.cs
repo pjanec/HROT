@@ -59,6 +59,12 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             foreach (var destroyCmd in _eventBus.ConsumeManaged<DestroyEntityCommand>())
             {
+                // Prevent echo loop: do not forward bottom-up disposal notifications back to
+                // the server.  When SimHost sends EntityMaster DISPOSE the IG publishes a
+                // DestroyEntityCommand with this reason; forwarding it would send a second
+                // DeleteEntityRequest for an already-deleted entity (error code 3).
+                if (destroyCmd.Reason == "EntityMaster disposed") continue;
+
                 var request = new DeleteEntityRequest
                 {
                     RequestId = Guid.NewGuid(),
