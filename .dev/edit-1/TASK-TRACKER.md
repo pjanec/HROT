@@ -61,13 +61,13 @@ layers (4) that translate UI intents into domain events and ECS mutations.
 - [x] **EDIT1-A003** `EditorOrbatAdapter` (`IOrbatDataProvider` + `IOrbatController` + embark intents) [details](./TASK-DETAIL.md#edit1-a003--editororbatadapter-iorbatdataprovider--iorbatcontroller)
 - [x] **EDIT1-A004** `EditorMapPickAdapter` (`IMapPickService` — location, entity, area picks) [details](./TASK-DETAIL.md#edit1-a004--editormappickadapter-imappickservice)
 - [x] **EDIT1-A005** `EditorZoneAdapter` (`IZoneAuthoringController`) [details](./TASK-DETAIL.md#edit1-a005--editorzonéadapter-izoneauthoringcontroller)
-- [ ] **EDIT1-A006** `EditorEntityContextMenuHandler` (multi-select target seeding + rename + edit) [details](./TASK-DETAIL.md#edit1-a006--editorentitycontextmenuhandler-ientitycontextmenuhandler)
+- [x] **EDIT1-A006** `EditorEntityContextMenuHandler` (multi-select target seeding + rename + edit) [details](./TASK-DETAIL.md#edit1-a006--editorentitycontextmenuhandler-ientitycontextmenuhandler)
 - [x] **EDIT1-A007** `EditorPreviewAdapter` (`IPreviewController` — offline snapshot/rewind) [details](./TASK-DETAIL.md#edit1-a007--editorpreviewadapter-ipreviewcontroller)
 - [x] **EDIT1-A008** `EditorMapConfigAdapter` (`IMapConfigController` — direct singleton mutation) [details](./TASK-DETAIL.md#edit1-a008--editormapconfigadapter-imapconfigcontroller)
-- [ ] **EDIT1-A009** `EditorCargoSystem` (embark/disembark ECS execution + capacity check) [details](./TASK-DETAIL.md#edit1-a009--editorcargosystem)
-- [ ] **EDIT1-A010** `EditorPerceptionSetupSystem` (`SeedTargetCommand` execution, unsafe TargetMemory) [details](./TASK-DETAIL.md#edit1-a010--editorperceptionsetupsystem)
-- [ ] **EDIT1-A011** `EditorZoneAuthoringSystem` (obstacle ECS spawn + road network singleton swap) [details](./TASK-DETAIL.md#edit1-a011--editorzoneauthoringsystem)
-- [ ] **EDIT1-A012** `PerceptionMapLayer` (`IMapLayer` — TargetMemory link visualization) [details](./TASK-DETAIL.md#edit1-a012--perceptionmaplayer-imaplayer)
+- [x] **EDIT1-A009** `EditorCargoSystem` (embark/disembark ECS execution + capacity check) [details](./TASK-DETAIL.md#edit1-a009--editorcargosystem)
+- [x] **EDIT1-A010** `EditorPerceptionSetupSystem` (`SeedTargetCommand` execution, unsafe TargetMemory) [details](./TASK-DETAIL.md#edit1-a010--editorperceptionsetupsystem)
+- [x] **EDIT1-A011** `EditorZoneAuthoringSystem` (obstacle ECS spawn + road network singleton swap) [details](./TASK-DETAIL.md#edit1-a011--editorzoneauthoringsystem)
+- [x] **EDIT1-A012** `PerceptionMapLayer` (`IMapLayer` — TargetMemory link visualization) [details](./TASK-DETAIL.md#edit1-a012--perceptionmaplayer-imaplayer)
 
 ---
 
