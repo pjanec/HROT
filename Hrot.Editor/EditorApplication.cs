@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Fdp.Kernel;
 using FDP.Toolkit.DER;
 using FDP.Toolkit.NetworkSpawning.Events;
+using Hrot.Editor.Commands;
 using Hrot.Editor.Events;
 using Hrot.ScenarioEditor.Services;
 using ModuleHost.Core;
@@ -107,4 +108,16 @@ public sealed class EditorApplication : IEditorLogic
 
         _currentMode = SimHostMode.Internal;
     }
+
+    /// <inheritdoc/>
+    public void CenterOnEntity(long entityId) =>
+        _bus.PublishManaged(new CenterOnEntityCommand { NetworkId = entityId });
+
+    /// <inheritdoc/>
+    public void SelectEntity(long entityId) =>
+        _bus.PublishManaged(new SelectEntityCommand { NetworkId = entityId });
+
+    /// <inheritdoc/>
+    public void OpenRenameDialog(long entityId) =>
+        _bus.PublishManaged(new OpenRenameDialogCommand { NetworkId = entityId });
 }

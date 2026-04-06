@@ -49,8 +49,13 @@ namespace Hrot.Map.Definitions
         public const byte RouteTrajectoryCache = 170;
 
 
-        // IDs 163 and 171–199 are reserved for future application-level components.
+        // IDs 163 are reserved (see note below). 172–199 reserved for future use.
         // NOTE: InFormationTag (formerly 163) has been moved to FDP.Toolkit.Navigation
         //       (GlobalComponentIds.InFormationTag = 70) as part of CT-MOD1-I executor migration.
+
+        // ── Zone authoring components (PACK3 / A011) ────────────────────────────
+
+        /// <summary><c>ZoneMembership</c> — managed component recording the zone name for an obstacle entity created by <c>SpawnZoneObstacleCommand</c>.</summary>
+        public const byte ZoneMembership = 171;
     }
 }

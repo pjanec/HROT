@@ -49,4 +49,22 @@ public interface IEditorLogic
 
     /// <summary>Current operational mode of the editor.</summary>
     SimHostMode CurrentMode { get; }
+
+    /// <summary>
+    /// Pans and zooms the map canvas to centre on the entity identified by
+    /// <paramref name="entityId"/>.
+    /// </summary>
+    void CenterOnEntity(long entityId);
+
+    /// <summary>
+    /// Programmatically selects the entity identified by <paramref name="entityId"/>
+    /// as the primary selection, switching to the Select tool if required.
+    /// </summary>
+    void SelectEntity(long entityId);
+
+    /// <summary>
+    /// Opens the in-map rename dialog for the entity identified by
+    /// <paramref name="entityId"/>.
+    /// </summary>
+    void OpenRenameDialog(long entityId);
 }

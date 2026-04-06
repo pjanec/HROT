@@ -56,14 +56,14 @@ embarkation drag-and-drop), `PreviewPanel`, `ZoneEditorPanel`, and `SharedContex
 **Goal:** Implement all Editor-specific adapter classes (8) and execution systems / rendering
 layers (4) that translate UI intents into domain events and ECS mutations.
 
-- [ ] **EDIT1-A001** `EditorSpawnAdapter` (`ISpawnController` — tool push adapter) [details](./TASK-DETAIL.md#edit1-a001--editorspawnadapter-ispawncontroller)
-- [ ] **EDIT1-A002** `EditorMissionService` (`IMissionEditorService` — doctrine filtering + TAP commit) [details](./TASK-DETAIL.md#edit1-a002--editormissionservice-imissioneditorservice)
-- [ ] **EDIT1-A003** `EditorOrbatAdapter` (`IOrbatDataProvider` + `IOrbatController` + embark intents) [details](./TASK-DETAIL.md#edit1-a003--editororbatadapter-iorbatdataprovider--iorbatcontroller)
-- [ ] **EDIT1-A004** `EditorMapPickAdapter` (`IMapPickService` — location, entity, area picks) [details](./TASK-DETAIL.md#edit1-a004--editormappickadapter-imappickservice)
-- [ ] **EDIT1-A005** `EditorZoneAdapter` (`IZoneAuthoringController`) [details](./TASK-DETAIL.md#edit1-a005--editorzonéadapter-izoneauthoringcontroller)
+- [x] **EDIT1-A001** `EditorSpawnAdapter` (`ISpawnController` — tool push adapter) [details](./TASK-DETAIL.md#edit1-a001--editorspawnadapter-ispawncontroller)
+- [x] **EDIT1-A002** `EditorMissionService` (`IMissionEditorService` — doctrine filtering + TAP commit) [details](./TASK-DETAIL.md#edit1-a002--editormissionservice-imissioneditorservice)
+- [x] **EDIT1-A003** `EditorOrbatAdapter` (`IOrbatDataProvider` + `IOrbatController` + embark intents) [details](./TASK-DETAIL.md#edit1-a003--editororbatadapter-iorbatdataprovider--iorbatcontroller)
+- [x] **EDIT1-A004** `EditorMapPickAdapter` (`IMapPickService` — location, entity, area picks) [details](./TASK-DETAIL.md#edit1-a004--editormappickadapter-imappickservice)
+- [x] **EDIT1-A005** `EditorZoneAdapter` (`IZoneAuthoringController`) [details](./TASK-DETAIL.md#edit1-a005--editorzonéadapter-izoneauthoringcontroller)
 - [ ] **EDIT1-A006** `EditorEntityContextMenuHandler` (multi-select target seeding + rename + edit) [details](./TASK-DETAIL.md#edit1-a006--editorentitycontextmenuhandler-ientitycontextmenuhandler)
-- [ ] **EDIT1-A007** `EditorPreviewAdapter` (`IPreviewController` — offline snapshot/rewind) [details](./TASK-DETAIL.md#edit1-a007--editorpreviewadapter-ipreviewcontroller)
-- [ ] **EDIT1-A008** `EditorMapConfigAdapter` (`IMapConfigController` — direct singleton mutation) [details](./TASK-DETAIL.md#edit1-a008--editormapconfigadapter-imapconfigcontroller)
+- [x] **EDIT1-A007** `EditorPreviewAdapter` (`IPreviewController` — offline snapshot/rewind) [details](./TASK-DETAIL.md#edit1-a007--editorpreviewadapter-ipreviewcontroller)
+- [x] **EDIT1-A008** `EditorMapConfigAdapter` (`IMapConfigController` — direct singleton mutation) [details](./TASK-DETAIL.md#edit1-a008--editormapconfigadapter-imapconfigcontroller)
 - [ ] **EDIT1-A009** `EditorCargoSystem` (embark/disembark ECS execution + capacity check) [details](./TASK-DETAIL.md#edit1-a009--editorcargosystem)
 - [ ] **EDIT1-A010** `EditorPerceptionSetupSystem` (`SeedTargetCommand` execution, unsafe TargetMemory) [details](./TASK-DETAIL.md#edit1-a010--editorperceptionsetupsystem)
 - [ ] **EDIT1-A011** `EditorZoneAuthoringSystem` (obstacle ECS spawn + road network singleton swap) [details](./TASK-DETAIL.md#edit1-a011--editorzoneauthoringsystem)
