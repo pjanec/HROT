@@ -1,4 +1,5 @@
 using Hrot.NED.Descriptors;
+using Hrot.ExCon.Adapters;
 using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Panels;
 using Hrot.UI.Common.Facades;
@@ -41,11 +42,14 @@ public sealed class ExConMock : IDisposable
     private readonly DerEntityInspectorPanel     _derEntityInspectorPanel;
     private readonly bool                        _useDockSpace;
 
-    // ── Shared-panel adapters (Phase 1 shims — superseded by Phase 6 adapters) ──
-    private readonly ExConMapConfigShim          _mapConfigShim;
-    private readonly ExConMissionShim            _missionShim;
+    // ── Phase 1 shims (kept for backward compat; superseded by Phase 6 adapters below) ──
     private readonly ExConMapPickShim            _mapPickShim;
-    private readonly ExConSpawnShim              _spawnShim;
+    private readonly ExConMissionShim            _missionShim;
+
+    // ── Phase 6 proper adapters ───────────────────────────────────────────────
+    private readonly ExConMapConfigAdapter       _mapConfigAdapter;
+    private readonly ExConOrbatAdapter           _orbatAdapter;
+    private readonly SharedOrbatPanel            _sharedOrbatPanel;
 
     private bool _disposed;
 
@@ -61,12 +65,13 @@ public sealed class ExConMock : IDisposable
     public SpawnerPanel      GetSpawnerPanel()     => _spawnerPanel;
     public DiagnosticsPanel  GetDiagnosticsPanel() => _diagnosticsPanel;
 
-    // ── Shim accessors (used by RegisterWindows to pass port interfaces to managed windows) ──
+    // ── Adapter accessors (Phase 6 — used by RegisterWindows) ─────────────────────────
 
-    public IMapConfigController MapConfigShim  => _mapConfigShim;
-    public IMissionEditorService MissionShim   => _missionShim;
-    public IMapPickService MapPickShim         => _mapPickShim;
-    public ISpawnController SpawnShim          => _spawnShim;
+    public IMapConfigController  MapConfigAdapter => _mapConfigAdapter;
+    public IMissionEditorService MissionShim      => _missionShim;
+    public IMapPickService       MapPickShim       => _mapPickShim;
+    /// <summary><see cref="ExConLogic"/> directly implements <see cref="ISpawnController"/>.</summary>
+    public ISpawnController      SpawnController   => _logic;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -94,11 +99,14 @@ public sealed class ExConMock : IDisposable
         _derEntityInspectorPanel = derEntityInspectorPanel ?? new DerEntityInspectorPanel();
         _useDockSpace            = useDockSpace;
 
-        // Initialise Phase-1 shims (superseded by Phase 6 proper adapters).
-        _mapConfigShim = new ExConMapConfigShim(_logic);
+        // Phase 1 shims — still used for MissionPanel and MapPickService.
         _missionShim   = new ExConMissionShim(_logic.MissionEditorService);
         _mapPickShim   = new ExConMapPickShim(_logic.MapPickService);
-        _spawnShim     = new ExConSpawnShim(_logic);
+
+        // Phase 6 proper adapters.
+        _mapConfigAdapter = new ExConMapConfigAdapter(_logic);
+        _orbatAdapter     = new ExConOrbatAdapter(_logic.Repo, _logic);
+        _sharedOrbatPanel = new SharedOrbatPanel();
 
         // Register the Hrot-specific "Edit Overlay" context menu action.
         // The handler checks HasDescriptor/GetDescriptor at runtime; it is safe
@@ -194,11 +202,11 @@ public sealed class ExConMock : IDisposable
             if (_useDockSpace)
                 ImGui.DockSpaceOverViewport(0, ImGui.GetMainViewport(), ImGuiDockNodeFlags.PassthruCentralNode);
 
-            _configPanel.Draw(_mapConfigShim);
-            _orbatPanel.Draw(_logic);
+            _configPanel.Draw(_mapConfigAdapter);
+            _sharedOrbatPanel.DrawContent(_orbatAdapter, _orbatAdapter);
             _missionPanel.Draw(_missionShim, _mapPickShim);
             _interactionPanel.Draw(_logic);
-            _spawnerPanel.Draw(_spawnShim);
+            _spawnerPanel.Draw(_logic);
             _diagnosticsPanel.Draw(_logic);
             _derEntityInspectorPanel.Draw(_logic.Repo, "ExCon Entity Inspector");
         }

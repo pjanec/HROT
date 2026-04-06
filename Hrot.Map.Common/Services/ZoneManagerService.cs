@@ -72,6 +72,13 @@ public sealed class ZoneManagerService : IZoneManagerService
         _activeZones = new Dictionary<string, ZoneDefinitionDto>(zones);
     }
 
+    /// <summary>
+    /// Updates the active-zones tracking dictionary directly, without spawning ECS entities.
+    /// Used by <c>EditorZoneAuthoringSystem</c> to mirror authoring commands into the save path.
+    /// </summary>
+    public void SetActiveZones(Dictionary<string, ZoneDefinitionDto> zones)
+        => _activeZones = new Dictionary<string, ZoneDefinitionDto>(zones);
+
     /// <inheritdoc />
     public Dictionary<string, ZoneDefinitionDto> GetActiveZones() => _activeZones;
 }

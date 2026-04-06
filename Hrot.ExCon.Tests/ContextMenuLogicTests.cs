@@ -367,7 +367,8 @@ public class ContextMenuLogicTests
         var editItem = items.SingleOrDefault(i => (int)i["id"]! == ContextMenuActions.EditOverlay);
 
         Assert.NotNull(editItem);
-        Assert.Equal("Edit Drawing", (string)editItem!["label"]!);
+        // Label was renamed "Edit Drawing" → "Edit Shape" in X005 to align with SharedContextMenuPopulator.
+        Assert.Equal("Edit Shape", (string)editItem!["label"]!);
     }
 
     /// <summary>

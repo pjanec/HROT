@@ -38,4 +38,11 @@ public sealed class ContextMenuItem
     /// <summary>Optional keyboard shortcut hint (e.g. "M", "Del").</summary>
     [JsonProperty("shortcut", NullValueHandling = NullValueHandling.Ignore)]
     public string? Shortcut { get; init; }
+
+    /// <summary>
+    /// When <c>true</c> this entry is a visual separator, not an interactive item.
+    /// Serialised as <c>"separator": true</c> in the JSON sent to the IG.
+    /// </summary>
+    [JsonProperty("separator", NullValueHandling = NullValueHandling.Ignore)]
+    public bool? IsSeparator { get; init; }
 }

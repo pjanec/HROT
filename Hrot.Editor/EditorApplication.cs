@@ -6,6 +6,7 @@ using FDP.Toolkit.DER;
 using FDP.Toolkit.NetworkSpawning.Events;
 using Hrot.Editor.Commands;
 using Hrot.Editor.Events;
+using Hrot.Editor.Modules;
 using Hrot.ScenarioEditor.Services;
 using ModuleHost.Core;
 using ModuleHost.Core.Abstractions;
@@ -120,4 +121,18 @@ public sealed class EditorApplication : IEditorLogic
     /// <inheritdoc/>
     public void OpenRenameDialog(long entityId) =>
         _bus.PublishManaged(new OpenRenameDialogCommand { NetworkId = entityId });
+
+    /// <summary>
+    /// Returns an <see cref="EditorSystemsModule"/> initialised against this application's
+    /// <see cref="EntityRepository"/>.  The caller must register the returned module with
+    /// the kernel <em>before</em> calling <c>kernel.Initialize()</c>.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// kernel.RegisterModule(app.CreateEditorSystemsModule());
+    /// kernel.Initialize();
+    /// </code>
+    /// </example>
+    public EditorSystemsModule CreateEditorSystemsModule()
+        => new EditorSystemsModule(_world);
 }

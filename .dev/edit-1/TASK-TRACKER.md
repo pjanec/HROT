@@ -76,8 +76,8 @@ layers (4) that translate UI intents into domain events and ECS mutations.
 **Goal:** Connect every panel, adapter, system, and rendering layer together in the Editor's
 application startup; add project reference to `Hrot.UI.Common`; wire zone save pipeline.
 
-- [ ] **EDIT1-W002** `ScenarioFileService` zone save — inject `IZoneManagerService`, populate `HrotScenarioEnvelopeDto.Zones` [details](./TASK-DETAIL.md#edit1-w002--scenariofileservice-zone-save-integration)
-- [ ] **EDIT1-W001** `Hrot.Editor` full composition root wiring (systems, adapters, panels, canvas, window manager) [details](./TASK-DETAIL.md#edit1-w001--hroteditor-full-composition-root)
+- [x] **EDIT1-W002** `ScenarioFileService` zone save — inject `IZoneManagerService`, populate `HrotScenarioEnvelopeDto.Zones` [details](./TASK-DETAIL.md#edit1-w002--scenariofileservice-zone-save-integration)
+- [x] **EDIT1-W001** `Hrot.Editor` full composition root wiring (systems, adapters, panels, canvas, window manager) [details](./TASK-DETAIL.md#edit1-w001--hroteditor-full-composition-root)
 
 ---
 
@@ -86,11 +86,11 @@ application startup; add project reference to `Hrot.UI.Common`; wire zone save p
 **Goal:** Make `Hrot.ExCon` consume the shared panels from `Hrot.UI.Common` via network-aware
 NED adapters — completing DRY for the C2 subsystem.
 
-- [ ] **EDIT1-X001** `ExConOrbatAdapter` (`IOrbatDataProvider` + `IOrbatController` via `IDerRepo`) [details](./TASK-DETAIL.md#edit1-x001--exconorbatadapter-iorbatdataprovider--iorbatcontroller)
-- [ ] **EDIT1-X002** `ExConLogic : ISpawnController` declaration (zero logic change) [details](./TASK-DETAIL.md#edit1-x002--exconlogic-implements-ispawncontroller)
-- [ ] **EDIT1-X003** `MissionEditorService` NED adapter — `GetAvailableBehaviors` via `DoctrineCatalog` [details](./TASK-DETAIL.md#edit1-x003--missioneditorservice-ned-adapter--dynamic-doctrine-filter)
-- [ ] **EDIT1-X004** ExCon composition root: wire all shared panels to NED adapters [details](./TASK-DETAIL.md#edit1-x004--excon-composition-root-wire-shared-panels)
-- [ ] **EDIT1-X005** ExCon `ContextMenuLogic` refactor — `JsonContextMenuBuilder` + `ExConEntityActionAdapter` + `SharedContextMenuPopulator` [details](./TASK-DETAIL.md#edit1-x005--excon-contextmenulogic-refactor-via-sharedcontextmenupopulator)
+- [x] **EDIT1-X001** `ExConOrbatAdapter` (`IOrbatDataProvider` + `IOrbatController` via `IDerRepo`) [details](./TASK-DETAIL.md#edit1-x001--exconorbatadapter-iorbatdataprovider--iorbatcontroller)
+- [x] **EDIT1-X002** `ExConLogic : ISpawnController` declaration (zero logic change) [details](./TASK-DETAIL.md#edit1-x002--exconlogic-implements-ispawncontroller)
+- [x] **EDIT1-X003** `MissionEditorService` NED adapter — `GetAvailableBehaviors` via `DoctrineCatalog` [details](./TASK-DETAIL.md#edit1-x003--missioneditorservice-ned-adapter--dynamic-doctrine-filter)
+- [x] **EDIT1-X004** ExCon composition root: wire all shared panels to NED adapters [details](./TASK-DETAIL.md#edit1-x004--excon-composition-root-wire-shared-panels)
+- [x] **EDIT1-X005** ExCon `ContextMenuLogic` refactor — `JsonContextMenuBuilder` + `ExConEntityActionAdapter` + `SharedContextMenuPopulator` [details](./TASK-DETAIL.md#edit1-x005--excon-contextmenulogic-refactor-via-sharedcontextmenupopulator)
 
 ---
 
@@ -99,7 +99,7 @@ NED adapters — completing DRY for the C2 subsystem.
 **Goal:** Prove every new authoring feature in a deterministic, GPU-free, DDS-free test suite
 running inside `EditorHarness`.
 
-- [ ] **EDIT1-T001** Embarkation & cargo tests (valid embark, capacity limit, disembark restore) [details](./TASK-DETAIL.md#edit1-t001--embarkation--cargo-integration-tests)
-- [ ] **EDIT1-T002** Target memory seeding tests (single, N-to-1, 1-to-N) [details](./TASK-DETAIL.md#edit1-t002--target-memory-seeding-integration-tests)
-- [ ] **EDIT1-T003** Zone obstacle authoring + full save pipeline tests [details](./TASK-DETAIL.md#edit1-t003--zone-obstacle-authoring--save-pipeline-tests)
-- [ ] **EDIT1-T004** Doctrine catalog filtering tests (per TkbType + registry cross-check) [details](./TASK-DETAIL.md#edit1-t004--doctrine-catalog-filtering-tests)
+- [x] **EDIT1-T001** Embarkation & cargo tests (valid embark, capacity limit, disembark restore) [details](./TASK-DETAIL.md#edit1-t001--embarkation--cargo-integration-tests)
+- [x] **EDIT1-T002** Target memory seeding tests (single, N-to-1, 1-to-N) [details](./TASK-DETAIL.md#edit1-t002--target-memory-seeding-integration-tests)
+- [x] **EDIT1-T003** Zone obstacle authoring + full save pipeline tests [details](./TASK-DETAIL.md#edit1-t003--zone-obstacle-authoring--save-pipeline-tests)
+- [x] **EDIT1-T004** Doctrine catalog filtering tests (per TkbType + registry cross-check) [details](./TASK-DETAIL.md#edit1-t004--doctrine-catalog-filtering-tests)

@@ -7,6 +7,7 @@ using FDP.Toolkit.Time.Controllers;
 using Fdp.Kernel;
 using Hrot.CGF;
 using Hrot.Editor;
+using Hrot.Editor.Modules;
 using Hrot.Editor.UI;
 using Hrot.Orchestrator;
 using Hrot.ScenarioEditor;
@@ -42,6 +43,12 @@ kernel.RegisterModule(simHostCorePack);
 kernel.RegisterModule(cgfLogicPackInst);
 kernel.RegisterModule(orchPack);
 kernel.RegisterModule(scenarioMod);
+
+// ── 4c. Editor-specific ECS systems ──────────────────────────────────────────
+// Must be registered before kernel.Initialize() so SimHostComponentRegistry
+// components (PassengerBuffer, TargetMemory, etc.) exist when systems are created.
+SimHostComponentRegistry.RegisterAll(world);
+kernel.RegisterModule(new EditorSystemsModule(world));
 
 // ── 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ───
 var logicPacks = new List<IEcsModule> { simHostCorePack, cgfLogicPackInst };

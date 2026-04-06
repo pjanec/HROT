@@ -3,6 +3,8 @@ using Hrot.NED.Messages;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Dds;
 using FDP.Toolkit.DER;
+using Hrot.ExCon.Adapters;
+using Hrot.UI.Common.Menus;
 using Newtonsoft.Json;
 
 namespace Hrot.ExCon.Logic;
@@ -18,32 +20,60 @@ namespace Hrot.ExCon.Logic;
 ///   <item>Pushes a <see cref="ContextActionsUpdate"/> via the injected writer.</item>
 /// </list>
 /// </para>
+///
+/// <para>
+/// When constructed with a non-null <see langword="logic"/> reference (Phase 6),
+/// <see cref="SharedContextMenuPopulator"/> is used to build entity menus and the
+/// resulting callbacks are stored in <c>_activeCallbacks</c> for dispatch
+/// when a <see cref="ContextActionInvoked"/> event arrives.
+/// </para>
 /// </summary>
 public sealed class ContextMenuLogic : IContextMenuLogic
 {
-    // â”€â”€ Dependencies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Dependencies ──────────────────────────────────────────────────────────
 
     private readonly IDerRepo _repo;
     private readonly IDdsWriter<ContextActionsUpdate> _menuWriter;
+    private readonly IExConLogic? _logic;
 
-    // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── State ─────────────────────────────────────────────────────────────────
 
     private MenuStrategy _currentStrategy = MenuStrategy.Standard;
 
-    // â”€â”€ Events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    /// <summary>
+    /// Callback registry produced by the most recently built entity menu.
+    /// Keys are the integer IDs assigned by <see cref="JsonContextMenuBuilder"/>;
+    /// values are the <see cref="Action"/>s to invoke when the IG echoes the action ID.
+    /// </summary>
+    private IReadOnlyDictionary<int, Action> _activeCallbacks =
+        new Dictionary<int, Action>();
+
+    // ── Events ────────────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
     public event Action<ContextActionInvoked>? ActionInvoked;
 
-    // â”€â”€ Constructor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Constructor ───────────────────────────────────────────────────────────
 
-    public ContextMenuLogic(IDerRepo repo, IDdsWriter<ContextActionsUpdate> menuWriter)
+    /// <param name="repo">DER repository for entity descriptor reads.</param>
+    /// <param name="menuWriter">DDS writer for pushing <see cref="ContextActionsUpdate"/> messages.</param>
+    /// <param name="logic">
+    /// Optional ExCon logic facade.
+    /// When non-null the <see cref="SharedContextMenuPopulator"/> path is used and
+    /// action callbacks are stored for dispatch in <see cref="OnActionInvoked"/>.
+    /// Pass <c>null</c> (default) to retain the legacy strategy-based item list.
+    /// </param>
+    public ContextMenuLogic(
+        IDerRepo repo,
+        IDdsWriter<ContextActionsUpdate> menuWriter,
+        IExConLogic? logic = null)
     {
         _repo       = repo       ?? throw new ArgumentNullException(nameof(repo));
         _menuWriter = menuWriter ?? throw new ArgumentNullException(nameof(menuWriter));
+        _logic      = logic;
     }
 
-    // â”€â”€ IContextMenuLogic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── IContextMenuLogic ─────────────────────────────────────────────────────
 
     /// <inheritdoc/>
     public MenuStrategy CurrentStrategy => _currentStrategy;
@@ -61,8 +91,9 @@ public sealed class ContextMenuLogic : IContextMenuLogic
 
         if (evt.SelectedEntityIds is not { Count: > 0 })
         {
-            // No entity selected â€” this is a map-canvas right-click.
+            // No entity selected — this is a map-canvas right-click.
             menuItems = BuildMapCanvasMenu();
+            _activeCallbacks = new Dictionary<int, Action>();
         }
         else
         {
@@ -73,11 +104,38 @@ public sealed class ContextMenuLogic : IContextMenuLogic
             if (isEntityPending != null && isEntityPending(entityId))
             {
                 menuItems = new List<ContextMenuItem>();
+                _activeCallbacks = new Dictionary<int, Action>();
             }
             else
             {
                 var entity = _repo.GetEntity(entityId);
-                menuItems = BuildEntityMenu(_currentStrategy, entity);
+
+                if (_logic != null)
+                {
+                    // ── Phase 6: use SharedContextMenuPopulator ────────────────
+                    var builder = new JsonContextMenuBuilder();
+                    var actions = new ExConEntityActionAdapter(_logic);
+
+                    bool hasEditablePolyline = entity?.HasDescriptor<MapVisualOverlay>() == true;
+                    bool hasRoute            = entity?.TkbType == TkbEntityTypes.TacGraphic_Route;
+
+                    SharedContextMenuPopulator.PopulateEntityMenu(
+                        (long)entityId,
+                        entity?.TkbType ?? 0L,
+                        hasEditablePolyline,
+                        hasRoute,
+                        builder,
+                        actions);
+
+                    menuItems        = new List<ContextMenuItem>(builder.Build());
+                    _activeCallbacks = builder.GetCallbackRegistry();
+                }
+                else
+                {
+                    // ── Legacy: strategy-based hardcoded item list ────────────
+                    menuItems        = BuildEntityMenu(_currentStrategy, entity);
+                    _activeCallbacks = new Dictionary<int, Action>();
+                }
             }
         }
 
@@ -94,14 +152,17 @@ public sealed class ContextMenuLogic : IContextMenuLogic
     /// <inheritdoc/>
     public void OnActionInvoked(ContextActionInvoked evt)
     {
+        // Dispatch via Phase 6 callback registry when available.
+        if (_activeCallbacks.TryGetValue(evt.ActionId, out var callback))
+            callback.Invoke();
+
+        // Always fire the event for legacy subscribers (e.g. ExConLogic).
         ActionInvoked?.Invoke(evt);
     }
 
-    // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Private helpers ───────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Returns the map-canvas context menu shown when no entity is selected.
-    /// </summary>
+    /// <summary>Returns the map-canvas context menu shown when no entity is selected.</summary>
     private static List<ContextMenuItem> BuildMapCanvasMenu()
         => new()
         {
@@ -109,10 +170,8 @@ public sealed class ContextMenuLogic : IContextMenuLogic
         };
 
     /// <summary>
-    /// Builds the item list for the given strategy, optionally appending entity-specific
-    /// actions (e.g. "Edit Drawing" for editable overlays).
-    /// <paramref name="entity"/> may be <c>null</c> when the entity is not yet in the
-    /// DER repo; the strategy menu is returned without dynamic additions in that case.
+    /// Legacy strategy-based menu builder.  Used when no <see cref="IExConLogic"/>
+    /// was supplied to the constructor (e.g. in unit tests).
     /// </summary>
     private static List<ContextMenuItem> BuildEntityMenu(MenuStrategy strategy, IDerEntity? entity)
     {
@@ -122,59 +181,38 @@ public sealed class ContextMenuLogic : IContextMenuLogic
             {
                 new() { Id = ContextMenuActions.CenterOnEntity, Label = "Center on Entity",  Icon = "center"     },
                 new() { Id = ContextMenuActions.Properties,     Label = "Properties...",      Icon = "properties" },
-                new() { Id = ContextMenuActions.Delete,   Label = "DELETE",       Icon = "delete",   Style = "destructive" },
+                new() { Id = ContextMenuActions.Delete,         Label = "DELETE",             Icon = "delete",   Style = "destructive" },
             },
-
             MenuStrategy.Admin => new List<ContextMenuItem>
             {
-                //new() { Id = ContextMenuActions.Delete,   Label = "DELETE",       Icon = "delete",   Style = "destructive" },
-                new() { Id = ContextMenuActions.Teleport, Label = "Teleport...",  Icon = "teleport"  }
+                new() { Id = ContextMenuActions.Teleport, Label = "Teleport...", Icon = "teleport" }
             },
-
             MenuStrategy.DamageControl => new List<ContextMenuItem>
             {
                 new() { Id = ContextMenuActions.Repair,    Label = "Repair",    Icon = "repair"    },
                 new() { Id = ContextMenuActions.Reinforce, Label = "Reinforce", Icon = "reinforce" }
             },
-
             MenuStrategy.Logistics => new List<ContextMenuItem>
             {
                 new() { Id = ContextMenuActions.Resupply, Label = "Resupply", Icon = "resupply" },
                 new() { Id = ContextMenuActions.Transfer, Label = "Transfer", Icon = "transfer" }
             },
-
             _ => new List<ContextMenuItem>()
         };
 
-        // Dynamically append "Edit Drawing" when the entity has an editable tactical overlay.
+        // "Edit Shape" — editable tactical overlay.
         if (entity != null && entity.HasDescriptor<MapVisualOverlay>())
         {
-            // HasDescriptor confirmed the overlay exists; GetDescriptor is safe to call.
             var overlay = entity.GetDescriptor<MapVisualOverlay>()!;
             if (overlay.IsEditable)
-            {
-                items.Add(new ContextMenuItem
-                {
-                    Id    = ContextMenuActions.EditOverlay,
-                    Label = "Edit Drawing",
-                    Icon  = "edit"
-                });
-            }
+                items.Add(new ContextMenuItem { Id = ContextMenuActions.EditOverlay, Label = "Edit Shape", Icon = "edit" });
         }
 
-        // "Edit Route" — shown for standalone route entities so the operator can reshape them.
+        // "Edit Route" — standalone route entity.
         if (entity != null && entity.TkbType == TkbEntityTypes.TacGraphic_Route)
-        {
-            items.Add(new ContextMenuItem
-            {
-                Id    = ContextMenuActions.EditRoute,
-                Label = "Edit Route",
-                Icon  = "edit"
-            });
-        }
+            items.Add(new ContextMenuItem { Id = ContextMenuActions.EditRoute, Label = "Edit Route", Icon = "edit" });
 
-        // "Edit Personal Route" — shown for non-TacGraphic unit/vehicle entities so the operator
-        // can reshape the vehicle's assigned personal route on the IG canvas.
+        // "Edit Personal Route" — non-TacGraphic unit/vehicle.
         if (entity != null
          && entity.TkbType != TkbEntityTypes.TacGraphic_Route
          && entity.TkbType != TkbEntityTypes.TacGraphic_Area
