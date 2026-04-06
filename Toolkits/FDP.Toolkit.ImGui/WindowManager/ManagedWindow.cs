@@ -248,7 +248,7 @@ public abstract class ManagedWindow
                 Gui.SetTooltip("Window will be hidden when you switch perspective.");
         }
 
-        // Draw the pin icon on the foreground draw list (renders over title bar decoration).
+        // Draw the pin icon on the window draw list (respects window z-order).
         RenderPinSymbol(btnX, btnY, fh, _isPinned, hovered, active);
 
         // Restore cursor to the content area so DrawClientArea() starts in the right place.
@@ -264,7 +264,7 @@ public abstract class ManagedWindow
         float btnX, float btnY, float size,
         bool isPinned, bool hovered, bool active)
     {
-        var dl = Gui.GetForegroundDrawList();
+        var dl = Gui.GetWindowDrawList();
 
         // Hover / active background — mirrors ImGui close-button style.
         if (hovered || active)

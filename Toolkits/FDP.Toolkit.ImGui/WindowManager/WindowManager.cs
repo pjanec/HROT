@@ -201,48 +201,79 @@ public class WindowManager
     }
 
     /// <summary>
-    /// Persists all window states to <paramref name="filePath"/> as JSON.
+    /// Persists all window states and the current perspective to <paramref name="filePath"/> as JSON.
     /// When <paramref name="filePath"/> is <c>null</c> the default path
     /// (<c>fdp_windows.json</c> next to the executable) is used.
     /// </summary>
     public void SaveSettings(string? filePath = null)
     {
         filePath ??= DefaultSettingsPath;
-        var state = new Dictionary<string, WindowState>(
-            _windows.Select(kv => KeyValuePair.Create(
-                kv.Key,
-                new WindowState(kv.Value.IsOpen, kv.Value.IsPinned))));
+        var state = new WindowManagerSettings(
+            CurrentPerspective,
+            new Dictionary<string, WindowState>(
+                _windows.Select(kv => KeyValuePair.Create(
+                    kv.Key,
+                    new WindowState(kv.Value.IsOpen, kv.Value.IsPinned)))));
         var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(filePath, json);
     }
 
     /// <summary>
-    /// Restores window states from the JSON file at <paramref name="filePath"/>.
-    /// No-op when the file does not exist.  Unknown ids are silently skipped.
+    /// Restores window states from the JSON file at <paramref name="filePath"/> and returns the
+    /// persisted active perspective name (or <c>null</c> when not recorded or file absent).
     /// </summary>
-    public void LoadSettings(string? filePath = null)
+    public string? LoadSettings(string? filePath = null)
     {
         filePath ??= DefaultSettingsPath;
-        if (!File.Exists(filePath)) return;
+        if (!File.Exists(filePath)) return null;
 
-        var json  = File.ReadAllText(filePath);
-        var state = JsonSerializer.Deserialize<Dictionary<string, WindowState>>(json);
-        if (state is null) return;
+        var json = File.ReadAllText(filePath);
 
-        foreach (var (id, ws) in state)
+        // Try new schema first (WindowManagerSettings with ActivePerspective).
+        try
         {
-            if (_windows.TryGetValue(id, out var win))
+            var settings = JsonSerializer.Deserialize<WindowManagerSettings>(json);
+            if (settings != null)
             {
-                win.IsOpen   = ws.IsOpen;
-                win.IsPinned = ws.IsPinned;
+                foreach (var (id, ws) in settings.Windows)
+                {
+                    if (_windows.TryGetValue(id, out var win))
+                    {
+                        win.IsOpen   = ws.IsOpen;
+                        win.IsPinned = ws.IsPinned;
+                    }
+                }
+                return string.IsNullOrEmpty(settings.ActivePerspective) ? null : settings.ActivePerspective;
             }
         }
+        catch { /* fall through to legacy format */ }
+
+        // Legacy format: plain Dictionary<string, WindowState>.
+        try
+        {
+            var legacy = JsonSerializer.Deserialize<Dictionary<string, WindowState>>(json);
+            if (legacy != null)
+            {
+                foreach (var (id, ws) in legacy)
+                {
+                    if (_windows.TryGetValue(id, out var win))
+                    {
+                        win.IsOpen   = ws.IsOpen;
+                        win.IsPinned = ws.IsPinned;
+                    }
+                }
+            }
+        }
+        catch { /* ignore malformed settings */ }
+
+        return null;
     }
 
     private static string DefaultSettingsPath =>
         Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fdp_windows.json");
 
     private record WindowState(bool IsOpen, bool IsPinned);
+    private record WindowManagerSettings(string ActivePerspective, Dictionary<string, WindowState> Windows);
 
     // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -255,8 +286,8 @@ public class WindowManager
         if (Gui.BeginMainMenuBar())
         {
             RenderGlobalMenu(GlobalMenu.Root);
-            RenderFixedWindowsMenu();
             RenderPerspectiveSwitcher();
+            RenderFixedWindowsMenu();
             RenderFixedHelpMenu();
 
             Gui.EndMainMenuBar();

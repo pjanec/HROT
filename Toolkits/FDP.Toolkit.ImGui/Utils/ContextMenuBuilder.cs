@@ -9,7 +9,7 @@ namespace FDP.Toolkit.ImGui.Utils;
 /// <para>Must be used only while an ImGui popup is open
 /// (<c>ImGui.BeginPopup</c> returned <c>true</c>).</para>
 /// </summary>
-internal sealed class ContextMenuBuilder : IContextMenuBuilder
+public sealed class ContextMenuBuilder : IContextMenuBuilder
 {
     private readonly bool _insideSubmenu;
 
@@ -17,6 +17,9 @@ internal sealed class ContextMenuBuilder : IContextMenuBuilder
     {
         _insideSubmenu = insideSubmenu;
     }
+
+    /// <summary>Creates a root <see cref="ContextMenuBuilder"/> for use inside an open popup.</summary>
+    public ContextMenuBuilder() : this(false) { }
 
     // ── IContextMenuBuilder ───────────────────────────────────────────────────
 
