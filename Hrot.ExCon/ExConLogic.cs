@@ -40,7 +40,7 @@ namespace Hrot.ExCon;
 /// <summary>Tracks which kind of interactive pick is currently awaited from the IG.</summary>
 public enum ExConPickMode { None, EntityCreation, Location, Entity }
 
-public sealed class ExConLogic : IExConLogic, IMapPickService, IDisposable
+public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Facades.ISpawnController, IDisposable
 {
     // ── Dependencies ──────────────────────────────────────────────────────────
 

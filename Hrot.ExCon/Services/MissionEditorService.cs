@@ -2,6 +2,7 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.Map.Common.Dds;
 using Hrot.Common.Events;
+using Hrot.Map.Definitions.Tkb;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.DER;
 using Fdp.Kernel;
@@ -80,6 +81,14 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
     }
 
     // ── IMissionEditorService ─────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public IReadOnlyList<string> GetAvailableBehaviors(long entityId)
+    {
+        var entity = _repo.GetEntity((int)entityId);
+        if (entity is null) return Array.Empty<string>();
+        return DoctrineCatalog.GetValidDoctrines(entity.TkbType);
+    }
 
     /// <inheritdoc/>
     public (MissionPlan? Plan, long Version) GetMissionSnapshot(long entityId)

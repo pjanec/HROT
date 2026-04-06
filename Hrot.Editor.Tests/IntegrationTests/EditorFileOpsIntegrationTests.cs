@@ -144,12 +144,13 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
         using var doc = JsonDocument.Parse(json);
 
         // Header.SubsystemType is "Hrot.Scenario" (not "Hrot.Editor" or anything else).
-        var header = doc.RootElement.GetProperty("Header");
+        // HrotSerializerOptions uses camelCase naming policy, so property keys are lowercase.
+        var header = doc.RootElement.GetProperty("header");
         Assert.Equal("Hrot.Scenario",
-            header.GetProperty("SubsystemType").GetString());
+            header.GetProperty("subsystemType").GetString());
 
         // Entity count in the Entities object equals repo entity count.
-        var entities = doc.RootElement.GetProperty("Entities");
+        var entities = doc.RootElement.GetProperty("entities");
         Assert.Equal(5, entities.EnumerateObject().Count());
 
         repo.Dispose();

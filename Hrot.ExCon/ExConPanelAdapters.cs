@@ -75,9 +75,9 @@ internal sealed class ExConMissionShim : IMissionEditorService
     internal ExConMissionShim(Services.IMissionEditorService inner) => _inner = inner;
 
     /// <inheritdoc/>
-    /// <remarks>Returns empty until Phase 6 wires up DoctrineCatalog filtering.</remarks>
+    /// <remarks>Delegates to the inner <see cref="Services.IMissionEditorService"/> which uses <see cref="DoctrineCatalog"/>.</remarks>
     public IReadOnlyList<string> GetAvailableBehaviors(long entityId)
-        => Array.Empty<string>();
+        => _inner.GetAvailableBehaviors(entityId);
 
     /// <inheritdoc/>
     public (MissionPlan? Plan, long Version) GetMissionSnapshot(long entityId)

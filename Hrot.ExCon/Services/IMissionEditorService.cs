@@ -35,6 +35,14 @@ public sealed class MissionCommitResult
 public interface IMissionEditorService : IDisposable
 {
     /// <summary>
+    /// Returns the available behaviour names for the given entity, filtered to
+    /// doctrines that are valid for the entity's TKB type.  Returns an empty
+    /// list when the entity is not found.
+    /// </summary>
+    /// <param name="entityId">The network entity ID.</param>
+    IReadOnlyList<string> GetAvailableBehaviors(long entityId);
+
+    /// <summary>
     /// Returns the current <see cref="MissionPlan"/> and its optimistic-lock
     /// version for the given entity, or <c>(null, 0)</c> if not found.
     /// </summary>
