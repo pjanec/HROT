@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using Fdp.Kernel;
 using FDP.Toolkit.DER;
@@ -35,8 +36,26 @@ public sealed class EditorApplication : IEditorLogic
     private readonly IReadOnlyList<IEcsModule>? _translatorPacks;
     private SimHostMode _currentMode = SimHostMode.Internal;
 
+    // ── Scenario tracking ─────────────────────────────────────────────────────
+
+    private string? _loadedScenarioName;
+
+    /// <summary>
+    /// Optional delegate that returns the available scenario names.
+    /// Injected by <see cref="SetAvailableScenariosSource"/> after construction to
+    /// avoid a circular reference with Hrot.ClusterRunner.
+    /// </summary>
+    private Func<IReadOnlyList<string>>? _availableScenariosSource;
+
     public IDerRepo View => _view;
     public SimHostMode CurrentMode => _currentMode;
+
+    /// <inheritdoc/>
+    public string? LoadedScenarioName => _loadedScenarioName;
+
+    /// <inheritdoc/>
+    public IReadOnlyList<string> AvailableScenarios =>
+        _availableScenariosSource?.Invoke() ?? Array.Empty<string>();
 
     public EditorApplication(
         ScenarioFileService fileService,
@@ -54,8 +73,21 @@ public sealed class EditorApplication : IEditorLogic
         _translatorPacks  = translatorPacks;
     }
 
+    /// <summary>
+    /// Provides a source for the available scenario list (e.g. from ClusterUiCache).
+    /// Call this after construction to avoid circular assembly references.
+    /// </summary>
+    public void SetAvailableScenariosSource(Func<IReadOnlyList<string>> source)
+    {
+        _availableScenariosSource = source;
+    }
+
     /// <inheritdoc/>
-    public void NewScenario() => _fileService.NewScenario(_world);
+    public void NewScenario()
+    {
+        _fileService.NewScenario(_world);
+        _loadedScenarioName = null;
+    }
 
     /// <inheritdoc/>
     public void SaveScenario(string filePath) => _fileService.SaveScenario(_world, filePath);
@@ -64,10 +96,38 @@ public sealed class EditorApplication : IEditorLogic
     public void LoadScenario(string filePath) => _fileService.LoadScenario(_world, filePath);
 
     /// <inheritdoc/>
+    public void LoadScenarioByName(string scenarioName)
+    {
+        if (string.IsNullOrWhiteSpace(scenarioName)) return;
+        var path = Path.Combine(EditorBootstrap.ScenariosRoot, scenarioName, "scenario.json");
+        _fileService.LoadScenario(_world, path);
+        _loadedScenarioName = scenarioName;
+    }
+
+    /// <inheritdoc/>
+    public void SaveCurrentScenario()
+    {
+        if (string.IsNullOrEmpty(_loadedScenarioName)) return;
+        var dir = Path.Combine(EditorBootstrap.ScenariosRoot, _loadedScenarioName);
+        Directory.CreateDirectory(dir);
+        _fileService.SaveScenario(_world, Path.Combine(dir, "scenario.json"));
+    }
+
+    /// <inheritdoc/>
+    public void SaveScenarioAs(string scenarioName)
+    {
+        if (string.IsNullOrWhiteSpace(scenarioName)) return;
+        var dir = Path.Combine(EditorBootstrap.ScenariosRoot, scenarioName);
+        Directory.CreateDirectory(dir);
+        _fileService.SaveScenario(_world, Path.Combine(dir, "scenario.json"));
+        _loadedScenarioName = scenarioName;
+    }
+
+    /// <inheritdoc/>
     public void ActivateTool(EditorTool tool)
     {
         // Publish an FDP-managed event that the active tool controller listens for.
-        // The actual tool switch logic lives in ScenarioEditorModule / IgApplication.
+        // The actual tool switch logic lives in EditorSubsystem.DrainToolActivationEvents().
         _bus.PublishManaged(new ActivateEditorToolEvent(tool));
     }
 
@@ -127,12 +187,6 @@ public sealed class EditorApplication : IEditorLogic
     /// <see cref="EntityRepository"/>.  The caller must register the returned module with
     /// the kernel <em>before</em> calling <c>kernel.Initialize()</c>.
     /// </summary>
-    /// <example>
-    /// <code>
-    /// kernel.RegisterModule(app.CreateEditorSystemsModule());
-    /// kernel.Initialize();
-    /// </code>
-    /// </example>
     public EditorSystemsModule CreateEditorSystemsModule()
         => new EditorSystemsModule(_world);
 }

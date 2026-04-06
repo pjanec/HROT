@@ -17,20 +17,32 @@ public class ScenarioBrowserPanelTests
     }
 
     [Fact]
-    public void HandleSaveClick_CallsSaveScenario()
+    public void HandleSaveClick_WithLoadedScenario_CallsSaveCurrentScenario()
     {
-        var mock  = new Mock<IEditorLogic>();
+        var mock = new Mock<IEditorLogic>();
+        mock.Setup(l => l.LoadedScenarioName).Returns("myScenario");
         var panel = new ScenarioBrowserPanel();
         panel.HandleSaveClick(mock.Object);
-        mock.Verify(l => l.SaveScenario(It.IsAny<string>()), Times.Once);
+        mock.Verify(l => l.SaveCurrentScenario(), Times.Once);
     }
 
     [Fact]
-    public void HandleLoadClick_CallsLoadScenario()
+    public void HandleSaveClick_WithNoLoadedScenario_DoesNotCallSaveMethods()
     {
-        var mock  = new Mock<IEditorLogic>();
+        var mock = new Mock<IEditorLogic>();
+        mock.Setup(l => l.LoadedScenarioName).Returns((string?)null);
         var panel = new ScenarioBrowserPanel();
-        panel.HandleLoadClick(mock.Object);
-        mock.Verify(l => l.LoadScenario(It.IsAny<string>()), Times.Once);
+        // When no scenario is loaded, HandleSaveClick opens the Save As modal (no direct save call)
+        panel.HandleSaveClick(mock.Object);
+        mock.Verify(l => l.SaveCurrentScenario(), Times.Never);
+        mock.Verify(l => l.SaveScenarioAs(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void HandleLoadClick_DoesNotThrow()
+    {
+        var panel = new ScenarioBrowserPanel();
+        // HandleLoadClick() just sets a flag — exercised here for coverage
+        panel.HandleLoadClick();
     }
 }

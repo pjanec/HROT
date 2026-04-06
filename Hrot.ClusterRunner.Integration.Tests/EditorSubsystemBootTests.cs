@@ -3,6 +3,8 @@ using System.Numerics;
 using FDP.Framework.Runner;
 using Hrot.ClusterRunner.Configuration;
 using Hrot.ClusterRunner.Services;
+using Hrot.Editor;
+using Hrot.Editor.Events;
 using Fdp.Kernel;
 using Xunit;
 
@@ -252,5 +254,123 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
         var ex = Record.Exception(() => subsystem.Shutdown());
         Assert.Null(ex);
+    }
+
+    // ── T-ES16: AvailableScenarios is non-null after init ────────────────────
+
+    [Fact]
+    public void AvailableScenarios_AfterInit_IsNonNull()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+        subsystem.Update(0.016f);
+
+        // The list may be empty but must not be null.
+        Assert.NotNull(subsystem.EditorLogic.AvailableScenarios);
+
+        subsystem.Shutdown();
+    }
+
+    // ── T-ES17: LoadedScenarioName is null after NewScenario ─────────────────
+
+    [Fact]
+    public void LoadedScenarioName_AfterNewScenario_IsNull()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+        subsystem.Update(0.016f);
+
+        subsystem.EditorLogic.NewScenario();
+
+        Assert.Null(subsystem.EditorLogic.LoadedScenarioName);
+
+        subsystem.Shutdown();
+    }
+
+    // ── T-ES18: ActivateEditorToolEvent (Select) is consumed without throw ───
+
+    [Fact]
+    public void ActivateEditorToolEvent_Select_IsConsumedWithoutThrow()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+
+        // Publish an ActivateEditorToolEvent on the bus — the headless path skips
+        // actual tool switching but the event must be drained (not accumulate).
+        subsystem.World.Bus.PublishManaged(new ActivateEditorToolEvent(EditorTool.Select));
+
+        // Update twice so the event crosses the SwapBuffers → ConsumeManaged cycle.
+        var ex = Record.Exception(() =>
+        {
+            subsystem.Update(0.016f);
+            subsystem.Update(0.016f);
+        });
+
+        Assert.Null(ex);
+        subsystem.Shutdown();
+    }
+
+    // ── T-ES19: Multiple tool events over several frames do not throw ─────────
+
+    [Fact]
+    public void ActivateEditorToolEvent_AllTools_SurviveMultipleFrames()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+
+        var tools = new[] { EditorTool.Select, EditorTool.Spawn, EditorTool.Edit,
+                            EditorTool.Route, EditorTool.Measure };
+
+        var ex = Record.Exception(() =>
+        {
+            foreach (var tool in tools)
+            {
+                subsystem.World.Bus.PublishManaged(new ActivateEditorToolEvent(tool));
+                subsystem.Update(0.016f);
+                subsystem.Update(0.016f);
+            }
+        });
+
+        Assert.Null(ex);
+        subsystem.Shutdown();
+    }
+
+    // ── T-ES20: SaveScenarioAs sets LoadedScenarioName ───────────────────────
+
+    [Fact]
+    public void SaveScenarioAs_SetsLoadedScenarioName()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+        subsystem.Update(0.016f);
+
+        // Use a temp directory that exists so the file write succeeds.
+        string tempName = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(), "EditorIntegTest_" + System.Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            // Save into the temp directory root so ScenariosRoot doesn't matter.
+            // We call SaveScenarioAs with an absolute name that includes a known path.
+            // Because EditorApplication uses EditorBootstrap.ScenariosRoot we instead
+            // verify only that the property is set (the actual file write is covered by
+            // ScenarioFileService unit tests).
+            string scenarioName = "integration_test_scenario";
+            var dir = System.IO.Path.Combine(Hrot.Editor.EditorBootstrap.ScenariosRoot, scenarioName);
+            System.IO.Directory.CreateDirectory(dir);
+
+            subsystem.EditorLogic.SaveScenarioAs(scenarioName);
+            Assert.Equal(scenarioName, subsystem.EditorLogic.LoadedScenarioName);
+        }
+        finally
+        {
+            // Best-effort cleanup
+            string cleanDir = System.IO.Path.Combine(
+                Hrot.Editor.EditorBootstrap.ScenariosRoot, "integration_test_scenario");
+            if (System.IO.Directory.Exists(cleanDir))
+                System.IO.Directory.Delete(cleanDir, recursive: true);
+        }
+
+        subsystem.Shutdown();
     }
 }

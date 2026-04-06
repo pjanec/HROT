@@ -23,6 +23,36 @@ public interface IEditorLogic
     /// </summary>
     void LoadScenario(string filePath);
 
+    /// <summary>
+    /// Loads a scenario by name from the scenarios root directory.
+    /// Remembers the name for subsequent <see cref="SaveCurrentScenario"/> calls.
+    /// </summary>
+    void LoadScenarioByName(string scenarioName);
+
+    /// <summary>
+    /// Saves the current world state to the scenario most recently loaded via
+    /// <see cref="LoadScenarioByName"/>. When no scenario is loaded, does nothing.
+    /// </summary>
+    void SaveCurrentScenario();
+
+    /// <summary>
+    /// Saves the current world state to a new scenario with the given name.
+    /// Remembers the name for subsequent <see cref="SaveCurrentScenario"/> calls.
+    /// </summary>
+    void SaveScenarioAs(string scenarioName);
+
+    /// <summary>
+    /// The name of the currently loaded scenario, or <c>null</c> / empty when no
+    /// scenario has been loaded (or after <see cref="NewScenario"/> was called).
+    /// </summary>
+    string? LoadedScenarioName { get; }
+
+    /// <summary>
+    /// List of scenario names available in the local scenarios root directory.
+    /// Updated asynchronously by the offline orchestrator; may be empty initially.
+    /// </summary>
+    IReadOnlyList<string> AvailableScenarios { get; }
+
     /// <summary>Activates the specified interactive tool.</summary>
     void ActivateTool(EditorTool tool);
 

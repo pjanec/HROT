@@ -87,21 +87,21 @@ namespace Hrot.Editor.Tests.Adapters
         }
 
         [Fact]
-        public void StartAreaAuthoringMode_PushesAreaPlacementTool()
+        public void StartAreaAuthoringMode_PushesPointSequenceTool()
         {
             var adapter = new EditorSpawnAdapter(_canvas, _bus);
             adapter.StartAreaAuthoringMode("");
 
-            Assert.IsType<AreaPlacementTool>(_canvas.ActiveTool);
+            Assert.IsType<FDP.Toolkit.Vis2D.Tools.PointSequenceTool>(_canvas.ActiveTool);
         }
 
         [Fact]
-        public void StartRouteAuthoringMode_PushesRoutePlacementTool()
+        public void StartRouteAuthoringMode_PushesPointSequenceTool()
         {
             var adapter = new EditorSpawnAdapter(_canvas, _bus);
             adapter.StartRouteAuthoringMode();
 
-            Assert.IsType<RoutePlacementTool>(_canvas.ActiveTool);
+            Assert.IsType<FDP.Toolkit.Vis2D.Tools.PointSequenceTool>(_canvas.ActiveTool);
         }
     }
 

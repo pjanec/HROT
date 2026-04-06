@@ -11,6 +11,12 @@ namespace Hrot.Editor;
 public static class EditorBootstrap
 {
     /// <summary>
+    /// Root directory used for scenario files.
+    /// Scenarios are stored as <c>{ScenariosRoot}\{scenarioName}\scenario.json</c>.
+    /// </summary>
+    public static string ScenariosRoot { get; } = @"C:\FDP_Temp";
+
+    /// <summary>
     /// Builds a <see cref="ScenarioFileService"/> with an auto-serializer
     /// configured for <c>"Hrot.Scenario"</c> subsystem type.
     /// </summary>
