@@ -146,6 +146,12 @@ namespace Hrot.ClusterRunner.Services
         private Entity _pendingContextMenuEntity = Entity.Null;
         private bool   _openContextMenuThisFrame;
 
+        // ── Rename dialog state ───────────────────────────────────────────────────
+
+        private long   _renameTargetNetworkId;
+        private bool   _openRenameModalThisFrame;
+        private string _renameBuffer = string.Empty;
+
         // ── Private helpers ───────────────────────────────────────────────────
 
         /// <summary>
@@ -214,6 +220,13 @@ namespace Hrot.ClusterRunner.Services
             var accumulator = new EventAccumulator();
             _kernel = new ModuleHostKernel(_world, accumulator);
 
+            // ── 1b. Register all components BEFORE building serializers ───────
+            // FdpAutoSerializer compiles property-extraction delegates at Build() time
+            // against the current ComponentTypeRegistry, so all types must be registered
+            // first — otherwise the serializer schema is empty and Save/Load is a no-op.
+            SimHostComponentRegistry.RegisterAll(_world);
+            _world.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
+
             // ── 2. Time controller (stepping — no DDS sync partner) ──────────
             _stepping = new SteppingTimeController(new GlobalTime { TimeScale = 1.0f });
             _kernel.SetTimeController(_stepping);
@@ -222,7 +235,18 @@ namespace Hrot.ClusterRunner.Services
             var entityMap        = new NetworkEntityMap();
             var doctrineRegistry = new DoctrineRegistry();
             var clusterSlave     = new ClusterSlave(0, "Editor", _world.Bus);
-            var fileService      = EditorBootstrap.CreateFileService();
+            var zoneService      = new ZoneManagerService();
+
+            // Build the serializer with custom translators AFTER component registration
+            // so FdpAutoSerializer compiles extraction delegates for all registered types.
+            var scenarioSerializer = new ScenarioSerializerBuilder("Hrot.Scenario")
+                .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
+                .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
+                .RegisterTranslator(new Hrot.SimHost.Serializers.WeaponChannelTranslator())
+                .Build();
+
+            // Inject bus and zoneService so file ops trigger WorldResetEvent and persist zone data.
+            var fileService = new ScenarioFileService(scenarioSerializer, _world.Bus, zoneService);
 
             // ── 3b. TKB + ELM + offline spawning ─────────────────────────────
             var tkbDb       = HrotEnvironment.CreateTkb();
@@ -231,10 +255,8 @@ namespace Hrot.ClusterRunner.Services
             var spawnSys    = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: 0);
 
             // ── 3c. Offline scenario load handler ─────────────────────────────
-            var scenarioSerializer = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
             var storageProvider    = new LocalDiskStorageProvider(EditorBootstrap.ScenariosRoot);
             var scenarioLoader     = new HrotScenarioLoader(storageProvider, "Hrot.Scenario");
-            var zoneService        = new ZoneManagerService();
             clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
                 scenarioSerializer, scenarioLoader, zoneService, _world));
 
@@ -249,9 +271,7 @@ namespace Hrot.ClusterRunner.Services
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
 
-            // Must be registered before kernel.Initialize() so SimHostComponentRegistry
-            // components (PassengerBuffer, TargetMemory, etc.) exist when systems are created.
-            SimHostComponentRegistry.RegisterAll(_world);
+            // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.
             _kernel.RegisterModule(new EditorSystemsModule(_world));
 
             // ── 4c. ELM + offline spawning module ────────────────────────────
@@ -295,7 +315,11 @@ namespace Hrot.ClusterRunner.Services
             {
                 _mapViewConfig    = new MapViewConfig();
                 _mapPickAdapter   = new EditorMapPickAdapter(_canvas!);
-                _spawnAdapter     = new EditorSpawnAdapter(_canvas!, _world.Bus);
+
+                // Build the JSON→ECS attribute compiler (no geo-transform: editor uses
+                // Cartesian map coords) to inject EntityInfo on entity placement.
+                var jsonCompiler  = Hrot.SimHost.AttributeCompilerFactory.Build(geoTransform: null);
+                _spawnAdapter     = new EditorSpawnAdapter(_canvas!, _world.Bus, jsonCompiler);
                 _zoneAdapter      = new EditorZoneAdapter(_canvas!, _world.Bus);
                 _mapConfigAdapter = new EditorMapConfigAdapter(_mapViewConfig);
                 _selectionState   = new DefaultSelectionState();
@@ -335,6 +359,16 @@ namespace Hrot.ClusterRunner.Services
                 // Standard interaction tool — pan, zoom, select, drag-and-drop.
                 _interactionTool = new EditorInteractionTool(_world, entityQuery, visualizerAdapter, _selectionState);
                 _canvas.SwitchTool(_interactionTool);
+
+                // Drag handler — update SimTransform so the entity follows the cursor.
+                _interactionTool.OnEntityMoved += (entity, pos) =>
+                {
+                    if (_world != null && _world.IsAlive(entity) && _world.HasComponent<Fdp.Kernel.SimTransform>(entity))
+                    {
+                        ref var tf = ref _world.GetComponentRW<Fdp.Kernel.SimTransform>(entity);
+                        tf.Position = new System.Numerics.Vector3(pos.X, pos.Y, tf.Position.Z);
+                    }
+                };
 
                 // Sync primary map selection → FDP entity inspector.
                 _interactionTool.OnWorldClick += (_, _, _, _, hitEntity) =>
@@ -434,7 +468,8 @@ namespace Hrot.ClusterRunner.Services
         /// <inheritdoc/>
         /// <remarks>
         /// After <see cref="RegisterWindows"/>, the main editor panels are rendered by
-        /// the Window Manager.  This method renders the map right-click context menu popup.
+        /// the Window Manager.  This method renders the map right-click context menu popup
+        /// and the entity rename modal.
         /// </remarks>
         public void DrawUI()
         {
@@ -463,6 +498,57 @@ namespace Hrot.ClusterRunner.Services
                     else
                         builder.AddItem("Measurement Tool", () => { });
                 }
+
+                ImGuiNET.ImGui.EndPopup();
+            }
+
+            // Trigger rename modal when requested by DrainToolActivationEvents.
+            if (_openRenameModalThisFrame)
+            {
+                ImGuiNET.ImGui.OpenPopup("Rename Entity");
+                _openRenameModalThisFrame = false;
+            }
+
+            // Render the rename modal.
+            bool isRenameOpen = true;
+            if (ImGuiNET.ImGui.BeginPopupModal("Rename Entity", ref isRenameOpen, ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize))
+            {
+                if (ImGuiNET.ImGui.IsKeyPressed(ImGuiNET.ImGuiKey.Escape))
+                    ImGuiNET.ImGui.CloseCurrentPopup();
+
+                ImGuiNET.ImGui.InputText("New Name", ref _renameBuffer, 64);
+                ImGuiNET.ImGui.Separator();
+
+                bool canSave = !string.IsNullOrWhiteSpace(_renameBuffer);
+                if (!canSave) ImGuiNET.ImGui.BeginDisabled();
+                if (ImGuiNET.ImGui.Button("Save") && canSave)
+                {
+                    // Find entity by network id, read existing EntityInfo and update name.
+                    if (_world != null)
+                    {
+                        var q = _world.Query()
+                            .With<FDP.Toolkit.Replication.Components.NetworkIdentity>()
+                            .With<Hrot.IG.Components.EntityInfo>()
+                            .Build();
+                        Hrot.IG.Components.EntityInfo updatedInfo = default;
+                        foreach (var e in q)
+                        {
+                            if (_world.GetComponent<FDP.Toolkit.Replication.Components.NetworkIdentity>(e).Value == _renameTargetNetworkId)
+                            {
+                                updatedInfo = _world.GetComponent<Hrot.IG.Components.EntityInfo>(e);
+                                break;
+                            }
+                        }
+                        updatedInfo.Name = new Fdp.Kernel.FixedString64(_renameBuffer.Trim());
+                        _editorLogic?.CommitPropertyEdit(_renameTargetNetworkId, new List<object> { updatedInfo });
+                    }
+                    ImGuiNET.ImGui.CloseCurrentPopup();
+                }
+                if (!canSave) ImGuiNET.ImGui.EndDisabled();
+
+                ImGuiNET.ImGui.SameLine();
+                if (ImGuiNET.ImGui.Button("Cancel"))
+                    ImGuiNET.ImGui.CloseCurrentPopup();
 
                 ImGuiNET.ImGui.EndPopup();
             }
@@ -617,6 +703,47 @@ namespace Hrot.ClusterRunner.Services
                         if (_canvas != null)
                             _canvas.PushTool(new Hrot.ScenarioEditor.Tools.MeasureTool());
                         break;
+                }
+            }
+
+            // ── Drain camera-center requests ──────────────────────────────────
+            foreach (var cmd in _world.Bus.ConsumeManaged<Hrot.Editor.Commands.CenterOnEntityCommand>())
+            {
+                if (_camera == null) continue;
+                var q = _world.Query()
+                    .With<FDP.Toolkit.Replication.Components.NetworkIdentity>()
+                    .With<Fdp.Kernel.SimTransform>()
+                    .Build();
+                foreach (var e in q)
+                {
+                    if (_world.GetComponent<FDP.Toolkit.Replication.Components.NetworkIdentity>(e).Value == cmd.NetworkId)
+                    {
+                        ref readonly var tf = ref _world.GetComponentRO<Fdp.Kernel.SimTransform>(e);
+                        _camera.FocusOn(new System.Numerics.Vector2(tf.Position.X, tf.Position.Y));
+                        break;
+                    }
+                }
+            }
+
+            // ── Drain rename-dialog requests ──────────────────────────────────
+            foreach (var cmd in _world.Bus.ConsumeManaged<Hrot.Editor.Commands.OpenRenameDialogCommand>())
+            {
+                _renameTargetNetworkId    = cmd.NetworkId;
+                _openRenameModalThisFrame = true;
+                _renameBuffer             = string.Empty;
+
+                // Pre-fill buffer with the entity's current name.
+                var q = _world.Query()
+                    .With<FDP.Toolkit.Replication.Components.NetworkIdentity>()
+                    .With<Hrot.IG.Components.EntityInfo>()
+                    .Build();
+                foreach (var e in q)
+                {
+                    if (_world.GetComponent<FDP.Toolkit.Replication.Components.NetworkIdentity>(e).Value == cmd.NetworkId)
+                    {
+                        _renameBuffer = _world.GetComponent<Hrot.IG.Components.EntityInfo>(e).Name.ToString();
+                        break;
+                    }
                 }
             }
         }

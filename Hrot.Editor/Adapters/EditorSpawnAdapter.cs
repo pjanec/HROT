@@ -2,6 +2,7 @@ using System.Numerics;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.Replication.Patching;
 using FDP.Toolkit.Vis2D.Components;
 using FDP.Toolkit.Vis2D.Tools;
 using Hrot.Editor.Tools;
@@ -27,8 +28,9 @@ namespace Hrot.Editor.Adapters
     /// </summary>
     public sealed class EditorSpawnAdapter : ISpawnController
     {
-        private readonly MapCanvas    _canvas;
-        private readonly FdpEventBus  _bus;
+        private readonly MapCanvas          _canvas;
+        private readonly FdpEventBus        _bus;
+        private readonly JsonAttributeCompiler _jsonCompiler;
 
         /// <summary>
         /// The TKB entity type most recently passed to <see cref="StartPlacementMode"/>.
@@ -39,27 +41,47 @@ namespace Hrot.Editor.Adapters
 
         /// <param name="canvas">The map canvas that hosts the tool stack.</param>
         /// <param name="bus">The local FDP event bus used to route spawn commands.</param>
-        public EditorSpawnAdapter(MapCanvas canvas, FdpEventBus bus)
+        /// <param name="jsonCompiler">
+        /// The JSON→ECS attribute compiler (from <c>AttributeCompilerFactory.Build</c>).
+        /// Used to parse <c>InitialAttributesJson</c> into concrete ECS component objects
+        /// so the offline spawning pipeline attaches <see cref="EntityInfo"/> (name,
+        /// affiliation) without going through the DDS pipeline.
+        /// </param>
+        public EditorSpawnAdapter(MapCanvas canvas, FdpEventBus bus, JsonAttributeCompiler jsonCompiler)
         {
-            _canvas = canvas;
-            _bus    = bus;
+            _canvas       = canvas;
+            _bus          = bus;
+            _jsonCompiler = jsonCompiler;
         }
 
         /// <inheritdoc/>
         /// <remarks>
-        /// Creates a <see cref="CreationTool"/> whose delegate publishes the constructed
-        /// <see cref="SpawnEntityCommand"/> onto the local bus, then pushes the tool
-        /// onto <see cref="_canvas"/> for single-placement mode.
+        /// Creates a <see cref="CreationTool"/> whose delegate uses the shared
+        /// <see cref="JsonAttributeCompiler"/> to compile <c>InitialAttributesJson</c>
+        /// into concrete ECS components (including <see cref="EntityInfo"/>), then
+        /// publishes the completed <see cref="SpawnEntityCommand"/> onto the local bus.
         /// </remarks>
         public void StartPlacementMode(long tkbType, string? initialPropertiesJson = null)
         {
             LastSelectedTkbType = tkbType;
 
             var tool = new CreationTool(
-                onEntityCreated:      cmd => _bus.PublishManaged(cmd),
-                tkbType:              tkbType,
+                onEntityCreated: cmd =>
+                {
+                    // Compile InitialAttributesJson into component objects so EntityInfo
+                    // (name, affiliation) lands on the entity even in the offline editor.
+                    if (!string.IsNullOrEmpty(cmd.InitialAttributesJson))
+                    {
+                        cmd.InitialComponents ??= new System.Collections.Generic.List<object>();
+                        var ctx = new ListPatchContext(cmd.InitialComponents);
+                        _jsonCompiler.Compile(cmd.InitialAttributesJson, ctx);
+                        cmd.InitialComponents = ctx.FlushComponents();
+                    }
+                    _bus.PublishManaged(cmd);
+                },
+                tkbType:               tkbType,
                 initialPropertiesJson: initialPropertiesJson,
-                autoPopOnPlace:       true);
+                autoPopOnPlace:        true);
 
             _canvas.PushTool(tool);
         }

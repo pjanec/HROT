@@ -441,4 +441,58 @@ public sealed class EditorSubsystemBootTests
         Assert.Null(ex);
         subsystem.Shutdown();
     }
+
+    // ── T-ES23: SpawnEntityCommand with InitialComponents attaches EntityInfo (BUG13) ──
+
+    /// <summary>
+    /// Verifies that a <see cref="SpawnEntityCommand"/> carrying an
+    /// <see cref="Hrot.IG.Components.EntityInfo"/> in its <see cref="SpawnEntityCommand.InitialComponents"/>
+    /// list results in the entity having the correct name and ForceId after the
+    /// NetworkSpawningSystem processes it.
+    ///
+    /// This is the offline-editor equivalent of what CreateEntityRequestSystem does
+    /// in the live cluster after the JsonAttributeCompiler runs — proving the
+    /// EditorSpawnAdapter's BUG13 fix actually works end-to-end through the kernel.
+    /// </summary>
+    [Fact]
+    public void SpawnEntityCommand_WithEntityInfoInInitialComponents_EntityGetsNameAndForceId()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+
+        var expectedInfo = new Hrot.IG.Components.EntityInfo
+        {
+            Name    = new Fdp.Kernel.FixedString64("TestTank"),
+            ForceId = Hrot.IG.Components.ForceId.Hostile,
+        };
+
+        subsystem.World.Bus.PublishManaged(new SpawnEntityCommand
+        {
+            TkbType           = TkbEntityTypes.Tank_M1Abrams,
+            NetworkId         = 0,
+            OwnerNodeId       = 0,
+            InitType          = ReliableInitType.None,
+            InitialComponents = new System.Collections.Generic.List<object> { expectedInfo },
+        });
+
+        Hrot.IG.Components.EntityInfo? found = null;
+        for (int i = 0; i < 10 && found == null; i++)
+        {
+            subsystem.Update(0.016f);
+            var q = subsystem.World.Query()
+                .With<Hrot.IG.Components.EntityInfo>()
+                .Build();
+            foreach (var e in q)
+            {
+                found = subsystem.World.GetComponent<Hrot.IG.Components.EntityInfo>(e);
+                break;
+            }
+        }
+
+        Assert.NotNull(found);
+        Assert.Equal("TestTank", found!.Value.Name.ToString());
+        Assert.Equal(Hrot.IG.Components.ForceId.Hostile, found.Value.ForceId);
+
+        subsystem.Shutdown();
+    }
 }

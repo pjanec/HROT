@@ -55,6 +55,8 @@ public static class SimHostComponentRegistry
         world.RegisterComponent<EntityInfo>();
         world.RegisterManagedComponent<ActiveMissionPlan>();
         world.RegisterManagedComponent<EditablePolyline>();
+        world.RegisterComponent<MapOverlayStyle>();
+        world.RegisterComponent<SelectionState>();
 
         // ── Route planning components (ROUTES1) ───────────────────────────────
         world.RegisterManagedComponent<RoutePlan>();

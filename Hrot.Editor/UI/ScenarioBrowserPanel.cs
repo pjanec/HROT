@@ -63,6 +63,7 @@ public sealed class ScenarioBrowserPanel
         bool loadOpen = true;
         if (ImGui.BeginPopupModal("Load Scenario##browser", ref loadOpen, ImGuiWindowFlags.AlwaysAutoResize))
         {
+            if (ImGui.IsKeyPressed(ImGuiKey.Escape)) ImGui.CloseCurrentPopup();
             ImGui.Text("Select a scenario to load:");
             var available = logic.AvailableScenarios;
 
@@ -105,6 +106,7 @@ public sealed class ScenarioBrowserPanel
         bool saveAsOpen = true;
         if (ImGui.BeginPopupModal("Save Scenario As##browser", ref saveAsOpen, ImGuiWindowFlags.AlwaysAutoResize))
         {
+            if (ImGui.IsKeyPressed(ImGuiKey.Escape)) ImGui.CloseCurrentPopup();
             ImGui.Text("Enter a name for the scenario:");
             ImGui.InputText("##saveasname", ref _saveAsName, 128);
 

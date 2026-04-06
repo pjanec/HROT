@@ -221,6 +221,11 @@ public sealed class ExConMock : IDisposable
         if (ImGui.BeginPopupModal("Entity Error", ref alertOpen,
                 ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove))
         {
+            if (ImGui.IsKeyPressed(ImGuiKey.Escape))
+            {
+                _logic.DismissAlert();
+                ImGui.CloseCurrentPopup();
+            }
             ImGui.TextUnformatted(_logic.GlobalAlert ?? string.Empty);
             ImGui.Spacing();
             if (ImGui.Button("OK", new System.Numerics.Vector2(80, 0)))
