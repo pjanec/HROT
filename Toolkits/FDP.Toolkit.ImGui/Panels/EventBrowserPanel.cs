@@ -259,6 +259,29 @@ public class EventBrowserPanel
                 var evt = _selectedEvent;
                 
                 ImGuiApi.TextColored(new Vector4(0, 1, 1, 1), evt.TypeName);
+
+                // ── Copy JSON button ───────────────────────────────────
+                ImGuiApi.SameLine();
+                if (ImGuiApi.Button("Copy JSON"))
+                {
+                    var dumpDict = new System.Collections.Generic.Dictionary<string, object?>
+                    {
+                        ["EventType"] = evt.EventType.FullName ?? evt.EventType.Name,
+                        ["Frame"]     = evt.Frame,
+                        ["Payload"]   = evt.RawEvent,
+                    };
+                    var jsonOpts = new System.Text.Json.JsonSerializerOptions
+                    {
+                        WriteIndented = true,
+                        IncludeFields = true,
+                    };
+                    string json = System.Text.Json.JsonSerializer.Serialize(dumpDict, jsonOpts);
+                    ImGuiApi.SetClipboardText(json);
+                }
+                if (ImGuiApi.IsItemHovered())
+                    ImGuiApi.SetTooltip("Copy exact event state to clipboard as JSON");
+                // ──────────────────────────────────────────────────────
+
                 ImGuiApi.Text($"Frame: {evt.Frame} | {(evt.IsManaged ? "Managed" : "Unmanaged")}");
                 ImGuiApi.Separator();
                 

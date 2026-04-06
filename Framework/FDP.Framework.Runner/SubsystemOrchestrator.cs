@@ -170,6 +170,9 @@ namespace FDP.Framework.Runner
         /// <summary>Shuts down all subsystems in reverse order and closes the window.</summary>
         public void Shutdown()
         {
+            // Save window states and active perspective before subsystems are disposed.
+            _windowManager?.SaveSettings();
+
             for (int i = _subsystems.Count - 1; i >= 0; i--)
                 _subsystems[i].Shutdown();
 

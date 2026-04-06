@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using FDP.Toolkit.ImGui.Icons;
@@ -16,6 +17,7 @@ public class WindowManager
 
     private readonly Dictionary<string, ManagedWindow> _windows = new();
     private readonly IconAtlas _atlas;
+    private bool _openAboutModal;
 
     // ── Construction ───────────────────────────────────────────────────────────
 
@@ -293,6 +295,21 @@ public class WindowManager
             Gui.EndMainMenuBar();
         }
 
+        // Popups must be opened outside BeginMainMenuBar.
+        if (_openAboutModal)
+        {
+            Gui.OpenPopup("About HROT##Modal");
+            _openAboutModal = false;
+        }
+
+        bool modalOpen = true;
+        if (Gui.BeginPopupModal("About HROT##Modal", ref modalOpen, ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            RenderAboutModalContent();
+            if (!modalOpen)
+                Gui.CloseCurrentPopup();
+        }
+
         foreach (var win in _windows.Values)
         {
             win.Render(CurrentPerspective, _atlas);
@@ -463,8 +480,66 @@ public class WindowManager
             Gui.EndMenu();
         }
 
-        Gui.MenuItem("About");
+        if (Gui.MenuItem("About"))
+            _openAboutModal = true;
 
         Gui.EndMenu();
+    }
+
+    private void RenderAboutModalContent()
+    {
+        Gui.Text("Loaded Subsystems and Assemblies");
+        Gui.Separator();
+
+        if (Gui.BeginTable("##AssembliesTable", 3,
+            ImGuiNET.ImGuiTableFlags.Borders |
+            ImGuiNET.ImGuiTableFlags.RowBg |
+            ImGuiNET.ImGuiTableFlags.SizingFixedFit |
+            ImGuiNET.ImGuiTableFlags.ScrollY,
+            new System.Numerics.Vector2(0, 400)))
+        {
+            Gui.TableSetupScrollFreeze(0, 1);
+            Gui.TableSetupColumn("Assembly Name");
+            Gui.TableSetupColumn("Version");
+            Gui.TableSetupColumn("Informational Version (Git SHA)");
+            Gui.TableHeadersRow();
+
+            var assemblies = System.AppDomain.CurrentDomain.GetAssemblies()
+                .Where(a =>
+                {
+                    var name = a.GetName().Name;
+                    return name != null && (name.StartsWith("Hrot") || name.StartsWith("FDP") ||
+                           name.StartsWith("Fdp") || name.StartsWith("ModuleHost") ||
+                           name.StartsWith("CycloneDDS"));
+                })
+                .OrderBy(a => a.GetName().Name);
+
+            foreach (var asm in assemblies)
+            {
+                Gui.TableNextRow();
+
+                Gui.TableNextColumn();
+                Gui.TextUnformatted(asm.GetName().Name ?? string.Empty);
+
+                Gui.TableNextColumn();
+                Gui.TextUnformatted(asm.GetName().Version?.ToString() ?? string.Empty);
+
+                Gui.TableNextColumn();
+                var infoAttr = (System.Reflection.AssemblyInformationalVersionAttribute?)
+                    System.Attribute.GetCustomAttribute(asm,
+                        typeof(System.Reflection.AssemblyInformationalVersionAttribute));
+                Gui.TextUnformatted(infoAttr?.InformationalVersion ?? "N/A");
+            }
+
+            Gui.EndTable();
+        }
+
+        Gui.Spacing();
+        Gui.Separator();
+
+        if (Gui.Button("Close", new System.Numerics.Vector2(120, 0)))
+            Gui.CloseCurrentPopup();
+
+        Gui.EndPopup();
     }
 }
