@@ -8,8 +8,8 @@
 
 **Goal:** Extract repeated Hrot node bootstrap boilerplate into `HrotNodeBuilder` / `HrotNodeContext` so each new subsystem needs only a few lines to stand up world, kernel, DDS, time sync, and cluster slave.
 
-- [ ] **EAM-I001** HrotNodeBuilder and HrotNodeContext — [details](./TASK-DETAIL.md#eam-i001--fdpkernelbuilder-and-hrotnodecontext)
-- [ ] **EAM-I002** EnsureIdAllocatorRouting helper — [details](./TASK-DETAIL.md#eam-i002--ensureidallocatorroutinghelper)
+- [x] **EAM-I001** HrotNodeBuilder and HrotNodeContext — [details](./TASK-DETAIL.md#eam-i001--fdpkernelbuilder-and-hrotnodecontext)
+- [x] **EAM-I002** EnsureIdAllocatorRouting helper — [details](./TASK-DETAIL.md#eam-i002--ensureidallocatorroutinghelper)
 
 ---
 
@@ -17,8 +17,8 @@
 
 **Goal:** Bundle NED translators with their tightly coupled DR/smoothing and ghost lifecycle systems into a single `IEcsModule`, making the network boundary explicit and swap-safe.
 
-- [ ] **EAM-N001** NedReplicationModule core — [details](./TASK-DETAIL.md#eam-n001--nedreplicationmodule-core)
-- [ ] **EAM-N002** Shared translator pack accessibility — [details](./TASK-DETAIL.md#eam-n002--shared-translator-pack-accessibility)
+- [x] **EAM-N001** NedReplicationModule core — [details](./TASK-DETAIL.md#eam-n001--nedreplicationmodule-core)
+- [x] **EAM-N002** Shared translator pack accessibility — [details](./TASK-DETAIL.md#eam-n002--shared-translator-pack-accessibility)
 
 ---
 
