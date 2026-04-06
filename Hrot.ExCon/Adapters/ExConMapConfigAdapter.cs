@@ -21,7 +21,7 @@ public sealed class ExConMapConfigAdapter : IMapConfigController
 
     /// <inheritdoc/>
     /// <remarks>Returns a sensible default until actual IG state is mirrored back.</remarks>
-    public MapLayerState GetCurrentConfig() => new(true, true, true, false);
+    public MapLayerState GetCurrentConfig() => new(true, true, true, true, true, true, false);
 
     /// <inheritdoc/>
     public void ApplyConfig(MapLayerState config)
@@ -32,10 +32,13 @@ public sealed class ExConMapConfigAdapter : IMapConfigController
             {
                 layers = new
                 {
-                    satellite    = config.Satellite,
-                    units_ground = config.GroundUnits,
-                    units_air    = config.AirUnits,
-                    grid         = config.Grid,
+                    satellite         = config.Satellite,
+                    units_ground      = config.GroundUnits,
+                    units_air         = config.AirUnits,
+                    vehicles          = config.Vehicles,
+                    tactical_graphics = config.TacticalGraphics,
+                    road_graphs       = config.RoadGraphs,
+                    grid              = config.Grid,
                 }
             }
         });

@@ -1,13 +1,18 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using FDP.Framework.Runner;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Vis2D.Components;
 using Hrot.ClusterRunner.Configuration;
 using Hrot.ClusterRunner.Services;
 using Hrot.Editor;
 using Hrot.Editor.Events;
+using Hrot.IG.Components;
 using Hrot.Map.Common;
+using Hrot.Map.Common.Components;
+using Hrot.Map.Definitions.Tkb;
 using ModuleHost.Core.Network.Interfaces;
 using Fdp.Kernel;
 using Xunit;
@@ -492,6 +497,147 @@ public sealed class EditorSubsystemBootTests
         Assert.NotNull(found);
         Assert.Equal("TestTank", found!.Value.Name.ToString());
         Assert.Equal(Hrot.IG.Components.ForceId.Hostile, found.Value.ForceId);
+
+        subsystem.Shutdown();
+    }
+
+    // ── T-ES25: MapLayerAssignmentSystem adds MapDisplayComponent (BUG7 regression) ─
+
+    /// <summary>
+    /// Verifies that after spawning an entity with <see cref="SimTransform"/>
+    /// the <c>MapLayerAssignmentSystem</c> — registered in
+    /// <see cref="EditorSubsystem.Initialize"/> — assigns a
+    /// <see cref="MapDisplayComponent"/> to the entity within a few update frames.
+    ///
+    /// This proves that (a) <c>MapDisplayComponent</c> is registered in the offline
+    /// editor world, and (b) the layer-assignment system runs end-to-end (BUG7 fix).
+    /// </summary>
+    [Fact]
+    public void SpawnEntity_WithSimTransform_GetsMapDisplayComponentFromLayerSystem()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+
+        subsystem.World.Bus.PublishManaged(new SpawnEntityCommand
+        {
+            TkbType           = TkbEntityTypes.Tank_M1Abrams,
+            NetworkId         = 0,
+            OwnerNodeId       = 0,
+            InitType          = ReliableInitType.None,
+            InitialTransform  = new SimTransform { Position = new Vector3(100, 100, 0) },
+        });
+
+        // Pump until entity acquires MapDisplayComponent (max 20 frames).
+        // Use a 4-second delta per frame so the 3-second rescan interval elapses on
+        // the first re-pass (frame 1 scans empty world; frame 2 entity exists; frame 3
+        // rescans and finds entity).
+        Entity theEntity = default;
+        bool   hasDisplay = false;
+        for (int i = 0; i < 20 && !hasDisplay; i++)
+        {
+            subsystem.Update(4.0f);
+            var q = subsystem.World.Query().With<MapDisplayComponent>().Build();
+            foreach (var e in q)
+            {
+                theEntity  = e;
+                hasDisplay = true;
+                break;
+            }
+        }
+
+        Assert.True(hasDisplay,
+            "MapLayerAssignmentSystem should add MapDisplayComponent to entities with SimTransform (BUG7)");
+        var layerMask = subsystem.World.GetComponent<MapDisplayComponent>(theEntity).LayerMask;
+        Assert.True(layerMask != 0u, $"Assigned LayerMask should be non-zero (BUG7), got 0x{layerMask:X}");
+
+        subsystem.Shutdown();
+    }
+
+    // ── T-ES26: Entity with MapOverlayStyle survives update frames (BUG11 smoke) ─
+
+    /// <summary>
+    /// Verifies that spawning an entity carrying a <see cref="MapOverlayStyle"/>
+    /// component does not cause exceptions during update frames.
+    ///
+    /// The BUG11 fix adds a dedicated <c>MapOverlayRenderLayer</c> and excludes
+    /// overlay entities from the main <c>EntityRenderLayer</c> query so that
+    /// area-overlay entities are no longer rendered as plain red circles.
+    /// This headless test proves the ECS plumbing does not crash.
+    /// </summary>
+    [Fact]
+    public void SpawnEntity_WithMapOverlayStyle_UpdateFramesDoNotThrow()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+
+        subsystem.World.Bus.PublishManaged(new SpawnEntityCommand
+        {
+            TkbType           = TkbEntityTypes.TacGraphic_Area,
+            NetworkId         = 0,
+            OwnerNodeId       = 0,
+            InitType          = ReliableInitType.None,
+            InitialComponents = new List<object> { new MapOverlayStyle() },
+        });
+
+        var ex = Record.Exception(() =>
+        {
+            for (int i = 0; i < 5; i++)
+                subsystem.Update(0.016f);
+        });
+
+        Assert.Null(ex);
+
+        // Verify the entity is present in the world.
+        var q = subsystem.World.Query().With<MapOverlayStyle>().Build();
+        Assert.True(q.Any(), "Entity with MapOverlayStyle should be in the world (BUG11)");
+
+        subsystem.Shutdown();
+    }
+
+    // ── T-ES27: Entity with RoutePlan survives update frames (BUG12 smoke) ─────
+
+    /// <summary>
+    /// Verifies that spawning an entity carrying a <see cref="RoutePlan"/> managed
+    /// component does not cause exceptions during update frames.
+    ///
+    /// The BUG12 fix adds a dedicated <c>RouteRenderLayer</c> and excludes route
+    /// entities from the main <c>EntityRenderLayer</c> query so that route entities
+    /// are no longer rendered as plain red circles.
+    /// This headless test proves the ECS plumbing does not crash.
+    /// </summary>
+    [Fact]
+    public void SpawnEntity_WithRoutePlan_UpdateFramesDoNotThrow()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+
+        subsystem.World.Bus.PublishManaged(new SpawnEntityCommand
+        {
+            TkbType           = TkbEntityTypes.TacGraphic_Route,
+            NetworkId         = 0,
+            OwnerNodeId       = 0,
+            InitType          = ReliableInitType.None,
+            InitialComponents = new List<object> { new RoutePlan() },
+        });
+
+        var ex = Record.Exception(() =>
+        {
+            for (int i = 0; i < 5; i++)
+                subsystem.Update(0.016f);
+        });
+
+        Assert.Null(ex);
+
+        // Verify the entity is present in the world (has RoutePlan managed component).
+        bool found = false;
+        var  q     = subsystem.World.Query().Build();
+        foreach (var e in q)
+        {
+            if (subsystem.World.HasManagedComponent<RoutePlan>(e))
+            { found = true; break; }
+        }
+
+        Assert.True(found, "Entity with RoutePlan should be in the world (BUG12)");
 
         subsystem.Shutdown();
     }

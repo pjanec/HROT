@@ -232,6 +232,42 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         Assert.Equal(25f, xfm.Position.Y, precision: 3);
     }
 
+    // ── T003b ── Zone Obstacle has ZoneMembership (BUG10 regression) ─────────
+
+    /// <summary>
+    /// Verifies that a zone obstacle spawned via <see cref="SpawnZoneObstacleCommand"/>
+    /// receives a <see cref="ZoneMembership"/> managed component.
+    ///
+    /// The BUG10 fix added a <c>ZoneObstacleRenderLayer</c> that queries entities with
+    /// <c>ZoneMembership + PhysicsCollider + SimTransform</c>.  This test proves that
+    /// the zone authoring system correctly stamps <c>ZoneMembership</c> so the render
+    /// layer can find the entity.
+    /// </summary>
+    [Fact]
+    public void ZoneAuthoring_ObstaclePlacement_ZoneObstacleHasZoneMembership()
+    {
+        using var harness = new EditorHarness();
+        var world = harness.Repo;
+
+        harness.Bus.PublishManaged(new SpawnZoneObstacleCommand
+        {
+            ZoneName = "test",
+            Position = new Vector2(30f, 40f),
+            Radius   = 5f,
+        });
+        harness.PumpFrames(1);
+
+        // Find the obstacle entity.
+        var entities = world.Query().With<PhysicsCollider>().Build();
+        Assert.Equal(1, entities.Count());
+
+        Entity entity = default;
+        foreach (var e in entities) { entity = e; break; }
+
+        Assert.True(world.HasManagedComponent<ZoneMembership>(entity),
+            "Zone obstacle entity must carry ZoneMembership so ZoneObstacleRenderLayer can find it (BUG10)");
+    }
+
     [Fact]
     public void ZoneAuthoring_RoadNetworkUpdate_InjectsZoneEnvironmentDataSingleton()
     {

@@ -29,11 +29,13 @@ using Hrot.Editor.Events;
 using Hrot.Editor.Modules;
 using Hrot.Editor.Rendering;
 using Hrot.Editor.UI;
+using Hrot.IG.Systems;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Config;
 using Hrot.Map.Common.Services;
 using Hrot.Orchestrator;
 using Hrot.ScenarioEditor;
+using Hrot.ScenarioEditor.Rendering;
 using Hrot.ScenarioEditor.Services;
 using Hrot.ScenarioEditor.Adapters;
 using Hrot.ScenarioEditor.Tools;
@@ -226,6 +228,9 @@ namespace Hrot.ClusterRunner.Services
             // first — otherwise the serializer schema is empty and Save/Load is a no-op.
             SimHostComponentRegistry.RegisterAll(_world);
             _world.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
+            // MapDisplayComponent is used by MapLayerAssignmentSystem to tag entities
+            // with the layer bitmask read by EntityRenderLayer for visibility culling.
+            _world.RegisterComponent<MapDisplayComponent>();
 
             // ── 2. Time controller (stepping — no DDS sync partner) ──────────
             _stepping = new SteppingTimeController(new GlobalTime { TimeScale = 1.0f });
@@ -281,6 +286,11 @@ namespace Hrot.ClusterRunner.Services
             // ── 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ──
             var logicPacks = new List<IEcsModule> { simHostCorePack, cgfLogicPackInst };
 
+            // ── 4d. MapLayerAssignmentSystem — must be registered BEFORE Initialize() ──
+            // Stamps MapDisplayComponent.LayerMask on each entity so EntityRenderLayer
+            // can cull entities whose layer is toggled off in the editor's config panel.
+            _kernel.RegisterGlobalSystem(new MapLayerAssignmentSystem());
+
             // ── 5. Kernel initialization ──────────────────────────────────────
             _kernel.Initialize();
 
@@ -319,9 +329,9 @@ namespace Hrot.ClusterRunner.Services
                 // Build the JSON→ECS attribute compiler (no geo-transform: editor uses
                 // Cartesian map coords) to inject EntityInfo on entity placement.
                 var jsonCompiler  = Hrot.SimHost.AttributeCompilerFactory.Build(geoTransform: null);
-                _spawnAdapter     = new EditorSpawnAdapter(_canvas!, _world.Bus, jsonCompiler);
+                _spawnAdapter     = new EditorSpawnAdapter(_canvas!, _world.Bus, jsonCompiler, tkbDb);
                 _zoneAdapter      = new EditorZoneAdapter(_canvas!, _world.Bus);
-                _mapConfigAdapter = new EditorMapConfigAdapter(_mapViewConfig);
+                _mapConfigAdapter = new EditorMapConfigAdapter(_mapViewConfig, _canvas!);
                 _selectionState   = new DefaultSelectionState();
                 _orbatAdapter     = new EditorOrbatAdapter(_world, _world.Bus, _editorLogic, _spawnAdapter);
                 _contextMenuHandler = new EditorEntityContextMenuHandler(
@@ -331,10 +341,13 @@ namespace Hrot.ClusterRunner.Services
                 // Register context menu handler with the FDP entity inspector.
                 _fdpEntityInspector.RegisterContextMenuHandler(_contextMenuHandler);
 
-                // Entity query (all networked entities with a location).
+                // Entity query — all networked simulation entities with a location.
+                // Excludes area overlays and routes so they render on their own dedicated layers.
                 var entityQuery = _world.Query()
                     .With<NetworkIdentity>()
                     .With<SimTransform>()
+                    .Without<Hrot.IG.Components.MapOverlayStyle>()
+                    .WithoutManaged<Hrot.Map.Common.Components.RoutePlan>()
                     .WithLifecycle(EntityLifecycle.All)
                     .Build();
 
@@ -347,6 +360,26 @@ namespace Hrot.ClusterRunner.Services
                     Canvas = _canvas
                 };
                 _canvas!.AddLayer(renderLayer);
+
+                // Area overlay render layer — draws tactical graphic polygon overlays.
+                var overlayQuery = _world.Query()
+                    .WithManaged<Hrot.IG.Components.EditablePolyline>()
+                    .With<Hrot.IG.Components.MapOverlayStyle>()
+                    .With<SimTransform>()
+                    .WithLifecycle(EntityLifecycle.All)
+                    .Build();
+                _canvas.AddLayer(new MapOverlayRenderLayer(_world, overlayQuery));
+
+                // Route render layer — draws RoutePlan waypoints for TacGraphic_Route entities.
+                var routeQuery = _world.Query()
+                    .With<TkbIdentity>()
+                    .WithManaged<Hrot.Map.Common.Components.RoutePlan>()
+                    .WithLifecycle(EntityLifecycle.All)
+                    .Build();
+                _canvas.AddLayer(new RouteRenderLayer(_world, routeQuery, _fdpInspectorState));
+
+                // Zone obstacle render layer — draws LOS obstacle circles (always-on overlay).
+                _canvas.AddLayer(new ZoneObstacleRenderLayer(_world));
 
                 // Perception map layer — draws target-memory links between perceivers and targets.
                 var perceptionLayer = new PerceptionMapLayer(_world);

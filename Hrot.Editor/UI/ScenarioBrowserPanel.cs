@@ -75,7 +75,7 @@ public sealed class ScenarioBrowserPanel
             {
                 for (int i = 0; i < available.Count; i++)
                 {
-                    if (ImGui.Selectable(available[i], _selectedLoadIdx == i))
+                    if (ImGui.Selectable(available[i], _selectedLoadIdx == i, ImGuiSelectableFlags.NoAutoClosePopups))
                         _selectedLoadIdx = i;
                 }
             }

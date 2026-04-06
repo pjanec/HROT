@@ -143,15 +143,15 @@ public class ConfigPanelTests
         ctrl.Verify(c => c.ApplyConfig(It.IsAny<MapLayerState>()), Times.Exactly(2));
     }
 
-    // ── Vehicles / TacticalGraphics / RoadGraphs remain as panel-only state ──
+    // ── Vehicles / TacticalGraphics / RoadGraphs are now forwarded via the controller ──
 
     [Fact]
-    public void HandleSendConfigPatch_DoesNotExposeVehiclesViaController()
+    public void HandleSendConfigPatch_VehiclesOff_PassesVehiclesFalseToController()
     {
         var (panel, ctrl) = CreateSut();
         panel.Vehicles = false;
         panel.HandleSendConfigPatch(ctrl.Object);
-        ctrl.Verify(c => c.ApplyConfig(It.IsAny<MapLayerState>()), Times.Once);
+        ctrl.Verify(c => c.ApplyConfig(It.Is<MapLayerState>(s => s.Vehicles == false)), Times.Once);
     }
 
     // ── LoadConfig syncs panel state ──────────────────────────────────────────
@@ -161,7 +161,7 @@ public class ConfigPanelTests
     {
         var (panel, ctrl) = CreateSut();
         ctrl.Setup(c => c.GetCurrentConfig())
-            .Returns(new MapLayerState(false, true, true, false));
+            .Returns(new MapLayerState(false, true, true, true, true, true, false));
 
         panel.LoadConfig(ctrl.Object);
 

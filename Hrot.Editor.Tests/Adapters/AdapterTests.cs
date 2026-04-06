@@ -517,46 +517,74 @@ namespace Hrot.Editor.Tests.Adapters
         public void GetCurrentConfig_ReflectsMapViewConfigDefaults()
         {
             var config  = new MapViewConfig();
-            var adapter = new EditorMapConfigAdapter(config);
+            var canvas  = new FDP.Toolkit.Vis2D.MapCanvas();
+            var adapter = new EditorMapConfigAdapter(config, canvas);
 
             MapLayerState state = adapter.GetCurrentConfig();
 
             Assert.Equal(config.ShowSatelliteLayer, state.Satellite);
-            Assert.Equal(config.ShowGroundUnits,    state.GroundUnits);
-            Assert.Equal(config.ShowAirUnits,       state.AirUnits);
             Assert.Equal(config.ShowGrid,           state.Grid);
+            // Canvas starts with ActiveLayerMask = 0xFFFFFFFF — all layers on.
+            Assert.True(state.GroundUnits);
+            Assert.True(state.AirUnits);
+            Assert.True(state.Vehicles);
+            Assert.True(state.TacticalGraphics);
+            Assert.True(state.RoadGraphs);
         }
 
         [Fact]
         public void ApplyConfig_SatelliteOff_UpdatesShowSatelliteLayerToFalse()
         {
             var config  = new MapViewConfig { ShowSatelliteLayer = true };
-            var adapter = new EditorMapConfigAdapter(config);
+            var canvas  = new FDP.Toolkit.Vis2D.MapCanvas();
+            var adapter = new EditorMapConfigAdapter(config, canvas);
 
             adapter.ApplyConfig(new MapLayerState(
-                Satellite:   false,
-                GroundUnits: true,
-                AirUnits:    true,
-                Grid:        false));
+                Satellite:        false,
+                GroundUnits:      true,
+                AirUnits:         true,
+                Vehicles:         true,
+                TacticalGraphics: true,
+                RoadGraphs:       true,
+                Grid:             false));
 
             Assert.False(config.ShowSatelliteLayer);
-            Assert.True (config.ShowGroundUnits);
-            Assert.True (config.ShowAirUnits);
             Assert.False(config.ShowGrid);
+        }
+
+        [Fact]
+        public void ApplyConfig_VehiclesOff_ClearsVehiclesBitInCanvasMask()
+        {
+            var config  = new MapViewConfig();
+            var canvas  = new FDP.Toolkit.Vis2D.MapCanvas();
+            var adapter = new EditorMapConfigAdapter(config, canvas);
+
+            adapter.ApplyConfig(new MapLayerState(
+                Satellite:        true,
+                GroundUnits:      true,
+                AirUnits:         true,
+                Vehicles:         false,
+                TacticalGraphics: true,
+                RoadGraphs:       true,
+                Grid:             false));
+
+            Assert.Equal(0u, canvas.ActiveLayerMask & Hrot.Map.Common.Config.MapLayerBits.VehiclesBit);
         }
 
         [Fact]
         public void ApplyConfig_AllTrue_SetsAllFieldsTrue()
         {
             var config  = new MapViewConfig();
-            var adapter = new EditorMapConfigAdapter(config);
+            var canvas  = new FDP.Toolkit.Vis2D.MapCanvas();
+            var adapter = new EditorMapConfigAdapter(config, canvas);
 
-            adapter.ApplyConfig(new MapLayerState(true, true, true, true));
+            adapter.ApplyConfig(new MapLayerState(true, true, true, true, true, true, true));
 
             Assert.True(config.ShowSatelliteLayer);
-            Assert.True(config.ShowGroundUnits);
-            Assert.True(config.ShowAirUnits);
             Assert.True(config.ShowGrid);
+            Assert.NotEqual(0u, canvas.ActiveLayerMask & Hrot.Map.Common.Config.MapLayerBits.GroundUnitsBit);
+            Assert.NotEqual(0u, canvas.ActiveLayerMask & Hrot.Map.Common.Config.MapLayerBits.AirUnitsBit);
+            Assert.NotEqual(0u, canvas.ActiveLayerMask & Hrot.Map.Common.Config.MapLayerBits.VehiclesBit);
         }
     }
 }

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.NetworkSpawning.Events;
@@ -30,7 +31,8 @@ namespace Hrot.Editor.Adapters
     {
         private readonly MapCanvas          _canvas;
         private readonly FdpEventBus        _bus;
-        private readonly JsonAttributeCompiler _jsonCompiler;
+        private readonly JsonAttributeCompiler? _jsonCompiler;
+        private readonly ITkbDatabase?      _tkbDb;
 
         /// <summary>
         /// The TKB entity type most recently passed to <see cref="StartPlacementMode"/>.
@@ -47,19 +49,30 @@ namespace Hrot.Editor.Adapters
         /// so the offline spawning pipeline attaches <see cref="EntityInfo"/> (name,
         /// affiliation) without going through the DDS pipeline.
         /// </param>
-        public EditorSpawnAdapter(MapCanvas canvas, FdpEventBus bus, JsonAttributeCompiler jsonCompiler)
+        /// <param name="tkbDb">
+        /// Optional TKB database used to look up the default entity name for the
+        /// baseline <see cref="EntityInfo"/> component. When <c>null</c>, the
+        /// name defaults to <c>"New Unit"</c>.
+        /// </param>
+        public EditorSpawnAdapter(
+            MapCanvas canvas,
+            FdpEventBus bus,
+            JsonAttributeCompiler? jsonCompiler = null,
+            ITkbDatabase? tkbDb = null)
         {
             _canvas       = canvas;
             _bus          = bus;
             _jsonCompiler = jsonCompiler;
+            _tkbDb        = tkbDb;
         }
 
         /// <inheritdoc/>
         /// <remarks>
-        /// Creates a <see cref="CreationTool"/> whose delegate uses the shared
-        /// <see cref="JsonAttributeCompiler"/> to compile <c>InitialAttributesJson</c>
-        /// into concrete ECS components (including <see cref="EntityInfo"/>), then
-        /// publishes the completed <see cref="SpawnEntityCommand"/> onto the local bus.
+        /// Creates a <see cref="CreationTool"/> whose delegate seeds a baseline
+        /// <see cref="EntityInfo"/> (so the entity always appears in the ORBAT tree)
+        /// then uses the shared <see cref="JsonAttributeCompiler"/> to compile
+        /// <c>InitialAttributesJson</c> overrides on top, then publishes the completed
+        /// <see cref="SpawnEntityCommand"/> onto the local bus.
         /// </remarks>
         public void StartPlacementMode(long tkbType, string? initialPropertiesJson = null)
         {
@@ -68,15 +81,32 @@ namespace Hrot.Editor.Adapters
             var tool = new CreationTool(
                 onEntityCreated: cmd =>
                 {
-                    // Compile InitialAttributesJson into component objects so EntityInfo
-                    // (name, affiliation) lands on the entity even in the offline editor.
-                    if (!string.IsNullOrEmpty(cmd.InitialAttributesJson))
+                    cmd.InitialComponents ??= new System.Collections.Generic.List<object>();
+
+                    // Seed a baseline EntityInfo so the entity is guaranteed to appear
+                    // in the ORBAT tree even when no Name property is supplied in JSON.
+                    string defaultName = "New Unit";
+                    if (_tkbDb != null
+                     && _tkbDb.TryGetByType(cmd.TkbType, out var template)
+                     && !string.IsNullOrWhiteSpace(template.Name))
                     {
-                        cmd.InitialComponents ??= new System.Collections.Generic.List<object>();
+                        defaultName = template.Name;
+                    }
+
+                    cmd.InitialComponents.Add(new EntityInfo
+                    {
+                        Name    = new Fdp.Kernel.FixedString64(defaultName),
+                        ForceId = ForceId.Unknown,
+                    });
+
+                    // Apply JSON overrides (e.g. Affiliation) on top of the baseline.
+                    if (!string.IsNullOrEmpty(cmd.InitialAttributesJson) && _jsonCompiler != null)
+                    {
                         var ctx = new ListPatchContext(cmd.InitialComponents);
                         _jsonCompiler.Compile(cmd.InitialAttributesJson, ctx);
                         cmd.InitialComponents = ctx.FlushComponents();
                     }
+
                     _bus.PublishManaged(cmd);
                 },
                 tkbType:               tkbType,

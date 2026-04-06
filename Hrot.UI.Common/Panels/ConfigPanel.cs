@@ -43,10 +43,10 @@ public sealed class ConfigPanel
     /// <summary>Whether the air unit symbology layer is visible.</summary>
     public bool AirUnits         { get => _airUnits;         set => _airUnits         = value; }
 
-    /// <summary>Whether the vehicles layer is visible (panel-only — not exposed via <see cref="IMapConfigController"/>).</summary>
+    /// <summary>Whether the vehicles layer is visible.</summary>
     public bool Vehicles         { get => _vehicles;         set => _vehicles         = value; }
 
-    /// <summary>Whether the road graphs layer is visible (panel-only — not exposed via <see cref="IMapConfigController"/>).</summary>
+    /// <summary>Whether the road graphs layer is visible.</summary>
     public bool RoadGraphs       { get => _roadGraphs;       set => _roadGraphs       = value; }
 
     /// <summary>Whether the coordinate grid overlay is visible.</summary>
@@ -69,24 +69,24 @@ public sealed class ConfigPanel
     {
         ArgumentNullException.ThrowIfNull(ctrl);
         var state     = ctrl.GetCurrentConfig();
-        _satelliteLayer = state.Satellite;
-        _groundUnits    = state.GroundUnits;
-        _airUnits       = state.AirUnits;
-        _grid           = state.Grid;
+        _satelliteLayer   = state.Satellite;
+        _groundUnits      = state.GroundUnits;
+        _airUnits         = state.AirUnits;
+        _vehicles         = state.Vehicles;
+        _tacticalGraphics = state.TacticalGraphics;
+        _roadGraphs       = state.RoadGraphs;
+        _grid             = state.Grid;
     }
 
     /// <summary>
     /// Invoked when the operator presses the "SEND CONFIG PATCH" button.
     /// Applies the current panel state via <see cref="IMapConfigController.ApplyConfig"/>.
-    /// Only the four fields carried by <see cref="MapLayerState"/> are forwarded;
-    /// panel-only state (<see cref="Vehicles"/>, <see cref="TacticalGraphics"/>,
-    /// <see cref="RoadGraphs"/>, <see cref="IconScale"/>) remains local.
     /// </summary>
     public void HandleSendConfigPatch(IMapConfigController ctrl)
     {
         ArgumentNullException.ThrowIfNull(ctrl);
         FdpLog<ConfigPanel>.Debug("[TRACE-UI.Common] Config: Applying config state");
-        ctrl.ApplyConfig(new MapLayerState(_satelliteLayer, _groundUnits, _airUnits, _grid));
+        ctrl.ApplyConfig(new MapLayerState(_satelliteLayer, _groundUnits, _airUnits, _vehicles, _tacticalGraphics, _roadGraphs, _grid));
     }
 
     // ── Draw ──────────────────────────────────────────────────────────────────

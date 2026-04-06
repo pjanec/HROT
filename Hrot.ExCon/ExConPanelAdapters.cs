@@ -41,7 +41,7 @@ internal sealed class ExConMapConfigShim : IMapConfigController
 
     /// <inheritdoc/>
     public UI.Common.Models.MapLayerState GetCurrentConfig()
-        => new(true, true, true, false); // defaults until Phase 6 reads actual IG state
+        => new(true, true, true, true, true, true, false); // defaults until Phase 6 reads actual IG state
 
     /// <inheritdoc/>
     public void ApplyConfig(UI.Common.Models.MapLayerState config)
@@ -53,10 +53,13 @@ internal sealed class ExConMapConfigShim : IMapConfigController
             {
                 layers = new
                 {
-                    satellite   = config.Satellite,
-                    units_ground = config.GroundUnits,
-                    units_air   = config.AirUnits,
-                    grid        = config.Grid
+                    satellite         = config.Satellite,
+                    units_ground      = config.GroundUnits,
+                    units_air         = config.AirUnits,
+                    vehicles          = config.Vehicles,
+                    tactical_graphics = config.TacticalGraphics,
+                    road_graphs       = config.RoadGraphs,
+                    grid              = config.Grid
                 }
             }
         });
