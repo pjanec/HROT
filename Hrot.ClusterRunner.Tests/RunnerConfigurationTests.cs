@@ -294,5 +294,62 @@ namespace Hrot.ClusterRunner.Tests
             config.Validate();
             Assert.Equal(42, config.NodeId);
         }
+
+        // ── Editor mode ───────────────────────────────────────────────────────
+
+        [Fact]
+        public void ParseMode_Editor_ReturnsEditorFlag()
+        {
+            var config = new RunnerConfiguration { ModeString = "editor", NoWait = true };
+            config.Validate();
+            Assert.Equal(RunMode.Editor, config.ParsedMode);
+        }
+
+        [Fact]
+        public void ParseMode_AllMode_DoesNotIncludeEditor()
+        {
+            // Editor is a standalone mode and must never be part of RunMode.All.
+            Assert.False(RunMode.All.HasFlag(RunMode.Editor));
+        }
+
+        [Fact]
+        public void ParseMode_EditorWithIg_ThrowsInvalidOperation()
+        {
+            var config = new RunnerConfiguration { ModeString = "editor,ig", NoWait = true };
+            var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
+            Assert.Contains("Editor", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void ParseMode_EditorWithExCon_ThrowsInvalidOperation()
+        {
+            var config = new RunnerConfiguration { ModeString = "editor,excon", NoWait = true };
+            var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
+            Assert.Contains("Editor", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void ParseMode_EditorWithOrchestrator_ThrowsInvalidOperation()
+        {
+            var config = new RunnerConfiguration { ModeString = "editor,orchestrator", NoWait = true };
+            var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
+            Assert.Contains("Editor", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void ParseMode_EditorWithCgf_ThrowsInvalidOperation()
+        {
+            var config = new RunnerConfiguration { ModeString = "editor,cgf", NoWait = true };
+            var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
+            Assert.Contains("Editor", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void ParseMode_EditorWithAll_ThrowsInvalidOperation()
+        {
+            var config = new RunnerConfiguration { ModeString = "editor,all", NoWait = true };
+            var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
+            Assert.Contains("Editor", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
     }
 }

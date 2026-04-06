@@ -29,6 +29,7 @@
     <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
     <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
     <ProjectReference Include="..\Hrot.ExCon\Hrot.ExCon.csproj" />
+    <ProjectReference Include="..\Hrot.Editor\Hrot.Editor.csproj" />
     <ProjectReference Include="..\Hrot.UI.Common\Hrot.UI.Common.csproj" />
     <!-- Map camera synchronisation (IMapCameraProvider uses MapCamera directly) -->
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />

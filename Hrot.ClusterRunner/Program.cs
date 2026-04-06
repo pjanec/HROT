@@ -147,6 +147,7 @@ class Program
         if (config.ParsedMode.HasFlag(RunMode.IG))      subsystems.Add(new IgSubsystem());
         if (config.ParsedMode.HasFlag(RunMode.ExCon ))     subsystems.Add(new ExConSubsystem());
         if (config.ParsedMode.HasFlag(RunMode.CGF))     subsystems.Add(new CgfSubsystem());
+        if (config.ParsedMode.HasFlag(RunMode.Editor))  subsystems.Add(new EditorSubsystem());
 
         var options = new RunnerOptions
         {
