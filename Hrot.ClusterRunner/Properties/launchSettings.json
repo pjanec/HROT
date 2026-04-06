@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "IOS+IG+SIM": {
+    "All (IOS+IG+SIM)": {
       "commandName": "Project",
       "commandLineArgs": "-m all"
     },
@@ -15,6 +15,10 @@
     "ExCon": {
       "commandName": "Project",
       "commandLineArgs": "-m ios --no-wait"
+    },
+    "Editor": {
+      "commandName": "Project",
+      "commandLineArgs": "-m editor --no-wait"
     }
 
   }

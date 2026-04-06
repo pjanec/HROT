@@ -4,25 +4,42 @@ using System.Numerics;
 using Fdp.Kernel;
 using FDP.Framework.Runner;
 using FDP.Toolkit.Behavior;
+using FDP.Toolkit.ImGui.Abstractions;
+using FDP.Toolkit.ImGui.Adapters;
+using FDP.Toolkit.ImGui.Panels;
 using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Time.Controllers;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Components;
 using FDP.Toolkit.Vis2D.Defaults;
+using FDP.Toolkit.Vis2D.Layers;
 using Hrot.CGF;
 using Hrot.ClusterRunner.Windows;
+using Hrot.Common.Orchestration.Handlers;
 using Hrot.Editor;
 using Hrot.Editor.Adapters;
 using Hrot.Editor.Modules;
+using Hrot.Editor.Rendering;
 using Hrot.Editor.UI;
 using Hrot.Map.Common;
+using Hrot.Map.Common.Config;
 using Hrot.Orchestrator;
 using Hrot.ScenarioEditor;
 using Hrot.ScenarioEditor.Services;
+using Hrot.ScenarioEditor.Adapters;
+using Hrot.ScenarioEditor.Tools;
 using Hrot.SimHost;
+using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.Panels;
 using ModuleHost.Core;
 using ModuleHost.Core.Abstractions;
+using FdpEntityInspectorPanel = FDP.Toolkit.ImGui.Panels.EntityInspectorPanel;
+using FdpEventBrowserPanel    = FDP.Toolkit.ImGui.Panels.EventBrowserPanel;
+using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;
+using FdpInspectorState       = FDP.Toolkit.ImGui.Abstractions.InspectorState;
+using EditorInteractionTool   = Hrot.ScenarioEditor.Tools.StandardInteractionTool;
 
 namespace Hrot.ClusterRunner.Services
 {
@@ -64,11 +81,73 @@ namespace Hrot.ClusterRunner.Services
         private MapCamera?              _camera;
         private bool                    _headless;
 
-        // ── UI panels ─────────────────────────────────────────────────────────
+        // ── Adapters (canvas-dependent; null in headless) ─────────────────────
+
+        private EditorSpawnAdapter?             _spawnAdapter;
+        private EditorMissionService?           _missionService;
+        private EditorOrbatAdapter?             _orbatAdapter;
+        private EditorMapConfigAdapter?         _mapConfigAdapter;
+        private EditorMapPickAdapter?           _mapPickAdapter;
+        private EditorZoneAdapter?              _zoneAdapter;
+        private EditorEntityContextMenuHandler? _contextMenuHandler;
+        private EditorPreviewController?        _previewController;
+        private MapViewConfig?                  _mapViewConfig;
+
+        // ── UI panels (legacy, always created) ────────────────────────────────
 
         private ScenarioBrowserPanel? _browserPanel;
         private EditorToolbarPanel?   _toolbarPanel;
         private EditorOrbatPanel?     _orbatPanel;
+
+        // ── Shared UI panels (skipped in headless) ────────────────────────────
+
+        private SpawnerPanel?    _spawnerPanel;
+        private MissionPanel?    _missionPanel;
+        private ConfigPanel?     _configPanel;
+        private SharedOrbatPanel? _sharedOrbatPanel;
+        private PreviewPanel?    _previewPanel;
+        private ZoneEditorPanel? _zoneEditorPanel;
+
+        // ── FDP framework panels ──────────────────────────────────────────────
+
+        private FdpEntityInspectorPanel _fdpEntityInspector = new();
+        private FdpEventBrowserPanel    _fdpEventBrowser    = new();
+        private FdpRepositoryAdapter?   _fdpRepoAdapter;
+        private FdpInspectorState       _fdpInspectorState  = new();
+        private uint                    _fdpFrameCount;
+
+        // ── Selection state ───────────────────────────────────────────────────
+
+        private DefaultSelectionState? _selectionState;
+
+        // ── Private helpers ───────────────────────────────────────────────────
+
+        /// <summary>
+        /// Lightweight IPreviewController that wraps <see cref="PreviewClusterOpHandler"/>
+        /// and tracks preview state internally without requiring <c>IScenarioStateProvider</c>.
+        /// </summary>
+        private sealed class EditorPreviewController : IPreviewController
+        {
+            private readonly PreviewClusterOpHandler _handler;
+            private bool _inPreview;
+
+            internal EditorPreviewController(EntityRepository world)
+                => _handler = new PreviewClusterOpHandler(world);
+
+            public bool IsInPreviewMode => _inPreview;
+
+            public void EnterPreviewMode()
+            {
+                _handler.TriggerLoadingPreview();
+                _inPreview = true;
+            }
+
+            public void ExitPreviewMode()
+            {
+                _handler.TriggerUnloadingPreview();
+                _inPreview = false;
+            }
+        }
 
         // ── Internal test accessors ───────────────────────────────────────────
 
@@ -143,10 +222,93 @@ namespace Hrot.ClusterRunner.Services
                 _canvas.Camera = _camera;
             }
 
-            // ── 8. UI panels ─────────────────────────────────────────────────
+            // ── 8. Preview controller (works headless too — no canvas dep) ────
+            _previewController = new EditorPreviewController(_world);
+
+            // ── 9. Mission service (no canvas dependency) ─────────────────────
+            _missionService = new EditorMissionService(_world.Bus, _world, doctrineRegistry);
+
+            // ── 10. Canvas-dependent adapters, layers, and interaction tool ───
+            if (!_headless)
+            {
+                _mapViewConfig    = new MapViewConfig();
+                _mapPickAdapter   = new EditorMapPickAdapter(_canvas!);
+                _spawnAdapter     = new EditorSpawnAdapter(_canvas!, _world.Bus);
+                _zoneAdapter      = new EditorZoneAdapter(_canvas!, _world.Bus);
+                _mapConfigAdapter = new EditorMapConfigAdapter(_mapViewConfig);
+                _selectionState   = new DefaultSelectionState();
+                _orbatAdapter     = new EditorOrbatAdapter(_world, _world.Bus, _editorLogic, _spawnAdapter);
+                _contextMenuHandler = new EditorEntityContextMenuHandler(
+                    _world, _editorLogic, _world.Bus, _mapPickAdapter, _selectionState);
+                _fdpRepoAdapter = new FdpRepositoryAdapter(_world);
+
+                // Register context menu handler with the FDP entity inspector.
+                _fdpEntityInspector.RegisterContextMenuHandler(_contextMenuHandler);
+
+                // Entity query (all networked entities with a location).
+                var entityQuery = _world.Query()
+                    .With<NetworkIdentity>()
+                    .With<SimTransform>()
+                    .WithLifecycle(EntityLifecycle.All)
+                    .Build();
+
+                // Entity render layer — draws entity symbols on the map.
+                var visualizerAdapter = new StubVisualizerAdapter();
+                var renderLayer = new EntityRenderLayer(
+                    "Entities", layerBitIndex: -1,
+                    _world, entityQuery, visualizerAdapter, _selectionState)
+                {
+                    Canvas = _canvas
+                };
+                _canvas!.AddLayer(renderLayer);
+
+                // Perception map layer — draws target-memory links between perceivers and targets.
+                var perceptionLayer = new PerceptionMapLayer(_world);
+                _canvas.AddLayer(perceptionLayer);
+
+                // Standard interaction tool — pan, zoom, select, drag-and-drop.
+                var interactionTool = new EditorInteractionTool(_world, entityQuery, visualizerAdapter, _selectionState);
+                _canvas.SwitchTool(interactionTool);
+
+                // Sync primary map selection → FDP entity inspector.
+                interactionTool.OnWorldClick += (_, _, _, _, hitEntity) =>
+                {
+                    if (hitEntity != Entity.Null)
+                        _fdpInspectorState.SelectedEntity = hitEntity;
+                };
+            }
+
+            // ── 11. UI panels ─────────────────────────────────────────────────
             _browserPanel = new ScenarioBrowserPanel();
             _toolbarPanel = new EditorToolbarPanel();
             _orbatPanel   = new EditorOrbatPanel();
+
+            if (!_headless)
+            {
+                var tkbCatalog = new TkbCatalogEntry[]
+                {
+                    new(TkbEntityTypes.Tank_M1Abrams,      "M1 Abrams"),
+                    new(TkbEntityTypes.IFV_Bradley,        "M2 Bradley IFV"),
+                    new(TkbEntityTypes.Truck_HMMWV,        "HMMWV"),
+                    new(TkbEntityTypes.Tank_T72,           "T-72"),
+                    new(TkbEntityTypes.Infantry_Rifleman,  "Infantry Rifleman"),
+                    new(TkbEntityTypes.Infantry_Officer,   "Infantry Officer"),
+                    new(TkbEntityTypes.CivilianPedestrian, "Civilian Pedestrian"),
+                    new(TkbEntityTypes.CivilianCar,        "Civilian Car"),
+                    new(TkbEntityTypes.MilitaryApc,        "Military APC"),
+                    new(TkbEntityTypes.InfantrySoldier,    "Infantry Soldier"),
+                    new(TkbEntityTypes.Insurgent,          "Insurgent"),
+                    new(TkbEntityTypes.Unit_TankPlatoon,   "Tank Platoon"),
+                    new(TkbEntityTypes.Unit_InfantrySquad, "Infantry Squad"),
+                };
+
+                _spawnerPanel     = new SpawnerPanel(tkbCatalog);
+                _missionPanel     = new MissionPanel();
+                _configPanel      = new ConfigPanel();
+                _sharedOrbatPanel = new SharedOrbatPanel();
+                _previewPanel     = new PreviewPanel();
+                _zoneEditorPanel  = new ZoneEditorPanel();
+            }
         }
 
         /// <inheritdoc/>
@@ -154,6 +316,16 @@ namespace Hrot.ClusterRunner.Services
         {
             _stepping?.Step(deltaTime);
             _kernel?.Update();
+
+            // Poll mission ACKs so async CommitMissionAsync tasks can resolve.
+            _missionService?.PollAcks();
+
+            // Feed the FDP event browser each frame.
+            if (!_headless && _world != null)
+            {
+                _fdpFrameCount++;
+                _fdpEventBrowser.Update(_world.Bus, _fdpFrameCount);
+            }
         }
 
         /// <inheritdoc/>
@@ -184,9 +356,45 @@ namespace Hrot.ClusterRunner.Services
         public void RegisterWindows(FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager)
         {
             if (_editorLogic == null) return;
+
+            // ── Legacy editor-specific windows ────────────────────────────────
             windowManager.RegisterWindow(new EditorToolbarWindow(_toolbarPanel!, _editorLogic));
             windowManager.RegisterWindow(new EditorBrowserWindow(_browserPanel!, _editorLogic));
             windowManager.RegisterWindow(new EditorOrbatWindow(_orbatPanel!, _editorLogic));
+
+            if (_headless) return;
+
+            // ── Shared UI panels ──────────────────────────────────────────────
+            if (_spawnerPanel     != null && _spawnAdapter     != null)
+                windowManager.RegisterWindow(new EditorSpawnerWindow(_spawnerPanel, _spawnAdapter));
+
+            if (_missionPanel     != null && _missionService   != null && _mapPickAdapter != null)
+                windowManager.RegisterWindow(new EditorMissionWindow(_missionPanel, _missionService, _mapPickAdapter));
+
+            if (_configPanel      != null && _mapConfigAdapter  != null)
+                windowManager.RegisterWindow(new EditorConfigWindow(_configPanel, _mapConfigAdapter));
+
+            if (_sharedOrbatPanel != null && _orbatAdapter     != null)
+                windowManager.RegisterWindow(new EditorSharedOrbatWindow(_sharedOrbatPanel, _orbatAdapter, _orbatAdapter));
+
+            if (_previewPanel     != null && _previewController != null)
+                windowManager.RegisterWindow(new EditorPreviewWindow(_previewPanel, _previewController));
+
+            if (_zoneEditorPanel  != null && _zoneAdapter       != null)
+                windowManager.RegisterWindow(new EditorZoneEditorWindow(_zoneEditorPanel, _zoneAdapter));
+
+            // ── FDP framework panels (entity inspector + event browser) ───────
+            windowManager.RegisterWindow(new FdpEntityInspectorWindow(
+                "editor_fdp_inspector", "Editor Entity Inspector", "Editor",
+                _fdpEntityInspector,
+                () => _fdpRepoAdapter,
+                () => _fdpInspectorState,
+                EditorWindowColor.TitleBar));
+
+            windowManager.RegisterWindow(new FdpEventBrowserWindow(
+                "editor_fdp_events", "Editor Event Browser", "Editor",
+                _fdpEventBrowser,
+                EditorWindowColor.TitleBar));
         }
 
         /// <inheritdoc/>
@@ -200,6 +408,23 @@ namespace Hrot.ClusterRunner.Services
             _stepping = null;
             _canvas = null;
             _camera = null;
+            _spawnAdapter     = null;
+            _missionService   = null;
+            _orbatAdapter     = null;
+            _mapConfigAdapter = null;
+            _mapPickAdapter   = null;
+            _zoneAdapter      = null;
+            _contextMenuHandler = null;
+            _previewController  = null;
+            _mapViewConfig      = null;
+            _spawnerPanel     = null;
+            _missionPanel     = null;
+            _configPanel      = null;
+            _sharedOrbatPanel = null;
+            _previewPanel     = null;
+            _zoneEditorPanel  = null;
+            _fdpRepoAdapter   = null;
+            _selectionState   = null;
         }
     }
 }
