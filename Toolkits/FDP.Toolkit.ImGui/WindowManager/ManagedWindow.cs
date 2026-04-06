@@ -239,8 +239,6 @@ public abstract class ManagedWindow
         bool hovered = Gui.IsItemHovered();
         bool active  = Gui.IsItemActive();
 
-        Gui.PopClipRect();
-
         if (clicked)
         {
             _isPinned = !_isPinned;
@@ -248,7 +246,11 @@ public abstract class ManagedWindow
                 Gui.SetTooltip("Window will be hidden when you switch perspective.");
         }
 
-        // Draw the pin icon on the window draw list (respects window z-order).
+        // Draw the pin icon while the clip rect is still active (title bar area).
+        RenderPinSymbol(btnX, btnY, fh, _isPinned, hovered, active);
+
+        // Restore the clip rect AFTER drawing the symbol so it is not clipped out.
+        Gui.PopClipRect();
         RenderPinSymbol(btnX, btnY, fh, _isPinned, hovered, active);
 
         // Restore cursor to the content area so DrawClientArea() starts in the right place.

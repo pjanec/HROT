@@ -305,6 +305,7 @@ public class WindowManager
         bool modalOpen = true;
         if (Gui.BeginPopupModal("About HROT##Modal", ref modalOpen, ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize))
         {
+            if (Gui.IsKeyPressed(ImGuiNET.ImGuiKey.Escape)) Gui.CloseCurrentPopup();
             RenderAboutModalContent();
             if (!modalOpen)
                 Gui.CloseCurrentPopup();

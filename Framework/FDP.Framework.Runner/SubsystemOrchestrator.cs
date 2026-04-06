@@ -100,6 +100,7 @@ namespace FDP.Framework.Runner
             {
                 Raylib.SetConfigFlags(ConfigFlags.ResizableWindow);
                 Raylib.InitWindow(_windowWidth, _windowHeight, WindowTitle);
+                Raylib.SetExitKey(KeyboardKey.Null); // Disable ESC closing the window; modals handle ESC themselves.
                 Raylib.SetTargetFPS(_targetFps);
                 rlImGui.Setup(true);
 
