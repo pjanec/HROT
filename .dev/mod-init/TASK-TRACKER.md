@@ -31,8 +31,8 @@
 
 **Goal:** Replace ~300 lines of manual translator wiring in `SimHostApp` and `IgApplication` with `NedReplicationModule`, fulfilling the DRY promise. Resolve the P2 debt comment.
 
-- [ ] **MODINIT-S301** Refactor SimHostApp + NodeBootstrapper namespace update [details](./TASK-DETAIL.md#modinit-s301--refactor-simhostapp-to-use-nedreplicationmodule)
-- [ ] **MODINIT-S302** Refactor IgApplication to use NedReplicationModule [details](./TASK-DETAIL.md#modinit-s302--refactor-igapplication-to-use-nedreplicationmodule)
+- [x] **MODINIT-S301** Refactor SimHostApp + NodeBootstrapper namespace update [details](./TASK-DETAIL.md#modinit-s301--refactor-simhostapp-to-use-nedreplicationmodule)
+- [x] **MODINIT-S302** Refactor IgApplication to use NedReplicationModule [details](./TASK-DETAIL.md#modinit-s302--refactor-igapplication-to-use-nedreplicationmodule)
 
 ---
 
@@ -41,4 +41,4 @@
 **Goal:** Update CGF to use the module from its new home; verify no application project references `Hrot.ClusterRunner`; prove standalone executable readiness.
 
 - [x] **MODINIT-S401** Update CgfSubsystem to reference Hrot.Map.Common [details](./TASK-DETAIL.md#modinit-s401--update-cgfsubsystem-to-reference-hrotcommon)
-- [ ] **MODINIT-S402** Sever upward project references and prove isolation [details](./TASK-DETAIL.md#modinit-s402--sever-upward-project-references)
+- [x] **MODINIT-S402** Sever upward project references and prove isolation [details](./TASK-DETAIL.md#modinit-s402--sever-upward-project-references)
