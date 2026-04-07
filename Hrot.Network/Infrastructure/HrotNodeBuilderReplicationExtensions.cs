@@ -2,6 +2,7 @@ using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.Map.Common;
 using Hrot.Network.Replication;
+using CycloneDDS.Runtime;
 
 namespace Hrot.Network.Infrastructure;
 
@@ -72,4 +73,35 @@ public static class HrotNodeBuilderReplicationExtensions
     public static HrotNodeBuilderWithReplication WithReplication(
         this HrotNodeBuilder builder, NodeRole role)
         => new HrotNodeBuilderWithReplication(builder, role);
+
+    /// <summary>
+    /// Upgrades <see cref="HrotNodeContext.NedReplication"/> to use a live
+    /// <paramref name="participant"/> when the context was originally built with
+    /// <see cref="HrotNodeConfig.Headless"/> = <c>true</c> (null participant).
+    ///
+    /// <para>
+    /// Use in subsystems (e.g. <c>IgApplication</c>) where the DDS participant
+    /// is created in a later initialization phase than the ECS context.
+    /// </para>
+    /// </summary>
+    public static HrotNodeContext BindReplicationParticipant(
+        this HrotNodeContext context,
+        NodeRole             role,
+        DdsParticipant       participant)
+    {
+        var ned = new NedReplicationModule(
+            participant:  participant,
+            role:         role,
+            entityMap:    context.EntityMap,
+            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            eventBus:     context.World.Bus,
+            localNodeId:  context.NodeId,
+            domainId:     0);
+
+        return context with
+        {
+            NedReplication      = ned,
+            GhostCreationSystem = ned.GhostCreationSystem,
+        };
+    }
 }

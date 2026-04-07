@@ -5,7 +5,7 @@ using FDP.Toolkit.ImGui.WindowManager;
 using FDP.Toolkit.Vis2D.Components;
 using Fdp.Kernel;
 using Hrot.Common.Infrastructure;
-using Hrot.Network.Replication;
+using Hrot.Network.Infrastructure;
 using Hrot.Map.Common;
 using Hrot.Common;
 using Hrot.SimHost;
@@ -40,7 +40,6 @@ public sealed class EyesAndMuscleSubsystem : ISubsystem, IMapCameraProvider, IWi
     // ── Infrastructure ─────────────────────────────────────────────────────────
 
     private HrotNodeContext?        _context;
-    private NedReplicationModule?   _nedReplicationModule;
     private EyesAndMuscleModule?    _eyesAndMuscleModule;
     private bool                    _initialized;
 
@@ -68,6 +67,7 @@ public sealed class EyesAndMuscleSubsystem : ISubsystem, IMapCameraProvider, IWi
         };
         _context = new HrotNodeBuilder(nodeCfg)
             .WithRole("EyesAndMuscle", NodeRole.AllInOne)
+            .WithReplication(NodeRole.AllInOne)
             .Build();
 
         // ── Step 2 — Register component types (domain-specific, not in builder) ─
@@ -77,18 +77,10 @@ public sealed class EyesAndMuscleSubsystem : ISubsystem, IMapCameraProvider, IWi
         foreach (var m in _context.BaseModules)
             _context.Kernel.RegisterModule(m);
 
-        // ── Step 4 — Create and register NedReplicationModule ─────────────────
+        // ── Step 4 — Register NedReplicationModule (built by WithReplication) ────
         // AllInOne combines Muscle (kinematic translators + SmartEgress) and IG
         // (EntityStatesIngressPack + DeadReckoning) in one replication layer.
-        _nedReplicationModule = new NedReplicationModule(
-            participant:  _context.Participant,         // null in headless mode
-            role:         NodeRole.AllInOne,
-            entityMap:    _context.EntityMap,
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
-            eventBus:     _context.EventBus,
-            localNodeId:  config.NodeId,
-            domainId:     config.DomainId);
-        _context.Kernel.RegisterModule(_nedReplicationModule);
+        _context.Kernel.RegisterModule(_context.NedReplication!);
 
         // ── Step 5 — Create and register EyesAndMuscleModule (async SoD PoC) ───
         // Note: SimulationLogicModule (old SystemGroup API) is not used in this PoC.

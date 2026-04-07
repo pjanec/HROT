@@ -20,6 +20,7 @@ using Hrot.SimHost.Network.Ingress;
 using Hrot.SimHost.Systems;
 using Hrot.SimHost.Utilities;
 using Hrot.Common.Infrastructure;
+using Hrot.Network.Infrastructure;
 using CarKinem.Commands;
 using CarKinem.Formation;
 using CarKinem.Road;
@@ -101,8 +102,6 @@ namespace Hrot.SimHost
         // (SlaveTimeModeListener has been removed; SlaveSyncController handles mode transitions internally.)
         // ── HrotNodeBuilder infrastructure context (EAM-M001) ─────────────────
         private HrotNodeContext?     _context;
-        // TODO (P2 debt): wire NedReplicationModule once it moves to Hrot.Common so SimHostApp can reference it.
-        private ModuleHost.Core.Abstractions.IEcsModule? _nedReplicationModule;
         // ── Data services ─────────────────────────────────────────────────────
         private NetworkEntityMap?       _entityMap;
         private IGeographicTransform?   _geoTransform;
@@ -153,6 +152,9 @@ namespace Hrot.SimHost
         /// <summary>Returns the network entity map after initialization.</summary>
         public NetworkEntityMap EntityMap => _entityMap
             ?? throw new InvalidOperationException("SimHostApp is not initialized.");
+
+        /// <summary>Internal test hook: exposes the NedReplicationModule after initialization.</summary>
+        internal Hrot.Common.Abstractions.INedReplicationModule? TestHook_NedReplication => _context?.NedReplication;
 
         // ── Constructor ───────────────────────────────────────────────────────
 
@@ -260,6 +262,7 @@ namespace Hrot.SimHost
             };
             _context = new HrotNodeBuilder(hrotConfig)
                 .WithRole("SimHost", _role)
+                .WithReplication(_role)
                 .Build();
 
             _world       = _context.World;

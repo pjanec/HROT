@@ -179,9 +179,16 @@ public sealed class NedReplicationModule : INedReplicationModule
             allTranslators.AddRange(_cognitiveTranslators);
 
         // Register ingress + egress systems only when a live DDS participant is available.
+        // For pure ImageGenerator (no Muscle, no Brain): skip the shared CycloneNetworkIngressSystem
+        // because EntityStatesIngressPack (registered below) already provides its own
+        // CycloneNetworkIngressSystem with EntityMasterIngressTranslator.
+        // Having two CycloneNetworkIngressSystem instances polling the same EntityMaster DDS topic
+        // would cause double ghost-creation and corrupt the NetworkEntityMap.
         if (_participant != null)
         {
-            registry.RegisterSystem(new CycloneNetworkIngressSystem(allTranslators.ToArray()));
+            bool pureIg = _roleHasIG && !_roleHasMuscle && !_roleHasBrain;
+            if (!pureIg)
+                registry.RegisterSystem(new CycloneNetworkIngressSystem(allTranslators.ToArray()));
             registry.RegisterSystem(new CycloneEgressSystem(allTranslators.ToArray()));
         }
 

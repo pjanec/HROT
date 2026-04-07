@@ -86,6 +86,7 @@ using FDP.Toolkit.Replication.Systems;
 
 using Hrot.Common.Orchestration;
 using Hrot.Common.Infrastructure;
+using Hrot.Network.Infrastructure;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 
@@ -606,18 +607,22 @@ public class IgApplication : IDisposable
     {
 
         // ── Build core ECS infrastructure (EAM-M002) ─────────────────────────
-        // Headless=true here: DDS participant and ID allocator are NOT needed at
-        // ECS-init time. The participant is created later in InitializeNetwork
-        // (IG does not use DdsIdAllocator, so skipping allocator wait is correct).
+        // Headless=_headless: when false (production), HrotNodeBuilder creates the DDS
+        // participant so NedReplicationModule gets a live participant. In test mode
+        // (headless:true) participant stays null and the participant is created in
+        // InitializeNetwork using HrotEnvironment.CreateParticipant.
         var igConfig = new HrotNodeConfig
         {
-            DomainId      = _domainOverride ?? IgNetworkConstants.DdsDomain,
-            NodeId        = _effectiveInstanceId,
-            Headless      = true,                   // skip DDS+allocator here
-            SubsystemName = "IgApplication",
+            DomainId              = _domainOverride ?? IgNetworkConstants.DdsDomain,
+            NodeId                = _effectiveInstanceId,
+            Headless              = _headless,              // false in production; true in headless tests
+            SubsystemName         = "IgApplication",
+            // IG creates its own DdsIdAllocator in InitializeNetwork; skip the builder's routing wait.
+            SkipAllocatorRouting  = true,
         };
         _context = new HrotNodeBuilder(igConfig)
             .WithRole("IgApplication", Hrot.Common.NodeRole.ImageGenerator)
+            .WithReplication(Hrot.Common.NodeRole.ImageGenerator)
             .Build();
 
         _world     = _context.World;
@@ -778,7 +783,8 @@ public class IgApplication : IDisposable
         _kernel.RegisterModule(replicationModule);
 
         // Assign here so test hooks work even when DDS initialisation is skipped.
-        _ghostCreationSystem = replicationModule.GhostCreationSystem;
+        // Use NedReplicationModule's GhostCreationSystem when available (set by .WithReplication()).
+        _ghostCreationSystem = _context?.GhostCreationSystem ?? replicationModule.GhostCreationSystem;
 
         DdsParticipant? participant = null;
 
@@ -798,14 +804,34 @@ public class IgApplication : IDisposable
         if (enableNetwork)
 
         {
+                // Use the participant created by HrotNodeBuilder (when not headless),
+                // or create a new one for headless/test environments.
+                participant = _context?.Participant ?? HrotEnvironment.CreateParticipant(domainId);
 
-                participant = HrotEnvironment.CreateParticipant(domainId);
-
-                participant.EnableSenderTracking(new SenderIdentityConfig
+                // EnableSenderTracking only when we created the participant (not from builder,
+                // which already calls EnableSenderTracking internally).
+                if (_context?.Participant == null)
                 {
-                    AppDomainId   = domainId,
-                    AppInstanceId = _effectiveInstanceId
-                });
+                    participant.EnableSenderTracking(new SenderIdentityConfig
+                    {
+                        AppDomainId   = domainId,
+                        AppInstanceId = _effectiveInstanceId
+                    });
+
+                    // NedReplicationModule was built without a participant (headless build).
+                    // Rebind it with the live participant so EntityStatesIngressPack gets DDS access.
+                    if (_context != null)
+                    {
+                        _context = _context.BindReplicationParticipant(
+                            Hrot.Common.NodeRole.ImageGenerator, participant);
+                        _ghostCreationSystem = _context.GhostCreationSystem;
+
+                        // Restore test-hook translator with null participant (no DDS reader, pure entity applier).
+                        // Used by TestHook_InjectGeoSpatialDescriptor to inject descriptors in unit tests.
+                        _geoSpatialIngressTranslator = new GeoSpatialIngressTranslator(
+                            null, _entityMap, _geoTransform, _ghostCreationSystem);
+                    }
+                }
 
                 // Task 5: Create command gateway, click writer and config reader.
 
@@ -827,56 +853,18 @@ public class IgApplication : IDisposable
 
 
 
-                var entityMasterTranslator = new EntityMasterIngressTranslator(
-
-                    participant, _entityMap, _world.Bus, _ghostCreationSystem);
-
-                _geoSpatialIngressTranslator = new GeoSpatialIngressTranslator(
-
-                    participant, _entityMap, _geoTransform, _ghostCreationSystem);
-
-                var entityInfoTranslator = new EntityInfoIngressTranslator(
-
-                    participant, _entityMap, _world.Bus, _ghostCreationSystem);
-
-                var entityDamageTranslator = new EntityDamageIngressTranslator(
-
-                    participant, _entityMap, _ghostCreationSystem);
-
-                var mapEntitySymbolTranslator = new MapEntitySymbolIngressTranslator(
-
-                    participant, _entityMap, IgNetworkConstants.MapGroupId, _ghostCreationSystem);
-
-                var mapVisualOverlayTranslator = new MapVisualOverlayIngressTranslator(
-
-                    participant, _entityMap, _geoTransform, _ghostCreationSystem);
-
-                var mapRouteIngressTranslator = _geoTransform != null
-                    ? new Hrot.Map.Common.Replication.Ingress.MapRouteIngressTranslator(
-                        participant, _entityMap, _geoTransform)
-                    : null;
-
                 var contextActionsTranslator = new ContextActionsUpdateTranslator(
 
                     participant, _entityMap, _world.Bus, _ghostCreationSystem);
 
 
 
+                // EntityStatesIngressPack (EntityMaster, GeoSpatial, EntityInfo, EntityDamage,
+                // MapVisualOverlay, MapRoute) is now handled by NedReplicationModule.
+                // Only non-pack translators remain in customTranslators.
                 customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>
 
                 {
-
-                    entityMasterTranslator,
-
-                    _geoSpatialIngressTranslator,
-
-                    entityInfoTranslator,
-
-                    entityDamageTranslator,
-
-                    mapEntitySymbolTranslator,
-
-                    mapVisualOverlayTranslator,
 
                     contextActionsTranslator,
 
@@ -894,9 +882,6 @@ public class IgApplication : IDisposable
                 // its step ACK back to the Orchestrator on every Step() frame.
                 customTranslators.Add(
                     FDP.Toolkit.Time.TimeNetworkModule.CreateSlaveLockstepTranslator(participant, _world.Bus, _effectiveInstanceId));
-
-                if (mapRouteIngressTranslator != null)
-                    customTranslators.Add(mapRouteIngressTranslator);
 
                 if (!_headless)
                 {
@@ -1199,7 +1184,10 @@ public class IgApplication : IDisposable
 
 
 
-        _kernel.RegisterGlobalSystem(new DeadReckoningSyncSystem());
+        // DeadReckoningSyncSystem is now registered by NedReplicationModule (driveFromNetwork:true).
+        // Register NedReplicationModule before kernel init so EntityStatesIngressPack + DR are wired.
+        if (_context?.NedReplication != null)
+            _context.Kernel.RegisterModule(_context.NedReplication);
 
         _kernel.RegisterGlobalSystem(_contextMenuSystem);
 
@@ -1921,6 +1909,14 @@ public class IgApplication : IDisposable
 
     /// <summary>Current kernel sim time in seconds — available in both headless and normal mode.</summary>
     internal double TestHook_CurrentSimTime => _kernel.CurrentTime.TotalTime;
+
+    /// <summary>
+    /// Exposes the <see cref="Hrot.Common.Abstractions.INedReplicationModule"/> wired during
+    /// <see cref="InitializeNetwork"/>.  Used by MODINIT-S302 SC6 tests to confirm
+    /// <c>DriveFromNetwork == true</c> for the <c>ImageGenerator</c> role.
+    /// </summary>
+    internal Hrot.Common.Abstractions.INedReplicationModule? TestHook_NedReplication
+        => _context?.NedReplication;
 
     /// <summary>
     /// Internal test hook to simulate a map click without Raylib input.
