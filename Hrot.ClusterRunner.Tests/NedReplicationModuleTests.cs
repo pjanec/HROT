@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
-using Hrot.ClusterRunner.Replication;
+using Hrot.Network.Replication;
 using Hrot.Common.Systems;
 using Hrot.Map.Common;
 using Hrot.Common;

@@ -4,7 +4,7 @@ using Hrot.Map.Common.Translators;
 using Hrot.SimHost.Translators;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
-using Hrot.ClusterRunner.Replication;
+using Hrot.Network.Infrastructure;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Services;
@@ -22,7 +22,6 @@ namespace Hrot.ClusterRunner.Services;
 public sealed class CgfSubsystem : ISubsystem
 {
     private HrotNodeContext?  _context;
-    private IEcsModule?       _nedReplicationModule;
     private NetworkEntityMap? _entityMap;
 
     /// <inheritdoc/>
@@ -53,6 +52,7 @@ public sealed class CgfSubsystem : ISubsystem
         };
         _context = new HrotNodeBuilder(nodeConfig)
             .WithRole("CgfNode", NodeRole.Brain)
+            .WithReplication(NodeRole.Brain)
             .Build();
 
         _entityMap = _context.EntityMap;
@@ -64,19 +64,7 @@ public sealed class CgfSubsystem : ISubsystem
 
         // ── Register NedReplicationModule (Brain role) ─────────────────────────
         // Replaces: EntityStatesIngressPack + ActuatorIntentsEgressPack + GhostCleanupModule
-        _nedReplicationModule = new NedReplicationModule(
-            participant:  _context.Participant,
-            role:         NodeRole.Brain,
-            entityMap:    _entityMap,
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
-            // Use world.Bus so that events published by EntityMasterIngressTranslator.ProcessDispose()
-            // during the Input kernel phase are made visible to GhostDestructionSystem (PostSimulation)
-            // via view.ConsumeManagedEvents<T>() after the kernel's internal Bus.SwapBuffers().
-            // Using _context.EventBus (a separate FdpEventBus) would cause a bus mismatch.
-            eventBus:     _context.World.Bus,
-            localNodeId:  nodeConfig.NodeId,
-            domainId:     config.DomainId);
-        _context.Kernel.RegisterModule(_nedReplicationModule);
+        _context.Kernel.RegisterModule(_context.NedReplication!);
 
         // ── Register CGF simulation logic (Brain-specific) ─────────────────────
         var doctrineRegistry = new DoctrineRegistry();
@@ -104,7 +92,6 @@ public sealed class CgfSubsystem : ISubsystem
     /// <inheritdoc/>
     public void Shutdown()
     {
-        _nedReplicationModule = null;
         _context?.Kernel.Dispose();
         _context?.Participant?.Dispose();
         _context = null;

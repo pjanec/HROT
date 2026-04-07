@@ -41,6 +41,10 @@ public sealed class HrotNodeBuilder
     private string   _subsystemName = "Node";
     private bool     _built;
 
+    // ── Replication extension state (set by HrotNodeBuilderReplicationExtensions.WithReplication) ──
+    internal bool     _replicationConfigured;
+    internal NodeRole _replicationRole;
+
     public HrotNodeBuilder(HrotNodeConfig config)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -155,6 +159,7 @@ public sealed class HrotNodeBuilder
             BaseModules     = baseModules,
             GhostCreationSystem = null,   // populated by NedReplicationModule after Build()
             IdAllocator     = idAllocator,
+            NodeId          = _config.NodeId,
         };
     }
 }

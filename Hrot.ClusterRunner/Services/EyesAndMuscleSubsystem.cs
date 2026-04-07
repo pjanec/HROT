@@ -5,7 +5,7 @@ using FDP.Toolkit.ImGui.WindowManager;
 using FDP.Toolkit.Vis2D.Components;
 using Fdp.Kernel;
 using Hrot.Common.Infrastructure;
-using Hrot.ClusterRunner.Replication;
+using Hrot.Network.Replication;
 using Hrot.Map.Common;
 using Hrot.Common;
 using Hrot.SimHost;

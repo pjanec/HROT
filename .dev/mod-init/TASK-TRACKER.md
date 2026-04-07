@@ -22,8 +22,8 @@
 
 **Goal:** Move `NedReplicationModule` from `Hrot.ClusterRunner.Replication` to `Hrot.Map.Common.Replication`, establishing it as shared ACL infrastructure.
 
-- [ ] **MODINIT-S201** Move NedReplicationModule to Hrot.Network [details](./TASK-DETAIL.md#modinit-s201--move-nedreplicationmodule-to-hrotmapcommon)
-- [ ] **MODINIT-S202** Wire NedReplicationModule into HrotNodeContext (INedReplicationModule interface + extension class) [details](./TASK-DETAIL.md#modinit-s202--wire-nedreplicationmodule-into-hrotnodecontext-mandatory)
+- [x] **MODINIT-S201** Move NedReplicationModule to Hrot.Network [details](./TASK-DETAIL.md#modinit-s201--move-nedreplicationmodule-to-hrotmapcommon)
+- [x] **MODINIT-S202** Wire NedReplicationModule into HrotNodeContext (INedReplicationModule interface + extension class) [details](./TASK-DETAIL.md#modinit-s202--wire-nedreplicationmodule-into-hrotnodecontext-mandatory)
 
 ---
 
@@ -40,5 +40,5 @@
 
 **Goal:** Update CGF to use the module from its new home; verify no application project references `Hrot.ClusterRunner`; prove standalone executable readiness.
 
-- [ ] **MODINIT-S401** Update CgfSubsystem to reference Hrot.Map.Common [details](./TASK-DETAIL.md#modinit-s401--update-cgfsubsystem-to-reference-hrotcommon)
+- [x] **MODINIT-S401** Update CgfSubsystem to reference Hrot.Map.Common [details](./TASK-DETAIL.md#modinit-s401--update-cgfsubsystem-to-reference-hrotcommon)
 - [ ] **MODINIT-S402** Sever upward project references and prove isolation [details](./TASK-DETAIL.md#modinit-s402--sever-upward-project-references)

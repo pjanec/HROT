@@ -12,14 +12,13 @@ using Hrot.Map.Common;
 using Hrot.Map.Common.Translators;
 using Hrot.Network.Translators;
 using Hrot.Common;
-using Hrot.SimHost;
-using Hrot.SimHost.Network;
+using Hrot.Common.Abstractions;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Scheduling;
 using ModuleHost.Network.Cyclone.Modules;
 using ModuleHost.Network.Cyclone.Systems;
 
-namespace Hrot.ClusterRunner.Replication;
+namespace Hrot.Network.Replication;
 
 /// <summary>
 /// Composite <see cref="IEcsModule"/> that bundles NED translator packs with their
@@ -45,15 +44,8 @@ namespace Hrot.ClusterRunner.Replication;
 ///     <description>All packs; GhostCreationSystem; SmartEgressSystem; DeadReckoningSyncSystem (driveFromNetwork=false).</description>
 ///   </item>
 /// </list>
-///
-/// <para>
-/// TODO: move to shared if NedReplicationModule is extracted from Hrot.ClusterRunner.
-/// DeadReckoningSyncSystem is now in Hrot.Common/Systems/ — accessible here because
-/// Hrot.ClusterRunner references Hrot.Common transitively. If NedReplicationModule is later moved to a
-/// shared project, DeadReckoningSyncSystem is already correctly positioned.
-/// </para>
 /// </summary>
-public sealed class NedReplicationModule : IEcsModule
+public sealed class NedReplicationModule : INedReplicationModule
 {
     public string Name => "NedReplication";
     public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
@@ -213,7 +205,7 @@ public sealed class NedReplicationModule : IEcsModule
             registry.RegisterSystem(new SmartEgressSystem());
 
         // ── Ghost destruction (Brain and AllInOne receive remote ghosts) ────────
-        // Brain role receives entities from Muscle/SimHost as ghosts; when the remote
+        // Brain role receives entities from remote Muscle nodes as ghosts; when the remote
         // owner destroys an entity, EntityMasterIngressTranslator publishes DestroyEntityCommand
         // on the local event bus — GhostDestructionSystem consumes it and purges the ghost.
         if (_roleHasBrain)

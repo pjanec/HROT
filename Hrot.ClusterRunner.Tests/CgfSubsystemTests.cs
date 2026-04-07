@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Hrot.ClusterRunner.Services;
+using Hrot.Common.Infrastructure;
 using FDP.Framework.Runner;
 using Xunit;
 
@@ -32,9 +33,11 @@ public class CgfSubsystemTests : IDisposable
         Assert.NotNull(_sut.World);
         Assert.NotNull(_sut.GhostEntityMap);
 
-        // NedReplicationModule (Brain) is registered.
-        var nedField = typeof(CgfSubsystem)
-            .GetField("_nedReplicationModule", BindingFlags.NonPublic | BindingFlags.Instance);
-        Assert.NotNull(nedField!.GetValue(_sut));
+        // NedReplicationModule (Brain) is wired into _context.NedReplication by
+        // HrotNodeBuilderReplicationExtensions.Build() (S202/S401 migration).
+        var contextField = typeof(CgfSubsystem)
+            .GetField("_context", BindingFlags.NonPublic | BindingFlags.Instance);
+        var context = contextField!.GetValue(_sut) as HrotNodeContext;
+        Assert.NotNull(context?.NedReplication);
     }
 }

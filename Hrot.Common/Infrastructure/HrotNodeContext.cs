@@ -3,6 +3,7 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Replication.Systems;
+using Hrot.Common.Abstractions;
 using Hrot.Common.Orchestration;
 using ModuleHost.Core;
 using ModuleHost.Core.Abstractions;
@@ -57,4 +58,14 @@ public sealed record HrotNodeContext
 
     /// <summary>The DDS ID allocator for entity ID allocation. Null in headless contexts.</summary>
     public DdsIdAllocator? IdAllocator { get; init; }
+
+    /// <summary>The local node ID used for DDS identity and ID allocation.</summary>
+    public int NodeId { get; init; }
+
+    /// <summary>
+    /// The NED replication module bundling translator packs and their lifecycle systems.
+    /// Set by <c>HrotNodeBuilderReplicationExtensions.Build()</c>.
+    /// <c>null</c> only in legacy call sites that have not yet migrated to the extension Build().
+    /// </summary>
+    public INedReplicationModule? NedReplication { get; init; }
 }
