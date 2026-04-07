@@ -12,6 +12,7 @@ using Hrot.Map.Common.Translators;
 using Hrot.SimHost;
 using Hrot.SimHost.Network;
 using ModuleHost.Core.Abstractions;
+using ModuleHost.Core.Scheduling;
 using ModuleHost.Network.Cyclone.Modules;
 using ModuleHost.Network.Cyclone.Systems;
 
@@ -80,6 +81,13 @@ public sealed class NedReplicationModule : IEcsModule
     public GhostCreationSystem GhostCreationSystem { get; }
 
     /// <summary>
+    /// Groups <see cref="GhostCreationSystem"/> under a lifecycle gate for replay control.
+    /// Phase 4 <c>ReplayLoadClusterStateHandler</c> sets <see cref="NetworkLifecycleSystemGroup.Enabled"/>
+    /// to <c>false</c> during replay playback to prevent ghost promotions.
+    /// </summary>
+    public NetworkLifecycleSystemGroup NetworkLifecycleGroup { get; }
+
+    /// <summary>
     /// Whether dead-reckoning is configured to run on all remote entities (<c>true</c>)
     /// or only on entities still in <c>EntityLifecycle.Ghost</c> state (<c>false</c>).
     /// <para>
@@ -135,6 +143,7 @@ public sealed class NedReplicationModule : IEcsModule
 
         // Ghost creation — shared by all ingress translators + replay handler
         GhostCreationSystem = new GhostCreationSystem(entityMap);
+        NetworkLifecycleGroup = new NetworkLifecycleSystemGroup(GhostCreationSystem);
 
         // Build translator sets — deferred until RegisterSystems to allow null-participant
         // headless contexts to construct the module without creating DDS writers/readers.
@@ -205,5 +214,8 @@ public sealed class NedReplicationModule : IEcsModule
         registry.RegisterSystem(new DisposalMonitoringSystem(_entityMap));
     }
 
-    public void Tick(ISimulationView view, float dt) { }
+    public void Tick(ISimulationView view, float dt)
+    {
+        NetworkLifecycleGroup.ExecuteGroup(view, dt);
+    }
 }

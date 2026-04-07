@@ -26,9 +26,9 @@
 
 **Goal:** Implement the combined Muscle+Eyes `ISubsystem` using Phase 1+2 building blocks; prove the SoD async-module pattern end-to-end.
 
-- [ ] **EAM-E001** EyesAndMuscleSubsystem shell — [details](./TASK-DETAIL.md#eam-e001--eyesandmusclesubsystem-shell)
-- [ ] **EAM-E002** EyesAndMuscleModule (SoD async PoC) — [details](./TASK-DETAIL.md#eam-e002--eyesandmusclemodule-sod-async-poc)
-- [ ] **EAM-E003** EyesAndMuscle integration test — [details](./TASK-DETAIL.md#eam-e003--eyesandmuscle-integration-test)
+- [x] **EAM-E001** EyesAndMuscleSubsystem shell — [details](./TASK-DETAIL.md#eam-e001--eyesandmusclesubsystem-shell)
+- [x] **EAM-E002** EyesAndMuscleModule (SoD async PoC) — [details](./TASK-DETAIL.md#eam-e002--eyesandmusclemodule-sod-async-poc)
+- [x] **EAM-E003** EyesAndMuscle integration test — [details](./TASK-DETAIL.md#eam-e003--eyesandmuscle-integration-test)
 
 ---
 

@@ -8,6 +8,7 @@ using Hrot.IG.Systems;
 using Hrot.Map.Common;
 using Hrot.SimHost;
 using ModuleHost.Core.Abstractions;
+using ModuleHost.Core.Scheduling;
 using ModuleHost.Network.Cyclone.Systems;
 using Xunit;
 
@@ -135,5 +136,20 @@ public sealed class NedReplicationModuleTests
         Assert.Contains(typeof(SmartEgressSystem),   registry.RegisteredTypes);
         // DeadReckoning must NOT be registered for Brain-only
         Assert.DoesNotContain(typeof(DeadReckoningSyncSystem), registry.RegisteredTypes);
+    }
+
+    // ── Corrective-0 — NetworkLifecycleSystemGroup exposed ────────────────────
+
+    [Fact]
+    public void NedReplicationModule_RegistersNetworkLifecycleSystemGroup()
+    {
+        var module = BuildModule(NodeRole.MuscleGround);
+
+        // NetworkLifecycleGroup must be non-null (created in ctor with GhostCreationSystem)
+        Assert.NotNull(module.NetworkLifecycleGroup);
+
+        // Enabled by default — lifecycle gates are open during normal operation
+        Assert.True(module.NetworkLifecycleGroup.Enabled,
+            "NetworkLifecycleGroup.Enabled should default to true (gate open for normal operation).");
     }
 }
