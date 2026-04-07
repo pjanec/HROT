@@ -1,5 +1,5 @@
 using System;
-using Hrot.ClusterRunner.Infrastructure;
+using Hrot.Common.Infrastructure;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Tests;
@@ -28,7 +28,7 @@ public sealed class HrotNodeBuilderTests
     {
         var config = HeadlessConfig();
         var ctx = new HrotNodeBuilder(config)
-            .WithRole("Test", Hrot.SimHost.NodeRole.MuscleGround)
+            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround)
             .Build();
 
         Assert.NotNull(ctx);
@@ -48,7 +48,7 @@ public sealed class HrotNodeBuilderTests
     {
         var config = HeadlessConfig();
         var ctx = new HrotNodeBuilder(config)
-            .WithRole("Test", Hrot.SimHost.NodeRole.MuscleGround)
+            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround)
             .Build();
 
         // Register base modules then call Initialize() to prove the time controller
@@ -67,7 +67,7 @@ public sealed class HrotNodeBuilderTests
     {
         var config  = HeadlessConfig();
         var builder = new HrotNodeBuilder(config)
-            .WithRole("Test", Hrot.SimHost.NodeRole.MuscleGround);
+            .WithRole("Test", Hrot.Common.NodeRole.MuscleGround);
 
         builder.Build();   // first call — succeeds
 

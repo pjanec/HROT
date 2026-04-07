@@ -19,6 +19,7 @@ using Hrot.SimHost.Network.Egress;
 using Hrot.SimHost.Network.Ingress;
 using Hrot.SimHost.Systems;
 using Hrot.SimHost.Utilities;
+using Hrot.Common.Infrastructure;
 using CarKinem.Commands;
 using CarKinem.Formation;
 using CarKinem.Road;
@@ -98,6 +99,10 @@ namespace Hrot.SimHost
         private DdsIdAllocator?      _idAllocator;
         private FdpEventBus?         _eventBus;        // Swaps kernel to SlaveSyncController when a SwitchTimeModeEvent(Deterministic) arrives.
         // (SlaveTimeModeListener has been removed; SlaveSyncController handles mode transitions internally.)
+        // ── HrotNodeBuilder infrastructure context (EAM-M001) ─────────────────
+        private HrotNodeContext?     _context;
+        // TODO (P2 debt): wire NedReplicationModule once it moves to Hrot.Common so SimHostApp can reference it.
+        private ModuleHost.Core.Abstractions.IEcsModule? _nedReplicationModule;
         // ── Data services ─────────────────────────────────────────────────────
         private NetworkEntityMap?       _entityMap;
         private IGeographicTransform?   _geoTransform;
@@ -244,44 +249,31 @@ namespace Hrot.SimHost
             Logger.Info($"[SimHost] Node ID:         {localNodeId}");
             Logger.Info($"[SimHost] Simulation Rate: {nodeConfig.SimulationRateHz} Hz");
 
-            // ── 2. ECS world ──────────────────────────────────────────────────
-            _world = new EntityRepository();
+            // ── Steps 2–4: Build Hrot node infrastructure (EAM-M001) ─────────────
+            var hrotConfig = new HrotNodeConfig
+            {
+                DomainId      = domainId,
+                NodeId        = localNodeId,
+                Headless      = false,  // SimHostApp always creates DDS; _headless only controls Raylib window
+                LocalTempRoot = nodeConfig.LocalTempRoot,
+                SubsystemName = "SimHost",
+            };
+            _context = new HrotNodeBuilder(hrotConfig)
+                .WithRole("SimHost", _role)
+                .Build();
+
+            _world       = _context.World;
+            _kernel      = _context.Kernel;
+            _eventBus    = _context.EventBus;
+            _entityMap   = _context.EntityMap;
+            _idAllocator = _context.IdAllocator;
+            var ddsParticipant = _context.Participant;  // null in headless mode
+            var entityMap      = _entityMap;            // alias used by downstream code
+            base.World  = _world;
+            base.Kernel = _kernel;
             RegisterSimComponents(_world);
 
-            var eventAccumulator = new EventAccumulator();
-            _kernel = new ModuleHostKernel(_world, eventAccumulator);
-            base.World = _world;
-            base.Kernel = _kernel;
-
-            // ── 3. Time controller ────────────────────────────────────────────
-            _eventBus   = new FdpEventBus();
-            var timeConfig = new TimeControllerConfig
-            {
-                Mode        = TimeMode.Continuous,
-                Role        = TimeRole.Slave,
-                LocalNodeId = localNodeId,
-                SyncConfig  = FDP.Toolkit.Time.Controllers.TimeConfig.Default,
-            };
-            var timeCtrl   = TimeControllerFactory.Create(_eventBus, timeConfig);
-            timeCtrl.SetTimeScale(1.0f);
-            _kernel.SetTimeController(timeCtrl);
-            _eventBus.SwapBuffers();
-            // SlaveSyncController (returned by TimeControllerFactory for Slave role) handles all
-            // mode transitions internally — no SlaveTimeModeListener needed.
-            // ── 4. Data services ──────────────────────────────────────────────
-            var ddsParticipant = HrotEnvironment.CreateParticipant(domainId);
-            ddsParticipant.EnableSenderTracking(new SenderIdentityConfig
-            {
-                AppDomainId   = domainId,
-                AppInstanceId = localNodeId
-            });
-            var tkbDb          = HrotEnvironment.CreateTkb();
-            var entityMap      = new NetworkEntityMap();
-            _entityMap         = entityMap;
-
-            // ── ID allocator client (server lives on Hrot.Orchestrator; throws if unavailable) ──
-            _idAllocator = new DdsIdAllocator(ddsParticipant, "SimHostAllocator");
-            EnsureIdAllocatorRouting(ddsParticipant);
+            var tkbDb = HrotEnvironment.CreateTkb();    // still needed for EntityLifecycleModule/spawning
 
             // ── 5. Geodetic configuration ─────────────────────────────────────
             var wgs84     = HrotEnvironment.CreateGeoTransform();
@@ -933,42 +925,8 @@ namespace Hrot.SimHost
             => SimHostComponentRegistry.RegisterAll(world);
 
         // ── Private helpers ───────────────────────────────────────────────────
-
-        /// <summary>
-        /// Waits up to 30 s for the remote DDS ID allocator server (hosted by <c>Hrot.Orchestrator</c>)
-        /// to announce publication. Throws <see cref="InvalidOperationException"/> if the server is not
-        /// found within the timeout — SimHost must not start without a working allocator.
-        /// </summary>
-        private void EnsureIdAllocatorRouting(DdsParticipant participant)
-        {
-            if (_idAllocator == null) return;
-            const int MaxWaitSeconds = 30;
-            const int WarnAtSeconds  = 5;
-            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(MaxWaitSeconds);
-            var warnAt   = DateTime.UtcNow + TimeSpan.FromSeconds(WarnAtSeconds);
-            bool warned  = false;
-            while (DateTime.UtcNow < deadline)
-            {
-                if (_idAllocator.HasPublicationMatch)
-                    return;
-                if (!warned && DateTime.UtcNow >= warnAt)
-                {
-                    FdpLog<SimHostApp>.Warn(
-                        "[SimHost] IdAllocator: no remote orchestrator server after {0} s — still waiting " +
-                        "(up to {1:F0} s total). Verify that Hrot.Orchestrator is running.",
-                        WarnAtSeconds, MaxWaitSeconds);
-                    warned = true;
-                }
-                Thread.Sleep(50);
-            }
-
-            if (_idAllocator.HasPublicationMatch)
-                return;
-
-            throw new InvalidOperationException(
-                $"[SimHost] DdsIdAllocator publication match not established within {MaxWaitSeconds} s. " +
-                "Hrot.Orchestrator must be running before SimHost starts.");
-        }
+        // NOTE: EnsureIdAllocatorRouting deleted (EAM-M001). DdsIdAllocatorHelper.EnsureRouting
+        // is now called by HrotNodeBuilder.Build() internally.
 
         /// <summary>
         /// Loads a road-network blob from <paramref name="path"/> using the supplied

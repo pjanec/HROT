@@ -4,11 +4,13 @@ using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
+using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Hrot.IG.Systems;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Translators;
+using Hrot.Common;
 using Hrot.SimHost;
 using Hrot.SimHost.Network;
 using ModuleHost.Core.Abstractions;
@@ -209,6 +211,13 @@ public sealed class NedReplicationModule : IEcsModule
         if (_roleHasMuscle || _roleHasBrain)
             registry.RegisterSystem(new SmartEgressSystem());
 
+        // ── Ghost destruction (Brain and AllInOne receive remote ghosts) ────────
+        // Brain role receives entities from Muscle/SimHost as ghosts; when the remote
+        // owner destroys an entity, EntityMasterIngressTranslator publishes DestroyEntityCommand
+        // on the local event bus — GhostDestructionSystem consumes it and purges the ghost.
+        if (_roleHasBrain)
+            registry.RegisterSystem(new GhostDestructionSystem(_entityMap));
+
         // ── Cleanup systems (all roles) ──────────────────────────────────────
         registry.RegisterSystem(new CycloneNetworkCleanupSystem(allTranslators));
         registry.RegisterSystem(new DisposalMonitoringSystem(_entityMap));
@@ -217,5 +226,41 @@ public sealed class NedReplicationModule : IEcsModule
     public void Tick(ISimulationView view, float dt)
     {
         NetworkLifecycleGroup.ExecuteGroup(view, dt);
+    }
+
+    // ── Ghost destruction system ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Purges ghost entities when their remote owner publishes a DDS DISPOSE.
+    /// <para>
+    /// <see cref="EntityMasterIngressTranslator"/> publishes <see cref="DestroyEntityCommand"/>
+    /// on the local event bus when a remote EntityMaster goes DISPOSE; this system
+    /// consumes that event and removes the corresponding local ghost from the ECS world
+    /// and from <see cref="NetworkEntityMap"/>.
+    /// </para>
+    /// </summary>
+    [UpdateInPhase(SystemPhase.PostSimulation)]
+    private sealed class GhostDestructionSystem : IEcsModuleSystem
+    {
+        private readonly NetworkEntityMap _entityMap;
+
+        public GhostDestructionSystem(NetworkEntityMap entityMap)
+            => _entityMap = entityMap;
+
+        public void Execute(ISimulationView view, float dt)
+        {
+            var world = view as EntityRepository;
+            if (world == null) return;
+
+            foreach (var cmd in view.ConsumeManagedEvents<DestroyEntityCommand>())
+            {
+                if (_entityMap.TryGetEntity(cmd.NetworkId, out var entity))
+                {
+                    _entityMap.Unregister(cmd.NetworkId, view.Tick);
+                    if (world.IsAlive(entity))
+                        world.DestroyEntity(entity);
+                }
+            }
+        }
     }
 }

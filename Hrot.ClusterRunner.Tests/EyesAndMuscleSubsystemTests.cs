@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using FDP.Framework.Runner;
 using Hrot.ClusterRunner.Services;
-using Hrot.SimHost;
+using Hrot.Common;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Tests;

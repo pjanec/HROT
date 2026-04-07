@@ -2,6 +2,9 @@ using Hrot.CGF;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Translators;
 using Hrot.SimHost.Translators;
+using Hrot.Common;
+using Hrot.Common.Infrastructure;
+using Hrot.ClusterRunner.Replication;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Services;
@@ -14,11 +17,12 @@ namespace Hrot.ClusterRunner.Services;
 
 /// <summary>
 /// Hosts the CGF (Computer Generated Forces) subsystem under the Runner process.
-/// In Phase 1 the CGF acts only as a heartbeating <see cref="CgfApplication.ClusterSlave"/>.
+/// Migrated in EAM-M003 to use <see cref="HrotNodeBuilder"/> instead of <see cref="CgfApplication"/>.
 /// </summary>
 public sealed class CgfSubsystem : ISubsystem
 {
-    private CgfApplication? _app;
+    private HrotNodeContext?  _context;
+    private IEcsModule?       _nedReplicationModule;
     private NetworkEntityMap? _entityMap;
 
     /// <inheritdoc/>
@@ -31,40 +35,64 @@ public sealed class CgfSubsystem : ISubsystem
     internal NetworkEntityMap? GhostEntityMap => _entityMap;
 
     /// <summary>TestHook: exposes the CGF ECS world for integration tests.</summary>
-    internal Fdp.Kernel.EntityRepository? World => _app?.World;
+    internal Fdp.Kernel.EntityRepository? World => _context?.World;
 
     /// <inheritdoc/>
     public void Initialize(SubsystemConfig config)
     {
-        _app = new CgfApplication(config.DomainId, nodeId: config.NodeId != 0 ? config.NodeId : 400);
+        // ── Build common infrastructure ────────────────────────────────────────
+        var nodeConfig = new HrotNodeConfig
+        {
+            DomainId      = config.DomainId,
+            NodeId        = config.NodeId != 0 ? config.NodeId : 400,
+            // config.Headless == true means unit-test / offline mode (no DDS, no allocator wait).
+            // In integration tests CgfHarness passes Headless = false, and the OrchestratorSubsystem
+            // (started by the accompanying HrotRunnerHarness) provides the DdsIdAllocatorServer.
+            Headless      = config.Headless,
+            SubsystemName = "CGF",
+        };
+        _context = new HrotNodeBuilder(nodeConfig)
+            .WithRole("CgfNode", NodeRole.Brain)
+            .Build();
 
-        // ── Brain-role pack installation (PACK2-R002) ─────────────────────────
+        _entityMap = _context.EntityMap;
+        CgfComponentRegistry.RegisterAll(_context.World);
+
+        // ── Register base infrastructure modules ───────────────────────────────
+        foreach (var m in _context.BaseModules)
+            _context.Kernel.RegisterModule(m);
+
+        // ── Register NedReplicationModule (Brain role) ─────────────────────────
+        // Replaces: EntityStatesIngressPack + ActuatorIntentsEgressPack + GhostCleanupModule
+        _nedReplicationModule = new NedReplicationModule(
+            participant:  _context.Participant,
+            role:         NodeRole.Brain,
+            entityMap:    _entityMap,
+            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            // Use world.Bus so that events published by EntityMasterIngressTranslator.ProcessDispose()
+            // during the Input kernel phase are made visible to GhostDestructionSystem (PostSimulation)
+            // via view.ConsumeManagedEvents<T>() after the kernel's internal Bus.SwapBuffers().
+            // Using _context.EventBus (a separate FdpEventBus) would cause a bus mismatch.
+            eventBus:     _context.World.Bus,
+            localNodeId:  nodeConfig.NodeId,
+            domainId:     config.DomainId);
+        _context.Kernel.RegisterModule(_nedReplicationModule);
+
+        // ── Register CGF simulation logic (Brain-specific) ─────────────────────
         var doctrineRegistry = new DoctrineRegistry();
-        _entityMap           = new NetworkEntityMap();
-        var geoTransform     = HrotEnvironment.CreateGeoTransform();
-        var ghostCreation    = new GhostCreationSystem(_entityMap);
+        _context.Kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, _entityMap));
 
-        _app.Install(new CgfLogicPack(doctrineRegistry, _entityMap));
-        _app.Install(new GhostCleanupModule(_entityMap));
-        _app.Install(new EntityStatesIngressPack(
-            PackRole.Ingress,
-            _app.Participant,
-            _entityMap,
-            _app.World.Bus,
-            ghostCreation,
-            geoTransform));
-        _app.Install(new ActuatorIntentsEgressPack(
-            PackRole.Egress,
-            _app.Participant,
-            _entityMap,
-            geoTransform,
-            _app.EventBus));
+        // ── Initialize ─────────────────────────────────────────────────────────
+        _context.Kernel.Initialize();
     }
 
     /// <inheritdoc/>
     public void Update(float deltaTime)
     {
-        _app?.Tick();
+        _context?.SlaveTranslator?.Tick();
+        _context?.ClusterSlave.Tick();
+        _context?.Kernel.Update(deltaTime);
+        _context?.EventBus.SwapBuffers();
     }
 
     /// <inheritdoc/>
@@ -76,60 +104,10 @@ public sealed class CgfSubsystem : ISubsystem
     /// <inheritdoc/>
     public void Shutdown()
     {
-        _app?.Dispose();
-        _app = null;
-    }
-
-    // ── Ghost entity cleanup ──────────────────────────────────────────────────
-
-    /// <summary>
-    /// ECS system that handles <see cref="DestroyEntityCommand"/> events on the world bus
-    /// for ghost entities. Unregisters the entity from the entity map and destroys it in the
-    /// ECS world. Runs in PostSimulation phase (after SwapBuffers) so it sees events published
-    /// during the Input phase in the same frame.
-    /// </summary>
-    [UpdateInPhase(SystemPhase.PostSimulation)]
-    private sealed class GhostDestructionSystem : IEcsModuleSystem
-    {
-        private readonly NetworkEntityMap _entityMap;
-
-        public GhostDestructionSystem(NetworkEntityMap entityMap)
-        {
-            _entityMap = entityMap;
-        }
-
-        public void Execute(ISimulationView view, float dt)
-        {
-            var world = view as EntityRepository;
-            if (world == null) return;
-
-            foreach (var cmd in view.ConsumeManagedEvents<DestroyEntityCommand>())
-            {
-                if (_entityMap.TryGetEntity(cmd.NetworkId, out var entity))
-                {
-                    _entityMap.Unregister(cmd.NetworkId, view.Tick);
-                    if (world.IsAlive(entity))
-                        world.DestroyEntity(entity);
-                }
-            }
-        }
-    }
-
-    /// <summary>Thin <see cref="IEcsModule"/> wrapper that installs <see cref="GhostDestructionSystem"/>.</summary>
-    private sealed class GhostCleanupModule : IEcsModule
-    {
-        public string Name => "GhostCleanup";
-        public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
-
-        private readonly GhostDestructionSystem _system;
-
-        public GhostCleanupModule(NetworkEntityMap entityMap)
-        {
-            _system = new GhostDestructionSystem(entityMap);
-        }
-
-        public void RegisterSystems(ISystemRegistry registry) => registry.RegisterSystem(_system);
-
-        public void Tick(ISimulationView view, float dt) { }
+        _nedReplicationModule = null;
+        _context?.Kernel.Dispose();
+        _context?.Participant?.Dispose();
+        _context = null;
     }
 }
+

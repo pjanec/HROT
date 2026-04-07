@@ -1,4 +1,4 @@
-namespace Hrot.ClusterRunner.Infrastructure;
+namespace Hrot.Common.Infrastructure;
 
 /// <summary>
 /// Minimal configuration required by <see cref="HrotNodeBuilder"/> to construct a

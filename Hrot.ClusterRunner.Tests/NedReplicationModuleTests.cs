@@ -6,7 +6,7 @@ using FDP.Toolkit.Replication.Systems;
 using Hrot.ClusterRunner.Replication;
 using Hrot.IG.Systems;
 using Hrot.Map.Common;
-using Hrot.SimHost;
+using Hrot.Common;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Scheduling;
 using ModuleHost.Network.Cyclone.Systems;

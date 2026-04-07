@@ -56,7 +56,9 @@ public sealed class CgfHarness : IDisposable
         CgfSvc.Initialize(new SubsystemConfig
         {
             DomainId = domainId,
-            Headless = true,
+            Headless = false,  // CGF always creates a DDS participant in integration tests;
+                               // the paired HrotRunnerHarness starts OrchestratorSubsystem first
+                               // so EnsureIdAllocatorRouting finds a match immediately.
         });
 
         Warmup();

@@ -4,9 +4,10 @@ using FDP.Framework.Runner;
 using FDP.Toolkit.ImGui.WindowManager;
 using FDP.Toolkit.Vis2D.Components;
 using Fdp.Kernel;
-using Hrot.ClusterRunner.Infrastructure;
+using Hrot.Common.Infrastructure;
 using Hrot.ClusterRunner.Replication;
 using Hrot.Map.Common;
+using Hrot.Common;
 using Hrot.SimHost;
 
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;

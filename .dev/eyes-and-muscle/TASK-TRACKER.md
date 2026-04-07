@@ -36,6 +36,6 @@
 
 **Goal:** Apply `HrotNodeBuilder` and `NedReplicationModule` universally to eliminate legacy init boilerplate in `SimHostApp`, `IgApplication`, and `CgfSubsystem`. This phase must complete in the same pass as Phases 1–3; leaving the old boot paths alive would mean two competing initialisation strategies in production.
 
-- [ ] **EAM-M001** Migrate SimHostApp — [details](./TASK-DETAIL.md#eam-m001--migrate-simhostapp-to-hrotnodebuilder--nedreplicationmodule)
-- [ ] **EAM-M002** Migrate IgApplication — [details](./TASK-DETAIL.md#eam-m002--migrate-igapplication-to-hrotnodebuilder--nedreplicationmodule)
-- [ ] **EAM-M003** Migrate CgfSubsystem — [details](./TASK-DETAIL.md#eam-m003--migrate-cgfsubsystem-to-hrotnodebuilder)
+- [x] **EAM-M001** Migrate SimHostApp — [details](./TASK-DETAIL.md#eam-m001--migrate-simhostapp-to-hrotnodebuilder--nedreplicationmodule)
+- [x] **EAM-M002** Migrate IgApplication — [details](./TASK-DETAIL.md#eam-m002--migrate-igapplication-to-hrotnodebuilder--nedreplicationmodule)
+- [x] **EAM-M003** Migrate CgfSubsystem — [details](./TASK-DETAIL.md#eam-m003--migrate-cgfsubsystem-to-hrotnodebuilder)

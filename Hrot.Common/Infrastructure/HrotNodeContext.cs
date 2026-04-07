@@ -2,13 +2,14 @@ using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Hrot.Common.Orchestration;
 using ModuleHost.Core;
 using ModuleHost.Core.Abstractions;
+using ModuleHost.Network.Cyclone.Services;
+using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 
-namespace Hrot.ClusterRunner.Infrastructure;
+namespace Hrot.Common.Infrastructure;
 
 /// <summary>
 /// Immutable snapshot of all infrastructure objects produced by <see cref="HrotNodeBuilder"/>.
@@ -53,4 +54,7 @@ public sealed record HrotNodeContext
     /// <c>null</c> in headless/test contexts that skip NED replication.
     /// </summary>
     public GhostCreationSystem? GhostCreationSystem { get; init; }
+
+    /// <summary>The DDS ID allocator for entity ID allocation. Null in headless contexts.</summary>
+    public DdsIdAllocator? IdAllocator { get; init; }
 }

@@ -18,7 +18,7 @@ using ModuleHost.Core.Time;
 using ModuleHost.Network.Cyclone.Services;
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 
-namespace Hrot.ClusterRunner.Infrastructure;
+namespace Hrot.Common.Infrastructure;
 
 /// <summary>
 /// Fluent builder that constructs the full <see cref="HrotNodeContext"/> in one
@@ -34,10 +34,6 @@ namespace Hrot.ClusterRunner.Infrastructure;
 ///
 /// <para>The builder is single-use: a second call to <see cref="Build"/> throws
 /// <see cref="InvalidOperationException"/>.</para>
-///
-/// <para>Phase 4 (EAM-M001) will migrate <c>SimHostApp</c>, <c>IgApplication</c> and
-/// <c>CgfApplication</c> to use this builder. For now their bootstrap sequences are
-/// unchanged.</para>
 /// </summary>
 public sealed class HrotNodeBuilder
 {
@@ -51,7 +47,7 @@ public sealed class HrotNodeBuilder
     }
 
     /// <summary>Sets the human-readable subsystem name used in DDS heartbeat publications.</summary>
-    public HrotNodeBuilder WithRole(string subsystemName, Hrot.SimHost.NodeRole role)
+    public HrotNodeBuilder WithRole(string subsystemName, Hrot.Common.NodeRole role)
     {
         _subsystemName = subsystemName;
         return this;
@@ -149,15 +145,16 @@ public sealed class HrotNodeBuilder
         // Step 10 — Return context
         return new HrotNodeContext
         {
-            World          = world,
-            Kernel         = kernel,
-            Participant    = participant,
-            EventBus       = eventBus,
-            EntityMap      = entityMap,
-            ClusterSlave   = clusterSlave,
+            World           = world,
+            Kernel          = kernel,
+            Participant     = participant,
+            EventBus        = eventBus,
+            EntityMap       = entityMap,
+            ClusterSlave    = clusterSlave,
             SlaveTranslator = slaveTranslator,
-            BaseModules    = baseModules,
+            BaseModules     = baseModules,
             GhostCreationSystem = null,   // populated by NedReplicationModule after Build()
+            IdAllocator     = idAllocator,
         };
     }
 }

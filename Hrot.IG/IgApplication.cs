@@ -83,6 +83,7 @@ using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 
 using Hrot.Common.Orchestration;
+using Hrot.Common.Infrastructure;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 
@@ -219,6 +220,9 @@ public class IgApplication : IDisposable
     // CMC-S016: orchestration bus + slave translator (Option C).
     private Fdp.Kernel.FdpEventBus?                             _igOrchestrationBus;
     private Hrot.Common.Orchestration.NodeOpSlaveTranslator?    _igSlaveTranslator;
+
+    // ── HrotNodeBuilder infrastructure context (EAM-M002) ─────────────────────
+    private HrotNodeContext? _context;
 
 
 
@@ -599,17 +603,24 @@ public class IgApplication : IDisposable
 
     {
 
-        _world     = new EntityRepository();
+        // ── Build core ECS infrastructure (EAM-M002) ─────────────────────────
+        // Headless=true here: DDS participant and ID allocator are NOT needed at
+        // ECS-init time. The participant is created later in InitializeNetwork
+        // (IG does not use DdsIdAllocator, so skipping allocator wait is correct).
+        var igConfig = new HrotNodeConfig
+        {
+            DomainId      = _domainOverride ?? IgNetworkConstants.DdsDomain,
+            NodeId        = _effectiveInstanceId,
+            Headless      = true,                   // skip DDS+allocator here
+            SubsystemName = "IgApplication",
+        };
+        _context = new HrotNodeBuilder(igConfig)
+            .WithRole("IgApplication", Hrot.Common.NodeRole.ImageGenerator)
+            .Build();
 
-        _entityMap = new NetworkEntityMap();
-
-
-
-        var accumulator = new EventAccumulator();
-
-        _kernel         = new ModuleHostKernel(_world, accumulator);
-
-
+        _world     = _context.World;
+        _entityMap = _context.EntityMap;
+        _kernel    = _context.Kernel;
 
         //  Shared foundation 
         // Registers network replication, geographic, shared definitions, and
@@ -751,8 +762,9 @@ public class IgApplication : IDisposable
 
 
 
-        // A. EntityLifecycleModule ÔÇö no peers need to ACK in IG standalone mode
-
+        // A. EntityLifecycleModule — no peers need to ACK in IG standalone mode
+        // Note: elm created manually here (not from _context.BaseModules) so it
+        // shares the same tkb instance with ReplicationLogicModule (EAM-M002 constraint).
         var elm = new EntityLifecycleModule(tkb, Array.Empty<int>());
 
         _kernel.RegisterModule(elm);

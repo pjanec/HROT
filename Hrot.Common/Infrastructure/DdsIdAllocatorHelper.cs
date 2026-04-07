@@ -4,7 +4,7 @@ using CycloneDDS.Runtime;
 using FDP.Kernel.Logging;
 using ModuleHost.Network.Cyclone.Services;
 
-namespace Hrot.ClusterRunner.Infrastructure;
+namespace Hrot.Common.Infrastructure;
 
 /// <summary>
 /// Shared helper for ensuring the DDS ID allocator has an active publication match

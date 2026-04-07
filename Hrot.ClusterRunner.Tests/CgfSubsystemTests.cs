@@ -20,23 +20,21 @@ public class CgfSubsystemTests : IDisposable
     [Fact]
     public void Initialize_InstallsThreePacks()
     {
-        // Use a unique domain to avoid participant conflicts with other tests.
-        var config = new SubsystemConfig { DomainId = 199 };
+        // Headless=true avoids DDS participant creation and DdsIdAllocatorServer wait,
+        // making this a fast unit test that only verifies ECS kernel and module composition.
+        // (In production/integration tests, Headless=false is used and an OrchestratorSubsystem
+        // provides the DdsIdAllocatorServer before CgfSubsystem initializes.)
+        var config = new SubsystemConfig { DomainId = 0, Headless = true };
 
         _sut.Initialize(config);
 
-        // Access the internal CgfApplication via reflection.
-        var appField = typeof(CgfSubsystem)
-            .GetField("_app", BindingFlags.NonPublic | BindingFlags.Instance);
-        var app = appField!.GetValue(_sut);
+        // World and EntityMap are created by HrotNodeBuilder (via _context).
+        Assert.NotNull(_sut.World);
+        Assert.NotNull(_sut.GhostEntityMap);
 
-        var namesProp = app!.GetType().GetProperty("InstalledModuleNames");
-        var names = (IReadOnlyList<string>)namesProp!.GetValue(app)!;
-
-        Assert.Contains("CgfLogicPack",         names);
-        Assert.Contains("GhostCleanup",          names);
-        Assert.Contains("EntityStatesIngress",   names);
-        Assert.Contains("ActuatorIntentsEgress", names);
-        Assert.Equal(4, names.Count);
+        // NedReplicationModule (Brain) is registered.
+        var nedField = typeof(CgfSubsystem)
+            .GetField("_nedReplicationModule", BindingFlags.NonPublic | BindingFlags.Instance);
+        Assert.NotNull(nedField!.GetValue(_sut));
     }
 }

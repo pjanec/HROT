@@ -3,7 +3,7 @@ using System.Threading;
 using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Replication.Components;
 using Fdp.Kernel;
-using Hrot.SimHost;
+using Hrot.Common;
 using ModuleHost.Core.Abstractions;
 
 namespace Hrot.ClusterRunner.Services;
