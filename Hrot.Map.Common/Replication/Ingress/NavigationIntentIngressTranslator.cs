@@ -11,7 +11,7 @@ using ModuleHost.Core.Abstractions;
 using EcsNavigationIntent = FDP.Toolkit.Navigation.NavigationIntent;
 using EcsNavMode          = FDP.Toolkit.Navigation.NavigationMode;
 
-namespace Hrot.SimHost.Network
+namespace Hrot.Map.Common.Replication.Ingress
 {
     /// <summary>
     /// Ingress translator: polls the DDS <c>NavigationIntent</c> topic and

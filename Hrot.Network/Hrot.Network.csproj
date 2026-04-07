@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Hrot.Network</RootNamespace>
+    <AssemblyName>Hrot.Network</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
+    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -24,6 +24,7 @@
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
     <!-- Subsystem libraries (R2) -->
     <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
+    <ProjectReference Include="..\Hrot.Network\Hrot.Network.csproj" />
     <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
     <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />

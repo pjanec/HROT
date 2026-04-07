@@ -14,7 +14,7 @@ using ModuleHost.Core.Abstractions;
 using EcsNavigationIntent = FDP.Toolkit.Navigation.NavigationIntent;
 using EcsNavMode          = FDP.Toolkit.Navigation.NavigationMode;
 
-namespace Hrot.SimHost.Network
+namespace Hrot.Map.Common.Replication.Egress
 {
     /// <summary>
     /// Egress translator: reads the ECS <see cref="EcsNavigationIntent"/> component

@@ -4,7 +4,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Hrot.ClusterRunner.Replication;
-using Hrot.IG.Systems;
+using Hrot.Common.Systems;
 using Hrot.Map.Common;
 using Hrot.Common;
 using ModuleHost.Core.Abstractions;

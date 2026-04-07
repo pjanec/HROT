@@ -11,7 +11,7 @@ using ModuleHost.Core.Abstractions;
 using EcsNavigationStatus = FDP.Toolkit.Navigation.NavigationStatus;
 using EcsNavResult        = FDP.Toolkit.Navigation.NavigationResult;
 
-namespace Hrot.SimHost.Network
+namespace Hrot.Map.Common.Replication.Egress
 {
     /// <summary>
     /// Egress translator: reads the ECS <see cref="EcsNavigationStatus"/> component

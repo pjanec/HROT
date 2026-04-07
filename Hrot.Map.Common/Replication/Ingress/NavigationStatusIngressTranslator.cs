@@ -9,7 +9,7 @@ using ModuleHost.Core.Abstractions;
 using EcsNavigationStatus = FDP.Toolkit.Navigation.NavigationStatus;
 using EcsNavResult        = FDP.Toolkit.Navigation.NavigationResult;
 
-namespace Hrot.SimHost.Network
+namespace Hrot.Map.Common.Replication.Ingress
 {
     /// <summary>
     /// Ingress translator: polls the DDS <c>NavigationStatus</c> topic and

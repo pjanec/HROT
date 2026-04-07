@@ -8,7 +8,7 @@ using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 
-namespace Hrot.SimHost.Network
+namespace Hrot.Network.Translators
 {
     /// <summary>
     /// Factory for the cognitive (Brain-side) translator set.

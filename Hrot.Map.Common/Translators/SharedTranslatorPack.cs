@@ -7,7 +7,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 
-namespace Hrot.SimHost.Network
+namespace Hrot.Map.Common.Translators
 {
     /// <summary>
     /// Factory for the shared translator set that all <see cref="NodeRole"/> values

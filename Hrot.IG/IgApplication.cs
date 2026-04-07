@@ -28,6 +28,8 @@ using Hrot.IG.Services;
 
 using Hrot.IG.Systems;
 
+using Hrot.Common.Systems;
+
 using Hrot.ScenarioEditor.Tools;
 
 using Hrot.IG.Translators;

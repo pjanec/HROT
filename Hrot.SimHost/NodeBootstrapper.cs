@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Modules.Orchestration;
 using Hrot.SimHost.Network;
+using Hrot.Map.Common.Translators;
+using Hrot.Network.Translators;
 using Fdp.Kernel;
 using Fdp.Kernel.Orchestration;
 using CarKinem.Commands;

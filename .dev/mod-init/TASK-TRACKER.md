@@ -8,13 +8,13 @@
 
 **Goal:** Remove application-layer dependencies from systems and packs that `NedReplicationModule` needs, so it can be relocated to `Hrot.Network`.
 
-- [ ] **MODINIT-S100** Create Hrot.Network assembly [details](./TASK-DETAIL.md#modinit-s100--create-hrotnetwork-assembly)
-- [ ] **MODINIT-S107** Move navigation translators to Hrot.Map.Common [details](./TASK-DETAIL.md#modinit-s107--move-navigation-translators-to-hrotmapcommon)
-- [ ] **MODINIT-S101** Move DeadReckoningSyncSystem to Hrot.Common [details](./TASK-DETAIL.md#modinit-s101--move-deadreckoningsyncsystem-to-hrotcommon)
-- [ ] **MODINIT-S102** Move SharedTranslatorPack to Hrot.Map.Common [details](./TASK-DETAIL.md#modinit-s102--move-sharedtranslatorpack-to-hrotmapcommon)
-- [ ] **MODINIT-S103** Move KinematicTranslatorPack to Hrot.Map.Common [details](./TASK-DETAIL.md#modinit-s103--move-kinematictranslatorpack-to-hrotmapcommon)
-- [ ] **MODINIT-S104** Move CognitiveTranslatorPack to Hrot.Network [details](./TASK-DETAIL.md#modinit-s104--move-cognitivetranslatorpack-to-hrotnetwork)
-- [ ] **MODINIT-S106** Validate Stage 1 layer boundaries [details](./TASK-DETAIL.md#modinit-s106--validate-stage-1-layer-boundaries)
+- [x] **MODINIT-S100** Create Hrot.Network assembly [details](./TASK-DETAIL.md#modinit-s100--create-hrotnetwork-assembly)
+- [x] **MODINIT-S107** Move navigation translators to Hrot.Map.Common [details](./TASK-DETAIL.md#modinit-s107--move-navigation-translators-to-hrotmapcommon)
+- [x] **MODINIT-S101** Move DeadReckoningSyncSystem to Hrot.Common [details](./TASK-DETAIL.md#modinit-s101--move-deadreckoningsyncsystem-to-hrotcommon)
+- [x] **MODINIT-S102** Move SharedTranslatorPack to Hrot.Map.Common [details](./TASK-DETAIL.md#modinit-s102--move-sharedtranslatorpack-to-hrotmapcommon)
+- [x] **MODINIT-S103** Move KinematicTranslatorPack to Hrot.Map.Common [details](./TASK-DETAIL.md#modinit-s103--move-kinematictranslatorpack-to-hrotmapcommon)
+- [x] **MODINIT-S104** Move CognitiveTranslatorPack to Hrot.Network [details](./TASK-DETAIL.md#modinit-s104--move-cognitivetranslatorpack-to-hrotnetwork)
+- [x] **MODINIT-S106** Validate Stage 1 layer boundaries [details](./TASK-DETAIL.md#modinit-s106--validate-stage-1-layer-boundaries)
 
 ---
 

@@ -3,7 +3,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;
 
-namespace Hrot.IG.Systems;
+namespace Hrot.Common.Systems;
 
 /// <summary>
 /// Projects network position forward using network velocity and blends the render

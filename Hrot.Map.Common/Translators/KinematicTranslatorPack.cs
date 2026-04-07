@@ -1,11 +1,12 @@
 using System.Collections.Generic;
 using Hrot.Map.Common.Replication.Egress;
+using Hrot.Map.Common.Replication.Ingress;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Replication.Services;
 
-namespace Hrot.SimHost.Network
+namespace Hrot.Map.Common.Translators
 {
     /// <summary>
     /// Factory for the kinematic (Muscle-side) translator set.

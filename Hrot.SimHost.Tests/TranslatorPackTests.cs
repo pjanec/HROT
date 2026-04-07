@@ -2,6 +2,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Hrot.SimHost.Network;
+using Hrot.Map.Common.Replication.Egress;
+using Hrot.Map.Common.Replication.Ingress;
+using Hrot.Map.Common.Translators;
+using Hrot.Network.Translators;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
@@ -30,6 +34,68 @@ namespace Hrot.SimHost.Tests
 
             public (double lat, double lon, double alt) ToGeodetic(Vector3 pos)
                 => (pos.Y, pos.X, pos.Z);
+        }
+
+        // ── SharedTranslatorPack (MODINIT-S102) ──────────────────────────────
+
+        [Fact]
+        public void SharedTranslatorPack_Create_ReturnsThreeTranslators()
+        {
+            const uint domainId = 209u;
+            using var participant = new DdsParticipant(domainId);
+            var entityMap     = new NetworkEntityMap();
+            var eventBus      = new FdpEventBus();
+            var ghostCreation = new GhostCreationSystem(entityMap);
+
+            var translators = SharedTranslatorPack.Create(
+                participant, entityMap, localNodeId: 1, eventBus, ghostCreation).ToList();
+
+            Assert.Equal(3, translators.Count);
+        }
+
+        [Fact]
+        public void SharedTranslatorPack_Create_ContainsEntityMasterEgressTranslator()
+        {
+            const uint domainId = 209u;
+            using var participant = new DdsParticipant(domainId);
+            var entityMap     = new NetworkEntityMap();
+            var eventBus      = new FdpEventBus();
+            var ghostCreation = new GhostCreationSystem(entityMap);
+
+            var translators = SharedTranslatorPack.Create(
+                participant, entityMap, localNodeId: 1, eventBus, ghostCreation).ToList();
+
+            Assert.Contains(translators, t => t is EntityMasterEgressTranslator);
+        }
+
+        [Fact]
+        public void SharedTranslatorPack_Create_ContainsEntityMasterIngressTranslator()
+        {
+            const uint domainId = 209u;
+            using var participant = new DdsParticipant(domainId);
+            var entityMap     = new NetworkEntityMap();
+            var eventBus      = new FdpEventBus();
+            var ghostCreation = new GhostCreationSystem(entityMap);
+
+            var translators = SharedTranslatorPack.Create(
+                participant, entityMap, localNodeId: 1, eventBus, ghostCreation).ToList();
+
+            Assert.Contains(translators, t => t is EntityMasterIngressTranslator);
+        }
+
+        [Fact]
+        public void SharedTranslatorPack_Create_ContainsEntityInfoEgressTranslator()
+        {
+            const uint domainId = 209u;
+            using var participant = new DdsParticipant(domainId);
+            var entityMap     = new NetworkEntityMap();
+            var eventBus      = new FdpEventBus();
+            var ghostCreation = new GhostCreationSystem(entityMap);
+
+            var translators = SharedTranslatorPack.Create(
+                participant, entityMap, localNodeId: 1, eventBus, ghostCreation).ToList();
+
+            Assert.Contains(translators, t => t is EntityInfoEgressTranslator);
         }
 
         // ── KinematicTranslatorPack ───────────────────────────────────────────

@@ -7,9 +7,10 @@ using Fdp.Modules.Geographic;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
-using Hrot.IG.Systems;
+using Hrot.Common.Systems;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Translators;
+using Hrot.Network.Translators;
 using Hrot.Common;
 using Hrot.SimHost;
 using Hrot.SimHost.Network;
@@ -47,9 +48,9 @@ namespace Hrot.ClusterRunner.Replication;
 ///
 /// <para>
 /// TODO: move to shared if NedReplicationModule is extracted from Hrot.ClusterRunner.
-/// DeadReckoningSyncSystem is currently in Hrot.IG/Systems/ — accessible here because
-/// Hrot.ClusterRunner references Hrot.IG. If NedReplicationModule is later moved to a
-/// shared project, DeadReckoningSyncSystem would need to move with it.
+/// DeadReckoningSyncSystem is now in Hrot.Common/Systems/ — accessible here because
+/// Hrot.ClusterRunner references Hrot.Common transitively. If NedReplicationModule is later moved to a
+/// shared project, DeadReckoningSyncSystem is already correctly positioned.
 /// </para>
 /// </summary>
 public sealed class NedReplicationModule : IEcsModule
