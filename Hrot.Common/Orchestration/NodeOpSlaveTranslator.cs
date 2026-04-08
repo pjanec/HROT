@@ -129,6 +129,7 @@ public sealed class NodeOpSlaveTranslator
             {
                 if (!hasPayload) return null;
                 string? scenarioId    = GetString(payloadJson!, "ScenarioId");
+                string? exerciseId    = GetString(payloadJson!, "ExerciseId");
                 int     targetStateInt = 0;
                 string? tsStr         = GetString(payloadJson!, "TargetState");
                 if (!string.IsNullOrWhiteSpace(tsStr) &&
@@ -139,7 +140,8 @@ public sealed class NodeOpSlaveTranslator
                 return new EditLoadHandlerPayload(
                     ScenarioId:     scenarioId,
                     IsNewScenario:  false,
-                    TargetState:    targetStateInt);
+                    TargetState:    targetStateInt,
+                    ExerciseId:     exerciseId);
             }
 
             case NedNodeOpType.StartEpisode:

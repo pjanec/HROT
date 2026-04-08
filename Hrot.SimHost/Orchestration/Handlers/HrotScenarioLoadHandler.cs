@@ -1,7 +1,10 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading;
+using System.Threading.Tasks;
 using Fdp.Kernel;
+using Fdp.Kernel.Orchestration;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Scenario;
@@ -28,6 +31,8 @@ public sealed class HrotScenarioLoadHandler : IClusterStateHandler
     private readonly IScenarioLoader _scenarioLoader;
     private readonly IZoneManagerService _zoneService;
     private readonly EntityRepository? _world;
+    private readonly IRecordReplayController? _controller;
+    private readonly string _storageDirectory;
 
     private string? _pendingJson;
     private Guid? _pendingTransactionId;
@@ -43,21 +48,25 @@ public sealed class HrotScenarioLoadHandler : IClusterStateHandler
         ScenarioSerializer serializer,
         IScenarioLoader scenarioLoader,
         IZoneManagerService zoneService,
-        EntityRepository? world = null)
+        EntityRepository? world = null,
+        IRecordReplayController? controller = null,
+        string storageDirectory = @"C:\FDP_Temp")
     {
-        _serializer     = serializer     ?? throw new ArgumentNullException(nameof(serializer));
-        _scenarioLoader = scenarioLoader ?? throw new ArgumentNullException(nameof(scenarioLoader));
-        _zoneService    = zoneService    ?? throw new ArgumentNullException(nameof(zoneService));
-        _world          = world;
+        _serializer        = serializer     ?? throw new ArgumentNullException(nameof(serializer));
+        _scenarioLoader    = scenarioLoader ?? throw new ArgumentNullException(nameof(scenarioLoader));
+        _zoneService       = zoneService    ?? throw new ArgumentNullException(nameof(zoneService));
+        _world             = world;
+        _controller        = controller;
+        _storageDirectory  = storageDirectory ?? @"C:\FDP_Temp";
     }
 
     /// <inheritdoc />
     public bool CanHandle(NodeOpType operation) => operation == NodeOpType.PrepareLive;
 
     /// <inheritdoc />
-    public System.Threading.Tasks.Task<object?> PrepareAsync(
+    public async Task<object?> PrepareAsync(
         ExecuteNodeOpIntent intent,
-        System.Threading.CancellationToken ct)
+        CancellationToken ct)
     {
         _prepareCallCount++;
         _pendingJson = null;
@@ -67,14 +76,25 @@ public sealed class HrotScenarioLoadHandler : IClusterStateHandler
             ? elp.ScenarioId
             : intent.DomainPayload as string;
 
-        if (string.IsNullOrWhiteSpace(scenarioId))
-            return System.Threading.Tasks.Task.FromResult<object?>(null);
+        if (!string.IsNullOrWhiteSpace(scenarioId))
+        {
+            _pendingJson = _scenarioLoader.TryLoadScenarioJson(scenarioId);
+            if (_pendingJson != null)
+                _pendingTransactionId = intent.TransactionId;
+        }
 
-        _pendingJson = _scenarioLoader.TryLoadScenarioJson(scenarioId);
-        if (_pendingJson != null)
-            _pendingTransactionId = intent.TransactionId;
+        // Start recording when an exercise ID is provided (bus-mode path).
+        // This mirrors what ReferenceLiveLoadHandler.PrepareAsync does for the
+        // "cold PrepareLive" case (no scenario serializer registered).
+        if (_controller != null)
+        {
+            var exerciseId = ResolveExerciseId(intent.DomainPayload);
+            if (exerciseId != Guid.Empty)
+                await _controller.PrepareRecordingAsync(exerciseId, _storageDirectory)
+                    .ConfigureAwait(false);
+        }
 
-        return System.Threading.Tasks.Task.FromResult<object?>(null);
+        return null;
     }
 
     /// <inheritdoc />
@@ -106,6 +126,24 @@ public sealed class HrotScenarioLoadHandler : IClusterStateHandler
     {
         _pendingJson = null;
         _pendingTransactionId = null;
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static Guid ResolveExerciseId(object? domainPayload) =>
+        domainPayload switch
+        {
+            Guid g => g,
+            EditLoadHandlerPayload p when p.ExerciseId != null =>
+                Guid.TryParse(p.ExerciseId, out var parsed) ? parsed : GuidFromString(p.ExerciseId),
+            _ => Guid.Empty,
+        };
+
+    private static Guid GuidFromString(string s)
+    {
+        var hashBytes = System.Security.Cryptography.MD5.HashData(
+            System.Text.Encoding.UTF8.GetBytes(s));
+        return new Guid(hashBytes);
     }
 
     // ── Single-parse core ─────────────────────────────────────────────────────

@@ -124,7 +124,7 @@ public sealed class NodeOpMasterTranslator
                         ? ((Hrot.NED.Descriptors.Orchestration.ClusterState)p.TargetState).ToString()
                         : null,
                     ScenarioId:  p.ScenarioId,
-                    ExerciseId:  null),
+                    ExerciseId:  p.ExerciseId),
                 _jsonOptions),
 
             EpisodeHandlerPayload p => JsonSerializer.Serialize(

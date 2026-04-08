@@ -789,7 +789,8 @@ public sealed class ClusterMaster : IDisposable
                             tStep.TargetState == ClusterState.LoadingLive || tStep.TargetState == ClusterState.LoadingEdit
                                 ? intent.ScenarioId : null,
                             false,
-                            (int)tStep.TargetState);
+                            (int)tStep.TargetState,
+                            ExerciseId: intent.ExerciseId);
 
                         FanOutNodeOp(prepareOp,             tx.TransactionId, preparePayload,              activeNodeIds);
                         FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId,

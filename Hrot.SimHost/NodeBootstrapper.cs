@@ -381,7 +381,9 @@ namespace Hrot.SimHost
                 var zoneService    = new ZoneManagerService();
 
                 clusterSlave.RegisterHandler(
-                    new HrotScenarioLoadHandler(scenarioSerializer, scenarioLoader, zoneService, world));
+                    new HrotScenarioLoadHandler(scenarioSerializer, scenarioLoader, zoneService, world,
+                        controller: controller,
+                        storageDirectory: localTempRoot));
 
                 clusterSlave.RegisterHandler(
                     new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(scenarioSerializer, scenarioLoader, zoneService, world));

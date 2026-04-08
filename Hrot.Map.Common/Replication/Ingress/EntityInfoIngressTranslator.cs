@@ -16,12 +16,11 @@ namespace Hrot.Map.Common.Replication.Ingress
 	/// <summary>
 	/// Ingress translator for the Hrot <c>EntityInfo</c> DDS topic.
 	///
-	/// The ECS <see cref="IG.Components.EntityInfo"/> is now an unmanaged struct, so it can
-	/// be applied directly via <see cref="EntityRepository.SetComponent{T}"/>.
-	/// For the update path the translator publishes an
-	/// <see cref="UpdateEntityCommand"/> onto the <see cref="FdpEventBus"/>; the
-	/// <c>NetworkSpawningSystem</c> applies the component through
-	/// <c>EntityComponentReflector</c>.
+	/// The ECS <see cref="IG.Components.EntityInfo"/> is an unmanaged struct applied directly
+	/// via <see cref="EntityRepository.SetComponent{T}"/> when the view exposes a writable
+	/// <see cref="EntityRepository"/> (the normal IG role).  When the repo is unavailable the
+	/// translator falls back to publishing an <see cref="UpdateEntityCommand"/> so that a
+	/// <c>NetworkSpawningSystem</c> can apply the component instead.
 	///
 	/// Entities not yet registered in the map are silently skipped.
 	/// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
@@ -68,10 +67,10 @@ namespace Hrot.Map.Common.Replication.Ingress
 
                 var info = sample.Data;
                 long netId = info.EntityId;
+                var repo = view as EntityRepository;
 
                 if (!_entityMap.TryGetEntity(netId, out _))
                 {
-                    var repo = view as EntityRepository;
                     if (repo == null)
                     {
                         FdpLog<EntityInfoIngressTranslator>.Warn(
@@ -82,7 +81,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                     _ghostCreationSystem.CreateGhost(repo, netId);
                 }
 
-                ProcessSample(info, netId);
+                ProcessSample(info, netId, repo);
             }
         }
 
@@ -109,7 +108,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void Dispose(long networkEntityId) { /* IG does not write Hrot.NED.Descriptors.EntityInfo */ }
 
-        internal void ProcessSample( Hrot.NED.Descriptors.EntityInfo info, long netId)
+        internal void ProcessSample(Hrot.NED.Descriptors.EntityInfo info, long netId, EntityRepository? repo = null)
         {
             var igData = new IG.Components.EntityInfo
             {
@@ -117,6 +116,14 @@ namespace Hrot.Map.Common.Replication.Ingress
                 ForceId = (ForceId)(int)info.ForceIdentifier,
                 CommanderId = info.CommanderId
             };
+
+            // Apply directly via the repo when available (IG role has no NetworkSpawningSystem
+            // to consume UpdateEntityCommand, so event-bus routing would silently drop the update).
+            if (repo != null && _entityMap.TryGetEntity(netId, out var entity))
+            {
+                repo.SetComponent(entity, igData);
+                return;
+            }
 
             _eventBus.PublishManaged(new UpdateEntityCommand
             {
