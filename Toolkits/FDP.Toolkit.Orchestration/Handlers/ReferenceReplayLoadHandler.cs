@@ -118,7 +118,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
         {
             if (intent.Operation == NodeOpType.PrepareReplay)
             {
-                var exerciseId = intent.DomainPayload is Guid g ? g : Guid.Empty;
+                var exerciseId = ResolveExerciseId(intent.DomainPayload);
                 await _controller.PrepareReplayAsync(exerciseId, _storageDirectory)
                     .ConfigureAwait(false);
 
@@ -140,7 +140,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
             else if (intent.Operation == NodeOpType.PrepareLive)
             {
                 // CGF1-S0305: Live-from-Replay branch.
-                var branchedExerciseId = intent.DomainPayload is Guid bg ? bg : Guid.Empty;
+                var branchedExerciseId = ResolveExerciseId(intent.DomainPayload);
                 await _controller.TeardownReplayAsync().ConfigureAwait(false);
                 await _controller.PrepareRecordingAsync(branchedExerciseId, _storageDirectory)
                     .ConfigureAwait(false);
@@ -191,6 +191,31 @@ namespace FDP.Toolkit.Orchestration.Handlers
         {
             if (_simGroup       != null) _simGroup.Enabled       = enabled;
             if (_lifecycleGroup != null) _lifecycleGroup.Enabled = enabled;
+        }
+
+        /// <summary>
+        /// Resolves an exercise <see cref="Guid"/> from the intent's domain payload.
+        /// Accepts either a boxed <see cref="Guid"/> (in-process / AllInOne path) or an
+        /// <see cref="EditLoadHandlerPayload"/> whose <c>ExerciseId</c> string may be a
+        /// parseable GUID or a human-readable key (DDS / bus path).  Human-readable keys
+        /// are converted to a deterministic v3-style GUID via MD5 so that the same key
+        /// always maps to the same recording file regardless of the delivery path.
+        /// </summary>
+        private static Guid ResolveExerciseId(object? domainPayload) =>
+            domainPayload switch
+            {
+                Guid g => g,
+                EditLoadHandlerPayload p when p.ExerciseId != null =>
+                    Guid.TryParse(p.ExerciseId, out var parsed)
+                        ? parsed
+                        : GuidFromString(p.ExerciseId),
+                _ => Guid.Empty,
+            };
+
+        private static Guid GuidFromString(string s)
+        {
+            var hashBytes = System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(s));
+            return new Guid(hashBytes);
         }
     }
 }
