@@ -122,7 +122,9 @@ namespace Fdp.Kernel.Orchestration
         /// </summary>
         public async Task DrainAsync()
         {
+#pragma warning disable CS0420 // Volatile.Read with ref on volatile field is intentional
             while (Volatile.Read(ref _pendingCount) > 0)
+#pragma warning restore CS0420
                 await Task.Delay(5).ConfigureAwait(false);
         }
 

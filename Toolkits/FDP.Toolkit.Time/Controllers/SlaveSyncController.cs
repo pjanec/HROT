@@ -55,7 +55,9 @@ namespace FDP.Toolkit.Time.Controllers
         // ── NTP Real-Time Sync ────────────────────────────────────────────────
         private long  _masterWallClockOffset = 0;   // Master ticks - local ticks
         private long  _lastSyncRequestTicks  = 0;   // Physical tick when last request was sent
+#pragma warning disable CS0414 // field is written for future use but value not yet consumed
         private bool  _isTimeSynced          = false; // Unlocked once first valid response arrives
+#pragma warning restore CS0414
 
         /// <summary>The slave's best estimate of the master node's current OS tick.</summary>
         public long SyncedWallTicks => _getTick() + _masterWallClockOffset;

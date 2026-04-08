@@ -14,6 +14,6 @@ namespace FDP.Toolkit.NetworkSpawning.Events
         /// <summary>
         /// Human-readable reason (for logging/diagnostics).
         /// </summary>
-        public string Reason;
+        public string? Reason;
     }
 }

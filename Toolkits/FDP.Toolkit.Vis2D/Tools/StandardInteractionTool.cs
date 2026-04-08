@@ -48,10 +48,10 @@ namespace FDP.Toolkit.Vis2D.Tools
         private Vector2 _mouseDownPos;
         private Entity _potentialTarget = Entity.Null;
         
-        private bool _shiftHeld => _canvas?.Input.IsKeyDown(_canvas.InputMap.MultiSelectMod) == true;
-        private bool _ctrlHeld => _canvas?.Input.IsKeyDown(_canvas.InputMap.BoxSelectMod) == true;
+        private bool _shiftHeld => _canvas?.Input.IsKeyDown(_canvas!.InputMap.MultiSelectMod) == true;
+        private bool _ctrlHeld => _canvas?.Input.IsKeyDown(_canvas!.InputMap.BoxSelectMod) == true;
         
-        private MapCanvas _canvas;
+        private MapCanvas? _canvas;
 
         public StandardInteractionTool(
             ISimulationView view,
@@ -151,12 +151,12 @@ namespace FDP.Toolkit.Vis2D.Tools
                             startPos,
                             () =>
                             {
-                                _canvas.PopTool();
+                                _canvas!.PopTool();
                                 OnEntityDragEnd?.Invoke(dragTarget);
                             }
                         );
                         tool.OnEntityMoved += (e, p) => OnEntityMoved?.Invoke(e, p);
-                        _canvas.PushTool(tool);
+                        _canvas!.PushTool(tool);
 
                         ResetState();
                         return true;
@@ -169,10 +169,10 @@ namespace FDP.Toolkit.Vis2D.Tools
                             _view,
                             _query,
                             _adapter,
-                            (list) => { OnRegionSelected?.Invoke(list); _canvas.PopTool(); },
-                            () => _canvas.PopTool()
+                            (list) => { OnRegionSelected?.Invoke(list); _canvas!.PopTool(); },
+                            () => _canvas!.PopTool()
                         );
-                        _canvas.PushTool(tool);
+                        _canvas!.PushTool(tool);
 
                         ResetState();
                         return true;

@@ -122,12 +122,14 @@ namespace FDP.Toolkit.Behavior.Systems
                             triggered = true;
                         break;
 
+#pragma warning disable CS0618 // intentional use of obsolete enum value for backward compat
                     case MissionTrigger.ReachedDestination:
                         // BS1-T022: Previously polled NavState.HasArrived (Muscle-tier physics
                         // component not available on a Brain node).  Now evaluated identically
                         // to DoctrineFinished so that MissionDirectorSystem remains CQRS-clean.
                         // The enum value is kept for backward compatibility with serialised
                         // mission plans; new UI code should emit DoctrineFinished instead.
+#pragma warning restore CS0618
 #pragma warning disable CS0618 // intentional use of obsolete enum value for backward compat
                         if (_doctrineFinishedThisFrame.Contains(entity.Index))
                             triggered = true;

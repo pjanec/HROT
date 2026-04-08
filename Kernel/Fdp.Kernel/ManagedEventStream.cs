@@ -44,7 +44,7 @@ namespace Fdp.Kernel
         {
             foreach (var item in _front)
             {
-                yield return item;
+                yield return item!;
             }
         }
 

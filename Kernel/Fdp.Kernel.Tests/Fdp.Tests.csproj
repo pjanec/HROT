@@ -8,7 +8,7 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <NoWarn>$(NoWarn);MsgPack005;xUnit1031;CS0649</NoWarn>
+    <NoWarn>$(NoWarn);MsgPack005;xUnit1031;CS0649;CS0618;CS0436</NoWarn>
     <MessagePackGeneratedResolverName>FdpTestsGeneratedResolver</MessagePackGeneratedResolverName>
   </PropertyGroup>
 

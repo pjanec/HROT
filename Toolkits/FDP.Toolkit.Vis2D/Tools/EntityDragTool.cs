@@ -23,7 +23,7 @@ public class EntityDragTool : IMapTool
     private Vector2 _currentPos;
     private Vector2 _startPos;
     private bool _isActive;
-    private MapCanvas _canvas;
+    private MapCanvas? _canvas;
 
     public EntityDragTool(Entity target, Vector2 startPos, Action onComplete)
     {

@@ -18,7 +18,7 @@ namespace FDP.Toolkit.NetworkSpawning.Events
         /// List of component instances to apply. Each item replaces the existing component.
         /// Uses the same List&lt;object&gt; / EntityComponentReflector pattern as SpawnEntityCommand.
         /// </summary>
-        public List<object> ComponentsToUpdate;
+        public List<object>? ComponentsToUpdate;
 
         /// <summary>
         /// Optional correlation ID.
