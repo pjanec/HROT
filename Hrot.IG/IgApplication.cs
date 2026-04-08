@@ -301,7 +301,9 @@ public class IgApplication : IDisposable
     /// Factory compiled once after the ECS world is created; translates layer-preset
     /// strings (e.g. <c>"road_graphs"</c>) into allocation-free <see cref="IEntityFilter"/> instances.
     /// </summary>
+#pragma warning disable CS0649 // field assigned by future DI wiring
     private HrotEntityFilterFactory? _entityFilterFactory;
+#pragma warning restore CS0649
 
     // _createEntityDdsWriter removed by D005 — SpawnEntityCommandEgressTranslator owns the DDS writer.
     /// <summary>
@@ -800,7 +802,7 @@ public class IgApplication : IDisposable
                         // Restore test-hook translator with null participant (no DDS reader, pure entity applier).
                         // Used by TestHook_InjectGeoSpatialDescriptor to inject descriptors in unit tests.
                         _geoSpatialIngressTranslator = new GeoSpatialIngressTranslator(
-                            null, _entityMap, _geoTransform, _ghostCreationSystem);
+                            null, _entityMap, _geoTransform, _ghostCreationSystem!);
                     }
                 }
 
@@ -826,7 +828,7 @@ public class IgApplication : IDisposable
 
                 var contextActionsTranslator = new ContextActionsUpdateTranslator(
 
-                    participant, _entityMap, _world.Bus, _ghostCreationSystem);
+                    participant, _entityMap, _world.Bus, _ghostCreationSystem!);
 
 
 
@@ -856,7 +858,7 @@ public class IgApplication : IDisposable
 
                 if (!_headless)
                 {
-                    customTranslators.Add(new Hrot.IG.Translators.IgMissionIngressTranslator(participant, _entityMap, _ghostCreationSystem));
+                    customTranslators.Add(new Hrot.IG.Translators.IgMissionIngressTranslator(participant, _entityMap, _ghostCreationSystem!));
                     customTranslators.Add(new Hrot.IG.Translators.GroundClampingOverrideTranslator(participant, _entityMap));
                     customTranslators.Add(new Hrot.IG.Translators.AudioTargetDetectedIngressTranslator(participant, _entityMap));
                 }

@@ -685,7 +685,7 @@ namespace Hrot.ClusterRunner.Services
                 {
                     case Hrot.Editor.EditorTool.Select:
                         if (_interactionTool != null)
-                            _canvas.SwitchTool(_interactionTool);
+                            _canvas!.SwitchTool(_interactionTool);
                         break;
 
                     case Hrot.Editor.EditorTool.Spawn:
@@ -703,7 +703,7 @@ namespace Hrot.ClusterRunner.Services
                                 ? _world.GetComponent<Fdp.Kernel.SimTransform>(e)
                                 : default;
                             var offset = new System.Numerics.Vector2(transform.Position.X, transform.Position.Y);
-                            _canvas.PushTool(new Hrot.ScenarioEditor.Tools.EditTool(e, _world, offset));
+                            _canvas!.PushTool(new Hrot.ScenarioEditor.Tools.EditTool(e, _world, offset));
                         }
                         break;
                     }
@@ -715,7 +715,7 @@ namespace Hrot.ClusterRunner.Services
                         if (entity is { } e && e != Entity.Null && _world.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(e))
                         {
                             var plan = ((ModuleHost.Core.Abstractions.ISimulationView)_world).GetManagedComponentRO<Hrot.Map.Common.Components.RoutePlan>(e);
-                            _canvas.PushTool(new Hrot.ScenarioEditor.Tools.RouteEditTool(
+                            _canvas!.PushTool(new Hrot.ScenarioEditor.Tools.RouteEditTool(
                                 e, plan,
                                 onCommit: (routeEntity, wps) =>
                                 {

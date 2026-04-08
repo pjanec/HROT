@@ -675,7 +675,7 @@ public sealed class MissionPanel
         else
         {
             FdpLog<MissionPanel>.Warn("[UI.Common] Commit failed: entityId={0} error={1}",
-                _selectedEntityId, result.ErrorMessage);
+                _selectedEntityId, result.ErrorMessage!);
             HandleConflictResult(result);
         }
     }

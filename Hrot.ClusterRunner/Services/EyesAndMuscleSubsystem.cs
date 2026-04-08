@@ -101,7 +101,9 @@ public sealed class EyesAndMuscleSubsystem : ISubsystem, IMapCameraProvider, IWi
 
         _context.SlaveTranslator?.Tick();   // DDS → bus (null in headless mode)
         _context.ClusterSlave.Tick();       // cluster state machine
+#pragma warning disable CS0618 // legacy Update(float) used intentionally in EyesAndMuscleSubsystem
         _context.Kernel.Update(deltaTime);
+#pragma warning restore CS0618
         _context.EventBus.SwapBuffers();
     }
 

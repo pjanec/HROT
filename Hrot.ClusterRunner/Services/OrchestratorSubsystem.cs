@@ -35,7 +35,9 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     private ClusterConfiguration _config = ClusterConfiguration.Default;
     private ClusterUiCache?        _uiCache;
     private ClusterScenarioPanel?  _scenarioPanel;
+#pragma warning disable CS0169 // dead field retained per TODO PACK-E001
     private DdsWriter<ClusterOpRequest>? _sysOpWriter;  // S0502 — TODO PACK-E001: dead field; remove in follow-up
+#pragma warning restore CS0169
 
     private bool _isPaused;   // S0503: toggled by TimeControlRequested handler
     // ── Orchestration bus + translators (CMC-S016 / BATCH-06) ────────────────

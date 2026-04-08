@@ -75,7 +75,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 FdpLog<DestroyEntityCommandEgressTranslator>.Debug(
                     "[Egress] DestroyEntityCommand → DeleteEntityRequest NetID={0} reason={1}",
-                    destroyCmd.NetworkId, destroyCmd.Reason);
+                    destroyCmd.NetworkId, destroyCmd.Reason!);
             }
         }
 

@@ -982,7 +982,7 @@ public sealed class ClusterMaster : IDisposable
                             else if (t.IsFaulted)
                             {
                                 FdpLog<ClusterMaster>.Error("[Orchestrator] ImportArchive gateway error: {0}",
-                                    t.Exception?.GetBaseException().Message);
+                                    t.Exception?.GetBaseException().Message!);
                                 PublishOpStatus(importRequestId, OrchestrationStatusCode.Rejected);
                             }
                             else
@@ -1265,7 +1265,7 @@ public sealed class ClusterMaster : IDisposable
                         else if (pullTask.IsFaulted)
                         {
                             FdpLog<ClusterMaster>.Error("[Orchestrator] ExportArchive gateway error: {0}",
-                                pullTask.Exception?.GetBaseException().Message);
+                                pullTask.Exception?.GetBaseException().Message!);
                             PublishOpStatus(archRequestId, OrchestrationStatusCode.Rejected);
                         }
                         else

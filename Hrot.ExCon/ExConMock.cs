@@ -208,7 +208,7 @@ public sealed class ExConMock : IDisposable
             _interactionPanel.Draw(_logic);
             _spawnerPanel.Draw(_logic);
             _diagnosticsPanel.Draw(_logic);
-            _derEntityInspectorPanel.Draw(_logic.Repo, "ExCon Entity Inspector");
+            _derEntityInspectorPanel.Draw(_logic.Repo!, "ExCon Entity Inspector");
         }
 
         // Two-ACK global alert modal: surface Phase-2 error ACKs to the operator.

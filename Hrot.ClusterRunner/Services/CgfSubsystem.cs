@@ -79,7 +79,9 @@ public sealed class CgfSubsystem : ISubsystem
     {
         _context?.SlaveTranslator?.Tick();
         _context?.ClusterSlave.Tick();
+#pragma warning disable CS0618 // legacy Update(float) used intentionally in CgfSubsystem
         _context?.Kernel.Update(deltaTime);
+#pragma warning restore CS0618
         _context?.EventBus.SwapBuffers();
     }
 

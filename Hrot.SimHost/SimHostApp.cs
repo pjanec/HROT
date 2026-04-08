@@ -394,7 +394,7 @@ namespace Hrot.SimHost
             _kernelGroup.Create(_world);
             _kernelGroup.AddSystem(new MissionControlExecutionSystem(entityMap, doctrineRegistry));
             _kernelGroup.AddSystem(new MissionAdapterSystem(doctrineRegistry, entityMap));
-            _kernelGroup.AddSystem(new UpdateEntityAttributeRequestSystem(ddsParticipant, entityMap, wgs84, jsonAttributeCompiler));
+            _kernelGroup.AddSystem(new UpdateEntityAttributeRequestSystem(ddsParticipant!, entityMap, wgs84, jsonAttributeCompiler));
             _simLogicModule.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);
 
             // Seed GlobalTime singleton.
@@ -424,7 +424,7 @@ namespace Hrot.SimHost
                 tkbDb,
                 elm,
                 entityMap,
-                _idAllocator,
+                _idAllocator!,
                 localNodeId,
                 onEntitySpawned: (world, entity, isLocalAuthority) =>
                 {
@@ -433,12 +433,12 @@ namespace Hrot.SimHost
                 });
 
             // ── DDS adapters and request-handling systems ───────────────────────
-            var requestSource      = new DdsCreateEntityRequestSource(ddsParticipant);
-            var ackSink            = new DdsCreateUpdateDeleteEntityAckSink(ddsParticipant);
-            var deleteSource       = new DdsDeleteEntityRequestSource(ddsParticipant);
+            var requestSource      = new DdsCreateEntityRequestSource(ddsParticipant!);
+            var ackSink            = new DdsCreateUpdateDeleteEntityAckSink(ddsParticipant!);
+            var deleteSource       = new DdsDeleteEntityRequestSource(ddsParticipant!);
             var finalizationSystem = new NedRequestFinalizationSystem(ackSink, entityMap);
             var requestSystem      = new CreateEntityRequestSystem(
-                requestSource, ackSink, tkbDb, _idAllocator, localNodeId,
+                requestSource, ackSink, tkbDb, _idAllocator!, localNodeId,
                 wgs84, jsonAttributeCompiler, binaryInterpreter, finalizationSystem);
             var deleteSystem       = new DeleteEntityRequestSystem(
                 deleteSource, ackSink, entityMap, finalizationSystem);
@@ -450,7 +450,7 @@ namespace Hrot.SimHost
                 finalizationSystem: finalizationSystem);
             _kernel.RegisterModule(simHostMod);
 
-            _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant, entityMap, wgs84));
+            _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant!, entityMap, wgs84));
 
             // ── 10. Register NedReplicationModule (bundles all translator packs) ──
             // Packs included: SharedTranslatorPack (EntityMaster, EntityInfo, EntityDamage, FireInteraction),
@@ -485,7 +485,7 @@ namespace Hrot.SimHost
                     _simLogicModule.RoadNetwork,
                     _simLogicModule.TrajectoryPool ?? new TrajectoryPoolManager(),
                     _simLogicModule.FormationTemplates ?? new FormationTemplateManager(),
-                    new DdsWriter<MissionControlRequest>(ddsParticipant),
+                    new DdsWriter<MissionControlRequest>(ddsParticipant!),
                     idAllocator: _idAllocator);
 
                 // Wire IG presentation module with a real MapCanvas + NedVisualizerAdapter
