@@ -12,6 +12,7 @@
     <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
     <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Lifecycle\FDP.Toolkit.Lifecycle.csproj" />
   </ItemGroup>
 
 </Project>

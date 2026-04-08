@@ -48,6 +48,7 @@ using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
+using FDP.Toolkit.Replication.Utilities;
 using FDP.Toolkit.Time.Controllers;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Components;
@@ -251,50 +252,23 @@ namespace Hrot.SimHost
             Logger.Info($"[SimHost] Node ID:         {localNodeId}");
             Logger.Info($"[SimHost] Simulation Rate: {nodeConfig.SimulationRateHz} Hz");
 
-            // ── Steps 2–4: Build Hrot node infrastructure (EAM-M001) ─────────────
-            var hrotConfig = new HrotNodeConfig
-            {
-                DomainId      = domainId,
-                NodeId        = localNodeId,
-                Headless      = false,  // SimHostApp always creates DDS; _headless only controls Raylib window
-                LocalTempRoot = nodeConfig.LocalTempRoot,
-                SubsystemName = "SimHost",
-            };
-            _context = new HrotNodeBuilder(hrotConfig)
-                .WithRole("SimHost", _role)
-                .WithReplication(_role)
-                .Build();
-
-            _world       = _context.World;
-            _kernel      = _context.Kernel;
-            _eventBus    = _context.EventBus;
-            _entityMap   = _context.EntityMap;
-            _idAllocator = _context.IdAllocator;
-            var ddsParticipant = _context.Participant;  // null in headless mode
-            var entityMap      = _entityMap;            // alias used by downstream code
-            base.World  = _world;
-            base.Kernel = _kernel;
-            RegisterSimComponents(_world);
-
-            var tkbDb = HrotEnvironment.CreateTkb();    // still needed for EntityLifecycleModule/spawning
-
-            // ── 5. Geodetic configuration ─────────────────────────────────────
+            // ── 2. Geodetic transform — created before builder so doctrine lambdas can close over it ──
             var wgs84     = HrotEnvironment.CreateGeoTransform();
             _geoTransform = wgs84;
 
-            // ── 5a. JSON Attribute Compiler (ATTR-S5T1 / ATTR-S5T4) ───────────
+            // ── 3. JSON Attribute Compiler (ATTR-S5T1 / ATTR-S5T4) ───────────
             // Builds the zero-allocation JSON attribute compiler with routing delegates
             // for Name, Affiliation, and GeoPosition registered at startup.  The same
             // instance is shared by CreateEntityRequestSystem and UpdateEntityAttributeRequestSystem.
             var jsonAttributeCompiler = AttributeCompilerFactory.Build(wgs84);
 
-            // ── 5b. Binary Attribute Interpreter (ATTR2-P5T1) ─────────────────
+            // ── 3b. Binary Attribute Interpreter (ATTR2-P5T1) ─────────────────
             // Builds the binary interpreter for decoding InitialAttributeRecords sent
             // by the IG when it compiles JSON properties into binary wire format.
             // Without this, binary attributes (e.g. Affiliation / Hostile) are silently dropped.
             var binaryInterpreter = AttributeCompilerFactory.BuildBinaryInterpreter(wgs84);
 
-            // ── 6. Doctrine registry ──────────────────────────────────────────
+            // ── 4. Doctrine registry — created before builder so WithDoctrineRegistry can capture it ──
             var doctrineRegistry = new DoctrineRegistry();
             _doctrineRegistry = doctrineRegistry;
             unsafe
@@ -331,10 +305,40 @@ namespace Hrot.SimHost
                     BTreeInterpreter = SimHostNodes.BuildWanderMilitaryInterpreter(),
                 });
 
-            // ── 7. Road network ───────────────────────────────────────────────
+            // ── 5. Build Hrot node infrastructure — includes DDS participant, entity map,
+            //        elm, geoModule (via BaseModules), and NedReplicationModule ──────────────
+            var hrotConfig = new HrotNodeConfig
+            {
+                DomainId      = domainId,
+                NodeId        = localNodeId,
+                Headless      = false,  // SimHostApp always creates DDS; _headless only controls Raylib window
+                LocalTempRoot = nodeConfig.LocalTempRoot,
+                SubsystemName = "SimHost",
+            };
+            _context = new HrotNodeBuilder(hrotConfig)
+                .WithRole("SimHost", _role)
+                .WithReplication(_role)
+                .WithDoctrineRegistry(doctrineRegistry)
+                .Build();
+
+            _world       = _context.World;
+            _kernel      = _context.Kernel;
+            _eventBus    = _context.EventBus;
+            _entityMap   = _context.EntityMap;
+            _idAllocator = _context.IdAllocator;
+            var ddsParticipant = _context.Participant;  // null in headless mode
+            var entityMap      = _entityMap;            // alias used by downstream code
+            base.World  = _world;
+            base.Kernel = _kernel;
+            RegisterSimComponents(_world);
+
+            // tkbDb and wgs84 come from the built context (same instances as in BaseModules).
+            var tkbDb = _context.TkbDb!;
+
+            // ── 6. Road network ───────────────────────────────────────────────
             var roadNetwork = LoadRoadNetwork(nodeConfig.RoadNetworkBlobPath);
 
-            // ── 8. SimulationLogicModule (role-based via NodeBootstrapper) ─────
+            // ── 7. SimulationLogicModule (role-based via NodeBootstrapper) ─────
             var bootstrapper = new NodeBootstrapper();
             _simLogicModule = bootstrapper.BuildSimulationLogic(
                 _role,
@@ -343,7 +347,7 @@ namespace Hrot.SimHost
                 vehicleApi:  null,
                 roadNetwork: roadNetwork);
 
-            // ── 8a. ClusterSlave (CGF1-S0104) ───────────────────────────────────
+            // ── 8. ClusterSlave (CGF1-S0104) ────────────────────────────────────
             // Build ScenarioSerializer for production scenario load/save (CGF1-S0307 / CGF1-S0302).
             // Must be built after RegisterSimComponents so the auto-serializer compiles
             // delegates for all registered component types.
@@ -366,18 +370,13 @@ namespace Hrot.SimHost
             var checkpointStoragePath = System.IO.Path.Combine(nodeConfig.LocalTempRoot, "checkpoints");
             _checkpointWorker = new CheckpointIOWorker(checkpointStoragePath, localNodeId);
 
-            // ── Two-phase bootstrap: construct replay-control objects before BuildOrchestration ──
-            // GhostCreationSystem, SimulationSystemGroup, and NetworkLifecycleSystemGroup must
-            // be constructed here — before BuildOrchestration — so NodeBootstrapper can register
-            // ReplayLoadClusterOpHandler (which requires all three).  The same ghostCreationSystem
-            // instance is forwarded to SimHostModule below so both paths share one object.
-            // (CGF1-S0304 Part A.1 — BATCH-17; previously constructed inline inside SimHostModule
-            // after BuildOrchestration, which meant all three were null at registration time.)
-            var ghostCreationSystem   = new GhostCreationSystem(entityMap);
+            // GhostCreationSystem and NetworkLifecycleGroup come from NedReplicationModule.
+            // The same instances are used for both orchestration replay control and the
+            // replication module itself, ensuring a single source of truth.
+            var ghostCreationSystem   = _context.NedReplication!.GhostCreationSystem;
             var simulationSystemGroup = new SimulationSystemGroup();
-            var networkLifecycleGroup = new NetworkLifecycleSystemGroup(ghostCreationSystem);
+            var networkLifecycleGroup = _context.NedReplication!.NetworkLifecycleGroup;
 
-            // Built here so SimHostApp owns lifetime; Tick() called in OnUpdate.
             _clusterSlave = bootstrapper.BuildOrchestration(
                 _role, _kernel, _world, localNodeId,
                 participant: ddsParticipant,
@@ -389,12 +388,10 @@ namespace Hrot.SimHost
                 simGroup: simulationSystemGroup,
                 lifecycleGroup: networkLifecycleGroup,
                 ghostCreationSystem: ghostCreationSystem);
-            // CMC-S016: wire NodeOpSlaveTranslator created by bootstrapper (DDS ↔ bus bridge).
             _slaveTranslator = bootstrapper.SlaveTranslator;
 
             _kernelGroup = new SystemGroup();
             _kernelGroup.Create(_world);
-            // PACK-P001: MissionControlRequestSystem split into ingress translator + execution system + egress translator.
             _kernelGroup.AddSystem(new MissionControlExecutionSystem(entityMap, doctrineRegistry));
             _kernelGroup.AddSystem(new MissionAdapterSystem(doctrineRegistry, entityMap));
             _kernelGroup.AddSystem(new UpdateEntityAttributeRequestSystem(ddsParticipant, entityMap, wgs84, jsonAttributeCompiler));
@@ -414,11 +411,14 @@ namespace Hrot.SimHost
             _physicsModule = new PhysicsToolkitModule();
             _physicsModule.Initialize(_world);
 
-            var geoModule = new GeographicModule(wgs84);
-            _kernel.RegisterModule(geoModule);
+            // ── Register infrastructure base modules from builder context ──────
+            // BaseModules contains EntityLifecycleModule and GeographicModule.
+            // The same elm instance is used by NedReplicationModule's GhostPromotionSystem.
+            foreach (var m in _context.BaseModules)
+                _kernel.RegisterModule(m);
 
-            var elm = new EntityLifecycleModule(tkbDb, new List<int>());
-            _kernel.RegisterModule(elm);
+            // Extract elm reference for spawning systems (uses same instance as BaseModules[0]).
+            var elm = (FDP.Toolkit.Lifecycle.EntityLifecycleModule)_context.BaseModules[0];
 
             var spawningSystem = new NetworkSpawningSystem(
                 tkbDb,
@@ -428,17 +428,11 @@ namespace Hrot.SimHost
                 localNodeId,
                 onEntitySpawned: (world, entity, isLocalAuthority) =>
                 {
-                    // Mark locally-owned physics components as authoritative so
-                    // CarKinematicsSystem (.WithOwned<SimTransform>()) processes this entity.
-                    // This mirrors the same callback in SimHostInstance (integration tests).
-                    // Without this, vehicles spawned in SimHostApp never move because
-                    // CarKinematicsSystem (post MOD1 refactoring) skips entities whose
-                    // SimTransform authority flag is not set.
                     if (isLocalAuthority && world.HasComponent<SimTransform>(entity))
                         world.SetAuthority<SimTransform>(entity, true);
                 });
 
-            // ── DDS adapters and request-handling systems ────────────────────────
+            // ── DDS adapters and request-handling systems ───────────────────────
             var requestSource      = new DdsCreateEntityRequestSource(ddsParticipant);
             var ackSink            = new DdsCreateUpdateDeleteEntityAckSink(ddsParticipant);
             var deleteSource       = new DdsDeleteEntityRequestSource(ddsParticipant);
@@ -449,106 +443,33 @@ namespace Hrot.SimHost
             var deleteSystem       = new DeleteEntityRequestSystem(
                 deleteSource, ackSink, entityMap, finalizationSystem);
 
-            // ── Create translators ────────────────────────────────────────────────
-            GeoSpatialEgressTranslator?       geoEgress   = wgs84 != null ? new GeoSpatialEgressTranslator(ddsParticipant, entityMap, wgs84) : null;
-            MapVisualOverlayEgressTranslator? mapOverlay  = wgs84 != null ? new MapVisualOverlayEgressTranslator(ddsParticipant, entityMap, wgs84) : null;
-            MapRouteEgressTranslator?         mapRoute    = wgs84 != null ? new MapRouteEgressTranslator(ddsParticipant, entityMap, wgs84) : null;
-            var missionIngress = new EntityMissionIngressTranslator(ddsParticipant, entityMap, doctrineRegistry, ghostCreationSystem);
-            var missionEgress  = new EntityMissionEgressTranslator(ddsParticipant, entityMap, doctrineRegistry);
-
             var simHostMod = new SimHostModule(
                 spawnSystem:        spawningSystem,
                 requestSystem:      requestSystem,
                 deleteSystem:       deleteSystem,
-                finalizationSystem: finalizationSystem,
-                geoEgressTranslator:        geoEgress,
-                mapOverlayEgressTranslator: mapOverlay,
-                mapRouteEgressTranslator:   mapRoute,
-                missionIngressTranslator:   missionIngress,
-                missionEgressTranslator:    missionEgress);
+                finalizationSystem: finalizationSystem);
             _kernel.RegisterModule(simHostMod);
 
-            // Register UpdateEntityDescriptorRequestSystem in the network-boundary section
-            // (conditionally alongside the other DDS-coupled spawning systems).
             _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant, entityMap, wgs84));
 
-            // ── 10. Network module ──────────────────────────────────────────
-            // Egress translators: fan-out disposal on entity death + CycloneNetworkModule publication.
-            // Ingress translators: CycloneNetworkModule ingestion only (not disposed on entity death).
-            var egressTranslators = new List<IDescriptorTranslator>();
-            // EntityMaster must be published before GeoSpatial so receivers can
-            // register the entity identity before its first position update.
-            var entityMasterEgressTranslator = new EntityMasterEgressTranslator(
-                ddsParticipant, entityMap, localNodeId);
-            egressTranslators.Add(entityMasterEgressTranslator);
-            egressTranslators.Add(new EntityInfoEgressTranslator(ddsParticipant, entityMap));
-            if (geoEgress != null)
-                egressTranslators.Add(geoEgress);
-            if (mapOverlay != null)
-                egressTranslators.Add(mapOverlay);
-            if (mapRoute != null)
-                egressTranslators.Add(mapRoute);
-            egressTranslators.Add(missionEgress);
-            egressTranslators.Add(new FireInteractionEventTranslator(ddsParticipant, entityMap));
-            // CGF1-A.1: Bridge SwitchTimeModeEvent between FdpEventBus and DDS for distributed
-            // time-mode switching (SlaveSyncController ingress).
-            egressTranslators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(ddsParticipant, _eventBus));
-            // Bridge FrameOrder/FrameAck for distributed lockstep stepping (slave side).
-            egressTranslators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateSlaveLockstepTranslator(ddsParticipant, _eventBus, localNodeId));
-            // BS1-T015: Publish Health changes to the IG/ExCon so health bars update.
-            egressTranslators.Add(new EntityDamageEgressTranslator(ddsParticipant, entityMap));
+            // ── 10. Register NedReplicationModule (bundles all translator packs) ──
+            // Packs included: SharedTranslatorPack (EntityMaster, EntityInfo, EntityDamage, FireInteraction),
+            //                 KinematicTranslatorPack (GeoSpatial, MapVisualOverlay, MapRoute, NavStatus, NavIntent),
+            //                 CognitiveTranslatorPack (NavIntent, EntityMission*).
+            _kernel.RegisterModule(_context.NedReplication!);
 
-            // BS1-T017: combat CQRS pipeline translators, registered by node role.
-            // Brain: emits WeaponFireIntent → DDS WeaponFireRequest.
-            if (_role == NodeRole.Brain || _role == NodeRole.AllInOne)
+            // ── 11. Auxiliary network translators (time-sync, combat, mission-control) ──
+            // These translators are SimHost-domain-specific and cannot be bundled into the
+            // shared packs due to layer constraints. They are registered alongside the packs.
+            if (ddsParticipant != null)
             {
-                egressTranslators.Add(new WeaponFireIntentEgressTranslator(ddsParticipant, entityMap));
+                var auxTranslators = SimHostAuxiliaryTranslatorPack.Create(
+                    ddsParticipant, entityMap, _eventBus, localNodeId, _role);
+
+                _kernel.RegisterGlobalSystem(new CycloneNetworkIngressSystem(auxTranslators.ToArray()));
+                _kernel.RegisterGlobalSystem(new CycloneEgressSystem(auxTranslators.ToArray()));
+                _kernel.RegisterGlobalSystem(new CycloneNetworkCleanupSystem(auxTranslators));
             }
-
-            // Muscle: emits Notification + Detonation → DDS; Brain-side emits DamageAssessed → DDS.
-            if (_role == NodeRole.MuscleGround || _role == NodeRole.AllInOne)
-            {
-                egressTranslators.Add(new WeaponFireNotificationEgressTranslator(ddsParticipant, entityMap));
-                egressTranslators.Add(new MunitionDetonationEgressTranslator(ddsParticipant, entityMap));
-                egressTranslators.Add(new DamageAssessedEgressTranslator(ddsParticipant, entityMap));
-                egressTranslators.Add(new AudioTargetDetectedEgressTranslator(ddsParticipant, entityMap));
-            }
-
-            // All translators (egress + ingress) passed to CycloneNetworkModule.
-            var translators = new List<IDescriptorTranslator>(egressTranslators);
-            translators.Add(missionIngress);
-            // PACK-P001: mission control CQRS pipeline – ingress polls DDS, egress writes ACKs.
-            translators.Add(new MissionControlIngressTranslator(ddsParticipant));
-            translators.Add(new MissionControlAckEgressTranslator(ddsParticipant));
-
-            // BS1-T017 (continued): ingress translators added after translators list is created.
-            // Muscle: receives WeaponFireRequest and MunitionDetonation from DDS → local events.
-            if (_role == NodeRole.MuscleGround || _role == NodeRole.AllInOne)
-            {
-                translators.Add(new WeaponFireRequestIngressTranslator(ddsParticipant, entityMap));
-                translators.Add(new MunitionDetonationIngressTranslator(ddsParticipant, entityMap));
-            }
-
-            // Brain (authority node): receives EntityHitDamage → applies health changes.
-            if (_role == NodeRole.Brain || _role == NodeRole.AllInOne)
-            {
-                translators.Add(new EntityHitDamageIngressTranslator(ddsParticipant, entityMap));
-            }
-
-            _kernel.RegisterGlobalSystem(
-                new CycloneNetworkCleanupSystem(egressTranslators));
-            _kernel.RegisterGlobalSystem(
-                new DisposalMonitoringSystem(entityMap));
-
-            var localNodeIdForMapper = localNodeId;
-            var nodeMapper  = new NodeIdMapper(domainId, localNodeIdForMapper);
-            var topology    = new StaticNetworkTopology(localNodeIdForMapper, new[] { localNodeIdForMapper });
-
-            var cycloneModule = new CycloneNetworkModule(
-                ddsParticipant, nodeMapper, _idAllocator, topology, elm,
-                customTranslators: translators,
-                sharedEntityMap:   entityMap);
-            _kernel.RegisterModule(cycloneModule);
 
             // ── 11. Kernel init ───────────────────────────────────────────────
             _kernel.Initialize();
@@ -770,6 +691,7 @@ namespace Hrot.SimHost
 
             ref var tf = ref _world.GetComponentRW<SimTransform>(entity);
             tf.Position = new Vector3(worldPos.X, worldPos.Y, 0f);
+            SmartEgressUtil.MarkDirty(_world, entity, (long)EDescriptorType.dtWorldPos);
         }
 
         /// <summary>

@@ -17,6 +17,7 @@ namespace Hrot.Network.Translators
     /// <list type="number">
     ///   <item><see cref="NavigationIntentEgressTranslator"/>    — publishes <c>NavigationIntent</c> commands for owned entities (ordinal 52).</item>
     ///   <item><see cref="EntityMissionEgressTranslator"/>       — publishes mission plans for owned entities (ordinal 51).</item>
+    ///   <item><see cref="EntityMissionIngressTranslator"/>      — receives mission plans from remote Brain nodes (ordinal 50).</item>
     ///   <item><see cref="GeoSpatialIngressTranslator"/>         — receives position updates for ghost entities.</item>
     ///   <item><see cref="NavigationStatusIngressTranslator"/>   — receives nav status feedback from Muscle nodes (ordinal 53).</item>
     /// </list>
@@ -36,8 +37,9 @@ namespace Hrot.Network.Translators
         ///   to convert received coordinates back to Cartesian.
         /// </param>
         /// <param name="doctrineRegistry">
-        ///   Doctrine registry forwarded to <see cref="EntityMissionEgressTranslator"/>
-        ///   for mission-plan serialisation. May be <c>null</c> when running without a doctrine layer.
+        ///   Doctrine registry forwarded to <see cref="EntityMissionEgressTranslator"/> and
+        ///   <see cref="EntityMissionIngressTranslator"/> for mission-plan serialisation/deserialisation.
+        ///   May be <c>null</c> when running without a doctrine layer.
         /// </param>
         /// <param name="ghostCreationSystem">
         ///   Ghost-creation helper injected into <see cref="GeoSpatialIngressTranslator"/>
@@ -52,6 +54,8 @@ namespace Hrot.Network.Translators
         {
             yield return new NavigationIntentEgressTranslator(participant, entityMap, geoTransform);
             yield return new EntityMissionEgressTranslator(participant, entityMap, doctrineRegistry);
+            if (doctrineRegistry != null)
+                yield return new EntityMissionIngressTranslator(participant, entityMap, doctrineRegistry, ghostCreationSystem);
             yield return new GeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem);
             yield return new NavigationStatusIngressTranslator(participant, entityMap);
         }

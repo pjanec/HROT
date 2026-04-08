@@ -157,6 +157,8 @@ public sealed class HrotNodeBuilder
             GhostCreationSystem = null,   // populated by NedReplicationModule after Build()
             IdAllocator     = idAllocator,
             NodeId          = _config.NodeId,
+            TkbDb           = tkbDb,
+            GeoTransform    = geoTransform,
         };
     }
 }

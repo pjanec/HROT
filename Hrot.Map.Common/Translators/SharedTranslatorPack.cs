@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Hrot.Map.Common.Replication;
 using Hrot.Map.Common.Replication.Egress;
 using Hrot.Map.Common.Replication.Ingress;
 using CycloneDDS.Runtime;
@@ -18,6 +19,8 @@ namespace Hrot.Map.Common.Translators
     ///   <item><see cref="EntityMasterEgressTranslator"/>  — publishes entity births/deaths (ordinal 0).</item>
     ///   <item><see cref="EntityMasterIngressTranslator"/> — ghost-creates remote entities (ordinal -2).</item>
     ///   <item><see cref="EntityInfoEgressTranslator"/>    — publishes entity metadata such as affiliation (ordinal 21).</item>
+    ///   <item><see cref="FireInteractionEventTranslator"/>— bidirectional fire-interaction events (Muscle egress / IG ingress).</item>
+    ///   <item><see cref="EntityDamageEgressTranslator"/>  — publishes health changes to IG/ExCon (ordinal 30).</item>
     /// </list>
     /// </summary>
     public static class SharedTranslatorPack
@@ -46,6 +49,8 @@ namespace Hrot.Map.Common.Translators
             yield return new EntityMasterEgressTranslator(participant, entityMap, localNodeId);
             yield return new EntityMasterIngressTranslator(participant, entityMap, eventBus, ghostCreationSystem);
             yield return new EntityInfoEgressTranslator(participant, entityMap);
+            yield return new FireInteractionEventTranslator(participant, entityMap);
+            yield return new EntityDamageEgressTranslator(participant, entityMap);
         }
     }
 }

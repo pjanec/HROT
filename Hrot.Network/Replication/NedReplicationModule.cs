@@ -4,6 +4,8 @@ using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
+using FDP.Toolkit.Behavior;
+using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
@@ -64,6 +66,10 @@ public sealed class NedReplicationModule : INedReplicationModule
     private readonly FdpEventBus         _eventBus;
     private readonly int                 _localNodeId;
 
+    // ── Ghost lifecycle deps (IG role — GhostPromotionSystem) ─────────────────
+    private readonly ITkbDatabase?         _tkbDb;
+    private readonly EntityLifecycleModule? _lifecycleModule;
+
     // ── Translator lists ───────────────────────────────────────────────────────
     private readonly IEnumerable<IDescriptorTranslator> _sharedTranslators;
     private readonly IEnumerable<IDescriptorTranslator>? _kinematicTranslators;
@@ -102,25 +108,43 @@ public sealed class NedReplicationModule : INedReplicationModule
     /// <param name="eventBus">Application event bus.</param>
     /// <param name="localNodeId">Local DDS node identifier.</param>
     /// <param name="domainId">DDS domain ID (unused in this version; reserved for future use).</param>
+    /// <param name="doctrineRegistry">
+    ///   Optional doctrine registry forwarded to <see cref="CognitiveTranslatorPack"/> for
+    ///   <c>EntityMissionEgressTranslator</c> and <c>EntityMissionIngressTranslator</c>.
+    /// </param>
+    /// <param name="tkbDb">
+    ///   Optional TKB database needed by <see cref="GhostPromotionSystem"/> (ImageGenerator role).
+    ///   When <c>null</c>, ghost promotion is disabled and entities remain in Ghost state.
+    /// </param>
+    /// <param name="lifecycleModule">
+    ///   Optional <see cref="EntityLifecycleModule"/> that <see cref="GhostPromotionSystem"/>
+    ///   uses to look up TKB templates for ghost-to-Constructing lifecycle transitions.
+    ///   Required when <paramref name="tkbDb"/> is provided.
+    /// </param>
     /// <exception cref="ArgumentException">
     /// Thrown when <paramref name="role"/> is not one of the supported replication roles
     /// (MuscleGround, ImageGenerator, Brain, AllInOne).
     /// </exception>
     public NedReplicationModule(
-        DdsParticipant?      participant,
-        NodeRole             role,
-        NetworkEntityMap     entityMap,
-        IGeographicTransform geoTransform,
-        FdpEventBus          eventBus,
-        int                  localNodeId,
-        int                  domainId)
+        DdsParticipant?       participant,
+        NodeRole              role,
+        NetworkEntityMap      entityMap,
+        IGeographicTransform  geoTransform,
+        FdpEventBus           eventBus,
+        int                   localNodeId,
+        int                   domainId,
+        DoctrineRegistry?     doctrineRegistry  = null,
+        ITkbDatabase?         tkbDb             = null,
+        EntityLifecycleModule? lifecycleModule  = null)
     {
-        _participant  = participant;
-        _role         = role;
-        _entityMap    = entityMap  ?? throw new ArgumentNullException(nameof(entityMap));
-        _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
-        _eventBus     = eventBus   ?? throw new ArgumentNullException(nameof(eventBus));
-        _localNodeId  = localNodeId;
+        _participant     = participant;
+        _role            = role;
+        _entityMap       = entityMap  ?? throw new ArgumentNullException(nameof(entityMap));
+        _geoTransform    = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
+        _eventBus        = eventBus   ?? throw new ArgumentNullException(nameof(eventBus));
+        _localNodeId     = localNodeId;
+        _tkbDb           = tkbDb;
+        _lifecycleModule = lifecycleModule;
 
         // Validate role
         _roleHasMuscle = role == NodeRole.MuscleGround || role == NodeRole.AllInOne;
@@ -154,7 +178,7 @@ public sealed class NedReplicationModule : INedReplicationModule
             if (_roleHasBrain)
                 _cognitiveTranslators = CognitiveTranslatorPack.Create(
                     participant, entityMap, geoTransform,
-                    doctrineRegistry: null,   // moved to subsystem responsibility in Phase 4
+                    doctrineRegistry,
                     GhostCreationSystem);
         }
         else
@@ -192,8 +216,13 @@ public sealed class NedReplicationModule : INedReplicationModule
             registry.RegisterSystem(new CycloneEgressSystem(allTranslators.ToArray()));
         }
 
-        // ── ImageGenerator: inline EntityStatesIngressPack ───────────────────
-        if (_roleHasIG)
+        // ── ImageGenerator: inline EntityStatesIngressPack + ghost lifecycle ──
+        // EntityStatesIngressPack is scoped to PURE ImageGenerator only.
+        // For AllInOne the Muscle path already owns entity lifecycle locally; injecting
+        // a second EntityMasterIngressTranslator would cause self-ghosting (SimHost
+        // receiving its own EntityMaster publications and attempting to create duplicates).
+        bool pureIgRole = _roleHasIG && !_roleHasMuscle && !_roleHasBrain;
+        if (pureIgRole)
         {
             if (_participant != null)
             {
@@ -203,19 +232,39 @@ public sealed class NedReplicationModule : INedReplicationModule
                 igPack.RegisterSystems(registry);
             }
 
-            // DR sync — ghost entities are smoothed; combined-role skips local entities
-            registry.RegisterSystem(new DeadReckoningSyncSystem(_driveFromNetwork));
+            // IG ghost lifecycle: ownership tracking + promotion + sub-entity cleanup.
+            // These replace the legacy ReplicationLogicModule for pure IG nodes.
+            registry.RegisterSystem(new OwnershipIngressSystem(_entityMap));
+            if (_tkbDb != null && _lifecycleModule != null)
+                registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule));
+            registry.RegisterSystem(new SubEntityCleanupSystem());
+            registry.RegisterSystem(new SmartEgressSystem());
+
+            // DR sync — pure IG: smooth ALL remote entities (no locally-owned entities)
+            registry.RegisterSystem(new DeadReckoningSyncSystem(driveFromNetwork: true));
+        }
+        else if (_roleHasIG)
+        {
+            // AllInOne/combined role: DR sync with driveFromNetwork=false so locally-owned
+            // entities are not overridden by dead-reckoning.
+            registry.RegisterSystem(new DeadReckoningSyncSystem(driveFromNetwork: false));
         }
 
         // ── Role-specific systems ────────────────────────────────────────────
         if (_roleHasMuscle || _roleHasBrain)
             registry.RegisterSystem(new SmartEgressSystem());
 
-        // ── Ghost destruction (Brain and AllInOne receive remote ghosts) ────────
+        // ── Ghost destruction (pure-Brain only) ─────────────────────────────────
         // Brain role receives entities from remote Muscle nodes as ghosts; when the remote
         // owner destroys an entity, EntityMasterIngressTranslator publishes DestroyEntityCommand
         // on the local event bus — GhostDestructionSystem consumes it and purges the ghost.
-        if (_roleHasBrain)
+        //
+        // For AllInOne, entities are locally-owned and must go through NetworkSpawningSystem's
+        // TearDown lifecycle when destroyed. If GhostDestructionSystem ran here too, it would
+        // consume the DestroyEntityCommand first and bypass TearDown, skipping EntityMaster
+        // DISPOSE publication to DDS (and thus the IG ghost would never be removed).
+        bool pureBrainRole = _roleHasBrain && !_roleHasMuscle && !_roleHasIG;
+        if (pureBrainRole)
             registry.RegisterSystem(new GhostDestructionSystem(_entityMap));
 
         // ── Cleanup systems (all roles) ──────────────────────────────────────

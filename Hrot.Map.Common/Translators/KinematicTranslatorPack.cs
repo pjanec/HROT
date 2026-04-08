@@ -5,6 +5,7 @@ using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 
 namespace Hrot.Map.Common.Translators
 {
@@ -14,6 +15,8 @@ namespace Hrot.Map.Common.Translators
     /// <para><b>Translators created (in DDS ordinal order):</b></para>
     /// <list type="number">
     ///   <item><see cref="GeoSpatialEgressTranslator"/>          — publishes position/velocity for owned entities.</item>
+    ///   <item><see cref="MapVisualOverlayEgressTranslator"/>    — publishes tactical graphic overlays for owned area entities.</item>
+    ///   <item><see cref="MapRouteEgressTranslator"/>            — publishes route plans for owned entities.</item>
     ///   <item><see cref="NavigationStatusEgressTranslator"/>    — publishes nav completion status for owned entities (ordinal 53).</item>
     ///   <item><see cref="NavigationIntentIngressTranslator"/>   — receives nav commands from a Brain node (ordinal 52).</item>
     /// </list>
@@ -29,14 +32,22 @@ namespace Hrot.Map.Common.Translators
         /// <param name="entityMap">Shared <see cref="NetworkEntityMap"/> for entity lookups.</param>
         /// <param name="geoTransform">
         ///   Geodetic transform used by <see cref="NavigationIntentIngressTranslator"/>
-        ///   to convert incoming WGS-84 waypoints back to Cartesian <c>Vector2</c>.
+        ///   to convert incoming WGS-84 waypoints back to Cartesian <c>Vector2</c>, and by
+        ///   <see cref="MapVisualOverlayEgressTranslator"/> and <see cref="MapRouteEgressTranslator"/>
+        ///   for coordinate conversion.
+        /// </param>
+        /// <param name="ghostCreationSystem">
+        ///   Ghost-creation helper injected into <see cref="NavigationIntentIngressTranslator"/>.
         /// </param>
         public static IEnumerable<IDescriptorTranslator> Create(
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
-            IGeographicTransform geoTransform)
+            IGeographicTransform geoTransform,
+            GhostCreationSystem? ghostCreationSystem = null)
         {
             yield return new GeoSpatialEgressTranslator(participant, entityMap, geoTransform);
+            yield return new MapVisualOverlayEgressTranslator(participant, entityMap, geoTransform);
+            yield return new MapRouteEgressTranslator(participant, entityMap, geoTransform);
             yield return new NavigationStatusEgressTranslator(participant, entityMap);
             yield return new NavigationIntentIngressTranslator(participant, entityMap, geoTransform);
         }

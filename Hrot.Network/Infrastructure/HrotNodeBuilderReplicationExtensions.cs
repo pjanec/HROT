@@ -3,6 +3,8 @@ using Hrot.Common.Infrastructure;
 using Hrot.Map.Common;
 using Hrot.Network.Replication;
 using CycloneDDS.Runtime;
+using FDP.Toolkit.Behavior;
+using FDP.Toolkit.Lifecycle;
 
 namespace Hrot.Network.Infrastructure;
 
@@ -23,11 +25,23 @@ public sealed class HrotNodeBuilderWithReplication
 {
     private readonly HrotNodeBuilder _builder;
     private readonly NodeRole        _role;
+    private DoctrineRegistry?        _doctrineRegistry;
 
     internal HrotNodeBuilderWithReplication(HrotNodeBuilder builder, NodeRole role)
     {
         _builder = builder;
         _role    = role;
+    }
+
+    /// <summary>
+    /// Injects a <see cref="DoctrineRegistry"/> that will be forwarded to
+    /// <see cref="CognitiveTranslatorPack"/> so that <c>EntityMissionEgressTranslator</c>
+    /// and <c>EntityMissionIngressTranslator</c> can serialise/deserialise mission plans.
+    /// </summary>
+    public HrotNodeBuilderWithReplication WithDoctrineRegistry(DoctrineRegistry? registry)
+    {
+        _doctrineRegistry = registry;
+        return this;
     }
 
     /// <summary>
@@ -39,17 +53,28 @@ public sealed class HrotNodeBuilderWithReplication
         // Calls the native HrotNodeBuilder.Build() instance method.
         var context = _builder.Build();
 
+        // Extract the EntityLifecycleModule from BaseModules so GhostPromotionSystem (IG role)
+        // uses the same instance that gets registered on the kernel.
+        var elm = null as EntityLifecycleModule;
+        foreach (var m in context.BaseModules)
+        {
+            if (m is EntityLifecycleModule e) { elm = e; break; }
+        }
+
         var ned = new NedReplicationModule(
-            participant:  context.Participant,
-            role:         _role,
-            entityMap:    context.EntityMap,
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            participant:      context.Participant,
+            role:             _role,
+            entityMap:        context.EntityMap,
+            geoTransform:     HrotEnvironment.CreateGeoTransform(),
             // Use world.Bus so that events published by EntityMasterIngressTranslator.ProcessDispose()
             // during the Input kernel phase are made visible to GhostDestructionSystem (PostSimulation)
             // via view.ConsumeManagedEvents<T>() after the kernel's internal Bus.SwapBuffers().
-            eventBus:     context.World.Bus,
-            localNodeId:  context.NodeId,
-            domainId:     0);  // domainId not stored on context; 0 is safe (reserved for future use)
+            eventBus:         context.World.Bus,
+            localNodeId:      context.NodeId,
+            domainId:         0,
+            doctrineRegistry: _doctrineRegistry,
+            tkbDb:            HrotEnvironment.CreateTkb(),
+            lifecycleModule:  elm);
 
         return context with
         {
@@ -87,16 +112,26 @@ public static class HrotNodeBuilderReplicationExtensions
     public static HrotNodeContext BindReplicationParticipant(
         this HrotNodeContext context,
         NodeRole             role,
-        DdsParticipant       participant)
+        DdsParticipant       participant,
+        DoctrineRegistry?    doctrineRegistry = null)
     {
+        var elm = null as EntityLifecycleModule;
+        foreach (var m in context.BaseModules)
+        {
+            if (m is EntityLifecycleModule e) { elm = e; break; }
+        }
+
         var ned = new NedReplicationModule(
-            participant:  participant,
-            role:         role,
-            entityMap:    context.EntityMap,
-            geoTransform: HrotEnvironment.CreateGeoTransform(),
-            eventBus:     context.World.Bus,
-            localNodeId:  context.NodeId,
-            domainId:     0);
+            participant:      participant,
+            role:             role,
+            entityMap:        context.EntityMap,
+            geoTransform:     HrotEnvironment.CreateGeoTransform(),
+            eventBus:         context.World.Bus,
+            localNodeId:      context.NodeId,
+            domainId:         0,
+            doctrineRegistry: doctrineRegistry,
+            tkbDb:            HrotEnvironment.CreateTkb(),
+            lifecycleModule:  elm);
 
         return context with
         {

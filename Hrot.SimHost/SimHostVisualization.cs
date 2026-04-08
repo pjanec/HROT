@@ -28,6 +28,7 @@ using Hrot.SimHost.UI;
 using Hrot.SimHost.Visualization;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Utilities;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using Hrot.Map.Common.Events;
@@ -223,6 +224,7 @@ namespace Hrot.SimHost
                     ref var vs = ref repo.GetComponentRW<VehicleState>(entity);
                     vs.Speed = 0;
                 }
+                SmartEgressUtil.MarkDirty(repo, entity, (long)EDescriptorType.dtWorldPos);
             };
 
             _interactionTool.OnRegionSelected += entities => _selection.SetMultiple(entities);

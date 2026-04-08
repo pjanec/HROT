@@ -126,6 +126,8 @@ using ModuleHost.Core.Network.Interfaces;
 
 using ModuleHost.Network.Cyclone.Modules;
 
+using ModuleHost.Network.Cyclone.Systems;
+
 using DdsIdAllocator = ModuleHost.Network.Cyclone.Services.DdsIdAllocator;
 
 using NodeIdMapper    = ModuleHost.Network.Cyclone.Services.NodeIdMapper;
@@ -745,54 +747,23 @@ public class IgApplication : IDisposable
 
         var domainId = domainIdOverride ?? IgNetworkConstants.DdsDomain;
 
-
-
         var tkb = HrotEnvironment.CreateTkb();
-
         _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
 
+        // ── Register base infrastructure modules from builder context ─────────
+        // BaseModules = [EntityLifecycleModule, GeographicModule].
+        // NedReplicationModule's GhostPromotionSystem uses the same elm instance.
+        foreach (var baseModule in _context!.BaseModules)
+            _kernel.RegisterModule(baseModule);
 
-
-        var nodeMapper = new NodeIdMapper(
-
-            localDomain:   domainId,
-
-            localInstance: _effectiveInstanceId);
-
-
-
-        var topology = new StaticNetworkTopology(
-
-            localNodeId: IgNetworkConstants.LocalNodeId,
-
-            allNodes:    new[] { IgNetworkConstants.LocalNodeId });
-
-
-
-        // A. EntityLifecycleModule — no peers need to ACK in IG standalone mode
-        // Note: elm created manually here (not from _context.BaseModules) so it
-        // shares the same tkb instance with ReplicationLogicModule (EAM-M002 constraint).
-        var elm = new EntityLifecycleModule(tkb, Array.Empty<int>());
-
-        _kernel.RegisterModule(elm);
-
-
-
-        var replicationModule = new ReplicationLogicModule(_entityMap, tkb, elm);
-
-        _kernel.RegisterModule(replicationModule);
-
-        // Assign here so test hooks work even when DDS initialisation is skipped.
-        // Use NedReplicationModule's GhostCreationSystem when available (set by .WithReplication()).
-        _ghostCreationSystem = _context?.GhostCreationSystem ?? replicationModule.GhostCreationSystem;
+        // Assign GhostCreationSystem from NedReplicationModule (populated by .WithReplication()).
+        // When context was built headless, _context.GhostCreationSystem is the NedReplicationModule's
+        // system built without a participant; it will be replaced by BindReplicationParticipant below.
+        _ghostCreationSystem = _context.GhostCreationSystem;
 
         DdsParticipant? participant = null;
 
-        DdsIdAllocator? ddsAllocator = null;
-
         List<Fdp.Interfaces.IDescriptorTranslator>? customTranslators = null;
-
-
 
         _networkEnabled = false;
 
@@ -885,7 +856,6 @@ public class IgApplication : IDisposable
 
                 if (!_headless)
                 {
-                    customTranslators.Add(new FireInteractionEventTranslator(participant, _entityMap));
                     customTranslators.Add(new Hrot.IG.Translators.IgMissionIngressTranslator(participant, _entityMap, _ghostCreationSystem));
                     customTranslators.Add(new Hrot.IG.Translators.GroundClampingOverrideTranslator(participant, _entityMap));
                     customTranslators.Add(new Hrot.IG.Translators.AudioTargetDetectedIngressTranslator(participant, _entityMap));
@@ -898,10 +868,6 @@ public class IgApplication : IDisposable
                     participant, _world.Bus, _entityMap, _geoTransform));
                 customTranslators.Add(new Hrot.Map.Common.Replication.Egress.DestroyEntityCommandEgressTranslator(
                     participant, _world.Bus));
-
-
-
-                ddsAllocator = new DdsIdAllocator(participant, $"IG_{_effectiveInstanceId}");
 
                 // Create the MapCommandController now that canvas and DDS resources are ready.
                 // D004: MapCommandController now takes FdpEventBus instead of IDdsWriter<CreateEntityRequest>.
@@ -1012,24 +978,15 @@ public class IgApplication : IDisposable
 
 
 
-        // C. CycloneNetworkModule ÔÇö DDS ingress/egress (optional)
-
-        if (_networkEnabled && participant != null && ddsAllocator != null)
-
+        // C. IG-specific custom translators (context-actions, time-sync, IG presentation, commands).
+        // EntityStatesIngressPack (EntityMaster, GeoSpatial, EntityInfo, EntityDamage,
+        // MapVisualOverlay, MapRoute) AND FireInteractionEvent are handled by NedReplicationModule.
+        // Only non-pack IG-domain translators remain here, registered via direct systems.
+        if (_networkEnabled && participant != null && customTranslators != null)
         {
-
-            var networkModule = new CycloneNetworkModule(
-
-                participant, nodeMapper, ddsAllocator,
-
-                topology, elm,
-
-                customTranslators: customTranslators,
-
-                sharedEntityMap:   _entityMap);
-
-            _kernel.RegisterModule(networkModule);
-
+            _kernel.RegisterGlobalSystem(new CycloneNetworkIngressSystem(customTranslators.ToArray()));
+            _kernel.RegisterGlobalSystem(new CycloneEgressSystem(customTranslators.ToArray()));
+            _kernel.RegisterGlobalSystem(new CycloneNetworkCleanupSystem(customTranslators));
         }
 
 

@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using CycloneDDS.Runtime;
+using Fdp.Interfaces;
 using Fdp.Kernel;
+using Fdp.Modules.Geographic;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Replication.Systems;
 using Hrot.Common.Abstractions;
@@ -61,6 +63,18 @@ public sealed record HrotNodeContext
 
     /// <summary>The local node ID used for DDS identity and ID allocation.</summary>
     public int NodeId { get; init; }
+
+    /// <summary>
+    /// The TKB (toolkit database) shared by <c>EntityLifecycleModule</c> and spawning systems.
+    /// Use this when constructing systems that require the same tkbDb as the lifecycle module.
+    /// </summary>
+    public ITkbDatabase? TkbDb { get; init; }
+
+    /// <summary>
+    /// The geodetic coordinate transform created by the builder.
+    /// Use this instead of calling <c>HrotEnvironment.CreateGeoTransform()</c> again.
+    /// </summary>
+    public IGeographicTransform? GeoTransform { get; init; }
 
     /// <summary>
     /// The NED replication module bundling translator packs and their lifecycle systems.

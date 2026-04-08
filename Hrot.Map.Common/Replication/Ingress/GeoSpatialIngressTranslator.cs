@@ -68,19 +68,37 @@ namespace Hrot.Map.Common.Replication.Ingress
             var rotation = SimTransformBridgeSystem.HeadingDegToRotation(data.Ori.Heading);
 
             cmd.SetComponent(entity, new NetworkTransform { LastPosition = position, LastRotation = rotation });
-            cmd.SetComponent(entity, new SimTransform    { Position = position, Rotation = rotation });
 
-            // 2. Velocity (merged from former GeoSpatialDRIngressTranslator)
-            float speedMs = (float)data.Vel.Length;
-            float azimRad = (float)data.Vel.Azimuth   * (MathF.PI / 180f);
-            float elevRad = (float)data.Vel.Elevation * (MathF.PI / 180f);
+            // Guard: do NOT override SimTransform for locally-owned entities.
+            // In AllInOne / combined Brain+Muscle roles, DDS loopback causes this translator
+            // to receive WorldPos samples published by the SAME node. Without this guard
+            // the last-published position would be written back every frame via loopback,
+            // undoing any position changes made by physics or drag operations.
+            //
+            // We check NetworkAuthority directly (not view.HasAuthority) because
+            // HasAuthority() returns true for entities WITHOUT a NetworkAuthority component
+            // (ghost entities, test entities) — which would incorrectly block their updates.
+            // The correct rule: skip only when the entity explicitly has a NetworkAuthority
+            // component AND that authority is held by this node.
+            bool isLocallyOwned = view.HasComponent<NetworkAuthority>(entity)
+                                  && view.GetComponentRO<NetworkAuthority>(entity).HasAuthority;
 
-            var cartVel = new Vector3(
-                speedMs * MathF.Cos(elevRad) * MathF.Sin(azimRad),
-                speedMs * MathF.Cos(elevRad) * MathF.Cos(azimRad),
-                speedMs * MathF.Sin(elevRad));
+            if (!isLocallyOwned)
+            {
+                cmd.SetComponent(entity, new SimTransform { Position = position, Rotation = rotation });
 
-            cmd.SetComponent(entity, new NetworkVelocity { Value = cartVel });
+                // 2. Velocity (only meaningful for remote/ghost entities)
+                float speedMs = (float)data.Vel.Length;
+                float azimRad = (float)data.Vel.Azimuth   * (MathF.PI / 180f);
+                float elevRad = (float)data.Vel.Elevation * (MathF.PI / 180f);
+
+                var cartVel = new Vector3(
+                    speedMs * MathF.Cos(elevRad) * MathF.Sin(azimRad),
+                    speedMs * MathF.Cos(elevRad) * MathF.Cos(azimRad),
+                    speedMs * MathF.Sin(elevRad));
+
+                cmd.SetComponent(entity, new NetworkVelocity { Value = cartVel });
+            }
         }
 
         public override void ScanAndPublish(ISimulationView view) { }
