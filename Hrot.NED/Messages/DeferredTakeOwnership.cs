@@ -49,14 +49,6 @@ namespace Hrot.NED.Messages
         public long EntityId;
 
         /// <summary>
-        /// TKB entity type ID.  Forwarded to the receiving Muscle so it can attach
-        /// <c>TkbIdentity</c> to the ghost entity even when
-        /// <c>EntityMasterIngressTranslator</c> is not registered for that role.
-        /// 0 means unknown / not provided.
-        /// </summary>
-        public long TkbType;
-
-        /// <summary>
         /// Per-descriptor ownership assignments for this entity.
         /// Each entry states which node ID should own a given descriptor type.
         /// A single message covers all nodes — each receiver extracts only the entries

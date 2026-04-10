@@ -8,6 +8,7 @@ using Hrot.Network.Infrastructure;
 using Hrot.NED.Descriptors;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using FDP.Framework.Runner;
@@ -53,7 +54,7 @@ public sealed class CgfSubsystem : ISubsystem
             ?? unchecked((long)System.Threading.Interlocked.Increment(ref _testIdCounter));
 
         // 1. Publish DeferredTakeOwnership FIRST (pre-genesis, before EntityMaster).
-        var dtoCmd = new DeferredTakeOwnershipCommand { NetworkId = networkId, TkbType = tkbType };
+        var dtoCmd = new DeferredTakeOwnershipCommand { NetworkId = networkId };
         dtoCmd.Grants.Add(new DescriptorGrant
         {
             DescriptorTypeId = (long)EDescriptorType.dtWorldPos,

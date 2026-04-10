@@ -348,7 +348,6 @@ namespace Hrot.SimHost.Systems
                             var dtoCmd = new FDP.Toolkit.NetworkSpawning.Events.DeferredTakeOwnershipCommand
                             {
                                 NetworkId = pending.NetworkId,
-                                TkbType   = pending.TkbType,
                             };
                             dtoCmd.Grants.AddRange(grants);
                             repo.Bus.PublishManaged(dtoCmd);

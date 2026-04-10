@@ -58,7 +58,6 @@ namespace Hrot.Network.Translators
                 _writer.Write(new DeferredTakeOwnership
                 {
                     EntityId = cmd.NetworkId,
-                    TkbType  = cmd.TkbType,
                     Grants   = wireGrants,
                 });
 

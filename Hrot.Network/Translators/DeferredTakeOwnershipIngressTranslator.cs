@@ -105,19 +105,13 @@ namespace Hrot.Network.Translators
                     return;
                 }
 
-                // Ghost shell does not yet exist. Create it BEFORE EntityMaster arrives so
-                // GhostPromotionSystem cannot fire until TkbIdentity is attached later.
+                // Ghost shell does not yet exist. Create it BEFORE EntityMaster arrives.
+                // GhostPromotionSystem will not fire until EntityMaster arrives and attaches TkbIdentity.
                 entity = _ghostCreationSystem.CreateGhost(repo, netId, view.Tick);
                 FdpLog<DeferredTakeOwnershipIngressTranslator>.Debug(
                     "[Muscle] DeferredTakeOwnership: pre-genesis ghost created NetId={0} GrantCount={1}",
                     netId, sample.Grants.Count);
             }
-
-            // Attach TkbIdentity so GhostPromotionSystem can find the entity by template type.
-            // This is necessary for Muscle/AllInOne roles where EntityMasterIngressTranslator
-            // is not registered (to avoid self-ghosting from locally-owned entities).
-            if (sample.TkbType != 0 && !view.HasComponent<TkbIdentity>(entity))
-                cmd.AddComponent(entity, new TkbIdentity { TkbType = sample.TkbType });
 
             // Attach (or merge into existing) PendingAuthorityGrants managed component.
             PendingAuthorityGrants pending;
