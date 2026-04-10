@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "All (IOS+IG+SIM)": {
+    "All (ExCon+IG+SIM+CGF)": {
       "commandName": "Project",
       "commandLineArgs": "-m all"
     },
