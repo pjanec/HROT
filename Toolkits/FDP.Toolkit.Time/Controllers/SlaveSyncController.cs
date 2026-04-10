@@ -207,7 +207,7 @@ namespace FDP.Toolkit.Time.Controllers
                 ClientNodeId    = _localNodeId,
                 ClientSendTicks = _lastSyncRequestTicks,
             });
-            FDP.Kernel.Logging.FdpLog<SlaveSyncController>.Debug(
+            FDP.Kernel.Logging.FdpLog<SlaveSyncController>.Trace(
                 "[TC3][Slave#{0}] TimeSyncRequest sent. ClientSendTicks={1}",
                 _localNodeId, _lastSyncRequestTicks);
         }
@@ -239,7 +239,7 @@ namespace FDP.Toolkit.Time.Controllers
                     _masterWallClockOffset += (long)((offset.NewOffset - _masterWallClockOffset)
                                                      * _config.SyncCorrectionWeight);
 
-                FDP.Kernel.Logging.FdpLog<SlaveSyncController>.Debug(
+                FDP.Kernel.Logging.FdpLog<SlaveSyncController>.Trace(
                     "[TC3][Slave#{0}] RTT={1:F3}ms, Offset={2} ticks. {3}",
                     _localNodeId, rttMs, _masterWallClockOffset,
                     hardSnap ? "HARD-SNAP" : "gentle-steer");

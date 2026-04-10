@@ -85,7 +85,7 @@ namespace FDP.Toolkit.Time.Translators
 
                 _responseWriter.Write(response);
 
-                FDP.Kernel.Logging.FdpLog<MasterTimeSyncTranslator>.Debug(
+                FDP.Kernel.Logging.FdpLog<MasterTimeSyncTranslator>.Trace(
                     "[TC3][Master] SyncResponse sent. Node={0}, RTT_approx={1} ticks",
                     request.ClientNodeId,
                     masterTransmitTicks - request.ClientSendTicks);
