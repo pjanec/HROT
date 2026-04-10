@@ -44,6 +44,9 @@ namespace Hrot.Map.Definitions.Tkb
             // that haven't registered the component (safe via TkbTemplate design).
             template.AddComponent(new NetworkTransform());
 
+            // block promotion (and the ownership takeover by SimHost) until the initial coordinates arrive over the network
+            template.AddMandatoryComponent<SimTransform>(isHard: true);
+
             // Override: RegisterTemplate -> Register
             _db.Register(template);
             return this;
