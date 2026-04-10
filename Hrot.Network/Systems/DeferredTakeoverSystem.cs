@@ -45,21 +45,18 @@ namespace Hrot.Network.Systems
         private readonly NetworkEntityMap      _entityMap;
         private readonly int                   _localNodeId;
         private readonly DescriptorOwnershipMap _ownershipMap;
-        private readonly ITkbDatabase?          _tkbDb;
 
         private EntityQuery? _readyQuery;   // Constructing lifecycle
-        private EntityQuery? _ghostQuery;   // Ghost lifecycle + TkbIdentity (split-authority pre-promotion path)
 
         public DeferredTakeoverSystem(
             NetworkEntityMap       entityMap,
             int                    localNodeId,
             DescriptorOwnershipMap ownershipMap,
-            ITkbDatabase?          tkbDb = null)
+            ITkbDatabase?          tkbDb = null) // tkbDb kept in signature for backward compatibility; unused
         {
             _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
             _localNodeId  = localNodeId;
             _ownershipMap = ownershipMap ?? throw new ArgumentNullException(nameof(ownershipMap));
-            _tkbDb        = tkbDb;
         }
 
         public void Execute(ISimulationView view, float dt)
@@ -70,7 +67,12 @@ namespace Hrot.Network.Systems
             EnsureQuery(repo);
             var cmdBuffer = view.GetCommandBuffer();
 
-            // ── Constructing path (normal: entity has been promoted by GhostPromotionSystem) ──
+            // ── Constructing path ──────────────────────────────────────────────────────────────
+            // Entity must be in Constructing state (promoted by GhostPromotionSystem after the
+            // initial WorldPos descriptor arrives from Brain) and have PendingAuthorityGrants.
+            // The Ghost bypass that used to apply TKB templates prematurely has been removed:
+            // the correct flow is that Brain publishes the initial WorldPos before delegating
+            // authority, GhostPromotionSystem promotes the ghost, and only then we claim here.
             foreach (var entity in _readyQuery!)
             {
                 if (!repo.IsAlive(entity)) continue;
@@ -78,32 +80,6 @@ namespace Hrot.Network.Systems
 
                 var pending = repo.GetComponent<PendingAuthorityGrants>(entity);
                 ExecuteTakeover(repo, entity, pending, cmdBuffer);
-            }
-
-            // ── Ghost path (split-authority: Muscle receives pre-genesis ghost from Brain) ──
-            // GhostPromotionSystem is not registered for Muscle roles; instead, DeferredTakeoverSystem
-            // applies the TKB template to the ghost directly (adding SimTransform etc.) and claims
-            // authority.  The entity lifecycle intentionally remains Ghost — the full ELM
-            // construction handshake is skipped because the entity is not locally owned.
-            if (_ghostQuery != null)
-            {
-                foreach (var entity in _ghostQuery)
-                {
-                    if (!repo.IsAlive(entity)) continue;
-                    if (!repo.HasManagedComponent<PendingAuthorityGrants>(entity)) continue;
-
-                    // Apply TKB template so that delegated components (SimTransform, etc.)
-                    // exist on the ghost before authority is claimed.
-                    if (_tkbDb != null)
-                    {
-                        var tkbId = repo.GetComponent<TkbIdentity>(entity).TkbType;
-                        if (_tkbDb.TryGetByType(tkbId, out var template))
-                            template.ApplyTo(repo, entity, preserveExisting: true);
-                    }
-
-                    var pending = repo.GetComponent<PendingAuthorityGrants>(entity);
-                    ExecuteTakeover(repo, entity, pending, cmdBuffer);
-                }
             }
         }
 
@@ -176,12 +152,6 @@ namespace Hrot.Network.Systems
             _readyQuery = repo.Query()
                 .WithLifecycle(EntityLifecycle.Constructing)
                 .Build();
-            // Ghost query is only useful when a TkbDatabase is available to apply the template.
-            if (_tkbDb != null)
-                _ghostQuery = repo.Query()
-                    .With<TkbIdentity>()
-                    .WithLifecycle(EntityLifecycle.Ghost)
-                    .Build();
         }
     }
 }

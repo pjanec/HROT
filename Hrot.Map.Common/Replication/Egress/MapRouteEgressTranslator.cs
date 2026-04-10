@@ -45,8 +45,8 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
     public string TopicName => DdsTopicName;
     public long DescriptorOrdinal => OrdinalValue;
 
-    // Targets: RoutePlan (168 = HrotComponentIds.RoutePlan)
-    private static readonly IReadOnlyList<int> _targetIds = new[] { 168 };
+    // Targets: RoutePlan (HrotComponentIds.RoutePlan = 168)
+    private static readonly IReadOnlyList<int> _targetIds = new[] { (int)Hrot.Map.Definitions.HrotComponentIds.RoutePlan };
     public IReadOnlyList<int> TargetComponentIds => _targetIds;
 
     /// <summary>Production constructor: creates a live DDS writer.</summary>

@@ -46,11 +46,12 @@ namespace Hrot.SimHost.Tests
             var entityMap     = new NetworkEntityMap();
             var eventBus      = new FdpEventBus();
             var ghostCreation = new GhostCreationSystem(entityMap);
+            var geoTransform  = new IdentityGeoTransform();
 
             var translators = SharedTranslatorPack.Create(
-                participant, entityMap, localNodeId: 1, eventBus, ghostCreation).ToList();
+                participant, entityMap, localNodeId: 1, eventBus, ghostCreation, geoTransform).ToList();
 
-            Assert.Equal(3, translators.Count);
+            Assert.Equal(7, translators.Count);
         }
 
         [Fact]
@@ -61,9 +62,10 @@ namespace Hrot.SimHost.Tests
             var entityMap     = new NetworkEntityMap();
             var eventBus      = new FdpEventBus();
             var ghostCreation = new GhostCreationSystem(entityMap);
+            var geoTransform  = new IdentityGeoTransform();
 
             var translators = SharedTranslatorPack.Create(
-                participant, entityMap, localNodeId: 1, eventBus, ghostCreation).ToList();
+                participant, entityMap, localNodeId: 1, eventBus, ghostCreation, geoTransform).ToList();
 
             Assert.Contains(translators, t => t is EntityMasterEgressTranslator);
         }
@@ -76,9 +78,10 @@ namespace Hrot.SimHost.Tests
             var entityMap     = new NetworkEntityMap();
             var eventBus      = new FdpEventBus();
             var ghostCreation = new GhostCreationSystem(entityMap);
+            var geoTransform  = new IdentityGeoTransform();
 
             var translators = SharedTranslatorPack.Create(
-                participant, entityMap, localNodeId: 1, eventBus, ghostCreation).ToList();
+                participant, entityMap, localNodeId: 1, eventBus, ghostCreation, geoTransform).ToList();
 
             Assert.Contains(translators, t => t is EntityMasterIngressTranslator);
         }
@@ -91,9 +94,10 @@ namespace Hrot.SimHost.Tests
             var entityMap     = new NetworkEntityMap();
             var eventBus      = new FdpEventBus();
             var ghostCreation = new GhostCreationSystem(entityMap);
+            var geoTransform  = new IdentityGeoTransform();
 
             var translators = SharedTranslatorPack.Create(
-                participant, entityMap, localNodeId: 1, eventBus, ghostCreation).ToList();
+                participant, entityMap, localNodeId: 1, eventBus, ghostCreation, geoTransform).ToList();
 
             Assert.Contains(translators, t => t is EntityInfoEgressTranslator);
         }
@@ -110,7 +114,7 @@ namespace Hrot.SimHost.Tests
 
             var translators = KinematicTranslatorPack.Create(participant, entityMap, geoTransform).ToList();
 
-            Assert.Equal(3, translators.Count);
+            Assert.Equal(4, translators.Count);
         }
 
         [Fact]

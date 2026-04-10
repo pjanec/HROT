@@ -1,8 +1,10 @@
+using System.Collections.Generic;
 using Hrot.NED.Descriptors;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
@@ -16,19 +18,32 @@ namespace Hrot.Map.Common.Replication.Egress
     /// <summary>
     /// Egress translator: reads the ECS <see cref="EcsNavigationStatus"/> component
     /// for all locally-owned entities and publishes a DDS <see cref="Hrot.NED.Descriptors.NavigationStatus"/>
-    /// sample for each.
+    /// sample for each when the status changes.
     /// </summary>
     public sealed class NavigationStatusEgressTranslator : IDescriptorTranslator
     {
+        // ── DDS writer ────────────────────────────────────────────────────────
+
         private readonly DdsWriter<Hrot.NED.Descriptors.NavigationStatus> _writer;
         private readonly NetworkEntityMap _entityMap;
 
         public string TopicName      => "NavigationStatus";
-        public long   DescriptorOrdinal => 53;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationStatus;
 
-        // NavigationStatus ECS component ID = 68 (NavigationContractsComponentIds.NavigationStatus)
-        private static readonly IReadOnlyList<int> _targetIds = new[] { 68 };
+        // NavigationStatus ECS component ID = NavigationContractsComponentIds.NavigationStatus = 68
+        private static readonly IReadOnlyList<int> _targetIds = new int[] { FDP.Toolkit.Navigation.NavigationContractsComponentIds.NavigationStatus };
         public IReadOnlyList<int> TargetComponentIds => _targetIds;
+
+        // ── Per-entity change-detection cache ────────────────────────────────
+        // Avoids publishing on every tick when the status is unchanging.
+        // Keyed by Entity; value is the last-published (IntentId, Result).
+        // ProgressS is omitted from the key — it is included unconditionally
+        // in the publish payload but does not trigger a new publish on its own.
+        private readonly Dictionary<Entity, (uint IntentId, EcsNavResult Result)> _lastPublished = new();
+
+        // Heartbeat: republish ProgressS every 5 s even when nothing has changed,
+        // to recover from any UDP packet loss on unreliable topics.
+        private const uint ProgressHeartbeatInterval = 300; // 5 s at 60 Hz
 
         public NavigationStatusEgressTranslator(
             DdsParticipant   dds,
@@ -42,8 +57,9 @@ namespace Hrot.Map.Common.Replication.Egress
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         /// <summary>
-        /// Publishes <see cref="Hrot.NED.Descriptors.NavigationStatus"/> to DDS for every
-        /// authority-owned entity that has a <see cref="EcsNavigationStatus"/> component.
+        /// Publishes <see cref="Hrot.NED.Descriptors.NavigationStatus"/> to DDS only when
+        /// <see cref="EcsNavigationStatus.IntentId"/> or <see cref="EcsNavigationStatus.Result"/>
+        /// has changed since the last publish, plus a periodic heartbeat for ProgressS.
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
@@ -60,6 +76,21 @@ namespace Hrot.Map.Common.Replication.Egress
                     continue;
 
                 var status = view.GetComponentRO<EcsNavigationStatus>(entity);
+
+                // Change-detection: publish only when IntentId or Result changes,
+                // or on first publish, or on the ProgressS heartbeat.
+                bool isFirstPublish = !_lastPublished.TryGetValue(entity, out var last);
+                bool hasChanged     = isFirstPublish
+                    || last.IntentId != status.IntentId
+                    || last.Result   != status.Result;
+
+                // Salted heartbeat so not all entities flush at the same tick.
+                uint salt      = (uint)(entity.Index % ProgressHeartbeatInterval);
+                bool heartbeat = ((view.Tick + salt) % ProgressHeartbeatInterval) == 0;
+
+                if (!hasChanged && !heartbeat)
+                    continue;
+
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
                 _writer.Write(new Hrot.NED.Descriptors.NavigationStatus
@@ -70,6 +101,8 @@ namespace Hrot.Map.Common.Replication.Egress
                     ProgressS = status.ProgressS,
                 });
 
+                _lastPublished[entity] = (status.IntentId, status.Result);
+
                 FdpLog<NavigationStatusEgressTranslator>.Debug(
                     "[TRACE-SH] NavigationStatus egress: EntityId={0} IntentId={1} Result={2}",
                     netId.Value, status.IntentId, status.Result);
@@ -79,8 +112,12 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>No ghost promotion needed.</summary>
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        /// <summary>No DDS dispose needed.</summary>
-        public void Dispose(long networkEntityId) { }
+        /// <summary>Cleans up the per-entity change-detection cache on entity disposal.</summary>
+        public void Dispose(long networkEntityId)
+        {
+            if (_entityMap.TryGetEntity(networkEntityId, out var entity))
+                _lastPublished.Remove(entity);
+        }
 
         // ── Enum mapping ──────────────────────────────────────────────────────
 

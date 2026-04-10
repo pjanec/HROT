@@ -4,6 +4,7 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.NetworkSpawning.Events;
+using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using ModuleHost.Core.Abstractions;
 
@@ -31,7 +32,7 @@ namespace Hrot.Network.Translators
         private readonly DdsWriter<DeferredTakeOwnership>? _writer;
 
         public string TopicName         => "DeferredTakeOwnership";
-        public long   DescriptorOrdinal => -3; // Out-of-band — not a standard descriptor ordinal.
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtDeferredTakeOwnership;
 
         public DeferredTakeOwnershipEgressTranslator(DdsParticipant? participant)
         {

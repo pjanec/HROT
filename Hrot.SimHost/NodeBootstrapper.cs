@@ -211,7 +211,7 @@ namespace Hrot.SimHost
 
             // Shared pack — all roles install entity lifecycle translators.
             translators.AddRange(SharedTranslatorPack.Create(
-                participant, entityMap, localNodeId, eventBus, ghostCreationSystem));
+                participant, entityMap, localNodeId, eventBus, ghostCreationSystem, geoTransform));
 
             // Kinematic pack — Muscle nodes publish NavStatus and receive NavIntent.
             if (role.HasFlag(NodeRole.MuscleGround))

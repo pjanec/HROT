@@ -183,7 +183,7 @@ public sealed class NedReplicationModule : INedReplicationModule
         if (participant != null)
         {
             _sharedTranslators = SharedTranslatorPack.Create(
-                participant, entityMap, localNodeId, eventBus, GhostCreationSystem);
+                participant, entityMap, localNodeId, eventBus, GhostCreationSystem, geoTransform);
 
             if (_roleHasMuscle)
                 _kinematicTranslators = KinematicTranslatorPack.Create(
@@ -301,6 +301,14 @@ public sealed class NedReplicationModule : INedReplicationModule
         bool pureBrainRole = _roleHasBrain && !_roleHasMuscle && !_roleHasIG;
         if (pureBrainRole)
             registry.RegisterSystem(new GhostDestructionSystem(_entityMap));
+
+        // ── OwnershipIngressSystem (pure-Brain only) ─────────────────────────
+        // When running split-authority (Brain + Muscle), the Muscle's DeferredTakeoverSystem
+        // publishes OwnershipUpdate bus events that OwnershipUpdateTranslator writes to DDS.
+        // On the Brain, OwnershipUpdateTranslator.PollIngress re-publishes them onto the local
+        // bus, and this system consumes them to drop the Brain's own authority bits.
+        if (pureBrainRole)
+            registry.RegisterSystem(new OwnershipIngressSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
 
         // ── DeferredTakeover (Muscle and AllInOne only) ──────────────────────
         // Runs BeforeSync: entity must be Constructing + have PendingAuthorityGrants.

@@ -6,6 +6,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
+using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using ModuleHost.Core.Abstractions;
 
@@ -41,7 +42,7 @@ namespace Hrot.Network.Translators
         private readonly int                               _localNodeId;
 
         public string TopicName         => DdsTopicName;
-        public long   DescriptorOrdinal => -4; // Out-of-band ordinal (must not clash with known descriptors).
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtDeferredTakeOwnership;
 
         public DeferredTakeOwnershipIngressTranslator(
             DdsParticipant?      participant,

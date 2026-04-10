@@ -14,6 +14,9 @@ namespace Hrot.NED.Descriptors
         // and EntityMissionEgressTranslator ordinals so compile-time schema checks are consistent.
         dtEntityMission    = 51,
         dtNavigationIntent = 52,
+        dtNavigationStatus = 53,             // Muscle-owned nav-completion status
+        dtDeferredTakeOwnership = 54,        // Out-of-band pre-genesis routing (Brain → Muscle)
+        dtOwnershipUpdate       = 55,        // Out-of-band authority handover notification (Muscle → Brain)
         // etc., all known descriptor types here
     }
 

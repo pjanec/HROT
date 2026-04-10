@@ -1,4 +1,5 @@
 using Hrot.NED.Common;
+using Hrot.Common;
 using Hrot.Map.Common;
 using Hrot.SimHost;
 using Hrot.SimHost.Components;
@@ -42,8 +43,23 @@ namespace Hrot.ClusterRunner.Services
 
         // ── Core application ──────────────────────────────────────────────────
 
+        private readonly NodeRole _role;
         private SimHostApp? _app;
         private bool _headless;
+
+        /// <summary>
+        /// Initialises SimHost with the specified node role.
+        /// </summary>
+        /// <param name="role">
+        ///   Node role to pass to <see cref="SimHostApp"/>.
+        ///   Defaults to <see cref="NodeRole.AllInOne"/> for standalone / unit-test use.
+        ///   Pass <c>NodeRole.MuscleGround | NodeRole.Perception</c> when CGF is also
+        ///   running in the same cluster to prevent the Brain split-brain race condition.
+        /// </param>
+        public SimHostSubsystem(NodeRole role = NodeRole.AllInOne)
+        {
+            _role = role;
+        }
 
         /// <summary>
         /// Internal accessor used by unit tests to inspect the underlying
@@ -148,7 +164,7 @@ namespace Hrot.ClusterRunner.Services
         {
             _headless = config.Headless;
             int? domainOverride = config.DomainId;
-            _app = new SimHostApp(domainOverride);
+            _app = new SimHostApp(domainOverride, _role);
             _app.InitializeEmbedded(headless: config.Headless, domainIdOverride: domainOverride, nodeIdOverride: config.NodeId);
         }
 

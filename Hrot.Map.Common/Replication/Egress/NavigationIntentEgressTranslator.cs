@@ -28,10 +28,10 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly IGeographicTransform _geoTransform;
 
         public string TopicName      => "NavigationIntent";
-        public long   DescriptorOrdinal => 52;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationIntent;
 
-        // NavigationIntent ECS component ID = 67 (NavigationContractsComponentIds.NavigationIntent)
-        private static readonly IReadOnlyList<int> _targetIds = new[] { 67 };
+        // NavigationIntent ECS component ID = NavigationContractsComponentIds.NavigationIntent = 67
+        private static readonly IReadOnlyList<int> _targetIds = new int[] { FDP.Toolkit.Navigation.NavigationContractsComponentIds.NavigationIntent };
         public IReadOnlyList<int> TargetComponentIds => _targetIds;
 
         public NavigationIntentEgressTranslator(

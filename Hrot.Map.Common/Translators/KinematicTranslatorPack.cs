@@ -14,12 +14,17 @@ namespace Hrot.Map.Common.Translators
     ///
     /// <para><b>Translators created (in DDS ordinal order):</b></para>
     /// <list type="number">
-    ///   <item><see cref="GeoSpatialEgressTranslator"/>          — publishes position/velocity for owned entities.</item>
     ///   <item><see cref="MapVisualOverlayEgressTranslator"/>    — publishes tactical graphic overlays for owned area entities.</item>
     ///   <item><see cref="MapRouteEgressTranslator"/>            — publishes route plans for owned entities.</item>
     ///   <item><see cref="NavigationStatusEgressTranslator"/>    — publishes nav completion status for owned entities (ordinal 53).</item>
     ///   <item><see cref="NavigationIntentIngressTranslator"/>   — receives nav commands from a Brain node (ordinal 52).</item>
     /// </list>
+    ///
+    /// <para>
+    /// <b>Note:</b> <see cref="GeoSpatialEgressTranslator"/> (WorldPos, ordinal 2) was moved to
+    /// <see cref="SharedTranslatorPack"/> so that Brain nodes can also publish the initial entity
+    /// position before delegating physics authority to the Muscle.
+    /// </para>
     ///
     /// <para>Install on <see cref="NodeRole.MuscleGround"/> and <see cref="NodeRole.AllInOne"/> nodes.</para>
     /// </summary>
@@ -45,7 +50,6 @@ namespace Hrot.Map.Common.Translators
             IGeographicTransform geoTransform,
             GhostCreationSystem? ghostCreationSystem = null)
         {
-            yield return new GeoSpatialEgressTranslator(participant, entityMap, geoTransform);
             yield return new MapVisualOverlayEgressTranslator(participant, entityMap, geoTransform);
             yield return new MapRouteEgressTranslator(participant, entityMap, geoTransform);
             yield return new NavigationStatusEgressTranslator(participant, entityMap);

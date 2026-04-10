@@ -1,0 +1,122 @@
+using System.Collections.Generic;
+using CycloneDDS.Runtime;
+using Fdp.Interfaces;
+using Fdp.Kernel;
+using FDP.Kernel.Logging;
+using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Services;
+using Hrot.NED.Descriptors;
+using ModuleHost.Core.Abstractions;
+
+using OwnershipUpdateMsg  = FDP.Toolkit.Replication.Messages.OwnershipUpdate;
+using OwnershipUpdateWire = ModuleHost.Network.Cyclone.Topics.OwnershipUpdate;
+
+namespace Hrot.Map.Common.Replication
+{
+    /// <summary>
+    /// Bidirectional translator for the <c>SST_OwnershipUpdate</c> DDS topic.
+    ///
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     <b>Muscle (egress)</b> — <see cref="ScanAndPublish"/> consumes
+    ///     <see cref="OwnershipUpdateMsg"/> events published by <c>DeferredTakeoverSystem</c>
+    ///     after it claims split-authority descriptors, and writes them to DDS so the Brain node
+    ///     can drop its own authority bits via its local <c>OwnershipIngressSystem</c>.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <b>Brain (ingress)</b> — <see cref="PollIngress"/> reads DDS samples and re-publishes
+    ///     them onto the local event bus so <c>OwnershipIngressSystem</c> can update
+    ///     <see cref="DescriptorOwnership"/> and call <c>SetAuthority(entity, componentId, false)</c>.
+    ///   </description></item>
+    /// </list>
+    ///
+    /// <para>
+    /// Installed in <see cref="Hrot.Map.Common.Translators.SharedTranslatorPack"/> so that
+    /// both Brain and Muscle nodes get the full bidirectional channel without additional
+    /// per-role wiring in <c>NedReplicationModule</c>.
+    /// </para>
+    /// </summary>
+    public sealed class OwnershipUpdateTranslator : IDescriptorTranslator
+    {
+        private const string DdsTopicName = "SST_OwnershipUpdate";
+
+        private readonly DdsReader<OwnershipUpdateWire>? _reader;
+        private readonly DdsWriter<OwnershipUpdateWire>? _writer;
+
+        public string TopicName         => DdsTopicName;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtOwnershipUpdate;
+
+        // Event-driven — no component ownership mapping needed.
+        public IReadOnlyList<int> TargetComponentIds => System.Array.Empty<int>();
+
+        public OwnershipUpdateTranslator(DdsParticipant? participant)
+        {
+            if (participant != null)
+            {
+                _reader = new DdsReader<OwnershipUpdateWire>(participant, DdsTopicName);
+                _writer = new DdsWriter<OwnershipUpdateWire>(participant, DdsTopicName);
+            }
+        }
+
+        /// <summary>
+        /// Muscle egress: consume <see cref="OwnershipUpdateMsg"/> bus events and write to DDS.
+        /// No-op when no events are pending.
+        /// </summary>
+        public void ScanAndPublish(ISimulationView view)
+        {
+            if (_writer == null) return;
+
+            var updates = view.ConsumeEvents<OwnershipUpdateMsg>();
+            foreach (var evt in updates)
+            {
+                var (typeId, instanceId) = ModuleHost.Core.Network.OwnershipExtensions.UnpackKey(evt.PackedKey);
+
+                _writer.Write(new OwnershipUpdateWire
+                {
+                    EntityId    = evt.NetworkId.Value,
+                    DescrTypeId = typeId,
+                    InstanceId  = instanceId,
+                    NewOwner    = evt.NewOwnerNodeId,
+                });
+
+                FdpLog<OwnershipUpdateTranslator>.Debug(
+                    "[Muscle] OwnershipUpdate egress: EntityId={0} TypeId={1} NewOwner={2}",
+                    evt.NetworkId.Value, typeId, evt.NewOwnerNodeId);
+            }
+        }
+
+        /// <summary>
+        /// Brain ingress: read DDS samples and re-publish onto the local bus
+        /// for <c>OwnershipIngressSystem</c> to consume.
+        /// </summary>
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (_reader == null) return;
+            if (view is not EntityRepository repo) return;
+
+            using var loan = _reader.Take();
+            foreach (var sample in loan)
+            {
+                if (!sample.IsValid) continue;
+
+                var msg       = sample.Data;
+                long packedKey = ModuleHost.Core.Network.OwnershipExtensions.PackKey(msg.DescrTypeId, msg.InstanceId);
+
+                repo.Bus.Publish(new OwnershipUpdateMsg
+                {
+                    NetworkId      = new NetworkIdentity { Value = msg.EntityId },
+                    PackedKey      = packedKey,
+                    NewOwnerNodeId = msg.NewOwner,
+                });
+
+                FdpLog<OwnershipUpdateTranslator>.Debug(
+                    "[Brain] OwnershipUpdate ingress: EntityId={0} TypeId={1} NewOwner={2}",
+                    msg.EntityId, msg.DescrTypeId, msg.NewOwner);
+            }
+        }
+
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+
+        public void Dispose(long networkEntityId) { }
+    }
+}

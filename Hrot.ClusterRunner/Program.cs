@@ -143,7 +143,16 @@ class Program
         var perspSubsystem = new PerspectiveUpdateSubsystem();
         var subsystems = new List<ISubsystem> { perspSubsystem };
         if (config.ParsedMode.HasFlag(RunMode.Orchestrator)) subsystems.Add(new OrchestratorSubsystem());
-        if (config.ParsedMode.HasFlag(RunMode.SimHost)) subsystems.Add(new SimHostSubsystem());
+        if (config.ParsedMode.HasFlag(RunMode.SimHost))
+        {
+            // When CGF is also running in the cluster, SimHost acts strictly as
+            // Muscle + Perception to avoid the Brain split-brain race condition.
+            // Otherwise (standalone / AllInOne), it keeps the full default role.
+            NodeRole simRole = config.ParsedMode.HasFlag(RunMode.CGF)
+                ? (NodeRole.MuscleGround | NodeRole.Perception)
+                : NodeRole.AllInOne;
+            subsystems.Add(new SimHostSubsystem(simRole));
+        }
         if (config.ParsedMode.HasFlag(RunMode.IG))      subsystems.Add(new IgSubsystem());
         if (config.ParsedMode.HasFlag(RunMode.ExCon ))     subsystems.Add(new ExConSubsystem());
         if (config.ParsedMode.HasFlag(RunMode.CGF))     subsystems.Add(new CgfSubsystem());
