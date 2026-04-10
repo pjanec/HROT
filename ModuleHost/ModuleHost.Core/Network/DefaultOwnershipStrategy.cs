@@ -10,9 +10,9 @@ namespace ModuleHost.Core.Network
     public class DefaultOwnershipStrategy : IOwnershipDistributionStrategy
     {
         public int? GetInitialOwner(
-            long descriptorTypeId, 
-            DISEntityType entityType, 
-            int masterNodeId, 
+            long descriptorTypeId,
+            DISEntityType entityType,
+            int masterNodeId,
             long instanceId)
         {
             // Return null = use master as default owner for all descriptors

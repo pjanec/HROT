@@ -330,7 +330,10 @@ namespace Fdp.Kernel
         /// <summary><c>NetworkOrientation</c> — replicated orientation (quaternion) for Cyclone-networked entities.</summary>
         public const byte NetworkOrientation      = 143;
 
-        // IDs 144–159 are reserved for future ModuleHost.Core network components.
+        /// <summary><c>PendingAuthorityGrants</c> — transient component caching descriptor ownership intents from a DeferredTakeOwnership message. Stripped once the entity enters Constructing.</summary>
+        public const byte PendingAuthorityGrants  = 144;
+
+        // IDs 145–159 are reserved for future ModuleHost.Core network components.
 
         // ── Application-level Descriptors (160–199) ──────────────────────────────
         // These IDs are now declared in project specific ComponentIds.

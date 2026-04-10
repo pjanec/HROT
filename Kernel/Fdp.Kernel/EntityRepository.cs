@@ -1050,17 +1050,24 @@ namespace Fdp.Kernel
         }
 
         /// <summary>
-        /// Sets whether this peer has authority over the specified component by Type ID.
-        /// Throws if component is missing from entity's component mask.
+        /// Sets whether this peer has authority over the specified ECS component type ID.
+        /// The <paramref name="typeId"/> must correspond to a component that is actually present
+        /// on the entity — use <see cref="HasComponentByTypeId"/> to guard call sites that obtain
+        /// the ID from an external source (e.g. <c>DescriptorOwnershipMap</c>).
         /// </summary>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when the entity is not alive, or when no component with <paramref name="typeId"/>
+        /// exists on the entity (strict mode preserves ECS invariants).
+        /// </exception>
         public void SetAuthority(Entity entity, int typeId, bool hasAuthority)
         {
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
-            
+
             ref var header = ref _entityIndex.GetHeader(entity.Index);
-            
+
             if (!header.ComponentMask.IsSet(typeId))
-                 throw new InvalidOperationException($"Cannot set authority for TypeID {typeId}: Entity does not have component.");
+                throw new InvalidOperationException(
+                    $"Cannot set authority for component ID {typeId}: component is not present on entity {entity}.");
 
             if (hasAuthority)
                 header.AuthorityMask.SetBit(typeId);

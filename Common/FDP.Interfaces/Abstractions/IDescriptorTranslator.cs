@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
 
@@ -17,6 +18,24 @@ namespace Fdp.Interfaces
         /// DDS topic name.
         /// </summary>
         string TopicName { get; }
+
+        /// <summary>
+        /// The ECS component type IDs that this translator reads or writes authority-gated data for.
+        ///
+        /// <para>
+        /// This is the <em>Single Source of Truth</em> for the descriptor → component mapping.
+        /// <c>NedReplicationModule</c> iterates all registered translators on startup and populates
+        /// the <c>DescriptorOwnershipMap</c> from these IDs so that <c>OwnershipIngressSystem</c>
+        /// can call <c>SetAuthority(entity, exactComponentId, bool)</c> without resorting to
+        /// a try/catch on mismatched ordinal-to-component-ID casts.
+        /// </para>
+        ///
+        /// <para>
+        /// Translators that operate on managed components, or that are ingress-only with no
+        /// direct authority gate, may return the default empty list.
+        /// </para>
+        /// </summary>
+        IReadOnlyList<int> TargetComponentIds => System.Array.Empty<int>();
         
         /// <summary>
         /// Processes incoming network data and updates ECS entities.
