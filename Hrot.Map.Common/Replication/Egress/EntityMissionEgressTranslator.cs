@@ -60,10 +60,12 @@ namespace Hrot.Map.Common.Replication.Egress
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
+            long packedKey = ModuleHost.Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+
             foreach (var entity in query)
             {
                 // Authority check: only publish if we own the mission descriptor for this entity.
-                if (!view.HasAuthority(entity, DescriptorOrdinal))
+                if (!view.HasAuthority(entity, packedKey))
                     continue;
 
                 // Smart egress: EntityMission is RELIABLE — publish only on dirty.

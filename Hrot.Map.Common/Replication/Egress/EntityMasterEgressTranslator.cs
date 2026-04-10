@@ -61,11 +61,13 @@ namespace Hrot.Map.Common.Replication.Egress
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
+            long packedKey = ModuleHost.Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+
             foreach (var entity in query)
             {
                 // Authority check: replaced PrimaryOwnerId == LocalNodeId.
                 // Enables split-ownership scenarios.
-                if (!view.HasAuthority(entity, DescriptorOrdinal))
+                if (!view.HasAuthority(entity, packedKey))
                     continue;
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);

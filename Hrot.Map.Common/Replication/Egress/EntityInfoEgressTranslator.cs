@@ -65,10 +65,12 @@ namespace Hrot.Map.Common.Replication.Egress
                 .WithLifecycle( EntityLifecycle.All)
                 .Build();
 
+            long packedKey = ModuleHost.Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+
             foreach (var entity in query)
             {
                 // Only publish for entities this node owns.
-                if (!view.HasAuthority(entity, DescriptorOrdinal))
+                if (!view.HasAuthority(entity, packedKey))
                     continue;
 
                 // Smart egress: Hrot.NED.Descriptors.EntityInfo is RELIABLE — publish once on first

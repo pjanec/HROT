@@ -64,9 +64,11 @@ namespace Hrot.Map.Common.Replication.Egress
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
+            long packedKey = ModuleHost.Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+
             foreach (var entity in query)
             {
-                if (!view.HasAuthority(entity, DescriptorOrdinal))
+                if (!view.HasAuthority(entity, packedKey))
                     continue;
 
                 if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))

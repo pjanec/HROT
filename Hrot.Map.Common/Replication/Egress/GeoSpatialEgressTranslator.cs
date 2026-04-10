@@ -105,10 +105,12 @@ namespace Hrot.Map.Common.Replication.Egress
             const float RotationDotThreshold = 0.9999f; // ~0.5° arc — Quaternion.Dot == 1 when identical
             const uint  HeartbeatInterval   = 600;      // 10 s at 60 Hz for UDP loss recovery
 
+            long packedKey = ModuleHost.Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+
             foreach (var entity in query)
             {
                 // Authority check: only publish if this node owns geospatial data for this entity.
-                if (!view.HasAuthority(entity, DescriptorOrdinal))
+                if (!view.HasAuthority(entity, packedKey))
                     continue;
 
                 ref readonly var simTf = ref view.GetComponentRO<SimTransform>(entity);

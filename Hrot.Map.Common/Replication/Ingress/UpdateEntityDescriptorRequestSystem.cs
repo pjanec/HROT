@@ -136,7 +136,8 @@ namespace Hrot.Map.Common.Replication.Ingress
         {
             // 2. Authority guard — only apply if this node owns the GeoSpatial descriptor.
             var view = (ISimulationView)World;
-            if (!view.HasAuthority(entity, GeoSpatialOrdinal))
+            long packedKey = ModuleHost.Core.Network.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
+            if (!view.HasAuthority(entity, packedKey))
             {
                 FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
                     "[UpdDescReq] Not authoritative for GeoSpatial on Entity {0}. Ignoring.",
@@ -186,8 +187,9 @@ namespace Hrot.Map.Common.Replication.Ingress
         private void ProcessMapVisualOverlayUpdate(UpdateEntityDescriptorRequest req, Entity entity)
         {
             var view = (ISimulationView)World;
+            long packedKey = ModuleHost.Core.Network.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
 
-            if (!view.HasAuthority(entity, MapVisualOverlayOrdinal))
+            if (!view.HasAuthority(entity, packedKey))
             {
                 FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
                     "[UpdDescReq] Not authoritative for MapVisualOverlay on Entity {0}. Ignoring.",

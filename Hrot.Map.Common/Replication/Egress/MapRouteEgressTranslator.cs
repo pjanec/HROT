@@ -80,9 +80,11 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
             .WithLifecycle(EntityLifecycle.All)
             .Build();
 
+        long packedKey = ModuleHost.Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+
         foreach (var entity in query)
         {
-            if (!view.HasAuthority(entity, DescriptorOrdinal))
+            if (!view.HasAuthority(entity, packedKey))
                 continue;
 
             var routePlan = view.GetManagedComponentRO<RoutePlan>(entity);
