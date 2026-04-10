@@ -22,6 +22,8 @@ namespace Hrot.SimHost.Systems
     /// <para>
     /// On every <see cref="Execute"/> call the system:
     /// <list type="number">
+    ///   <item>Applies the Level-1 routing guard (<see cref="_isDefaultProcessor"/>) to prevent
+    ///     cluster-wide broadcast storms where multiple nodes attempt to process the same default request.</item>
     ///   <item>Drains the source via a zero-allocation callback (no <c>List</c> alloc on ingress).</item>
     ///   <item>Validates each request and allocates a network ID immediately.</item>
     ///   <item>Sends a Phase 1 <see cref="CreateUpdateDeleteEntityAck"/> (InProgress) right away
@@ -49,9 +51,11 @@ namespace Hrot.SimHost.Systems
         private readonly INetworkIdAllocator                _idAllocator;
         private readonly IGeographicTransform?              _geoTransform;
         private readonly int                                _localNodeId;
+        private readonly bool                               _isDefaultProcessor;
         private readonly JsonAttributeCompiler?             _jsonCompiler;
         private readonly BinaryInterpreter<AttributeRecord>?         _binaryInterpreter;
         private readonly NedRequestFinalizationSystem?      _finalizationSystem;
+        private readonly IOwnershipDistributionStrategy?    _ownershipStrategy;
 
         /// <summary>
         /// Reusable <see cref="ListPatchContext"/> instance. Reset per entity-creation call
@@ -69,6 +73,12 @@ namespace Hrot.SimHost.Systems
         /// <param name="tkbDb">TKB database used to validate that the requested entity type exists.</param>
         /// <param name="idAllocator">Allocator that produces unique network entity IDs.</param>
         /// <param name="localNodeId">This node's ID used as <c>OwnerNodeId</c> in SpawnEntityCommand.</param>
+        /// <param name="isDefaultProcessor">
+        ///   When <c>true</c> this node intercepts broadcast requests where <c>Owner == 0</c>
+        ///   (no explicit target node).  Exactly one node in the cluster must set this to <c>true</c>
+        ///   to avoid duplicate ID allocation.  The Brain (CGF) node is always the default processor;
+        ///   Muscle (SimHost) nodes must set this to <c>false</c>.
+        /// </param>
         /// <param name="geoTransform">
         /// Optional geographic transform for converting WGS84 GeoSpatial positions to local Cartesian.
         /// When <c>null</c>, GeoSpatial descriptors are included without a VehicleState override.
@@ -87,6 +97,11 @@ namespace Hrot.SimHost.Systems
         /// Optional <see cref="NedRequestFinalizationSystem"/> for Two-ACK lifecycle tracking.
         /// When provided, the system registers each creation request for Phase 2 ACK dispatch.
         /// </param>
+        /// <param name="ownershipStrategy">
+        ///   Optional <see cref="IOwnershipDistributionStrategy"/> used by the default processor
+        ///   to build the pre-genesis <c>DeferredTakeOwnership</c> routing table.
+        ///   When <c>null</c>, the default processor retains full ownership of all descriptors.
+        /// </param>
         public CreateEntityRequestSystem(
             ICreateEntityRequestSource          requestSource,
             ICreateUpdateDeleteEntityAckSink    ackSink,
@@ -96,17 +111,21 @@ namespace Hrot.SimHost.Systems
             IGeographicTransform?               geoTransform = null,
             JsonAttributeCompiler               jsonAttributeCompiler = null!,
             BinaryInterpreter<AttributeRecord>?          binaryInterpreter = null,
-            NedRequestFinalizationSystem?       finalizationSystem = null)
+            NedRequestFinalizationSystem?       finalizationSystem = null,
+            bool                                isDefaultProcessor = false,
+            IOwnershipDistributionStrategy?     ownershipStrategy = null)
         {
             _requestSource      = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
             _ackSink            = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));
             _tkbDb              = tkbDb         ?? throw new ArgumentNullException(nameof(tkbDb));
             _idAllocator        = idAllocator   ?? throw new ArgumentNullException(nameof(idAllocator));
             _localNodeId        = localNodeId;
+            _isDefaultProcessor = isDefaultProcessor;
             _geoTransform       = geoTransform;
             _jsonCompiler       = jsonAttributeCompiler;
             _binaryInterpreter  = binaryInterpreter;
             _finalizationSystem = finalizationSystem;
+            _ownershipStrategy  = ownershipStrategy;
             _processRequestDelegate = ProcessIncomingRequest;
         }
 
@@ -140,6 +159,18 @@ namespace Hrot.SimHost.Systems
         /// </summary>
         private void ProcessIncomingRequest(CreateEntityRequest request)
         {
+            // ── Level-1 routing guard ──────────────────────────────────────────
+            // If the request specifies an explicit target node, only that node processes it.
+            // If the target is 0 (broadcast / "any default"), only the designated default
+            // processor intercepts it — all other nodes drop the packet silently to prevent
+            // duplicate ID allocation and cluster-wide race conditions.
+            int targetNodeId    = request.Owner.AppInstanceId;
+            bool isTargetedAtMe = targetNodeId == _localNodeId;
+            bool isDefaultRequest = targetNodeId == 0;
+
+            if (!isTargetedAtMe && !(isDefaultRequest && _isDefaultProcessor))
+                return; // Not our responsibility — silently ignore.
+
             try
             {
                 // Validate TkbType presence.
@@ -286,11 +317,17 @@ namespace Hrot.SimHost.Systems
                 // 4. Publish SpawnEntityCommand — NetworkSpawningSystem handles all ECS work.
                 if (view is EntityRepository repo)
                 {
+                    // CQRS fix: if the request explicitly names an owner node, honour it.
+                    // If Owner == 0 the default processor (this node) claims ownership.
+                    int assignedOwner = (pending.Request.Owner.AppInstanceId == 0 || pending.Request.Owner.AppInstanceId == _localNodeId)
+                        ? _localNodeId
+                        : pending.Request.Owner.AppInstanceId;
+
                     repo.Bus.PublishManaged(new SpawnEntityCommand
                     {
                         NetworkId         = pending.NetworkId,
                         TkbType           = pending.TkbType,
-                        OwnerNodeId       = _localNodeId,
+                        OwnerNodeId       = assignedOwner,
                         DisType           = pending.DisType,
                         InitType          = ReliableInitType.AllPeers,
                         InitialTransform  = initialTransform,
@@ -298,6 +335,25 @@ namespace Hrot.SimHost.Systems
                         InitialComponents = fallbackComponents,
                         RequestId         = pending.Request.RequestId,
                     });
+
+                    // 4b  When this node is the default processor it MUST broadcast the
+                    //     pre-genesis routing table BEFORE the EntityMaster is published
+                    //     (strict egress ordering per Rule 1).  The routing table is built
+                    //     by the injected IOwnershipDistributionStrategy.
+                    if (_isDefaultProcessor && _ownershipStrategy != null)
+                    {
+                        var grants = BuildOwnershipGrants(pending, assignedOwner);
+                        if (grants.Count > 0)
+                        {
+                            var dtoCmd = new FDP.Toolkit.NetworkSpawning.Events.DeferredTakeOwnershipCommand
+                            {
+                                NetworkId = pending.NetworkId,
+                                TkbType   = pending.TkbType,
+                            };
+                            dtoCmd.Grants.AddRange(grants);
+                            repo.Bus.PublishManaged(dtoCmd);
+                        }
+                    }
                     // 5. Automatically spawn child entities if defined in the TKB template.
                     if (parentTemplate != null && parentTemplate.ChildBlueprints.Count > 0)
                     {
@@ -326,7 +382,7 @@ namespace Hrot.SimHost.Systems
                             {
                                 NetworkId         = childNetworkId,
                                 TkbType           = childDef.ChildTkbType,
-                                OwnerNodeId       = _localNodeId,
+                                OwnerNodeId       = assignedOwner,
                                 DisType           = childDisType,
                                 InitType          = ReliableInitType.AllPeers,
                                 InitialTransform  = initialTransform, // Spawn at parent pos
@@ -357,6 +413,35 @@ namespace Hrot.SimHost.Systems
                 EntityId   = 0,
                 StatusCode = (int)errorCode,
             });
+        }
+
+        /// <summary>
+        /// Builds the list of descriptor grants that should be delegated to non-local
+        /// nodes, according to the injected <see cref="_ownershipStrategy"/>.
+        ///
+        /// <para>Each known descriptor ordinal is evaluated; if the strategy returns a target
+        /// node different from this node, a <see cref="DescriptorGrant"/> entry is added.</para>
+        /// </summary>
+        private List<DescriptorGrant> BuildOwnershipGrants(in PendingRequest pending, int assignedOwner)
+        {
+            var grants = new List<DescriptorGrant>();
+            if (_ownershipStrategy == null) return grants;
+
+            var disType = new Fdp.Kernel.DISEntityType { Value = pending.DisType };
+
+            // Evaluate the strategy for every descriptor ordinal the Muscle node may own.
+            foreach (long ordinal in new[]
+            {
+                (long)EDescriptorType.dtWorldPos,
+            })
+            {
+                int? targetNode = _ownershipStrategy.GetInitialOwner(
+                    ordinal, disType, assignedOwner, instanceId: 0);
+
+                if (targetNode.HasValue && targetNode.Value != _localNodeId)
+                    grants.Add(new DescriptorGrant { DescriptorTypeId = ordinal, NodeId = targetNode.Value });
+            }
+            return grants;
         }
 
         // ─── Inner types ─────────────────────────────────────────────────────

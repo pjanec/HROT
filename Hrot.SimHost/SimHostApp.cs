@@ -429,7 +429,13 @@ namespace Hrot.SimHost
                 onEntitySpawned: (world, entity, isLocalAuthority) =>
                 {
                     if (isLocalAuthority && world.HasComponent<SimTransform>(entity))
+                    {
                         world.SetAuthority<SimTransform>(entity, true);
+                        if (world.HasComponent<NetworkTransform>(entity))
+                            world.SetAuthority<NetworkTransform>(entity, true);
+                        if (world.HasComponent<NetworkVelocity>(entity))
+                            world.SetAuthority<NetworkVelocity>(entity, true);
+                    }
                 });
 
             // ── DDS adapters and request-handling systems ───────────────────────

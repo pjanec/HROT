@@ -12,6 +12,7 @@ using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Components;
 using Fdp.Toolkit.Tkb;
 using FDP.Toolkit.Replication.Components;
+using Hrot.Map.Common;
 
 namespace Hrot.Map.Definitions.Tkb
 {
@@ -30,6 +31,12 @@ namespace Hrot.Map.Definitions.Tkb
         public NedTkbBuilder DefineVehicle(long tkbId, string name)
         {
             var template = new TkbTemplate(name, tkbId);
+
+            // Include SimTransform so that the Muscle authority path (DeferredTakeoverSystem)
+            // can claim it when WorldPos is delegated. Silently skipped on worlds that
+            // haven't registered the component (e.g. pure-IG worlds that receive SimTransform
+            // via GeoSpatialIngressTranslator; preserveExisting=true protects the live value).
+            template.AddComponent(new SimTransform());
 
             // Include NetworkTransform so entities spawned from this blueprint
             // already have a shadow-state component for GeoSpatial egress change-detection

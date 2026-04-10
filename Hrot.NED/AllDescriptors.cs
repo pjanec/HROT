@@ -10,6 +10,10 @@ namespace Hrot.NED.Descriptors
         dtWorldPos         = 2,
         dtMapVisualOverlay = 3,
         dtMapRoute         = 4,
+        // Cognitive (Brain-owned) descriptor ordinals.  Values match NavigationIntentEgressTranslator
+        // and EntityMissionEgressTranslator ordinals so compile-time schema checks are consistent.
+        dtEntityMission    = 51,
+        dtNavigationIntent = 52,
         // etc., all known descriptor types here
     }
 

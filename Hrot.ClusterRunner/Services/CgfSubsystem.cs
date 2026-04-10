@@ -5,6 +5,7 @@ using Hrot.SimHost.Translators;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.Network.Infrastructure;
+using Hrot.NED.Descriptors;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Services;
@@ -35,6 +36,45 @@ public sealed class CgfSubsystem : ISubsystem
 
     /// <summary>TestHook: exposes the CGF ECS world for integration tests.</summary>
     internal Fdp.Kernel.EntityRepository? World => _context?.World;
+
+    /// <summary>
+    /// TestHook: spawns an entity and publishes a <c>DeferredTakeOwnership</c> routing table
+    /// that assigns the WorldPos descriptor to <paramref name="muscleNodeId"/>.
+    ///
+    /// <para>Mirrors what a full <c>CreateEntityRequestSystem(isDefaultProcessor:true)</c> would do
+    /// without requiring ExCon wiring in integration tests.</para>
+    /// </summary>
+    internal long TestHook_SpawnEntityWithSplitAuthority(long tkbType, int muscleNodeId)
+    {
+        if (_context == null)
+            throw new System.InvalidOperationException("CgfSubsystem not initialized.");
+
+        long networkId = _context.IdAllocator?.AllocateId()
+            ?? unchecked((long)System.Threading.Interlocked.Increment(ref _testIdCounter));
+
+        // 1. Publish DeferredTakeOwnership FIRST (pre-genesis, before EntityMaster).
+        var dtoCmd = new DeferredTakeOwnershipCommand { NetworkId = networkId, TkbType = tkbType };
+        dtoCmd.Grants.Add(new DescriptorGrant
+        {
+            DescriptorTypeId = (long)EDescriptorType.dtWorldPos,
+            NodeId           = muscleNodeId,
+        });
+        _context.World.Bus.PublishManaged(dtoCmd);
+
+        // 2. Publish SpawnEntityCommand (CGF/Brain owns entity identity).
+        _context.World.Bus.PublishManaged(new SpawnEntityCommand
+        {
+            NetworkId   = networkId,
+            TkbType     = tkbType,
+            OwnerNodeId = _context.NodeId,
+            InitType    = ModuleHost.Core.Network.Interfaces.ReliableInitType.AllPeers,
+            RequestId   = System.Guid.Empty,
+        });
+
+        return networkId;
+    }
+
+    private int _testIdCounter;
 
     /// <inheritdoc/>
     public void Initialize(SubsystemConfig config)

@@ -56,6 +56,12 @@ public static class HrotSharedComponentRegistry
         world.RegisterManagedComponent<SimCombatDef>();
         world.RegisterManagedComponent<TkbCompositionDef>();
 
+        // ── Network replication managed components ────────────────────────────
+        // DescriptorOwnership: per-entity descriptor → owner node tracking.
+        // PendingAuthorityGrants: pre-genesis routing intent (Muscle role).
+        world.RegisterManagedComponent<DescriptorOwnership>();
+        world.RegisterManagedComponent<PendingAuthorityGrants>();
+
         // ── Lifecycle events (network entity construction / destruction) ──────
         world.RegisterEvent<ConstructionOrder>();
         world.RegisterEvent<ConstructionAck>();

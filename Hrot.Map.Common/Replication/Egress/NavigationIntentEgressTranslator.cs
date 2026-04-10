@@ -20,16 +20,6 @@ namespace Hrot.Map.Common.Replication.Egress
     /// Egress translator: reads the ECS <see cref="EcsNavigationIntent"/> component
     /// for all locally-owned entities and publishes a DDS <see cref="Hrot.NED.Descriptors.NavigationIntent"/>
     /// sample for each.
-    ///
-    /// <para>
-    /// The <see cref="EcsNavigationIntent.FinalDestination"/> (Cartesian <c>Vector2</c>) is
-    /// converted to a WGS-84 <see cref="GeoPoint"/> via <see cref="IGeographicTransform"/>,
-    /// mirroring the pattern from <c>GeoSpatialEgressTranslator</c>.
-    /// </para>
-    ///
-    /// <para>
-    /// Entities with <c>intent.Mode == NavigationMode.None</c> are skipped (no active command).
-    /// </para>
     /// </summary>
     public sealed class NavigationIntentEgressTranslator : IDescriptorTranslator
     {
@@ -39,6 +29,10 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public string TopicName      => "NavigationIntent";
         public long   DescriptorOrdinal => 52;
+
+        // NavigationIntent ECS component ID = 67 (NavigationContractsComponentIds.NavigationIntent)
+        private static readonly IReadOnlyList<int> _targetIds = new[] { 67 };
+        public IReadOnlyList<int> TargetComponentIds => _targetIds;
 
         public NavigationIntentEgressTranslator(
             DdsParticipant      dds,

@@ -17,12 +17,6 @@ namespace Hrot.Map.Common.Replication.Egress
     /// Egress translator: reads the ECS <see cref="EcsNavigationStatus"/> component
     /// for all locally-owned entities and publishes a DDS <see cref="Hrot.NED.Descriptors.NavigationStatus"/>
     /// sample for each.
-    ///
-    /// <para>
-    /// Entities with <c>status.Result == NavigationResult.InProgress</c> and
-    /// <c>status.IntentId == 0</c> (uninitialised) are still published to keep
-    /// remote Brain nodes informed.
-    /// </para>
     /// </summary>
     public sealed class NavigationStatusEgressTranslator : IDescriptorTranslator
     {
@@ -31,6 +25,10 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public string TopicName      => "NavigationStatus";
         public long   DescriptorOrdinal => 53;
+
+        // NavigationStatus ECS component ID = 68 (NavigationContractsComponentIds.NavigationStatus)
+        private static readonly IReadOnlyList<int> _targetIds = new[] { 68 };
+        public IReadOnlyList<int> TargetComponentIds => _targetIds;
 
         public NavigationStatusEgressTranslator(
             DdsParticipant   dds,

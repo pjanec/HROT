@@ -26,6 +26,11 @@ namespace Hrot.Map.Common.Replication.Egress
         public string TopicName => "EntityMaster";
         public long DescriptorOrdinal => 0;
 
+        // Targets: NetworkIdentity (50) + TkbIdentity (65)
+        private static readonly IReadOnlyList<int> _targetIds =
+            new int[] { GlobalComponentIds.NetworkIdentity, GlobalComponentIds.TkbIdentity };
+        public IReadOnlyList<int> TargetComponentIds => _targetIds;
+
         public EntityMasterEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,

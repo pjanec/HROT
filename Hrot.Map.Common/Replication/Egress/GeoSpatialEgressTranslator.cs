@@ -4,6 +4,7 @@ using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
 using CycloneDDS.Runtime;
+using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Systems;
@@ -27,6 +28,19 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly HashSet<long> _tracedNetIds = new();
 
         private const long WorldPosOrdinal = (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos;
+
+        /// <summary>
+        /// ECS component IDs that authority-gate this descriptor.
+        /// SimTransform (0), NetworkTransform (52), NetworkVelocity (53).
+        /// </summary>
+        private static readonly IReadOnlyList<int> _targetIds = new int[]
+        {
+            GlobalComponentIds.SimTransform,
+            GlobalComponentIds.NetworkTransform,
+            GlobalComponentIds.NetworkVelocity,
+        };
+
+        public IReadOnlyList<int> TargetComponentIds => _targetIds;
 
         public GeoSpatialEgressTranslator(
             DdsParticipant participant,

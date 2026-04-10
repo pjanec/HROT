@@ -12,6 +12,7 @@ using FDP.Toolkit.Replication.Systems;
 using Hrot.Common.Systems;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Translators;
+using Hrot.Network.Systems;
 using Hrot.Network.Translators;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
@@ -19,6 +20,9 @@ using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Scheduling;
 using ModuleHost.Network.Cyclone.Modules;
 using ModuleHost.Network.Cyclone.Systems;
+using FdpIDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
+using DescriptorOwnershipMap    = ModuleHost.Core.Network.DescriptorOwnershipMap;
+using EDescriptorType           = Hrot.NED.Descriptors.EDescriptorType;
 
 namespace Hrot.Network.Replication;
 
@@ -71,9 +75,19 @@ public sealed class NedReplicationModule : INedReplicationModule
     private readonly EntityLifecycleModule? _lifecycleModule;
 
     // ── Translator lists ───────────────────────────────────────────────────────
-    private readonly IEnumerable<IDescriptorTranslator> _sharedTranslators;
-    private readonly IEnumerable<IDescriptorTranslator>? _kinematicTranslators;
-    private readonly IEnumerable<IDescriptorTranslator>? _cognitiveTranslators;
+    private readonly IEnumerable<FdpIDescriptorTranslator> _sharedTranslators;
+    private readonly IEnumerable<FdpIDescriptorTranslator>? _kinematicTranslators;
+    private readonly IEnumerable<FdpIDescriptorTranslator>? _cognitiveTranslators;
+
+    // ── Descriptor → ECS component mapping (Single Source of Truth) ───────────
+    // Populated from FdpIDescriptorTranslator.TargetComponentIds during construction
+    // so that OwnershipIngressSystem and DeferredTakeoverSystem can call
+    // SetAuthority(entity, exactComponentId, bool) without try/catch.
+    private readonly DescriptorOwnershipMap _descriptorOwnershipMap = new();
+
+    // ── Pre-genesis routing translators (Brain egress / Muscle ingress) ────────
+    private readonly DeferredTakeOwnershipEgressTranslator?  _dtoEgress;
+    private readonly DeferredTakeOwnershipIngressTranslator? _dtoIngress;
 
     /// <summary>
     /// Ghost-creation system creates replica entities from incoming DDS samples.
@@ -180,14 +194,25 @@ public sealed class NedReplicationModule : INedReplicationModule
                     participant, entityMap, geoTransform,
                     doctrineRegistry,
                     GhostCreationSystem);
+
+            // DeferredTakeOwnership: Brain publishes, Muscle receives.
+            if (_roleHasBrain)
+                _dtoEgress  = new DeferredTakeOwnershipEgressTranslator(participant);
+            if (_roleHasMuscle)
+                _dtoIngress = new DeferredTakeOwnershipIngressTranslator(
+                    participant, entityMap, GhostCreationSystem, localNodeId);
         }
         else
         {
             // Headless / test mode — no DDS translators
-            _sharedTranslators    = System.Array.Empty<IDescriptorTranslator>();
+            _sharedTranslators    = System.Array.Empty<FdpIDescriptorTranslator>();
             _kinematicTranslators = null;
             _cognitiveTranslators = null;
         }
+
+        // Populate DescriptorOwnershipMap from every translator's TargetComponentIds.
+        // This is the Single Source of Truth for descriptor → ECS component ID mapping.
+        PopulateDescriptorOwnershipMap();
     }
 
     public void RegisterSystems(ISystemRegistry registry)
@@ -196,11 +221,21 @@ public sealed class NedReplicationModule : INedReplicationModule
         registry.RegisterSystem(GhostCreationSystem);
 
         // ── Translator routing systems ───────────────────────────────────────
-        var allTranslators = new List<IDescriptorTranslator>(_sharedTranslators);
+        var allTranslators = new List<FdpIDescriptorTranslator>(_sharedTranslators);
         if (_roleHasMuscle && _kinematicTranslators != null)
             allTranslators.AddRange(_kinematicTranslators);
         if (_roleHasBrain && _cognitiveTranslators != null)
             allTranslators.AddRange(_cognitiveTranslators);
+
+        // DeferredTakeOwnership translators are inserted FIRST on Muscle (ingress before EntityMaster)
+        // and added at the end on Brain (egress after cognitive pack).
+        var ingressTranslators = new List<FdpIDescriptorTranslator>(allTranslators.Count + 1);
+        if (_dtoIngress != null) ingressTranslators.Add(_dtoIngress);
+        ingressTranslators.AddRange(allTranslators);
+
+        var egressTranslators = new List<FdpIDescriptorTranslator>(allTranslators.Count + 1);
+        egressTranslators.AddRange(allTranslators);
+        if (_dtoEgress != null) egressTranslators.Add(_dtoEgress);
 
         // Register ingress + egress systems only when a live DDS participant is available.
         // For pure ImageGenerator (no Muscle, no Brain): skip the shared CycloneNetworkIngressSystem
@@ -212,8 +247,8 @@ public sealed class NedReplicationModule : INedReplicationModule
         {
             bool pureIg = _roleHasIG && !_roleHasMuscle && !_roleHasBrain;
             if (!pureIg)
-                registry.RegisterSystem(new CycloneNetworkIngressSystem(allTranslators.ToArray()));
-            registry.RegisterSystem(new CycloneEgressSystem(allTranslators.ToArray()));
+                registry.RegisterSystem(new CycloneNetworkIngressSystem(ingressTranslators.ToArray()));
+            registry.RegisterSystem(new CycloneEgressSystem(egressTranslators.ToArray()));
         }
 
         // ── ImageGenerator: inline EntityStatesIngressPack + ghost lifecycle ──
@@ -234,7 +269,7 @@ public sealed class NedReplicationModule : INedReplicationModule
 
             // IG ghost lifecycle: ownership tracking + promotion + sub-entity cleanup.
             // These replace the legacy ReplicationLogicModule for pure IG nodes.
-            registry.RegisterSystem(new OwnershipIngressSystem(_entityMap));
+            registry.RegisterSystem(new OwnershipIngressSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
             if (_tkbDb != null && _lifecycleModule != null)
                 registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule));
             registry.RegisterSystem(new SubEntityCleanupSystem());
@@ -267,9 +302,46 @@ public sealed class NedReplicationModule : INedReplicationModule
         if (pureBrainRole)
             registry.RegisterSystem(new GhostDestructionSystem(_entityMap));
 
+        // ── DeferredTakeover (Muscle and AllInOne only) ──────────────────────
+        // Runs BeforeSync: entity must be Constructing + have PendingAuthorityGrants.
+        // Ghost promotion for Muscle: promotes ghosts received from remote Brain (CGF) nodes.
+        // Pure-IG ghost promotion is registered above (pureIgRole block). Muscle needs a
+        // separate registration so that CGF-spawned entities (WorldPos delegated to Muscle)
+        // transition from Ghost → Constructing before DeferredTakeoverSystem claims authority.
+        if (_roleHasMuscle && _tkbDb != null && _lifecycleModule != null)
+            registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule));
+        if (_roleHasMuscle)
+            registry.RegisterSystem(new DeferredTakeoverSystem(_entityMap, _localNodeId, _descriptorOwnershipMap, _tkbDb));
+
         // ── Cleanup systems (all roles) ──────────────────────────────────────
-        registry.RegisterSystem(new CycloneNetworkCleanupSystem(allTranslators));
+        var allCleanupTranslators = new List<FdpIDescriptorTranslator>(allTranslators);
+        if (_dtoIngress != null) allCleanupTranslators.Add(_dtoIngress);
+        if (_dtoEgress  != null) allCleanupTranslators.Add(_dtoEgress);
+        registry.RegisterSystem(new CycloneNetworkCleanupSystem(allCleanupTranslators));
         registry.RegisterSystem(new DisposalMonitoringSystem(_entityMap));
+    }
+
+    // ── DescriptorOwnershipMap population ────────────────────────────────────
+
+    private void PopulateDescriptorOwnershipMap()
+    {
+        foreach (var t in _sharedTranslators)
+            _descriptorOwnershipMap.RegisterFromTranslator(t.DescriptorOrdinal, t.TargetComponentIds);
+        if (_kinematicTranslators != null)
+            foreach (var t in _kinematicTranslators)
+                _descriptorOwnershipMap.RegisterFromTranslator(t.DescriptorOrdinal, t.TargetComponentIds);
+        if (_cognitiveTranslators != null)
+            foreach (var t in _cognitiveTranslators)
+                _descriptorOwnershipMap.RegisterFromTranslator(t.DescriptorOrdinal, t.TargetComponentIds);
+
+        // Explicit mapping: WorldPos descriptor → SimTransform component.
+        // GeoSpatialIngressTranslator writes NetworkTransform (ordinal 10), but the authoritative
+        // component on the Muscle side is SimTransform (fed by SimTransformBridgeSystem).
+        // DeferredTakeoverSystem uses this mapping to SetAuthority(entity, simTransformId, true)
+        // when the Muscle receives a split-authority WorldPos delegation.
+        _descriptorOwnershipMap.RegisterMapping(
+            (long)EDescriptorType.dtWorldPos,
+            ComponentType<SimTransform>.ID);
     }
 
     public void Tick(ISimulationView view, float dt)

@@ -34,6 +34,11 @@ namespace Hrot.Map.Common.Replication.Egress
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
 
+        // Targets: EditablePolyline (117)
+        private static readonly IReadOnlyList<int> _targetIds =
+            new int[] { GlobalComponentIds.EditablePolyline };
+        public IReadOnlyList<int> TargetComponentIds => _targetIds;
+
         public MapVisualOverlayEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
