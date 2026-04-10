@@ -41,12 +41,6 @@ namespace FDP.Toolkit.NetworkSpawning.Events
         public long NetworkId;
 
         /// <summary>
-        /// TKB entity type ID forwarded to Muscle nodes so they can attach
-        /// <c>TkbIdentity</c> to the ghost entity.
-        /// </summary>
-        public long TkbType;
-
-        /// <summary>
         /// Per-descriptor ownership assignments.  Each entry states which node ID should
         /// own a given descriptor type for this entity.
         /// </summary>
