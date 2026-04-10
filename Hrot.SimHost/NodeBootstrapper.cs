@@ -128,14 +128,14 @@ namespace Hrot.SimHost
             }
 
             // Brain tier — absent on MuscleGround (receives NavigationIntent via DDS instead).
-            if (role != NodeRole.MuscleGround && role != NodeRole.ImageGenerator)
+            if (role.HasFlag(NodeRole.Brain))
             {
                 _registeredModules.Add(new MissionControlModule(doctrineRegistry));
                 _registeredModules.Add(new CognitiveRuntimeModule(doctrineRegistry));
             }
 
             // Action dispatch — present on Brain, MuscleGround, AllInOne.
-            if (role != NodeRole.ImageGenerator)
+            if (role.HasFlag(NodeRole.Brain) || role.HasFlag(NodeRole.MuscleGround))
             {
                 _registeredModules.Add(new ActionDispatchModule(
                     locoExecutors: new (ushort, IActionExecutor<LocomotionChannel>)[]
@@ -155,19 +155,19 @@ namespace Hrot.SimHost
             }
 
             // Ground kinematics — absent on Brain (movement is handled by remote Muscle).
-            if (role != NodeRole.Brain && role != NodeRole.ImageGenerator)
+            if (role.HasFlag(NodeRole.MuscleGround))
             {
                 _registeredModules.Add(new GroundKinematicsModule(roadNetwork, trajectoryPool, formationTemplates));
             }
 
             // Combat — present on Muscle and AllInOne; absent on Brain (no ballistics on the Brain tier).
-            if (role != NodeRole.ImageGenerator && role != NodeRole.Brain)
+            if (role.HasFlag(NodeRole.MuscleGround))
             {
                 _registeredModules.Add(new CombatModule());
             }
 
             // DamageAssessment — collocated with Muscle; also present on AllInOne.
-            if (role != NodeRole.Brain && role != NodeRole.ImageGenerator)
+            if (role.HasFlag(NodeRole.MuscleGround))
             {
                 _registeredModules.Add(new DamageAssessmentModule());
             }
@@ -214,43 +214,42 @@ namespace Hrot.SimHost
                 participant, entityMap, localNodeId, eventBus, ghostCreationSystem));
 
             // Kinematic pack — Muscle nodes publish NavStatus and receive NavIntent.
-            if (role != NodeRole.Brain && role != NodeRole.ImageGenerator)
+            if (role.HasFlag(NodeRole.MuscleGround))
             {
                 translators.AddRange(KinematicTranslatorPack.Create(
                     participant, entityMap, geoTransform));
             }
 
             // Cognitive pack — Brain nodes publish NavIntent and receive NavStatus.
-            if (role != NodeRole.MuscleGround && role != NodeRole.ImageGenerator
-                && role != NodeRole.Perception && role != NodeRole.NavigationSolver)
+            if (role.HasFlag(NodeRole.Brain))
             {
                 translators.AddRange(CognitiveTranslatorPack.Create(
                     participant, entityMap, geoTransform, doctrineRegistry, ghostCreationSystem));
             }
 
-            // Brain perception pack — Brain/AllInOne publish sensor config + raycast batches.
-            if (role == NodeRole.Brain || role == NodeRole.AllInOne)
+            // Brain perception pack — Brain nodes publish sensor config + raycast batches.
+            if (role.HasFlag(NodeRole.Brain))
             {
                 translators.AddRange(BrainPerceptionTranslatorPack.Create(
                     participant, entityMap, geoTransform));
             }
 
-            // Brain pathfinding pack — Brain/AllInOne publish path request batches.
-            if (role == NodeRole.Brain || role == NodeRole.AllInOne)
+            // Brain pathfinding pack — Brain nodes publish path request batches.
+            if (role.HasFlag(NodeRole.Brain))
             {
                 translators.AddRange(BrainPathfindingTranslatorPack.Create(
                     participant, entityMap, geoTransform));
             }
 
             // Sim perception pack — Perception solver nodes receive requests and publish targets.
-            if (role == NodeRole.Perception || role == NodeRole.AllInOne)
+            if (role.HasFlag(NodeRole.Perception))
             {
                 translators.AddRange(SimPerceptionTranslatorPack.Create(
                     participant, entityMap, geoTransform));
             }
 
             // Sim pathfinding pack — NavigationSolver nodes receive requests and publish results.
-            if (role == NodeRole.NavigationSolver || role == NodeRole.AllInOne)
+            if (role.HasFlag(NodeRole.NavigationSolver))
             {
                 translators.AddRange(SimPathfindingTranslatorPack.Create(
                     participant, entityMap, geoTransform));
@@ -324,7 +323,7 @@ namespace Hrot.SimHost
             ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup? lifecycleGroup = null,
             FDP.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null)
         {
-            if (participant == null && (role == NodeRole.Brain || role == NodeRole.AllInOne))
+            if (participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
                     $"[SimHost] A DDS participant is required for orchestration role '{role}'. " +
                     "ClusterSlave cannot run without DDS in production.");
@@ -342,9 +341,9 @@ namespace Hrot.SimHost
             }
             var storageProvider = new LocalDiskStorageProvider(localTempRoot);
 
-            // Create EcsRecordReplayController for Brain/AllInOne.
+            // Create EcsRecordReplayController for Brain-tier nodes.
             EcsRecordReplayController? controller = null;
-            if (role == NodeRole.Brain || role == NodeRole.AllInOne)
+            if (role.HasFlag(NodeRole.Brain))
                 controller = new EcsRecordReplayController(kernel, nodeId, world);
 
             // Wire ReferenceReplayLoadHandler BEFORE ReferenceLiveLoadHandler so the

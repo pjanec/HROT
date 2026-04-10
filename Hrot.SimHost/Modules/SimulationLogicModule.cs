@@ -106,19 +106,12 @@ namespace Hrot.SimHost.Modules
 
             _entityMap = entityMap;
 
-            bool hasCombat         = role != NodeRole.Brain
-                                  && role != NodeRole.ImageGenerator
-                                  && role != NodeRole.Perception
-                                  && role != NodeRole.NavigationSolver;
-            bool hasDamageAssessment = role != NodeRole.Brain
-                                     && role != NodeRole.ImageGenerator
-                                     && role != NodeRole.Perception
-                                     && role != NodeRole.NavigationSolver;
-            bool hasMissionControl = role == NodeRole.AllInOne || role == NodeRole.Brain;
-            bool hasCognitive      = role == NodeRole.AllInOne || role == NodeRole.Brain;
-            bool hasActionDispatch = role == NodeRole.AllInOne || role == NodeRole.Brain
-                                  || role == NodeRole.MuscleGround;
-            bool hasGroundKinem    = role == NodeRole.AllInOne || role == NodeRole.MuscleGround;
+            bool hasCombat           = role.HasFlag(NodeRole.MuscleGround);
+            bool hasDamageAssessment = role.HasFlag(NodeRole.MuscleGround);
+            bool hasMissionControl   = role.HasFlag(NodeRole.Brain);
+            bool hasCognitive        = role.HasFlag(NodeRole.Brain);
+            bool hasActionDispatch   = role.HasFlag(NodeRole.Brain) || role.HasFlag(NodeRole.MuscleGround);
+            bool hasGroundKinem      = role.HasFlag(NodeRole.MuscleGround);
 
             if (hasCombat)
                 _combatModule = new CombatModule();

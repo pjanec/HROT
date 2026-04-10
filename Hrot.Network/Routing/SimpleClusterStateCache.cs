@@ -27,7 +27,7 @@ namespace Hrot.Network.Routing
                 NodeCapability? best = null;
                 foreach (var cap in _nodes.Values)
                 {
-                    if (cap.Role != requiredRole)
+                    if (!cap.Role.HasFlag(requiredRole))
                         continue;
                     if (best == null || cap.CpuUsagePercent < best.CpuUsagePercent)
                         best = cap;

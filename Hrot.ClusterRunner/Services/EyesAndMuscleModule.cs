@@ -68,7 +68,7 @@ public sealed class EyesAndMuscleModule : IEcsModule
     public EyesAndMuscleModule(NodeRole role)
     {
         _role         = role;
-        _muscleActive = (role == NodeRole.MuscleGround) || (role == NodeRole.AllInOne);
+        _muscleActive = role.HasFlag(NodeRole.MuscleGround);
     }
 
     // ── IEcsModule ─────────────────────────────────────────────────────────────

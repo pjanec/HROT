@@ -161,9 +161,9 @@ public sealed class NedReplicationModule : INedReplicationModule
         _lifecycleModule = lifecycleModule;
 
         // Validate role
-        _roleHasMuscle = role == NodeRole.MuscleGround || role == NodeRole.AllInOne;
-        _roleHasIG     = role == NodeRole.ImageGenerator || role == NodeRole.AllInOne;
-        _roleHasBrain  = role == NodeRole.Brain || role == NodeRole.AllInOne;
+        _roleHasMuscle = role.HasFlag(NodeRole.MuscleGround);
+        _roleHasIG     = role.HasFlag(NodeRole.ImageGenerator);
+        _roleHasBrain  = role.HasFlag(NodeRole.Brain);
 
         if (!_roleHasMuscle && !_roleHasIG && !_roleHasBrain)
             throw new ArgumentException(

@@ -66,7 +66,7 @@ public static class SimHostAuxiliaryTranslatorPack
         translators.Add(new MissionControlAckEgressTranslator(participant));
 
         // ── Combat egress — Brain / AllInOne emits WeaponFireIntent → DDS ──
-        if (role == NodeRole.Brain || role == NodeRole.AllInOne)
+        if (role.HasFlag(NodeRole.Brain))
         {
             translators.Add(new WeaponFireIntentEgressTranslator(participant, entityMap));
             // Brain (authority node): receives EntityHitDamage → applies health changes.
@@ -74,7 +74,7 @@ public static class SimHostAuxiliaryTranslatorPack
         }
 
         // ── Combat egress — Muscle / AllInOne emits notifications and receives requests ──
-        if (role == NodeRole.MuscleGround || role == NodeRole.AllInOne)
+        if (role.HasFlag(NodeRole.MuscleGround))
         {
             translators.Add(new WeaponFireNotificationEgressTranslator(participant, entityMap));
             translators.Add(new MunitionDetonationEgressTranslator(participant, entityMap));

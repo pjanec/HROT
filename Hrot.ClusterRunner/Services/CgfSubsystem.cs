@@ -1,13 +1,23 @@
+using System.Linq;
 using Hrot.CGF;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Translators;
+using Hrot.SimHost;
+using Hrot.SimHost.Modules;
+using Hrot.SimHost.Network;
+using Hrot.SimHost.Systems;
 using Hrot.SimHost.Translators;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.Network.Infrastructure;
+using Hrot.Network.Routing;
 using Hrot.NED.Descriptors;
+using Hrot.NED.Descriptors.Orchestration;
+using CycloneDDS.Runtime;
 using FDP.Toolkit.Behavior;
+using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
@@ -23,8 +33,10 @@ namespace Hrot.ClusterRunner.Services;
 /// </summary>
 public sealed class CgfSubsystem : ISubsystem
 {
-    private HrotNodeContext?  _context;
-    private NetworkEntityMap? _entityMap;
+    private HrotNodeContext?         _context;
+    private NetworkEntityMap?        _entityMap;
+    private SimpleClusterStateCache? _clusterCache;
+    private DdsReader<NodeHeartbeat>? _heartbeatReader;
 
     /// <inheritdoc/>
     public string Name => "CGF";
@@ -111,6 +123,56 @@ public sealed class CgfSubsystem : ISubsystem
         var doctrineRegistry = new DoctrineRegistry();
         _context.Kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, _entityMap));
 
+        // ── Wire CreateEntityRequestSystem (CGF is the cluster-default processor) ─
+        // This makes CGF intercept broadcast CreateEntityRequests (Owner == 0) and spawn
+        // entities, delegating WorldPos (kinematics) to the least-loaded Muscle node via
+        // DeferredTakeOwnership. SimHost nodes keep isDefaultProcessor=false.
+        if (_context.Participant != null)
+        {
+            var tkbDb        = _context.TkbDb!;
+            var idAllocator  = _context.IdAllocator!;
+            var geoTransform = _context.GeoTransform!;
+            var elm          = (EntityLifecycleModule)_context.BaseModules
+                                   .First(m => m is EntityLifecycleModule);
+
+            var requestSource = new DdsCreateEntityRequestSource(_context.Participant);
+            var ackSink       = new DdsCreateUpdateDeleteEntityAckSink(_context.Participant);
+
+            var jsonCompiler      = AttributeCompilerFactory.Build(geoTransform);
+            var binaryInterpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform);
+
+            var finalizationSystem = new NedRequestFinalizationSystem(ackSink, _entityMap!);
+
+            _clusterCache    = new SimpleClusterStateCache();
+            _heartbeatReader = new DdsReader<NodeHeartbeat>(_context.Participant);
+            var ownershipStrategy = new BrainMuscleOwnershipStrategy(_clusterCache);
+
+            var requestSystem = new CreateEntityRequestSystem(
+                requestSource:        requestSource,
+                ackSink:              ackSink,
+                tkbDb:                tkbDb,
+                idAllocator:          idAllocator,
+                localNodeId:          _context.NodeId,
+                geoTransform:         geoTransform,
+                jsonAttributeCompiler: jsonCompiler,
+                binaryInterpreter:    binaryInterpreter,
+                finalizationSystem:   finalizationSystem,
+                isDefaultProcessor:   true,
+                ownershipStrategy:    ownershipStrategy);
+
+            var spawnSystem = new NetworkSpawningSystem(
+                tkbDb,
+                elm,
+                _entityMap!,
+                idAllocator,
+                _context.NodeId);
+
+            _context.Kernel.RegisterModule(new SimHostModule(
+                spawnSystem:        spawnSystem,
+                requestSystem:      requestSystem,
+                finalizationSystem: finalizationSystem));
+        }
+
         // ── Initialize ─────────────────────────────────────────────────────────
         _context.Kernel.Initialize();
     }
@@ -118,6 +180,25 @@ public sealed class CgfSubsystem : ISubsystem
     /// <inheritdoc/>
     public void Update(float deltaTime)
     {
+        // Poll DDS NodeHeartbeat to keep the cluster cache up-to-date so that
+        // BrainMuscleOwnershipStrategy can find the least-loaded Muscle node.
+        if (_heartbeatReader != null && _clusterCache != null)
+        {
+            using var loan = _heartbeatReader.Take();
+            foreach (var sample in loan)
+            {
+                if (!sample.IsValid) continue;
+                _clusterCache.UpdateNode(new NodeCapability
+                {
+                    NodeId             = sample.Data.NodeId,
+                    Role               = MapSubsystemNameToRole(sample.Data.SubsystemName),
+                    CpuUsagePercent    = sample.Data.CpuUsagePercent,
+                    RamUsedBytes       = sample.Data.RamUsedBytes,
+                    LastSeenUtcSeconds = (double)sample.Data.WallTicksUtc / System.TimeSpan.TicksPerSecond,
+                });
+            }
+        }
+
         _context?.SlaveTranslator?.Tick();
         _context?.ClusterSlave.Tick();
 #pragma warning disable CS0618 // legacy Update(float) used intentionally in CgfSubsystem
@@ -135,9 +216,25 @@ public sealed class CgfSubsystem : ISubsystem
     /// <inheritdoc/>
     public void Shutdown()
     {
+        _heartbeatReader?.Dispose();
+        _heartbeatReader = null;
         _context?.Kernel.Dispose();
         _context?.Participant?.Dispose();
         _context = null;
     }
+
+    /// <summary>
+    /// Maps a subsystem's published name to its <see cref="NodeRole"/> for cluster cache population.
+    /// Nodes not matching a known name receive <see cref="NodeRole.None"/> and are ignored by
+    /// <see cref="BrainMuscleOwnershipStrategy"/> queries.
+    /// </summary>
+    private static NodeRole MapSubsystemNameToRole(string? name) =>
+        name switch
+        {
+            "SimHost"    => NodeRole.AllInOne,
+            "CGF"        => NodeRole.Brain,
+            "IG"         => NodeRole.ImageGenerator,
+            _            => NodeRole.None,
+        };
 }
 

@@ -445,7 +445,8 @@ namespace Hrot.SimHost
             var finalizationSystem = new NedRequestFinalizationSystem(ackSink, entityMap);
             var requestSystem      = new CreateEntityRequestSystem(
                 requestSource, ackSink, tkbDb, _idAllocator!, localNodeId,
-                wgs84, jsonAttributeCompiler, binaryInterpreter, finalizationSystem);
+                wgs84, jsonAttributeCompiler, binaryInterpreter, finalizationSystem,
+                isDefaultProcessor: _role.HasFlag(NodeRole.Brain));
             var deleteSystem       = new DeleteEntityRequestSystem(
                 deleteSource, ackSink, entityMap, finalizationSystem);
 

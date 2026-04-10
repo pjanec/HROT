@@ -39,24 +39,28 @@ namespace Hrot.Common
     ///   </item>
     /// </list>
     /// </summary>
+    [System.Flags]
     public enum NodeRole
     {
+        /// <summary>No role assigned.</summary>
+        None = 0,
+
         /// <summary>Brain tier: doctrine, mission planning, AI, and cognitive dispatch.</summary>
-        Brain,
+        Brain = 1 << 0,
 
         /// <summary>Muscle tier: ground kinematics and navigation execution.</summary>
-        MuscleGround,
+        MuscleGround = 1 << 1,
 
         /// <summary>Image-generator presentation node; no simulation logic.</summary>
-        ImageGenerator,
+        ImageGenerator = 1 << 2,
 
         /// <summary>Perception solver node: LOS, broadphase, and threat evaluation.</summary>
-        Perception,
+        Perception = 1 << 3,
 
         /// <summary>Navigation solver node: on-demand pathfinding.</summary>
-        NavigationSolver,
+        NavigationSolver = 1 << 4,
 
         /// <summary>All-in-one monolithic node; default for standalone execution.</summary>
-        AllInOne,
+        AllInOne = Brain | MuscleGround | ImageGenerator | Perception | NavigationSolver,
     }
 }
