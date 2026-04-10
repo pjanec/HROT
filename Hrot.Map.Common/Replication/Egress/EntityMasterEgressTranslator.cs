@@ -7,7 +7,6 @@ using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Utilities;
 using ModuleHost.Core.Abstractions;
 
 namespace Hrot.Map.Common.Replication.Egress
@@ -21,7 +20,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly DdsWriter<EntityMaster> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;
-        private readonly HashSet<long> _tracedNetIds = new();
+        private readonly HashSet<long> _publishedNetIds = new();
 
         public string TopicName => "EntityMaster";
         public long DescriptorOrdinal => 0;
@@ -69,11 +68,12 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (!view.HasAuthority(entity, DescriptorOrdinal))
                     continue;
 
-                // Smart egress: EntityMaster is RELIABLE data; only send on dirty / initial create.
-                if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
+                ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
+
+                // EntityMaster is lifecycle-only metadata, so enforce strict exactly-once egress.
+                if (_publishedNetIds.Contains(netId.Value))
                     continue;
 
-                ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
                 ref readonly var tkb = ref view.GetComponentRO<TkbIdentity>(entity);
 
                 // Read DisType from entity header (written natively by NetworkSpawningSystem).
@@ -98,13 +98,9 @@ namespace Hrot.Map.Common.Replication.Egress
                     Flags = 0
                 });
 
-                SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
-
-                if (_tracedNetIds.Add(netId.Value))
-                {
-                    FdpLog<EntityMasterEgressTranslator>.Debug(
-                        "[TRACE-SH] Egress: Writing EntityMaster for NetID={0}", netId.Value);
-                }
+                _publishedNetIds.Add(netId.Value);
+                FdpLog<EntityMasterEgressTranslator>.Debug(
+                    "[TRACE-SH] Egress: Writing EntityMaster for NetID={0}", netId.Value);
             }
         }
 
@@ -119,6 +115,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public void Dispose(long networkEntityId)
         {
             _writer.DisposeInstance(new EntityMaster { EntityId = (int)networkEntityId });
+            _publishedNetIds.Remove(networkEntityId);
         }
     }
 }

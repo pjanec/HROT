@@ -48,7 +48,7 @@ public class EntityMasterTranslatorTests
         var eventBus   = new FdpEventBus();
         var ghostCreationSystem = new GhostCreationSystem(entityMap);
         // null participant = test mode (no DDS reader created)
-        var translator = new EntityMasterIngressTranslator(null, entityMap, eventBus, ghostCreationSystem);
+        var translator = new EntityMasterIngressTranslator(null, entityMap, localNodeId: 1, eventBus, ghostCreationSystem);
         return (repo, entityMap, eventBus, translator);
     }
 
@@ -73,6 +73,9 @@ public class EntityMasterTranslatorTests
         Assert.True(cmd.AddComponentCalled, "AddComponent must be called with TkbIdentity");
         Assert.NotNull(cmd.LastTkbIdentity);
         Assert.Equal(TestTkbType, cmd.LastTkbIdentity!.Value.TkbType);
+        Assert.NotNull(cmd.LastNetworkAuthority);
+        Assert.Equal(-1, cmd.LastNetworkAuthority!.Value.PrimaryOwnerId);
+        Assert.Equal(1, cmd.LastNetworkAuthority!.Value.LocalNodeId);
 
         // DisType is now stored natively in EntityHeader — verify via repo.GetHeader.
         Assert.True(entityMap.TryGetEntity(TestNetworkId, out var entity));
@@ -170,6 +173,7 @@ public class EntityMasterTranslatorTests
         public bool AddComponentCalled { get; private set; }
         public bool SetComponentCalled { get; private set; }
         public TkbIdentity? LastTkbIdentity { get; private set; }
+        public NetworkAuthority? LastNetworkAuthority { get; private set; }
 
         public Entity CreateEntity() => new Entity();
         public void DestroyEntity(Entity entity) { }
@@ -178,6 +182,8 @@ public class EntityMasterTranslatorTests
             AddComponentCalled = true;
             if (component is TkbIdentity tkbId)
                 LastTkbIdentity = tkbId;
+            if (component is NetworkAuthority netAuth)
+                LastNetworkAuthority = netAuth;
         }
         public void SetComponent<T>(Entity entity, in T component) where T : unmanaged => SetComponentCalled = true;
         public void RemoveComponent<T>(Entity entity) where T : unmanaged { }

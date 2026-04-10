@@ -40,6 +40,7 @@ namespace Hrot.Map.Common.Replication
     {
         private const string DdsTopicName = "SST_OwnershipUpdate";
 
+        private readonly int _localNodeId;
         private readonly DdsReader<OwnershipUpdateWire>? _reader;
         private readonly DdsWriter<OwnershipUpdateWire>? _writer;
 
@@ -49,8 +50,9 @@ namespace Hrot.Map.Common.Replication
         // Event-driven — no component ownership mapping needed.
         public IReadOnlyList<int> TargetComponentIds => System.Array.Empty<int>();
 
-        public OwnershipUpdateTranslator(DdsParticipant? participant)
+        public OwnershipUpdateTranslator(DdsParticipant? participant, int localNodeId)
         {
+            _localNodeId = localNodeId;
             if (participant != null)
             {
                 _reader = new DdsReader<OwnershipUpdateWire>(participant, DdsTopicName);
@@ -69,6 +71,10 @@ namespace Hrot.Map.Common.Replication
             var updates = view.ConsumeEvents<OwnershipUpdateMsg>();
             foreach (var evt in updates)
             {
+                // Only forward claims originated by this node to prevent DDS↔bus echo loops.
+                if (evt.NewOwnerNodeId != _localNodeId)
+                    continue;
+
                 var (typeId, instanceId) = ModuleHost.Core.Network.OwnershipExtensions.UnpackKey(evt.PackedKey);
 
                 _writer.Write(new OwnershipUpdateWire
@@ -99,7 +105,12 @@ namespace Hrot.Map.Common.Replication
             {
                 if (!sample.IsValid) continue;
 
-                var msg       = sample.Data;
+                var msg = sample.Data;
+
+                // Drop DDS loopback of our own claim to prevent local echo storms.
+                if (msg.NewOwner == _localNodeId)
+                    continue;
+
                 long packedKey = ModuleHost.Core.Network.OwnershipExtensions.PackKey(msg.DescrTypeId, msg.InstanceId);
 
                 repo.Bus.Publish(new OwnershipUpdateMsg

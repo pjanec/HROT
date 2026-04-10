@@ -49,7 +49,7 @@ public class EntityStatesIngressPackTests
         var pack = new EntityStatesIngressPack(
             PackRole.Ingress,
             participant: null,
-            entityMap, eventBus, ghostCreationSystem, geoTransform);
+            entityMap, localNodeId: 1, eventBus, ghostCreationSystem, geoTransform);
 
         Assert.Equal("EntityStatesIngress", pack.Name);
     }
@@ -66,7 +66,7 @@ public class EntityStatesIngressPackTests
         var pack = new EntityStatesIngressPack(
             PackRole.Ingress,
             participant: null,
-            entityMap, eventBus, ghostCreationSystem, geoTransform);
+            entityMap, localNodeId: 1, eventBus, ghostCreationSystem, geoTransform);
 
         var ex = Record.Exception(() => pack.RegisterSystems(registry));
 

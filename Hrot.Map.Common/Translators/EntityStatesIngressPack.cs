@@ -38,6 +38,7 @@ public class EntityStatesIngressPack : IEcsModule
         PackRole role,
         DdsParticipant? participant,
         NetworkEntityMap entityMap,
+        long localNodeId,
         FdpEventBus eventBus,
         GhostCreationSystem ghostCreationSystem,
         IGeographicTransform geoTransform)
@@ -48,7 +49,7 @@ public class EntityStatesIngressPack : IEcsModule
                 nameof(role));
         _translators = new IDescriptorTranslator[]
         {
-            new EntityMasterIngressTranslator(participant, entityMap, eventBus, ghostCreationSystem),
+            new EntityMasterIngressTranslator(participant, entityMap, localNodeId, eventBus, ghostCreationSystem),
             new GeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem),
             new EntityInfoIngressTranslator(participant, entityMap, eventBus, ghostCreationSystem),
             new MapVisualOverlayIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem),

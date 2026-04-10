@@ -36,6 +36,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         private readonly DdsReader<EntityMaster> _reader;
         private readonly NetworkEntityMap _entityMap;
+        private readonly long _localNodeId;
         private readonly FdpEventBus _eventBus;
         private readonly GhostCreationSystem _ghostCreationSystem;
 
@@ -45,12 +46,14 @@ namespace Hrot.Map.Common.Replication.Ingress
         public EntityMasterIngressTranslator(
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
+            long localNodeId,
             FdpEventBus eventBus,
             GhostCreationSystem ghostCreationSystem)
         {
             // participant may be null in unit-test mode — PollIngress becomes a no-op
             _reader = participant is not null ? new DdsReader<EntityMaster>(participant) : null!;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _localNodeId = localNodeId;
             _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
         }
@@ -132,6 +135,11 @@ namespace Hrot.Map.Common.Replication.Ingress
 
             // Permanent identity component — drives GhostPromotionSystem.
             cmd.AddComponent(entity, new TkbIdentity { TkbType = master.TkbType });
+            cmd.AddComponent(entity, new NetworkAuthority
+            {
+                PrimaryOwnerId = -1,
+                LocalNodeId = (int)_localNodeId
+            });
 
             // Reconstruct DISEntityType.Value from the 8 named DisTypeStruct fields.
             // FieldOffset layout (little-endian): Extra[0], Specific[1], Subcategory[2],

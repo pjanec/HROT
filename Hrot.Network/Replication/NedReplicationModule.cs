@@ -262,7 +262,7 @@ public sealed class NedReplicationModule : INedReplicationModule
             if (_participant != null)
             {
                 var igPack = new EntityStatesIngressPack(
-                    PackRole.Ingress, _participant, _entityMap, _eventBus,
+                    PackRole.Ingress, _participant, _entityMap, _localNodeId, _eventBus,
                     GhostCreationSystem, _geoTransform);
                 igPack.RegisterSystems(registry);
             }

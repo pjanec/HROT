@@ -96,6 +96,43 @@ namespace Hrot.SimHost.Tests
 
         [Fact]
         [Trait("Category", "Integration")]
+        public void ScanAndPublish_RepeatedScan_PublishesEntityMasterExactlyOnce()
+        {
+            const uint domainId = 206u;
+            using var participant = new DdsParticipant(domainId);
+            using var reader = new DdsReader<EntityMaster>(participant, "EntityMaster");
+            var entityMap = new NetworkEntityMap();
+            var translator = new EntityMasterEgressTranslator(participant, entityMap, localNodeId: 1);
+
+            var repo = CreateWorld();
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new NetworkIdentity(420));
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            repo.AddComponent(entity, new TkbIdentity { TkbType = 777 });
+            repo.SetDisType(entity, new DISEntityType { Value = 0 });
+
+            Thread.Sleep(200);
+            translator.ScanAndPublish(repo);
+            translator.ScanAndPublish(repo);
+            translator.ScanAndPublish(repo);
+            Thread.Sleep(250);
+
+            using var loan = reader.Take();
+            int count = 0;
+            foreach (var sample in loan)
+            {
+                if (!sample.IsValid)
+                    continue;
+
+                if (sample.Data.EntityId == 420)
+                    count++;
+            }
+
+            Assert.Equal(1, count);
+        }
+
+        [Fact]
+        [Trait("Category", "Integration")]
         public void Dispose_CallsWriterDispose()
         {
             const uint domainId = 202u;
