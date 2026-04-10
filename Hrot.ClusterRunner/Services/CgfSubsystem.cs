@@ -3,6 +3,7 @@ using Hrot.CGF;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Translators;
 using Hrot.SimHost;
+using Hrot.SimHost.Configuration;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Network;
 using Hrot.SimHost.Systems;
@@ -24,6 +25,8 @@ using FDP.Toolkit.Replication.Systems;
 using FDP.Framework.Runner;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
+using ModuleHost.Network.Cyclone.Modules;
+using ModuleHost.Network.Cyclone.Systems;
 
 namespace Hrot.ClusterRunner.Services;
 
@@ -121,6 +124,7 @@ public sealed class CgfSubsystem : ISubsystem
 
         // ── Register CGF simulation logic (Brain-specific) ─────────────────────
         var doctrineRegistry = new DoctrineRegistry();
+        SimHostDoctrineSetup.RegisterAll(doctrineRegistry, _context.GeoTransform!);
         _context.Kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, _entityMap));
 
         // ── Wire CreateEntityRequestSystem (CGF is the cluster-default processor) ─
@@ -171,6 +175,17 @@ public sealed class CgfSubsystem : ISubsystem
                 spawnSystem:        spawnSystem,
                 requestSystem:      requestSystem,
                 finalizationSystem: finalizationSystem));
+
+            var auxTranslators = SimHostAuxiliaryTranslatorPack.Create(
+                _context.Participant,
+                _entityMap!,
+                _context.EventBus,
+                _context.NodeId,
+                NodeRole.Brain);
+
+            _context.Kernel.RegisterGlobalSystem(new CycloneNetworkIngressSystem(auxTranslators.ToArray()));
+            _context.Kernel.RegisterGlobalSystem(new CycloneEgressSystem(auxTranslators.ToArray()));
+            _context.Kernel.RegisterGlobalSystem(new CycloneNetworkCleanupSystem(auxTranslators));
         }
 
         // ── Initialize ─────────────────────────────────────────────────────────

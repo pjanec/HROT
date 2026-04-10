@@ -89,7 +89,7 @@ public class MissionControlExecutionSystemTests
         var entity = repo.CreateEntity();
         entityMap.Register(1L, entity);
 
-        var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
         system.Create(repo);
 
         var taskA = Guid.NewGuid();
@@ -135,7 +135,7 @@ public class MissionControlExecutionSystemTests
         var entity = repo.CreateEntity();
         entityMap.Register(1L, entity);
 
-        var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
         system.Create(repo);
 
         // First mission succeeds (BaseVersion 0).
@@ -190,7 +190,7 @@ public class MissionControlExecutionSystemTests
         using var repo = CreateWorld();
         // Do NOT register entity — simulate unknown entity.
 
-        var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
         system.Create(repo);
 
         var requestId = Guid.NewGuid();
@@ -230,7 +230,7 @@ public class MissionControlExecutionSystemTests
         using var repo = CreateWorld();
         // Entity NOT yet registered.
 
-        var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
         system.Create(repo);
 
         var taskA = Guid.NewGuid();

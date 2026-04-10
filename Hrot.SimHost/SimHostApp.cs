@@ -392,7 +392,7 @@ namespace Hrot.SimHost
 
             _kernelGroup = new SystemGroup();
             _kernelGroup.Create(_world);
-            _kernelGroup.AddSystem(new MissionControlExecutionSystem(entityMap, doctrineRegistry));
+            _kernelGroup.AddSystem(new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, doctrineRegistry));
             _kernelGroup.AddSystem(new MissionAdapterSystem(doctrineRegistry, entityMap));
             _kernelGroup.AddSystem(new UpdateEntityAttributeRequestSystem(ddsParticipant!, entityMap, wgs84, jsonAttributeCompiler));
             _simLogicModule.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);

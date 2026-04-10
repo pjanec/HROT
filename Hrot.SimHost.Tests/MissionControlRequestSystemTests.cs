@@ -74,7 +74,7 @@ namespace Hrot.SimHost.Tests
             var taskB = Guid.NewGuid();
             var taskC = Guid.NewGuid();
 
-            var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+            var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
             system.Create(repo);
 
             system.TestHook_ProcessIntent(repo, new MissionControlIntent
@@ -119,7 +119,7 @@ namespace Hrot.SimHost.Tests
 
             var taskA = Guid.NewGuid();
 
-            var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+            var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
             system.Create(repo);
 
             system.TestHook_ProcessIntent(repo, new MissionControlIntent
@@ -159,7 +159,7 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
             entityMap.Register(1, entity);
 
-            var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+            var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
             system.Create(repo);
 
             var requestId = Guid.NewGuid();
@@ -187,7 +187,7 @@ namespace Hrot.SimHost.Tests
             var entityMap = new NetworkEntityMap();
             using var repo = CreateWorld();
 
-            var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+            var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
             system.Create(repo);
 
             var requestId = Guid.NewGuid();
@@ -242,7 +242,7 @@ namespace Hrot.SimHost.Tests
             // Give entity a non-empty plan and a DoctrineState.
             repo.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = 2001, InstanceId = 3 });
 
-            var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+            var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
             system.Create(repo);
 
             // First assign a mission so PhaseCount > 0.
@@ -293,7 +293,7 @@ namespace Hrot.SimHost.Tests
             entityMap.Register(3, entity);
             // No DoctrineState added.
 
-            var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+            var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
             system.Create(repo);
 
             var exception = Record.Exception(() => system.TestHook_ProcessIntent(repo, new MissionControlIntent
@@ -327,7 +327,7 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
             entityMap.Register(4, entity);
 
-            var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+            var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
             system.Create(repo);
 
             var requestId = Guid.NewGuid();

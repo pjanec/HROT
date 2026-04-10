@@ -10,15 +10,16 @@ using FDP.Toolkit.Replication.Utilities;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Behavior.Events;
+using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
 using FDP.Kernel.Logging;
 using ModuleHost.Core.Abstractions;
-using Hrot.SimHost.Events;
+using Hrot.Common.Events;
 using NedStatusCode = Hrot.NED.Messages.NedStatusCode;
 using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;
 using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
 
-namespace Hrot.SimHost.Systems
+namespace Hrot.Common.Systems
 {
     /// <summary>
     /// Pure-ECS execution system for mission control requests.
@@ -51,7 +52,7 @@ namespace Hrot.SimHost.Systems
     /// </summary>
     public class MissionControlExecutionSystem : ComponentSystem
     {
-        private const string EntityNotFoundMessage  = "ERR_ENTITY_NOT_FOUND";
+        private const string EntityNotFoundMessage = "ERR_ENTITY_NOT_FOUND";
         private const string VersionConflictMessage = "ERR_VERSION_CONFLICT";
 
         /// <summary>
@@ -66,11 +67,11 @@ namespace Hrot.SimHost.Systems
         /// </summary>
         private const int MaxEntityWaitFrames = 10;
 
-        private readonly NetworkEntityMap  _entityMap;
-        private readonly DoctrineRegistry  _doctrineRegistry;
+        private readonly NetworkEntityMap _entityMap;
+        private readonly DoctrineRegistry _doctrineRegistry;
 
-        private readonly Dictionary<long, long>       _missionVersions = new();
-        private readonly Dictionary<long, List<Guid>> _taskOrder       = new();
+        private readonly Dictionary<long, long> _missionVersions = new();
+        private readonly Dictionary<long, List<Guid>> _taskOrder = new();
         private readonly Queue<(MissionControlIntent Intent, int FramesLeft)> _retryQueue = new();
 
         /// <summary>Production constructor — creates from ambient services.</summary>
@@ -78,7 +79,7 @@ namespace Hrot.SimHost.Systems
             NetworkEntityMap entityMap,
             DoctrineRegistry doctrineRegistry)
         {
-            _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _doctrineRegistry = doctrineRegistry ?? throw new ArgumentNullException(nameof(doctrineRegistry));
         }
 
@@ -129,6 +130,11 @@ namespace Hrot.SimHost.Systems
                 return;
             }
 
+            // CQRS boundary: only the node authoritative for EntityMission may process intent.
+            long packedMissionKey = ModuleHost.Core.Network.OwnershipExtensions.PackKey(EntityMissionDescriptorOrdinal, 0);
+            if (!((ISimulationView)repo).HasAuthority(entity, packedMissionKey))
+                return;
+
             long currentVersion = _missionVersions.TryGetValue(intent.TargetEntityId, out var version)
                 ? version
                 : 0;
@@ -157,12 +163,12 @@ namespace Hrot.SimHost.Systems
                     var domainPlan = new DomainMissionPlan
                     {
                         ActiveTaskId = plan.ActiveTaskId,
-                        Tasks        = plan.Tasks?.ConvertAll(t => new DomainMissionTask
+                        Tasks = plan.Tasks?.ConvertAll(t => new DomainMissionTask
                         {
-                            TaskId          = t.TaskId,
+                            TaskId = t.TaskId,
                             ExecutingEngine = t.ExecutingEngine ?? string.Empty,
-                            BehaviorId      = t.BehaviorId      ?? string.Empty,
-                            BehaviorParams  = t.BehaviorParams  ?? string.Empty,
+                            BehaviorId = t.BehaviorId ?? string.Empty,
+                            BehaviorParams = t.BehaviorParams ?? string.Empty,
                         }) ?? new List<DomainMissionTask>()
                     };
                     repo.SetComponent(entity, queue);
@@ -193,7 +199,7 @@ namespace Hrot.SimHost.Systems
                         repo.AddComponent(entity, new MissionPlanQueue());
 
                     ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
-                    queue.CurrentPhase       = (byte)targetIndex;
+                    queue.CurrentPhase = (byte)targetIndex;
                     queue.PhaseElapsedSeconds = 0f;
 
                     currentVersion++;
@@ -207,8 +213,8 @@ namespace Hrot.SimHost.Systems
                 {
                     var abortQueue = new MissionPlanQueue
                     {
-                        PhaseCount        = 0,
-                        CurrentPhase      = 0,
+                        PhaseCount = 0,
+                        CurrentPhase = 0,
                         PhaseElapsedSeconds = 0f
                     };
                     repo.SetComponent(entity, abortQueue);
@@ -236,8 +242,8 @@ namespace Hrot.SimHost.Systems
         {
             World.Bus.Publish(new MissionControlAckEvent
             {
-                RequestId  = requestId,
-                ErrorCode  = (int)errorCode,
+                RequestId = requestId,
+                ErrorCode = (int)errorCode,
                 NewVersion = newVersion,
             });
         }
@@ -252,7 +258,7 @@ namespace Hrot.SimHost.Systems
 
             queue = new MissionPlanQueue
             {
-                CurrentPhase      = 0,
+                CurrentPhase = 0,
                 PhaseElapsedSeconds = 0f
             };
 
@@ -286,8 +292,8 @@ namespace Hrot.SimHost.Systems
 
                 queue.Phases[i] = new MissionPhase
                 {
-                    DoctrineId   = doctrineId,
-                    Trigger      = trigger,
+                    DoctrineId = doctrineId,
+                    Trigger = trigger,
                     TriggerParam = param
                 };
             }
@@ -319,14 +325,14 @@ namespace Hrot.SimHost.Systems
         // ── Test hooks ─────────────────────────────────────────────────────────
 
         /// <summary>Test hook: directly calls <see cref="ProcessIntent"/> bypassing bus.</summary>
-        internal void TestHook_ProcessIntent(EntityRepository repo, MissionControlIntent intent)
+        public void TestHook_ProcessIntent(EntityRepository repo, MissionControlIntent intent)
             => ProcessIntent(repo, intent);
 
         /// <summary>Test hook: number of intents currently in the retry queue.</summary>
-        internal int TestHook_RetryQueueCount => _retryQueue.Count;
+        public int TestHook_RetryQueueCount => _retryQueue.Count;
 
         /// <summary>Test hook: run one retry-drain cycle (processes a snapshot of the queue).</summary>
-        internal void TestHook_DrainRetryQueue(EntityRepository repo)
+        public void TestHook_DrainRetryQueue(EntityRepository repo)
         {
             int retryCount = _retryQueue.Count;
             for (int i = 0; i < retryCount; i++)

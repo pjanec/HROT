@@ -11,6 +11,7 @@ using FDP.Toolkit.Combat.Executors;
 using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Navigation.Executors;
 using FDP.Toolkit.Replication.Services;
+using Hrot.Common.Systems;
 using ModuleHost.Core.Abstractions;
 
 namespace Hrot.CGF
@@ -50,6 +51,7 @@ namespace Hrot.CGF
         private readonly MissionControlModule   _missionControlModule;
         private readonly CognitiveRuntimeModule _cognitiveRuntimeModule;
         private readonly ActionDispatchModule   _actionDispatchModule;
+        private readonly MissionControlExecutionSystem _missionExecutionSystem;
 
         // ── Constructor ───────────────────────────────────────────────────────
 
@@ -79,6 +81,7 @@ namespace Hrot.CGF
 
             _missionControlModule   = new MissionControlModule(doctrineRegistry);
             _cognitiveRuntimeModule = new CognitiveRuntimeModule(doctrineRegistry);
+            _missionExecutionSystem = new MissionControlExecutionSystem(entityMap, doctrineRegistry);
             _actionDispatchModule   = new ActionDispatchModule(
                 locoExecutors: new (ushort, IActionExecutor<LocomotionChannel>)[]
                 {
@@ -118,6 +121,8 @@ namespace Hrot.CGF
         {
             if (simGroup == null) throw new ArgumentNullException(nameof(simGroup));
 
+            // Mission intent execution must run before mission/cognitive runtime systems.
+            simGroup.AddSystem(_missionExecutionSystem);
             _missionControlModule.RegisterSystems(simGroup);
             _cognitiveRuntimeModule.RegisterSystems(simGroup);
             _actionDispatchModule.RegisterSystems(simGroup);
