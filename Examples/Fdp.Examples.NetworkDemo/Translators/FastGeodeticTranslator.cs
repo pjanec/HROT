@@ -57,10 +57,11 @@ namespace Fdp.Examples.NetworkDemo.Translators
                 .With<NetworkIdentity>()
                 .WithLifecycle(Fdp.Kernel.EntityLifecycle.All)
                 .Build();
+            long packedKey = ModuleHost.Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
             foreach (var entity in query)
             {
-                if (!view.HasAuthority(entity, DescriptorOrdinal))
+                if (!view.HasAuthority(entity, packedKey))
                     continue;
 
                 ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
