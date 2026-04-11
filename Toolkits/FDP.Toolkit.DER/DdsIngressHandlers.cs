@@ -24,18 +24,21 @@ namespace FDP.Toolkit.DER
         private readonly Func<T, int> _getEntityId;
         private readonly Func<T, long> _getTkbType;
         private readonly ConcurrentDictionary<long, int> _handleMap = new();
+        private readonly long _localNodeId;
 
         public MasterIngressHandler(
             DdsParticipant participant, 
             IDerRepo repo, 
             string topicName, 
             Func<T, int> getEntityId,
-            Func<T, long> getTkbType)
+            Func<T, long> getTkbType,
+            long localNodeId = 0)
         {
             _reader = new DdsReader<T>(participant);
             _repo = repo;
             _getEntityId = getEntityId;
             _getTkbType = getTkbType;
+            _localNodeId = localNodeId;
         }
 
         public void Poll()
@@ -62,7 +65,7 @@ namespace FDP.Toolkit.DER
                 {
                     int id = _getEntityId(sample.Data);
                     FdpLog<MasterIngressHandler<T>>.Debug(
-                        "[TRACE-ExCon] DER: Received EntityMaster for NetID {0}. Storing in Repo.", id);
+                        "[Node-{0}] DER: Received EntityMaster for NetID {1}. Storing in Repo.", _localNodeId, id);
                     _handleMap[handle] = id;
 
                     var entity = _repo.GetEntity(id) ?? _repo.CreateEntity(id, _getTkbType(sample.Data));

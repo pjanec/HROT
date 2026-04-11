@@ -43,6 +43,8 @@ namespace FDP.Toolkit.Lifecycle
         
         private readonly int _timeoutFrames;
         
+        private readonly long _localNodeId;
+        
         private readonly Dictionary<Entity, PendingConstruction> _pendingConstruction = new();
         private readonly Dictionary<Entity, PendingDestruction> _pendingDestruction = new();
         
@@ -53,11 +55,13 @@ namespace FDP.Toolkit.Lifecycle
         public EntityLifecycleModule(
             ITkbDatabase tkb,
             IEnumerable<int> participatingModuleIds,
-            int timeoutFrames = 300) 
+            int timeoutFrames = 300,
+            long localNodeId = 0) 
         {
             _tkb = tkb;
             _globalParticipants = new HashSet<int>(participatingModuleIds);
             _timeoutFrames = timeoutFrames;
+            _localNodeId = localNodeId;
         }
         
         public void RegisterSystems(ISystemRegistry registry)
@@ -217,7 +221,7 @@ namespace FDP.Toolkit.Lifecycle
             
             if (!ack.Success)
             {
-                Console.Error.WriteLine(
+                FdpLog<EntityLifecycleModule>.Error(
                     $"[ELM] Construction failed for {ack.Entity.Index}: {ack.ErrorMessage}");
                 
                 _pendingConstruction.Remove(ack.Entity);
@@ -230,11 +234,11 @@ namespace FDP.Toolkit.Lifecycle
             if (pending.RemainingAcks.Count == 0)
             {
                 FdpLog<EntityLifecycleModule>.Debug(
-                    "[TRACE-SH] ELM: Entity {0} received all ACKs. Promoting to Active.", ack.Entity.Index);
+                    "[Node-{0}] ELM: Entity {1} received all ACKs. Promoting to Active.", _localNodeId, ack.Entity.Index);
                 // All ACKs received - activate entity
                 cmd.SetLifecycleState(ack.Entity, EntityLifecycle.Active);
                 FdpLog<EntityLifecycleModule>.Debug(
-                    "[TRACE-SH] ELM: Entity {0} promoted to Active", ack.Entity.Index);
+                    "[Node-{0}] ELM: Entity {1} promoted to Active", _localNodeId, ack.Entity.Index);
                 _pendingConstruction.Remove(ack.Entity);
                 _totalConstructed++;
             }
@@ -274,10 +278,10 @@ namespace FDP.Toolkit.Lifecycle
             foreach (var entity in ready)
             {
                 FdpLog<EntityLifecycleModule>.Debug(
-                    "[TRACE-SH] ELM: Entity {0} instant-complete (no participants). Promoting to Active.", entity.Index);
+                    "[Node-{0}] ELM: Entity {1} instant-complete (no participants). Promoting to Active.", _localNodeId, entity.Index);
                 cmd.SetLifecycleState(entity, EntityLifecycle.Active);
                 FdpLog<EntityLifecycleModule>.Debug(
-                    "[TRACE-SH] ELM: Entity {0} promoted to Active", entity.Index);
+                    "[Node-{0}] ELM: Entity {1} promoted to Active", _localNodeId, entity.Index);
                 _pendingConstruction.Remove(entity);
                 _totalConstructed++;
             }
