@@ -22,9 +22,8 @@
   </ItemGroup>
   
   <ItemGroup>
-    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
+    <ProjectReference Include="..\..\Toolkits\Fdp.Engine\Fdp.Engine.csproj" />
     <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />
-    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
     <ProjectReference Include="..\..\Framework\FDP.Framework.Raylib\FDP.Framework.Raylib.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.ImGui\FDP.Toolkit.ImGui.csproj" />

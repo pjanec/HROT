@@ -11,19 +11,14 @@
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
-  </ItemGroup>
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />  </ItemGroup>
 
   <ItemGroup>
-    <Using Include="Xunit" />
-  </ItemGroup>
+    <Using Include="Xunit" />  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Fdp.Examples.CarKinem\Fdp.Examples.CarKinem.csproj" />
-    <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />
-    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
-    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
-    <ProjectReference Include="..\..\Framework\FDP.Framework.Raylib\FDP.Framework.Raylib.csproj" />
-  </ItemGroup>
+    <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
+    <ProjectReference Include="..\..\Framework\FDP.Framework.Raylib\FDP.Framework.Raylib.csproj" />  </ItemGroup>
 
 </Project>

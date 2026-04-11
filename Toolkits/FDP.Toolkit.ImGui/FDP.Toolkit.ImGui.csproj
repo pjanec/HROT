@@ -9,8 +9,8 @@
   <ItemGroup>
     <!-- Core FDP dependency -->
     <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />
-    <!-- DER toolkit for DerEntityInspectorPanel -->
-    <ProjectReference Include="..\FDP.Toolkit.DER\FDP.Toolkit.DER.csproj" />
+    <!-- Fdp.Engine for DerEntityInspectorPanel and other engine types -->
+    <ProjectReference Include="..\Fdp.Engine\Fdp.Engine.csproj" />
     <!-- Rendering abstraction -->
     <PackageReference Include="ImGui.NET" Version="1.91.0.1" /> 
   </ItemGroup>

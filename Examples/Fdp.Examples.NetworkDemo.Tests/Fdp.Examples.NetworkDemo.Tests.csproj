@@ -24,7 +24,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Fdp.Examples.NetworkDemo\Fdp.Examples.NetworkDemo.csproj" />
-    <ProjectReference Include="..\..\..\FDP\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
   </ItemGroup>
 
   <ItemGroup>

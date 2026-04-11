@@ -15,9 +15,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Fdp.Examples.UrbanCombat\Fdp.Examples.UrbanCombat.csproj" />
-    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
-    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
-    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
   </ItemGroup>
 
 </Project>
