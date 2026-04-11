@@ -102,7 +102,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 _publishedNetIds.Add(netId.Value);
                 FdpLog<EntityMasterEgressTranslator>.Debug(
-                    "[TRACE-SH] Egress: Writing EntityMaster for NetID={0}", netId.Value);
+                    "[Node-{0}] Egress: Writing EntityMaster for NetID={1}", _localNodeId, netId.Value);
             }
         }
 

@@ -39,14 +39,17 @@ namespace Hrot.Map.Common.Commands
         private readonly DdsCommandClient<CreateEntityRequest, CreateUpdateDeleteEntityAck>    _createEntityClient;
         private readonly DdsCommandClient<MissionControlRequest, MissionControlAck>            _missionControlClient;
         private readonly DdsWriter<UpdateEntityDescriptorRequest>                              _updateWriter;
+        private readonly long _localNodeId;
 
         /// <summary>
         /// creates a new gateway instance.
         /// </summary>
         /// <param name="participant">The DDS participant to use for communication.</param>
-        public NedCommandGateway(DdsParticipant participant)
+        /// <param name="localNodeId">Local node identifier; embedded in FdpLog messages.</param>
+        public NedCommandGateway(DdsParticipant participant, long localNodeId = 0)
         {
             if (participant == null) throw new ArgumentNullException(nameof(participant));
+            _localNodeId = localNodeId;
 
             // Initialize the client for CreateEntityRequest
             _createEntityClient = new DdsCommandClient<CreateEntityRequest, CreateUpdateDeleteEntityAck>(
@@ -86,12 +89,12 @@ namespace Hrot.Map.Common.Commands
                 request.RequestId = Guid.NewGuid();
             }
 
-            FdpLog<NedCommandGateway>.Debug("[TRACE-GW] Sending CreateEntityRequest ID={0}", request.RequestId);
+            FdpLog<NedCommandGateway>.Debug("[Node-{0}] Sending CreateEntityRequest ID={1}", _localNodeId, request.RequestId);
 
             var ack = await _createEntityClient.SendAsync(request, timeoutMs);
             var ackDetails = string.Concat("Entity=", ack.EntityId, " Status=", ack.StatusCode);
             FdpLog<NedCommandGateway>.Debug(
-                "[TRACE-GW] CreateUpdateDeleteEntityAck ID={0} {1}", ack.RequestId, ackDetails);
+                "[Node-{0}] CreateUpdateDeleteEntityAck ID={1} {2}", _localNodeId, ack.RequestId, ackDetails);
             return ack;
         }
 
@@ -109,12 +112,12 @@ namespace Hrot.Map.Common.Commands
                 request.RequestId = Guid.NewGuid();
 
             FdpLog<NedCommandGateway>.Debug(
-                "[TRACE-GW] Sending MissionControlRequest ID={0} Entity={1}",
-                request.RequestId, request.TargetEntityId);
+                "[Node-{0}] Sending MissionControlRequest ID={1} Entity={2}",
+                _localNodeId, request.RequestId, request.TargetEntityId);
 
             var ack = await _missionControlClient.SendAsync(request, timeoutMs);
             FdpLog<NedCommandGateway>.Debug(
-                "[TRACE-GW] MissionControlAck ID={0} Error={1}", ack.RequestId, ack.ErrorCode);
+                "[Node-{0}] MissionControlAck ID={1} Error={2}", _localNodeId, ack.RequestId, ack.ErrorCode);
             return ack;
         }
 

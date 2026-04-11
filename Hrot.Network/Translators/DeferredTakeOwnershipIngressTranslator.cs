@@ -102,7 +102,7 @@ namespace Hrot.Network.Translators
                 if (repo == null)
                 {
                     FdpLog<DeferredTakeOwnershipIngressTranslator>.Warn(
-                        "[Muscle] DeferredTakeOwnership: view is read-only, cannot create ghost for NetId={0}.", netId);
+                        "[Node-{0}] DeferredTakeOwnership: view is read-only, cannot create ghost for NetId={1}.", _localNodeId, netId);
                     return;
                 }
 
@@ -110,8 +110,8 @@ namespace Hrot.Network.Translators
                 // GhostPromotionSystem will not fire until EntityMaster arrives and attaches TkbIdentity.
                 entity = _ghostCreationSystem.CreateGhost(repo, netId, view.Tick);
                 FdpLog<DeferredTakeOwnershipIngressTranslator>.Debug(
-                    "[Muscle] DeferredTakeOwnership: pre-genesis ghost created NetId={0} GrantCount={1}",
-                    netId, sample.Grants.Count);
+                    "[Node-{0}] DeferredTakeOwnership: pre-genesis ghost created NetId={1} GrantCount={2}",
+                    _localNodeId, netId, sample.Grants.Count);
             }
 
             // Attach (or merge into existing) PendingAuthorityGrants managed component.

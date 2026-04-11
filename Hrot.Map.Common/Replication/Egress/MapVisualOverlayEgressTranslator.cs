@@ -30,6 +30,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly NetworkEntityMap _entityMap;
         private readonly IGeographicTransform _geoTransform;
         private readonly HashSet<long> _tracedNetIds = new();
+        private readonly long _localNodeId;
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
@@ -42,11 +43,13 @@ namespace Hrot.Map.Common.Replication.Egress
         public MapVisualOverlayEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            IGeographicTransform geoTransform)
+            IGeographicTransform geoTransform,
+            long localNodeId)
         {
             _writer = new DdsWriter<MapVisualOverlay>(participant, DdsTopicName);
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
+            _localNodeId = localNodeId;
         }
 
         // ── Ingress (egress-only) ────────────────────────────────────────────
@@ -120,8 +123,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (_tracedNetIds.Add(netId.Value))
                 {
                     FdpLog<MapVisualOverlayEgressTranslator>.Debug(
-                        "[TRACE-SH] Egress: MapVisualOverlay for NetID={0} points={1}",
-                        netId.Value, polyline.Points.Count);
+                        "[Node-{0}] Egress: MapVisualOverlay for NetID={1} points={2}",
+                        _localNodeId, netId.Value, polyline.Points.Count);
                 }
             }
         }

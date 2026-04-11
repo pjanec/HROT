@@ -44,16 +44,18 @@ namespace Hrot.Map.Common.Translators
         /// <param name="ghostCreationSystem">
         ///   Ghost-creation helper injected into <see cref="NavigationIntentIngressTranslator"/>.
         /// </param>
+        /// <param name="localNodeId">Local node identifier; embedded in FdpLog messages.</param>
         public static IEnumerable<IDescriptorTranslator> Create(
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
             IGeographicTransform geoTransform,
-            GhostCreationSystem? ghostCreationSystem = null)
+            GhostCreationSystem? ghostCreationSystem = null,
+            long                 localNodeId = 0)
         {
-            yield return new MapVisualOverlayEgressTranslator(participant, entityMap, geoTransform);
+            yield return new MapVisualOverlayEgressTranslator(participant, entityMap, geoTransform, localNodeId);
             yield return new MapRouteEgressTranslator(participant, entityMap, geoTransform);
-            yield return new NavigationStatusEgressTranslator(participant, entityMap);
-            yield return new NavigationIntentIngressTranslator(participant, entityMap, geoTransform);
+            yield return new NavigationStatusEgressTranslator(participant, entityMap, localNodeId);
+            yield return new NavigationIntentIngressTranslator(participant, entityMap, geoTransform, localNodeId);
         }
     }
 }

@@ -26,6 +26,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly DdsWriter<Hrot.NED.Descriptors.NavigationIntent> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly IGeographicTransform _geoTransform;
+        private readonly long _localNodeId;
 
         public string TopicName      => "NavigationIntent";
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationIntent;
@@ -37,11 +38,13 @@ namespace Hrot.Map.Common.Replication.Egress
         public NavigationIntentEgressTranslator(
             DdsParticipant      dds,
             NetworkEntityMap    entityMap,
-            IGeographicTransform geoTransform)
+            IGeographicTransform geoTransform,
+            long localNodeId)
         {
             _writer       = new DdsWriter<Hrot.NED.Descriptors.NavigationIntent>(dds, "NavigationIntent");
             _entityMap    = entityMap   ?? throw new System.ArgumentNullException(nameof(entityMap));
             _geoTransform = geoTransform ?? throw new System.ArgumentNullException(nameof(geoTransform));
+            _localNodeId  = localNodeId;
         }
 
         /// <summary>No ingress for this translator.</summary>
@@ -90,8 +93,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 });
 
                 FdpLog<NavigationIntentEgressTranslator>.Debug(
-                    "[TRACE-SH] NavigationIntent egress: EntityId={0} IntentId={1} Mode={2}",
-                    netId.Value, intent.IntentId, intent.Mode);
+                    "[Node-{0}] NavigationIntent egress: EntityId={1} IntentId={2} Mode={3}",
+                    _localNodeId, netId.Value, intent.IntentId, intent.Mode);
             }
         }
 

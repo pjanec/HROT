@@ -698,7 +698,7 @@ public class IgApplication : IDisposable
 
         _waypointEditorPanel = new WaypointEditorPanel(_canvas);
 
-        _miniIosState       = new MiniExConPanelState();
+        _miniIosState       = new MiniExConPanelState(_effectiveInstanceId);
 
         _miniIosPanel       = new MiniExConPanel(_miniIosState, _world.Bus);
 
@@ -802,13 +802,13 @@ public class IgApplication : IDisposable
                         // Restore test-hook translator with null participant (no DDS reader, pure entity applier).
                         // Used by TestHook_InjectGeoSpatialDescriptor to inject descriptors in unit tests.
                         _geoSpatialIngressTranslator = new GeoSpatialIngressTranslator(
-                            null, _entityMap, _geoTransform, _ghostCreationSystem!);
+                            null, _entityMap, _geoTransform, _ghostCreationSystem!, _effectiveInstanceId);
                     }
                 }
 
                 // Task 5: Create command gateway, click writer and config reader.
 
-                _commandGateway          = new NedCommandGateway(participant);
+                _commandGateway          = new NedCommandGateway(participant, _effectiveInstanceId);
                 _commandGatewayInterface = _commandGateway;
 
                 _clickWriter     = new DdsWriter<MapClickEvent>(participant, "MapClickEvent");
@@ -828,7 +828,7 @@ public class IgApplication : IDisposable
 
                 var contextActionsTranslator = new ContextActionsUpdateTranslator(
 
-                    participant, _entityMap, _world.Bus, _ghostCreationSystem!);
+                    participant, _entityMap, _world.Bus, _ghostCreationSystem!, _effectiveInstanceId);
 
 
 
@@ -858,18 +858,18 @@ public class IgApplication : IDisposable
 
                 if (!_headless)
                 {
-                    customTranslators.Add(new Hrot.IG.Translators.IgMissionIngressTranslator(participant, _entityMap, _ghostCreationSystem!));
+                    customTranslators.Add(new Hrot.IG.Translators.IgMissionIngressTranslator(participant, _entityMap, _ghostCreationSystem!, _effectiveInstanceId));
                     customTranslators.Add(new Hrot.IG.Translators.GroundClampingOverrideTranslator(participant, _entityMap));
                     customTranslators.Add(new Hrot.IG.Translators.AudioTargetDetectedIngressTranslator(participant, _entityMap));
                 }
 
                 // D005: ACL egress translators convert bus events back to DDS.
                 customTranslators.Add(new Hrot.Map.Common.Replication.Egress.SpawnEntityCommandEgressTranslator(
-                    participant, _world.Bus, _geoTransform));
+                    participant, _world.Bus, _geoTransform, _effectiveInstanceId));
                 customTranslators.Add(new Hrot.Map.Common.Replication.Egress.UpdateEntityCommandEgressTranslator(
-                    participant, _world.Bus, _entityMap, _geoTransform));
+                    participant, _world.Bus, _entityMap, _geoTransform, _effectiveInstanceId));
                 customTranslators.Add(new Hrot.Map.Common.Replication.Egress.DestroyEntityCommandEgressTranslator(
-                    participant, _world.Bus));
+                    participant, _world.Bus, _effectiveInstanceId));
 
                 // Create the MapCommandController now that canvas and DDS resources are ready.
                 // D004: MapCommandController now takes FdpEventBus instead of IDdsWriter<CreateEntityRequest>.
@@ -877,7 +877,8 @@ public class IgApplication : IDisposable
                 _mapCommandController = new MapCommandController(
                     _canvas,
                     _world.Bus,
-                    new CycloneDdsWriterIgAdapter<MapCommandAck>(_mapCommandAckWriter!));
+                    new CycloneDdsWriterIgAdapter<MapCommandAck>(_mapCommandAckWriter!),
+                    _effectiveInstanceId);
 
                 _contextMenuSystem.SetCacheMissWriter(
                     new CycloneDdsWriterIgAdapter<ContextMenuRequest>(_contextMenuRequestWriter!),
@@ -926,7 +927,7 @@ public class IgApplication : IDisposable
                 // CGF1-BATCH-23 A.2: dummy zone handler — IG acknowledges
                 // PrepareZone / CommitZone without terrain DB load.
                 // Full terrain-DB preload from scenario entities is future work.
-                _clusterSlave.RegisterHandler(new Hrot.IG.Modules.Orchestration.IgZoneDummyHandler());
+                _clusterSlave.RegisterHandler(new Hrot.IG.Modules.Orchestration.IgZoneDummyHandler(_effectiveInstanceId));
 
                 // Wire ReferencePrefetchHandler so IG can stage scenario files and ACK.
                 var igStorageProvider = new FDP.Toolkit.Orchestration.LocalDiskStorageProvider(@"C:\FDP_Temp");
@@ -950,7 +951,7 @@ public class IgApplication : IDisposable
 
         // E. StyleResolutionModule ÔÇö writes ResolvedStyle each Simulation tick
 
-        _kernel.RegisterModule(new StyleResolutionModule(_userConfig));
+        _kernel.RegisterModule(new StyleResolutionModule(_userConfig, _effectiveInstanceId));
 
 
 
@@ -1257,7 +1258,7 @@ public class IgApplication : IDisposable
 
                 FdpLog<IgApplication>.Debug(
 
-                    "[TRACE-IG] MapCommandRequest: Type={0} MapId={1}", cmd.Type, cmd.MapId);
+                    "[Node-{0}] MapCommandRequest: Type={1} MapId={2}", _effectiveInstanceId, cmd.Type, cmd.MapId);
 
                 switch (cmd.Type)
 
@@ -1348,7 +1349,7 @@ public class IgApplication : IDisposable
 
                 FdpLog<IgApplication>.Debug(
 
-                    "[TRACE-IG] MapInteractionConfig: ActiveContextId={0}", _activeContextId);
+                    "[Node-{0}] MapInteractionConfig: ActiveContextId={1}", _effectiveInstanceId, _activeContextId);
 
 
 
@@ -2346,7 +2347,7 @@ public class IgApplication : IDisposable
 
         _clickWriter.Write(evt);
 
-        FdpLog<IgApplication>.Info("[IG] MapClickEvent published. ContextId={0} hit={1}", _activeContextId, hit.Index);
+FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hit={2}", _effectiveInstanceId, _activeContextId, hit.Index);
 
         // Publish selection state so ExCon can update the "Selection & Mission" panel.
         // A non-empty hit selects the entity; an empty-space click clears the selection.
@@ -2360,7 +2361,7 @@ public class IgApplication : IDisposable
                 MapId             = _effectiveInstanceId,
                 SelectedEntityIds = selIds,
             });
-            FdpLog<IgApplication>.Debug("[IG] SelectionChangedEvent published. count={0}", selIds.Count);
+            FdpLog<IgApplication>.Debug("[Node-{0}] SelectionChangedEvent published. count={1}", _effectiveInstanceId, selIds.Count);
         }
 
     }
@@ -2502,8 +2503,8 @@ public class IgApplication : IDisposable
         _commandGatewayInterface.SendUpdateDescriptor(request);
 
         FdpLog<IgApplication>.Info(
-            "[IG] GeoSpatial update: sent UpdateEntityDescriptorRequest for NetID {0} to ({1:F5}, {2:F5}).",
-            netId, lat, lon);
+            "[Node-{0}] GeoSpatial update: sent UpdateEntityDescriptorRequest for NetID {1} to ({2:F5}, {3:F5}).",
+            _effectiveInstanceId, netId, lat, lon);
     }
 
 
@@ -2823,7 +2824,7 @@ public class IgApplication : IDisposable
 
             default:
 
-                FdpLog<IgApplication>.Warn("[IG] Unhandled local context action: {0}", actionName);
+                FdpLog<IgApplication>.Warn("[Node-{0}] Unhandled local context action: {1}", _effectiveInstanceId, actionName);
 
                 break;
 
@@ -3012,7 +3013,7 @@ public class IgApplication : IDisposable
         catch (Exception ex)
         {
             FdpLog<IgApplication>.Warn(
-                "[IG] ParseCommandAndActivateAreaTool failed: {0}", ex.Message);
+                "[Node-{0}] ParseCommandAndActivateAreaTool failed: {1}", _effectiveInstanceId, ex.Message);
         }
     }
 
@@ -3054,7 +3055,7 @@ public class IgApplication : IDisposable
         catch (Exception ex)
         {
             FdpLog<IgApplication>.Warn(
-                "[IG] ParseCommandAndActivatePlacementTool failed: {0}", ex.Message);
+                "[Node-{0}] ParseCommandAndActivatePlacementTool failed: {1}", _effectiveInstanceId, ex.Message);
         }
     }
 
@@ -3092,7 +3093,7 @@ public class IgApplication : IDisposable
         catch (Exception ex)
         {
             FdpLog<IgApplication>.Warn(
-                "[IG] ParseCommandAndActivateEditTool failed: {0}", ex.Message);
+                "[Node-{0}] ParseCommandAndActivateEditTool failed: {1}", _effectiveInstanceId, ex.Message);
         }
     }
 
@@ -3120,7 +3121,7 @@ public class IgApplication : IDisposable
             if (!_entityMap.TryGetEntity(entityId, out var entity))
             {
                 FdpLog<IgApplication>.Warn(
-                    "[IG] CMD_SET_SELECTION: entity {0} not found.", entityId);
+                    "[Node-{0}] CMD_SET_SELECTION: entity {1} not found.", _effectiveInstanceId, entityId);
                 return;
             }
 
@@ -3128,7 +3129,7 @@ public class IgApplication : IDisposable
         }
         catch (Exception ex)
         {
-            FdpLog<IgApplication>.Warn("[IG] ParseCommandAndSetSelection failed: {0}", ex.Message);
+            FdpLog<IgApplication>.Warn("[Node-{0}] ParseCommandAndSetSelection failed: {1}", _effectiveInstanceId, ex.Message);
         }
     }
 
@@ -3156,7 +3157,7 @@ public class IgApplication : IDisposable
             if (!_entityMap.TryGetEntity(entityId, out var entity))
             {
                 FdpLog<IgApplication>.Warn(
-                    "[IG] CMD_SET_VIEW: entity {0} not found.", entityId);
+                    "[Node-{0}] CMD_SET_VIEW: entity {1} not found.", _effectiveInstanceId, entityId);
                 return;
             }
 
@@ -3164,7 +3165,7 @@ public class IgApplication : IDisposable
         }
         catch (Exception ex)
         {
-            FdpLog<IgApplication>.Warn("[IG] ParseCommandAndSetView failed: {0}", ex.Message);
+            FdpLog<IgApplication>.Warn("[Node-{0}] ParseCommandAndSetView failed: {1}", _effectiveInstanceId, ex.Message);
         }
     }
 
@@ -3214,11 +3215,11 @@ public class IgApplication : IDisposable
 
             _canvas.PushTool(tool);
             FdpLog<IgApplication>.Info(
-                "[IG] CMD_DRAW_PERSONAL_ROUTE: point-sequence tool activated for vehicle {0}.", vehicleId);
+                "[Node-{0}] CMD_DRAW_PERSONAL_ROUTE: point-sequence tool activated for vehicle {1}.", _effectiveInstanceId, vehicleId);
         }
         catch (Exception ex)
         {
-            FdpLog<IgApplication>.Warn("[IG] ParseCommandAndActivatePersonalRoute failed: {0}", ex.Message);
+            FdpLog<IgApplication>.Warn("[Node-{0}] ParseCommandAndActivatePersonalRoute failed: {1}", _effectiveInstanceId, ex.Message);
         }
     }
 
@@ -3286,7 +3287,7 @@ public class IgApplication : IDisposable
         }
         catch (Exception ex)
         {
-            FdpLog<IgApplication>.Warn("[IG] OrchestratePersonalRoute: CreateEntityAsync failed: {0}", ex.Message);
+            FdpLog<IgApplication>.Warn("[Node-{0}] OrchestratePersonalRoute: CreateEntityAsync failed: {1}", _effectiveInstanceId, ex.Message);
             SendPersonalRouteAck(requestId, MapCommandController.StatusCancelled);
             return;
         }
@@ -3295,7 +3296,7 @@ public class IgApplication : IDisposable
         if (createAck.StatusCode > 1)
         {
             FdpLog<IgApplication>.Warn(
-                "[IG] OrchestratePersonalRoute: CreateEntityAsync returned status {0}.", createAck.StatusCode);
+                "[Node-{0}] OrchestratePersonalRoute: CreateEntityAsync returned status {1}.", _effectiveInstanceId, createAck.StatusCode);
             SendPersonalRouteAck(requestId, MapCommandController.StatusCancelled);
             return;
         }
@@ -3333,7 +3334,7 @@ public class IgApplication : IDisposable
         }
         catch (Exception ex)
         {
-            FdpLog<IgApplication>.Warn("[IG] OrchestratePersonalRoute: SendMissionControlRequestAsync failed: {0}", ex.Message);
+            FdpLog<IgApplication>.Warn("[Node-{0}] OrchestratePersonalRoute: SendMissionControlRequestAsync failed: {1}", _effectiveInstanceId, ex.Message);
         }
 
         SendPersonalRouteAck(requestId, MapCommandController.StatusFinished);
@@ -3372,7 +3373,7 @@ public class IgApplication : IDisposable
         if (!_entityMap.TryGetEntity(networkEntityId, out var entity))
         {
             FdpLog<IgApplication>.Warn(
-                "[IG] ActivateAreaEditingTool: entity not found for NetID {0}.", networkEntityId);
+                "[Node-{0}] ActivateAreaEditingTool: entity not found for NetID {1}.", _effectiveInstanceId, networkEntityId);
             return;
         }
 
@@ -3412,12 +3413,12 @@ public class IgApplication : IDisposable
                             RequestId          = Guid.NewGuid(),
                         });
                         FdpLog<IgApplication>.Info(
-                            "[IG] Committed route edit for NetID {0}: {1} waypoints.", netId, updatedWaypoints.Count);
+                            "[Node-{0}] Committed route edit for NetID {1}: {2} waypoints.", _effectiveInstanceId, netId, updatedWaypoints.Count);
                     }
                 });
 
             _canvas.PushTool(routeEditTool);
-            FdpLog<IgApplication>.Info("[IG] Route editing tool activated for NetID {0}.", networkEntityId);
+            FdpLog<IgApplication>.Info("[Node-{0}] Route editing tool activated for NetID {1}.", _effectiveInstanceId, networkEntityId);
             return;
         }
 
@@ -3426,7 +3427,7 @@ public class IgApplication : IDisposable
         if (!World.HasManagedComponent<EditablePolyline>(entity))
         {
             FdpLog<IgApplication>.Warn(
-                "[IG] ActivateAreaEditingTool: entity {0} has no EditablePolyline.", networkEntityId);
+                "[Node-{0}] ActivateAreaEditingTool: entity {1} has no EditablePolyline.", _effectiveInstanceId, networkEntityId);
             return;
         }
 
@@ -3440,7 +3441,7 @@ public class IgApplication : IDisposable
         if (!World.HasComponent<SimTransform>(entity))
         {
             FdpLog<IgApplication>.Warn(
-                "[IG] ActivateAreaEditingTool: entity {0} has no SimTransform yet.", networkEntityId);
+                "[Node-{0}] ActivateAreaEditingTool: entity {1} has no SimTransform yet.", _effectiveInstanceId, networkEntityId);
             return;
         }
 
@@ -3474,12 +3475,12 @@ public class IgApplication : IDisposable
                 });
 
                 FdpLog<IgApplication>.Info(
-                    "[IG] Committed overlay edit for NetID {0}: {1} vertices.", netId, absCartPoints.Count);
+                    "[Node-{0}] Committed overlay edit for NetID {1}: {2} vertices.", _effectiveInstanceId, netId, absCartPoints.Count);
             }
         };
 
         _canvas.PushTool(editTool);
-        FdpLog<IgApplication>.Info("[IG] Area editing tool activated for NetID {0}.", networkEntityId);
+        FdpLog<IgApplication>.Info("[Node-{0}] Area editing tool activated for NetID {1}.", _effectiveInstanceId, networkEntityId);
     }
 
     /// <summary>
@@ -3606,7 +3607,7 @@ public class IgApplication : IDisposable
 
         {
 
-            FdpLog<IgApplication>.Warn("[IG] Failed to parse ConfigurationJson: {0}", ex.Message);
+            FdpLog<IgApplication>.Warn("[Node-{0}] Failed to parse ConfigurationJson: {1}", _effectiveInstanceId, ex.Message);
 
         }
 
@@ -3649,13 +3650,13 @@ public class IgApplication : IDisposable
                     string prefix = patch.NamePrefix ?? GetTkbPrefixForType(tkbType);
                     nameGenerator = UniqueNameGenerator.CreateSessionGenerator(_world, prefix);
                     FdpLog<IgApplication>.Info(
-                        "[IG] Auto-naming enabled for TkbType={0} prefix=\"{1}\".", tkbType, prefix);
+                        "[Node-{0}] Auto-naming enabled for TkbType={1} prefix=\"{2}\".", _effectiveInstanceId, tkbType, prefix);
                 }
             }
             catch (Exception ex)
             {
                 FdpLog<IgApplication>.Warn(
-                    "[IG] ActivatePlacementTool: could not parse EntityPropertyPatch: {0}", ex.Message);
+                    "[Node-{0}] ActivatePlacementTool: could not parse EntityPropertyPatch: {1}", _effectiveInstanceId, ex.Message);
             }
         }
 
@@ -3668,7 +3669,7 @@ public class IgApplication : IDisposable
             nameGenerator);
 
         FdpLog<IgApplication>.Info(
-            "[IG] Placement tool activated via controller. TkbType={0}", tkbType);
+            "[Node-{0}] Placement tool activated via controller. TkbType={1}", _effectiveInstanceId, tkbType);
     }
 
     /// <summary>
@@ -3856,7 +3857,7 @@ public class IgApplication : IDisposable
 
 
 
-        FdpLog<IgApplication>.Info("[IG] Area authoring tool activated.");
+        FdpLog<IgApplication>.Info("[Node-{0}] Area authoring tool activated.", _effectiveInstanceId);
 
     }
 
@@ -3890,8 +3891,8 @@ public class IgApplication : IDisposable
             if (_geoTransform == null)
             {
                 FdpLog<IgApplication>.Error(
-                    "[IG] Cannot create route: geographic transform is unavailable. " +
-                    "Ensure the IG is initialised with a valid map origin before authoring routes.");
+                    "[Node-{0}] Cannot create route: geographic transform is unavailable. " +
+                    "Ensure the IG is initialised with a valid map origin before authoring routes.", _effectiveInstanceId);
                 _canvas.PopTool();
                 return;
             }
@@ -3935,7 +3936,7 @@ public class IgApplication : IDisposable
 
         _canvas.PushTool(tool);
 
-        FdpLog<IgApplication>.Info("[IG] Route authoring tool activated.");
+        FdpLog<IgApplication>.Info("[Node-{0}] Route authoring tool activated.", _effectiveInstanceId);
     }
 
 
@@ -3967,7 +3968,7 @@ public class IgApplication : IDisposable
         catch (Exception ex)
         {
             FdpLog<IgApplication>.Warn(
-                "[IG] ParseCommandAndActivateLocationPicker failed: {0}", ex.Message);
+                "[Node-{0}] ParseCommandAndActivateLocationPicker failed: {1}", _effectiveInstanceId, ex.Message);
         }
     }
 
@@ -3984,10 +3985,10 @@ public class IgApplication : IDisposable
         tool.OnLocationPicked += worldPos =>
             OnCanvasClicked(worldPos, MouseButton.Left, false, false, Entity.Null, updateSelection: false);
         tool.OnCancelled += () =>
-            FdpLog<IgApplication>.Debug("[IG] LocationPicker cancelled.");
+            FdpLog<IgApplication>.Debug("[Node-{0}] LocationPicker cancelled.", _effectiveInstanceId);
 
         _canvas.PushTool(tool);
-        FdpLog<IgApplication>.Info("[IG] Location picker tool activated. ContextId={0}", _activeContextId);
+        FdpLog<IgApplication>.Info("[Node-{0}] Location picker tool activated. ContextId={1}", _effectiveInstanceId, _activeContextId);
     }
 
     // ─── EntityPickerTool activation from CMD_PICK_ENTITY ────────────────────
@@ -4034,7 +4035,7 @@ public class IgApplication : IDisposable
         catch (Exception ex)
         {
             FdpLog<IgApplication>.Warn(
-                "[IG] ParseCommandAndActivateEntityPicker failed: {0}", ex.Message);
+                "[Node-{0}] ParseCommandAndActivateEntityPicker failed: {1}", _effectiveInstanceId, ex.Message);
         }
     }
 
@@ -4046,7 +4047,7 @@ public class IgApplication : IDisposable
 
         if (_entityFilterFactory == null)
         {
-            FdpLog<IgApplication>.Warn("[IG] EntityPickerTool requested but filter factory is not ready.");
+            FdpLog<IgApplication>.Warn("[Node-{0}] EntityPickerTool requested but filter factory is not ready.", _effectiveInstanceId);
             return;
         }
 
@@ -4060,15 +4061,15 @@ public class IgApplication : IDisposable
             // Re-use OnCanvasClicked to publish the MapClickEvent.
             // The entity will appear in HitStack so the ExCon receives the networkId.
             OnCanvasClicked(Vector2.Zero, MouseButton.Left, false, false, entity, updateSelection: false);
-            FdpLog<IgApplication>.Info("[IG] EntityPicker picked entity {0}", entity.Index);
+            FdpLog<IgApplication>.Info("[Node-{0}] EntityPicker picked entity {1}", _effectiveInstanceId, entity.Index);
         };
 
         tool.OnCancelled += () =>
-            FdpLog<IgApplication>.Debug("[IG] EntityPicker cancelled.");
+            FdpLog<IgApplication>.Debug("[Node-{0}] EntityPicker cancelled.", _effectiveInstanceId);
 
         _canvas.PushTool(tool);
-        FdpLog<IgApplication>.Info("[IG] Entity picker tool activated. ContextId={0} Filters=[{1}]",
-            _activeContextId, string.Join(",", filters));
+        FdpLog<IgApplication>.Info("[Node-{0}] Entity picker tool activated. ContextId={1} Filters=[{2}]",
+            _effectiveInstanceId, _activeContextId, string.Join(",", filters));
     }
 
 

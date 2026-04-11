@@ -139,7 +139,7 @@ public sealed class HrotNodeBuilder
         // Step 9 — Infrastructure EcsModules
         var tkbDb       = HrotEnvironment.CreateTkb();
         var geoTransform = HrotEnvironment.CreateGeoTransform();
-        var elm         = new EntityLifecycleModule(tkbDb, new List<int>());
+        var elm         = new EntityLifecycleModule(tkbDb, new List<int>(), localNodeId: _config.NodeId);
         var geoModule   = new GeographicModule(geoTransform);
         var baseModules = new List<IEcsModule> { elm, geoModule };
 

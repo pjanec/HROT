@@ -55,6 +55,7 @@ public class MapCommandController
     private readonly MapCanvas                _canvas;
     private readonly FdpEventBus              _eventBus;
     private readonly IDdsWriter<MapCommandAck> _ackWriter;
+    private readonly long                      _localNodeId;
 
     // ── Active-session state ──────────────────────────────────────────────────
 
@@ -111,11 +112,13 @@ public class MapCommandController
     public MapCommandController(
         MapCanvas                 canvas,
         FdpEventBus               eventBus,
-        IDdsWriter<MapCommandAck> ackWriter)
+        IDdsWriter<MapCommandAck> ackWriter,
+        long                      localNodeId = 0)
     {
         _canvas   = canvas   ?? throw new ArgumentNullException(nameof(canvas));
         _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
         _ackWriter = ackWriter ?? throw new ArgumentNullException(nameof(ackWriter));
+        _localNodeId = localNodeId;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -178,8 +181,8 @@ public class MapCommandController
         _canvas.PushTool(tool);
 
         FdpLog<MapCommandController>.Info(
-            "[MapCommandController] PlacementTool activated. RequestId={0} ContextId={1} TKB={2}",
-            requestId, contextId, tkbType);
+            "[Node-{0}] PlacementTool activated. RequestId={1} ContextId={2} TKB={3}",
+            _localNodeId, requestId, contextId, tkbType);
     }
 
     /// <summary>
@@ -201,8 +204,8 @@ public class MapCommandController
         _toolFinished     = false;
 
         FdpLog<MapCommandController>.Info(
-            "[MapCommandController] AreaAuthoring session started. RequestId={0} ContextId={1}",
-            requestId, contextId);
+            "[Node-{0}] AreaAuthoring session started. RequestId={1} ContextId={2}",
+            _localNodeId, requestId, contextId);
     }
 
     /// <summary>
@@ -216,7 +219,7 @@ public class MapCommandController
         if (_sessionRequestId == Guid.Empty)
         {
             FdpLog<MapCommandController>.Warn(
-                "[MapCommandController] OnAreaEntityCreated called with no active session — command dropped.");
+                "[Node-{0}] OnAreaEntityCreated called with no active session — command dropped.", _localNodeId);
             return;
         }
 
@@ -268,14 +271,14 @@ public class MapCommandController
         if (ack.StatusCode >= 2)
         {
             FdpLog<MapCommandController>.Warn(
-                "[MapCommandController] CreateUpdateDeleteEntityAck error={0} for req={1}",
-                ack.StatusCode, ack.RequestId);
+                "[Node-{0}] CreateUpdateDeleteEntityAck error={1} for req={2}",
+                _localNodeId, ack.StatusCode, ack.RequestId);
             // Treat as intermediate failure; don't abort the session.
             return;
         }
 
         FdpLog<MapCommandController>.Debug(
-            "[MapCommandController] CreateUpdateDeleteEntityAck status={0} entityId={1}", ack.StatusCode, ack.EntityId);
+            "[Node-{0}] CreateUpdateDeleteEntityAck status={1} entityId={2}", _localNodeId, ack.StatusCode, ack.EntityId);
 
         // If the tool is still active → intermediate ack (more entities may follow).
         // If the tool is already done → final ack.
@@ -302,7 +305,7 @@ public class MapCommandController
         _pendingEntityRequests[cmd.RequestId] = true;
 
         FdpLog<MapCommandController>.Debug(
-            "[MapCommandController] Published SpawnEntityCommand req={0}", cmd.RequestId);
+            "[Node-{0}] Published SpawnEntityCommand req={1}", _localNodeId, cmd.RequestId);
     }
 
     /// <summary>
@@ -341,8 +344,8 @@ public class MapCommandController
         });
 
         FdpLog<MapCommandController>.Info(
-            "[MapCommandController] MapCommandAck published. RequestId={0} Status={1} Data={2}",
-            _sessionRequestId, statusCode, dataJson);
+            "[Node-{0}] MapCommandAck published. RequestId={1} Status={2} Data={3}",
+            _localNodeId, _sessionRequestId, statusCode, dataJson);
     }
 
     private void ClearSession()

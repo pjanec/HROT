@@ -86,8 +86,8 @@ namespace Hrot.Map.Common.Replication
                 });
 
                 FdpLog<OwnershipUpdateTranslator>.Debug(
-                    "[Muscle] OwnershipUpdate egress: EntityId={0} TypeId={1} NewOwner={2}",
-                    evt.NetworkId.Value, typeId, evt.NewOwnerNodeId);
+                    "[Node-{0}] OwnershipUpdate egress: EntityId={1} TypeId={2} NewOwner={3}",
+                    _localNodeId, evt.NetworkId.Value, typeId, evt.NewOwnerNodeId);
             }
         }
 
@@ -121,8 +121,8 @@ namespace Hrot.Map.Common.Replication
                 });
 
                 FdpLog<OwnershipUpdateTranslator>.Debug(
-                    "[Brain] OwnershipUpdate ingress: EntityId={0} TypeId={1} NewOwner={2}",
-                    msg.EntityId, msg.DescrTypeId, msg.NewOwner);
+                    "[Node-{0}] OwnershipUpdate ingress: EntityId={1} TypeId={2} NewOwner={3}",
+                    _localNodeId, msg.EntityId, msg.DescrTypeId, msg.NewOwner);
             }
         }
 

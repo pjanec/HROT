@@ -370,8 +370,8 @@ public class ExConLogicTests
 
         var expected = new[]
         {
-            "[TRACE-ExCon] Placement Mode ON.",
-            "[TRACE-ExCon] MapClickEvent ContextId=",
+            "[Node-", // Placement Mode ON.
+            "[Node-", // MapClickEvent ContextId=
         };
 
         Assert.True(

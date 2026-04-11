@@ -149,7 +149,7 @@ namespace Hrot.IG.Tests
                 NetworkEntityMap entityMap,
                 IGeographicTransform geoTransform,
                 GhostCreationSystem ghostCreationSystem)
-                : base(participant, entityMap, geoTransform, ghostCreationSystem)
+                : base(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId: 0)
             {
             }
 

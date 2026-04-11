@@ -179,7 +179,7 @@ namespace Hrot.SimHost.Systems
                 if (tkbType == 0)
                 {
                     FdpLog<CreateEntityRequestSystem>.Warn(
-                        $"[SimHost] CreateEntity {request.RequestId}: No EntityMaster descriptor or TkbType=0. Rejecting.");
+                        $"[Node-{_localNodeId}] CreateEntity {request.RequestId}: No EntityMaster descriptor or TkbType=0. Rejecting.");
                     SendErrorAck(request.RequestId, NedStatusCode.UnknownDescriptorType);
                     return;
                 }
@@ -188,7 +188,7 @@ namespace Hrot.SimHost.Systems
                 if (!_tkbDb.TryGetByType(tkbType, out _))
                 {
                     FdpLog<CreateEntityRequestSystem>.Warn(
-                        $"[SimHost] CreateEntity {request.RequestId}: TkbType={tkbType} not found. Rejecting.");
+                        $"[Node-{_localNodeId}] CreateEntity {request.RequestId}: TkbType={tkbType} not found. Rejecting.");
                     SendErrorAck(request.RequestId, NedStatusCode.UnknownDescriptorType);
                     return;
                 }
@@ -216,7 +216,7 @@ namespace Hrot.SimHost.Systems
             catch (Exception ex)
             {
                 FdpLog<CreateEntityRequestSystem>.Error(
-                    $"[SimHost] CreateEntity ingress failed for request {request.RequestId}: {ex.Message}");
+                    $"[Node-{_localNodeId}] CreateEntity ingress failed for request {request.RequestId}: {ex.Message}");
                 SendErrorAck(request.RequestId, NedStatusCode.UnknownDescriptorType);
             }
         }
@@ -393,13 +393,13 @@ namespace Hrot.SimHost.Systems
                     }                }
 
                 FdpLog<CreateEntityRequestSystem>.Info(
-                    $"[SimHost] Queued spawn entity {pending.NetworkId} (TkbType={pending.TkbType}) " +
+                    $"[Node-{_localNodeId}] Queued spawn entity {pending.NetworkId} (TkbType={pending.TkbType}) " +
                     $"for request {pending.Request.RequestId}.");
             }
             catch (Exception ex)
             {
                 FdpLog<CreateEntityRequestSystem>.Error(
-                    $"[SimHost] SpawnEntityCommand creation failed for request " +
+                    $"[Node-{_localNodeId}] SpawnEntityCommand creation failed for request " +
                     $"{pending.Request.RequestId}: {ex.Message}");
             }
         }

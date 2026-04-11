@@ -62,6 +62,7 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
     /// <summary>In-flight request tracker for all outgoing DDS requests.</summary>
     public IRequestTransactionManager TransactionManager { get; }
 
+    private readonly long                               _localNodeId;
     private readonly IDdsWriter<MapInteractionConfig>  _configWriter;
     private readonly IDdsWriter<CreateEntityRequest>   _createEntityWriter;
     private readonly IDdsWriter<MapCommandRequest>?    _commandWriter;
@@ -197,8 +198,10 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         int                                 targetMapId     = ExConLogicConstants.DefaultTargetMapId,
         IEventQueue<MapCommandAck>?         mapCommandAckQueue = null,
         IDdsWriter<Hrot.NED.Messages.DeleteEntityRequest>? deleteEntityWriter = null,
-        IDdsWriter<ClusterOpRequest>?           sysOpWriter     = null)
+        IDdsWriter<ClusterOpRequest>?           sysOpWriter     = null,
+        long                                    localNodeId     = 0)
     {
+        _localNodeId         = localNodeId;
         Repo                 = repo                 ?? throw new ArgumentNullException(nameof(repo));
         MissionEditorService = missionEditorService ?? throw new ArgumentNullException(nameof(missionEditorService));
         ContextMenuLogic     = contextMenuLogic     ?? throw new ArgumentNullException(nameof(contextMenuLogic));
@@ -306,7 +309,7 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         }
 
         FdpLog<ExConLogic>.Debug(
-            "[TRACE-ExCon] Placement Mode ON. ContextId={0} TKB={1}", ActiveContextId, tkbType);
+            "[Node-{0}] Placement Mode ON. ContextId={1} TKB={2}", _localNodeId, ActiveContextId, tkbType);
     }
 
     /// <inheritdoc/>
@@ -356,7 +359,7 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         }
 
         FdpLog<ExConLogic>.Debug(
-            "[TRACE-ExCon] Area Authoring Mode ON. ContextId={0}", ActiveContextId);
+            "[Node-{0}] Area Authoring Mode ON. ContextId={1}", _localNodeId, ActiveContextId);
     }
 
     /// <inheritdoc/>
@@ -395,7 +398,7 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         }
 
         FdpLog<ExConLogic>.Debug(
-            "[TRACE-ExCon] Route Authoring Mode ON. ContextId={0}", ActiveContextId);
+            "[Node-{0}] Route Authoring Mode ON. ContextId={1}", _localNodeId, ActiveContextId);
     }
 
     /// <inheritdoc/>
@@ -425,7 +428,7 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         }
 
         FdpLog<ExConLogic>.Debug(
-            "[TRACE-ExCon] Editing Mode ON. ContextId={0} EntityId={1}", ActiveContextId, networkEntityId);
+            "[Node-{0}] Editing Mode ON. ContextId={1} EntityId={2}", _localNodeId, ActiveContextId, networkEntityId);
     }
 
     /// <inheritdoc/>
@@ -567,7 +570,7 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCommand,
             $"CMD_PICK_LOCATION ctx={ActiveContextId:N}");
 
-        FdpLog<ExConLogic>.Debug("[TRACE-ExCon] PickLocation Mode ON. ContextId={0}", ActiveContextId);
+        FdpLog<ExConLogic>.Debug("[Node-{0}] PickLocation Mode ON. ContextId={1}", _localNodeId, ActiveContextId);
 
         return tcs.Task;
     }
@@ -620,7 +623,7 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCommand,
             $"CMD_PICK_ENTITY filters=[{string.Join(",", filterPresets ?? Array.Empty<string>())}] ctx={ActiveContextId:N}");
 
-        FdpLog<ExConLogic>.Debug("[TRACE-ExCon] PickEntity Mode ON. ContextId={0}", ActiveContextId);
+        FdpLog<ExConLogic>.Debug("[Node-{0}] PickEntity Mode ON. ContextId={1}", _localNodeId, ActiveContextId);
 
         return tcs.Task;
     }
@@ -686,7 +689,8 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         while (_clickQueue.TryDequeue(out var evt))
         {
             FdpLog<ExConLogic>.Debug(
-                "[TRACE-ExCon] MapClickEvent ContextId={0} (expected {1})",
+                "[Node-{0}] MapClickEvent ContextId={1} (expected {2})",
+                _localNodeId,
                 evt.InteractionContextId,
                 ActiveContextId);
 
@@ -795,7 +799,7 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
 
                 _interactionPanel.AddLog("RX", ExConLogicConstants.LogTopicCreateAck,
                     $"INPROGRESS newId={ack.EntityId} req={ack.RequestId:N}");
-                FdpLog<ExConLogic>.Debug("[TRACE-ExCon] CreateAck InProgress: newId={0}", ack.EntityId);
+                FdpLog<ExConLogic>.Debug("[Node-{0}] CreateAck InProgress: newId={1}", _localNodeId, ack.EntityId);
                 continue;
             }
 
@@ -810,8 +814,8 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
 
                 _interactionPanel.AddLog("RX", ExConLogicConstants.LogTopicCreateAck,
                     $"FAIL req={ack.RequestId:N} status={ack.StatusCode}");
-                FdpLog<ExConLogic>.Warn("[TRACE-ExCon] CreateAck FAILED: req={0} status={1}",
-                    ack.RequestId, ack.StatusCode);
+                FdpLog<ExConLogic>.Warn("[Node-{0}] CreateAck FAILED: req={1} status={2}",
+                    _localNodeId, ack.RequestId, ack.StatusCode);
                 continue;
             }
 
@@ -821,7 +825,7 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
 
             _interactionPanel.AddLog("RX", ExConLogicConstants.LogTopicCreateAck,
                 $"OK newId={ack.EntityId} req={ack.RequestId:N}");
-            FdpLog<ExConLogic>.Debug("[TRACE-ExCon] CreateAck OK: newId={0}", ack.EntityId);
+            FdpLog<ExConLogic>.Debug("[Node-{0}] CreateAck OK: newId={1}", _localNodeId, ack.EntityId);
             SelectEntity(ack.EntityId);
         }
     }
@@ -838,7 +842,7 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
             if (!isOurRequest)
             {
                 FdpLog<ExConLogic>.Debug(
-                    "[TRACE-ExCon] MapCommandAck ignored (unknown req={0})", ack.RequestId);
+                    "[Node-{0}] MapCommandAck ignored (unknown req={1})", _localNodeId, ack.RequestId);
                 continue;
             }
 
@@ -847,7 +851,7 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
             _interactionPanel.AddLog("RX", ExConLogicConstants.LogTopicCommand,
                 $"MapCommandAck status={ack.StatusCode} data={ack.DataJson} req={ack.RequestId:N}");
             FdpLog<ExConLogic>.Debug(
-                "[TRACE-ExCon] MapCommandAck status={0} req={1}", ack.StatusCode, ack.RequestId);
+                "[Node-{0}] MapCommandAck status={1} req={2}", _localNodeId, ack.StatusCode, ack.RequestId);
 
             if (isFinal)
             {

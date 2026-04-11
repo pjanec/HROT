@@ -17,6 +17,7 @@ namespace Hrot.IG.Translators
         private readonly DdsReader<EntityMission> _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly GhostCreationSystem _ghostCreationSystem;
+        private readonly long _localNodeId;
 
         public long DescriptorOrdinal => 50;
         public string TopicName => "EntityMission";
@@ -24,11 +25,13 @@ namespace Hrot.IG.Translators
         public IgMissionIngressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            GhostCreationSystem ghostCreationSystem)
+            GhostCreationSystem ghostCreationSystem,
+            long localNodeId)
         {
             _reader = new DdsReader<EntityMission>(participant);
             _entityMap = entityMap;
             _ghostCreationSystem = ghostCreationSystem;
+            _localNodeId = localNodeId;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
@@ -68,7 +71,7 @@ namespace Hrot.IG.Translators
                     if (sample.IsValid)
                     {
                         erepo.SetComponent(entity, MapToPlan(sample.Data));
-                        FdpLog<IgMissionIngressTranslator>.Debug("[TRACE-IG] Ingress: EntityMission Entity={0} Tasks={1}", sample.Data.EntityId, sample.Data.Plan.Tasks?.Count ?? 0);
+                        FdpLog<IgMissionIngressTranslator>.Debug("[Node-{0}] Ingress: EntityMission Entity={1} Tasks={2}", _localNodeId, sample.Data.EntityId, sample.Data.Plan.Tasks?.Count ?? 0);
                     }
                     else if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed)
                     {

@@ -24,15 +24,18 @@ namespace Hrot.IG.Translators
         : CycloneManagedEventTranslator<IgContextActionsUpdate, DdsContextActionsUpdate>
     {
         private readonly GhostCreationSystem _ghostCreationSystem;
+        private readonly long _localNodeId;
 
         public ContextActionsUpdateTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
             IEventBus eventBus,
-            GhostCreationSystem ghostCreationSystem)
+            GhostCreationSystem ghostCreationSystem,
+            long localNodeId = 0)
             : base(participant, "ContextActionsUpdate", entityMap, eventBus)
         {
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
+            _localNodeId = localNodeId;
         }
 
         public override void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
@@ -54,7 +57,7 @@ namespace Hrot.IG.Translators
                     if (repo == null)
                     {
                         FdpLog<ContextActionsUpdateTranslator>.Warn(
-                            "[IG] Cannot create ghost for NetID {0}: view is read-only.", entityId);
+                            "[Node-{0}] Cannot create ghost for NetID {1}: view is read-only.", _localNodeId, entityId);
                         continue;
                     }
 

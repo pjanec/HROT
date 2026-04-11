@@ -31,6 +31,7 @@ namespace Hrot.CGF
         private const int DefaultNodeId = 400;
         private const string SubsystemName = "CGF";
 
+        private readonly int _nodeId;
         private readonly DdsParticipant _participant;
         private readonly FDP.Toolkit.Orchestration.ClusterSlave _clusterSlave;
         private readonly FdpEventBus _eventBus;
@@ -81,6 +82,7 @@ namespace Hrot.CGF
         public CgfApplication(int domainId = 0, int nodeId = DefaultNodeId,
             ScenarioSerializer? scenarioSerializer = null, string localTempRoot = @"C:\FDP_Temp")
         {
+            _nodeId      = nodeId;
             _participant = new DdsParticipant((uint)domainId);
             // CGF1-A.2 (BATCH-09 / Phase 3): wire time event bridge and time controller.
             _eventBus = new FdpEventBus();
@@ -157,7 +159,7 @@ namespace Hrot.CGF
             // CGF1-S0309: wire dry-run handler (no ECS state on CGF skeleton).
             _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
 
-            FdpLog<CgfApplication>.Info("[CGF] Initialized on domain {0}, nodeId {1}.", domainId, nodeId);
+            FdpLog<CgfApplication>.Info("[Node-{0}] Initialized on domain {1}.", nodeId, domainId);
         }
 
         /// <summary>
@@ -211,7 +213,7 @@ namespace Hrot.CGF
             _kernel.Dispose();
             _world.Dispose();
             _participant.Dispose();
-            FdpLog<CgfApplication>.Info("[CGF] Disposed.");
+            FdpLog<CgfApplication>.Info("[Node-{0}] Disposed.", _nodeId);
         }
     }
 }

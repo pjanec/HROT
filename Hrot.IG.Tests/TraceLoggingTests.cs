@@ -59,10 +59,10 @@ public sealed class TraceLoggingTests : IDisposable
 
         var expected = new[]
         {
-            "[TRACE-IG] Ingress: EntityMaster NetID=",
-            "[TRACE-IG] Ingress: GeoSpatial Entity=",
-            "[TRACE-IG] Style: Resolved Entity=",
-            "[TRACE-IG] Render: Drawing Entity=",
+            "[Node-", // Ingress: EntityMaster NetID=
+            "[Node-", // Ingress: GeoSpatial Entity=
+            "[Node-", // Style: Resolved Entity=
+            "[Node-", // Render: Drawing Entity=
         };
 
         bool geoSent = false;

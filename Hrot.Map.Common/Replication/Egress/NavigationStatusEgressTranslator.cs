@@ -26,6 +26,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private readonly DdsWriter<Hrot.NED.Descriptors.NavigationStatus> _writer;
         private readonly NetworkEntityMap _entityMap;
+        private readonly long _localNodeId;
 
         public string TopicName      => "NavigationStatus";
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationStatus;
@@ -47,10 +48,12 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public NavigationStatusEgressTranslator(
             DdsParticipant   dds,
-            NetworkEntityMap entityMap)
+            NetworkEntityMap entityMap,
+            long localNodeId)
         {
             _writer    = new DdsWriter<Hrot.NED.Descriptors.NavigationStatus>(dds, "NavigationStatus");
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
+            _localNodeId = localNodeId;
         }
 
         /// <summary>No ingress for this translator.</summary>
@@ -106,8 +109,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 _lastPublished[entity] = (status.IntentId, status.Result);
 
                 FdpLog<NavigationStatusEgressTranslator>.Debug(
-                    "[TRACE-SH] NavigationStatus egress: EntityId={0} IntentId={1} Result={2}",
-                    netId.Value, status.IntentId, status.Result);
+                    "[Node-{0}] NavigationStatus egress: EntityId={1} IntentId={2} Result={3}",
+                    _localNodeId, netId.Value, status.IntentId, status.Result);
             }
         }
 

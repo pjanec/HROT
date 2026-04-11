@@ -33,17 +33,20 @@ namespace Hrot.SimHost.Systems
         private readonly ICreateUpdateDeleteEntityAckSink _ackSink;
         private readonly NetworkEntityMap                 _entityMap;
         private readonly NedRequestFinalizationSystem     _finalizationSystem;
+        private readonly int                              _localNodeId;
 
         public DeleteEntityRequestSystem(
             IDeleteEntityRequestSource       requestSource,
             ICreateUpdateDeleteEntityAckSink ackSink,
             NetworkEntityMap                 entityMap,
-            NedRequestFinalizationSystem     finalizationSystem)
+            NedRequestFinalizationSystem     finalizationSystem,
+            int                              localNodeId = 0)
         {
             _requestSource      = requestSource      ?? throw new ArgumentNullException(nameof(requestSource));
             _ackSink            = ackSink            ?? throw new ArgumentNullException(nameof(ackSink));
             _entityMap          = entityMap          ?? throw new ArgumentNullException(nameof(entityMap));
             _finalizationSystem = finalizationSystem ?? throw new ArgumentNullException(nameof(finalizationSystem));
+            _localNodeId        = localNodeId;
         }
 
         /// <inheritdoc />
@@ -60,7 +63,7 @@ namespace Hrot.SimHost.Systems
                 if (!_entityMap.TryGetEntity(request.EntityId, out _))
                 {
                     FdpLog<DeleteEntityRequestSystem>.Warn(
-                        $"[SimHost] DeleteEntity {request.RequestId}: EntityId={request.EntityId} not found. Rejecting.");
+                        $"[Node-{_localNodeId}] DeleteEntity {request.RequestId}: EntityId={request.EntityId} not found. Rejecting.");
                     _ackSink.WriteAck(new CreateUpdateDeleteEntityAck
                     {
                         RequestId  = request.RequestId,
@@ -92,13 +95,13 @@ namespace Hrot.SimHost.Systems
                 }
 
                 FdpLog<DeleteEntityRequestSystem>.Info(
-                    $"[SimHost] DeleteEntity {request.EntityId} accepted " +
+                    $"[Node-{_localNodeId}] DeleteEntity {request.EntityId} accepted " +
                     $"for request {request.RequestId}.");
             }
             catch (Exception ex)
             {
                 FdpLog<DeleteEntityRequestSystem>.Error(
-                    $"[SimHost] DeleteEntity failed for request {request.RequestId}: {ex.Message}");
+                    $"[Node-{_localNodeId}] DeleteEntity failed for request {request.RequestId}: {ex.Message}");
                 _ackSink.WriteAck(new CreateUpdateDeleteEntityAck
                 {
                     RequestId  = request.RequestId,

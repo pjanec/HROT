@@ -198,16 +198,17 @@ namespace Hrot.ClusterRunner.Services
             // DDS ingress handlers for click/selection events.
             var ingressHandlers = new List<IIngressHandler>
             {
-                new MapClickIngressHandler(_participant, clickQueue),
+                new MapClickIngressHandler(_participant, clickQueue, localNodeId: iosNodeId),
                 new SelectionChangedIngressHandler(_participant, selectionQueue),
-                new CreateUpdateDeleteEntityAckIngressHandler(_participant, createUpdateDeleteEntityAckQueue),
-                new MapCommandAckIngressHandler(_participant, mapCommandAckQueue),
+                new CreateUpdateDeleteEntityAckIngressHandler(_participant, createUpdateDeleteEntityAckQueue, localNodeId: iosNodeId),
+                new MapCommandAckIngressHandler(_participant, mapCommandAckQueue, localNodeId: iosNodeId),
                 new MasterIngressHandler<EntityMaster>(
                     _participant,
                     repo,
                     "EntityMaster",
                     master => master.EntityId,
-                    master => master.TkbType),
+                    master => master.TkbType,
+                    localNodeId: iosNodeId),
                 // Descriptor handlers — populate the DER repo with all descriptor types
                 // so the ExCon Entity Inspector can show the full entity state.
                 new DescriptorIngressHandler<WorldPos>(
@@ -274,7 +275,8 @@ namespace Hrot.ClusterRunner.Services
                 targetMapId:          TargetMapId,
                 mapCommandAckQueue:   mapCommandAckQueue,
                 deleteEntityWriter:   deleteEntityWriter,
-                sysOpWriter:          iosLogicSysOpWriter);
+                sysOpWriter:          iosLogicSysOpWriter,
+                localNodeId:          config.NodeId);
 
             // S0507: Time ingress handlers removed (TC2-P3-T4): OnTimePulse/OnTimeMode on
             // ExConLogic are purely display properties that are never consumed by any panel
@@ -299,9 +301,9 @@ namespace Hrot.ClusterRunner.Services
 
             _mock = new ExConMock(
                 logic:            logic,
-                configPanel:      new ConfigPanel(),
+                configPanel:      new ConfigPanel(iosNodeId),
                 orbatPanel:       new OrbatPanel(orbatCatalog),
-                missionPanel:     new MissionPanel(),
+                missionPanel:     new MissionPanel(iosNodeId),
                 interactionPanel: interactionPanel,
                 spawnerPanel:     new SpawnerPanel(tkbCatalog),
                 useDockSpace:     config.OwnWindow);

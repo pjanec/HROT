@@ -17,8 +17,8 @@ namespace Hrot.SimHost.Tests
     ///
     /// The translator delegates heading computation to
     /// <see cref="SimTransformBridgeSystem.RotationToHeadingDeg"/> and
-    /// <see cref="SimTransformBridgeSystem.VelocityToAzimuthDeg"/>, so we
-    /// test those helpers directly to verify the wire format correctness.
+    /// <see cref="SimTransformBridgeSystem.VelocityToAzimuthDeg"/>, so we      
+    /// test those helpers directly to verify the wire format correctness.      
     ///
     /// Full integration tests (ECS world ? DDS publish) require a DDS participant
     /// and are deferred to the integration test suite.
@@ -29,10 +29,10 @@ namespace Hrot.SimHost.Tests
         // ?? Heading ? GeoSpatial.Rot.Heading wire value ???????????????????????
 
         [Theory]
-        [InlineData(0f, 90f)]              // yaw=0 ? East ? heading 90�
-        [InlineData(MathF.PI / 2f, 0f)]    // yaw=90� ? North ? heading 0�
-        [InlineData(-MathF.PI / 2f, 180f)] // yaw=-90� ? South ? heading 180�
-        [InlineData(MathF.PI, 270f)]       // yaw=180� ? West ? heading 270�
+        [InlineData(0f, 90f)]              // yaw=0 ? East ? heading 90°        
+        [InlineData(MathF.PI / 2f, 0f)]    // yaw=90° ? North ? heading 0°      
+        [InlineData(-MathF.PI / 2f, 180f)] // yaw=-90° ? South ? heading 180°   
+        [InlineData(MathF.PI, 270f)]       // yaw=180° ? West ? heading 270°    
         public void HeadingConversion_YawToCompass_CorrectWireValue(float yawRad, float expectedHeading)
         {
             var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yawRad);
@@ -40,13 +40,13 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(expectedHeading, heading, precision: 1);
         }
 
-        // ?? Velocity ? WorldPos.Vel.Azimuth wire value ???????????????????
+        // ?? Velocity ? WorldPos.Vel.Azimuth wire value ???????????????????    
 
         [Theory]
-        [InlineData(10f, 0f, 0f, 90f)]   // Moving east ? azimuth 90�
-        [InlineData(0f, 10f, 0f, 0f)]    // Moving north ? azimuth 0�
-        [InlineData(-10f, 0f, 0f, 270f)] // Moving west ? azimuth 270�
-        [InlineData(0f, -10f, 0f, 180f)] // Moving south ? azimuth 180�
+        [InlineData(10f, 0f, 0f, 90f)]   // Moving east ? azimuth 90°
+        [InlineData(0f, 10f, 0f, 0f)]    // Moving north ? azimuth 0°
+        [InlineData(-10f, 0f, 0f, 270f)] // Moving west ? azimuth 270°
+        [InlineData(0f, -10f, 0f, 180f)] // Moving south ? azimuth 180°
         public void VelocityAzimuth_ENUToCompass_CorrectWireValue(
             float vx, float vy, float vz, float expectedAzimuth)
         {
@@ -67,7 +67,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void AngularVelocity_RadToDeg_CorrectConversion()
         {
-            // WorldPos.RotVel expects deg/s; GeoVelocity.Angular stores rad/s
+            // WorldPos.RotVel expects deg/s; GeoVelocity.Angular stores rad/s  
             float yawRateRadS = MathF.PI; // 180 deg/s
             float expectedDegS = 180f;
 
@@ -78,20 +78,20 @@ namespace Hrot.SimHost.Tests
         // ?? Consistency: heading round-trip (rotation ? heading ? verify against forward vector)
 
         [Fact]
-        public void HeadingRoundTrip_RotationToHeadingToVector_Consistent()
+        public void HeadingRoundTrip_RotationToHeadingToVector_Consistent()     
         {
-            // Create a rotation for NE (45� compass heading ? yaw = 45� in math)
+            // Create a rotation for NE (45° compass heading ? yaw = 45° in math)
             float compassHeading = 45f;
-            // compass 45� = NE. Math yaw = 90� - 45� = 45� (atan2 of (sin45, cos45))
+            // compass 45° = NE. Math yaw = 90° - 45° = 45° (atan2 of (sin45, cos45))
             float mathYaw = (90f - compassHeading) * (MathF.PI / 180f);
             var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, mathYaw);
 
             float computedHeading = SimTransformBridgeSystem.RotationToHeadingDeg(rotation);
 
-            Assert.Equal(compassHeading, computedHeading, precision: 1);
+            Assert.Equal(compassHeading, computedHeading, precision: 1);        
         }
 
-        // ── BUG2-N003 – WorldPos disposal integration tests ──────────────
+        // -- BUG2-N003 - WorldPos disposal integration tests --
 
         /// <summary>
         /// Verifies that calling <see cref="GeoSpatialEgressTranslator.Dispose(long)"/>
@@ -106,9 +106,9 @@ namespace Hrot.SimHost.Tests
 
             var geoTransform = HrotEnvironment.CreateGeoTransform();
             var entityMap    = new NetworkEntityMap();
-            var translator   = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform);
+            var translator   = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId: 0);
 
-            // Call Dispose — this should tombstone the WorldPos instance.
+            // Call Dispose -- this should tombstone the WorldPos instance.
             translator.Dispose(42L);
 
             // Wait briefly for the loopback to complete.
@@ -119,7 +119,7 @@ namespace Hrot.SimHost.Tests
             using var loan = drReader.Take();
             foreach (var sample in loan)
             {
-                if (sample.Info.InstanceState != DdsInstanceState.Alive)
+                if (sample.Info.InstanceState != DdsInstanceState.Alive)        
                 {
                     receivedTombstone = true;
                     break;
@@ -143,9 +143,9 @@ namespace Hrot.SimHost.Tests
 
             var geoTransform = HrotEnvironment.CreateGeoTransform();
             var entityMap    = new NetworkEntityMap();
-            var translator   = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform);
+            var translator   = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId: 0);
 
-            // Call Dispose — base.Dispose should tombstone the GeoSpatial instance.
+            // Call Dispose -- base.Dispose should tombstone the GeoSpatial instance.
             translator.Dispose(99L);
 
             Thread.Sleep(200);
@@ -155,7 +155,7 @@ namespace Hrot.SimHost.Tests
             using var loan = geoReader.Take();
             foreach (var sample in loan)
             {
-                if (sample.Info.InstanceState != DdsInstanceState.Alive)
+                if (sample.Info.InstanceState != DdsInstanceState.Alive)        
                 {
                     receivedTombstone = true;
                     break;

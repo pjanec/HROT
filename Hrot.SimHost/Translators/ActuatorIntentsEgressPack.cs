@@ -40,7 +40,8 @@ public class ActuatorIntentsEgressPack : IEcsModule
         DdsParticipant participant,
         NetworkEntityMap entityMap,
         IGeographicTransform geoTransform,
-        FdpEventBus eventBus)
+        FdpEventBus eventBus,
+        long localNodeId = 0)
     {
         if (role != PackRole.Egress)
             throw new ArgumentException(
@@ -48,7 +49,7 @@ public class ActuatorIntentsEgressPack : IEcsModule
                 nameof(role));
         _translators = new IDescriptorTranslator[]
         {
-            new NavigationIntentEgressTranslator(participant, entityMap, geoTransform),
+            new NavigationIntentEgressTranslator(participant, entityMap, geoTransform, localNodeId),
             new WeaponFireIntentEgressTranslator(participant, entityMap),
             new SpawnEntityCommandEgressTranslator(participant, eventBus, geoTransform),
             new UpdateEntityCommandEgressTranslator(participant, eventBus, entityMap, geoTransform),

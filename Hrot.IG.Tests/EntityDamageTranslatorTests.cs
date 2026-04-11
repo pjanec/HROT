@@ -74,7 +74,7 @@ namespace Hrot.IG.Tests
                 DdsParticipant participant,
                 NetworkEntityMap entityMap,
                 GhostCreationSystem ghostCreationSystem)
-                : base(participant, entityMap, ghostCreationSystem)
+                : base(participant, entityMap, ghostCreationSystem, localNodeId: 0)
             {
             }
 

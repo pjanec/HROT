@@ -113,7 +113,7 @@ namespace Hrot.SimHost.Tests
             using var reader = new DdsReader<DdsNavigationIntent>(participant, "NavigationIntent");
             var entityMap    = new NetworkEntityMap();
             var geoTransform = new IdentityGeoTransform();
-            var translator   = new NavigationIntentEgressTranslator(participant, entityMap, geoTransform);
+            var translator   = new NavigationIntentEgressTranslator(participant, entityMap, geoTransform, localNodeId: 0);
 
             using var repo = CreateWorldForEgress();
             var entity     = repo.CreateEntity();
@@ -157,7 +157,7 @@ namespace Hrot.SimHost.Tests
             using var reader = new DdsReader<DdsNavigationIntent>(participant, "NavigationIntent");
             var entityMap    = new NetworkEntityMap();
             var geoTransform = new IdentityGeoTransform();
-            var translator   = new NavigationIntentEgressTranslator(participant, entityMap, geoTransform);
+            var translator   = new NavigationIntentEgressTranslator(participant, entityMap, geoTransform, localNodeId: 0);
 
             using var repo = CreateWorldForEgress();
             var entity     = repo.CreateEntity();
@@ -193,7 +193,7 @@ namespace Hrot.SimHost.Tests
             using var participant = new DdsParticipant(domainId);
             var entityMap    = new NetworkEntityMap();
             var geoTransform = new IdentityGeoTransform();
-            var translator   = new NavigationIntentIngressTranslator(participant, entityMap, geoTransform);
+            var translator   = new NavigationIntentIngressTranslator(participant, entityMap, geoTransform, localNodeId: 0);
 
             using var repo = CreateWorldForIngress();
             var cmd        = new DirectCommandBuffer(repo);
@@ -211,7 +211,7 @@ namespace Hrot.SimHost.Tests
             using var writer = new DdsWriter<DdsNavigationIntent>(participant, "NavigationIntent");
             var entityMap    = new NetworkEntityMap();
             var geoTransform = new IdentityGeoTransform();
-            var translator   = new NavigationIntentIngressTranslator(participant, entityMap, geoTransform);
+            var translator   = new NavigationIntentIngressTranslator(participant, entityMap, geoTransform, localNodeId: 0);
 
             using var repo  = CreateWorldForIngress();
             var entity      = repo.CreateEntity();
@@ -249,7 +249,7 @@ namespace Hrot.SimHost.Tests
             using var participant = new DdsParticipant(domainId);
             using var reader = new DdsReader<DdsNavigationStatus>(participant, "NavigationStatus");
             var entityMap  = new NetworkEntityMap();
-            var translator = new NavigationStatusEgressTranslator(participant, entityMap);
+            var translator = new NavigationStatusEgressTranslator(participant, entityMap, localNodeId: 0);
 
             using var repo = CreateWorldForEgress();
             var entity     = repo.CreateEntity();
@@ -289,7 +289,7 @@ namespace Hrot.SimHost.Tests
             const uint domainId = 224u;
             using var participant = new DdsParticipant(domainId);
             var entityMap  = new NetworkEntityMap();
-            var translator = new NavigationStatusIngressTranslator(participant, entityMap);
+            var translator = new NavigationStatusIngressTranslator(participant, entityMap, localNodeId: 0);
 
             using var repo = CreateWorldForIngress();
             var cmd        = new DirectCommandBuffer(repo);
@@ -305,7 +305,7 @@ namespace Hrot.SimHost.Tests
             using var participant = new DdsParticipant(domainId);
             using var writer = new DdsWriter<DdsNavigationStatus>(participant, "NavigationStatus");
             var entityMap  = new NetworkEntityMap();
-            var translator = new NavigationStatusIngressTranslator(participant, entityMap);
+            var translator = new NavigationStatusIngressTranslator(participant, entityMap, localNodeId: 0);
 
             using var repo  = CreateWorldForIngress();
             var entity      = repo.CreateEntity();
@@ -378,7 +378,7 @@ namespace Hrot.SimHost.Tests
             using var participant = new DdsParticipant(domainId);
             using var reader = new DdsReader<DdsNavigationStatus>(participant, "NavigationStatus");
             var entityMap  = new NetworkEntityMap();
-            var translator = new NavigationStatusEgressTranslator(participant, entityMap);
+            var translator = new NavigationStatusEgressTranslator(participant, entityMap, localNodeId: 0);
 
             using var repo = CreateWorldForEgress();
             var entity     = repo.CreateEntity();
@@ -422,7 +422,7 @@ namespace Hrot.SimHost.Tests
             using var participant = new DdsParticipant(domainId);
             using var writer = new DdsWriter<DdsNavigationStatus>(participant, "NavigationStatus");
             var entityMap  = new NetworkEntityMap();
-            var translator = new NavigationStatusIngressTranslator(participant, entityMap);
+            var translator = new NavigationStatusIngressTranslator(participant, entityMap, localNodeId: 0);
 
             using var repo  = CreateWorldForIngress();
             var entity      = repo.CreateEntity();

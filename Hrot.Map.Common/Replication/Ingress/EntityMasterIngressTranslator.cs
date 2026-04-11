@@ -123,13 +123,12 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (repo == null)
                 {
                     FdpLog<EntityMasterIngressTranslator>.Warn(
-                        "[IG] Cannot create ghost for NetID {0}: view is read-only.", netId);
+                    "[Node-{0}] Cannot create ghost for NetID {1}: view is read-only.", _localNodeId, netId);
                     return;
                 }
 
                 FdpLog<EntityMasterIngressTranslator>.Debug(
-                    "[TRACE-IG] Ingress: EntityMaster NetID={0} -> Ghost spawn", master.EntityId);
-
+                    "[Node-{0}] Ingress: EntityMaster NetID={1} -> Ghost spawn", _localNodeId, master.EntityId);
                 entity = _ghostCreationSystem.CreateGhost(repo, netId, view.Tick);
             }
 

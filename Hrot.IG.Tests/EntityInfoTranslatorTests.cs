@@ -20,7 +20,7 @@ namespace Hrot.IG.Tests
             var entityMap = new NetworkEntityMap();
             var eventBus = new FdpEventBus();
             var ghostCreationSystem = new GhostCreationSystem(entityMap);
-            var translator = new EntityInfoIngressTranslator(null, entityMap, eventBus, ghostCreationSystem);
+            var translator = new EntityInfoIngressTranslator(null, entityMap, eventBus, ghostCreationSystem, localNodeId: 0);
             return (repo, entityMap, eventBus, translator);
         }
 

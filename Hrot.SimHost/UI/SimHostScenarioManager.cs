@@ -41,6 +41,7 @@ namespace Hrot.SimHost.UI
         private readonly FormationTemplateManager _formations;
         private readonly IEventBus               _spawnBus;
         private readonly INetworkIdAllocator?    _idAllocator;
+        private readonly int                      _localNodeId;
         private readonly Random                   _rng = new();
 
         /// <param name="repo">Live entity repository.</param>
@@ -63,7 +64,8 @@ namespace Hrot.SimHost.UI
             TrajectoryPoolManager    traj,
             FormationTemplateManager formations,
             IEventBus?               spawnBus    = null,
-            INetworkIdAllocator?     idAllocator = null)
+            INetworkIdAllocator?     idAllocator = null,
+            int                      localNodeId = 0)
         {
             _repo        = repo;
             _road        = road;
@@ -71,6 +73,7 @@ namespace Hrot.SimHost.UI
             _formations  = formations;
             _spawnBus    = spawnBus ?? repo.Bus;
             _idAllocator = idAllocator;
+            _localNodeId = localNodeId;
         }
 
         // ── Tick ─────────────────────────────────────────────────────────────
@@ -97,7 +100,7 @@ namespace Hrot.SimHost.UI
             var tkbType = MapVehicleClassToTkbType(vehicleClass);
             var positionLabel = string.Concat(position.X, ",", position.Y);
             FdpLog<SimHostScenarioManager>.Debug(
-                "[TRACE-SH] SpawnVehicle: Requesting TkbType={0} at ({1})", tkbType, positionLabel);
+                "[Node-{0}] SpawnVehicle: Requesting TkbType={1} at ({2})", _localNodeId, tkbType, positionLabel);
 
             float angle     = VectorMath.SignedAngle(Vector2.UnitX, heading);
             var   transform = new SimTransform

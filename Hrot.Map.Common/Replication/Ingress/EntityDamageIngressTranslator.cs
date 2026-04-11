@@ -23,14 +23,17 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = 30;
 
         private readonly GhostCreationSystem _ghostCreationSystem;
+        private readonly long _localNodeId;
 
         public EntityDamageIngressTranslator(
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
-            GhostCreationSystem ghostCreationSystem)
+            GhostCreationSystem ghostCreationSystem,
+            long localNodeId)
             : base(participant, DdsTopicName, OrdinalValue, entityMap)
         {
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
+            _localNodeId = localNodeId;
         }
 
         protected override void Decode(in EntityDamage data, IEntityCommandBuffer cmd, ISimulationView view)
@@ -42,7 +45,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (repo == null)
                 {
                     FdpLog<EntityDamageIngressTranslator>.Warn(
-                        "[IG] Cannot create ghost for NetID {0}: view is read-only.", netId);
+                        "[Node-{0}] Cannot create ghost for NetID {1}: view is read-only.", _localNodeId, netId);
                     return;
                 }
 

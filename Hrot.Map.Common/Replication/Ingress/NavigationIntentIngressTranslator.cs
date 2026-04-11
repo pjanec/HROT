@@ -29,6 +29,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly DdsReader<Hrot.NED.Descriptors.NavigationIntent> _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly IGeographicTransform _geoTransform;
+        private readonly long _localNodeId;
 
         public string TopicName      => "NavigationIntent";
         public long   DescriptorOrdinal => 52;
@@ -36,11 +37,13 @@ namespace Hrot.Map.Common.Replication.Ingress
         public NavigationIntentIngressTranslator(
             DdsParticipant      dds,
             NetworkEntityMap    entityMap,
-            IGeographicTransform geoTransform)
+            IGeographicTransform geoTransform,
+            long localNodeId)
         {
             _reader       = new DdsReader<Hrot.NED.Descriptors.NavigationIntent>(dds, "NavigationIntent");
             _entityMap    = entityMap    ?? throw new System.ArgumentNullException(nameof(entityMap));
             _geoTransform = geoTransform ?? throw new System.ArgumentNullException(nameof(geoTransform));
+            _localNodeId  = localNodeId;
         }
 
         /// <summary>
@@ -61,7 +64,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 {
                     // Entity not yet known — skip silently (no ghost creation for intent).
                     FdpLog<NavigationIntentIngressTranslator>.Debug(
-                        "[TRACE-SH] NavigationIntent ingress: unknown EntityId={0} — skipped", msg.EntityId);
+                        "[Node-{0}] NavigationIntent ingress: unknown EntityId={1} — skipped", _localNodeId, msg.EntityId);
                     continue;
                 }
 
@@ -81,8 +84,8 @@ namespace Hrot.Map.Common.Replication.Ingress
                 });
 
                 FdpLog<NavigationIntentIngressTranslator>.Debug(
-                    "[TRACE-SH] NavigationIntent ingress: EntityId={0} IntentId={1} Mode={2}",
-                    msg.EntityId, msg.IntentId, msg.Mode);
+                    "[Node-{0}] NavigationIntent ingress: EntityId={1} IntentId={2} Mode={3}",
+                    _localNodeId, msg.EntityId, msg.IntentId, msg.Mode);
             }
         }
 

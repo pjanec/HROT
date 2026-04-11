@@ -31,6 +31,8 @@ public class MiniExConPanelState
 {
     // ── Form fields ───────────────────────────────────────────────────────────
 
+    private readonly long _localNodeId;
+
     /// <summary>
     /// TKB template type to spawn.  Defaults to <see cref="MiniExConPanelConstants.DefaultTkbType"/>.
     /// </summary>
@@ -65,6 +67,9 @@ public class MiniExConPanelState
     private static readonly Random _rng = new();
 
     private IGeographicTransform? _geoTransform;
+
+    /// <summary>Creates a new <see cref="MiniExConPanelState"/> with an optional node ID for log messages.</summary>
+    public MiniExConPanelState(long localNodeId = 0) => _localNodeId = localNodeId;
 
     // ── Testability hook ──────────────────────────────────────────────────────
 
@@ -141,7 +146,7 @@ public class MiniExConPanelState
     {
         if (gateway == null)
         {
-            FdpLog<MiniExConPanelState>.Warn("[IG] Network disabled — spawn request ignored.");
+            FdpLog<MiniExConPanelState>.Warn("[Node-{0}] Network disabled -- spawn request ignored.", _localNodeId);
             return;
         }
 
@@ -213,7 +218,7 @@ public class MiniExConPanelState
     {
         if (gateway == null)
         {
-            FdpLog<MiniExConPanelState>.Warn("[IG] Network disabled — wander spawn ignored.");
+            FdpLog<MiniExConPanelState>.Warn("[Node-{0}] Network disabled -- wander spawn ignored.", _localNodeId);
             return 0L;
         }
 
@@ -270,14 +275,14 @@ public class MiniExConPanelState
         }
         catch (Exception ex)
         {
-            FdpLog<MiniExConPanelState>.Error("[IG] CreateEntityAsync failed: {0}", ex.Message);
+            FdpLog<MiniExConPanelState>.Error("[Node-{0}] CreateEntityAsync failed: {1}", _localNodeId, ex.Message);
             return 0L;
         }
 
         if (ack.StatusCode >= 2)
         {
             FdpLog<MiniExConPanelState>.Warn(
-                "[IG] CreateUpdateDeleteEntityAck returned error {0} — mission assignment skipped.", ack.StatusCode);
+                "[Node-{0}] CreateUpdateDeleteEntityAck returned error {1} -- mission assignment skipped.", _localNodeId, ack.StatusCode);
             return 0L;
         }
 
@@ -316,13 +321,13 @@ public class MiniExConPanelState
             if (missionAck.ErrorCode != 0)
             {
                 FdpLog<MiniExConPanelState>.Warn(
-                    "[IG] MissionControlAck returned error {0} for entity {1}.",
-                    missionAck.ErrorCode, ack.EntityId);
+                    "[Node-{0}] MissionControlAck returned error {1} for entity {2}.",
+                    _localNodeId, missionAck.ErrorCode, ack.EntityId);
             }
         }
         catch (Exception ex)
         {
-            FdpLog<MiniExConPanelState>.Error("[IG] SendMissionControlRequestAsync failed: {0}", ex.Message);
+            FdpLog<MiniExConPanelState>.Error("[Node-{0}] SendMissionControlRequestAsync failed: {1}", _localNodeId, ex.Message);
         }
 
         return ack.EntityId;

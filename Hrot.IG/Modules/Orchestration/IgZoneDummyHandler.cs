@@ -30,6 +30,12 @@ namespace Hrot.IG.Modules.Orchestration
     /// </summary>
     public sealed class IgZoneDummyHandler : IClusterStateHandler
     {
+        private readonly long _localNodeId;
+
+        public IgZoneDummyHandler(long localNodeId = 0)
+        {
+            _localNodeId = localNodeId;
+        }
         /// <inheritdoc />
         public bool CanHandle(FDP.Toolkit.Orchestration.NodeOpType operation)
             => operation == FDP.Toolkit.Orchestration.NodeOpType.PrepareZone
@@ -44,8 +50,8 @@ namespace Hrot.IG.Modules.Orchestration
         public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
         {
             FdpLog<IgZoneDummyHandler>.Info(
-                "[IG] Zone op {0} — dummy ACK (terrain preload is future work).",
-                intent.Operation);
+                "[Node-{0}] Zone op {1} — dummy ACK (terrain preload is future work).",
+                _localNodeId, intent.Operation);
             return Task.FromResult<object?>(null);
         }
 

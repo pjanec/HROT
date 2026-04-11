@@ -23,6 +23,7 @@ public sealed class RequestTransactionManager : IRequestTransactionManager
 
     private readonly Dictionary<Guid, PendingRequest> _pending = new();
     private readonly ITimeProvider _clock;
+    private readonly long _localNodeId;
 
     // ── Constructors ──────────────────────────────────────────────────────────
 
@@ -34,9 +35,10 @@ public sealed class RequestTransactionManager : IRequestTransactionManager
     /// Creates a manager with an injectable clock, enabling deterministic
     /// unit tests without Thread.Sleep().
     /// </summary>
-    public RequestTransactionManager(ITimeProvider clock)
+    public RequestTransactionManager(ITimeProvider clock, long localNodeId = 0)
     {
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _localNodeId = localNodeId;
     }
 
     // ── IRequestTransactionManager ────────────────────────────────────────────
@@ -66,7 +68,7 @@ public sealed class RequestTransactionManager : IRequestTransactionManager
         req.ResolutionMessage = message;
 
         FdpLog<RequestTransactionManager>.Debug(
-            "[TRACE-ExCon] TxMgr Request {0} completed Success={1}", requestId, success);
+            "[Node-{0}] TxMgr Request {1} completed Success={2}", _localNodeId, requestId, success);
     }
 
     /// <inheritdoc/>
@@ -87,7 +89,7 @@ public sealed class RequestTransactionManager : IRequestTransactionManager
 
         foreach (var id in timedOut)
         {
-            FdpLog<RequestTransactionManager>.Warn("[TRACE-ExCon] WARNING: Request {0} timed out", id);
+            FdpLog<RequestTransactionManager>.Warn("[Node-{0}] WARNING: Request {1} timed out", _localNodeId, id);
             CompleteRequest(id, false, "Timeout");
         }
     }

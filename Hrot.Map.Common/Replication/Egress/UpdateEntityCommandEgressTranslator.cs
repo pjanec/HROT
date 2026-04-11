@@ -47,6 +47,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly FdpEventBus _eventBus;
         private readonly NetworkEntityMap _entityMap;
         private readonly IGeographicTransform? _geoTransform;
+        private readonly long _localNodeId;
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
@@ -56,9 +57,10 @@ namespace Hrot.Map.Common.Replication.Egress
             DdsParticipant participant,
             FdpEventBus eventBus,
             NetworkEntityMap entityMap,
-            IGeographicTransform? geoTransform)
+            IGeographicTransform? geoTransform,
+            long localNodeId = 0)
             : this(new DdsWriterAdapter<UpdateEntityDescriptorRequest>(participant, DdsTopicName),
-                   eventBus, entityMap, geoTransform)
+                   eventBus, entityMap, geoTransform, localNodeId)
         {
         }
 
@@ -67,12 +69,14 @@ namespace Hrot.Map.Common.Replication.Egress
             IDdsWriter<UpdateEntityDescriptorRequest> writer,
             FdpEventBus eventBus,
             NetworkEntityMap entityMap,
-            IGeographicTransform? geoTransform)
+            IGeographicTransform? geoTransform,
+            long localNodeId = 0)
         {
             _writer       = writer    ?? throw new ArgumentNullException(nameof(writer));
             _eventBus     = eventBus  ?? throw new ArgumentNullException(nameof(eventBus));
             _entityMap    = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _geoTransform = geoTransform;
+            _localNodeId  = localNodeId;
         }
 
         /// <summary>
@@ -113,14 +117,14 @@ namespace Hrot.Map.Common.Replication.Egress
             if (_geoTransform == null)
             {
                 FdpLog<UpdateEntityCommandEgressTranslator>.Warn(
-                    "[Egress] Cannot update overlay NetID={0}: geo-transform is null.", networkId);
+                    "[Node-{0}] Cannot update overlay NetID={1}: geo-transform is null.", _localNodeId, networkId);
                 return;
             }
 
             if (!_entityMap.TryGetEntity(networkId, out var entity))
             {
                 FdpLog<UpdateEntityCommandEgressTranslator>.Warn(
-                    "[Egress] UpdateEntityCommand: entity for NetID={0} not found.", networkId);
+                    "[Node-{0}] UpdateEntityCommand: entity for NetID={1} not found.", _localNodeId, networkId);
                 return;
             }
 
@@ -169,8 +173,8 @@ namespace Hrot.Map.Common.Replication.Egress
             _writer.Write(request);
 
             FdpLog<UpdateEntityCommandEgressTranslator>.Debug(
-                "[Egress] UpdateEntityCommand → UpdateEntityDescriptorRequest(dtMapVisualOverlay) " +
-                "NetID={0} points={1}", networkId, geoPoints.Count);
+                "[Node-{0}] UpdateEntityCommand \u2192 UpdateEntityDescriptorRequest(dtMapVisualOverlay) " +
+                "NetID={1} points={2}", _localNodeId, networkId, geoPoints.Count);
         }
     }
 }

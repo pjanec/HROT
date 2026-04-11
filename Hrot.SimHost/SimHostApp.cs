@@ -231,11 +231,12 @@ namespace Hrot.SimHost
         protected override void OnLoad()
         {
             Console.Title = "Hrot.SimHost";
-            Logger.Info("[SimHost] Starting graphical application...");
+            var localNodeId = _nodeIdOverride != 0 ? _nodeIdOverride : SimHostNetworkConstants.LocalNodeId;
+            Logger.Info($"[Node-{localNodeId}] Starting graphical application...");
 
             // ── 0. Apply node configuration (sets CYCLONEDDS_URI if needed) ───
             _nodeConfig?.ApplyEnvironment();
-            Logger.Info($"[SimHost] Node role: {_role}");
+            Logger.Info($"[Node-{localNodeId}] Node role: {_role}");
 
             // ── 1. Load configuration ─────────────────────────────────────────
             // NodeConfiguration is the unified config type (DB-MOD1-09); SimHostConfig was absorbed.
@@ -247,10 +248,9 @@ namespace Hrot.SimHost
             // Safe to call even when _nodeConfig?.ApplyEnvironment() already ran above — idempotent.
             if (_nodeConfig == null) nodeConfig.ApplyEnvironment();
             var domainId   = _domainOverride ?? (int)nodeConfig.DdsDomainId;
-            var localNodeId = _nodeIdOverride != 0 ? _nodeIdOverride : SimHostNetworkConstants.LocalNodeId;
-            Logger.Info($"[SimHost] Domain ID:       {domainId}");
-            Logger.Info($"[SimHost] Node ID:         {localNodeId}");
-            Logger.Info($"[SimHost] Simulation Rate: {nodeConfig.SimulationRateHz} Hz");
+            Logger.Info($"[Node-{localNodeId}] Domain ID:       {domainId}");
+            Logger.Info($"[Node-{localNodeId}] Node ID:         {localNodeId}");
+            Logger.Info($"[Node-{localNodeId}] Simulation Rate: {nodeConfig.SimulationRateHz} Hz");
 
             // ── 2. Geodetic transform — created before builder so doctrine lambdas can close over it ──
             var wgs84     = HrotEnvironment.CreateGeoTransform();
@@ -336,7 +336,7 @@ namespace Hrot.SimHost
             var tkbDb = _context.TkbDb!;
 
             // ── 6. Road network ───────────────────────────────────────────────
-            var roadNetwork = LoadRoadNetwork(nodeConfig.RoadNetworkBlobPath);
+            var roadNetwork = LoadRoadNetwork(nodeConfig.RoadNetworkBlobPath, localNodeId: localNodeId);
 
             // ── 7. SimulationLogicModule (role-based via NodeBootstrapper) ─────
             var bootstrapper = new NodeBootstrapper();
@@ -448,7 +448,7 @@ namespace Hrot.SimHost
                 wgs84, jsonAttributeCompiler, binaryInterpreter, finalizationSystem,
                 isDefaultProcessor: _role.HasFlag(NodeRole.Brain));
             var deleteSystem       = new DeleteEntityRequestSystem(
-                deleteSource, ackSink, entityMap, finalizationSystem);
+                deleteSource, ackSink, entityMap, finalizationSystem, localNodeId);
 
             var simHostMod = new SimHostModule(
                 spawnSystem:        spawningSystem,
@@ -480,7 +480,7 @@ namespace Hrot.SimHost
 
             // ── 11. Kernel init ───────────────────────────────────────────────
             _kernel.Initialize();
-            Logger.Info("[SimHost] Kernel initialized.");
+            Logger.Info($"[Node-{localNodeId}] Kernel initialized.");
 
             // ── 12. Visualization ─────────────────────────────────────────────
             if (!_headless)
@@ -493,13 +493,14 @@ namespace Hrot.SimHost
                     _simLogicModule.TrajectoryPool ?? new TrajectoryPoolManager(),
                     _simLogicModule.FormationTemplates ?? new FormationTemplateManager(),
                     new DdsWriter<MissionControlRequest>(ddsParticipant!),
-                    idAllocator: _idAllocator);
+                    idAllocator: _idAllocator,
+                    localNodeId: localNodeId);
 
                 // Wire IG presentation module with a real MapCanvas + NedVisualizerAdapter
                 // for production rendering (DB-MOD1-12).
                 var igCanvas = new MapCanvas(new RaylibInputProvider());
                 _igPresentationModule = new IgPresentationModule(canvas: igCanvas);
-                Logger.Info("[SimHost] Visualization ready. Window open.");
+                Logger.Info($"[Node-{localNodeId}] Visualization ready. Window open.");
             }
             else
             {
@@ -508,7 +509,7 @@ namespace Hrot.SimHost
             }
 
             _initialized = true;
-            Logger.Info("[SimHost] Initialized.");
+            Logger.Info($"[Node-{localNodeId}] Initialized.");
         }
 
         protected override void OnUpdate(float dt)
@@ -570,6 +571,7 @@ namespace Hrot.SimHost
         {
             if (!_initialized) return;
             _initialized = false;
+            var localNodeId = _nodeIdOverride != 0 ? _nodeIdOverride : SimHostNetworkConstants.LocalNodeId;
 
             // ── Stop ClusterSlave (CGF1-S0104) ──────────────────────────────────
             _clusterSlave?.Dispose();
@@ -588,7 +590,7 @@ namespace Hrot.SimHost
             _kernelGroup?.Dispose();
             _kernel?.Dispose();
 
-            Logger.Info("[SimHost] Shutdown complete.");
+            Logger.Info($"[Node-{localNodeId}] Shutdown complete.");
 
             if (ownsWindow)
             {
@@ -868,7 +870,8 @@ namespace Hrot.SimHost
         /// </summary>
         internal static RoadNetworkBlob LoadRoadNetwork(
             string?                         path,
-            Func<string, RoadNetworkBlob>?  loader = null)
+            Func<string, RoadNetworkBlob>?  loader = null,
+            long                            localNodeId = 0)
         {
             if (string.IsNullOrWhiteSpace(path))
                 return new RoadNetworkBlob();
@@ -879,7 +882,7 @@ namespace Hrot.SimHost
             }
             catch (Exception ex)
             {
-                FdpLog<SimHostApp>.Warn("[SimHost] Failed to load road network: {0}", ex.Message);
+                FdpLog<SimHostApp>.Warn("[Node-{0}] Failed to load road network: {1}", localNodeId, ex.Message);
                 return new RoadNetworkBlob();
             }
         }

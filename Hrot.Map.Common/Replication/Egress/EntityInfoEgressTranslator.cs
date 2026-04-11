@@ -34,16 +34,19 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private readonly DdsWriter<Hrot.NED.Descriptors.EntityInfo> _writer;
         private readonly NetworkEntityMap _entityMap;
+        private readonly long _localNodeId;
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
 
         public EntityInfoEgressTranslator(
             DdsParticipant participant,
-            NetworkEntityMap entityMap)
+            NetworkEntityMap entityMap,
+            long localNodeId)
         {
 			_writer = new DdsWriter<Hrot.NED.Descriptors.EntityInfo>( participant, DdsTopicName );
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
+            _localNodeId = localNodeId;
         }
 
         // ── Ingress (egress-only — nothing to consume) ────────────────────────
@@ -92,8 +95,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
 
                 FdpLog<EntityInfoEgressTranslator>.Debug(
-                    "[TRACE-SH] Egress: Hrot.NED.Descriptors.EntityInfo NetID={0} Force={1}",
-                    netId.Value, data.ForceId);
+                    "[Node-{0}] Egress: Hrot.NED.Descriptors.EntityInfo NetID={1} Force={2}",
+                    _localNodeId, netId.Value, data.ForceId);
             }
         }
 

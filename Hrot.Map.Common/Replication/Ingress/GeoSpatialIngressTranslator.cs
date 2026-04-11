@@ -27,16 +27,19 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         private readonly IGeographicTransform _geoTransform;
         private readonly GhostCreationSystem _ghostCreationSystem;
+        private readonly long _localNodeId;
 
         public GeoSpatialIngressTranslator(
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
             IGeographicTransform geoTransform,
-            GhostCreationSystem ghostCreationSystem)
+            GhostCreationSystem ghostCreationSystem,
+            long localNodeId)
             : base(participant, DdsTopicName, OrdinalValue, entityMap)
         {
             _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
+            _localNodeId = localNodeId;
         }
 
         protected override void Decode(in WorldPos data, IEntityCommandBuffer cmd, ISimulationView view)
@@ -48,7 +51,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (repo == null)
                 {
                     FdpLog<GeoSpatialIngressTranslator>.Warn(
-                        "[IG] Cannot create ghost for NetID {0}: view is read-only.", netId);
+                        "[Node-{0}] Cannot create ghost for NetID {1}: view is read-only.", _localNodeId, netId);
                     return;
                 }
 
@@ -58,7 +61,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             var latitude  = data.Pos.Latitude;
             var longitude = data.Pos.Longitude;
             FdpLog<GeoSpatialIngressTranslator>.Debug(
-                "[TRACE-IG] Ingress: GeoSpatial Entity={0} Lat={1} Lon={2}", entity.Index, latitude, longitude);
+                "[Node-{0}] Ingress: GeoSpatial Entity={1} Lat={2} Lon={3}", _localNodeId, entity.Index, latitude, longitude);
 
             // 1. Position & rotation
             var cartesian = _geoTransform.ToCartesian(

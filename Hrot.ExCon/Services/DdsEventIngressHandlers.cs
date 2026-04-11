@@ -15,12 +15,14 @@ public sealed class MapClickIngressHandler : IIngressHandler, IDisposable
     private readonly DdsReader<MapClickEvent> _reader;
     private readonly IEventQueue<MapClickEvent> _queue;
     private readonly int _maxSamples;
+    private readonly long _localNodeId;
 
-    public MapClickIngressHandler(DdsParticipant participant, IEventQueue<MapClickEvent> queue, int maxSamples = 10)
+    public MapClickIngressHandler(DdsParticipant participant, IEventQueue<MapClickEvent> queue, int maxSamples = 10, long localNodeId = 0)
     {
         _reader = new DdsReader<MapClickEvent>(participant, "MapClickEvent");
         _queue = queue ?? throw new ArgumentNullException(nameof(queue));
         _maxSamples = Math.Max(1, maxSamples);
+        _localNodeId = localNodeId;
     }
 
     public void Poll()
@@ -30,7 +32,7 @@ public sealed class MapClickIngressHandler : IIngressHandler, IDisposable
         {
             if (!sample.IsValid) continue;
             FdpLog<MapClickIngressHandler>.Debug(
-                "[TRACE-ExCon] MapClickEvent ingress ctx={0}", sample.Data.InteractionContextId);
+                "[Node-{0}] MapClickEvent ingress ctx={1}", _localNodeId, sample.Data.InteractionContextId);
             _queue.Enqueue(sample.Data);
         }
     }
@@ -108,12 +110,14 @@ public sealed class CreateUpdateDeleteEntityAckIngressHandler : IIngressHandler,
     private readonly DdsReader<CreateUpdateDeleteEntityAck> _reader;
     private readonly IEventQueue<CreateUpdateDeleteEntityAck> _queue;
     private readonly int _maxSamples;
+    private readonly long _localNodeId;
 
-    public CreateUpdateDeleteEntityAckIngressHandler(DdsParticipant participant, IEventQueue<CreateUpdateDeleteEntityAck> queue, int maxSamples = 10)
+    public CreateUpdateDeleteEntityAckIngressHandler(DdsParticipant participant, IEventQueue<CreateUpdateDeleteEntityAck> queue, int maxSamples = 10, long localNodeId = 0)
     {
         _reader = new DdsReader<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
         _queue  = queue ?? throw new ArgumentNullException(nameof(queue));
         _maxSamples = Math.Max(1, maxSamples);
+        _localNodeId = localNodeId;
     }
 
     public void Poll()
@@ -123,8 +127,8 @@ public sealed class CreateUpdateDeleteEntityAckIngressHandler : IIngressHandler,
         {
             if (!sample.IsValid) continue;
             FdpLog<CreateUpdateDeleteEntityAckIngressHandler>.Debug(
-                "[TRACE-ExCon] CreateUpdateDeleteEntityAck ingress req={0} entityId={1} status={2}",
-                sample.Data.RequestId, sample.Data.EntityId, sample.Data.StatusCode);
+                "[Node-{0}] CreateUpdateDeleteEntityAck ingress req={1} entityId={2} status={3}",
+                _localNodeId, sample.Data.RequestId, sample.Data.EntityId, sample.Data.StatusCode);
             _queue.Enqueue(sample.Data);
         }
     }
@@ -141,12 +145,14 @@ public sealed class MapCommandAckIngressHandler : IIngressHandler, IDisposable
     private readonly DdsReader<MapCommandAck> _reader;
     private readonly IEventQueue<MapCommandAck> _queue;
     private readonly int _maxSamples;
+    private readonly long _localNodeId;
 
-    public MapCommandAckIngressHandler(DdsParticipant participant, IEventQueue<MapCommandAck> queue, int maxSamples = 10)
+    public MapCommandAckIngressHandler(DdsParticipant participant, IEventQueue<MapCommandAck> queue, int maxSamples = 10, long localNodeId = 0)
     {
         _reader = new DdsReader<MapCommandAck>(participant, "MapCommandAck");
         _queue  = queue ?? throw new ArgumentNullException(nameof(queue));
         _maxSamples = Math.Max(1, maxSamples);
+        _localNodeId = localNodeId;
     }
 
     public void Poll()
@@ -156,8 +162,8 @@ public sealed class MapCommandAckIngressHandler : IIngressHandler, IDisposable
         {
             if (!sample.IsValid) continue;
             FdpLog<MapCommandAckIngressHandler>.Debug(
-                "[TRACE-ExCon] MapCommandAck ingress req={0} status={1}",
-                sample.Data.RequestId, sample.Data.StatusCode);
+                "[Node-{0}] MapCommandAck ingress req={1} status={2}",
+                _localNodeId, sample.Data.RequestId, sample.Data.StatusCode);
             _queue.Enqueue(sample.Data);
         }
     }

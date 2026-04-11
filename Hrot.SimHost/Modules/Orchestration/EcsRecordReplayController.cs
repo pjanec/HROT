@@ -115,8 +115,8 @@ namespace Hrot.SimHost.Modules.Orchestration
             if (_activeRecordingModule == null)
             {
                 FdpLog<EcsRecordReplayController>.Warn(
-                    "[SimHost] FinalizeRecordingAsync called but no active recording module exists " +
-                    "(possible ordering violation: FinalizeLive without a preceding PrepareLive).");
+                    "[Node-{0}] FinalizeRecordingAsync called but no active recording module exists " +
+                    "(possible ordering violation: FinalizeLive without a preceding PrepareLive).", _nodeId);
                 return;
             }
             _activeRecordingModule.SetMaxNetworkId(maxNetworkId);

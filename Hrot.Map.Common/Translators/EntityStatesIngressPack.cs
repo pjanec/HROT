@@ -50,11 +50,11 @@ public class EntityStatesIngressPack : IEcsModule
         _translators = new IDescriptorTranslator[]
         {
             new EntityMasterIngressTranslator(participant, entityMap, localNodeId, eventBus, ghostCreationSystem),
-            new GeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem),
-            new EntityInfoIngressTranslator(participant, entityMap, eventBus, ghostCreationSystem),
-            new MapVisualOverlayIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem),
+            new GeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId),
+            new EntityInfoIngressTranslator(participant, entityMap, eventBus, ghostCreationSystem, localNodeId),
+            new MapVisualOverlayIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId),
             new MapRouteIngressTranslator(participant, entityMap, geoTransform),
-            new EntityDamageIngressTranslator(participant, entityMap, ghostCreationSystem),
+            new EntityDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId),
         };
     }
 

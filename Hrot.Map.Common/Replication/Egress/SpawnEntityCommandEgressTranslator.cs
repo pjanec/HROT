@@ -40,6 +40,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly IDdsWriter<CreateEntityRequest> _writer;
         private readonly FdpEventBus _eventBus;
         private readonly IGeographicTransform? _geoTransform;
+        private readonly long _localNodeId;
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
@@ -48,8 +49,9 @@ namespace Hrot.Map.Common.Replication.Egress
         public SpawnEntityCommandEgressTranslator(
             DdsParticipant participant,
             FdpEventBus eventBus,
-            IGeographicTransform? geoTransform)
-            : this(new DdsWriterAdapter<CreateEntityRequest>(participant, DdsTopicName), eventBus, geoTransform)
+            IGeographicTransform? geoTransform,
+            long localNodeId = 0)
+            : this(new DdsWriterAdapter<CreateEntityRequest>(participant, DdsTopicName), eventBus, geoTransform, localNodeId)
         {
         }
 
@@ -57,11 +59,13 @@ namespace Hrot.Map.Common.Replication.Egress
         internal SpawnEntityCommandEgressTranslator(
             IDdsWriter<CreateEntityRequest> writer,
             FdpEventBus eventBus,
-            IGeographicTransform? geoTransform)
+            IGeographicTransform? geoTransform,
+            long localNodeId = 0)
         {
             _writer       = writer    ?? throw new ArgumentNullException(nameof(writer));
             _eventBus     = eventBus  ?? throw new ArgumentNullException(nameof(eventBus));
             _geoTransform = geoTransform;
+            _localNodeId  = localNodeId;
         }
 
         /// <summary>
@@ -75,8 +79,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 var request = BuildCreateEntityRequest(spawnCmd);
                 _writer.Write(request);
                 FdpLog<SpawnEntityCommandEgressTranslator>.Debug(
-                    "[Egress] SpawnCmd → CreateEntityRequest req={0} tkbType={1}",
-                    request.RequestId, spawnCmd.TkbType);
+                    "[Node-{0}] SpawnCmd \u2192 CreateEntityRequest req={1} tkbType={2}",
+                    _localNodeId, request.RequestId, spawnCmd.TkbType);
             }
         }
 

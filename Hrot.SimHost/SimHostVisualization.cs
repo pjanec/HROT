@@ -125,7 +125,8 @@ namespace Hrot.SimHost
             TrajectoryPoolManager    trajectoryPool,
             CarKinem.Formation.FormationTemplateManager formationTemplates,
             DdsWriter<MissionControlRequest> missionWriter,
-            INetworkIdAllocator?    idAllocator = null)
+            INetworkIdAllocator?    idAllocator = null,
+            int                     localNodeId = 0)
         {
             _repo          = repo         ?? throw new ArgumentNullException(nameof(repo));
             _kernel        = kernel        ?? throw new ArgumentNullException(nameof(kernel));
@@ -175,7 +176,7 @@ namespace Hrot.SimHost
             }));
 
             // ── Scenario manager ──────────────────────────────────────────────
-            _scenario = new SimHostScenarioManager(repo, road, trajectoryPool, formationTemplates, idAllocator: idAllocator);
+            _scenario = new SimHostScenarioManager(repo, road, trajectoryPool, formationTemplates, idAllocator: idAllocator, localNodeId: localNodeId);
 
             // ── UI ────────────────────────────────────────────────────────────
             _ui = new SimHostMainUI();

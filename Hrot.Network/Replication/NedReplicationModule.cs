@@ -187,17 +187,18 @@ public sealed class NedReplicationModule : INedReplicationModule
 
             if (_roleHasMuscle)
                 _kinematicTranslators = KinematicTranslatorPack.Create(
-                    participant, entityMap, geoTransform);
+                    participant, entityMap, geoTransform, localNodeId: localNodeId);
 
             if (_roleHasBrain)
                 _cognitiveTranslators = CognitiveTranslatorPack.Create(
                     participant, entityMap, geoTransform,
                     doctrineRegistry,
-                    GhostCreationSystem);
+                    GhostCreationSystem,
+                    localNodeId: localNodeId);
 
             // DeferredTakeOwnership: Brain publishes, Muscle receives.
             if (_roleHasBrain)
-                _dtoEgress  = new DeferredTakeOwnershipEgressTranslator(participant);
+                _dtoEgress  = new DeferredTakeOwnershipEgressTranslator(participant, localNodeId: localNodeId);
             if (_roleHasMuscle)
                 _dtoIngress = new DeferredTakeOwnershipIngressTranslator(
                     participant, entityMap, GhostCreationSystem, localNodeId);

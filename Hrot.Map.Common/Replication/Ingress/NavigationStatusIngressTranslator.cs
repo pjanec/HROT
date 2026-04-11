@@ -26,16 +26,19 @@ namespace Hrot.Map.Common.Replication.Ingress
     {
         private readonly DdsReader<Hrot.NED.Descriptors.NavigationStatus> _reader;
         private readonly NetworkEntityMap _entityMap;
+        private readonly long _localNodeId;
 
         public string TopicName      => "NavigationStatus";
         public long   DescriptorOrdinal => 53;
 
         public NavigationStatusIngressTranslator(
             DdsParticipant   dds,
-            NetworkEntityMap entityMap)
+            NetworkEntityMap entityMap,
+            long localNodeId)
         {
             _reader    = new DdsReader<Hrot.NED.Descriptors.NavigationStatus>(dds, "NavigationStatus");
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
+            _localNodeId = localNodeId;
         }
 
         /// <summary>
@@ -55,7 +58,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (!_entityMap.TryGetEntity(msg.EntityId, out var entity))
                 {
                     FdpLog<NavigationStatusIngressTranslator>.Debug(
-                        "[TRACE-SH] NavigationStatus ingress: unknown EntityId={0} — skipped", msg.EntityId);
+                        "[Node-{0}] NavigationStatus ingress: unknown EntityId={1} — skipped", _localNodeId, msg.EntityId);
                     continue;
                 }
 
@@ -67,8 +70,8 @@ namespace Hrot.Map.Common.Replication.Ingress
                 });
 
                 FdpLog<NavigationStatusIngressTranslator>.Debug(
-                    "[TRACE-SH] NavigationStatus ingress: EntityId={0} IntentId={1} Result={2}",
-                    msg.EntityId, msg.IntentId, msg.Result);
+                    "[Node-{0}] NavigationStatus ingress: EntityId={1} IntentId={2} Result={3}",
+                    _localNodeId, msg.EntityId, msg.IntentId, msg.Result);
             }
         }
 

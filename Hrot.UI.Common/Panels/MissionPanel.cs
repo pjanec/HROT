@@ -71,8 +71,10 @@ public sealed class MissionPanel
 
     // ── Construction ─────────────────────────────────────────────────────────
 
+    private readonly long _localNodeId;
+
     /// <summary>Creates a new mission panel.</summary>
-    public MissionPanel() { }
+    public MissionPanel(long localNodeId = 0) => _localNodeId = localNodeId;
 
     // ── Public state accessors ────────────────────────────────────────────────
 
@@ -274,8 +276,8 @@ public sealed class MissionPanel
         if (!CanCommit) return;
 
         var plan = _draftPlan!.Value;
-        FdpLog<MissionPanel>.Info("[UI.Common] Commit triggered: entityId={0} taskCount={1} baseVersion={2}",
-            _selectedEntityId, plan.Tasks?.Count ?? 0, _draftBaseVersion);
+        FdpLog<MissionPanel>.Info("[Node-{0}] Commit triggered: entityId={1} taskCount={2} baseVersion={3}",
+            _localNodeId, _selectedEntityId, plan.Tasks?.Count ?? 0, _draftBaseVersion);
         _pendingCommit  = service.CommitMissionAsync(_selectedEntityId, plan, _draftBaseVersion);
         _commitInFlight = true;
     }
@@ -289,8 +291,8 @@ public sealed class MissionPanel
         ArgumentNullException.ThrowIfNull(service);
         if (!CanCommit) return;
         var plan = _draftPlan!.Value;
-        FdpLog<MissionPanel>.Info("[UI.Common] Force Commit: entity={0} tasks={1}",
-            _selectedEntityId, plan.Tasks?.Count ?? 0);
+        FdpLog<MissionPanel>.Info("[Node-{0}] Force Commit: entity={1} tasks={2}",
+            _localNodeId, _selectedEntityId, plan.Tasks?.Count ?? 0);
         _pendingCommit  = service.CommitMissionAsync(_selectedEntityId, plan, 0);
         _commitInFlight = true;
         DismissConflict();
@@ -668,14 +670,14 @@ public sealed class MissionPanel
 
         if (result.Success)
         {
-            FdpLog<MissionPanel>.Info("[UI.Common] Commit succeeded: entityId={0} newVersion={1}",
-                _selectedEntityId, result.NewVersion);
+            FdpLog<MissionPanel>.Info("[Node-{0}] Commit succeeded: entityId={1} newVersion={2}",
+                _localNodeId, _selectedEntityId, result.NewVersion);
             _draftBaseVersion = result.NewVersion;
         }
         else
         {
-            FdpLog<MissionPanel>.Warn("[UI.Common] Commit failed: entityId={0} error={1}",
-                _selectedEntityId, result.ErrorMessage!);
+            FdpLog<MissionPanel>.Warn("[Node-{0}] Commit failed: entityId={1} error={2}",
+                _localNodeId, _selectedEntityId, result.ErrorMessage!);
             HandleConflictResult(result);
         }
     }
@@ -782,8 +784,8 @@ public sealed class MissionPanel
                 string json = BuildMoveToLocationParams(pos.Latitude, pos.Longitude);
                 HandleEditBehaviorParams(idx, json);
                 FdpLog<MissionPanel>.Info(
-                    "[UI.Common] LocationPick resolved: task={0} lat={1:F4} lon={2:F4}",
-                    idx, pos.Latitude, pos.Longitude);
+                    "[Node-{0}] LocationPick resolved: task={1} lat={2:F4} lon={3:F4}",
+                    _localNodeId, idx, pos.Latitude, pos.Longitude);
             }
         }
 
@@ -801,7 +803,7 @@ public sealed class MissionPanel
                 string json  = BuildFollowRouteParams(entityId);
                 HandleEditBehaviorParams(idx, json);
                 FdpLog<MissionPanel>.Info(
-                    "[UI.Common] EntityPick resolved: task={0} entityId={1}", idx, entityId);
+                    "[Node-{0}] EntityPick resolved: task={1} entityId={2}", _localNodeId, idx, entityId);
             }
         }
     }

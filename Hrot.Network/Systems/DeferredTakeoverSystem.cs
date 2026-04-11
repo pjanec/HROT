@@ -141,8 +141,8 @@ namespace Hrot.Network.Systems
             {
                 long netId = repo.GetComponent<NetworkIdentity>(entity).Value;
                 FdpLog<DeferredTakeoverSystem>.Info(
-                    "[Muscle] DeferredTakeover executed: EntityNetId={0} GrantCount={1} LocalNode={2}",
-                    netId, pending.GrantsByDescriptor.Count, _localNodeId);
+                    "[Node-{0}] DeferredTakeover executed: EntityNetId={1} GrantCount={2}",
+                    _localNodeId, netId, pending.GrantsByDescriptor.Count);
             }
         }
 

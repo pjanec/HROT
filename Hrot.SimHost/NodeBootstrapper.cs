@@ -217,14 +217,14 @@ namespace Hrot.SimHost
             if (role.HasFlag(NodeRole.MuscleGround))
             {
                 translators.AddRange(KinematicTranslatorPack.Create(
-                    participant, entityMap, geoTransform));
+                    participant, entityMap, geoTransform, localNodeId: localNodeId));
             }
 
             // Cognitive pack — Brain nodes publish NavIntent and receive NavStatus.
             if (role.HasFlag(NodeRole.Brain))
             {
                 translators.AddRange(CognitiveTranslatorPack.Create(
-                    participant, entityMap, geoTransform, doctrineRegistry, ghostCreationSystem));
+                    participant, entityMap, geoTransform, doctrineRegistry, ghostCreationSystem, localNodeId: localNodeId));
             }
 
             // Brain perception pack — Brain nodes publish sensor config + raycast batches.

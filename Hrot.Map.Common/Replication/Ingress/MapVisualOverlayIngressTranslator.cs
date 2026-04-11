@@ -29,6 +29,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly NetworkEntityMap _entityMap;
         private readonly IGeographicTransform? _geoTransform;
         private readonly GhostCreationSystem _ghostCreationSystem;
+        private readonly long _localNodeId;
 
         /// <summary>
         /// Overlays deferred because the entity's <see cref="SimTransform"/> had not yet been
@@ -45,12 +46,14 @@ namespace Hrot.Map.Common.Replication.Ingress
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
             IGeographicTransform? geoTransform,
-            GhostCreationSystem ghostCreationSystem)
+            GhostCreationSystem ghostCreationSystem,
+            long localNodeId)
         {
             _reader = participant is not null ? new DdsReader<MapVisualOverlay>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _geoTransform = geoTransform;
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
+            _localNodeId = localNodeId;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
@@ -117,7 +120,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (repo == null)
                 {
                     FdpLog<MapVisualOverlayIngressTranslator>.Warn(
-                        "[IG] Cannot create ghost for NetID {0}: view is read-only.", netId);
+                        "[Node-{0}] Cannot create ghost for NetID {1}: view is read-only.", _localNodeId, netId);
                     return;
                 }
 

@@ -43,9 +43,13 @@ namespace Hrot.IG.Systems;
 public class StyleResolutionSystem : IEcsModuleSystem
 {
     private readonly MapUserConfig _userConfig;
+    private readonly long _localNodeId;
 
-    public StyleResolutionSystem(MapUserConfig userConfig)
-        => _userConfig = userConfig ?? throw new ArgumentNullException(nameof(userConfig));
+    public StyleResolutionSystem(MapUserConfig userConfig, long localNodeId = 0)
+    {
+        _userConfig = userConfig ?? throw new ArgumentNullException(nameof(userConfig));
+        _localNodeId = localNodeId;
+    }
 
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
@@ -66,7 +70,7 @@ public class StyleResolutionSystem : IEcsModuleSystem
             if (!view.HasComponent<ResolvedStyle>(entity))
             {
                 FdpLog<StyleResolutionSystem>.Debug(
-                    "[TRACE-IG] Style: Resolved Entity={0} Texture={1}", entity.Index, style.GetTextureName());
+                    "[Node-{0}] Style: Resolved Entity={1} Texture={2}", _localNodeId, entity.Index, style.GetTextureName());
             }
 
             if (repo != null)

@@ -26,6 +26,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly NetworkEntityMap _entityMap;
         private readonly int _mapGroupId;
         private readonly GhostCreationSystem _ghostCreationSystem;
+        private readonly long _localNodeId;
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
@@ -34,12 +35,14 @@ namespace Hrot.Map.Common.Replication.Ingress
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
             int mapGroupId,
-            GhostCreationSystem ghostCreationSystem)
+            GhostCreationSystem ghostCreationSystem,
+            long localNodeId)
         {
             _reader = participant is not null ? new DdsReader<MapEntitySymbol>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _mapGroupId = mapGroupId;
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
+            _localNodeId = localNodeId;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
@@ -88,7 +91,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (repo == null)
                 {
                     FdpLog<MapEntitySymbolIngressTranslator>.Warn(
-                        "[IG] Cannot create ghost for NetID {0}: view is read-only.", netId);
+                        "[Node-{0}] Cannot create ghost for NetID {1}: view is read-only.", _localNodeId, netId);
                     return;
                 }
 

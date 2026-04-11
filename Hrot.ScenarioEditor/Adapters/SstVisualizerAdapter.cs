@@ -33,11 +33,17 @@ namespace Hrot.ScenarioEditor.Adapters;
 /// </summary>
 public class NedVisualizerAdapter : IVisualizerAdapter
 {
-    // Texture cache â€” allocations occur only on first encounter of each texture name.
+    // Texture cache -- allocations occur only on first encounter of each texture name.
     private readonly Dictionary<string, Texture2D> _textureCache = new();
     private readonly HashSet<int> _renderTracedEntities = new();
+    private readonly long _localNodeId;
     private const string RenderTraceEntityEnvVar = "HROT_TRACE_ENTITY_ID";
     internal static int? RenderTraceEntityIdOverride { get; set; }
+
+    public NedVisualizerAdapter(long localNodeId = 0)
+    {
+        _localNodeId = localNodeId;
+    }
 
     // â”€â”€ IVisualizerAdapter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -83,7 +89,7 @@ public class NedVisualizerAdapter : IVisualizerAdapter
         {
                 var positionLabel = string.Concat(position.X, ",", position.Y);
                 FdpLog<NedVisualizerAdapter>.Debug(
-                    "[TRACE-IG] Render: Drawing Entity={0} at ({1})", entity.Index, positionLabel);
+                    "[Node-{0}] Render: Drawing Entity={1} at ({2})", _localNodeId, entity.Index, positionLabel);
         }
 
         // â”€â”€ Resolve style â€” fall back to unknown white when absent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

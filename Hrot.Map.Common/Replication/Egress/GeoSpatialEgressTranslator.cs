@@ -26,6 +26,7 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private readonly IGeographicTransform _geoTransform;
         private readonly HashSet<long> _tracedNetIds = new();
+        private readonly long _localNodeId;
 
         private const long WorldPosOrdinal = (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos;
 
@@ -45,10 +46,12 @@ namespace Hrot.Map.Common.Replication.Egress
         public GeoSpatialEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            IGeographicTransform geoTransform)
+            IGeographicTransform geoTransform,
+            long localNodeId)
             : base(participant, "WorldPos", ordinal: WorldPosOrdinal, entityMap)
         {
             _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
+            _localNodeId = localNodeId;
         }
 
         /// <summary>
@@ -182,7 +185,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (_tracedNetIds.Add(netId.Value))
                 {
                     FdpLog<GeoSpatialEgressTranslator>.Debug(
-                        "[TRACE-SH] Egress: Writing WorldPos for NetID={0} pos=({1},{2})", netId.Value, lat, lon);
+                        "[Node-{0}] Egress: Writing WorldPos for NetID={1} pos=({2},{3})", _localNodeId, netId.Value, lat, lon);
                 }
             }
         }

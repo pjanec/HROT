@@ -49,6 +49,7 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
     private readonly IDerRepo    _repo;
     private readonly FdpEventBus _bus;
     private readonly int         _commitTimeoutMs;
+    private readonly long        _localNodeId;
 
     // ── Pending commits ───────────────────────────────────────────────────────
 
@@ -73,11 +74,13 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
     public MissionEditorService(
         IDerRepo    repo,
         FdpEventBus bus,
-        int         commitTimeoutMs = DefaultCommitTimeoutMs)
+        int         commitTimeoutMs = DefaultCommitTimeoutMs,
+        long        localNodeId     = 0)
     {
         _repo            = repo ?? throw new ArgumentNullException(nameof(repo));
         _bus             = bus  ?? throw new ArgumentNullException(nameof(bus));
         _commitTimeoutMs = commitTimeoutMs;
+        _localNodeId     = localNodeId;
     }
 
     // ── IMissionEditorService ─────────────────────────────────────────────────
@@ -133,8 +136,8 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
             }
         });
 
-        FdpLog<MissionEditorService>.Info("[ExCon] CommitMissionAsync sent: entityId={0} requestId={1} taskCount={2} baseVersion={3}",
-            entityId, requestId, newPlan.Tasks?.Count ?? 0, baseVersion);
+        FdpLog<MissionEditorService>.Info("[Node-{0}] CommitMissionAsync sent: entityId={1} requestId={2} baseVersion={3}",
+            _localNodeId, entityId, requestId, baseVersion);
 
         using var cts = new CancellationTokenSource(_commitTimeoutMs);
         try
@@ -143,8 +146,8 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
         }
         catch (OperationCanceledException)
         {
-            FdpLog<MissionEditorService>.Warn("[ExCon] Commit timed out: entityId={0} requestId={1}",
-                entityId, requestId);
+            FdpLog<MissionEditorService>.Warn("[Node-{0}] Commit timed out: entityId={1} requestId={2}",
+                _localNodeId, entityId, requestId);
 
             return new MissionCommitResult
             {
@@ -180,8 +183,8 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
         });
 
         FdpLog<MissionEditorService>.Info(
-            "[ExCon] SendControlCommandAsync sent: entityId={0} type={1} requestId={2}",
-            entityId, type, requestId);
+            "[Node-{0}] SendControlCommandAsync sent: entityId={1} type={2} requestId={3}",
+            _localNodeId, entityId, type, requestId);
 
         using var cts = new CancellationTokenSource(_commitTimeoutMs);
         try
@@ -191,8 +194,8 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
         catch (OperationCanceledException)
         {
             FdpLog<MissionEditorService>.Warn(
-                "[ExCon] Control command timed out: entityId={0} type={1} requestId={2}",
-                entityId, type, requestId);
+                "[Node-{0}] Control command timed out: entityId={1} type={2} requestId={3}",
+                _localNodeId, entityId, type, requestId);
 
             return new MissionCommitResult
             {
@@ -242,8 +245,8 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
             ErrorCode    = ack.ErrorCode
         });
 
-        FdpLog<MissionEditorService>.Info("[ExCon] MissionControlAckEvent received: requestId={0} success={1} errorCode={2} newVersion={3}",
-            ack.RequestId, ack.ErrorCode == 0, ack.ErrorCode, ack.NewVersion);
+        FdpLog<MissionEditorService>.Info("[Node-{0}] MissionControlAckEvent received: requestId={1} success={2} errorCode={3}",
+            _localNodeId, ack.RequestId, ack.ErrorCode == 0, ack.ErrorCode);
     }
 
     // ── IIngressHandler ───────────────────────────────────────────────────────

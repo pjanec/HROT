@@ -19,7 +19,7 @@ namespace Hrot.UI.Common.Panels;
 public sealed class ConfigPanel
 {
     // ── State ─────────────────────────────────────────────────────────────────
-
+    private readonly long _localNodeId;
     private bool  _satelliteLayer   = true;
     private bool  _groundUnits      = true;
     private bool  _airUnits         = true;
@@ -28,6 +28,9 @@ public sealed class ConfigPanel
     private bool  _roadGraphs       = true;
     private bool  _grid             = false;
     private float _iconScale        = PanelConstants.IconScaleDefault;
+
+    /// <summary>Creates a new <see cref="ConfigPanel"/> with an optional node ID for log messages.</summary>
+    public ConfigPanel(long localNodeId = 0) => _localNodeId = localNodeId;
 
     // ── Public state accessors ────────────────────────────────────────────────
 
@@ -85,7 +88,7 @@ public sealed class ConfigPanel
     public void HandleSendConfigPatch(IMapConfigController ctrl)
     {
         ArgumentNullException.ThrowIfNull(ctrl);
-        FdpLog<ConfigPanel>.Debug("[TRACE-UI.Common] Config: Applying config state");
+        FdpLog<ConfigPanel>.Debug("[Node-{0}] Config: Applying config state", _localNodeId);
         ctrl.ApplyConfig(new MapLayerState(_satelliteLayer, _groundUnits, _airUnits, _vehicles, _tacticalGraphics, _roadGraphs, _grid));
     }
 

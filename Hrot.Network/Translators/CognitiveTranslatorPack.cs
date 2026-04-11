@@ -45,19 +45,21 @@ namespace Hrot.Network.Translators
         ///   Ghost-creation helper injected into <see cref="GeoSpatialIngressTranslator"/>
         ///   so it can lazily create Cartesian ghost entities for remote vehicles.
         /// </param>
+        /// <param name="localNodeId">Local node identifier; embedded in FdpLog messages.</param>
         public static IEnumerable<IDescriptorTranslator> Create(
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
             IGeographicTransform geoTransform,
             DoctrineRegistry?    doctrineRegistry,
-            GhostCreationSystem  ghostCreationSystem)
+            GhostCreationSystem  ghostCreationSystem,
+            long                 localNodeId = 0)
         {
-            yield return new NavigationIntentEgressTranslator(participant, entityMap, geoTransform);
+            yield return new NavigationIntentEgressTranslator(participant, entityMap, geoTransform, localNodeId);
             yield return new EntityMissionEgressTranslator(participant, entityMap, doctrineRegistry);
             if (doctrineRegistry != null)
                 yield return new EntityMissionIngressTranslator(participant, entityMap, doctrineRegistry, ghostCreationSystem);
-            yield return new GeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem);
-            yield return new NavigationStatusIngressTranslator(participant, entityMap);
+            yield return new GeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId);
+            yield return new NavigationStatusIngressTranslator(participant, entityMap, localNodeId);
         }
     }
 }

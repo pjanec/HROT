@@ -13,3 +13,13 @@
 - Only change lines required for the functional fix.
 - Avoid unrelated formatting/comment/whitespace edits.
 
+## Avoid unicode characters
+
+Do NOT use unicode characters in the comments and string literals for stuff that can be
+equally well expressed using standard ASCII characters.
+
+
+## Make sure the solution compiles
+
+Before finishing, make sure the solution builds without errors.
+

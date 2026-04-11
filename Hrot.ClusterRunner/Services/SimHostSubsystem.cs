@@ -46,6 +46,7 @@ namespace Hrot.ClusterRunner.Services
         private readonly NodeRole _role;
         private SimHostApp? _app;
         private bool _headless;
+        private int _nodeId;
 
         /// <summary>
         /// Initialises SimHost with the specified node role.
@@ -164,6 +165,7 @@ namespace Hrot.ClusterRunner.Services
         {
             _headless = config.Headless;
             int? domainOverride = config.DomainId;
+            _nodeId = config.NodeId;
             _app = new SimHostApp(domainOverride, _role);
             _app.InitializeEmbedded(headless: config.Headless, domainIdOverride: domainOverride, nodeIdOverride: config.NodeId);
         }
@@ -243,7 +245,7 @@ namespace Hrot.ClusterRunner.Services
                 Name         = "SimHost-Loop"
             };
             _loopThread.Start();
-            Logger.Info("[SimHost] Background loop started.");
+            Logger.Info($"[Node-{_nodeId}] Background loop started.");
         }
 
         /// <summary>
@@ -268,6 +270,6 @@ namespace Hrot.ClusterRunner.Services
                 _app?.Tick(0f); // dt managed internally by time controller
                 Thread.Sleep(1); // ~1 ms yield; time controller manages dt
             }
-            Logger.Info("[SimHost] Background loop exited.");
+            Logger.Info($"[Node-{_nodeId}] Background loop exited.");
         }
     }}

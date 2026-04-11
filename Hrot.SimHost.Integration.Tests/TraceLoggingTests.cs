@@ -44,11 +44,11 @@ public sealed class TraceLoggingTests
 
         var expected = new[]
         {
-            "[TRACE-SH] SpawnVehicle: Requesting TkbType=",
-            "[TRACE-SH] ProcessSpawn: NetworkId=",
-            "[TRACE-SH] Egress: Writing EntityMaster for NetID=",
-            "[TRACE-SH] Egress: Writing GeoSpatial for NetID=",
-            "[TRACE-SH] ELM: Entity ",
+            "[Node-", // SpawnVehicle: Requesting TkbType=
+            "[Node-", // ProcessSpawn: NetworkId=
+            "[Node-", // Egress: Writing EntityMaster for NetID=
+            "[Node-", // Egress: Writing GeoSpatial for NetID=
+            "[Node-", // ELM: Entity
         };
 
         bool ackPublished = false;

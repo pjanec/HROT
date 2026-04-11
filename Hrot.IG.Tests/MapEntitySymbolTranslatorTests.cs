@@ -20,7 +20,7 @@ namespace Hrot.IG.Tests
             var repo = new EntityRepository();
             var entityMap = new NetworkEntityMap();
             var ghostCreationSystem = new GhostCreationSystem(entityMap);
-            var translator = new MapEntitySymbolIngressTranslator(null, entityMap, mapGroupId, ghostCreationSystem);
+            var translator = new MapEntitySymbolIngressTranslator(null, entityMap, mapGroupId, ghostCreationSystem, localNodeId: 0);
             return (repo, entityMap, translator);
         }
 

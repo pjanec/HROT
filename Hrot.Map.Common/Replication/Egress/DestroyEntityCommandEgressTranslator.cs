@@ -30,6 +30,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private readonly IDdsWriter<DeleteEntityRequest> _writer;
         private readonly FdpEventBus _eventBus;
+        private readonly long _localNodeId;
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
@@ -37,18 +38,21 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>Production constructor: creates a live DDS writer.</summary>
         public DestroyEntityCommandEgressTranslator(
             DdsParticipant participant,
-            FdpEventBus eventBus)
-            : this(new DdsWriterAdapter<DeleteEntityRequest>(participant, DdsTopicName), eventBus)
+            FdpEventBus eventBus,
+            long localNodeId = 0)
+            : this(new DdsWriterAdapter<DeleteEntityRequest>(participant, DdsTopicName), eventBus, localNodeId)
         {
         }
 
         /// <summary>Testable constructor: accepts an injected writer stub.</summary>
         internal DestroyEntityCommandEgressTranslator(
             IDdsWriter<DeleteEntityRequest> writer,
-            FdpEventBus eventBus)
+            FdpEventBus eventBus,
+            long localNodeId = 0)
         {
             _writer   = writer    ?? throw new ArgumentNullException(nameof(writer));
             _eventBus = eventBus  ?? throw new ArgumentNullException(nameof(eventBus));
+            _localNodeId = localNodeId;
         }
 
         /// <summary>
@@ -74,8 +78,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 _writer.Write(request);
 
                 FdpLog<DestroyEntityCommandEgressTranslator>.Debug(
-                    "[Egress] DestroyEntityCommand → DeleteEntityRequest NetID={0} reason={1}",
-                    destroyCmd.NetworkId, destroyCmd.Reason!);
+                    "[Node-{0}] DestroyEntityCommand \u2192 DeleteEntityRequest NetID={1} reason={2}",
+                    _localNodeId, destroyCmd.NetworkId, destroyCmd.Reason!);
             }
         }
 

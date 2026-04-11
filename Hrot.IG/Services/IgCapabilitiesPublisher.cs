@@ -48,14 +48,14 @@ public static class IgCapabilitiesPublisher
             writer.Write(payload);
 
             FdpLog<Log>.Info(
-                "[IG] IGCapabilitiesAnnounce published. MapId={0}, Layers={1}",
+                "[Node-{0}] IGCapabilitiesAnnounce published. Layers={1}",
                 mapId,
                 payload.LayerTreeJson);
         }
         catch (Exception ex)
         {
             FdpLog<Log>.Warn(
-                "[IG] Failed to publish IGCapabilitiesAnnounce: {0}", ex.Message);
+                "[Node-{0}] Failed to publish IGCapabilitiesAnnounce: {1}", mapId, ex.Message);
         }
     }
 

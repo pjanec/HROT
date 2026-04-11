@@ -30,15 +30,17 @@ namespace Hrot.Network.Translators
     public sealed class DeferredTakeOwnershipEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<DeferredTakeOwnership>? _writer;
+        private readonly long _localNodeId;
 
         public string TopicName         => "DeferredTakeOwnership";
         public long   DescriptorOrdinal => (long)EDescriptorType.dtDeferredTakeOwnership;
 
-        public DeferredTakeOwnershipEgressTranslator(DdsParticipant? participant)
+        public DeferredTakeOwnershipEgressTranslator(DdsParticipant? participant, long localNodeId)
         {
             _writer = participant != null
                 ? new DdsWriter<DeferredTakeOwnership>(participant, "DeferredTakeOwnership")
                 : null;
+            _localNodeId = localNodeId;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { /* egress-only */ }
@@ -63,8 +65,8 @@ namespace Hrot.Network.Translators
                 });
 
                 FdpLog<DeferredTakeOwnershipEgressTranslator>.Debug(
-                    "[CGF] DeferredTakeOwnership egress: EntityId={0} Grants={1}",
-                    cmd.NetworkId, cmd.Grants.Count);
+                    "[Node-{0}] DeferredTakeOwnership egress: EntityId={1} Grants={2}",
+                    _localNodeId, cmd.NetworkId, cmd.Grants.Count);
             }
         }
 
