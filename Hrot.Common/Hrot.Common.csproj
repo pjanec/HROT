@@ -24,14 +24,13 @@
     <!-- Orchestration DDS types (NodeOpType, NodeOpCommand) -->
     <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
     <!-- EntityRepository parameter used by Commit/Abort -->
-    <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />
     <!-- Toolkit orchestration contracts (IOrchestrationTransport, IClusterStateHandler) -->
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Orchestration\FDP.Toolkit.Orchestration.csproj" />
     <!-- Time messages/events for OrchestrationObserverTranslator (SwitchTimeModeWireDto → SwitchTimeModeEvent) -->
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
     <!-- Infrastructure: HrotNodeBuilder and related types (Pre-Migration PM-1) -->
     <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
-    <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Core\ModuleHost.Core.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
     <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />

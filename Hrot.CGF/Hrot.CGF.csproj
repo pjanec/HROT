@@ -28,7 +28,7 @@
     <!-- CycloneDDS transitive via DataModel, but explicit for DdsParticipant -->
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <!-- FdpLog<T> + FdpEventBus -->
-    <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />
     <!-- SwitchTimeModeDescriptorTranslator (CGF1-A.2, BATCH-09) -->
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
     <!-- Scenario serialization toolkit for ScenarioLoadClusterStateHandler (CGF1-S0307) -->

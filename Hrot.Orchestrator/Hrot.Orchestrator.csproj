@@ -11,7 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
     <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
-    <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Orchestration\FDP.Toolkit.Orchestration.csproj" />
   </ItemGroup>
