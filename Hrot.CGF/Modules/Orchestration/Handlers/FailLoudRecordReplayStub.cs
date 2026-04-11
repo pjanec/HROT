@@ -37,10 +37,8 @@ namespace Hrot.CGF.Modules.Orchestration.Handlers
     /// <b>ACK / NAK behaviour:</b> Because the CGF <see cref="ClusterSlave"/> does not yet
     /// expose a <c>NodeOpStatus</c> DDS writer, this handler cannot send a network-level NAK.
     /// Instead it logs an <c>Error</c> so the problem surfaces in structured logs.  Once CGF
-    /// acquires a kernel and the same handler stack as SimHost, this stub must be removed and
-    /// replaced with a real implementation (or the common
-    /// <see cref="Hrot.SimHost.Modules.Orchestration.Handlers.LiveLoadClusterStateHandler"/> /
-    /// <see cref="Hrot.SimHost.Modules.Orchestration.Handlers.ReplayLoadClusterOpHandler"/> path).
+    /// acquires a kernel and the same handler stack as the simulation host, this stub must be removed and
+    /// replaced with a real implementation using shared orchestration handlers from a neutral module.
     /// </para>
     /// </summary>
     public sealed class FailLoudRecordReplayStub : IClusterOpHandler

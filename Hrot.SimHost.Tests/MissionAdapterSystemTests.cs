@@ -1,4 +1,5 @@
 using Hrot.SimHost.Modules;
+using Hrot.SimHost.Network;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Systems;
@@ -8,7 +9,7 @@ using Xunit;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// Verifies SimulationLogicModule registers MissionDirectorSystem in place of legacy mission adapters.
+    /// Verifies SimulationLogicModule role-conditional mission system registration.
     /// </summary>
     public class MissionDirectorSystemRegistrationTests
     {
@@ -30,7 +31,10 @@ namespace Hrot.SimHost.Tests
             var postSimGroup = new SystemGroup();
             postSimGroup.Create(world);
 
-            var module = new SimulationLogicModule(new DoctrineRegistry(), new NetworkEntityMap());
+            var module = new SimulationLogicModule(
+                new DoctrineRegistry(),
+                new NetworkEntityMap(),
+                role: NodeRole.Brain);
             module.RegisterSystems(inputGroup, simGroup, postSimGroup);
 
             var systems = simGroup.GetSystems();
@@ -38,7 +42,7 @@ namespace Hrot.SimHost.Tests
         }
 
         [Fact]
-        public void RegisterSystems_DoesNotIncludeMissionAdapterSystem()
+        public void RegisterSystems_BrainRole_IncludesMissionAdapterSystem()
         {
             using var world = CreateWorld();
             var inputGroup = new SystemGroup();
@@ -48,7 +52,31 @@ namespace Hrot.SimHost.Tests
             var postSimGroup = new SystemGroup();
             postSimGroup.Create(world);
 
-            var module = new SimulationLogicModule(new DoctrineRegistry(), new NetworkEntityMap());
+            var module = new SimulationLogicModule(
+                new DoctrineRegistry(),
+                new NetworkEntityMap(),
+                role: NodeRole.Brain);
+            module.RegisterSystems(inputGroup, simGroup, postSimGroup);
+
+            var systems = simGroup.GetSystems();
+            Assert.Contains(systems, system => system.GetType().Name == "MissionAdapterSystem");
+        }
+
+        [Fact]
+        public void RegisterSystems_MuscleGroundRole_DoesNotIncludeMissionAdapterSystem()
+        {
+            using var world = CreateWorld();
+            var inputGroup = new SystemGroup();
+            inputGroup.Create(world);
+            var simGroup = new SystemGroup();
+            simGroup.Create(world);
+            var postSimGroup = new SystemGroup();
+            postSimGroup.Create(world);
+
+            var module = new SimulationLogicModule(
+                new DoctrineRegistry(),
+                new NetworkEntityMap(),
+                role: NodeRole.MuscleGround);
             module.RegisterSystems(inputGroup, simGroup, postSimGroup);
 
             var systems = simGroup.GetSystems();

@@ -1,6 +1,7 @@
 using System;
 using Hrot.SimHost.Systems;
 using Hrot.SimHost.Systems.Routing;
+using Hrot.Common.Systems;
 using CarKinem.Commands;
 using CarKinem.Formation;
 using CarKinem.Road;
@@ -53,6 +54,8 @@ namespace Hrot.SimHost.Modules
         private readonly CombatModule?            _combatModule;
         private readonly DamageAssessmentModule?  _damageAssessmentModule;
         private readonly MissionControlModule?    _missionControlModule;
+        private readonly MissionControlExecutionSystem? _missionExecutionSystem;
+        private readonly MissionAdapterSystem?    _missionAdapterSystem;
         private readonly CognitiveRuntimeModule?  _cognitiveRuntimeModule;
         private readonly ActionDispatchModule?    _actionDispatchModule;
         private readonly GroundKinematicsModule?  _groundKinematicsModule;
@@ -120,7 +123,11 @@ namespace Hrot.SimHost.Modules
                 _damageAssessmentModule = new DamageAssessmentModule();
 
             if (hasMissionControl)
+            {
+                _missionExecutionSystem = new MissionControlExecutionSystem(entityMap, doctrineRegistry);
+                _missionAdapterSystem = new MissionAdapterSystem(doctrineRegistry, entityMap);
                 _missionControlModule = new MissionControlModule(doctrineRegistry);
+            }
 
             if (hasCognitive)
                 _cognitiveRuntimeModule = new CognitiveRuntimeModule(doctrineRegistry);
@@ -188,6 +195,10 @@ namespace Hrot.SimHost.Modules
             _combatModule?.RegisterSystems(inputGroup, simGroup, postSimGroup, _entityMap);
 
             // Brain tier: doctrine + cognitive (omitted on MuscleGround / IG / leaf nodes).
+            if (_missionExecutionSystem != null)
+                simGroup.AddSystem(_missionExecutionSystem);
+            if (_missionAdapterSystem != null)
+                simGroup.AddSystem(_missionAdapterSystem);
             _missionControlModule?.RegisterSystems(simGroup);
             _cognitiveRuntimeModule?.RegisterSystems(simGroup);
 
