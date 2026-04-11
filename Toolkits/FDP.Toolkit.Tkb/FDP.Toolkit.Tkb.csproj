@@ -5,8 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Common\FDP.Interfaces\FDP.Interfaces.csproj" />
-    <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />
   </ItemGroup>
 
 </Project>

@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\Fdp.Core\Fdp.Core.csproj" />
   </ItemGroup>
 
 </Project>

@@ -10,6 +10,6 @@
        FDP.Toolkit.CarKinem without creating a circular project dependency.
        This assembly references only Fdp.Kernel. -->
   <ItemGroup>
-    <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />
   </ItemGroup>
 </Project>

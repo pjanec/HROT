@@ -1,11 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\FDP.Toolkit.Lifecycle\FDP.Toolkit.Lifecycle.csproj" />
     <ProjectReference Include="..\FDP.Toolkit.Replication\FDP.Toolkit.Replication.csproj" />
     <ProjectReference Include="..\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
-    <ProjectReference Include="..\..\ModuleHost\ModuleHost.Core\ModuleHost.Core.csproj" />
     <ProjectReference Include="..\..\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
   </ItemGroup>
 

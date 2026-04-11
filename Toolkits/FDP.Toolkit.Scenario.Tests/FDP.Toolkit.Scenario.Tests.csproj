@@ -21,7 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FDP.Toolkit.Scenario\FDP.Toolkit.Scenario.csproj" />
-    <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />
   </ItemGroup>
 
 </Project>
