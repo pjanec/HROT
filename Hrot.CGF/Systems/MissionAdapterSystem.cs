@@ -7,7 +7,7 @@ using ModuleHost.Core.Abstractions;
 using FDP.Toolkit.Behavior.Events;
 using Hrot.DDS.DataModel;
 
-namespace Hrot.SimHost.Systems
+namespace Hrot.CGF.Systems
 {
     /// <summary>
     /// Legacy adapter that keeps <see cref="DoctrineState"/> aligned with the current
@@ -55,10 +55,10 @@ namespace Hrot.SimHost.Systems
                 ref var queue = ref World.GetComponentRW<MissionPlanQueue>(entity);
                 ref var doctrine = ref World.GetComponentRW<DoctrineState>(entity);
 
-                if (!World.HasComponent<Hrot.SimHost.Components.MissionAdapterState>(entity))
-                    World.AddComponent(entity, new Hrot.SimHost.Components.MissionAdapterState { LastPhase = byte.MaxValue });
+                if (!World.HasComponent<Hrot.CGF.Components.MissionAdapterState>(entity))
+                    World.AddComponent(entity, new Hrot.CGF.Components.MissionAdapterState { LastPhase = byte.MaxValue });
                     
-                ref var adapterState = ref World.GetComponentRW<Hrot.SimHost.Components.MissionAdapterState>(entity);
+                ref var adapterState = ref World.GetComponentRW<Hrot.CGF.Components.MissionAdapterState>(entity);
                 
                 var activePlan = World.GetComponent<ActiveMissionPlan>(entity);
                 

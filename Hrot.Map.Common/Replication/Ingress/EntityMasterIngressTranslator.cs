@@ -134,11 +134,20 @@ namespace Hrot.Map.Common.Replication.Ingress
 
             // Permanent identity component — drives GhostPromotionSystem.
             cmd.AddComponent(entity, new TkbIdentity { TkbType = master.TkbType });
-            cmd.AddComponent(entity, new NetworkAuthority
+
+            // Only set NetworkAuthority for entities that do not have it yet (new ghosts).
+            // Entities that the local node created itself already have NetworkAuthority with the
+            // correct PrimaryOwnerId. DDS loopback or re-announcements of locally-owned entities
+            // must not overwrite it with the unknown-owner sentinel (-1), which would silently
+            // clear authority and prevent the egress translators from publishing.
+            if (!view.HasComponent<NetworkAuthority>(entity))
             {
-                PrimaryOwnerId = -1,
-                LocalNodeId = (int)_localNodeId
-            });
+                cmd.AddComponent(entity, new NetworkAuthority
+                {
+                    PrimaryOwnerId = -1,
+                    LocalNodeId = (int)_localNodeId
+                });
+            }
 
             // Reconstruct DISEntityType.Value from the 8 named DisTypeStruct fields.
             // FieldOffset layout (little-endian): Extra[0], Specific[1], Subcategory[2],

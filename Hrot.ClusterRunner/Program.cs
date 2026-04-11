@@ -176,6 +176,7 @@ class Program
                 ["IG"]      = "IG",
                 ["SimHost"] = "SimHost",
                 ["ExCon"]   = "ExCon",
+                ["CGF"]     = "CGF",
             };
             var coordinator = new PerspectiveCoordinatorSystem(orchestrator, perspectiveMap);
             perspSubsystem.Coordinator = coordinator;

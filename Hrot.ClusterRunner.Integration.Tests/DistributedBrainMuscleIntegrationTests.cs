@@ -1,5 +1,4 @@
 using System;
-using System.Threading;
 using FDP.Toolkit.NetworkSpawning.Events;
 using Hrot.ClusterRunner.Configuration;
 using Hrot.Map.Common;
@@ -29,24 +28,20 @@ public sealed class DistributedBrainMuscleIntegrationTests
     public void SpawnedEntity_ReachesToCgf_ViaDds()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
-        using var simHost = new HrotRunnerHarness(RunMode.SimHost, domainId);
-        using var cgf     = new CgfHarness(domainId);
-
-        cgf.PumpFrames(20);
+        using var harness = new HrotRunnerHarness(RunMode.SimHost | RunMode.CGF, domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0.0 };
 
-        long networkId = simHost.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
-        bool reached = PumpBothUntil(
-            simHost, cgf,
+        bool reached = harness.PumpUntil(
             () =>
             {
-                var map = cgf.CgfSvc.GhostEntityMap;
+                var map = harness.Cgf!.GhostEntityMap;
                 return map != null && map.TryGetEntity(networkId, out _);
             },
-            SpawnPropagationTimeoutMs);
+            SpawnPropagationTimeoutMs / 5);
 
         Assert.True(reached,
             $"Entity {networkId} should appear in CGF ghost map within {SpawnPropagationTimeoutMs} ms");
@@ -58,41 +53,38 @@ public sealed class DistributedBrainMuscleIntegrationTests
     public void DestroyedEntity_PurgedFromCgfGhostRepo()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
-        using var simHost = new HrotRunnerHarness(RunMode.SimHost, domainId);
-        using var cgf     = new CgfHarness(domainId);
-
-        cgf.PumpFrames(20);
+        using var harness = new HrotRunnerHarness(RunMode.SimHost | RunMode.CGF, domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0.0 };
 
-        long networkId = simHost.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         // Wait until entity appears in CGF
-        bool appeared = PumpBothUntil(simHost, cgf,
+        bool appeared = harness.PumpUntil(
             () =>
             {
-                var map = cgf.CgfSvc.GhostEntityMap;
+                var map = harness.Cgf!.GhostEntityMap;
                 return map != null && map.TryGetEntity(networkId, out _);
             },
-            SpawnPropagationTimeoutMs);
+            SpawnPropagationTimeoutMs / 5);
         Assert.True(appeared, "Entity must appear in CGF before we can test its removal");
 
         // Destroy via SimHost bus
-        simHost.SimHost.App.World.Bus.PublishManaged(new DestroyEntityCommand
+        harness.SimHost.App.World.Bus.PublishManaged(new DestroyEntityCommand
         {
             NetworkId = networkId,
             Reason    = "test-destroy",
         });
 
-        bool purged = PumpBothUntil(simHost, cgf,
+        bool purged = harness.PumpUntil(
             () =>
             {
-                var map = cgf.CgfSvc.GhostEntityMap;
+                var map = harness.Cgf?.GhostEntityMap;
                 // Purged when map is null (after shutdown) or entity no longer present
                 return map == null || !map.TryGetEntity(networkId, out _);
             },
-            SpawnPropagationTimeoutMs);
+            SpawnPropagationTimeoutMs / 5);
 
         Assert.True(purged,
             $"Entity {networkId} must be purged from CGF ghost map within {SpawnPropagationTimeoutMs} ms");
@@ -111,22 +103,5 @@ public sealed class DistributedBrainMuscleIntegrationTests
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────
-
-    private static bool PumpBothUntil(
-        HrotRunnerHarness simHost,
-        CgfHarness        cgf,
-        Func<bool>        condition,
-        int               timeoutMs)
-    {
-        if (condition()) return true;
-        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
-        while (DateTime.UtcNow < deadline)
-        {
-            simHost.PumpFrames(1);
-            cgf.PumpFrames(1);
-            if (condition()) return true;
-            Thread.Sleep(5);
-        }
-        return false;
-    }
+    // (no PumpBothUntil needed — tests now use harness.PumpUntil directly)
 }

@@ -2,11 +2,11 @@ using System;
 using System.Numerics;
 using System.Threading;
 using Hrot.ClusterRunner.Configuration;
-using Hrot.ClusterRunner.Services;
 using RunMode = Hrot.ClusterRunner.Configuration.RunMode;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.NED.Common;
+using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using CycloneDDS.Runtime;
 using FDP.Toolkit.Replication.Components;
@@ -40,7 +40,6 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
     private const int SpawnTimeoutFrames    = 150;
     private const int MovementTimeoutFrames = 300;
     private const float MovementThresholdMetres = 0.05f;
-    private const int PumpSleepMs = 5;
 
     private readonly ITestOutputHelper _out;
 
@@ -50,7 +49,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
     /// <summary>
     /// Verifies the full "Spawn Moving Vehicle" button flow with all five subsystems
     /// active (Orchestrator, SimHost, IG, ExCon, CGF) — the same topology as
-    /// "clusterrunner -m all".
+    /// "clusterrunner -m all", running fully headless in a single process.
     /// <list type="number">
     ///   <item>IG sends <c>CreateEntityRequest</c> and receives a valid entity ID.</item>
     ///   <item>IG sends <c>MissionControlRequest</c> (WanderMilitary) and receives <c>Ack</c>.</item>
@@ -66,20 +65,25 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         int domainId = Interlocked.Increment(ref _domainCounter);
         _out.WriteLine($"[A0] Domain: {domainId}");
 
-        // ── Boot all five subsystems ──────────────────────────────────────────
-        // HrotRunnerHarness(RunMode.All, domainId) adds: Orchestrator + SimHost + IG + ExCon.
-        // CgfHarness(domainId) adds: CGF on the same DDS domain.
+        // ── Boot all five subsystems in one fully-headless orchestrator ───────
+        // RunMode.All == Orchestrator | SimHost | IG | ExCon | CGF
+        // HrotRunnerHarness wires CgfSubsystem when RunMode.CGF is set.
         using var harness = new HrotRunnerHarness(RunMode.All, domainId);
-        using var cgf     = new CgfHarness(domainId);
 
-        // Extra settle: give CGF DDS discovery time to find SimHost's topics.
-        PumpBoth(harness, cgf, 20);
-        Thread.Sleep(200);
+        // Extra settle: wait for the first 1 Hz NodeHeartbeat from SimHost to reach CGF.
+        // BrainMuscleOwnershipStrategy delegates WorldPos to SimHost only after SimHost is
+        // registered in CGF's cluster cache (populated from DDS NodeHeartbeat).  If the
+        // entity is spawned before that, CGF retains WorldPos authority and CarKinematicsSystem
+        // never moves it.  We pump with 5 ms sleeps so ClusterSlave.Tick() fires on all
+        // subsystems and SlaveTranslator can write the heartbeat to DDS.
+        // Total pre-spawn wall time: harness warmup 300 ms + pump below ~1100 ms = ~1400 ms.
+        harness.PumpUntil(() => false, 220); // 220 * 5 ms = ~1100 ms
 
         var igApp = harness.Ig.App;
 
         using var observerParticipant = new DdsParticipant((uint)domainId);
         using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
+        using var navIntentReader = new DdsReader<Hrot.NED.Descriptors.NavigationIntent>(observerParticipant, "NavigationIntent");
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
 
@@ -90,13 +94,12 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
 
         // ── 2. Capture the CreateEntityAck ───────────────────────────────────
         CreateUpdateDeleteEntityAck spawnAck = default;
-        bool ackObserved = PumpBothUntil(
-            harness, cgf,
+        bool ackObserved = harness.PumpUntil(
             () => TryTakeAnyCreateAck(ackReader, out spawnAck),
             GatewayTimeoutFrames);
         Assert.True(ackObserved,
             "CreateUpdateDeleteEntityAck did not arrive in time. " +
-            "CreateEntityRequestSystem on SimHost may not have processed the request.");
+            "CreateEntityRequestSystem on CGF may not have processed the request.");
         Assert.True(spawnAck.EntityId > 0,
             "CreateUpdateDeleteEntityAck returned a zero/negative entity ID.");
 
@@ -104,7 +107,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         _out.WriteLine($"[A2] ACK received. networkId={networkId}.");
 
         // ── 3. Wait for the full async chain (MissionControl included) ────────
-        bool taskDone = PumpBothUntil(harness, cgf, () => spawnTask.IsCompleted, 200);
+        bool taskDone = harness.PumpUntil(() => spawnTask.IsCompleted, 200);
         if (!taskDone && !spawnTask.IsCompleted)
             spawnTask.Wait(2000);
         if (spawnTask.IsFaulted)
@@ -112,20 +115,66 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         _out.WriteLine($"[A3] Gateway task done: {spawnTask.Result}.");
 
         // ── 4. Wait for IG entity to appear with Active lifecycle ─────────────
-        bool igActive = PumpBothUntil(
-            harness, cgf,
+        bool igActive = harness.PumpUntil(
             () => IgEntityIsActive(harness, networkId),
             SpawnTimeoutFrames);
         Assert.True(igActive,
             $"IG entity (networkId={networkId}) did not reach Active lifecycle within {SpawnTimeoutFrames} frames.");
         _out.WriteLine("[A4] IG entity is Active.");
 
+        // ── Diagnostic: pump until CGF entity has NavigationIntent set, then snapshot ─
+        // If timeout occurs, the BTree/dispatch pipeline is broken.
+        {
+            var cgfMap = harness.Cgf?.GhostEntityMap;
+            var cgfWorld = harness.Cgf?.World;
+            bool cgfNavReady = harness.PumpUntil(() =>
+            {
+                if (cgfMap == null || cgfWorld == null) return false;
+                if (!cgfMap.TryGetEntity(networkId, out var e)) return false;
+                if (!cgfWorld.IsAlive(e)) return false;
+                if (!cgfWorld.HasComponent<FDP.Toolkit.Navigation.NavigationIntent>(e)) return false;
+                return cgfWorld.GetComponent<FDP.Toolkit.Navigation.NavigationIntent>(e).Mode
+                       != FDP.Toolkit.Navigation.NavigationMode.None;
+            }, 100);
+            _out.WriteLine($"[DIAG] CGF NavigationIntent.Mode became non-None: {cgfNavReady}");
+
+            // Also wait for SimHost to receive NavigationIntent from DDS
+            var shMap = harness.SimHost.App.TestHook_EntityMap;
+            var shWorld = harness.SimHost.App.World;
+            bool shNavReady = harness.PumpUntil(() =>
+            {
+                if (shWorld == null) return false;
+                if (!shMap.TryGetEntity(networkId, out var e)) return false;
+                if (!shWorld.IsAlive(e)) return false;
+                if (!shWorld.HasComponent<FDP.Toolkit.Navigation.NavigationIntent>(e)) return false;
+                return shWorld.GetComponent<FDP.Toolkit.Navigation.NavigationIntent>(e).Mode
+                       != FDP.Toolkit.Navigation.NavigationMode.None;
+            }, 200);
+            _out.WriteLine($"[DIAG] SimHost NavigationIntent.Mode became non-None: {shNavReady}");
+
+            // DDS-level diagnostic: check if the NavigationIntent topic has any published data
+            {
+                bool anyDds = false;
+                using var loan = navIntentReader.Take();
+                foreach (var sample in loan)
+                {
+                    if (!sample.IsValid) continue;
+                    anyDds = true;
+                    _out.WriteLine($"[DIAG-DDS] NavigationIntent on DDS: EntityId={sample.Data.EntityId} Mode={sample.Data.Mode}");
+                }
+                if (!anyDds)
+                    _out.WriteLine("[DIAG-DDS] NavigationIntent topic: NO DDS samples received");
+            }
+        }
+        DiagnoseCgfEntity(harness, networkId, _out);
+        DiagnoseSimHostEntity(harness, networkId, _out);
+
         // ── 5. Record baseline IG position ───────────────────────────────────
         var posA = GetIgSimTransform(harness, networkId).Position;
         _out.WriteLine($"[A5] Baseline IG position: ({posA.X:F3}, {posA.Y:F3}).");
 
         // ── 6. Verify position changes ────────────────────────────────────────
-        bool moved = PumpBothUntil(harness, cgf, () =>
+        bool moved = harness.PumpUntil(() =>
         {
             var posNow = GetIgSimTransform(harness, networkId).Position;
             return Vector3.Distance(posNow, posA) >= MovementThresholdMetres;
@@ -143,34 +192,6 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
             $"Baseline=({posA.X:F3},{posA.Y:F3}), final=({posB.X:F3},{posB.Y:F3}), " +
             $"travelled={travelledMetres:F4} m (threshold={MovementThresholdMetres} m). " +
             $"This is the 'clusterrunner -m all' spawn-vehicle regression.");
-    }
-
-    // ── Pump helpers ──────────────────────────────────────────────────────────
-
-    private static void PumpBoth(HrotRunnerHarness harness, CgfHarness cgf, int frames)
-    {
-        for (int i = 0; i < frames; i++)
-        {
-            harness.PumpFrames(1);
-            cgf.PumpFrames(1);
-        }
-    }
-
-    private static bool PumpBothUntil(
-        HrotRunnerHarness harness,
-        CgfHarness        cgf,
-        Func<bool>        condition,
-        int               timeoutFrames)
-    {
-        if (condition()) return true;
-        for (int i = 0; i < timeoutFrames; i++)
-        {
-            harness.PumpFrames(1);
-            cgf.PumpFrames(1);
-            Thread.Sleep(PumpSleepMs);
-            if (condition()) return true;
-        }
-        return false;
     }
 
     // ── Assertion helpers ─────────────────────────────────────────────────────
@@ -206,5 +227,50 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         var world = harness.Ig.App.World;
         if (!world.IsAlive(entity) || !world.HasComponent<SimTransform>(entity)) return default;
         return world.GetComponent<SimTransform>(entity);
+    }
+
+    private static void DiagnoseCgfEntity(HrotRunnerHarness harness, long networkId, ITestOutputHelper output)
+    {
+        var cgfMap   = harness.Cgf?.GhostEntityMap;
+        var cgfWorld = harness.Cgf?.World;
+        if (cgfMap == null || cgfWorld == null) { output.WriteLine("[DIAG-CGF] CGF not available"); return; }
+        if (!cgfMap.TryGetEntity(networkId, out var entity)) { output.WriteLine($"[DIAG-CGF] entity {networkId} not in map"); return; }
+        if (!cgfWorld.IsAlive(entity)) { output.WriteLine("[DIAG-CGF] entity not alive"); return; }
+
+        string docHash = cgfWorld.HasComponent<FDP.Toolkit.Behavior.Components.DoctrineState>(entity)
+            ? cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.DoctrineState>(entity).ActiveDoctrineHash.ToString()
+            : "no-component";
+        string navMode = cgfWorld.HasComponent<FDP.Toolkit.Navigation.NavigationIntent>(entity)
+            ? cgfWorld.GetComponent<FDP.Toolkit.Navigation.NavigationIntent>(entity).Mode.ToString()
+            : "no-component";
+        string planPhase = cgfWorld.HasComponent<FDP.Toolkit.Behavior.Components.MissionPlanQueue>(entity)
+            ? $"phase={cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.MissionPlanQueue>(entity).CurrentPhase} count={cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.MissionPlanQueue>(entity).PhaseCount}"
+            : "no-component";
+        string loco = cgfWorld.HasComponent<FDP.Toolkit.Behavior.Components.LocomotionChannel>(entity)
+            ? $"action={cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.LocomotionChannel>(entity).ActiveAction} status={cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.LocomotionChannel>(entity).Status} dispId={cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.LocomotionChannel>(entity).DispatchedInstanceId} actId={cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.LocomotionChannel>(entity).ActionInstanceId}"
+            : "no-component";
+        string caps = cgfWorld.HasComponent<FDP.Toolkit.Behavior.Components.ActorCapabilityState>(entity)
+            ? cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.ActorCapabilityState>(entity).Capabilities.ToString()
+            : "no-component";
+        output.WriteLine($"[DIAG-CGF] DoctrineHash={docHash} NavMode={navMode} MissionPlanQueue={planPhase}");
+        output.WriteLine($"[DIAG-CGF] LocoChannel={loco} ActorCaps={caps}");
+    }
+
+    private static void DiagnoseSimHostEntity(HrotRunnerHarness harness, long networkId, ITestOutputHelper output)
+    {
+        var shMap   = harness.SimHost.App.TestHook_EntityMap;
+        var shWorld = harness.SimHost.App.World;
+        if (shWorld == null) { output.WriteLine("[DIAG-SH] SimHost world not available"); return; }
+        if (!shMap.TryGetEntity(networkId, out var entity)) { output.WriteLine($"[DIAG-SH] entity {networkId} not in map"); return; }
+        if (!shWorld.IsAlive(entity)) { output.WriteLine("[DIAG-SH] entity not alive"); return; }
+
+        string navMode = shWorld.HasComponent<FDP.Toolkit.Navigation.NavigationIntent>(entity)
+            ? shWorld.GetComponent<FDP.Toolkit.Navigation.NavigationIntent>(entity).Mode.ToString()
+            : "no-component";
+        string navStateMode = shWorld.HasComponent<CarKinem.Core.NavState>(entity)
+            ? shWorld.GetComponent<CarKinem.Core.NavState>(entity).Mode.ToString()
+            : "no-component";
+        string lifecyle = shWorld.GetLifecycleState(entity).ToString();
+        output.WriteLine($"[DIAG-SH] NavIntent.Mode={navMode} NavState.Mode={navStateMode} Lifecycle={lifecyle}");
     }
 }

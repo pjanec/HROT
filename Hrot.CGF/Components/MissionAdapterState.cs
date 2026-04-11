@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace Hrot.SimHost.Components
+namespace Hrot.CGF.Components
 {
     [ComponentId(129)]
     public struct MissionAdapterState

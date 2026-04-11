@@ -2,7 +2,6 @@ using System.Linq;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Systems;
 using Hrot.Map.Common.Replication.Ingress;
-using Hrot.SimHost.Systems;
 using Hrot.SimHost;
 using CarKinem.Road;
 using CycloneDDS.Runtime;
@@ -43,7 +42,6 @@ namespace Hrot.SimHost.Tests
 
             // Register the exact same set that SimHostApp._kernelGroup builds.
             group.AddSystem(new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, doctrineReg));
-            group.AddSystem(new MissionAdapterSystem(doctrineReg, entityMap));
             group.AddSystem(new UpdateEntityDescriptorRequestSystem(participant, entityMap, wgs84));
             group.AddSystem(new UpdateEntityAttributeRequestSystem(participant, entityMap, wgs84, compiler));
             // (The duplicate in SimHostApp was the second UpdateEntityDescriptorRequestSystem —

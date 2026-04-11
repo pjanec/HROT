@@ -82,5 +82,8 @@ public static class CgfComponentRegistry
         world.RegisterComponent<RouteTrajectoryCache>();
         // EntityMissionIngressTranslator and mission feedback write ActiveMissionPlan.
         world.RegisterManagedComponent<ActiveMissionPlan>();
+
+        // MissionAdapterSystem uses MissionAdapterState to track phase-change transitions.
+        world.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
     }
 }

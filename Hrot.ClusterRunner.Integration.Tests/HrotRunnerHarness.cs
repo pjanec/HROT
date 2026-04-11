@@ -40,6 +40,7 @@ public sealed class HrotRunnerHarness : IDisposable
     public SimHostSubsystem SimHost { get; }
     public IgSubsystem Ig { get; }
     public ExConSubsystem ExCon { get; }
+    public CgfSubsystem? Cgf { get; private set; }
 
     public HrotRunnerHarness()
     {
@@ -81,6 +82,11 @@ public sealed class HrotRunnerHarness : IDisposable
         if (mode.HasFlag(RunMode.SimHost)) subsystems.Add(SimHost);
         if (mode.HasFlag(RunMode.IG))     subsystems.Add(Ig);
         if (mode.HasFlag(RunMode.ExCon))  subsystems.Add(ExCon);
+        if (mode.HasFlag(RunMode.CGF))
+        {
+            Cgf = new CgfSubsystem();
+            subsystems.Add(Cgf);
+        }
 
         var options = new RunnerOptions { Headless = true, DomainId = domainId };
         Orchestrator = new SubsystemOrchestrator(subsystems, options);

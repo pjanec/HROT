@@ -58,16 +58,6 @@ public sealed class CgfSubsystemHeadlessTests
 
     public CgfSubsystemHeadlessTests(ITestOutputHelper output) => _out = output;
 
-    // ── Helper: fresh shared-domain pair ─────────────────────────────────────
-
-    private (HrotRunnerHarness simHost, CgfHarness cgf) CreatePair()
-    {
-        int domainId = Interlocked.Increment(ref _domainCounter);
-        var simHost  = new HrotRunnerHarness(ClusterRunMode.SimHost, domainId);
-        var cgf      = new CgfHarness(domainId);
-        return (simHost, cgf);
-    }
-
     // ── HT-1: Basic entity creation propagates to CGF ghost repo ─────────────
 
     /// <summary>
@@ -78,22 +68,21 @@ public sealed class CgfSubsystemHeadlessTests
     public void CGF_SpawnedEntity_AppearsInGhostRepo()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
-        using var simHost = new HrotRunnerHarness(ClusterRunMode.SimHost, domainId);
-        using var cgf     = new CgfHarness(domainId);
+        using var harness = new HrotRunnerHarness(ClusterRunMode.SimHost | ClusterRunMode.CGF, domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.40, Altitude = 0 };
 
-        long networkId = simHost.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT1] SimHost spawned networkId={networkId}");
 
-        bool appeared = PumpBoth(simHost, cgf,
+        bool appeared = harness.PumpUntil(
             () =>
             {
-                var map = cgf.CgfSvc.GhostEntityMap;
+                var map = harness.Cgf!.GhostEntityMap;
                 return map != null && map.TryGetEntity(networkId, out _);
             },
-            SpawnTimeoutMs);
+            SpawnTimeoutMs / 5);
 
         Assert.True(appeared,
             $"Entity {networkId} did not appear in CGF ghost repo within {SpawnTimeoutMs} ms.");
@@ -110,22 +99,21 @@ public sealed class CgfSubsystemHeadlessTests
     public void CGF_SpawnedIfv_AppearsInGhostRepo()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
-        using var simHost = new HrotRunnerHarness(ClusterRunMode.SimHost, domainId);
-        using var cgf     = new CgfHarness(domainId);
+        using var harness = new HrotRunnerHarness(ClusterRunMode.SimHost | ClusterRunMode.CGF, domainId);
 
         long tkbType  = TkbEntityTypes.IFV_Bradley;
         var  spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.41, Altitude = 0 };
 
-        long networkId = simHost.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT2] SimHost spawned IFV networkId={networkId}");
 
-        bool appeared = PumpBoth(simHost, cgf,
+        bool appeared = harness.PumpUntil(
             () =>
             {
-                var map = cgf.CgfSvc.GhostEntityMap;
+                var map = harness.Cgf!.GhostEntityMap;
                 return map != null && map.TryGetEntity(networkId, out _);
             },
-            SpawnTimeoutMs);
+            SpawnTimeoutMs / 5);
 
         Assert.True(appeared,
             $"IFV entity {networkId} did not appear in CGF ghost repo within {SpawnTimeoutMs} ms.");
@@ -144,43 +132,42 @@ public sealed class CgfSubsystemHeadlessTests
     public void CGF_MovingVehicle_GhostPositionUpdates()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
-        using var simHost = new HrotRunnerHarness(ClusterRunMode.SimHost, domainId);
-        using var cgf     = new CgfHarness(domainId);
+        using var harness = new HrotRunnerHarness(ClusterRunMode.SimHost | ClusterRunMode.CGF, domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.42, Altitude = 0 };
 
-        long networkId = simHost.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT3] SimHost spawned networkId={networkId}");
 
         // Wait for entity to appear in CGF ghost repo.
-        bool appeared = PumpBoth(simHost, cgf,
+        bool appeared = harness.PumpUntil(
             () =>
             {
-                var map = cgf.CgfSvc.GhostEntityMap;
+                var map = harness.Cgf!.GhostEntityMap;
                 return map != null && map.TryGetEntity(networkId, out _);
             },
-            SpawnTimeoutMs);
+            SpawnTimeoutMs / 5);
         Assert.True(appeared, $"Entity {networkId} did not appear in CGF ghost repo.");
 
         // Assign WanderMilitary doctrine so SimHost starts moving the entity.
-        simHost.SimHost.TestHook_AssignWanderMission(networkId);
+        harness.SimHost.TestHook_AssignWanderMission(networkId);
         _out.WriteLine("[HT3] WanderMilitary assigned via TestHook");
 
         // Record baseline position from the CGF ghost.
-        var baselinePos = GetCgfGhostPosition(cgf, networkId);
+        var baselinePos = GetCgfGhostPosition(harness, networkId);
         _out.WriteLine($"[HT3] Baseline CGF ghost position: ({baselinePos.X:F3}, {baselinePos.Y:F3})");
 
         // Wait for the CGF ghost position to change (proves GeoSpatialIngressTranslator is live).
-        bool moved = PumpBoth(simHost, cgf,
+        bool moved = harness.PumpUntil(
             () =>
             {
-                var pos = GetCgfGhostPosition(cgf, networkId);
+                var pos = GetCgfGhostPosition(harness, networkId);
                 return Vector3.Distance(pos, baselinePos) >= MovementThresholdMetres;
             },
-            MovementTimeoutMs);
+            MovementTimeoutMs / 5);
 
-        var finalPos = GetCgfGhostPosition(cgf, networkId);
+        var finalPos = GetCgfGhostPosition(harness, networkId);
         _out.WriteLine($"[HT3] Final CGF ghost position: ({finalPos.X:F3}, {finalPos.Y:F3}), moved={moved}");
 
         Assert.True(moved,
@@ -258,46 +245,45 @@ public sealed class CgfSubsystemHeadlessTests
     public void CGF_DragDrop_GhostPositionFollowsSimHost()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
-        using var simHost = new HrotRunnerHarness(ClusterRunMode.SimHost, domainId);
-        using var cgf     = new CgfHarness(domainId);
+        using var harness = new HrotRunnerHarness(ClusterRunMode.SimHost | ClusterRunMode.CGF, domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new GeoPoint { Latitude = 52.523, Longitude = 13.40, Altitude = 0 };
 
-        long networkId = simHost.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT5] Spawned entity {networkId}");
 
         // Wait for entity to propagate to CGF ghost repo.
-        bool cgfHasEntity = PumpBoth(simHost, cgf,
+        bool cgfHasEntity = harness.PumpUntil(
             () =>
             {
-                var map = cgf.CgfSvc.GhostEntityMap;
+                var map = harness.Cgf!.GhostEntityMap;
                 return map != null && map.TryGetEntity(networkId, out _);
             },
-            SpawnTimeoutMs);
+            SpawnTimeoutMs / 5);
         Assert.True(cgfHasEntity, $"CGF did not receive entity {networkId} in time.");
 
         // Record baseline position in CGF ghost.
-        var cgfPosBeforeDrag = GetCgfGhostPosition(cgf, networkId);
+        var cgfPosBeforeDrag = GetCgfGhostPosition(harness, networkId);
         _out.WriteLine($"[HT5] CGF ghost baseline: ({cgfPosBeforeDrag.X:F2}, {cgfPosBeforeDrag.Y:F2})");
 
         // Simulate drag-and-drop via SimHostSubsystem TestHook (teleports entity 200 m east, 100 m north).
         // This calls MarkDirty on the GeoSpatial descriptor, causing the egress translator to publish.
-        var simTransformBefore = simHost.SimHost.TestHook_GetSimTransform(networkId);
+        var simTransformBefore = harness.SimHost.TestHook_GetSimTransform(networkId);
         var dropPos = new Vector2(simTransformBefore.Position.X + 200f, simTransformBefore.Position.Y + 100f);
-        simHost.SimHost.TestHook_SimulateDrag(networkId, dropPos);
+        harness.SimHost.TestHook_SimulateDrag(networkId, dropPos);
         _out.WriteLine($"[HT5] TestHook_SimulateDrag to ({dropPos.X:F2}, {dropPos.Y:F2})");
 
         // CGF ghost should reflect the new position once SimHost publishes updated GeoSpatial.
-        bool cgfMoved = PumpBoth(simHost, cgf,
+        bool cgfMoved = harness.PumpUntil(
             () =>
             {
-                var pos = GetCgfGhostPosition(cgf, networkId);
+                var pos = GetCgfGhostPosition(harness, networkId);
                 return Vector3.Distance(pos, cgfPosBeforeDrag) > 50f; // 50 m threshold after ~200 m drag
             },
-            DragDropTimeoutMs);
+            DragDropTimeoutMs / 5);
 
-        var cgfFinalPos = GetCgfGhostPosition(cgf, networkId);
+        var cgfFinalPos = GetCgfGhostPosition(harness, networkId);
         _out.WriteLine(
             $"[HT5] CGF ghost after drag: ({cgfFinalPos.X:F2}, {cgfFinalPos.Y:F2}), moved={cgfMoved}");
         Assert.True(cgfMoved,
@@ -435,22 +421,21 @@ public sealed class CgfSubsystemHeadlessTests
     public void CGF_ReceivesEntityDamageUpdate_DoesNotCrash()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
-        using var simHost = new HrotRunnerHarness(ClusterRunMode.SimHost, domainId);
-        using var cgf     = new CgfHarness(domainId);
+        using var harness = new HrotRunnerHarness(ClusterRunMode.SimHost | ClusterRunMode.CGF, domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new GeoPoint { Latitude = 52.525, Longitude = 13.40, Altitude = 0 };
 
-        long networkId = simHost.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         // Wait for the entity to reach CGF.
-        bool appeared = PumpBoth(simHost, cgf,
+        bool appeared = harness.PumpUntil(
             () =>
             {
-                var map = cgf.CgfSvc.GhostEntityMap;
+                var map = harness.Cgf!.GhostEntityMap;
                 return map != null && map.TryGetEntity(networkId, out _);
             },
-            SpawnTimeoutMs);
+            SpawnTimeoutMs / 5);
         Assert.True(appeared, $"Entity {networkId} did not appear in CGF.");
 
         // Publish EntityDamage and EntityInfo DDS samples to trigger the previously-crashing
@@ -469,35 +454,17 @@ public sealed class CgfSubsystemHeadlessTests
         _out.WriteLine($"[HT8] EntityDamage + EntityInfo written for entity {networkId}.");
 
         // Pump frames — if CgfApplication crashes on component 165, it would throw here.
-        var ex = Record.Exception(() => PumpBoth(simHost, cgf, () => false, 2_000));
+        var ex = Record.Exception(() => harness.PumpUntil(() => false, 2_000 / 5));
         Assert.Null(ex);
         _out.WriteLine("[HT8] PASS — no crash while processing EntityDamage and EntityInfo updates.");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static bool PumpBoth(
-        HrotRunnerHarness simHost,
-        CgfHarness        cgf,
-        Func<bool>        condition,
-        int               timeoutMs)
+    private static Vector3 GetCgfGhostPosition(HrotRunnerHarness harness, long networkId)
     {
-        if (condition()) return true;
-        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
-        while (DateTime.UtcNow < deadline)
-        {
-            simHost.PumpFrames(1);
-            cgf.PumpFrames(1);
-            if (condition()) return true;
-            Thread.Sleep(5);
-        }
-        return false;
-    }
-
-    private static Vector3 GetCgfGhostPosition(CgfHarness cgf, long networkId)
-    {
-        var map   = cgf.CgfSvc.GhostEntityMap;
-        var world = cgf.World;
+        var map   = harness.Cgf?.GhostEntityMap;
+        var world = harness.Cgf?.World;
         if (map == null || world == null) return default;
         if (!map.TryGetEntity(networkId, out var entity)) return default;
         if (!world.IsAlive(entity) || !world.HasComponent<SimTransform>(entity)) return default;

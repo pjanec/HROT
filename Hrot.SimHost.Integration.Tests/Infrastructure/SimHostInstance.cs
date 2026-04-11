@@ -259,7 +259,6 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 trajectoryPool:          trajectoryPool,
                 formationTemplateManager: null);
             simLogicModule.RegisterSystems(_inputGroup, _simGroup, _postSimGroup);
-            _simGroup.AddSystem(new Hrot.SimHost.Systems.MissionAdapterSystem(_doctrineRegistry, _entityMap));
 
             var physicsModule = new PhysicsToolkitModule();
             physicsModule.Initialize(_world);
@@ -714,7 +713,6 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             // ── Mission components ────────────────────────────────────────────────
             world.RegisterComponent<MissionPlanQueue>();
-            world.RegisterComponent<Hrot.SimHost.Components.MissionAdapterState>();
 
             // ── CQRS navigation contract (MOD1-P1T1 / CT-MOD1-C2) ─────────────────
             // These components live in NedTkbBuilder.WithBehavior templates

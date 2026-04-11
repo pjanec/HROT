@@ -39,7 +39,6 @@ namespace Hrot.SimHost
             world.RegisterComponent<MissionPlanQueue>();
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<IsEmbarkedTag>();
-            world.RegisterComponent<Hrot.SimHost.Components.MissionAdapterState>();
 
             // CQRS navigation command — written by the Brain tier (MoveToExecutor)
             // and read by the Muscle tier (NavigationIntentBridgeSystem).
