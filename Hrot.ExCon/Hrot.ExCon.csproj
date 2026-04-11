@@ -11,8 +11,7 @@
 
   <ItemGroup>
     <!-- Shared UI panel library -->
-    <ProjectReference Include="..\Hrot.UI.Common\Hrot.UI.Common.csproj" />
-  </ItemGroup>
+    <ProjectReference Include="..\Hrot.UI.Common\Hrot.UI.Common.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <!-- Hrot data model and map types -->
@@ -22,16 +21,12 @@
     <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
 
     <!-- FDP Toolkits -->
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.DER\FDP.Toolkit.DER.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Commands\FDP.Toolkit.Commands.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.ImGui\FDP.Toolkit.ImGui.csproj" />
-  </ItemGroup>
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.ImGui\FDP.Toolkit.ImGui.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Hrot.ExCon.Tests</_Parameter1>
-    </AssemblyAttribute>
-  </ItemGroup>
+    </AssemblyAttribute>  </ItemGroup>
 
   <ItemGroup>
     <!-- JSON serialisation -->
@@ -39,7 +34,6 @@
 
     <!-- Raylib window + ImGui rendering (application shell) -->
     <PackageReference Include="Raylib-cs" Version="7.0.2" />
-    <PackageReference Include="rlImGui-cs" Version="3.2.0" />
-  </ItemGroup>
+    <PackageReference Include="rlImGui-cs" Version="3.2.0" />  </ItemGroup>
 
 </Project>

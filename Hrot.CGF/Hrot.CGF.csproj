@@ -16,8 +16,7 @@
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Hrot.ClusterRunner</_Parameter1>
-    </AssemblyAttribute>
-  </ItemGroup>
+    </AssemblyAttribute>  </ItemGroup>
 
   <ItemGroup>
     <!-- Orchestration DDS types and IClusterStateHandler -->
@@ -28,16 +27,9 @@
     <!-- CycloneDDS transitive via DataModel, but explicit for DdsParticipant -->
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <!-- FdpLog<T> + FdpEventBus -->
-    <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />
-    <!-- SwitchTimeModeDescriptorTranslator (CGF1-A.2, BATCH-09) -->
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
+    <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />    <!-- SwitchTimeModeDescriptorTranslator (CGF1-A.2, BATCH-09) -->
     <!-- Scenario serialization toolkit for ScenarioLoadClusterStateHandler (CGF1-S0307) -->
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Scenario\FDP.Toolkit.Scenario.csproj" />
     <!-- Orchestration toolkit contracts -->
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Orchestration\FDP.Toolkit.Orchestration.csproj" />
-    <!-- CgfLogicPack: Brain-tier modules, executors, NetworkEntityMap -->
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Navigation\FDP.Toolkit.Navigation.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Combat\FDP.Toolkit.Combat.csproj" />
-  </ItemGroup>
+    <!-- CgfLogicPack: Brain-tier modules, executors, NetworkEntityMap -->  </ItemGroup>
 
 </Project>

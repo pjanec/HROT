@@ -36,7 +36,7 @@ using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
-using FDP.Framework.Runner;
+using Fdp.Engine.Runner;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Network.Cyclone.Modules;
@@ -48,7 +48,7 @@ namespace Hrot.ClusterRunner.Services;
 /// Hosts the CGF (Computer Generated Forces) subsystem under the Runner process.
 /// Migrated in EAM-M003 to use <see cref="HrotNodeBuilder"/> instead of <see cref="CgfApplication"/>.
 /// </summary>
-public sealed class CgfSubsystem : ISubsystem, FDP.Framework.Runner.IMapCameraProvider, IWindowRegistrar
+public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvider, IWindowRegistrar
 {
     private HrotNodeContext?         _context;
     private NetworkEntityMap?        _entityMap;

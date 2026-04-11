@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Kernel;
-using FDP.Framework.Runner;
+using Fdp.Engine.Runner;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.ImGui.Abstractions;
 using FDP.Toolkit.ImGui.Adapters;
@@ -47,7 +47,7 @@ using ModuleHost.Core;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Network.Interfaces;
 // Disambiguate IMapCameraProvider: Hrot.SimHost.Modules also defines this interface.
-using IMapCameraProvider = FDP.Framework.Runner.IMapCameraProvider;
+using IMapCameraProvider = Fdp.Engine.Runner.IMapCameraProvider;
 using FdpEntityInspectorPanel = FDP.Toolkit.ImGui.Panels.EntityInspectorPanel;
 using FdpEventBrowserPanel    = FDP.Toolkit.ImGui.Panels.EventBrowserPanel;
 using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;

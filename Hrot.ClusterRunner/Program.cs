@@ -82,29 +82,6 @@ class Program
 
         Console.WriteLine($"[Runner] Starting – mode={config.ParsedMode}, domain={config.DomainId}, headless={config.Headless}");
 
-        // ── Waiting Room synchronisation ──────────────────────────────────────
-        if (config.WaitForPeers.Any())
-        {
-            string subsystemName = config.ParsedMode == RunMode.All ? "all"
-                : config.ParsedMode == RunMode.Orchestrator ? "orchestrator"
-                : config.ParsedMode.HasFlag(RunMode.SimHost) ? "simhost"
-                : config.ParsedMode.HasFlag(RunMode.IG)      ? "ig"
-                : "ios";
-
-            using var wrcParticipant = HrotEnvironment.CreateParticipant(config.DomainId);
-            using var coordinator   = new WaitingRoomCoordinator(
-                wrcParticipant, Environment.ProcessId, subsystemName, config.WaitForPeers);
-            try
-            {
-                coordinator.WaitForPeers();
-            }
-            catch (TimeoutException ex)
-            {
-                Console.Error.WriteLine($"[Runner] Waiting room timeout: {ex.Message}");
-                return 1;
-            }
-        }
-
         // ── CI mode: headless deterministic scenario run ──────────────────
         if (config.ParsedMode == RunMode.CI)
         {
@@ -181,37 +158,9 @@ class Program
             var coordinator = new PerspectiveCoordinatorSystem(orchestrator, perspectiveMap);
             perspSubsystem.Coordinator = coordinator;
 
-            // WM-S502 / WM-S703: Bridge WindowManager perspective changes to the coordinator.
-            var windowManager = orchestrator.WindowManager;
-            if (windowManager != null)
-            {
-                windowManager.OnPerspectiveChanged += (oldPersp, newPersp) =>
-                {
-                    coordinator.Enqueue(new TogglePerspectiveEvent(oldPersp, newPersp));
-                    Console.WriteLine($"[Runner] Perspective changed: {oldPersp} → {newPersp}");
-                };
-
-                // WM-S603: Reference status bar section — shows system state to operators.
-                windowManager.StatusBar.RegisterSection("system_health", sortOrder: 0, () =>
-                {
-                    ImGuiNET.ImGui.Text("System OK");
-                });
-
-                // Load persisted settings and get the last active perspective.
-                string? persistedPerspective = windowManager.LoadSettings();
-
-                // Identify the first user-facing subsystem (skip PerspectiveUpdateSubsystem).
-                var firstUserSubsystem = subsystems
-                    .Skip(1)  // skip PerspectiveUpdateSubsystem which is always index 0
-                    .FirstOrDefault();
-                string defaultPerspective = firstUserSubsystem?.Name ?? "Default";
-
-                // Apply the valid persisted perspective or fall back to the first available one.
-                bool isValidPersisted = !string.IsNullOrEmpty(persistedPerspective)
-                    && subsystems.Any(s => s.Name == persistedPerspective);
-
-                windowManager.SwitchPerspective(isValidPersisted ? persistedPerspective! : defaultPerspective);
-            }
+            // NOTE: WindowManager wiring (WM-S502/WM-S703) will be restored in
+            // TASK-P5-002 when Raylib window init moves from SubsystemOrchestrator
+            // into this Composition Root.
 
             orchestrator.Run();
         }

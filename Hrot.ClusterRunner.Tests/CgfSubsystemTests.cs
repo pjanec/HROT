@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Hrot.ClusterRunner.Services;
 using Hrot.Common.Infrastructure;
-using FDP.Framework.Runner;
+using Fdp.Engine.Runner;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Tests;

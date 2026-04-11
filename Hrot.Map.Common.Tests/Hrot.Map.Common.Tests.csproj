@@ -12,27 +12,21 @@
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
-  </ItemGroup>
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />  </ItemGroup>
 
   <ItemGroup>
-    <Using Include="Xunit" />
-  </ItemGroup>
+    <Using Include="Xunit" />  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
     <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
     <!-- PACK3-Z003: ZoneManagerServiceTests needs ZoneEnvironmentData and PhysicsCollider types -->
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
-    <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />
-  </ItemGroup>
+    <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <!-- PACK3-Z003: sample road network used by ZoneManagerServiceTests -->
     <Content Include="Assets\sample_road.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
+    </Content>  </ItemGroup>
 
 </Project>

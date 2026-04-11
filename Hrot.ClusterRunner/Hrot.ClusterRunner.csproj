@@ -12,13 +12,14 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Hrot.ClusterRunner.Tests" />
-    <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />
-  </ItemGroup>
+    <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />  </ItemGroup>
 
   <ItemGroup>
-    <!-- FDP.Framework.Runner provides ISubsystem, SubsystemConfig, IMapCameraProvider,
-         SubsystemOrchestrator, WaitingRoomCoordinator, HeadlessTestExecutor, and RunnerConfiguration. -->
-    <ProjectReference Include="..\FDP\Framework\FDP.Framework.Runner\FDP.Framework.Runner.csproj" />
+    <!-- Fdp.Engine provides ISubsystem, SubsystemConfig, IMapCameraProvider,
+         SubsystemOrchestrator, HeadlessTestExecutor, and RunnerConfiguration. -->
+    <ProjectReference Include="..\FDP\Toolkits\Fdp.Engine\Fdp.Engine.csproj" />
+    <!-- IWindowRegistrar (uses FDP.Toolkit.ImGui.WindowManager) is in FDP.Toolkit.ImGui -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.ImGui\FDP.Toolkit.ImGui.csproj" />
     <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
@@ -35,15 +36,13 @@
     <!-- Map camera synchronisation (IMapCameraProvider uses MapCamera directly) -->
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
     <!-- IScenario + ScenarioSubsystem for mode ci -->
-    <ProjectReference Include="..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
-  </ItemGroup>
+    <ProjectReference Include="..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Raylib-cs" Version="7.0.2" />
-    <PackageReference Include="rlImGui-cs" Version="3.2.0" />
-  </ItemGroup>
+    <PackageReference Include="rlImGui-cs" Version="3.2.0" />  </ItemGroup>
 
 </Project>

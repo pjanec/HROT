@@ -8,7 +8,7 @@
 
 **Goal:** Collapse 20+ fragmented FDP assemblies into 4 cohesive deployment units.
 
-- [ ] **TASK-P1-001** Create Fdp.Core [details](./TASK-DETAIL.md#task-p1-001-create-fdpcore)
+- [x] **TASK-P1-001** Create Fdp.Core [details](./TASK-DETAIL.md#task-p1-001-create-fdpcore) ✅ BATCH-01
 - [ ] **TASK-P1-002** Create Fdp.Engine [details](./TASK-DETAIL.md#task-p1-002-create-fdpengine)
 - [ ] **TASK-P1-003** Create Fdp.Presentation [details](./TASK-DETAIL.md#task-p1-003-create-fdppresentation)
 - [ ] **TASK-P1-004** Create Fdp.Network.Cyclone [details](./TASK-DETAIL.md#task-p1-004-create-fdpnetworkcyclone)

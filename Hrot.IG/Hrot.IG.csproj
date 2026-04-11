@@ -13,8 +13,7 @@
   <!-- Expose internals to the test project so ProcessSample can be exercised directly -->
   <ItemGroup>
     <InternalsVisibleTo Include="Hrot.IG.Tests" />
-    <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />
-  </ItemGroup>
+    <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />  </ItemGroup>
 
   <ItemGroup>
     <!-- Hrot-specific project references -->
@@ -26,24 +25,14 @@
     <ProjectReference Include="..\Hrot.ScenarioEditor\Hrot.ScenarioEditor.csproj" />
 
     <!-- FDP Kernel and Toolkits -->
-    <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />
-    <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
+    <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />    <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Replication\FDP.Toolkit.Replication.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Lifecycle\FDP.Toolkit.Lifecycle.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.NetworkSpawning\FDP.Toolkit.NetworkSpawning.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\Fdp.Toolkit.Geographic\Fdp.Toolkit.Geographic.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Perception\FDP.Toolkit.Perception.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.ImGui\FDP.Toolkit.ImGui.csproj" />
-  </ItemGroup>
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.ImGui\FDP.Toolkit.ImGui.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <!-- NuGet packages -->
     <PackageReference Include="Raylib-cs" Version="7.0.2" />
     <PackageReference Include="rlImgui-cs" Version="3.2.0" />
-    <PackageReference Include="NLog" Version="5.2.8" />
-  </ItemGroup>
+    <PackageReference Include="NLog" Version="5.2.8" />  </ItemGroup>
 
 </Project>

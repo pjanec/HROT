@@ -10,9 +10,9 @@ namespace Hrot.ClusterRunner.Configuration
     /// (JSON override file), and the validation/parsing logic that is specific
     /// to Hrot's <see cref="RunMode"/> concept.</para>
     /// </summary>
-    public class HrotRunnerConfiguration : FDP.Framework.Runner.RunnerConfiguration
+    public class HrotRunnerConfiguration : Fdp.Engine.Runner.RunnerConfiguration
     {
-        // ── Hrot-specific CLI options ───────────────────────────────────────
+        // â”€â”€ Hrot-specific CLI options â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>Mode string supplied via --mode.  Examples: all, simhost, ig, ios, orchestrator, cgf, ci, simhost,ig, orchestrator,cgf</summary>
         [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|cgf|ci|simhost,ig|orchestrator,cgf")]
@@ -26,17 +26,17 @@ namespace Hrot.ClusterRunner.Configuration
         [Option('c', "config", HelpText = "JSON config file path")]
         public string ConfigFile { get; set; } = string.Empty;
 
-        // ── Parsed values ─────────────────────────────────────────────────────
+        // â”€â”€ Parsed values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>Parsed subsystem flags. Set by <see cref="Validate"/>.</summary>
         public RunMode ParsedMode { get; set; }
 
-        // ── Validation ────────────────────────────────────────────────────────
+        // â”€â”€ Validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// Parses <see cref="ModeString"/> into <see cref="ParsedMode"/>,
-        /// <see cref="FDP.Framework.Runner.RunnerConfiguration.WaitForString"/> into
-        /// <see cref="FDP.Framework.Runner.RunnerConfiguration.WaitForPeers"/>,
+        /// <see cref="Fdp.Engine.Runner.RunnerConfiguration.WaitForString"/> into
+        /// <see cref="Fdp.Engine.Runner.RunnerConfiguration.WaitForPeers"/>,
         /// and enforces logical constraints.
         /// </summary>
         /// <exception cref="InvalidOperationException">
@@ -44,13 +44,13 @@ namespace Hrot.ClusterRunner.Configuration
         /// </exception>
         public void Validate()
         {
-            // Parse mode string → ParsedMode
+            // Parse mode string â†’ ParsedMode
             ParsedMode = ParseModeString(ModeString);
             if (ParsedMode == RunMode.None)
                 throw new InvalidOperationException(
                     $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, or comma-separated combination.");
 
-            // Parse wait-for list → WaitForPeers
+            // Parse wait-for list â†’ WaitForPeers
             if (!string.IsNullOrWhiteSpace(WaitForString))
             {
                 WaitForPeers = new HashSet<string>(
@@ -70,7 +70,7 @@ namespace Hrot.ClusterRunner.Configuration
             // CI mode is always standalone (no peer synchronisation required).
             if (ParsedMode == RunMode.CI) return;
 
-            // Editor mode is always standalone — must not be combined with distributed flags.
+            // Editor mode is always standalone â€” must not be combined with distributed flags.
             if (ParsedMode.HasFlag(RunMode.Editor) &&
                 (ParsedMode & (RunMode.IG | RunMode.ExCon | RunMode.Orchestrator | RunMode.CGF)) != 0)
             {
@@ -88,7 +88,7 @@ namespace Hrot.ClusterRunner.Configuration
                     "--wait-for required when launching separate subsystems without --no-wait.");
         }
 
-        // ── JSON config merge ─────────────────────────────────────────────────
+        // â”€â”€ JSON config merge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// Merges non-default JSON values over CLI defaults.
@@ -119,7 +119,7 @@ namespace Hrot.ClusterRunner.Configuration
                 ConfigFile = overrides.ConfigFile;
         }
 
-        // ── Helpers ───────────────────────────────────────────────────────────
+        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private static RunMode ParseModeString(string str)
         {
@@ -149,7 +149,7 @@ namespace Hrot.ClusterRunner.Configuration
                     case "orchestrator": result |= RunMode.Orchestrator; break;
                     case "cgf":          result |= RunMode.CGF;          break;
                     case "editor":       result |= RunMode.Editor;       break;
-                    default:             return RunMode.None; // Any invalid token → reject entire string
+                    default:             return RunMode.None; // Any invalid token â†’ reject entire string
                 }
             }
 
