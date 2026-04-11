@@ -99,7 +99,7 @@ namespace Hrot.SimHost.Modules
             RoadNetworkBlob           roadNetwork              = default,
             TrajectoryPoolManager?    trajectoryPool           = null,
             FormationTemplateManager? formationTemplateManager = null,
-            NodeRole                  role                     = NodeRole.AllInOne)
+            NodeRole                  role                     = NodeRole.MuscleGround | NodeRole.Perception)
         {
             if (doctrineRegistry == null) throw new ArgumentNullException(nameof(doctrineRegistry));
             if (entityMap == null)        throw new ArgumentNullException(nameof(entityMap));

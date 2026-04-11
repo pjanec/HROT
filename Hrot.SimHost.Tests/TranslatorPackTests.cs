@@ -316,7 +316,7 @@ namespace Hrot.SimHost.Tests
 
             var bootstrapper = new NodeBootstrapper();
             var translators  = bootstrapper.BuildTranslators(
-                NodeRole.AllInOne, participant, entityMap, geoTransform,
+                NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception, participant, entityMap, geoTransform,
                 eventBus, ghostSystem, doctrineRegistry: null, localNodeId: 1);
 
             // Brain perception pack

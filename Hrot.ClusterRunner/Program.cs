@@ -145,12 +145,9 @@ class Program
         if (config.ParsedMode.HasFlag(RunMode.Orchestrator)) subsystems.Add(new OrchestratorSubsystem());
         if (config.ParsedMode.HasFlag(RunMode.SimHost))
         {
-            // When CGF is also running in the cluster, SimHost acts strictly as
-            // Muscle + Perception to avoid the Brain split-brain race condition.
-            // Otherwise (standalone / AllInOne), it keeps the full default role.
-            NodeRole simRole = config.ParsedMode.HasFlag(RunMode.CGF)
-                ? (NodeRole.MuscleGround | NodeRole.Perception)
-                : NodeRole.AllInOne;
+            // SimHost always runs as Muscle + Perception only.
+            // The Brain role belongs exclusively to CGF.
+            NodeRole simRole = NodeRole.MuscleGround | NodeRole.Perception;
             subsystems.Add(new SimHostSubsystem(simRole));
         }
         if (config.ParsedMode.HasFlag(RunMode.IG))      subsystems.Add(new IgSubsystem());

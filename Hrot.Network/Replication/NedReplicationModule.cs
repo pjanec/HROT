@@ -45,10 +45,6 @@ namespace Hrot.Network.Replication;
 ///     <term><see cref="NodeRole.Brain"/></term>
 ///     <description>Shared + cognitive packs; GhostCreationSystem; SmartEgressSystem; cleanup.</description>
 ///   </item>
-///   <item>
-///     <term><see cref="NodeRole.AllInOne"/></term>
-///     <description>All packs; GhostCreationSystem; SmartEgressSystem; DeadReckoningSyncSystem (driveFromNetwork=false).</description>
-///   </item>
 /// </list>
 /// </summary>
 public sealed class NedReplicationModule : INedReplicationModule
@@ -167,7 +163,7 @@ public sealed class NedReplicationModule : INedReplicationModule
 
         if (!_roleHasMuscle && !_roleHasIG && !_roleHasBrain)
             throw new ArgumentException(
-                $"NedReplicationModule requires a role with MuscleGround, ImageGenerator, Brain, or AllInOne. Got: {role}",
+                $"NedReplicationModule requires a role with MuscleGround, ImageGenerator, or Brain. Got: {role}",
                 nameof(role));
 
         // driveFromNetwork = true when ONLY IG (no local physics)

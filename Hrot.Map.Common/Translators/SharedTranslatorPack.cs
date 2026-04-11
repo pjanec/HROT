@@ -25,6 +25,8 @@ namespace Hrot.Map.Common.Translators
     ///   <item><see cref="GeoSpatialEgressTranslator"/>    — publishes position/velocity for owned entities (ordinal 2); moved here
     ///     from <see cref="KinematicTranslatorPack"/> so Brain nodes can broadcast the initial WorldPos before
     ///     handing physics authority to the Muscle.</item>
+    ///   <item><see cref="GeoSpatialIngressTranslator"/>   — ingests incoming WorldPos packets so every node (Brain, Muscle, IG)
+    ///     can attach SimTransform to ghost entities and allow GhostPromotionSystem to advance lifecycle.</item>
     ///   <item><see cref="OwnershipUpdateTranslator"/>     — bidirectional authority-handover notification (Muscle egress / Brain ingress).</item>
     /// </list>
     /// </summary>
@@ -62,6 +64,7 @@ namespace Hrot.Map.Common.Translators
             yield return new FireInteractionEventTranslator(participant, entityMap);
             yield return new EntityDamageEgressTranslator(participant, entityMap);
             yield return new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId);
+            yield return new GeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId);
             yield return new OwnershipUpdateTranslator(participant, (int)localNodeId);
         }
     }

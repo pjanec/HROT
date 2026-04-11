@@ -37,7 +37,7 @@ public sealed class DdsIdAllocatorMigrationTests
             DdsDomainId = 0,
         };
 
-        var app = new SimHostApp(0, NodeRole.AllInOne, cfg);
+        var app = new SimHostApp(0, NodeRole.MuscleGround | NodeRole.Perception, cfg);
         try
         {
             app.InitializeHeadless(0);

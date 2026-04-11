@@ -82,7 +82,7 @@ namespace Hrot.SimHost.Tests
 
             var bootstrapper = new NodeBootstrapper();
             using var slave = bootstrapper.BuildOrchestration(
-                NodeRole.AllInOne,
+                NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception,
                 _kernel,
                 _world,
                 nodeId:             1,

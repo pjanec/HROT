@@ -19,14 +19,14 @@ namespace Hrot.SimHost.Tests
         private static DoctrineRegistry CreateRegistry() => new DoctrineRegistry();
         private static NetworkEntityMap CreateEntityMap() => new NetworkEntityMap();
 
-        // ── AllInOne role ─────────────────────────────────────────────────────
+        // ── Combined Brain+Muscle role (NodeBootstrapper routing test) ───────────
 
         [Fact]
         public void NodeBootstrapper_AllInOne_RegistersAllModuleClasses()
         {
             var bootstrapper = new NodeBootstrapper();
             bootstrapper.BuildSimulationLogic(
-                NodeRole.AllInOne,
+                NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception,
                 CreateRegistry(),
                 CreateEntityMap());
 
@@ -45,7 +45,7 @@ namespace Hrot.SimHost.Tests
         {
             var bootstrapper = new NodeBootstrapper();
             bootstrapper.BuildSimulationLogic(
-                NodeRole.AllInOne,
+                NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception,
                 CreateRegistry(),
                 CreateEntityMap());
 
@@ -154,7 +154,7 @@ namespace Hrot.SimHost.Tests
         {
             var bootstrapper = new NodeBootstrapper();
             var simLogic = bootstrapper.BuildSimulationLogic(
-                NodeRole.AllInOne,
+                NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception,
                 CreateRegistry(),
                 CreateEntityMap());
 
@@ -169,7 +169,7 @@ namespace Hrot.SimHost.Tests
             // MissionControl and Cognitive must come before ActionDispatch which comes before GroundKinematics.
             var bootstrapper = new NodeBootstrapper();
             bootstrapper.BuildSimulationLogic(
-                NodeRole.AllInOne,
+                NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception,
                 CreateRegistry(),
                 CreateEntityMap());
 

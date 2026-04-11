@@ -246,7 +246,7 @@ public sealed class CgfSubsystem : ISubsystem
     private static NodeRole MapSubsystemNameToRole(string? name) =>
         name switch
         {
-            "SimHost"    => NodeRole.AllInOne,
+            "SimHost"    => NodeRole.MuscleGround,
             "CGF"        => NodeRole.Brain,
             "IG"         => NodeRole.ImageGenerator,
             _            => NodeRole.None,

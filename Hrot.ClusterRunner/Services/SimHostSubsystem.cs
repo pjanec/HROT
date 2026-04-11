@@ -53,11 +53,10 @@ namespace Hrot.ClusterRunner.Services
         /// </summary>
         /// <param name="role">
         ///   Node role to pass to <see cref="SimHostApp"/>.
-        ///   Defaults to <see cref="NodeRole.AllInOne"/> for standalone / unit-test use.
-        ///   Pass <c>NodeRole.MuscleGround | NodeRole.Perception</c> when CGF is also
-        ///   running in the same cluster to prevent the Brain split-brain race condition.
+        ///   Defaults to <c>MuscleGround | Perception</c>. SimHost is always the Muscle tier;
+        ///   the Brain role belongs exclusively to CGF.
         /// </param>
-        public SimHostSubsystem(NodeRole role = NodeRole.AllInOne)
+        public SimHostSubsystem(NodeRole role = NodeRole.MuscleGround | NodeRole.Perception)
         {
             _role = role;
         }

@@ -9,7 +9,7 @@ namespace Hrot.SimHost.Integration.Tests;
 /// MODINIT-S301 success conditions 7 and 8.
 ///
 /// SC7: Spawn via SimHostApp → EntityMasterEgressTranslator is wired (NedReplication non-null).
-/// SC8: AllInOne role → NedReplicationModule.DriveFromNetwork == false (ghost-only smoothing; local bodies NOT overridden).
+/// SC8: Standalone role (MuscleGround | Perception) -> NedReplicationModule.DriveFromNetwork == false (ghost-only smoothing; local bodies NOT overridden).
 /// </summary>
 public sealed class NedReplicationModuleWiringTests : System.IDisposable
 {
@@ -25,7 +25,7 @@ public sealed class NedReplicationModuleWiringTests : System.IDisposable
         _idAllocatorParticipant = new DdsParticipant(DomainId);
         _idAllocatorServer      = new DdsIdAllocatorServer(_idAllocatorParticipant);
 
-        _app = new SimHostApp(domainOverride: DomainId, role: NodeRole.AllInOne);
+        _app = new SimHostApp(domainOverride: DomainId, role: NodeRole.MuscleGround | NodeRole.Perception);
         _app.InitializeEmbedded(headless: true, domainIdOverride: DomainId);
     }
 
@@ -66,8 +66,8 @@ public sealed class NedReplicationModuleWiringTests : System.IDisposable
     // ── SC8 ───────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// SC8: When SimHostApp is initialized with <see cref="NodeRole.AllInOne"/>, the
-    /// <see cref="Hrot.Network.Replication.NedReplicationModule"/> used in the builder chain
+    /// SC8: When SimHostApp is initialized with the standalone role (MuscleGround | Perception),
+    /// the <see cref="Hrot.Network.Replication.NedReplicationModule"/> used in the builder chain
     /// must target <c>driveFromNetwork=false</c>.
     ///
     /// <para>
@@ -76,12 +76,12 @@ public sealed class NedReplicationModuleWiringTests : System.IDisposable
     /// </para>
     /// </summary>
     [Fact]
-    public void SimHostApp_AllInOneRole_NedReplicationDriveFromNetworkIsFalse()
+    public void SimHostApp_StandaloneRole_NedReplicationDriveFromNetworkIsFalse()
     {
         var nedReplication = _app.TestHook_NedReplication;
         Assert.NotNull(nedReplication);
         Assert.False(nedReplication!.DriveFromNetwork,
-            "NedReplicationModule for AllInOne must have DriveFromNetwork=false " +
+            "NedReplicationModule for standalone (MuscleGround | Perception) must have DriveFromNetwork=false " +
             "(ghost-only smoothing): local entities must not be driven by DR.");
     }
 }

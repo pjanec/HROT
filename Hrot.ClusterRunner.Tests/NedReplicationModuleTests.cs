@@ -85,12 +85,12 @@ public sealed class NedReplicationModuleTests
         Assert.DoesNotContain(typeof(SmartEgressSystem), registry.RegisteredTypes);
     }
 
-    // ── SC3 — Combined role (AllInOne = MuscleGround | ImageGenerator) ────────
+    // ── SC3 — Combined role (MuscleGround | ImageGenerator) ────────────────
 
     [Fact]
     public void AllInOne_RegistersBothSmartEgressAndDeadReckoning_WithDriveFromNetworkFalse()
     {
-        var module   = BuildModule(NodeRole.AllInOne);
+        var module   = BuildModule(NodeRole.MuscleGround | NodeRole.ImageGenerator);
         var registry = new CapturingRegistry();
         module.RegisterSystems(registry);
 
@@ -100,7 +100,7 @@ public sealed class NedReplicationModuleTests
 
         // Confirm DriveFromNetwork = false (local entities must not be overridden by DR)
         Assert.False(module.DriveFromNetwork,
-            "AllInOne (combined Muscle+IG role) must use driveFromNetwork=false.");
+            "Combined Muscle+IG role must use driveFromNetwork=false.");
     }
 
     // ── SC4 — Invalid role throws ─────────────────────────────────────────────

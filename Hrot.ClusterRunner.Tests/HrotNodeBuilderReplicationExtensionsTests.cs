@@ -43,8 +43,8 @@ public sealed class HrotNodeBuilderReplicationExtensionsTests
         var config = HeadlessConfig();
 
         var context = new HrotNodeBuilder(config)
-            .WithRole("TestNode", NodeRole.AllInOne)
-            .WithReplication(NodeRole.AllInOne)
+            .WithRole("TestNode", NodeRole.MuscleGround | NodeRole.Brain)
+            .WithReplication(NodeRole.MuscleGround | NodeRole.Brain)
             .Build();
 
         Assert.NotNull(context.NedReplication);
@@ -67,16 +67,16 @@ public sealed class HrotNodeBuilderReplicationExtensionsTests
         // The C# instance method takes precedence over any extension method of the same name,
         // so this calls HrotNodeBuilder.Build() directly.
         var context = new HrotNodeBuilder(config)
-            .WithRole("TestNode", NodeRole.AllInOne)
+            .WithRole("TestNode", NodeRole.MuscleGround | NodeRole.Brain)
             .Build();
 
         Assert.Null(context.NedReplication);
     }
 
-    // ── SC3 — AllInOne role → DriveFromNetwork == false ──────────────────────
+    // ── SC3 — Combined Muscle+Brain role → DriveFromNetwork == false ──────────
 
     /// <summary>
-    /// Role contract test: AllInOne role configures DriveFromNetwork = false
+    /// Role contract test: combined Muscle+Brain role configures DriveFromNetwork = false
     /// (local entities must not be overridden by dead-reckoning).
     /// </summary>
     [Fact]
@@ -85,8 +85,8 @@ public sealed class HrotNodeBuilderReplicationExtensionsTests
         var config = HeadlessConfig();
 
         var context = new HrotNodeBuilder(config)
-            .WithRole("TestNode", NodeRole.AllInOne)
-            .WithReplication(NodeRole.AllInOne)
+            .WithRole("TestNode", NodeRole.MuscleGround | NodeRole.Brain)
+            .WithReplication(NodeRole.MuscleGround | NodeRole.Brain)
             .Build();
 
         Assert.NotNull(context.NedReplication);
@@ -95,7 +95,7 @@ public sealed class HrotNodeBuilderReplicationExtensionsTests
         var ned = context.NedReplication as Hrot.Network.Replication.NedReplicationModule;
         Assert.NotNull(ned);
         Assert.False(ned.DriveFromNetwork,
-            "AllInOne role must use DriveFromNetwork=false (local entities must not be overridden).");
+            "Combined Muscle+Brain role must use DriveFromNetwork=false (local entities must not be overridden).");
     }
 
     // ── SC4 — GhostCreationSystem is populated on context ────────────────────

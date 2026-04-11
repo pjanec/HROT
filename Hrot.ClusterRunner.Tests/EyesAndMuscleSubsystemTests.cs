@@ -112,7 +112,7 @@ public sealed class EyesAndMuscleSubsystemTests : IDisposable
     [Fact]
     public void EyesAndMuscleModule_LastTickThreadId_NullBeforeFirstTick()
     {
-        var module = new EyesAndMuscleModule(NodeRole.AllInOne);
+        var module = new EyesAndMuscleModule(NodeRole.MuscleGround | NodeRole.ImageGenerator);
         Assert.Null(module.LastTickThreadId);
     }
 

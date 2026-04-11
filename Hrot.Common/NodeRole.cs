@@ -33,10 +33,6 @@ namespace Hrot.Common
     ///     <description>On-demand pathfinding solver. Receives path requests from Brain and
     ///     returns computed routes via DDS.</description>
     ///   </item>
-    ///   <item>
-    ///     <term><see cref="AllInOne"/></term>
-    ///     <description>All subsystems in a single process — the default standalone mode.</description>
-    ///   </item>
     /// </list>
     /// </summary>
     [System.Flags]
@@ -59,8 +55,5 @@ namespace Hrot.Common
 
         /// <summary>Navigation solver node: on-demand pathfinding.</summary>
         NavigationSolver = 1 << 4,
-
-        /// <summary>All-in-one monolithic node; default for standalone execution.</summary>
-        AllInOne = Brain | MuscleGround | ImageGenerator | Perception | NavigationSolver,
     }
 }

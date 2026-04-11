@@ -66,8 +66,8 @@ public sealed class EyesAndMuscleSubsystem : ISubsystem, IMapCameraProvider, IWi
             Headless  = config.Headless,    // true → skip DDS + allocator wait
         };
         _context = new HrotNodeBuilder(nodeCfg)
-            .WithRole("EyesAndMuscle", NodeRole.AllInOne)
-            .WithReplication(NodeRole.AllInOne)
+            .WithRole("EyesAndMuscle", NodeRole.MuscleGround | NodeRole.ImageGenerator)
+            .WithReplication(NodeRole.MuscleGround | NodeRole.ImageGenerator)
             .Build();
 
         // ── Step 2 — Register component types (domain-specific, not in builder) ─
@@ -78,14 +78,14 @@ public sealed class EyesAndMuscleSubsystem : ISubsystem, IMapCameraProvider, IWi
             _context.Kernel.RegisterModule(m);
 
         // ── Step 4 — Register NedReplicationModule (built by WithReplication) ────
-        // AllInOne combines Muscle (kinematic translators + SmartEgress) and IG
+        // MuscleGround | ImageGenerator: kinematic translators (SmartEgress) and IG
         // (EntityStatesIngressPack + DeadReckoning) in one replication layer.
         _context.Kernel.RegisterModule(_context.NedReplication!);
 
         // ── Step 5 — Create and register EyesAndMuscleModule (async SoD PoC) ───
         // Note: SimulationLogicModule (old SystemGroup API) is not used in this PoC.
         // EyesAndMuscleModule handles the simplified muscle path via its Tick() method.
-        _eyesAndMuscleModule = new EyesAndMuscleModule(NodeRole.AllInOne);
+        _eyesAndMuscleModule = new EyesAndMuscleModule(NodeRole.MuscleGround | NodeRole.ImageGenerator);
         _context.Kernel.RegisterModule(_eyesAndMuscleModule);
 
         // ── Step 6 — Initialize the kernel ────────────────────────────────────

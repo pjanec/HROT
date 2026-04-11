@@ -139,7 +139,7 @@ namespace Hrot.SimHost
         private int  _nodeIdOverride;
         private bool _initialized;
         // ── Role-based bootstrap ─────────────────────────────────────────────
-        private NodeRole          _role       = NodeRole.AllInOne;
+        private NodeRole          _role       = NodeRole.MuscleGround | NodeRole.Perception;
         private NodeConfiguration? _nodeConfig;
         public new EntityRepository World => base.World
             ?? throw new InvalidOperationException("SimHostApp is not initialized.");
@@ -163,7 +163,8 @@ namespace Hrot.SimHost
 
         /// <summary>
         /// Parses a <see cref="NodeRole"/> from a <c>--role &lt;value&gt;</c> argument pair.
-        /// Returns <see cref="NodeRole.AllInOne"/> when the flag is absent or unrecognised.
+        /// Returns <c>MuscleGround | Perception</c> (standalone default) when the flag
+        /// is absent or unrecognised.
         /// </summary>
         public static NodeRole ParseRole(string[] args)
         {
@@ -175,7 +176,7 @@ namespace Hrot.SimHost
                         return role;
                 }
             }
-            return NodeRole.AllInOne;
+            return NodeRole.MuscleGround | NodeRole.Perception;
         }
 
         /// <summary>
@@ -204,14 +205,14 @@ namespace Hrot.SimHost
         /// </param>
         /// <param name="role">
         /// Node role controlling which simulation modules are activated.
-        /// Defaults to <see cref="NodeRole.AllInOne"/> for backward compatibility.
+        /// Defaults to <c>MuscleGround | Perception</c> (standalone mode).
         /// </param>
         /// <param name="nodeConfig">
         /// Optional <see cref="NodeConfiguration"/>; defaults are used when <c>null</c>.
         /// </param>
         public SimHostApp(
             int?              domainOverride = null,
-            NodeRole          role           = NodeRole.AllInOne,
+            NodeRole          role           = NodeRole.MuscleGround | NodeRole.Perception,
             NodeConfiguration? nodeConfig    = null) : base(new ApplicationConfig
         {
             Width       = 1280,

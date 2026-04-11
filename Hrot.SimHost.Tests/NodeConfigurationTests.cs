@@ -110,29 +110,29 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void SimHostApp_ParsesRole_CaseInsensitive()
         {
-            var role = SimHostApp.ParseRole(new[] { "--role", "allinone" });
-            Assert.Equal(NodeRole.AllInOne, role);
+            var role = SimHostApp.ParseRole(new[] { "--role", "musclEground" });
+            Assert.Equal(NodeRole.MuscleGround, role);
         }
 
         [Fact]
-        public void SimHostApp_ParsesRole_DefaultsToAllInOne()
+        public void SimHostApp_ParsesRole_DefaultsToStandaloneRole()
         {
             var role = SimHostApp.ParseRole(System.Array.Empty<string>());
-            Assert.Equal(NodeRole.AllInOne, role);
+            Assert.Equal(NodeRole.MuscleGround | NodeRole.Perception, role);
         }
 
         [Fact]
-        public void SimHostApp_ParsesRole_DefaultsToAllInOne_WhenFlagAbsent()
+        public void SimHostApp_ParsesRole_DefaultsToStandaloneRole_WhenFlagAbsent()
         {
             var role = SimHostApp.ParseRole(new[] { "--domain", "42" });
-            Assert.Equal(NodeRole.AllInOne, role);
+            Assert.Equal(NodeRole.MuscleGround | NodeRole.Perception, role);
         }
 
         [Fact]
-        public void SimHostApp_ParsesRole_DefaultsToAllInOne_WhenValueUnrecognised()
+        public void SimHostApp_ParsesRole_DefaultsToStandaloneRole_WhenValueUnrecognised()
         {
             var role = SimHostApp.ParseRole(new[] { "--role", "UnknownRole" });
-            Assert.Equal(NodeRole.AllInOne, role);
+            Assert.Equal(NodeRole.MuscleGround | NodeRole.Perception, role);
         }
 
         // ── SimHostApp.ParseNodeConfig ────────────────────────────────────────
