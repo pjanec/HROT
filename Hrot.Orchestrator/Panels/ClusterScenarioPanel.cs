@@ -10,7 +10,7 @@ using ImGuiNET;
 using FdpClusterOpType   = FDP.Toolkit.Orchestration.ClusterOpType;
 using ClusterOpIntent    = FDP.Toolkit.Orchestration.ClusterOpIntent;
 
-namespace Hrot.ClusterRunner.Services;
+namespace Hrot.Orchestrator.Panels;
 
 /// <summary>
 /// ImGui scenario and episode control panel for the Orchestrator subsystem (CGF1-S0506).

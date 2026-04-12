@@ -5,7 +5,7 @@ using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
 
-namespace Hrot.ClusterRunner.Windows;
+namespace Hrot.ExCon.Windows;
 
 /// <summary>
 /// Violet title-bar colour used by all ExCon-perspective managed windows.

@@ -20,7 +20,9 @@ using FDP.Toolkit.Vis2D.Components;
 using FDP.Toolkit.Vis2D.Defaults;
 using FDP.Toolkit.Vis2D.Layers;
 using Hrot.CGF;
-using Hrot.ClusterRunner.Windows;
+using Hrot.Editor.Windows;
+using Hrot.Orchestrator.Panels;
+using Hrot.Presentation.Windows;
 using Hrot.Common.Orchestration.Handlers;
 using Hrot.Common.Scenario;
 using Hrot.Editor;
@@ -54,7 +56,7 @@ using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;
 using FdpInspectorState       = FDP.Toolkit.ImGui.Abstractions.InspectorState;
 using EditorInteractionTool   = Hrot.ScenarioEditor.Tools.StandardInteractionTool;
 
-namespace Hrot.ClusterRunner.Services
+namespace Hrot.Editor
 {
     /// <summary>
     /// <see cref="ISubsystem"/> implementation that embeds the standalone HROT Editor.

@@ -9,7 +9,7 @@ using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
 using Raylib_cs;
 
-namespace Hrot.ClusterRunner.Services;
+namespace Hrot.CGF;
 
 /// <summary>
 /// Visualizer adapter for the CGF (Brain) perspective.

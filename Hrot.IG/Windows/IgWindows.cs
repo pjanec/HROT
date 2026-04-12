@@ -2,7 +2,7 @@ using System.Numerics;
 using FDP.Toolkit.ImGui.WindowManager;
 using Hrot.IG.UI;
 
-namespace Hrot.ClusterRunner.Windows;
+namespace Hrot.IG.Windows;
 
 /// <summary>IG subsystem title-bar colour (dark green).</summary>
 internal static class IgWindowColor

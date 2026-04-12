@@ -9,8 +9,10 @@ using Hrot.Network.Infrastructure;
 using Hrot.Map.Common;
 using Hrot.Common;
 using Hrot.SimHost;
+using Hrot.SimHost.Modules;
 
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
+using IMapCameraProvider = Fdp.Engine.Runner.IMapCameraProvider;
 
 namespace Hrot.ClusterRunner.Services;
 

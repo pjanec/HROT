@@ -13,7 +13,8 @@
   <!-- Expose internals to the test project so ProcessSample can be exercised directly -->
   <ItemGroup>
     <InternalsVisibleTo Include="Hrot.IG.Tests" />
-    <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />  </ItemGroup>
+    <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />
+    <InternalsVisibleTo Include="Hrot.ClusterRunner.Tests" />  </ItemGroup>
 
   <ItemGroup>
     <!-- Hrot-specific project references -->

@@ -1,14 +1,14 @@
 using System.Numerics;
 using FDP.Toolkit.ImGui.WindowManager;
-using Hrot.ClusterRunner.Services;
+using Hrot.Orchestrator.Panels;
 
-namespace Hrot.ClusterRunner.Windows;
+namespace Hrot.Orchestrator.Windows;
 
 /// <summary>
 /// Managed window for the ExCon cluster control panel.
 /// Global scope — ExCon has no map perspective so it is always visible.
 /// </summary>
-internal sealed class ClusterControlWindow : ManagedWindow
+public sealed class ClusterControlWindow : ManagedWindow
 {
     private readonly ClusterScenarioPanel? _panel;
     private readonly ClusterUiCache?       _cache;

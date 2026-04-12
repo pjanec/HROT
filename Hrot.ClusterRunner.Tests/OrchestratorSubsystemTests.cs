@@ -2,7 +2,7 @@ using System;
 using System.Numerics;
 using System.Threading;
 using Hrot.NED.Descriptors.Orchestration;
-using Hrot.ClusterRunner.Services;
+using Hrot.Orchestrator;
 using CycloneDDS.Runtime;
 using Xunit;
 

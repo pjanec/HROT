@@ -171,9 +171,9 @@ namespace Hrot.ClusterRunner.Tests
         public void ISubsystem_TitleBarColor_IsSetOnConcretes()
         {
             // Each concrete subsystem colour must be non-zero and distinct.
-            var sim = new Hrot.ClusterRunner.Services.SimHostSubsystem();
-            var ig  = new Hrot.ClusterRunner.Services.IgSubsystem();
-            var ios = new Hrot.ClusterRunner.Services.ExConSubsystem();
+            var sim = new Hrot.SimHost.SimHostSubsystem();
+            var ig  = new Hrot.IG.IgSubsystem();
+            var ios = new Hrot.ExCon.ExConSubsystem();
 
             Assert.NotEqual(default(Vector4), sim.TitleBarColor);
             Assert.NotEqual(default(Vector4), ig.TitleBarColor);

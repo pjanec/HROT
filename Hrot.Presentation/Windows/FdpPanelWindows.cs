@@ -1,15 +1,16 @@
+using System;
 using System.Numerics;
 using FDP.Toolkit.ImGui.Abstractions;
 using FDP.Toolkit.ImGui.Adapters;
 using FDP.Toolkit.ImGui.Panels;
 using FDP.Toolkit.ImGui.WindowManager;
 
-namespace Hrot.ClusterRunner.Windows;
+namespace Hrot.Presentation.Windows;
 
 /// <summary>
 /// FDP Entity Inspector managed window for a specific subsystem perspective.
 /// </summary>
-internal sealed class FdpEntityInspectorWindow : ManagedWindow
+public sealed class FdpEntityInspectorWindow : ManagedWindow
 {
     private readonly EntityInspectorPanel _panel;
     private readonly Func<RepositoryAdapter?> _adapterGetter;
@@ -43,7 +44,7 @@ internal sealed class FdpEntityInspectorWindow : ManagedWindow
 /// <summary>
 /// FDP Event Browser managed window for a specific subsystem perspective.
 /// </summary>
-internal sealed class FdpEventBrowserWindow : ManagedWindow
+public sealed class FdpEventBrowserWindow : ManagedWindow
 {
     private readonly EventBrowserPanel _panel;
 

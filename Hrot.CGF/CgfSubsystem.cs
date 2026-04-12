@@ -8,12 +8,11 @@ using FDP.Toolkit.Vis2D.Components;
 using FDP.Toolkit.Vis2D.Layers;
 using FDP.Toolkit.Vis2D.Tools;
 using FDP.Toolkit.Vis2D.Defaults;
-using Hrot.ClusterRunner.Windows;
+using Hrot.Presentation.Windows;
 using FdpEntityInspectorPanel = FDP.Toolkit.ImGui.Panels.EntityInspectorPanel;
 using FdpEventBrowserPanel    = FDP.Toolkit.ImGui.Panels.EventBrowserPanel;
 using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;
 using FdpInspectorState       = FDP.Toolkit.ImGui.Abstractions.InspectorState;
-using Hrot.CGF;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Translators;
 using Hrot.SimHost;
@@ -44,7 +43,7 @@ using ModuleHost.Core.Abstractions;
 using ModuleHost.Network.Cyclone.Modules;
 using ModuleHost.Network.Cyclone.Systems;
 
-namespace Hrot.ClusterRunner.Services;
+namespace Hrot.CGF;
 
 /// <summary>
 /// Hosts the CGF (Computer Generated Forces) subsystem under the Runner process.

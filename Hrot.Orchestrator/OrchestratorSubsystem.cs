@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Hrot.NED.Descriptors.Orchestration;
-using Hrot.NED.Messages;
 using Hrot.Map.Common;
 using Hrot.Orchestrator;
 using Hrot.Orchestrator.Translators;
@@ -18,10 +17,11 @@ using FDP.Toolkit.Time.Messages;
 using ImGuiNET;
 using ModuleHost.Core;
 using ModuleHost.Core.Time;
-using Hrot.ClusterRunner.Windows;
+using Hrot.Orchestrator.Windows;
+using Hrot.Orchestrator.Panels;
 using ModuleHost.Network.Cyclone.Services;
 
-namespace Hrot.ClusterRunner.Services;
+namespace Hrot.Orchestrator;
 
 /// <summary>
 /// Hosts <see cref="ClusterMaster"/> (DDS control plane + ID allocator server) under the Runner process.

@@ -1,9 +1,10 @@
 using Hrot.IG;
 using Fdp.Engine.Runner;
 using FDP.Toolkit.Vis2D.Components;
-using Hrot.ClusterRunner.Windows;
+using Hrot.IG.Windows;
+using Hrot.Presentation.Windows;
 
-namespace Hrot.ClusterRunner.Services
+namespace Hrot.IG
 {
     /// <summary>
     /// <see cref="ISubsystem"/> implementation that embeds the Image Generator (IG).

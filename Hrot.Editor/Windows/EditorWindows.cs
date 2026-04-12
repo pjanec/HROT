@@ -5,7 +5,7 @@ using Hrot.Editor.UI;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
 
-namespace Hrot.ClusterRunner.Windows;
+namespace Hrot.Editor.Windows;
 
 /// <summary>Editor subsystem title-bar colour (slate blue).</summary>
 internal static class EditorWindowColor

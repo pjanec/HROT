@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Hrot.Editor.Tests" />
+    <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,6 +20,8 @@
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
     <!-- Hrot.Presentation referenced above -->
     <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
+    <!-- EditorSubsystem uses MapLayerAssignmentSystem from Hrot.IG.Systems -->
+    <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
   </ItemGroup>
 
   <ItemGroup>

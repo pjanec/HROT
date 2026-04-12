@@ -1,6 +1,6 @@
 using System;
 using Xunit;
-using Hrot.ClusterRunner.Services;
+using Hrot.ExCon;
 using FDP.Toolkit.Time.Controllers;
 
 namespace Hrot.ClusterRunner.Tests

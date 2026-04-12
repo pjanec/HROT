@@ -2,7 +2,7 @@ using Hrot.ClusterRunner.Scenarios;
 using Fdp.Examples.Common;
 using Fdp.Engine.Runner;
 
-namespace Hrot.ClusterRunner.Services;
+namespace Hrot.ClusterRunner.Scenarios;
 
 /// <summary>
 /// Hosts a <see cref="ScenarioSubsystem"/> for the headless <c>--mode ci</c> path.

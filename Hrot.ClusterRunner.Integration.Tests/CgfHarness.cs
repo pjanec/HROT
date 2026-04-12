@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using Fdp.Engine.Runner;
-using Hrot.ClusterRunner.Services;
+using Hrot.CGF;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 

@@ -6,7 +6,7 @@ using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Vis2D.Components;
 using Hrot.ClusterRunner.Configuration;
-using Hrot.ClusterRunner.Services;
+using Hrot.Editor;
 using Hrot.Editor;
 using Hrot.Editor.Events;
 using Hrot.IG.Components;

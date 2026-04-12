@@ -12,11 +12,12 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Fdp.Engine.Runner;
-using Hrot.ClusterRunner.Windows;
+using Hrot.SimHost.Windows;
+using Hrot.Presentation.Windows;
 
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 
-namespace Hrot.ClusterRunner.Services
+namespace Hrot.SimHost
 {
     /// <summary>
     /// Thin <see cref="ISubsystem"/> adapter that embeds the SimHost simulation engine.

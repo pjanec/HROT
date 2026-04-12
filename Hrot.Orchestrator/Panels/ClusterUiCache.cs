@@ -11,7 +11,7 @@ using ModuleHost.Core.Time;
 using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using FdpNodeOpType = FDP.Toolkit.Orchestration.NodeOpType;
 
-namespace Hrot.ClusterRunner.Services;
+namespace Hrot.Orchestrator.Panels;
 
 /// <summary>
 /// Network projection of cluster state — the CQRS read-model (CGF1-S0506).

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Hrot.ClusterRunner.Services;
+using Hrot.CGF;
 using Hrot.Common.Infrastructure;
 using Fdp.Engine.Runner;
 using Xunit;

@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using Xunit;
-using Hrot.ClusterRunner.Services;
+using Hrot.IG;
 
 namespace Hrot.ClusterRunner.Tests
 {

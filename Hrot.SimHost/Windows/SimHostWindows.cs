@@ -5,7 +5,7 @@ using Hrot.SimHost.UI;
 using Fdp.Kernel;
 using ModuleHost.Core;
 
-namespace Hrot.ClusterRunner.Windows;
+namespace Hrot.SimHost.Windows;
 
 /// <summary>SimHost subsystem title-bar colour (dark red).</summary>
 internal static class SimHostWindowColor

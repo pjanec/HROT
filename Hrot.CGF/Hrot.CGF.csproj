@@ -23,6 +23,12 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Hrot.SimHost.Integration.Tests</_Parameter1>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.ClusterRunner.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.ClusterRunner.Integration.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>
@@ -37,6 +43,10 @@
     <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />    <!-- SwitchTimeModeDescriptorTranslator (CGF1-A.2, BATCH-09) -->
     <!-- Scenario serialization toolkit for ScenarioLoadClusterStateHandler (CGF1-S0307) -->
     <!-- Orchestration toolkit contracts -->
-    <!-- CgfLogicPack: Brain-tier modules, executors, NetworkEntityMap -->  </ItemGroup>
+    <!-- CgfLogicPack: Brain-tier modules, executors, NetworkEntityMap -->
+    <!-- CgfSubsystem visualization and UI dependencies -->
+    <ProjectReference Include="..\FDP\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />
+    <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
+    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />  </ItemGroup>
 
 </Project>

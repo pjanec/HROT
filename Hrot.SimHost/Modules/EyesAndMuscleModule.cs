@@ -6,7 +6,7 @@ using Fdp.Kernel;
 using Hrot.Common;
 using ModuleHost.Core.Abstractions;
 
-namespace Hrot.ClusterRunner.Services;
+namespace Hrot.SimHost.Modules;
 
 /// <summary>
 /// Async Separation-of-Duties (SoD) PoC module that combines Eyes (IG rendering data)

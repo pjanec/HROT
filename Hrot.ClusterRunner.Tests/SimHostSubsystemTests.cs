@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Hrot.ClusterRunner.Services;
+using Hrot.SimHost;
 using CycloneDDS.Runtime;
 using ModuleHost.Core;
 using ModuleHost.Network.Cyclone.Services;

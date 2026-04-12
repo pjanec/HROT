@@ -1,8 +1,8 @@
 using System.Numerics;
 using FDP.Toolkit.ImGui.WindowManager;
-using Hrot.ClusterRunner.Services;
+using Hrot.Orchestrator.Panels;
 
-namespace Hrot.ClusterRunner.Windows;
+namespace Hrot.Orchestrator.Windows;
 
 /// <summary>
 /// Managed window for the Orchestrator scenario/cluster control panel.
