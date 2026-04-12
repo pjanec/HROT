@@ -21,7 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.ClusterRunner\Hrot.ClusterRunner.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
+    <ProjectReference Include="..\FDP\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
     <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />  </ItemGroup>

@@ -3,7 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
     <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
-    <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />    <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
+    <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />    <ProjectReference Include="..\FDP\ModuleHost\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
     <!-- BS1-T015: EntityDamageEgressTranslator needs Health component from Combat.Contracts -->
     <!-- PACK3-Z003: ZoneManagerService needs PhysicsCollider/PhysicsConstants + ZoneEnvironmentData/RoadNetworkLoader -->
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />

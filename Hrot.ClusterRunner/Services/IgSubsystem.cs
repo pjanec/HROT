@@ -41,6 +41,12 @@ namespace Hrot.ClusterRunner.Services
         internal IgApplication App => _app ?? throw new InvalidOperationException("Not initialized");
 
         /// <inheritdoc/>
+        public MapCameraView? GetCameraView() => _app?.GetMapCamera()?.GetCameraView();
+
+        /// <inheritdoc/>
+        public void ApplyCameraView(MapCameraView view) => _app?.GetMapCamera()?.ApplyCameraView(view);
+
+        // Non-interface helper kept for backward-compat with tests.
         public MapCamera? GetMapCamera() => _app?.GetMapCamera();
 
         /// <inheritdoc/>

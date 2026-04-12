@@ -21,7 +21,7 @@
     <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
 
     <!-- FDP Toolkits -->
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.ImGui\FDP.Toolkit.ImGui.csproj" />  </ItemGroup>
+    <ProjectReference Include="..\FDP\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">

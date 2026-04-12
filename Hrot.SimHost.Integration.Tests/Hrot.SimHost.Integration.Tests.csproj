@@ -36,7 +36,7 @@
     <ProjectReference Include="..\FDP\Toolkits\Fdp.Engine\Fdp.Engine.csproj" />
 
     <!-- Module host  -->
-    <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
+    <ProjectReference Include="..\FDP\ModuleHost\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
   </ItemGroup>
 
 </Project>

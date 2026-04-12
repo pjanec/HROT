@@ -208,6 +208,12 @@ namespace Hrot.ClusterRunner.Services
             _editorLogic ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
         /// <inheritdoc/>
+        public MapCameraView? GetCameraView() => _camera?.GetCameraView();
+
+        /// <inheritdoc/>
+        public void ApplyCameraView(MapCameraView view) => _camera?.ApplyCameraView(view);
+
+        // Non-interface helper kept for backward-compat with tests.
         public MapCamera? GetMapCamera() => _camera;
 
         // ── ISubsystem lifecycle ──────────────────────────────────────────────

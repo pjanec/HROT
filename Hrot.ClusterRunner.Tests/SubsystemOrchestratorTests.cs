@@ -468,6 +468,8 @@ namespace Hrot.ClusterRunner.Tests
             public void DrawUI() { }
             public void Shutdown() { }
             public MapCamera? GetMapCamera() => null;
+            public MapCameraView? GetCameraView() => null;
+            public void ApplyCameraView(MapCameraView view) { }
         }
     }
 }

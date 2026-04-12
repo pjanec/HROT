@@ -16,8 +16,7 @@
   <ItemGroup>
     <ProjectReference Include="..\FDP\Toolkits\Fdp.Engine\Fdp.Engine.csproj" />
     <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.ImGui\FDP.Toolkit.ImGui.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
+    <ProjectReference Include="..\FDP\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
     <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
   </ItemGroup>

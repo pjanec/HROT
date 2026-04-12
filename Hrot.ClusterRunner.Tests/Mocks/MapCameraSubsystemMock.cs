@@ -31,5 +31,11 @@ namespace Hrot.ClusterRunner.Tests.Mocks
         public void Shutdown() { }
 
         public MapCamera? GetMapCamera() => Camera;
+
+        // ── IMapCameraProvider ────────────────────────────────────────────────
+
+        public MapCameraView? GetCameraView() => Camera?.GetCameraView();
+
+        public void ApplyCameraView(MapCameraView view) => Camera?.ApplyCameraView(view);
     }
 }

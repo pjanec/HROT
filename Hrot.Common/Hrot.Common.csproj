@@ -29,6 +29,6 @@
     <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
-    <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />  </ItemGroup>
+    <ProjectReference Include="..\FDP\ModuleHost\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />  </ItemGroup>
 
 </Project>

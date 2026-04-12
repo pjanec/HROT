@@ -82,6 +82,12 @@ namespace Hrot.ClusterRunner.Services
         public EntityRepository? World => _app?.WorldOrNull;
 
         /// <inheritdoc/>
+        public MapCameraView? GetCameraView() => _app?.GetMapCamera()?.GetCameraView();
+
+        /// <inheritdoc/>
+        public void ApplyCameraView(MapCameraView view) => _app?.GetMapCamera()?.ApplyCameraView(view);
+
+        // Non-interface helper kept for backward-compat with tests.
         public MapCamera? GetMapCamera() => _app?.GetMapCamera();
 
         // ── TestHook delegates ────────────────────────────────────────────────

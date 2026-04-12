@@ -133,6 +133,12 @@ public sealed class EyesAndMuscleSubsystem : ISubsystem, IMapCameraProvider, IWi
 
     /// <inheritdoc/>
     /// <remarks>Returns <c>null</c> — no MapCanvas in the PoC.</remarks>
+    public MapCameraView? GetCameraView() => null;
+
+    /// <inheritdoc/>
+    public void ApplyCameraView(MapCameraView view) { }
+
+    // Non-interface helper kept for backward-compat.
     public MapCamera? GetMapCamera() => null;
 
     // ── IWindowRegistrar ──────────────────────────────────────────────────────
