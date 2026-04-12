@@ -21,6 +21,7 @@
     <!-- IWindowRegistrar (uses FDP.Toolkit.ImGui.WindowManager) is in Fdp.Presentation -->
     <ProjectReference Include="..\FDP\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />
+    <ProjectReference Include="..\Hrot.Network.BDC\Hrot.Network.BDC.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
     <!-- Subsystem libraries (R2) -->

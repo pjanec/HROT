@@ -5,16 +5,15 @@ using Hrot.ClusterRunner.Configuration;
 using Hrot.ClusterRunner.Services;
 using Hrot.ClusterRunner.Scenarios;
 using Hrot.ClusterRunner.Systems;
-using Hrot.Orchestrator;
-using Hrot.SimHost;
-using Hrot.IG;
-using Hrot.ExCon;
-using Hrot.CGF;
-using Hrot.Editor;
+using Fdp.Kernel;
+using Hrot.Core.Network;
+using Hrot.Network.NED.Factory;
+using Hrot.BDC.Factory;
 using CycloneDDS.Runtime;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
+using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 
 namespace Hrot.Runner;
 
@@ -89,6 +88,15 @@ class Program
 
         Console.WriteLine($"[Runner] Starting – mode={string.Join(",", config.RequestedSubsystems)}, domain={config.DomainId}, headless={config.Headless}");
 
+        // ── Build network factory (used to inject into subsystems that accept it) ─────
+        var entityMap    = new NetworkEntityMap();
+        var geoTransform = HrotEnvironment.CreateGeoTransform();
+        var eventBus     = new FdpEventBus();
+        int factoryNodeId = ResolveAppNodeId("Runner", config.NodeId);
+        INetworkFactory networkFactory = string.Equals(config.NetworkProtocol, "bdc", StringComparison.OrdinalIgnoreCase)
+            ? (INetworkFactory)new BdcNetworkFactory(null, entityMap, geoTransform, eventBus, (long)factoryNodeId, NodeRole.None)
+            : new NedNetworkFactory(null, entityMap, geoTransform, eventBus, factoryNodeId, NodeRole.None);
+
         // ── CI mode: headless deterministic scenario run ──────────────────
         if (config.RequestedSubsystems.Contains("ci"))
         {
@@ -125,19 +133,24 @@ class Program
         // perspective transitions enqueued during Render are processed before any
         // other subsystem's Update runs in the next frame.
         var perspSubsystem = new PerspectiveUpdateSubsystem();
+        LoadReferencedAssemblies();
+        // Discover all non-abstract ISubsystem implementations (runner-internal
+        // ones are excluded; see ScanForSubsystems).
+        var discovered = ScanForSubsystems()
+            .Select(t => TryCreateSubsystem(t, networkFactory))
+            .Where(s => s != null)
+            .ToDictionary(s => s!.Name, s => s!, StringComparer.OrdinalIgnoreCase);
+
         var subsystems = new List<ISubsystem> { perspSubsystem };
-        if (config.RequestedSubsystems.Contains("orchestrator")) subsystems.Add(new OrchestratorSubsystem());
-        if (config.RequestedSubsystems.Contains("simhost"))
+        foreach (var name in config.RequestedSubsystems)
         {
-            // SimHost always runs as Muscle + Perception only.
-            // The Brain role belongs exclusively to CGF.
-            NodeRole simRole = NodeRole.MuscleGround | NodeRole.Perception;
-            subsystems.Add(new SimHostSubsystem(simRole));
+            if (!discovered.TryGetValue(name, out var sub))
+            {
+                Console.Error.WriteLine($"[Runner] Unknown subsystem name: '{name}'. Available: {string.Join(", ", discovered.Keys)}");
+                return 1;
+            }
+            subsystems.Add(sub);
         }
-        if (config.RequestedSubsystems.Contains("ig"))      subsystems.Add(new IgSubsystem());
-        if (config.RequestedSubsystems.Contains("excon"))   subsystems.Add(new ExConSubsystem());
-        if (config.RequestedSubsystems.Contains("cgf"))     subsystems.Add(new CgfSubsystem());
-        if (config.RequestedSubsystems.Contains("editor"))  subsystems.Add(new EditorSubsystem());
 
         var options = new RunnerOptions
         {
@@ -164,10 +177,6 @@ class Program
             };
             var coordinator = new PerspectiveCoordinatorSystem(orchestrator, perspectiveMap);
             perspSubsystem.Coordinator = coordinator;
-
-            // NOTE: WindowManager wiring (WM-S502/WM-S703) will be restored in
-            // TASK-P5-002 when Raylib window init moves from SubsystemOrchestrator
-            // into this Composition Root.
 
             orchestrator.Run();
         }
@@ -200,6 +209,72 @@ class Program
             _              => 600,
         };
         return baseNodeId + offset;
+    }
+
+    /// <summary>
+    /// Eagerly loads all statically-referenced assemblies that are not yet loaded
+    /// in the current AppDomain, so that they are visible in the reflection scan.
+    /// </summary>
+    private static void LoadReferencedAssemblies()
+    {
+        var loaded = new HashSet<string>(AppDomain.CurrentDomain.GetAssemblies()
+            .Select(a => a.GetName().Name!), StringComparer.OrdinalIgnoreCase);
+
+        var queue = new Queue<System.Reflection.Assembly>(AppDomain.CurrentDomain.GetAssemblies());
+        while (queue.Count > 0)
+        {
+            var asm = queue.Dequeue();
+            foreach (var refName in asm.GetReferencedAssemblies())
+            {
+                if (loaded.Contains(refName.Name!)) continue;
+                try
+                {
+                    var loaded2 = System.Reflection.Assembly.Load(refName);
+                    loaded.Add(refName.Name!);
+                    queue.Enqueue(loaded2);
+                }
+                catch { /* ignore assemblies that cannot be loaded */ }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Scans all loaded assemblies for non-abstract ISubsystem implementations
+    /// (excluding PerspectiveUpdateSubsystem, EyesAndMuscleSubsystem, and CiSubsystem
+    /// which are runner-internal or handled separately).
+    /// </summary>
+    private static IEnumerable<Type> ScanForSubsystems()
+    {
+        var subsystemType = typeof(ISubsystem);
+        return AppDomain.CurrentDomain.GetAssemblies()
+            .SelectMany(a => { try { return a.GetTypes(); } catch { return Array.Empty<Type>(); } })
+            .Where(t => t.IsClass && !t.IsAbstract
+                     && subsystemType.IsAssignableFrom(t)
+                     && t != typeof(PerspectiveUpdateSubsystem)
+                     && t != typeof(EyesAndMuscleSubsystem)
+                     && t != typeof(CiSubsystem));
+    }
+
+    /// <summary>
+    /// Attempts to instantiate an <see cref="ISubsystem"/> from its <see cref="Type"/>.
+    /// Tries a constructor accepting <see cref="INetworkFactory"/> first, then falls back
+    /// to a constructor where all parameters have default values (e.g. parameterless).
+    /// Returns <c>null</c> when no suitable constructor is found.
+    /// </summary>
+    private static ISubsystem? TryCreateSubsystem(Type type, INetworkFactory networkFactory)
+    {
+        // Prefer constructor that accepts INetworkFactory.
+        var factoryCtor = type.GetConstructor(new[] { typeof(INetworkFactory) });
+        if (factoryCtor != null)
+            return (ISubsystem)factoryCtor.Invoke(new object[] { networkFactory });
+
+        // Fall back to a constructor where all parameters have default values.
+        var ctor = type.GetConstructors()
+            .FirstOrDefault(c => c.GetParameters().All(p => p.HasDefaultValue));
+        if (ctor != null)
+            return (ISubsystem)ctor.Invoke(ctor.GetParameters().Select(p => p.DefaultValue).ToArray());
+
+        return null;
     }
 }
 

@@ -369,5 +369,31 @@ namespace Hrot.ClusterRunner.Tests
             var config = new RunnerConfiguration { ModeString = "editor,all", NoWait = true };
             var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
         }
+
+        // -- --network option --------------------------------------------------
+
+        [Fact]
+        public void NetworkProtocol_Default_IsNed()
+        {
+            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true };
+            config.Validate();
+            Assert.Equal("ned", config.NetworkProtocol, StringComparer.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void NetworkProtocol_Bdc_SetCorrectly()
+        {
+            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true, NetworkProtocol = "bdc" };
+            config.Validate();
+            Assert.Equal("bdc", config.NetworkProtocol, StringComparer.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void NetworkProtocol_InvalidValue_ThrowsInvalidOperation()
+        {
+            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true, NetworkProtocol = "unknown" };
+            var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
+            Assert.Contains("--network", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
     }
 }

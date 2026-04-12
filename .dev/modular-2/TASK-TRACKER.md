@@ -43,7 +43,7 @@
 - [x] **TASK-P4-002** Decouple SimHost from NED [details](./TASK-DETAIL.md#task-p4-002-decouple-simhost-from-ned) ✅ BATCH-09
 - [ ] **TASK-P4-003** Decouple IG and CGF from NED [details](./TASK-DETAIL.md#task-p4-003-decouple-ig-and-cgf-from-ned)
 - [x] **TASK-P4-004** Move ISubsystem Adapters into Plugin Assemblies [details](./TASK-DETAIL.md#task-p4-004-move-isubsystem-adapters-into-plugin-assemblies) ✅ BATCH-12
-- [ ] **TASK-P4-005** Implement OfflineNetworkFactory for Hrot.Editor [details](./TASK-DETAIL.md#task-p4-005-implement-offlinenetworkfactory-for-hroteditor)
+- [x] **TASK-P4-005** Implement OfflineNetworkFactory for Hrot.Editor [details](./TASK-DETAIL.md#task-p4-005-implement-offlinenetworkfactory-for-hroteditor) ✅ BATCH-13
 
 ---
 
@@ -51,7 +51,7 @@
 
 **Goal:** Make Hrot.ClusterRunner a pure dynamic loader with no hardcoded subsystem references.
 
-- [ ] **TASK-P5-001** Delete RunMode Enum and Refactor CLI Parsing [details](./TASK-DETAIL.md#task-p5-001-delete-runmode-enum-and-refactor-cli-parsing)
+- [x] **TASK-P5-001** Delete RunMode Enum and Refactor CLI Parsing [details](./TASK-DETAIL.md#task-p5-001-delete-runmode-enum-and-refactor-cli-parsing) ✅ BATCH-13
 - [ ] **TASK-P5-002** Implement In-Memory Reflection Scan in Program.cs [details](./TASK-DETAIL.md#task-p5-002-implement-in-memory-reflection-scan-in-programcs)
 - [ ] **TASK-P5-003** Add --network CLI Flag [details](./TASK-DETAIL.md#task-p5-003-add---network-cli-flag)
 
