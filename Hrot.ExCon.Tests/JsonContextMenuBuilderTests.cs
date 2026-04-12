@@ -1,9 +1,8 @@
-using FDP.Toolkit.DER;
+﻿using FDP.Toolkit.DER;
+using Hrot.Core.Network;
 using Hrot.ExCon.Adapters;
 using Hrot.ExCon.Logic;
 using Hrot.Map.Common.Dds;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
 using Moq;
 using Newtonsoft.Json.Linq;
 
@@ -54,12 +53,12 @@ public class JsonContextMenuBuilderTests
         Assert.True(invoked);
     }
 
-    // ── Test 3: ContextMenuLogic + entity with MapVisualOverlay → "Edit Shape" ─
+    // ── Test 3: ContextMenuLogic + entity with MapOverlayDescriptor → "Edit Shape" ─
 
     /// <summary>
     /// When <see cref="ContextMenuLogic"/> is constructed with a non-null
     /// <see cref="IExConLogic"/> and the selected entity carries a
-    /// <see cref="MapVisualOverlay"/> descriptor, the serialised JSON sent to the
+    /// <see cref="MapOverlayDescriptor"/> descriptor, the serialised JSON sent to the
     /// writer must contain an item labelled "Edit Shape".
     /// </summary>
     [Fact]
@@ -68,14 +67,14 @@ public class JsonContextMenuBuilderTests
         // Arrange
         var repo = new DerRepo();
         var entity = repo.CreateEntity(entityId: 42, tkbType: 1000L);
-        entity.SetDescriptor(new MapVisualOverlay { EntityId = 42 });
+        entity.SetDescriptor(new MapOverlayDescriptor { EntityId = 42 });
 
-        var writer = new CapturingMenuWriter();
+        var writer = new CapturingEgressWriters();
         var mockLogic = new Mock<IExConLogic>().Object;
         var logic = new ContextMenuLogic(repo, writer, mockLogic);
 
         // Act
-        logic.OnSelectionChanged(new SelectionChangedEvent
+        logic.OnSelectionChanged(new SelectionChangedEventDto
         {
             MapId             = 1,
             SelectedEntityIds = new List<int> { 42 }

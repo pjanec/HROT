@@ -7,6 +7,7 @@ using Hrot.NED.Descriptors;
 using Hrot.SimHost;
 using Hrot.SimHost.Configuration;
 using Hrot.Map.Common.Replication;
+using Hrot.Common.Abstractions;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Components;
@@ -124,13 +125,13 @@ namespace Hrot.SimHost.Tests
             {
                 var moduleProperty = entry.GetType().GetProperty("Module");
                 var module = moduleProperty?.GetValue(entry);
-                if (module is CycloneNetworkModule cyclone)
+                if (module is INedReplicationModule)
                 {
-                    return (IEnumerable)GetPrivateField(cyclone, "_customTranslators");
+                    return (IEnumerable)GetPrivateField(module, "_sharedTranslators");
                 }
             }
 
-            throw new InvalidOperationException("CycloneNetworkModule not found in kernel modules.");
+            throw new InvalidOperationException("NedReplicationModule not found in kernel modules.");
         }
 
         private static object GetPrivateField(object target, string fieldName)

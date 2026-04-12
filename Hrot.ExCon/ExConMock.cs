@@ -1,4 +1,4 @@
-using Hrot.NED.Descriptors;
+using Hrot.Core.Network;
 using Hrot.ExCon.Adapters;
 using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Panels;
@@ -115,9 +115,9 @@ public sealed class ExConMock : IDisposable
         _derEntityInspectorPanel.RegisterContextMenuHandler(
             new LambdaDerContextMenuHandler((entity, builder) =>
             {
-                if (entity.HasDescriptor<MapVisualOverlay>())
+                if (entity.HasDescriptor<MapOverlayDescriptor>())
                 {
-                    var overlay = entity.GetDescriptor<MapVisualOverlay>()!;
+                    var overlay = entity.GetDescriptor<MapOverlayDescriptor>()!;
                     if (overlay.IsEditable)
                         builder.AddItem("Edit Overlay", () => _logic.StartEditingMode(entity.EntityId));
                 }

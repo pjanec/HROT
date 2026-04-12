@@ -1,4 +1,4 @@
-namespace Hrot.ExCon.Services;
+﻿namespace Hrot.ExCon.Services;
 
 /// <summary>
 /// Thread-safe pull queue for DDS event samples.

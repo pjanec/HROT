@@ -1,11 +1,9 @@
-using System.Numerics;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
+﻿using System.Numerics;
+using Hrot.Core.Network;
 using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Panels;
 using Hrot.ExCon.Services;
-using Hrot.Map.Common.Dds;
 using FDP.Toolkit.DER;
 using ImGuiNET;
 using Moq;
@@ -40,35 +38,33 @@ public class IosMockTests
     private static (
         ExConMock                                  Mock,
         ExConLogic                                 Logic,
-        ConcurrentEventQueue<MapClickEvent>       ClickQueue,
-        ConcurrentEventQueue<SelectionChangedEvent> SelectionQueue,
+        ConcurrentEventQueue<MapClickEventDto>       ClickQueue,
+        ConcurrentEventQueue<SelectionChangedEventDto> SelectionQueue,
         MissionPanel                             MissionPanel,
         SpawnerPanel                             SpawnerPanel,
         InteractionPanel                         InteractionPanel)
         CreateSut()
     {
-        // All DDS writers are no-ops in tests.
-        var configWriter      = new Mock<IDdsWriter<MapInteractionConfig>>();
-        var createWriter      = new Mock<IDdsWriter<CreateEntityRequest>>();
-        var transactionMgr    = new Mock<IRequestTransactionManager>();
-        var missionSvc        = new Mock<IMissionEditorService>();
-        var contextMenuLogic  = new Mock<IContextMenuLogic>();
+        // All egress writers are no-ops in tests.
+        var egressWriters    = new Mock<IExConEgressWriters>();
+        var transactionMgr   = new Mock<IRequestTransactionManager>();
+        var missionSvc       = new Mock<IMissionEditorService>();
+        var contextMenuLogic = new Mock<IContextMenuLogic>();
 
-        var interactionPanel  = new InteractionPanel();
-        var clickQueue        = new ConcurrentEventQueue<MapClickEvent>();
-        var selectionQueue    = new ConcurrentEventQueue<SelectionChangedEvent>();
+        var interactionPanel = new InteractionPanel();
+        var clickQueue       = new ConcurrentEventQueue<MapClickEventDto>();
+        var selectionQueue   = new ConcurrentEventQueue<SelectionChangedEventDto>();
 
         var logic = new ExConLogic(
             repo:                new DerRepo(),
             missionEditorService: missionSvc.Object,
             contextMenuLogic:    contextMenuLogic.Object,
             transactionManager:  transactionMgr.Object,
-            configWriter:        configWriter.Object,
-            createEntityWriter:  createWriter.Object,
+            egressWriters:       egressWriters.Object,
             clickQueue:          clickQueue,
             selectionQueue:      selectionQueue,
             interactionPanel:    interactionPanel,
-            createEntityAckQueue: new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>());
+            createEntityAckQueue: new ConcurrentEventQueue<EntityLifecycleAckDto>());
 
         var configPanel  = new ConfigPanel();
         var orbatPanel   = new OrbatPanel();
@@ -237,35 +233,33 @@ public class IosMockUITests
     /// </summary>
     private static ExConMock CreateMockWithGlobalAlert()
     {
-        var repo            = new DerRepo();
-        var configWriter    = new Mock<IDdsWriter<MapInteractionConfig>>();
-        var createWriter    = new Mock<IDdsWriter<CreateEntityRequest>>();
-        var transactionMgr  = new Mock<IRequestTransactionManager>();
-        var missionSvc      = new Mock<IMissionEditorService>();
+        var repo             = new DerRepo();
+        var egressWriters    = new Mock<IExConEgressWriters>();
+        var transactionMgr   = new Mock<IRequestTransactionManager>();
+        var missionSvc       = new Mock<IMissionEditorService>();
         var contextMenuLogic = new Mock<IContextMenuLogic>();
         var interactionPanel = new InteractionPanel();
-        var clickQueue      = new ConcurrentEventQueue<MapClickEvent>();
-        var selectionQueue  = new ConcurrentEventQueue<SelectionChangedEvent>();
-        var ackQueue        = new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>();
+        var clickQueue       = new ConcurrentEventQueue<MapClickEventDto>();
+        var selectionQueue   = new ConcurrentEventQueue<SelectionChangedEventDto>();
+        var ackQueue         = new ConcurrentEventQueue<EntityLifecycleAckDto>();
 
         var logic = new ExConLogic(
             repo:                 repo,
             missionEditorService: missionSvc.Object,
             contextMenuLogic:     contextMenuLogic.Object,
             transactionManager:   transactionMgr.Object,
-            configWriter:         configWriter.Object,
-            createEntityWriter:   createWriter.Object,
+            egressWriters:        egressWriters.Object,
             clickQueue:           clickQueue,
             selectionQueue:       selectionQueue,
             interactionPanel:     interactionPanel,
             createEntityAckQueue: ackQueue);
 
         // Enqueue a Phase-2 error ACK so that Update() sets _globalAlert.
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck
+        ackQueue.Enqueue(new EntityLifecycleAckDto
         {
             RequestId  = Guid.NewGuid(),
             EntityId   = 1,
-            StatusCode = (int)NedStatusCode.EntityNotFound,
+            StatusCode = EntityLifecycleAckDto.StatusFailureMin,
         });
         logic.Update(); // processes the ACK → _globalAlert is now non-null
 

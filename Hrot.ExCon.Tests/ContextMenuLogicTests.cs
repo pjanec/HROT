@@ -1,32 +1,48 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
+﻿using Hrot.Core.Network;
+using Hrot.Core.Mission;
 using Hrot.ExCon.Logic;
-using Hrot.Map.Common.Dds;
 using FDP.Toolkit.DER;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace Hrot.ExCon.Tests;
 
-// ─── Menu writer stub ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Menu writer stub â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-internal sealed class CapturingMenuWriter : IDdsWriter<ContextActionsUpdate>
+internal sealed class PushedContextActions
 {
-    public List<ContextActionsUpdate> Written { get; } = new();
-    public void Write(ContextActionsUpdate sample) => Written.Add(sample);
-    public void DisposeInstance(ContextActionsUpdate key) { }
+    public int MapGroupId { get; init; }
+    public IReadOnlyList<int>? ForSelection { get; init; }
+    public string MenuDefinitionJson { get; init; } = string.Empty;
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
+internal sealed class CapturingEgressWriters : IExConEgressWriters
+{
+    public List<PushedContextActions> Written { get; } = new();
+    public List<MapConfigDto> WrittenConfigs { get; } = new();
+    public List<CreateEntityCommand> WrittenCreateCommands { get; } = new();
+    public List<int> DeletedEntityIds { get; } = new();
+    public List<MapCommandDto> WrittenMapCommands { get; } = new();
+
+    public void WriteMapConfig(MapConfigDto config)        => WrittenConfigs.Add(config);
+    public void WriteCreateEntity(CreateEntityCommand cmd) => WrittenCreateCommands.Add(cmd);
+    public void WriteDeleteEntity(int entityId)            => DeletedEntityIds.Add(entityId);
+    public void WriteMapCommand(MapCommandDto cmd)         => WrittenMapCommands.Add(cmd);
+    public void PushContextActions(int mapGroupId, IReadOnlyList<int>? forSelection, string actionsJson)
+        => Written.Add(new PushedContextActions { MapGroupId = mapGroupId, ForSelection = forSelection, MenuDefinitionJson = actionsJson });
+    public void Dispose() { }
+}
+
+// â”€â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 public class ContextMenuLogicTests
 {
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    private static (ContextMenuLogic Logic, CapturingMenuWriter Writer) CreateSut()
+    private static (ContextMenuLogic Logic, CapturingEgressWriters Writer) CreateSut()
     {
         var repo   = new DerRepo();
-        var writer = new CapturingMenuWriter();
+        var writer = new CapturingEgressWriters();
         var logic  = new ContextMenuLogic(repo, writer);
         return (logic, writer);
     }
@@ -34,22 +50,22 @@ public class ContextMenuLogicTests
     /// <summary>
     /// Factory that also exposes the repo so tests can seed entities.
     /// </summary>
-    private static (ContextMenuLogic Logic, CapturingMenuWriter Writer, DerRepo Repo) CreateSutWithRepo()
+    private static (ContextMenuLogic Logic, CapturingEgressWriters Writer, DerRepo Repo) CreateSutWithRepo()
     {
         var repo   = new DerRepo();
-        var writer = new CapturingMenuWriter();
+        var writer = new CapturingEgressWriters();
         var logic  = new ContextMenuLogic(repo, writer);
         return (logic, writer, repo);
     }
 
-    private static SelectionChangedEvent MakeSelectionEvent(int mapId, params int[] entityIds)
-        => new SelectionChangedEvent
+    private static SelectionChangedEventDto MakeSelectionEvent(int mapId, params int[] entityIds)
+        => new SelectionChangedEventDto
         {
             MapId             = mapId,
             SelectedEntityIds = new List<int>(entityIds)
         };
 
-    // ── Default strategy ──────────────────────────────────────────────────────
+    // â”€â”€ Default strategy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void InitialStrategy_IsStandard()
@@ -58,7 +74,7 @@ public class ContextMenuLogicTests
         Assert.Equal(MenuStrategy.Standard, logic.CurrentStrategy);
     }
 
-    // ── OnSelectionChanged – payload routing ──────────────────────────────────
+    // â”€â”€ OnSelectionChanged â€“ payload routing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void OnSelectionChanged_WritesOneUpdate()
@@ -87,7 +103,7 @@ public class ContextMenuLogicTests
         Assert.Equal(new List<int> { 10, 20, 30 }, writer.Written[0].ForSelection);
     }
 
-    // ── Standard strategy menu content ────────────────────────────────────────
+    // â”€â”€ Standard strategy menu content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void StandardStrategy_MenuContainsExpectedActionIds()
@@ -116,7 +132,7 @@ public class ContextMenuLogicTests
         Assert.Contains("Properties...",    labels);
     }
 
-    // ── Admin strategy ────────────────────────────────────────────────────────
+    // â”€â”€ Admin strategy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void AdminStrategy_MenuContainsDeleteAndTeleport()
@@ -147,7 +163,7 @@ public class ContextMenuLogicTests
         Assert.Equal("destructive", (string?)delete["style"]);
     }
 
-    // ── DamageControl strategy ────────────────────────────────────────────────
+    // â”€â”€ DamageControl strategy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void DamageControlStrategy_MenuContainsRepairAndReinforce()
@@ -163,7 +179,7 @@ public class ContextMenuLogicTests
         Assert.Contains(ContextMenuActions.Reinforce, ids);
     }
 
-    // ── Logistics strategy ────────────────────────────────────────────────────
+    // â”€â”€ Logistics strategy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void LogisticsStrategy_MenuContainsResupplyAndTransfer()
@@ -179,7 +195,7 @@ public class ContextMenuLogicTests
         Assert.Contains(ContextMenuActions.Transfer, ids);
     }
 
-    // ── SetStrategy changes output ────────────────────────────────────────────
+    // â”€â”€ SetStrategy changes output â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void SetStrategy_ChangesMenuOnNextSelectionChange()
@@ -211,7 +227,7 @@ public class ContextMenuLogicTests
         Assert.Equal(MenuStrategy.Logistics, logic.CurrentStrategy);
     }
 
-    // ── JSON serialisation ────────────────────────────────────────────────────
+    // â”€â”€ JSON serialisation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void MenuDefinitionJson_IsValidJson()
@@ -239,21 +255,21 @@ public class ContextMenuLogicTests
         }
     }
 
-    // ── OnActionInvoked / event ───────────────────────────────────────────────
+    // â”€â”€ OnActionInvoked / event â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void OnActionInvoked_FiresActionInvokedEvent()
     {
         var (logic, _) = CreateSut();
-        ContextActionInvoked? captured = null;
+        ContextActionInvokedDto? captured = null;
         logic.ActionInvoked += evt => captured = evt;
 
-        var action = new ContextActionInvoked { ActionId = ContextMenuActions.CenterOnEntity, MapId = 3 };
+        var action = new ContextActionInvokedDto { ActionId = ContextMenuActions.CenterOnEntity, MapId = 3 };
         logic.OnActionInvoked(action);
 
         Assert.NotNull(captured);
-        Assert.Equal(ContextMenuActions.CenterOnEntity, captured!.Value.ActionId);
-        Assert.Equal(3, captured.Value.MapId);
+        Assert.Equal(ContextMenuActions.CenterOnEntity, captured!.ActionId);
+        Assert.Equal(3, captured.MapId);
     }
 
     [Fact]
@@ -261,19 +277,19 @@ public class ContextMenuLogicTests
     {
         var (logic, _) = CreateSut();
         var ex = Record.Exception(() =>
-            logic.OnActionInvoked(new ContextActionInvoked { ActionId = ContextMenuActions.Properties }));
+            logic.OnActionInvoked(new ContextActionInvokedDto { ActionId = ContextMenuActions.Properties }));
 
         Assert.Null(ex);
     }
 
-    // ── Helper ────────────────────────────────────────────────────────────────
+    // â”€â”€ Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static List<JObject> ParseMenuItems(string json)
         => JArray.Parse(json).Cast<JObject>().ToList();
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // Map-canvas (empty selection) context menu
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// When no entity ID is in the selection, the ExCon must return the map-canvas
@@ -283,8 +299,8 @@ public class ContextMenuLogicTests
     public void EmptySelection_ReturnsMeasureAction()
     {
         var (logic, writer) = CreateSut();
-        // Pass an event with an empty (non-null) list — simulates right-click on empty space.
-        logic.OnSelectionChanged(new SelectionChangedEvent
+        // Pass an event with an empty (non-null) list â€” simulates right-click on empty space.
+        logic.OnSelectionChanged(new SelectionChangedEventDto
         {
             MapId             = 1,
             SelectedEntityIds = new List<int>()
@@ -300,7 +316,7 @@ public class ContextMenuLogicTests
     public void EmptySelection_DoesNotReturnEntityActions()
     {
         var (logic, writer) = CreateSut();
-        logic.OnSelectionChanged(new SelectionChangedEvent
+        logic.OnSelectionChanged(new SelectionChangedEventDto
         {
             MapId             = 1,
             SelectedEntityIds = new List<int>()
@@ -317,7 +333,7 @@ public class ContextMenuLogicTests
     public void NullSelection_ReturnsMeasureAction()
     {
         var (logic, writer) = CreateSut();
-        logic.OnSelectionChanged(new SelectionChangedEvent
+        logic.OnSelectionChanged(new SelectionChangedEventDto
         {
             MapId             = 1,
             SelectedEntityIds = null
@@ -329,12 +345,12 @@ public class ContextMenuLogicTests
         Assert.Contains(ContextMenuActions.Measure, ids);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Edit Drawing (editable MapVisualOverlay)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Edit Drawing (editable MapOverlayDescriptor)
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
-    /// When the selected entity has a <see cref="MapVisualOverlay"/> with
+    /// When the selected entity has a <see cref="MapOverlayDescriptor"/> with
     /// <c>IsEditable = true</c>, "Edit Drawing" (ID 100) must appear in the menu.
     /// </summary>
     [Fact]
@@ -343,7 +359,7 @@ public class ContextMenuLogicTests
         var (logic, writer, repo) = CreateSutWithRepo();
 
         var entity = repo.CreateEntity(42, tkbType: 0);
-        entity.SetDescriptor(new MapVisualOverlay { IsEditable = true });
+        entity.SetDescriptor(new MapOverlayDescriptor { IsEditable = true });
 
         logic.OnSelectionChanged(MakeSelectionEvent(1, 42));
 
@@ -359,7 +375,7 @@ public class ContextMenuLogicTests
         var (logic, writer, repo) = CreateSutWithRepo();
 
         var entity = repo.CreateEntity(42, tkbType: 0);
-        entity.SetDescriptor(new MapVisualOverlay { IsEditable = true });
+        entity.SetDescriptor(new MapOverlayDescriptor { IsEditable = true });
 
         logic.OnSelectionChanged(MakeSelectionEvent(1, 42));
 
@@ -367,7 +383,7 @@ public class ContextMenuLogicTests
         var editItem = items.SingleOrDefault(i => (int)i["id"]! == ContextMenuActions.EditOverlay);
 
         Assert.NotNull(editItem);
-        // Label was renamed "Edit Drawing" → "Edit Shape" in X005 to align with SharedContextMenuPopulator.
+        // Label was renamed "Edit Drawing" â†’ "Edit Shape" in X005 to align with SharedContextMenuPopulator.
         Assert.Equal("Edit Shape", (string)editItem!["label"]!);
     }
 
@@ -380,7 +396,7 @@ public class ContextMenuLogicTests
         var (logic, writer, repo) = CreateSutWithRepo();
 
         var entity = repo.CreateEntity(42, tkbType: 0);
-        entity.SetDescriptor(new MapVisualOverlay { IsEditable = false });
+        entity.SetDescriptor(new MapOverlayDescriptor { IsEditable = false });
 
         logic.OnSelectionChanged(MakeSelectionEvent(1, 42));
 
@@ -391,7 +407,7 @@ public class ContextMenuLogicTests
     }
 
     /// <summary>
-    /// An entity without a MapVisualOverlay must NOT produce "Edit Drawing".
+    /// An entity without a MapOverlayDescriptor must NOT produce "Edit Drawing".
     /// </summary>
     [Fact]
     public void EntityWithoutOverlay_DoesNotAddEditDrawingAction()
@@ -407,9 +423,9 @@ public class ContextMenuLogicTests
         Assert.DoesNotContain(ContextMenuActions.EditOverlay, ids);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Edit Route (route entities — TkbType == TacGraphic_Route)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Edit Route (route entities â€” TkbType == TacGraphic_Route)
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// A route entity (TkbType == TacGraphic_Route = 8802) must include
@@ -447,9 +463,9 @@ public class ContextMenuLogicTests
         Assert.DoesNotContain(ContextMenuActions.EditPersonalRoute, ids);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // Edit Personal Route (vehicle/unit entities)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// A non-TacGraphic entity (e.g. a tank) should include

@@ -1,10 +1,7 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
-using Hrot.NED.Common;
-using Hrot.ExCon.Logic;
+﻿using Hrot.ExCon.Logic;
+using Hrot.Core.Network;
 using Hrot.ExCon.Panels;
 using Hrot.ExCon.Services;
-using Hrot.Map.Common.Dds;
 using FDP.Toolkit.DER;
 using Moq;
 using NLog;
@@ -44,37 +41,35 @@ public class ExConLogicTests
     /// </summary>
     private static (
         ExConLogic                                Logic,
-        Mock<IDdsWriter<MapInteractionConfig>>  ConfigWriter,
-        Mock<IDdsWriter<CreateEntityRequest>>   CreateEntityWriter,
-        ConcurrentEventQueue<MapClickEvent>      ClickQueue,
-        ConcurrentEventQueue<SelectionChangedEvent> SelectionQueue,
+        Mock<IExConEgressWriters>               ConfigWriter,
+        Mock<IExConEgressWriters>               CreateEntityWriter,
+        ConcurrentEventQueue<MapClickEventDto>      ClickQueue,
+        ConcurrentEventQueue<SelectionChangedEventDto> SelectionQueue,
         Mock<IRequestTransactionManager>         TransactionMgr,
         InteractionPanel                         InteractionPanel)
         CreateSut()
     {
         var repo              = new DerRepo();
-        var configWriter      = new Mock<IDdsWriter<MapInteractionConfig>>();
-        var createWriter      = new Mock<IDdsWriter<CreateEntityRequest>>();
+        var egressWriters     = new Mock<IExConEgressWriters>();
         var transactionMgr    = new Mock<IRequestTransactionManager>();
         var missionSvc        = new Mock<IMissionEditorService>();
         var contextMenuLogic  = new Mock<IContextMenuLogic>();
         var interactionPanel  = new InteractionPanel();
-        var clickQueue        = new ConcurrentEventQueue<MapClickEvent>();
-        var selectionQueue    = new ConcurrentEventQueue<SelectionChangedEvent>();
+        var clickQueue        = new ConcurrentEventQueue<MapClickEventDto>();
+        var selectionQueue    = new ConcurrentEventQueue<SelectionChangedEventDto>();
 
         var logic = new ExConLogic(
             repo:                repo,
             missionEditorService: missionSvc.Object,
             contextMenuLogic:    contextMenuLogic.Object,
             transactionManager:  transactionMgr.Object,
-            configWriter:        configWriter.Object,
-            createEntityWriter:  createWriter.Object,
+            egressWriters:       egressWriters.Object,
             clickQueue:          clickQueue,
             selectionQueue:      selectionQueue,
             interactionPanel:    interactionPanel,
-            createEntityAckQueue: new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>());
+            createEntityAckQueue: new ConcurrentEventQueue<EntityLifecycleAckDto>());
 
-        return (logic, configWriter, createWriter, clickQueue, selectionQueue,
+        return (logic, egressWriters, egressWriters, clickQueue, selectionQueue,
                 transactionMgr, interactionPanel);
     }
 
@@ -107,9 +102,9 @@ public class ExConLogicTests
 
         logic.StartPlacementMode(100L);
 
-        configWriter.Verify(w => w.Write(
-            It.Is<MapInteractionConfig>(c =>
-                c.ActiveContextId == logic.ActiveContextId)),
+        configWriter.Verify(w => w.WriteMapCommand(
+            It.Is<MapCommandDto>(c =>
+                c.CommandArgsJson.Contains(logic.ActiveContextId.ToString("N")))),
             Times.Once);
     }
 
@@ -120,9 +115,9 @@ public class ExConLogicTests
 
         logic.StartPlacementMode(100L);
 
-        configWriter.Verify(w => w.Write(
-            It.Is<MapInteractionConfig>(c =>
-                c.ConfigurationJson.Contains("PLACEMENT"))),
+        configWriter.Verify(w => w.WriteMapCommand(
+            It.Is<MapCommandDto>(c =>
+                c.CommandType.Contains("PLACE"))),
             Times.Once);
     }
 
@@ -134,9 +129,9 @@ public class ExConLogicTests
 
         logic.StartPlacementMode(tkbType);
 
-        configWriter.Verify(w => w.Write(
-            It.Is<MapInteractionConfig>(c =>
-                c.ConfigurationJson.Contains(tkbType.ToString()))),
+        configWriter.Verify(w => w.WriteMapCommand(
+            It.Is<MapCommandDto>(c =>
+                c.CommandArgsJson.Contains(tkbType.ToString()))),
             Times.Once);
     }
 
@@ -165,14 +160,14 @@ public class ExConLogicTests
     public void StartPlacementMode_WithEntityPropertyPatch_CommandArgsJsonContainsName()
     {
         var (logic, commandWriter, _, _) = CreateSutWithCommandWriter();
-        MapCommandRequest? captured = null;
-        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
-            .Callback<MapCommandRequest>(r => captured = r);
+        MapCommandDto? captured = null;
+        commandWriter.Setup(w => w.WriteMapCommand(It.IsAny<MapCommandDto>()))
+            .Callback<MapCommandDto>(r => captured = r);
 
         logic.StartPlacementMode(100L, new EntityPropertyPatch { Name = "Alpha-1" });
 
         Assert.NotNull(captured);
-        Assert.Contains("Alpha-1", captured!.Value.CommandArgsJson);
+        Assert.Contains("Alpha-1", captured!.CommandArgsJson);
     }
 
     /// <summary>
@@ -183,15 +178,15 @@ public class ExConLogicTests
     public void StartPlacementMode_WithEntityPropertyPatch_NullPropertiesOmittedFromCommandArgsJson()
     {
         var (logic, commandWriter, _, _) = CreateSutWithCommandWriter();
-        MapCommandRequest? captured = null;
-        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
-            .Callback<MapCommandRequest>(r => captured = r);
+        MapCommandDto? captured = null;
+        commandWriter.Setup(w => w.WriteMapCommand(It.IsAny<MapCommandDto>()))
+            .Callback<MapCommandDto>(r => captured = r);
 
         // Name is set but Affiliation is left null.
         logic.StartPlacementMode(100L, new EntityPropertyPatch { Name = "Alpha-1" });
 
         Assert.NotNull(captured);
-        Assert.DoesNotContain("affiliation", captured!.Value.CommandArgsJson,
+        Assert.DoesNotContain("affiliation", captured!.CommandArgsJson,
             StringComparison.OrdinalIgnoreCase);
     }
 
@@ -203,14 +198,14 @@ public class ExConLogicTests
     public void StartPlacementMode_WithNullEntityPropertyPatch_CommandArgsJsonHasNoInitialProperties()
     {
         var (logic, commandWriter, _, _) = CreateSutWithCommandWriter();
-        MapCommandRequest? captured = null;
-        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
-            .Callback<MapCommandRequest>(r => captured = r);
+        MapCommandDto? captured = null;
+        commandWriter.Setup(w => w.WriteMapCommand(It.IsAny<MapCommandDto>()))
+            .Callback<MapCommandDto>(r => captured = r);
 
         logic.StartPlacementMode(100L, (EntityPropertyPatch?)null);
 
         Assert.NotNull(captured);
-        Assert.DoesNotContain("initialPropertiesJson", captured!.Value.CommandArgsJson);
+        Assert.DoesNotContain("initialPropertiesJson", captured!.CommandArgsJson);
     }
 
     /// <summary>
@@ -221,9 +216,9 @@ public class ExConLogicTests
     public void StartPlacementMode_WithAutogenerateNamePatch_CommandArgsJsonContainsAutogenerateName()
     {
         var (logic, commandWriter, _, _) = CreateSutWithCommandWriter();
-        MapCommandRequest? captured = null;
-        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
-            .Callback<MapCommandRequest>(r => captured = r);
+        MapCommandDto? captured = null;
+        commandWriter.Setup(w => w.WriteMapCommand(It.IsAny<MapCommandDto>()))
+            .Callback<MapCommandDto>(r => captured = r);
         var patch = new EntityPropertyPatch { AutogenerateName = true, NamePrefix = "Tank-" };
 
         logic.StartPlacementMode(100L, patch);
@@ -231,9 +226,9 @@ public class ExConLogicTests
         Assert.NotNull(captured);
         // The patch JSON is embedded inside CommandArgsJson as the initialPropertiesJson value.
         Assert.True(
-            captured!.Value.CommandArgsJson.Contains("autogenerateName") ||
-            captured.Value.CommandArgsJson.Contains("AutogenerateName"),
-            $"Expected autogenerateName in: {captured.Value.CommandArgsJson}");
+            captured!.CommandArgsJson.Contains("autogenerateName") ||
+            captured.CommandArgsJson.Contains("AutogenerateName"),
+            $"Expected autogenerateName in: {captured.CommandArgsJson}");
     }
 
     // ── StartAreaAuthoringMode ──────────────────────────────────────────────
@@ -266,9 +261,9 @@ public class ExConLogicTests
 
         logic.StartAreaAuthoringMode();
 
-        configWriter.Verify(w => w.Write(
-            It.Is<MapInteractionConfig>(c =>
-                c.ConfigurationJson.Contains("AREA_AUTHORING"))),
+        configWriter.Verify(w => w.WriteMapCommand(
+            It.Is<MapCommandDto>(c =>
+                c.CommandType.Contains("AUTHORING"))),
             Times.Once);
     }
 
@@ -313,29 +308,29 @@ public class ExConLogicTests
     public void StartRouteAuthoringMode_WithCommandWriter_WritesCommandWithCmdStartAuthoring()
     {
         var (logic, commandWriter, _, _) = CreateSutWithCommandWriter();
-        MapCommandRequest? captured = null;
-        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
-            .Callback<MapCommandRequest>(r => captured = r);
+        MapCommandDto? captured = null;
+        commandWriter.Setup(w => w.WriteMapCommand(It.IsAny<MapCommandDto>()))
+            .Callback<MapCommandDto>(r => captured = r);
 
         logic.StartRouteAuthoringMode();
 
         Assert.NotNull(captured);
-        Assert.Equal(CommandType.CMD_START_AUTHORING, captured!.Value.Type);
+        Assert.Equal("CMD_START_AUTHORING", captured!.CommandType);
     }
 
     [Fact]
     public void StartRouteAuthoringMode_WithCommandWriter_CommandArgsContainsTkbTypeRoute()
     {
         var (logic, commandWriter, _, _) = CreateSutWithCommandWriter();
-        MapCommandRequest? captured = null;
-        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
-            .Callback<MapCommandRequest>(r => captured = r);
+        MapCommandDto? captured = null;
+        commandWriter.Setup(w => w.WriteMapCommand(It.IsAny<MapCommandDto>()))
+            .Callback<MapCommandDto>(r => captured = r);
 
         logic.StartRouteAuthoringMode();
 
         Assert.NotNull(captured);
         // tkbType 8802 is TacGraphic_Route
-        Assert.Contains("8802", captured!.Value.CommandArgsJson);
+        Assert.Contains("8802", captured!.CommandArgsJson);
     }
 
     [Fact]
@@ -359,10 +354,11 @@ public class ExConLogicTests
 
         logic.StartPlacementMode(100L);
 
-        clickQueue.Enqueue(new MapClickEvent
+        clickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = logic.ActiveContextId,
-            Position = new GeoPoint { Latitude = 45.0, Longitude = 12.0 }
+            Latitude             = 45.0,
+            Longitude            = 12.0
         });
 
         logic.Update();
@@ -371,7 +367,7 @@ public class ExConLogicTests
         var expected = new[]
         {
             "[Node-", // Placement Mode ON.
-            "[Node-", // MapClickEvent ContextId=
+            "[Node-", // MapClickEventDto ContextId=
         };
 
         Assert.True(
@@ -390,15 +386,16 @@ public class ExConLogicTests
         logic.StartPlacementMode(100L);
 
         // Push a click with a DIFFERENT context ID (stale click)
-        clickQueue.Enqueue(new MapClickEvent
+        clickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = Guid.NewGuid(),   // <── different
-            Position             = new GeoPoint { Latitude = 45.0, Longitude = 12.0 }
+            Latitude             = 45.0,
+            Longitude            = 12.0
         });
 
         logic.Update();
 
-        createWriter.Verify(w => w.Write(It.IsAny<CreateEntityRequest>()), Times.Never);
+        createWriter.Verify(w => w.WriteCreateEntity(It.IsAny<CreateEntityCommand>()), Times.Never);
     }
 
     [Fact]
@@ -407,15 +404,14 @@ public class ExConLogicTests
         var (logic, _, createWriter, clickQueue, _, _, _) = CreateSut();
 
         // No StartPlacementMode called → ActiveContextId == Guid.Empty
-        clickQueue.Enqueue(new MapClickEvent
+        clickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = Guid.NewGuid(),   // anything non-empty
-            Position             = new GeoPoint()
         });
 
         logic.Update();
 
-        createWriter.Verify(w => w.Write(It.IsAny<CreateEntityRequest>()), Times.Never);
+        createWriter.Verify(w => w.WriteCreateEntity(It.IsAny<CreateEntityCommand>()), Times.Never);
     }
 
     [Fact]
@@ -432,16 +428,15 @@ public class ExConLogicTests
 
         // ActiveContextId = Guid.Empty, PlacementType = 0.
         // Enqueue click with matching (empty) context ID but no placement mode.
-        clickQueue.Enqueue(new MapClickEvent
+        clickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = Guid.Empty,
-            Position             = new GeoPoint()
         });
 
         logic.Update();
 
         // Even though the context matched (both empty), PlacementType=0 → drop.
-        createWriter.Verify(w => w.Write(It.IsAny<CreateEntityRequest>()), Times.Never);
+        createWriter.Verify(w => w.WriteCreateEntity(It.IsAny<CreateEntityCommand>()), Times.Never);
     }
 
     // ── Click processing – valid ──────────────────────────────────────────────
@@ -453,15 +448,16 @@ public class ExConLogicTests
 
         logic.StartPlacementMode(100L);
 
-        clickQueue.Enqueue(new MapClickEvent
+        clickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = logic.ActiveContextId,
-            Position             = new GeoPoint { Latitude = 45.0, Longitude = 12.0 }
+            Latitude             = 45.0,
+            Longitude            = 12.0
         });
 
         logic.Update();
 
-        createWriter.Verify(w => w.Write(It.IsAny<CreateEntityRequest>()), Times.Once);
+        createWriter.Verify(w => w.WriteCreateEntity(It.IsAny<CreateEntityCommand>()), Times.Once);
     }
 
     [Fact]
@@ -471,17 +467,18 @@ public class ExConLogicTests
 
         logic.StartPlacementMode(100L);
 
-        clickQueue.Enqueue(new MapClickEvent
+        clickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = logic.ActiveContextId,
-            Position             = new GeoPoint()
         });
 
         logic.Update();
 
+        // TrackRequest is called once by StartPlacementMode (for CMD_PLACE_ENTITY)
+        // and once more by the click handler (for the create-entity request).
         transactionMgr.Verify(
             m => m.TrackRequest(It.IsAny<Guid>(), It.IsAny<string>()),
-            Times.Once);
+            Times.Exactly(2));
     }
 
     [Fact]
@@ -492,19 +489,17 @@ public class ExConLogicTests
 
         logic.StartPlacementMode(tkbType);
 
-        clickQueue.Enqueue(new MapClickEvent
+        clickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = logic.ActiveContextId,
-            Position             = new GeoPoint { Latitude = 10.0, Longitude = 20.0 }
+            Latitude             = 10.0,
+            Longitude            = 20.0
         });
 
         logic.Update();
 
-        createWriter.Verify(w => w.Write(
-            It.Is<CreateEntityRequest>(r =>
-                r.InitialDescriptors.Any(d =>
-                    d._d == EDescriptorType.dtEntityMaster &&
-                    d.EntityMaster.TkbType == tkbType))),
+        createWriter.Verify(w => w.WriteCreateEntity(
+            It.Is<CreateEntityCommand>(r => r.TkbType == tkbType)),
             Times.Once);
     }
 
@@ -565,8 +560,8 @@ public class ExConLogicTests
 
         logic.SendConfigPatch(patch);
 
-        configWriter.Verify(w => w.Write(
-            It.Is<MapInteractionConfig>(c => c.ConfigurationJson == patch)),
+        configWriter.Verify(w => w.WriteMapConfig(
+            It.Is<MapConfigDto>(c => c.ConfigJson == patch)),
             Times.Once);
     }
 
@@ -632,41 +627,37 @@ public class ExConLogicTests
 
     private static (
         ExConLogic                                Logic,
-        Mock<IDdsWriter<MapCommandRequest>>     CommandWriter,
+        Mock<IExConEgressWriters>               CommandWriter,
         Mock<IRequestTransactionManager>        TransactionMgr,
-        ConcurrentEventQueue<MapCommandAck>     AckQueue)
+        ConcurrentEventQueue<MapCommandAckDto>     AckQueue)
         CreateSutWithCommandWriter()
     {
         var repo             = new DerRepo();
-        var configWriter     = new Mock<IDdsWriter<MapInteractionConfig>>();
-        var createWriter     = new Mock<IDdsWriter<CreateEntityRequest>>();
-        var commandWriter    = new Mock<IDdsWriter<MapCommandRequest>>();
+        var egressWriters    = new Mock<IExConEgressWriters>();
         var transactionMgr   = new Mock<IRequestTransactionManager>();
         var missionSvc       = new Mock<IMissionEditorService>();
         var contextMenuLogic = new Mock<IContextMenuLogic>();
         var interactionPanel = new InteractionPanel();
-        var clickQueue       = new ConcurrentEventQueue<MapClickEvent>();
-        var selectionQueue   = new ConcurrentEventQueue<SelectionChangedEvent>();
-        var ackQueue         = new ConcurrentEventQueue<MapCommandAck>();
+        var clickQueue       = new ConcurrentEventQueue<MapClickEventDto>();
+        var selectionQueue   = new ConcurrentEventQueue<SelectionChangedEventDto>();
+        var ackQueue         = new ConcurrentEventQueue<MapCommandAckDto>();
 
         var logic = new ExConLogic(
             repo:                 repo,
             missionEditorService: missionSvc.Object,
             contextMenuLogic:     contextMenuLogic.Object,
             transactionManager:   transactionMgr.Object,
-            configWriter:         configWriter.Object,
-            createEntityWriter:   createWriter.Object,
+            egressWriters:        egressWriters.Object,
             clickQueue:           clickQueue,
             selectionQueue:       selectionQueue,
             interactionPanel:     interactionPanel,
-            createEntityAckQueue: new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>(),
-            commandWriter:        commandWriter.Object,
+            createEntityAckQueue: new ConcurrentEventQueue<EntityLifecycleAckDto>(),
             mapCommandAckQueue:   ackQueue);
 
-        return (logic, commandWriter, transactionMgr, ackQueue);
+        return (logic, egressWriters, transactionMgr, ackQueue);
     }
 
-    // ── MapCommandAck processing ──────────────────────────────────────────────
+    // ── MapCommandAckDto processing ──────────────────────────────────────────────
 
     /// <summary>
     /// When <see cref="ExConLogic.StartPlacementMode"/> is called with a command writer,
@@ -686,7 +677,7 @@ public class ExConLogicTests
     }
 
     /// <summary>
-    /// When a <see cref="MapCommandAck"/> with <c>StatusCode=0</c> (Finished) arrives
+    /// When a <see cref="MapCommandAckDto"/> with <c>StatusCode=0</c> (Finished) arrives
     /// for the last tracked request, <see cref="ExConLogic.Update"/> must call
     /// <see cref="IRequestTransactionManager.CompleteRequest"/> with <c>success=true</c>.
     /// </summary>
@@ -697,12 +688,12 @@ public class ExConLogicTests
 
         // Capture the RequestId written to the command writer.
         Guid capturedRequestId = Guid.Empty;
-        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
-            .Callback<MapCommandRequest>(req => capturedRequestId = req.RequestId);
+        commandWriter.Setup(w => w.WriteMapCommand(It.IsAny<MapCommandDto>()))
+            .Callback<MapCommandDto>(req => capturedRequestId = req.RequestId);
 
         logic.StartPlacementMode(100L);
 
-        ackQueue.Enqueue(new MapCommandAck
+        ackQueue.Enqueue(new MapCommandAckDto
         {
             RequestId  = capturedRequestId,
             StatusCode = 0, // Finished
@@ -715,7 +706,7 @@ public class ExConLogicTests
     }
 
     /// <summary>
-    /// A <see cref="MapCommandAck"/> with <c>StatusCode=2</c> (Cancelled) must
+    /// A <see cref="MapCommandAckDto"/> with <c>StatusCode=2</c> (Cancelled) must
     /// complete the transaction with <c>success=false</c>.
     /// </summary>
     [Fact]
@@ -724,12 +715,12 @@ public class ExConLogicTests
         var (logic, commandWriter, txMgr, ackQueue) = CreateSutWithCommandWriter();
 
         Guid capturedRequestId = Guid.Empty;
-        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
-            .Callback<MapCommandRequest>(req => capturedRequestId = req.RequestId);
+        commandWriter.Setup(w => w.WriteMapCommand(It.IsAny<MapCommandDto>()))
+            .Callback<MapCommandDto>(req => capturedRequestId = req.RequestId);
 
         logic.StartPlacementMode(100L);
 
-        ackQueue.Enqueue(new MapCommandAck
+        ackQueue.Enqueue(new MapCommandAckDto
         {
             RequestId  = capturedRequestId,
             StatusCode = 2, // Cancelled
@@ -742,7 +733,7 @@ public class ExConLogicTests
     }
 
     /// <summary>
-    /// A <see cref="MapCommandAck"/> whose <c>RequestId</c> does not match the last
+    /// A <see cref="MapCommandAckDto"/> whose <c>RequestId</c> does not match the last
     /// tracked command must NOT call <see cref="IRequestTransactionManager.CompleteRequest"/>.
     /// </summary>
     [Fact]
@@ -752,7 +743,7 @@ public class ExConLogicTests
 
         logic.StartPlacementMode(100L);
 
-        ackQueue.Enqueue(new MapCommandAck
+        ackQueue.Enqueue(new MapCommandAckDto
         {
             RequestId  = Guid.NewGuid(), // deliberate mismatch
             StatusCode = 0,
@@ -777,8 +768,8 @@ public class ExConLogicTests
         const string propsJson = "{\"name\":\"Alpha-1\"}";
         logic.StartPlacementMode(100L, initialPropertiesJson: propsJson);
 
-        commandWriter.Verify(w => w.Write(
-            It.Is<MapCommandRequest>(r =>
+        commandWriter.Verify(w => w.WriteMapCommand(
+            It.Is<MapCommandDto>(r =>
                 r.CommandArgsJson.Contains("initialPropertiesJson") &&
                 r.CommandArgsJson.Contains("Alpha-1"))),
             Times.Once);

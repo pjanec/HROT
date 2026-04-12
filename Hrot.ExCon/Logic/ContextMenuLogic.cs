@@ -1,9 +1,7 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
-using Hrot.Map.Common;
-using Hrot.Map.Common.Dds;
+using Hrot.Core.Network;
 using FDP.Toolkit.DER;
 using Hrot.ExCon.Adapters;
+using Hrot.Map.Common;
 using Hrot.UI.Common.Menus;
 using Newtonsoft.Json;
 
@@ -17,7 +15,7 @@ namespace Hrot.ExCon.Logic;
 /// <list type="number">
 ///   <item>Builds a menu item list according to <see cref="CurrentStrategy"/>.</item>
 ///   <item>Serialises the list to the JSON schema expected by the IG.</item>
-///   <item>Pushes a <see cref="ContextActionsUpdate"/> via the injected writer.</item>
+///   <item>Pushes context actions via the injected <see cref="IExConEgressWriters"/>.</item>
 /// </list>
 /// </para>
 ///
@@ -25,7 +23,7 @@ namespace Hrot.ExCon.Logic;
 /// When constructed with a non-null <see langword="logic"/> reference (Phase 6),
 /// <see cref="SharedContextMenuPopulator"/> is used to build entity menus and the
 /// resulting callbacks are stored in <c>_activeCallbacks</c> for dispatch
-/// when a <see cref="ContextActionInvoked"/> event arrives.
+/// when a <see cref="ContextActionInvokedDto"/> event arrives.
 /// </para>
 /// </summary>
 public sealed class ContextMenuLogic : IContextMenuLogic
@@ -33,7 +31,7 @@ public sealed class ContextMenuLogic : IContextMenuLogic
     // ── Dependencies ──────────────────────────────────────────────────────────
 
     private readonly IDerRepo _repo;
-    private readonly IDdsWriter<ContextActionsUpdate> _menuWriter;
+    private readonly IExConEgressWriters _egressWriters;
     private readonly IExConLogic? _logic;
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -51,7 +49,7 @@ public sealed class ContextMenuLogic : IContextMenuLogic
     // ── Events ────────────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
-    public event Action<ContextActionInvoked>? ActionInvoked;
+    public event Action<ContextActionInvokedDto>? ActionInvoked;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -65,12 +63,12 @@ public sealed class ContextMenuLogic : IContextMenuLogic
     /// </param>
     public ContextMenuLogic(
         IDerRepo repo,
-        IDdsWriter<ContextActionsUpdate> menuWriter,
+        IExConEgressWriters egressWriters,
         IExConLogic? logic = null)
     {
-        _repo       = repo       ?? throw new ArgumentNullException(nameof(repo));
-        _menuWriter = menuWriter ?? throw new ArgumentNullException(nameof(menuWriter));
-        _logic      = logic;
+        _repo          = repo          ?? throw new ArgumentNullException(nameof(repo));
+        _egressWriters = egressWriters ?? throw new ArgumentNullException(nameof(egressWriters));
+        _logic         = logic;
     }
 
     // ── IContextMenuLogic ─────────────────────────────────────────────────────
@@ -85,7 +83,7 @@ public sealed class ContextMenuLogic : IContextMenuLogic
     }
 
     /// <inheritdoc/>
-    public void OnSelectionChanged(SelectionChangedEvent evt, Func<int, bool>? isEntityPending = null)
+    public void OnSelectionChanged(SelectionChangedEventDto evt, Func<int, bool>? isEntityPending = null)
     {
         List<ContextMenuItem> menuItems;
 
@@ -116,7 +114,7 @@ public sealed class ContextMenuLogic : IContextMenuLogic
                     var builder = new JsonContextMenuBuilder();
                     var actions = new ExConEntityActionAdapter(_logic);
 
-                    bool hasEditablePolyline = entity?.HasDescriptor<MapVisualOverlay>() == true;
+                    bool hasEditablePolyline = entity?.HasDescriptor<MapOverlayDescriptor>() == true;
                     bool hasRoute            = entity?.TkbType == TkbEntityTypes.TacGraphic_Route;
 
                     SharedContextMenuPopulator.PopulateEntityMenu(
@@ -141,16 +139,11 @@ public sealed class ContextMenuLogic : IContextMenuLogic
 
         string menuJson = JsonConvert.SerializeObject(menuItems);
 
-        _menuWriter.Write(new ContextActionsUpdate
-        {
-            MapGroupId         = evt.MapId,
-            ForSelection       = evt.SelectedEntityIds,
-            MenuDefinitionJson = menuJson
-        });
+        _egressWriters.PushContextActions(evt.MapId, evt.SelectedEntityIds, menuJson);
     }
 
     /// <inheritdoc/>
-    public void OnActionInvoked(ContextActionInvoked evt)
+    public void OnActionInvoked(ContextActionInvokedDto evt)
     {
         // Dispatch via Phase 6 callback registry when available.
         if (_activeCallbacks.TryGetValue(evt.ActionId, out var callback))
@@ -201,9 +194,9 @@ public sealed class ContextMenuLogic : IContextMenuLogic
         };
 
         // "Edit Shape" — editable tactical overlay.
-        if (entity != null && entity.HasDescriptor<MapVisualOverlay>())
+        if (entity != null && entity.HasDescriptor<MapOverlayDescriptor>())
         {
-            var overlay = entity.GetDescriptor<MapVisualOverlay>()!;
+            var overlay = entity.GetDescriptor<MapOverlayDescriptor>()!;
             if (overlay.IsEditable)
                 items.Add(new ContextMenuItem { Id = ContextMenuActions.EditOverlay, Label = "Edit Shape", Icon = "edit" });
         }

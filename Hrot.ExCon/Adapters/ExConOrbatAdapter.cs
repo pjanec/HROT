@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.DER;
-using Hrot.NED.Descriptors;
+using Hrot.Core.Network;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
 
@@ -14,7 +14,7 @@ namespace Hrot.ExCon.Adapters;
 /// repository and dispatching commands through <see cref="IExConLogic"/>.
 ///
 /// <para>
-/// Tree hierarchy is derived from <see cref="EntityInfo.CommanderId"/> (0 = root).
+/// Tree hierarchy is derived from <see cref="EntityInfoDescriptor.CommanderId"/> (0 = root).
 /// </para>
 ///
 /// <para>
@@ -51,8 +51,8 @@ public sealed class ExConOrbatAdapter : IOrbatDataProvider, IOrbatController
 
         foreach (var entity in _repo.GetAllEntities())
         {
-            if (!entity.HasDescriptor<EntityInfo>()) continue;
-            var info = entity.GetDescriptor<EntityInfo>();
+            if (!entity.HasDescriptor<EntityInfoDescriptor>()) continue;
+            var info = entity.GetDescriptor<EntityInfoDescriptor>();
 
             if (info.CommanderId == 0)
                 rootIds.Add(entity.EntityId);
@@ -83,9 +83,9 @@ public sealed class ExConOrbatAdapter : IOrbatDataProvider, IOrbatController
             if (!visited.Add(entityId)) continue;
 
             var entity = _repo.GetEntity(entityId);
-            if (entity is null || !entity.HasDescriptor<EntityInfo>()) continue;
+            if (entity is null || !entity.HasDescriptor<EntityInfoDescriptor>()) continue;
 
-            var info = entity.GetDescriptor<EntityInfo>();
+            var info = entity.GetDescriptor<EntityInfoDescriptor>();
             string name = info.Name ?? string.Empty;
 
             bool passesFilter = string.IsNullOrEmpty(filterText)

@@ -1,13 +1,10 @@
-using System.Numerics;
+﻿using System.Numerics;
+using Hrot.Core.Network;
 using Hrot.Core.Mission;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
-using Hrot.NED.Common;
 using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Panels;
 using Hrot.ExCon.Services;
-using Hrot.Map.Common.Dds;
 using FDP.Toolkit.DER;
 using ImGuiNET;
 using Moq;
@@ -32,28 +29,26 @@ public class TwoAckIosTests
 
     private static (
         ExConLogic Logic,
-        ConcurrentEventQueue<CreateUpdateDeleteEntityAck> AckQueue,
+        ConcurrentEventQueue<EntityLifecycleAckDto> AckQueue,
         Mock<IRequestTransactionManager> TransactionMgr)
         CreateSutWithAckQueue()
     {
         var repo              = new DerRepo();
-        var configWriter      = new Mock<IDdsWriter<MapInteractionConfig>>();
-        var createWriter      = new Mock<IDdsWriter<CreateEntityRequest>>();
+        var egressWriters     = new Mock<IExConEgressWriters>();
         var transactionMgr    = new Mock<IRequestTransactionManager>();
         var missionSvc        = new Mock<IMissionEditorService>();
         var contextMenuLogic  = new Mock<IContextMenuLogic>();
         var interactionPanel  = new InteractionPanel();
-        var clickQueue        = new ConcurrentEventQueue<MapClickEvent>();
-        var selectionQueue    = new ConcurrentEventQueue<SelectionChangedEvent>();
-        var ackQueue          = new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>();
+        var clickQueue        = new ConcurrentEventQueue<MapClickEventDto>();
+        var selectionQueue    = new ConcurrentEventQueue<SelectionChangedEventDto>();
+        var ackQueue          = new ConcurrentEventQueue<EntityLifecycleAckDto>();
 
         var logic = new ExConLogic(
             repo:                 repo,
             missionEditorService: missionSvc.Object,
             contextMenuLogic:     contextMenuLogic.Object,
             transactionManager:   transactionMgr.Object,
-            configWriter:         configWriter.Object,
-            createEntityWriter:   createWriter.Object,
+            egressWriters:        egressWriters.Object,
             clickQueue:           clickQueue,
             selectionQueue:       selectionQueue,
             interactionPanel:     interactionPanel,
@@ -69,11 +64,11 @@ public class TwoAckIosTests
     {
         var (logic, ackQueue, _) = CreateSutWithAckQueue();
 
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck
+        ackQueue.Enqueue(new EntityLifecycleAckDto
         {
             RequestId  = Guid.NewGuid(),
             EntityId   = 42,
-            StatusCode = (int)NedStatusCode.InProgress,
+            StatusCode = EntityLifecycleAckDto.StatusInProgress,
         });
 
         logic.Update();
@@ -87,11 +82,11 @@ public class TwoAckIosTests
         var (logic, ackQueue, txMgr) = CreateSutWithAckQueue();
         var requestId = Guid.NewGuid();
 
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck
+        ackQueue.Enqueue(new EntityLifecycleAckDto
         {
             RequestId  = requestId,
             EntityId   = 43,
-            StatusCode = (int)NedStatusCode.InProgress,
+            StatusCode = EntityLifecycleAckDto.StatusInProgress,
         });
 
         logic.Update();
@@ -109,12 +104,12 @@ public class TwoAckIosTests
         var (logic, ackQueue, _) = CreateSutWithAckQueue();
 
         // Phase 1
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck { RequestId = Guid.NewGuid(), EntityId = 50, StatusCode = (int)NedStatusCode.InProgress });
+        ackQueue.Enqueue(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 50, StatusCode = EntityLifecycleAckDto.StatusInProgress });
         logic.Update();
         Assert.True(logic.IsEntityPending(50));
 
         // Phase 2 - success
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck { RequestId = Guid.NewGuid(), EntityId = 50, StatusCode = (int)NedStatusCode.Success });
+        ackQueue.Enqueue(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 50, StatusCode = EntityLifecycleAckDto.StatusSuccess });
         logic.Update();
 
         Assert.False(logic.IsEntityPending(50));
@@ -126,11 +121,11 @@ public class TwoAckIosTests
         var (logic, ackQueue, txMgr) = CreateSutWithAckQueue();
         var requestId = Guid.NewGuid();
 
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck
+        ackQueue.Enqueue(new EntityLifecycleAckDto
         {
             RequestId  = requestId,
             EntityId   = 55,
-            StatusCode = (int)NedStatusCode.Success,
+            StatusCode = EntityLifecycleAckDto.StatusSuccess,
         });
 
         logic.Update();
@@ -143,7 +138,7 @@ public class TwoAckIosTests
     {
         var (logic, ackQueue, _) = CreateSutWithAckQueue();
 
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck { RequestId = Guid.NewGuid(), EntityId = 60, StatusCode = (int)NedStatusCode.Success });
+        ackQueue.Enqueue(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 60, StatusCode = EntityLifecycleAckDto.StatusSuccess });
         logic.Update();
 
         Assert.Null(logic.GlobalAlert);
@@ -157,12 +152,12 @@ public class TwoAckIosTests
         var (logic, ackQueue, _) = CreateSutWithAckQueue();
 
         // Phase 1
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck { RequestId = Guid.NewGuid(), EntityId = 70, StatusCode = (int)NedStatusCode.InProgress });
+        ackQueue.Enqueue(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 70, StatusCode = EntityLifecycleAckDto.StatusInProgress });
         logic.Update();
         Assert.True(logic.IsEntityPending(70));
 
         // Phase 2 - error
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck { RequestId = Guid.NewGuid(), EntityId = 70, StatusCode = (int)NedStatusCode.UnknownDescriptorType });
+        ackQueue.Enqueue(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 70, StatusCode = EntityLifecycleAckDto.StatusFailureMin });
         logic.Update();
 
         Assert.False(logic.IsEntityPending(70));
@@ -173,11 +168,11 @@ public class TwoAckIosTests
     {
         var (logic, ackQueue, _) = CreateSutWithAckQueue();
 
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck
+        ackQueue.Enqueue(new EntityLifecycleAckDto
         {
             RequestId  = Guid.NewGuid(),
             EntityId   = 75,
-            StatusCode = (int)NedStatusCode.UnknownDescriptorType,
+            StatusCode = EntityLifecycleAckDto.StatusFailureMin,
         });
 
         logic.Update();
@@ -191,11 +186,11 @@ public class TwoAckIosTests
         var (logic, ackQueue, txMgr) = CreateSutWithAckQueue();
         var requestId = Guid.NewGuid();
 
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck
+        ackQueue.Enqueue(new EntityLifecycleAckDto
         {
             RequestId  = requestId,
             EntityId   = 80,
-            StatusCode = (int)NedStatusCode.UnknownDescriptorType,
+            StatusCode = EntityLifecycleAckDto.StatusFailureMin,
         });
 
         logic.Update();
@@ -210,7 +205,7 @@ public class TwoAckIosTests
     {
         var (logic, ackQueue, _) = CreateSutWithAckQueue();
 
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck { RequestId = Guid.NewGuid(), EntityId = 90, StatusCode = (int)NedStatusCode.EntityNotFound });
+        ackQueue.Enqueue(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 90, StatusCode = EntityLifecycleAckDto.StatusFailureMin });
         logic.Update();
 
         Assert.NotNull(logic.GlobalAlert);
@@ -233,7 +228,7 @@ public class TwoAckIosTests
     public void IsEntityPending_ReturnsTrue_AfterInProgressAck()
     {
         var (logic, ackQueue, _) = CreateSutWithAckQueue();
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck { RequestId = Guid.NewGuid(), EntityId = 100, StatusCode = (int)NedStatusCode.InProgress });
+        ackQueue.Enqueue(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 100, StatusCode = EntityLifecycleAckDto.StatusInProgress });
         logic.Update();
         Assert.True(logic.IsEntityPending(100));
     }
@@ -242,9 +237,9 @@ public class TwoAckIosTests
     public void IsEntityPending_ReturnsFalse_AfterSuccessAck()
     {
         var (logic, ackQueue, _) = CreateSutWithAckQueue();
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck { RequestId = Guid.NewGuid(), EntityId = 101, StatusCode = (int)NedStatusCode.InProgress });
+        ackQueue.Enqueue(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 101, StatusCode = EntityLifecycleAckDto.StatusInProgress });
         logic.Update();
-        ackQueue.Enqueue(new CreateUpdateDeleteEntityAck { RequestId = Guid.NewGuid(), EntityId = 101, StatusCode = (int)NedStatusCode.Success });
+        ackQueue.Enqueue(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 101, StatusCode = EntityLifecycleAckDto.StatusSuccess });
         logic.Update();
         Assert.False(logic.IsEntityPending(101));
     }
@@ -255,10 +250,10 @@ public class TwoAckIosTests
 /// </summary>
 public class ContextMenuLogicPendingTests
 {
-    private static (ContextMenuLogic logic, Mock<IDdsWriter<ContextActionsUpdate>> writer) Build()
+    private static (ContextMenuLogic logic, Mock<IExConEgressWriters> writer) Build()
     {
         var repo   = new DerRepo();
-        var writer = new Mock<IDdsWriter<ContextActionsUpdate>>();
+        var writer = new Mock<IExConEgressWriters>();
         var logic  = new ContextMenuLogic(repo, writer.Object);
         return (logic, writer);
     }
@@ -268,7 +263,7 @@ public class ContextMenuLogicPendingTests
     {
         var (logic, writer) = Build();
 
-        var evt = new SelectionChangedEvent
+        var evt = new SelectionChangedEventDto
         {
             MapId             = 1,
             SelectedEntityIds = new List<int> { 42 },
@@ -277,8 +272,8 @@ public class ContextMenuLogicPendingTests
         // isEntityPending predicate always returns true.
         logic.OnSelectionChanged(evt, _ => true);
 
-        writer.Verify(w => w.Write(It.Is<ContextActionsUpdate>(
-            u => u.MenuDefinitionJson == "[]")),
+        writer.Verify(w => w.PushContextActions(
+            It.IsAny<int>(), It.IsAny<IReadOnlyList<int>?>(), "[]"),
             Times.Once,
             "Expected empty JSON array when entity is pending.");
     }
@@ -288,7 +283,7 @@ public class ContextMenuLogicPendingTests
     {
         var (logic, writer) = Build();
 
-        var evt = new SelectionChangedEvent
+        var evt = new SelectionChangedEventDto
         {
             MapId             = 1,
             SelectedEntityIds = new List<int> { 43 },
@@ -297,8 +292,8 @@ public class ContextMenuLogicPendingTests
         // isEntityPending predicate always returns false.
         logic.OnSelectionChanged(evt, _ => false);
 
-        writer.Verify(w => w.Write(It.Is<ContextActionsUpdate>(
-            u => u.MenuDefinitionJson != "[]")),
+        writer.Verify(w => w.PushContextActions(
+            It.IsAny<int>(), It.IsAny<IReadOnlyList<int>?>(), It.IsNotIn("[]")),
             Times.Once,
             "Expected non-empty menu when entity is NOT pending.");
     }

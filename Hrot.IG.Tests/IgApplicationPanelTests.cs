@@ -7,6 +7,7 @@ using Hrot.IG.Components;
 using Hrot.IG.Systems;
 using Hrot.Map.Common.Replication;
 using Hrot.IG.UI;
+using Hrot.Common.Abstractions;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication.Components;
@@ -276,13 +277,13 @@ public class IgApplicationPanelTests
         {
             var moduleProperty = entry.GetType().GetProperty("Module");
             var module = moduleProperty?.GetValue(entry);
-            if (module is CycloneNetworkModule cyclone)
+            if (module is INedReplicationModule)
             {
-                return (IEnumerable)GetPrivateField(cyclone, "_customTranslators");
+                return (IEnumerable)GetPrivateField(module, "_sharedTranslators");
             }
         }
 
-        throw new InvalidOperationException("CycloneNetworkModule not found in kernel modules.");
+        throw new InvalidOperationException("NedReplicationModule not found in kernel modules.");
     }
 
     private static object GetPrivateField(object target, string fieldName)

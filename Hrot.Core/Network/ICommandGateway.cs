@@ -12,6 +12,9 @@ public interface ICommandGateway : IDisposable
     /// <summary>Sends an update-descriptor request.</summary>
     Task SendUpdateDescriptorAsync(UpdateEntityDescriptorCommand cmd, CancellationToken ct = default);
 
-    /// <summary>Sends a mission-control request (replace/jump/abort) to the CGF.</summary>
-    Task SendMissionControlRequestAsync(MissionControlCommand cmd, CancellationToken ct = default);
+    /// <summary>
+    /// Sends a mission-control request (replace/jump/abort) to the CGF and
+    /// returns the commit result including success, new version, and error code.
+    /// </summary>
+    Task<MissionCommitResult> SendMissionControlRequestAsync(MissionControlCommand cmd, CancellationToken ct = default);
 }

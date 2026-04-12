@@ -65,6 +65,10 @@ public sealed class SwitchTimeModeEchoLoopTests : IDisposable
 
         Thread.Sleep(50); // Give echoObserver time to be established before ScanAndPublish writes
 
+        // Drain any TransientLocal historical samples delivered to echoObserver
+        // (the original wireMsg stored by DDS durability) before calling ScanAndPublish.
+        using (var drain = echoObserver.Take()) { /* discard historical samples */ }
+
         // ScanAndPublish: should suppress the echoed event.
         translator.ScanAndPublish(null!);
 

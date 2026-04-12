@@ -31,7 +31,7 @@
 
 - [x] **TASK-P3-001** Define INetworkFactory and Neutral Interfaces [details](./TASK-DETAIL.md#task-p3-001-define-inetworkfactory-and-neutral-interfaces-in-hrotcore) ✅ BATCH-05
 - [x] **TASK-P3-002** Create Hrot.Network.NED [details](./TASK-DETAIL.md#task-p3-002-create-hrotnetworkned) ✅ BATCH-06
-- [ ] **TASK-P3-003** Create Hrot.Network.BDC [details](./TASK-DETAIL.md#task-p3-003-create-hrotnetworkbdc)
+- [x] **TASK-P3-003** Create Hrot.Network.BDC [details](./TASK-DETAIL.md#task-p3-003-create-hrotnetworkbdc) ✅ BATCH-07
 
 ---
 
@@ -39,7 +39,7 @@
 
 **Goal:** Remove all direct NED/DDS coupling from subsystem plugin libraries; move subsystem adapters into their plugin assemblies.
 
-- [ ] **TASK-P4-001** Decouple ExCon from NED [details](./TASK-DETAIL.md#task-p4-001-decouple-excon-from-ned)
+- [x] **TASK-P4-001** Decouple ExCon from NED [details](./TASK-DETAIL.md#task-p4-001-decouple-excon-from-ned) ✅ BATCH-08
 - [ ] **TASK-P4-002** Decouple SimHost from NED [details](./TASK-DETAIL.md#task-p4-002-decouple-simhost-from-ned)
 - [ ] **TASK-P4-003** Decouple IG and CGF from NED [details](./TASK-DETAIL.md#task-p4-003-decouple-ig-and-cgf-from-ned)
 - [ ] **TASK-P4-004** Move ISubsystem Adapters into Plugin Assemblies [details](./TASK-DETAIL.md#task-p4-004-move-isubsystem-adapters-into-plugin-assemblies)

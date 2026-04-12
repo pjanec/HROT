@@ -1,20 +1,15 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
-using Hrot.NED.Common;
-using Hrot.ExCon.Logic;
+﻿using Hrot.ExCon.Logic;
+using Hrot.Core.Network;
+using Hrot.Core.Mission;
 using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Panels;
 using Hrot.ExCon.Services;
-using Hrot.Common.Events;
 using FDP.Toolkit.DER;
-using Fdp.Kernel;
+using Moq;
 
 namespace Hrot.ExCon.Tests;
 
 // ── Test collection: disable parallelism ──────────────────────────────────────
-// Real DDS integration tests must run on separate domain IDs to isolate topic
-// traffic.  Even in this in-process suite, serialising the collection prevents
-// any future migration to live participants from introducing flaky races.
 
 [CollectionDefinition("Integration", DisableParallelization = true)]
 public class IntegrationTestCollection { }
@@ -22,55 +17,29 @@ public class IntegrationTestCollection { }
 // ── Shared infrastructure for integration tests ───────────────────────────────
 
 /// <summary>
-/// Lightweight "IG stub" used in ExCon.9.2 tests: exposes two event queues
-/// (inbound from the ExCon, outbound to the ExCon) so the test can assert that
-/// configuration is received and click events are forwarded.
+/// Lightweight "IG stub" used in integration tests: exposes a capturing egress
+/// writer (inbound from the ExCon) and two event queues (outbound from the IG).
 /// </summary>
 internal sealed class IgStub
 {
-    /// <summary>Captures MapInteractionConfig messages pushed by the ExCon.</summary>
-    public CapturingWriter<MapInteractionConfig> ConfigCapture { get; } = new();
+    /// <summary>Captures all egress messages published by the ExCon.</summary>
+    public CapturingEgressWriters EgressCapture { get; } = new();
 
-    /// <summary>Click-event queue that the ExCon logic reads from (IG → ExCon).</summary>
-    public ConcurrentEventQueue<MapClickEvent> ClickQueue { get; } = new();
+    /// <summary>Click-event queue that the ExCon logic reads from (IG -> ExCon).</summary>
+    public ConcurrentEventQueue<MapClickEventDto> ClickQueue { get; } = new();
 
-    /// <summary>Selection-change queue that the ExCon logic reads from (IG → ExCon).</summary>
-    public ConcurrentEventQueue<SelectionChangedEvent> SelectionQueue { get; } = new();
+    /// <summary>Selection-change queue that the ExCon logic reads from (IG -> ExCon).</summary>
+    public ConcurrentEventQueue<SelectionChangedEventDto> SelectionQueue { get; } = new();
 }
 
 /// <summary>
-/// Lightweight "SimHost stub" used in ExCon.9.3 tests: owns the ACK queue that
-/// feeds the <see cref="MissionEditorService"/> and captures outgoing create
-/// requests sent by the ExCon.
+/// Lightweight "SimHost stub" used in integration tests: exposes a
+/// <see cref="ICommandGateway"/> mock for controlling commit results.
 /// </summary>
 internal sealed class SimHostStub
 {
-    /// <summary>Captures CreateEntityRequest messages published by the ExCon.</summary>
-    public CapturingWriter<CreateEntityRequest> CreateCapture { get; } = new();
-
-    /// <summary>Bus that feeds MissionControlAckEvent back into MissionEditorService (SimHost → ExCon).</summary>
-    public FdpEventBus MissionBus { get; } = new();
-
-    /// <summary>
-    /// Delivers a successful <see cref="MissionControlAckEvent"/> for the given request ID
-    /// (simulating SimHost accepting and processing the commit).
-    /// </summary>
-    public void DeliverAck(Guid requestId, MissionEditorService svc, long newVersion = 1)
-    {
-        MissionBus.Publish(new MissionControlAckEvent { RequestId = requestId, ErrorCode = 0, NewVersion = newVersion });
-        MissionBus.SwapBuffers();
-        svc.Poll();
-    }
-
-    /// <summary>
-    /// Delivers a version-conflict rejection (simulating SimHost detecting a stale base version).
-    /// </summary>
-    public void DeliverVersionConflict(Guid requestId, MissionEditorService svc)
-    {
-        MissionBus.Publish(new MissionControlAckEvent { RequestId = requestId, ErrorCode = 7, NewVersion = 0 });
-        MissionBus.SwapBuffers();
-        svc.Poll();
-    }
+    /// <summary>Mock gateway for commit/control requests.</summary>
+    public Mock<ICommandGateway> Gateway { get; } = new();
 }
 
 // ── Test fixture factory ──────────────────────────────────────────────────────
@@ -78,13 +47,8 @@ internal sealed class SimHostStub
 internal static class IntegrationFactory
 {
     /// <summary>
-    /// Creates a fully wired ExConLogic + IosMock where all DDS writers/readers
-    /// are replaced by in-process stubs.  The <paramref name="igStub"/> and
-    /// <paramref name="simHostStub"/> carry the queues used in ExCon.9.2 and
-    /// ExCon.9.3 scenarios respectively.
-    ///
-    /// <para>No live DDS participant is created; tests execute in a single
-    /// process without any socket or OS-resource allocation.</para>
+    /// Creates a fully wired ExConLogic + ExConMock where all DDS writers/readers
+    /// are replaced by in-process stubs.
     /// </summary>
     public static (ExConMock Mock, ExConLogic Logic, DerRepo Repo, MissionEditorService MissionSvc, InteractionPanel Log)
         Create(IgStub igStub, SimHostStub simHostStub)
@@ -92,10 +56,10 @@ internal static class IntegrationFactory
         var repo       = new DerRepo();
         var missionSvc = new MissionEditorService(
             repo,
-            simHostStub.MissionBus,
-            commitTimeoutMs: 200);          // Short timeout keeps tests fast.
+            simHostStub.Gateway.Object,
+            commitTimeoutMs: 200);
 
-        var contextMenuLogic = new ContextMenuLogic(repo, new CapturingWriter<ContextActionsUpdate>());
+        var contextMenuLogic = new ContextMenuLogic(repo, igStub.EgressCapture);
         var transactionMgr   = new RequestTransactionManager();
         var interactionPanel = new InteractionPanel();
 
@@ -104,13 +68,11 @@ internal static class IntegrationFactory
             missionEditorService: missionSvc,
             contextMenuLogic:    contextMenuLogic,
             transactionManager:  transactionMgr,
-            configWriter:        igStub.ConfigCapture,
-            createEntityWriter:  simHostStub.CreateCapture,
+            egressWriters:       igStub.EgressCapture,
             clickQueue:          igStub.ClickQueue,
             selectionQueue:      igStub.SelectionQueue,
             interactionPanel:    interactionPanel,
-            createEntityAckQueue: new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>(),
-            ingressHandlers:     new[] { (IIngressHandler)missionSvc });
+            createEntityAckQueue: new ConcurrentEventQueue<EntityLifecycleAckDto>());
 
         var mock = new ExConMock(
             logic:            logic,
@@ -125,22 +87,9 @@ internal static class IntegrationFactory
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// ExCon.9.1 — Standalone ExCon integration tests
+// ExCon.9.1 -- Standalone ExCon integration tests
 // ──────────────────────────────────────────────────────────────────────────────
 
-/// <summary>
-/// Scenario 1: Standalone ExCon validation.
-///
-/// Simulates booting <see cref="ExConMock"/> and <see cref="ExConLogic"/> with no
-/// live network.  Verifies that:
-/// <list type="bullet">
-///   <item>Multiple update frames do not throw.</item>
-///   <item>Panel hierarchy queries return correct results from an empty or
-///   pre-populated repo without null-reference errors.</item>
-///   <item>Imperative commands (<c>SelectEntity</c>,
-///   <c>StartPlacementMode</c>) execute correctly in isolation.</item>
-/// </list>
-/// </summary>
 [Collection("Integration")]
 public class StandaloneIosTests
 {
@@ -170,7 +119,6 @@ public class StandaloneIosTests
     {
         var (mock, _, _, _) = Create();
 
-        // DrawUI bodies are Phase P9 stubs — always safe to call.
         var ex = Record.Exception(() => mock.DrawUI());
 
         Assert.Null(ex);
@@ -180,13 +128,12 @@ public class StandaloneIosTests
     public void Boot_NoSpontaneousWritesWithoutOperatorAction()
     {
         var ig  = new IgStub();
-        var sh  = new SimHostStub();
-        var (mock, _, _, _, _) = IntegrationFactory.Create(ig, sh);
+        var (mock, _, _, _, _) = IntegrationFactory.Create(ig, new SimHostStub());
 
         for (int i = 0; i < 3; i++) mock.Update(0f);
 
-        Assert.Empty(ig.ConfigCapture.Written);
-        Assert.Empty(sh.CreateCapture.Written);
+        Assert.Empty(ig.EgressCapture.WrittenConfigs);
+        Assert.Empty(ig.EgressCapture.WrittenCreateCommands);
     }
 
     // ── ORBAT panel hierarchy ─────────────────────────────────────────────────
@@ -205,18 +152,18 @@ public class StandaloneIosTests
     {
         var (_, _, repo, _) = Create();
 
-        // HQ → [Tank1, Tank2]
+        // HQ -> [Tank1, Tank2]
         var hq = repo.CreateEntity(1, 100);
-        hq.SetDescriptor(new Hrot.NED.Descriptors.EntityInfo { EntityId = 1, Name = "HQ", CommanderId = 0,
-            ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY });
+        hq.SetDescriptor(new EntityInfoDescriptor { EntityId = 1, Name = "HQ", CommanderId = 0,
+            Affiliation = eForceIdentifier.FORCE_FRIENDLY.ToString() });
 
         var t1 = repo.CreateEntity(2, 101);
-        t1.SetDescriptor(new Hrot.NED.Descriptors.EntityInfo { EntityId = 2, Name = "Tank1", CommanderId = 1,
-            ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY });
+        t1.SetDescriptor(new EntityInfoDescriptor { EntityId = 2, Name = "Tank1", CommanderId = 1,
+            Affiliation = eForceIdentifier.FORCE_FRIENDLY.ToString() });
 
         var t2 = repo.CreateEntity(3, 101);
-        t2.SetDescriptor(new Hrot.NED.Descriptors.EntityInfo { EntityId = 3, Name = "Tank2", CommanderId = 1,
-            ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY });
+        t2.SetDescriptor(new EntityInfoDescriptor { EntityId = 3, Name = "Tank2", CommanderId = 1,
+            Affiliation = eForceIdentifier.FORCE_FRIENDLY.ToString() });
 
         var orbat = new OrbatPanel();
         orbat.ToggleExpanded(1); // Expand HQ so children are visible.
@@ -234,14 +181,14 @@ public class StandaloneIosTests
     {
         var (_, _, repo, _) = Create();
         var hq = repo.CreateEntity(1, 100);
-        hq.SetDescriptor(new Hrot.NED.Descriptors.EntityInfo { EntityId = 1, Name = "HQ", CommanderId = 0,
-            ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY });
+        hq.SetDescriptor(new EntityInfoDescriptor { EntityId = 1, Name = "HQ", CommanderId = 0,
+            Affiliation = eForceIdentifier.FORCE_FRIENDLY.ToString() });
         var t1 = repo.CreateEntity(2, 101);
-        t1.SetDescriptor(new Hrot.NED.Descriptors.EntityInfo { EntityId = 2, Name = "Tank1", CommanderId = 1,
-            ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY });
+        t1.SetDescriptor(new EntityInfoDescriptor { EntityId = 2, Name = "Tank1", CommanderId = 1,
+            Affiliation = eForceIdentifier.FORCE_FRIENDLY.ToString() });
 
         var orbat = new OrbatPanel();
-        // HQ not expanded — child must not appear.
+        // HQ not expanded -- child must not appear.
         var nodes = orbat.GetVisibleNodes(repo);
 
         Assert.Single(nodes);
@@ -276,26 +223,25 @@ public class StandaloneIosTests
         logic.StartPlacementMode(100L);
 
         Assert.NotEqual(Guid.Empty, logic.ActiveContextId);
-        Assert.Single(ig.ConfigCapture.Written);
-        Assert.Equal(logic.ActiveContextId, ig.ConfigCapture.Written[0].ActiveContextId);
+        Assert.Single(ig.EgressCapture.WrittenMapCommands);
+        Assert.Contains(logic.ActiveContextId.ToString("N"),
+            ig.EgressCapture.WrittenMapCommands[0].CommandArgsJson);
     }
 
     [Fact]
     public void Standalone_ClickWithNoPlacementType_IsDroppedGracefully()
     {
         var ig  = new IgStub();
-        var sh  = new SimHostStub();
-        var (_, logic, _, _, _) = IntegrationFactory.Create(ig, sh);
+        var (_, logic, _, _, _) = IntegrationFactory.Create(ig, new SimHostStub());
 
-        // Enqueue a click before any placement mode is set — must be dropped.
-        ig.ClickQueue.Enqueue(new MapClickEvent
+        // Enqueue a click before any placement mode is set -- must be dropped.
+        ig.ClickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = Guid.NewGuid(),
-            Position             = new GeoPoint { Latitude = 0, Longitude = 0 }
         });
         logic.Update();
 
-        Assert.Empty(sh.CreateCapture.Written);
+        Assert.Empty(ig.EgressCapture.WrittenCreateCommands);
     }
 
     // ── Dispose ───────────────────────────────────────────────────────────────
@@ -311,120 +257,100 @@ public class StandaloneIosTests
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// ExCon.9.2 — ExCon + IG stub integration tests
+// ExCon.9.2 -- ExCon + IG stub integration tests
 // ──────────────────────────────────────────────────────────────────────────────
 
-/// <summary>
-/// Scenario 2: ExCon + IG interaction pathways.
-///
-/// Uses a lightweight <see cref="IgStub"/> to simulate the IG:
-/// <list type="bullet">
-///   <item>IG emits <see cref="MapClickEvent"/> — ExCon converts to
-///   <see cref="CreateEntityRequest"/>.</item>
-///   <item>IG emits <see cref="SelectionChangedEvent"/> — ExCon forwards to
-///   <see cref="ContextMenuLogic"/> and logs the interaction.</item>
-///   <item>ExCon emits <see cref="MapInteractionConfig"/> — IG stub captures
-///   it for assertion.</item>
-/// </list>
-/// </summary>
 [Collection("Integration")]
 public class IosIgIntegrationTests
 {
-    // ── Click event → CreateEntityRequest ────────────────────────────────────
+    // ── Click event -> CreateEntityCommand ────────────────────────────────────
 
     [Fact]
-    public void ClickEvent_WithMatchingContext_ProducesCreateEntityRequest()
+    public void ClickEvent_WithMatchingContext_ProducesCreateEntityCommand()
     {
         var ig = new IgStub();
-        var sh = new SimHostStub();
-        var (_, logic, _, _, _) = IntegrationFactory.Create(ig, sh);
+        var (_, logic, _, _, _) = IntegrationFactory.Create(ig, new SimHostStub());
 
         logic.StartPlacementMode(100L);
 
-        ig.ClickQueue.Enqueue(new MapClickEvent
+        ig.ClickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = logic.ActiveContextId,
-            Position             = new GeoPoint { Latitude = 45.0, Longitude = 12.0 }
+            Latitude             = 45.0,
+            Longitude            = 12.0
         });
         logic.Update();
 
-        Assert.Single(sh.CreateCapture.Written);
+        Assert.Single(ig.EgressCapture.WrittenCreateCommands);
     }
 
     [Fact]
     public void ClickEvent_WithStaleContext_IsDropped()
     {
         var ig = new IgStub();
-        var sh = new SimHostStub();
-        var (_, logic, _, _, _) = IntegrationFactory.Create(ig, sh);
+        var (_, logic, _, _, _) = IntegrationFactory.Create(ig, new SimHostStub());
 
         logic.StartPlacementMode(100L);
 
-        ig.ClickQueue.Enqueue(new MapClickEvent
+        ig.ClickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = Guid.NewGuid(), // Does not match active context.
-            Position             = new GeoPoint { Latitude = 1.0, Longitude = 1.0 }
+            Latitude             = 1.0,
+            Longitude            = 1.0
         });
         logic.Update();
 
-        Assert.Empty(sh.CreateCapture.Written);
+        Assert.Empty(ig.EgressCapture.WrittenCreateCommands);
     }
 
     [Fact]
-    public void ClickEvent_ThreeConsecutive_ProduceThreeCreateRequests()
+    public void ClickEvent_ThreeConsecutive_ProduceThreeCreateCommands()
     {
         var ig = new IgStub();
-        var sh = new SimHostStub();
-        var (_, logic, _, _, _) = IntegrationFactory.Create(ig, sh);
+        var (_, logic, _, _, _) = IntegrationFactory.Create(ig, new SimHostStub());
 
         logic.StartPlacementMode(100L);
         var ctx = logic.ActiveContextId;
 
         for (int i = 0; i < 3; i++)
         {
-            ig.ClickQueue.Enqueue(new MapClickEvent
+            ig.ClickQueue.Enqueue(new MapClickEventDto
             {
                 InteractionContextId = ctx,
-                Position             = new GeoPoint { Latitude = i, Longitude = i }
+                Latitude             = i,
+                Longitude            = i
             });
         }
         logic.Update();
 
-        Assert.Equal(3, sh.CreateCapture.Written.Count);
+        Assert.Equal(3, ig.EgressCapture.WrittenCreateCommands.Count);
     }
 
     [Fact]
-    public void ClickEvent_CreateRequest_CarriesCorrectTkbTypeAndPosition()
+    public void ClickEvent_CreateCommand_CarriesCorrectTkbTypeAndPosition()
     {
         var ig = new IgStub();
-        var sh = new SimHostStub();
-        var (_, logic, _, _, _) = IntegrationFactory.Create(ig, sh);
+        var (_, logic, _, _, _) = IntegrationFactory.Create(ig, new SimHostStub());
         const long tkbType = 105L;
+        const double lat = 51.5;
+        const double lon = -0.1;
 
         logic.StartPlacementMode(tkbType);
-        var pos = new GeoPoint { Latitude = 51.5, Longitude = -0.1 };
-        ig.ClickQueue.Enqueue(new MapClickEvent
+        ig.ClickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = logic.ActiveContextId,
-            Position             = pos
+            Latitude             = lat,
+            Longitude            = lon
         });
         logic.Update();
 
-        var req = sh.CreateCapture.Written.Single();
-
-        var masterDesc = req.InitialDescriptors
-            .First(d => d._d == EDescriptorType.dtEntityMaster)
-            .EntityMaster;
-        Assert.Equal(tkbType, masterDesc.TkbType);
-
-        var geoDesc = req.InitialDescriptors
-            .First(d => d._d == EDescriptorType.dtWorldPos)
-            .WorldPos;
-        Assert.Equal(pos.Latitude,  geoDesc.Pos.Latitude,  precision: 5);
-        Assert.Equal(pos.Longitude, geoDesc.Pos.Longitude, precision: 5);
+        var cmd = ig.EgressCapture.WrittenCreateCommands.Single();
+        Assert.Equal(tkbType, cmd.TkbType);
+        Assert.Equal(lat, cmd.Latitude,  5);
+        Assert.Equal(lon, cmd.Longitude, 5);
     }
 
-    // ── SelectionChangedEvent forwarding ─────────────────────────────────────
+    // ── SelectionChangedEventDto forwarding ───────────────────────────────────
 
     [Fact]
     public void SelectionChanged_IsLoggedInInteractionPanel()
@@ -432,7 +358,7 @@ public class IosIgIntegrationTests
         var ig  = new IgStub();
         var (_, logic, _, _, log) = IntegrationFactory.Create(ig, new SimHostStub());
 
-        ig.SelectionQueue.Enqueue(new SelectionChangedEvent
+        ig.SelectionQueue.Enqueue(new SelectionChangedEventDto
         {
             MapId             = 1,
             SelectedEntityIds = new List<int> { 42 }
@@ -451,7 +377,7 @@ public class IosIgIntegrationTests
         var ig  = new IgStub();
         var (_, logic, _, _, _) = IntegrationFactory.Create(ig, new SimHostStub());
 
-        ig.SelectionQueue.Enqueue(new SelectionChangedEvent
+        ig.SelectionQueue.Enqueue(new SelectionChangedEventDto
         {
             MapId             = 1,
             SelectedEntityIds = new List<int> { 10, 11, 12 }
@@ -462,7 +388,7 @@ public class IosIgIntegrationTests
         Assert.Null(ex);
     }
 
-    // ── Config push → IG captures it ─────────────────────────────────────────
+    // ── Config push -> IG captures it ─────────────────────────────────────────
 
     [Fact]
     public void ConfigPatch_IsReceivedByIgStub_WithCorrectContent()
@@ -473,8 +399,8 @@ public class IosIgIntegrationTests
 
         logic.SendConfigPatch(patch);
 
-        Assert.Single(ig.ConfigCapture.Written);
-        Assert.Equal(patch, ig.ConfigCapture.Written[0].ConfigurationJson);
+        Assert.Single(ig.EgressCapture.WrittenConfigs);
+        Assert.Equal(patch, ig.EgressCapture.WrittenConfigs[0].ConfigJson);
     }
 
     [Fact]
@@ -485,96 +411,50 @@ public class IosIgIntegrationTests
 
         logic.StartPlacementMode(100L);
 
-        Assert.Single(ig.ConfigCapture.Written);
-        Assert.Contains("PLACEMENT", ig.ConfigCapture.Written[0].ConfigurationJson);
+        Assert.Single(ig.EgressCapture.WrittenMapCommands);
+        Assert.Contains("PLACE", ig.EgressCapture.WrittenMapCommands[0].CommandType);
     }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// ExCon.9.3 — ExCon + SimHost stub integration tests
+// ExCon.9.3 -- ExCon + SimHost stub integration tests
 // ──────────────────────────────────────────────────────────────────────────────
 
-/// <summary>
-/// Scenario 3: ExCon + SimHost interaction pathways.
-///
-/// Uses a lightweight <see cref="SimHostStub"/> to simulate SimHost:
-/// <list type="bullet">
-///   <item>ExCon sends <see cref="CreateEntityRequest"/> — SimHost stub
-///   captures it.</item>
-///   <item>SimHost delivers <see cref="MissionControlAck"/> via the ingress
-///   queue — ExCon <see cref="MissionEditorService.Poll"/> resolves pending
-///   commits.</item>
-///   <item>Entity appears in the DER repo (simulating the SimHost publishing
-///   its entity topics) — ORBAT panel reflects the update.</item>
-/// </list>
-/// </summary>
 [Collection("Integration")]
 public class IosSimHostIntegrationTests
 {
-    // ── MissionControlAck via Poll ────────────────────────────────────────────
+    // ── CommitMissionAsync via ICommandGateway ────────────────────────────────
 
     [Fact]
-    public async Task AckQueue_SuccessfulAck_ResolvesPendingCommit()
+    public async Task CommitMissionAsync_GatewayReturnsSuccess_ResolvesPendingCommit()
     {
-        // Build a minimal, self-contained wiring for this test.
-        var repo = new DerRepo();
-        var bus  = new FdpEventBus();
-        using var svc = new MissionEditorService(repo, bus, commitTimeoutMs: 200);
+        var repo    = new DerRepo();
+        var gateway = new Mock<ICommandGateway>();
+        gateway.Setup(g => g.SendMissionControlRequestAsync(It.IsAny<MissionControlCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 2 });
+        using var svc = new MissionEditorService(repo, gateway.Object, commitTimeoutMs: 200);
 
-        var plan       = new MissionPlan { Tasks = new List<MissionTask>() };
-        var commitTask = svc.CommitMissionAsync(entityId: 10, newPlan: plan, baseVersion: 1);
+        var plan   = new MissionPlan { Tasks = new List<MissionTask>() };
+        var result = await svc.CommitMissionAsync(entityId: 10, newPlan: plan, baseVersion: 1);
 
-        bus.SwapBuffers();
-        var intent    = bus.ConsumeManaged<MissionControlIntent>().Single();
-        bus.Publish(new MissionControlAckEvent { RequestId = intent.RequestId, ErrorCode = 0, NewVersion = 2 });
-        bus.SwapBuffers();
-        svc.Poll();
-
-        var result = await commitTask;
         Assert.True(result.Success);
         Assert.Equal(2, result.NewVersion);
     }
 
     [Fact]
-    public async Task AckQueue_VersionConflict_ReturnsFailureResult()
+    public async Task CommitMissionAsync_GatewayReturnsVersionConflict_ReturnsFailureResult()
     {
-        var repo = new DerRepo();
-        var bus  = new FdpEventBus();
-        using var svc = new MissionEditorService(repo, bus, commitTimeoutMs: 200);
+        var repo    = new DerRepo();
+        var gateway = new Mock<ICommandGateway>();
+        gateway.Setup(g => g.SendMissionControlRequestAsync(It.IsAny<MissionControlCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MissionCommitResult { Success = false, ErrorMessage = "ERR_VERSION_CONFLICT" });
+        using var svc = new MissionEditorService(repo, gateway.Object, commitTimeoutMs: 200);
 
-        var plan       = new MissionPlan { Tasks = new List<MissionTask>() };
-        var commitTask = svc.CommitMissionAsync(entityId: 5, newPlan: plan, baseVersion: 1);
+        var plan   = new MissionPlan { Tasks = new List<MissionTask>() };
+        var result = await svc.CommitMissionAsync(entityId: 5, newPlan: plan, baseVersion: 1);
 
-        bus.SwapBuffers();
-        var intent = bus.ConsumeManaged<MissionControlIntent>().Single();
-        bus.Publish(new MissionControlAckEvent { RequestId = intent.RequestId, ErrorCode = 7, NewVersion = 0 });
-        bus.SwapBuffers();
-        svc.Poll();
-
-        var result = await commitTask;
         Assert.False(result.Success);
         Assert.Equal("ERR_VERSION_CONFLICT", result.ErrorMessage);
-    }
-
-    [Fact]
-    public async Task AckQueue_MultiplePoll_NoDoubleFire()
-    {
-        var repo = new DerRepo();
-        var bus  = new FdpEventBus();
-        using var svc = new MissionEditorService(repo, bus, commitTimeoutMs: 200);
-
-        var plan       = new MissionPlan { Tasks = new List<MissionTask>() };
-        var commitTask = svc.CommitMissionAsync(entityId: 3, newPlan: plan, baseVersion: 0);
-
-        bus.SwapBuffers();
-        var intent = bus.ConsumeManaged<MissionControlIntent>().Single();
-        bus.Publish(new MissionControlAckEvent { RequestId = intent.RequestId, ErrorCode = 0, NewVersion = 1 });
-        bus.SwapBuffers();
-        svc.Poll();
-        svc.Poll(); // Second poll — bus empty, must not throw.
-
-        var result = await commitTask;
-        Assert.True(result.Success);
     }
 
     // ── Entity appears in ORBAT after repo update ─────────────────────────────
@@ -587,14 +467,14 @@ public class IosSimHostIntegrationTests
 
         Assert.Empty(orbat.GetVisibleNodes(repo));
 
-        // Simulate SimHost publishing an entity (production: via MasterIngressHandler).
+        // Simulate SimHost publishing an entity (production: via bridging handler).
         var entity = repo.CreateEntity(200, 100);
-        entity.SetDescriptor(new EntityInfo
+        entity.SetDescriptor(new EntityInfoDescriptor
         {
-            EntityId        = 200,
-            Name            = "T-72#1",
-            CommanderId     = 0,
-            ForceIdentifier = eForceIdentifier.FORCE_OPPOSING
+            EntityId    = 200,
+            Name        = "T-72#1",
+            CommanderId = 0,
+            Affiliation = eForceIdentifier.FORCE_OPPOSING.ToString()
         });
 
         var nodes = orbat.GetVisibleNodes(repo);
@@ -603,26 +483,22 @@ public class IosSimHostIntegrationTests
     }
 
     [Fact]
-    public void CreateEntityRequest_SendsCorrectPayload_ToSimHostCapture()
+    public void CreateEntityCommand_SendsCorrectPayload_ToEgressCapture()
     {
         var ig  = new IgStub();
-        var sh  = new SimHostStub();
-        var (_, logic, _, _, _) = IntegrationFactory.Create(ig, sh);
+        var (_, logic, _, _, _) = IntegrationFactory.Create(ig, new SimHostStub());
         const long tkbType = 102L;
 
         logic.StartPlacementMode(tkbType);
-        ig.ClickQueue.Enqueue(new MapClickEvent
+        ig.ClickQueue.Enqueue(new MapClickEventDto
         {
             InteractionContextId = logic.ActiveContextId,
-            Position             = new GeoPoint { Latitude = 48.9, Longitude = 2.3 }
+            Latitude             = 48.9,
+            Longitude            = 2.3
         });
         logic.Update();
 
-        var req = sh.CreateCapture.Written.Single();
-
-        Assert.Equal(tkbType,
-            req.InitialDescriptors
-                .First(d => d._d == EDescriptorType.dtEntityMaster)
-                .EntityMaster.TkbType);
+        var cmd = ig.EgressCapture.WrittenCreateCommands.Single();
+        Assert.Equal(tkbType, cmd.TkbType);
     }
 }

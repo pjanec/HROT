@@ -1,6 +1,3 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
-using Hrot.NED.Common;
 using Hrot.Core.Mission;
 using Hrot.UI.Common.Facades;
 using UiMissionCommitResult = Hrot.UI.Common.Models.MissionCommitResult;
@@ -86,15 +83,14 @@ internal sealed class ExConMissionShim : IMissionEditorService
     /// <inheritdoc/>
     public (Hrot.Core.Mission.MissionPlan? Plan, long Version) GetMissionSnapshot(long entityId)
     {
-        var (nedPlan, version) = _inner.GetMissionSnapshot(entityId);
-        return (nedPlan.HasValue ? MapToNeutral(nedPlan.Value) : null, version);
+        return _inner.GetMissionSnapshot(entityId);
     }
 
     /// <inheritdoc/>
     public async Task<UiMissionCommitResult> CommitMissionAsync(
         long entityId, Hrot.Core.Mission.MissionPlan plan, long baseVersion)
     {
-        var r = await _inner.CommitMissionAsync(entityId, MapToNed(plan), baseVersion).ConfigureAwait(false);
+        var r = await _inner.CommitMissionAsync(entityId, plan, baseVersion).ConfigureAwait(false);
         return new UiMissionCommitResult(r.Success, r.NewVersion, r.ErrorMessage);
     }
 
@@ -102,48 +98,10 @@ internal sealed class ExConMissionShim : IMissionEditorService
     public async Task<UiMissionCommitResult> SendControlCommandAsync(
         long entityId, Hrot.Core.Mission.eMissionCommandType type, Guid taskId)
     {
-        var r = await _inner.SendControlCommandAsync(entityId,
-            (Hrot.NED.Messages.eMissionCommandType)(int)type, taskId).ConfigureAwait(false);
+        var r = await _inner.SendControlCommandAsync(entityId, type, taskId).ConfigureAwait(false);
         return new UiMissionCommitResult(r.Success, r.NewVersion, r.ErrorMessage);
     }
 
-    private static Hrot.Core.Mission.MissionPlan MapToNeutral(Hrot.NED.Descriptors.MissionPlan p)
-        => new()
-        {
-            ActiveTaskId = p.ActiveTaskId,
-            Tasks = p.Tasks?.Select(MapToNeutral).ToList() ?? new(),
-        };
-
-    private static Hrot.Core.Mission.MissionTask MapToNeutral(Hrot.NED.Descriptors.MissionTask t)
-        => new()
-        {
-            TaskId          = t.TaskId,
-            ExecutingEngine = t.ExecutingEngine,
-            BehaviorId      = t.BehaviorId,
-            BehaviorParams  = t.BehaviorParams,
-            Triggers        = t.Triggers?.Select(x => new Hrot.Core.Mission.MissionTrigger
-                              { Type = x.Type, Params = x.Params }).ToList() ?? new(),
-            State           = (Hrot.Core.Mission.eTaskState)(int)t.State,
-        };
-
-    private static Hrot.NED.Descriptors.MissionPlan MapToNed(Hrot.Core.Mission.MissionPlan p)
-        => new()
-        {
-            ActiveTaskId = p.ActiveTaskId,
-            Tasks = p.Tasks?.Select(MapToNed).ToList() ?? new(),
-        };
-
-    private static Hrot.NED.Descriptors.MissionTask MapToNed(Hrot.Core.Mission.MissionTask t)
-        => new()
-        {
-            TaskId          = t.TaskId,
-            ExecutingEngine = t.ExecutingEngine,
-            BehaviorId      = t.BehaviorId,
-            BehaviorParams  = t.BehaviorParams,
-            Triggers        = t.Triggers?.Select(x => new Hrot.NED.Descriptors.MissionTrigger
-                              { Type = x.Type, Params = x.Params }).ToList() ?? new(),
-            State           = (Hrot.NED.Descriptors.eTaskState)(int)t.State,
-        };
 }
 
 /// <summary>
@@ -157,11 +115,8 @@ internal sealed class ExConMapPickShim : IMapPickService
     internal ExConMapPickShim(Services.IMapPickService inner) => _inner = inner;
 
     /// <inheritdoc/>
-    public async Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default)
-    {
-        var p = await _inner.PickLocationAsync(ct).ConfigureAwait(false);
-        return new Hrot.Core.Mission.GeoPoint(p.Latitude, p.Longitude, p.Altitude);
-    }
+    public Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default)
+        => _inner.PickLocationAsync(ct);
 
     /// <inheritdoc/>
     public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default)

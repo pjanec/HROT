@@ -1,6 +1,6 @@
-using Hrot.NED.Descriptors;
-using FDP.Toolkit.DER;
+﻿using FDP.Toolkit.DER;
 using FDP.Toolkit.ImGui.Panels;
+using Hrot.Core.Network;
 
 namespace Hrot.ExCon.Tests;
 
@@ -8,8 +8,8 @@ namespace Hrot.ExCon.Tests;
 /// Tests for <see cref="DerEntityInspectorPanel"/> and the underlying
 /// <see cref="IDerEntity.GetAllRawDescriptors"/> contract.
 ///
-/// <para>All tests use Hrot-specific DDS descriptors (EntityInfo, GeoSpatial,
-/// EntityMaster) to exercise the real DER path.  No ImGui context is required
+/// <para>All tests use neutral descriptor types (EntityInfoDescriptor, EntityMissionDescriptor,
+/// MapOverlayDescriptor) to exercise the real DER path.  No ImGui context is required
 /// because only the non-drawing helpers and the DER API are exercised.</para>
 /// </summary>
 public class DerEntityInspectorPanelIosTests
@@ -108,12 +108,12 @@ public class DerEntityInspectorPanelIosTests
     {
         var repo   = new DerRepo();
         var entity = repo.CreateEntity(1, 100);
-        entity.SetDescriptor(new Hrot.NED.Descriptors.EntityInfo { EntityId = 1, Name = "Alpha" });
+        entity.SetDescriptor(new EntityInfoDescriptor { EntityId = 1, Name = "Alpha" });
 
         var raw = entity.GetAllRawDescriptors().ToList();
 
         Assert.Single(raw);
-        Assert.Equal(typeof(EntityInfo), raw[0].Type);
+        Assert.Equal(typeof(EntityInfoDescriptor), raw[0].Type);
     }
 
     [Fact]
@@ -121,10 +121,10 @@ public class DerEntityInspectorPanelIosTests
     {
         var repo   = new DerRepo();
         var entity = repo.CreateEntity(1, 100);
-        entity.SetDescriptor(new Hrot.NED.Descriptors.EntityInfo { EntityId = 1, Name = "Bravo" });
+        entity.SetDescriptor(new EntityInfoDescriptor { EntityId = 1, Name = "Bravo" });
 
         var raw  = entity.GetAllRawDescriptors().ToList();
-        var info = (EntityInfo)raw[0].Data;
+        var info = (EntityInfoDescriptor)raw[0].Data;
 
         Assert.Equal("Bravo", info.Name);
     }
@@ -134,17 +134,17 @@ public class DerEntityInspectorPanelIosTests
     {
         var repo   = new DerRepo();
         var entity = repo.CreateEntity(1, 100);
-        entity.SetDescriptor(new Hrot.NED.Descriptors.EntityInfo   { EntityId = 1, Name = "T-72" });
-        entity.SetDescriptor(new EntityMaster { EntityId = 1, TkbType = 42 });
-        entity.SetDescriptor(new WorldPos   { EntityId = 1 });
+        entity.SetDescriptor(new EntityInfoDescriptor   { EntityId = 1, Name = "T-72" });
+        entity.SetDescriptor(new EntityMissionDescriptor { EntityId = 1 });
+        entity.SetDescriptor(new MapOverlayDescriptor   { EntityId = 1 });
 
         var raw   = entity.GetAllRawDescriptors().ToList();
         var types = raw.Select(r => r.Type).ToHashSet();
 
         Assert.Equal(3, raw.Count);
-        Assert.Contains(typeof(EntityInfo),   types);
-        Assert.Contains(typeof(EntityMaster), types);
-        Assert.Contains(typeof(WorldPos),   types);
+        Assert.Contains(typeof(EntityInfoDescriptor),   types);
+        Assert.Contains(typeof(EntityMissionDescriptor), types);
+        Assert.Contains(typeof(MapOverlayDescriptor),   types);
     }
 
     [Fact]
@@ -154,22 +154,22 @@ public class DerEntityInspectorPanelIosTests
         // boxed object, so the reference returned by GetAllRawDescriptors changes.
         var repo   = new DerRepo();
         var entity = repo.CreateEntity(1, 100);
-        entity.SetDescriptor(new Hrot.NED.Descriptors.EntityInfo { EntityId = 1, Name = "OldName" });
+        entity.SetDescriptor(new EntityInfoDescriptor { EntityId = 1, Name = "OldName" });
 
         var refBefore = entity.GetAllRawDescriptors()
-            .First(r => r.Type == typeof(EntityInfo)).Data;
+            .First(r => r.Type == typeof(EntityInfoDescriptor)).Data;
 
-        entity.SetDescriptor(new Hrot.NED.Descriptors.EntityInfo { EntityId = 1, Name = "NewName" });
+        entity.SetDescriptor(new EntityInfoDescriptor { EntityId = 1, Name = "NewName" });
 
         var refAfter = entity.GetAllRawDescriptors()
-            .First(r => r.Type == typeof(EntityInfo)).Data;
+            .First(r => r.Type == typeof(EntityInfoDescriptor)).Data;
 
         // New SetDescriptor call must produce a new boxed object reference.
         Assert.False(ReferenceEquals(refBefore, refAfter),
             "Expected a new boxed reference after SetDescriptor.");
 
         // The new data must reflect the updated value.
-        Assert.Equal("NewName", ((EntityInfo)refAfter).Name);
+        Assert.Equal("NewName", ((EntityInfoDescriptor)refAfter).Name);
     }
 
     [Fact]
@@ -177,8 +177,8 @@ public class DerEntityInspectorPanelIosTests
     {
         var repo   = new DerRepo();
         var entity = repo.CreateEntity(1, 100);
-        entity.SetDescriptor(new Hrot.NED.Descriptors.EntityInfo { EntityId = 1, Name = "Part0" }, partId: 0);
-        entity.SetDescriptor(new Hrot.NED.Descriptors.EntityInfo { EntityId = 1, Name = "Part1" }, partId: 1);
+        entity.SetDescriptor(new EntityInfoDescriptor { EntityId = 1, Name = "Part0" }, partId: 0);
+        entity.SetDescriptor(new EntityInfoDescriptor { EntityId = 1, Name = "Part1" }, partId: 1);
 
         var raw = entity.GetAllRawDescriptors().ToList();
 

@@ -139,7 +139,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domain = 166u;
             using var participant  = new DdsParticipant(domain);
-            using var geoReader    = new DdsReader<WorldPos>(participant, "GeoSpatial");
+            using var geoReader    = new DdsReader<WorldPos>(participant, "WorldPos");
 
             var geoTransform = HrotEnvironment.CreateGeoTransform();
             var entityMap    = new NetworkEntityMap();

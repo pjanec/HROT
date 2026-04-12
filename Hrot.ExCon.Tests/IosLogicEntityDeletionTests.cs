@@ -1,10 +1,7 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
-using Hrot.NED.Common;
-using Hrot.ExCon.Logic;
+﻿using Hrot.ExCon.Logic;
+using Hrot.Core.Network;
 using Hrot.ExCon.Panels;
 using Hrot.ExCon.Services;
-using Hrot.Map.Common.Dds;
 using FDP.Toolkit.DER;
 using Moq;
 
@@ -24,26 +21,24 @@ public class ExConLogicEntityDeletionTests
     private static (ExConLogic Logic, DerRepo Repo) CreateSut()
     {
         var repo              = new DerRepo();
-        var configWriter      = new Mock<IDdsWriter<MapInteractionConfig>>();
-        var createWriter      = new Mock<IDdsWriter<CreateEntityRequest>>();
+        var egressWriters     = new Mock<IExConEgressWriters>();
         var transactionMgr    = new Mock<IRequestTransactionManager>();
         var missionSvc        = new Mock<IMissionEditorService>();
         var contextMenuLogic  = new Mock<IContextMenuLogic>();
         var interactionPanel  = new InteractionPanel();
-        var clickQueue        = new ConcurrentEventQueue<MapClickEvent>();
-        var selectionQueue    = new ConcurrentEventQueue<SelectionChangedEvent>();
+        var clickQueue        = new ConcurrentEventQueue<MapClickEventDto>();
+        var selectionQueue    = new ConcurrentEventQueue<SelectionChangedEventDto>();
 
         var logic = new ExConLogic(
             repo:                repo,
             missionEditorService: missionSvc.Object,
             contextMenuLogic:    contextMenuLogic.Object,
             transactionManager:  transactionMgr.Object,
-            configWriter:        configWriter.Object,
-            createEntityWriter:  createWriter.Object,
+            egressWriters:       egressWriters.Object,
             clickQueue:          clickQueue,
             selectionQueue:      selectionQueue,
             interactionPanel:    interactionPanel,
-            createEntityAckQueue: new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>());
+            createEntityAckQueue: new ConcurrentEventQueue<EntityLifecycleAckDto>());
 
         return (logic, repo);
     }

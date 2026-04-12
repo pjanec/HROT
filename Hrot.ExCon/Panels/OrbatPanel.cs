@@ -1,5 +1,5 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
+﻿using Hrot.Core.Mission;
+using Hrot.Core.Network;
 using Hrot.Map.Common;
 using FDP.Toolkit.DER;
 using ImGuiNET;
@@ -34,7 +34,7 @@ public sealed class OrbatNode
 ///
 /// <para><b>Cycle guard</b>: each call to <see cref="GetVisibleNodes"/> carries
 /// its own <see cref="HashSet{T}"/> of visited entity IDs.  If a circular
-/// <c>CommanderId</c> chain is detected (unit A → unit B → unit A) the traversal
+/// <c>CommanderId</c> chain is detected (unit A Ôćĺ unit B Ôćĺ unit A) the traversal
 /// skips the repeated node, so the method always terminates.</para>
 ///
 /// <para><b>Depth cap</b>: recursion is additionally hard-stopped at
@@ -52,7 +52,7 @@ public sealed class OrbatNode
 /// </summary>
 public sealed class OrbatPanel
 {
-    // ── State ─────────────────────────────────────────────────────────────────
+    // ÔöÇÔöÇ State ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
     private readonly HashSet<int> _expandedNodes = new();
     private string _filterText = string.Empty;
@@ -70,7 +70,7 @@ public sealed class OrbatPanel
         }
     }
 
-    // ── Public state accessors ────────────────────────────────────────────────
+    // ÔöÇÔöÇ Public state accessors ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
     /// <summary>
     /// Case-insensitive substring filter applied to entity names.
@@ -85,7 +85,7 @@ public sealed class OrbatPanel
     /// <summary>Returns true if the given entity node is currently expanded.</summary>
     public bool IsExpanded(int entityId) => _expandedNodes.Contains(entityId);
 
-    // ── Hierarchy queries (also called directly by unit tests) ────────────────
+    // ÔöÇÔöÇ Hierarchy queries (also called directly by unit tests) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
     /// <summary>
     /// Enumerates entities whose <see cref="EntityInfo.CommanderId"/> is 0
@@ -96,8 +96,8 @@ public sealed class OrbatPanel
         ArgumentNullException.ThrowIfNull(repo);
         foreach (var entity in repo.GetAllEntities())
         {
-            if (!entity.HasDescriptor<Hrot.NED.Descriptors.EntityInfo>()) continue;
-            var info = entity.GetDescriptor<Hrot.NED.Descriptors.EntityInfo>();
+            if (!entity.HasDescriptor<EntityInfoDescriptor>()) continue;
+            var info = entity.GetDescriptor<EntityInfoDescriptor>();
             if (info.CommanderId == 0)
                 yield return entity;
         }
@@ -112,8 +112,8 @@ public sealed class OrbatPanel
         ArgumentNullException.ThrowIfNull(repo);
         foreach (var entity in repo.GetAllEntities())
         {
-            if (!entity.HasDescriptor<Hrot.NED.Descriptors.EntityInfo>()) continue;
-            var info = entity.GetDescriptor<Hrot.NED.Descriptors.EntityInfo>();
+            if (!entity.HasDescriptor<EntityInfoDescriptor>()) continue;
+            var info = entity.GetDescriptor<EntityInfoDescriptor>();
             if (info.CommanderId == parentId)
                 yield return entity;
         }
@@ -122,7 +122,7 @@ public sealed class OrbatPanel
     /// <summary>
     /// Returns true if <paramref name="name"/> satisfies the current filter
     /// string. An empty filter always returns true.  Comparison is
-    /// case-insensitive (CODE-STANDARDS – no OrdinalIgnoreCase magic literal).
+    /// case-insensitive (CODE-STANDARDS ÔÇô no OrdinalIgnoreCase magic literal).
     /// </summary>
     public bool MatchesFilter(string name, string filter)
     {
@@ -130,7 +130,7 @@ public sealed class OrbatPanel
         return name.Contains(filter, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── Expansion toggle ──────────────────────────────────────────────────────
+    // ÔöÇÔöÇ Expansion toggle ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
     /// <summary>Toggles the expanded/collapsed state for the given entity node.</summary>
     public void ToggleExpanded(int entityId)
@@ -139,7 +139,7 @@ public sealed class OrbatPanel
             _expandedNodes.Add(entityId);
     }
 
-    // ── Entity click forwarding ───────────────────────────────────────────────
+    // ÔöÇÔöÇ Entity click forwarding ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
     /// <summary>
     /// Handles the operator clicking on an ORBAT node.
@@ -157,7 +157,7 @@ public sealed class OrbatPanel
     /// is a simulated (non-map-graphic) entity.
     ///
     /// <para>Returns <c>false</c> when the entity is not found in <paramref name="repo"/>
-    /// or when <see cref="IDerEntity.TkbType"/> ≥ <c>8000</c> (map graphic range).</para>
+    /// or when <see cref="IDerEntity.TkbType"/> Ôëą <c>8000</c> (map graphic range).</para>
     /// </summary>
     public static bool IsSimulatedEntity(int entityId, IDerRepo repo)
     {
@@ -172,11 +172,11 @@ public sealed class OrbatPanel
     ///
     /// <para><b>Architecture note</b>: this method intentionally performs <em>no</em>
     /// local DER repository mutations.  The authoritative lifecycle is:<br/>
-    /// ExCon → <c>CMD_PLACE_ENTITY</c> → IG activates placement tool → operator
-    /// clicks map → ExCon sends <c>CreateEntityRequest</c> → SimHost allocates
-    /// a network ID and publishes <c>EntityMaster</c> + descriptors →
+    /// ExCon Ôćĺ <c>CMD_PLACE_ENTITY</c> Ôćĺ IG activates placement tool Ôćĺ operator
+    /// clicks map Ôćĺ ExCon sends <c>CreateEntityRequest</c> Ôćĺ SimHost allocates
+    /// a network ID and publishes <c>EntityMaster</c> + descriptors Ôćĺ
     /// <see cref="FDP.Toolkit.DER.MasterIngressHandler{T}"/> populates the DER repo
-    /// → <c>CreateEntityAck</c> arrives → ExCon logs the new ID and auto-selects
+    /// Ôćĺ <c>CreateEntityAck</c> arrives Ôćĺ ExCon logs the new ID and auto-selects
     /// the entity.</para>
     /// </summary>
     public void HandleNewUnitClick(IExConLogic logic)
@@ -187,7 +187,7 @@ public sealed class OrbatPanel
 
         var patch = new EntityPropertyPatch
         {
-            Affiliation = eForceIdentifier.FORCE_FRIENDLY
+            Affiliation = eForceIdentifier.FORCE_FRIENDLY.ToString()
         };
         var propsJson = JsonConvert.SerializeObject(patch, new JsonSerializerSettings
         {
@@ -198,7 +198,7 @@ public sealed class OrbatPanel
         logic.StartPlacementMode(_selectedType, propsJson);
     }
 
-    // ── Visible node list (testable, used by Draw in Phase P9) ────────────────
+    // ÔöÇÔöÇ Visible node list (testable, used by Draw in Phase P9) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
     /// <summary>
     /// Produces a depth-first flattened list of visible ORBAT nodes suitable
@@ -217,7 +217,7 @@ public sealed class OrbatPanel
     /// </list>
     ///
     /// <para><b>O(n) complexity:</b> a single pass over all entities builds a
-    /// <c>CommanderId → children</c> dictionary before the tree walk begins, so
+    /// <c>CommanderId Ôćĺ children</c> dictionary before the tree walk begins, so
     /// each entity is visited exactly once regardless of hierarchy depth.</para>
     /// </summary>
     public List<OrbatNode> GetVisibleNodes(IDerRepo repo)
@@ -227,7 +227,7 @@ public sealed class OrbatPanel
         var visited = new HashSet<int>();
 
         // Build the children lookup in a single O(n) pass so that CollectNodes
-        // never has to scan the full entity list again (eliminates O(n²) cost).
+        // never has to scan the full entity list again (eliminates O(n┬▓) cost).
         var childrenLookup = BuildChildrenLookup(repo);
 
         foreach (var root in FindRootEntities(repo))
@@ -236,7 +236,7 @@ public sealed class OrbatPanel
         return result;
     }
 
-    // ── Draw stub (Phase P9) ──────────────────────────────────────────────────
+    // ÔöÇÔöÇ Draw stub (Phase P9) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
     /// <summary>
     /// Renders the ORBAT tree panel via ImGui.
@@ -281,7 +281,7 @@ public sealed class OrbatPanel
             bool open = ImGui.TreeNodeEx(label, flags);
             if (ImGui.IsItemClicked()) HandleEntityClick(node.EntityId, logic);
 
-            // ── Context menu ─────────────────────────────────────────────────
+            // ÔöÇÔöÇ Context menu ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
             // Use a per-node unique popup ID to avoid ImGui ID collisions.
             string popupId = $"##ctx_{node.EntityId}";
             if (ImGui.IsItemClicked(ImGuiMouseButton.Right))
@@ -312,7 +312,7 @@ public sealed class OrbatPanel
 
                 ImGui.EndPopup();
             }
-            // ── End context menu ─────────────────────────────────────────────
+            // ÔöÇÔöÇ End context menu ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
             if (open)
             {
@@ -351,12 +351,12 @@ public sealed class OrbatPanel
         if (ImGui.Button("New Unit...")) HandleNewUnitClick(logic);
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // ÔöÇÔöÇ Private helpers ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
     /// <summary>
-    /// Builds a <c>CommanderId → List&lt;IDerEntity&gt;</c> lookup from a
+    /// Builds a <c>CommanderId Ôćĺ List&lt;IDerEntity&gt;</c> lookup from a
     /// single O(n) scan of the repository.  Used by
-    /// <see cref="GetVisibleNodes"/> to avoid O(n²) repeated calls to
+    /// <see cref="GetVisibleNodes"/> to avoid O(n┬▓) repeated calls to
     /// <see cref="FindChildren"/> during tree traversal.
     /// </summary>
     private static Dictionary<int, List<IDerEntity>> BuildChildrenLookup(IDerRepo repo)
@@ -365,8 +365,8 @@ public sealed class OrbatPanel
 
         foreach (var entity in repo.GetAllEntities())
         {
-            if (!entity.HasDescriptor<Hrot.NED.Descriptors.EntityInfo>()) continue;
-            var info = entity.GetDescriptor<Hrot.NED.Descriptors.EntityInfo>();
+            if (!entity.HasDescriptor<EntityInfoDescriptor>()) continue;
+            var info = entity.GetDescriptor<EntityInfoDescriptor>();
 
             // Only entities with a non-zero CommanderId are children.
             if (info.CommanderId == 0) continue;
@@ -394,14 +394,14 @@ public sealed class OrbatPanel
         if (depth >= PanelConstants.MaxOrbatDepth)
             return;
 
-        // Safety net 2: cycle detection — each entity appears at most once
+        // Safety net 2: cycle detection ÔÇö each entity appears at most once
         if (!visited.Add(entity.EntityId))
             return;
 
-        if (!entity.HasDescriptor<Hrot.NED.Descriptors.EntityInfo>())
+        if (!entity.HasDescriptor<EntityInfoDescriptor>())
             return;
 
-        var info     = entity.GetDescriptor<Hrot.NED.Descriptors.EntityInfo>();
+        var info     = entity.GetDescriptor<EntityInfoDescriptor>();
 
         // Use the pre-built lookup (O(1) lookup) instead of scanning all entities.
         childrenLookup.TryGetValue(entity.EntityId, out var children);

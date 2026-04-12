@@ -68,16 +68,22 @@ public sealed class NedNetworkFactory : INetworkFactory
     /// <inheritdoc/>
     public ICommandGateway CreateCommandGateway()
     {
-        // NedCommandGateway moved from Hrot.Map.Common to Hrot.Network.NED
-        // Return null implementation until full wiring is done in TASK-P4-001
-        return new NullCommandGateway();
+        if (_participant == null) return new NullCommandGateway();
+        return new Hrot.Map.Common.Commands.NedCommandGateway(_participant, _localNodeId);
     }
 
     /// <inheritdoc/>
     public IExConEgressWriters CreateExConEgressWriters()
     {
-        // Return null implementation until full wiring is done in TASK-P4-001
-        return new NullExConEgressWriters();
+        if (_participant == null) return new NullExConEgressWriters();
+        return new Hrot.Network.NED.ExCon.NedExConEgressWriters(_participant);
+    }
+
+    /// <inheritdoc/>
+    public ITimeControlGateway CreateTimeControlGateway()
+    {
+        if (_participant == null) return new NullTimeControlGateway();
+        return new Hrot.Network.NED.ExCon.NedTimeControlGateway(_participant);
     }
 }
 
@@ -88,8 +94,8 @@ internal sealed class NullCommandGateway : ICommandGateway
         => Task.FromResult(0);
     public Task SendUpdateDescriptorAsync(UpdateEntityDescriptorCommand cmd, CancellationToken ct = default)
         => Task.CompletedTask;
-    public Task SendMissionControlRequestAsync(MissionControlCommand cmd, CancellationToken ct = default)
-        => Task.CompletedTask;
+    public Task<MissionCommitResult> SendMissionControlRequestAsync(MissionControlCommand cmd, CancellationToken ct = default)
+        => Task.FromResult(new MissionCommitResult { Success = false, ErrorMessage = "No gateway" });
     public void Dispose() { }
 }
 
@@ -100,5 +106,15 @@ internal sealed class NullExConEgressWriters : IExConEgressWriters
     public void WriteDeleteEntity(int entityId) { }
     public void WriteCreateEntity(CreateEntityCommand cmd) { }
     public void WriteMapCommand(MapCommandDto cmd) { }
+    public void PushContextActions(int mapGroupId, System.Collections.Generic.IReadOnlyList<int>? forSelection, string actionsJson) { }
     public void Dispose() { }
+}
+
+/// <summary>No-op stub for ITimeControlGateway until TASK-P4-001 wires the real implementation.</summary>
+internal sealed class NullTimeControlGateway : ITimeControlGateway
+{
+    public void RequestPause() { }
+    public void RequestResume() { }
+    public void RequestStep() { }
+    public void SetTimeScale(float scale) { }
 }

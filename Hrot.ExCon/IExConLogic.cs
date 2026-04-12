@@ -1,5 +1,4 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
+using Hrot.Core.Network;
 using Hrot.ExCon.Services;
 using FDP.Toolkit.DER;
 
@@ -35,7 +34,7 @@ public interface IExConLogic
 
     /// <summary>
     /// Serialises panel config state into a JSON Merge Patch (RFC 7396) and
-    /// publishes it as a <see cref="Hrot.NED.Descriptors.MapInteractionConfig"/> message.
+    /// publishes it as a map interaction config message.
     /// </summary>
     void SendConfigPatch(string jsonPatch);
 
@@ -113,9 +112,8 @@ public interface IExConLogic
     void CenterOnEntity(int entityId);
 
     /// <summary>
-    /// Publishes a <see cref="Hrot.NED.Messages.DeleteEntityRequest"/> for the given
-    /// entity ID, adds it to the pending-delete set, and waits for the
-    /// <see cref="Hrot.NED.Messages.CreateUpdateDeleteEntityAck"/> to confirm or fail.
+    /// Publishes a delete-entity command for the given entity ID, adds it to
+    /// the pending-delete set, and waits for the lifecycle ACK to confirm or fail.
     /// </summary>
     void DeleteEntity(int entityId);
 

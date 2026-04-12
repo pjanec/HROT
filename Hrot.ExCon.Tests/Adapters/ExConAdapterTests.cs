@@ -4,10 +4,10 @@ using System.Linq;
 using Hrot.ExCon.Adapters;
 using Hrot.ExCon.Services;
 using Hrot.Map.Common;
-using Hrot.NED.Descriptors;
+using Hrot.Core.Mission;
+using Hrot.Core.Network;
 using Hrot.UI.Common.Facades;
 using FDP.Toolkit.DER;
-using Fdp.Kernel;
 using Moq;
 
 namespace Hrot.ExCon.Tests.Adapters;
@@ -57,10 +57,10 @@ public sealed class ExConOrbatAdapterTests
         var repo = new DerRepo();
 
         var parent = repo.CreateEntity(1, TkbEntityTypes.Unit_InfantrySquad);
-        parent.SetDescriptor(new EntityInfo { EntityId = 1, Name = "HQ",    CommanderId = 0, ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY });
+        parent.SetDescriptor(new EntityInfoDescriptor { EntityId = 1, Name = "HQ",    CommanderId = 0, Affiliation = eForceIdentifier.FORCE_FRIENDLY.ToString() });
 
         var child = repo.CreateEntity(2, TkbEntityTypes.InfantrySoldier);
-        child.SetDescriptor(new EntityInfo  { EntityId = 2, Name = "Squad1", CommanderId = 1, ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY });
+        child.SetDescriptor(new EntityInfoDescriptor { EntityId = 2, Name = "Squad1", CommanderId = 1, Affiliation = eForceIdentifier.FORCE_FRIENDLY.ToString() });
 
         var adapter = CreateAdapter(repo);
         var expandedNodes = new HashSet<int> { 1 }; // expand parent
@@ -85,10 +85,10 @@ public sealed class ExConOrbatAdapterTests
         var repo = new DerRepo();
 
         var e1 = repo.CreateEntity(10, TkbEntityTypes.MilitaryApc);
-        e1.SetDescriptor(new EntityInfo { EntityId = 10, Name = "APC-Alpha", CommanderId = 0, ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY });
+        e1.SetDescriptor(new EntityInfoDescriptor { EntityId = 10, Name = "APC-Alpha", CommanderId = 0, Affiliation = eForceIdentifier.FORCE_FRIENDLY.ToString() });
 
         var e2 = repo.CreateEntity(11, TkbEntityTypes.InfantrySoldier);
-        e2.SetDescriptor(new EntityInfo { EntityId = 11, Name = "Rifleman-1", CommanderId = 0, ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY });
+        e2.SetDescriptor(new EntityInfoDescriptor { EntityId = 11, Name = "Rifleman-1", CommanderId = 0, Affiliation = eForceIdentifier.FORCE_FRIENDLY.ToString() });
 
         var adapter = CreateAdapter(repo);
 
@@ -202,9 +202,9 @@ public sealed class MissionEditorServiceGetBehaviorsTests
 
     private static (MissionEditorService Svc, DerRepo Repo) CreateSut()
     {
-        var repo = new DerRepo();
-        var bus  = new FdpEventBus();
-        return (new MissionEditorService(repo, bus, TestTimeoutMs), repo);
+        var repo    = new DerRepo();
+        var gateway = new Mock<ICommandGateway>();
+        return (new MissionEditorService(repo, gateway.Object, TestTimeoutMs), repo);
     }
 
     // ── Test 9: Entity with Insurgent TKB type returns insurgent doctrines ────

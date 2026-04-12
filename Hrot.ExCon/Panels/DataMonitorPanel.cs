@@ -1,6 +1,6 @@
 using System.Numerics;
 using System.Reflection;
-using Hrot.NED.Descriptors;
+using Hrot.Core.Network;
 using FDP.Toolkit.DER;
 using FDP.Toolkit.ImGui.Utils;
 using ImGuiNET;
@@ -133,9 +133,9 @@ public sealed class DataMonitorPanel
 
         // "Edit Overlay" action button — shown for area entities whose overlay is editable.
         var derEntity = logic.Repo.GetEntity(_selectedEntityId);
-        if (derEntity != null && derEntity.HasDescriptor<MapVisualOverlay>())
+        if (derEntity != null && derEntity.HasDescriptor<MapOverlayDescriptor>())
         {
-            var overlay = derEntity.GetDescriptor<MapVisualOverlay>()!;
+            var overlay = derEntity.GetDescriptor<MapOverlayDescriptor>()!;
             if (overlay.IsEditable)
             {
                 ImGui.SameLine();

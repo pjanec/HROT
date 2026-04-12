@@ -1,12 +1,9 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Descriptors.Orchestration;
-using Hrot.NED.Messages;
-using Hrot.NED.Common;
+using Hrot.Core.Mission;
+using Hrot.Core.Network;
 using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
 using Hrot.ExCon.Services;
 using Hrot.Map.Common;
-using Hrot.Map.Common.Dds;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.DER;
 using FDP.Toolkit.Time.Messages;
@@ -63,20 +60,17 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
     public IRequestTransactionManager TransactionManager { get; }
 
     private readonly long                               _localNodeId;
-    private readonly IDdsWriter<MapInteractionConfig>  _configWriter;
-    private readonly IDdsWriter<CreateEntityRequest>   _createEntityWriter;
-    private readonly IDdsWriter<MapCommandRequest>?    _commandWriter;
-    private readonly IDdsWriter<Hrot.NED.Messages.DeleteEntityRequest>? _deleteEntityWriter;
-    private readonly IDdsWriter<ClusterOpRequest>?         _sysOpWriter;
-    private readonly IEventQueue<MapClickEvent>         _clickQueue;
-    private readonly IEventQueue<SelectionChangedEvent> _selectionQueue;
-    private readonly IEventQueue<CreateUpdateDeleteEntityAck> _createEntityAckQueue;
-    private readonly IEventQueue<MapCommandAck>?        _mapCommandAckQueue;
+    private readonly IExConEgressWriters                _egressWriters;
+    private readonly IEventQueue<MapClickEventDto>      _clickQueue;
+    private readonly IEventQueue<SelectionChangedEventDto> _selectionQueue;
+    private readonly IEventQueue<EntityLifecycleAckDto> _createEntityAckQueue;
+    private readonly IEventQueue<MapCommandAckDto>?     _mapCommandAckQueue;
     private readonly InteractionPanel                   _interactionPanel;
     private readonly List<IIngressHandler>              _ingressHandlers;
     private readonly int                                _mapGroupId;
     /// <summary>MapId of the IG instance that receives tool-activation commands (0 = broadcast).</summary>
     private readonly int                                _targetMapId;
+    private readonly ITimeControlGateway?               _timeControl;
 
     // ── Mutable state ─────────────────────────────────────────────────────────
 
@@ -145,80 +139,39 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
 
     /// <summary>
     /// Creates an <see cref="ExConLogic"/> with all dependencies injected.
-    /// All non-optional parameters are validated for null.
     /// </summary>
-    /// <param name="repo">DER entity repository (read by panels).</param>
-    /// <param name="missionEditorService">Service for mission plan operations.</param>
-    /// <param name="contextMenuLogic">Context-menu push service.</param>
-    /// <param name="transactionManager">In-flight request correlator.</param>
-    /// <param name="configWriter">Writer for <see cref="MapInteractionConfig"/> messages.</param>
-    /// <param name="createEntityWriter">Writer for <see cref="CreateEntityRequest"/> messages.</param>
-    /// <param name="clickQueue">Pull queue for incoming <see cref="MapClickEvent"/> samples.</param>
-    /// <param name="selectionQueue">Pull queue for incoming <see cref="SelectionChangedEvent"/> samples.</param>
-    /// <param name="interactionPanel">Event-log panel (also the DEBT-034 drain target).</param>
-    /// <param name="createEntityAckQueue">
-    /// Pull queue for incoming <see cref="CreateUpdateDeleteEntityAck"/> samples.
-    /// <see cref="Update"/> drains the queue each frame and processes
-    /// two-phase entity lifecycle acknowledgments.
-    /// Must not be <c>null</c>; pass <c>new ConcurrentEventQueue&lt;CreateUpdateDeleteEntityAck&gt;()</c>
-    /// in unit tests that do not exercise the ACK flow.
-    /// </param>
-    /// <param name="ingressHandlers">
-    /// Optional list of DDS ingress handlers to <see cref="IIngressHandler.Poll"/> each frame.
-    /// Typically includes one <c>MasterIngressHandler</c> and several
-    /// <c>DescriptorIngressHandler</c> instances feeding the DER repo.
-    /// Pass <c>null</c> or empty in unit tests.
-    /// </param>
-    /// <param name="mapGroupId">Map group targeted by config publications.</param>
-    /// <param name="commandWriter">Optional writer for <see cref="MapCommandRequest"/> messages used for tool activation.</param>
-    /// <param name="targetMapId">
-    /// Target IG MapId for tool-activation commands.  Use <c>0</c> to broadcast to all IGs in the group.
-    /// Defaults to <see cref="ExConLogicConstants.DefaultTargetMapId"/>.
-    /// </param>
-    /// <param name="mapCommandAckQueue">
-    /// Optional pull queue for incoming <see cref="MapCommandAck"/> samples from the IG.
-    /// When provided, <see cref="Update"/> drains the queue each frame and completes the
-    /// corresponding in-flight request tracked by <see cref="TransactionManager"/>.
-    /// Pass <c>null</c> (default) to skip processing (e.g. in unit tests).
-    /// </param>
     public ExConLogic(
-        IDerRepo                            repo,
-        IMissionEditorService               missionEditorService,
-        IContextMenuLogic                   contextMenuLogic,
-        IRequestTransactionManager          transactionManager,
-        IDdsWriter<MapInteractionConfig>    configWriter,
-        IDdsWriter<CreateEntityRequest>     createEntityWriter,
-        IEventQueue<MapClickEvent>          clickQueue,
-        IEventQueue<SelectionChangedEvent>  selectionQueue,
-        InteractionPanel                    interactionPanel,
-        IEventQueue<CreateUpdateDeleteEntityAck> createEntityAckQueue,
-        IEnumerable<IIngressHandler>?       ingressHandlers = null,
-        int                                 mapGroupId      = ExConLogicConstants.DefaultMapGroupId,
-        IDdsWriter<MapCommandRequest>?      commandWriter   = null,
-        int                                 targetMapId     = ExConLogicConstants.DefaultTargetMapId,
-        IEventQueue<MapCommandAck>?         mapCommandAckQueue = null,
-        IDdsWriter<Hrot.NED.Messages.DeleteEntityRequest>? deleteEntityWriter = null,
-        IDdsWriter<ClusterOpRequest>?           sysOpWriter     = null,
-        long                                    localNodeId     = 0)
+        IDerRepo                              repo,
+        IMissionEditorService                 missionEditorService,
+        IContextMenuLogic                     contextMenuLogic,
+        IRequestTransactionManager            transactionManager,
+        IExConEgressWriters                   egressWriters,
+        IEventQueue<MapClickEventDto>         clickQueue,
+        IEventQueue<SelectionChangedEventDto> selectionQueue,
+        InteractionPanel                      interactionPanel,
+        IEventQueue<EntityLifecycleAckDto>    createEntityAckQueue,
+        IEnumerable<IIngressHandler>?         ingressHandlers    = null,
+        int                                   mapGroupId         = ExConLogicConstants.DefaultMapGroupId,
+        int                                   targetMapId        = ExConLogicConstants.DefaultTargetMapId,
+        IEventQueue<MapCommandAckDto>?        mapCommandAckQueue = null,
+        ITimeControlGateway?                  timeControl        = null,
+        long                                  localNodeId        = 0)
     {
-        _localNodeId         = localNodeId;
-        Repo                 = repo                 ?? throw new ArgumentNullException(nameof(repo));
-        MissionEditorService = missionEditorService ?? throw new ArgumentNullException(nameof(missionEditorService));
-        ContextMenuLogic     = contextMenuLogic     ?? throw new ArgumentNullException(nameof(contextMenuLogic));
-        TransactionManager   = transactionManager   ?? throw new ArgumentNullException(nameof(transactionManager));
-        _configWriter        = configWriter         ?? throw new ArgumentNullException(nameof(configWriter));
-        _createEntityWriter  = createEntityWriter   ?? throw new ArgumentNullException(nameof(createEntityWriter));
-        _commandWriter       = commandWriter;   // null-ok; falls back to MapInteractionConfig
-        _deleteEntityWriter  = deleteEntityWriter; // null-ok; delete falls back to local only
-        _sysOpWriter         = sysOpWriter;    // null-ok; time commands silently no-op
-        _clickQueue             = clickQueue           ?? throw new ArgumentNullException(nameof(clickQueue));
-        _selectionQueue         = selectionQueue       ?? throw new ArgumentNullException(nameof(selectionQueue));
-        _createEntityAckQueue   = createEntityAckQueue ?? throw new ArgumentNullException(nameof(createEntityAckQueue));
-        _mapCommandAckQueue     = mapCommandAckQueue;   // null-ok
-        _interactionPanel       = interactionPanel     ?? throw new ArgumentNullException(nameof(interactionPanel));
-        _ingressHandlers     = ingressHandlers?.ToList() ?? new List<IIngressHandler>();
-        _mapGroupId          = mapGroupId;
-        _targetMapId         = targetMapId;
+        _localNodeId          = localNodeId;
+        Repo                  = repo                 ?? throw new ArgumentNullException(nameof(repo));
+        MissionEditorService  = missionEditorService ?? throw new ArgumentNullException(nameof(missionEditorService));
+        ContextMenuLogic      = contextMenuLogic     ?? throw new ArgumentNullException(nameof(contextMenuLogic));
+        TransactionManager    = transactionManager   ?? throw new ArgumentNullException(nameof(transactionManager));
+        _egressWriters        = egressWriters        ?? throw new ArgumentNullException(nameof(egressWriters));
+        _clickQueue           = clickQueue           ?? throw new ArgumentNullException(nameof(clickQueue));
+        _selectionQueue       = selectionQueue       ?? throw new ArgumentNullException(nameof(selectionQueue));
+        _createEntityAckQueue = createEntityAckQueue ?? throw new ArgumentNullException(nameof(createEntityAckQueue));
+        _mapCommandAckQueue   = mapCommandAckQueue;   // null-ok
+        _interactionPanel     = interactionPanel     ?? throw new ArgumentNullException(nameof(interactionPanel));
+        _ingressHandlers      = ingressHandlers?.ToList() ?? new List<IIngressHandler>();
+        _mapGroupId           = mapGroupId;
+        _targetMapId          = targetMapId;
+        _timeControl          = timeControl;
 
         Repo.EntityDeleted += OnEntityDeleted;
     }
@@ -231,12 +184,10 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(jsonPatch);
 
-        _configWriter.Write(new MapInteractionConfig
+        _egressWriters.WriteMapConfig(new MapConfigDto
         {
-            MapGroupId          = _mapGroupId,
-            ActiveContextId     = ActiveContextId,
-            JsonSchemaVersion   = ExConLogicConstants.JsonSchemaVersion,
-            ConfigurationJson   = jsonPatch
+            ActiveContextId = ActiveContextId,
+            ConfigJson      = jsonPatch,
         });
 
         _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicConfig,
@@ -264,49 +215,28 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         PickMode        = ExConPickMode.EntityCreation;
         CancelPendingPick();
 
-        if (_commandWriter != null)
-        {
-            // Preferred path: instance-scoped volatile command (correct architecture)
-            var requestId = Guid.NewGuid();
-            _lastCommandRequestId = requestId;
-            TransactionManager.TrackRequest(requestId, $"CMD_PLACE_ENTITY tkb={tkbType}");
+        var requestId = Guid.NewGuid();
+        _lastCommandRequestId = requestId;
+        TransactionManager.TrackRequest(requestId, $"CMD_PLACE_ENTITY tkb={tkbType}");
 
-            var argsObj = new System.Collections.Generic.Dictionary<string, object?>
-            {
-                ["contextId"]  = ActiveContextId.ToString("N"),
-                ["entityType"] = tkbType,
-            };
-            if (!string.IsNullOrEmpty(initialPropertiesJson))
-                argsObj["initialPropertiesJson"] = initialPropertiesJson;
-            string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(argsObj);
-
-            _commandWriter.Write(new MapCommandRequest
-            {
-                RequestId       = requestId,
-                MapId           = _targetMapId,
-                Type            = CommandType.CMD_PLACE_ENTITY,
-                CommandArgsJson = argsJson,
-            });
-            _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCommand,
-                $"CMD_PLACE_ENTITY tkb={tkbType} ctx={ActiveContextId:N}");
-        }
-        else
+        var argsObj = new System.Collections.Generic.Dictionary<string, object?>
         {
-            _lastCommandRequestId = Guid.Empty;
-            // Fallback: legacy MapInteractionConfig (group-scoped, transient-local)
-            // Parse affiliation from initialPropertiesJson to embed in the legacy config patch.
-            string? affString = ParseAffiliationStringFromJson(initialPropertiesJson);
-            string patch = BuildPlacementPatch(tkbType, affString);
-            _configWriter.Write(new MapInteractionConfig
-            {
-                MapGroupId        = _mapGroupId,
-                ActiveContextId   = ActiveContextId,
-                JsonSchemaVersion = ExConLogicConstants.JsonSchemaVersion,
-                ConfigurationJson = patch
-            });
-            _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicConfig,
-                $"PLACEMENT tkb={tkbType} ctx={ActiveContextId:N}");
-        }
+            ["contextId"]  = ActiveContextId.ToString("N"),
+            ["entityType"] = tkbType,
+        };
+        if (!string.IsNullOrEmpty(initialPropertiesJson))
+            argsObj["initialPropertiesJson"] = initialPropertiesJson;
+        string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(argsObj);
+
+        _egressWriters.WriteMapCommand(new MapCommandDto
+        {
+            RequestId       = requestId,
+            TargetMapId     = _targetMapId,
+            CommandType     = "CMD_PLACE_ENTITY",
+            CommandArgsJson = argsJson,
+        });
+        _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCommand,
+            $"CMD_PLACE_ENTITY tkb={tkbType} ctx={ActiveContextId:N}");
 
         FdpLog<ExConLogic>.Debug(
             "[Node-{0}] Placement Mode ON. ContextId={1} TKB={2}", _localNodeId, ActiveContextId, tkbType);
@@ -320,43 +250,24 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         ActiveContextId = Guid.NewGuid();
         PlacementType   = 0;
 
-        if (_commandWriter != null)
-        {
-            // Preferred path: instance-scoped volatile command (correct architecture)
-            var requestId = Guid.NewGuid();
-            _lastCommandRequestId = requestId;
-            TransactionManager.TrackRequest(requestId, $"CMD_START_AUTHORING ctx={ActiveContextId:N}");
+        var requestId = Guid.NewGuid();
+        _lastCommandRequestId = requestId;
+        TransactionManager.TrackRequest(requestId, $"CMD_START_AUTHORING ctx={ActiveContextId:N}");
 
-            string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
-            {
-                contextId        = ActiveContextId.ToString("N"),
-                styleOverrideJson
-            });
-            _commandWriter.Write(new MapCommandRequest
-            {
-                RequestId       = requestId,
-                MapId           = _targetMapId,
-                Type            = CommandType.CMD_START_AUTHORING,
-                CommandArgsJson = argsJson,
-            });
-            _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCommand,
-                $"CMD_START_AUTHORING ctx={ActiveContextId:N}");
-        }
-        else
+        string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
         {
-            _lastCommandRequestId = Guid.Empty;
-            // Fallback: legacy MapInteractionConfig
-            string patch = BuildAreaAuthoringPatch(styleOverrideJson);
-            _configWriter.Write(new MapInteractionConfig
-            {
-                MapGroupId        = _mapGroupId,
-                ActiveContextId   = ActiveContextId,
-                JsonSchemaVersion = ExConLogicConstants.JsonSchemaVersion,
-                ConfigurationJson = patch
-            });
-            _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicConfig,
-                $"AREA_AUTHORING ctx={ActiveContextId:N}");
-        }
+            contextId        = ActiveContextId.ToString("N"),
+            styleOverrideJson
+        });
+        _egressWriters.WriteMapCommand(new MapCommandDto
+        {
+            RequestId       = requestId,
+            TargetMapId     = _targetMapId,
+            CommandType     = "CMD_START_AUTHORING",
+            CommandArgsJson = argsJson,
+        });
+        _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCommand,
+            $"CMD_START_AUTHORING ctx={ActiveContextId:N}");
 
         FdpLog<ExConLogic>.Debug(
             "[Node-{0}] Area Authoring Mode ON. ContextId={1}", _localNodeId, ActiveContextId);
@@ -370,32 +281,25 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         ActiveContextId = Guid.NewGuid();
         PlacementType   = 0;
 
-        if (_commandWriter != null)
-        {
-            var requestId = Guid.NewGuid();
-            _lastCommandRequestId = requestId;
-            TransactionManager.TrackRequest(requestId, $"CMD_START_AUTHORING (Route) ctx={ActiveContextId:N}");
+        var requestId = Guid.NewGuid();
+        _lastCommandRequestId = requestId;
+        TransactionManager.TrackRequest(requestId, $"CMD_START_AUTHORING (Route) ctx={ActiveContextId:N}");
 
-            string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
-            {
-                contextId = ActiveContextId.ToString("N"),
-                tkbType   = TkbEntityTypes.TacGraphic_Route
-            });
-
-            _commandWriter.Write(new MapCommandRequest
-            {
-                RequestId       = requestId,
-                MapId           = _targetMapId,
-                Type            = CommandType.CMD_START_AUTHORING,
-                CommandArgsJson = argsJson,
-            });
-            _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCommand,
-                $"CMD_START_AUTHORING (Route) ctx={ActiveContextId:N}");
-        }
-        else
+        string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
         {
-            _lastCommandRequestId = Guid.Empty;
-        }
+            contextId = ActiveContextId.ToString("N"),
+            tkbType   = TkbEntityTypes.TacGraphic_Route
+        });
+
+        _egressWriters.WriteMapCommand(new MapCommandDto
+        {
+            RequestId       = requestId,
+            TargetMapId     = _targetMapId,
+            CommandType     = "CMD_START_AUTHORING",
+            CommandArgsJson = argsJson,
+        });
+        _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCommand,
+            $"CMD_START_AUTHORING (Route) ctx={ActiveContextId:N}");
 
         FdpLog<ExConLogic>.Debug(
             "[Node-{0}] Route Authoring Mode ON. ContextId={1}", _localNodeId, ActiveContextId);
@@ -409,23 +313,20 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         ActiveContextId = Guid.NewGuid();
         PlacementType   = 0;
 
-        if (_commandWriter != null)
+        string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
         {
-            string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
-            {
-                contextId      = ActiveContextId.ToString("N"),
-                entityId       = networkEntityId
-            });
-            _commandWriter.Write(new MapCommandRequest
-            {
-                RequestId       = Guid.NewGuid(),
-                MapId           = _targetMapId,
-                Type            = CommandType.CMD_START_EDITING,
-                CommandArgsJson = argsJson,
-            });
-            _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCommand,
-                $"CMD_START_EDITING entityId={networkEntityId} ctx={ActiveContextId:N}");
-        }
+            contextId = ActiveContextId.ToString("N"),
+            entityId  = networkEntityId
+        });
+        _egressWriters.WriteMapCommand(new MapCommandDto
+        {
+            RequestId       = Guid.NewGuid(),
+            TargetMapId     = _targetMapId,
+            CommandType     = "CMD_START_EDITING",
+            CommandArgsJson = argsJson,
+        });
+        _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCommand,
+            $"CMD_START_EDITING entityId={networkEntityId} ctx={ActiveContextId:N}");
 
         FdpLog<ExConLogic>.Debug(
             "[Node-{0}] Editing Mode ON. ContextId={1} EntityId={2}", _localNodeId, ActiveContextId, networkEntityId);
@@ -443,11 +344,11 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
     {
         ThrowIfDisposed();
         SelectEntity(entityId);
-        _commandWriter?.Write(new MapCommandRequest
+        _egressWriters.WriteMapCommand(new MapCommandDto
         {
             RequestId       = Guid.NewGuid(),
-            MapId           = _targetMapId,
-            Type            = CommandType.CMD_SET_SELECTION,
+            TargetMapId     = _targetMapId,
+            CommandType     = "CMD_SET_SELECTION",
             CommandArgsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { entityId }),
         });
     }
@@ -456,11 +357,11 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
     public void CenterOnEntity(int entityId)
     {
         ThrowIfDisposed();
-        _commandWriter?.Write(new MapCommandRequest
+        _egressWriters.WriteMapCommand(new MapCommandDto
         {
             RequestId       = Guid.NewGuid(),
-            MapId           = _targetMapId,
-            Type            = CommandType.CMD_SET_VIEW,
+            TargetMapId     = _targetMapId,
+            CommandType     = "CMD_SET_VIEW",
             CommandArgsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { entityId }),
         });
     }
@@ -470,11 +371,7 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
     {
         ThrowIfDisposed();
         _pendingDeleteEntityIds.Add(entityId);
-        _deleteEntityWriter?.Write(new Hrot.NED.Messages.DeleteEntityRequest
-        {
-            RequestId = Guid.NewGuid(),
-            EntityId  = entityId,
-        });
+        _egressWriters.WriteDeleteEntity(entityId);
     }
 
     /// <inheritdoc/>
@@ -485,11 +382,11 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
     {
         ThrowIfDisposed();
         ActiveContextId = Guid.NewGuid();
-        _commandWriter?.Write(new MapCommandRequest
+        _egressWriters.WriteMapCommand(new MapCommandDto
         {
             RequestId       = Guid.NewGuid(),
-            MapId           = _targetMapId,
-            Type            = CommandType.CMD_DRAW_PERSONAL_ROUTE,
+            TargetMapId     = _targetMapId,
+            CommandType     = "CMD_DRAW_PERSONAL_ROUTE",
             CommandArgsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
             {
                 contextId = ActiveContextId.ToString("N"),
@@ -528,10 +425,6 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
     {
         ThrowIfDisposed();
 
-        if (_commandWriter == null)
-            return Task.FromException<GeoPoint>(
-                new InvalidOperationException("No MapCommandRequest writer available."));
-
         CancelPendingPick();
 
         ActiveContextId = Guid.NewGuid();
@@ -559,11 +452,11 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
             contextId = ActiveContextId.ToString("N")
         });
 
-        _commandWriter.Write(new MapCommandRequest
+        _egressWriters.WriteMapCommand(new MapCommandDto
         {
             RequestId       = Guid.NewGuid(),
-            MapId           = _targetMapId,
-            Type            = CommandType.CMD_PICK_LOCATION,
+            TargetMapId     = _targetMapId,
+            CommandType     = "CMD_PICK_LOCATION",
             CommandArgsJson = argsJson,
         });
 
@@ -580,9 +473,9 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
     {
         ThrowIfDisposed();
 
-        if (_commandWriter == null)
+        if (_egressWriters == null)
             return Task.FromException<int>(
-                new InvalidOperationException("No MapCommandRequest writer available."));
+                new InvalidOperationException("No egress writers available."));
 
         CancelPendingPick();
 
@@ -612,11 +505,11 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
             filters   = filterPresets ?? Array.Empty<string>()
         });
 
-        _commandWriter.Write(new MapCommandRequest
+        _egressWriters.WriteMapCommand(new MapCommandDto
         {
             RequestId       = Guid.NewGuid(),
-            MapId           = _targetMapId,
-            Type            = CommandType.CMD_PICK_ENTITY,
+            TargetMapId     = _targetMapId,
+            CommandType     = "CMD_PICK_ENTITY",
             CommandArgsJson = argsJson,
         });
 
@@ -718,51 +611,52 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
 
                 default:
                     _interactionPanel.AddLog("RX", ExConLogicConstants.LogTopicClick,
-                        "DROP – no active pick mode");
+                        "DROP - no active pick mode");
                     break;
             }
         }
     }
 
-    private void ProcessEntityCreationClick(MapClickEvent evt)
+    private void ProcessEntityCreationClick(MapClickEventDto evt)
     {
         if (PlacementType == 0)
         {
             _interactionPanel.AddLog("RX", ExConLogicConstants.LogTopicClick,
-                "DROP – no placement type configured");
+                "DROP - no placement type configured");
             return;
         }
 
         var requestId = Guid.NewGuid();
         TransactionManager.TrackRequest(requestId, $"Create entity tkbType={PlacementType}");
 
-        _createEntityWriter.Write(new CreateEntityRequest
+        _egressWriters.WriteCreateEntity(new CreateEntityCommand
         {
-            RequestId          = requestId,
-            Owner              = new NodeId { AppDomainId = 0, AppInstanceId = 0 },
-            Flags              = 0,
-            InitialDescriptors = BuildInitialDescriptors(evt.Position)
+            RequestId = requestId,
+            TkbType   = PlacementType,
+            Latitude  = evt.Latitude,
+            Longitude = evt.Longitude,
+            Altitude  = evt.Altitude,
         });
 
         _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCreate,
-            $"tkb={PlacementType} pos={evt.Position.Latitude:F2},{evt.Position.Longitude:F2}");
+            $"tkb={PlacementType} pos={evt.Latitude:F2},{evt.Longitude:F2}");
     }
 
-    private void ProcessLocationPickClick(MapClickEvent evt)
+    private void ProcessLocationPickClick(MapClickEventDto evt)
     {
         var tcs = _pendingLocationTcs;
         _pendingLocationTcs = null;
         PickMode            = ExConPickMode.None;
 
         _interactionPanel.AddLog("RX", ExConLogicConstants.LogTopicClick,
-            $"LOCATION_PICK pos={evt.Position.Latitude:F4},{evt.Position.Longitude:F4}");
+            $"LOCATION_PICK pos={evt.Latitude:F4},{evt.Longitude:F4}");
 
-        tcs?.TrySetResult(evt.Position);
+        tcs?.TrySetResult(new GeoPoint(evt.Latitude, evt.Longitude, evt.Altitude));
     }
 
-    private void ProcessEntityPickClick(MapClickEvent evt)
+    private void ProcessEntityPickClick(MapClickEventDto evt)
     {
-        int entityId = evt.HitStack is { Count: > 0 } ? evt.HitStack[0].EntityId : 0;
+        int entityId = evt.HitEntityIds is { Count: > 0 } ? evt.HitEntityIds[0] : 0;
 
         var tcs = _pendingEntityTcs;
         _pendingEntityTcs = null;
@@ -779,19 +673,17 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         while (_createEntityAckQueue.TryDequeue(out var ack))
         {
             // ── Delete ACK path ────────────────────────────────────────────────
-            // Delete ACKs don't go through Phase-1 InProgress; detect them by the
-            // absence of an entry in _pendingEntities while being tracked for delete.
             if (_pendingDeleteEntityIds.Contains(ack.EntityId))
             {
                 _pendingDeleteEntityIds.Remove(ack.EntityId);
-                if (ack.StatusCode >= (int)NedStatusCode.UnknownDescriptorType)
+                if (ack.StatusCode >= EntityLifecycleAckDto.StatusFailureMin)
                     _globalAlert = $"Entity deletion failed (code {ack.StatusCode}).";
                 _interactionPanel.AddLog("RX", ExConLogicConstants.LogTopicCreateAck,
                     $"DELETE-ACK entityId={ack.EntityId} status={ack.StatusCode}");
                 continue;
             }
 
-            if (ack.StatusCode == (int)NedStatusCode.InProgress)
+            if (ack.StatusCode == EntityLifecycleAckDto.StatusInProgress)
             {
                 // Phase 1: ID is now known; guard the entity against interactions
                 // until the ELM handshake completes.
@@ -803,7 +695,7 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
                 continue;
             }
 
-            if (ack.StatusCode >= (int)NedStatusCode.UnknownDescriptorType)
+            if (ack.StatusCode >= EntityLifecycleAckDto.StatusFailureMin)
             {
                 // Phase 2 failure: remove from pending, surface alert, fail transaction.
                 _pendingEntities.Remove(ack.EntityId);
@@ -884,31 +776,6 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
     }
 
     /// <summary>
-    /// Builds the minimal initial-descriptor list for a new entity created at
-    /// <paramref name="position"/> with the current <see cref="PlacementType"/>.
-    /// </summary>
-    private List<EntityDescriptorUnion> BuildInitialDescriptors(GeoPoint position)
-    {
-        return new List<EntityDescriptorUnion>
-        {
-            new EntityDescriptorUnion
-            {
-                _d           = EDescriptorType.dtEntityMaster,
-                EntityMaster = new EntityMaster
-                {
-                    EntityId = -1,
-                    TkbType = PlacementType
-                }
-            },
-            new EntityDescriptorUnion
-            {
-                _d         = EDescriptorType.dtWorldPos,
-                WorldPos = new WorldPos { Pos = position }
-            }
-        };
-    }
-
-    /// <summary>
     /// Parses the raw <c>"affiliation"</c> string value from a JSON property bag.
     /// Returns <c>null</c> when absent or malformed.
     /// </summary>
@@ -924,54 +791,6 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
         }
         catch { /* malformed JSON */ }
         return null;
-    }
-
-    /// <summary>
-    /// Builds the JSON config patch that activates the placement tool.
-    /// </summary>
-    private static string BuildPlacementPatch(long tkbType, string? affiliation)
-    {
-        return JsonConvert.SerializeObject(new
-        {
-            interaction = new
-            {
-                activeTool = ExConLogicConstants.PlacementToolName,
-                toolConfig = new
-                {
-                    entityType  = tkbType,
-                    affiliation = affiliation ?? eForceIdentifier.FORCE_UNKNOWN.ToString()
-                }
-            }
-        });
-    }
-
-    /// <summary>
-    /// Builds the JSON config patch that activates area authoring.
-    /// </summary>
-    private static string BuildAreaAuthoringPatch(string styleOverrideJson = "")
-    {
-        if (string.IsNullOrEmpty(styleOverrideJson))
-        {
-            return JsonConvert.SerializeObject(new
-            {
-                interaction = new
-                {
-                    activeTool = ExConLogicConstants.AreaAuthoringToolName
-                }
-            });
-        }
-
-        return JsonConvert.SerializeObject(new
-        {
-            interaction = new
-            {
-                activeTool   = ExConLogicConstants.AreaAuthoringToolName,
-                toolSettings = new
-                {
-                    styleOverrideJson
-                }
-            }
-        });
     }
 
     private void ThrowIfDisposed()
@@ -991,16 +810,16 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, Hrot.UI.Common.Fa
     // ── Time commands ─────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
-    public void RequestPause()  => _sysOpWriter?.Write(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.PauseTime,  PayloadJson = "{}" });
+    public void RequestPause()  => _timeControl?.RequestPause();
 
     /// <inheritdoc/>
-    public void RequestResume() => _sysOpWriter?.Write(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.ResumeTime, PayloadJson = "{}" });
+    public void RequestResume() => _timeControl?.RequestResume();
 
     /// <inheritdoc/>
-    public void RequestStep()   => _sysOpWriter?.Write(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.StepTime,   PayloadJson = "{}" });
+    public void RequestStep()   => _timeControl?.RequestStep();
 
     /// <inheritdoc/>
-    public void SetTimeScale(float scale) => _sysOpWriter?.Write(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.SetTimeScale, PayloadJson = $"{{\"scale\":{scale.ToString(System.Globalization.CultureInfo.InvariantCulture)}}}" });
+    public void SetTimeScale(float scale) => _timeControl?.SetTimeScale(scale);
 
     /// <summary>
     /// Clears <see cref="SelectedEntityId"/> when the currently-selected entity is deleted

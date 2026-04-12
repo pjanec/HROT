@@ -1,32 +1,7 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
+using Hrot.Core.Mission;
+using Hrot.Core.Network;
 
 namespace Hrot.ExCon.Services;
-
-/// <summary>
-/// The result returned when a mission commit request resolves (either via
-/// ACK or timeout).
-/// </summary>
-public sealed class MissionCommitResult
-{
-    /// <summary>True if the server accepted and applied the mission change.</summary>
-    public bool Success { get; init; }
-
-    /// <summary>Human-readable error description. Null or empty on success.</summary>
-    public string? ErrorMessage { get; init; }
-
-    /// <summary>
-    /// The new optimistic-lock version after a successful commit. 0 on failure.
-    /// </summary>
-    public long NewVersion { get; init; }
-
-    /// <summary>
-    /// The numeric error code from the ACK response.  0 on success;
-    /// 7 (<c>ERR_VERSION_CONFLICT</c>) when the server rejected the commit due to
-    /// an optimistic-lock version mismatch.
-    /// </summary>
-    public int ErrorCode { get; init; }
-}
 
 /// <summary>
 /// Provides mission snapshot reads and asynchronous commit of mission plan

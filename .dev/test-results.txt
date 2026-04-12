@@ -1,0 +1,288 @@
+﻿Test run for D:\Work\IOS-IG-SimHost-FDP-2\Hrot.SimHost.Integration.Tests\bin\Debug\net8.0\Hrot.SimHost.Integration.Tests.dll (.NETCoreApp,Version=v8.0)
+VSTest version 18.0.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Framework\Fdp.Presentation.Tests\bin\Debug\net8.0\Fdp.Presentation.Tests.dll (.NETCoreApp,Version=v8.0)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\ModuleHost\Fdp.Network.Cyclone.Tests\bin\Debug\net8.0\Fdp.Network.Cyclone.Tests.dll (.NETCoreApp,Version=v8.0)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.NetworkDemo.Tests\bin\Debug\net8.0\Fdp.Examples.NetworkDemo.Tests.dll (.NETCoreApp,Version=v8.0)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.CarKinem.Tests\bin\Debug\net9.0\Fdp.Examples.CarKinem.Tests.dll (.NETCoreApp,Version=v9.0)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\Hrot.Map.Common.Tests\bin\Debug\net8.0\Hrot.Map.Common.Tests.dll (.NETCoreApp,Version=v8.0)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\Hrot.SimHost.Tests\bin\Debug\net8.0\Hrot.SimHost.Tests.dll (.NETCoreApp,Version=v8.0)
+VSTest version 18.0.1 (x64)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\Hrot.IG.Tests\bin\Debug\net8.0\Hrot.IG.Tests.dll (.NETCoreApp,Version=v8.0)
+
+VSTest version 18.0.1 (x64)
+
+VSTest version 18.0.1 (x64)
+VSTest version 18.0.1 (x64)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\Hrot.ExCon.Tests\bin\Debug\net8.0\Hrot.ExCon.Tests.dll (.NETCoreApp,Version=v8.0)
+
+
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.UrbanCombat.Tests\bin\Debug\net8.0\Fdp.Examples.UrbanCombat.Tests.dll (.NETCoreApp,Version=v8.0)
+VSTest version 18.0.1 (x64)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner.Integration.Tests\bin\Debug\net8.0\Hrot.ClusterRunner.Integration.Tests.dll (.NETCoreApp,Version=v8.0)
+
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner.Tests\bin\Debug\net8.0\Hrot.ClusterRunner.Tests.dll (.NETCoreApp,Version=v8.0)
+VSTest version 18.0.1 (x64)
+Starting test execution, please wait...
+
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\bin\Debug\net8.0\Fdp.Examples.Scenarios.Tests.dll (.NETCoreApp,Version=v8.0)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\Hrot.Orchestrator.Integration.Tests\bin\Debug\net8.0\Hrot.Orchestrator.Integration.Tests.dll (.NETCoreApp,Version=v8.0)
+Starting test execution, please wait...
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Starting test execution, please wait...
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\Hrot.Orchestrator.Tests\bin\Debug\net8.0\Hrot.Orchestrator.Tests.dll (.NETCoreApp,Version=v8.0)
+VSTest version 18.0.1 (x64)
+VSTest version 18.0.1 (x64)
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+
+
+VSTest version 18.0.1 (x64)
+
+A total of 1 test files matched the specified pattern.
+Starting test execution, please wait...
+VSTest version 18.0.1 (x64)
+VSTest version 18.0.1 (x64)
+
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\Hrot.Core.Tests\bin\Debug\net8.0\Hrot.Core.Tests.dll (.NETCoreApp,Version=v8.0)
+A total of 1 test files matched the specified pattern.
+Starting test execution, please wait...
+VSTest version 18.0.1 (x64)
+Starting test execution, please wait...
+
+VSTest version 18.0.1 (x64)
+
+VSTest version 18.0.1 (x64)
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+Starting test execution, please wait...
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+VSTest version 18.0.1 (x64)
+Starting test execution, please wait...
+Starting test execution, please wait...
+
+A total of 1 test files matched the specified pattern.
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\Hrot.Presentation.Tests\bin\Debug\net8.0\Hrot.Presentation.Tests.dll (.NETCoreApp,Version=v8.0)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\Hrot.Editor.Tests\bin\Debug\net8.0\Hrot.Editor.Tests.dll (.NETCoreApp,Version=v8.0)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Engine.Tests\bin\Debug\net8.0\Fdp.Engine.Tests.dll (.NETCoreApp,Version=v8.0)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\Hrot.Network.BDC.Tests\bin\Debug\net8.0\Hrot.Network.BDC.Tests.dll (.NETCoreApp,Version=v8.0)
+VSTest version 18.0.1 (x64)
+
+VSTest version 18.0.1 (x64)
+
+Starting test execution, please wait...
+VSTest version 18.0.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+VSTest version 18.0.1 (x64)
+A total of 1 test files matched the specified pattern.
+Starting test execution, please wait...
+
+dotnet : [xUnit.net 00:00:01.99]     Hrot.SimHost.Integration.Tests.EntityCreat
+ionFlowTests.MissingEntityMaster_ReturnsErrorAck [FAIL]
+At line:1 char:1
++ dotnet test IOS-IG-SimHost.sln --no-build -v q 2>&1 | Out-File -FileP ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([xUnit.net 00:0...ErrorAck [FAIL] 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:00.74]     Fdp.Examples.CarKinem.Tests.BugVerificationTests.Te
+st_Issue1_Stepping_Moves_Simulation [FAIL]
+[xUnit.net 00:00:02.05]     Hrot.SimHost.Integration.Tests.MissionExecutionFlow
+Tests.EntityMission_MovesEntity [FAIL]
+Passed!  - Failed:     0, Passed:    30, Skipped:     0, Total:    30, Duration: 188 msStarting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+ - Hrot.Map.Common.Tests.dll (net8.0)
+
+[xUnit.net 00:00:01.15]     Hrot.SimHost.Tests.CreateEntityRequestSystemJsonTes
+ts.CreateEntityRequestSystem_InitialAttributesJson_PatchesName [FAIL]
+[xUnit.net 00:00:01.16]     Hrot.SimHost.Tests.CreateEntityRequestSystemJsonTes
+ts.CreateEntityRequestSystem_NullJson_NoPatch [FAIL]
+Failed!  - Failed:     1, Passed:     8, Skipped:     0, Total:     9, Duration: 393 ms - Fdp.Examples.CarKinem.Tests.dll (net9.0)
+[xUnit.net 00:00:01.16]     Hrot.SimHost.Tests.CreateEntityRequestSystemJsonTes
+ts.CreateEntityRequestSystem_InitialAttributesJson_DoesNotOverwriteAffiliation 
+[FAIL]
+[xUnit.net 00:00:01.30]     Hrot.SimHost.Tests.SimulationLogicModuleTests.Simul
+ationLogicModule_EmptyWorld_AllSystemsRegisterAndUpdateWithoutException [FAIL]
+[xUnit.net 00:00:01.44]     Hrot.SimHost.Tests.ActionDispatchModuleTests.Action
+DispatchModule_EmptyExecutorLists_StillRegistersDispatchers [FAIL]
+[xUnit.net 00:00:01.44]     Hrot.SimHost.Tests.ActionDispatchModuleTests.Action
+DispatchModule_RegistersLocoAndWeaponDispatchers [FAIL]
+[xUnit.net 00:00:01.57]     Hrot.SimHost.Tests.CreateEntityRequestSystemTests.P
+rocessRequest_BothNull_EntitySpawnsWithoutException [FAIL]
+[xUnit.net 00:00:01.57]     Hrot.SimHost.Tests.CreateEntityRequestSystemTests.P
+rocessRequests_DelegateCache_BehaviourRegression [FAIL]
+[xUnit.net 00:00:01.58]     Hrot.SimHost.Tests.CreateEntityRequestSystemTests.P
+rocessRequest_NullBinaryRecords_FallsBackToJsonPath [FAIL]
+[xUnit.net 00:00:01.58]     Hrot.SimHost.Tests.CreateEntityRequestSystemTests.P
+rocessRequest_BinaryRecords_NameRecord_EntitySpawnedWithCorrectName [FAIL]
+[xUnit.net 00:00:01.58]     Hrot.SimHost.Tests.CreateEntityRequestSystemTests.P
+rocessRequest_ValidTkbType_PublishesSpawnEntityCommand [FAIL]
+[xUnit.net 00:00:01.58]     Hrot.SimHost.Tests.CreateEntityRequestSystemTests.P
+rocessRequest_UnknownTkbType_SendsErrorAck [FAIL]
+[xUnit.net 00:00:01.58]     Hrot.SimHost.Tests.CreateEntityRequestSystemTests.P
+rocessRequest_BinaryAndJson_BinaryTakesPrecedence [FAIL]
+[xUnit.net 00:00:01.58]     Hrot.SimHost.Tests.CreateEntityRequestSystemTests.P
+rocessRequest_AllocatesNewNetworkId [FAIL]
+[xUnit.net 00:00:01.58]     Hrot.SimHost.Tests.CreateEntityRequestSystemTests.T
+imeSlicing_SecondFrame_ProcessesRemainingRequests [FAIL]
+[xUnit.net 00:00:01.58]     Hrot.SimHost.Tests.CreateEntityRequestSystemTests.T
+imeSlicing_OnThousandRequests_DispatchesExactlyMaxPerTickOnFirstFrame [FAIL]
+[xUnit.net 00:00:01.58]     Hrot.SimHost.Tests.CreateEntityRequestSystemTests.P
+rocessRequest_SimTransformDescriptor_PromotedToTypedField_NotInFallbackList [FA
+IL]
+[xUnit.net 00:00:01.58]     Hrot.SimHost.Tests.CreateEntityRequestSystemTests.P
+rocessRequest_NoSimTransformDescriptor_InitialTransformIsNull [FAIL]
+[xUnit.net 00:00:01.59]     Hrot.SimHost.Tests.CreateEntityRequestSystemTests.T
+imeSlicing_OnThousandRequests_AcksAllSentOnFirstFrame [FAIL]
+[xUnit.net 00:00:01.70]     Hrot.SimHost.Tests.CgfLogicPackTests.CgfLogicPack_E
+mptyWorld_AllSystemsRegisterAndRunWithoutException [FAIL]
+[xUnit.net 00:00:01.95]     Hrot.IG.Tests.UniqueNameGeneratorTests.GetMaxIndex_
+EntityWithNonNumericSuffix_IsIgnored [FAIL]
+[xUnit.net 00:00:01.83]     Hrot.ClusterRunner.Tests.NedReplicationModuleTests.
+ImageGenerator_RegistersDeadReckoningSystem [FAIL]
+
+[xUnit.net 00:00:01.97]     Hrot.IG.Tests.UniqueNameGeneratorTests.GetMaxIndex_
+IsCaseInsensitive [FAIL]
+[xUnit.net 00:00:02.16]     Hrot.ClusterRunner.Tests.EyesAndMuscleSubsystemTest
+s.Module_EyesTicks_IncrementAfterPumping [FAIL]
+[xUnit.net 00:00:02.00]     Hrot.IG.Tests.UniqueNameGeneratorTests.CreateSessio
+nGenerator_FirstCall_ReturnsPrefixPlusBaseIndexPlusOne [FAIL]
+Passed!  - Failed:     0, Passed:    86, Skipped:     0, Total:    86, Duration: 683 ms - Hrot.Core.Tests.dll (net8.0)
+[xUnit.net 00:00:02.00]     Hrot.IG.Tests.UniqueNameGeneratorTests.GetMaxIndex_
+SingleMatchingEntity_ReturnsItsIndex [FAIL]
+[xUnit.net 00:00:02.00]     Hrot.IG.Tests.UniqueNameGeneratorTests.GetMaxIndex_
+MixedEntities_IgnoresNonMatchingPrefix [FAIL]
+[xUnit.net 00:00:02.00]     Hrot.IG.Tests.UniqueNameGeneratorTests.GetMaxIndex_
+MultipleMatchingEntities_ReturnsMaxIndex [FAIL]
+
+Passed!  - Failed:     0, Passed:    29, Skipped:     0, Total:    29, Duration: 970 ms - Fdp.Examples.UrbanCombat.Tests.dll (net8.0)
+
+Passed!  - Failed:     0, Passed:    42, Skipped:     0, Total:    42, Duration: 2 s - Fdp.Network.Cyclone.Tests.dll (net8.0)
+
+Passed!  - Failed:     0, Passed:     8, Skipped:     0, Total:     8, Duration: 138 ms - Hrot.Network.BDC.Tests.dll (net8.0)
+
+Passed!  - Failed:     0, Passed:    16, Skipped:     0, Total:    16, Duration: 166 ms - Hrot.Presentation.Tests.dll (net8.0)
+
+Passed!  - Failed:     0, Passed:    60, Skipped:     0, Total:    60, Duration: 293 ms - Hrot.Editor.Tests.dll (net8.0)
+[xUnit.net 00:00:03.90]     Hrot.IG.Tests.IgApplicationPanelTests.InitializeNet
+work_RegistersFireInteractionEventTranslator [FAIL]
+
+Passed!  - Failed:     0, Passed:   391, Skipped:     0, Total:   391, Duration: 2 s - Hrot.ExCon.Tests.dll (net8.0)
+
+Passed!  - Failed:     0, Passed:    12, Skipped:     0, Total:    12, Duration: 3 s - Hrot.Orchestrator.Integration.Tests.dll (net8.0)
+
+Passed!  - Failed:     0, Passed:   181, Skipped:     0, Total:   181, Duration: 4 s - Fdp.Presentation.Tests.dll (net8.0)
+[xUnit.net 00:00:00.58]     CarKinem.Tests.Systems.SpatialHashSystemTests.Spati
+alHashSystem_IndexesEntity_WithSimTransformButNoVehicleState [FAIL]
+[xUnit.net 00:00:00.72]     FDP.Toolkit.Time.Tests.TimeConfigTests.TimeConfig_D
+efault_SyncRefreshIntervalTicks_Is1Second [FAIL]
+[xUnit.net 00:00:00.82]     FDP.Toolkit.Time.Tests.SlaveSyncControllerTests.Sla
+veSyncController_Update_SendsPeriodicResync [FAIL]
+
+Failed!  - Failed:     3, Passed:   726, Skipped:     0, Total:   729, Duration: 3 s - Fdp.Engine.Tests.dll (net8.0)
+
+Failed!  - Failed:     7, Passed:   414, Skipped:     0, Total:   421, Duration: 4 s - Hrot.IG.Tests.dll (net8.0)
+[xUnit.net 00:00:06.68]     Hrot.ClusterRunner.Integration.Tests.EntityDestroyI
+ntegrationTests.SimHost_DestroyEntity_IgGhostIsRemoved [FAIL]
+
+Passed!  - Failed:     0, Passed:    68, Skipped:     0, Total:    68, Duration: 5 s - Fdp.Examples.Scenarios.Tests.dll (net8.0)
+
+Failed!  - Failed:     2, Passed:    39, Skipped:     0, Total:    41, Duration: 8 s - Hrot.SimHost.Integration.Tests.dll (net8.0)
+[xUnit.net 00:00:08.63]     Hrot.ClusterRunner.Tests.OrchestratorSubsystemTests
+.PauseButton_WhenNotPaused_DispatchesPauseTime [FAIL]
+[xUnit.net 00:00:09.40]     Hrot.SimHost.Tests.GeoSpatialEgressTranslatorTests.
+Dispose_AlsoCallsBaseDispose [FAIL]
+
+Passed!  - Failed:     0, Passed:    88, Skipped:     0, Total:    88, Duration: 8 s - Hrot.Orchestrator.Tests.dll (net8.0)
+[xUnit.net 00:00:10.73]     Hrot.ClusterRunner.Integration.Tests.EntityDestroyI
+ntegrationTests.SimHost_ClearAllPattern_AllIgGhostsRemoved [FAIL]
+[xUnit.net 00:00:13.12]     Hrot.ClusterRunner.Integration.Tests.MiniExConInteg
+rationTests.EntityDragEnd_MovesEntityOnSimHost_ViaUpdateDescriptorRequest [FAIL
+]
+[xUnit.net 00:00:16.55]     Hrot.ClusterRunner.Integration.Tests.SelectionAndMi
+ssionIntegrationTests.ExCon_CommitMissionAsync_ResolvesWithAck_NotTimeout [FAIL
+]
+[xUnit.net 00:00:16.92]     Hrot.ClusterRunner.Integration.Tests.MiniExConInteg
+rationTests.MiniExConSpawn_RequestAllocatesAndPromotesEntity [FAIL]
+[xUnit.net 00:00:17.23]     Hrot.ClusterRunner.Tests.SwitchTimeModeEchoLoopTest
+s.PollIngress_ThenScanAndPublish_DoesNotEchoBack [FAIL]
+[xUnit.net 00:00:19.37]     Hrot.SimHost.Tests.SimHostComponentRegistrationTest
+s.OnLoad_RegistersFireInteractionEventTranslator [FAIL]
+[xUnit.net 00:00:21.37]     Hrot.SimHost.Tests.TranslatorPackTests.SharedTransl
+atorPack_Create_ReturnsThreeTranslators [FAIL]
+[xUnit.net 00:00:21.74]     Hrot.SimHost.Tests.TranslatorPackTests.NodeBootstra
+pper_AllInOne_RegistersAllTranslatorPacks [FAIL]
+[xUnit.net 00:00:22.59]     Hrot.ClusterRunner.Integration.Tests.MiniExConInteg
+rationTests.MiniExConSpawnWithWanderMission_CreatesEntityExecutesMissionAndPubl
+ishes [FAIL]
+
+Failed!  - Failed:    24, Passed:   427, Skipped:     0, Total:   451, Duration: 23 s - Hrot.SimHost.Tests.dll (net8.0)
+[xUnit.net 00:00:26.28]     Hrot.ClusterRunner.Integration.Tests.MiniExConInteg
+rationTests.FirstSpawn_DoesNotExhaustIdPool [FAIL]
+[xUnit.net 00:00:28.88]     Hrot.ClusterRunner.Tests.OrchestratorTimeModeTests.
+PendingTimeMode_Deterministic_PublishesSwitchTimeModeEvent [FAIL]
+[xUnit.net 00:00:29.76]     Hrot.ClusterRunner.Integration.Tests.MiniExConInteg
+rationTests.MiniExConSpawn_HostileAffiliation_IgEntityGetsHostileForceId [FAIL]
+
+Failed!  - Failed:     5, Passed:   206, Skipped:     0, Total:   211, Duration: 30 s - Hrot.ClusterRunner.Tests.dll (net8.0)
+[xUnit.net 00:00:37.93]     Fdp.Examples.NetworkDemo.Tests.Scenarios.AdvancedTe
+sts.Deterministic_Time_Switch_Synchronizes_Nodes [FAIL]
+
+Failed!  - Failed:     1, Passed:    26, Skipped:     0, Total:    27, Duration: 37 s - Fdp.Examples.NetworkDemo.Tests.dll (net8.0)
+[xUnit.net 00:00:37.49]     Hrot.ClusterRunner.Integration.Tests.MapPlacementIn
+tegrationTests.EndToEnd_PlacementFlow_SpawnsAndDistributesEntity [FAIL]
+[xUnit.net 00:00:40.64]     Hrot.ClusterRunner.Integration.Tests.MapPlacementIn
+tegrationTests.EndToEnd_DirectCreationTool_SpawnsEntityInSimHost [FAIL]
+[xUnit.net 00:00:47.35]     Hrot.ClusterRunner.Integration.Tests.SpawnMovingVeh
+icleIntegrationTests.SpawnMovingVehicle_IgReceivesPositionChangesWithinFewFrame
+s [FAIL]
+[xUnit.net 00:00:54.44]     Hrot.ClusterRunner.Integration.Tests.SpawnMovingVeh
+icleIntegrationTests.SpawnMovingVehicle_IgPositionContinuesToUpdate [FAIL]
+[xUnit.net 00:01:19.14]     Hrot.ClusterRunner.Integration.Tests.MissionControl
+IntegrationTests.ExCon_SendsJumpCommand_SimHostAppliesIt [FAIL]
+[xUnit.net 00:01:23.36]     Hrot.ClusterRunner.Integration.Tests.AreaAuthoringI
+ntegrationTests.EndToEnd_AreaAuthoring_PublishesOverlayAndIgReceivesPolyline [F
+AIL]
+[xUnit.net 00:01:28.90]     Hrot.ClusterRunner.Integration.Tests.AllSubsystemsC
+lusterTransitionTests.AllSubsystems_TransitionToOperatingLive_CommitStateIsNotD
+roppedAsDuplicate [FAIL]
+[xUnit.net 00:01:31.78]     Hrot.ClusterRunner.Integration.Tests.FeatureSwitchR
+cuIntegrationTests.SwitchToExternal_SpawnCommand_ReachesDdsWriter [FAIL]
+[xUnit.net 00:01:36.10]     Hrot.ClusterRunner.Integration.Tests.ZombieEntityMa
+pTests.DestroyedEntity_IsRemovedFromNetworkEntityMap_OnIg [FAIL]
+[xUnit.net 00:03:02.14]     Hrot.ClusterRunner.Integration.Tests.ClusterOpE2eSc
+riptTests.RecordAndReplaySeek_Passes [FAIL]
+[xUnit.net 00:03:58.74]     Hrot.ClusterRunner.Integration.Tests.ClusterOpE2eSc
+riptTests.LiveFromReplayBranch_Passes [FAIL]
+[xUnit.net 00:04:10.68]     Hrot.ClusterRunner.Integration.Tests.UrbanCombatFil
+eLifecycleTests.UrbanCombatExtractedToJson_ExecutesSuccessfullyInLiveMode [FAIL
+]
+[xUnit.net 00:04:33.70]     Hrot.ClusterRunner.Integration.Tests.CgfSubsystemHe
+adlessTests.SimHost_WanderMission_EntityMovesAfterDoctrineActivation [FAIL]
+[xUnit.net 00:06:43.21]     Hrot.ClusterRunner.Integration.Tests.CgfSubsystemHe
+adlessTests.SimHost_MissionControlRequest_ActivatesMissionPlanQueue [FAIL]
+[xUnit.net 00:07:09.23]     Hrot.ClusterRunner.Integration.Tests.CgfSubsystemHe
+adlessTests.CGF_MovingVehicle_GhostPositionUpdates [FAIL]
+
+Failed!  - Failed:    23, Passed:   106, Skipped:     4, Total:   133, Duration: 7 m 15 s - Hrot.ClusterRunner.Integration.Tests.dll (net8.0)

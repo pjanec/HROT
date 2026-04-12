@@ -194,7 +194,7 @@ namespace Hrot.SimHost.Tests
             return new CreateEntityRequest
             {
                 RequestId          = Guid.NewGuid(),
-                Owner              = new NodeId { AppDomainId = 1, AppInstanceId = 2 },
+                Owner              = new NodeId { AppDomainId = 1, AppInstanceId = LocalNodeId },
                 Flags              = 0,
                 InitialDescriptors = descriptors,
                 InitialAttributesJson = json,

@@ -1,7 +1,7 @@
-using Hrot.NED.Descriptors;
-using Hrot.ExCon.Logic;
+﻿using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Panels;
+using Hrot.Core.Network;
 using FDP.Toolkit.DER;
 using Xunit;
 using Moq;
@@ -41,21 +41,21 @@ public class OrbatPanelTests
         var repo = new DerRepo();
 
         var parent = repo.CreateEntity(1, 100);
-        parent.SetDescriptor(new EntityInfo
+        parent.SetDescriptor(new EntityInfoDescriptor
         {
-            EntityId        = 1,
-            Name            = "HQ",
-            CommanderId     = 0,
-            ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY
+            EntityId    = 1,
+            Name        = "HQ",
+            CommanderId = 0,
+            Affiliation = "FORCE_FRIENDLY",
         });
 
         var child = repo.CreateEntity(2, 101);
-        child.SetDescriptor(new EntityInfo
+        child.SetDescriptor(new EntityInfoDescriptor
         {
-            EntityId        = 2,
-            Name            = "Tank1",
-            CommanderId     = 1,
-            ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY
+            EntityId    = 2,
+            Name        = "Tank1",
+            CommanderId = 1,
+            Affiliation = "FORCE_FRIENDLY",
         });
 
         var panel = new OrbatPanel();

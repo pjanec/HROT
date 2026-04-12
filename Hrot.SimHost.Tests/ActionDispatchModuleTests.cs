@@ -48,11 +48,12 @@ namespace Hrot.SimHost.Tests
             // Act
             module.RegisterSystems(group);
 
-            // Assert — exactly 2 systems: LocomotionDispatcher + WeaponDispatcher
+            // Assert — exactly 3 systems: LocomotionDispatcher + WeaponDispatcher + InteractionDispatcher
             var systems = group.GetSystems();
-            Assert.Equal(2, systems.Count);
+            Assert.Equal(3, systems.Count);
             Assert.Contains(systems, s => s is LocomotionDispatcherSystem);
             Assert.Contains(systems, s => s is WeaponDispatcherSystem);
+            Assert.Contains(systems, s => s is InteractionDispatcherSystem);
 
             group.Dispose();
             repo.Dispose();
@@ -72,7 +73,7 @@ namespace Hrot.SimHost.Tests
             group.Create(repo);
             module.RegisterSystems(group);
 
-            Assert.Equal(2, group.GetSystems().Count);
+            Assert.Equal(3, group.GetSystems().Count);
 
             group.Dispose();
             repo.Dispose();

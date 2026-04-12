@@ -270,10 +270,9 @@ public sealed class NedReplicationModule : INedReplicationModule
             if (_tkbDb != null && _lifecycleModule != null)
                 registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule));
             registry.RegisterSystem(new SubEntityCleanupSystem());
-            registry.RegisterSystem(new SmartEgressSystem());
 
-            // DR sync — pure IG: smooth ALL remote entities (no locally-owned entities)
-            registry.RegisterSystem(new DeadReckoningSyncSystem(driveFromNetwork: true));
+            // DR sync -- smooth ALL remote entities (IG can create owned entities as well!)
+            registry.RegisterSystem(new DeadReckoningSyncSystem(driveFromNetwork: false));
         }
         else if (_roleHasIG)
         {

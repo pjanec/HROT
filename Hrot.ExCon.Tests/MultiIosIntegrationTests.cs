@@ -1,13 +1,10 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
-using Hrot.ExCon.Logic;
+﻿using Hrot.Core.Network;
+using Hrot.Core.Mission;
 using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Panels;
-using Hrot.UI.Common.Models;
 using Hrot.ExCon.Services;
-using Hrot.Common.Events;
 using FDP.Toolkit.DER;
-using Fdp.Kernel;
+using Moq;
 using ExConPanelConst = Hrot.ExCon.Panels.PanelConstants;
 using UiPanelConst    = Hrot.UI.Common.Panels.PanelConstants;
 using UiMissionResult = Hrot.UI.Common.Models.MissionCommitResult;
@@ -21,55 +18,51 @@ namespace Hrot.ExCon.Tests;
 /// </summary>
 internal sealed class IosClient : IDisposable
 {
-    public ExConLogic                  Logic        { get; }
     public MissionEditorService        MissionSvc   { get; }
-    public FdpEventBus                 Bus          { get; }
     public MissionPanel                MissionPanel { get; }
 
+    private readonly TaskCompletionSource<MissionCommitResult> _tcs;
+
     public IosClient(
-        ExConLogic          logic,
-        MissionEditorService missionSvc,
-        FdpEventBus          bus,
-        MissionPanel         missionPanel)
+        MissionEditorService                               missionSvc,
+        MissionPanel                                       missionPanel,
+        TaskCompletionSource<MissionCommitResult>          tcs)
     {
-        Logic        = logic;
         MissionSvc   = missionSvc;
-        Bus          = bus;
         MissionPanel = missionPanel;
+        _tcs         = tcs;
     }
 
     /// <summary>
-    /// Delivers a successful ACK for the last published intent (simulating
+    /// Delivers a successful ACK for the pending commit (simulating
     /// SimHost accepting the commit).
     /// </summary>
     public void DeliverAck(long newVersion = 2)
     {
-        Bus.SwapBuffers();
-        var intent = Bus.ConsumeManaged<MissionControlIntent>().Last();
-        Bus.Publish(new MissionControlAckEvent { RequestId = intent.RequestId, ErrorCode = 0, NewVersion = newVersion });
-        Bus.SwapBuffers();
-        MissionSvc.Poll();
+        _tcs.TrySetResult(new MissionCommitResult
+        {
+            Success    = true,
+            NewVersion = newVersion,
+            ErrorCode  = 0,
+        });
     }
 
     /// <summary>
-    /// Delivers a version-conflict rejection ACK for the last published intent
+    /// Delivers a version-conflict rejection ACK for the pending commit
     /// (simulating SimHost detecting a stale base version).
     /// </summary>
     public void DeliverVersionConflict()
     {
-        Bus.SwapBuffers();
-        var intent = Bus.ConsumeManaged<MissionControlIntent>().Last();
-        Bus.Publish(new MissionControlAckEvent
+        _tcs.TrySetResult(new MissionCommitResult
         {
-            RequestId  = intent.RequestId,
-            ErrorCode  = ExConPanelConst.VersionConflictErrorCode,
-            NewVersion = 0
+            Success      = false,
+            ErrorCode    = ExConPanelConst.VersionConflictErrorCode,
+            ErrorMessage = UiPanelConst.VersionConflictErrorMessage,
+            NewVersion   = 0,
         });
-        Bus.SwapBuffers();
-        MissionSvc.Poll();
     }
 
-    public void Dispose() => Logic.Dispose();
+    public void Dispose() => _tcs.TrySetCanceled();
 }
 
 // ── Factory ───────────────────────────────────────────────────────────────────
@@ -90,35 +83,21 @@ internal static class MultiIosFactory
 
         for (int i = 0; i < count; i++)
         {
-            var bus      = new FdpEventBus();
-            var msnSvc   = new MissionEditorService(
+            var tcs         = new TaskCompletionSource<MissionCommitResult>();
+            var gateway     = new Mock<ICommandGateway>();
+            gateway
+                .Setup(g => g.SendMissionControlRequestAsync(
+                    It.IsAny<MissionControlCommand>(),
+                    It.IsAny<CancellationToken>()))
+                .Returns((MissionControlCommand cmd, CancellationToken ct) => tcs.Task);
+
+            var msnSvc      = new MissionEditorService(
                 repo,
-                bus,
+                gateway.Object,
                 commitTimeoutMs: CommitTimeoutMs);
+            var missionPanel = new MissionPanel();
 
-            var configWriter  = new CapturingWriter<MapInteractionConfig>();
-            var createWriter  = new CapturingWriter<CreateEntityRequest>();
-            var clickQueue    = new ConcurrentEventQueue<MapClickEvent>();
-            var selectQueue   = new ConcurrentEventQueue<SelectionChangedEvent>();
-            var txMgr         = new RequestTransactionManager();
-            var ctxMenu       = new ContextMenuLogic(repo, new CapturingWriter<ContextActionsUpdate>());
-            var interPanel    = new InteractionPanel();
-            var missionPanel  = new MissionPanel();
-
-            var logic = new ExConLogic(
-                repo:                repo,
-                missionEditorService: msnSvc,
-                contextMenuLogic:    ctxMenu,
-                transactionManager:  txMgr,
-                configWriter:        configWriter,
-                createEntityWriter:  createWriter,
-                clickQueue:          clickQueue,
-                selectionQueue:      selectQueue,
-                interactionPanel:    interPanel,
-                createEntityAckQueue: new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>(),
-                ingressHandlers:     new[] { (IIngressHandler)msnSvc });
-
-            clients[i] = new IosClient(logic, msnSvc, bus, missionPanel);
+            clients[i] = new IosClient(msnSvc, missionPanel, tcs);
         }
 
         return (clients, repo);
@@ -158,17 +137,12 @@ public class MultiIosIntegrationTests
         var (clients, repo) = MultiIosFactory.CreateClients(2);
 
         var entity = repo.CreateEntity(entityId: 1, tkbType: 100);
-        entity.SetDescriptor(new EntityMaster { EntityId = 1, TkbType = 100 });
-        entity.SetDescriptor(new Hrot.NED.Descriptors.EntityInfo   { EntityId = 1, Name    = "Alpha-1" });
-        entity.SetDescriptor(new DescriptorOptimisticLock
-        {
-            EntityId       = 1,
-            CurrentVersion = 1
-        });
-        entity.SetDescriptor(new EntityMission
+        entity.SetDescriptor(new EntityInfoDescriptor { EntityId = 1, Name = "Alpha-1" });
+        entity.SetDescriptor(new EntityMissionDescriptor
         {
             EntityId = 1,
-            Plan     = new MissionPlan { Tasks = new List<MissionTask>() }
+            Plan     = new MissionPlan { Tasks = new List<MissionTask>() },
+            Version  = 1,
         });
 
         return (clients[0], clients[1], entity, initialVersion: 1);
@@ -196,7 +170,6 @@ public class MultiIosIntegrationTests
     public async Task TwoClients_ClientACommitsFirst_ClientBReceivesVersionConflict()
     {
         var (clientA, clientB, _, _) = SetupTwoClients();
-        using (clientA) using (clientB)
         {
             var plan = new MissionPlan { Tasks = new List<MissionTask>() };
 
@@ -230,7 +203,6 @@ public class MultiIosIntegrationTests
     public async Task TwoClients_ClientACommitsFirst_ClientBResultHasZeroNewVersion()
     {
         var (clientA, clientB, _, _) = SetupTwoClients();
-        using (clientA) using (clientB)
         {
             var plan = new MissionPlan { Tasks = new List<MissionTask>() };
 
@@ -252,7 +224,6 @@ public class MultiIosIntegrationTests
     public async Task ConflictingClient_MissionPanel_HasConflictAlertAfterHandling()
     {
         var (clientA, clientB, _, _) = SetupTwoClients();
-        using (clientA) using (clientB)
         {
             var plan = new MissionPlan { Tasks = new List<MissionTask>() };
 
@@ -278,7 +249,6 @@ public class MultiIosIntegrationTests
     public async Task ConflictingClient_SuccessfulClient_MissionPanelNoAlert()
     {
         var (clientA, clientB, _, _) = SetupTwoClients();
-        using (clientA) using (clientB)
         {
             var plan = new MissionPlan { Tasks = new List<MissionTask>() };
 
@@ -302,7 +272,6 @@ public class MultiIosIntegrationTests
     public async Task ConflictAlert_AfterDismiss_HasConflictAlertIsFalse()
     {
         var (clientA, clientB, _, _) = SetupTwoClients();
-        using (clientA) using (clientB)
         {
             var plan = new MissionPlan { Tasks = new List<MissionTask>() };
 
@@ -332,7 +301,6 @@ public class MultiIosIntegrationTests
     public async Task TwoClients_SequentialCommits_BothSucceed()
     {
         var (clientA, clientB, entity, _) = SetupTwoClients();
-        using (clientA) using (clientB)
         {
             var plan = new MissionPlan { Tasks = new List<MissionTask>() };
 
@@ -342,10 +310,10 @@ public class MultiIosIntegrationTests
             var resultA = await taskA;
             Assert.True(resultA.Success);
 
-            // Simulate SimHost updating the DER entity's optimistic-lock version.
-            entity.SetDescriptor(new DescriptorOptimisticLock
+            // Simulate SimHost updating the DER entity's version after acceptance.
+            entity.SetDescriptor(new EntityMissionDescriptor
             {
-                EntityId = 1, CurrentVersion = 2
+                EntityId = 1, Version = 2, Plan = new MissionPlan { Tasks = new List<MissionTask>() }
             });
 
             // Client B now reads the updated version and commits at version 2.

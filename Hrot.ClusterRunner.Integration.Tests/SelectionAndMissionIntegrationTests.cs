@@ -117,25 +117,25 @@ public class SelectionAndMissionIntegrationTests
         // Build a minimal single-task WanderMilitary mission plan — the same shape used by
         // MiniExConPanelState.SubmitWithWanderMissionViaGateway.
         var taskId = Guid.NewGuid();
-        var plan = new MissionPlan
+        var plan = new Hrot.Core.Mission.MissionPlan
         {
             ActiveTaskId = taskId,
-            Tasks = new List<MissionTask>
+            Tasks = new List<Hrot.Core.Mission.MissionTask>
             {
-                new MissionTask
+                new Hrot.Core.Mission.MissionTask
                 {
                     TaskId          = taskId,
                     ExecutingEngine = "CGFX",
                     BehaviorId      = "WanderMilitary",
                     BehaviorParams  = string.Empty,
-                    State           = eTaskState.TASK_PLANNED,
-                    Triggers        = new List<DdsMissionTrigger>(),
+                    State           = Hrot.Core.Mission.eTaskState.TASK_PLANNED,
+                    Triggers        = new List<Hrot.Core.Mission.MissionTrigger>(),
                 }
             }
         };
 
         // Kick off the async commit; this publishes MissionControlRequest to DDS.
-        Task<Hrot.ExCon.Services.MissionCommitResult> commitTask =
+        var commitTask =
             harness.ExCon.Logic.MissionEditorService.CommitMissionAsync(networkId, plan, 0);
 
         // Pump frames: each frame runs IosSubsystem.Update() →  ExConLogic.Update() →

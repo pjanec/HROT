@@ -26,6 +26,7 @@ public sealed class ClusterOpMasterTranslator
     private readonly DdsWriter<AssetInventoryTopic>? _inventoryWriter;
     private readonly FdpEventBus                    _bus;
     private readonly JsonSerializerOptions          _jsonOptions;
+    private readonly Action<ClusterOpRequest>?      _unhandledRequestCallback;
 
     /// <summary>Initialises a new <see cref="ClusterOpMasterTranslator"/>.</summary>
     public ClusterOpMasterTranslator(
@@ -33,13 +34,15 @@ public sealed class ClusterOpMasterTranslator
         DdsWriter<ClusterOpStatus>     statusWriter,
         FdpEventBus                    bus,
         JsonSerializerOptions?         jsonOptions = null,
-        DdsWriter<AssetInventoryTopic>? inventoryWriter = null)
+        DdsWriter<AssetInventoryTopic>? inventoryWriter = null,
+        Action<ClusterOpRequest>?      unhandledRequestCallback = null)
     {
-        _requestReader   = requestReader   ?? throw new ArgumentNullException(nameof(requestReader));
-        _statusWriter    = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
-        _bus             = bus             ?? throw new ArgumentNullException(nameof(bus));
-        _jsonOptions     = jsonOptions ?? OrchestrationJsonOptions.Default;
-        _inventoryWriter = inventoryWriter;
+        _requestReader            = requestReader   ?? throw new ArgumentNullException(nameof(requestReader));
+        _statusWriter             = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
+        _bus                      = bus             ?? throw new ArgumentNullException(nameof(bus));
+        _jsonOptions              = jsonOptions ?? OrchestrationJsonOptions.Default;
+        _inventoryWriter          = inventoryWriter;
+        _unhandledRequestCallback = unhandledRequestCallback;
     }
 
     /// <summary>Processes one frame: ingests DDS requests and publishes completed statuses.</summary>
@@ -211,9 +214,10 @@ public sealed class ClusterOpMasterTranslator
                 break;
             }
 
-            // Time control and other ops are not translated here — handled by
-            // HandleClusterOpRequest injection in ClusterMaster if needed.
+            // Time control and other ops are not translated here -- forwarded to the
+            // unhandled-request callback (e.g. ClusterMaster.HandleClusterOpRequest) if set.
             default:
+                _unhandledRequestCallback?.Invoke(req);
                 break;
         }
     }

@@ -17,4 +17,14 @@ public interface IExConEgressWriters : IDisposable
 
     /// <summary>Publishes a generic map command request.</summary>
     void WriteMapCommand(MapCommandDto cmd);
+
+    /// <summary>
+    /// Pushes a context actions update to the IG for the given map group.
+    /// </summary>
+    /// <param name="mapGroupId">Target map group (0 = broadcast).</param>
+    /// <param name="forSelection">
+    /// Entity IDs the menu applies to (empty or null for map-canvas right-click).
+    /// </param>
+    /// <param name="actionsJson">JSON-encoded context actions payload.</param>
+    void PushContextActions(int mapGroupId, System.Collections.Generic.IReadOnlyList<int>? forSelection, string actionsJson);
 }

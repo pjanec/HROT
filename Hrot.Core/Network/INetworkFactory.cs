@@ -16,4 +16,7 @@ public interface INetworkFactory
 
     /// <summary>Creates the egress writers for ExCon-originated entity lifecycle commands.</summary>
     IExConEgressWriters CreateExConEgressWriters();
+
+    /// <summary>Creates the time-control gateway for ExCon-originated time control commands.</summary>
+    ITimeControlGateway CreateTimeControlGateway();
 }

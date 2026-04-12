@@ -1,9 +1,12 @@
 using Hrot.NED.Messages;
+using Hrot.Core.Network;
+using Hrot.Network.NED.ExCon;
 using FDP.Toolkit.Commands;
 using CycloneDDS.Core;
 using CycloneDDS.Runtime;
 using FDP.Kernel.Logging;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Hrot.Map.Common.Commands
@@ -34,7 +37,7 @@ namespace Hrot.Map.Common.Commands
     /// A gateway for executing NED-specific commands over DDS.
     /// This wraps generic DdsCommandClient instances for specific request types.
     /// </summary>
-    public class NedCommandGateway : INedCommandGateway, IDisposable
+    public class NedCommandGateway : INedCommandGateway, ICommandGateway
     {
         private readonly DdsCommandClient<CreateEntityRequest, CreateUpdateDeleteEntityAck>    _createEntityClient;
         private readonly DdsCommandClient<MissionControlRequest, MissionControlAck>            _missionControlClient;
@@ -138,6 +141,39 @@ namespace Hrot.Map.Common.Commands
                 "[GW] Sent UpdateEntityDescriptorRequest for Entity {0} ({1})",
                 request.EntityId,
                 request.DescriptorType);
+        }
+
+        // ── ICommandGateway ───────────────────────────────────────────────────
+
+        /// <inheritdoc/>
+        async Task<int> ICommandGateway.CreateEntityAsync(CreateEntityCommand cmd, CancellationToken ct)
+        {
+            var request = NedTranslationHelper.ToCreateEntityRequest(cmd);
+            var ack     = await CreateEntityAsync(request).ConfigureAwait(false);
+            return ack.EntityId;
+        }
+
+        /// <inheritdoc/>
+        Task ICommandGateway.SendUpdateDescriptorAsync(UpdateEntityDescriptorCommand cmd, CancellationToken ct)
+        {
+            var request = NedTranslationHelper.ToUpdateDescriptorRequest(cmd);
+            SendUpdateDescriptor(request);
+            return Task.CompletedTask;
+        }
+
+        /// <inheritdoc/>
+        async Task<MissionCommitResult> ICommandGateway.SendMissionControlRequestAsync(
+            MissionControlCommand cmd, CancellationToken ct)
+        {
+            var request = NedTranslationHelper.ToMissionControlRequest(cmd);
+            var ack     = await SendMissionControlRequestAsync(request).ConfigureAwait(false);
+            return new MissionCommitResult
+            {
+                Success      = ack.ErrorCode == 0,
+                ErrorMessage = ack.ErrorCode == 0 ? string.Empty : $"Error {ack.ErrorCode}",
+                NewVersion   = ack.NewVersion,
+                ErrorCode    = ack.ErrorCode,
+            };
         }
 
         public void Dispose()

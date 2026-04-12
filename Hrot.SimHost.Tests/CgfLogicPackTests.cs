@@ -61,12 +61,14 @@ namespace Hrot.SimHost.Tests
             var ex = Record.Exception(() => simGroup.Run());
             Assert.Null(ex);
 
+            // MissionControlExecutionSystem (1), MissionAdapterSystem (1)
             // MissionControlModule: DoctrineIngressSystem, MissionDirectorSystem (2)
             // CognitiveRuntimeModule: ChannelArbitrationSystem, HsmDamageBridgeSystem,
             //   BTreeTickSystem, HsmTickSystem<BrainHsm128>, HsmTickSystem<BrainHsm64> (5)
-            // ActionDispatchModule: LocomotionDispatcherSystem, WeaponDispatcherSystem (2)
-            // total = 9
-            Assert.Equal(9, simGroup.SystemCount);
+            // ActionDispatchModule: LocomotionDispatcherSystem, WeaponDispatcherSystem,
+            //   InteractionDispatcherSystem (3)
+            // total = 12
+            Assert.Equal(12, simGroup.SystemCount);
 
             simGroup.Dispose();
         }

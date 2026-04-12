@@ -51,7 +51,7 @@ namespace Hrot.SimHost.Tests
             var translators = SharedTranslatorPack.Create(
                 participant, entityMap, localNodeId: 1, eventBus, ghostCreation, geoTransform).ToList();
 
-            Assert.Equal(7, translators.Count);
+            Assert.Equal(8, translators.Count);
         }
 
         [Fact]
@@ -316,7 +316,7 @@ namespace Hrot.SimHost.Tests
 
             var bootstrapper = new NodeBootstrapper();
             var translators  = bootstrapper.BuildTranslators(
-                NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception, participant, entityMap, geoTransform,
+                NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver, participant, entityMap, geoTransform,
                 eventBus, ghostSystem, doctrineRegistry: null, localNodeId: 1);
 
             // Brain perception pack

@@ -1,11 +1,7 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Descriptors.Orchestration;
-using Hrot.NED.Messages;
-using Hrot.NED.Common;
+﻿using Hrot.Core.Network;
 using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
 using Hrot.ExCon.Services;
-using Hrot.Map.Common.Dds;
 using FDP.Toolkit.DER;
 using FDP.Toolkit.Time.Messages;
 using ModuleHost.Core.Time;
@@ -16,20 +12,19 @@ namespace Hrot.ExCon.Tests;
 
 public class ExConLogicTimeTests
 {
-    private static ExConLogic MakeLogic(Mock<IDdsWriter<ClusterOpRequest>>? sysOpWriterMock = null)
+    private static ExConLogic MakeLogic(Mock<ITimeControlGateway>? timeControlMock = null)
     {
         return new ExConLogic(
             repo:                   new DerRepo(),
             missionEditorService:   Mock.Of<IMissionEditorService>(),
             contextMenuLogic:       Mock.Of<IContextMenuLogic>(),
             transactionManager:     new RequestTransactionManager(),
-            configWriter:           Mock.Of<IDdsWriter<MapInteractionConfig>>(),
-            createEntityWriter:     Mock.Of<IDdsWriter<CreateEntityRequest>>(),
-            clickQueue:             new ConcurrentEventQueue<MapClickEvent>(),
-            selectionQueue:         new ConcurrentEventQueue<SelectionChangedEvent>(),
+            egressWriters:          Mock.Of<IExConEgressWriters>(),
+            clickQueue:             new ConcurrentEventQueue<MapClickEventDto>(),
+            selectionQueue:         new ConcurrentEventQueue<SelectionChangedEventDto>(),
             interactionPanel:       new InteractionPanel(),
-            createEntityAckQueue:   new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>(),
-            sysOpWriter:            sysOpWriterMock?.Object);
+            createEntityAckQueue:   new ConcurrentEventQueue<EntityLifecycleAckDto>(),
+            timeControl:            timeControlMock?.Object);
     }
 
     [Fact]
@@ -56,58 +51,53 @@ public class ExConLogicTimeTests
     }
 
     [Fact]
-    public void RequestPause_WritesClusterOpRequest()
+    public void RequestPause_CallsTimeControlGateway()
     {
-        var writerMock = new Mock<IDdsWriter<ClusterOpRequest>>();
-        var logic = MakeLogic(writerMock);
+        var tcMock = new Mock<ITimeControlGateway>();
+        var logic = MakeLogic(tcMock);
 
         logic.RequestPause();
 
-        writerMock.Verify(w => w.Write(It.Is<ClusterOpRequest>(r =>
-            r.OperationType == ClusterOpType.PauseTime)), Times.Once);
+        tcMock.Verify(t => t.RequestPause(), Times.Once);
     }
 
     [Fact]
-    public void RequestResume_WritesClusterOpRequest()
+    public void RequestResume_CallsTimeControlGateway()
     {
-        var writerMock = new Mock<IDdsWriter<ClusterOpRequest>>();
-        var logic = MakeLogic(writerMock);
+        var tcMock = new Mock<ITimeControlGateway>();
+        var logic = MakeLogic(tcMock);
 
         logic.RequestResume();
 
-        writerMock.Verify(w => w.Write(It.Is<ClusterOpRequest>(r =>
-            r.OperationType == ClusterOpType.ResumeTime)), Times.Once);
+        tcMock.Verify(t => t.RequestResume(), Times.Once);
     }
 
     [Fact]
-    public void RequestStep_WritesClusterOpRequest()
+    public void RequestStep_CallsTimeControlGateway()
     {
-        var writerMock = new Mock<IDdsWriter<ClusterOpRequest>>();
-        var logic = MakeLogic(writerMock);
+        var tcMock = new Mock<ITimeControlGateway>();
+        var logic = MakeLogic(tcMock);
 
         logic.RequestStep();
 
-        writerMock.Verify(w => w.Write(It.Is<ClusterOpRequest>(r =>
-            r.OperationType == ClusterOpType.StepTime)), Times.Once);
+        tcMock.Verify(t => t.RequestStep(), Times.Once);
     }
 
     [Fact]
-    public void SetTimeScale_WritesClusterOpRequestWithPayload()
+    public void SetTimeScale_CallsTimeControlGateway()
     {
-        var writerMock = new Mock<IDdsWriter<ClusterOpRequest>>();
-        var logic = MakeLogic(writerMock);
+        var tcMock = new Mock<ITimeControlGateway>();
+        var logic = MakeLogic(tcMock);
 
         logic.SetTimeScale(0.5f);
 
-        writerMock.Verify(w => w.Write(It.Is<ClusterOpRequest>(r =>
-            r.OperationType == ClusterOpType.SetTimeScale &&
-            r.PayloadJson.Contains("0.5"))), Times.Once);
+        tcMock.Verify(t => t.SetTimeScale(0.5f), Times.Once);
     }
 
     [Fact]
-    public void TimeCommands_WithNoWriter_DoNotThrow()
+    public void TimeCommands_WithNoTimeControl_DoNotThrow()
     {
-        var logic = MakeLogic(sysOpWriterMock: null);
+        var logic = MakeLogic(timeControlMock: null);
 
         // Should silently no-op
         logic.RequestPause();

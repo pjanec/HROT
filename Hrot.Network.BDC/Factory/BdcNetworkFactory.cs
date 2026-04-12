@@ -48,6 +48,10 @@ namespace Hrot.BDC.Factory
         /// <inheritdoc/>
         public IExConEgressWriters CreateExConEgressWriters()
             => new BdcNullExConEgressWriters();
+
+        /// <inheritdoc/>
+        public ITimeControlGateway CreateTimeControlGateway()
+            => new BdcNullTimeControlGateway();
     }
 
     internal sealed class BdcNullCommandGateway : ICommandGateway
@@ -56,8 +60,8 @@ namespace Hrot.BDC.Factory
             => Task.FromResult(0);
         public Task SendUpdateDescriptorAsync(UpdateEntityDescriptorCommand cmd, CancellationToken ct = default)
             => Task.CompletedTask;
-        public Task SendMissionControlRequestAsync(MissionControlCommand cmd, CancellationToken ct = default)
-            => Task.CompletedTask;
+        public Task<MissionCommitResult> SendMissionControlRequestAsync(MissionControlCommand cmd, CancellationToken ct = default)
+            => Task.FromResult(new MissionCommitResult { Success = false, ErrorMessage = "No gateway" });
         public void Dispose() { }
     }
 
@@ -67,6 +71,15 @@ namespace Hrot.BDC.Factory
         public void WriteDeleteEntity(int entityId) { }
         public void WriteCreateEntity(CreateEntityCommand cmd) { }
         public void WriteMapCommand(MapCommandDto cmd) { }
+        public void PushContextActions(int mapGroupId, System.Collections.Generic.IReadOnlyList<int>? forSelection, string actionsJson) { }
         public void Dispose() { }
+    }
+
+    internal sealed class BdcNullTimeControlGateway : ITimeControlGateway
+    {
+        public void RequestPause() { }
+        public void RequestResume() { }
+        public void RequestStep() { }
+        public void SetTimeScale(float scale) { }
     }
 }

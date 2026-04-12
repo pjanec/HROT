@@ -43,13 +43,13 @@ public class OrchestratorTimeModeTests
         Thread.Sleep(400);
 
         // Send TransitionState → LoadingLive with Deterministic time mode.
-        sysOpWriter.Write(new ClusterOpRequest
-        {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            // ClusterState.LoadingLive = 30; JSON object form to carry TimeMode property.
-            PayloadJson   = @"{""TargetState"":30,""TimeMode"":""Deterministic""}",
-        });
+            // TargetState must use the enum name (StrictStringEnumConverter rejects integers).
+            sysOpWriter.Write(new ClusterOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = ClusterOpType.TransitionState,
+                PayloadJson   = @"{""TargetState"":""LoadingLive"",""TimeMode"":""Deterministic""}",
+            });
 
         // Tick until a SwitchTimeModeEvent with TargetMode=Deterministic appears on the bus.
         SwitchTimeModeEvent? captured = null;

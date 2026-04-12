@@ -26,9 +26,9 @@ public class UniqueNameGeneratorTests
     public void GetMaxIndex_SingleMatchingEntity_ReturnsItsIndex()
     {
         using var world = new EntityRepository();
-        world.RegisterComponent<Hrot.NED.Descriptors.EntityInfo>();
+        world.RegisterComponent<EntityInfo>();
         var e = world.CreateEntity();
-        world.SetComponent(e, new Hrot.NED.Descriptors.EntityInfo { Name = "Tank-3" });
+        world.SetComponent(e, new EntityInfo { Name = new FixedString64("Tank-3") });
 
         int result = UniqueNameGenerator.GetMaxIndex(world, "Tank-");
 
@@ -39,12 +39,12 @@ public class UniqueNameGeneratorTests
     public void GetMaxIndex_MultipleMatchingEntities_ReturnsMaxIndex()
     {
         using var world = new EntityRepository();
-        world.RegisterComponent<Hrot.NED.Descriptors.EntityInfo>();
+        world.RegisterComponent<EntityInfo>();
 
         foreach (var name in new[] { "Tank-1", "Tank-5", "Tank-2" })
         {
             var e = world.CreateEntity();
-            world.SetComponent(e, new Hrot.NED.Descriptors.EntityInfo { Name = name });
+            world.SetComponent(e, new EntityInfo { Name = new FixedString64(name) });
         }
 
         int result = UniqueNameGenerator.GetMaxIndex(world, "Tank-");
@@ -56,13 +56,13 @@ public class UniqueNameGeneratorTests
     public void GetMaxIndex_MixedEntities_IgnoresNonMatchingPrefix()
     {
         using var world = new EntityRepository();
-        world.RegisterComponent<Hrot.NED.Descriptors.EntityInfo>();
+        world.RegisterComponent<EntityInfo>();
 
         var e1 = world.CreateEntity();
-        world.SetComponent(e1, new Hrot.NED.Descriptors.EntityInfo { Name = "Tank-3" });
+        world.SetComponent(e1, new EntityInfo { Name = new FixedString64("Tank-3") });
 
         var e2 = world.CreateEntity();
-        world.SetComponent(e2, new Hrot.NED.Descriptors.EntityInfo { Name = "Truck-9" }); // different prefix
+        world.SetComponent(e2, new EntityInfo { Name = new FixedString64("Truck-9") }); // different prefix
 
         int result = UniqueNameGenerator.GetMaxIndex(world, "Tank-");
 
@@ -73,9 +73,9 @@ public class UniqueNameGeneratorTests
     public void GetMaxIndex_IsCaseInsensitive()
     {
         using var world = new EntityRepository();
-        world.RegisterComponent<Hrot.NED.Descriptors.EntityInfo>();
+        world.RegisterComponent<EntityInfo>();
         var e = world.CreateEntity();
-        world.SetComponent(e, new Hrot.NED.Descriptors.EntityInfo { Name = "TANK-7" });
+        world.SetComponent(e, new EntityInfo { Name = new FixedString64("TANK-7") });
 
         int result = UniqueNameGenerator.GetMaxIndex(world, "tank-");
 
@@ -86,11 +86,11 @@ public class UniqueNameGeneratorTests
     public void GetMaxIndex_EntityWithNonNumericSuffix_IsIgnored()
     {
         using var world = new EntityRepository();
-        world.RegisterComponent<Hrot.NED.Descriptors.EntityInfo>();
+        world.RegisterComponent<EntityInfo>();
         var e1 = world.CreateEntity();
-        world.SetComponent(e1, new Hrot.NED.Descriptors.EntityInfo { Name = "Tank-Alpha" }); // non-numeric suffix
+        world.SetComponent(e1, new EntityInfo { Name = new FixedString64("Tank-Alpha") }); // non-numeric suffix
         var e2 = world.CreateEntity();
-        world.SetComponent(e2, new Hrot.NED.Descriptors.EntityInfo { Name = "Tank-2" });
+        world.SetComponent(e2, new EntityInfo { Name = new FixedString64("Tank-2") });
 
         int result = UniqueNameGenerator.GetMaxIndex(world, "Tank-");
 
@@ -113,9 +113,9 @@ public class UniqueNameGeneratorTests
     public void CreateSessionGenerator_FirstCall_ReturnsPrefixPlusBaseIndexPlusOne()
     {
         using var world = new EntityRepository();
-        world.RegisterComponent<Hrot.NED.Descriptors.EntityInfo>();
+        world.RegisterComponent<EntityInfo>();
         var e = world.CreateEntity();
-        world.SetComponent(e, new Hrot.NED.Descriptors.EntityInfo { Name = "Unit-4" });
+        world.SetComponent(e, new EntityInfo { Name = new FixedString64("Unit-4") });
 
         var gen = UniqueNameGenerator.CreateSessionGenerator(world, "Unit-");
 

@@ -1,16 +1,18 @@
 using Hrot.NED.Descriptors;
 using Hrot.NED.Descriptors.Orchestration;
-using Hrot.NED.Messages;
 using Hrot.Common.Orchestration;
+using Hrot.Core.Network;
 using Hrot.ExCon;
 using Hrot.ExCon.Logic;
+using Hrot.ExCon.Services;
+using Hrot.Map.Common;
+using Hrot.Map.Common.Dds;
+using Hrot.Map.Common.Commands;
+using Hrot.Network.NED.ExCon;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Panels;
-using Hrot.ExCon.Services;
-using Hrot.Map.Common;
-using Hrot.Map.Common.Dds;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using FDP.Toolkit.DER;
@@ -55,15 +57,6 @@ namespace Hrot.ClusterRunner.Services
         // Subsystem name used for ClusterSlave registration (avoidance of magic strings).
         private const string SubsystemName = "ExCon";
 
-        // DDS topic names — must match ExConLogicConstants and IG/SimHost readers.
-        private const string TopicMapConfig       = "MapInteractionConfig";
-        private const string TopicCreateEntity    = "CreateEntityRequest";
-        private const string TopicDeleteEntity    = "DeleteEntityRequest";
-        private const string TopicMissionControl  = "MissionControlRequest";
-        private const string TopicContextActions  = "ContextActionsUpdate";
-        private const string TopicMapCommand      = "MapCommandRequest";
-        private const string TopicMapCommandAck   = "MapCommandAck";
-
         /// <summary>MapId of the IG this ExCon issues tool-activation commands to (300 = default IG instance).</summary>
         private const int TargetMapId = 300;
 
@@ -94,10 +87,10 @@ namespace Hrot.ClusterRunner.Services
         private IDescriptorTranslator? _timeModeTranslator;
         private IDescriptorTranslator? _slaveLockstepTranslator;
         private IDescriptorTranslator? _slaveTimeSyncTranslator;
-        // ── PACK-E002: Mission egress/ingress bus ─────────────────────────────────────
-        private FdpEventBus?                             _missionBus;
-        private MissionControlEgressTranslator?          _missionEgressTranslator;
-        private MissionControlAckIngressTranslator?      _missionAckIngressTranslator;
+        // ── TASK-P4-001: neutral ExCon gateway interfaces ──────────────────────────
+        private IExConEgressWriters?  _egressWriters;
+        private ITimeControlGateway?  _timeControl;
+        private ICommandGateway?      _commandGateway;
         /// <summary>
         /// Internal test hook for integration tests.
         /// </summary>
@@ -190,18 +183,18 @@ namespace Hrot.ClusterRunner.Services
             var transactionMgr    = new RequestTransactionManager();
             var interactionPanel  = new InteractionPanel();
 
-            var clickQueue                   = new ConcurrentEventQueue<MapClickEvent>();
-            var selectionQueue               = new ConcurrentEventQueue<SelectionChangedEvent>();
-            var createUpdateDeleteEntityAckQueue = new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>();
-            var mapCommandAckQueue           = new ConcurrentEventQueue<MapCommandAck>();
+            var clickQueue                   = new ConcurrentEventQueue<MapClickEventDto>();
+            var selectionQueue               = new ConcurrentEventQueue<SelectionChangedEventDto>();
+            var entityLifecycleAckQueue      = new ConcurrentEventQueue<EntityLifecycleAckDto>();
+            var mapCommandAckQueue           = new ConcurrentEventQueue<MapCommandAckDto>();
 
-            // DDS ingress handlers for click/selection events.
+            // DDS ingress handlers — translate NED DDS samples to neutral DTOs and bridge descriptors.
             var ingressHandlers = new List<IIngressHandler>
             {
-                new MapClickIngressHandler(_participant, clickQueue, localNodeId: iosNodeId),
-                new SelectionChangedIngressHandler(_participant, selectionQueue),
-                new CreateUpdateDeleteEntityAckIngressHandler(_participant, createUpdateDeleteEntityAckQueue, localNodeId: iosNodeId),
-                new MapCommandAckIngressHandler(_participant, mapCommandAckQueue, localNodeId: iosNodeId),
+                new NedMapClickIngressHandler(_participant, clickQueue.Enqueue, localNodeId: iosNodeId),
+                new NedSelectionChangedIngressHandler(_participant, selectionQueue.Enqueue),
+                new NedEntityLifecycleAckIngressHandler(_participant, entityLifecycleAckQueue.Enqueue, localNodeId: iosNodeId),
+                new NedMapCommandAckIngressHandler(_participant, mapCommandAckQueue.Enqueue, localNodeId: iosNodeId),
                 new MasterIngressHandler<EntityMaster>(
                     _participant,
                     repo,
@@ -209,47 +202,35 @@ namespace Hrot.ClusterRunner.Services
                     master => master.EntityId,
                     master => master.TkbType,
                     localNodeId: iosNodeId),
-                // Descriptor handlers — populate the DER repo with all descriptor types
-                // so the ExCon Entity Inspector can show the full entity state.
+                // Descriptor handlers — populate the DER repo with all descriptor types.
                 new DescriptorIngressHandler<WorldPos>(
-                    _participant, repo, "GeoSpatial",    d => d.EntityId),
-                new DescriptorIngressHandler<Hrot.NED.Descriptors.EntityInfo>(
-                    _participant, repo, "EntityInfo",    d => d.EntityId),
+                    _participant, repo, "GeoSpatial",   d => d.EntityId),
+                new NedEntityInfoBridgingHandler(_participant, repo),
                 new DescriptorIngressHandler<EntityDamage>(
-                    _participant, repo, "EntityDamage",  d => d.EntityId),
-                new DescriptorIngressHandler<MapVisualOverlay>(
-                    _participant, repo, "MapVisualOverlay", d => d.EntityId),
+                    _participant, repo, "EntityDamage", d => d.EntityId),
+                new NedEntityMissionBridgingHandler(_participant, repo),
+                new NedMapOverlayBridgingHandler(_participant, repo),
                 new DescriptorIngressHandler<MapRoute>(
-                    _participant, repo, "MapRoute", d => d.EntityId),
+                    _participant, repo, "MapRoute",     d => d.EntityId),
             };
 
+            // Neutral ExCon gateway objects (no direct NED references from ExCon).
+            _egressWriters  = new NedExConEgressWriters(_participant);
+            _timeControl    = new NedTimeControlGateway(_participant);
+            _commandGateway = new NedCommandGateway(_participant, iosNodeId);
+
+            var missionEditorSvc = new MissionEditorService(repo, _commandGateway);
+            var contextMenuLogic  = new ContextMenuLogic(repo, _egressWriters);
+
+            // ── Cluster control wiring (S0507 / PACK-C002) ────────────────────────────
             _ingressDisposables = new List<IDisposable>(ingressHandlers.Count);
             for (int i = 0; i < ingressHandlers.Count; i++)
             {
-                if (ingressHandlers[i] is IDisposable disposable)
-                    _ingressDisposables.Add(disposable);
+                if (ingressHandlers[i] is IDisposable d)
+                    _ingressDisposables.Add(d);
             }
 
-            // Live DDS writers — publish ExCon state changes to the network.
-            var configWriter       = new DdsWriterAdapter<MapInteractionConfig>(_participant, TopicMapConfig);
-            var createEntityWriter = new DdsWriterAdapter<CreateEntityRequest>(_participant, TopicCreateEntity);
-            var deleteEntityWriter = new DdsWriterAdapter<Hrot.NED.Messages.DeleteEntityRequest>(_participant, TopicDeleteEntity);
-            var contextMenuWriter  = new DdsWriterAdapter<ContextActionsUpdate>(_participant, TopicContextActions);
-            var commandWriter      = new DdsWriterAdapter<MapCommandRequest>(_participant, TopicMapCommand);
-
-            // PACK-E002: mission bus replaces DDS writer + ACK queue for MissionEditorService
-            _missionBus                  = new FdpEventBus();
-            _missionEgressTranslator     = new MissionControlEgressTranslator(_missionBus, _participant);
-            _missionAckIngressTranslator = new MissionControlAckIngressTranslator(_participant, _missionBus);
-            var missionEditorSvc = new MissionEditorService(repo, _missionBus);
-            var contextMenuLogic  = new ContextMenuLogic(repo, contextMenuWriter);
-
-            // MissionEditorService still implements IIngressHandler via Poll() which
-            // drains MissionControlAckEvent from the bus.
-            ingressHandlers.Add(missionEditorSvc);
-
             // ── Cluster control wiring (S0507 / PACK-C002) ────────────────────────────
-            var iosLogicSysOpWriter = new DdsWriterAdapter<ClusterOpRequest>(_participant, "ClusterOpRequest");
             _uiCacheBus             = new FdpEventBus();
             _orchObserverTranslator = new OrchestrationObserverTranslator(_participant, _uiCacheBus);
             _uiCache      = new ClusterUiCache(_uiCacheBus, _slaveSyncController);
@@ -263,19 +244,16 @@ namespace Hrot.ClusterRunner.Services
                 missionEditorService: missionEditorSvc,
                 contextMenuLogic:     contextMenuLogic,
                 transactionManager:   transactionMgr,
-                configWriter:         configWriter,
-                createEntityWriter:   createEntityWriter,
+                egressWriters:        _egressWriters,
                 clickQueue:           clickQueue,
                 selectionQueue:       selectionQueue,
-                interactionPanel:             interactionPanel,
-                ingressHandlers:              ingressHandlers,
-                createEntityAckQueue:         createUpdateDeleteEntityAckQueue,
-                mapGroupId:                   DefaultMapGroupId,
-                commandWriter:        commandWriter,
+                interactionPanel:     interactionPanel,
+                createEntityAckQueue: entityLifecycleAckQueue,
+                ingressHandlers:      ingressHandlers,
+                mapGroupId:           DefaultMapGroupId,
                 targetMapId:          TargetMapId,
                 mapCommandAckQueue:   mapCommandAckQueue,
-                deleteEntityWriter:   deleteEntityWriter,
-                sysOpWriter:          iosLogicSysOpWriter,
+                timeControl:          _timeControl,
                 localNodeId:          config.NodeId);
 
             // S0507: Time ingress handlers removed (TC2-P3-T4): OnTimePulse/OnTimeMode on
@@ -341,13 +319,7 @@ namespace Hrot.ClusterRunner.Services
             _clusterOpEgressBus?.SwapBuffers();
             _clusterOpEgressTranslator?.Tick();
 
-            // PACK-E002: mission bus pipeline
-            // 1. Pull DDS ACKs into write buffer; 2. Swap so ACKs become readable;
-            // 3. Flush intents to DDS; 4. Mock.Update() → Poll() drains ACKs from read buffer.
-            _missionAckIngressTranslator?.Tick();  // DDS ACK → _missionBus write buf
-            _missionBus?.SwapBuffers();             // write → read (intents and ACKs visible)
-            _missionEgressTranslator?.Tick();       // read MissionControlIntent → DDS
-            _mock?.Update(deltaTime);               // ExConLogic.Update → Poll() reads ACKs
+            _mock?.Update(deltaTime);
         }
 
         /// <summary>No-op — ExCon has no 3-D world visuals; all content is rendered via <see cref="DrawUI"/>.</summary>
@@ -398,11 +370,12 @@ namespace Hrot.ClusterRunner.Services
             _clusterOpEgressTranslator?.Dispose();
             _clusterOpEgressTranslator = null;
             _clusterOpEgressBus = null;
-            _missionEgressTranslator?.Dispose();
-            _missionEgressTranslator = null;
-            _missionAckIngressTranslator?.Dispose();
-            _missionAckIngressTranslator = null;
-            _missionBus = null;
+            (_egressWriters as IDisposable)?.Dispose();
+            _egressWriters = null;
+            (_timeControl as IDisposable)?.Dispose();
+            _timeControl = null;
+            (_commandGateway as IDisposable)?.Dispose();
+            _commandGateway = null;
             _mock?.Dispose();
             _mock = null;
             _slaveSyncController?.Dispose();

@@ -95,7 +95,8 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _nodeOpStatusReader  = new DdsReader<NodeOpStatus>(_participant);
         _clusterMaster       = new ClusterMaster(_orchestrationBus, _config);
         _clusterOpTranslator = new Hrot.Orchestrator.Translators.ClusterOpMasterTranslator(
-            _sysOpRequestReader, _sysOpStatusWriter, _orchestrationBus);
+            _sysOpRequestReader, _sysOpStatusWriter, _orchestrationBus,
+            unhandledRequestCallback: _clusterMaster.HandleClusterOpRequest);
         _nodeOpTranslator    = new Hrot.Orchestrator.Translators.NodeOpMasterTranslator(
             nodeId => new DdsWriter<NodeOpCommand>(_participant), _nodeOpStatusReader, _orchestrationBus);
 
@@ -180,12 +181,15 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     {
         // Advance the master sync controller's wall clock and state machine.
         _masterSync?.Update();
+
+        // ── Time-mode DDS egress/ingress first, reading events written at the ──
+        // ── end of the PREVIOUS frame (before clearing the read buffer). ────────
+        _timeModeTranslator?.ScanAndPublish(null!);
+        _timeModeTranslator?.PollIngress(null!, null!);
+
+        // ── Swap event bus (clear previous frame's read buffer). ─────────────────
         _eventBus?.SwapBuffers();
-        // Bridge SwitchTimeModeEvent from time bus to orchestration bus so ClusterUiCache
-        // can track pause state and time scale without holding its own DDS reader.
-        if (_orchestrationBus != null && _eventBus != null)
-            foreach (var ev in _eventBus.Consume<SwitchTimeModeEvent>())
-                _orchestrationBus.Publish(ev);
+
         // ── Orchestration bus pipeline (CMC-S016 / BATCH-06) ──────────────────
         // 1. Bridge DDS NodeHeartbeat → NodeHeartbeatEvent on orchestration bus so
         //    ClusterMaster (bus mode) can update its roster.
@@ -234,8 +238,11 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _lockstepTranslator?.ScanAndPublish(null!);
         _lockstepTranslator?.PollIngress(null!, null!);
         _masterTimeSyncTranslator?.PollIngress(null!, null!);
-        _timeModeTranslator?.ScanAndPublish(null!);
-        _timeModeTranslator?.PollIngress(null!, null!);
+
+        // ── Final event bus swap: expose events written this frame (e.g. by ──────
+        // ── SwitchToDeterministic) to the read buffer so that test assertions ────
+        // ── and the next-frame ScanAndPublish can both see them. ────────────────
+        _eventBus?.SwapBuffers();
 
         // S0503: Advance seek debounce.
         _scenarioPanel?.Update(deltaTime);
