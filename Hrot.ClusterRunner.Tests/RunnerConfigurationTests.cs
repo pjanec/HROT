@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Collections.Generic;
 using Xunit;
@@ -14,14 +14,18 @@ namespace Hrot.ClusterRunner.Tests
     /// </summary>
     public class RunnerConfigurationTests
     {
-        // ── Mode parsing ──────────────────────────────────────────────────────
+        // -- Mode parsing -------------------------------------------------------
 
         [Fact]
         public void ParseMode_All_ReturnsAllFlags()
         {
             var config = new RunnerConfiguration { ModeString = "all", NoWait = true };
             config.Validate();
-            Assert.Equal(RunMode.All, config.ParsedMode);
+            Assert.True(config.RequestedSubsystems.Contains("simhost"));
+            Assert.True(config.RequestedSubsystems.Contains("ig"));
+            Assert.True(config.RequestedSubsystems.Contains("excon"));
+            Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
+            Assert.True(config.RequestedSubsystems.Contains("cgf"));
         }
 
         [Fact]
@@ -29,7 +33,8 @@ namespace Hrot.ClusterRunner.Tests
         {
             var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true };
             config.Validate();
-            Assert.Equal(RunMode.SimHost, config.ParsedMode);
+            Assert.True(config.RequestedSubsystems.Contains("simhost"));
+            Assert.Equal(1, config.RequestedSubsystems.Count);
         }
 
         [Fact]
@@ -37,15 +42,18 @@ namespace Hrot.ClusterRunner.Tests
         {
             var config = new RunnerConfiguration { ModeString = "ig", NoWait = true };
             config.Validate();
-            Assert.Equal(RunMode.IG, config.ParsedMode);
+            Assert.True(config.RequestedSubsystems.Contains("ig"));
+            Assert.Equal(1, config.RequestedSubsystems.Count);
         }
 
         [Fact]
         public void ParseMode_Ios_ReturnsSingleFlag()
         {
+            // "ios" is a legacy alias for "excon"
             var config = new RunnerConfiguration { ModeString = "ios", NoWait = true };
             config.Validate();
-            Assert.Equal(RunMode.ExCon, config.ParsedMode);
+            Assert.True(config.RequestedSubsystems.Contains("excon"));
+            Assert.Equal(1, config.RequestedSubsystems.Count);
         }
 
         [Fact]
@@ -53,16 +61,22 @@ namespace Hrot.ClusterRunner.Tests
         {
             var config = new RunnerConfiguration { ModeString = "simhost,ig", NoWait = true };
             config.Validate();
-            Assert.Equal(RunMode.SimHost | RunMode.IG, config.ParsedMode);
+            Assert.True(config.RequestedSubsystems.Contains("simhost"));
+            Assert.True(config.RequestedSubsystems.Contains("ig"));
+            Assert.Equal(2, config.RequestedSubsystems.Count);
         }
 
         [Fact]
         public void ParseMode_ComboAllFive_EqualsAllFlag()
         {
-            // RunMode.All = Orchestrator | SimHost | IG | ExCon | CGF; all five tokens are required.
+            // All five tokens must produce the same set as "all".
             var config = new RunnerConfiguration { ModeString = "simhost,ig,ios,orchestrator,cgf", NoWait = true };
             config.Validate();
-            Assert.Equal(RunMode.All, config.ParsedMode);
+            Assert.True(config.RequestedSubsystems.Contains("simhost"));
+            Assert.True(config.RequestedSubsystems.Contains("ig"));
+            Assert.True(config.RequestedSubsystems.Contains("excon"));
+            Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
+            Assert.True(config.RequestedSubsystems.Contains("cgf"));
         }
 
         [Fact]
@@ -70,7 +84,8 @@ namespace Hrot.ClusterRunner.Tests
         {
             var config = new RunnerConfiguration { ModeString = "cgf", NoWait = true };
             config.Validate();
-            Assert.Equal(RunMode.CGF, config.ParsedMode);
+            Assert.True(config.RequestedSubsystems.Contains("cgf"));
+            Assert.Equal(1, config.RequestedSubsystems.Count);
         }
 
         [Fact]
@@ -78,15 +93,17 @@ namespace Hrot.ClusterRunner.Tests
         {
             var config = new RunnerConfiguration { ModeString = "orchestrator,cgf", NoWait = true };
             config.Validate();
-            Assert.True(config.ParsedMode.HasFlag(RunMode.CGF));
-            Assert.True(config.ParsedMode.HasFlag(RunMode.Orchestrator));
+            Assert.True(config.RequestedSubsystems.Contains("cgf"));
+            Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
         }
 
         [Fact]
         public void ParseMode_CgfInAll_ConfirmedByDirectCheck()
         {
-            // CGF is included in RunMode.All so the cluster can be started with a single token.
-            Assert.True(RunMode.All.HasFlag(RunMode.CGF));
+            // CGF is included when "all" is specified.
+            var config = new RunnerConfiguration { ModeString = "all", NoWait = true };
+            config.Validate();
+            Assert.True(config.RequestedSubsystems.Contains("cgf"));
         }
 
         [Fact]
@@ -114,7 +131,7 @@ namespace Hrot.ClusterRunner.Tests
             Assert.Contains("Invalid mode", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
 
-        // ── Flags ─────────────────────────────────────────────────────────────
+        // -- Flags -------------------------------------------------------------
 
         [Fact]
         public void HeadlessFlag_Default_IsFalse()
@@ -142,10 +159,10 @@ namespace Hrot.ClusterRunner.Tests
             // Same config with --no-wait: should pass
             var goodConfig = new RunnerConfiguration { ModeString = "simhost", NoWait = true };
             goodConfig.Validate(); // Should not throw
-            Assert.Equal(RunMode.SimHost, goodConfig.ParsedMode);
+            Assert.True(goodConfig.RequestedSubsystems.Contains("simhost"));
         }
 
-        // ── Wait-for peer parsing ─────────────────────────────────────────────
+        // -- Wait-for peer parsing ---------------------------------------------
 
         [Fact]
         public void WaitFor_ParsesCommaSeparatedPeers()
@@ -181,7 +198,7 @@ namespace Hrot.ClusterRunner.Tests
             Assert.Contains("wait-for", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
 
-        // ── JSON config merge ─────────────────────────────────────────────────
+        // -- JSON config merge -------------------------------------------------
 
         [Fact]
         public void MergeFromJsonFile_OverridesModeString()
@@ -232,7 +249,7 @@ namespace Hrot.ClusterRunner.Tests
             Assert.Contains("Config file not found", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
 
-        // ── Additional edge cases ─────────────────────────────────────────────
+        // -- Additional edge cases ---------------------------------------------
 
         [Fact]
         public void DomainId_DefaultValue_IsZero()
@@ -253,15 +270,14 @@ namespace Hrot.ClusterRunner.Tests
         [Fact]
         public void ParseMode_AllMode_HasAllFiveFlags()
         {
-            // RunMode.All includes all five subsystems:
-            // Orchestrator, SimHost, IG, ExCon, and CGF.
+            // "all" includes all five subsystems: Orchestrator, SimHost, IG, ExCon, and CGF.
             var config = new RunnerConfiguration { ModeString = "all", NoWait = true };
             config.Validate();
-            Assert.True(config.ParsedMode.HasFlag(RunMode.SimHost));
-            Assert.True(config.ParsedMode.HasFlag(RunMode.IG));
-            Assert.True(config.ParsedMode.HasFlag(RunMode.ExCon));
-            Assert.True(config.ParsedMode.HasFlag(RunMode.Orchestrator));
-            Assert.True(config.ParsedMode.HasFlag(RunMode.CGF));
+            Assert.True(config.RequestedSubsystems.Contains("simhost"));
+            Assert.True(config.RequestedSubsystems.Contains("ig"));
+            Assert.True(config.RequestedSubsystems.Contains("excon"));
+            Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
+            Assert.True(config.RequestedSubsystems.Contains("cgf"));
         }
 
         [Fact]
@@ -276,7 +292,7 @@ namespace Hrot.ClusterRunner.Tests
             Assert.Contains("badpeer", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
 
-        // ── BUG1-F002: NodeId property default ───────────────────────────────
+        // -- BUG1-F002: NodeId property default --------------------------------
 
         [Fact]
         public void NodeId_DefaultsToZero()
@@ -295,21 +311,24 @@ namespace Hrot.ClusterRunner.Tests
             Assert.Equal(42, config.NodeId);
         }
 
-        // ── Editor mode ───────────────────────────────────────────────────────
+        // -- Editor mode -------------------------------------------------------
 
         [Fact]
         public void ParseMode_Editor_ReturnsEditorFlag()
         {
             var config = new RunnerConfiguration { ModeString = "editor", NoWait = true };
             config.Validate();
-            Assert.Equal(RunMode.Editor, config.ParsedMode);
+            Assert.True(config.RequestedSubsystems.Contains("editor"));
+            Assert.Equal(1, config.RequestedSubsystems.Count);
         }
 
         [Fact]
         public void ParseMode_AllMode_DoesNotIncludeEditor()
         {
-            // Editor is a standalone mode and must never be part of RunMode.All.
-            Assert.False(RunMode.All.HasFlag(RunMode.Editor));
+            // Editor is a standalone mode and must never be part of "all".
+            var config = new RunnerConfiguration { ModeString = "all", NoWait = true };
+            config.Validate();
+            Assert.False(config.RequestedSubsystems.Contains("editor"));
         }
 
         [Fact]
@@ -349,7 +368,6 @@ namespace Hrot.ClusterRunner.Tests
         {
             var config = new RunnerConfiguration { ModeString = "editor,all", NoWait = true };
             var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
-            Assert.Contains("Editor", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

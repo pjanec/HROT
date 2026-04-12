@@ -1,11 +1,11 @@
-using System;
+﻿using System;
 using Hrot.ClusterRunner.Configuration;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Tests.Configuration
 {
     /// <summary>
-    /// Unit tests for RunMode.Editor and RunMode.Demo additions (PACK2-R001).
+    /// Unit tests for editor and demo mode additions (PACK2-R001).
     /// </summary>
     public class RunModeTests
     {
@@ -14,21 +14,27 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         {
             var cfg = new HrotRunnerConfiguration { ModeString = "editor" };
             cfg.Validate();
-            Assert.Equal(RunMode.Editor, cfg.ParsedMode);
+            Assert.True(cfg.RequestedSubsystems.Contains("editor"));
+            Assert.Equal(1, cfg.RequestedSubsystems.Count);
         }
 
         [Fact]
         public void ParseModeString_Demo_ReturnsDemoFlags()
         {
+            // "demo" is an alias for "all" (orchestrator, simhost, ig, excon, cgf)
             var cfg = new HrotRunnerConfiguration { ModeString = "demo", NoWait = true };
             cfg.Validate();
-            Assert.Equal(RunMode.Demo, cfg.ParsedMode);
+            Assert.True(cfg.RequestedSubsystems.Contains("simhost"));
+            Assert.True(cfg.RequestedSubsystems.Contains("ig"));
+            Assert.True(cfg.RequestedSubsystems.Contains("excon"));
+            Assert.True(cfg.RequestedSubsystems.Contains("orchestrator"));
+            Assert.True(cfg.RequestedSubsystems.Contains("cgf"));
         }
 
         [Fact]
         public void Validate_EditorCombinedWithIg_ThrowsInvalidOperation()
         {
-            // editor,ig — an invalid combination
+            // editor,ig -- an invalid combination
             var ex = Assert.Throws<InvalidOperationException>(() =>
             {
                 var cfg = new HrotRunnerConfiguration { ModeString = "editor,ig", NoWait = true };
@@ -38,32 +44,40 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         }
 
         [Fact]
-        public void RunMode_Editor_HasCorrectBitValue()
+        public void RequestedSubsystems_IsCaseInsensitive()
         {
-            // Editor = 1 << 6 = 64
-            Assert.Equal(64, (int)RunMode.Editor);
+            // RequestedSubsystems uses OrdinalIgnoreCase so "Editor" and "editor" match
+            var cfg = new HrotRunnerConfiguration { ModeString = "editor" };
+            cfg.Validate();
+            Assert.True(cfg.RequestedSubsystems.Contains("Editor"));
+            Assert.True(cfg.RequestedSubsystems.Contains("EDITOR"));
+            Assert.True(cfg.RequestedSubsystems.Contains("editor"));
         }
 
         [Fact]
-        public void RunMode_Demo_EqualsAll()
+        public void ParseModeString_Demo_SameSubsetsAsAll()
         {
-            // Demo = Orchestrator | SimHost | IG | ExCon | CGF = same as All
-            Assert.Equal(RunMode.All, RunMode.Demo);
+            // "demo" and "all" must produce the same set of subsystem names
+            var cfgAll  = new HrotRunnerConfiguration { ModeString = "all",  NoWait = true };
+            var cfgDemo = new HrotRunnerConfiguration { ModeString = "demo", NoWait = true };
+            cfgAll.Validate();
+            cfgDemo.Validate();
+            Assert.True(cfgAll.RequestedSubsystems.SetEquals(cfgDemo.RequestedSubsystems));
         }
 
         [Fact]
-        public void RunMode_Editor_DoesNotOverlapWithExistingFlags()
+        public void ParseMode_AllMode_DoesNotContainEditor()
         {
-            // Editor must not overlap with any previously defined flags
-            var allExisting = RunMode.SimHost | RunMode.IG | RunMode.ExCon
-                            | RunMode.Orchestrator | RunMode.CGF | RunMode.CI;
-            Assert.Equal(0, (int)(RunMode.Editor & allExisting));
+            // Editor is a standalone mode and must never be part of "all"
+            var cfg = new HrotRunnerConfiguration { ModeString = "all", NoWait = true };
+            cfg.Validate();
+            Assert.False(cfg.RequestedSubsystems.Contains("editor"));
         }
 
         [Fact]
         public void ParseModeString_Editor_StandaloneDoesNotRequireNoWait()
         {
-            // Editor mode must be standalone — no NoWait required
+            // Editor mode must be standalone -- no NoWait required
             var cfg = new HrotRunnerConfiguration { ModeString = "editor" };
             var ex  = Record.Exception(() => cfg.Validate());
             Assert.Null(ex);
@@ -88,13 +102,12 @@ namespace Hrot.ClusterRunner.Tests.Configuration
             // This test documents the current boundary.
             var cfg = new HrotRunnerConfiguration { ModeString = "editor,simhost", NoWait = true };
             // Should not throw (editor + simhost is not an explicitly forbidden combo)
-            // Note: SimHost is combined because Editor does not block SimHost.
             var ex = Record.Exception(() => cfg.Validate());
-            // If the validation doesn't throw, ParsedMode should include both flags.
+            // If the validation does not throw, both names must be in RequestedSubsystems.
             if (ex == null)
             {
-                Assert.True(cfg.ParsedMode.HasFlag(RunMode.Editor));
-                Assert.True(cfg.ParsedMode.HasFlag(RunMode.SimHost));
+                Assert.True(cfg.RequestedSubsystems.Contains("editor"));
+                Assert.True(cfg.RequestedSubsystems.Contains("simhost"));
             }
         }
     }

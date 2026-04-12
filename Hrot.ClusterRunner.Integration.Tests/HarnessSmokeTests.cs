@@ -1,5 +1,4 @@
-using Hrot.ClusterRunner.Configuration;
-using Xunit;
+﻿using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
@@ -44,7 +43,7 @@ public class HarnessSmokeTests
     public void HrotRunnerHarness_SharedDomainCtor_UsesSuppledDomainId()
     {
         // Use a distinct domain (250) to avoid clashes with the auto-counter test run.
-        using var h = new HrotRunnerHarness(RunMode.SimHost, domainId: 250);
+        using var h = new HrotRunnerHarness("simhost", domainId: 250);
         Assert.Equal(250, h.DomainId);
     }
 }

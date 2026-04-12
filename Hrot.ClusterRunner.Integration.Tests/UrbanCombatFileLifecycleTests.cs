@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
@@ -7,7 +7,6 @@ using Fdp.Examples.Scenarios.Integrated;
 using Fdp.Kernel;
 using FDP.Toolkit.Scenario;
 using FDP.Toolkit.Time.Controllers;
-using Hrot.ClusterRunner.Configuration;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
 using Hrot.ExCon;
@@ -20,7 +19,7 @@ using Xunit;
 namespace Hrot.ClusterRunner.Integration.Tests;
 
 /// <summary>
-/// PACK3-U004 — Urban Combat File Lifecycle Integration Test.
+/// PACK3-U004 â€” Urban Combat File Lifecycle Integration Test.
 ///
 /// <para>Proves that a scenario extracted from <see cref="UrbanCombatNewScenario"/> and
 /// serialised to a local JSON file can be loaded by the full cluster state machine
@@ -33,9 +32,9 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("HeavyE2ETests")]
 public sealed class UrbanCombatFileLifecycleTests : IDisposable
 {
-    // Domain IDs in the valid CycloneDDS range (0–232).
+    // Domain IDs in the valid CycloneDDS range (0â€“232).
     // Use a high value to avoid collisions with AllSubsystems (160), ClusterOpE2e (170),
-    // DistributedBrainMuscle (220–221), and CgfHarness auto-counter (200–).
+    // DistributedBrainMuscle (220â€“221), and CgfHarness auto-counter (200â€“).
     // U004 uses only a single domain slot so a fixed high value is safe.
     private const int DomainBase = 228;
     private static int _domainSeq = DomainBase - 1;
@@ -61,32 +60,32 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Extracts the UrbanCombat scenario to a JSON file, boots the cluster, loads it
-    /// via a <c>TransitionState → OperatingLive</c> request, and validates that all
+    /// via a <c>TransitionState â†’ OperatingLive</c> request, and validates that all
     /// four ambush latches fire within 600 ticks.
     /// </summary>
     [Fact(Timeout = 120_000)]
     public async Task UrbanCombatExtractedToJson_ExecutesSuccessfullyInLiveMode()
     {
-        // ── 1. Extract scenario to a local JSON file ──────────────────────────
+        // â”€â”€ 1. Extract scenario to a local JSON file â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         ExtractScenarioToFile();
         var scenarioFilePath = System.IO.Path.Combine(_stagingDir, "scenario.json");
         Assert.True(System.IO.File.Exists(scenarioFilePath),
             $"Scenario file must exist before cluster boot: {scenarioFilePath}");
 
-        // ── 2. Boot cluster ───────────────────────────────────────────────────
+        // â”€â”€ 2. Boot cluster â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         int domainId = NextDomainId();
-        using var harness = new HrotRunnerHarness(RunMode.Orchestrator | RunMode.SimHost, domainId);
+        using var harness = new HrotRunnerHarness("simhost", domainId);
         using var cgf     = new CgfHarness(domainId);
 
         // Extra warmup to allow DDS discovery for all topics.
         harness.PumpFrames(20);
         cgf.PumpFrames(20);
 
-        // ── 3. Transition cluster to OperatingLive ────────────────────────────
+        // â”€â”€ 3. Transition cluster to OperatingLive â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Wait for at least one node in the roster before issuing the request
         // (mirrors the pattern in AllSubsystemsClusterTransitionTests).
         var clusterMaster = harness.OrchestratorSvc.TestHook_ClusterMaster!;
@@ -102,13 +101,13 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
         Assert.True(clusterMaster.NodeRoster.ActiveNodes.Count > 0,
             "At least one node should appear in the cluster roster within 5 s.");
 
-        // ── 3b. Register UC doctrines in the SimHost's DoctrineRegistry ───────
+        // â”€â”€ 3b. Register UC doctrines in the SimHost's DoctrineRegistry â”€â”€â”€â”€â”€â”€â”€
         // The SimHost only registers its built-in doctrines on startup.  The
         // UrbanCombat scenario uses scenario-specific doctrines (ConvoyEscort,
         // Ambush, WanderCivil, InfantryCombat) that must be present before the
         // cluster transitions to OperatingLive and the scenario is deserialized.
         // HsmActionRegistrar.RegisterAll() was already called during ExtractScenarioToFile()
-        // via UrbanCombatNewScenario.Configure() — no second call needed here.
+        // via UrbanCombatNewScenario.Configure() â€” no second call needed here.
         UrbanCombatNewScenario.RegisterUrbanCombatDoctrines(
             harness.SimHost.TestHook_DoctrineRegistry);
 
@@ -130,7 +129,7 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
             $"Cluster should reach OperatingLive (31) within 15 s. " +
             $"Current state: {(int)clusterMaster.CurrentSystemState}.");
 
-        // ── 4. Validate UC narrative latches ─────────────────────────────────
+        // â”€â”€ 4. Validate UC narrative latches â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         var validator = new UrbanCombatValidator();
         bool success  = false;
         int  finalEntityCount = 0;
@@ -154,7 +153,7 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
             $"EntityCount in world after 800 ticks: {finalEntityCount}.");
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Creates <see cref="UrbanCombatNewScenario"/>, configures it into a temporary

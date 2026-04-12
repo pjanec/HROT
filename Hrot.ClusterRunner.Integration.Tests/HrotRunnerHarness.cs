@@ -1,6 +1,5 @@
 using System;
 using System.Threading;
-using Hrot.ClusterRunner.Configuration;
 using Hrot.ClusterRunner.Services;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
@@ -70,12 +69,17 @@ public sealed class HrotRunnerHarness : IDisposable
     }
 
     /// <summary>
-    /// Creates a harness with a specific run mode and domain ID (for shared-domain tests).
+    /// Creates a harness with a specific set of subsystem names and domain ID (for shared-domain tests).
     /// Typically used alongside <see cref="CgfHarness(int)"/> for IT-4 tests.
+    /// <para>Subsystem names are comma-separated and case-insensitive: simhost, ig, excon, cgf.</para>
     /// </summary>
-    public HrotRunnerHarness(RunMode mode, int domainId)
+    public HrotRunnerHarness(string modes, int domainId)
     {
         DomainId = domainId;
+
+        var requested = new System.Collections.Generic.HashSet<string>(
+            modes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            StringComparer.OrdinalIgnoreCase);
 
         OrchestratorSvc = new OrchestratorSubsystem();
         SimHost         = new SimHostSubsystem();
@@ -84,10 +88,10 @@ public sealed class HrotRunnerHarness : IDisposable
 
         // Always include Orchestrator; conditionally include other subsystems.
         var subsystems = new System.Collections.Generic.List<ISubsystem> { OrchestratorSvc };
-        if (mode.HasFlag(RunMode.SimHost)) subsystems.Add(SimHost);
-        if (mode.HasFlag(RunMode.IG))     subsystems.Add(Ig);
-        if (mode.HasFlag(RunMode.ExCon))  subsystems.Add(ExCon);
-        if (mode.HasFlag(RunMode.CGF))
+        if (requested.Contains("simhost")) subsystems.Add(SimHost);
+        if (requested.Contains("ig"))      subsystems.Add(Ig);
+        if (requested.Contains("excon"))   subsystems.Add(ExCon);
+        if (requested.Contains("cgf"))
         {
             Cgf = new CgfSubsystem();
             subsystems.Add(Cgf);

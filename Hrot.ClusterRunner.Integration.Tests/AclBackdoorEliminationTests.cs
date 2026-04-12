@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -9,7 +9,6 @@ using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Network.Interfaces;
 using FDP.Toolkit.Replication.Services;
-using Hrot.ClusterRunner.Configuration;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Dds;
 using Hrot.Map.Common.Replication.Egress;
@@ -20,16 +19,16 @@ using Xunit;
 namespace Hrot.ClusterRunner.Integration.Tests;
 
 /// <summary>
-/// PACK3-A005 — ACL Backdoor Elimination verification tests (Tests 2 and 3).
+/// PACK3-A005 â€” ACL Backdoor Elimination verification tests (Tests 2 and 3).
 ///
-/// <para><b>Test 2</b> — E2E area authoring with no backdoor:
+/// <para><b>Test 2</b> â€” E2E area authoring with no backdoor:
 /// The IG area-authoring tool now packages geometry in
 /// <see cref="SpawnEntityCommand.InitialComponents"/>. This test drives the
 /// full DDS path via <see cref="HrotRunnerHarness"/> and asserts that exactly
 /// one <see cref="CreateEntityRequest"/> with a <c>dtMapVisualOverlay</c>
-/// descriptor arrives from the translator — no pre-built side-channel.</para>
+/// descriptor arrives from the translator â€” no pre-built side-channel.</para>
 ///
-/// <para><b>Test 3</b> — Offline editor isolation:
+/// <para><b>Test 3</b> â€” Offline editor isolation:
 /// Publishing a <see cref="SpawnEntityCommand"/> in <see cref="EditorHarness"/>
 /// creates an ECS entity locally.  The <see cref="SpawnEntityCommandEgressTranslator"/>
 /// is <em>not</em> registered in the offline harness, so no DDS write can occur.</para>
@@ -44,15 +43,15 @@ public sealed class AclBackdoorEliminationTests
 
     private const int WaitForRequestTimeoutFrames = 150;
 
-    // ── Test 2: E2E area authoring, no backdoor ───────────────────────────────
+    // â”€â”€ Test 2: E2E area authoring, no backdoor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// PACK3-A005 Test 2.
     /// Area authoring places geometry in <c>InitialComponents</c>.  The translator
     /// synthesises a <c>CreateEntityRequest</c> with <c>dtMapVisualOverlay</c> purely
-    /// from the domain event — no pre-built side-channel.
+    /// from the domain event â€” no pre-built side-channel.
     /// Compile-time proof that <c>MapCommandController._prebuiltRequests</c> no longer
-    /// exists is implicit: the solution builds cleanly after A001–A004.
+    /// exists is implicit: the solution builds cleanly after A001â€“A004.
     /// </summary>
     [Fact]
     public void AreaAuthoring_EndToEnd_NoBackdoor_PublishesCorrectCreateEntityRequest()
@@ -60,12 +59,12 @@ public sealed class AclBackdoorEliminationTests
         int domainId = NextDomainId();
 
         using var harness = new HrotRunnerHarness(
-            RunMode.SimHost | RunMode.IG,
+            "simhost,ig",
             domainId);
 
         var igApp = harness.Ig.App;
 
-        // Observer participant on the same domain — reads the CreateEntityRequest
+        // Observer participant on the same domain â€” reads the CreateEntityRequest
         // that the SpawnEntityCommandEgressTranslator writes over DDS.
         using var observer     = new DdsParticipant((uint)domainId);
         using var reqReader    = new DdsReader<CreateEntityRequest>(observer, "CreateEntityRequest");
@@ -104,7 +103,7 @@ public sealed class AclBackdoorEliminationTests
         Assert.Equal(points.Count, overlayDesc.MapVisualOverlay.Points!.Count);
     }
 
-    // ── Test 3: Offline editor isolation ─────────────────────────────────────
+    // â”€â”€ Test 3: Offline editor isolation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private sealed class CapturingWriter<T> : IDdsWriter<T>
     {
@@ -130,7 +129,7 @@ public sealed class AclBackdoorEliminationTests
 
         // Set up a standalone translator (NOT registered in the kernel) with a
         // capturing mock writer on the same bus.  This lets us assert that the
-        // translator never writes — because the kernel never pumps it.
+        // translator never writes â€” because the kernel never pumps it.
         var capWriter  = new CapturingWriter<CreateEntityRequest>();
         var translator = new SpawnEntityCommandEgressTranslator(
             capWriter, harness.Bus, geoTransform: null);
@@ -158,7 +157,7 @@ public sealed class AclBackdoorEliminationTests
         Assert.Equal(0, capWriter.CallCount);
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static bool TryTakeAnyCreateRequest(
         DdsReader<CreateEntityRequest> reader,

@@ -42,7 +42,7 @@
 - [x] **TASK-P4-001** Decouple ExCon from NED [details](./TASK-DETAIL.md#task-p4-001-decouple-excon-from-ned) ✅ BATCH-08
 - [x] **TASK-P4-002** Decouple SimHost from NED [details](./TASK-DETAIL.md#task-p4-002-decouple-simhost-from-ned) ✅ BATCH-09
 - [ ] **TASK-P4-003** Decouple IG and CGF from NED [details](./TASK-DETAIL.md#task-p4-003-decouple-ig-and-cgf-from-ned)
-- [ ] **TASK-P4-004** Move ISubsystem Adapters into Plugin Assemblies [details](./TASK-DETAIL.md#task-p4-004-move-isubsystem-adapters-into-plugin-assemblies)
+- [x] **TASK-P4-004** Move ISubsystem Adapters into Plugin Assemblies [details](./TASK-DETAIL.md#task-p4-004-move-isubsystem-adapters-into-plugin-assemblies) ✅ BATCH-12
 - [ ] **TASK-P4-005** Implement OfflineNetworkFactory for Hrot.Editor [details](./TASK-DETAIL.md#task-p4-005-implement-offlinenetworkfactory-for-hroteditor)
 
 ---

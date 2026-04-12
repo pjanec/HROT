@@ -87,10 +87,10 @@ class Program
             return 1;
         }
 
-        Console.WriteLine($"[Runner] Starting – mode={config.ParsedMode}, domain={config.DomainId}, headless={config.Headless}");
+        Console.WriteLine($"[Runner] Starting – mode={string.Join(",", config.RequestedSubsystems)}, domain={config.DomainId}, headless={config.Headless}");
 
         // ── CI mode: headless deterministic scenario run ──────────────────
-        if (config.ParsedMode == RunMode.CI)
+        if (config.RequestedSubsystems.Contains("ci"))
         {
             if (string.IsNullOrWhiteSpace(config.ScenarioName))
             {
@@ -126,18 +126,18 @@ class Program
         // other subsystem's Update runs in the next frame.
         var perspSubsystem = new PerspectiveUpdateSubsystem();
         var subsystems = new List<ISubsystem> { perspSubsystem };
-        if (config.ParsedMode.HasFlag(RunMode.Orchestrator)) subsystems.Add(new OrchestratorSubsystem());
-        if (config.ParsedMode.HasFlag(RunMode.SimHost))
+        if (config.RequestedSubsystems.Contains("orchestrator")) subsystems.Add(new OrchestratorSubsystem());
+        if (config.RequestedSubsystems.Contains("simhost"))
         {
             // SimHost always runs as Muscle + Perception only.
             // The Brain role belongs exclusively to CGF.
             NodeRole simRole = NodeRole.MuscleGround | NodeRole.Perception;
             subsystems.Add(new SimHostSubsystem(simRole));
         }
-        if (config.ParsedMode.HasFlag(RunMode.IG))      subsystems.Add(new IgSubsystem());
-        if (config.ParsedMode.HasFlag(RunMode.ExCon ))     subsystems.Add(new ExConSubsystem());
-        if (config.ParsedMode.HasFlag(RunMode.CGF))     subsystems.Add(new CgfSubsystem());
-        if (config.ParsedMode.HasFlag(RunMode.Editor))  subsystems.Add(new EditorSubsystem());
+        if (config.RequestedSubsystems.Contains("ig"))      subsystems.Add(new IgSubsystem());
+        if (config.RequestedSubsystems.Contains("excon"))   subsystems.Add(new ExConSubsystem());
+        if (config.RequestedSubsystems.Contains("cgf"))     subsystems.Add(new CgfSubsystem());
+        if (config.RequestedSubsystems.Contains("editor"))  subsystems.Add(new EditorSubsystem());
 
         var options = new RunnerOptions
         {

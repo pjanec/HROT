@@ -1,6 +1,5 @@
 using System;
 using FDP.Toolkit.NetworkSpawning.Events;
-using Hrot.ClusterRunner.Configuration;
 using Hrot.Map.Common;
 using Hrot.NED.Common;
 using Xunit;
@@ -28,7 +27,7 @@ public sealed class DistributedBrainMuscleIntegrationTests
     public void SpawnedEntity_ReachesToCgf_ViaDds()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
-        using var harness = new HrotRunnerHarness(RunMode.SimHost | RunMode.CGF, domainId);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0.0 };
@@ -53,7 +52,7 @@ public sealed class DistributedBrainMuscleIntegrationTests
     public void DestroyedEntity_PurgedFromCgfGhostRepo()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
-        using var harness = new HrotRunnerHarness(RunMode.SimHost | RunMode.CGF, domainId);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0.0 };

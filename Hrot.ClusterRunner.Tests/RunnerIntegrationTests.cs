@@ -16,7 +16,7 @@ namespace Hrot.ClusterRunner.Tests
     ///
     /// <para>These tests prove the core value proposition of <see cref="SubsystemOrchestrator"/>:
     /// all three subsystems can be embedded and managed inside a single process
-    /// (<see cref="RunMode.All"/>), and the <see cref="HeadlessTestExecutor"/> can
+    /// (<c>--mode all</c>), and the <see cref="HeadlessTestExecutor"/> can
     /// run a complete test script end-to-end.</para>
     /// </summary>
     public class RunnerAggregatedModeTests
@@ -38,7 +38,7 @@ namespace Hrot.ClusterRunner.Tests
         // ── Tests ─────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Booting with <see cref="RunMode.All"/> and three injected mock subsystems
+        /// Booting with <c>--mode all</c> and three injected mock subsystems
         /// must call <c>Initialize</c> on every subsystem.
         /// </summary>
         [Fact]
@@ -65,8 +65,8 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         /// <summary>
-        /// In <see cref="RunMode.All"/> the <see cref="RunnerConfiguration.ParsedMode"/>
-        /// must carry all three subsystem flags, proving a single process hosts every
+        /// In <c>--mode all</c> the <see cref="RunnerConfiguration.RequestedSubsystems"/>
+        /// must contain all three subsystem names, proving a single process hosts every
         /// subsystem without conditional omissions.
         /// </summary>
         [Fact]
@@ -74,10 +74,11 @@ namespace Hrot.ClusterRunner.Tests
         {
             var cfg = HeadlessAllNoWait();
 
-            Assert.True(cfg.ParsedMode.HasFlag(RunMode.SimHost), "RunMode.All must include SimHost");
-            Assert.True(cfg.ParsedMode.HasFlag(RunMode.IG),      "RunMode.All must include IG");
-            Assert.True(cfg.ParsedMode.HasFlag(RunMode.ExCon ),     "RunMode.All must include ExCon");
-            Assert.Equal(RunMode.All, cfg.ParsedMode);
+            Assert.True(cfg.RequestedSubsystems.Contains("simhost"),      "mode all must include simhost");
+            Assert.True(cfg.RequestedSubsystems.Contains("ig"),           "mode all must include ig");
+            Assert.True(cfg.RequestedSubsystems.Contains("excon"),        "mode all must include excon");
+            Assert.True(cfg.RequestedSubsystems.Contains("orchestrator"), "mode all must include orchestrator");
+            Assert.True(cfg.RequestedSubsystems.Contains("cgf"),          "mode all must include cgf");
         }
 
         /// <summary>

@@ -1,8 +1,7 @@
-using System;
+﻿using System;
 using System.Threading;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
-using Hrot.ClusterRunner.Configuration;
 using Hrot.SimHost;
 using Hrot.CGF;
 using Hrot.Map.Common;
@@ -19,10 +18,10 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// the WorldPos descriptor to the SimHost (Muscle) node via
 /// <c>DeferredTakeOwnership</c>, the SimHost ghost receives
 /// <c>SimTransform</c> / <c>NetworkTransform</c> / <c>NetworkVelocity</c>
-/// authority flags after the entity transitions from Ghost → Constructing.
+/// authority flags after the entity transitions from Ghost â†’ Constructing.
 /// </para>
 ///
-/// <para>Domain range: 220–229 (after DistributedBrainMuscleIntegrationTests 219).</para>
+/// <para>Domain range: 220â€“229 (after DistributedBrainMuscleIntegrationTests 219).</para>
 /// </summary>
 public sealed class SplitAuthoritySpawnTests
 {
@@ -32,7 +31,7 @@ public sealed class SplitAuthoritySpawnTests
     private const int AuthorityTimeoutMs   = 8_000;
     private const int PumpSleepMs          = 5;
 
-    // ── IT-SA-1 ───────────────────────────────────────────────────────────────
+    // â”€â”€ IT-SA-1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Brain spawns an entity with WorldPos delegated to Muscle.
@@ -42,7 +41,7 @@ public sealed class SplitAuthoritySpawnTests
     public void BrainSpawn_EntityArrives_OnMuscle()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
-        using var simHost = new HrotRunnerHarness(RunMode.SimHost, domainId);
+        using var simHost = new HrotRunnerHarness("simhost", domainId);
         using var cgf     = new CgfHarness(domainId);
 
         cgf.PumpFrames(20);
@@ -63,7 +62,7 @@ public sealed class SplitAuthoritySpawnTests
             $"Entity {networkId} should appear on SimHost ghost map within {PropagationTimeoutMs} ms");
     }
 
-    // ── IT-SA-2 ───────────────────────────────────────────────────────────────
+    // â”€â”€ IT-SA-2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// After the entity arrives and is promoted on Muscle, the ghost should have
@@ -80,7 +79,7 @@ public sealed class SplitAuthoritySpawnTests
     public void BrainSpawn_WithWorldPosDelegation_MuscleTakesSimTransformAuthority()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
-        using var simHost = new HrotRunnerHarness(RunMode.SimHost, domainId);
+        using var simHost = new HrotRunnerHarness("simhost", domainId);
         using var cgf     = new CgfHarness(domainId);
 
         cgf.PumpFrames(20);
@@ -111,17 +110,17 @@ public sealed class SplitAuthoritySpawnTests
             $"within {AuthorityTimeoutMs} ms after split-authority spawn");
     }
 
-    // ── IT-SA-3 ───────────────────────────────────────────────────────────────
+    // â”€â”€ IT-SA-3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// The CGF (Brain) ghost should NOT have SimTransform authority
-    /// — that descriptor belongs to SimHost (Muscle).
+    /// â€” that descriptor belongs to SimHost (Muscle).
     /// </summary>
     [Fact]
     public void BrainSpawn_Brain_DoesNotHaveSimTransformAuthority()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
-        using var simHost = new HrotRunnerHarness(RunMode.SimHost, domainId);
+        using var simHost = new HrotRunnerHarness("simhost", domainId);
         using var cgf     = new CgfHarness(domainId);
 
         cgf.PumpFrames(20);
@@ -149,7 +148,7 @@ public sealed class SplitAuthoritySpawnTests
 
         if (cgfWorld == null || cgfMap == null)
         {
-            // No CGF ghost map means nothing to assert — skip gracefully.
+            // No CGF ghost map means nothing to assert â€” skip gracefully.
             return;
         }
 
@@ -163,7 +162,7 @@ public sealed class SplitAuthoritySpawnTests
             "when WorldPos was delegated to Muscle");
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static bool PumpBothUntil(
         HrotRunnerHarness simHost,

@@ -1,4 +1,4 @@
-using CommandLine;
+﻿using CommandLine;
 using Newtonsoft.Json;
 
 namespace Hrot.ClusterRunner.Configuration
@@ -8,11 +8,11 @@ namespace Hrot.ClusterRunner.Configuration
     ///
     /// <para>Adds <c>--mode</c> (which subsystems to host), <c>--config</c>
     /// (JSON override file), and the validation/parsing logic that is specific
-    /// to Hrot's <see cref="RunMode"/> concept.</para>
+    /// to Hrot's subsystem selection concept.</para>
     /// </summary>
     public class HrotRunnerConfiguration : Fdp.Engine.Runner.RunnerConfiguration
     {
-        // â”€â”€ Hrot-specific CLI options â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Hrot-specific CLI options ----------------------------------------
 
         /// <summary>Mode string supplied via --mode.  Examples: all, simhost, ig, ios, orchestrator, cgf, ci, simhost,ig, orchestrator,cgf</summary>
         [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|cgf|ci|simhost,ig|orchestrator,cgf")]
@@ -26,15 +26,15 @@ namespace Hrot.ClusterRunner.Configuration
         [Option('c', "config", HelpText = "JSON config file path")]
         public string ConfigFile { get; set; } = string.Empty;
 
-        // â”€â”€ Parsed values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Parsed values ---------------------------------------------------
 
-        /// <summary>Parsed subsystem flags. Set by <see cref="Validate"/>.</summary>
-        public RunMode ParsedMode { get; set; }
+        /// <summary>Parsed set of requested subsystem names. Set by <see cref="Validate"/>.</summary>
+        public HashSet<string> RequestedSubsystems { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 
-        // â”€â”€ Validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Validation ------------------------------------------------------
 
         /// <summary>
-        /// Parses <see cref="ModeString"/> into <see cref="ParsedMode"/>,
+        /// Parses <see cref="ModeString"/> into <see cref="RequestedSubsystems"/>,
         /// <see cref="Fdp.Engine.Runner.RunnerConfiguration.WaitForString"/> into
         /// <see cref="Fdp.Engine.Runner.RunnerConfiguration.WaitForPeers"/>,
         /// and enforces logical constraints.
@@ -44,13 +44,29 @@ namespace Hrot.ClusterRunner.Configuration
         /// </exception>
         public void Validate()
         {
-            // Parse mode string â†’ ParsedMode
-            ParsedMode = ParseModeString(ModeString);
-            if (ParsedMode == RunMode.None)
+            // Expand "all" and "demo" shorthands before splitting
+            string expandedMode = ModeString.Trim().ToLowerInvariant();
+            if (expandedMode == "all" || expandedMode == "demo")
+                expandedMode = "orchestrator,simhost,ig,excon,cgf";
+
+            // Parse mode string -> RequestedSubsystems
+            RequestedSubsystems.Clear();
+            foreach (var name in expandedMode.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                // "ios" is a legacy alias for "excon"
+                var normalized = name == "ios" ? "excon" : name;
+                var validNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    { "simhost", "ig", "excon", "orchestrator", "cgf", "ci", "editor" };
+                if (!validNames.Contains(normalized))
+                    throw new InvalidOperationException(
+                        $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, or comma-separated combination.");
+                RequestedSubsystems.Add(normalized);
+            }
+            if (RequestedSubsystems.Count == 0)
                 throw new InvalidOperationException(
                     $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, or comma-separated combination.");
 
-            // Parse wait-for list â†’ WaitForPeers
+            // Parse wait-for list -> WaitForPeers
             if (!string.IsNullOrWhiteSpace(WaitForString))
             {
                 WaitForPeers = new HashSet<string>(
@@ -68,27 +84,34 @@ namespace Hrot.ClusterRunner.Configuration
             }
 
             // CI mode is always standalone (no peer synchronisation required).
-            if (ParsedMode == RunMode.CI) return;
+            if (RequestedSubsystems.Contains("ci")) return;
 
-            // Editor mode is always standalone â€” must not be combined with distributed flags.
-            if (ParsedMode.HasFlag(RunMode.Editor) &&
-                (ParsedMode & (RunMode.IG | RunMode.ExCon | RunMode.Orchestrator | RunMode.CGF)) != 0)
+            // Editor mode is always standalone - must not be combined with distributed flags.
+            if (RequestedSubsystems.Contains("editor") &&
+                (RequestedSubsystems.Contains("ig") || RequestedSubsystems.Contains("excon") ||
+                 RequestedSubsystems.Contains("orchestrator") || RequestedSubsystems.Contains("cgf")))
             {
                 throw new InvalidOperationException(
-                    "RunMode.Editor must not be combined with distributed flags (IG, ExCon, Orchestrator, CGF).");
+                    "Editor must not be combined with distributed flags (IG, ExCon, Orchestrator, CGF).");
             }
 
             // Editor mode is always standalone (no peer synchronisation required).
-            if (ParsedMode == RunMode.Editor) return;
+            if (RequestedSubsystems.Contains("editor")) return;
 
             // When launching a single subsystem that must synchronise with others,
             // --wait-for must be supplied (unless --no-wait suppresses synchronisation).
-            if (!NoWait && WaitForPeers.Count == 0 && ParsedMode != RunMode.All && ParsedMode != RunMode.Orchestrator)
+            bool isAll = RequestedSubsystems.Contains("orchestrator") &&
+                         RequestedSubsystems.Contains("simhost") &&
+                         RequestedSubsystems.Contains("ig") &&
+                         RequestedSubsystems.Contains("excon") &&
+                         RequestedSubsystems.Contains("cgf");
+            bool isOrchestratorOnly = RequestedSubsystems.Count == 1 && RequestedSubsystems.Contains("orchestrator");
+            if (!NoWait && WaitForPeers.Count == 0 && !isAll && !isOrchestratorOnly)
                 throw new InvalidOperationException(
                     "--wait-for required when launching separate subsystems without --no-wait.");
         }
 
-        // â”€â”€ JSON config merge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- JSON config merge -----------------------------------------------
 
         /// <summary>
         /// Merges non-default JSON values over CLI defaults.
@@ -117,43 +140,6 @@ namespace Hrot.ClusterRunner.Configuration
                 WaitForString = overrides.WaitForString;
             if (!string.IsNullOrEmpty(overrides.ConfigFile))
                 ConfigFile = overrides.ConfigFile;
-        }
-
-        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-        private static RunMode ParseModeString(string str)
-        {
-            var lower = str.ToLowerInvariant().Trim();
-
-            if (lower == "all")          return RunMode.All;
-            if (lower == "simhost")      return RunMode.SimHost;
-            if (lower == "ig")           return RunMode.IG;
-            if (lower == "excon")        return RunMode.ExCon;
-            if (lower == "ios")          return RunMode.ExCon;
-            if (lower == "orchestrator") return RunMode.Orchestrator;
-            if (lower == "cgf")          return RunMode.CGF;
-            if (lower == "ci")           return RunMode.CI;
-            if (lower == "editor")       return RunMode.Editor;
-            if (lower == "demo")         return RunMode.Demo;
-
-            // Comma-separated combination (e.g. "simhost,ig" or "orchestrator,cgf")
-            RunMode result = RunMode.None;
-            foreach (var part in lower.Split(',', StringSplitOptions.RemoveEmptyEntries))
-            {
-                switch (part.Trim())
-                {
-                    case "simhost":      result |= RunMode.SimHost;      break;
-                    case "ig":           result |= RunMode.IG;           break;
-                    case "excon":          result |= RunMode.ExCon;      break;
-                    case "ios":          result |= RunMode.ExCon;        break;
-                    case "orchestrator": result |= RunMode.Orchestrator; break;
-                    case "cgf":          result |= RunMode.CGF;          break;
-                    case "editor":       result |= RunMode.Editor;       break;
-                    default:             return RunMode.None; // Any invalid token â†’ reject entire string
-                }
-            }
-
-            return result;
         }
     }
 }

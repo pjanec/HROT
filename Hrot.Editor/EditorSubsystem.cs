@@ -45,6 +45,7 @@ using Hrot.SimHost;
 using Hrot.SimHost.Modules;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
+using Hrot.Core.Network;
 using ModuleHost.Core;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Network.Interfaces;
@@ -85,6 +86,10 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         /// <remarks>Slate blue — distinct from IG (green), SimHost (red) and ExCon (violet).</remarks>
         public Vector4 TitleBarColor => new(0.15f, 0.22f, 0.48f, 1f);
+
+        // ── Network factory (no-op stubs for offline editor) ─────────────────
+
+        private readonly INetworkFactory _networkFactory = new OfflineNetworkFactory();
 
         // ── Core state ────────────────────────────────────────────────────────
 

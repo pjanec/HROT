@@ -1,11 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Engine.Runner;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Vis2D.Components;
-using Hrot.ClusterRunner.Configuration;
 using Hrot.Editor;
 using Hrot.Editor;
 using Hrot.Editor.Events;
@@ -29,7 +28,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("EditorOfflineTests")]
 public sealed class EditorSubsystemBootTests
 {
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static SubsystemConfig HeadlessConfig() => new()
     {
@@ -39,7 +38,7 @@ public sealed class EditorSubsystemBootTests
         SubsystemName = "Editor"
     };
 
-    // ── T-ES01: Name ──────────────────────────────────────────────────────────
+    // â”€â”€ T-ES01: Name â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void Name_Returns_Editor()
@@ -48,7 +47,7 @@ public sealed class EditorSubsystemBootTests
         Assert.Equal("Editor", subsystem.Name);
     }
 
-    // ── T-ES02: TitleBarColor is non-zero ─────────────────────────────────────
+    // â”€â”€ T-ES02: TitleBarColor is non-zero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void TitleBarColor_IsNonZero()
@@ -59,7 +58,7 @@ public sealed class EditorSubsystemBootTests
         Assert.False(color == Vector4.Zero, "TitleBarColor must be a non-zero colour.");
     }
 
-    // ── T-ES03: Initialize headless does not throw ────────────────────────────
+    // â”€â”€ T-ES03: Initialize headless does not throw â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void Initialize_Headless_DoesNotThrow()
@@ -70,7 +69,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES04: Update after init does not throw ──────────────────────────────
+    // â”€â”€ T-ES04: Update after init does not throw â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void Update_AfterHeadlessInit_DoesNotThrow()
@@ -83,7 +82,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES05: Multiple update frames do not throw ───────────────────────────
+    // â”€â”€ T-ES05: Multiple update frames do not throw â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void Update_MultipleFrames_DoesNotThrow()
@@ -97,20 +96,20 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES06: DrawWorld in headless is a no-op ──────────────────────────────
+    // â”€â”€ T-ES06: DrawWorld in headless is a no-op â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void DrawWorld_Headless_IsNoOp()
     {
         var subsystem = new EditorSubsystem();
         subsystem.Initialize(HeadlessConfig());
-        // Must not throw — headless flag suppresses all Raylib calls.
+        // Must not throw â€” headless flag suppresses all Raylib calls.
         var ex = Record.Exception(() => subsystem.DrawWorld());
         Assert.Null(ex);
         subsystem.Shutdown();
     }
 
-    // ── T-ES07: DrawUI in headless is a no-op ────────────────────────────────
+    // â”€â”€ T-ES07: DrawUI in headless is a no-op â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void DrawUI_Headless_IsNoOp()
@@ -122,7 +121,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES08: MapCamera is null in headless ─────────────────────────────────
+    // â”€â”€ T-ES08: MapCamera is null in headless â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void GetMapCamera_Headless_ReturnsNull()
@@ -133,7 +132,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES09: ECS world + kernel accessible via test hooks ─────────────────
+    // â”€â”€ T-ES09: ECS world + kernel accessible via test hooks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void World_AfterInit_IsNotNull()
@@ -160,7 +159,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES10: EditorLogic is accessible after init ──────────────────────────
+    // â”€â”€ T-ES10: EditorLogic is accessible after init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void EditorLogic_AfterInit_IsNotNull()
@@ -174,7 +173,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES11: SubsystemOrchestrator boots with EditorSubsystem ─────────────
+    // â”€â”€ T-ES11: SubsystemOrchestrator boots with EditorSubsystem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void Orchestrator_WithEditorSubsystem_BootsAndRunsOneFrame()
@@ -194,7 +193,7 @@ public sealed class EditorSubsystemBootTests
         Assert.Null(ex);
     }
 
-    // ── T-ES12: Multiple frames via orchestrator ──────────────────────────────
+    // â”€â”€ T-ES12: Multiple frames via orchestrator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void Orchestrator_WithEditorSubsystem_RunsMultipleFrames()
@@ -216,7 +215,7 @@ public sealed class EditorSubsystemBootTests
         orchestrator.Shutdown();
     }
 
-    // ── T-ES13: NewScenario does not throw ───────────────────────────────────
+    // â”€â”€ T-ES13: NewScenario does not throw â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void NewScenario_DoesNotThrow()
@@ -231,7 +230,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES14: RegisterWindows does not throw in headless ───────────────────
+    // â”€â”€ T-ES14: RegisterWindows does not throw in headless â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void RegisterWindows_Headless_PopulatesWindowManager()
@@ -253,7 +252,7 @@ public sealed class EditorSubsystemBootTests
         Assert.Null(ex);
     }
 
-    // ── T-ES15: Shutdown is idempotent ───────────────────────────────────────
+    // â”€â”€ T-ES15: Shutdown is idempotent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void Shutdown_CalledTwice_DoesNotThrow()
@@ -265,7 +264,7 @@ public sealed class EditorSubsystemBootTests
         Assert.Null(ex);
     }
 
-    // ── T-ES16: AvailableScenarios is non-null after init ────────────────────
+    // â”€â”€ T-ES16: AvailableScenarios is non-null after init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void AvailableScenarios_AfterInit_IsNonNull()
@@ -280,7 +279,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES17: LoadedScenarioName is null after NewScenario ─────────────────
+    // â”€â”€ T-ES17: LoadedScenarioName is null after NewScenario â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void LoadedScenarioName_AfterNewScenario_IsNull()
@@ -296,7 +295,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES18: ActivateEditorToolEvent (Select) is consumed without throw ───
+    // â”€â”€ T-ES18: ActivateEditorToolEvent (Select) is consumed without throw â”€â”€â”€
 
     [Fact]
     public void ActivateEditorToolEvent_Select_IsConsumedWithoutThrow()
@@ -304,11 +303,11 @@ public sealed class EditorSubsystemBootTests
         var subsystem = new EditorSubsystem();
         subsystem.Initialize(HeadlessConfig());
 
-        // Publish an ActivateEditorToolEvent on the bus — the headless path skips
+        // Publish an ActivateEditorToolEvent on the bus â€” the headless path skips
         // actual tool switching but the event must be drained (not accumulate).
         subsystem.World.Bus.PublishManaged(new ActivateEditorToolEvent(EditorTool.Select));
 
-        // Update twice so the event crosses the SwapBuffers → ConsumeManaged cycle.
+        // Update twice so the event crosses the SwapBuffers â†’ ConsumeManaged cycle.
         var ex = Record.Exception(() =>
         {
             subsystem.Update(0.016f);
@@ -319,7 +318,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES19: Multiple tool events over several frames do not throw ─────────
+    // â”€â”€ T-ES19: Multiple tool events over several frames do not throw â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void ActivateEditorToolEvent_AllTools_SurviveMultipleFrames()
@@ -344,7 +343,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES20: SaveScenarioAs sets LoadedScenarioName ───────────────────────
+    // â”€â”€ T-ES20: SaveScenarioAs sets LoadedScenarioName â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void SaveScenarioAs_SetsLoadedScenarioName()
@@ -383,7 +382,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES21: SpawnEntityCommand creates an entity (BUG1 regression) ────────
+    // â”€â”€ T-ES21: SpawnEntityCommand creates an entity (BUG1 regression) â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Verifies that publishing a <see cref="SpawnEntityCommand"/> on the bus while
@@ -421,7 +420,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES22: ActivateMeasureTool in headless does not throw (BUG6 regression)
+    // â”€â”€ T-ES22: ActivateMeasureTool in headless does not throw (BUG6 regression)
 
     /// <summary>
     /// Verifies that the Measure tool activation event is correctly handled by
@@ -447,7 +446,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES23: SpawnEntityCommand with InitialComponents attaches EntityInfo (BUG13) ──
+    // â”€â”€ T-ES23: SpawnEntityCommand with InitialComponents attaches EntityInfo (BUG13) â”€â”€
 
     /// <summary>
     /// Verifies that a <see cref="SpawnEntityCommand"/> carrying an
@@ -456,7 +455,7 @@ public sealed class EditorSubsystemBootTests
     /// NetworkSpawningSystem processes it.
     ///
     /// This is the offline-editor equivalent of what CreateEntityRequestSystem does
-    /// in the live cluster after the JsonAttributeCompiler runs — proving the
+    /// in the live cluster after the JsonAttributeCompiler runs â€” proving the
     /// EditorSpawnAdapter's BUG13 fix actually works end-to-end through the kernel.
     /// </summary>
     [Fact]
@@ -501,12 +500,12 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES25: MapLayerAssignmentSystem adds MapDisplayComponent (BUG7 regression) ─
+    // â”€â”€ T-ES25: MapLayerAssignmentSystem adds MapDisplayComponent (BUG7 regression) â”€
 
     /// <summary>
     /// Verifies that after spawning an entity with <see cref="SimTransform"/>
-    /// the <c>MapLayerAssignmentSystem</c> — registered in
-    /// <see cref="EditorSubsystem.Initialize"/> — assigns a
+    /// the <c>MapLayerAssignmentSystem</c> â€” registered in
+    /// <see cref="EditorSubsystem.Initialize"/> â€” assigns a
     /// <see cref="MapDisplayComponent"/> to the entity within a few update frames.
     ///
     /// This proves that (a) <c>MapDisplayComponent</c> is registered in the offline
@@ -553,7 +552,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES26: Entity with MapOverlayStyle survives update frames (BUG11 smoke) ─
+    // â”€â”€ T-ES26: Entity with MapOverlayStyle survives update frames (BUG11 smoke) â”€
 
     /// <summary>
     /// Verifies that spawning an entity carrying a <see cref="MapOverlayStyle"/>
@@ -594,7 +593,7 @@ public sealed class EditorSubsystemBootTests
         subsystem.Shutdown();
     }
 
-    // ── T-ES27: Entity with RoutePlan survives update frames (BUG12 smoke) ─────
+    // â”€â”€ T-ES27: Entity with RoutePlan survives update frames (BUG12 smoke) â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Verifies that spawning an entity carrying a <see cref="RoutePlan"/> managed

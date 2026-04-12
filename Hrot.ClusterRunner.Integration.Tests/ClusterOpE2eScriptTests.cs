@@ -1,9 +1,8 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
-using Hrot.ClusterRunner.Configuration;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
 using Hrot.ExCon;
@@ -30,8 +29,8 @@ public sealed class ClusterOpE2eScriptTests
 {
     // Unique DDS domain IDs so parallel test runs don't interfere.
     // Must be above:
-    //   HrotRunnerHarness auto-counter (DomainIdBase=100, 46 runtime usages → 100–145)
-    //   AllSubsystemsClusterTransitionTests own counter (DomainBase=160 → 160–161)
+    //   HrotRunnerHarness auto-counter (DomainIdBase=100, 46 runtime usages â†’ 100â€“145)
+    //   AllSubsystemsClusterTransitionTests own counter (DomainBase=160 â†’ 160â€“161)
     private const int DomainBase = 170;
     private static int _domainSeq = DomainBase - 1;
     private static int NextDomainId() => Interlocked.Increment(ref _domainSeq);
@@ -39,7 +38,7 @@ public sealed class ClusterOpE2eScriptTests
     private static string ScriptPath(string fileName) =>
         Path.Combine("TestScripts", fileName);
 
-    // ── Shared helpers ────────────────────────────────────────────────────────
+    // â”€â”€ Shared helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Boots a minimal two-subsystem stack, loads <paramref name="scriptFileName"/>
@@ -91,11 +90,11 @@ public sealed class ClusterOpE2eScriptTests
         return await executor.RunAsync().ConfigureAwait(false);
     }
 
-    // ── Test facts ────────────────────────────────────────────────────────────
+    // â”€â”€ Test facts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Transitions to RunningLive, records a moving entity for ~6 s,
-    /// switches to RunningReplay, seeks to T=30 s, and asserts position ≈ 30 m.
+    /// switches to RunningReplay, seeks to T=30 s, and asserts position â‰ 30 m.
     /// </summary>
     [Fact(Timeout = 60000)]
     public async Task RecordAndReplaySeek_Passes()

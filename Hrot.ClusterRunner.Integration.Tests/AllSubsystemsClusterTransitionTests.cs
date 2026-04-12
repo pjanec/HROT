@@ -1,11 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
-using Hrot.ClusterRunner.Configuration;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
 using Hrot.IG;
@@ -50,7 +49,7 @@ public sealed class AllSubsystemsClusterTransitionTests
     private static string ScriptPath(string fileName) =>
         Path.Combine("TestScripts", fileName);
 
-    // ── Shared harness builder ────────────────────────────────────────────────
+    // â”€â”€ Shared harness builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static (SubsystemOrchestrator orchestrator, OrchestratorSubsystem orchestratorSvc, ExConSubsystem exConSvc)
         BuildOrchestrator(int domainId)
@@ -68,10 +67,10 @@ public sealed class AllSubsystemsClusterTransitionTests
         return (orchestrator, orchestratorSvc, exConSvc);
     }
 
-    // ── Tests ─────────────────────────────────────────────────────────────────
+    // â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
-    /// Regression for CGF1-S0502 — single Idle→OperatingLive transition.
+    /// Regression for CGF1-S0502 â€” single Idleâ†’OperatingLive transition.
     ///
     /// <para>Boots Orchestrator + SimHost + IG + ExCon and verifies that
     /// <c>ExConSubsystem.TestHook_ClusterSlave.LocalStateIdForTest</c> reaches
@@ -101,7 +100,7 @@ public sealed class AllSubsystemsClusterTransitionTests
     }
 
     /// <summary>
-    /// Full Idle→OperatingLive→Idle→OperatingLive→Idle round-trip, repeated twice.
+    /// Full Idleâ†’OperatingLiveâ†’Idleâ†’OperatingLiveâ†’Idle round-trip, repeated twice.
     ///
     /// <para>Verifies that <c>ClusterSlave.LocalStateIdForTest</c> correctly tracks all
     /// state transitions across two complete load/operate/unload cycles.  Also validates
@@ -129,7 +128,7 @@ public sealed class AllSubsystemsClusterTransitionTests
         Assert.Equal(0, result);
     }
 
-    // ── Custom action handler ─────────────────────────────────────────────────
+    // â”€â”€ Custom action handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Issues a <see cref="ClusterOpType.TransitionState"/> request and asserts that
@@ -137,7 +136,7 @@ public sealed class AllSubsystemsClusterTransitionTests
     ///
     /// <para>Does NOT poll for <c>ClusterOpStatus.Success</c> (not published for
     /// <c>TransitionState</c>).  Instead, polls the slave's <c>LocalStateIdForTest</c>
-    /// directly — which only advances when <c>CommitState</c> is received and NOT
+    /// directly â€” which only advances when <c>CommitState</c> is received and NOT
     /// dropped by the deduplication guard.</para>
     ///
     /// <para>Waits for at least one active node in the roster before sending the request,
@@ -146,9 +145,9 @@ public sealed class AllSubsystemsClusterTransitionTests
     /// Action name: <c>"assert_slave_transition"</c>.<br/>
     /// Args:
     /// <list type="bullet">
-    ///   <item><c>TargetState</c> (string) — <see cref="ClusterState"/> name (e.g. "OperatingLive").</item>
-    ///   <item><c>ExerciseId</c> (string, optional) — included in the request payload.</item>
-    ///   <item><c>TimeoutSeconds</c> (double, default 6.0) — poll deadline.</item>
+    ///   <item><c>TargetState</c> (string) â€” <see cref="ClusterState"/> name (e.g. "OperatingLive").</item>
+    ///   <item><c>ExerciseId</c> (string, optional) â€” included in the request payload.</item>
+    ///   <item><c>TimeoutSeconds</c> (double, default 6.0) â€” poll deadline.</item>
     /// </list>
     /// </summary>
     private sealed class ClusterTransitionAssertionHandler : ITestActionHandler
@@ -185,7 +184,7 @@ public sealed class AllSubsystemsClusterTransitionTests
             // Slaves send heartbeats at 1 Hz; the first heartbeat may not have arrived yet if
             // this step fires immediately at startup (before t=1s has elapsed).
             // Also ensures we don't send the request when transitioning back to Idle from a
-            // state where all nodes are already in the target — in that case the roster is
+            // state where all nodes are already in the target â€” in that case the roster is
             // already populated so this loop exits immediately.
             var rosterDeadline = DateTime.UtcNow.AddSeconds(5.0);
             while (_master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
