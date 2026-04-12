@@ -32,7 +32,7 @@
     <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
     <ProjectReference Include="..\Hrot.ExCon\Hrot.ExCon.csproj" />
     <ProjectReference Include="..\Hrot.Editor\Hrot.Editor.csproj" />
-    <ProjectReference Include="..\Hrot.UI.Common\Hrot.UI.Common.csproj" />
+    <ProjectReference Include="..\Hrot.Presentation\Hrot.Presentation.csproj" />
     <!-- IScenario + ScenarioSubsystem for mode ci -->
     <ProjectReference Include="..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />  </ItemGroup>
 

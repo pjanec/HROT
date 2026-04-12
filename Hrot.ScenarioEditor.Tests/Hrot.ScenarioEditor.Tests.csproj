@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Hrot.ScenarioEditor\Hrot.ScenarioEditor.csproj" />
+    <ProjectReference Include="..\Hrot.Presentation\Hrot.Presentation.csproj" />
     <!-- Required for IgApplication reflection tests in ToolPresenceTests and RenderLayerPresenceTests -->
     <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
     <!-- PACK3-Z005: ScenarioFileServiceZoneTests uses ZoneManagerService and DTOs -->

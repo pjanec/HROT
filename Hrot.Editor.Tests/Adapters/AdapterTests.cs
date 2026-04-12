@@ -20,6 +20,7 @@ using Hrot.Map.Common.Config;
 using Hrot.Map.Common.Events;
 using Hrot.Map.Definitions.Tkb;
 using Hrot.NED.Common;
+using Hrot.Core.Mission;
 using Hrot.ScenarioEditor;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
@@ -165,10 +166,10 @@ namespace Hrot.Editor.Tests.Adapters
             var entity = _repo.CreateEntity();
             var service = new EditorMissionService(_bus, _repo, _registry);
 
-            var plan = new Hrot.NED.Descriptors.MissionPlan
+            var plan = new Hrot.Core.Mission.MissionPlan
             {
                 ActiveTaskId = Guid.Empty,
-                Tasks = new System.Collections.Generic.List<Hrot.NED.Descriptors.MissionTask>(),
+                Tasks = new System.Collections.Generic.List<Hrot.Core.Mission.MissionTask>(),
             };
 
             Task<MissionCommitResult> task = service.CommitMissionAsync((long)entity.Index, plan, 0L);
@@ -347,11 +348,11 @@ namespace Hrot.Editor.Tests.Adapters
         public async Task PickLocationAsync_ToolFires_TaskCompletesWithGeoPoint()
         {
             var adapter = new EditorMapPickAdapter(_canvas);
-            Task<GeoPoint> task = adapter.PickLocationAsync();
+            Task<Hrot.Core.Mission.GeoPoint> task = adapter.PickLocationAsync();
 
             // Simulate the tool firing the callback.
             var tool = Assert.IsType<LocationPickerTool>(_canvas.ActiveTool);
-            tool.OnLocationPicked?.Invoke(new GeoPoint { Latitude = 32.0, Longitude = 34.5 });
+            tool.OnLocationPicked?.Invoke(new Hrot.NED.Common.GeoPoint { Latitude = 32.0, Longitude = 34.5 });
 
             var result = await task;
             Assert.Equal(32.0, result.Latitude, 6);
@@ -363,7 +364,7 @@ namespace Hrot.Editor.Tests.Adapters
         {
             var cts     = new CancellationTokenSource();
             var adapter = new EditorMapPickAdapter(_canvas);
-            Task<GeoPoint> task = adapter.PickLocationAsync(cts.Token);
+            Task<Hrot.Core.Mission.GeoPoint> task = adapter.PickLocationAsync(cts.Token);
 
             // Cancel before the pick fires.
             cts.Cancel();

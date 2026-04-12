@@ -1,5 +1,4 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
+using Hrot.Core.Mission;
 using Hrot.UI.Common.Panels;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
@@ -356,8 +355,8 @@ public class MissionPanelTests
 
         var plan = panel.DraftPlan;
         Assert.NotNull(plan);
-        Assert.NotNull(plan!.Value.Tasks);
-        Assert.Single(plan.Value.Tasks!);
+        Assert.NotNull(plan!.Tasks);
+        Assert.Single(plan.Tasks!);
     }
 
     [Fact]
@@ -368,7 +367,7 @@ public class MissionPanelTests
 
         panel.HandleDeleteTask(1);
 
-        var tasks = panel.DraftPlan!.Value.Tasks!;
+        var tasks = panel.DraftPlan!.Tasks!;
         Assert.Equal(2, tasks.Count);
         Assert.Equal("A", tasks[0].BehaviorId);
         Assert.Equal("C", tasks[1].BehaviorId);
@@ -382,7 +381,7 @@ public class MissionPanelTests
 
         panel.HandleMoveTask(0, 1);
 
-        var tasks = panel.DraftPlan!.Value.Tasks!;
+        var tasks = panel.DraftPlan!.Tasks!;
         Assert.Equal("B", tasks[0].BehaviorId);
         Assert.Equal("A", tasks[1].BehaviorId);
     }
@@ -397,7 +396,7 @@ public class MissionPanelTests
 
         panel.HandleEditBehaviorId(0, "MoveToLocation");
 
-        var task = panel.DraftPlan!.Value.Tasks![0];
+        var task = panel.DraftPlan!.Tasks![0];
         Assert.Equal("MoveToLocation", task.BehaviorId);
     }
 
@@ -409,7 +408,7 @@ public class MissionPanelTests
 
         panel.HandleEditBehaviorParams(0, "{\"speed\":15}");
 
-        var task = panel.DraftPlan!.Value.Tasks![0];
+        var task = panel.DraftPlan!.Tasks![0];
         Assert.Equal("{\"speed\":15}", task.BehaviorParams);
     }
 
@@ -461,7 +460,7 @@ public class MissionPanelTests
 
         panel.HandleAddTask();
 
-        var task = panel.DraftPlan!.Value.Tasks![0];
+        var task = panel.DraftPlan!.Tasks![0];
         Assert.NotNull(task.Triggers);
         Assert.Single(task.Triggers!);
         Assert.Equal("DoctrineFinished", task.Triggers![0].Type);
@@ -476,7 +475,7 @@ public class MissionPanelTests
         panel.HandleAddTask();
         panel.HandleAddTask();
 
-        foreach (var task in panel.DraftPlan!.Value.Tasks!)
+        foreach (var task in panel.DraftPlan!.Tasks!)
         {
             Assert.NotNull(task.Triggers);
             Assert.Single(task.Triggers!);
@@ -518,12 +517,9 @@ public class MissionPanelTests
     {
         var panel = new MissionPanel { SelectedEntityId = 1 };
         var plan  = BuildPlan("MoveToLocation");
-        plan.Tasks![0] = plan.Tasks[0] with
+        plan.Tasks![0].Triggers = new List<MissionTrigger>
         {
-            Triggers = new List<MissionTrigger>
-            {
-                new MissionTrigger { Type = initialTriggerType, Params = MissionPanel.GetDefaultTriggerParams(initialTriggerType) }
-            }
+            new MissionTrigger { Type = initialTriggerType, Params = MissionPanel.GetDefaultTriggerParams(initialTriggerType) }
         };
         panel.SetDraftPlan(plan, baseVersion: 0);
         return panel;
@@ -547,7 +543,7 @@ public class MissionPanelTests
 
         panel.HandleEditTriggerType(0, 0, "TimerElapsed");
 
-        var trigger = panel.DraftPlan!.Value.Tasks![0].Triggers![0];
+        var trigger = panel.DraftPlan!.Tasks![0].Triggers![0];
         Assert.Equal("TimerElapsed", trigger.Type);
         Assert.Equal("10.0", trigger.Params); // default params for TimerElapsed
     }
@@ -559,7 +555,7 @@ public class MissionPanelTests
 
         panel.HandleEditTriggerParams(0, 0, "30.0");
 
-        var trigger = panel.DraftPlan!.Value.Tasks![0].Triggers![0];
+        var trigger = panel.DraftPlan!.Tasks![0].Triggers![0];
         Assert.Equal("30.0", trigger.Params);
     }
 
@@ -568,12 +564,12 @@ public class MissionPanelTests
     {
         var panel = new MissionPanel { SelectedEntityId = 1 };
         var plan  = BuildPlan("MoveToLocation");
-        plan.Tasks![0] = plan.Tasks[0] with { Triggers = new List<MissionTrigger>() };
+        plan.Tasks![0].Triggers = new List<MissionTrigger>();
         panel.SetDraftPlan(plan, baseVersion: 0);
 
         panel.HandleAddTrigger(0, "DoctrineFinished");
 
-        var triggers = panel.DraftPlan!.Value.Tasks![0].Triggers!;
+        var triggers = panel.DraftPlan!.Tasks![0].Triggers!;
         Assert.Single(triggers);
         Assert.Equal("DoctrineFinished", triggers[0].Type);
         Assert.Equal("", triggers[0].Params);
@@ -620,12 +616,12 @@ public class MissionPanelTests
         panel.SetDraftPlan(BuildPlan("MoveToLocation"), baseVersion: 1);
         panel.HandleConflictResult(new MissionCommitResult(false, 0, PanelConstants.VersionConflictErrorMessage));
         Assert.True(panel.HasConflictAlert);
-        Assert.True(panel.DraftPlan.HasValue);
+        Assert.NotNull(panel.DraftPlan);
 
         panel.TestHook_ClearDraftAndDismissConflict();
 
         Assert.False(panel.HasConflictAlert);
-        Assert.False(panel.DraftPlan.HasValue);
+        Assert.Null(panel.DraftPlan);
     }
 
     // ── BATCH-02 new tests: DrawContent calls GetAvailableBehaviors ───────────

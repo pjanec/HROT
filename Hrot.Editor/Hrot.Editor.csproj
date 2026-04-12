@@ -12,12 +12,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Hrot.ScenarioEditor\Hrot.ScenarioEditor.csproj" />
+    <ProjectReference Include="..\Hrot.Presentation\Hrot.Presentation.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\Fdp.Engine\Fdp.Engine.csproj" />
     <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
     <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
-    <ProjectReference Include="..\Hrot.UI.Common\Hrot.UI.Common.csproj" />
+    <!-- Hrot.Presentation referenced above -->
     <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
   </ItemGroup>
 

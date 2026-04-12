@@ -1,4 +1,4 @@
-using Hrot.NED.Descriptors;
+using Hrot.Core.Mission;
 using Hrot.UI.Common.Panels;
 using Hrot.UI.Common.Facades;
 using Moq;

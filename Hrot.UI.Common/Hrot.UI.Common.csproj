@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FDP\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />
-    <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
+    <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
     <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
   </ItemGroup>
 

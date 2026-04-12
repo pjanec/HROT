@@ -67,7 +67,7 @@ namespace Hrot.Editor.Adapters
         }
 
         /// <inheritdoc/>
-        public (MissionPlan? Plan, long Version) GetMissionSnapshot(long entityId)
+        public (Hrot.Core.Mission.MissionPlan? Plan, long Version) GetMissionSnapshot(long entityId)
         {
             var entity = _repo.GetEntityByIndex((int)entityId);
             if (entity.IsNull || !_repo.IsAlive(entity))
@@ -77,13 +77,13 @@ namespace Hrot.Editor.Adapters
                 return (null, 0);
 
             var amp  = _repo.GetComponent<ActiveMissionPlan>(entity);
-            var plan = MapDomainPlanToNed(amp.Plan);
+            var plan = MapDomainPlanToNeutral(amp.Plan);
             return (plan, 0); // Version not stored in ECS; starts at 0.
         }
 
         /// <inheritdoc/>
         public System.Threading.Tasks.Task<MissionCommitResult> CommitMissionAsync(
-            long entityId, MissionPlan plan, long baseVersion)
+            long entityId, Hrot.Core.Mission.MissionPlan plan, long baseVersion)
         {
             var tcs       = new TaskCompletionSource<MissionCommitResult>();
             var requestId = Guid.NewGuid();
@@ -97,7 +97,7 @@ namespace Hrot.Editor.Adapters
                 Payload = new MissionCommandUnion
                 {
                     _d              = eMissionCommandType.CMD_REPLACE_MISSION,
-                    FullMissionData = plan,
+                    FullMissionData = MapNeutralPlanToNed(plan),
                 }
             });
 
@@ -106,7 +106,7 @@ namespace Hrot.Editor.Adapters
 
         /// <inheritdoc/>
         public System.Threading.Tasks.Task<MissionCommitResult> SendControlCommandAsync(
-            long entityId, eMissionCommandType type, Guid taskId)
+            long entityId, Hrot.Core.Mission.eMissionCommandType type, Guid taskId)
         {
             var tcs       = new TaskCompletionSource<MissionCommitResult>();
             var requestId = Guid.NewGuid();
@@ -119,7 +119,7 @@ namespace Hrot.Editor.Adapters
                 BaseVersion    = 0,
                 Payload = new MissionCommandUnion
                 {
-                    _d           = type,
+                    _d           = (eMissionCommandType)(int)type,
                     TargetTaskId = taskId,
                 }
             });
@@ -150,24 +150,51 @@ namespace Hrot.Editor.Adapters
 
         // ── Private helpers ───────────────────────────────────────────────────
 
-        private static MissionPlan MapDomainPlanToNed(DomainMissionPlan domain)
+        private static Hrot.Core.Mission.MissionPlan MapDomainPlanToNeutral(DomainMissionPlan domain)
         {
-            var tasks = new List<MissionTask>(domain.Tasks.Count);
+            var tasks = new List<Hrot.Core.Mission.MissionTask>(domain.Tasks.Count);
             foreach (var dt in domain.Tasks)
             {
-                tasks.Add(new MissionTask
+                tasks.Add(new Hrot.Core.Mission.MissionTask
                 {
                     TaskId          = dt.TaskId,
                     BehaviorId      = dt.BehaviorId,
                     BehaviorParams  = dt.BehaviorParams,
                     ExecutingEngine = dt.ExecutingEngine,
-                    State           = eTaskState.TASK_PLANNED,
-                    Triggers        = new List<Hrot.NED.Descriptors.MissionTrigger>(),
+                    State           = Hrot.Core.Mission.eTaskState.TASK_PLANNED,
+                    Triggers        = new List<Hrot.Core.Mission.MissionTrigger>(),
                 });
             }
-            return new MissionPlan
+            return new Hrot.Core.Mission.MissionPlan
             {
                 ActiveTaskId = domain.ActiveTaskId,
+                Tasks        = tasks,
+            };
+        }
+
+        private static Hrot.NED.Descriptors.MissionPlan MapNeutralPlanToNed(Hrot.Core.Mission.MissionPlan plan)
+        {
+            var tasks = new List<Hrot.NED.Descriptors.MissionTask>(plan.Tasks?.Count ?? 0);
+            if (plan.Tasks != null)
+            {
+                foreach (var t in plan.Tasks)
+                {
+                    tasks.Add(new Hrot.NED.Descriptors.MissionTask
+                    {
+                        TaskId          = t.TaskId,
+                        BehaviorId      = t.BehaviorId,
+                        BehaviorParams  = t.BehaviorParams,
+                        ExecutingEngine = t.ExecutingEngine,
+                        State           = (Hrot.NED.Descriptors.eTaskState)(int)t.State,
+                        Triggers        = t.Triggers?.Select(x => new Hrot.NED.Descriptors.MissionTrigger
+                                          { Type = x.Type, Params = x.Params }).ToList()
+                                          ?? new List<Hrot.NED.Descriptors.MissionTrigger>(),
+                    });
+                }
+            }
+            return new Hrot.NED.Descriptors.MissionPlan
+            {
+                ActiveTaskId = plan.ActiveTaskId,
                 Tasks        = tasks,
             };
         }

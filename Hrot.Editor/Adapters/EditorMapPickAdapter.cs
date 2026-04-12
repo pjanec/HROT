@@ -35,14 +35,14 @@ namespace Hrot.Editor.Adapters
         }
 
         /// <inheritdoc/>
-        public Task<GeoPoint> PickLocationAsync(CancellationToken ct = default)
+        public Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default)
         {
-            var tcs  = new TaskCompletionSource<GeoPoint>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var tcs  = new TaskCompletionSource<Hrot.Core.Mission.GeoPoint>(TaskCreationOptions.RunContinuationsAsynchronously);
             var tool = new LocationPickerTool();
 
             tool.OnLocationPicked += geo =>
             {
-                tcs.TrySetResult(geo);
+                tcs.TrySetResult(new Hrot.Core.Mission.GeoPoint(geo.Latitude, geo.Longitude, geo.Altitude));
             };
 
             tool.OnCancelled += () =>

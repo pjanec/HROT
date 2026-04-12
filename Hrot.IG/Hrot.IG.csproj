@@ -22,7 +22,7 @@
     <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
     <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
     <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
-    <ProjectReference Include="..\Hrot.ScenarioEditor\Hrot.ScenarioEditor.csproj" />
+    <ProjectReference Include="..\Hrot.Presentation\Hrot.Presentation.csproj" />
 
     <!-- FDP Kernel and Toolkits -->
     <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Hrot.Core.Mission;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
@@ -335,7 +336,7 @@ public class MissionPanelDrawPendingTests
     {
         var svc = new Mock<Hrot.UI.Common.Facades.IMissionEditorService>();
         svc.Setup(s => s.GetAvailableBehaviors(entityId)).Returns(Array.Empty<string>());
-        svc.Setup(s => s.GetMissionSnapshot(entityId)).Returns(((MissionPlan?)null, 0L));
+        svc.Setup(s => s.GetMissionSnapshot(entityId)).Returns(((Hrot.Core.Mission.MissionPlan?)null, 0L));
         var pick = new Mock<Hrot.UI.Common.Facades.IMapPickService>();
         return (svc, pick);
     }

@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <!-- Shared UI panel library -->
-    <ProjectReference Include="..\Hrot.UI.Common\Hrot.UI.Common.csproj" />  </ItemGroup>
+    <ProjectReference Include="..\Hrot.Presentation\Hrot.Presentation.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <!-- Hrot data model and map types -->
