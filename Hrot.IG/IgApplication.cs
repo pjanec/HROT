@@ -231,9 +231,12 @@ public class IgApplication : IDisposable
 
 
 
-    // -- Headless flag ÔÇö set by InitializeEmbedded(); skips all Raylib/ImGui calls in Update/Draw
+    // -- Headless flag — set by InitializeEmbedded(); skips all Raylib/ImGui calls in Update/Draw
 
     private bool _headless;
+
+    // -- Optional IG translator provider (injected via InitializeEmbedded; null = no NED translators)
+    private Hrot.Core.Network.IIgTranslators? _igTranslatorsProvider;
 
 
 
@@ -532,7 +535,8 @@ public class IgApplication : IDisposable
 
     /// </summary>
 
-    public void InitializeEmbedded(bool headless = false, int? domainIdOverride = null, int nodeIdOverride = 0)
+    public void InitializeEmbedded(bool headless = false, int? domainIdOverride = null, int nodeIdOverride = 0,
+        Hrot.Core.Network.IIgTranslators? igTranslatorsProvider = null)
 
     {
 
@@ -543,6 +547,8 @@ public class IgApplication : IDisposable
         _nodeIdOverride     = nodeIdOverride;
 
         _effectiveInstanceId = nodeIdOverride != 0 ? nodeIdOverride : IgNetworkConstants.InstanceId;
+
+        _igTranslatorsProvider = igTranslatorsProvider;
 
         _camera = new MapCamera
 
@@ -858,9 +864,14 @@ public class IgApplication : IDisposable
 
                 if (!_headless)
                 {
-                    customTranslators.Add(new Hrot.IG.Translators.IgMissionIngressTranslator(participant, _entityMap, _ghostCreationSystem!, _effectiveInstanceId));
-                    customTranslators.Add(new Hrot.IG.Translators.GroundClampingOverrideTranslator(participant, _entityMap));
-                    customTranslators.Add(new Hrot.IG.Translators.AudioTargetDetectedIngressTranslator(participant, _entityMap));
+                    if (_igTranslatorsProvider != null)
+                    {
+                        foreach (var t in _igTranslatorsProvider.GetTranslators(
+                            participant, _entityMap, _world.Bus, _ghostCreationSystem, _effectiveInstanceId, _headless))
+                        {
+                            customTranslators.Add(t);
+                        }
+                    }
                 }
 
                 // D005: ACL egress translators convert bus events back to DDS.

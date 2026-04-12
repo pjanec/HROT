@@ -10,7 +10,7 @@ using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core.Abstractions;
 
-namespace Hrot.IG.Translators
+namespace Hrot.Network.NED.IG
 {
     public class IgMissionIngressTranslator : IDescriptorTranslator
     {

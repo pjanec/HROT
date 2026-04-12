@@ -115,6 +115,10 @@ public sealed class NedNetworkFactory : INetworkFactory
         if (_participant == null) return new NullSimHostPerceptionTranslators();
         return new NedSimHostPerceptionTranslators(_participant, _entityMap, _geoTransform, _role);
     }
+
+    /// <inheritdoc/>
+    public IIgTranslators CreateIgTranslators()
+        => new Hrot.Network.NED.IG.NedIgTranslators();
 }
 
 /// <summary>No-op stub for ISimHostMissionSender.</summary>

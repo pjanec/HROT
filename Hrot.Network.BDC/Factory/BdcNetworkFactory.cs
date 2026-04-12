@@ -68,6 +68,10 @@ namespace Hrot.BDC.Factory
         /// <inheritdoc/>
         public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators()
             => new BdcNullSimHostPerceptionTranslators();
+
+        /// <inheritdoc/>
+        public IIgTranslators CreateIgTranslators()
+            => new NullIgTranslators();
     }
 
     internal sealed class BdcNullSimHostMissionSender : ISimHostMissionSender

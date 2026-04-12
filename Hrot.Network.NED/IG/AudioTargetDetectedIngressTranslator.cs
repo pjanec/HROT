@@ -8,7 +8,7 @@ using FDP.Toolkit.Perception.Events;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 
-namespace Hrot.IG.Translators
+namespace Hrot.Network.NED.IG
 {
     /// <summary>
     /// Perception ingress translator: reads <see cref="AudioTargetDetected"/> DDS messages

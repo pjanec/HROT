@@ -37,4 +37,7 @@ public interface INetworkFactory
 
     /// <summary>Creates the perception network translators for the given node role.</summary>
     ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators();
+
+    /// <summary>Creates the IG-specific DDS ingress translator provider.</summary>
+    IIgTranslators CreateIgTranslators();
 }

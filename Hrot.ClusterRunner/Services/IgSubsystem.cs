@@ -56,7 +56,11 @@ namespace Hrot.ClusterRunner.Services
             _app = new IgApplication();
             // Orchestrator owns the Raylib window; IG sets up ECS + DDS only.
             int? domainOverride = config.DomainId;
-            _app.InitializeEmbedded(headless: config.Headless, domainIdOverride: domainOverride, nodeIdOverride: config.NodeId);
+            _app.InitializeEmbedded(
+                headless: config.Headless,
+                domainIdOverride: domainOverride,
+                nodeIdOverride: config.NodeId,
+                igTranslatorsProvider: new Hrot.Network.NED.IG.NedIgTranslators());
         }
 
         /// <inheritdoc/>

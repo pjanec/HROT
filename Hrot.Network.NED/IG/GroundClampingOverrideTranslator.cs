@@ -8,7 +8,7 @@ using ModuleHost.Core.Abstractions;
 using DdsEClampingMode = Hrot.NED.Descriptors.EClampingMode;
 using IgEClampingMode  = Fdp.Modules.Geographic.EClampingMode;
 
-namespace Hrot.IG.Translators
+namespace Hrot.Network.NED.IG
 {
     /// <summary>
     /// Ingress-only <see cref="IDescriptorTranslator"/> that maps
@@ -62,7 +62,7 @@ namespace Hrot.IG.Translators
                 long entityId = sample.Data.EntityId;
                 if (!_entityMap.TryGetEntity(entityId, out var entity)) continue;
 
-                // Map wire enum → engine enum (ordinal values are identical: 0/1/2).
+                // Map wire enum -> engine enum (ordinal values are identical: 0/1/2).
                 var engineMode = (IgEClampingMode)(int)sample.Data.Mode;
 
                 // Preserve BaseRequiresClamping from the existing component if present.

@@ -194,3 +194,56 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string ActiveEpisodesJson;
     }
 }
+
+namespace Hrot.NED.Messages
+{
+    /*
+    **Status Codes** :
+
+    | Code | Name                              | Description                    |
+    | ---- | --------------------------------- | ------------------------------ |
+    | 0    | SUCCESS                           | Operation completed            |
+    | 1    | IN_PROGRESS                       | Request accepted, handshake in progress |
+    | 2    | ERR_UNKNOWN_DESCRIPTOR_TYPE       | Descriptor type not supported  |
+    | 3    | ERR_ENTITY_NOT_FOUND              | EntityMaster not ALIVE         |
+    | 4    | ERR_DESCRIPTOR_INSTANCE_NOT_FOUND | Instance ID invalid            |
+    | 5    | ERR_NOT_OWNER                     | Request reached non-owner      |
+    | 6    | ERR_VALIDATION_FAILED             | Invalid value/state transition |
+    | 7    | ERR_NOT_SUPPORTED                 | Descriptor updates forbidden   |
+    | 8    | ERR_VERSION_CONFLICT              | currentVersion mismatch        |
+    */
+
+    /// <summary>
+    /// Strongly-typed, centralised status codes for all SST request/response protocols
+    /// (Create, Update, Delete, Mission, ...).  Cast to <c>int</c> at the DDS boundary.
+    /// </summary>
+    public enum NedStatusCode : int
+    {
+        /// <summary>Operation completed successfully.</summary>
+        Success = 0,
+
+        /// <summary>Request accepted; distributed handshake in progress. A terminal ACK will follow.</summary>
+        InProgress = 1,
+
+        /// <summary>The requested descriptor type is not handled by this node.</summary>
+        UnknownDescriptorType = 2,
+
+        /// <summary>No live <c>EntityMaster</c> found for the requested entity ID.</summary>
+        EntityNotFound = 3,
+
+        /// <summary>The requested descriptor instance ID does not exist.</summary>
+        DescriptorInstanceNotFound = 4,
+
+        /// <summary>This node does not own the targeted descriptor.</summary>
+        NotOwner = 5,
+
+        /// <summary>The provided value fails application-level validation.</summary>
+        ValidationFailed = 6,
+
+        /// <summary>Descriptor updates are not permitted for this descriptor type.</summary>
+        NotSupported = 7,
+
+        /// <summary>The provided <c>currentVersion</c> does not match the live version (optimistic locking).</summary>
+        VersionConflict = 8,
+    }
+}

@@ -27,6 +27,8 @@
     <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
     <!-- Hrot.Common stub: HrotNodeBuilder and related -->
     <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
+    <!-- NedStatusCode and orchestration message types (moved from GenericMessages.cs) -->
+    <ProjectReference Include="..\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
     <!-- Fdp engine: ECS, behavioral, geographic -->
     <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\Fdp.Engine\Fdp.Engine.csproj" />
