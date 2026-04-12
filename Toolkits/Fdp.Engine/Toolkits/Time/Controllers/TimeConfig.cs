@@ -74,9 +74,9 @@ namespace FDP.Toolkit.Time.Controllers
         /// <summary>
         /// How often (in Stopwatch ticks) the slave re-sends a <see cref="Messages.TimeSyncRequest"/>
         /// to correct hardware clock skew across long simulation sessions.
-        /// Default: 60 second.
+        /// Default: 1 second.
         /// </summary>
-        public long SyncRefreshIntervalTicks { get; set; } = Stopwatch.Frequency * 60;
+        public long SyncRefreshIntervalTicks { get; set; } = Stopwatch.Frequency;
 
         /// <summary>
         /// Weight applied to incremental sync offset updates (range 0.0–1.0).

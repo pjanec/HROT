@@ -24,7 +24,8 @@
     <Using Include="Xunit" />  </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Fdp.Core\Fdp.Core.csproj" />  </ItemGroup>
+    <ProjectReference Include="..\Fdp.Core\Fdp.Core.csproj" />
+    <ProjectReference Include="..\..\Toolkits\Fdp.Engine\Fdp.Engine.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />  </ItemGroup>
