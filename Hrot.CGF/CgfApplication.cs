@@ -4,7 +4,6 @@ using System.Threading;
 using Hrot.CGF.Modules.Orchestration;
 using Hrot.Common.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
-using Hrot.NED.Messages;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;

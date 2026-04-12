@@ -4,7 +4,7 @@ using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Replication.Services;
 
-namespace Hrot.SimHost.Network
+namespace Hrot.Network.NED.SimHost
 {
     /// <summary>
     /// Factory for the Brain-side pathfinding translator set.

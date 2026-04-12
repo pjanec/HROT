@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Hrot.NED.Messages;
 using Hrot.Map.Common.Dds;
-using Hrot.SimHost.Network.Egress;
+using Hrot.Network.NED.SimHost;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Events;
 using FDP.Toolkit.Replication.Services;

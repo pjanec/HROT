@@ -101,6 +101,20 @@ public sealed class NedNetworkFactory : INetworkFactory
         return new NedSimHostAuxiliaryTranslators(
             _participant, _entityMap, _eventBus, _localNodeId, _role);
     }
+
+    /// <inheritdoc/>
+    public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators()
+    {
+        if (_participant == null) return new NullSimHostPathfindingTranslators();
+        return new NedSimHostPathfindingTranslators(_participant, _entityMap, _geoTransform, _role);
+    }
+
+    /// <inheritdoc/>
+    public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators()
+    {
+        if (_participant == null) return new NullSimHostPerceptionTranslators();
+        return new NedSimHostPerceptionTranslators(_participant, _entityMap, _geoTransform, _role);
+    }
 }
 
 /// <summary>No-op stub for ISimHostMissionSender.</summary>
@@ -112,6 +126,20 @@ internal sealed class NullSimHostMissionSender : ISimHostMissionSender
 
 /// <summary>No-op stub for ISimHostAuxiliaryTranslators.</summary>
 internal sealed class NullSimHostAuxiliaryTranslators : ISimHostAuxiliaryTranslators
+{
+    public void RegisterOn(ModuleHost.Core.ModuleHostKernel kernel) { }
+    public void Dispose() { }
+}
+
+/// <summary>No-op stub for ISimHostPathfindingTranslators.</summary>
+internal sealed class NullSimHostPathfindingTranslators : ISimHostPathfindingTranslators
+{
+    public void RegisterOn(ModuleHost.Core.ModuleHostKernel kernel) { }
+    public void Dispose() { }
+}
+
+/// <summary>No-op stub for ISimHostPerceptionTranslators.</summary>
+internal sealed class NullSimHostPerceptionTranslators : ISimHostPerceptionTranslators
 {
     public void RegisterOn(ModuleHost.Core.ModuleHostKernel kernel) { }
     public void Dispose() { }

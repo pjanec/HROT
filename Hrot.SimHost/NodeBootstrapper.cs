@@ -2,9 +2,10 @@ using System;
 using System.Collections.Generic;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Modules.Orchestration;
-using Hrot.SimHost.Network;
 using Hrot.Map.Common.Translators;
 using Hrot.Network.Translators;
+using Hrot.Core.Network;
+using Hrot.Network.NED.SimHost;
 using Fdp.Kernel;
 using Fdp.Kernel.Orchestration;
 using CarKinem.Commands;
@@ -59,6 +60,18 @@ namespace Hrot.SimHost
     public sealed class NodeBootstrapper
     {
         private readonly List<object> _registeredModules = new();
+        private readonly INetworkFactory? _networkFactory;
+
+        /// <param name="networkFactory">
+        /// Optional network factory. When provided, pathfinding and perception translators are
+        /// created via the factory and registered directly on the kernel (see
+        /// <see cref="BuildTranslators"/>). When <c>null</c>, pack factories are called directly
+        /// (backward-compatible path used by unit tests).
+        /// </param>
+        public NodeBootstrapper(INetworkFactory? networkFactory = null)
+        {
+            _networkFactory = networkFactory;
+        }
 
         /// <summary>
         /// After <see cref="BuildOrchestration"/> is called with a non-null <paramref name="participant"/>
@@ -197,6 +210,11 @@ namespace Hrot.SimHost
         /// <param name="ghostCreationSystem">Ghost-creation system for replica entity materialisation.</param>
         /// <param name="doctrineRegistry">Doctrine registry forwarded to EntityMissionEgressTranslator.</param>
         /// <param name="localNodeId">Local DDS node identifier.</param>
+        /// <param name="kernel">
+        /// Optional kernel. When provided together with a factory supplied at construction time,
+        /// pathfinding and perception translators are registered directly on the kernel instead
+        /// of being added to the returned list.
+        /// </param>
         public List<IDescriptorTranslator> BuildTranslators(
             NodeRole             role,
             DdsParticipant       participant,
@@ -205,7 +223,8 @@ namespace Hrot.SimHost
             FdpEventBus          eventBus,
             GhostCreationSystem  ghostCreationSystem,
             DoctrineRegistry?    doctrineRegistry,
-            long                 localNodeId)
+            long                 localNodeId,
+            ModuleHost.Core.ModuleHostKernel? kernel = null)
         {
             var translators = new List<IDescriptorTranslator>();
 
@@ -227,32 +246,46 @@ namespace Hrot.SimHost
                     participant, entityMap, geoTransform, doctrineRegistry, ghostCreationSystem, localNodeId: localNodeId));
             }
 
-            // Brain perception pack — Brain nodes publish sensor config + raycast batches.
-            if (role.HasFlag(NodeRole.Brain))
-            {
-                translators.AddRange(BrainPerceptionTranslatorPack.Create(
-                    participant, entityMap, geoTransform));
-            }
+            // ── Pathfinding and perception packs ─────────────────────────────────
+            // When a factory and kernel are available, translators are registered directly
+            // on the kernel (factory path). Otherwise, they are added to the returned list
+            // (fallback path used by unit tests and configurations without a kernel).
 
-            // Brain pathfinding pack — Brain nodes publish path request batches.
-            if (role.HasFlag(NodeRole.Brain))
+            if (_networkFactory != null && kernel != null)
             {
-                translators.AddRange(BrainPathfindingTranslatorPack.Create(
-                    participant, entityMap, geoTransform));
+                // Factory path: the factory's role field drives which translators are created.
+                _networkFactory.CreateSimHostPathfindingTranslators().RegisterOn(kernel);
+                _networkFactory.CreateSimHostPerceptionTranslators().RegisterOn(kernel);
             }
-
-            // Sim perception pack — Perception solver nodes receive requests and publish targets.
-            if (role.HasFlag(NodeRole.Perception))
+            else
             {
-                translators.AddRange(SimPerceptionTranslatorPack.Create(
-                    participant, entityMap, geoTransform));
-            }
+                // Brain perception pack — Brain nodes publish sensor config + raycast batches.
+                if (role.HasFlag(NodeRole.Brain))
+                {
+                    translators.AddRange(BrainPerceptionTranslatorPack.Create(
+                        participant, entityMap, geoTransform));
+                }
 
-            // Sim pathfinding pack — NavigationSolver nodes receive requests and publish results.
-            if (role.HasFlag(NodeRole.NavigationSolver))
-            {
-                translators.AddRange(SimPathfindingTranslatorPack.Create(
-                    participant, entityMap, geoTransform));
+                // Brain pathfinding pack — Brain nodes publish path request batches.
+                if (role.HasFlag(NodeRole.Brain))
+                {
+                    translators.AddRange(BrainPathfindingTranslatorPack.Create(
+                        participant, entityMap, geoTransform));
+                }
+
+                // Sim perception pack — Perception solver nodes receive requests and publish targets.
+                if (role.HasFlag(NodeRole.Perception))
+                {
+                    translators.AddRange(SimPerceptionTranslatorPack.Create(
+                        participant, entityMap, geoTransform));
+                }
+
+                // Sim pathfinding pack — NavigationSolver nodes receive requests and publish results.
+                if (role.HasFlag(NodeRole.NavigationSolver))
+                {
+                    translators.AddRange(SimPathfindingTranslatorPack.Create(
+                        participant, entityMap, geoTransform));
+                }
             }
 
             return translators;

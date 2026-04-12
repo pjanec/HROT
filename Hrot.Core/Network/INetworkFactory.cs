@@ -31,4 +31,10 @@ public interface INetworkFactory
     /// access to <c>IDescriptorTranslator</c>.
     /// </summary>
     ISimHostAuxiliaryTranslators CreateSimHostAuxiliaryTranslators();
+
+    /// <summary>Creates the pathfinding network translators for the given node role.</summary>
+    ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators();
+
+    /// <summary>Creates the perception network translators for the given node role.</summary>
+    ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators();
 }

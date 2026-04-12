@@ -1,6 +1,6 @@
 using System;
 using Hrot.NED.Messages;
-using Hrot.SimHost.Network.Ingress;
+using Hrot.Network.NED.SimHost;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Contracts;
 using FDP.Toolkit.Replication.Services;

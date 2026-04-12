@@ -6,8 +6,7 @@ using Fdp.Modules.Geographic;
 using FDP.Toolkit.Replication.Services;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Replication.Egress;
-using Hrot.SimHost.Network;
-using Hrot.SimHost.Network.Egress;
+using Hrot.Network.NED.SimHost;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Network.Cyclone.Systems;
 

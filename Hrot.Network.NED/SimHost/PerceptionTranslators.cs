@@ -5,7 +5,7 @@ using Fdp.Modules.Geographic;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 
-namespace Hrot.SimHost.Network
+namespace Hrot.Network.NED.SimHost
 {
     // ── Brain-side perception translators (Brain → Perception Solver) ─────────────
 

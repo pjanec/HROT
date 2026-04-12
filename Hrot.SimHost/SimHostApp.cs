@@ -15,7 +15,6 @@ using Hrot.SimHost.Brains;
 using Hrot.SimHost.Components;
 using Hrot.SimHost.Configuration;
 using Hrot.SimHost.Modules;
-using Hrot.SimHost.Network;
 using Hrot.SimHost.Events;
 using Hrot.SimHost.Utilities;
 using Hrot.Common.Infrastructure;

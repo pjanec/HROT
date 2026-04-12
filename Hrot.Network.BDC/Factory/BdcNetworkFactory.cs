@@ -60,6 +60,14 @@ namespace Hrot.BDC.Factory
         /// <inheritdoc/>
         public ISimHostAuxiliaryTranslators CreateSimHostAuxiliaryTranslators()
             => new BdcNullSimHostAuxiliaryTranslators();
+
+        /// <inheritdoc/>
+        public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators()
+            => new BdcNullSimHostPathfindingTranslators();
+
+        /// <inheritdoc/>
+        public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators()
+            => new BdcNullSimHostPerceptionTranslators();
     }
 
     internal sealed class BdcNullSimHostMissionSender : ISimHostMissionSender
@@ -69,6 +77,18 @@ namespace Hrot.BDC.Factory
     }
 
     internal sealed class BdcNullSimHostAuxiliaryTranslators : ISimHostAuxiliaryTranslators
+    {
+        public void RegisterOn(ModuleHost.Core.ModuleHostKernel kernel) { }
+        public void Dispose() { }
+    }
+
+    internal sealed class BdcNullSimHostPathfindingTranslators : ISimHostPathfindingTranslators
+    {
+        public void RegisterOn(ModuleHost.Core.ModuleHostKernel kernel) { }
+        public void Dispose() { }
+    }
+
+    internal sealed class BdcNullSimHostPerceptionTranslators : ISimHostPerceptionTranslators
     {
         public void RegisterOn(ModuleHost.Core.ModuleHostKernel kernel) { }
         public void Dispose() { }

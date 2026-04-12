@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using Hrot.SimHost.Network;
+using Hrot.Network.NED.SimHost;
 using Hrot.Map.Common.Replication.Egress;
 using Hrot.Map.Common.Replication.Ingress;
 using Hrot.Map.Common.Translators;
