@@ -27,13 +27,7 @@
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
     <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
     <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
-    <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
-    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
-    <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
-
-    <!-- FDP Kernel and Toolkits -->
-    <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\Fdp.Engine\Fdp.Engine.csproj" />
+    <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />
 
     <!-- Module host  -->
     <ProjectReference Include="..\FDP\ModuleHost\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />

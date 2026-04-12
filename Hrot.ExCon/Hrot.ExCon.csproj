@@ -16,10 +16,7 @@
   <ItemGroup>
     <!-- Hrot data model and map types -->
     <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
-    <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
-    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
-    <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
-
+    <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <!-- FDP Toolkits -->
     <ProjectReference Include="..\FDP\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />  </ItemGroup>
 

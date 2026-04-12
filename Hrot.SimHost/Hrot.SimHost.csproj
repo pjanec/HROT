@@ -33,12 +33,8 @@
   <ItemGroup>
     <!-- Hrot data model and map types -->
     <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
-    <ProjectReference Include="..\Hrot.Network\Hrot.Network.csproj" />
-    <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
+    <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
-    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
-    <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
-
     <!-- FDP Kernel and Toolkits -->
     <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />
     <!-- Scenario serialization toolkit for ScenarioLoadClusterStateHandler (CGF1-S0307) -->

@@ -1,5 +1,4 @@
 using CycloneDDS.Schema;
-using Hrot.NED.Common;
 
 namespace Hrot.NED.Descriptors.Orchestration
 {

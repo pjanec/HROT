@@ -24,6 +24,6 @@
     <ProjectReference Include="..\FDP\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
-    <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />  </ItemGroup>
+    <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />  </ItemGroup>
 
 </Project>

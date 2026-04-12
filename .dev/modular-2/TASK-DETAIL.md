@@ -325,6 +325,7 @@ move to `Hrot.Network.Orchestration` in TASK-P2-003.
   as `NedReplicationModule`.
 - `ICommandGateway` must cover at minimum: `CreateEntityAsync`, `SendUpdateDescriptor`,
   `SendMissionControlRequestAsync` — but using neutral domain types, not NED structs.
+- The DTOs used by ICommandGateway (e.g., CreateEntityCommandDto, UpdateEntityCommandDto) MUST be completely agnostic to the ECS. They must NOT contain properties like SimTransform or List<object> InitialComponents. They must rely exclusively on basic primitives (e.g., TkbType, Latitude, Longitude) and atomic string payloads (e.g., InitialAttributesJson).
 
 **Success Conditions:**
 - `INetworkFactory`, `IReplicationModule`, `ICommandGateway`, `IExConEgressWriters`
@@ -340,7 +341,7 @@ move to `Hrot.Network.Orchestration` in TASK-P2-003.
   `NedReplicationModule` then injecting a synthetic incoming network packet results in
   a materialized ghost entity in the ECS kernel. This test verifies the interface
   practically supports the ghost creation pipeline, not just that a mock compiles.
-
+- dotnet list Hrot.Core reference confirms that the DTOs do not drag Fdp.Kernel or any ECS-specific types into their public properties.
 ---
 
 ## TASK-P3-002: Create Hrot.Network.NED
@@ -366,6 +367,8 @@ move to `Hrot.Network.Orchestration` in TASK-P2-003.
 - Dependencies: `Hrot.Core`, `Fdp.Engine`, `Fdp.Network.Cyclone`
 - Preserve the namespace `Hrot.Network` for existing translator types where possible
   (avoid unnecessary namespace churn)
+- The concrete NedCommandGateway implementation is strictly responsible for interpreting the atomic properties of CreateEntityCommandDto. It must manually instantiate the required network primitives (e.g., wrapping TkbType into dtEntityMaster and geographic primitives into dtWorldPos), while mapping the remaining generic payload to the InitialAttributesJson field of the CreateEntityRequest.
+
 
 **Success Conditions:**
 - Solution builds with zero errors.
@@ -444,6 +447,7 @@ move to `Hrot.Network.Orchestration` in TASK-P2-003.
   in `Hrot.Network.NED`
 - Existing `ExConLogic` unit tests must remain valid; test projects substitute mocks
   for `ICommandGateway` and `IExConEgressWriters`
+- Code review of Hrot.ExCon confirms that when ICommandGateway.CreateEntityAsync or UpdateDescriptor is called, the UI logic only populates primitive DTO fields and/or a JSON property bag. ExCon contains zero logic for assembling EntityDescriptorUnion lists or checking for specific network descriptor types.
 
 **Success Conditions:**
 - `Hrot.ExCon.csproj` has no NED/CycloneDDS/BDC project or package references.
