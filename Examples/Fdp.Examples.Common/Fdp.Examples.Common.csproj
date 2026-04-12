@@ -8,6 +8,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\Toolkits\Fdp.Engine\Fdp.Engine.csproj" />
-    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
+    <ProjectReference Include="..\..\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />
   </ItemGroup>
 </Project>

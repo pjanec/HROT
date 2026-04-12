@@ -36,11 +36,6 @@
     <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />
   </ItemGroup>
 
-  <!-- Presentation interfaces (IMapCameraProvider references MapCamera from Vis2D;
-       these projects will be merged into Fdp.Presentation in BATCH-03) -->
-  <ItemGroup>
-    <ProjectReference Include="..\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
-  </ItemGroup>
 
   <!-- Runner NuGet packages -->
   <ItemGroup>

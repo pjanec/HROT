@@ -190,6 +190,12 @@ namespace Fdp.Examples.Common
         // ── IMapCameraProvider ────────────────────────────────────────────────
 
         /// <inheritdoc/>
+        public MapCameraView? GetCameraView() => _canvas?.Camera?.GetCameraView();
+
+        /// <inheritdoc/>
+        public void ApplyCameraView(MapCameraView view) => _canvas?.Camera?.ApplyCameraView(view);
+
+        // Non-interface helper kept for backward-compat.
         public MapCamera? GetMapCamera() => _canvas?.Camera;
 
         // ── Helpers ───────────────────────────────────────────────────────────

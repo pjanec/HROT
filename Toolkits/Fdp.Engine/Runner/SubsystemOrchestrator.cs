@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using FDP.Toolkit.Vis2D.Components;
 
 namespace Fdp.Engine.Runner
 {
@@ -148,10 +149,9 @@ namespace Fdp.Engine.Runner
             // Sync cameras so the operator sees the same region without any jump.
             if (outgoing is IMapCameraProvider fromProvider && target is IMapCameraProvider toProvider)
             {
-                var fromCamera = fromProvider.GetMapCamera();
-                var toCamera   = toProvider.GetMapCamera();
-                if (fromCamera != null && toCamera != null)
-                    toCamera.SnapTo(fromCamera);
+                MapCameraView? fromView = fromProvider.GetCameraView();
+                if (fromView != null)
+                    toProvider.ApplyCameraView(fromView.Value);
             }
         }
 

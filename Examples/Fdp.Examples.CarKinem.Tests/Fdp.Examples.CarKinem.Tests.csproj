@@ -18,7 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Fdp.Examples.CarKinem\Fdp.Examples.CarKinem.csproj" />
-    <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
-    <ProjectReference Include="..\..\Framework\FDP.Framework.Raylib\FDP.Framework.Raylib.csproj" />  </ItemGroup>
+    <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />
+    <ProjectReference Include="..\..\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />  </ItemGroup>
 
 </Project>
