@@ -7,8 +7,9 @@ using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Replication.Utils;
+using Hrot.CGF.Systems;
+using Hrot.Core.Network;
 using FDP.Toolkit.Replication.Patching;
-using Hrot.SimHost.Systems;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
@@ -146,7 +147,6 @@ namespace Hrot.SimHost.Tests
     {
         private const long  ValidTkbType = 42L;
         private const ulong ValidDisType = 0x0100_0000_0000_0001UL;
-        private static readonly DisTypeStruct ValidDisTypeStruct = new DisTypeStruct { Kind = 1, Extra = 1 };
         private const int   LocalNodeId  = 7;
 
         private static TkbDatabase CreateTkb()
@@ -170,33 +170,14 @@ namespace Hrot.SimHost.Tests
             return repo;
         }
 
-        private static CreateEntityRequest MakeRequestWithJson(
-            string? json,
-            List<EntityDescriptorUnion>? extraDescriptors = null)
+        private static EntityCreationRequest MakeRequestWithJson(string? json)
         {
-            var descriptors = new List<EntityDescriptorUnion>
-            {
-                new EntityDescriptorUnion
-                {
-                    _d = EDescriptorType.dtEntityMaster,
-                    EntityMaster = new EntityMaster
-                    {
-                        EntityId = 0,
-                        TkbType  = ValidTkbType,
-                        DisType  = ValidDisTypeStruct,
-                    },
-                },
-            };
-
-            if (extraDescriptors != null)
-                descriptors.AddRange(extraDescriptors);
-
-            return new CreateEntityRequest
+            return new EntityCreationRequest
             {
                 RequestId          = Guid.NewGuid(),
-                Owner              = new NodeId { AppDomainId = 1, AppInstanceId = LocalNodeId },
-                Flags              = 0,
-                InitialDescriptors = descriptors,
+                OwnerAppInstanceId = LocalNodeId,
+                TkbType            = ValidTkbType,
+                DisType            = ValidDisType,
                 InitialAttributesJson = json,
             };
         }
@@ -211,7 +192,6 @@ namespace Hrot.SimHost.Tests
             ackSink      = new StubAckSink();
             return new CreateEntityRequestSystem(
                 requestSource, ackSink, tkb, idAlloc, LocalNodeId,
-                geoTransform: null,
                 jsonAttributeCompiler: compiler);
         }
 
@@ -241,43 +221,6 @@ namespace Hrot.SimHost.Tests
         }
 
         [Fact]
-        public void CreateEntityRequestSystem_InitialAttributesJson_DoesNotOverwriteAffiliation()
-        {
-            // Arrange: descriptor carries ForceId = FORCE_FRIENDLY; JSON patches only Name.
-            var repo    = CreateWorld();
-            var source  = new StubRequestSource();
-            var entityInfoDescriptor = new EntityDescriptorUnion
-			{
-                _d = EDescriptorType.dtEntityInfo,
-                EntityInfo = new Hrot.NED.Descriptors.EntityInfo
-                {
-                    EntityId        = 0,
-                    Name            = "Original",
-                    ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY,
-                },
-            };
-            var request = MakeRequestWithJson(
-                "{\"Name\":\"Echo-1\"}",
-                extraDescriptors: new List<EntityDescriptorUnion> { entityInfoDescriptor });
-            source.Enqueue(request);
-
-            var system = BuildSystemWithCompiler(source, out _);
-
-            // Act
-            system.Execute(repo, 0f);
-
-            // Assert
-            repo.Bus.SwapBuffers();
-            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
-
-            Assert.Single(commands);
-            var igData2  = Assert.Single(commands[0].InitialComponents!.OfType<IG.Components.EntityInfo>());
-
-            Assert.Equal("Echo-1",       igData2.Name.ToString());
-            Assert.Equal(ForceId.Friend, igData2.ForceId);
-        }
-
-        [Fact]
         public void CreateEntityRequestSystem_NullJson_NoPatch()
         {
             // Arrange: null InitialAttributesJson should not throw and should process normally.
@@ -297,7 +240,7 @@ namespace Hrot.SimHost.Tests
             Assert.Single(commands);
             // Phase-1 InProgress ACK is sent immediately; Phase-2 Success is dispatched
             // by NedRequestFinalizationSystem once the entity reaches Active.
-            Assert.Equal((int)NedStatusCode.InProgress, ackSink.WrittenAcks[0].StatusCode);
+            Assert.Equal((int)EntityOperationStatus.InProgress, ackSink.WrittenAcks[0].StatusCode);
         }
     }
 

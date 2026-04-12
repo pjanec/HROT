@@ -1,12 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using CycloneDDS.Runtime;
 using ImGuiNET;
 using Raylib_cs;
 using Fdp.Kernel;
 using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
+using Hrot.Core.Network;
 using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Vis2D;
 using EcsNavigationIntent = FDP.Toolkit.Navigation.NavigationIntent;
@@ -77,7 +76,7 @@ namespace Hrot.SimHost
         private bool _panelsWindowManaged;
 
         // ── Mission control (right-click navigate via doctrine) ───────────────
-        private DdsWriter<MissionControlRequest>? _missionWriter;
+        private ISimHostMissionSender? _missionSender;
 
         private bool _initialized;
 
@@ -124,13 +123,13 @@ namespace Hrot.SimHost
             CarKinem.Road.RoadNetworkBlob road,
             TrajectoryPoolManager    trajectoryPool,
             CarKinem.Formation.FormationTemplateManager formationTemplates,
-            DdsWriter<MissionControlRequest> missionWriter,
+            ISimHostMissionSender missionSender,
             INetworkIdAllocator?    idAllocator = null,
             int                     localNodeId = 0)
         {
             _repo          = repo         ?? throw new ArgumentNullException(nameof(repo));
             _kernel        = kernel        ?? throw new ArgumentNullException(nameof(kernel));
-            _missionWriter = missionWriter ?? throw new ArgumentNullException(nameof(missionWriter));
+            _missionSender = missionSender ?? throw new ArgumentNullException(nameof(missionSender));
 
             // ── Selection & inspector ─────────────────────────────────────────
             _selection = new SimHostSelectionManager();
@@ -250,7 +249,7 @@ namespace Hrot.SimHost
                             VehicleEntity = ent,
                             WorldPosition = new System.Numerics.Vector3(p.X, 0f, p.Y),
                         }),
-                        _missionWriter);
+                        _missionSender);
                 }
             };
 
@@ -285,7 +284,7 @@ namespace Hrot.SimHost
             TrajectoryInterpolation interp,
             Action<Entity, Vector2, TrajectoryInterpolation> setDestination,
             Action<Entity, Vector2, TrajectoryInterpolation> addWaypoint,
-            DdsWriter<MissionControlRequest>? missionWriter)
+            ISimHostMissionSender? missionSender)
         {
             // Determine if the entity has an active (non-zero) doctrine.
             bool brainActive = repo.HasComponent<DoctrineState>(entity)
@@ -325,46 +324,7 @@ namespace Hrot.SimHost
                 ? repo.GetComponent<VehicleParams>(entity).MaxSpeedFwd * 0.8f
                 : 15f;
 
-            var paramsJson = string.Format(
-                System.Globalization.CultureInfo.InvariantCulture,
-                "{{\"X\":{0},\"Y\":{1},\"Speed\":{2},\"ArrivalRadius\":3.0}}",
-                pos.X, pos.Y, speed);
-
-            var taskId = Guid.NewGuid();
-            var task = new MissionTask
-            {
-                TaskId          = taskId,
-                ExecutingEngine = "CGFX",
-                BehaviorId      = "MoveToLocation",
-                BehaviorParams  = paramsJson,
-                // DoctrineFinished trigger is required so MissionDirectorSystem fires
-                // task completion and the doctrine is cleared when the plan exhausts.
-                // Previously used "ReachedDestination" which consulted NavState on the Muscle
-                // tier; changed to DoctrineFinished for Brain-tier CQRS compliance (BS1-T022).
-                Triggers        = new List<Hrot.NED.Descriptors.MissionTrigger>
-                {
-                    new Hrot.NED.Descriptors.MissionTrigger { Type = "DoctrineFinished" },
-                },
-                State           = eTaskState.TASK_PLANNED,
-            };
-
-            var plan = new MissionPlan
-            {
-                ActiveTaskId = taskId,
-                Tasks        = new List<MissionTask> { task },
-            };
-
-            missionWriter?.Write(new MissionControlRequest
-            {
-                RequestId      = Guid.NewGuid(),
-                TargetEntityId = netId.Value,
-                BaseVersion    = 0,
-                Payload        = new MissionCommandUnion
-                {
-                    _d              = eMissionCommandType.CMD_REPLACE_MISSION,
-                    FullMissionData = plan,
-                },
-            });
+            missionSender?.SendNavigateToPoint(netId.Value, pos, speed, 3.0f);
         }
 
         /// <summary>Advances input, tool state, and roaming AI each frame.</summary>

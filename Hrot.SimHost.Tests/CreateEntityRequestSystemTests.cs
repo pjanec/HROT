@@ -2,15 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using Hrot.NED.Messages;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Common;
-using Hrot.IG.Components;
-using Hrot.SimHost.Systems;
+using Hrot.CGF.Systems;
+using Hrot.Core.Network;
 using Hrot.SimHost.Installers;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using Fdp.Modules.Geographic;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Patching;
@@ -34,24 +30,42 @@ namespace Hrot.SimHost.Tests
         public void Dispose() { }
     }
 
-    internal sealed class StubRequestSource : ICreateEntityRequestSource
+    internal sealed class StubRequestSource : IEntityCreationRequestSource
     {
-        private readonly List<CreateEntityRequest> _pending = new();
+        private readonly List<EntityCreationRequest> _pending = new();
 
-        public void Enqueue(CreateEntityRequest r) => _pending.Add(r);
+        public void Enqueue(EntityCreationRequest r) => _pending.Add(r);
 
-        public void ProcessRequests(Action<CreateEntityRequest> processor)
+        public void ProcessRequests(Action<EntityCreationRequest> handler)
         {
             foreach (var req in _pending)
-                processor(req);
+                handler(req);
             _pending.Clear();
         }
+
+        public void Dispose() { }
     }
 
-    internal sealed class StubAckSink : ICreateUpdateDeleteEntityAckSink
+    internal struct AckRecord
     {
-        public List<CreateUpdateDeleteEntityAck> WrittenAcks { get; } = new();
-        public void WriteAck(CreateUpdateDeleteEntityAck ack) => WrittenAcks.Add(ack);
+        public Guid RequestId;
+        public int  EntityId;   // stored as int to match pre-existing assertions
+        public int  StatusCode; // same values as EntityOperationStatus
+    }
+
+    internal sealed class StubAckSink : IEntityAckSink
+    {
+        public List<AckRecord> WrittenAcks { get; } = new();
+
+        public void WriteAck(Guid requestId, long entityId, EntityOperationStatus status)
+            => WrittenAcks.Add(new AckRecord
+            {
+                RequestId  = requestId,
+                EntityId   = (int)entityId,
+                StatusCode = (int)status,
+            });
+
+        public void Dispose() { }
     }
 
     // ─── Tests ────────────────────────────────────────────────────────────────
@@ -59,10 +73,8 @@ namespace Hrot.SimHost.Tests
     public class CreateEntityRequestSystemTests
     {
         private const long  ValidTkbType  = 42L;
-        // ValidDisType is kept as ulong for engine-side assertions; the wire DisTypeStruct
-        // decomposes it as Kind=1, Extra=1 (0x01_00_0000_0000_0001).
+        // ValidDisType is kept as ulong for engine-side assertions.
         private const ulong ValidDisType  = 0x0100_0000_0000_0001UL;
-        private static readonly DisTypeStruct ValidDisTypeStruct = new DisTypeStruct { Kind = 1, Extra = 1 };
         private const int   LocalNodeId   = 7;
 
         // ── Fixture helpers ──────────────────────────────────────────────────
@@ -88,20 +100,13 @@ namespace Hrot.SimHost.Tests
             return repo;
         }
 
-        private static CreateEntityRequest MakeValidRequest(long tkbType = ValidTkbType) =>
-            new CreateEntityRequest
+        private static EntityCreationRequest MakeValidRequest(long tkbType = ValidTkbType) =>
+            new EntityCreationRequest
             {
-                RequestId = Guid.NewGuid(),
-                Owner = new NodeId { AppDomainId = 1, AppInstanceId = LocalNodeId },
-                Flags = 0,
-                InitialDescriptors = new List<EntityDescriptorUnion>
-                {
-                    new EntityDescriptorUnion
-                    {
-                        _d = EDescriptorType.dtEntityMaster,
-                        EntityMaster = new EntityMaster { EntityId = 0, TkbType = tkbType, DisType = ValidDisTypeStruct },
-                    },
-                },
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = LocalNodeId,
+                TkbType            = tkbType,
+                DisType            = ValidDisType,
             };
 
         private static (CreateEntityRequestSystem system, StubAckSink ackSink, StubIdAllocator idAlloc)
@@ -161,7 +166,7 @@ namespace Hrot.SimHost.Tests
 
             // Assert: error ACK sent, no SpawnEntityCommand published
             Assert.Single(ackSink.WrittenAcks);
-            Assert.Equal((int)NedStatusCode.UnknownDescriptorType, ackSink.WrittenAcks[0].StatusCode);
+            Assert.Equal((int)EntityOperationStatus.UnknownDescriptorType, ackSink.WrittenAcks[0].StatusCode);
             Assert.Equal(request.RequestId, ackSink.WrittenAcks[0].RequestId);
 
             repo.Bus.SwapBuffers();
@@ -187,112 +192,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(100L, idAlloc.LastAllocatedId);
             Assert.Single(ackSink.WrittenAcks);
             Assert.Equal(100, ackSink.WrittenAcks[0].EntityId);
-            Assert.Equal((int)NedStatusCode.InProgress, ackSink.WrittenAcks[0].StatusCode);
-        }
-
-        // ── GC02: Struct component extraction ────────────────────────────────
-
-        /// <summary>
-        /// A trivial geographic transform stub: lat→Y, lon→X, alt→Z.
-        /// </summary>
-        private sealed class StubGeoTransform : IGeographicTransform
-        {
-            public void SetOrigin(double lat, double lon, double alt) { }
-            public Vector3 ToCartesian(double lat, double lon, double alt)
-                => new Vector3((float)lon, (float)lat, (float)alt);
-            public (double lat, double lon, double alt) ToGeodetic(Vector3 p)
-                => (p.Y, p.X, p.Z);
-        }
-
-        private static CreateEntityRequest MakeRequestWithGeoSpatial(
-            long tkbType = ValidTkbType,
-            double lat = 10.0,
-            double lon = 20.0) =>
-            new CreateEntityRequest
-            {
-                RequestId = Guid.NewGuid(),
-                Owner = new NodeId { AppDomainId = 1, AppInstanceId = LocalNodeId },
-                Flags = 0,
-                InitialDescriptors = new List<EntityDescriptorUnion>
-                {
-                    new EntityDescriptorUnion
-                    {
-                        _d = EDescriptorType.dtEntityMaster,
-                        EntityMaster = new EntityMaster { EntityId = 0, TkbType = tkbType, DisType = ValidDisTypeStruct },
-                    },
-                    new EntityDescriptorUnion
-                    {
-                        _d = EDescriptorType.dtWorldPos,
-                        WorldPos = new WorldPos { Pos = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = 0 } },
-                    },
-                },
-            };
-
-        [Fact]
-        public void ProcessRequest_SimTransformDescriptor_PromotedToTypedField_NotInFallbackList()
-        {
-            // Arrange — supply a GeoSpatial descriptor so DescriptorMapper emits a SimTransform.
-            var repo    = CreateWorld();
-            var tkb     = CreateTkb();
-            var source  = new StubRequestSource();
-            var request = MakeRequestWithGeoSpatial(lat: 10.0, lon: 20.0);
-            source.Enqueue(request);
-
-            var geoTransform = new StubGeoTransform();
-            var idAlloc  = new StubIdAllocator(startId: 200);
-            var ackSink  = new StubAckSink();
-            var system   = new CreateEntityRequestSystem(
-                source, ackSink, tkb, idAlloc, LocalNodeId, geoTransform,
-                jsonAttributeCompiler: null);
-
-            // Act
-            system.Execute(repo, 0f);
-
-            // Assert: SpawnEntityCommand has InitialTransform set; SimTransform NOT in fallback list.
-            repo.Bus.SwapBuffers();
-            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
-
-            Assert.Single(commands);
-            var cmd = commands[0];
-
-            // Typed field must be populated.
-            Assert.True(cmd.InitialTransform.HasValue,
-                "SimTransform should be promoted to InitialTransform, not left in InitialComponents.");
-
-            // StubGeoTransform: X=lon=20, Y=lat=10, Z=alt=0.
-            Assert.Equal(20f, cmd.InitialTransform!.Value.Position.X, precision: 3);
-            Assert.Equal(10f, cmd.InitialTransform!.Value.Position.Y, precision: 3);
-
-            // SimTransform must NOT appear in the fallback list.
-            if (cmd.InitialComponents != null)
-            {
-                foreach (var c in cmd.InitialComponents)
-                    Assert.False(c is SimTransform,
-                        "SimTransform must not be boxed into the fallback InitialComponents list.");
-            }
-        }
-
-        [Fact]
-        public void ProcessRequest_NoSimTransformDescriptor_InitialTransformIsNull()
-        {
-            // Arrange — no GeoSpatial descriptor, so no SimTransform should be generated.
-            var repo    = CreateWorld();
-            var tkb     = CreateTkb();
-            var source  = new StubRequestSource();
-            source.Enqueue(MakeValidRequest());
-
-            var (system, _, _) = BuildSystem(tkb, source);
-
-            // Act
-            system.Execute(repo, 0f);
-
-            // Assert
-            repo.Bus.SwapBuffers();
-            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
-
-            Assert.Single(commands);
-            Assert.False(commands[0].InitialTransform.HasValue,
-                "InitialTransform should be null when no GeoSpatial descriptor is present.");
+            Assert.Equal((int)EntityOperationStatus.InProgress, ackSink.WrittenAcks[0].StatusCode);
         }
 
         // ── GC04: Time-slicing ────────────────────────────────────────────────
@@ -349,7 +249,7 @@ namespace Hrot.SimHost.Tests
 
             // Every Phase-1 ACK must be InProgress.
             foreach (var ack in ackSink.WrittenAcks)
-                Assert.Equal((int)NedStatusCode.InProgress, ack.StatusCode);
+                Assert.Equal((int)EntityOperationStatus.InProgress, ack.StatusCode);
         }
 
         [Fact]
@@ -382,10 +282,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, system.PendingQueueCount);
         }
 
-        // ── ATTR2-P5T1: Binary attribute records path ─────────────────────────
-
-        private static BinaryInterpreter<AttributeRecord> BuildBinaryInterpreter()
-            => AttributeCompilerFactory.BuildBinaryInterpreter(null);
+        // ── ATTR-JSON: JSON attribute path ────────────────────────────────────────
 
         private static EntityRepository CreateWorldWithIgEntityData()
         {
@@ -394,44 +291,38 @@ namespace Hrot.SimHost.Tests
             return repo;
         }
 
-		/// <summary>
-		/// A <see cref="CreateEntityRequest"/> with <c>InitialAttributeRecords</c> containing
-		/// a Name record must produce a <c>SpawnEntityCommand</c> whose
-		/// <see cref="SpawnEntityCommand.InitialComponents"/> includes an
-		/// <see cref="IG.Components.EntityInfo"/> with the expected name.
-		/// </summary>
-		[Fact]
-        public void ProcessRequest_BinaryRecords_NameRecord_EntitySpawnedWithCorrectName()
+        /// <summary>
+        /// When <c>InitialAttributesJson</c> contains a Name patch the entity spawns
+        /// with the correct name via the JSON compiler path.
+        /// </summary>
+        [Fact]
+        public void ProcessRequest_Json_PatchesName()
         {
             // Arrange
             var repo   = CreateWorldWithIgEntityData();
             var tkb    = CreateTkb();
             var source = new StubRequestSource();
-            var request = MakeValidRequest();
-            request.InitialAttributeRecords = new List<AttributeRecord>
+            var request = new EntityCreationRequest
             {
-                new AttributeRecord
-                {
-                    AttributeId = AttributeIds.Name,
-                    Value = new AttributeValueUnion
-                    {
-                        ValueType   = AttributeValueType.KindString,
-                        StringValue = "Gamma",
-                    }
-                }
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = LocalNodeId,
+                TkbType            = ValidTkbType,
+                DisType            = ValidDisType,
+                InitialAttributesJson = "{\"Name\":\"Delta\"}",
             };
             source.Enqueue(request);
 
-            var idAlloc  = new StubIdAllocator(startId: 100);
-            var ackSink  = new StubAckSink();
-            var system   = new CreateEntityRequestSystem(
+            var jsonCompiler = AttributeCompilerFactory.Build(null);
+            var idAlloc      = new StubIdAllocator(startId: 100);
+            var ackSink      = new StubAckSink();
+            var system       = new CreateEntityRequestSystem(
                 source, ackSink, tkb, idAlloc, LocalNodeId,
-                binaryInterpreter: BuildBinaryInterpreter());
+                jsonAttributeCompiler: jsonCompiler);
 
             // Act
             system.Execute(repo, 0f);
 
-            // Assert: SpawnEntityCommand carries IgEntityData with Name = "Gamma".
+            // Assert: SpawnEntityCommand carries EntityInfo with Name = "Delta".
             repo.Bus.SwapBuffers();
             var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
             Assert.Single(commands);
@@ -439,124 +330,7 @@ namespace Hrot.SimHost.Tests
             var initialComponents = commands[0].InitialComponents;
             Assert.NotNull(initialComponents);
             var entityData = Assert.Single(initialComponents!.OfType<IG.Components.EntityInfo>());
-            Assert.Equal("Gamma", entityData.Name.ToString());
-        }
-
-        /// <summary>
-        /// When <c>InitialAttributeRecords</c> is null, the system falls back to the JSON path
-        /// and the entity spawns with the name from <c>InitialAttributesJson</c>.
-        /// </summary>
-        [Fact]
-        public void ProcessRequest_NullBinaryRecords_FallsBackToJsonPath()
-        {
-            // Arrange
-            var repo   = CreateWorldWithIgEntityData();
-            var tkb    = CreateTkb();
-            var source = new StubRequestSource();
-            var request = MakeValidRequest();
-            request.InitialAttributeRecords = null;
-            request.InitialAttributesJson   = "{\"Name\":\"Delta\"}";
-            source.Enqueue(request);
-
-            var jsonCompiler = AttributeCompilerFactory.Build(null);
-            var idAlloc      = new StubIdAllocator(startId: 100);
-            var ackSink      = new StubAckSink();
-            var system       = new CreateEntityRequestSystem(
-                source, ackSink, tkb, idAlloc, LocalNodeId,
-                jsonAttributeCompiler: jsonCompiler,
-                binaryInterpreter:     BuildBinaryInterpreter());
-
-            // Act
-            system.Execute(repo, 0f);
-
-            // Assert: JSON fallback produces entity with Name = "Delta".
-            repo.Bus.SwapBuffers();
-            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
-            Assert.Single(commands);
-
-            var initialComponents2 = commands[0].InitialComponents;
-            Assert.NotNull(initialComponents2);
-            var entityData2 = Assert.Single(initialComponents2!.OfType<IG.Components.EntityInfo>());
-            Assert.Equal("Delta", entityData2.Name.ToString());
-        }
-
-        /// <summary>
-        /// When both <c>InitialAttributeRecords</c> and <c>InitialAttributesJson</c> are null,
-        /// the entity still spawns without exception (TKB defaults apply).
-        /// </summary>
-        [Fact]
-        public void ProcessRequest_BothNull_EntitySpawnsWithoutException()
-        {
-            // Arrange
-            var repo   = CreateWorldWithIgEntityData();
-            var tkb    = CreateTkb();
-            var source = new StubRequestSource();
-            var request = MakeValidRequest();
-            request.InitialAttributeRecords = null;
-            request.InitialAttributesJson   = null;
-            source.Enqueue(request);
-
-            var idAlloc = new StubIdAllocator(startId: 100);
-            var ackSink = new StubAckSink();
-            var system  = new CreateEntityRequestSystem(
-                source, ackSink, tkb, idAlloc, LocalNodeId,
-                binaryInterpreter: BuildBinaryInterpreter());
-
-            // Act — should not throw.
-            system.Execute(repo, 0f);
-
-            repo.Bus.SwapBuffers();
-            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
-            Assert.Single(commands);
-        }
-
-        /// <summary>
-        /// When both binary records AND JSON are provided, the binary records take precedence
-        /// and the JSON payload is ignored.
-        /// </summary>
-        [Fact]
-        public void ProcessRequest_BinaryAndJson_BinaryTakesPrecedence()
-        {
-            // Arrange
-            var repo   = CreateWorldWithIgEntityData();
-            var tkb    = CreateTkb();
-            var source = new StubRequestSource();
-            var request = MakeValidRequest();
-            request.InitialAttributeRecords = new List<AttributeRecord>
-            {
-                new AttributeRecord
-                {
-                    AttributeId = AttributeIds.Name,
-                    Value = new AttributeValueUnion
-                    {
-                        ValueType   = AttributeValueType.KindString,
-                        StringValue = "BinaryWins",
-                    }
-                }
-            };
-            request.InitialAttributesJson = "{\"Name\":\"JsonLoses\"}";
-            source.Enqueue(request);
-
-            var jsonCompiler = AttributeCompilerFactory.Build(null);
-            var idAlloc      = new StubIdAllocator(startId: 100);
-            var ackSink      = new StubAckSink();
-            var system       = new CreateEntityRequestSystem(
-                source, ackSink, tkb, idAlloc, LocalNodeId,
-                jsonAttributeCompiler: jsonCompiler,
-                binaryInterpreter:     BuildBinaryInterpreter());
-
-            // Act
-            system.Execute(repo, 0f);
-
-            // Assert: name comes from binary records, NOT from JSON.
-            repo.Bus.SwapBuffers();
-            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
-            Assert.Single(commands);
-
-            var initialComponents3 = commands[0].InitialComponents;
-            Assert.NotNull(initialComponents3);
-            var entityData3 = Assert.Single(initialComponents3!.OfType<IG.Components.EntityInfo>());
-            Assert.Equal("BinaryWins", entityData3.Name.ToString());
+            Assert.Equal("Delta", entityData.Name.ToString());
         }
 
         // ── BD1-P7T1: Delegate caching ────────────────────────────────────────
@@ -606,7 +380,7 @@ namespace Hrot.SimHost.Tests
 
             // ACK sent (Phase-1 InProgress — Phase-2 is dispatched by NedRequestFinalizationSystem).
             Assert.Single(ackSink.WrittenAcks);
-            Assert.Equal((int)NedStatusCode.InProgress, ackSink.WrittenAcks[0].StatusCode);
+            Assert.Equal((int)EntityOperationStatus.InProgress, ackSink.WrittenAcks[0].StatusCode);
 
             // SpawnEntityCommand produced.
             repo.Bus.SwapBuffers();
@@ -622,11 +396,13 @@ namespace Hrot.SimHost.Tests
     /// instance passed to <see cref="ProcessRequests"/> on each call, allowing
     /// tests to verify the delegate is cached (same instance on repeated calls).
     /// </summary>
-    internal sealed class CapturingRequestSource : ICreateEntityRequestSource
+    internal sealed class CapturingRequestSource : IEntityCreationRequestSource
     {
-        public List<Action<CreateEntityRequest>> CapturedDelegates { get; } = new();
+        public List<Action<EntityCreationRequest>> CapturedDelegates { get; } = new();
 
-        public void ProcessRequests(Action<CreateEntityRequest> processor)
-            => CapturedDelegates.Add(processor);
+        public void ProcessRequests(Action<EntityCreationRequest> handler)
+            => CapturedDelegates.Add(handler);
+
+        public void Dispose() { }
     }
 }

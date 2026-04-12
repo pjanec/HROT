@@ -1,33 +1,28 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using Hrot.NED.Messages;
-using Hrot.NED.Descriptors;
-using Hrot.Map.Common.Replication.Utils;
+using Hrot.Core.Network;
 using FDP.Toolkit.Replication.Patching;
 using FDP.Kernel.Logging;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using Fdp.Modules.Geographic;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Network.Interfaces;
 
-namespace Hrot.SimHost.Systems
+namespace Hrot.CGF.Systems
 {
     /// <summary>
-    /// Handles <see cref="CreateEntityRequest"/> messages arriving over DDS.
+    /// Handles entity creation requests arriving from the network (protocol-neutral).
     ///
     /// <para>
     /// On every <see cref="Execute"/> call the system:
     /// <list type="number">
     ///   <item>Applies the Level-1 routing guard (<see cref="_isDefaultProcessor"/>) to prevent
     ///     cluster-wide broadcast storms where multiple nodes attempt to process the same default request.</item>
-    ///   <item>Drains the source via a zero-allocation callback (no <c>List</c> alloc on ingress).</item>
+    ///   <item>Drains requests via a zero-allocation callback (no list alloc on ingress).</item>
     ///   <item>Validates each request and allocates a network ID immediately.</item>
-    ///   <item>Sends a Phase 1 <see cref="CreateUpdateDeleteEntityAck"/> (InProgress) right away
-    ///     so the ExCon client unblocks with minimal latency regardless of how many entities are queued.</item>
+    ///   <item>Sends a Phase 1 InProgress ACK right away so the ExCon client unblocks with minimal latency.</item>
     ///   <item>Registers the request with <see cref="NedRequestFinalizationSystem"/> for Phase 2 tracking.</item>
     ///   <item>Enqueues the pre-validated data for time-sliced processing.</item>
     ///   <item>Pops up to <see cref="MaxRequestsPerTick"/> items and publishes
@@ -45,15 +40,13 @@ namespace Hrot.SimHost.Systems
         /// <summary>Maximum <see cref="SpawnEntityCommand"/> events published per tick.</summary>
         public const int MaxRequestsPerTick = 500;
 
-        private readonly ICreateEntityRequestSource         _requestSource;
-        private readonly ICreateUpdateDeleteEntityAckSink   _ackSink;
+        private readonly IEntityCreationRequestSource       _requestSource;
+        private readonly IEntityAckSink                     _ackSink;
         private readonly ITkbDatabase                       _tkbDb;
         private readonly INetworkIdAllocator                _idAllocator;
-        private readonly IGeographicTransform?              _geoTransform;
         private readonly int                                _localNodeId;
         private readonly bool                               _isDefaultProcessor;
         private readonly JsonAttributeCompiler?             _jsonCompiler;
-        private readonly BinaryInterpreter<AttributeRecord>?         _binaryInterpreter;
         private readonly NedRequestFinalizationSystem?      _finalizationSystem;
         private readonly IOwnershipDistributionStrategy?    _ownershipStrategy;
 
@@ -68,8 +61,8 @@ namespace Hrot.SimHost.Systems
         // Capacity pre-allocated to absorb large bursts without resizing.
         private readonly Queue<PendingRequest> _pendingQueue = new(capacity: MaxRequestsPerTick * 4);
 
-        /// <param name="requestSource">Source of incoming CreateEntityRequest messages (DDS-backed or stub).</param>
-        /// <param name="ackSink">Sink for CreateUpdateDeleteEntityAck responses (DDS-backed or stub).</param>
+        /// <param name="requestSource">Source of incoming entity-creation requests.</param>
+        /// <param name="ackSink">Sink for entity lifecycle ACK messages.</param>
         /// <param name="tkbDb">TKB database used to validate that the requested entity type exists.</param>
         /// <param name="idAllocator">Allocator that produces unique network entity IDs.</param>
         /// <param name="localNodeId">This node's ID used as <c>OwnerNodeId</c> in SpawnEntityCommand.</param>
@@ -79,19 +72,10 @@ namespace Hrot.SimHost.Systems
         ///   to avoid duplicate ID allocation.  The Brain (CGF) node is always the default processor;
         ///   Muscle (SimHost) nodes must set this to <c>false</c>.
         /// </param>
-        /// <param name="geoTransform">
-        /// Optional geographic transform for converting WGS84 GeoSpatial positions to local Cartesian.
-        /// When <c>null</c>, GeoSpatial descriptors are included without a VehicleState override.
-        /// </param>
         /// <param name="jsonAttributeCompiler">
         /// Optional <see cref="JsonAttributeCompiler"/> for applying <c>InitialAttributesJson</c>
         /// overrides after descriptors have been mapped to components.
         /// When <c>null</c>, <c>InitialAttributesJson</c> is ignored.
-        /// </param>
-        /// <param name="binaryInterpreter">
-        /// Optional <see cref="BinaryInterpreter"/> for applying <c>InitialAttributeRecords</c>
-        /// binary attribute overrides. Processed before the JSON path.
-        /// When <c>null</c>, <c>InitialAttributeRecords</c> is ignored.
         /// </param>
         /// <param name="finalizationSystem">
         /// Optional <see cref="NedRequestFinalizationSystem"/> for Two-ACK lifecycle tracking.
@@ -103,27 +87,23 @@ namespace Hrot.SimHost.Systems
         ///   When <c>null</c>, the default processor retains full ownership of all descriptors.
         /// </param>
         public CreateEntityRequestSystem(
-            ICreateEntityRequestSource          requestSource,
-            ICreateUpdateDeleteEntityAckSink    ackSink,
+            IEntityCreationRequestSource        requestSource,
+            IEntityAckSink                      ackSink,
             ITkbDatabase                        tkbDb,
             INetworkIdAllocator                 idAllocator,
             int                                 localNodeId,
-            IGeographicTransform?               geoTransform = null,
-            JsonAttributeCompiler               jsonAttributeCompiler = null!,
-            BinaryInterpreter<AttributeRecord>?          binaryInterpreter = null,
-            NedRequestFinalizationSystem?       finalizationSystem = null,
-            bool                                isDefaultProcessor = false,
-            IOwnershipDistributionStrategy?     ownershipStrategy = null)
+            JsonAttributeCompiler?              jsonAttributeCompiler = null,
+            NedRequestFinalizationSystem?       finalizationSystem    = null,
+            bool                                isDefaultProcessor    = false,
+            IOwnershipDistributionStrategy?     ownershipStrategy     = null)
         {
-            _requestSource      = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
-            _ackSink            = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));
-            _tkbDb              = tkbDb         ?? throw new ArgumentNullException(nameof(tkbDb));
-            _idAllocator        = idAllocator   ?? throw new ArgumentNullException(nameof(idAllocator));
+            _requestSource      = requestSource  ?? throw new ArgumentNullException(nameof(requestSource));
+            _ackSink            = ackSink        ?? throw new ArgumentNullException(nameof(ackSink));
+            _tkbDb              = tkbDb          ?? throw new ArgumentNullException(nameof(tkbDb));
+            _idAllocator        = idAllocator    ?? throw new ArgumentNullException(nameof(idAllocator));
             _localNodeId        = localNodeId;
             _isDefaultProcessor = isDefaultProcessor;
-            _geoTransform       = geoTransform;
             _jsonCompiler       = jsonAttributeCompiler;
-            _binaryInterpreter  = binaryInterpreter;
             _finalizationSystem = finalizationSystem;
             _ownershipStrategy  = ownershipStrategy;
             _processRequestDelegate = ProcessIncomingRequest;
@@ -133,13 +113,14 @@ namespace Hrot.SimHost.Systems
         public int PendingQueueCount => _pendingQueue.Count;
 
         // Cached delegate for ProcessIncomingRequest — avoids a per-tick lambda allocation.
-        private readonly Action<CreateEntityRequest> _processRequestDelegate;
+        private readonly Action<EntityCreationRequest> _processRequestDelegate;
+
         /// <inheritdoc />
         public void Execute(ISimulationView view, float deltaTime)
         {
             // ── Phase 1: Drain all incoming requests this frame ───────────────
-            // The callback fires synchronously for each valid DDS sample so no
-            // List<CreateEntityRequest> is ever allocated on ingress (GC03).
+            // The callback fires synchronously for each valid network sample so no
+            // per-sample heap allocation occurs on ingress (GC03).
             // Each valid request is validated, ID-allocated, ACK'd, and enqueued
             // on the same frame it arrives, giving the requester minimum latency (GC04).
             _requestSource.ProcessRequests(_processRequestDelegate);
@@ -153,19 +134,19 @@ namespace Hrot.SimHost.Systems
         }
 
         /// <summary>
-        /// Processes a single incoming <see cref="CreateEntityRequest"/> during the ingress phase.
+        /// Processes a single incoming entity-creation request during the ingress phase.
         /// Extracted from the inline lambda so the delegate instance can be cached once and
         /// reused every tick (eliminates continuous Gen0 GC pressure from lambda captures).
         /// </summary>
-        private void ProcessIncomingRequest(CreateEntityRequest request)
+        private void ProcessIncomingRequest(EntityCreationRequest request)
         {
             // ── Level-1 routing guard ──────────────────────────────────────────
             // If the request specifies an explicit target node, only that node processes it.
             // If the target is 0 (broadcast / "any default"), only the designated default
             // processor intercepts it — all other nodes drop the packet silently to prevent
             // duplicate ID allocation and cluster-wide race conditions.
-            int targetNodeId    = request.Owner.AppInstanceId;
-            bool isTargetedAtMe = targetNodeId == _localNodeId;
+            int targetNodeId      = request.OwnerAppInstanceId;
+            bool isTargetedAtMe   = targetNodeId == _localNodeId;
             bool isDefaultRequest = targetNodeId == 0;
 
             if (!isTargetedAtMe && !(isDefaultRequest && _isDefaultProcessor))
@@ -173,34 +154,27 @@ namespace Hrot.SimHost.Systems
 
             try
             {
-                // Validate TkbType presence.
-                long tkbType = DescriptorMapper.ExtractTkbType(
-                    request.InitialDescriptors, out ulong disType);
-                if (tkbType == 0)
+                // Validate TkbType (already extracted by the adapter).
+                if (request.TkbType == 0)
                 {
                     FdpLog<CreateEntityRequestSystem>.Warn(
                         $"[Node-{_localNodeId}] CreateEntity {request.RequestId}: No EntityMaster descriptor or TkbType=0. Rejecting.");
-                    SendErrorAck(request.RequestId, NedStatusCode.UnknownDescriptorType);
+                    _ackSink.WriteAck(request.RequestId, 0, EntityOperationStatus.UnknownDescriptorType);
                     return;
                 }
 
                 // Validate TkbType exists in the database.
-                if (!_tkbDb.TryGetByType(tkbType, out _))
+                if (!_tkbDb.TryGetByType(request.TkbType, out _))
                 {
                     FdpLog<CreateEntityRequestSystem>.Warn(
-                        $"[Node-{_localNodeId}] CreateEntity {request.RequestId}: TkbType={tkbType} not found. Rejecting.");
-                    SendErrorAck(request.RequestId, NedStatusCode.UnknownDescriptorType);
+                        $"[Node-{_localNodeId}] CreateEntity {request.RequestId}: TkbType={request.TkbType} not found. Rejecting.");
+                    _ackSink.WriteAck(request.RequestId, 0, EntityOperationStatus.UnknownDescriptorType);
                     return;
                 }
 
                 // Allocate a network ID and immediately send Phase 1 ACK (InProgress) — client unblocks now.
                 long newNetworkId = _idAllocator.AllocateId();
-                _ackSink.WriteAck(new CreateUpdateDeleteEntityAck
-                {
-                    RequestId  = request.RequestId,
-                    EntityId   = (int)newNetworkId,
-                    StatusCode = (int)NedStatusCode.InProgress,
-                });
+                _ackSink.WriteAck(request.RequestId, newNetworkId, EntityOperationStatus.InProgress);
 
                 // Register for Phase 2 ACK dispatch once ELM confirms lifecycle.
                 _finalizationSystem?.Track(newNetworkId, request.RequestId, RequestKind.Create);
@@ -209,15 +183,15 @@ namespace Hrot.SimHost.Systems
                 {
                     Request   = request,
                     NetworkId = newNetworkId,
-                    TkbType   = tkbType,
-                    DisType   = disType,
+                    TkbType   = request.TkbType,
+                    DisType   = request.DisType,
                 });
             }
             catch (Exception ex)
             {
                 FdpLog<CreateEntityRequestSystem>.Error(
                     $"[Node-{_localNodeId}] CreateEntity ingress failed for request {request.RequestId}: {ex.Message}");
-                SendErrorAck(request.RequestId, NedStatusCode.UnknownDescriptorType);
+                _ackSink.WriteAck(request.RequestId, 0, EntityOperationStatus.UnknownDescriptorType);
             }
         }
 
@@ -227,27 +201,13 @@ namespace Hrot.SimHost.Systems
         {
             try
             {
-                // 1. Map descriptors → ECS component list.
-                List<object> allComponents =
-                    DescriptorMapper.MapToComponents(pending.Request.InitialDescriptors, _geoTransform);
+                // 1. Start with empty component list; JSON attribute patches are applied below.
+                List<object> allComponents = new List<object>();
 
-                // 2. Apply binary attribute records from InitialAttributeRecords (ATTR2-P5T1).
-                //    Binary records take precedence over JSON overrides when present.
-                if (_binaryInterpreter != null
-                    && pending.Request.InitialAttributeRecords != null
-                    && pending.Request.InitialAttributeRecords.Count > 0)
-                {
-                    _reusablePatchContext ??= new ListPatchContext(null);
-                    _reusablePatchContext.Reset(allComponents);
-                    var binaryCtx = _binaryInterpreter.CreateContext(_reusablePatchContext);
-                    _binaryInterpreter.Apply(binaryCtx,
-                        CollectionsMarshal.AsSpan(pending.Request.InitialAttributeRecords));
-                    allComponents = _reusablePatchContext.FlushComponents();
-                }
-                // 2b. Apply JSON attribute patches from InitialAttributesJson (ATTR-S5T2).
+                // 2. Apply JSON attribute patches from InitialAttributesJson (ATTR-S5T2).
                 //    Patches are applied AFTER descriptor-based defaults so fine-grained
                 //    overrides win over template values.
-                else if (_jsonCompiler != null && !string.IsNullOrEmpty(pending.Request.InitialAttributesJson))
+                if (_jsonCompiler != null && !string.IsNullOrEmpty(pending.Request.InitialAttributesJson))
                 {
                     // Reuse the single cached context (Reset clears slots without releasing
                     // the underlying Dictionary objects, eliminating per-entity heap traffic).
@@ -319,9 +279,9 @@ namespace Hrot.SimHost.Systems
                 {
                     // CQRS fix: if the request explicitly names an owner node, honour it.
                     // If Owner == 0 the default processor (this node) claims ownership.
-                    int assignedOwner = (pending.Request.Owner.AppInstanceId == 0 || pending.Request.Owner.AppInstanceId == _localNodeId)
+                    int assignedOwner = (pending.Request.OwnerAppInstanceId == 0 || pending.Request.OwnerAppInstanceId == _localNodeId)
                         ? _localNodeId
-                        : pending.Request.Owner.AppInstanceId;
+                        : pending.Request.OwnerAppInstanceId;
 
                     repo.Bus.PublishManaged(new SpawnEntityCommand
                     {
@@ -390,7 +350,8 @@ namespace Hrot.SimHost.Systems
                                 RequestId         = Guid.NewGuid(), // Separate trace ID for child
                             });
                         }
-                    }                }
+                    }
+                }
 
                 FdpLog<CreateEntityRequestSystem>.Info(
                     $"[Node-{_localNodeId}] Queued spawn entity {pending.NetworkId} (TkbType={pending.TkbType}) " +
@@ -402,16 +363,6 @@ namespace Hrot.SimHost.Systems
                     $"[Node-{_localNodeId}] SpawnEntityCommand creation failed for request " +
                     $"{pending.Request.RequestId}: {ex.Message}");
             }
-        }
-
-        private void SendErrorAck(Guid requestId, NedStatusCode errorCode)
-        {
-            _ackSink.WriteAck(new CreateUpdateDeleteEntityAck
-            {
-                RequestId  = requestId,
-                EntityId   = 0,
-                StatusCode = (int)errorCode,
-            });
         }
 
         /// <summary>
@@ -431,7 +382,7 @@ namespace Hrot.SimHost.Systems
             // Evaluate the strategy for every descriptor ordinal the Muscle node may own.
             foreach (long ordinal in new[]
             {
-                (long)EDescriptorType.dtWorldPos,
+                DescriptorTypeOrdinals.WorldPos,
             })
             {
                 int? targetNode = _ownershipStrategy.GetInitialOwner(
@@ -448,10 +399,10 @@ namespace Hrot.SimHost.Systems
         /// <summary>Holds pre-validated spawn data waiting in the time-slice queue.</summary>
         private struct PendingRequest
         {
-            public CreateEntityRequest Request;
-            public long                NetworkId;
-            public long                TkbType;
-            public ulong               DisType;
+            public EntityCreationRequest Request;
+            public long                  NetworkId;
+            public long                  TkbType;
+            public ulong                 DisType;
         }
     }
 }

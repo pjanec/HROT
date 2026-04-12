@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using Hrot.NED.Messages;
+using Hrot.Core.Network;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 
-namespace Hrot.SimHost.Systems
+namespace Hrot.CGF.Systems
 {
     /// <summary>
     /// Phase ordering for Two-ACK lifecycle requests.
@@ -15,12 +15,11 @@ namespace Hrot.SimHost.Systems
 
     /// <summary>
     /// Monitors in-flight entity creation/deletion requests and dispatches
-    /// Phase-2 (final) <see cref="CreateUpdateDeleteEntityAck"/> messages once
-    /// the ECS lifecycle confirms the outcome.
+    /// Phase-2 (final) ACK messages once the ECS lifecycle confirms the outcome.
     ///
     /// <para>
-    /// Phase 1 (InProgress, <see cref="NedStatusCode.InProgress"/>) is sent immediately
-    /// by the originating request system.  Phase 2 is sent here in PostSimulation once:
+    /// Phase 1 (InProgress) is sent immediately by the originating request system.
+    /// Phase 2 is sent here in PostSimulation once:
     /// <list type="bullet">
     ///   <item><b>Create:</b> entity appears in the <see cref="NetworkEntityMap"/> and
     ///     reaches <see cref="EntityLifecycle.Active"/>.</item>
@@ -38,12 +37,12 @@ namespace Hrot.SimHost.Systems
         }
 
         private readonly Dictionary<long, PendingRequest> _tracked   = new();
-        private readonly ICreateUpdateDeleteEntityAckSink  _ackSink;
+        private readonly IEntityAckSink                    _ackSink;
         private readonly NetworkEntityMap                  _entityMap;
 
         public NedRequestFinalizationSystem(
-            ICreateUpdateDeleteEntityAckSink ackSink,
-            NetworkEntityMap                 entityMap)
+            IEntityAckSink   ackSink,
+            NetworkEntityMap entityMap)
         {
             _ackSink   = ackSink   ?? throw new ArgumentNullException(nameof(ackSink));
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
@@ -70,10 +69,10 @@ namespace Hrot.SimHost.Systems
 
             foreach (var kvp in _tracked)
             {
-                long networkId  = kvp.Key;
-                var  pending    = kvp.Value;
-                bool resolved   = false;
-                var  finalStatus = NedStatusCode.EntityNotFound;
+                long networkId   = kvp.Key;
+                var  pending     = kvp.Value;
+                bool resolved    = false;
+                var  finalStatus = EntityOperationStatus.EntityNotFound;
 
                 if (pending.Kind == RequestKind.Create)
                 {
@@ -83,14 +82,14 @@ namespace Hrot.SimHost.Systems
                         {
                             // Entity was registered but died before completing construction.
                             resolved    = true;
-                            finalStatus = NedStatusCode.EntityNotFound;
+                            finalStatus = EntityOperationStatus.EntityNotFound;
                         }
                         else if (view is EntityRepository repo
                               && repo.GetLifecycleState(entity) == EntityLifecycle.Active)
                         {
                             // Entity reached Active — distributed handshake complete.
                             resolved    = true;
-                            finalStatus = NedStatusCode.Success;
+                            finalStatus = EntityOperationStatus.Success;
                         }
                         // else: entity is alive but still Constructing — keep waiting.
                     }
@@ -103,19 +102,14 @@ namespace Hrot.SimHost.Systems
                     {
                         // Entity is gone — teardown confirmed.
                         resolved    = true;
-                        finalStatus = NedStatusCode.Success;
+                        finalStatus = EntityOperationStatus.Success;
                     }
                     // else: entity still alive — wait for ELM to finish teardown.
                 }
 
                 if (resolved)
                 {
-                    _ackSink.WriteAck(new CreateUpdateDeleteEntityAck
-                    {
-                        RequestId  = pending.RequestId,
-                        EntityId   = (int)networkId,
-                        StatusCode = (int)finalStatus,
-                    });
+                    _ackSink.WriteAck(pending.RequestId, networkId, finalStatus);
                     toRemove.Add(networkId);
                 }
             }

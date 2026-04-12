@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using Hrot.NED.Messages;
-using Hrot.SimHost.Systems;
+using Hrot.CGF.Systems;
+using Hrot.Core.Network;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
@@ -22,18 +22,20 @@ namespace Hrot.SimHost.Tests
     {
         // ── Stubs ──────────────────────────────────────────────────────────────
 
-        private sealed class StubDeleteRequestSource : IDeleteEntityRequestSource
+        private sealed class StubDeleteRequestSource : IEntityDeletionRequestSource
         {
-            private readonly List<DeleteEntityRequest> _pending = new();
+            private readonly List<EntityDeletionRequest> _pending = new();
 
-            public void Enqueue(DeleteEntityRequest r) => _pending.Add(r);
+            public void Enqueue(EntityDeletionRequest r) => _pending.Add(r);
 
-            public void ProcessRequests(Action<DeleteEntityRequest> processor)
+            public void ProcessRequests(Action<EntityDeletionRequest> handler)
             {
                 foreach (var req in _pending)
-                    processor(req);
+                    handler(req);
                 _pending.Clear();
             }
+
+            public void Dispose() { }
         }
 
         // ── Factory helpers ────────────────────────────────────────────────────
@@ -73,7 +75,7 @@ namespace Hrot.SimHost.Tests
             var (system, ackSink, requestSource, _, _) = BuildSystem();
             var requestId = Guid.NewGuid();
 
-            requestSource.Enqueue(new DeleteEntityRequest
+            requestSource.Enqueue(new EntityDeletionRequest
             {
                 RequestId = requestId,
                 EntityId  = 9999,   // not registered
@@ -83,9 +85,9 @@ namespace Hrot.SimHost.Tests
 
             Assert.Single(ackSink.WrittenAcks);
             var ack = ackSink.WrittenAcks[0];
-            Assert.Equal(requestId,                            ack.RequestId);
-            Assert.Equal(9999,                                 ack.EntityId);
-            Assert.Equal((int)NedStatusCode.EntityNotFound,   ack.StatusCode);
+            Assert.Equal(requestId,                             ack.RequestId);
+            Assert.Equal(9999,                                  ack.EntityId);
+            Assert.Equal((int)EntityOperationStatus.EntityNotFound, ack.StatusCode);
 
             // No DestroyEntityCommand should have been published.
             world.Bus.SwapBuffers();
@@ -109,7 +111,7 @@ namespace Hrot.SimHost.Tests
             var entity = world.CreateEntity();
             map.Register(entityId, entity);
 
-            requestSource.Enqueue(new DeleteEntityRequest
+            requestSource.Enqueue(new EntityDeletionRequest
             {
                 RequestId = requestId,
                 EntityId  = entityId,
@@ -120,9 +122,9 @@ namespace Hrot.SimHost.Tests
             // Phase-1 InProgress ACK must be sent immediately.
             Assert.Single(ackSink.WrittenAcks);
             var ack = ackSink.WrittenAcks[0];
-            Assert.Equal(requestId,                      ack.RequestId);
-            Assert.Equal(entityId,                       ack.EntityId);
-            Assert.Equal((int)NedStatusCode.InProgress,  ack.StatusCode);
+            Assert.Equal(requestId,                           ack.RequestId);
+            Assert.Equal(entityId,                            ack.EntityId);
+            Assert.Equal((int)EntityOperationStatus.InProgress, ack.StatusCode);
 
             // DestroyEntityCommand must be on the event bus.
             world.Bus.SwapBuffers();

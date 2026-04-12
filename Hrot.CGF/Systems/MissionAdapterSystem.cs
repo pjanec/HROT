@@ -5,7 +5,6 @@ using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 using FDP.Toolkit.Behavior.Events;
-using Hrot.DDS.DataModel;
 
 namespace Hrot.CGF.Systems
 {

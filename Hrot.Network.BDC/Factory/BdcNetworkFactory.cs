@@ -52,6 +52,26 @@ namespace Hrot.BDC.Factory
         /// <inheritdoc/>
         public ITimeControlGateway CreateTimeControlGateway()
             => new BdcNullTimeControlGateway();
+
+        /// <inheritdoc/>
+        public ISimHostMissionSender CreateSimHostMissionSender()
+            => new BdcNullSimHostMissionSender();
+
+        /// <inheritdoc/>
+        public ISimHostAuxiliaryTranslators CreateSimHostAuxiliaryTranslators()
+            => new BdcNullSimHostAuxiliaryTranslators();
+    }
+
+    internal sealed class BdcNullSimHostMissionSender : ISimHostMissionSender
+    {
+        public void SendNavigateToPoint(long id, System.Numerics.Vector2 dest, float speed, float radius) { }
+        public void Dispose() { }
+    }
+
+    internal sealed class BdcNullSimHostAuxiliaryTranslators : ISimHostAuxiliaryTranslators
+    {
+        public void RegisterOn(ModuleHost.Core.ModuleHostKernel kernel) { }
+        public void Dispose() { }
     }
 
     internal sealed class BdcNullCommandGateway : ICommandGateway

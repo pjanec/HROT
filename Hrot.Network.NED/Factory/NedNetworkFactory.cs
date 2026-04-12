@@ -8,6 +8,7 @@ using Hrot.Common;
 using Hrot.Common.Abstractions;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
+using Hrot.Network.NED.SimHost;
 using Hrot.Network.Replication;
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 
@@ -85,6 +86,35 @@ public sealed class NedNetworkFactory : INetworkFactory
         if (_participant == null) return new NullTimeControlGateway();
         return new Hrot.Network.NED.ExCon.NedTimeControlGateway(_participant);
     }
+
+    /// <inheritdoc/>
+    public ISimHostMissionSender CreateSimHostMissionSender()
+    {
+        if (_participant == null) return new NullSimHostMissionSender();
+        return new NedSimHostMissionSender(_participant);
+    }
+
+    /// <inheritdoc/>
+    public ISimHostAuxiliaryTranslators CreateSimHostAuxiliaryTranslators()
+    {
+        if (_participant == null) return new NullSimHostAuxiliaryTranslators();
+        return new NedSimHostAuxiliaryTranslators(
+            _participant, _entityMap, _eventBus, _localNodeId, _role);
+    }
+}
+
+/// <summary>No-op stub for ISimHostMissionSender.</summary>
+internal sealed class NullSimHostMissionSender : ISimHostMissionSender
+{
+    public void SendNavigateToPoint(long id, System.Numerics.Vector2 dest, float speed, float radius) { }
+    public void Dispose() { }
+}
+
+/// <summary>No-op stub for ISimHostAuxiliaryTranslators.</summary>
+internal sealed class NullSimHostAuxiliaryTranslators : ISimHostAuxiliaryTranslators
+{
+    public void RegisterOn(ModuleHost.Core.ModuleHostKernel kernel) { }
+    public void Dispose() { }
 }
 
 /// <summary>No-op stub for ICommandGateway until TASK-P4-001 wires the real implementation.</summary>

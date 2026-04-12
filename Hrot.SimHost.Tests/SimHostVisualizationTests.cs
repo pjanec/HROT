@@ -1,15 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using System.Threading;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
+using Hrot.Core.Network;
 using Hrot.SimHost;
 using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
-using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
@@ -29,9 +26,8 @@ namespace Hrot.SimHost.Tests
     /// BD1-P2T1 success criteria (updated for PACK-I002):
     /// - Brain-dead plain-click path writes NavigationIntent with Mode=DirectPoint.
     /// - Brain-dead shift+click path still calls AddWaypoint.
-    /// - Brain-active path sends CMD_REPLACE_MISSION with a DoctrineFinished trigger (BS1-T022).
+    /// - Brain-active path calls ISimHostMissionSender.SendNavigateToPoint (BS1-T022).
     /// </summary>
-    [Collection("SimHostDds")]
     public class SimHostVisualizationTests : IDisposable
     {
         private static readonly Vector2 ClickPos = new(300f, 400f);
@@ -72,7 +68,7 @@ namespace Hrot.SimHost.Tests
                 interp: TrajectoryInterpolation.CatmullRom,
                 setDestination: (e, p, i) => { setDestinationCalled = true; },
                 addWaypoint:    (e, p, i) => { addWaypointCalled    = true; },
-                missionWriter:  null);
+                missionSender:  null);
 
             Assert.False(setDestinationCalled, "setDestination must NOT be called.");
             Assert.False(addWaypointCalled,    "addWaypoint must NOT be called.");
@@ -103,7 +99,7 @@ namespace Hrot.SimHost.Tests
                 interp: TrajectoryInterpolation.CatmullRom,
                 setDestination: (e, p, i) => { setDestinationCalled = true; },
                 addWaypoint:    (e, p, i) => { },
-                missionWriter:  null);
+                missionSender:  null);
 
             Assert.False(setDestinationCalled);
             var intent = _repo.GetComponent<EcsNavigationIntent>(entity);
@@ -132,7 +128,7 @@ namespace Hrot.SimHost.Tests
                 interp: TrajectoryInterpolation.CatmullRom,
                 setDestination: (e, p, i) => { setDestinationCalled = true; },
                 addWaypoint:    (e, p, i) => { addWaypointCalled    = true; },
-                missionWriter:  null);
+                missionSender:  null);
 
             Assert.True(addWaypointCalled);
             Assert.False(setDestinationCalled);
@@ -144,18 +140,15 @@ namespace Hrot.SimHost.Tests
         // ── Test 3: brain-active plain click → CMD_REPLACE_MISSION with trigger ──
 
         /// <summary>
-        /// Right-click on a brain-active entity must send a <c>CMD_REPLACE_MISSION</c>
-        /// request whose first task has exactly one trigger of type "DoctrineFinished" (BS1-T022).
+        /// Right-click on a brain-active entity must call
+        /// <see cref="ISimHostMissionSender.SendNavigateToPoint"/> with the entity's
+        /// network ID and click position (BS1-T022).
         /// </summary>
         [Fact]
         public void RightClick_BrainActive_WritesMissionWithTrigger()
         {
-            const uint domainId = 165u;
-            using var participant = new DdsParticipant(domainId);
-            using var writer = new DdsWriter<MissionControlRequest>(participant);
-            using var reader = new DdsReader<MissionControlRequest>(participant);
-
             // Arrange: entity with active doctrine and a network identity.
+            var stub = new StubMissionSender();
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = 2001 });
             _repo.AddComponent(entity, new NetworkIdentity { Value = 99 });
@@ -168,36 +161,18 @@ namespace Hrot.SimHost.Tests
                 interp: TrajectoryInterpolation.CatmullRom,
                 setDestination: (e, p, i) => { setDestinationCalled = true; },
                 addWaypoint:    (e, p, i) => { },
-                missionWriter:  writer);
+                missionSender:  stub);
 
             // Neither muscle path should have been taken.
             Assert.False(setDestinationCalled);
 
-            // Allow DDS loopback delivery.
-            Thread.Sleep(50);
-
-            // Assert: exactly one request written with a ReachedDestination trigger.
-            using var loan = reader.Take();
-            MissionControlRequest req = default;
-            bool foundSample = false;
-            foreach (var sample in loan)
-            {
-                if (sample.IsValid) { req = sample.Data; foundSample = true; break; }
-            }
-
-            Assert.True(foundSample, "Expected a MissionControlRequest sample in DDS but none found.");
-
-            Assert.Equal(eMissionCommandType.CMD_REPLACE_MISSION, req.Payload._d);
-            Assert.Equal(99L, req.TargetEntityId);
-
-            var tasks = req.Payload.FullMissionData.Tasks;
-            Assert.NotNull(tasks);
-            Assert.Single(tasks);
-
-            var triggers = tasks[0].Triggers;
-            Assert.NotNull(triggers);
-            Assert.Single(triggers);
-            Assert.Equal("DoctrineFinished", triggers[0].Type);
+            // Assert: SendNavigateToPoint called with the entity's network ID and click position.
+            // No VehicleParams registered, so speed falls back to 15f.
+            Assert.Single(stub.Sent);
+            Assert.Equal(99L, stub.Sent[0].EntityId);
+            Assert.Equal(ClickPos, stub.Sent[0].Destination);
+            Assert.Equal(15f, stub.Sent[0].Speed);
+            Assert.Equal(3.0f, stub.Sent[0].ArrivalRadius);
         }
 
         // ── Task BD1-P4T1: Camera offset set on Initialize ────────────────────
@@ -209,13 +184,8 @@ namespace Hrot.SimHost.Tests
         /// rather than pixel (0,0).
         /// </summary>
         [Fact]
-        [Trait("Category", "Integration")]
         public void Initialize_SetsMapCameraOffset()
         {
-            const uint domainId = 167u;
-            using var participant = new DdsParticipant(domainId);
-            using var writer      = new DdsWriter<MissionControlRequest>(participant);
-
             var repo = new EntityRepository();
             repo.RegisterComponent<DoctrineState>();
             repo.RegisterComponent<NetworkIdentity>();
@@ -229,7 +199,8 @@ namespace Hrot.SimHost.Tests
             var formations = new FormationTemplateManager();
 
             var vis = new SimHostVisualization();
-            vis.Initialize(repo, kernel, road, traj, formations, writer);
+            using var missionSender = new StubMissionSender();
+            vis.Initialize(repo, kernel, road, traj, formations, missionSender);
 
             var camera = vis.GetMapCamera();
             Assert.NotNull(camera);
@@ -238,5 +209,15 @@ namespace Hrot.SimHost.Tests
             kernel.Dispose();
             repo.Dispose();
         }
+    }
+
+    internal sealed class StubMissionSender : ISimHostMissionSender
+    {
+        public readonly List<(long EntityId, Vector2 Destination, float Speed, float ArrivalRadius)> Sent = new();
+
+        public void SendNavigateToPoint(long entityNetworkId, Vector2 destination, float speed, float arrivalRadius)
+            => Sent.Add((entityNetworkId, destination, speed, arrivalRadius));
+
+        public void Dispose() { }
     }
 }

@@ -6,11 +6,12 @@ using Hrot.NED.Common;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.IG.Components;
+using Hrot.CGF.Systems;
+using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Map.Definitions.Tkb;
 using Hrot.SimHost;
 using Hrot.SimHost.Modules;
-using Hrot.SimHost.Systems;
 using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Road;
@@ -45,37 +46,47 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
     // ── Stubs (DDS-free test doubles) ────────────────────────────────────────────
 
     /// <summary>
-    /// In-memory request source: push <see cref="CreateEntityRequest"/> messages
+    /// In-memory request source: push <see cref="EntityCreationRequest"/> messages
     /// synchronously for deterministic testing.
     /// </summary>
-    public sealed class StubRequestSource : ICreateEntityRequestSource
+    public sealed class StubRequestSource : IEntityCreationRequestSource
     {
-        private readonly List<CreateEntityRequest> _pending = new();
+        private readonly List<EntityCreationRequest> _pending = new();
 
         /// <summary>Returns <c>true</c> when at least one request is queued and not yet consumed.</summary>
         public bool HasPendingRequests => _pending.Count > 0;
 
-        public void Enqueue(CreateEntityRequest r) => _pending.Add(r);
+        public void Enqueue(EntityCreationRequest r) => _pending.Add(r);
 
-        public void ProcessRequests(Action<CreateEntityRequest> processor)
+        public void ProcessRequests(Action<EntityCreationRequest> handler)
         {
             foreach (var req in _pending)
-                processor(req);
+                handler(req);
             _pending.Clear();
         }
+
+        public void Dispose() { }
     }
 
     /// <summary>
-    /// In-memory ACK sink: records every <see cref="CreateUpdateDeleteEntityAck"/> written by
+    /// In-memory ACK sink: records acknowledgements written by
     /// <see cref="CreateEntityRequestSystem"/>.
+    /// Stores records internally as <see cref="CreateUpdateDeleteEntityAck"/> for
+    /// compatibility with existing test assertions.
     /// </summary>
-    public sealed class StubAckSink : ICreateUpdateDeleteEntityAckSink
+    public sealed class StubAckSink : IEntityAckSink
     {
         private readonly List<CreateUpdateDeleteEntityAck> _written = new();
 
         public IReadOnlyList<CreateUpdateDeleteEntityAck> WrittenAcks => _written;
 
-        public void WriteAck(CreateUpdateDeleteEntityAck ack) => _written.Add(ack);
+        public void WriteAck(Guid requestId, long entityId, EntityOperationStatus status)
+            => _written.Add(new CreateUpdateDeleteEntityAck
+            {
+                RequestId  = requestId,
+                EntityId   = (int)entityId,
+                StatusCode = (int)status,
+            });
 
         public CreateUpdateDeleteEntityAck? TryGetAck(Guid requestId)
         {
@@ -92,10 +103,12 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         public CreateUpdateDeleteEntityAck? TryGetTerminalAck(Guid requestId)
         {
             foreach (var a in _written)
-                if (a.RequestId == requestId && a.StatusCode != (int)NedStatusCode.InProgress)
+                if (a.RequestId == requestId && a.StatusCode != (int)EntityOperationStatus.InProgress)
                     return a;
             return null;
         }
+
+        public void Dispose() { }
     }
 
     /// <summary>
@@ -224,8 +237,8 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             var jsonAttributeCompiler = AttributeCompilerFactory.Build(_wgs84);
             _finalizationSystem = new NedRequestFinalizationSystem(AckSink, _entityMap);
             _requestSystem = new CreateEntityRequestSystem(
-                RequestSource, AckSink, _tkbDb, IdAllocator, localNodeId: 1, _wgs84,
-                jsonAttributeCompiler, finalizationSystem: _finalizationSystem);
+                RequestSource, AckSink, _tkbDb, IdAllocator, localNodeId: 1,
+                jsonAttributeCompiler: jsonAttributeCompiler, finalizationSystem: _finalizationSystem);
 
             _spawnSystem = new NetworkSpawningSystem(
                 _tkbDb, _elm, _entityMap, IdAllocator, localNodeId: 1,
@@ -283,19 +296,12 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         {
             var requestId = Guid.NewGuid();
 
-            var request = new CreateEntityRequest
+            var request = new EntityCreationRequest
             {
-                RequestId = requestId,
-                Owner     = new NodeId { AppDomainId = 1, AppInstanceId = 1 },
-                Flags     = 0,
-                InitialDescriptors = new List<EntityDescriptorUnion>
-                {
-                    new EntityDescriptorUnion
-                    {
-                        _d           = EDescriptorType.dtEntityMaster,
-                        EntityMaster = new EntityMaster { TkbType = tkbType, DisType = default }
-                    }
-                }
+                RequestId          = requestId,
+                OwnerAppInstanceId = 1,
+                TkbType            = tkbType,
+                DisType            = 0,
             };
 
             RequestSource.Enqueue(request);

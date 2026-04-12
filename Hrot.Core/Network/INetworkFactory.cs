@@ -19,4 +19,16 @@ public interface INetworkFactory
 
     /// <summary>Creates the time-control gateway for ExCon-originated time control commands.</summary>
     ITimeControlGateway CreateTimeControlGateway();
+
+    /// <summary>
+    /// Creates the SimHost-side mission-control sender used by the visualization layer.
+    /// </summary>
+    ISimHostMissionSender CreateSimHostMissionSender();
+
+    /// <summary>
+    /// Creates the SimHost auxiliary translator set (time-sync, combat, mission-control).
+    /// The returned object is cast to the concrete type by ClusterRunner callers that have
+    /// access to <c>IDescriptorTranslator</c>.
+    /// </summary>
+    ISimHostAuxiliaryTranslators CreateSimHostAuxiliaryTranslators();
 }

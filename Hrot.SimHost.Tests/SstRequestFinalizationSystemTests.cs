@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using Hrot.NED.Messages;
-using Hrot.SimHost.Systems;
+using Hrot.CGF.Systems;
+using Hrot.Core.Network;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;
 using Xunit;
@@ -107,7 +107,7 @@ namespace Hrot.SimHost.Tests
             var ack = ackSink.WrittenAcks[0];
             Assert.Equal(requestId,                    ack.RequestId);
             Assert.Equal((int)networkId,               ack.EntityId);
-            Assert.Equal((int)NedStatusCode.Success,   ack.StatusCode);
+            Assert.Equal((int)EntityOperationStatus.Success, ack.StatusCode);
         }
 
         /// <summary>
@@ -186,7 +186,7 @@ namespace Hrot.SimHost.Tests
             var ack = ackSink.WrittenAcks[0];
             Assert.Equal(requestId,                    ack.RequestId);
             Assert.Equal((int)networkId,               ack.EntityId);
-            Assert.Equal((int)NedStatusCode.Success,   ack.StatusCode);
+            Assert.Equal((int)EntityOperationStatus.Success, ack.StatusCode);
         }
     }
 }

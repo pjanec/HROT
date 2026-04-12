@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
+using Hrot.Core.Network;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.SimHost.Integration.Tests.Infrastructure;
@@ -104,12 +103,12 @@ namespace Hrot.SimHost.Integration.Tests
         public async Task MissingEntityMaster_ReturnsErrorAck()
         {
             var requestId = Guid.NewGuid();
-            var emptyRequest = new CreateEntityRequest
+            var emptyRequest = new EntityCreationRequest
             {
                 RequestId          = requestId,
-                Owner              = new Hrot.NED.Common.NodeId { AppDomainId = 1, AppInstanceId = 99 },
-                Flags              = 0,
-                InitialDescriptors = new List<EntityDescriptorUnion>(),  // No EntityMaster
+                OwnerAppInstanceId = 99,
+                TkbType            = 0,   // missing/invalid TkbType triggers error
+                DisType            = 0,
             };
 
             _client.SendCreateRequest(emptyRequest);
@@ -220,32 +219,21 @@ namespace Hrot.SimHost.Integration.Tests
 
         // ── Helpers ───────────────────────────────────────────────────────────────────────
 
-        private static CreateEntityRequest BuildTankRequest(Guid requestId)
+        private static EntityCreationRequest BuildTankRequest(Guid requestId)
         {
             return BuildTankRequestWithJson(requestId, initialAttributesJson: null);
         }
 
-        private static CreateEntityRequest BuildTankRequestWithJson(
+        private static EntityCreationRequest BuildTankRequestWithJson(
             Guid    requestId,
             string? initialAttributesJson)
         {
-            return new CreateEntityRequest
+            return new EntityCreationRequest
             {
-                RequestId = requestId,
-                Owner     = new Hrot.NED.Common.NodeId { AppDomainId = 1, AppInstanceId = 1 },
-                Flags     = 0,
-                InitialDescriptors = new List<EntityDescriptorUnion>
-                {
-                    new EntityDescriptorUnion
-                    {
-                        _d           = EDescriptorType.dtEntityMaster,
-                        EntityMaster = new EntityMaster
-                        {
-                            TkbType = TkbEntityTypes.Tank_M1Abrams,
-                            DisType = new DisTypeStruct { Kind = 1, Extra = 1 }
-                        },
-                    },
-                },
+                RequestId          = requestId,
+                OwnerAppInstanceId = 1,
+                TkbType            = TkbEntityTypes.Tank_M1Abrams,
+                DisType            = 0x0100_0000_0000_0001UL,   // Kind=1, Extra=1
                 InitialAttributesJson = initialAttributesJson,
             };
         }

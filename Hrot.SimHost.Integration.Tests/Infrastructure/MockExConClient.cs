@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
+using Hrot.Core.Network;
 using Hrot.IG.Components;
 using Fdp.Interfaces;
 using Fdp.Kernel;
@@ -16,7 +16,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
     /// through the same stub request/ack stubs used by the test harness.
     ///
     /// Mirrors the ExCon node's interaction pattern:
-    /// 1. <see cref="SendCreateRequest"/> → publishes a <see cref="CreateEntityRequest"/>.
+    /// 1. <see cref="SendCreateRequest"/> → publishes a <see cref="EntityCreationRequest"/>.
     /// 2. <see cref="WaitForAckAsync"/>   → polls the stub ACK sink until the matching
     ///    <see cref="CreateUpdateDeleteEntityAck"/> with a final status code arrives
     ///    (or the timeout elapses).
@@ -35,11 +35,11 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         // ── ExCon → SimHost ─────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Enqueues a <see cref="CreateEntityRequest"/> on the SimHost's stub request
+        /// Enqueues a <see cref="EntityCreationRequest"/> on the SimHost's stub request
         /// source, exactly as an ExCon DDS writer would publish it to the
         /// <c>CreateEntityRequest</c> topic.
         /// </summary>
-        public void SendCreateRequest(CreateEntityRequest request)
+        public void SendCreateRequest(EntityCreationRequest request)
             => _host.RequestSource.Enqueue(request);
 
         // ── SimHost → ExCon ─────────────────────────────────────────────────────────

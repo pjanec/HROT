@@ -1,6 +1,8 @@
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
+using Hrot.Core.Network;
+using Hrot.Network.NED.Factory;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Events;
@@ -15,9 +17,6 @@ using Hrot.SimHost.Configuration;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Network;
 using Hrot.SimHost.Events;
-using Hrot.SimHost.Network.Egress;
-using Hrot.SimHost.Network.Ingress;
-using Hrot.SimHost.Systems;
 using Hrot.SimHost.Utilities;
 using Hrot.Common.Infrastructure;
 using Hrot.Network.Infrastructure;
@@ -260,14 +259,8 @@ namespace Hrot.SimHost
             // ── 3. JSON Attribute Compiler (ATTR-S5T1 / ATTR-S5T4) ───────────
             // Builds the zero-allocation JSON attribute compiler with routing delegates
             // for Name, Affiliation, and GeoPosition registered at startup.  The same
-            // instance is shared by CreateEntityRequestSystem and UpdateEntityAttributeRequestSystem.
+            // instance is shared by UpdateEntityAttributeRequestSystem.
             var jsonAttributeCompiler = AttributeCompilerFactory.Build(wgs84);
-
-            // ── 3b. Binary Attribute Interpreter (ATTR2-P5T1) ─────────────────
-            // Builds the binary interpreter for decoding InitialAttributeRecords sent
-            // by the IG when it compiles JSON properties into binary wire format.
-            // Without this, binary attributes (e.g. Affiliation / Hostile) are silently dropped.
-            var binaryInterpreter = AttributeCompilerFactory.BuildBinaryInterpreter(wgs84);
 
             // ── 4. Doctrine registry — created before builder so WithDoctrineRegistry can capture it ──
             var doctrineRegistry = new DoctrineRegistry();
@@ -438,22 +431,10 @@ namespace Hrot.SimHost
                 });
 
             // ── DDS adapters and request-handling systems ───────────────────────
-            var requestSource      = new DdsCreateEntityRequestSource(ddsParticipant!);
-            var ackSink            = new DdsCreateUpdateDeleteEntityAckSink(ddsParticipant!);
-            var deleteSource       = new DdsDeleteEntityRequestSource(ddsParticipant!);
-            var finalizationSystem = new NedRequestFinalizationSystem(ackSink, entityMap);
-            var requestSystem      = new CreateEntityRequestSystem(
-                requestSource, ackSink, tkbDb, _idAllocator!, localNodeId,
-                wgs84, jsonAttributeCompiler, binaryInterpreter, finalizationSystem,
-                isDefaultProcessor: _role.HasFlag(NodeRole.Brain));
-            var deleteSystem       = new DeleteEntityRequestSystem(
-                deleteSource, ackSink, entityMap, finalizationSystem, localNodeId);
+            // Entity lifecycle (create/delete) is handled by the brain (CGF), not the muscle (SimHost).
 
             var simHostMod = new SimHostModule(
-                spawnSystem:        spawningSystem,
-                requestSystem:      requestSystem,
-                deleteSystem:       deleteSystem,
-                finalizationSystem: finalizationSystem);
+                spawnSystem: spawningSystem);
             _kernel.RegisterModule(simHostMod);
 
             _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant!, entityMap, wgs84));
@@ -467,14 +448,20 @@ namespace Hrot.SimHost
             // ── 11. Auxiliary network translators (time-sync, combat, mission-control) ──
             // These translators are SimHost-domain-specific and cannot be bundled into the
             // shared packs due to layer constraints. They are registered alongside the packs.
+            var networkFactory = new NedNetworkFactory(
+                participant:      ddsParticipant,
+                entityMap:        entityMap,
+                geoTransform:     wgs84,
+                eventBus:         _eventBus!,
+                localNodeId:      localNodeId,
+                role:             _role,
+                tkbDb:            tkbDb,
+                lifecycleModule:  elm,
+                doctrineRegistry: doctrineRegistry);
+
             if (ddsParticipant != null)
             {
-                var auxTranslators = SimHostAuxiliaryTranslatorPack.Create(
-                    ddsParticipant, entityMap, _eventBus, localNodeId, _role);
-
-                _kernel.RegisterGlobalSystem(new CycloneNetworkIngressSystem(auxTranslators.ToArray()));
-                _kernel.RegisterGlobalSystem(new CycloneEgressSystem(auxTranslators.ToArray()));
-                _kernel.RegisterGlobalSystem(new CycloneNetworkCleanupSystem(auxTranslators));
+                networkFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(_kernel);
             }
 
             // ── 11. Kernel init ───────────────────────────────────────────────
@@ -491,7 +478,7 @@ namespace Hrot.SimHost
                     _simLogicModule.RoadNetwork,
                     _simLogicModule.TrajectoryPool ?? new TrajectoryPoolManager(),
                     _simLogicModule.FormationTemplates ?? new FormationTemplateManager(),
-                    new DdsWriter<MissionControlRequest>(ddsParticipant!),
+                    networkFactory.CreateSimHostMissionSender(),
                     idAllocator: _idAllocator,
                     localNodeId: localNodeId);
 

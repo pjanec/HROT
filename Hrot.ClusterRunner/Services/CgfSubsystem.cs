@@ -19,8 +19,10 @@ using Hrot.Map.Common.Translators;
 using Hrot.SimHost;
 using Hrot.SimHost.Configuration;
 using Hrot.SimHost.Modules;
-using Hrot.SimHost.Network;
-using Hrot.SimHost.Systems;
+using Hrot.CGF.Systems;
+using Hrot.Core.Network;
+using Hrot.Network.NED.CGF;
+using Hrot.Network.NED.SimHost;
 using Hrot.SimHost.Translators;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
@@ -184,8 +186,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
             var elm          = (EntityLifecycleModule)_context.BaseModules
                                    .First(m => m is EntityLifecycleModule);
 
-            var requestSource = new DdsCreateEntityRequestSource(_context.Participant);
-            var ackSink       = new DdsCreateUpdateDeleteEntityAckSink(_context.Participant);
+            var requestSource = new NedEntityCreationRequestSource(_context.Participant);
+            var deleteSource  = new NedEntityDeletionRequestSource(_context.Participant);
+            var ackSink       = new NedEntityAckSink(_context.Participant);
 
             var jsonCompiler      = AttributeCompilerFactory.Build(geoTransform);
             var binaryInterpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform);
@@ -202,12 +205,17 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
                 tkbDb:                tkbDb,
                 idAllocator:          idAllocator,
                 localNodeId:          _context.NodeId,
-                geoTransform:         geoTransform,
                 jsonAttributeCompiler: jsonCompiler,
-                binaryInterpreter:    binaryInterpreter,
                 finalizationSystem:   finalizationSystem,
                 isDefaultProcessor:   true,
                 ownershipStrategy:    ownershipStrategy);
+
+            var deleteSystem = new DeleteEntityRequestSystem(
+                deleteSource,
+                ackSink,
+                _entityMap!,
+                finalizationSystem,
+                _context.NodeId);
 
             var spawnSystem = new NetworkSpawningSystem(
                 tkbDb,
@@ -217,9 +225,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
                 _context.NodeId);
 
             _context.Kernel.RegisterModule(new SimHostModule(
-                spawnSystem:        spawnSystem,
-                requestSystem:      requestSystem,
-                finalizationSystem: finalizationSystem));
+                spawnSystem: spawnSystem));
+
+            _context.Kernel.RegisterGlobalSystem(requestSystem);
+            _context.Kernel.RegisterGlobalSystem(deleteSystem);
+            _context.Kernel.RegisterGlobalSystem(finalizationSystem);
 
             var auxTranslators = SimHostAuxiliaryTranslatorPack.Create(
                 _context.Participant,
