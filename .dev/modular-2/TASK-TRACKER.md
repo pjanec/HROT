@@ -52,8 +52,8 @@
 **Goal:** Make Hrot.ClusterRunner a pure dynamic loader with no hardcoded subsystem references.
 
 - [x] **TASK-P5-001** Delete RunMode Enum and Refactor CLI Parsing [details](./TASK-DETAIL.md#task-p5-001-delete-runmode-enum-and-refactor-cli-parsing) ✅ BATCH-13
-- [ ] **TASK-P5-002** Implement In-Memory Reflection Scan in Program.cs [details](./TASK-DETAIL.md#task-p5-002-implement-in-memory-reflection-scan-in-programcs)
-- [ ] **TASK-P5-003** Add --network CLI Flag [details](./TASK-DETAIL.md#task-p5-003-add---network-cli-flag)
+- [x] **TASK-P5-002** Implement In-Memory Reflection Scan in Program.cs [details](./TASK-DETAIL.md#task-p5-002-implement-in-memory-reflection-scan-in-programcs) ✅ BATCH-14
+- [x] **TASK-P5-003** Add --network CLI Flag [details](./TASK-DETAIL.md#task-p5-003-add---network-cli-flag) ✅ BATCH-14
 
 ---
 
@@ -61,4 +61,4 @@
 
 **Goal:** Update integration test harnesses to use the new INetworkFactory injection pattern.
 
-- [ ] **TASK-P6-001** Update Integration Test Harnesses [details](./TASK-DETAIL.md#task-p6-001-update-integration-test-harnesses)
+- [~] **TASK-P6-001** Update Integration Test Harnesses [details](./TASK-DETAIL.md#task-p6-001-update-integration-test-harnesses) — MockNetworkFactory created; harness INetworkFactory injection deferred (DEBT-P6-001-A)
