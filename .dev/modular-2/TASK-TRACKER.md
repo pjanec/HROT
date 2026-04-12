@@ -19,9 +19,9 @@
 
 **Goal:** Create clean Hrot.Core (pragmatic DDS base), Hrot.Network.Orchestration, and Hrot.Presentation.
 
-- [ ] **TASK-P2-001** Create Hrot.Core [details](./TASK-DETAIL.md#task-p2-001-create-hrotcore)
-- [ ] **TASK-P2-002** Create Hrot.Presentation [details](./TASK-DETAIL.md#task-p2-002-create-hrotpresentation)
-- [ ] **TASK-P2-003** Create Hrot.Network.Orchestration [details](./TASK-DETAIL.md#task-p2-003-create-hrotnetworkorchestration)
+- [x] **TASK-P2-001** Create Hrot.Core [details](./TASK-DETAIL.md#task-p2-001-create-hrotcore) ✅ BATCH-04
+- [x] **TASK-P2-002** Create Hrot.Presentation [details](./TASK-DETAIL.md#task-p2-002-create-hrotpresentation) ✅ BATCH-05
+- [x] **TASK-P2-003** Create Hrot.Network.Orchestration [details](./TASK-DETAIL.md#task-p2-003-create-hrotnetworkorchestration) ✅ BATCH-04
 
 ---
 
@@ -29,8 +29,8 @@
 
 **Goal:** Define the neutral plugin boundary and create NED + BDC simulation-data network adapters.
 
-- [ ] **TASK-P3-001** Define INetworkFactory and Neutral Interfaces [details](./TASK-DETAIL.md#task-p3-001-define-inetworkfactory-and-neutral-interfaces-in-hrotcore)
-- [ ] **TASK-P3-002** Create Hrot.Network.NED [details](./TASK-DETAIL.md#task-p3-002-create-hrotnetworkned)
+- [x] **TASK-P3-001** Define INetworkFactory and Neutral Interfaces [details](./TASK-DETAIL.md#task-p3-001-define-inetworkfactory-and-neutral-interfaces-in-hrotcore) ✅ BATCH-05
+- [x] **TASK-P3-002** Create Hrot.Network.NED [details](./TASK-DETAIL.md#task-p3-002-create-hrotnetworkned) ✅ BATCH-06
 - [ ] **TASK-P3-003** Create Hrot.Network.BDC [details](./TASK-DETAIL.md#task-p3-003-create-hrotnetworkbdc)
 
 ---
