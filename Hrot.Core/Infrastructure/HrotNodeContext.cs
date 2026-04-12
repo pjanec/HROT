@@ -6,11 +6,11 @@ using Fdp.Modules.Geographic;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Replication.Systems;
 using Hrot.Common.Abstractions;
-using Hrot.Common.Orchestration;
 using ModuleHost.Core;
 using ModuleHost.Core.Abstractions;
-using ModuleHost.Network.Cyclone.Services;
+using ModuleHost.Core.Network.Interfaces;
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
+// IOrchestrationTranslator lives in same namespace (Hrot.Common.Infrastructure)
 
 namespace Hrot.Common.Infrastructure;
 
@@ -40,10 +40,10 @@ public sealed record HrotNodeContext
     public required ClusterSlave ClusterSlave { get; init; }
 
     /// <summary>
-    /// DDS ↔ bus bridge for <c>NodeOpCommand</c> / <c>NodeOpStatus</c> / <c>NodeHeartbeat</c>.
+    /// DDS <-> bus bridge for <c>NodeOpCommand</c> / <c>NodeOpStatus</c> / <c>NodeHeartbeat</c>.
     /// <c>null</c> when no DDS participant was provided.
     /// </summary>
-    public NodeOpSlaveTranslator? SlaveTranslator { get; init; }
+    public IOrchestrationTranslator? SlaveTranslator { get; init; }
 
     /// <summary>
     /// Infrastructure <see cref="IEcsModule"/> instances (e.g. <c>EntityLifecycleModule</c>,
@@ -59,7 +59,7 @@ public sealed record HrotNodeContext
     public GhostCreationSystem? GhostCreationSystem { get; init; }
 
     /// <summary>The DDS ID allocator for entity ID allocation. Null in headless contexts.</summary>
-    public DdsIdAllocator? IdAllocator { get; init; }
+    public INetworkIdAllocator? IdAllocator { get; init; }
 
     /// <summary>The local node ID used for DDS identity and ID allocation.</summary>
     public int NodeId { get; init; }
@@ -77,9 +77,15 @@ public sealed record HrotNodeContext
     public IGeographicTransform? GeoTransform { get; init; }
 
     /// <summary>
-    /// The NED replication module bundling translator packs and their lifecycle systems.
+    /// The replication module bundling translator packs and their lifecycle systems.
     /// Set by <c>HrotNodeBuilderReplicationExtensions.Build()</c>.
     /// <c>null</c> only in legacy call sites that have not yet migrated to the extension Build().
     /// </summary>
     public INedReplicationModule? NedReplication { get; init; }
+
+    /// <summary>
+    /// Protocol-neutral replication interface. Aliases <see cref="NedReplication"/> for
+    /// code that does not need NED-specific members.
+    /// </summary>
+    public IReplicationModule? Replication => NedReplication;
 }

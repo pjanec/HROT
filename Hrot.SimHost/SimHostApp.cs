@@ -98,7 +98,7 @@ namespace Hrot.SimHost
         private EntityRepository?    _world;
         private ModuleHostKernel?    _kernel;
         private SystemGroup?         _kernelGroup;
-        private DdsIdAllocator?      _idAllocator;
+        private INetworkIdAllocator? _idAllocator;
         private FdpEventBus?         _eventBus;        // Swaps kernel to SlaveSyncController when a SwitchTimeModeEvent(Deterministic) arrives.
         // (SlaveTimeModeListener has been removed; SlaveSyncController handles mode transitions internally.)
         // ── HrotNodeBuilder infrastructure context (EAM-M001) ─────────────────

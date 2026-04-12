@@ -4,6 +4,7 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
+using Hrot.Common.Infrastructure;
 using Hrot.NED.Descriptors.Orchestration;
 using NedClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using NedNodeOpType    = Hrot.NED.Descriptors.Orchestration.NodeOpType;
@@ -20,7 +21,7 @@ namespace Hrot.Common.Orchestration;
 /// <para>Status egress: reads <see cref="NodeOpCompletedEvent"/> from the bus and writes
 /// <see cref="NodeOpStatus"/> to DDS.</para>
 /// </summary>
-public sealed class NodeOpSlaveTranslator
+public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
 {
     private readonly DdsReader<NodeOpCommand>   _commandReader;
     private readonly DdsWriter<NodeOpStatus>    _statusWriter;
@@ -106,6 +107,18 @@ public sealed class NodeOpSlaveTranslator
                 ResultJson      = SerializeResultPayload(ev.ResultPayload),
             });
         }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>Calls <see cref="Tick"/> to pump the DDS read/publish cycle.</remarks>
+    public void Update() => Tick();
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        _commandReader.Dispose();
+        _statusWriter.Dispose();
+        _heartbeatWriter.Dispose();
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

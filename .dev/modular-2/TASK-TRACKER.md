@@ -10,8 +10,8 @@
 
 - [x] **TASK-P1-001** Create Fdp.Core [details](./TASK-DETAIL.md#task-p1-001-create-fdpcore) ✅ BATCH-01
 - [x] **TASK-P1-002** Create Fdp.Engine [details](./TASK-DETAIL.md#task-p1-002-create-fdpengine) ✅ BATCH-02
-- [ ] **TASK-P1-003** Create Fdp.Presentation [details](./TASK-DETAIL.md#task-p1-003-create-fdppresentation)
-- [ ] **TASK-P1-004** Create Fdp.Network.Cyclone [details](./TASK-DETAIL.md#task-p1-004-create-fdpnetworkcyclone)
+- [x] **TASK-P1-003** Create Fdp.Presentation [details](./TASK-DETAIL.md#task-p1-003-create-fdppresentation) ✅ BATCH-03
+- [x] **TASK-P1-004** Create Fdp.Network.Cyclone [details](./TASK-DETAIL.md#task-p1-004-create-fdpnetworkcyclone) ✅ BATCH-03
 
 ---
 

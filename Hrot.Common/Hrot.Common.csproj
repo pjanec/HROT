@@ -17,18 +17,25 @@
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Hrot.Network</_Parameter1>
-    </AssemblyAttribute>  </ItemGroup>
+    </AssemblyAttribute>
+  </ItemGroup>
 
   <ItemGroup>
-    <!-- Orchestration DDS types (NodeOpType, NodeOpCommand) -->
+    <!-- Hrot.Core provides: NodeRole, HrotNodeConfig, HrotNodeContext, all moved types -->
+    <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
+    <!-- Hrot.Network.Orchestration provides: NodeOpSlaveTranslator, DdsIdAllocatorHelper (used by HrotNodeBuilder) -->
+    <ProjectReference Include="..\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
+    <!-- NED types used by MissionControlCqrsEvents, MissionControlExecutionSystem, HrotNodeBuilder -->
     <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
-    <!-- EntityRepository parameter used by Commit/Abort -->
-    <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />    <!-- Toolkit orchestration contracts (IOrchestrationTransport, IClusterStateHandler) -->
-    <!-- Time messages/events for OrchestrationObserverTranslator (SwitchTimeModeWireDto → SwitchTimeModeEvent) -->
-    <!-- Infrastructure: HrotNodeBuilder and related types (Pre-Migration PM-1) -->
-    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
+    <!-- Fdp.Core for EntityRepository, ModuleHost.Core.* (used by HrotNodeBuilder) -->
+    <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />
+    <!-- Fdp.Network.Cyclone for DdsIdAllocator (used by HrotNodeBuilder) -->
+    <ProjectReference Include="..\FDP\ModuleHost\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
+    <!-- CycloneDDS.Runtime for DdsParticipant, DdsReader, DdsWriter (used by HrotNodeBuilder) -->
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
-    <ProjectReference Include="..\FDP\ModuleHost\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />  </ItemGroup>
+    <!-- Hrot.Map.Common for `using Hrot.Map.Common` in HrotNodeBuilder -->
+    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
+  </ItemGroup>
 
 </Project>
