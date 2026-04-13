@@ -167,13 +167,13 @@ namespace Fdp.Engine.Runner
             return dt;
         }
 
-        private void Update(float dt)
+        public void Update(float dt)
         {
             for (int i = 0; i < _subsystems.Count; i++)
                 _subsystems[i].Update(dt);
         }
 
-        private void DrawWorldAll()
+        public void DrawWorldAll()
         {
             // Only the active map owner draws the world layer.
             for (int i = 0; i < _subsystems.Count; i++)
@@ -183,7 +183,7 @@ namespace Fdp.Engine.Runner
             }
         }
 
-        private void DrawUIAll()
+        public void DrawUIAll()
         {
             for (int i = 0; i < _subsystems.Count; i++)
                 _subsystems[i].DrawUI();
