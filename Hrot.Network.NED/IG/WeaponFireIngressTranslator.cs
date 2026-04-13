@@ -6,15 +6,15 @@ using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 
-namespace Hrot.IG.Translators
+namespace Hrot.Network.NED.IG
 {
     /// <summary>
     /// IG-node ingress translator: polls the <c>WeaponFire</c> DDS topic and publishes
-    /// each received sample as a local <see cref="IgWeaponFireEvent"/> on the IG's event bus.
+    /// each received sample as a local <see cref="Hrot.IG.IgWeaponFireEvent"/> on the IG's event bus.
     ///
     /// <para>
     /// <b>Unknown-entity tolerance:</b> The IG event is always published regardless of whether
-    /// the shooter or target is present in the local <see cref="NetworkEntityMap"/>.  The entity
+    /// the shooter or target is present in the local <see cref="NetworkEntityMap"/>. The entity
     /// may have been destroyed between the muzzle-flash emit and its DDS delivery, but the IG
     /// visual layer can still draw a tracer or muzzle-flash by position if it chooses to.
     /// </para>
@@ -30,7 +30,7 @@ namespace Hrot.IG.Translators
         public long   DescriptorOrdinal => 82;
 
         /// <summary>
-        /// Production constructor — creates a live DDS reader.
+        /// Production constructor -- creates a live DDS reader.
         /// Pass <c>null</c> for <paramref name="participant"/> in unit tests.
         /// </summary>
         public WeaponFireIngressTranslator(
@@ -45,11 +45,11 @@ namespace Hrot.IG.Translators
 
         /// <summary>
         /// Polls the DDS reader for incoming <see cref="WeaponFire"/> samples and
-        /// publishes each as an <see cref="IgWeaponFireEvent"/> on the local event bus.
+        /// publishes each as an <see cref="Hrot.IG.IgWeaponFireEvent"/> on the local event bus.
         /// </summary>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
-            if (_reader is null) return;    // test / no-participant mode
+            if (_reader is null) return;
 
             using var loan = _reader.Take();
             foreach (var sample in loan)
@@ -63,11 +63,11 @@ namespace Hrot.IG.Translators
         /// <summary>
         /// Processes a single <see cref="WeaponFire"/> DDS sample.
         /// Exposed as <c>internal</c> so unit tests can inject samples without a live DDS stack.
-        /// Always publishes <see cref="IgWeaponFireEvent"/> — unknown entity IDs are tolerated.
+        /// Always publishes <see cref="Hrot.IG.IgWeaponFireEvent"/> -- unknown entity IDs are tolerated.
         /// </summary>
         internal void ProcessSample(in WeaponFire msg, IEntityCommandBuffer cmd)
         {
-            cmd.PublishEvent(new IgWeaponFireEvent
+            cmd.PublishEvent(new Hrot.IG.IgWeaponFireEvent
             {
                 ShooterEntityId = msg.ShooterEntityId,
                 TargetEntityId  = msg.TargetEntityId,

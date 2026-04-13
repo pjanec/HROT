@@ -16,7 +16,7 @@ internal static class NedTranslationHelper
     public static System.Collections.Generic.List<EntityDescriptorUnion> BuildCreateEntityDescriptors(
         CreateEntityCommand cmd)
     {
-        return new System.Collections.Generic.List<EntityDescriptorUnion>
+        var descriptors = new System.Collections.Generic.List<EntityDescriptorUnion>
         {
             new EntityDescriptorUnion
             {
@@ -41,7 +41,26 @@ internal static class NedTranslationHelper
                 }
             },
         };
+
+        if (cmd.ForceId != 0)
+        {
+            descriptors.Add(new EntityDescriptorUnion
+            {
+                _d         = EDescriptorType.dtEntityInfo,
+                EntityInfo = new EntityInfo { ForceIdentifier = MapForceId(cmd.ForceId) },
+            });
+        }
+
+        return descriptors;
     }
+
+    private static eForceIdentifier MapForceId(int forceId) => forceId switch
+    {
+        1 => eForceIdentifier.FORCE_FRIENDLY,
+        2 => eForceIdentifier.FORCE_OPPOSING,
+        3 => eForceIdentifier.FORCE_NEUTRAL,
+        _ => eForceIdentifier.FORCE_UNKNOWN,
+    };
 
     /// <summary>
     /// Translates a neutral <see cref="MissionControlCommand"/> to a NED
@@ -100,6 +119,7 @@ internal static class NedTranslationHelper
             EntityId       = cmd.EntityId,
             DescriptorType = Hrot.NED.Descriptors.EDescriptorType.dtEntityMaster,
             CurrentVersion = (int)cmd.BaseVersion,
+            // TODO DEBT-008: Payload must be populated from cmd.DescriptorJson (JSON -> EntityDescriptorUnion translation)
         };
     }
 }

@@ -34,8 +34,6 @@
   <ItemGroup>
     <!-- Orchestration DDS types and IClusterStateHandler -->
     <ProjectReference Include="..\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
-    <!-- MissionControlExecutionSystem lives in NED/Systems (Hrot.Common.Systems namespace) -->
-    <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
     <!-- CycloneDDS transitive via DataModel, but explicit for DdsParticipant -->
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />

@@ -40,4 +40,10 @@ public interface INetworkFactory
 
     /// <summary>Creates the IG-specific DDS ingress translator provider.</summary>
     IIgTranslators CreateIgTranslators();
+
+    /// <summary>
+    /// Creates the IG network adapter wrapping all DDS writers and readers for the IG.
+    /// Pass <c>null</c> for <paramref name="participant"/> in headless/offline mode.
+    /// </summary>
+    IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0);
 }

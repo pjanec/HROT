@@ -1,8 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Hrot.NED.Messages;   // CreateUpdateDeleteEntityAck, MapCommandAck
-using Hrot.IG.Abstractions;
+using Hrot.Core.Network;
 using Hrot.IG.Systems;
 using Hrot.ScenarioEditor.Tools;
 using FDP.Toolkit.Vis2D;
@@ -14,24 +13,24 @@ namespace Hrot.IG.Tests;
 
 public class MapCommandControllerTests
 {
-    private sealed class CapturingDdsWriter<T> : IDdsWriter<T>
+    private sealed class CapturingAckCallback
     {
-        public List<T> Written { get; } = new();
-        public void Write(T sample) => Written.Add(sample);
+        public List<MapCommandAckDto> Written { get; } = new();
+        public Action<MapCommandAckDto> Callback => dto => Written.Add(dto);
     }
 
     private static (
-        MapCanvas                         canvas,
-        FdpEventBus                       bus,
-        CapturingDdsWriter<MapCommandAck> ackWriter,
-        MapCommandController              controller)
+        MapCanvas                canvas,
+        FdpEventBus              bus,
+        CapturingAckCallback     ackCapture,
+        MapCommandController     controller)
     BuildController()
     {
-        var canvas    = new MapCanvas();
-        var bus       = new FdpEventBus();
-        var ackWriter = new CapturingDdsWriter<MapCommandAck>();
-        var ctrl      = new MapCommandController(canvas, bus, ackWriter);
-        return (canvas, bus, ackWriter, ctrl);
+        var canvas     = new MapCanvas();
+        var bus        = new FdpEventBus();
+        var ackCapture = new CapturingAckCallback();
+        var ctrl       = new MapCommandController(canvas, bus, ackCapture.Callback);
+        return (canvas, bus, ackCapture, ctrl);
     }
 
     private static IReadOnlyList<SpawnEntityCommand> DrainSpawnCmds(FdpEventBus bus)
@@ -51,13 +50,13 @@ public class MapCommandControllerTests
     [Fact]
     public void ActivatePlacementCommand_SameContext_IsNoop()
     {
-        var (canvas, _, ackWriter, ctrl) = BuildController();
+        var (canvas, _, ackCapture, ctrl) = BuildController();
         var contextId = Guid.NewGuid();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), contextId, 202L, null);
         var toolAfterFirst = canvas.ActiveTool;
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), contextId, 202L, null);
         Assert.Same(toolAfterFirst, canvas.ActiveTool);
-        Assert.Empty(ackWriter.Written);
+        Assert.Empty(ackCapture.Written);
     }
 
     [Fact]
@@ -72,86 +71,86 @@ public class MapCommandControllerTests
     [Fact]
     public void OnCreateEntityAck_AfterToolAutoPop_PublishesFinishedAck()
     {
-        var (canvas, bus, ackWriter, ctrl) = BuildController();
+        var (canvas, bus, ackCapture, ctrl) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.ActivatePlacementCommand(requestId, Guid.NewGuid(), 202L, null);
         ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MouseButton.Left);
         var entityReqId = DrainSpawnCmds(bus)[0].RequestId;
-        ctrl.OnCreateEntityAck(new CreateUpdateDeleteEntityAck { RequestId = entityReqId, EntityId = 99, StatusCode = 0 });
-        Assert.Single(ackWriter.Written);
-        Assert.Equal(requestId, ackWriter.Written[0].RequestId);
-        Assert.Equal(MapCommandController.StatusFinished, ackWriter.Written[0].StatusCode);
+        ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = entityReqId, EntityId = 99, StatusCode = 0 });
+        Assert.Single(ackCapture.Written);
+        Assert.Equal(requestId, ackCapture.Written[0].RequestId);
+        Assert.Equal(MapCommandController.StatusFinished, ackCapture.Written[0].StatusCode);
     }
 
     [Fact]
     public void OnCreateEntityAck_UnknownRequestId_IsIgnored()
     {
-        var (canvas, bus, ackWriter, ctrl) = BuildController();
+        var (canvas, bus, ackCapture, ctrl) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null);
         ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MouseButton.Left);
         bus.SwapBuffers();
-        ctrl.OnCreateEntityAck(new CreateUpdateDeleteEntityAck { RequestId = Guid.NewGuid(), EntityId = 1, StatusCode = 0 });
-        Assert.Empty(ackWriter.Written);
+        ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 1, StatusCode = 0 });
+        Assert.Empty(ackCapture.Written);
     }
 
     [Fact]
     public void HandleClick_RightClick_PublishesCancelledAck()
     {
-        var (canvas, bus, ackWriter, ctrl) = BuildController();
+        var (canvas, bus, ackCapture, ctrl) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.ActivatePlacementCommand(requestId, Guid.NewGuid(), 202L, null);
         ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MouseButton.Right);
         Assert.Empty(bus.ConsumeManaged<SpawnEntityCommand>());
-        Assert.Single(ackWriter.Written);
-        Assert.Equal(requestId, ackWriter.Written[0].RequestId);
-        Assert.Equal(MapCommandController.StatusCancelled, ackWriter.Written[0].StatusCode);
+        Assert.Single(ackCapture.Written);
+        Assert.Equal(requestId, ackCapture.Written[0].RequestId);
+        Assert.Equal(MapCommandController.StatusCancelled, ackCapture.Written[0].StatusCode);
     }
 
     [Fact]
     public void FinishedAck_DataJsonContainsEntityId()
     {
-        var (canvas, bus, ackWriter, ctrl) = BuildController();
+        var (canvas, bus, ackCapture, ctrl) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null);
         ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MouseButton.Left);
         var entityReqId = DrainSpawnCmds(bus)[0].RequestId;
-        ctrl.OnCreateEntityAck(new CreateUpdateDeleteEntityAck { RequestId = entityReqId, EntityId = 42, StatusCode = 0 });
-        Assert.Contains("42", ackWriter.Written[0].DataJson);
+        ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = entityReqId, EntityId = 42, StatusCode = 0 });
+        Assert.Contains("42", ackCapture.Written[0].DataJson);
     }
 
     [Fact]
     public void AreaAuthoring_CommitAndAck_PublishesFinishedAck()
     {
-        var (_, bus, ackWriter, ctrl) = BuildController();
+        var (_, bus, ackCapture, ctrl) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.BeginAreaAuthoringSession(requestId, Guid.NewGuid());
         var areaCmd = new SpawnEntityCommand { RequestId = Guid.NewGuid() };
         ctrl.OnAreaEntityCreated(areaCmd, isToolDone: true);
         Assert.Single(DrainSpawnCmds(bus));
-        ctrl.OnCreateEntityAck(new CreateUpdateDeleteEntityAck { RequestId = areaCmd.RequestId, EntityId = 10, StatusCode = 0 });
-        Assert.Single(ackWriter.Written);
-        Assert.Equal(requestId, ackWriter.Written[0].RequestId);
-        Assert.Equal(MapCommandController.StatusFinished, ackWriter.Written[0].StatusCode);
+        ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = areaCmd.RequestId, EntityId = 10, StatusCode = 0 });
+        Assert.Single(ackCapture.Written);
+        Assert.Equal(requestId, ackCapture.Written[0].RequestId);
+        Assert.Equal(MapCommandController.StatusFinished, ackCapture.Written[0].StatusCode);
     }
 
     [Fact]
     public void AreaAuthoring_CancelledBeforeAnyRequest_PublishesCancelledAck()
     {
-        var (_, bus, ackWriter, ctrl) = BuildController();
+        var (_, bus, ackCapture, ctrl) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.BeginAreaAuthoringSession(requestId, Guid.NewGuid());
         ctrl.OnAreaToolCancelled();
         Assert.Empty(bus.ConsumeManaged<SpawnEntityCommand>());
-        Assert.Single(ackWriter.Written);
-        Assert.Equal(requestId, ackWriter.Written[0].RequestId);
-        Assert.Equal(MapCommandController.StatusCancelled, ackWriter.Written[0].StatusCode);
+        Assert.Single(ackCapture.Written);
+        Assert.Equal(requestId, ackCapture.Written[0].RequestId);
+        Assert.Equal(MapCommandController.StatusCancelled, ackCapture.Written[0].StatusCode);
     }
 
     [Fact]
     public void OnCreateEntityAck_NoActiveSession_IsIgnored()
     {
-        var (_, _, ackWriter, ctrl) = BuildController();
-        ctrl.OnCreateEntityAck(new CreateUpdateDeleteEntityAck { RequestId = Guid.NewGuid(), EntityId = 1, StatusCode = 0 });
-        Assert.Empty(ackWriter.Written);
+        var (_, _, ackCapture, ctrl) = BuildController();
+        ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 1, StatusCode = 0 });
+        Assert.Empty(ackCapture.Written);
     }
 
     [Fact]

@@ -1,9 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using Hrot.NED.Descriptors;
+using Hrot.Core.Network;
 using Hrot.IG.Systems;
-using CycloneDDS.Runtime;
 using FDP.Kernel.Logging;
 
 namespace Hrot.IG.Services;
@@ -24,33 +23,24 @@ namespace Hrot.IG.Services;
 public static class IgCapabilitiesPublisher
 {
     /// <summary>
-    /// Publishes the IG capabilities announcement to the DDS network.
+    /// Invokes the network adapter to publish IG capabilities.
     /// </summary>
-    /// <param name="participant">Active DDS participant.</param>
-    /// <param name="mapId">The IG instance ID (keyed field).</param>
-    public static void Publish(DdsParticipant participant, int mapId)
+    /// <param name="adapter">Network adapter; no-op when null.</param>
+    /// <param name="mapId">The IG instance ID.</param>
+    public static void Publish(IIgNetworkAdapter? adapter, int mapId)
     {
-        ArgumentNullException.ThrowIfNull(participant);
+        if (adapter == null) return;
 
         try
         {
-            using var writer = new DdsWriter<IGCapabilitiesAnnounce>(participant, "IGCapabilitiesAnnounce");
-
-            var payload = new IGCapabilitiesAnnounce
-            {
-                MapId              = mapId,
-                LayerTreeJson      = BuildLayerTreeJson(),
-                ConfigurationSchemasJson = BuildConfigSchemasJson(),
-                OverlayStyleSchemaJson   = string.Empty,
-                TkbManifestJson          = string.Empty,
-            };
-
-            writer.Write(payload);
+            string layerTreeJson  = BuildLayerTreeJson();
+            string configSchemas  = BuildConfigSchemasJson();
+            adapter.PublishCapabilities(mapId, layerTreeJson, configSchemas);
 
             FdpLog<Log>.Info(
                 "[Node-{0}] IGCapabilitiesAnnounce published. Layers={1}",
                 mapId,
-                payload.LayerTreeJson);
+                layerTreeJson);
         }
         catch (Exception ex)
         {

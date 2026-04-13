@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Hrot.NED.Messages;
-using Hrot.IG.Abstractions;
 using Hrot.IG.Components;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
@@ -44,7 +42,7 @@ public class ContextMenuSystem : IEcsModuleSystem
     // ── Cache-miss fallback writer (optional) ────────────────────────────────
     // Injected after construction via SetCacheMissWriter. Null in tests and offline mode.
 
-    private IDdsWriter<ContextMenuRequest>? _contextMenuRequestWriter;
+    private Action<Guid, int, IReadOnlyList<int>>? _contextMenuRequestWriter;
     private int                             _mapId;
 
     // ── Internal pending-request state ────────────────────────────────────────
@@ -181,12 +179,8 @@ public class ContextMenuSystem : IEcsModuleSystem
 
                     if (netId.Value != 0 && !hasIosActions)
                     {
-                        _contextMenuRequestWriter.Write(new ContextMenuRequest
-                        {
-                            RequestId    = Guid.NewGuid(),
-                            MapId        = _mapId,
-                            ForSelection = new List<int> { (int)netId.Value },
-                        });
+                        _contextMenuRequestWriter?.Invoke(
+                            Guid.NewGuid(), _mapId, new List<int> { (int)netId.Value });
                     }
                 }
 
@@ -219,9 +213,9 @@ public class ContextMenuSystem : IEcsModuleSystem
     /// Called by <c>IgApplication</c> after DDS initialisation completes.
     /// Passing <c>null</c> disables the fallback (offline / test mode).
     /// </summary>
-    internal void SetCacheMissWriter(IDdsWriter<ContextMenuRequest>? writer, int mapId)
+    internal void SetCacheMissWriter(Action<Guid, int, IReadOnlyList<int>>? callback, int mapId)
     {
-        _contextMenuRequestWriter = writer;
+        _contextMenuRequestWriter = callback;
         _mapId                    = mapId;
     }
 

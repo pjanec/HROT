@@ -44,6 +44,10 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     /// <inheritdoc/>
     public IIgTranslators CreateIgTranslators() => new NullIgTranslators();
 
+    /// <inheritdoc/>
+    public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0)
+        => NullIgNetworkAdapter.Instance;
+
     // ---- null stubs -------------------------------------------------------
 
     private sealed class NullReplicationModule : IReplicationModule

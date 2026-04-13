@@ -1,6 +1,5 @@
+using System;
 using System.Collections.Generic;
-using Hrot.NED.Messages;
-using Hrot.IG.Abstractions;
 using Hrot.IG.Components;
 using Hrot.IG.Systems;
 using Fdp.Kernel;
@@ -604,22 +603,19 @@ public class ContextMenuSystemTests
     // ContextMenuRequest cache-miss fallback (right-click without prior selection)
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /// <summary>
-    /// Minimal <see cref="IDdsWriter{T}"/> stub that records every written sample.
-    /// Used to assert that <see cref="ContextMenuSystem"/> emits
-    /// <see cref="ContextMenuRequest"/> at the right time without a live DDS stack.
-    /// </summary>
-    private sealed class FakeDdsWriter<T> : IDdsWriter<T>
+    /// <summary>Records every cache-miss callback invocation (requestId, mapId, forSelection).</summary>
+    private sealed class FakeCacheMissCallback
     {
-        public List<T> Written { get; } = new();
-        public void Write(T sample) => Written.Add(sample);
+        public List<(Guid RequestId, int MapId, IReadOnlyList<int> ForSelection)> Written { get; } = new();
+        public Action<Guid, int, IReadOnlyList<int>> Callback =>
+            (reqId, mapId, sel) => Written.Add((reqId, mapId, sel));
     }
 
     private static ContextMenuSystem CreateSystemWithWriter(
-        FakeDdsWriter<ContextMenuRequest> writer, int mapId = 1)
+        FakeCacheMissCallback writer, int mapId = 1)
     {
         var system = new ContextMenuSystem();
-        system.SetCacheMissWriter(writer, mapId);
+        system.SetCacheMissWriter(writer.Callback, mapId);
         return system;
     }
 
@@ -635,7 +631,7 @@ public class ContextMenuSystemTests
         var entity = repo.CreateEntity();
         repo.AddComponent(entity, new NetworkIdentity(42));
 
-        var writer = new FakeDdsWriter<ContextMenuRequest>();
+        var writer = new FakeCacheMissCallback();
         var system = CreateSystemWithWriter(writer, mapId: 7);
 
         system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
@@ -673,7 +669,7 @@ public class ContextMenuSystemTests
             }
         });
 
-        var writer = new FakeDdsWriter<ContextMenuRequest>();
+        var writer = new FakeCacheMissCallback();
         var system = CreateSystemWithWriter(writer);
 
         system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
@@ -695,7 +691,7 @@ public class ContextMenuSystemTests
         var mapContext  = repo.CreateEntity();
         repo.AddComponent(mapContext, new NetworkIdentity(0));   // the background entity
 
-        var writer = new FakeDdsWriter<ContextMenuRequest>();
+        var writer = new FakeCacheMissCallback();
         var system = CreateSystemWithWriter(writer);
 
         system.TestHook_TriggerContextMenu(mapContext, ScreenX, ScreenY);
@@ -729,7 +725,7 @@ public class ContextMenuSystemTests
             }
         });
 
-        var writer = new FakeDdsWriter<ContextMenuRequest>();
+        var writer = new FakeCacheMissCallback();
         var system = CreateSystemWithWriter(writer);
 
         system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);

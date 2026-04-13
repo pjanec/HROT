@@ -14,7 +14,7 @@ using ModuleHost.Network.Cyclone.Translators;
 using DdsContextActionsUpdate = Hrot.NED.Messages.ContextActionsUpdate;
 using IgContextActionsUpdate = Hrot.IG.ContextActionsUpdate;
 
-namespace Hrot.IG.Translators
+namespace Hrot.Network.NED.IG
 {
     /// <summary>
     /// Ingress translator that converts DDS ContextActionsUpdate messages into

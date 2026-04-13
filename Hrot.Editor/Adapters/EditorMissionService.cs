@@ -5,6 +5,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Components;
+using Hrot.Core.Mission;
 using Hrot.Common.Events;
 using Hrot.Map.Definitions.Tkb;
 using Hrot.NED.Descriptors;
@@ -94,10 +95,10 @@ namespace Hrot.Editor.Adapters
                 RequestId      = requestId,
                 TargetEntityId = entityId,
                 BaseVersion    = baseVersion,
-                Payload = new MissionCommandUnion
+                Payload = new MissionCommandPayload
                 {
-                    _d              = eMissionCommandType.CMD_REPLACE_MISSION,
-                    FullMissionData = MapNeutralPlanToNed(plan),
+                    CommandType     = Hrot.Core.Mission.eMissionCommandType.CMD_REPLACE_MISSION,
+                    FullMissionData = plan,
                 }
             });
 
@@ -117,9 +118,9 @@ namespace Hrot.Editor.Adapters
                 RequestId      = requestId,
                 TargetEntityId = entityId,
                 BaseVersion    = 0,
-                Payload = new MissionCommandUnion
+                Payload = new MissionCommandPayload
                 {
-                    _d           = (eMissionCommandType)(int)type,
+                    CommandType  = type,
                     TargetTaskId = taskId,
                 }
             });

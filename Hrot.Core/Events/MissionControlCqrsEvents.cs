@@ -1,16 +1,14 @@
 using System;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
-using Hrot.NED.Messages;
+using Hrot.Core.Mission;
 
 namespace Hrot.Common.Events
 {
     /// <summary>
     /// Cross-boundary intent published by <c>MissionControlIngressTranslator</c>
-    /// (SimHost) or <c>MissionEditorService</c> (ExCon) when a mission command
-    /// must traverse the bus.
-    ///
-    /// This is a managed class (not a value type) because <see cref="MissionCommandUnion"/>
+    /// when a mission command must traverse the bus.
+    /// This is a managed class (not a value type) because <see cref="MissionCommandPayload"/>
     /// contains managed reference fields (<see cref="MissionPlan"/>, task lists, etc.).
     /// Use <c>FdpEventBus.PublishManaged</c> / <c>ConsumeManaged</c> for routing.
     /// </summary>
@@ -25,23 +23,13 @@ namespace Hrot.Common.Events
         /// <summary>Client-side version the request is based on (0 = unconditional).</summary>
         public long BaseVersion;
 
-        /// <summary>
-        /// Strongly-typed mission command payload.
-        /// </summary>
-        public MissionCommandUnion Payload;
+        /// <summary>Strongly-typed neutral mission command payload.</summary>
+        public MissionCommandPayload Payload = new();
     }
 
     /// <summary>
     /// Outcome event published after processing a <see cref="MissionControlIntent"/>.
-    ///
-    /// On SimHost: published by <c>MissionControlExecutionSystem</c>,
-    /// consumed by <c>MissionControlAckEgressTranslator</c>.
-    ///
-    /// On ExCon: published by <c>MissionControlAckIngressTranslator</c>,
-    /// consumed by <c>MissionEditorService</c> to resolve pending commits.
-    ///
-    /// This is an unmanaged struct so it can be routed via the standard
-    /// <c>FdpEventBus.Publish</c> / <c>Consume</c> path.
+    /// Unmanaged struct routed via FdpEventBus.Publish / Consume.
     /// </summary>
     [EventId(6002)]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]

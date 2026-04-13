@@ -1,6 +1,6 @@
 using System;
+using Hrot.Core.Network;
 using Hrot.IG.Components;
-using Hrot.Map.Common.Commands;
 using Fdp.Kernel;
 using ImGuiNET;
 
@@ -27,7 +27,7 @@ public class MiniExConPanel
 {
     private readonly MiniExConPanelState _state;
     private readonly FdpEventBus       _eventBus;
-    private NedCommandGateway?         _gateway;
+    private ICommandGateway?           _gateway;
 
     /// <param name="state">Form state instance shared with the application shell.</param>
     /// <param name="eventBus">Event bus used to publish local spawn commands on submit.</param>
@@ -42,7 +42,7 @@ public class MiniExConPanel
     /// over DDS rather than publishing a local <see cref="FdpEventBus"/> command.
     /// Pass <c>null</c> to fall back to the local event-bus path (offline mode).
     /// </summary>
-    public void SetGateway(NedCommandGateway? gateway) => _gateway = gateway;
+    public void SetGateway(ICommandGateway? gateway) => _gateway = gateway;
 
     /// <summary>
     /// Emits the Mini ExCon ImGui window.

@@ -1,5 +1,5 @@
 using Hrot.NED.Messages;
-using Hrot.IG.Translators;
+using Hrot.Network.NED.IG;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;

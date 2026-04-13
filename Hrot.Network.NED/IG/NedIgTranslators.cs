@@ -32,6 +32,10 @@ public sealed class NedIgTranslators : IIgTranslators
                 participant, entityMap));
             translators.Add(new AudioTargetDetectedIngressTranslator(
                 participant, entityMap));
+            translators.Add(new WeaponFireIngressTranslator(
+                participant, entityMap));
+            translators.Add(new ContextActionsUpdateTranslator(
+                participant, entityMap, bus, ghostCreationSystem, localNodeId));
         }
 
         return translators;

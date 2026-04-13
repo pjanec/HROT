@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Hrot.IG.Translators;
+using Hrot.Network.NED.IG;
 using Xunit;
 
 namespace Hrot.IG.Tests;

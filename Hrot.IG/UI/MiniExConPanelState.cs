@@ -2,9 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Threading.Tasks;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
-using Hrot.NED.Common;
+using Hrot.Core.Mission;
+using Hrot.Core.Network;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Commands;
 using FDP.Kernel.Logging;
@@ -136,13 +135,13 @@ public class MiniExConPanelState
     // ── Submit via gateway (network path) ─────────────────────────────────────
 
     /// <summary>
-    /// Sends a <see cref="CreateEntityRequest"/> to SimHost via the DDS command gateway.
-    /// Fire-and-forget: the gateway's ack is not awaited.
+    /// Sends a create-entity command to SimHost via the neutral command gateway.
+    /// Fire-and-forget: the gateway ACK is not awaited.
     /// Logs a warning and returns silently when <paramref name="gateway"/> is <c>null</c>
     /// (i.e. when the network is disabled).
     /// </summary>
     /// <param name="gateway">Live command gateway; may be <c>null</c> when network is off.</param>
-    public void SubmitViaGateway(NedCommandGateway? gateway)
+    public void SubmitViaGateway(ICommandGateway? gateway)
     {
         if (gateway == null)
         {
@@ -150,55 +149,25 @@ public class MiniExConPanelState
             return;
         }
 
-        var descriptors = new List<EntityDescriptorUnion>
-        {
-            new EntityDescriptorUnion
-            {
-                _d           = EDescriptorType.dtEntityMaster,
-                EntityMaster = new EntityMaster { TkbType = TkbType, DisType = default },
-            }
-        };
-
-        // Include Hrot.NED.Descriptors.EntityInfo so SimHost publishes affiliation on the Hrot.NED.Descriptors.EntityInfo DDS topic
-        // and the IG StyleResolutionSystem can apply the correct force colour.
-        if (Affiliation != ForceId.Unknown)
-        {
-            descriptors.Add(new EntityDescriptorUnion
-            {
-                _d         = EDescriptorType.dtEntityInfo,
-                EntityInfo = new Hrot.NED.Descriptors.EntityInfo { ForceIdentifier = MapAffiliation(Affiliation) },
-            });
-        }
-
+        double lat = 0, lon = 0, alt = 0;
         if (_geoTransform != null)
         {
             float spawnX = UseSpecificCoordinates ? PositionX : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
             float spawnY = UseSpecificCoordinates ? PositionY : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
             var local = new Vector3(spawnX, spawnY, 0f);
-            var (lat, lon, alt) = _geoTransform.ToGeodetic(local);
-
-            descriptors.Add(new EntityDescriptorUnion
-            {
-                _d = EDescriptorType.dtWorldPos,
-                WorldPos = new WorldPos
-                {
-                    Pos = new GeoPoint
-                    {
-                        Latitude  = lat,
-                        Longitude = lon,
-                        Altitude  = alt,
-                    },
-                },
-            });
+            (lat, lon, alt) = _geoTransform.ToGeodetic(local);
         }
 
-        var request = new CreateEntityRequest
+        var cmd = new CreateEntityCommand
         {
-            RequestId          = Guid.NewGuid(),
-            InitialDescriptors = descriptors,
+            TkbType   = TkbType,
+            Latitude  = lat,
+            Longitude = lon,
+            Altitude  = alt,
+            ForceId   = (int)(byte)Affiliation,
         };
 
-        _ = gateway.CreateEntityAsync(request); // fire-and-forget
+        _ = gateway.CreateEntityAsync(cmd); // fire-and-forget
     }
 
     // ── Submit via gateway with wander mission (network path) ─────────────────
@@ -214,7 +183,7 @@ public class MiniExConPanelState
     /// Returns silently and logs a warning when <paramref name="gateway"/> is <c>null</c>.
     /// </summary>
     /// <param name="gateway">Live command gateway; may be <c>null</c> when network is off.</param>
-    public async Task<long> SubmitWithWanderMissionViaGateway(NedCommandGateway? gateway)
+    public async Task<long> SubmitWithWanderMissionViaGateway(ICommandGateway? gateway)
     {
         if (gateway == null)
         {
@@ -222,56 +191,28 @@ public class MiniExConPanelState
             return 0L;
         }
 
-        var descriptors = new List<EntityDescriptorUnion>
-        {
-            new EntityDescriptorUnion
-            {
-                _d           = EDescriptorType.dtEntityMaster,
-                EntityMaster = new EntityMaster { TkbType = TkbType, DisType = default },
-            }
-        };
-
-        if (Affiliation != ForceId.Unknown)
-        {
-            descriptors.Add(new EntityDescriptorUnion
-            {
-                _d         = EDescriptorType.dtEntityInfo,
-                EntityInfo = new Hrot.NED.Descriptors.EntityInfo { ForceIdentifier = MapAffiliation(Affiliation) },
-            });
-        }
-
+        double lat = 0, lon = 0, alt = 0;
         if (_geoTransform != null)
         {
             float spawnX = UseSpecificCoordinates ? PositionX : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
             float spawnY = UseSpecificCoordinates ? PositionY : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
             var local = new Vector3(spawnX, spawnY, 0f);
-            var (lat, lon, alt) = _geoTransform.ToGeodetic(local);
-
-            descriptors.Add(new EntityDescriptorUnion
-            {
-                _d = EDescriptorType.dtWorldPos,
-                WorldPos = new WorldPos
-                {
-                    Pos = new GeoPoint
-                    {
-                        Latitude  = lat,
-                        Longitude = lon,
-                        Altitude  = alt,
-                    },
-                },
-            });
+            (lat, lon, alt) = _geoTransform.ToGeodetic(local);
         }
 
-        var createRequest = new CreateEntityRequest
+        var createCmd = new CreateEntityCommand
         {
-            RequestId          = Guid.NewGuid(),
-            InitialDescriptors = descriptors,
+            TkbType   = TkbType,
+            Latitude  = lat,
+            Longitude = lon,
+            Altitude  = alt,
+            ForceId   = (int)(byte)Affiliation,
         };
 
-        CreateUpdateDeleteEntityAck ack;
+        int entityId;
         try
         {
-            ack = await gateway.CreateEntityAsync(createRequest);
+            entityId = await gateway.CreateEntityAsync(createCmd);
         }
         catch (Exception ex)
         {
@@ -279,50 +220,46 @@ public class MiniExConPanelState
             return 0L;
         }
 
-        if (ack.StatusCode >= 2)
+        if (entityId <= 0)
         {
             FdpLog<MiniExConPanelState>.Warn(
-                "[Node-{0}] CreateUpdateDeleteEntityAck returned error {1} -- mission assignment skipped.", _localNodeId, ack.StatusCode);
+                "[Node-{0}] CreateEntityAsync returned invalid entity id {1} -- mission assignment skipped.", _localNodeId, entityId);
             return 0L;
         }
 
         var taskId = Guid.NewGuid();
-        var missionTask = new MissionTask
+        var missionTask = new Hrot.Core.Mission.MissionTask
         {
             TaskId           = taskId,
             ExecutingEngine  = "CGFX",
             BehaviorId       = "WanderMilitary",
             BehaviorParams   = string.Empty,
-            Triggers         = new List<MissionTrigger>(), // single-task plan – no advancement
-            State            = eTaskState.TASK_PLANNED,
+            Triggers         = new List<Hrot.Core.Mission.MissionTrigger>(), // single-task plan – no advancement
+            State            = Hrot.Core.Mission.eTaskState.TASK_PLANNED,
         };
 
-        var missionPlan = new MissionPlan
+        var missionPlan = new Hrot.Core.Mission.MissionPlan
         {
             ActiveTaskId = taskId,
-            Tasks        = new List<MissionTask> { missionTask },
+            Tasks        = new List<Hrot.Core.Mission.MissionTask> { missionTask },
         };
 
-        var missionRequest = new MissionControlRequest
+        var missionCmd = new MissionControlCommand
         {
-            RequestId      = Guid.NewGuid(),
-            TargetEntityId = ack.EntityId,
-            BaseVersion    = 0,
-            Payload = new MissionCommandUnion
-            {
-                _d              = eMissionCommandType.CMD_REPLACE_MISSION,
-                FullMissionData = missionPlan,
-            },
+            EntityId    = entityId,
+            CommandType = Hrot.Core.Mission.eMissionCommandType.CMD_REPLACE_MISSION,
+            Plan        = missionPlan,
+            BaseVersion = 0,
         };
 
         try
         {
-            var missionAck = await gateway.SendMissionControlRequestAsync(missionRequest);
-            if (missionAck.ErrorCode != 0)
+            var result = await gateway.SendMissionControlRequestAsync(missionCmd);
+            if (!result.Success)
             {
                 FdpLog<MiniExConPanelState>.Warn(
-                    "[Node-{0}] MissionControlAck returned error {1} for entity {2}.",
-                    _localNodeId, missionAck.ErrorCode, ack.EntityId);
+                    "[Node-{0}] SendMissionControlRequestAsync returned failure for entity {1}: {2}",
+                    _localNodeId, entityId, result.ErrorMessage);
             }
         }
         catch (Exception ex)
@@ -330,7 +267,7 @@ public class MiniExConPanelState
             FdpLog<MiniExConPanelState>.Error("[Node-{0}] SendMissionControlRequestAsync failed: {1}", _localNodeId, ex.Message);
         }
 
-        return ack.EntityId;
+        return entityId;
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -342,14 +279,5 @@ public class MiniExConPanelState
             ForceId.Hostile => IgSymbolOverride.StyleSetHostile,
             ForceId.Neutral => IgSymbolOverride.StyleSetNeutral,
             _               => IgSymbolOverride.StyleSetUnknown,
-        };
-
-    private static eForceIdentifier MapAffiliation(ForceId affiliation) =>
-        affiliation switch
-        {
-            ForceId.Friend  => eForceIdentifier.FORCE_FRIENDLY,
-            ForceId.Hostile => eForceIdentifier.FORCE_OPPOSING,
-            ForceId.Neutral => eForceIdentifier.FORCE_NEUTRAL,
-            _               => eForceIdentifier.FORCE_UNKNOWN,
         };
 }

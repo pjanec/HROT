@@ -1,22 +1,15 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
-using Hrot.Map.Common.Components;
-using Hrot.Map.Common.Helpers;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Utilities;
+using FDP.Kernel.Logging;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Behavior.Events;
-using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
-using FDP.Kernel.Logging;
-using ModuleHost.Core.Abstractions;
+using FDP.Toolkit.Replication.Utilities;
+using Hrot.Core.Mission;
 using Hrot.Common.Events;
 using NedStatusCode = Hrot.NED.Messages.NedStatusCode;
-using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;
 using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
 
 namespace Hrot.Common.Systems
@@ -130,16 +123,11 @@ namespace Hrot.Common.Systems
                 return;
             }
 
-            // CQRS boundary: only the node authoritative for EntityMission may process intent.
-            long packedMissionKey = ModuleHost.Core.Network.OwnershipExtensions.PackKey(EntityMissionDescriptorOrdinal, 0);
-            if (!((ISimulationView)repo).HasAuthority(entity, packedMissionKey))
-                return;
-
             long currentVersion = _missionVersions.TryGetValue(intent.TargetEntityId, out var version)
                 ? version
                 : 0;
 
-            switch (intent.Payload._d)
+            switch (intent.Payload.CommandType)          
             {
                 case eMissionCommandType.CMD_REPLACE_MISSION:
                 {
@@ -150,8 +138,12 @@ namespace Hrot.Common.Systems
                     }
 
                     var plan = intent.Payload.FullMissionData;
+                    if (plan == null)
+                    {
+                        PublishAck(intent.RequestId, NedStatusCode.NotSupported, newVersion: 0);
+                        return;
+                    }
                     plan.Tasks ??= new List<MissionTask>();
-
                     if (!TryBuildQueue(repo, plan, out var queue, out var orderedTaskIds))
                     {
                         FdpLog<MissionControlExecutionSystem>.Debug(
@@ -317,10 +309,10 @@ namespace Hrot.Common.Systems
         }
 
         /// <summary>
-        /// Delegates to <see cref="MissionTriggerHelper.ResolveTrigger"/> — shared implementation.
+        /// Delegates to <see cref="Hrot.Core.Mission.MissionTriggerHelper.ResolveTrigger"/> — shared implementation.
         /// </summary>
-        internal static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<DdsMissionTrigger>? triggers)
-            => MissionTriggerHelper.ResolveTrigger(triggers);
+        internal static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<Hrot.Core.Mission.MissionTrigger>? triggers)
+            => Hrot.Core.Mission.MissionTriggerHelper.ResolveTrigger(triggers);
 
         // ── Test hooks ─────────────────────────────────────────────────────────
 

@@ -25,6 +25,7 @@
     <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
     <!-- Required for TransformSyncSystem tests (TASK-IF005) -->
     <ProjectReference Include="..\FDP\Examples\Fdp.Examples.NetworkDemo\Fdp.Examples.NetworkDemo.csproj" />
+    <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />
   </ItemGroup>
 
 </Project>

@@ -32,8 +32,6 @@ using Hrot.Common.Systems;
 
 using Hrot.ScenarioEditor.Tools;
 
-using Hrot.IG.Translators;
-
 using Hrot.IG.UI;
 
 using Hrot.Map.Common;
@@ -259,6 +257,9 @@ public class IgApplication : IDisposable
     // -- Task 5: IG-to-ExCon event translator state ----------------------------------------------
 
     private WGS84Transform?                  _geoTransform;
+
+    // Protocol-neutral adapter wrapping all IG DDS writers and readers (Task 18).
+    private Hrot.Core.Network.IIgNetworkAdapter? _networkAdapter;
 
     private NedCommandGateway?               _commandGateway;
 
@@ -817,6 +818,9 @@ public class IgApplication : IDisposable
                 _commandGateway          = new NedCommandGateway(participant, _effectiveInstanceId);
                 _commandGatewayInterface = _commandGateway;
 
+                // Task 18: Create the protocol-neutral network adapter.
+                _networkAdapter = new Hrot.Network.NED.IG.NedIgNetworkAdapter(participant, _effectiveInstanceId);
+
                 _clickWriter     = new DdsWriter<MapClickEvent>(participant, "MapClickEvent");
 
                 _selectionWriter = new DdsWriter<SelectionChangedEvent>(participant, "SelectionChangedEvent");
@@ -832,22 +836,10 @@ public class IgApplication : IDisposable
 
 
 
-                var contextActionsTranslator = new ContextActionsUpdateTranslator(
-
-                    participant, _entityMap, _world.Bus, _ghostCreationSystem!, _effectiveInstanceId);
-
-
-
                 // EntityStatesIngressPack (EntityMaster, GeoSpatial, EntityInfo, EntityDamage,
                 // MapVisualOverlay, MapRoute) is now handled by NedReplicationModule.
                 // Only non-pack translators remain in customTranslators.
-                customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>
-
-                {
-
-                    contextActionsTranslator,
-
-                };
+                customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>();
 
                 // CGF1-A.1: Bridge SwitchTimeModeEvent for distributed time-mode switching.
                 customTranslators.Add(
@@ -888,11 +880,11 @@ public class IgApplication : IDisposable
                 _mapCommandController = new MapCommandController(
                     _canvas,
                     _world.Bus,
-                    new CycloneDdsWriterIgAdapter<MapCommandAck>(_mapCommandAckWriter!),
+                    dto => _networkAdapter?.WriteMapCommandAck(dto),
                     _effectiveInstanceId);
 
                 _contextMenuSystem.SetCacheMissWriter(
-                    new CycloneDdsWriterIgAdapter<ContextMenuRequest>(_contextMenuRequestWriter!),
+                    (reqId, mapId, sel) => _networkAdapter?.WriteContextMenuRequest(reqId, mapId, sel),
                     _effectiveInstanceId);
 
                 _networkEnabled = true;
@@ -1167,8 +1159,8 @@ public class IgApplication : IDisposable
         _kernel.Initialize();
 
         // Advertise this IG's capabilities so the ExCon can build its layer-control UI.
-        if (_networkEnabled && participant != null)
-            IgCapabilitiesPublisher.Publish(participant, _effectiveInstanceId);
+        if (_networkEnabled)
+            IgCapabilitiesPublisher.Publish(_networkAdapter, _effectiveInstanceId);
 
     }
 
@@ -1337,7 +1329,12 @@ public class IgApplication : IDisposable
             foreach (var ackSample in ackLoan)
             {
                 if (!ackSample.IsValid) continue;
-                _mapCommandController.OnCreateEntityAck(ackSample.Data);
+                _mapCommandController.OnCreateEntityAck(new Hrot.Core.Network.EntityLifecycleAckDto
+                {
+                    RequestId  = ackSample.Data.RequestId,
+                    EntityId   = ackSample.Data.EntityId,
+                    StatusCode = ackSample.Data.StatusCode,
+                });
             }
         }
 
@@ -1839,7 +1836,8 @@ public class IgApplication : IDisposable
         _clusterSlave = null;
 
         _commandGateway?.Dispose();
-
+        _networkAdapter?.Dispose();
+        _networkAdapter = null;
         _clickWriter?.Dispose();
 
         _selectionWriter?.Dispose();

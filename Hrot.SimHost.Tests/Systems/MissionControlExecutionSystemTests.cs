@@ -1,16 +1,14 @@
 using System;
 using System.Collections.Generic;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
+using Hrot.Core.Mission;
 using Hrot.Common.Events;
-using Hrot.SimHost.Systems;
+using Hrot.Common.Systems;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 using Xunit;
-using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;
 
 namespace Hrot.SimHost.Tests.Systems;
 
@@ -54,7 +52,7 @@ public class MissionControlExecutionSystemTests
                 BehaviorParams  = "{}",
                 ExecutingEngine = "CGFX",
                 State           = eTaskState.TASK_PLANNED,
-                Triggers        = new List<DdsMissionTrigger>()
+                Triggers        = new List<Hrot.Core.Mission.MissionTrigger>()
             });
         }
         return new MissionPlan
@@ -100,9 +98,9 @@ public class MissionControlExecutionSystemTests
             RequestId      = requestId,
             TargetEntityId = 1L,
             BaseVersion    = 0,
-            Payload = new MissionCommandUnion
+            Payload = new MissionCommandPayload
             {
-                _d              = eMissionCommandType.CMD_REPLACE_MISSION,
+                CommandType     = eMissionCommandType.CMD_REPLACE_MISSION,
                 FullMissionData = MakePlan(taskA)
             }
         });
@@ -145,9 +143,9 @@ public class MissionControlExecutionSystemTests
             RequestId      = Guid.NewGuid(),
             TargetEntityId = 1L,
             BaseVersion    = 0,
-            Payload = new MissionCommandUnion
+            Payload = new MissionCommandPayload
             {
-                _d              = eMissionCommandType.CMD_REPLACE_MISSION,
+                CommandType     = eMissionCommandType.CMD_REPLACE_MISSION,
                 FullMissionData = MakePlan(taskA)
             }
         });
@@ -164,9 +162,9 @@ public class MissionControlExecutionSystemTests
             RequestId      = conflictId,
             TargetEntityId = 1L,
             BaseVersion    = 99,
-            Payload = new MissionCommandUnion
+            Payload = new MissionCommandPayload
             {
-                _d              = eMissionCommandType.CMD_REPLACE_MISSION,
+                CommandType     = eMissionCommandType.CMD_REPLACE_MISSION,
                 FullMissionData = MakePlan(taskA, taskB)
             }
         });
@@ -199,10 +197,9 @@ public class MissionControlExecutionSystemTests
             RequestId      = requestId,
             TargetEntityId = 999L,
             BaseVersion    = 0,
-            Payload = new MissionCommandUnion
+            Payload = new MissionCommandPayload
             {
-                _d                = eMissionCommandType.CMD_ABORT_ALL,
-                UnusedPlaceholder = true
+                CommandType = eMissionCommandType.CMD_ABORT_ALL
             }
         });
 
@@ -241,9 +238,9 @@ public class MissionControlExecutionSystemTests
             RequestId      = requestId,
             TargetEntityId = 42L,
             BaseVersion    = 0,
-            Payload = new MissionCommandUnion
+            Payload = new MissionCommandPayload
             {
-                _d              = eMissionCommandType.CMD_REPLACE_MISSION,
+                CommandType     = eMissionCommandType.CMD_REPLACE_MISSION,
                 FullMissionData = MakePlan(taskA)
             }
         });

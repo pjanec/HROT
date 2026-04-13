@@ -56,3 +56,20 @@ public sealed class MissionPlan
     public Guid ActiveTaskId { get; set; }
     public List<MissionTask> Tasks { get; set; } = new();
 }
+
+/// <summary>
+/// Protocol-neutral carrier for a mission command payload.
+/// Replaces the DDS-generated <c>MissionCommandUnion</c> discriminated-union type
+/// in event routing between the translator layer and the execution system.
+/// </summary>
+public sealed class MissionCommandPayload
+{
+    /// <summary>Discriminator — identifies which command this payload represents.</summary>
+    public eMissionCommandType CommandType { get; set; }
+
+    /// <summary>Full mission plan; populated for <see cref="eMissionCommandType.CMD_REPLACE_MISSION"/>.</summary>
+    public MissionPlan? FullMissionData { get; set; }
+
+    /// <summary>Target task ID; populated for <see cref="eMissionCommandType.CMD_JUMP_TO_TASK"/>.</summary>
+    public Guid TargetTaskId { get; set; }
+}

@@ -3,7 +3,9 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Messages;
+using Hrot.NED.Descriptors;
 using Hrot.Common.Events;
+using Hrot.Core.Mission;
 using CycloneDDS.Runtime;
 using ModuleHost.Core.Abstractions;
 
@@ -73,10 +75,45 @@ namespace Hrot.Network.NED.SimHost
                     RequestId      = req.RequestId,
                     TargetEntityId = req.TargetEntityId,
                     BaseVersion    = req.BaseVersion,
-                    Payload        = req.Payload,
+                    Payload        = MapToNeutralPayload(req.Payload),
                 });
             }
         }
+
+        private static MissionCommandPayload MapToNeutralPayload(MissionCommandUnion dds)
+        {
+            var payload = new MissionCommandPayload
+            {
+                CommandType  = (Hrot.Core.Mission.eMissionCommandType)(int)dds._d,
+                TargetTaskId = dds._d == Hrot.NED.Messages.eMissionCommandType.CMD_JUMP_TO_TASK
+                               ? dds.TargetTaskId
+                               : Guid.Empty,
+            };
+
+            if (dds._d == Hrot.NED.Messages.eMissionCommandType.CMD_REPLACE_MISSION)
+            {
+                payload.FullMissionData = new Hrot.Core.Mission.MissionPlan
+                {
+                    ActiveTaskId = dds.FullMissionData.ActiveTaskId,
+                    Tasks = dds.FullMissionData.Tasks?.ConvertAll(MapToNeutralTask) ?? new(),
+                };
+            }
+
+            return payload;
+        }
+
+        private static Hrot.Core.Mission.MissionTask MapToNeutralTask(Hrot.NED.Descriptors.MissionTask dds)
+            => new Hrot.Core.Mission.MissionTask
+            {
+                TaskId          = dds.TaskId,
+                ExecutingEngine = dds.ExecutingEngine ?? string.Empty,
+                BehaviorId      = dds.BehaviorId      ?? string.Empty,
+                BehaviorParams  = dds.BehaviorParams  ?? string.Empty,
+                State           = (Hrot.Core.Mission.eTaskState)(int)dds.State,
+                Triggers        = dds.Triggers?.ConvertAll(t => new Hrot.Core.Mission.MissionTrigger
+                                  { Type = t.Type ?? string.Empty, Params = t.Params ?? string.Empty })
+                                  ?? new(),
+            };
 
         /// <inheritdoc/>
         public void ScanAndPublish(ISimulationView view) { }

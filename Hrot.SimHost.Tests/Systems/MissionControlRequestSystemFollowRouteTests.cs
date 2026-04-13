@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
 using Fdp.Interfaces;
 using Hrot.Common.Events;
+using Hrot.Core.Mission;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Helpers;
 using Hrot.SimHost.Systems;
@@ -73,9 +72,9 @@ public class MissionControlRequestSystemFollowRouteTests
             RequestId      = Guid.NewGuid(),
             TargetEntityId = targetEntityId,
             BaseVersion    = 0,
-            Payload        = new MissionCommandUnion
+            Payload        = new MissionCommandPayload
             {
-                _d              = eMissionCommandType.CMD_REPLACE_MISSION,
+                CommandType     = eMissionCommandType.CMD_REPLACE_MISSION,
                 FullMissionData = new MissionPlan
                 {
                     Tasks = new List<MissionTask>
@@ -87,7 +86,7 @@ public class MissionControlRequestSystemFollowRouteTests
                             BehaviorParams  = $"{{\"routeEntityId\":{routeEntityId},\"Speed\":{speed},\"Loop\":{(loop ? "true" : "false")}}}",
                             ExecutingEngine = string.Empty,
                             State           = eTaskState.TASK_PLANNED,
-                            Triggers        = new List<Hrot.NED.Descriptors.MissionTrigger>()
+                            Triggers        = new List<Hrot.Core.Mission.MissionTrigger>()
                         }
                     }
                 }
@@ -229,9 +228,9 @@ public class MissionControlRequestSystemFollowRouteTests
             RequestId      = Guid.NewGuid(),
             TargetEntityId = 1L,
             BaseVersion    = 0,
-            Payload        = new MissionCommandUnion
+            Payload        = new MissionCommandPayload
             {
-                _d              = eMissionCommandType.CMD_REPLACE_MISSION,
+                CommandType     = eMissionCommandType.CMD_REPLACE_MISSION,
                 FullMissionData = new MissionPlan
                 {
                     Tasks = new List<MissionTask>
@@ -243,7 +242,7 @@ public class MissionControlRequestSystemFollowRouteTests
                             BehaviorParams  = originalParams,
                             ExecutingEngine = string.Empty,
                             State           = eTaskState.TASK_PLANNED,
-                            Triggers        = new List<Hrot.NED.Descriptors.MissionTrigger>()
+                            Triggers        = new List<Hrot.Core.Mission.MissionTrigger>()
                         }
                     }
                 }

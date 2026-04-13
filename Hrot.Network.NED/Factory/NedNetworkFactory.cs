@@ -119,6 +119,12 @@ public sealed class NedNetworkFactory : INetworkFactory
     /// <inheritdoc/>
     public IIgTranslators CreateIgTranslators()
         => new Hrot.Network.NED.IG.NedIgTranslators();
+
+    /// <inheritdoc/>
+    public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0)
+        => participant == null
+           ? (IIgNetworkAdapter)Hrot.Core.Network.NullIgNetworkAdapter.Instance
+           : new Hrot.Network.NED.IG.NedIgNetworkAdapter(participant, nodeId);
 }
 
 /// <summary>No-op stub for ISimHostMissionSender.</summary>

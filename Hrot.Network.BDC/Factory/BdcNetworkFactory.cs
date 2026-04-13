@@ -72,6 +72,10 @@ namespace Hrot.BDC.Factory
         /// <inheritdoc/>
         public IIgTranslators CreateIgTranslators()
             => new NullIgTranslators();
+
+        /// <inheritdoc/>
+        public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0)
+            => Hrot.Core.Network.NullIgNetworkAdapter.Instance;
     }
 
     internal sealed class BdcNullSimHostMissionSender : ISimHostMissionSender

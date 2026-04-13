@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Hrot.NED.Messages;
-using Hrot.NED.Common;
-using Hrot.IG.Abstractions;
+using Hrot.Core.Network;
 using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Tools;
 using Fdp.Kernel;
@@ -52,10 +50,10 @@ public class MapCommandController
 
     // ── Dependencies ──────────────────────────────────────────────────────────
 
-    private readonly MapCanvas                _canvas;
-    private readonly FdpEventBus              _eventBus;
-    private readonly IDdsWriter<MapCommandAck> _ackWriter;
-    private readonly long                      _localNodeId;
+    private readonly MapCanvas                   _canvas;
+    private readonly FdpEventBus                _eventBus;
+    private readonly Action<MapCommandAckDto>   _ackCallback;
+    private readonly long                       _localNodeId;
 
     // ── Active-session state ──────────────────────────────────────────────────
 
@@ -110,14 +108,14 @@ public class MapCommandController
     /// Writer used to publish <see cref="MapCommandAck"/> messages back to the ExCon.
     /// </param>
     public MapCommandController(
-        MapCanvas                 canvas,
-        FdpEventBus               eventBus,
-        IDdsWriter<MapCommandAck> ackWriter,
-        long                      localNodeId = 0)
+        MapCanvas                  canvas,
+        FdpEventBus                eventBus,
+        Action<MapCommandAckDto>   ackCallback,
+        long                       localNodeId = 0)
     {
-        _canvas   = canvas   ?? throw new ArgumentNullException(nameof(canvas));
-        _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
-        _ackWriter = ackWriter ?? throw new ArgumentNullException(nameof(ackWriter));
+        _canvas      = canvas      ?? throw new ArgumentNullException(nameof(canvas));
+        _eventBus    = eventBus    ?? throw new ArgumentNullException(nameof(eventBus));
+        _ackCallback = ackCallback ?? throw new ArgumentNullException(nameof(ackCallback));
         _localNodeId = localNodeId;
     }
 
@@ -258,14 +256,14 @@ public class MapCommandController
     /// <see cref="CreateUpdateDeleteEntityAck"/> to the active session, if any.
     /// Only InProgress (StatusCode=1) and Success (StatusCode=0) ACKs with the entity ID are relevant.
     /// </summary>
-    public void OnCreateEntityAck(CreateUpdateDeleteEntityAck ack)
+    public void OnCreateEntityAck(EntityLifecycleAckDto ack)
     {
         if (_sessionRequestId == Guid.Empty) return;
         if (!_pendingEntityRequests.ContainsKey(ack.RequestId)) return;
 
         // Only remove from pending on terminal ACKs (success or error).
-        // InProgress ACK (StatusCode=1) carries the EntityId — use it for routing but keep pending.
-        if (ack.StatusCode != (int)NedStatusCode.InProgress)
+        // InProgress ACK (StatusCode=1) carries the EntityId -- use it for routing but keep pending.
+        if (ack.StatusCode != EntityLifecycleAckDto.StatusInProgress)
             _pendingEntityRequests.Remove(ack.RequestId);
 
         if (ack.StatusCode >= 2)
@@ -336,10 +334,10 @@ public class MapCommandController
 
     private void PublishAck(long statusCode, string dataJson)
     {
-        _ackWriter.Write(new MapCommandAck
+        _ackCallback(new MapCommandAckDto
         {
             RequestId  = _sessionRequestId,
-            StatusCode = statusCode,
+            StatusCode = (int)statusCode,
             DataJson   = dataJson,
         });
 

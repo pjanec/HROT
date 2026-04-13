@@ -20,7 +20,7 @@ public partial class WriterAdapterTestSmoke
 /// These tests interact with the CycloneDDS runtime library.  They are run on
 /// domain 99 to avoid interfering with any ambient DDS traffic on domain 0.
 /// </summary>
-[Collection("Integration")]
+[Collection("DDS")]
 public class DdsWriterAdapterTests
 {
     private const uint TestDomain = 99u;
@@ -37,7 +37,7 @@ public class DdsWriterAdapterTests
     [Fact]
     public void DdsWriterAdapter_ImplementsIDdsWriter()
     {
-        // Compile-time check — ensure assignment is valid.
+        // Compile-time check ï¿½ ensure assignment is valid.
         // No DDS participant needed; the cast is a pure type-system assertion.
         Assert.True(
             typeof(IDdsWriter<WriterAdapterTestSmoke>).IsAssignableFrom(
@@ -68,7 +68,7 @@ public class DdsWriterAdapterTests
     }
 
     /// <summary>
-    /// Calling <see cref="DdsWriterAdapter{T}.Dispose"/> twice must be idempotent —
+    /// Calling <see cref="DdsWriterAdapter{T}.Dispose"/> twice must be idempotent ï¿½
     /// second call must not throw.
     /// </summary>
     [Fact]
