@@ -170,8 +170,17 @@ class Program
             NodeIdResolver = ResolveAppNodeId,
         };
 
+        if (!config.Headless)
+        {
+            Raylib_cs.Raylib.SetConfigFlags(Raylib_cs.ConfigFlags.ResizableWindow | Raylib_cs.ConfigFlags.Msaa4xHint);
+            Raylib_cs.Raylib.InitWindow(options.WindowWidth, options.WindowHeight, "HROT Cluster Runner");
+            Raylib_cs.Raylib.SetTargetFPS(options.TargetFps);
+            rlImGui_cs.rlImGui.Setup(true); 
+        }
+        
         // ── Create + run orchestrator ─────────────────────────────────────────
         var orchestrator = new SubsystemOrchestrator(subsystems, options);
+        Raylib_cs.Texture2D atlasTexture = default;
         try
         {
             orchestrator.Initialize();
@@ -188,11 +197,68 @@ class Program
             var coordinator = new PerspectiveCoordinatorSystem(orchestrator, perspectiveMap);
             perspSubsystem.Coordinator = coordinator;
 
-            orchestrator.Run();
+            FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager = null;
+
+            if (!config.Headless)
+            {
+                // 1. Load the embedded UI icon atlas to the GPU
+                byte[] pngBytes = FDP.Toolkit.ImGui.Icons.EmbeddedAtlasResources.GetSilkAtlasPngBytes();
+                var img = Raylib_cs.Raylib.LoadImageFromMemory(".png", pngBytes);
+                atlasTexture = Raylib_cs.Raylib.LoadTextureFromImage(img);
+                Raylib_cs.Raylib.UnloadImage(img); // Clean up CPU-side image buffer
+
+                // 2. Inject the atlas into the Window Manager
+                var atlas = new FDP.Toolkit.ImGui.Icons.IconAtlas((nint)atlasTexture.Id, atlasTexture.Width, atlasTexture.Height, 16f);
+                windowManager = new FDP.Toolkit.ImGui.WindowManager.WindowManager(atlas);
+
+                // 3. Register all GUI panels to the Window Manager
+                foreach (var sub in subsystems)
+                {
+                    if (sub is IWindowRegistrar registrar)
+                        registrar.RegisterWindows(windowManager);
+                }
+
+                // 4. The proper non-headless Render Loop
+                while (!Raylib_cs.Raylib.WindowShouldClose())
+                {
+                    float dt = Raylib_cs.Raylib.GetFrameTime();
+                    
+                    orchestrator.Update(dt);
+
+                    Raylib_cs.Raylib.BeginDrawing();
+                    Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.DarkGray);
+                    orchestrator.DrawWorldAll();
+                    
+                    rlImGui_cs.rlImGui.Begin();
+                    windowManager.Render();
+                    orchestrator.DrawUIAll();
+                    rlImGui_cs.rlImGui.End();
+
+                    Raylib_cs.Raylib.EndDrawing();
+                }
+            }
+            else
+            {
+                // Fallback to the internal headless simulation loop for CI/background tasks
+                orchestrator.Run();
+            }
         }
         finally
         {
             orchestrator.Shutdown();
+
+            if (!config.Headless)
+            {
+                rlImGui_cs.rlImGui.Shutdown();
+                
+                // Clean up the GPU texture we allocated for the IconAtlas
+                if (atlasTexture.Id != 0)
+                {
+                    Raylib_cs.Raylib.UnloadTexture(atlasTexture);
+                }
+
+                Raylib_cs.Raylib.CloseWindow();
+            }
         }
 
         Console.WriteLine("[Runner] Shutdown complete.");
