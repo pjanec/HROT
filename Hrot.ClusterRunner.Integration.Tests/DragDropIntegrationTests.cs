@@ -1,6 +1,7 @@
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
+using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.Map.Common;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Extensions;
@@ -50,7 +51,7 @@ public class DragDropIntegrationTests
 
         // ── 1. Spawn a tank on SimHost at a known geo position ────────────────
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
-        var  spawnGeo = new GeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
+        var  spawnGeo = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
         long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
         _out.WriteLine($"[D1] Spawned entity networkId={networkId}");
 
@@ -178,7 +179,7 @@ public class DragDropIntegrationTests
 
         // ── 1. Spawn and wait for entity on IG ───────────────────────────────
         long tkbType   = TkbEntityTypes.Tank_M1Abrams;
-        var  spawnGeo  = new GeoPoint { Latitude = 52.522, Longitude = 13.407, Altitude = 0 };
+        var  spawnGeo  = new CoreGeoPoint { Latitude = 52.522, Longitude = 13.407, Altitude = 0 };
         long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
 
         bool igHasEntity = harness.PumpUntil(

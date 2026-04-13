@@ -76,6 +76,46 @@ namespace Hrot.BDC.Factory
         /// <inheritdoc/>
         public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0)
             => Hrot.Core.Network.NullIgNetworkAdapter.Instance;
+
+        /// <inheritdoc/>
+        public System.Collections.Generic.IEnumerable<FDP.Toolkit.DER.IIngressHandler> CreateExConIngressHandlers(
+            CycloneDDS.Runtime.DdsParticipant?                   participant,
+            long                                                  localNodeId,
+            FDP.Toolkit.DER.IDerRepo                             repo,
+            Action<Hrot.Core.Network.MapClickEventDto>           onMapClick,
+            Action<Hrot.Core.Network.SelectionChangedEventDto>   onSelectionChanged,
+            Action<Hrot.Core.Network.EntityLifecycleAckDto>      onEntityLifecycleAck,
+            Action<Hrot.Core.Network.MapCommandAckDto>           onMapCommandAck)
+        {
+            yield break; // BDC does not support ExCon ingress handlers yet.
+        }
+
+        /// <inheritdoc/>
+        public Hrot.Core.Network.INetworkFactory ConfigureForNode(
+            Hrot.Common.Infrastructure.HrotNodeContext context,
+            Hrot.Common.NodeRole                       role,
+            FDP.Toolkit.Behavior.DoctrineRegistry?     doctrineRegistry = null)
+        {
+            return new BdcNetworkFactory(
+                context.Participant,
+                context.EntityMap,
+                (Fdp.Modules.Geographic.IGeographicTransform)(context.GeoTransform ?? Hrot.Map.Common.HrotEnvironment.CreateGeoTransform()),
+                context.EventBus,
+                context.NodeId,
+                role);
+        }
+
+        /// <inheritdoc/>
+        public Hrot.Core.Network.INetworkFactory ConfigureForNode(
+            CycloneDDS.Runtime.DdsParticipant? participant,
+            int                                nodeId,
+            Hrot.Common.NodeRole               role)
+        {
+            return new BdcNetworkFactory(participant, _entityMap, _geoTransform, _eventBus, nodeId, role);
+        }
+
+        /// <inheritdoc/>
+        public long WorldPosDescriptorId => 0;
     }
 
     internal sealed class BdcNullSimHostMissionSender : ISimHostMissionSender

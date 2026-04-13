@@ -36,6 +36,9 @@ namespace Hrot.BDC.Replication
         /// <inheritdoc/>
         public bool DriveFromNetwork => _driveFromNetwork;
 
+        /// <inheritdoc/>
+        public ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup NetworkLifecycleGroup { get; }
+
         public BdcReplicationModule(
             DdsParticipant? participant,
             NodeRole role,
@@ -55,6 +58,7 @@ namespace Hrot.BDC.Replication
             _driveFromNetwork  = !roleHasMuscle && !roleHasBrain;
 
             GhostCreationSystem = new GhostCreationSystem(entityMap);
+            NetworkLifecycleGroup = new ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup(GhostCreationSystem);
         }
 
         public void RegisterSystems(ISystemRegistry registry)

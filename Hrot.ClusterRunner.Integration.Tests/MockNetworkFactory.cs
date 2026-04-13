@@ -49,16 +49,49 @@ internal sealed class MockNetworkFactory : INetworkFactory
     public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0)
         => NullIgNetworkAdapter.Instance;
 
+    /// <inheritdoc/>
+    public System.Collections.Generic.IEnumerable<FDP.Toolkit.DER.IIngressHandler> CreateExConIngressHandlers(
+        CycloneDDS.Runtime.DdsParticipant?                participant,
+        long                                              localNodeId,
+        FDP.Toolkit.DER.IDerRepo                         repo,
+        Action<MapClickEventDto>                         onMapClick,
+        Action<SelectionChangedEventDto>                 onSelectionChanged,
+        Action<EntityLifecycleAckDto>                    onEntityLifecycleAck,
+        Action<MapCommandAckDto>                         onMapCommandAck)
+    {
+        yield break;
+    }
+
+    /// <inheritdoc/>
+    public INetworkFactory ConfigureForNode(
+        Hrot.Common.Infrastructure.HrotNodeContext       context,
+        Hrot.Common.NodeRole                             role,
+        FDP.Toolkit.Behavior.DoctrineRegistry?           doctrineRegistry = null)
+        => this;
+
+    /// <inheritdoc/>
+    public INetworkFactory ConfigureForNode(
+        CycloneDDS.Runtime.DdsParticipant? participant,
+        int                                nodeId,
+        Hrot.Common.NodeRole               role)
+        => this;
+
+    /// <inheritdoc/>
+    public long WorldPosDescriptorId => 0;
+
     // ---- null stubs -------------------------------------------------------
 
     private sealed class NullReplicationModule : IReplicationModule
     {
         private readonly GhostCreationSystem _ghostCreationSystem = new(new NetworkEntityMap());
+        private readonly ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup _lifecycleGroup
+            = new ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup();
 
         public string Name => "NullReplication";
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
         public GhostCreationSystem GhostCreationSystem => _ghostCreationSystem;
         public bool DriveFromNetwork => false;
+        public ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup NetworkLifecycleGroup => _lifecycleGroup;
         public void Tick(ISimulationView view, float deltaTime) { }
     }
 

@@ -1,5 +1,6 @@
-using Hrot.NED.Common;
+using Hrot.Core.Mission;
 using Hrot.Common;
+using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.SimHost;
 using Hrot.SimHost.Components;
@@ -45,6 +46,7 @@ namespace Hrot.SimHost
         // ── Core application ──────────────────────────────────────────────────
 
         private readonly NodeRole _role;
+        private readonly INetworkFactory? _networkFactory;
         private SimHostApp? _app;
         private bool _headless;
         private int _nodeId;
@@ -59,6 +61,15 @@ namespace Hrot.SimHost
         /// </param>
         public SimHostSubsystem(NodeRole role = NodeRole.MuscleGround | NodeRole.Perception)
         {
+            _role = role;
+        }
+
+        /// <summary>
+        /// Initialises SimHost with a protocol factory injected by the composition root.
+        /// </summary>
+        public SimHostSubsystem(INetworkFactory networkFactory, NodeRole role = NodeRole.MuscleGround | NodeRole.Perception)
+        {
+            _networkFactory = networkFactory;
             _role = role;
         }
 
@@ -173,7 +184,7 @@ namespace Hrot.SimHost
             int? domainOverride = config.DomainId;
             _nodeId = config.NodeId;
             _app = new SimHostApp(domainOverride, _role);
-            _app.InitializeEmbedded(headless: config.Headless, domainIdOverride: domainOverride, nodeIdOverride: config.NodeId);
+            _app.InitializeEmbedded(headless: config.Headless, domainIdOverride: domainOverride, nodeIdOverride: config.NodeId, networkFactory: _networkFactory);
         }
 
         /// <summary>

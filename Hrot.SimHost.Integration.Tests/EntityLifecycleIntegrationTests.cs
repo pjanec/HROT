@@ -8,6 +8,7 @@ using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.SimHost;
 using Hrot.SimHost.Configuration;
+using Hrot.Network.NED.Factory;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
@@ -36,7 +37,14 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         _idAllocatorServer = new DdsIdAllocatorServer(_idAllocatorParticipant);
 
         _simHost = new SimHostApp();
-        _simHost.InitializeHeadless(domainIdOverride: DomainId);
+        var factory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new FDP.Toolkit.Replication.Services.NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.MuscleGround | NodeRole.Perception);
+        _simHost.InitializeHeadless(domainIdOverride: DomainId, networkFactory: factory);
 
         _ig = new IgApplication();
         _ig.InitializeEmbedded(headless: true, domainIdOverride: DomainId);

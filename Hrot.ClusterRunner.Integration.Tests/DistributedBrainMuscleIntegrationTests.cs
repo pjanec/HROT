@@ -1,7 +1,7 @@
 using System;
 using FDP.Toolkit.NetworkSpawning.Events;
 using Hrot.Map.Common;
-using Hrot.NED.Common;
+using Hrot.Core.Mission;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;

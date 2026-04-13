@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
-using Hrot.NED.Common;
+using Hrot.Core.Mission;
+using NedMissionPlan = Hrot.NED.Descriptors.MissionPlan;
+using NedMissionTask = Hrot.NED.Descriptors.MissionTask;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.IG.Components;
@@ -337,7 +339,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _world.SetManagedComponent(entity, MapToActiveMissionPlan(mission));
         }
 
-        private MissionPlanQueue BuildQueue(MissionPlan plan)
+        private MissionPlanQueue BuildQueue(NedMissionPlan plan)
         {
             var queue = new MissionPlanQueue
             {
@@ -346,7 +348,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 PhaseCount = (byte)Math.Min(plan.Tasks?.Count ?? 0, MissionPlanQueue.MaxPhases)
             };
 
-            var tasks = plan.Tasks ?? new List<MissionTask>();
+            var tasks = plan.Tasks ?? new List<NedMissionTask>();
             int count = Math.Min(tasks.Count, MissionPlanQueue.MaxPhases);
 
             for (int i = 0; i < count; i++)
@@ -477,7 +479,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             {
                 EntityId = networkId,
                 Time     = DateTime.UtcNow,
-                Pos      = new GeoPoint
+                Pos      = new Hrot.NED.Common.GeoPoint
                 {
                     Latitude  = lat,
                     Longitude = lon,
@@ -496,6 +498,10 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             var cart = _wgs84.ToCartesian(geoPos.Latitude, geoPos.Longitude, geoPos.Altitude);
             return new Vector2(cart.X, cart.Y);
         }
+
+        /// <summary>Overload that accepts the NED protocol <see cref="Hrot.NED.Common.GeoPoint"/>.</summary>
+        public Vector2 GeoToCartesian(Hrot.NED.Common.GeoPoint geoPos)
+            => GeoToCartesian(new GeoPoint { Latitude = geoPos.Latitude, Longitude = geoPos.Longitude, Altitude = geoPos.Altitude });
 
         public GeoPoint CartesianToGeo(System.Numerics.Vector3 cartesian)
         {

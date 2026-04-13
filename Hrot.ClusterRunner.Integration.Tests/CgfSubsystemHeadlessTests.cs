@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Numerics;
 using System.Threading;
 using Hrot.NED.Common;
+using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.Map.Common;
@@ -40,9 +41,9 @@ public sealed class CgfSubsystemHeadlessTests
 {
     // Domain counter for all test-specific SimHost+CGF pairs and IG-overlay tests.
     // Must stay within CycloneDDS valid range (0-232) and not overlap with:
-    //   HrotRunnerHarness auto-counter (100â€“~142), AllSubsystems (160â€“161),
-    //   DistributedBrainMuscleIntegrationTests (220â€“221),
-    //   ClusterOpE2eScriptTests (170â€“173).
+    //   HrotRunnerHarness auto-counter (100–~142), AllSubsystems (160–161),
+    //   DistributedBrainMuscleIntegrationTests (220–221),
+    //   ClusterOpE2eScriptTests (170–173).
     private static int _domainCounter = 222;
 
     private const int SpawnTimeoutMs        = 5_000;
@@ -58,7 +59,7 @@ public sealed class CgfSubsystemHeadlessTests
 
     public CgfSubsystemHeadlessTests(ITestOutputHelper output) => _out = output;
 
-    // â”€â”€ HT-1: Basic entity creation propagates to CGF ghost repo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── HT-1: Basic entity creation propagates to CGF ghost repo ─────────────
 
     /// <summary>
     /// Spawns an entity on SimHost and verifies it reaches the CGF ghost repository
@@ -71,7 +72,7 @@ public sealed class CgfSubsystemHeadlessTests
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
-        var  spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.40, Altitude = 0 };
+        var  spawnPos = new CoreGeoPoint { Latitude = 52.52, Longitude = 13.40, Altitude = 0 };
 
         long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT1] SimHost spawned networkId={networkId}");
@@ -86,10 +87,10 @@ public sealed class CgfSubsystemHeadlessTests
 
         Assert.True(appeared,
             $"Entity {networkId} did not appear in CGF ghost repo within {SpawnTimeoutMs} ms.");
-        _out.WriteLine($"[HT1] PASS â€” entity {networkId} visible in CGF ghost repo.");
+        _out.WriteLine($"[HT1] PASS — entity {networkId} visible in CGF ghost repo.");
     }
 
-    // â”€â”€ HT-2: Second entity type (IFV) also appears â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── HT-2: Second entity type (IFV) also appears ───────────────────────────
 
     /// <summary>
     /// Spawns a non-tank entity type to verify the ghost-creation pipeline is generic,
@@ -102,7 +103,7 @@ public sealed class CgfSubsystemHeadlessTests
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
         long tkbType  = TkbEntityTypes.IFV_Bradley;
-        var  spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.41, Altitude = 0 };
+        var  spawnPos = new CoreGeoPoint { Latitude = 52.52, Longitude = 13.41, Altitude = 0 };
 
         long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT2] SimHost spawned IFV networkId={networkId}");
@@ -117,16 +118,16 @@ public sealed class CgfSubsystemHeadlessTests
 
         Assert.True(appeared,
             $"IFV entity {networkId} did not appear in CGF ghost repo within {SpawnTimeoutMs} ms.");
-        _out.WriteLine($"[HT2] PASS â€” IFV entity {networkId} visible in CGF ghost repo.");
+        _out.WriteLine($"[HT2] PASS — IFV entity {networkId} visible in CGF ghost repo.");
     }
 
-    // â”€â”€ HT-3: Moving vehicle â€” GeoSpatial updates reach CGF ghost â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── HT-3: Moving vehicle — GeoSpatial updates reach CGF ghost ────────────
 
     /// <summary>
     /// Spawns a tank, assigns WanderMilitary doctrine so it moves, and verifies that the
     /// CGF ghost entity's <see cref="SimTransform"/> position changes as the SimHost publishes
     /// updated <c>WorldPos</c> DDS samples.  This tests the
-    /// <c>GeoSpatialIngressTranslator</c> â†’ CGF ghost update path end-to-end.
+    /// <c>GeoSpatialIngressTranslator</c> → CGF ghost update path end-to-end.
     /// </summary>
     [Fact]
     public void CGF_MovingVehicle_GhostPositionUpdates()
@@ -135,7 +136,7 @@ public sealed class CgfSubsystemHeadlessTests
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
-        var  spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.42, Altitude = 0 };
+        var  spawnPos = new CoreGeoPoint { Latitude = 52.52, Longitude = 13.42, Altitude = 0 };
 
         long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT3] SimHost spawned networkId={networkId}");
@@ -175,7 +176,7 @@ public sealed class CgfSubsystemHeadlessTests
             $"This indicates GeoSpatialIngressTranslator or the CGF kernel update pipeline is broken.");
     }
 
-    // â”€â”€ HT-4: IG overlay propagates to IG (visual overlay pipeline) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── HT-4: IG overlay propagates to IG (visual overlay pipeline) ──────────
 
     /// <summary>
     /// Verifies that a <c>MapVisualOverlay</c> written to the DDS network reaches the IG
@@ -189,7 +190,7 @@ public sealed class CgfSubsystemHeadlessTests
         using var harness = new HrotRunnerHarness("simhost,ig", domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
-        var  spawnPos = new GeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
+        var  spawnPos = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
 
         // Spawn entity so there is a network entity for the overlay to attach to.
         long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
@@ -234,7 +235,7 @@ public sealed class CgfSubsystemHeadlessTests
             $"MapVisualOverlayIngressTranslator or EditablePolyline registration is broken.");
     }
 
-    // â”€â”€ HT-5: Drag-and-drop â€” position update propagates from SimHost to CGF â”€
+    // ── HT-5: Drag-and-drop — position update propagates from SimHost to CGF ─
 
     /// Verifies that when an entity is teleported on SimHost (via TestHook_SimulateDrag,
     /// which mirrors an IG drag-end position update), the CGF ghost entity's
@@ -248,7 +249,7 @@ public sealed class CgfSubsystemHeadlessTests
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
-        var  spawnPos = new GeoPoint { Latitude = 52.523, Longitude = 13.40, Altitude = 0 };
+        var  spawnPos = new CoreGeoPoint { Latitude = 52.523, Longitude = 13.40, Altitude = 0 };
 
         long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT5] Spawned entity {networkId}");
@@ -291,12 +292,12 @@ public sealed class CgfSubsystemHeadlessTests
             $"GeoSpatialEgressTranslator (SimHost) or GeoSpatialIngressTranslator (CGF) is broken.");
     }
 
-    // â”€â”€ HT-6: Mission assignment â€” MissionPlanQueue appears on SimHost entity â”€
+    // ── HT-6: Mission assignment — MissionPlanQueue appears on SimHost entity ─
 
     /// <summary>
     /// Sends a <c>MissionControlRequest</c> via DDS for an entity that already exists on
     /// SimHost and verifies that <see cref="MissionPlanQueue"/> is attached to the entity
-    /// within the timeout.  This covers the MissionControlRequest â†’ SimHost
+    /// within the timeout.  This covers the MissionControlRequest → SimHost
     /// MissionControlExecutionSystem pathway, which is the prerequisite for
     /// CGF-driven AI mission execution.
     /// </summary>
@@ -307,7 +308,7 @@ public sealed class CgfSubsystemHeadlessTests
         using var harness = new HrotRunnerHarness("simhost", domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
-        var  spawnPos = new GeoPoint { Latitude = 52.520, Longitude = 13.405, Altitude = 0 };
+        var  spawnPos = new CoreGeoPoint { Latitude = 52.520, Longitude = 13.405, Altitude = 0 };
         long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         bool entityReady = harness.PumpUntil(
@@ -356,19 +357,19 @@ public sealed class CgfSubsystemHeadlessTests
 
         _out.WriteLine($"[HT6] MissionPlanQueue seeded: {missionSeeded}");
         Assert.True(missionSeeded,
-            $"SimHost entity {networkId} did not receive a MissionPlanQueue with PhaseCountâ‰Ą1 within {MissionTimeoutMs} ms. " +
+            $"SimHost entity {networkId} did not receive a MissionPlanQueue with PhaseCount�A1 within {MissionTimeoutMs} ms. " +
             $"MissionControlExecutionSystem or the DDS mission request pipeline may be broken.");
 
         var queue = harness.SimHost.TestHook_GetMissionPlanQueue(networkId);
-        _out.WriteLine($"[HT6] PASS â€” MissionPlanQueue PhaseCount={queue.PhaseCount}, CurrentPhase={queue.CurrentPhase}.");
+        _out.WriteLine($"[HT6] PASS — MissionPlanQueue PhaseCount={queue.PhaseCount}, CurrentPhase={queue.CurrentPhase}.");
     }
 
-    // â”€â”€ HT-7: Mission + AI execution â€” doctrine activates and entity moves â”€â”€â”€â”€
+    // ── HT-7: Mission + AI execution — doctrine activates and entity moves ────
 
     /// <summary>
     /// Assigns WanderMilitary doctrine via TestHook, waits for the entity to become active,
     /// and verifies that the entity moves (proving the full Brain + Muscle execution loop
-    /// from doctrine â†’ BTree â†’ locomotion â†’ kinematics â†’ SimTransform update is intact).
+    /// from doctrine → BTree → locomotion → kinematics → SimTransform update is intact).
     /// </summary>
     [Fact]
     public void SimHost_WanderMission_EntityMovesAfterDoctrineActivation()
@@ -377,7 +378,7 @@ public sealed class CgfSubsystemHeadlessTests
         using var harness = new HrotRunnerHarness("simhost", domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
-        var  spawnPos = new GeoPoint { Latitude = 52.524, Longitude = 13.406, Altitude = 0 };
+        var  spawnPos = new CoreGeoPoint { Latitude = 52.524, Longitude = 13.406, Altitude = 0 };
         long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         bool entityReady = harness.PumpUntil(
@@ -408,7 +409,7 @@ public sealed class CgfSubsystemHeadlessTests
             $"CarKinematicsSystem, GroundKinematicsSystem, or Brain doctrine activation may be broken.");
     }
 
-    // â”€â”€ HT-8: CGF does not crash when EntityStates arrive (regression for component-165 crash) â”€
+    // ── HT-8: CGF does not crash when EntityStates arrive (regression for component-165 crash) ─
 
     /// <summary>
     /// Regression test: verifies that the CGF node does NOT crash when it receives
@@ -424,7 +425,7 @@ public sealed class CgfSubsystemHeadlessTests
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
-        var  spawnPos = new GeoPoint { Latitude = 52.525, Longitude = 13.40, Altitude = 0 };
+        var  spawnPos = new CoreGeoPoint { Latitude = 52.525, Longitude = 13.40, Altitude = 0 };
 
         long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
@@ -439,7 +440,7 @@ public sealed class CgfSubsystemHeadlessTests
         Assert.True(appeared, $"Entity {networkId} did not appear in CGF.");
 
         // Publish EntityDamage and EntityInfo DDS samples to trigger the previously-crashing
-        // translators (EntityDamageIngressTranslator â†’ IgHealthState, EntityInfoIngressTranslator â†’ EntityInfo).
+        // translators (EntityDamageIngressTranslator → IgHealthState, EntityInfoIngressTranslator → EntityInfo).
         using var participant   = new DdsParticipant((uint)domainId);
         using var damageWriter  = new DdsWriter<EntityDamage>(participant, "EntityDamage");
         using var infoWriter    = new DdsWriter<Hrot.NED.Descriptors.EntityInfo>(participant, "EntityInfo");
@@ -453,13 +454,13 @@ public sealed class CgfSubsystemHeadlessTests
         });
         _out.WriteLine($"[HT8] EntityDamage + EntityInfo written for entity {networkId}.");
 
-        // Pump frames â€” if CgfApplication crashes on component 165, it would throw here.
+        // Pump frames — if CgfApplication crashes on component 165, it would throw here.
         var ex = Record.Exception(() => harness.PumpUntil(() => false, 2_000 / 5));
         Assert.Null(ex);
-        _out.WriteLine("[HT8] PASS â€” no crash while processing EntityDamage and EntityInfo updates.");
+        _out.WriteLine("[HT8] PASS — no crash while processing EntityDamage and EntityInfo updates.");
     }
 
-    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static Vector3 GetCgfGhostPosition(HrotRunnerHarness harness, long networkId)
     {

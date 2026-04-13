@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Numerics;
 using System.Threading;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.NED.Common;
+using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using CycloneDDS.Runtime;
@@ -29,7 +30,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// </summary>
 public sealed class AllSubsystemsSpawnMovingVehicleTests
 {
-    // Domain range: 150â€“159 â€” between HrotRunnerHarness auto-range (100â€“145) and
+    // Domain range: 150–159 — between HrotRunnerHarness auto-range (100–145) and
     // AllSubsystemsClusterTransitionTests (160+). CycloneDDS max domain is 232.
     private const int DomainBase = 150;
     private static int _domainCounter = DomainBase - 1;
@@ -46,7 +47,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
 
     /// <summary>
     /// Verifies the full "Spawn Moving Vehicle" button flow with all five subsystems
-    /// active (Orchestrator, SimHost, IG, ExCon, CGF) â€” the same topology as
+    /// active (Orchestrator, SimHost, IG, ExCon, CGF) — the same topology as
     /// "clusterrunner -m all", running fully headless in a single process.
     /// <list type="number">
     ///   <item>IG sends <c>CreateEntityRequest</c> and receives a valid entity ID.</item>
@@ -63,7 +64,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         int domainId = Interlocked.Increment(ref _domainCounter);
         _out.WriteLine($"[A0] Domain: {domainId}");
 
-        // â”€â”€ Boot all five subsystems in one fully-headless orchestrator â”€â”€â”€â”€â”€â”€â”€
+        // ── Boot all five subsystems in one fully-headless orchestrator ───────
         // all == orchestrator,simhost,ig,excon,cgf
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", domainId);
 
@@ -84,12 +85,12 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
 
-        // â”€â”€ 1. Fire the gateway spawn+wander flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── 1. Fire the gateway spawn+wander flow ─────────────────────────────
         var spawnTask = igApp.TestHook_SubmitMiniExConSpawnWithWanderMission(
             tkbType, ForceId.Friend, 100f, 200f);
         _out.WriteLine("[A1] TestHook_SubmitMiniExConSpawnWithWanderMission fired.");
 
-        // â”€â”€ 2. Capture the CreateEntityAck â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── 2. Capture the CreateEntityAck ───────────────────────────────────
         CreateUpdateDeleteEntityAck spawnAck = default;
         bool ackObserved = harness.PumpUntil(
             () => TryTakeAnyCreateAck(ackReader, out spawnAck),
@@ -103,7 +104,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         long networkId = spawnAck.EntityId;
         _out.WriteLine($"[A2] ACK received. networkId={networkId}.");
 
-        // â”€â”€ 3. Wait for the full async chain (MissionControl included) â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── 3. Wait for the full async chain (MissionControl included) ────────
         bool taskDone = harness.PumpUntil(() => spawnTask.IsCompleted, 200);
         if (!taskDone && !spawnTask.IsCompleted)
             spawnTask.Wait(2000);
@@ -111,7 +112,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
             throw spawnTask.Exception!.GetBaseException();
         _out.WriteLine($"[A3] Gateway task done: {spawnTask.Result}.");
 
-        // â”€â”€ 4. Wait for IG entity to appear with Active lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── 4. Wait for IG entity to appear with Active lifecycle ─────────────
         bool igActive = harness.PumpUntil(
             () => IgEntityIsActive(harness, networkId),
             SpawnTimeoutFrames);
@@ -119,7 +120,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
             $"IG entity (networkId={networkId}) did not reach Active lifecycle within {SpawnTimeoutFrames} frames.");
         _out.WriteLine("[A4] IG entity is Active.");
 
-        // â”€â”€ Diagnostic: pump until CGF entity has NavigationIntent set, then snapshot â”€
+        // ── Diagnostic: pump until CGF entity has NavigationIntent set, then snapshot ─
         // If timeout occurs, the BTree/dispatch pipeline is broken.
         {
             var cgfMap = harness.Cgf?.GhostEntityMap;
@@ -166,11 +167,11 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         DiagnoseCgfEntity(harness, networkId, _out);
         DiagnoseSimHostEntity(harness, networkId, _out);
 
-        // â”€â”€ 5. Record baseline IG position â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── 5. Record baseline IG position ───────────────────────────────────
         var posA = GetIgSimTransform(harness, networkId).Position;
         _out.WriteLine($"[A5] Baseline IG position: ({posA.X:F3}, {posA.Y:F3}).");
 
-        // â”€â”€ 6. Verify position changes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── 6. Verify position changes ────────────────────────────────────────
         bool moved = harness.PumpUntil(() =>
         {
             var posNow = GetIgSimTransform(harness, networkId).Position;
@@ -191,7 +192,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
             $"This is the 'clusterrunner -m all' spawn-vehicle regression.");
     }
 
-    // â”€â”€ Assertion helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Assertion helpers ─────────────────────────────────────────────────────
 
     private static bool TryTakeAnyCreateAck(
         DdsReader<CreateUpdateDeleteEntityAck> reader,

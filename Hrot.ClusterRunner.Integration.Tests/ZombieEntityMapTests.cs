@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
+using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.Map.Common;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.NetworkSpawning.Events;
@@ -29,7 +30,7 @@ public class ZombieEntityMapTests
 
         long networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams,
-            new GeoPoint { Latitude = 32.0, Longitude = 34.0 });
+            new CoreGeoPoint { Latitude = 32.0, Longitude = 34.0 });
 
         var simHostMap = harness.SimHost.TestHook_EntityMap;
         bool appeared = harness.PumpUntil(

@@ -1,5 +1,3 @@
-using ModuleHost.Core.Scheduling;
-
 namespace Hrot.Common.Abstractions;
 
 /// <summary>
@@ -9,14 +7,7 @@ namespace Hrot.Common.Abstractions;
 /// </summary>
 public interface INedReplicationModule : IReplicationModule
 {
-    // IReplicationModule provides: GhostCreationSystem, DriveFromNetwork
+    // IReplicationModule provides: GhostCreationSystem, DriveFromNetwork, NetworkLifecycleGroup
     // IEcsModule provides: string Name, ExecutionPolicy Policy,
     //                      RegisterSystems(ISystemRegistry), Tick(ISimulationView, float)
-
-    /// <summary>
-    /// System group that gates <see cref="IReplicationModule.GhostCreationSystem"/> during replay playback.
-    /// <see cref="NetworkLifecycleSystemGroup.Enabled"/> is set to <c>false</c> by the
-    /// <c>ReplayLoadClusterOpHandler</c> to prevent ghost promotions mid-replay.
-    /// </summary>
-    NetworkLifecycleSystemGroup NetworkLifecycleGroup { get; }
 }

@@ -1,17 +1,17 @@
-﻿using System;
+using System;
 using System.Threading;
 using Fdp.Kernel;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.NetworkSpawning.Events;
 using Hrot.Map.Common;
-using Hrot.NED.Common;
+using Hrot.Core.Mission;
 using ModuleHost.Core.Network.Interfaces;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
 /// <summary>
-/// PACK3-N004 â€” <c>NetworkGatewaySystem</c> integration test.
+/// PACK3-N004 — <c>NetworkGatewaySystem</c> integration test.
 ///
 /// <para>Proves that a <see cref="SpawnEntityCommand"/> with
 /// <see cref="ReliableInitType.AllPeers"/> published on the SimHost bus reaches
@@ -35,7 +35,7 @@ public sealed class NetworkGatewayIntegrationTests
     private const int LifecycleActiveTimeoutFrames = 150;
 
     /// <summary>
-    /// PACK3-N004 â€” main integration test.
+    /// PACK3-N004 — main integration test.
     ///
     /// <list type="number">
     /// <item>Publish <c>AllPeers</c> <see cref="SpawnEntityCommand"/> on SimHost bus.</item>
@@ -60,7 +60,7 @@ public sealed class NetworkGatewayIntegrationTests
             TkbEntityTypes.Tank_M1Abrams,
             spawnPos);
 
-        // â”€â”€ Step 1: SimHost NetworkEntityMap must record the entity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Step 1: SimHost NetworkEntityMap must record the entity ──────────
         bool inSimHostMap = harness.PumpUntil(
             () => harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out _),
             EntityInMapTimeoutFrames);
@@ -69,7 +69,7 @@ public sealed class NetworkGatewayIntegrationTests
             $"Entity {networkId} did not appear in SimHost NetworkEntityMap within " +
             $"{EntityInMapTimeoutFrames} frames.");
 
-        // â”€â”€ Step 2: SimHost entity must reach Active â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Step 2: SimHost entity must reach Active ──────────────────────────
         bool simHostActive = harness.PumpUntil(
             () => SimHostEntityIsActive(harness, networkId),
             LifecycleActiveTimeoutFrames);
@@ -78,7 +78,7 @@ public sealed class NetworkGatewayIntegrationTests
             $"SimHost entity {networkId} did not reach EntityLifecycle.Active within " +
             $"{LifecycleActiveTimeoutFrames} frames.");
 
-        // â”€â”€ Step 3: IG entity must reach Active â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Step 3: IG entity must reach Active ───────────────────────────────
         bool igActive = harness.PumpUntil(
             () => IgEntityIsActive(harness, networkId),
             LifecycleActiveTimeoutFrames);
@@ -88,7 +88,7 @@ public sealed class NetworkGatewayIntegrationTests
             $"{LifecycleActiveTimeoutFrames} frames.");
     }
 
-    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static bool SimHostEntityIsActive(HrotRunnerHarness harness, long networkId)
     {

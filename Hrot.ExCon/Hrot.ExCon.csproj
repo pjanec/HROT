@@ -19,7 +19,6 @@
     <!-- FDP Toolkits -->
     <ProjectReference Include="..\FDP\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />
     <!-- ExConSubsystem dependencies (moved from ClusterRunner) -->
-    <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <ProjectReference Include="..\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />  </ItemGroup>
 

@@ -1,15 +1,20 @@
+using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Behavior;
+using FDP.Toolkit.DER;
 using FDP.Toolkit.Lifecycle;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
+using Hrot.Common.Infrastructure;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
+using Hrot.Network.NED.ExCon;
 using Hrot.Network.NED.SimHost;
 using Hrot.Network.Replication;
+using Hrot.NED.Descriptors;
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 
 namespace Hrot.Network.NED.Factory;
@@ -125,6 +130,73 @@ public sealed class NedNetworkFactory : INetworkFactory
         => participant == null
            ? (IIgNetworkAdapter)Hrot.Core.Network.NullIgNetworkAdapter.Instance
            : new Hrot.Network.NED.IG.NedIgNetworkAdapter(participant, nodeId);
+
+    /// <inheritdoc/>
+    public IEnumerable<IIngressHandler> CreateExConIngressHandlers(
+        DdsParticipant?                   participant,
+        long                              localNodeId,
+        IDerRepo                          repo,
+        Action<MapClickEventDto>          onMapClick,
+        Action<SelectionChangedEventDto>  onSelectionChanged,
+        Action<EntityLifecycleAckDto>     onEntityLifecycleAck,
+        Action<MapCommandAckDto>          onMapCommandAck)
+    {
+        if (participant == null)
+            yield break;
+
+        yield return new NedMapClickIngressHandler(participant, onMapClick, localNodeId: localNodeId);
+        yield return new NedSelectionChangedIngressHandler(participant, onSelectionChanged);
+        yield return new NedEntityLifecycleAckIngressHandler(participant, onEntityLifecycleAck, localNodeId: localNodeId);
+        yield return new NedMapCommandAckIngressHandler(participant, onMapCommandAck, localNodeId: localNodeId);
+        yield return new MasterIngressHandler<EntityMaster>(
+            participant, repo, "EntityMaster",
+            master => master.EntityId, master => master.TkbType, localNodeId: localNodeId);
+        yield return new DescriptorIngressHandler<WorldPos>(participant, repo, "GeoSpatial", d => d.EntityId);
+        yield return new NedEntityInfoBridgingHandler(participant, repo);
+        yield return new DescriptorIngressHandler<EntityDamage>(participant, repo, "EntityDamage", d => d.EntityId);
+        yield return new NedEntityMissionBridgingHandler(participant, repo);
+        yield return new NedMapOverlayBridgingHandler(participant, repo);
+        yield return new DescriptorIngressHandler<MapRoute>(participant, repo, "MapRoute", d => d.EntityId);
+    }
+
+    /// <inheritdoc/>
+    public INetworkFactory ConfigureForNode(HrotNodeContext context, NodeRole role, DoctrineRegistry? doctrineRegistry = null)
+    {
+        EntityLifecycleModule? elm = null;
+        foreach (var m in context.BaseModules)
+        {
+            if (m is EntityLifecycleModule e) { elm = e; break; }
+        }
+
+        return new NedNetworkFactory(
+            participant:      context.Participant,
+            entityMap:        context.EntityMap,
+            geoTransform:     (IGeographicTransform)(context.GeoTransform ?? HrotEnvironment.CreateGeoTransform()),
+            eventBus:         context.EventBus,
+            localNodeId:      context.NodeId,
+            role:             role,
+            tkbDb:            context.TkbDb,
+            lifecycleModule:  elm,
+            doctrineRegistry: doctrineRegistry ?? _doctrineRegistry);
+    }
+
+    /// <inheritdoc/>
+    public INetworkFactory ConfigureForNode(DdsParticipant? participant, int nodeId, NodeRole role)
+    {
+        return new NedNetworkFactory(
+            participant:      participant,
+            entityMap:        _entityMap,
+            geoTransform:     _geoTransform,
+            eventBus:         _eventBus,
+            localNodeId:      nodeId,
+            role:             role,
+            tkbDb:            _tkbDb,
+            lifecycleModule:  _lifecycleModule,
+            doctrineRegistry: _doctrineRegistry);
+    }
+
+    /// <inheritdoc/>
+    public long WorldPosDescriptorId => (long)EDescriptorType.dtWorldPos;
 }
 
 /// <summary>No-op stub for ISimHostMissionSender.</summary>

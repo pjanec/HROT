@@ -3,6 +3,7 @@ using System.Numerics;
 using Hrot.NED.Messages;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
+using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.Map.Common;
 using FDP.Toolkit.Lifecycle.Events;
 using FDP.Toolkit.NetworkSpawning.Events;
@@ -142,8 +143,8 @@ public class EntityDestroyIntegrationTests
         using var harness = new HrotRunnerHarness();
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
-        var geo1 = new GeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
-        var geo2 = new GeoPoint { Latitude = 52.522, Longitude = 13.407, Altitude = 0 };
+        var geo1 = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
+        var geo2 = new CoreGeoPoint { Latitude = 52.522, Longitude = 13.407, Altitude = 0 };
 
         // ── Spawn two entities ────────────────────────────────────────────────
         long networkId1 = SpawnEntityThroughPlacement(harness, tkbType);

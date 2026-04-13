@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Hrot.NED.Messages;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
+using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.ExCon.Services;
 using Hrot.Map.Common;
 using CycloneDDS.Runtime;
@@ -27,7 +28,7 @@ public class MissionControlIntegrationTests
         using var harness = new HrotRunnerHarness();
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, new GeoPoint
+        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, new CoreGeoPoint
         {
             Latitude = 32.0853,
             Longitude = 34.7818,

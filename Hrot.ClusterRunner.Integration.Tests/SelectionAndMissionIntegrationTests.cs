@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
+using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.Map.Common;
 using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;
@@ -41,7 +42,7 @@ public class SelectionAndMissionIntegrationTests
     private const int SelectionTimeoutFrames = 100;
     private const int CommitTimeoutFrames   = 200;
 
-    private static readonly GeoPoint BerlinGeo = new GeoPoint
+    private static readonly CoreGeoPoint BerlinGeo = new CoreGeoPoint
     {
         Latitude  = 52.521,
         Longitude = 13.406,

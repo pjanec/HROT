@@ -1,4 +1,6 @@
 using Hrot.SimHost;
+using Hrot.Network.NED.Factory;
+using Hrot.Map.Common;
 using ModuleHost.Network.Cyclone.Services;
 using CycloneDDS.Runtime;
 using Xunit;
@@ -26,7 +28,14 @@ public sealed class NedReplicationModuleWiringTests : System.IDisposable
         _idAllocatorServer      = new DdsIdAllocatorServer(_idAllocatorParticipant);
 
         _app = new SimHostApp(domainOverride: DomainId, role: NodeRole.MuscleGround | NodeRole.Perception);
-        _app.InitializeEmbedded(headless: true, domainIdOverride: DomainId);
+        var factory = new NedNetworkFactory(
+            participant:   null,
+            entityMap:     new FDP.Toolkit.Replication.Services.NetworkEntityMap(),
+            geoTransform:  HrotEnvironment.CreateGeoTransform(),
+            eventBus:      new Fdp.Kernel.FdpEventBus(),
+            localNodeId:   0,
+            role:          NodeRole.MuscleGround | NodeRole.Perception);
+        _app.InitializeEmbedded(headless: true, domainIdOverride: DomainId, networkFactory: factory);
     }
 
     public void Dispose()

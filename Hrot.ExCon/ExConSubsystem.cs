@@ -1,5 +1,5 @@
-using Hrot.NED.Descriptors;
 using Hrot.NED.Descriptors.Orchestration;
+using Hrot.Common;
 using Hrot.Common.Orchestration;
 using Hrot.Core.Network;
 using Hrot.ExCon;
@@ -7,8 +7,6 @@ using Hrot.ExCon.Logic;
 using Hrot.ExCon.Services;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Dds;
-using Hrot.Map.Common.Commands;
-using Hrot.Network.NED.ExCon;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using Hrot.ExCon.Panels;
@@ -94,6 +92,21 @@ namespace Hrot.ExCon
         private IExConEgressWriters?  _egressWriters;
         private ITimeControlGateway?  _timeControl;
         private ICommandGateway?      _commandGateway;
+        private INetworkFactory?      _networkFactory;
+
+        /// <summary>
+        /// Creates ExConSubsystem without a network factory (headless / legacy path).
+        /// </summary>
+        public ExConSubsystem() { }
+
+        /// <summary>
+        /// Creates ExConSubsystem with an injected protocol factory from the composition root.
+        /// </summary>
+        public ExConSubsystem(INetworkFactory networkFactory)
+        {
+            _networkFactory = networkFactory;
+        }
+
         /// <summary>
         /// Internal test hook for integration tests.
         /// </summary>
@@ -191,36 +204,24 @@ namespace Hrot.ExCon
             var entityLifecycleAckQueue      = new ConcurrentEventQueue<EntityLifecycleAckDto>();
             var mapCommandAckQueue           = new ConcurrentEventQueue<MapCommandAckDto>();
 
-            // DDS ingress handlers — translate NED DDS samples to neutral DTOs and bridge descriptors.
-            var ingressHandlers = new List<IIngressHandler>
-            {
-                new NedMapClickIngressHandler(_participant, clickQueue.Enqueue, localNodeId: iosNodeId),
-                new NedSelectionChangedIngressHandler(_participant, selectionQueue.Enqueue),
-                new NedEntityLifecycleAckIngressHandler(_participant, entityLifecycleAckQueue.Enqueue, localNodeId: iosNodeId),
-                new NedMapCommandAckIngressHandler(_participant, mapCommandAckQueue.Enqueue, localNodeId: iosNodeId),
-                new MasterIngressHandler<EntityMaster>(
-                    _participant,
-                    repo,
-                    "EntityMaster",
-                    master => master.EntityId,
-                    master => master.TkbType,
-                    localNodeId: iosNodeId),
-                // Descriptor handlers — populate the DER repo with all descriptor types.
-                new DescriptorIngressHandler<WorldPos>(
-                    _participant, repo, "GeoSpatial",   d => d.EntityId),
-                new NedEntityInfoBridgingHandler(_participant, repo),
-                new DescriptorIngressHandler<EntityDamage>(
-                    _participant, repo, "EntityDamage", d => d.EntityId),
-                new NedEntityMissionBridgingHandler(_participant, repo),
-                new NedMapOverlayBridgingHandler(_participant, repo),
-                new DescriptorIngressHandler<MapRoute>(
-                    _participant, repo, "MapRoute",     d => d.EntityId),
-            };
+            // Configure the injected factory for this node then create ExCon ingress handlers
+            // and neutral gateway objects via the factory.
+            var nodeFactory = _networkFactory?.ConfigureForNode(_participant, iosNodeId, NodeRole.None);
 
-            // Neutral ExCon gateway objects (no direct NED references from ExCon).
-            _egressWriters  = new NedExConEgressWriters(_participant);
-            _timeControl    = new NedTimeControlGateway(_participant);
-            _commandGateway = new NedCommandGateway(_participant, iosNodeId);
+            var ingressHandlers = nodeFactory != null
+                ? new List<IIngressHandler>(nodeFactory.CreateExConIngressHandlers(
+                    _participant, iosNodeId, repo,
+                    clickQueue.Enqueue,
+                    selectionQueue.Enqueue,
+                    entityLifecycleAckQueue.Enqueue,
+                    mapCommandAckQueue.Enqueue))
+                : new List<IIngressHandler>();
+
+            // Neutral ExCon gateway objects — created via the injected factory.
+            // When no factory is injected (unit-test / offline path), fall back to no-op stubs.
+            _egressWriters  = nodeFactory?.CreateExConEgressWriters()  ?? new NullExConEgressWriters();
+            _timeControl    = nodeFactory?.CreateTimeControlGateway()  ?? new NullTimeControlGateway();
+            _commandGateway = nodeFactory?.CreateCommandGateway()      ?? new NullCommandGateway();
 
             var missionEditorSvc = new MissionEditorService(repo, _commandGateway);
             var contextMenuLogic  = new ContextMenuLogic(repo, _egressWriters);
@@ -396,5 +397,34 @@ namespace Hrot.ExCon
             _participant?.Dispose();
             _participant = null;
         }
+    }
+
+    internal sealed class NullCommandGateway : ICommandGateway
+    {
+        public System.Threading.Tasks.Task<int> CreateEntityAsync(CreateEntityCommand cmd, System.Threading.CancellationToken ct = default)
+            => System.Threading.Tasks.Task.FromResult(0);
+        public System.Threading.Tasks.Task SendUpdateDescriptorAsync(UpdateEntityDescriptorCommand cmd, System.Threading.CancellationToken ct = default)
+            => System.Threading.Tasks.Task.CompletedTask;
+        public System.Threading.Tasks.Task<MissionCommitResult> SendMissionControlRequestAsync(MissionControlCommand cmd, System.Threading.CancellationToken ct = default)
+            => System.Threading.Tasks.Task.FromResult(new MissionCommitResult { Success = false, ErrorMessage = "No gateway" });
+        public void Dispose() { }
+    }
+
+    internal sealed class NullExConEgressWriters : IExConEgressWriters
+    {
+        public void WriteMapConfig(MapConfigDto config) { }
+        public void WriteDeleteEntity(int entityId) { }
+        public void WriteCreateEntity(CreateEntityCommand cmd) { }
+        public void WriteMapCommand(MapCommandDto cmd) { }
+        public void PushContextActions(int mapGroupId, System.Collections.Generic.IReadOnlyList<int>? forSelection, string actionsJson) { }
+        public void Dispose() { }
+    }
+
+    internal sealed class NullTimeControlGateway : ITimeControlGateway
+    {
+        public void RequestPause() { }
+        public void RequestResume() { }
+        public void RequestStep() { }
+        public void SetTimeScale(float scale) { }
     }
 }

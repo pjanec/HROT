@@ -1,6 +1,7 @@
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
+using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using FDP.Toolkit.Behavior.Components;
@@ -60,7 +61,7 @@ public class SpawnMovingVehicleIntegrationTests
         using var harness = new HrotRunnerHarness();
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
-        var  spawnGeo = new GeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
+        var  spawnGeo = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
 
         // ── 1. Spawn entity on SimHost directly (no DDS round-trip) ──────────
         long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
@@ -147,7 +148,7 @@ public class SpawnMovingVehicleIntegrationTests
         using var harness = new HrotRunnerHarness();
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
-        var  spawnGeo = new GeoPoint { Latitude = 52.521, Longitude = 13.407, Altitude = 0 };
+        var  spawnGeo = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.407, Altitude = 0 };
 
         // ── 1. Spawn entity on SimHost directly (no DDS round-trip) ──────────
         long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
@@ -212,7 +213,7 @@ public class SpawnMovingVehicleIntegrationTests
 
         // ── 1. Spawn a stationary entity on SimHost ────────────────────────────
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
-        var  spawnGeo = new GeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
+        var  spawnGeo = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
         long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
         _out.WriteLine($"[S1] SimHost spawned entity networkId={networkId}");
 

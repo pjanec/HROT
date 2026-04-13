@@ -1,8 +1,5 @@
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
-using Hrot.NED.Common;
+using Hrot.Core.Mission;
 using Hrot.Core.Network;
-using Hrot.Network.NED.Factory;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Events;
@@ -18,7 +15,6 @@ using Hrot.SimHost.Modules;
 using Hrot.SimHost.Events;
 using Hrot.SimHost.Utilities;
 using Hrot.Common.Infrastructure;
-using Hrot.Network.Infrastructure;
 using CarKinem.Commands;
 using CarKinem.Formation;
 using CarKinem.Road;
@@ -154,6 +150,9 @@ namespace Hrot.SimHost
 
         /// <summary>Internal test hook: exposes the NedReplicationModule after initialization.</summary>
         internal Hrot.Common.Abstractions.INedReplicationModule? TestHook_NedReplication => _context?.NedReplication;
+
+        // ── Network factory (injected from composition root) ───────────────────
+        private INetworkFactory? _networkFactory;
 
         // ── Constructor ───────────────────────────────────────────────────────
 
@@ -299,7 +298,7 @@ namespace Hrot.SimHost
                 });
 
             // ── 5. Build Hrot node infrastructure — includes DDS participant, entity map,
-            //        elm, geoModule (via BaseModules), and NedReplicationModule ──────────────
+            //        elm, geoModule (via BaseModules). Replication is created via INetworkFactory.
             var hrotConfig = new HrotNodeConfig
             {
                 DomainId      = domainId,
@@ -308,11 +307,21 @@ namespace Hrot.SimHost
                 LocalTempRoot = nodeConfig.LocalTempRoot,
                 SubsystemName = "SimHost",
             };
-            _context = new HrotNodeBuilder(hrotConfig)
+            var baseContext = new HrotNodeBuilder(hrotConfig)
                 .WithRole("SimHost", _role)
-                .WithReplication(_role)
-                .WithDoctrineRegistry(doctrineRegistry)
                 .Build();
+
+            // Configure the injected factory with this node's participant, entityMap, etc.
+            // then create the replication module from the factory.
+            // When no factory is injected (unit-test / offline path), fall back to a no-op module.
+            INetworkFactory? nodeFactory = _networkFactory?.ConfigureForNode(baseContext, _role, doctrineRegistry);
+            Hrot.Common.Abstractions.IReplicationModule replicationModule = nodeFactory?.CreateReplicationModule() ?? new NullReplicationModule();
+
+            _context = baseContext with
+            {
+                NedReplication      = replicationModule as Hrot.Common.Abstractions.INedReplicationModule,
+                GhostCreationSystem = replicationModule.GhostCreationSystem,
+            };
 
             _world       = _context.World;
             _kernel      = _context.Kernel;
@@ -363,12 +372,12 @@ namespace Hrot.SimHost
             var checkpointStoragePath = System.IO.Path.Combine(nodeConfig.LocalTempRoot, "checkpoints");
             _checkpointWorker = new CheckpointIOWorker(checkpointStoragePath, localNodeId);
 
-            // GhostCreationSystem and NetworkLifecycleGroup come from NedReplicationModule.
+            // GhostCreationSystem and NetworkLifecycleGroup come from the replication module.
             // The same instances are used for both orchestration replay control and the
             // replication module itself, ensuring a single source of truth.
-            var ghostCreationSystem   = _context.NedReplication!.GhostCreationSystem;
+            var ghostCreationSystem   = replicationModule.GhostCreationSystem;
             var simulationSystemGroup = new SimulationSystemGroup();
-            var networkLifecycleGroup = _context.NedReplication!.NetworkLifecycleGroup;
+            var networkLifecycleGroup = replicationModule.NetworkLifecycleGroup;
 
             _clusterSlave = bootstrapper.BuildOrchestration(
                 _role, _kernel, _world, localNodeId,
@@ -438,29 +447,18 @@ namespace Hrot.SimHost
 
             _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant!, entityMap, wgs84));
 
-            // ── 10. Register NedReplicationModule (bundles all translator packs) ──
+            // ── 10. Register replication module (bundles all translator packs) ──
             // Packs included: SharedTranslatorPack (EntityMaster, EntityInfo, EntityDamage, FireInteraction),
             //                 KinematicTranslatorPack (GeoSpatial, MapVisualOverlay, MapRoute, NavStatus, NavIntent),
             //                 CognitiveTranslatorPack (NavIntent, EntityMission*).
-            _kernel.RegisterModule(_context.NedReplication!);
+            _kernel.RegisterModule(replicationModule);
 
             // ── 11. Auxiliary network translators (time-sync, combat, mission-control) ──
             // These translators are SimHost-domain-specific and cannot be bundled into the
             // shared packs due to layer constraints. They are registered alongside the packs.
-            var networkFactory = new NedNetworkFactory(
-                participant:      ddsParticipant,
-                entityMap:        entityMap,
-                geoTransform:     wgs84,
-                eventBus:         _eventBus!,
-                localNodeId:      localNodeId,
-                role:             _role,
-                tkbDb:            tkbDb,
-                lifecycleModule:  elm,
-                doctrineRegistry: doctrineRegistry);
-
-            if (ddsParticipant != null)
+            if (ddsParticipant != null && nodeFactory != null)
             {
-                networkFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(_kernel);
+                nodeFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(_kernel);
             }
 
             // ── 11. Kernel init ───────────────────────────────────────────────
@@ -477,9 +475,10 @@ namespace Hrot.SimHost
                     _simLogicModule.RoadNetwork,
                     _simLogicModule.TrajectoryPool ?? new TrajectoryPoolManager(),
                     _simLogicModule.FormationTemplates ?? new FormationTemplateManager(),
-                    networkFactory.CreateSimHostMissionSender(),
+                    nodeFactory?.CreateSimHostMissionSender() ?? new NullSimHostMissionSender(),
                     idAllocator: _idAllocator,
-                    localNodeId: localNodeId);
+                    localNodeId: localNodeId,
+                    worldPosDescriptorId: _networkFactory?.WorldPosDescriptorId ?? 0);
 
                 // Wire IG presentation module with a real MapCanvas + NedVisualizerAdapter
                 // for production rendering (DB-MOD1-12).
@@ -532,11 +531,12 @@ namespace Hrot.SimHost
         /// without creating a Raylib window.  The caller owns the window lifecycle
         /// (or passes <paramref name="headless"/> = <c>true</c> for windowless use).
         /// </summary>
-        public void InitializeEmbedded(bool headless = false, int? domainIdOverride = null, int nodeIdOverride = 0)
+        public void InitializeEmbedded(bool headless = false, int? domainIdOverride = null, int nodeIdOverride = 0, INetworkFactory? networkFactory = null)
         {
             _headless       = headless;
             _domainOverride = domainIdOverride;
             _nodeIdOverride = nodeIdOverride;
+            _networkFactory = networkFactory;
             OnLoad();
         }
 
@@ -544,8 +544,8 @@ namespace Hrot.SimHost
         /// Initializes the SimHost application without creating a Raylib window.
         /// Intended for integration tests and headless runners.
         /// </summary>
-        public void InitializeHeadless(int? domainIdOverride = null, int nodeIdOverride = 0)
-            => InitializeEmbedded(headless: true, domainIdOverride: domainIdOverride, nodeIdOverride: nodeIdOverride);
+        public void InitializeHeadless(int? domainIdOverride = null, int nodeIdOverride = 0, INetworkFactory? networkFactory = null)
+            => InitializeEmbedded(headless: true, domainIdOverride: domainIdOverride, nodeIdOverride: nodeIdOverride, networkFactory: networkFactory);
 
         /// <summary>
         /// Disposes all SimHost resources.
@@ -685,7 +685,7 @@ namespace Hrot.SimHost
 
             ref var tf = ref _world.GetComponentRW<SimTransform>(entity);
             tf.Position = new Vector3(worldPos.X, worldPos.Y, 0f);
-            SmartEgressUtil.MarkDirty(_world, entity, (long)EDescriptorType.dtWorldPos);
+            SmartEgressUtil.MarkDirty(_world, entity, _networkFactory?.WorldPosDescriptorId ?? 0);
         }
 
         /// <summary>
@@ -871,5 +871,29 @@ namespace Hrot.SimHost
                 return new RoadNetworkBlob();
             }
         }
+    }
+
+    /// <summary>No-op replication module used when no INetworkFactory is injected (unit-test / offline path).</summary>
+    internal sealed class NullReplicationModule : Hrot.Common.Abstractions.IReplicationModule
+    {
+        private readonly GhostCreationSystem _gcs = new(new FDP.Toolkit.Replication.Services.NetworkEntityMap());
+        private readonly ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup _nlg = new();
+        public string Name => "Null";
+        public ModuleHost.Core.Abstractions.ExecutionPolicy Policy => ModuleHost.Core.Abstractions.ExecutionPolicy.Synchronous();
+        public GhostCreationSystem GhostCreationSystem => _gcs;
+        public bool DriveFromNetwork => false;
+        public ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup NetworkLifecycleGroup => _nlg;
+        public void Tick(ModuleHost.Core.Abstractions.ISimulationView view, float dt) { }
+        public void RegisterSystems(ModuleHost.Core.Abstractions.ISystemRegistry registry)
+        {
+            registry.RegisterSystem(new CycloneNetworkCleanupSystem(System.Linq.Enumerable.Empty<IDescriptorTranslator>()));
+        }
+    }
+
+    /// <summary>No-op mission sender used when no INetworkFactory is injected.</summary>
+    internal sealed class NullSimHostMissionSender : ISimHostMissionSender
+    {
+        public void SendNavigateToPoint(long id, System.Numerics.Vector2 dest, float speed, float radius) { }
+        public void Dispose() { }
     }
 }

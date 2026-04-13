@@ -61,4 +61,4 @@
 
 **Goal:** Update integration test harnesses to use the new INetworkFactory injection pattern.
 
-- [~] **TASK-P6-001** Update Integration Test Harnesses [details](./TASK-DETAIL.md#task-p6-001-update-integration-test-harnesses) — MockNetworkFactory created; harness INetworkFactory injection deferred (DEBT-P6-001-A)
+- [x] **TASK-P6-001** Update Integration Test Harnesses [details](./TASK-DETAIL.md#task-p6-001-update-integration-test-harnesses) — MockNetworkFactory created; `HrotRunnerHarness` now passes `NedNetworkFactory` to `SimHostSubsystem` and `ExConSubsystem` constructors (DEBT-P6-001-A resolved)

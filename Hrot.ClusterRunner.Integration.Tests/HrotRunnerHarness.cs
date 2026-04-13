@@ -1,11 +1,16 @@
 using System;
 using System.Threading;
+using Fdp.Engine.Runner;
+using Fdp.Kernel;
+using Hrot.CGF;
 using Hrot.ClusterRunner.Services;
+using Hrot.Common;
+using Hrot.ExCon;
+using Hrot.IG;
+using Hrot.Map.Common;
+using Hrot.Network.NED.Factory;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
-using Hrot.IG;
-using Hrot.ExCon;
-using Hrot.CGF;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
@@ -50,10 +55,18 @@ public sealed class HrotRunnerHarness : IDisposable
     {
         DomainId = Interlocked.Increment(ref _domainCounter);
 
+        var factory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new FDP.Toolkit.Replication.Services.NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.MuscleGround | NodeRole.Perception);
+
         OrchestratorSvc = new OrchestratorSubsystem();
-        SimHost = new SimHostSubsystem();
+        SimHost = new SimHostSubsystem(factory);
         Ig = new IgSubsystem();
-        ExCon = new ExConSubsystem();
+        ExCon = new ExConSubsystem(factory);
 
         var options = new RunnerOptions { Headless = true, DomainId = DomainId };
         Orchestrator = new SubsystemOrchestrator(new ISubsystem[]
@@ -81,10 +94,18 @@ public sealed class HrotRunnerHarness : IDisposable
             modes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
             StringComparer.OrdinalIgnoreCase);
 
+        var factory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new FDP.Toolkit.Replication.Services.NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.MuscleGround | NodeRole.Perception);
+
         OrchestratorSvc = new OrchestratorSubsystem();
-        SimHost         = new SimHostSubsystem();
+        SimHost         = new SimHostSubsystem(factory);
         Ig              = new IgSubsystem();
-        ExCon           = new ExConSubsystem();
+        ExCon           = new ExConSubsystem(factory);
 
         // Always include Orchestrator; conditionally include other subsystems.
         var subsystems = new System.Collections.Generic.List<ISubsystem> { OrchestratorSvc };

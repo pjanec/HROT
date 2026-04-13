@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
+using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.Map.Common;
 using Xunit;
 
@@ -29,8 +30,8 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// </summary>
 public class IdAllocatorDiscoveryTests
 {
-    private static readonly GeoPoint BerlinGeo =
-        new GeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
+    private static readonly CoreGeoPoint BerlinGeo =
+        new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
 
     /// <summary>
     /// Verifies that the very first <c>AllocateId()</c> call succeeds immediately after

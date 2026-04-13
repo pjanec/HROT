@@ -4,7 +4,6 @@ using System.Numerics;
 using ImGuiNET;
 using Raylib_cs;
 using Fdp.Kernel;
-using Hrot.NED.Descriptors;
 using Hrot.Core.Network;
 using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Vis2D;
@@ -78,6 +77,7 @@ namespace Hrot.SimHost
         // ── Mission control (right-click navigate via doctrine) ───────────────
         private ISimHostMissionSender? _missionSender;
 
+        private long _worldPosDescriptorId;
         private bool _initialized;
 
         // ── Public access (tests / other subsystems) ──────────────────────────
@@ -125,11 +125,13 @@ namespace Hrot.SimHost
             CarKinem.Formation.FormationTemplateManager formationTemplates,
             ISimHostMissionSender missionSender,
             INetworkIdAllocator?    idAllocator = null,
-            int                     localNodeId = 0)
+            int                     localNodeId = 0,
+            long                    worldPosDescriptorId = 0)
         {
-            _repo          = repo         ?? throw new ArgumentNullException(nameof(repo));
-            _kernel        = kernel        ?? throw new ArgumentNullException(nameof(kernel));
-            _missionSender = missionSender ?? throw new ArgumentNullException(nameof(missionSender));
+            _repo                 = repo         ?? throw new ArgumentNullException(nameof(repo));
+            _kernel               = kernel        ?? throw new ArgumentNullException(nameof(kernel));
+            _missionSender        = missionSender ?? throw new ArgumentNullException(nameof(missionSender));
+            _worldPosDescriptorId = worldPosDescriptorId;
 
             // ── Selection & inspector ─────────────────────────────────────────
             _selection = new SimHostSelectionManager();
@@ -224,7 +226,7 @@ namespace Hrot.SimHost
                     ref var vs = ref repo.GetComponentRW<VehicleState>(entity);
                     vs.Speed = 0;
                 }
-                SmartEgressUtil.MarkDirty(repo, entity, (long)EDescriptorType.dtWorldPos);
+                SmartEgressUtil.MarkDirty(repo, entity, _worldPosDescriptorId);
             };
 
             _interactionTool.OnRegionSelected += entities => _selection.SetMultiple(entities);

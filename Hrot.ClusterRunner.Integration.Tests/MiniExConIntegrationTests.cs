@@ -4,7 +4,6 @@ using System.Numerics;
 using Hrot.NED.Messages;
 using Hrot.NED.Descriptors;
 using Hrot.Map.Common;
-using Hrot.NED.Common;
 using Hrot.IG.Components;
 using CycloneDDS.Runtime;
 using FDP.Toolkit.Replication.Components;

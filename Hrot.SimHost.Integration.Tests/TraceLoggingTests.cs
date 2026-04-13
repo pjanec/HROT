@@ -8,6 +8,8 @@ using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
 using Fdp.Kernel;
+using Hrot.Map.Common;
+using Hrot.Network.NED.Factory;
 using FDP.Toolkit.Lifecycle.Events;
 using FDP.Toolkit.Replication.Components;
 using ModuleHost.Network.Cyclone.Services;
@@ -33,7 +35,14 @@ public sealed class TraceLoggingTests
         using var idParticipant = new DdsParticipant(DomainId);
         using var idServer = new DdsIdAllocatorServer(idParticipant);
         using var simHost = new SimHostApp();
-        simHost.InitializeHeadless(domainIdOverride: DomainId);
+        var factory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new FDP.Toolkit.Replication.Services.NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.MuscleGround | NodeRole.Perception);
+        simHost.InitializeHeadless(domainIdOverride: DomainId, networkFactory: factory);
 
         using var trajectoryPool = new TrajectoryPoolManager();
         using var formationTemplates = new FormationTemplateManager();
