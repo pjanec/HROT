@@ -51,13 +51,13 @@ namespace Hrot.SimHost.Tests
             StubAckSink                     ackSink,
             StubDeleteRequestSource         requestSource,
             NetworkEntityMap                map,
-            NedRequestFinalizationSystem    finalizationSystem)
+            EntityRequestFinalizationSystem    finalizationSystem)
             BuildSystem()
         {
             var ackSink             = new StubAckSink();
             var requestSource       = new StubDeleteRequestSource();
             var map                 = new NetworkEntityMap();
-            var finalizationSystem  = new NedRequestFinalizationSystem(ackSink, map);
+            var finalizationSystem  = new EntityRequestFinalizationSystem(ackSink, map);
             var system              = new DeleteEntityRequestSystem(requestSource, ackSink, map, finalizationSystem);
             return (system, ackSink, requestSource, map, finalizationSystem);
         }
@@ -134,3 +134,4 @@ namespace Hrot.SimHost.Tests
         }
     }
 }
+

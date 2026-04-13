@@ -119,6 +119,20 @@ public sealed class NedNetworkFactory : INetworkFactory
     }
 
     /// <inheritdoc/>
+    public IReadOnlyList<Fdp.Kernel.ComponentSystem> CreateSimHostAttributeUpdateSystems()
+    {
+        if (_participant == null) return System.Array.Empty<Fdp.Kernel.ComponentSystem>();
+        var jsonAttributeCompiler = Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
+        return new Fdp.Kernel.ComponentSystem[]
+        {
+            new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(
+                _participant, _entityMap, _geoTransform, jsonAttributeCompiler),
+            new Hrot.Map.Common.Replication.Ingress.UpdateEntityDescriptorRequestSystem(
+                _participant, _entityMap, _geoTransform),
+        };
+    }
+
+    /// <inheritdoc/>
     public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators()
     {
         if (_participant == null) return new NullSimHostPathfindingTranslators();

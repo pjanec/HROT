@@ -21,6 +21,8 @@
 
     <!-- EditorSubsystem uses MapLayerAssignmentSystem from Hrot.IG.Systems -->
     <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
+    <!-- AttributeCompilerFactory is used by EditorSubsystem to build the JSON→ECS attribute compiler -->
+    <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />
   </ItemGroup>
 
   <ItemGroup>

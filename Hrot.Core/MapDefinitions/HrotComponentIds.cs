@@ -26,10 +26,9 @@ namespace Hrot.Map.Definitions
         public const byte IgHealthState       = 165;
 
         /// <summary>
-        /// <c>ActivePerspective</c> — singleton component selecting the active presentation
-        /// view (IG window vs. Sim Map).  Used by <c>IgMapRenderSystem</c>,
-        /// <c>SimMapRenderSystem</c>, and <c>PerspectiveCoordinatorSystem</c>
-        /// to gate rendering per active perspective tier (MOD1-P4T2).
+        /// <c>ActivePerspective</c> — managed singleton component selecting the active presentation
+        /// view.  Used by <c>SimMapRenderSystem</c> and the perspective coordinator in the cluster
+        /// runner to gate rendering per active perspective tier (MOD1-P4T2).
         /// </summary>
         public const byte ActivePerspective   = 166;
 

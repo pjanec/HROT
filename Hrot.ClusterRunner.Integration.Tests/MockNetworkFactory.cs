@@ -43,6 +43,10 @@ internal sealed class MockNetworkFactory : INetworkFactory
     public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators() => new NullSimHostPerceptionTranslators();
 
     /// <inheritdoc/>
+    public System.Collections.Generic.IReadOnlyList<Fdp.Kernel.ComponentSystem> CreateSimHostAttributeUpdateSystems()
+        => System.Array.Empty<Fdp.Kernel.ComponentSystem>();
+
+    /// <inheritdoc/>
     public IIgTranslators CreateIgTranslators() => new NullIgTranslators();
 
     /// <inheritdoc/>

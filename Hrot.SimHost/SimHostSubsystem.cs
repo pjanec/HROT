@@ -3,7 +3,6 @@ using Hrot.Common;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.SimHost;
-using Hrot.SimHost.Components;
 using Hrot.SimHost.Utilities;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Services;

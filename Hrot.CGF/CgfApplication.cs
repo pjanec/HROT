@@ -31,13 +31,13 @@ namespace Hrot.CGF
         private const string SubsystemName = "CGF";
 
         private readonly int _nodeId;
-        private readonly DdsParticipant _participant;
+        private readonly DdsParticipant? _participant;
         private readonly FDP.Toolkit.Orchestration.ClusterSlave _clusterSlave;
         private readonly FdpEventBus _eventBus;
         private FdpEventBus _orchestrationBus => _eventBus;  // CMC-S016: alias, same bus
-        private readonly NodeOpSlaveTranslator _slaveTranslator;  // CMC-S016
-        private readonly IDescriptorTranslator _timeModeTranslator;
-        private readonly IDescriptorTranslator _lockstepTranslator;
+        private readonly NodeOpSlaveTranslator? _slaveTranslator;  // CMC-S016; null when no participant
+        private readonly IDescriptorTranslator? _timeModeTranslator;
+        private readonly IDescriptorTranslator? _lockstepTranslator;
         private bool _disposed;
 
         // ── Unified kernel (lazy-initialized on first Tick after Install calls) ──────
@@ -49,7 +49,7 @@ namespace Hrot.CGF
         public FDP.Toolkit.Orchestration.ClusterSlave ClusterSlave => _clusterSlave;
 
         /// <summary>Internal accessor for subsystem wiring.</summary>
-        internal DdsParticipant Participant => _participant;
+        internal DdsParticipant? Participant => _participant;
 
         /// <summary>Internal accessor for subsystem wiring.</summary>
         internal FdpEventBus EventBus => _eventBus;
@@ -84,12 +84,15 @@ namespace Hrot.CGF
         {
             _nodeId      = nodeId;
             // Accept participant from composition root (Rule 3, modular-2 DESIGN.md).
-            // Fall back to creating one from domainId for backward-compat standalone use.
-            _participant = participant ?? HrotEnvironment.CreateParticipant((int)domainId);
+            // When null, the node operates without DDS (offline / pure-domain test path).
+            _participant = participant;
             // CGF1-A.2 (BATCH-09 / Phase 3): wire time event bridge and time controller.
             _eventBus = new FdpEventBus();
-            _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
-            _lockstepTranslator = TimeNetworkModule.CreateSlaveLockstepTranslator(_participant, _eventBus, nodeId);
+            if (_participant != null)
+            {
+                _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
+                _lockstepTranslator = TimeNetworkModule.CreateSlaveLockstepTranslator(_participant, _eventBus, nodeId);
+            }
 
             // Unified kernel: hosts the SlaveSyncController and all simulation modules.
             // Initialize() is deferred until first Tick() so callers can Install() modules first.
@@ -105,12 +108,16 @@ namespace Hrot.CGF
             // CMC-S016: NodeOpSlaveTranslator bridges DDS NodeOpCommand ↔ _eventBus ExecuteNodeOpIntent
             // and bus NodeHeartbeatEvent/NodeOpCompletedEvent ↔ DDS.
             // Same bus as ClusterSlave so no extra swap is needed.
-            _slaveTranslator  = new NodeOpSlaveTranslator(
-                commandReader:   new DdsReader<NodeOpCommand>(_participant),
-                statusWriter:    new DdsWriter<NodeOpStatus>(_participant),
-                heartbeatWriter: new DdsWriter<NodeHeartbeat>(_participant),
-                bus:             _orchestrationBus,
-                nodeId:          nodeId);
+            // Only wired when a DDS participant is available.
+            if (_participant != null)
+            {
+                _slaveTranslator  = new NodeOpSlaveTranslator(
+                    commandReader:   new DdsReader<NodeOpCommand>(_participant),
+                    statusWriter:    new DdsWriter<NodeOpStatus>(_participant),
+                    heartbeatWriter: new DdsWriter<NodeHeartbeat>(_participant),
+                    bus:             _orchestrationBus,
+                    nodeId:          nodeId);
+            }
 
             var storageProvider = new LocalDiskStorageProvider(localTempRoot);
 
@@ -192,14 +199,14 @@ namespace Hrot.CGF
                 _initialized = true;
             }
 
-            _slaveTranslator.Tick();
+            _slaveTranslator?.Tick();
             _clusterSlave.Tick();
             // Bridge SwitchTimeModeEvent: egress coordinator events to DDS, ingress DDS events to bus.
-            _timeModeTranslator.ScanAndPublish(null!);
-            _timeModeTranslator.PollIngress(null!, null!);
+            _timeModeTranslator?.ScanAndPublish(null!);
+            _timeModeTranslator?.PollIngress(null!, null!);
             // Bridge FrameOrder/FrameAck for distributed lockstep stepping.
-            _lockstepTranslator.ScanAndPublish(null!);
-            _lockstepTranslator.PollIngress(null!, null!);
+            _lockstepTranslator?.ScanAndPublish(null!);
+            _lockstepTranslator?.PollIngress(null!, null!);
             // Swap buffers so ingress events are readable.
             _eventBus.SwapBuffers();
             // Unified Update: advances SlaveSyncController AND executes all simulation modules.
@@ -214,7 +221,7 @@ namespace Hrot.CGF
             _clusterSlave.Dispose();
             _kernel.Dispose();
             _world.Dispose();
-            _participant.Dispose();
+            _participant?.Dispose();
             FdpLog<CgfApplication>.Info("[Node-{0}] Disposed.", _nodeId);
         }
     }

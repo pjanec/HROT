@@ -73,6 +73,10 @@ namespace Hrot.BDC.Factory
             => new BdcNullSimHostPerceptionTranslators();
 
         /// <inheritdoc/>
+        public System.Collections.Generic.IReadOnlyList<Fdp.Kernel.ComponentSystem> CreateSimHostAttributeUpdateSystems()
+            => System.Array.Empty<Fdp.Kernel.ComponentSystem>();
+
+        /// <inheritdoc/>
         public IIgTranslators CreateIgTranslators()
             => new NullIgTranslators();
 

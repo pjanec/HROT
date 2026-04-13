@@ -39,9 +39,6 @@
   <ItemGroup>
     <!-- Hrot data model and map types -->
     <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
-    <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
-    <!-- NED protocol: translators (GeoSpatialEgressTranslator, EntityMissionEgressTranslator, etc.) -->
-    <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <!-- FDP Kernel and Toolkits -->
     <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />
     <!-- Scenario serialization toolkit for ScenarioLoadClusterStateHandler (CGF1-S0307) -->

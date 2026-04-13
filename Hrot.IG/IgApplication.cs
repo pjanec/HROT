@@ -755,37 +755,9 @@ public class IgApplication : IDisposable
 
         {
                 // Use the participant provided by the composition root via HrotNodeBuilder.
-                // In production (non-headless), participant comes from _context (builder created it).
-                // In headless test mode, participant may not be in context; create one locally for DDS testing.
-                // Subsystems never instantiate DdsParticipant directly in production (Rule 3, modular-2 DESIGN.md).
+                // The subsystem accepts whatever participant it is given (Rule 3, modular-2 DESIGN.md).
+                // If null, the node operates without DDS (offline / pure-domain test path).
                 participant = _context?.Participant;
-                if (participant == null && _headless)
-                {
-                    participant = HrotEnvironment.CreateParticipant(domainId);
-                    // Composition root: configure tracking right when the participant is created.
-                    participant.EnableSenderTracking(new SenderIdentityConfig
-                    {
-                        AppDomainId   = domainId,
-                        AppInstanceId = _effectiveInstanceId
-                    });
-
-                    // Rebind replication module with the live participant so EntityStatesIngressPack
-                    // gets DDS access. Replaces the headless no-participant module created in InitializeEcs.
-                    if (_context != null && _networkFactory != null)
-                    {
-                        // Update context with live participant first so ConfigureForNode picks up
-                        // the correct entityMap and bus (context's, not the factory's defaults).
-                        _context = _context with { Participant = participant };
-                        var liveFactory = _networkFactory.ConfigureForNode(_context, Hrot.Common.NodeRole.ImageGenerator);
-                        var liveReplication = liveFactory.CreateReplicationModule();
-                        _context = _context with
-                        {
-                            NedReplication      = liveReplication as Hrot.Common.Abstractions.INedReplicationModule,
-                            GhostCreationSystem = liveReplication.GhostCreationSystem,
-                        };
-                        _ghostCreationSystem = _context.GhostCreationSystem;
-                    }
-                }
 
                 if (participant == null)
                 {

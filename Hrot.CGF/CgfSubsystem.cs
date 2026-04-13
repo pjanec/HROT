@@ -197,7 +197,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
             var elm         = (EntityLifecycleModule)_context.BaseModules
                                   .First(m => m is EntityLifecycleModule);
 
-            var finalizationSystem = new NedRequestFinalizationSystem(adapters.AckSink, _entityMap!);
+            var finalizationSystem = new EntityRequestFinalizationSystem(adapters.AckSink, _entityMap!);
 
             var requestSystem = new CreateEntityRequestSystem(
                 requestSource:        adapters.RequestSource,
@@ -472,4 +472,5 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
     }
 
 }
+
 

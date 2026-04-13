@@ -1,3 +1,4 @@
+using CycloneDDS.Runtime;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Kernel;
 using Hrot.Common;
@@ -13,15 +14,15 @@ namespace Hrot.IG.Tests;
 internal static class IgTestFactory
 {
     /// <summary>
-    /// Creates a NedNetworkFactory with a null participant. When passed to
-    /// <see cref="IgApplication.InitializeEmbedded"/>, the factory is reconfigured
-    /// via <c>ConfigureForNode(_context)</c> so the replication module uses the
-    /// context's entityMap and bus. A live participant is then created in
-    /// InitializeNetwork (headless path) or picked from HrotNodeBuilder (non-headless).
+    /// Creates a NedNetworkFactory for headless test use.
+    /// When <paramref name="domainId"/> is provided, a real <see cref="DdsParticipant"/>
+    /// is created so that DDS ingress/egress works in integration tests.
+    /// When omitted (null), the participant is null and the factory operates
+    /// offline (structural wiring checks only; no DDS communication).
     /// </summary>
-    internal static Hrot.Core.Network.INetworkFactory CreateHeadless()
+    internal static Hrot.Core.Network.INetworkFactory CreateHeadless(int? domainId = null)
         => new NedNetworkFactory(
-            participant:  null,
+            participant:  domainId.HasValue ? new DdsParticipant((uint)domainId.Value) : null,
             entityMap:    new NetworkEntityMap(),
             geoTransform: HrotEnvironment.CreateGeoTransform(),
             eventBus:     new FdpEventBus(),

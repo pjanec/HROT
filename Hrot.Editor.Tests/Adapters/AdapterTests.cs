@@ -352,7 +352,7 @@ namespace Hrot.Editor.Tests.Adapters
 
             // Simulate the tool firing the callback.
             var tool = Assert.IsType<LocationPickerTool>(_canvas.ActiveTool);
-            tool.OnLocationPicked?.Invoke(new Hrot.NED.Common.GeoPoint { Latitude = 32.0, Longitude = 34.5 });
+            tool.OnLocationPicked?.Invoke(new Hrot.Core.Mission.GeoPoint { Latitude = 32.0, Longitude = 34.5 });
 
             var result = await task;
             Assert.Equal(32.0, result.Latitude, 6);

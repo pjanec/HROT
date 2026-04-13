@@ -106,7 +106,7 @@ namespace Hrot.SimHost.Integration.Tests
             var emptyRequest = new EntityCreationRequest
             {
                 RequestId          = requestId,
-                OwnerAppInstanceId = 99,
+                OwnerAppInstanceId = 1,   // must match localNodeId in SimHostInstance so the request is not silently dropped
                 TkbType            = 0,   // missing/invalid TkbType triggers error
                 DisType            = 0,
             };

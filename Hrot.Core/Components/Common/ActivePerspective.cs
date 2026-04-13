@@ -1,3 +1,6 @@
+using Fdp.Kernel;
+using Hrot.Map.Definitions;
+
 namespace Hrot.Common;
 
 /// <summary>
@@ -6,6 +9,7 @@ namespace Hrot.Common;
 /// A class (not struct) because <c>Name</c> is a managed string, which prevents
 /// use as an unmanaged ECS singleton.
 /// </summary>
+[ComponentId(HrotComponentIds.ActivePerspective)]
 public sealed class ActivePerspective
 {
     /// <summary>Name of the active perspective (e.g. "IG", "SimHost").</summary>

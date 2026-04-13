@@ -1,18 +1,11 @@
 using Hrot.Core.Mission;
 using Hrot.Core.Network;
-using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Events;
-using Hrot.Map.Common.Replication;
-using Hrot.Map.Common.Replication.Egress;
-using Hrot.Map.Common.Replication.Ingress;
-using Hrot.Map.Common.Systems;
 using Hrot.Map.Definitions.Tkb;
 using Hrot.SimHost.Brains;
-using Hrot.SimHost.Components;
 using Hrot.SimHost.Configuration;
 using Hrot.SimHost.Modules;
-using Hrot.SimHost.Events;
 using Hrot.SimHost.Utilities;
 using Hrot.Common.Infrastructure;
 using CarKinem.Commands;
@@ -103,7 +96,6 @@ namespace Hrot.SimHost
 
         // ── Visualization ─────────────────────────────────────────────────────
         private SimHostVisualization? _vis;
-        private IgPresentationModule? _igPresentationModule;
 
         /// <summary>
         /// The visualization layer. Valid after <see cref="InitializeEmbedded"/> in non-headless mode.
@@ -254,13 +246,7 @@ namespace Hrot.SimHost
             var wgs84     = HrotEnvironment.CreateGeoTransform();
             _geoTransform = wgs84;
 
-            // ── 3. JSON Attribute Compiler (ATTR-S5T1 / ATTR-S5T4) ───────────
-            // Builds the zero-allocation JSON attribute compiler with routing delegates
-            // for Name, Affiliation, and GeoPosition registered at startup.  The same
-            // instance is shared by UpdateEntityAttributeRequestSystem.
-            var jsonAttributeCompiler = AttributeCompilerFactory.Build(wgs84);
-
-            // ── 4. Doctrine registry — created before builder so WithDoctrineRegistry can capture it ──
+            // ── 3. Doctrine registry — created before builder so WithDoctrineRegistry can capture it ──
             var doctrineRegistry = new DoctrineRegistry();
             _doctrineRegistry = doctrineRegistry;
             unsafe
@@ -395,7 +381,12 @@ namespace Hrot.SimHost
 
             _kernelGroup = new SystemGroup();
             _kernelGroup.Create(_world);
-            _kernelGroup.AddSystem(new UpdateEntityAttributeRequestSystem(ddsParticipant!, entityMap, wgs84, jsonAttributeCompiler));
+            // Add DDS attribute/descriptor update systems from factory (NED-specific, NOP in offline mode).
+            if (nodeFactory != null)
+            {
+                foreach (var sys in nodeFactory.CreateSimHostAttributeUpdateSystems())
+                    _kernelGroup.AddSystem(sys);
+            }
             _simLogicModule.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);
 
             // Seed GlobalTime singleton.
@@ -441,12 +432,12 @@ namespace Hrot.SimHost
 
             // ── DDS adapters and request-handling systems ───────────────────────
             // Entity lifecycle (create/delete) is handled by the brain (CGF), not the muscle (SimHost).
+            // UpdateEntityAttributeRequestSystem and UpdateEntityDescriptorRequestSystem are
+            // registered by INetworkFactory.CreateSimHostAuxiliaryTranslators().
 
             var simHostMod = new SimHostModule(
                 spawnSystem: spawningSystem);
             _kernel.RegisterModule(simHostMod);
-
-            _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant!, entityMap, wgs84));
 
             // ── 10. Register replication module (bundles all translator packs) ──
             // Packs included: SharedTranslatorPack (EntityMaster, EntityInfo, EntityDamage, FireInteraction),
@@ -481,16 +472,7 @@ namespace Hrot.SimHost
                     localNodeId: localNodeId,
                     worldPosDescriptorId: _networkFactory?.WorldPosDescriptorId ?? 0);
 
-                // Wire IG presentation module with a real MapCanvas + NedVisualizerAdapter
-                // for production rendering (DB-MOD1-12).
-                var igCanvas = new MapCanvas(new RaylibInputProvider());
-                _igPresentationModule = new IgPresentationModule(canvas: igCanvas);
                 Logger.Info($"[Node-{localNodeId}] Visualization ready. Window open.");
-            }
-            else
-            {
-                // Headless / integration-test path: headless canvas (no Raylib calls).
-                _igPresentationModule = new IgPresentationModule(canvas: null);
             }
 
             _initialized = true;

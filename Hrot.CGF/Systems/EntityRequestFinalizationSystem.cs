@@ -28,7 +28,7 @@ namespace Hrot.CGF.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
-    public class NedRequestFinalizationSystem : IEcsModuleSystem
+    public class EntityRequestFinalizationSystem : IEcsModuleSystem
     {
         private struct PendingRequest
         {
@@ -40,7 +40,7 @@ namespace Hrot.CGF.Systems
         private readonly IEntityAckSink                    _ackSink;
         private readonly NetworkEntityMap                  _entityMap;
 
-        public NedRequestFinalizationSystem(
+        public EntityRequestFinalizationSystem(
             IEntityAckSink   ackSink,
             NetworkEntityMap entityMap)
         {
@@ -119,3 +119,4 @@ namespace Hrot.CGF.Systems
         }
     }
 }
+

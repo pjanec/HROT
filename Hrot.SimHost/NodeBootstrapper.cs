@@ -2,17 +2,13 @@ using System;
 using System.Collections.Generic;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Modules.Orchestration;
-using Hrot.Map.Common.Translators;
-using Hrot.Network.Translators;
 using Hrot.Core.Network;
-using Hrot.Network.NED.SimHost;
 using Fdp.Kernel;
 using Fdp.Kernel.Orchestration;
 using CarKinem.Commands;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
-using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Behavior;
@@ -196,101 +192,6 @@ namespace Hrot.SimHost
                 role);
         }
 
-        // ── Translator construction ───────────────────────────────────────────
-
-        /// <summary>
-        /// Creates the role-appropriate DDS translator instances using the three
-        /// static translator packs.
-        /// </summary>
-        /// <param name="role">Node role that determines which translator packs are installed.</param>
-        /// <param name="participant">Live DDS participant.</param>
-        /// <param name="entityMap">Shared network entity map.</param>
-        /// <param name="geoTransform">Geodetic transform for coordinate conversion.</param>
-        /// <param name="eventBus">Application event bus (needed by EntityMasterIngressTranslator).</param>
-        /// <param name="ghostCreationSystem">Ghost-creation system for replica entity materialisation.</param>
-        /// <param name="doctrineRegistry">Doctrine registry forwarded to EntityMissionEgressTranslator.</param>
-        /// <param name="localNodeId">Local DDS node identifier.</param>
-        /// <param name="kernel">
-        /// Optional kernel. When provided together with a factory supplied at construction time,
-        /// pathfinding and perception translators are registered directly on the kernel instead
-        /// of being added to the returned list.
-        /// </param>
-        public List<IDescriptorTranslator> BuildTranslators(
-            NodeRole             role,
-            DdsParticipant       participant,
-            NetworkEntityMap     entityMap,
-            IGeographicTransform geoTransform,
-            FdpEventBus          eventBus,
-            GhostCreationSystem  ghostCreationSystem,
-            DoctrineRegistry?    doctrineRegistry,
-            long                 localNodeId,
-            ModuleHost.Core.ModuleHostKernel? kernel = null)
-        {
-            var translators = new List<IDescriptorTranslator>();
-
-            // Shared pack — all roles install entity lifecycle translators.
-            translators.AddRange(SharedTranslatorPack.Create(
-                participant, entityMap, localNodeId, eventBus, ghostCreationSystem, geoTransform));
-
-            // Kinematic pack — Muscle nodes publish NavStatus and receive NavIntent.
-            if (role.HasFlag(NodeRole.MuscleGround))
-            {
-                translators.AddRange(KinematicTranslatorPack.Create(
-                    participant, entityMap, geoTransform, localNodeId: localNodeId));
-            }
-
-            // Cognitive pack — Brain nodes publish NavIntent and receive NavStatus.
-            if (role.HasFlag(NodeRole.Brain))
-            {
-                translators.AddRange(CognitiveTranslatorPack.Create(
-                    participant, entityMap, geoTransform, doctrineRegistry, ghostCreationSystem, localNodeId: localNodeId));
-            }
-
-            // ── Pathfinding and perception packs ─────────────────────────────────
-            // When a factory and kernel are available, translators are registered directly
-            // on the kernel (factory path). Otherwise, they are added to the returned list
-            // (fallback path used by unit tests and configurations without a kernel).
-
-            if (_networkFactory != null && kernel != null)
-            {
-                // Factory path: the factory's role field drives which translators are created.
-                _networkFactory.CreateSimHostPathfindingTranslators().RegisterOn(kernel);
-                _networkFactory.CreateSimHostPerceptionTranslators().RegisterOn(kernel);
-            }
-            else
-            {
-                // Brain perception pack — Brain nodes publish sensor config + raycast batches.
-                if (role.HasFlag(NodeRole.Brain))
-                {
-                    translators.AddRange(BrainPerceptionTranslatorPack.Create(
-                        participant, entityMap, geoTransform));
-                }
-
-                // Brain pathfinding pack — Brain nodes publish path request batches.
-                if (role.HasFlag(NodeRole.Brain))
-                {
-                    translators.AddRange(BrainPathfindingTranslatorPack.Create(
-                        participant, entityMap, geoTransform));
-                }
-
-                // Sim perception pack — Perception solver nodes receive requests and publish targets.
-                if (role.HasFlag(NodeRole.Perception))
-                {
-                    translators.AddRange(SimPerceptionTranslatorPack.Create(
-                        participant, entityMap, geoTransform));
-                }
-
-                // Sim pathfinding pack — NavigationSolver nodes receive requests and publish results.
-                if (role.HasFlag(NodeRole.NavigationSolver))
-                {
-                    translators.AddRange(SimPathfindingTranslatorPack.Create(
-                        participant, entityMap, geoTransform));
-                }
-            }
-
-            return translators;
-        }
-
         // ── Orchestration construction ─────────────────────────────────────────
 
         /// <summary>
@@ -346,7 +247,7 @@ namespace Hrot.SimHost
             ModuleHost.Core.ModuleHostKernel kernel,
             Fdp.Kernel.EntityRepository world,
             int nodeId,
-            DdsParticipant? participant = null,
+            CycloneDDS.Runtime.DdsParticipant? participant = null,
             string subsystemName = "SimHost",
             Fdp.Kernel.FdpEventBus? eventBus = null,
             FDP.Toolkit.Scenario.ScenarioSerializer? scenarioSerializer = null,

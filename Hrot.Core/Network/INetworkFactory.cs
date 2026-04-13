@@ -47,6 +47,13 @@ public interface INetworkFactory
     /// <summary>Creates the perception network translators for the given node role.</summary>
     ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators();
 
+    /// <summary>
+    /// Creates the DDS-backed ECS systems for processing attribute/descriptor update requests.
+    /// Returns empty list when no participant is available (offline / no-DDS mode).
+    /// These systems must be added to the pre-kernel SystemGroup that runs before the main tick.
+    /// </summary>
+    IReadOnlyList<ComponentSystem> CreateSimHostAttributeUpdateSystems();
+
     /// <summary>Creates the IG-specific DDS ingress translator provider.</summary>
     IIgTranslators CreateIgTranslators();
 

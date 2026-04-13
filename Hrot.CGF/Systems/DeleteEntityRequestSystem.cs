@@ -18,7 +18,7 @@ namespace Hrot.CGF.Systems
     ///   <item>Drains the source via a zero-allocation callback.</item>
     ///   <item>Validates the entity exists in <see cref="NetworkEntityMap"/>.</item>
     ///   <item>Sends a Phase-1 <c>InProgress</c> ACK so the ExCon client unblocks immediately.</item>
-    ///   <item>Registers the request with <see cref="NedRequestFinalizationSystem"/> for
+    ///   <item>Registers the request with <see cref="EntityRequestFinalizationSystem"/> for
     ///     Phase-2 tracking once ELM confirms teardown.</item>
     ///   <item>Publishes a <see cref="DestroyEntityCommand"/> to initiate ELM teardown via
     ///     NetworkSpawningSystem.</item>
@@ -31,14 +31,14 @@ namespace Hrot.CGF.Systems
         private readonly IEntityDeletionRequestSource _requestSource;
         private readonly IEntityAckSink               _ackSink;
         private readonly NetworkEntityMap             _entityMap;
-        private readonly NedRequestFinalizationSystem _finalizationSystem;
+        private readonly EntityRequestFinalizationSystem _finalizationSystem;
         private readonly int                          _localNodeId;
 
         public DeleteEntityRequestSystem(
             IEntityDeletionRequestSource requestSource,
             IEntityAckSink               ackSink,
             NetworkEntityMap             entityMap,
-            NedRequestFinalizationSystem finalizationSystem,
+            EntityRequestFinalizationSystem finalizationSystem,
             int                          localNodeId = 0)
         {
             _requestSource      = requestSource      ?? throw new ArgumentNullException(nameof(requestSource));
@@ -96,3 +96,4 @@ namespace Hrot.CGF.Systems
         }
     }
 }
+

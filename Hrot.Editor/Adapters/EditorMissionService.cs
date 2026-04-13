@@ -8,8 +8,6 @@ using FDP.Toolkit.Replication.Components;
 using Hrot.Core.Mission;
 using Hrot.Common.Events;
 using Hrot.Map.Definitions.Tkb;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
 
@@ -169,33 +167,6 @@ namespace Hrot.Editor.Adapters
             return new Hrot.Core.Mission.MissionPlan
             {
                 ActiveTaskId = domain.ActiveTaskId,
-                Tasks        = tasks,
-            };
-        }
-
-        private static Hrot.NED.Descriptors.MissionPlan MapNeutralPlanToNed(Hrot.Core.Mission.MissionPlan plan)
-        {
-            var tasks = new List<Hrot.NED.Descriptors.MissionTask>(plan.Tasks?.Count ?? 0);
-            if (plan.Tasks != null)
-            {
-                foreach (var t in plan.Tasks)
-                {
-                    tasks.Add(new Hrot.NED.Descriptors.MissionTask
-                    {
-                        TaskId          = t.TaskId,
-                        BehaviorId      = t.BehaviorId,
-                        BehaviorParams  = t.BehaviorParams,
-                        ExecutingEngine = t.ExecutingEngine,
-                        State           = (Hrot.NED.Descriptors.eTaskState)(int)t.State,
-                        Triggers        = t.Triggers?.Select(x => new Hrot.NED.Descriptors.MissionTrigger
-                                          { Type = x.Type, Params = x.Params }).ToList()
-                                          ?? new List<Hrot.NED.Descriptors.MissionTrigger>(),
-                    });
-                }
-            }
-            return new Hrot.NED.Descriptors.MissionPlan
-            {
-                ActiveTaskId = plan.ActiveTaskId,
                 Tasks        = tasks,
             };
         }

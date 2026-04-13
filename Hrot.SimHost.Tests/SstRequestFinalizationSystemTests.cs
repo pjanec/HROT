@@ -9,12 +9,12 @@ using Xunit;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// Unit tests for <see cref="NedRequestFinalizationSystem"/>.
+    /// Unit tests for <see cref="EntityRequestFinalizationSystem"/>.
     ///
     /// Verifies that Phase-2 ACKs are dispatched at the right lifecycle moment
     /// without requiring DDS or any network infrastructure.
     /// </summary>
-    public class NedRequestFinalizationSystemTests
+    public class EntityRequestFinalizationSystemTests
     {
         // ── Factory helpers ───────────────────────────────────────────────────
 
@@ -25,12 +25,12 @@ namespace Hrot.SimHost.Tests
             return repo;
         }
 
-        private static (NedRequestFinalizationSystem system, StubAckSink ackSink, NetworkEntityMap map)
+        private static (EntityRequestFinalizationSystem system, StubAckSink ackSink, NetworkEntityMap map)
             BuildSystem()
         {
             var ackSink = new StubAckSink();
             var map     = new NetworkEntityMap();
-            var system  = new NedRequestFinalizationSystem(ackSink, map);
+            var system  = new EntityRequestFinalizationSystem(ackSink, map);
             return (system, ackSink, map);
         }
 
@@ -190,3 +190,4 @@ namespace Hrot.SimHost.Tests
         }
     }
 }
+

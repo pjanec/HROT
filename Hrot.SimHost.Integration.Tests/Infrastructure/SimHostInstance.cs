@@ -200,7 +200,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         // ── Systems: IEcsModuleSystem-based (executed manually each tick) ────────────
         private readonly CreateEntityRequestSystem      _requestSystem;
         private readonly NetworkSpawningSystem          _spawnSystem;
-        private readonly NedRequestFinalizationSystem   _finalizationSystem;
+        private readonly EntityRequestFinalizationSystem   _finalizationSystem;
         private readonly SystemList                     _elmSystems  = new();
         private readonly SystemList                     _geoSystems  = new();
 
@@ -237,7 +237,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             // 4. Request / spawn systems ────────────────────────────────────────────
             var jsonAttributeCompiler = AttributeCompilerFactory.Build(_wgs84);
-            _finalizationSystem = new NedRequestFinalizationSystem(AckSink, _entityMap);
+            _finalizationSystem = new EntityRequestFinalizationSystem(AckSink, _entityMap);
             _requestSystem = new CreateEntityRequestSystem(
                 RequestSource, AckSink, _tkbDb, IdAllocator, localNodeId: 1,
                 jsonAttributeCompiler: jsonAttributeCompiler, finalizationSystem: _finalizationSystem);
@@ -272,8 +272,12 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 vehicleAPI:              null,
                 roadNetwork:             roadNetwork,
                 trajectoryPool:          trajectoryPool,
-                formationTemplateManager: null);
+                formationTemplateManager: null,
+                role: NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception);
             simLogicModule.RegisterSystems(_inputGroup, _simGroup, _postSimGroup);
+            // MissionAdapterSystem bridges ActiveMissionPlan BehaviorParams into BrainBlackboard,
+            // enabling end-to-end mission execution tests without a live CGF node.
+            _simGroup.AddSystem(new MissionAdapterSystem(_doctrineRegistry, _entityMap));
 
             var physicsModule = new PhysicsToolkitModule();
             physicsModule.Initialize(_world);
@@ -698,6 +702,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<BrainBlackboard>();
+            world.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
 
             // HSM brain tiers (for APC-style HSM doctrines)
             world.RegisterComponent<BrainHsm64>();
@@ -861,3 +866,4 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         }
     }
 }
+

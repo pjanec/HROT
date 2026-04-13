@@ -1,8 +1,6 @@
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
-using Hrot.SimHost.Components;
-using Hrot.SimHost.Events;
 using CarKinem.Commands;
 using CarKinem.Core;
 using CarKinem.Formation;
@@ -70,13 +68,12 @@ public static class SimHostComponentRegistry
         world.RegisterEvent<CmdLeaveFormation>();
 
         // ── Presentation tier ─────────────────────────────────────────────────
-        // ActivePerspective singleton selects the active view (IG vs. Sim Map).
-        world.RegisterComponent<ActivePerspective>();
-        // TogglePerspectiveEvent lets UI code trigger a perspective switch via ECS bus.
-        world.RegisterEvent<TogglePerspectiveEvent>();
+        // ActivePerspective singleton selects the active view (string-based, dynamic).
+        world.RegisterManagedComponent<Hrot.Common.ActivePerspective>();
+        // TogglePerspectiveEvent is published on FdpEventBus (managed record), not as an ECS struct event.
 
         // ── Mission control CQRS events (PACK-P001) ───────────────────────────
-        world.RegisterEvent<MissionControlAckEvent>();
+        world.RegisterEvent<Hrot.Common.Events.MissionControlAckEvent>();
 
         // ── Perception toolkit receptor components (MOD1-P6T1) ──────────────────
         world.RegisterComponent<VisualReceptor>();

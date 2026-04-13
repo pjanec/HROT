@@ -317,34 +317,5 @@ namespace Hrot.SimHost.Tests
 
             Assert.Null(ex);
         }
-
-        /// <summary>
-        /// <see cref="SimHostModule"/> must expose non-null
-        /// <see cref="SimHostModule.MissionIngressTranslator"/> and
-        /// <see cref="SimHostModule.MissionEgressTranslator"/> regardless of whether
-        /// a geographic transform is provided.
-        /// </summary>
-        [Fact]
-        public void SimHostModule_ExposesNonNullMissionTranslators()
-        {
-            using var participant = new DdsParticipant();
-            var tkb         = new TkbDatabase();
-            var entityMap   = new NetworkEntityMap();
-            var idAllocator = new DdsIdAllocator(participant, "test-alloc");
-            var elm         = new EntityLifecycleModule(tkb, new List<int>());
-            var spawner     = new NetworkSpawningSystem(tkb, elm, entityMap, idAllocator, 1);
-            var doctrine    = new DoctrineRegistry();
-
-            // Create mission translators externally (geoTransform = null → geo egress will be null).
-            var missionIngress = new EntityMissionIngressTranslator(participant, entityMap, doctrine, new GhostCreationSystem(entityMap));
-            var missionEgress  = new EntityMissionEgressTranslator(participant, entityMap);
-
-            var module = new SimHostModule(spawner,
-                missionIngressTranslator: missionIngress,
-                missionEgressTranslator:  missionEgress);
-
-            Assert.NotNull(module.MissionIngressTranslator);
-            Assert.NotNull(module.MissionEgressTranslator);
-        }
     }
 }

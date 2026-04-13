@@ -1,12 +1,11 @@
-using Hrot.SimHost.Components;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D;
 
 namespace Hrot.SimHost.Systems
 {
     /// <summary>
-    /// Renders the Sim Map (2-D tactical overlay) presentation canvas when
-    /// <see cref="ActivePerspective.Current"/> equals <see cref="PerspectiveType.Sim"/>.
+    /// Renders the Sim Map (2-D tactical overlay) presentation canvas when the active
+    /// perspective name is <c>"Sim"</c>.
     ///
     /// <para><b>Testability:</b>
     /// In production the system calls <see cref="MapCanvas.Draw"/>. In unit tests
@@ -16,7 +15,6 @@ namespace Hrot.SimHost.Systems
     /// </para>
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
-    [UpdateAfter(typeof(PerspectiveCoordinatorSystem))]
     public sealed class SimMapRenderSystem : ComponentSystem
     {
         private readonly MapCanvas? _canvas;
@@ -26,7 +24,7 @@ namespace Hrot.SimHost.Systems
 
         /// <param name="canvas">
         ///   The <see cref="MapCanvas"/> to call <c>Draw()</c> on when the perspective is
-        ///   <see cref="PerspectiveType.Sim"/>. Pass <c>null</c> in headless/test contexts.
+        ///   <c>"Sim"</c>. Pass <c>null</c> in headless/test contexts.
         /// </param>
         public SimMapRenderSystem(MapCanvas? canvas = null)
         {
@@ -36,10 +34,10 @@ namespace Hrot.SimHost.Systems
         protected override void OnUpdate()
         {
             // Guard: only render when this is the active perspective.
-            if (!World.HasSingleton<ActivePerspective>()) return;
+            if (!World.HasSingletonManaged<Hrot.Common.ActivePerspective>()) return;
 
-            var perspective = World.GetSingletonUnmanaged<ActivePerspective>();
-            if (perspective.Current != PerspectiveType.Sim) return;
+            var perspective = World.GetSingletonManaged<Hrot.Common.ActivePerspective>();
+            if (perspective?.Name != "Sim") return;
 
             DrawCallCount++;
             _canvas?.Draw();

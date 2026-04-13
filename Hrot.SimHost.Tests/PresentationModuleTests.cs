@@ -1,6 +1,5 @@
 using System;
 using System.Numerics;
-using Hrot.SimHost.Components;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems;
 using Fdp.Kernel;
@@ -11,11 +10,11 @@ using Xunit;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// Tests for <see cref="IgPresentationModule"/> and <see cref="SimPresentationModule"/>
+    /// Tests for <see cref="SimPresentationModule"/>
     /// (MOD1-P4T1).
     ///
-    /// Both modules must register their render systems and gate <c>Draw</c> calls
-    /// on <see cref="ActivePerspective.Current"/>.
+    /// The module must register its render system and gate <c>Draw</c> calls
+    /// on the active perspective name string.
     /// </summary>
     public class PresentationModuleTests : IDisposable
     {
@@ -24,7 +23,7 @@ namespace Hrot.SimHost.Tests
         public PresentationModuleTests()
         {
             _world = new EntityRepository();
-            _world.RegisterComponent<ActivePerspective>();
+            _world.RegisterManagedComponent<Hrot.Common.ActivePerspective>();
         }
 
         public void Dispose() => _world.Dispose();
@@ -38,58 +37,16 @@ namespace Hrot.SimHost.Tests
             return g;
         }
 
-        // ── IgPresentationModule tests ─────────────────────────────────────────
-
-        /// <summary>
-        /// When <see cref="ActivePerspective.Current"/> is <see cref="PerspectiveType.Sim"/>,
-        /// ticking the <see cref="IgMapRenderSystem"/> must NOT call Draw (verified
-        /// via <see cref="IgMapRenderSystem.DrawCallCount"/> == 0).
-        /// </summary>
-        [Fact]
-        public void IgPresentationModule_DoesNotDraw_WhenSimPerspectiveActive()
-        {
-            // Seed perspective: Sim is active.
-            _world.SetSingletonUnmanaged(new ActivePerspective { Current = PerspectiveType.Sim });
-
-            var module = new IgPresentationModule(canvas: null);   // null = no Raylib draw
-            using var group = CreateGroup(_world);
-            module.RegisterSystems(group);
-
-            // Act: tick presentation group.
-            group.Run();
-
-            // Assert: no draw should have occurred.
-            Assert.Equal(0, module.RenderSystem.DrawCallCount);
-        }
-
-        /// <summary>
-        /// When <see cref="ActivePerspective.Current"/> is <see cref="PerspectiveType.IG"/>,
-        /// ticking the <see cref="IgMapRenderSystem"/> MUST call Draw once.
-        /// </summary>
-        [Fact]
-        public void IgPresentationModule_Draws_WhenIgPerspectiveActive()
-        {
-            _world.SetSingletonUnmanaged(new ActivePerspective { Current = PerspectiveType.IG });
-
-            var module = new IgPresentationModule(canvas: null);
-            using var group = CreateGroup(_world);
-            module.RegisterSystems(group);
-
-            group.Run();
-
-            Assert.Equal(1, module.RenderSystem.DrawCallCount);
-        }
-
         // ── SimPresentationModule tests ────────────────────────────────────────
 
         /// <summary>
-        /// When <see cref="ActivePerspective.Current"/> is <see cref="PerspectiveType.Sim"/>,
+        /// When the active perspective name is <c>"Sim"</c>,
         /// ticking the <see cref="SimMapRenderSystem"/> MUST call Draw once.
         /// </summary>
         [Fact]
         public void SimPresentationModule_DrawsCalled_WhenSimPerspectiveActive()
         {
-            _world.SetSingletonUnmanaged(new ActivePerspective { Current = PerspectiveType.Sim });
+            _world.SetSingletonManaged(new Hrot.Common.ActivePerspective { Name = "Sim" });
 
             var module = new SimPresentationModule(canvas: null);
             using var group = CreateGroup(_world);
@@ -101,13 +58,13 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// When <see cref="ActivePerspective.Current"/> is <see cref="PerspectiveType.IG"/>,
+        /// When the active perspective name is not <c>"Sim"</c>,
         /// ticking the <see cref="SimMapRenderSystem"/> must NOT call Draw.
         /// </summary>
         [Fact]
-        public void SimPresentationModule_DoesNotDraw_WhenIgPerspectiveActive()
+        public void SimPresentationModule_DoesNotDraw_WhenOtherPerspectiveActive()
         {
-            _world.SetSingletonUnmanaged(new ActivePerspective { Current = PerspectiveType.IG });
+            _world.SetSingletonManaged(new Hrot.Common.ActivePerspective { Name = "IG" });
 
             var module = new SimPresentationModule(canvas: null);
             using var group = CreateGroup(_world);
@@ -118,46 +75,38 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, module.RenderSystem.DrawCallCount);
         }
 
-        // ── Module build tests ─────────────────────────────────────────────────
+        // ── Module build test ─────────────────────────────────────────────────
 
         /// <summary>
-        /// Both modules must register exactly one system each into the presentation group.
+        /// <see cref="SimPresentationModule"/> must register exactly one system into the
+        /// presentation group.
         /// </summary>
         [Fact]
-        public void BothModules_RegisterOneSystemEach_InPresentationGroup()
+        public void SimPresentationModule_RegistersOneSystem_InPresentationGroup()
         {
-            _world.SetSingletonUnmanaged(new ActivePerspective { Current = PerspectiveType.Sim });
+            _world.SetSingletonManaged(new Hrot.Common.ActivePerspective { Name = "Sim" });
 
-            var igModule  = new IgPresentationModule(canvas: null);
             var simModule = new SimPresentationModule(canvas: null);
             using var group = CreateGroup(_world);
 
-            igModule.RegisterSystems(group);
             simModule.RegisterSystems(group);
 
             var systems = group.GetSystems();
-            Assert.Equal(2, systems.Count);
-            Assert.Contains(systems, s => s is IgMapRenderSystem);
+            Assert.Single(systems);
             Assert.Contains(systems, s => s is SimMapRenderSystem);
         }
 
         /// <summary>
-        /// When a production canvas is supplied, <see cref="IgPresentationModule"/> must use
-        /// it (not the internal headless default). Verified by checking that
-        /// <see cref="IgPresentationModule.GetCamera"/> returns the same camera instance
-        /// as the provided canvas (DB-MOD1-12).
+        /// When a production canvas is supplied, <see cref="SimPresentationModule"/> must use
+        /// it (not the internal headless default).
         /// </summary>
         [Fact]
-        public void IgPresentationModule_ProductionCanvas_IsSameAsProvided()
+        public void SimPresentationModule_ProductionCanvas_IsSameAsProvided()
         {
-            // Arrange: build a canvas without an input provider so no Raylib I/O is needed.
             var productionCanvas = new MapCanvas(input: null);
 
-            // Act: create the module with the production canvas.
-            var module = new IgPresentationModule(canvas: productionCanvas);
+            var module = new SimPresentationModule(canvas: productionCanvas);
 
-            // Assert: GetCamera() must return the same camera as the provided canvas,
-            // proving the module uses the supplied canvas and not an internal default.
             Assert.Same(productionCanvas.Camera, module.GetCamera());
         }
     }

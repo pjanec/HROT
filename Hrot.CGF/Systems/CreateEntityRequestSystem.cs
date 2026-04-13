@@ -23,7 +23,7 @@ namespace Hrot.CGF.Systems
     ///   <item>Drains requests via a zero-allocation callback (no list alloc on ingress).</item>
     ///   <item>Validates each request and allocates a network ID immediately.</item>
     ///   <item>Sends a Phase 1 InProgress ACK right away so the ExCon client unblocks with minimal latency.</item>
-    ///   <item>Registers the request with <see cref="NedRequestFinalizationSystem"/> for Phase 2 tracking.</item>
+    ///   <item>Registers the request with <see cref="EntityRequestFinalizationSystem"/> for Phase 2 tracking.</item>
     ///   <item>Enqueues the pre-validated data for time-sliced processing.</item>
     ///   <item>Pops up to <see cref="MaxRequestsPerTick"/> items and publishes
     ///     <see cref="SpawnEntityCommand"/> events for <c>NetworkSpawningSystem</c>.</item>
@@ -47,7 +47,7 @@ namespace Hrot.CGF.Systems
         private readonly int                                _localNodeId;
         private readonly bool                               _isDefaultProcessor;
         private readonly JsonAttributeCompiler?             _jsonCompiler;
-        private readonly NedRequestFinalizationSystem?      _finalizationSystem;
+        private readonly EntityRequestFinalizationSystem?      _finalizationSystem;
         private readonly IOwnershipDistributionStrategy?    _ownershipStrategy;
 
         /// <summary>
@@ -78,7 +78,7 @@ namespace Hrot.CGF.Systems
         /// When <c>null</c>, <c>InitialAttributesJson</c> is ignored.
         /// </param>
         /// <param name="finalizationSystem">
-        /// Optional <see cref="NedRequestFinalizationSystem"/> for Two-ACK lifecycle tracking.
+        /// Optional <see cref="EntityRequestFinalizationSystem"/> for Two-ACK lifecycle tracking.
         /// When provided, the system registers each creation request for Phase 2 ACK dispatch.
         /// </param>
         /// <param name="ownershipStrategy">
@@ -93,7 +93,7 @@ namespace Hrot.CGF.Systems
             INetworkIdAllocator                 idAllocator,
             int                                 localNodeId,
             JsonAttributeCompiler?              jsonAttributeCompiler = null,
-            NedRequestFinalizationSystem?       finalizationSystem    = null,
+            EntityRequestFinalizationSystem?       finalizationSystem    = null,
             bool                                isDefaultProcessor    = false,
             IOwnershipDistributionStrategy?     ownershipStrategy     = null)
         {
@@ -406,3 +406,4 @@ namespace Hrot.CGF.Systems
         }
     }
 }
+

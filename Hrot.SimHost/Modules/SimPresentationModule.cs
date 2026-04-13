@@ -10,11 +10,10 @@ namespace Hrot.SimHost.Modules
     ///
     /// <para>Registers <see cref="SimMapRenderSystem"/> into the
     /// <see cref="PresentationSystemGroup"/>. The render system gates its <c>Draw</c>
-    /// call on <see cref="Components.ActivePerspective.Current"/> ==
-    /// <see cref="Components.PerspectiveType.Sim"/>.</para>
+    /// call on the active perspective name being <c>"Sim"</c>.</para>
     ///
-    /// <para>Implements <see cref="IMapCameraProvider"/> so that
-    /// <see cref="PerspectiveCoordinatorSystem"/> can snap cameras on perspective switch.</para>
+    /// <para>Implements <see cref="IMapCameraProvider"/> so that the perspective
+    /// coordinator can snap cameras on perspective switch.</para>
     /// </summary>
     public sealed class SimPresentationModule : IMapCameraProvider
     {

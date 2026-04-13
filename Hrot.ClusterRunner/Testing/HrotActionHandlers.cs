@@ -1,7 +1,6 @@
 using System.Numerics;
 using Fdp.Kernel;
 using Microsoft.Extensions.Logging;
-using Hrot.SimHost.Components;
 
 namespace Hrot.ClusterRunner.Testing
 {

@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using FDP.Toolkit.Vis2D;
 using Hrot.Editor.Tools;
-using Hrot.NED.Common;
 using Hrot.UI.Common.Facades;
 
 namespace Hrot.Editor.Adapters

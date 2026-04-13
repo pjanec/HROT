@@ -123,6 +123,13 @@ public sealed class HrotNodeBuilder
             if (!_config.SkipAllocatorRouting)
                 DdsIdAllocatorHelper.EnsureRouting(participant, idAllocator);
         }
+        else if (_config.ExternalParticipant != null)
+        {
+            // Headless mode with an externally-supplied participant:
+            // use the participant for DDS communication (e.g. integration tests that need
+            // ingress/egress but skip the Raylib window), but skip allocator routing.
+            participant = _config.ExternalParticipant;
+        }
 
         // Step 8 — ClusterSlave + NodeOpSlaveTranslator (inline)
         var clusterSlave             = new ClusterSlave(_config.NodeId, _subsystemName, eventBus);
