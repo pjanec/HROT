@@ -137,8 +137,10 @@ namespace Hrot.ExCon
             _nodeIdOverride = config.NodeId;
 
             // ── DDS participant ────────────────────────────────────────────────
-            _participant = HrotEnvironment.CreateParticipant(config.DomainId);
-            _participant.EnableSenderTracking(new SenderIdentityConfig
+            // The participant must be provided by the composition root via INetworkFactory.
+            // Subsystems never instantiate DdsParticipant directly (Rule 3, modular-2 DESIGN.md).
+            _participant = _networkFactory?.Participant;
+            _participant?.EnableSenderTracking(new SenderIdentityConfig
             {
                 AppDomainId   = config.DomainId,
                 AppInstanceId = config.NodeId
@@ -148,24 +150,34 @@ namespace Hrot.ExCon
             var iosNodeId  = config.NodeId != 0 ? config.NodeId : 500;
 
             // CMC-S016: each subsystem has its own orchestration bus + translator (Option C).
+            // The bus and ClusterSlave are created unconditionally (no DDS needed).
+            // DDS translators are only created when a participant is available.
             _orchestrationBus = new FdpEventBus();
-            var _orchCmdReader    = new DdsReader<NodeOpCommand>(_participant);
-            var _orchStatusWriter = new DdsWriter<NodeOpStatus>(_participant);
-            var _orchHbWriter     = new DdsWriter<NodeHeartbeat>(_participant);
-            _nodeOpSlaveTranslator = new NodeOpSlaveTranslator(
-                commandReader:   _orchCmdReader,
-                statusWriter:    _orchStatusWriter,
-                heartbeatWriter: _orchHbWriter,
-                bus:             _orchestrationBus,
-                nodeId:          iosNodeId);
+            if (_participant != null)
+            {
+                var orchCmdReader    = new DdsReader<NodeOpCommand>(_participant);
+                var orchStatusWriter = new DdsWriter<NodeOpStatus>(_participant);
+                var orchHbWriter     = new DdsWriter<NodeHeartbeat>(_participant);
+                _nodeOpSlaveTranslator = new NodeOpSlaveTranslator(
+                    commandReader:   orchCmdReader,
+                    statusWriter:    orchStatusWriter,
+                    heartbeatWriter: orchHbWriter,
+                    bus:             _orchestrationBus,
+                    nodeId:          iosNodeId);
+            }
             _clusterSlave = new FDP.Toolkit.Orchestration.ClusterSlave(iosNodeId, SubsystemName, _orchestrationBus);
 
             // ── TC2-P3-T1: Slave time sync pipeline ──────────────────────────────
-            _timeEventBus             = new FdpEventBus();
-            _slaveSyncController      = new SlaveSyncController(_timeEventBus, iosNodeId, TimeConfig.Default);
-            _timeModeTranslator       = TimeNetworkModule.CreateDescriptorTranslator(_participant, _timeEventBus);
-            _slaveLockstepTranslator  = TimeNetworkModule.CreateSlaveLockstepTranslator(_participant, _timeEventBus, iosNodeId);
-            _slaveTimeSyncTranslator  = TimeNetworkModule.CreateSlaveTimeSyncTranslator(_participant, _timeEventBus, iosNodeId);
+            // SlaveSyncController is always created (no DDS needed).
+            // DDS-backed translators are only wired when a participant is available.
+            _timeEventBus        = new FdpEventBus();
+            _slaveSyncController = new SlaveSyncController(_timeEventBus, iosNodeId, TimeConfig.Default);
+            if (_participant != null)
+            {
+                _timeModeTranslator      = TimeNetworkModule.CreateDescriptorTranslator(_participant, _timeEventBus);
+                _slaveLockstepTranslator = TimeNetworkModule.CreateSlaveLockstepTranslator(_participant, _timeEventBus, iosNodeId);
+                _slaveTimeSyncTranslator = TimeNetworkModule.CreateSlaveTimeSyncTranslator(_participant, _timeEventBus, iosNodeId);
+            }
 
             // CGF1-BATCH-23 A.3: ExCon is an orchestrator instructor — it does NOT
             // save scenario fragments or exercise recordings.  If the orchestrator fans
@@ -235,13 +247,16 @@ namespace Hrot.ExCon
             }
 
             // ── Cluster control wiring (S0507 / PACK-C002) ────────────────────────────
-            _uiCacheBus             = new FdpEventBus();
-            _orchObserverTranslator = new OrchestrationObserverTranslator(_participant, _uiCacheBus);
-            _uiCache      = new ClusterUiCache(_uiCacheBus, _slaveSyncController);
+            _uiCacheBus  = new FdpEventBus();
+            _uiCache     = new ClusterUiCache(_uiCacheBus, _slaveSyncController);
             // PACK-E001: panel now publishes ClusterOpIntent to egress bus; translator writes DDS
-            _clusterOpEgressBus        = new FdpEventBus();
-            _clusterOpEgressTranslator = new Hrot.Common.Orchestration.ClusterOpEgressTranslator(_clusterOpEgressBus, _participant);
+            _clusterOpEgressBus = new FdpEventBus();
             _clusterPanel = new ClusterScenarioPanel(_clusterOpEgressBus, _uiCache);
+            if (_participant != null)
+            {
+                _orchObserverTranslator    = new OrchestrationObserverTranslator(_participant, _uiCacheBus);
+                _clusterOpEgressTranslator = new Hrot.Common.Orchestration.ClusterOpEgressTranslator(_clusterOpEgressBus, _participant);
+            }
 
             var logic = new ExConLogic(
                 repo:                 repo,

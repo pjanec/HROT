@@ -37,6 +37,9 @@ namespace Hrot.BDC.Factory
         }
 
         /// <inheritdoc/>
+        public DdsParticipant? Participant => _participant;
+
+        /// <inheritdoc/>
         public Hrot.Common.Abstractions.IReplicationModule CreateReplicationModule()
             => new Hrot.BDC.Replication.BdcReplicationModule(
                 _participant, _role, _entityMap, _geoTransform, _eventBus, _localNodeId);

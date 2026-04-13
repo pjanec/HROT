@@ -1,14 +1,16 @@
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Behavior;
-using Hrot.SimHost.Brains;
+using Hrot.CGF.Brains;
+using Hrot.SimHost;
 
-namespace Hrot.SimHost.Configuration
+namespace Hrot.CGF.Configuration
 {
     /// <summary>
-    /// Single source of truth for SimHost doctrine registrations.
-    /// Shared by SimHost and CGF composition roots.
+    /// Single source of truth for CGF doctrine registrations.
+    /// Relocated from Hrot.SimHost.Configuration as part of the Brain/Muscle
+    /// architectural split (modular-2 feedback-1).
     /// </summary>
-    public static class SimHostDoctrineSetup
+    public static class CgfDoctrineSetup
     {
         public static void RegisterAll(DoctrineRegistry registry, IGeographicTransform geoTransform)
         {
@@ -22,8 +24,8 @@ namespace Hrot.SimHost.Configuration
                     {
                         Name = "MoveToLocation",
                         BrainTier = BehaviorConstants.BrainTierBTree,
-                        ParseParams = (json, ptr) => SimHostNodes.ParseMoveToParams(json, ptr, geoTransform),
-                        BTreeInterpreter = SimHostNodes.BuildMoveToLocationInterpreter()
+                        ParseParams = (json, ptr) => CgfNodes.ParseMoveToParams(json, ptr, geoTransform),
+                        BTreeInterpreter = CgfNodes.BuildMoveToLocationInterpreter()
                     });
 
                 registry.Register(SimHostDoctrineIds.FollowRoute_BT, "FollowRoute",
@@ -31,8 +33,8 @@ namespace Hrot.SimHost.Configuration
                     {
                         Name = "FollowRoute",
                         BrainTier = BehaviorConstants.BrainTierBTree,
-                        ParseParams = (json, ptr) => SimHostNodes.ParseFollowRouteParams(json, ptr),
-                        BTreeInterpreter = SimHostNodes.BuildFollowRouteInterpreter()
+                        ParseParams = (json, ptr) => CgfNodes.ParseFollowRouteParams(json, ptr),
+                        BTreeInterpreter = CgfNodes.BuildFollowRouteInterpreter()
                     });
             }
 
@@ -41,7 +43,7 @@ namespace Hrot.SimHost.Configuration
                 {
                     Name = "JoinFormation",
                     BrainTier = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = SimHostNodes.BuildJoinFormationInterpreter()
+                    BTreeInterpreter = CgfNodes.BuildJoinFormationInterpreter()
                 });
 
             registry.Register(SimHostDoctrineIds.Idle_HSM, "Idle",
@@ -56,7 +58,7 @@ namespace Hrot.SimHost.Configuration
                 {
                     Name = "WanderMilitary",
                     BrainTier = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = SimHostNodes.BuildWanderMilitaryInterpreter()
+                    BTreeInterpreter = CgfNodes.BuildWanderMilitaryInterpreter()
                 });
         }
     }

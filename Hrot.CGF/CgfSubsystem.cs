@@ -15,14 +15,12 @@ using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;
 using FdpInspectorState       = FDP.Toolkit.ImGui.Abstractions.InspectorState;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Translators;
-using Hrot.SimHost;
-using Hrot.SimHost.Configuration;
-using Hrot.SimHost.Modules;
+using Hrot.CGF.Brains;
+using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
 using Hrot.Core.Network;
 using Hrot.Network.NED.CGF;
-using Hrot.Network.NED.SimHost;
-using Hrot.SimHost.Translators;
+using Hrot.SimHost; // AttributeCompilerFactory (lives in Hrot.Network.NED, namespace Hrot.SimHost)
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.Network.Infrastructure;
@@ -40,8 +38,6 @@ using FDP.Toolkit.Replication.Systems;
 using Fdp.Engine.Runner;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
-using ModuleHost.Network.Cyclone.Modules;
-using ModuleHost.Network.Cyclone.Systems;
 
 namespace Hrot.CGF;
 
@@ -60,6 +56,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
     private bool               _headless;
     private DoctrineRegistry?  _doctrineRegistry;
     private SystemGroup?       _simGroup;
+    private Hrot.Core.Network.INetworkFactory? _networkFactory;
 
     // ── Visualization ─────────────────────────────────────────────────────────
     private MapCanvas?                 _canvas;
@@ -84,6 +81,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
 
     /// <inheritdoc/>
     public System.Numerics.Vector4 TitleBarColor => new(0.08f, 0.22f, 0.38f, 1f);
+
+    /// <summary>Creates CgfSubsystem without a network factory (legacy / headless path).</summary>
+    public CgfSubsystem() { }
+
+    /// <summary>Creates CgfSubsystem with an injected protocol factory from the composition root.</summary>
+    public CgfSubsystem(Hrot.Core.Network.INetworkFactory networkFactory)
+    {
+        _networkFactory = networkFactory;
+    }
 
     /// <summary>TestHook: exposes the ghost entity map for integration tests.</summary>
     internal NetworkEntityMap? GhostEntityMap => _entityMap;
@@ -136,13 +142,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
         // ── Build common infrastructure ────────────────────────────────────────
         var nodeConfig = new HrotNodeConfig
         {
-            DomainId      = config.DomainId,
-            NodeId        = config.NodeId != 0 ? config.NodeId : 400,
+            DomainId            = config.DomainId,
+            NodeId              = config.NodeId != 0 ? config.NodeId : 400,
             // CgfSubsystem always creates a DDS participant — Headless here controls only
             // the Raylib/ImGui window (UI), not the network layer.
             // This mirrors SimHostApp which also hardcodes Headless = false for HrotNodeConfig.
-            Headless      = false,
-            SubsystemName = "CGF",
+            Headless            = false,
+            ExternalParticipant = _networkFactory?.Participant,  // use composition root's participant when available
+            SubsystemName       = "CGF",
         };
         _context = new HrotNodeBuilder(nodeConfig)
             .WithRole("CgfNode", NodeRole.Brain)
@@ -162,7 +169,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
 
         // ── Register CGF simulation logic (Brain-specific) ─────────────────────
         var doctrineRegistry = new DoctrineRegistry();
-        SimHostDoctrineSetup.RegisterAll(doctrineRegistry, _context.GeoTransform!);
+        CgfDoctrineSetup.RegisterAll(doctrineRegistry, _context.GeoTransform!);
         _doctrineRegistry = doctrineRegistry;
         var cgfLogicPack = new CgfLogicPack(doctrineRegistry, _entityMap);
         _context.Kernel.RegisterModule(cgfLogicPack);
@@ -172,6 +179,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
         simGroup.Create(_context.World);
         _simGroup = simGroup;
         cgfLogicPack.RegisterSystems(simGroup);
+
+        // Configure network factory for this node so auxiliary translators can be created.
+        var nodeFactory = _networkFactory?.ConfigureForNode(_context, NodeRole.Brain, doctrineRegistry);
 
         // ── Wire CreateEntityRequestSystem (CGF is the cluster-default processor) ─
         // This makes CGF intercept broadcast CreateEntityRequests (Owner == 0) and spawn
@@ -223,23 +233,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
                 idAllocator,
                 _context.NodeId);
 
-            _context.Kernel.RegisterModule(new SimHostModule(
-                spawnSystem: spawnSystem));
+            _context.Kernel.RegisterGlobalSystem(spawnSystem);
 
             _context.Kernel.RegisterGlobalSystem(requestSystem);
             _context.Kernel.RegisterGlobalSystem(deleteSystem);
             _context.Kernel.RegisterGlobalSystem(finalizationSystem);
 
-            var auxTranslators = SimHostAuxiliaryTranslatorPack.Create(
-                _context.Participant,
-                _entityMap!,
-                _context.EventBus,
-                _context.NodeId,
-                NodeRole.Brain);
-
-            _context.Kernel.RegisterGlobalSystem(new CycloneNetworkIngressSystem(auxTranslators.ToArray()));
-            _context.Kernel.RegisterGlobalSystem(new CycloneEgressSystem(auxTranslators.ToArray()));
-            _context.Kernel.RegisterGlobalSystem(new CycloneNetworkCleanupSystem(auxTranslators));
+            // Auxiliary translators (time-sync, combat, mission-control) via the injected factory.
+            // Mirrors SimHostApp.cs pattern: nodeFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(kernel)
+            nodeFactory?.CreateSimHostAuxiliaryTranslators()?.RegisterOn(_context.Kernel);
         }
 
         // ── Initialize ─────────────────────────────────────────────────────────

@@ -76,6 +76,9 @@ public sealed class OfflineNetworkFactory : INetworkFactory
         => this;
 
     /// <inheritdoc/>
+    public CycloneDDS.Runtime.DdsParticipant? Participant => null;
+
+    /// <inheritdoc/>
     public long WorldPosDescriptorId => 0;
 
     // ---- null stubs -------------------------------------------------------

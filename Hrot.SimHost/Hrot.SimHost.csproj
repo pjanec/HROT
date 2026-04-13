@@ -45,9 +45,6 @@
     <!-- Scenario serialization toolkit for ScenarioLoadClusterStateHandler (CGF1-S0307) -->
     <!-- Orchestration toolkit (contracts, StatusCode, TkClusterStateChangedEvent) -->
 
-    <!-- Network (CycloneDDS transitive, no separate NuGet needed) -->
-    <ProjectReference Include="..\FDP\ModuleHost\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
-
     <!-- Visualization / UI (graphical window support) -->
     <ProjectReference Include="..\FDP\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\Hrot.Presentation\Hrot.Presentation.csproj" />  </ItemGroup>

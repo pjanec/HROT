@@ -7,7 +7,7 @@ namespace Hrot.SimHost
     /// application startup and stored in
     /// <see cref="FDP.Toolkit.Behavior.Components.DoctrineState.ActiveDoctrineHash"/>.
     ///
-    /// <b>Range:</b> 3001–3099 (SimHost navigation behaviours).
+    /// <b>Range:</b> 3001-3099 (SimHost navigation behaviours).
     /// Values must be globally unique and must never change once published.
     ///
     /// See <see cref="FDP.Toolkit.Behavior.DoctrineIds"/> for framework-level doctrine IDs.
@@ -33,7 +33,7 @@ namespace Hrot.SimHost
         /// <summary>
         /// Join an existing formation led by another entity (BTree).
         /// BehaviorId string: <c>"JoinFormation"</c>.
-        /// Params: <see cref="Systems.JoinFormationParams"/> <c>{ LeaderNetworkId, FormationType }</c>.
+        /// Params: <see cref="Hrot.SimHost.Systems.JoinFormationParams"/> <c>{ LeaderNetworkId, FormationType }</c>.
         /// </summary>
         public const int JoinFormation_BT = 3003;
 

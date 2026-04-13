@@ -301,11 +301,12 @@ namespace Hrot.SimHost
             //        elm, geoModule (via BaseModules). Replication is created via INetworkFactory.
             var hrotConfig = new HrotNodeConfig
             {
-                DomainId      = domainId,
-                NodeId        = localNodeId,
-                Headless      = false,  // SimHostApp always creates DDS; _headless only controls Raylib window
-                LocalTempRoot = nodeConfig.LocalTempRoot,
-                SubsystemName = "SimHost",
+                DomainId            = domainId,
+                NodeId              = localNodeId,
+                Headless            = false,  // SimHostApp always creates DDS; _headless only controls Raylib window
+                ExternalParticipant = _networkFactory?.Participant,  // use composition root's participant when available
+                LocalTempRoot       = nodeConfig.LocalTempRoot,
+                SubsystemName       = "SimHost",
             };
             var baseContext = new HrotNodeBuilder(hrotConfig)
                 .WithRole("SimHost", _role)

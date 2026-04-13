@@ -35,6 +35,16 @@ namespace Hrot.IG
 
         private IgApplication? _app;
         private bool _headless;
+        private readonly Hrot.Core.Network.INetworkFactory? _networkFactory;
+
+        /// <summary>Creates IgSubsystem without a network factory (legacy / headless path).</summary>
+        public IgSubsystem() { }
+
+        /// <summary>Creates IgSubsystem with an injected protocol factory from the composition root.</summary>
+        public IgSubsystem(Hrot.Core.Network.INetworkFactory networkFactory)
+        {
+            _networkFactory = networkFactory;
+        }
 
         /// <summary>
         /// Internal test hook for integration tests.
@@ -61,7 +71,7 @@ namespace Hrot.IG
                 headless: config.Headless,
                 domainIdOverride: domainOverride,
                 nodeIdOverride: config.NodeId,
-                igTranslatorsProvider: new Hrot.Network.NED.IG.NedIgTranslators());
+                networkFactory: _networkFactory);
         }
 
         /// <inheritdoc/>

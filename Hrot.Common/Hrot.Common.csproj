@@ -32,8 +32,7 @@
     <!-- CycloneDDS.Runtime for DdsParticipant, DdsReader, DdsWriter (used by HrotNodeBuilder) -->
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
-    <!-- Hrot.Map.Common for `using Hrot.Map.Common` in HrotNodeBuilder -->
-    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
+
   </ItemGroup>
 
 </Project>

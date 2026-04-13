@@ -18,8 +18,7 @@
     <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
     <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
-    <!-- Hrot.Presentation referenced above -->
-    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
+
     <!-- EditorSubsystem uses MapLayerAssignmentSystem from Hrot.IG.Systems -->
     <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
   </ItemGroup>

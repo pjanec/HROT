@@ -93,9 +93,12 @@ class Program
         var geoTransform = HrotEnvironment.CreateGeoTransform();
         var eventBus     = new FdpEventBus();
         int factoryNodeId = ResolveAppNodeId("Runner", config.NodeId);
+        // Create the DDS participant exactly once here (composition root).
+        // All subsystems that need a participant will receive it via INetworkFactory.Participant.
+        var participant = config.Headless ? null : HrotEnvironment.CreateParticipant(config.DomainId);
         INetworkFactory networkFactory = string.Equals(config.NetworkProtocol, "bdc", StringComparison.OrdinalIgnoreCase)
-            ? (INetworkFactory)new BdcNetworkFactory(null, entityMap, geoTransform, eventBus, (long)factoryNodeId, NodeRole.None)
-            : new NedNetworkFactory(null, entityMap, geoTransform, eventBus, factoryNodeId, NodeRole.None);
+            ? (INetworkFactory)new BdcNetworkFactory(participant, entityMap, geoTransform, eventBus, (long)factoryNodeId, NodeRole.None)
+            : new NedNetworkFactory(participant, entityMap, geoTransform, eventBus, factoryNodeId, NodeRole.None);
 
         // ── CI mode: headless deterministic scenario run ──────────────────
         if (config.RequestedSubsystems.Contains("ci"))
@@ -212,26 +215,39 @@ class Program
     }
 
     /// <summary>
-    /// Eagerly loads all statically-referenced assemblies that are not yet loaded
-    /// in the current AppDomain, so that they are visible in the reflection scan.
+    /// Eagerly loads all Hrot.* and Fdp.* assemblies found in the deployment directory so
+    /// that plugin subsystems not statically referenced by any compiled code are still
+    /// visible to the reflection-based <see cref="ScanForSubsystems"/> pass.
     /// </summary>
     private static void LoadReferencedAssemblies()
     {
+        // Scan the physical deployment directory instead of walking IL metadata.
+        // The C# compiler drops purely-dynamic <ProjectReference> links from the IL,
+        // so Assembly.GetReferencedAssemblies() misses assemblies like Hrot.CGF.dll
+        // when no type from them is statically used in ClusterRunner source.
+        var basePath = AppDomain.CurrentDomain.BaseDirectory;
+        var dllFiles = System.IO.Directory.GetFiles(basePath, "*.dll");
+
         var loaded = new HashSet<string>(AppDomain.CurrentDomain.GetAssemblies()
             .Select(a => a.GetName().Name!), StringComparer.OrdinalIgnoreCase);
 
-        var queue = new Queue<System.Reflection.Assembly>(AppDomain.CurrentDomain.GetAssemblies());
-        while (queue.Count > 0)
+        foreach (var file in dllFiles)
         {
-            var asm = queue.Dequeue();
-            foreach (var refName in asm.GetReferencedAssemblies())
+            var assemblyName = System.IO.Path.GetFileNameWithoutExtension(file);
+
+            // Filter to our own domain boundaries to avoid eagerly loading
+            // hundreds of system/third-party DLLs.
+            if (!assemblyName.StartsWith("Hrot.") && !assemblyName.StartsWith("Fdp."))
+                continue;
+
+            if (!loaded.Contains(assemblyName))
             {
-                if (loaded.Contains(refName.Name!)) continue;
                 try
                 {
-                    var loaded2 = System.Reflection.Assembly.Load(refName);
-                    loaded.Add(refName.Name!);
-                    queue.Enqueue(loaded2);
+                    // Use Load(AssemblyName) rather than LoadFrom to ensure the
+                    // plugin is loaded into the default AssemblyLoadContext.
+                    System.Reflection.Assembly.Load(new System.Reflection.AssemblyName(assemblyName));
+                    loaded.Add(assemblyName);
                 }
                 catch { /* ignore assemblies that cannot be loaded */ }
             }

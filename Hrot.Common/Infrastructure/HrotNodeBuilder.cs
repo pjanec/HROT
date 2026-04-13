@@ -98,8 +98,10 @@ public sealed class HrotNodeBuilder
 
         if (!_config.Headless)
         {
-            // Step 5 — DDS participant + sender identity
-            participant = HrotEnvironment.CreateParticipant(_config.DomainId);
+            // Step 5 — DDS participant + sender identity.
+            // Use the externally-provided participant from the composition root when available;
+            // otherwise create one for standalone / test environments.
+            participant = _config.ExternalParticipant ?? HrotEnvironment.CreateParticipant(_config.DomainId);
             participant.EnableSenderTracking(new SenderIdentityConfig
             {
                 AppDomainId   = _config.DomainId,

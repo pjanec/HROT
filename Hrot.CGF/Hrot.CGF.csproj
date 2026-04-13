@@ -35,8 +35,6 @@
     <!-- Orchestration DDS types and IClusterStateHandler -->
     <ProjectReference Include="..\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
     <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
-    <!-- CycloneDDS transitive via DataModel, but explicit for DdsParticipant -->
-    <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <!-- FdpLog<T> + FdpEventBus -->
     <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />    <!-- SwitchTimeModeDescriptorTranslator (CGF1-A.2, BATCH-09) -->
     <!-- Scenario serialization toolkit for ScenarioLoadClusterStateHandler (CGF1-S0307) -->
@@ -44,7 +42,10 @@
     <!-- CgfLogicPack: Brain-tier modules, executors, NetworkEntityMap -->
     <!-- CgfSubsystem visualization and UI dependencies -->
     <ProjectReference Include="..\FDP\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />
-    <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
-    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />  </ItemGroup>
+    <!-- Hrot.Presentation.Windows (ClusterControlWindow etc.); previously transitive via Hrot.SimHost -->
+    <ProjectReference Include="..\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <!-- NED infrastructure: NedEntityCreationRequestSource, SimpleClusterStateCache, translators, descriptors -->
+    <!-- Previously transitive via Hrot.SimHost -> Hrot.IG -> Hrot.Network.NED -->
+    <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />  </ItemGroup>
 
 </Project>

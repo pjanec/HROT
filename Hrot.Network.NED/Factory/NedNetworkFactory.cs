@@ -58,6 +58,9 @@ public sealed class NedNetworkFactory : INetworkFactory
     }
 
     /// <inheritdoc/>
+    public DdsParticipant? Participant => _participant;
+
+    /// <inheritdoc/>
     public IReplicationModule CreateReplicationModule()
         => new NedReplicationModule(
                participant:       _participant,

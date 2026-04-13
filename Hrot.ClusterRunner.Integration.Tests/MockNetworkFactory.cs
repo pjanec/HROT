@@ -77,6 +77,7 @@ internal sealed class MockNetworkFactory : INetworkFactory
         => this;
 
     /// <inheritdoc/>
+    public CycloneDDS.Runtime.DdsParticipant? Participant => null;
     public long WorldPosDescriptorId => 0;
 
     // ---- null stubs -------------------------------------------------------

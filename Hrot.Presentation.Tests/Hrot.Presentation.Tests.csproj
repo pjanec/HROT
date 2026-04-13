@@ -17,7 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Presentation\Hrot.Presentation.csproj" />
     <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
-    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
+
     <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
     <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />
   </ItemGroup>

@@ -20,12 +20,11 @@
     <!-- Hrot-specific project references -->
     <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
     <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />
-    <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
+    <ProjectReference Include="..\.\Hrot.Core\Hrot.Core.csproj" />
     <ProjectReference Include="..\Hrot.Presentation\Hrot.Presentation.csproj" />
 
     <!-- FDP Kernel and Toolkits -->
     <ProjectReference Include="..\FDP\Kernel\Fdp.Core\Fdp.Core.csproj" />
-    <ProjectReference Include="..\FDP\ModuleHost\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
     <ProjectReference Include="..\FDP\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />  </ItemGroup>
 
   <ItemGroup>

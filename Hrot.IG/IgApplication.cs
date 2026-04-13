@@ -232,6 +232,9 @@ public class IgApplication : IDisposable
     // -- Optional IG translator provider (injected via InitializeEmbedded; null = no NED translators)
     private Hrot.Core.Network.IIgTranslators? _igTranslatorsProvider;
 
+    // -- Optional network factory injected from composition root
+    private Hrot.Core.Network.INetworkFactory? _networkFactory;
+
 
 
     // -- Optional domain override (tests) -------------------------------------
@@ -495,7 +498,8 @@ public class IgApplication : IDisposable
     /// </summary>
 
     public void InitializeEmbedded(bool headless = false, int? domainIdOverride = null, int nodeIdOverride = 0,
-        Hrot.Core.Network.IIgTranslators? igTranslatorsProvider = null)
+        Hrot.Core.Network.IIgTranslators? igTranslatorsProvider = null,
+        Hrot.Core.Network.INetworkFactory? networkFactory = null)
 
     {
 
@@ -507,7 +511,8 @@ public class IgApplication : IDisposable
 
         _effectiveInstanceId = nodeIdOverride != 0 ? nodeIdOverride : IgNetworkConstants.InstanceId;
 
-        _igTranslatorsProvider = igTranslatorsProvider;
+        _igTranslatorsProvider = igTranslatorsProvider ?? networkFactory?.CreateIgTranslators();
+        _networkFactory        = networkFactory;
 
         _camera = new MapCamera
 
@@ -585,6 +590,7 @@ public class IgApplication : IDisposable
             DomainId              = _domainOverride ?? IgNetworkConstants.DdsDomain,
             NodeId                = _effectiveInstanceId,
             Headless              = _headless,              // false in production; true in headless tests
+            ExternalParticipant   = _networkFactory?.Participant,  // use composition root's participant when available
             SubsystemName         = "IgApplication",
             // IG creates its own DdsIdAllocator in InitializeNetwork; skip the builder's routing wait.
             SkipAllocatorRouting  = true,
@@ -742,9 +748,21 @@ public class IgApplication : IDisposable
         if (enableNetwork)
 
         {
-                // Use the participant created by HrotNodeBuilder (when not headless),
-                // or create a new one for headless/test environments.
-                participant = _context?.Participant ?? HrotEnvironment.CreateParticipant(domainId);
+                // Use the participant provided by the composition root via HrotNodeBuilder.
+                // In production (non-headless), participant comes from _context (builder created it).
+                // In headless test mode, participant may not be in context; create one locally for DDS testing.
+                // Subsystems never instantiate DdsParticipant directly in production (Rule 3, modular-2 DESIGN.md).
+                participant = _context?.Participant;
+                if (participant == null && _headless)
+                    participant = HrotEnvironment.CreateParticipant(domainId);
+
+                if (participant == null)
+                {
+                    // No participant available (non-headless but no context) -- skip DDS setup.
+                    customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>();
+                }
+                else
+                {
 
                 // EnableSenderTracking only when we created the participant (not from builder,
                 // which already calls EnableSenderTracking internally).
@@ -876,7 +894,9 @@ public class IgApplication : IDisposable
                 // CGF1-S0309: wire dry-run snapshot/rewind handler (IG carries no ECS state in ClusterSlave).
                 _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
 
-        }
+        } // end else (participant != null)
+
+        } // end if (enableNetwork)
 
 
 

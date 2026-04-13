@@ -80,6 +80,14 @@ public interface INetworkFactory
     INetworkFactory ConfigureForNode(DdsParticipant? participant, int nodeId, NodeRole role);
 
     /// <summary>
+    /// The DDS participant owned by this factory instance.
+    /// Null when the factory was created without a participant (headless / unit-test mode).
+    /// Subsystems that need a participant should prefer this over calling
+    /// HrotEnvironment.CreateParticipant directly.
+    /// </summary>
+    DdsParticipant? Participant { get; }
+
+    /// <summary>
     /// Protocol-specific ordinal for the "WorldPos" (geo-spatial position) descriptor,
     /// used when calling <c>SmartEgressUtil.MarkDirty</c> from domain code.
     /// Returns 0 for protocols that do not use this descriptor.

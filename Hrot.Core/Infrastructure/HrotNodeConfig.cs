@@ -1,3 +1,5 @@
+using CycloneDDS.Runtime;
+
 namespace Hrot.Common.Infrastructure;
 
 /// <summary>
@@ -35,4 +37,11 @@ public sealed class HrotNodeConfig
     /// on the builder-owned <see cref="HrotNodeContext.IdAllocator"/>.
     /// </summary>
     public bool SkipAllocatorRouting { get; set; }
+
+    /// <summary>
+    /// Optional DDS participant provided by the composition root.
+    /// When non-null, <see cref="HrotNodeBuilder"/> uses this participant instead of
+    /// calling <c>HrotEnvironment.CreateParticipant</c>.
+    /// </summary>
+    public CycloneDDS.Runtime.DdsParticipant? ExternalParticipant { get; set; }
 }

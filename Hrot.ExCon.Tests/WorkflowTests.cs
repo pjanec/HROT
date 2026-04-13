@@ -96,7 +96,7 @@ public class FullStackWorkflowTests
         // ── Step 1: Activate placement tool ──────────────────────────────────
         f.Logic.StartPlacementMode(100L);
         Assert.NotEqual(Guid.Empty, f.Logic.ActiveContextId);
-        Assert.Single(f.EgressCapture.WrittenConfigs);
+        Assert.Single(f.EgressCapture.WrittenMapCommands);
 
         // ── Step 2: IG delivers a placement click ─────────────────────────────
         f.ClickQueue.Enqueue(new MapClickEventDto
@@ -197,7 +197,7 @@ public class FullStackWorkflowTests
     {
         using var f = new WorkflowFixture();
 
-        // Placement mode -> TX config entry.
+        // Placement mode -> TX command entry.
         f.Logic.StartPlacementMode(100L);
 
         // Click -> TX create entry.
@@ -214,7 +214,7 @@ public class FullStackWorkflowTests
 
         var entries = f.Log.Entries.ToList();
 
-        Assert.Contains(entries, e => e.Direction == "TX" && e.Topic.Contains("Config"));
+        Assert.Contains(entries, e => e.Direction == "TX" && e.Topic.Contains("Command"));
         Assert.Contains(entries, e => e.Direction == "TX" && e.Topic.Contains("Create"));
     }
 }
