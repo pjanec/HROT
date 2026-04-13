@@ -1,2 +1,0 @@
-global using Gui = ImGuiNET.ImGui;
-
