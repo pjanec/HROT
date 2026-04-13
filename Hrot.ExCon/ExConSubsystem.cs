@@ -139,12 +139,8 @@ namespace Hrot.ExCon
             // ── DDS participant ────────────────────────────────────────────────
             // The participant must be provided by the composition root via INetworkFactory.
             // Subsystems never instantiate DdsParticipant directly (Rule 3, modular-2 DESIGN.md).
+            // Sender tracking is configured by the composition root before any writer is created.
             _participant = _networkFactory?.Participant;
-            _participant?.EnableSenderTracking(new SenderIdentityConfig
-            {
-                AppDomainId   = config.DomainId,
-                AppInstanceId = config.NodeId
-            });
 
             // ── ClusterSlave (CGF1-S0104 / CMC-S016 BATCH-06) ────────────────────────
             var iosNodeId  = config.NodeId != 0 ? config.NodeId : 500;

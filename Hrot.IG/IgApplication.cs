@@ -30,13 +30,7 @@ using Hrot.IG.UI;
 
 using Hrot.Map.Common;
 
-using Hrot.Map.Common.Commands;
-
 using Hrot.Map.Common.Events;
-
-using Hrot.Map.Common.Replication;
-
-using Hrot.Map.Common.Replication.Ingress;
 
 using Hrot.Map.Definitions.Tkb;
 
@@ -82,7 +76,6 @@ using FDP.Toolkit.Replication.Systems;
 
 using Hrot.Common.Orchestration;
 using Hrot.Common.Infrastructure;
-using Hrot.Network.Infrastructure;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 
@@ -597,8 +590,21 @@ public class IgApplication : IDisposable
         };
         _context = new HrotNodeBuilder(igConfig)
             .WithRole("IgApplication", Hrot.Common.NodeRole.ImageGenerator)
-            .WithReplication(Hrot.Common.NodeRole.ImageGenerator)
             .Build();
+
+        // Create replication module via factory (prevents direct NED reference in IG).
+        // When no factory is available (unit-test path), replication runs headless: no ghosts.
+        // Use ConfigureForNode(_context) so the replication module shares the same entityMap and bus as _context.
+        var igNodeFactory = _networkFactory?.ConfigureForNode(_context, Hrot.Common.NodeRole.ImageGenerator);
+        var igReplicationModule = igNodeFactory?.CreateReplicationModule();
+        if (igReplicationModule != null)
+        {
+            _context = _context with
+            {
+                NedReplication      = igReplicationModule as Hrot.Common.Abstractions.INedReplicationModule,
+                GhostCreationSystem = igReplicationModule.GhostCreationSystem,
+            };
+        }
 
         _world     = _context.World;
         _entityMap = _context.EntityMap;
@@ -729,9 +735,9 @@ public class IgApplication : IDisposable
         foreach (var baseModule in _context!.BaseModules)
             _kernel.RegisterModule(baseModule);
 
-        // Assign GhostCreationSystem from NedReplicationModule (populated by .WithReplication()).
-        // When context was built headless, _context.GhostCreationSystem is the NedReplicationModule's
-        // system built without a participant; it will be replaced by BindReplicationParticipant below.
+        // Assign GhostCreationSystem from the replication module (populated in InitializeEcs).
+        // When context was built headless without a factory, GhostCreationSystem may be null;
+        // it will be set after BindReplicationParticipant in the headless path below.
         _ghostCreationSystem = _context.GhostCreationSystem;
 
         DdsParticipant? participant = null;
@@ -754,7 +760,32 @@ public class IgApplication : IDisposable
                 // Subsystems never instantiate DdsParticipant directly in production (Rule 3, modular-2 DESIGN.md).
                 participant = _context?.Participant;
                 if (participant == null && _headless)
+                {
                     participant = HrotEnvironment.CreateParticipant(domainId);
+                    // Composition root: configure tracking right when the participant is created.
+                    participant.EnableSenderTracking(new SenderIdentityConfig
+                    {
+                        AppDomainId   = domainId,
+                        AppInstanceId = _effectiveInstanceId
+                    });
+
+                    // Rebind replication module with the live participant so EntityStatesIngressPack
+                    // gets DDS access. Replaces the headless no-participant module created in InitializeEcs.
+                    if (_context != null && _networkFactory != null)
+                    {
+                        // Update context with live participant first so ConfigureForNode picks up
+                        // the correct entityMap and bus (context's, not the factory's defaults).
+                        _context = _context with { Participant = participant };
+                        var liveFactory = _networkFactory.ConfigureForNode(_context, Hrot.Common.NodeRole.ImageGenerator);
+                        var liveReplication = liveFactory.CreateReplicationModule();
+                        _context = _context with
+                        {
+                            NedReplication      = liveReplication as Hrot.Common.Abstractions.INedReplicationModule,
+                            GhostCreationSystem = liveReplication.GhostCreationSystem,
+                        };
+                        _ghostCreationSystem = _context.GhostCreationSystem;
+                    }
+                }
 
                 if (participant == null)
                 {
@@ -764,28 +795,11 @@ public class IgApplication : IDisposable
                 else
                 {
 
-                // EnableSenderTracking only when we created the participant (not from builder,
-                // which already calls EnableSenderTracking internally).
-                if (_context?.Participant == null)
-                {
-                    participant.EnableSenderTracking(new SenderIdentityConfig
-                    {
-                        AppDomainId   = domainId,
-                        AppInstanceId = _effectiveInstanceId
-                    });
-
-                    // NedReplicationModule was built without a participant (headless build).
-                    // Rebind it with the live participant so EntityStatesIngressPack gets DDS access.
-                    if (_context != null)
-                    {
-                        _context = _context.BindReplicationParticipant(
-                            Hrot.Common.NodeRole.ImageGenerator, participant);
-                        _ghostCreationSystem = _context.GhostCreationSystem;
-                    }
-                }
-
                 // Task 5 / Task 18: Create the protocol-neutral network adapter and obtain gateway from it.
-                _networkAdapter = new Hrot.Network.NED.IG.NedIgNetworkAdapter(participant, _effectiveInstanceId);
+                // Use the injected factory when available; fall back to a null no-op adapter when no factory.
+                _networkAdapter = _networkFactory != null
+                    ? _networkFactory.CreateIgNetworkAdapter(participant, _effectiveInstanceId)
+                    : Hrot.Core.Network.NullIgNetworkAdapter.Instance;
                 _commandGateway = _networkAdapter.CommandGateway;
 
 
@@ -821,12 +835,13 @@ public class IgApplication : IDisposable
                 }
 
                 // D005: ACL egress translators convert bus events back to DDS.
-                customTranslators.Add(new Hrot.Map.Common.Replication.Egress.SpawnEntityCommandEgressTranslator(
-                    participant, _world.Bus, _geoTransform, _effectiveInstanceId));
-                customTranslators.Add(new Hrot.Map.Common.Replication.Egress.UpdateEntityCommandEgressTranslator(
-                    participant, _world.Bus, _entityMap, _geoTransform, _effectiveInstanceId));
-                customTranslators.Add(new Hrot.Map.Common.Replication.Egress.DestroyEntityCommandEgressTranslator(
-                    participant, _world.Bus, _effectiveInstanceId));
+                // Created via network factory to avoid direct NED type references in IG.
+                if (_networkFactory != null)
+                {
+                    foreach (var t in _networkFactory.CreateIgEgressTranslators(
+                        participant, _world.Bus, _geoTransform!, _effectiveInstanceId))
+                        customTranslators.Add(t);
+                }
 
                 // Create the MapCommandController now that canvas and DDS resources are ready.
                 // D004: MapCommandController now takes FdpEventBus instead of IDdsWriter<CreateEntityRequest>.

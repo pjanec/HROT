@@ -44,8 +44,6 @@
     <ProjectReference Include="..\FDP\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />
     <!-- Hrot.Presentation.Windows (ClusterControlWindow etc.); previously transitive via Hrot.SimHost -->
     <ProjectReference Include="..\Hrot.Presentation\Hrot.Presentation.csproj" />
-    <!-- NED infrastructure: NedEntityCreationRequestSource, SimpleClusterStateCache, translators, descriptors -->
-    <!-- Previously transitive via Hrot.SimHost -> Hrot.IG -> Hrot.Network.NED -->
-    <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />  </ItemGroup>
+  </ItemGroup>
 
 </Project>

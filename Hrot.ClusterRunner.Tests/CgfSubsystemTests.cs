@@ -2,8 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Hrot.CGF;
+using Hrot.Common;
 using Hrot.Common.Infrastructure;
+using Hrot.Map.Common;
+using Hrot.Network.NED.Factory;
+using FDP.Toolkit.Replication.Services;
 using Fdp.Engine.Runner;
+using Fdp.Kernel;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Tests;
@@ -14,7 +19,13 @@ namespace Hrot.ClusterRunner.Tests;
 [Collection("CgfSubsystemTests")]
 public class CgfSubsystemTests : IDisposable
 {
-    private readonly CgfSubsystem _sut = new();
+    private readonly CgfSubsystem _sut = new(new NedNetworkFactory(
+        participant:  null,
+        entityMap:    new NetworkEntityMap(),
+        geoTransform: HrotEnvironment.CreateGeoTransform(),
+        eventBus:     new FdpEventBus(),
+        localNodeId:  0,
+        role:         NodeRole.None));  // Role gets overridden by ConfigureForNode(_context, Brain)
 
     public void Dispose() => _sut.Shutdown();
 

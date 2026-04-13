@@ -65,7 +65,7 @@ public sealed class HrotRunnerHarness : IDisposable
 
         OrchestratorSvc = new OrchestratorSubsystem();
         SimHost = new SimHostSubsystem(factory);
-        Ig = new IgSubsystem();
+        Ig = new IgSubsystem(factory);
         ExCon = new ExConSubsystem(factory);
 
         var options = new RunnerOptions { Headless = true, DomainId = DomainId };
@@ -104,7 +104,7 @@ public sealed class HrotRunnerHarness : IDisposable
 
         OrchestratorSvc = new OrchestratorSubsystem();
         SimHost         = new SimHostSubsystem(factory);
-        Ig              = new IgSubsystem();
+        Ig              = new IgSubsystem(factory);
         ExCon           = new ExConSubsystem(factory);
 
         // Always include Orchestrator; conditionally include other subsystems.

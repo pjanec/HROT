@@ -15,7 +15,8 @@ public class SetViewCommandTests : IDisposable
     public SetViewCommandTests()
     {
         _app = new IgApplication();
-        _app.InitializeEmbedded(headless: true, domainIdOverride: 206);
+        // Factory required so GhostCreationSystem is available for TestHook_InjectEntityMasterDescriptor.
+        _app.InitializeEmbedded(headless: true, domainIdOverride: 206, networkFactory: IgTestFactory.CreateHeadless());
     }
 
     public void Dispose() => _app.Dispose();

@@ -16,7 +16,7 @@ using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Controllers;
 using ModuleHost.Core;
 using ModuleHost.Core.Time;
-
+using Hrot.Map.Common;
 using ModuleHost.Core.Abstractions;
 
 namespace Hrot.CGF
@@ -79,10 +79,13 @@ namespace Hrot.CGF
         /// Defaults to <c>C:\FDP_Temp</c>.
         /// </param>
         public CgfApplication(int domainId = 0, int nodeId = DefaultNodeId,
+            DdsParticipant? participant = null,
             ScenarioSerializer? scenarioSerializer = null, string localTempRoot = @"C:\FDP_Temp")
         {
             _nodeId      = nodeId;
-            _participant = new DdsParticipant((uint)domainId);
+            // Accept participant from composition root (Rule 3, modular-2 DESIGN.md).
+            // Fall back to creating one from domainId for backward-compat standalone use.
+            _participant = participant ?? HrotEnvironment.CreateParticipant((int)domainId);
             // CGF1-A.2 (BATCH-09 / Phase 3): wire time event bridge and time controller.
             _eventBus = new FdpEventBus();
             _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);

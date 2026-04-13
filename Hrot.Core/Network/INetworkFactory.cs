@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using CycloneDDS.Runtime;
+using Fdp.Interfaces;
+using Fdp.Kernel;
+using Fdp.Modules.Geographic;
 using FDP.Toolkit.DER;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
@@ -54,6 +57,17 @@ public interface INetworkFactory
     IIgNetworkAdapter CreateIgNetworkAdapter(DdsParticipant? participant, long nodeId = 0);
 
     /// <summary>
+    /// Creates the IG-side egress translators that convert bus events (SpawnEntityCommand,
+    /// UpdateEntityCommand, DestroyEntityCommand) into DDS write calls.
+    /// Returns an empty collection when the protocol does not support IG egress.
+    /// </summary>
+    IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
+        DdsParticipant participant,
+        FdpEventBus bus,
+        IGeographicTransform geoTransform,
+        long nodeId);
+
+    /// <summary>
     /// Creates DDS ingress handlers for ExCon (map-click, selection, entity lifecycle ACKs,
     /// map command ACKs, entity master/descriptor bridging handlers).
     /// </summary>
@@ -78,6 +92,15 @@ public interface INetworkFactory
     /// Used by subsystems that create their own participant directly (e.g. ExCon).
     /// </summary>
     INetworkFactory ConfigureForNode(DdsParticipant? participant, int nodeId, NodeRole role);
+
+    /// <summary>
+    /// Creates the protocol-specific entity lifecycle adapters required by a CGF (Brain) node.
+    /// Returns null when this protocol does not support CGF entity creation
+    /// (e.g. BDC or offline factories).
+    /// Must be called on a factory instance already configured via
+    /// <see cref="ConfigureForNode(HrotNodeContext, NodeRole, FDP.Toolkit.Behavior.DoctrineRegistry)"/>.
+    /// </summary>
+    ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters();
 
     /// <summary>
     /// The DDS participant owned by this factory instance.

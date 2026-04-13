@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Hrot.Core.Mission;
 using Hrot.Core.Network;
 using Hrot.IG.Components;
-using Hrot.Map.Common.Commands;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;

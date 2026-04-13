@@ -197,7 +197,8 @@ public class IgApplicationPanelTests
         var app = new IgApplication();
         try
         {
-            app.InitializeEmbedded(headless: false);
+            // Factory required so NedReplicationModule is wired and shared translators are populated.
+            app.InitializeEmbedded(headless: false, networkFactory: IgTestFactory.CreateHeadless());
 
             var translators = GetCustomTranslators(app).Cast<object>().ToList();
             Assert.Contains(translators, t => t is FireInteractionEventTranslator);

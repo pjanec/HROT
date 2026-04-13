@@ -17,7 +17,8 @@ public class SetSelectionCommandTests : IDisposable
     public SetSelectionCommandTests()
     {
         _app = new IgApplication();
-        _app.InitializeEmbedded(headless: true, domainIdOverride: 205);
+        // Factory required so GhostCreationSystem is available for TestHook_InjectEntityMasterDescriptor.
+        _app.InitializeEmbedded(headless: true, domainIdOverride: 205, networkFactory: IgTestFactory.CreateHeadless());
     }
 
     public void Dispose() => _app.Dispose();

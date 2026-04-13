@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
@@ -6,15 +7,22 @@ using Fdp.Modules.Geographic;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.DER;
 using FDP.Toolkit.Lifecycle;
+using FDP.Toolkit.Replication.Patching;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
 using Hrot.Common.Infrastructure;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
+using Hrot.Network.NED.CGF;
 using Hrot.Network.NED.ExCon;
 using Hrot.Network.NED.SimHost;
 using Hrot.Network.Replication;
+using Hrot.Network.Routing;
 using Hrot.NED.Descriptors;
+using Hrot.NED.Descriptors.Orchestration;
+using Hrot.SimHost;
+using ModuleHost.Core.Network.Interfaces;
+using Hrot.Map.Common.Replication.Egress;
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 
 namespace Hrot.Network.NED.Factory;
@@ -199,7 +207,101 @@ public sealed class NedNetworkFactory : INetworkFactory
     }
 
     /// <inheritdoc/>
+    public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
+        DdsParticipant participant,
+        FdpEventBus bus,
+        IGeographicTransform geoTransform,
+        long nodeId)
+    {
+        return new IDescriptorTranslator[]
+        {
+            new SpawnEntityCommandEgressTranslator(participant, bus, geoTransform, nodeId),
+            new UpdateEntityCommandEgressTranslator(participant, bus, _entityMap, geoTransform, nodeId),
+            new DestroyEntityCommandEgressTranslator(participant, bus, nodeId),
+        };
+    }
+
+    /// <inheritdoc/>
+    public ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters()
+    {
+        if (_participant == null) return null;
+
+        var clusterCache    = new SimpleClusterStateCache();
+        var heartbeatReader = new DdsReader<NodeHeartbeat>(_participant);
+
+        return new NedCgfEntityLifecycleAdapters(
+            requestSource:     new NedEntityCreationRequestSource(_participant),
+            deleteSource:      new NedEntityDeletionRequestSource(_participant),
+            ackSink:           new NedEntityAckSink(_participant),
+            ownershipStrategy: new BrainMuscleOwnershipStrategy(clusterCache),
+            jsonCompiler:      AttributeCompilerFactory.Build(_geoTransform),
+            clusterCache:      clusterCache,
+            heartbeatReader:   heartbeatReader);
+    }
+
+    /// <inheritdoc/>
     public long WorldPosDescriptorId => (long)EDescriptorType.dtWorldPos;
+}
+
+/// <summary>
+/// NED-specific entity lifecycle adapters for a CGF (Brain) node.
+/// Created by <see cref="NedNetworkFactory.CreateCgfEntityLifecycleAdapters"/>.
+/// </summary>
+internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapters
+{
+    private readonly SimpleClusterStateCache   _clusterCache;
+    private readonly DdsReader<NodeHeartbeat>  _heartbeatReader;
+
+    public IEntityCreationRequestSource       RequestSource     { get; }
+    public IEntityDeletionRequestSource       DeleteSource      { get; }
+    public IEntityAckSink                     AckSink           { get; }
+    public IOwnershipDistributionStrategy?    OwnershipStrategy { get; }
+    public JsonAttributeCompiler?             JsonCompiler      { get; }
+
+    public NedCgfEntityLifecycleAdapters(
+        IEntityCreationRequestSource    requestSource,
+        IEntityDeletionRequestSource    deleteSource,
+        IEntityAckSink                  ackSink,
+        IOwnershipDistributionStrategy? ownershipStrategy,
+        JsonAttributeCompiler?          jsonCompiler,
+        SimpleClusterStateCache         clusterCache,
+        DdsReader<NodeHeartbeat>        heartbeatReader)
+    {
+        RequestSource     = requestSource;
+        DeleteSource      = deleteSource;
+        AckSink           = ackSink;
+        OwnershipStrategy = ownershipStrategy;
+        JsonCompiler      = jsonCompiler;
+        _clusterCache     = clusterCache;
+        _heartbeatReader  = heartbeatReader;
+    }
+
+    /// <inheritdoc/>
+    public void PollNetwork()
+    {
+        using var loan = _heartbeatReader.Take();
+        foreach (var sample in loan)
+        {
+            if (!sample.IsValid) continue;
+            _clusterCache.UpdateNode(new NodeCapability
+            {
+                NodeId             = sample.Data.NodeId,
+                Role               = MapSubsystemNameToRole(sample.Data.SubsystemName),
+                CpuUsagePercent    = sample.Data.CpuUsagePercent,
+                RamUsedBytes       = sample.Data.RamUsedBytes,
+                LastSeenUtcSeconds = (double)sample.Data.WallTicksUtc / TimeSpan.TicksPerSecond,
+            });
+        }
+    }
+
+    private static NodeRole MapSubsystemNameToRole(string? name) =>
+        name switch
+        {
+            "SimHost" => NodeRole.MuscleGround,
+            "CGF"     => NodeRole.Brain,
+            "IG"      => NodeRole.ImageGenerator,
+            _         => NodeRole.None,
+        };
 }
 
 /// <summary>No-op stub for ISimHostMissionSender.</summary>

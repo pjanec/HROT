@@ -14,20 +14,12 @@ using FdpEventBrowserPanel    = FDP.Toolkit.ImGui.Panels.EventBrowserPanel;
 using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;
 using FdpInspectorState       = FDP.Toolkit.ImGui.Abstractions.InspectorState;
 using Hrot.Map.Common;
-using Hrot.Map.Common.Translators;
 using Hrot.CGF.Brains;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
 using Hrot.Core.Network;
-using Hrot.Network.NED.CGF;
-using Hrot.SimHost; // AttributeCompilerFactory (lives in Hrot.Network.NED, namespace Hrot.SimHost)
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
-using Hrot.Network.Infrastructure;
-using Hrot.Network.Routing;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Descriptors.Orchestration;
-using CycloneDDS.Runtime;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.NetworkSpawning.Events;
@@ -47,10 +39,9 @@ namespace Hrot.CGF;
 /// </summary>
 public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvider, IWindowRegistrar
 {
-    private HrotNodeContext?         _context;
-    private NetworkEntityMap?        _entityMap;
-    private SimpleClusterStateCache? _clusterCache;
-    private DdsReader<NodeHeartbeat>? _heartbeatReader;
+    private HrotNodeContext?  _context;
+    private NetworkEntityMap? _entityMap;
+    private Action?           _cgfNetworkPolling;
 
     // ── Headless + doctrine registry ──────────────────────────────────────────
     private bool               _headless;
@@ -116,7 +107,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
         var dtoCmd = new DeferredTakeOwnershipCommand { NetworkId = networkId };
         dtoCmd.Grants.Add(new DescriptorGrant
         {
-            DescriptorTypeId = (long)EDescriptorType.dtWorldPos,
+            DescriptorTypeId = _networkFactory?.WorldPosDescriptorId ?? 2L,
             NodeId           = muscleNodeId,
         });
         _context.World.Bus.PublishManaged(dtoCmd);
@@ -153,7 +144,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
         };
         _context = new HrotNodeBuilder(nodeConfig)
             .WithRole("CgfNode", NodeRole.Brain)
-            .WithReplication(NodeRole.Brain)
             .Build();
 
         _entityMap = _context.EntityMap;
@@ -163,14 +153,33 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
         foreach (var m in _context.BaseModules)
             _context.Kernel.RegisterModule(m);
 
-        // ── Register NedReplicationModule (Brain role) ─────────────────────────
+        // ── Create replication module via factory (Brain role) ─────────────────
         // Replaces: EntityStatesIngressPack + ActuatorIntentsEgressPack + GhostCleanupModule
-        _context.Kernel.RegisterModule(_context.NedReplication!);
-
-        // ── Register CGF simulation logic (Brain-specific) ─────────────────────
         var doctrineRegistry = new DoctrineRegistry();
         CgfDoctrineSetup.RegisterAll(doctrineRegistry, _context.GeoTransform!);
         _doctrineRegistry = doctrineRegistry;
+
+        // Configure network factory for this node so auxiliary translators can be created.
+        var nodeFactory = _networkFactory?.ConfigureForNode(_context, NodeRole.Brain, doctrineRegistry);
+
+        var replicationModule = nodeFactory?.CreateReplicationModule();
+        if (replicationModule != null)
+        {
+            _context = _context with
+            {
+                NedReplication      = replicationModule as Hrot.Common.Abstractions.INedReplicationModule,
+                GhostCreationSystem = replicationModule.GhostCreationSystem,
+            };
+            _context.Kernel.RegisterModule(replicationModule);
+        }
+
+        // ── Wire CreateEntityRequestSystem (CGF is the cluster-default processor) ─
+        // This makes CGF intercept broadcast CreateEntityRequests (Owner == 0) and spawn
+        // entities, delegating WorldPos (kinematics) to the least-loaded Muscle node via
+        // DeferredTakeOwnership. SimHost nodes keep isDefaultProcessor=false.
+        // Protocol-specific sources and sinks are obtained via the factory (Rule 3).
+
+        // ── Register CGF simulation logic (Brain-specific) ─────────────────────
         var cgfLogicPack = new CgfLogicPack(doctrineRegistry, _entityMap);
         _context.Kernel.RegisterModule(cgfLogicPack);
 
@@ -180,48 +189,30 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
         _simGroup = simGroup;
         cgfLogicPack.RegisterSystems(simGroup);
 
-        // Configure network factory for this node so auxiliary translators can be created.
-        var nodeFactory = _networkFactory?.ConfigureForNode(_context, NodeRole.Brain, doctrineRegistry);
-
-        // ── Wire CreateEntityRequestSystem (CGF is the cluster-default processor) ─
-        // This makes CGF intercept broadcast CreateEntityRequests (Owner == 0) and spawn
-        // entities, delegating WorldPos (kinematics) to the least-loaded Muscle node via
-        // DeferredTakeOwnership. SimHost nodes keep isDefaultProcessor=false.
-        if (_context.Participant != null)
+        var adapters = nodeFactory?.CreateCgfEntityLifecycleAdapters();
+        if (adapters != null)
         {
-            var tkbDb        = _context.TkbDb!;
-            var idAllocator  = _context.IdAllocator!;
-            var geoTransform = _context.GeoTransform!;
-            var elm          = (EntityLifecycleModule)_context.BaseModules
-                                   .First(m => m is EntityLifecycleModule);
+            var tkbDb       = _context.TkbDb!;
+            var idAllocator = _context.IdAllocator!;
+            var elm         = (EntityLifecycleModule)_context.BaseModules
+                                  .First(m => m is EntityLifecycleModule);
 
-            var requestSource = new NedEntityCreationRequestSource(_context.Participant);
-            var deleteSource  = new NedEntityDeletionRequestSource(_context.Participant);
-            var ackSink       = new NedEntityAckSink(_context.Participant);
-
-            var jsonCompiler      = AttributeCompilerFactory.Build(geoTransform);
-            var binaryInterpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform);
-
-            var finalizationSystem = new NedRequestFinalizationSystem(ackSink, _entityMap!);
-
-            _clusterCache    = new SimpleClusterStateCache();
-            _heartbeatReader = new DdsReader<NodeHeartbeat>(_context.Participant);
-            var ownershipStrategy = new BrainMuscleOwnershipStrategy(_clusterCache);
+            var finalizationSystem = new NedRequestFinalizationSystem(adapters.AckSink, _entityMap!);
 
             var requestSystem = new CreateEntityRequestSystem(
-                requestSource:        requestSource,
-                ackSink:              ackSink,
+                requestSource:        adapters.RequestSource,
+                ackSink:              adapters.AckSink,
                 tkbDb:                tkbDb,
                 idAllocator:          idAllocator,
                 localNodeId:          _context.NodeId,
-                jsonAttributeCompiler: jsonCompiler,
+                jsonAttributeCompiler: adapters.JsonCompiler,
                 finalizationSystem:   finalizationSystem,
                 isDefaultProcessor:   true,
-                ownershipStrategy:    ownershipStrategy);
+                ownershipStrategy:    adapters.OwnershipStrategy);
 
             var deleteSystem = new DeleteEntityRequestSystem(
-                deleteSource,
-                ackSink,
+                adapters.DeleteSource,
+                adapters.AckSink,
                 _entityMap!,
                 finalizationSystem,
                 _context.NodeId);
@@ -234,15 +225,17 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
                 _context.NodeId);
 
             _context.Kernel.RegisterGlobalSystem(spawnSystem);
-
             _context.Kernel.RegisterGlobalSystem(requestSystem);
             _context.Kernel.RegisterGlobalSystem(deleteSystem);
             _context.Kernel.RegisterGlobalSystem(finalizationSystem);
 
-            // Auxiliary translators (time-sync, combat, mission-control) via the injected factory.
-            // Mirrors SimHostApp.cs pattern: nodeFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(kernel)
-            nodeFactory?.CreateSimHostAuxiliaryTranslators()?.RegisterOn(_context.Kernel);
+            // Store polling action for heartbeat updates in Update().
+            _cgfNetworkPolling = adapters.PollNetwork;
         }
+
+        // Auxiliary translators (time-sync, combat, mission-control) via the injected factory.
+        // Mirrors SimHostApp.cs pattern: nodeFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(kernel)
+        nodeFactory?.CreateSimHostAuxiliaryTranslators()?.RegisterOn(_context.Kernel);
 
         // ── Initialize ─────────────────────────────────────────────────────────
         _context.Kernel.Initialize();
@@ -314,24 +307,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
     /// <inheritdoc/>
     public void Update(float deltaTime)
     {
-        // Poll DDS NodeHeartbeat to keep the cluster cache up-to-date so that
-        // BrainMuscleOwnershipStrategy can find the least-loaded Muscle node.
-        if (_heartbeatReader != null && _clusterCache != null)
-        {
-            using var loan = _heartbeatReader.Take();
-            foreach (var sample in loan)
-            {
-                if (!sample.IsValid) continue;
-                _clusterCache.UpdateNode(new NodeCapability
-                {
-                    NodeId             = sample.Data.NodeId,
-                    Role               = MapSubsystemNameToRole(sample.Data.SubsystemName),
-                    CpuUsagePercent    = sample.Data.CpuUsagePercent,
-                    RamUsedBytes       = sample.Data.RamUsedBytes,
-                    LastSeenUtcSeconds = (double)sample.Data.WallTicksUtc / System.TimeSpan.TicksPerSecond,
-                });
-            }
-        }
+        // Poll network state (e.g. DDS NodeHeartbeat) to keep the cluster cache up-to-date
+        // so that BrainMuscleOwnershipStrategy can find the least-loaded Muscle node.
+        _cgfNetworkPolling?.Invoke();
 
         _context?.SlaveTranslator?.Tick();
         _context?.ClusterSlave.Tick();
@@ -485,8 +463,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
     /// <inheritdoc/>
     public void Shutdown()
     {
-        _heartbeatReader?.Dispose();
-        _heartbeatReader = null;
+        _cgfNetworkPolling = null;
         _simGroup?.Dispose();
         _simGroup = null;
         _context?.Kernel.Dispose();
@@ -494,18 +471,5 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
         _context = null;
     }
 
-    /// <summary>
-    /// Maps a subsystem's published name to its <see cref="NodeRole"/> for cluster cache population.
-    /// Nodes not matching a known name receive <see cref="NodeRole.None"/> and are ignored by
-    /// <see cref="BrainMuscleOwnershipStrategy"/> queries.
-    /// </summary>
-    private static NodeRole MapSubsystemNameToRole(string? name) =>
-        name switch
-        {
-            "SimHost"    => NodeRole.MuscleGround,
-            "CGF"        => NodeRole.Brain,
-            "IG"         => NodeRole.ImageGenerator,
-            _            => NodeRole.None,
-        };
 }
 

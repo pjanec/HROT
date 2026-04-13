@@ -118,6 +118,17 @@ namespace Hrot.BDC.Factory
         }
 
         /// <inheritdoc/>
+        public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreateIgEgressTranslators(
+            CycloneDDS.Runtime.DdsParticipant participant,
+            Fdp.Kernel.FdpEventBus bus,
+            Fdp.Modules.Geographic.IGeographicTransform geoTransform,
+            long nodeId)
+            => System.Array.Empty<Fdp.Interfaces.IDescriptorTranslator>();
+
+        /// <inheritdoc/>
+        public ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters() => null;
+
+        /// <inheritdoc/>
         public long WorldPosDescriptorId => 0;
     }
 

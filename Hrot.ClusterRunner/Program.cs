@@ -10,6 +10,7 @@ using Hrot.Core.Network;
 using Hrot.Network.NED.Factory;
 using Hrot.BDC.Factory;
 using CycloneDDS.Runtime;
+using CycloneDDS.Runtime.Tracking;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
@@ -96,6 +97,12 @@ class Program
         // Create the DDS participant exactly once here (composition root).
         // All subsystems that need a participant will receive it via INetworkFactory.Participant.
         var participant = config.Headless ? null : HrotEnvironment.CreateParticipant(config.DomainId);
+        // Configure sender tracking immediately after creation, before any DDS writer is created.
+        participant?.EnableSenderTracking(new SenderIdentityConfig
+        {
+            AppDomainId   = config.DomainId,
+            AppInstanceId = config.NodeId
+        });
         INetworkFactory networkFactory = string.Equals(config.NetworkProtocol, "bdc", StringComparison.OrdinalIgnoreCase)
             ? (INetworkFactory)new BdcNetworkFactory(participant, entityMap, geoTransform, eventBus, (long)factoryNodeId, NodeRole.None)
             : new NedNetworkFactory(participant, entityMap, geoTransform, eventBus, factoryNodeId, NodeRole.None);

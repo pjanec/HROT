@@ -32,7 +32,8 @@ public sealed class TraceLoggingTests : IDisposable
     public TraceLoggingTests()
     {
         _ig = new IgApplication();
-        _ig.InitializeEmbedded(headless: true, domainIdOverride: DomainId);
+        // Factory required so NedReplicationModule creates DDS readers for EntityMaster/WorldPos.
+        _ig.InitializeEmbedded(headless: true, domainIdOverride: DomainId, networkFactory: IgTestFactory.CreateHeadless());
     }
 
     public void Dispose()

@@ -16,7 +16,8 @@ public sealed class DeadReckoningSyncSystemIntegrationTests : System.IDisposable
     {
         _app = new IgApplication();
         // Headless: no Raylib window. Domain 231 to avoid collision with other test suites.
-        _app.InitializeEmbedded(headless: true, domainIdOverride: 231);
+        // Factory required so NedReplicationModule (+ GhostCreationSystem) is wired.
+        _app.InitializeEmbedded(headless: true, domainIdOverride: 231, networkFactory: IgTestFactory.CreateHeadless());
     }
 
     public void Dispose() => _app.Dispose();

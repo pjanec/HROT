@@ -102,11 +102,17 @@ public sealed class HrotNodeBuilder
             // Use the externally-provided participant from the composition root when available;
             // otherwise create one for standalone / test environments.
             participant = _config.ExternalParticipant ?? HrotEnvironment.CreateParticipant(_config.DomainId);
-            participant.EnableSenderTracking(new SenderIdentityConfig
+            if (_config.ExternalParticipant == null)
             {
-                AppDomainId   = _config.DomainId,
-                AppInstanceId = _config.NodeId
-            });
+                // Configure tracking only when WE created the participant.
+                // When participant comes from the composition root (ExternalParticipant),
+                // tracking is already configured there before any writer is created.
+                participant.EnableSenderTracking(new SenderIdentityConfig
+                {
+                    AppDomainId   = _config.DomainId,
+                    AppInstanceId = _config.NodeId
+                });
+            }
 
             // Step 6 — Network entity map (already created above, reused here)
 
