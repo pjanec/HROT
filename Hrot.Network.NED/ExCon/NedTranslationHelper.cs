@@ -1,3 +1,4 @@
+using System;
 using Hrot.Core.Network;
 using Hrot.NED.Common;
 using Hrot.NED.Descriptors;
@@ -113,13 +114,53 @@ internal static class NedTranslationHelper
     public static UpdateEntityDescriptorRequest ToUpdateDescriptorRequest(
         UpdateEntityDescriptorCommand cmd)
     {
+        var payload = new EntityDescriptorUnion();
+
+        if (!string.IsNullOrEmpty(cmd.DescriptorJson))
+        {
+            try
+            {
+                using var doc  = System.Text.Json.JsonDocument.Parse(cmd.DescriptorJson);
+                var       root = doc.RootElement;
+
+                if (root.TryGetProperty("type", out var typeProp) &&
+                    typeProp.GetString() == "WorldPos")
+                {
+                    double lat = root.TryGetProperty("lat", out var lp) ? lp.GetDouble() : 0;
+                    double lon = root.TryGetProperty("lon", out var lo) ? lo.GetDouble() : 0;
+                    double alt = root.TryGetProperty("alt", out var ap) ? ap.GetDouble() : 0;
+
+                    payload = new EntityDescriptorUnion
+                    {
+                        _d       = EDescriptorType.dtWorldPos,
+                        WorldPos = new WorldPos
+                        {
+                            EntityId = cmd.EntityId,
+                            Time     = DateTime.UtcNow,
+                            Pos      = new GeoPoint
+                            {
+                                Latitude  = lat,
+                                Longitude = lon,
+                                Altitude  = alt,
+                            },
+                            Ori = new EulerOri(),
+                        },
+                    };
+                }
+            }
+            catch
+            {
+                // Malformed JSON — send without payload (best-effort)
+            }
+        }
+
         return new UpdateEntityDescriptorRequest
         {
             RequestId      = Guid.NewGuid(),
             EntityId       = cmd.EntityId,
-            DescriptorType = Hrot.NED.Descriptors.EDescriptorType.dtEntityMaster,
+            DescriptorType = EDescriptorType.dtWorldPos,
             CurrentVersion = (int)cmd.BaseVersion,
-            // TODO DEBT-008: Payload must be populated from cmd.DescriptorJson (JSON -> EntityDescriptorUnion translation)
+            Payload        = payload,
         };
     }
 }

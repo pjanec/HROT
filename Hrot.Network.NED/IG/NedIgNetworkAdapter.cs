@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Hrot.Core.Network;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
@@ -176,6 +179,64 @@ namespace Hrot.Network.NED.IG
                 };
             }
             return null;
+        }
+
+        /// <inheritdoc/>
+        public async Task<int> CreateRouteEntityAsync(
+            long tkbRouteType,
+            IReadOnlyList<(double Lat, double Lon, double Alt)> waypoints,
+            double anchorLat, double anchorLon, double anchorAlt,
+            int commanderEntityId,
+            CancellationToken ct = default)
+        {
+            var waypointStructs = waypoints.Select(w => new Waypoint
+            {
+                Position          = new GeoPoint { Latitude = w.Lat, Longitude = w.Lon, Altitude = w.Alt },
+                SpeedMetersPerSec = 0.0,
+            }).ToList();
+
+            var createReq = new CreateEntityRequest
+            {
+                RequestId = Guid.NewGuid(),
+                Owner     = new NodeId { AppDomainId = 0, AppInstanceId = 0 },
+                Flags     = 0,
+                InitialDescriptors = new List<EntityDescriptorUnion>
+                {
+                    new EntityDescriptorUnion
+                    {
+                        _d           = EDescriptorType.dtEntityMaster,
+                        EntityMaster = new EntityMaster { TkbType = tkbRouteType },
+                    },
+                    new EntityDescriptorUnion
+                    {
+                        _d       = EDescriptorType.dtWorldPos,
+                        WorldPos = new WorldPos { Pos = new GeoPoint { Latitude = anchorLat, Longitude = anchorLon, Altitude = anchorAlt } },
+                    },
+                    new EntityDescriptorUnion
+                    {
+                        _d       = EDescriptorType.dtMapRoute,
+                        MapRoute = new MapRoute { Points = waypointStructs, IsLoop = false },
+                    },
+                    new EntityDescriptorUnion
+                    {
+                        _d         = EDescriptorType.dtEntityInfo,
+                        EntityInfo = new EntityInfo { CommanderId = commanderEntityId },
+                    },
+                },
+            };
+
+            try
+            {
+                var nedGateway = _commandGateway as NedCommandGateway;
+                if (nedGateway == null) return 0;
+                var ack = await nedGateway.CreateEntityAsync(createReq);
+                return (ack.StatusCode < 2) ? ack.EntityId : 0;
+            }
+            catch (Exception ex)
+            {
+                FdpLog<NedIgNetworkAdapter>.Error("CreateRouteEntityAsync failed: {0}", ex.Message);
+                return 0;
+            }
         }
 
         /// <inheritdoc/>

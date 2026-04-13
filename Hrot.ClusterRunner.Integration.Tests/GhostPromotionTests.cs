@@ -1,6 +1,5 @@
 using System;
 using System.Numerics;
-using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
 using Hrot.Map.Common;
 using FDP.Toolkit.Replication.Components;
@@ -24,23 +23,7 @@ public class GhostPromotionTests
 
         long networkId = 123_456_789L;
         int entityId = (int)networkId;
-        harness.Ig.App.TestHook_InjectGeoSpatialDescriptor(new WorldPos
-        {
-            EntityId = entityId,
-            Pos = new GeoPoint
-            {
-                Latitude = 32.0,
-                Longitude = 34.0,
-                Altitude = 10.0
-            },
-            Ori = new EulerOri
-            {
-                Heading = 0,
-                Pitch = 0,
-                Roll = 0
-            },
-            Time = DateTime.UtcNow
-        });
+        harness.Ig.App.TestHook_InjectGeoSpatialDescriptor(entityId, 32.0, 34.0, 10.0);
 
         Entity ghostEntity = Entity.Null;
         bool ghostCreated = harness.PumpUntil(() =>
@@ -54,12 +37,7 @@ public class GhostPromotionTests
 
         var posAfterGeo = harness.Ig.App.World.GetComponent<NetworkTransform>(ghostEntity).LastPosition;
 
-        harness.Ig.App.TestHook_InjectEntityMasterDescriptor(new EntityMaster
-        {
-            EntityId = entityId,
-            TkbType = TkbEntityTypes.Tank_M1Abrams,
-            DisType = default
-        });
+        harness.Ig.App.TestHook_InjectEntityMasterDescriptor(entityId, TkbEntityTypes.Tank_M1Abrams);
 
         bool promoted = harness.PumpUntil(() =>
         {

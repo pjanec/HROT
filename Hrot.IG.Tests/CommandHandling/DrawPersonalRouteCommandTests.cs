@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
 using System.Threading.Tasks;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
 using Hrot.NED.Common;
+using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Commands;
 using FDP.Toolkit.Vis2D.Tools;
@@ -13,56 +13,81 @@ namespace Hrot.IG.Tests.CommandHandling;
 
 /// <summary>
 /// Unit tests for <see cref="IgApplication"/> handling of
-/// <see cref="Hrot.NED.Messages.CommandType.CMD_DRAW_PERSONAL_ROUTE"/> — OC1-G003.
+/// CMD_DRAW_PERSONAL_ROUTE — OC1-G003.
 /// </summary>
 public class DrawPersonalRouteCommandTests : IDisposable
 {
-    private readonly IgApplication _app;
-    private readonly MockGateway   _gateway = new();
+    private readonly IgApplication      _app;
+    private readonly MockNetworkAdapter _adapter = new();
 
     public DrawPersonalRouteCommandTests()
     {
         _app = new IgApplication();
         _app.InitializeEmbedded(headless: true, domainIdOverride: 207);
-        _app.TestHook_SetCommandGateway(_gateway);
+        _app.TestHook_SetNetworkAdapter(_adapter);
     }
 
     public void Dispose() => _app.Dispose();
 
-    // ── Mock ─────────────────────────────────────────────────────────────────
+    // ── Mocks ────────────────────────────────────────────────────────────────
 
-    private sealed class MockGateway : INedCommandGateway
+    private sealed class StubCommandGateway : ICommandGateway
     {
-        public List<CreateEntityRequest>   CreateCalls   { get; } = new();
-        public List<MissionControlRequest> MissionCalls  { get; } = new();
-        public List<MapCommandAck>         AckCalls      { get; } = new();  // not used directly
+        public List<MissionControlCommand> MissionCalls { get; } = new();
 
-        public int    CreateStatusCode { get; set; } = 0;
-        public int    CreatedEntityId  { get; set; } = 77;
+        public void Dispose() { }
 
-        public void SendUpdateDescriptor(UpdateEntityDescriptorRequest request) { }
+        public Task<int> CreateEntityAsync(CreateEntityCommand cmd, CancellationToken ct = default)
+            => Task.FromResult(0);
 
-        public Task<CreateUpdateDeleteEntityAck> CreateEntityAsync(
-            CreateEntityRequest request, int timeoutMs = 5000)
+        public Task SendUpdateDescriptorAsync(UpdateEntityDescriptorCommand cmd, CancellationToken ct = default)
+            => Task.CompletedTask;
+
+        public Task<MissionCommitResult> SendMissionControlRequestAsync(
+            MissionControlCommand cmd, CancellationToken ct = default)
         {
-            CreateCalls.Add(request);
-            return Task.FromResult(new CreateUpdateDeleteEntityAck
-            {
-                RequestId  = request.RequestId,
-                EntityId   = CreatedEntityId,
-                StatusCode = CreateStatusCode
-            });
+            MissionCalls.Add(cmd);
+            return Task.FromResult(new MissionCommitResult { Success = true });
         }
+    }
 
-        public Task<MissionControlAck> SendMissionControlRequestAsync(
-            MissionControlRequest request, int timeoutMs = 5000)
+    private sealed class MockNetworkAdapter : IIgNetworkAdapter
+    {
+        public StubCommandGateway Gateway { get; } = new();
+
+        public int                                                     CreateRouteCallCount   { get; private set; }
+        public long                                                    LastTkbRouteType       { get; private set; }
+        public IReadOnlyList<(double Lat, double Lon, double Alt)>?   LastWaypoints          { get; private set; }
+        public int                                                     LastCommanderEntityId  { get; private set; }
+        public int                                                     CreateRouteReturnId    { get; set; } = 77;
+        public int                                                     CreateRouteStatusCode  { get; set; } = 0;
+
+        public ICommandGateway CommandGateway => Gateway;
+
+        public void Dispose() { }
+
+        public void WriteMapClick(MapClickEventDto dto) { }
+        public void WriteSelectionChanged(SelectionChangedEventDto dto) { }
+        public void WriteMapCommandAck(MapCommandAckDto dto) { }
+        public void WriteContextMenuRequest(Guid requestId, int mapId, IReadOnlyList<int> forSelection) { }
+        public void PublishCapabilities(int mapId, string layerTreeJson, string configSchemasJson) { }
+        public MapConfigDto? PollMapConfig() => null;
+        public MapCommandDto? PollMapCommand() => null;
+        public EntityLifecycleAckDto? PollEntityLifecycleAck() => null;
+
+        public Task<int> CreateRouteEntityAsync(
+            long tkbRouteType,
+            IReadOnlyList<(double Lat, double Lon, double Alt)> waypoints,
+            double anchorLat, double anchorLon, double anchorAlt,
+            int commanderEntityId,
+            CancellationToken ct = default)
         {
-            MissionCalls.Add(request);
-            return Task.FromResult(new MissionControlAck
-            {
-                RequestId = request.RequestId,
-                ErrorCode = 0
-            });
+            CreateRouteCallCount++;
+            LastTkbRouteType      = tkbRouteType;
+            LastWaypoints         = waypoints;
+            LastCommanderEntityId = commanderEntityId;
+            if (CreateRouteStatusCode != 0) return Task.FromResult(0);
+            return Task.FromResult(CreateRouteReturnId);
         }
     }
 
@@ -107,8 +132,8 @@ public class DrawPersonalRouteCommandTests : IDisposable
         // Allow async task to complete.
         Task.Delay(50).Wait();
 
-        // CreateEntityAsync must not have been called.
-        Assert.Empty(_gateway.CreateCalls);
+        // CreateRouteEntityAsync must not have been called.
+        Assert.Equal(0, _adapter.CreateRouteCallCount);
     }
 
     /// <summary>
@@ -118,7 +143,7 @@ public class DrawPersonalRouteCommandTests : IDisposable
     [Fact]
     public async Task ValidPoints_GatewayCalledWithCorrectDescriptors()
     {
-        _gateway.CreatedEntityId = 77;
+        _adapter.CreateRouteReturnId = 77;
 
         _app.TestHook_ParseCommandAndActivatePersonalRoute(Guid.NewGuid(), "{\"entityId\":5}");
         _app.TestHook_DirectPointSequenceToolCommit(ThreePoints);
@@ -126,24 +151,17 @@ public class DrawPersonalRouteCommandTests : IDisposable
         // Allow the fire-and-forget async task to complete.
         await Task.Delay(200);
 
-        Assert.Single(_gateway.CreateCalls);
-        var createReq = _gateway.CreateCalls[0];
-
-        var master = createReq.InitialDescriptors.Find(d => d._d == EDescriptorType.dtEntityMaster);
-        Assert.Equal(TkbEntityTypes.TacGraphic_Route, master.EntityMaster.TkbType);
-
-        var route = createReq.InitialDescriptors.Find(d => d._d == EDescriptorType.dtMapRoute);
-        Assert.NotNull(route.MapRoute.Points);
-        Assert.Equal(3, route.MapRoute.Points.Count);
-
-        var info = createReq.InitialDescriptors.Find(d => d._d == EDescriptorType.dtEntityInfo);
-        Assert.Equal(5, info.EntityInfo.CommanderId);
+        Assert.Equal(1, _adapter.CreateRouteCallCount);
+        Assert.Equal(TkbEntityTypes.TacGraphic_Route, _adapter.LastTkbRouteType);
+        Assert.NotNull(_adapter.LastWaypoints);
+        Assert.Equal(3, _adapter.LastWaypoints.Count);
+        Assert.Equal(5, _adapter.LastCommanderEntityId);
 
         // Mission request should have been sent with FollowRoute task.
-        Assert.Single(_gateway.MissionCalls);
-        var missionReq = _gateway.MissionCalls[0];
-        Assert.Equal(eMissionCommandType.CMD_REPLACE_MISSION, missionReq.Payload._d);
-        var task = missionReq.Payload.FullMissionData.Tasks[0];
+        Assert.Single(_adapter.Gateway.MissionCalls);
+        var missionCmd = _adapter.Gateway.MissionCalls[0];
+        Assert.Equal(Hrot.Core.Mission.eMissionCommandType.CMD_REPLACE_MISSION, missionCmd.CommandType);
+        var task = missionCmd.Plan!.Tasks[0];
         Assert.Equal("FollowRoute", task.BehaviorId);
         Assert.Contains("77", task.BehaviorParams); // routeEntityId = 77
     }
@@ -154,15 +172,15 @@ public class DrawPersonalRouteCommandTests : IDisposable
     [Fact]
     public async Task CreateEntityFailure_MissionNotSent()
     {
-        _gateway.CreateStatusCode = 2; // failure
+        _adapter.CreateRouteStatusCode = 2; // failure
 
         _app.TestHook_ParseCommandAndActivatePersonalRoute(Guid.NewGuid(), "{\"entityId\":5}");
         _app.TestHook_DirectPointSequenceToolCommit(ThreePoints);
 
         await Task.Delay(200);
 
-        Assert.Single(_gateway.CreateCalls);
-        Assert.Empty(_gateway.MissionCalls);
+        Assert.Equal(1, _adapter.CreateRouteCallCount);
+        Assert.Empty(_adapter.Gateway.MissionCalls);
     }
 
     /// <summary>
@@ -197,19 +215,18 @@ public class DrawPersonalRouteCommandTests : IDisposable
         _app.TestHook_DirectPointSequenceToolCommit(sameXDifferentY);
         await Task.Delay(200);
 
-        Assert.Single(_gateway.CreateCalls);
-        var route = _gateway.CreateCalls[0].InitialDescriptors
-            .Find(d => d._d == EDescriptorType.dtMapRoute);
-        Assert.Equal(2, route.MapRoute.Points.Count);
+        Assert.Equal(1, _adapter.CreateRouteCallCount);
+        Assert.NotNull(_adapter.LastWaypoints);
+        Assert.Equal(2, _adapter.LastWaypoints.Count);
 
-        var wp0 = route.MapRoute.Points[0].Position;
-        var wp1 = route.MapRoute.Points[1].Position;
+        var wp0 = _adapter.LastWaypoints[0];
+        var wp1 = _adapter.LastWaypoints[1];
 
         // Latitudes must be identical (canvas Y → altitude, not North).
-        Assert.Equal(wp0.Latitude, wp1.Latitude, precision: 8);
+        Assert.Equal(wp0.Lat, wp1.Lat, precision: 8);
         // Altitudes must differ (canvas Y=200 → alt smaller than Y=400).
-        Assert.NotEqual(wp0.Altitude, wp1.Altitude);
-        Assert.True(wp1.Altitude > wp0.Altitude,
+        Assert.NotEqual(wp0.Alt, wp1.Alt);
+        Assert.True(wp1.Alt > wp0.Alt,
             "Waypoint with higher canvas Y should have higher altitude.");
     }
 
@@ -231,18 +248,18 @@ public class DrawPersonalRouteCommandTests : IDisposable
         _app.TestHook_DirectPointSequenceToolCommit(differentXSameY);
         await Task.Delay(200);
 
-        Assert.Single(_gateway.CreateCalls);
-        var route = _gateway.CreateCalls[0].InitialDescriptors
-            .Find(d => d._d == EDescriptorType.dtMapRoute);
+        Assert.Equal(1, _adapter.CreateRouteCallCount);
+        Assert.NotNull(_adapter.LastWaypoints);
+        var route2 = _adapter.LastWaypoints;
 
-        var wp0 = route.MapRoute.Points[0].Position;
-        var wp1 = route.MapRoute.Points[1].Position;
+        var wp0 = route2[0];
+        var wp1 = route2[1];
 
         // Longitudes must differ (canvas X → East → longitude).
-        Assert.NotEqual(wp0.Longitude, wp1.Longitude);
+        Assert.NotEqual(wp0.Lon, wp1.Lon);
         // Altitudes must be equal (same canvas Y → same altitude).
         // WGS84 coordinate-frame skew between two Easting positions introduces up to
         // ~20 mm of apparent altitude offset; precision:1 (tolerance 0.05 m) is sufficient.
-        Assert.Equal(wp0.Altitude, wp1.Altitude, precision: 1);
+        Assert.Equal(wp0.Alt, wp1.Alt, precision: 1);
     }
 }

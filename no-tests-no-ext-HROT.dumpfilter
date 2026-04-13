@@ -25,8 +25,7 @@
 - TestResults
 - *.txt
 - *.log
-#- FDP
-#+ FDP/Toolkits
+- FDP
 + Hrot.ClusterRunner.Integration.Tests
 + Hrot.Orchestrator.Integration.Tests
 + Hrot.SimHost.Integration.Tests

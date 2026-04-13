@@ -59,6 +59,19 @@ namespace Hrot.Core.Network
         /// </summary>
         EntityLifecycleAckDto? PollEntityLifecycleAck();
 
+        // ── Route entity creation ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Creates a route entity with the given waypoints and returns the assigned entity ID.
+        /// Returns 0 on failure.
+        /// </summary>
+        Task<int> CreateRouteEntityAsync(
+            long tkbRouteType,
+            IReadOnlyList<(double Lat, double Lon, double Alt)> waypoints,
+            double anchorLat, double anchorLon, double anchorAlt,
+            int commanderEntityId,
+            CancellationToken ct = default);
+
         // ── Command gateway ───────────────────────────────────────────────────
 
         /// <summary>
@@ -84,6 +97,9 @@ namespace Hrot.Core.Network
         public MapConfigDto? PollMapConfig() => null;
         public MapCommandDto? PollMapCommand() => null;
         public EntityLifecycleAckDto? PollEntityLifecycleAck() => null;
+        public Task<int> CreateRouteEntityAsync(long tkbRouteType, IReadOnlyList<(double Lat, double Lon, double Alt)> waypoints,
+            double anchorLat, double anchorLon, double anchorAlt, int commanderEntityId, CancellationToken ct = default)
+            => Task.FromResult(0);
         public ICommandGateway CommandGateway => NullIgCommandGateway.Instance;
         public void Dispose() { }
     }

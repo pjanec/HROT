@@ -1,6 +1,5 @@
 using System;
 using System.Numerics;
-using Hrot.NED.Common;
 using Hrot.IG.Components;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
@@ -27,11 +26,7 @@ public class SetSelectionCommandTests : IDisposable
 
     private void RegisterEntity(long networkId)
     {
-        _app.TestHook_InjectEntityMasterDescriptor(new Hrot.NED.Descriptors.EntityMaster
-        {
-            EntityId = (int)networkId,
-            TkbType  = 1001
-        });
+        _app.TestHook_InjectEntityMasterDescriptor((int)networkId, 1001);
     }
 
     /// <summary>

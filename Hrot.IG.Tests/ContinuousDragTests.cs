@@ -1,6 +1,7 @@
 using System.Numerics;
-using Hrot.NED.Messages;
-using Hrot.NED.Common;
+using System.Threading;
+using System.Threading.Tasks;
+using Hrot.Core.Network;
 using Hrot.IG;
 using Hrot.Map.Common.Commands;
 using Fdp.Kernel;
@@ -36,15 +37,15 @@ public class ContinuousDragTests
 
     // ── Stub ──────────────────────────────────────────────────────────────────
 
-    /// <summary>Records every <see cref="INedCommandGateway.SendUpdateDescriptor"/> call.</summary>
-    private sealed class TallyGateway : INedCommandGateway
+    /// <summary>Records every <see cref="ICommandGateway.SendUpdateDescriptorAsync"/> call.</summary>
+    private sealed class TallyGateway : ICommandGateway
     {
         public int Calls { get; private set; }
-        public void SendUpdateDescriptor(UpdateEntityDescriptorRequest request) => Calls++;
-        public System.Threading.Tasks.Task<CreateUpdateDeleteEntityAck> CreateEntityAsync(CreateEntityRequest request, int timeoutMs = 5000)
-            => System.Threading.Tasks.Task.FromResult(new CreateUpdateDeleteEntityAck());
-        public System.Threading.Tasks.Task<MissionControlAck> SendMissionControlRequestAsync(MissionControlRequest request, int timeoutMs = 5000)
-            => System.Threading.Tasks.Task.FromResult(new MissionControlAck());
+        public void Dispose() { }
+        public Task<int> CreateEntityAsync(CreateEntityCommand cmd, CancellationToken ct = default) => Task.FromResult(0);
+        public Task SendUpdateDescriptorAsync(UpdateEntityDescriptorCommand cmd, CancellationToken ct = default) { Calls++; return Task.CompletedTask; }
+        public Task<MissionCommitResult> SendMissionControlRequestAsync(MissionControlCommand cmd, CancellationToken ct = default)
+            => Task.FromResult(new MissionCommitResult { Success = true });
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

@@ -10,12 +10,6 @@ using System.Text.Json;
 
 using CarKinem.Core;
 
-using Hrot.NED.Descriptors;
-
-using Hrot.NED.Messages;
-
-using Hrot.NED.Common;
-
 using Hrot.ScenarioEditor.Adapters;
 
 using Hrot.ScenarioEditor.Rendering;
@@ -46,6 +40,8 @@ using Hrot.Map.Common.Replication.Ingress;
 
 using Hrot.Map.Definitions.Tkb;
 
+using Hrot.Core.Network;
+
 using CycloneDDS.Runtime;
 
 using CycloneDDS.Runtime.Tracking;
@@ -53,6 +49,8 @@ using CycloneDDS.Runtime.Tracking;
 using Fdp.Kernel;
 
 using Fdp.Modules.Geographic.Components;
+
+using Fdp.Modules.Geographic.Systems;
 
 using Fdp.Modules.Geographic.Transforms;
 
@@ -210,8 +208,6 @@ public class IgApplication : IDisposable
 
     private GhostCreationSystem? _ghostCreationSystem;
 
-    private GeoSpatialIngressTranslator? _geoSpatialIngressTranslator;
-
 
 
     // -- Network enabled flag — false when DDS libraries are unavailable (e.g. unit-test host)
@@ -261,31 +257,12 @@ public class IgApplication : IDisposable
     // Protocol-neutral adapter wrapping all IG DDS writers and readers (Task 18).
     private Hrot.Core.Network.IIgNetworkAdapter? _networkAdapter;
 
-    private NedCommandGateway?               _commandGateway;
-
     /// <summary>
-    /// Injectable interface used by <see cref="SendGeoSpatialUpdate"/> so unit tests can
-    /// replace the production <see cref="NedCommandGateway"/> with a stub via
-    /// <see cref="TestHook_SetCommandGateway"/>. Set to <c>_commandGateway</c> in production.
+    /// Neutral command gateway for entity creation, descriptor updates, and mission control.
+    /// Obtained from <see cref="_networkAdapter"/> at initialization time.
+    /// Injectable via <see cref="TestHook_SetCommandGateway"/> in unit tests.
     /// </summary>
-    private INedCommandGateway?              _commandGatewayInterface;
-
-    private DdsWriter<MapClickEvent>?           _clickWriter;
-
-    /// <summary>
-    /// Writer that publishes the IG's current selection state to ExCon so that the
-    /// "Selection &amp; Mission" panel reflects whatever entity is clicked on the map.
-    /// </summary>
-    private DdsWriter<SelectionChangedEvent>?  _selectionWriter;
-
-    private DdsReader<MapInteractionConfig>?  _configReader;
-
-    /// <summary>
-    /// Reads instance-scoped tool-activation commands published by the ExCon
-    /// via <see cref="MapCommandRequest"/> (preferred over the legacy
-    /// <see cref="MapInteractionConfig"/> group-broadcast approach).
-    /// </summary>
-    private DdsReader<MapCommandRequest>?     _commandReader;
+    private Hrot.Core.Network.ICommandGateway?   _commandGateway;
 
     private Guid                             _activeContextId;
 
@@ -310,12 +287,6 @@ public class IgApplication : IDisposable
 #pragma warning restore CS0649
 
     // _createEntityDdsWriter removed by D005 — SpawnEntityCommandEgressTranslator owns the DDS writer.
-    /// <summary>
-    /// Fallback writer for <see cref="ContextMenuRequest"/> — emitted by
-    /// <see cref="ContextMenuSystem"/> when the operator right-clicks an entity
-    /// that has no pre-cached action list (cache miss / no prior selection).
-    /// </summary>
-    private DdsWriter<ContextMenuRequest>? _contextMenuRequestWriter;
 
     /// <summary>
     /// Test-only callback: when non-null, receives every <see cref="SpawnEntityCommand"/>
@@ -324,21 +295,9 @@ public class IgApplication : IDisposable
     /// </summary>
     private Action<FDP.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>? _testSpawnCommandSink;
     /// <summary>
-    /// Writer that publishes <see cref="MapCommandAck"/> responses back to the ExCon,
-    /// correlating tool outcomes with the original <see cref="MapCommandRequest"/>.
-    /// </summary>
-    private DdsWriter<MapCommandAck>?           _mapCommandAckWriter;
-    /// <summary>
-    /// Reader that receives <see cref="CreateUpdateDeleteEntityAck"/> samples from the SimHost.
-    /// Each sample is forwarded to <see cref="_mapCommandController"/> so it can
-    /// correlate entity confirmations with active placement sessions.
-    /// </summary>
-    private DdsReader<CreateUpdateDeleteEntityAck>?   _createEntityAckReader;
-    /// <summary>
-    /// Orchestrator that manages tool-activation sessions for <see cref="MapCommandRequest"/>
-    /// commands (<c>CMD_PLACE_ENTITY</c>, <c>CMD_START_AUTHORING</c>) and routes
-    /// <see cref="CreateUpdateDeleteEntityAck"/> confirmations back to the ExCon as
-    /// <see cref="MapCommandAck"/> messages.
+    /// Orchestrator that manages tool-activation sessions for map commands
+    /// (<c>CMD_PLACE_ENTITY</c>, <c>CMD_START_AUTHORING</c>) and routes
+    /// entity-lifecycle ACKs back to ExCon.
     /// </summary>
     private MapCommandController?               _mapCommandController;
 
@@ -346,8 +305,7 @@ public class IgApplication : IDisposable
     /// Edge compiler built once at initialisation time and injected into every
     /// <see cref="Hrot.IG.Tools.CreationTool"/> created by
     /// <see cref="Hrot.IG.Systems.MapCommandController"/>.
-    /// Converts placement JSON property blobs to binary
-    /// <see cref="Hrot.NED.Messages.AttributeRecord"/>s on the DDS wire (ATTR2-DEBT-07).
+    /// Converts placement JSON property blobs to binary attribute records on the DDS wire (ATTR2-DEBT-07).
     /// </summary>
     private JsonToRecordCompiler? _edgeCompiler;
 
@@ -805,34 +763,12 @@ public class IgApplication : IDisposable
                         _context = _context.BindReplicationParticipant(
                             Hrot.Common.NodeRole.ImageGenerator, participant);
                         _ghostCreationSystem = _context.GhostCreationSystem;
-
-                        // Restore test-hook translator with null participant (no DDS reader, pure entity applier).
-                        // Used by TestHook_InjectGeoSpatialDescriptor to inject descriptors in unit tests.
-                        _geoSpatialIngressTranslator = new GeoSpatialIngressTranslator(
-                            null, _entityMap, _geoTransform, _ghostCreationSystem!, _effectiveInstanceId);
                     }
                 }
 
-                // Task 5: Create command gateway, click writer and config reader.
-
-                _commandGateway          = new NedCommandGateway(participant, _effectiveInstanceId);
-                _commandGatewayInterface = _commandGateway;
-
-                // Task 18: Create the protocol-neutral network adapter.
+                // Task 5 / Task 18: Create the protocol-neutral network adapter and obtain gateway from it.
                 _networkAdapter = new Hrot.Network.NED.IG.NedIgNetworkAdapter(participant, _effectiveInstanceId);
-
-                _clickWriter     = new DdsWriter<MapClickEvent>(participant, "MapClickEvent");
-
-                _selectionWriter = new DdsWriter<SelectionChangedEvent>(participant, "SelectionChangedEvent");
-
-                _configReader    = new DdsReader<MapInteractionConfig>(participant);
-
-                _commandReader   = new DdsReader<MapCommandRequest>(participant, "MapCommandRequest");
-
-                // _createEntityDdsWriter removed by D005 — SpawnEntityCommandEgressTranslator owns the writer.
-                _mapCommandAckWriter    = new DdsWriter<MapCommandAck>(participant, "MapCommandAck");
-                _createEntityAckReader  = new DdsReader<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
-                _contextMenuRequestWriter = new DdsWriter<ContextMenuRequest>(participant, "ContextMenuRequest");
+                _commandGateway = _networkAdapter.CommandGateway;
 
 
 
@@ -1239,82 +1175,80 @@ public class IgApplication : IDisposable
 
         // Task 5a: Poll instance-scoped tool-activation commands (CMD_*) -- preferred path.
 
-        if (_networkEnabled && _commandReader != null)
+        if (_networkEnabled)
 
         {
 
-            using var cmdLoan = _commandReader.Take(1);
+            var cmdDto = _networkAdapter?.PollMapCommand();
 
-            foreach (var cmdSample in cmdLoan)
+            if (cmdDto != null)
 
             {
 
-                if (!cmdSample.IsValid) continue;
+                // Accept only broadcast (TargetMapId==0) or commands addressed to this IG instance.
 
-                var cmd = cmdSample.Data;
-
-                // Accept only broadcast (MapId==0) or commands addressed to this IG instance.
-
-                if (cmd.MapId != 0 && cmd.MapId != _effectiveInstanceId)
-
-                    continue;
-
-                FdpLog<IgApplication>.Debug(
-
-                    "[Node-{0}] MapCommandRequest: Type={1} MapId={2}", _effectiveInstanceId, cmd.Type, cmd.MapId);
-
-                switch (cmd.Type)
+                if (cmdDto.TargetMapId == 0 || cmdDto.TargetMapId == _effectiveInstanceId)
 
                 {
 
-                    case CommandType.CMD_START_AUTHORING:
+                    FdpLog<IgApplication>.Debug(
 
-                        ParseCommandAndActivateAreaTool(cmd.RequestId, cmd.CommandArgsJson);
+                        "[Node-{0}] MapCommandRequest: Type={1} MapId={2}", _effectiveInstanceId, cmdDto.CommandType, cmdDto.TargetMapId);
 
-                        break;
+                    switch (cmdDto.CommandType)
 
-                    case CommandType.CMD_PLACE_ENTITY:
+                    {
 
-                        ParseCommandAndActivatePlacementTool(cmd.RequestId, cmd.CommandArgsJson);
+                        case "CMD_START_AUTHORING":
 
-                        break;
+                            ParseCommandAndActivateAreaTool(cmdDto.RequestId, cmdDto.CommandArgsJson);
+
+                            break;
+
+                        case "CMD_PLACE_ENTITY":
+
+                            ParseCommandAndActivatePlacementTool(cmdDto.RequestId, cmdDto.CommandArgsJson);
+
+                            break;
 
 
-                    case CommandType.CMD_START_EDITING:
+                        case "CMD_START_EDITING":
 
-                        ParseCommandAndActivateEditTool(cmd.CommandArgsJson);
+                            ParseCommandAndActivateEditTool(cmdDto.CommandArgsJson);
 
-                        break;
+                            break;
 
-                    case CommandType.CMD_PICK_LOCATION:
+                        case "CMD_PICK_LOCATION":
 
-                        ParseCommandAndActivateLocationPicker(cmd.CommandArgsJson);
+                            ParseCommandAndActivateLocationPicker(cmdDto.CommandArgsJson);
 
-                        break;
+                            break;
 
-                    case CommandType.CMD_PICK_ENTITY:
+                        case "CMD_PICK_ENTITY":
 
-                        ParseCommandAndActivateEntityPicker(cmd.CommandArgsJson);
+                            ParseCommandAndActivateEntityPicker(cmdDto.CommandArgsJson);
 
-                        break;
+                            break;
 
-                    case CommandType.CMD_SET_SELECTION:
+                        case "CMD_SET_SELECTION":
 
-                        ParseCommandAndSetSelection(cmd.CommandArgsJson);
+                            ParseCommandAndSetSelection(cmdDto.CommandArgsJson);
 
-                        break;
+                            break;
 
-                    case CommandType.CMD_SET_VIEW:
+                        case "CMD_SET_VIEW":
 
-                        ParseCommandAndSetView(cmd.CommandArgsJson);
+                            ParseCommandAndSetView(cmdDto.CommandArgsJson);
 
-                        break;
+                            break;
 
-                    case CommandType.CMD_DRAW_PERSONAL_ROUTE:
+                        case "CMD_DRAW_PERSONAL_ROUTE":
 
-                        ParseCommandAndActivatePersonalRoute(cmd.RequestId, cmd.CommandArgsJson);
+                            ParseCommandAndActivatePersonalRoute(cmdDto.RequestId, cmdDto.CommandArgsJson);
 
-                        break;
+                            break;
+
+                    }
 
                 }
 
@@ -1323,37 +1257,27 @@ public class IgApplication : IDisposable
         }
 
         // Forward CreateUpdateDeleteEntityAck samples to the MapCommandController for session correlation.
-        if (_networkEnabled && _createEntityAckReader != null && _mapCommandController != null)
+        if (_networkEnabled && _mapCommandController != null)
         {
-            using var ackLoan = _createEntityAckReader.Take(16);
-            foreach (var ackSample in ackLoan)
-            {
-                if (!ackSample.IsValid) continue;
-                _mapCommandController.OnCreateEntityAck(new Hrot.Core.Network.EntityLifecycleAckDto
-                {
-                    RequestId  = ackSample.Data.RequestId,
-                    EntityId   = ackSample.Data.EntityId,
-                    StatusCode = ackSample.Data.StatusCode,
-                });
-            }
+            var ackDto = _networkAdapter?.PollEntityLifecycleAck();
+            if (ackDto != null)
+                _mapCommandController.OnCreateEntityAck(ackDto);
         }
 
 
         // Task 5b: Poll ExCon => IG interaction-config updates (legacy -- grid/view toggle).
 
-        if (_networkEnabled && _configReader != null)
+        if (_networkEnabled)
 
         {
 
-            using var loan = _configReader.Take(1);
+            var cfgDto = _networkAdapter?.PollMapConfig();
 
-            foreach (var sample in loan)
+            if (cfgDto != null)
 
             {
 
-                if (!sample.IsValid) continue;
-
-                _activeContextId = sample.Data.ActiveContextId;
+                _activeContextId = cfgDto.ActiveContextId;
 
                 FdpLog<IgApplication>.Debug(
 
@@ -1361,9 +1285,9 @@ public class IgApplication : IDisposable
 
 
 
-                if (!string.IsNullOrWhiteSpace(sample.Data.ConfigurationJson))
+                if (!string.IsNullOrWhiteSpace(cfgDto.ConfigJson))
 
-                    ParseAndApplyConfig(sample.Data.ConfigurationJson);
+                    ParseAndApplyConfig(cfgDto.ConfigJson);
 
             }
 
@@ -1835,20 +1759,10 @@ public class IgApplication : IDisposable
         _clusterSlave?.Dispose();
         _clusterSlave = null;
 
-        _commandGateway?.Dispose();
+        // _networkAdapter.Dispose() disposes the command gateway and all DDS writers/readers.
         _networkAdapter?.Dispose();
         _networkAdapter = null;
-        _clickWriter?.Dispose();
-
-        _selectionWriter?.Dispose();
-
-        _configReader?.Dispose();
-
-        _commandReader?.Dispose();
-
-        _mapCommandAckWriter?.Dispose();
-        _createEntityAckReader?.Dispose();
-        _contextMenuRequestWriter?.Dispose();
+        _commandGateway = null;
 
         _kernel?.Dispose();
 
@@ -2208,93 +2122,53 @@ public class IgApplication : IDisposable
 
 
     /// <summary>
-
-    /// Internal test hook to inject GeoSpatial data into the ingress pipeline.
-
+    /// Internal test hook to inject GeoSpatial (position) data directly into an entity.
+    /// Creates the entity as a ghost if it does not already exist.
+    /// Uses the geographic transform to convert lat/lon/alt to Cartesian.
     /// </summary>
-
-    internal void TestHook_InjectGeoSpatialDescriptor(WorldPos descriptor)
-
+    internal void TestHook_InjectGeoSpatialDescriptor(int entityId, double lat, double lon, double alt, float heading = 0f)
     {
-
-        if (_geoSpatialIngressTranslator == null || _ghostCreationSystem == null)
-
-            throw new InvalidOperationException("Ingress translators are not initialized.");
-
-
-
-        if (!_entityMap.TryGetEntity(descriptor.EntityId, out var entity))
-
-        {
-
-            entity = _ghostCreationSystem.CreateGhost(_world, descriptor.EntityId);
-
-        }
-
-
-
-        _geoSpatialIngressTranslator.ApplyToEntity(entity, descriptor, _world);
-
-    }
-
-
-
-    /// <summary>
-
-    /// Internal test hook to inject EntityMaster data into the ingress pipeline.
-
-    /// </summary>
-
-    internal void TestHook_InjectEntityMasterDescriptor(EntityMaster descriptor)
-
-    {
-
         if (_ghostCreationSystem == null)
-
             throw new InvalidOperationException("Ghost creation system is not initialized.");
 
+        if (!_entityMap.TryGetEntity(entityId, out var entity))
+            entity = _ghostCreationSystem.CreateGhost(_world, entityId);
 
-
-        if (!_entityMap.TryGetEntity(descriptor.EntityId, out var entity))
-
+        Vector3 position;
+        if (_geoTransform != null)
         {
-
-            entity = _ghostCreationSystem.CreateGhost(_world, descriptor.EntityId);
-
+            var cartesian = _geoTransform.ToCartesian(lat, lon, alt);
+            position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
+        }
+        else
+        {
+            position = Vector3.Zero;
         }
 
+        var rotation = SimTransformBridgeSystem.HeadingDegToRotation(heading);
+        _world.SetComponent(entity, new NetworkTransform { LastPosition = position, LastRotation = rotation });
+        _world.SetComponent(entity, new SimTransform    { Position = position, Rotation = rotation });
+    }
 
+    /// <summary>
+    /// Internal test hook to inject EntityMaster data into the ingress pipeline.
+    /// </summary>
+    internal void TestHook_InjectEntityMasterDescriptor(int entityId, long tkbType, ulong disTypeValue = 0)
+    {
+        if (_ghostCreationSystem == null)
+            throw new InvalidOperationException("Ghost creation system is not initialized.");
+
+        if (!_entityMap.TryGetEntity(entityId, out var entity))
+            entity = _ghostCreationSystem.CreateGhost(_world, entityId);
 
         var cmd = (EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer();
-
         // Permanent identity component — drives GhostPromotionSystem.
-        cmd.AddComponent(entity, new TkbIdentity { TkbType = descriptor.TkbType });
-
-        // Store DIS entity type natively in the entity header.
-        var dt = descriptor.DisType;
-        ulong disValue
-            = ((ulong)dt.Kind        << 56)
-            | ((ulong)dt.Domain      << 48)
-            | ((ulong)dt.Country     << 32)
-            | ((ulong)dt.Category    << 24)
-            | ((ulong)dt.Subcategory << 16)
-            | ((ulong)dt.Specific    <<  8)
-            |  (ulong)dt.Extra;
-        _world.SetDisType(entity, new DISEntityType { Value = disValue });
-
+        cmd.AddComponent(entity, new TkbIdentity { TkbType = tkbType });
+        _world.SetDisType(entity, new DISEntityType { Value = disTypeValue });
         cmd.Playback(_world);
-
     }
 
 
-
-    /// <summary>
-
-    /// Converts a canvas world-click to a <see cref="MapClickEvent"/> and writes it
-
-    /// to the DDS "MapClickEvent" topic so ExCon can route the interaction.
-
-    /// No-op when network is disabled.
 
     /// </summary>
 
@@ -2302,7 +2176,7 @@ public class IgApplication : IDisposable
 
     {
 
-        if (!_networkEnabled || _clickWriter == null || _geoTransform == null)
+        if (!_networkEnabled || _networkAdapter == null || _geoTransform == null)
 
             return;
 
@@ -2312,7 +2186,7 @@ public class IgApplication : IDisposable
 
 
 
-        var hitStack = new List<MapObjectRef>();
+        var hitEntityIds = new List<int>();
 
         if (hit != Entity.Null && _world.HasComponent<NetworkIdentity>(hit))
 
@@ -2320,52 +2194,38 @@ public class IgApplication : IDisposable
 
             ref readonly var netId = ref _world.GetComponentRO<NetworkIdentity>(hit);
 
-            hitStack.Add(new MapObjectRef
-
-            {
-
-                EntityId   = (int)netId.Value,
-
-                TkbType    = _world.HasComponent<TkbIdentity>(hit)
-
-                    ? (int)_world.GetComponentRO<TkbIdentity>(hit).TkbType : 0,
-
-                VisualPart = EEntitySymbolPart.ESP_BODY,
-
-            });
+            hitEntityIds.Add((int)netId.Value);
 
         }
 
 
 
-        var evt = new MapClickEvent
+        _networkAdapter.WriteMapClick(new Hrot.Core.Network.MapClickEventDto
 
         {
 
-            MapId                = _effectiveInstanceId,
-
-            Position             = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt },
-
             InteractionContextId = _activeContextId,
 
-            HitStack             = hitStack,
+            Latitude             = lat,
 
-        };
+            Longitude            = lon,
 
+            Altitude             = alt,
 
+            HitEntityIds         = hitEntityIds,
 
-        _clickWriter.Write(evt);
+        });
 
 FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hit={2}", _effectiveInstanceId, _activeContextId, hit.Index);
 
         // Publish selection state so ExCon can update the "Selection & Mission" panel.
         // A non-empty hit selects the entity; an empty-space click clears the selection.
-        if (updateSelection && _selectionWriter != null)
+        if (updateSelection)
         {
-            var selIds = hitStack.Count > 0
-                ? hitStack.ConvertAll(r => r.EntityId)
+            var selIds = hitEntityIds.Count > 0
+                ? hitEntityIds
                 : new System.Collections.Generic.List<int>();
-            _selectionWriter.Write(new SelectionChangedEvent
+            _networkAdapter.WriteSelectionChanged(new Hrot.Core.Network.SelectionChangedEventDto
             {
                 MapId             = _effectiveInstanceId,
                 SelectedEntityIds = selIds,
@@ -2469,14 +2329,14 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     }
 
     /// <summary>
-    /// Builds and sends an <see cref="UpdateEntityDescriptorRequest"/> (GeoSpatial) for
-    /// <paramref name="entity"/> at <paramref name="worldPos"/>. Used by both the
-    /// drag-end path and the throttled continuous-drag path.
+    /// Builds and sends a GeoSpatial update for <paramref name="entity"/> at
+    /// <paramref name="worldPos"/>. Used by both the drag-end path and the throttled
+    /// continuous-drag path.
     /// No-op when network is disabled or required services are unavailable.
     /// </summary>
     private void SendGeoSpatialUpdate(Entity entity, System.Numerics.Vector2 worldPos)
     {
-        if (!_networkEnabled || _commandGatewayInterface == null || _geoTransform == null) return;
+        if (!_networkEnabled || _commandGateway == null || _geoTransform == null) return;
 
         var view = (ISimulationView)_world;
         if (!view.HasComponent<NetworkIdentity>(entity)) return;
@@ -2486,33 +2346,27 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         var position = new System.Numerics.Vector3(worldPos.X, worldPos.Y, 0f);
         var (lat, lon, alt) = _geoTransform.ToGeodetic(position);
 
-        var request = new UpdateEntityDescriptorRequest
+        // Encode as JSON for the neutral UpdateEntityDescriptorCommand; NedCommandGateway
+        // parses it back to the wire type (WorldPos) via NedTranslationHelper.
+        var descJson = System.Text.Json.JsonSerializer.Serialize(new
         {
-            RequestId      = Guid.NewGuid(),
+            type     = "WorldPos",
+            entityId = (int)netId,
+            lat,
+            lon,
+            alt,
+            time     = System.DateTime.UtcNow.Ticks,
+        });
+        var cmd = new Hrot.Core.Network.UpdateEntityDescriptorCommand
+        {
             EntityId       = (int)netId,
-            DescriptorType = EDescriptorType.dtWorldPos,
-            Payload        = new EntityDescriptorUnion
-            {
-                _d         = EDescriptorType.dtWorldPos,
-                WorldPos = new WorldPos
-                {
-                    EntityId = (int)netId,
-                    Time     = DateTime.UtcNow,
-                    Pos      = new GeoPoint
-                    {
-                        Latitude  = lat,
-                        Longitude = lon,
-                        Altitude  = alt,
-                    },
-                    Ori = new EulerOri(),
-                },
-            },
+            DescriptorJson = descJson,
+            BaseVersion    = 0,
         };
-
-        _commandGatewayInterface.SendUpdateDescriptor(request);
+        _ = _commandGateway.SendUpdateDescriptorAsync(cmd);
 
         FdpLog<IgApplication>.Info(
-            "[Node-{0}] GeoSpatial update: sent UpdateEntityDescriptorRequest for NetID {1} to ({2:F5}, {3:F5}).",
+            "[Node-{0}] GeoSpatial update: sent UpdateEntityDescriptorCommand for NetID {1} to ({2:F5}, {3:F5}).",
             _effectiveInstanceId, netId, lat, lon);
     }
 
@@ -2565,9 +2419,22 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     /// so that the guard in <see cref="SendGeoSpatialUpdate"/> does not short-circuit.
     /// Must be called after <see cref="InitializeEmbedded"/>.
     /// </summary>
-    internal void TestHook_SetCommandGateway(INedCommandGateway gateway)
+    internal void TestHook_SetCommandGateway(Hrot.Core.Network.ICommandGateway gateway)
     {
-        _commandGatewayInterface = gateway;
+        _commandGateway = gateway;
+        _networkEnabled = true;
+    }
+
+    /// <summary>
+    /// Test hook: injects a mock network adapter so unit tests can verify
+    /// IgApplication behaviour without a live DDS participant.
+    /// Also enables network-dependent code paths (sets _networkEnabled = true).
+    /// Must be called after <see cref="InitializeEmbedded"/>.
+    /// </summary>
+    internal void TestHook_SetNetworkAdapter(Hrot.Core.Network.IIgNetworkAdapter adapter)
+    {
+        _networkAdapter = adapter;
+        _commandGateway = adapter.CommandGateway;
         _networkEnabled = true;
     }
 
@@ -3181,8 +3048,8 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     // ─── OC1-G003: CMD_DRAW_PERSONAL_ROUTE ───────────────────────────────────
 
     /// <summary>
-    /// Handles an incoming <see cref="CommandType.CMD_DRAW_PERSONAL_ROUTE"/> command.
-    /// Pushes a <see cref="PointSequenceTool"/> requiring ≥ 2 points; on completion,
+    /// Handles an incoming CMD_DRAW_PERSONAL_ROUTE command.
+    /// Pushes a <see cref="PointSequenceTool"/> requiring >= 2 points; on completion,
     /// fire-and-forgets <see cref="OrchestratePersonalRouteAsync"/>.
     /// </summary>
     private void ParseCommandAndActivatePersonalRoute(Guid requestId, string argsJson)
@@ -3208,12 +3075,11 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
                 if (points.Length < 2)
                 {
                     // Too few points — cancel the command.
-                    if (_mapCommandAckWriter != null)
-                        _mapCommandAckWriter.Write(new MapCommandAck
-                        {
-                            RequestId  = requestId,
-                            StatusCode = MapCommandController.StatusCancelled,
-                        });
+                    _networkAdapter?.WriteMapCommandAck(new Hrot.Core.Network.MapCommandAckDto
+                    {
+                        RequestId  = requestId,
+                        StatusCode = (int)MapCommandController.StatusCancelled,
+                    });
                     _canvas.PopTool();
                     return;
                 }
@@ -3233,105 +3099,72 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     }
 
     /// <summary>
-    /// Fire-and-forget orchestration for <c>CMD_DRAW_PERSONAL_ROUTE</c>.
-    /// Converts canvas points to geodetic waypoints, creates a route entity,
-    /// and assigns a <c>FollowRoute</c> mission to <paramref name="vehicleId"/>.
+    /// Fire-and-forget orchestration for CMD_DRAW_PERSONAL_ROUTE.
+    /// Converts canvas points to geodetic waypoints, creates a route entity via the
+    /// neutral adapter, and assigns a FollowRoute mission to <paramref name="vehicleId"/>.
     /// No-op when required services are unavailable (e.g. headless tests without DDS).
     /// </summary>
     private async System.Threading.Tasks.Task OrchestratePersonalRouteAsync(
         Guid requestId, int vehicleId, Vector2[] canvasPoints)
     {
-        if (_commandGatewayInterface == null || _geoTransform == null)
+        if (_networkAdapter == null || _commandGateway == null || _geoTransform == null)
             return;
 
         // Convert canvas points to absolute geodetic waypoints.
-        var waypoints = new List<Waypoint>(canvasPoints.Length);
-        GeoPoint anchorPos = default;
+        // Canvas is XZ: canvas Y = world Z (North). Altitude (Vector3.Y) = 0 for authoring.
+        var waypoints = new List<(double Lat, double Lon, double Alt)>(canvasPoints.Length);
+        double anchorLat = 0, anchorLon = 0, anchorAlt = 0;
         for (int i = 0; i < canvasPoints.Length; i++)
         {
-            // Canvas is XZ: canvas Y = world Z (North). Altitude (Vector3.Y) is 0 for authoring.
-            // Must match ActivateRouteAuthoringTool and RouteRenderLayer.ToCanvas(pos)=(pos.X,pos.Z).
             var (lat, lon, alt) = _geoTransform.ToGeodetic(
                 new Vector3(canvasPoints[i].X, 0f, canvasPoints[i].Y));
-            var geoPos = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt };
-            waypoints.Add(new Waypoint { Position = geoPos, SpeedMetersPerSec = 0.0 });
-            if (i == 0) anchorPos = geoPos;
+            waypoints.Add((lat, lon, alt));
+            if (i == 0) { anchorLat = lat; anchorLon = lon; anchorAlt = alt; }
         }
 
-        // Build CreateEntityRequest for the route entity.
-        var createReq = new CreateEntityRequest
-        {
-            RequestId = Guid.NewGuid(),
-            Owner     = default,
-            Flags     = 0,
-            InitialDescriptors = new List<EntityDescriptorUnion>
-            {
-                new EntityDescriptorUnion
-                {
-                    _d           = EDescriptorType.dtEntityMaster,
-                    EntityMaster = new EntityMaster { TkbType = TkbEntityTypes.TacGraphic_Route }
-                },
-                new EntityDescriptorUnion
-                {
-                    _d         = EDescriptorType.dtWorldPos,
-                    WorldPos = new WorldPos { Pos = anchorPos }
-                },
-                new EntityDescriptorUnion
-                {
-                    _d       = EDescriptorType.dtMapRoute,
-                    MapRoute = new MapRoute { Points = waypoints, IsLoop = false }
-                },
-                new EntityDescriptorUnion
-                {
-                    _d         = EDescriptorType.dtEntityInfo,
-                    EntityInfo = new Hrot.NED.Descriptors.EntityInfo { CommanderId = vehicleId }
-                },
-            }
-        };
-
-        CreateUpdateDeleteEntityAck createAck;
+        // Create the route entity via the neutral adapter.
+        int routeEntityId;
         try
         {
-            createAck = await _commandGatewayInterface.CreateEntityAsync(createReq);
+            routeEntityId = await _networkAdapter.CreateRouteEntityAsync(
+                TkbEntityTypes.TacGraphic_Route,
+                waypoints,
+                anchorLat, anchorLon, anchorAlt,
+                vehicleId);
         }
         catch (Exception ex)
         {
-            FdpLog<IgApplication>.Warn("[Node-{0}] OrchestratePersonalRoute: CreateEntityAsync failed: {1}", _effectiveInstanceId, ex.Message);
+            FdpLog<IgApplication>.Warn("[Node-{0}] OrchestratePersonalRoute: CreateRouteEntityAsync failed: {1}", _effectiveInstanceId, ex.Message);
             SendPersonalRouteAck(requestId, MapCommandController.StatusCancelled);
             return;
         }
 
-        // StatusCode > 1 means failure (0=finished, 1=intermediate, 2=cancelled/error).
-        if (createAck.StatusCode > 1)
+        if (routeEntityId <= 0)
         {
-            FdpLog<IgApplication>.Warn(
-                "[Node-{0}] OrchestratePersonalRoute: CreateEntityAsync returned status {1}.", _effectiveInstanceId, createAck.StatusCode);
+            FdpLog<IgApplication>.Warn("[Node-{0}] OrchestratePersonalRoute: CreateRouteEntityAsync returned id {1}.", _effectiveInstanceId, routeEntityId);
             SendPersonalRouteAck(requestId, MapCommandController.StatusCancelled);
             return;
         }
 
         // Assign a FollowRoute mission using the newly-created route entity's network ID.
-        var missionReq = new MissionControlRequest
+        var taskId = Guid.NewGuid();
+        var missionCmd = new Hrot.Core.Network.MissionControlCommand
         {
-            RequestId      = Guid.NewGuid(),
-            TargetEntityId = vehicleId,
-            BaseVersion    = 0,
-            Payload        = new MissionCommandUnion
+            EntityId    = vehicleId,
+            CommandType = Hrot.Core.Mission.eMissionCommandType.CMD_REPLACE_MISSION,
+            Plan = new Hrot.Core.Mission.MissionPlan
             {
-                _d             = eMissionCommandType.CMD_REPLACE_MISSION,
-                FullMissionData = new MissionPlan
+                ActiveTaskId = taskId,
+                Tasks = new System.Collections.Generic.List<Hrot.Core.Mission.MissionTask>
                 {
-                    Tasks = new List<MissionTask>
+                    new Hrot.Core.Mission.MissionTask
                     {
-                        new MissionTask
-                        {
-                            TaskId          = Guid.NewGuid(),
-                            BehaviorId      = "FollowRoute",
-                            BehaviorParams  = $"{{\"routeEntityId\":{createAck.EntityId}}}",
-                            ExecutingEngine = string.Empty,
-                            State           = eTaskState.TASK_PLANNED,
-                            Triggers        = new List<MissionTrigger>()
-                        }
+                        TaskId          = taskId,
+                        ExecutingEngine = string.Empty,
+                        BehaviorId      = "FollowRoute",
+                        BehaviorParams  = $"{{\"routeEntityId\":{routeEntityId}}}",
+                        Triggers        = new System.Collections.Generic.List<Hrot.Core.Mission.MissionTrigger>(),
+                        State           = Hrot.Core.Mission.eTaskState.TASK_PLANNED,
                     }
                 }
             }
@@ -3339,7 +3172,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
         try
         {
-            await _commandGatewayInterface.SendMissionControlRequestAsync(missionReq);
+            await _commandGateway.SendMissionControlRequestAsync(missionCmd);
         }
         catch (Exception ex)
         {
@@ -3351,10 +3184,10 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
     private void SendPersonalRouteAck(Guid requestId, long statusCode)
     {
-        _mapCommandAckWriter?.Write(new MapCommandAck
+        _networkAdapter?.WriteMapCommandAck(new Hrot.Core.Network.MapCommandAckDto
         {
             RequestId  = requestId,
-            StatusCode = statusCode,
+            StatusCode = (int)statusCode,
         });
     }
 

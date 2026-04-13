@@ -1,6 +1,5 @@
 using System;
 using System.Numerics;
-using Hrot.NED.Common;
 using Fdp.Kernel;
 
 namespace Hrot.IG.Tests.CommandHandling;
@@ -23,11 +22,7 @@ public class SetViewCommandTests : IDisposable
 
     private void RegisterEntityAt(long networkId, float x, float y)
     {
-        _app.TestHook_InjectEntityMasterDescriptor(new Hrot.NED.Descriptors.EntityMaster
-        {
-            EntityId = (int)networkId,
-            TkbType  = 1001
-        });
+        _app.TestHook_InjectEntityMasterDescriptor((int)networkId, 1001);
         // Set SimTransform directly — no DDS needed.
         _app.TestHook_SetEntitySimTransform(networkId, new SimTransform
         {
