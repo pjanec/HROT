@@ -52,7 +52,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// Creates a new system instance.
         /// </summary>
         /// <param name="participant">DDS participant for topic subscriptions.</param>
-        /// <param name="entityMap">Shared net-ID → entity lookup service.</param>
+        /// <param name="entityMap">Shared net-ID â†’ entity lookup service.</param>
         /// <param name="geoTransform">
         /// Geographic transform used to convert incoming geodetic coordinates to
         /// local Cartesian space (must match the transform used by egress translators).
@@ -83,7 +83,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             _geoTransform = geoTransform  ?? throw new ArgumentNullException(nameof(geoTransform));
         }
 
-        // ── ComponentSystem lifecycle ─────────────────────────────────────────
+        // â”€â”€ ComponentSystem lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         protected override void OnUpdate()
         {
@@ -101,7 +101,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             _ownedAckWriter?.Dispose();
         }
 
-        // ── Request handling ──────────────────────────────────────────────────
+        // â”€â”€ Request handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private void ProcessRequest(UpdateEntityDescriptorRequest req)
         {
@@ -134,9 +134,9 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         private void ProcessGeoSpatialUpdate(UpdateEntityDescriptorRequest req, Entity entity)
         {
-            // 2. Authority guard — only apply if this node owns the GeoSpatial descriptor.
+            // 2. Authority guard â€” only apply if this node owns the GeoSpatial descriptor.
             var view = (ISimulationView)World;
-            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
+            long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
             if (!view.HasAuthority(entity, packedKey))
             {
                 FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
@@ -145,7 +145,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 return;
             }
 
-            // 3. Convert geodetic → local Cartesian.
+            // 3. Convert geodetic â†’ local Cartesian.
             var geo = req.Payload.WorldPos;
             var cartesian = _geoTransform.ToCartesian(
                 geo.Pos.Latitude,
@@ -168,7 +168,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             SmartEgressUtil.MarkDirty(World, entity, GeoSpatialOrdinal);
 
             FdpLog<UpdateEntityDescriptorRequestSystem>.Info(
-                "[UpdDescReq] Applied GeoSpatial move for NetID {0} → ({1:F1}, {2:F1}, {3:F1}) Cartesian.",
+                "[UpdDescReq] Applied GeoSpatial move for NetID {0} â†’ ({1:F1}, {2:F1}, {3:F1}) Cartesian.",
                 req.EntityId, cartesian.X, cartesian.Y, cartesian.Z);
 
             WriteAck(req.RequestId, req.EntityId, NedStatusCode.Success);
@@ -187,7 +187,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private void ProcessMapVisualOverlayUpdate(UpdateEntityDescriptorRequest req, Entity entity)
         {
             var view = (ISimulationView)World;
-            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
+            long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
 
             if (!view.HasAuthority(entity, packedKey))
             {
@@ -199,7 +199,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
             var overlay = req.Payload.MapVisualOverlay;
 
-            // Convert RELATIVE geo offsets → relative Cartesian offsets.
+            // Convert RELATIVE geo offsets â†’ relative Cartesian offsets.
             // relCart = ToCartesian(dLat, dLon, dAlt) - ToCartesian(0, 0, 0).
             // For a flat-earth linear projection this equals the true Cartesian displacement.
             Vector3 origin = _geoTransform.ToCartesian(0.0, 0.0, 0.0);

@@ -10,7 +10,7 @@ using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
-using Fdp.ModuleHost.Network;
+using Fdp.Toolkit.Replication.Components;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -25,7 +25,7 @@ namespace Hrot.SimHost.Tests
     {
         private const int EntityId = 42;
 
-        // ── Helpers ───────────────────────────────────────────────────────────
+        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private static EntityRepository CreateWorld()
         {
@@ -68,7 +68,7 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId      = Guid.NewGuid(),
                 EntityId       = entityId,
-                // dtEntityMaster is not handled in the switch → hits default (unsupported) path
+                // dtEntityMaster is not handled in the switch â†’ hits default (unsupported) path
                 DescriptorType = EDescriptorType.dtEntityMaster,
                 Payload        = new EntityDescriptorUnion
                 {
@@ -97,7 +97,7 @@ namespace Hrot.SimHost.Tests
             return count;
         }
 
-        // ── BUG1-N001 Tests ───────────────────────────────────────────────────
+        // â”€â”€ BUG1-N001 Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         [Trait("Category", "Integration")]
@@ -140,7 +140,7 @@ namespace Hrot.SimHost.Tests
 
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(EntityId));
-            // PrimaryOwner=2, Local=1 → HasAuthority=false
+            // PrimaryOwner=2, Local=1 â†’ HasAuthority=false
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
             entityMap.Register(EntityId, entity);
 
@@ -172,7 +172,7 @@ namespace Hrot.SimHost.Tests
 
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(EntityId));
-            // Authoritative — but unsupported type should still yield no ACK
+            // Authoritative â€” but unsupported type should still yield no ACK
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             entityMap.Register(EntityId, entity);
 
@@ -194,7 +194,7 @@ namespace Hrot.SimHost.Tests
         [Trait("Category", "Integration")]
         public void Authoritative_GeoSpatial_EmitsSuccessAck()
         {
-            // SETUP: entity exists AND this node IS authoritative → Success ACK expected
+            // SETUP: entity exists AND this node IS authoritative â†’ Success ACK expected
             const uint domain = 213u;
             using var participant = new DdsParticipant(domain);
             var entityMap = new NetworkEntityMap();
@@ -204,7 +204,7 @@ namespace Hrot.SimHost.Tests
 
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(EntityId));
-            // PrimaryOwner=1, Local=1 → HasAuthority=true
+            // PrimaryOwner=1, Local=1 â†’ HasAuthority=true
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             entityMap.Register(EntityId, entity);
 
@@ -237,13 +237,13 @@ namespace Hrot.SimHost.Tests
             Assert.True(hasSuccess, "Expected exactly one Success ACK for authoritative GeoSpatial update.");
         }
 
-        // ── BUG1-T001: IDdsWriter injection ───────────────────────────────────
+        // â”€â”€ BUG1-T001: IDdsWriter injection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         [Trait("Category", "Integration")]
         public void InjectedAckWriter_NotAuthoritative_WriterNotCalled()
         {
-            // SETUP: entity is NOT authoritative — injected stub must receive zero writes
+            // SETUP: entity is NOT authoritative â€” injected stub must receive zero writes
             const uint domain = 214u;
             var stub      = new StubAckWriter();
             using var participant = new DdsParticipant(domain);
@@ -271,7 +271,7 @@ namespace Hrot.SimHost.Tests
         [Trait("Category", "Integration")]
         public void InjectedAckWriter_Authoritative_WriterCalledWithSuccessAck()
         {
-            // SETUP: entity IS authoritative — injected stub must receive exactly one write
+            // SETUP: entity IS authoritative â€” injected stub must receive exactly one write
             const uint domain = 215u;
             var stub      = new StubAckWriter();
             using var participant = new DdsParticipant(domain);

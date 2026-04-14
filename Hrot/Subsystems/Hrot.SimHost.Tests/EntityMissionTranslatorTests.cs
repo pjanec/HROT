@@ -15,7 +15,7 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Tkb;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Network.Cyclone.Services;
 using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;
 
@@ -40,7 +40,7 @@ namespace Hrot.SimHost.Tests
     [Collection("SimHostDds")]
     public class EntityMissionTranslatorTests
     {
-        // ── Helpers ──────────────────────────────────────────────────────────────
+        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private static EntityRepository CreateWorld()
         {
@@ -76,7 +76,7 @@ namespace Hrot.SimHost.Tests
             };
         }
 
-        // ── Ingress: ApplyToEntity (repository-direct path) ──────────────────────
+        // â”€â”€ Ingress: ApplyToEntity (repository-direct path) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// <see cref="EntityMissionIngressTranslator.ApplyToEntity"/> must set the
@@ -147,11 +147,11 @@ namespace Hrot.SimHost.Tests
                 "MissionPlanQueue must be removed after NOT_ALIVE_DISPOSED playback.");
         }
 
-        // ── Ingress: Unknown entity ID ────────────────────────────────────────────
+        // â”€â”€ Ingress: Unknown entity ID â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// An EntityId not present in the <see cref="NetworkEntityMap"/> must be
-        /// silently skipped — the translator must not throw or create stray entities.
+        /// silently skipped â€” the translator must not throw or create stray entities.
         /// </summary>
         [Fact]
         public void Ingress_UnknownEntityId_SkippedWithoutException()
@@ -163,7 +163,7 @@ namespace Hrot.SimHost.Tests
             var translator  = new EntityMissionIngressTranslator(participant, entityMap, new DoctrineRegistry(), new GhostCreationSystem(entityMap));
 
             // PollIngress will Take() from an empty DDS reader, so there is nothing
-            // to process — this test confirms construction and polling do not throw
+            // to process â€” this test confirms construction and polling do not throw
             // for unknown IDs.
             using var world = CreateWorld();
             var view   = (ISimulationView)world;
@@ -173,7 +173,7 @@ namespace Hrot.SimHost.Tests
             Assert.Null(ex);
         }
 
-        // ── Egress: ScanAndPublish smoke tests ───────────────────────────────────
+        // â”€â”€ Egress: ScanAndPublish smoke tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// <see cref="EntityMissionEgressTranslator.ScanAndPublish"/> must not throw
@@ -194,7 +194,7 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// When an entity carries <see cref="MissionPlanQueue"/> and has local
         /// authority, <see cref="EntityMissionEgressTranslator.ScanAndPublish"/> must
-        /// not throw (smoke test — DDS write is a side-effect we cannot inspect
+        /// not throw (smoke test â€” DDS write is a side-effect we cannot inspect
         /// without a live subscriber).
         /// </summary>
         [Fact]
@@ -217,7 +217,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// An entity whose <see cref="NetworkAuthority.HasAuthority"/> is <c>false</c>
-        /// must not trigger a DDS write — calling ScanAndPublish must not throw.
+        /// must not trigger a DDS write â€” calling ScanAndPublish must not throw.
         /// </summary>
         [Fact]
         public void Egress_NonAuthorityEntity_ScanAndPublishDoesNotThrow()
@@ -237,7 +237,7 @@ namespace Hrot.SimHost.Tests
             Assert.Null(ex);
         }
 
-        // ── Egress: Dirty-flag optimisation ──────────────────────────────────────
+        // â”€â”€ Egress: Dirty-flag optimisation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// After the first <see cref="EntityMissionEgressTranslator.ScanAndPublish"/>
@@ -259,10 +259,10 @@ namespace Hrot.SimHost.Tests
             using var participant = new DdsParticipant();
             var translator  = new EntityMissionEgressTranslator(participant, entityMap);
 
-            // First scan — processes the dirty component.
+            // First scan â€” processes the dirty component.
             translator.ScanAndPublish(world);
 
-            // Second scan — no mutations since the first; early-out path exercised.
+            // Second scan â€” no mutations since the first; early-out path exercised.
             var ex = Record.Exception(() => translator.ScanAndPublish(world));
             Assert.Null(ex);
         }
@@ -288,14 +288,14 @@ namespace Hrot.SimHost.Tests
 
             translator.ScanAndPublish(world);
 
-            // Mutate the component — this advances GlobalVersion and marks the table dirty.
+            // Mutate the component â€” this advances GlobalVersion and marks the table dirty.
             world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
 
             var ex = Record.Exception(() => translator.ScanAndPublish(world));
             Assert.Null(ex);
         }
 
-        // ── Module integration: both translators exposed ──────────────────────────
+        // â”€â”€ Module integration: both translators exposed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// <see cref="SimHostModule"/> constructor must NOT require a <see cref="DdsParticipant"/>.
@@ -312,7 +312,7 @@ namespace Hrot.SimHost.Tests
             var elm         = new EntityLifecycleModule(tkb, new List<int>());
             var spawner     = new NetworkSpawningSystem(tkb, elm, entityMap, idAllocator, 1);
 
-            // Note: SimHostModule constructor only receives the spawner — no participant, no systems.
+            // Note: SimHostModule constructor only receives the spawner â€” no participant, no systems.
             var ex = Record.Exception(() => new SimHostModule(spawner));
 
             Assert.Null(ex);

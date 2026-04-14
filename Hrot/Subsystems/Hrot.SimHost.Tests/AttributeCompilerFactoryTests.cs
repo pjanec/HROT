@@ -18,14 +18,14 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Tkb;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
+using Fdp.Toolkit.Replication.Components;
 
 namespace Hrot.SimHost.Tests
 {
-    // ─── Shared geoTransform stub ────────────────────────────────────────────
+    // â”€â”€â”€ Shared geoTransform stub â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
-    /// Trivial geoTransform stub: lat→Y, lon→X, alt→Z (mirrors existing
+    /// Trivial geoTransform stub: latâ†’Y, lonâ†’X, altâ†’Z (mirrors existing
     /// <c>StubGeoTransform</c> inside CreateEntityRequestSystemTests).
     /// </summary>
     internal sealed class FactoryTestGeoTransform : IGeographicTransform
@@ -39,7 +39,7 @@ namespace Hrot.SimHost.Tests
             => (p.Y, p.X, p.Z);
     }
 
-    // ─── ATTR-S5T1 / ATTR-S5T4 — AttributeCompilerFactory tests ─────────────
+    // â”€â”€â”€ ATTR-S5T1 / ATTR-S5T4 â€” AttributeCompilerFactory tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public class AttributeCompilerFactoryTests
     {
@@ -51,7 +51,7 @@ namespace Hrot.SimHost.Tests
             return repo;
         }
 
-        // ── ListPatchContext tests (no live ECS) ─────────────────────────────
+        // â”€â”€ ListPatchContext tests (no live ECS) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         public void SimHostAttributeCompiler_Name_Registered()
@@ -94,7 +94,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(ForceId.Hostile, data.ForceId);
         }
 
-        // ── EcsPatchContext integration tests ────────────────────────────────
+        // â”€â”€ EcsPatchContext integration tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         public void AttributeCompiler_NamePatch_TriggersEntityInfoDirtyOnEcsPatchContext()
@@ -141,7 +141,7 @@ namespace Hrot.SimHost.Tests
         }
     }
 
-    // ─── ATTR-S5T2 — CreateEntityRequestSystem JSON compiler tests ───────────
+    // â”€â”€â”€ ATTR-S5T2 â€” CreateEntityRequestSystem JSON compiler tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public class CreateEntityRequestSystemJsonTests
     {
@@ -230,7 +230,7 @@ namespace Hrot.SimHost.Tests
 
             var system = BuildSystemWithCompiler(source, out var ackSink);
 
-            // Act — must not throw
+            // Act â€” must not throw
             var ex = Record.Exception(() => system.Execute(repo, 0f));
 
             // Assert
@@ -244,7 +244,7 @@ namespace Hrot.SimHost.Tests
         }
     }
 
-    // ─── ATTR-S5T1/S5T4/S6T1/S6T2 — DescriptorMapper compiler overload tests ─
+    // â”€â”€â”€ ATTR-S5T1/S5T4/S6T1/S6T2 â€” DescriptorMapper compiler overload tests â”€
 
     public class DescriptorMapperCompilerTests
     {
@@ -304,14 +304,14 @@ namespace Hrot.SimHost.Tests
         public void DescriptorMapper_GeoSpatial_SharedDelegate_ProducesSameResultAsDirectPath()
         {
             // Arrange: lat=10, lon=20, alt=30, heading=0
-            // IdentityGeoTransform: ToCartesian(lat, lon, alt) → (lon, lat, alt)
-            //   → Position = (20, 10, 30)
+            // IdentityGeoTransform: ToCartesian(lat, lon, alt) â†’ (lon, lat, alt)
+            //   â†’ Position = (20, 10, 30)
             // Both the descriptor path and the JSON path should produce the same position.
             const double Lat = 10.0, Lon = 20.0, Alt = 30.0;
 
             var compiler = BuildCompiler();
 
-            // ── Descriptor path ───────────────────────────────────────────────
+            // â”€â”€ Descriptor path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             var descriptors = new List<EntityDescriptorUnion>
             {
                 new EntityDescriptorUnion
@@ -329,7 +329,7 @@ namespace Hrot.SimHost.Tests
             var descriptorComponents = DescriptorMapper.MapToComponents(descriptors, GeoTransform, compiler);
             var descriptorTransform  = descriptorComponents.OfType<SimTransform>().Single();
 
-            // ── JSON path ─────────────────────────────────────────────────────
+            // â”€â”€ JSON path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             var jsonCtx = new ListPatchContext(null);
             compiler.Compile(
                 $"{{\"GeoPosition\":{{\"Latitude\":{Lat},\"Longitude\":{Lon},\"Altitude\":{Alt}}}}}",
@@ -337,7 +337,7 @@ namespace Hrot.SimHost.Tests
             var jsonComponents = jsonCtx.FlushComponents();
             var jsonTransform  = jsonComponents.OfType<SimTransform>().Single();
 
-            // ── Assert: same Position (both paths use the same geoTransform)
+            // â”€â”€ Assert: same Position (both paths use the same geoTransform)
             Assert.Equal(descriptorTransform.Position.X, jsonTransform.Position.X, precision: 3);
             Assert.Equal(descriptorTransform.Position.Y, jsonTransform.Position.Y, precision: 3);
             Assert.Equal(descriptorTransform.Position.Z, jsonTransform.Position.Z, precision: 3);

@@ -21,7 +21,7 @@ using Hrot.Network.Routing;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.SimHost;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication.Abstractions;
 using Hrot.Map.Common.Replication.Egress;
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 

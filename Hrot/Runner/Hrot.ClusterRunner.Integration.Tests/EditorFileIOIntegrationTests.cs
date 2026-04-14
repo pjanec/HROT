@@ -3,18 +3,18 @@ using System.Text.Json;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.ScenarioEditor.Events;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
-/// <summary>PACK2-R005 Part A — IT-2: Editor file I/O integration tests.</summary>
+/// <summary>PACK2-R005 Part A â€” IT-2: Editor file I/O integration tests.</summary>
 [Collection("EditorOfflineTests")]
 public sealed class EditorFileIOIntegrationTests
 {
     private const int PumpMs = 5_000;
 
-    // ── IT-2a ─────────────────────────────────────────────────────────────────
+    // â”€â”€ IT-2a â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void NewScenario_FiresWorldResetEventBeforeClear()
@@ -47,7 +47,7 @@ public sealed class EditorFileIOIntegrationTests
         Assert.Equal(0, harness.Repo.EntityCount);
     }
 
-    // ── IT-2b ─────────────────────────────────────────────────────────────────
+    // â”€â”€ IT-2b â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void SaveScenario_SubsystemTypeIsHrotScenario()
@@ -78,7 +78,7 @@ public sealed class EditorFileIOIntegrationTests
         finally { File.Delete(tempPath); }
     }
 
-    // ── IT-2c ─────────────────────────────────────────────────────────────────
+    // â”€â”€ IT-2c â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void LoadScenario_AcceptsHrotSimHostFile()
@@ -102,7 +102,7 @@ public sealed class EditorFileIOIntegrationTests
         finally { File.Delete(tempPath); }
     }
 
-    // ── IT-2d ─────────────────────────────────────────────────────────────────
+    // â”€â”€ IT-2d â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void LoadScenario_RejectsUnknownSubsystemType()

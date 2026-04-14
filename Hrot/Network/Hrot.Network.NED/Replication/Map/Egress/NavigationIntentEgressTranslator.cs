@@ -63,7 +63,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
-            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
             foreach (var entity in query)
             {
@@ -73,7 +73,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 var intent = view.GetComponentRO<EcsNavigationIntent>(entity);
 
-                // Skip inactive intents — no command to broadcast.
+                // Skip inactive intents â€” no command to broadcast.
                 if (intent.Mode == EcsNavMode.None)
                     continue;
 
@@ -107,7 +107,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>No DDS dispose needed for navigation intent.</summary>
         public void Dispose(long networkEntityId) { }
 
-        // ── Enum mapping ──────────────────────────────────────────────────────
+        // â”€â”€ Enum mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private static ENavigationMode MapMode(EcsNavMode mode) => mode switch
         {

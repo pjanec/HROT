@@ -10,12 +10,12 @@ using Hrot.Map.Common.Dds;
 using Hrot.Map.Common.Replication.Egress;
 using Hrot.NED.Messages;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
-/// <summary>PACK2-R005 Part B — IT-3: Feature Switch RCU integration tests.</summary>
+/// <summary>PACK2-R005 Part B â€” IT-3: Feature Switch RCU integration tests.</summary>
 [Collection("EditorOfflineTests")]
 public sealed class FeatureSwitchRcuIntegrationTests
 {
@@ -24,7 +24,7 @@ public sealed class FeatureSwitchRcuIntegrationTests
     private const long   TestTkbType   = 1L;
     private const long   TestNetworkId = 99L;
 
-    // ── Spy types ────────────────────────────────────────────────────────────
+    // â”€â”€ Spy types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private sealed class RecordingDdsWriter : IDdsWriter<CreateEntityRequest>
     {
@@ -54,7 +54,7 @@ public sealed class FeatureSwitchRcuIntegrationTests
             => _translator.PollIngress(view.GetCommandBuffer(), view);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static void SwitchExternalAndWait(EditorHarness harness)
     {
@@ -85,7 +85,7 @@ public sealed class FeatureSwitchRcuIntegrationTests
             throw t.Exception ?? (Exception)new TimeoutException("SwitchToInternalAsync timed out");
     }
 
-    // ── IT-3a ─────────────────────────────────────────────────────────────────
+    // â”€â”€ IT-3a â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void SwitchToExternal_EjectsLogicPacks_SpawnNoLongerLocal()
@@ -113,7 +113,7 @@ public sealed class FeatureSwitchRcuIntegrationTests
         Assert.Equal(0, harness.Repo.EntityCount);
     }
 
-    // ── IT-3b ─────────────────────────────────────────────────────────────────
+    // â”€â”€ IT-3b â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void SwitchToInternal_RestoresLogicPacks_SpawnWorksAgain()
@@ -133,7 +133,7 @@ public sealed class FeatureSwitchRcuIntegrationTests
             "After restoring Internal mode, spawn should create an entity");
     }
 
-    // ── IT-3c ─────────────────────────────────────────────────────────────────
+    // â”€â”€ IT-3c â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void RapidToggle_NoRaceCondition()
@@ -155,7 +155,7 @@ public sealed class FeatureSwitchRcuIntegrationTests
         Assert.True(harness.PumpUntil(() => harness.Repo.EntityCount == 1, PumpMs));
     }
 
-    // ── IT-3d (DDS spy) ───────────────────────────────────────────────────────
+    // â”€â”€ IT-3d (DDS spy) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Verifies that in External mode, SpawnEntityCommand is forwarded to the

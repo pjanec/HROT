@@ -24,9 +24,9 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </para>
     ///
     /// <para>
-    /// The <see cref="EntityDamage.Damage"/> wire field is a 0–100 damage level where
+    /// The <see cref="EntityDamage.Damage"/> wire field is a 0â€“100 damage level where
     /// 0 = fully healthy and 100 = fully destroyed/dead, derived from
-    /// <c>(1 − Current / Max) × 100</c>.
+    /// <c>(1 â’ Current / Max) Ă— 100</c>.
     /// </para>
     /// </summary>
     public class EntityDamageEgressTranslator : IDescriptorTranslator
@@ -41,7 +41,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// Cache of last-published <see cref="Health.Current"/> per network entity ID.
         ///
         /// <para>
-        /// <b>TD-9 — Memory leak risk:</b> entries are only removed in <see cref="Dispose(long)"/>,
+        /// <b>TD-9 â€” Memory leak risk:</b> entries are only removed in <see cref="Dispose(long)"/>,
         /// which is called by <c>CycloneNetworkCleanupSystem</c> during network entity teardown.
         /// In topologies where <c>CycloneNetworkCleanupSystem</c> is disabled or fails to run
         /// (e.g., abnormal process exit or certain test configurations), stale health entries for
@@ -76,7 +76,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
-            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
             foreach (var entity in query)
             {

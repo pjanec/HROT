@@ -53,11 +53,11 @@ namespace Hrot.Map.Common.Replication.Egress
             _localNodeId = localNodeId;
         }
 
-        // ── Ingress (egress-only) ────────────────────────────────────────────
+        // â”€â”€ Ingress (egress-only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
-        // ── Egress ───────────────────────────────────────────────────────────
+        // â”€â”€ Egress â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         public void ScanAndPublish(ISimulationView view)
         {
@@ -68,7 +68,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
-            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
             foreach (var entity in query)
             {

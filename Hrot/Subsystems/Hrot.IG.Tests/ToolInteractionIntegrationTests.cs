@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -16,8 +16,8 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication;
 using Raylib_cs;
 
 namespace Hrot.IG.Tests;

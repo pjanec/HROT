@@ -19,13 +19,13 @@ namespace Hrot.Map.Common.Replication
     ///
     /// <list type="bullet">
     ///   <item><description>
-    ///     <b>Muscle (egress)</b> — <see cref="ScanAndPublish"/> consumes
+    ///     <b>Muscle (egress)</b> â€” <see cref="ScanAndPublish"/> consumes
     ///     <see cref="OwnershipUpdateMsg"/> events published by <c>DeferredTakeoverSystem</c>
     ///     after it claims split-authority descriptors, and writes them to DDS so the Brain node
     ///     can drop its own authority bits via its local <c>OwnershipIngressSystem</c>.
     ///   </description></item>
     ///   <item><description>
-    ///     <b>Brain (ingress)</b> — <see cref="PollIngress"/> reads DDS samples and re-publishes
+    ///     <b>Brain (ingress)</b> â€” <see cref="PollIngress"/> reads DDS samples and re-publishes
     ///     them onto the local event bus so <c>OwnershipIngressSystem</c> can update
     ///     <see cref="DescriptorOwnership"/> and call <c>SetAuthority(entity, componentId, false)</c>.
     ///   </description></item>
@@ -48,7 +48,7 @@ namespace Hrot.Map.Common.Replication
         public string TopicName         => DdsTopicName;
         public long   DescriptorOrdinal => (long)EDescriptorType.dtOwnershipUpdate;
 
-        // Event-driven — no component ownership mapping needed.
+        // Event-driven â€” no component ownership mapping needed.
         public IReadOnlyList<int> TargetComponentIds => System.Array.Empty<int>();
 
         public OwnershipUpdateTranslator(DdsParticipant? participant, int localNodeId)
@@ -72,11 +72,11 @@ namespace Hrot.Map.Common.Replication
             var updates = view.ConsumeEvents<OwnershipUpdateMsg>();
             foreach (var evt in updates)
             {
-                // Only forward claims originated by this node to prevent DDS↔bus echo loops.
+                // Only forward claims originated by this node to prevent DDSâ†”bus echo loops.
                 if (evt.NewOwnerNodeId != _localNodeId)
                     continue;
 
-                var (typeId, instanceId) = Fdp.ModuleHost.Network.OwnershipExtensions.UnpackKey(evt.PackedKey);
+                var (typeId, instanceId) = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.UnpackKey(evt.PackedKey);
 
                 _writer.Write(new OwnershipUpdateWire
                 {
@@ -112,7 +112,7 @@ namespace Hrot.Map.Common.Replication
                 if (msg.NewOwner == _localNodeId)
                     continue;
 
-                long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey(msg.DescrTypeId, msg.InstanceId);
+                long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(msg.DescrTypeId, msg.InstanceId);
 
                 repo.Bus.Publish(new OwnershipUpdateMsg
                 {

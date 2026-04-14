@@ -5,20 +5,20 @@ using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Messages;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
 /// <summary>
-/// PACK2-R004 — IT-1: Offline Editor integration tests.
+/// PACK2-R004 â€” IT-1: Offline Editor integration tests.
 /// Exercises spawn / edit / delete command routing via EditorHarness
 /// without any DDS participant. Asserts that no DDS writer is ever called.
 /// </summary>
 [Collection("EditorOfflineTests")]
 public sealed class OfflineEditorIntegrationTests
 {
-    // ── Test double: counts DDS write calls ──────────────────────────────────
+    // â”€â”€ Test double: counts DDS write calls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private sealed class RecordingDdsWriter : IDdsWriter<CreateEntityRequest>
     {
@@ -27,7 +27,7 @@ public sealed class OfflineEditorIntegrationTests
         public void DisposeInstance(CreateEntityRequest key) { }
     }
 
-    // ── Test constants ────────────────────────────────────────────────────────
+    // â”€â”€ Test constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private const long  TestTkbType    = 1L;   // matches TkbTemplate registered in EditorHarness
     private const long  TestNetworkId  = 42L;  // deterministic; non-zero = no allocator call
@@ -56,7 +56,7 @@ public sealed class OfflineEditorIntegrationTests
 
         Assert.True(appeared, "Entity should appear in the local repo within 5 s");
         Assert.Equal(1, harness.Repo.EntityCount);
-        Assert.Equal(0, writer.CallCount); // no DDS translator packs installed → zero writes
+        Assert.Equal(0, writer.CallCount); // no DDS translator packs installed â†’ zero writes
     }
 
     // =========================================================================
@@ -82,7 +82,7 @@ public sealed class OfflineEditorIntegrationTests
         });
         Assert.True(harness.PumpUntil(() => harness.Repo.EntityCount == 1, PumpTimeoutMs));
 
-        // 2. Edit — shift 100 m north (Y axis)
+        // 2. Edit â€” shift 100 m north (Y axis)
         harness.Bus.PublishManaged(new UpdateEntityCommand
         {
             NetworkId          = TestNetworkId,
@@ -132,7 +132,7 @@ public sealed class OfflineEditorIntegrationTests
             Reason    = "test-delete",
         });
 
-        // 3. Assert removal (ELM takes 2–3 frames — PumpUntil handles this)
+        // 3. Assert removal (ELM takes 2â€“3 frames â€” PumpUntil handles this)
         bool removed = harness.PumpUntil(() => harness.Repo.EntityCount == 0, PumpTimeoutMs);
 
         Assert.True(removed, "Entity should be removed from repo within 5 s");

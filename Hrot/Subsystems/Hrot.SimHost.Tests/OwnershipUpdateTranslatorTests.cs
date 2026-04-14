@@ -26,7 +26,7 @@ namespace Hrot.SimHost.Tests
             var repo = new EntityRepository();
             repo.RegisterEvent<OwnershipUpdateMsg>();
 
-            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey(descriptorTypeId: 2, instanceId: 0);
+            long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(descriptorTypeId: 2, instanceId: 0);
 
             repo.Bus.Publish(new OwnershipUpdateMsg
             {

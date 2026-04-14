@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -7,7 +7,7 @@ using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Dds;

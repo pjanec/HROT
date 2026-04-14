@@ -40,14 +40,14 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Tkb;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
+using Fdp.Toolkit.Replication.Components;
 
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 using Fdp.Toolkit.NetworkSpawning;
 
 namespace Hrot.SimHost.Integration.Tests.Infrastructure
 {
-    // ── Stubs (DDS-free test doubles) ────────────────────────────────────────────
+    // â”€â”€ Stubs (DDS-free test doubles) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// In-memory request source: push <see cref="EntityCreationRequest"/> messages
@@ -130,7 +130,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         public void Dispose() { }
     }
 
-    // ── Simple ISystemRegistry adapter around SystemList ─────────────────────────
+    // â”€â”€ Simple ISystemRegistry adapter around SystemList â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Collects <see cref="IEcsModuleSystem"/> instances registered via
@@ -151,7 +151,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         }
     }
 
-    // ── Performance metrics ───────────────────────────────────────────────────────
+    // â”€â”€ Performance metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>Captured frame-rate statistics from a performance run.</summary>
     public sealed class PerformanceMetrics
@@ -162,7 +162,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         public int   FrameCount { get; init; }
     }
 
-    // ── SimHostInstance ───────────────────────────────────────────────────────────
+    // â”€â”€ SimHostInstance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Deterministic, DDS-free test harness that wires the complete SimHost pipeline
@@ -180,52 +180,52 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
     /// </summary>
     public sealed class SimHostInstance : IDisposable
     {
-        // ── ECS world ────────────────────────────────────────────────────────────
+        // â”€â”€ ECS world â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private readonly EntityRepository _world;
 
-        // ── Infrastructure ───────────────────────────────────────────────────────
+        // â”€â”€ Infrastructure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private readonly WGS84Transform   _wgs84;
         private readonly NetworkEntityMap _entityMap;
         private readonly TkbDatabase      _tkbDb;
         private readonly DoctrineRegistry _doctrineRegistry;
         private readonly EntityLifecycleModule _elm;
 
-        // ── Public world accessors (accessible to MockExConClient) ────────────────
+        // â”€â”€ Public world accessors (accessible to MockExConClient) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         public EntityRepository World    => _world;
         public NetworkEntityMap EntityMap => _entityMap;
 
-        // ── Public stubs (accessible to MockExConClient) ───────────────────────────
+        // â”€â”€ Public stubs (accessible to MockExConClient) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         public readonly StubRequestSource RequestSource = new();
         public readonly StubAckSink       AckSink       = new();
         public readonly StubIdAllocator   IdAllocator   = new(startId: 1000);
 
-        // ── Systems: IEcsModuleSystem-based (executed manually each tick) ────────────
+        // â”€â”€ Systems: IEcsModuleSystem-based (executed manually each tick) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private readonly CreateEntityRequestSystem      _requestSystem;
         private readonly NetworkSpawningSystem          _spawnSystem;
         private readonly EntityRequestFinalizationSystem   _finalizationSystem;
         private readonly SystemList                     _elmSystems  = new();
         private readonly SystemList                     _geoSystems  = new();
 
-        // ── Systems: ComponentSystem-based (executed via SystemGroup) ─────────────
+        // â”€â”€ Systems: ComponentSystem-based (executed via SystemGroup) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private readonly SystemGroup _inputGroup;
         private readonly SystemGroup _simGroup;
         private readonly SystemGroup _postSimGroup;
 
-        // ── Performance metrics ──────────────────────────────────────────────────
+        // â”€â”€ Performance metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private bool               _metricsEnabled;
         private readonly List<float> _frameTimes = new();
 
-        // ── Disposal flag ────────────────────────────────────────────────────────
+        // â”€â”€ Disposal flag â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private bool _disposed;
 
-        // ── Constructor ──────────────────────────────────────────────────────────
+        // â”€â”€ Constructor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         public SimHostInstance()
         {
-            // 1. World ─────────────────────────────────────────────────────────────
+            // 1. World â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             _world = BuildWorld();
 
-            // 2. Infrastructure ────────────────────────────────────────────────────
+            // 2. Infrastructure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             _wgs84 = new WGS84Transform();
             _wgs84.SetOrigin(32.0853, 34.7818, 10.0);   // Tel-Aviv origin (same as config.json)
 
@@ -233,11 +233,11 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _tkbDb            = BuildTkbDatabase();
             _doctrineRegistry = BuildDoctrineRegistry(_wgs84);
 
-            // 3. Entity lifecycle module (empty participant list → bypass ACK protocol) ─
+            // 3. Entity lifecycle module (empty participant list â†’ bypass ACK protocol) â”€
             _elm = new EntityLifecycleModule(_tkbDb, new List<int>());
             _elm.RegisterSystems(_elmSystems);
 
-            // 4. Request / spawn systems ────────────────────────────────────────────
+            // 4. Request / spawn systems â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             var jsonAttributeCompiler = AttributeCompilerFactory.Build(_wgs84);
             _finalizationSystem = new EntityRequestFinalizationSystem(AckSink, _entityMap);
             _requestSystem = new CreateEntityRequestSystem(
@@ -254,10 +254,10 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                         world.SetAuthority<SimTransform>(entity, true);
                 });
 
-            // 5. Geographic systems ─────────────────────────────────────────────────
+            // 5. Geographic systems â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             new GeographicModule(_wgs84).RegisterSystems(_geoSystems);
 
-            // 6. Simulation-logic SystemGroup ──────────────────────────────────────
+            // 6. Simulation-logic SystemGroup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             var roadNetwork    = new RoadNetworkBuilder().Build(10f, 100, 100);
             var trajectoryPool = new TrajectoryPoolManager();
 
@@ -284,12 +284,12 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             var physicsModule = new PhysicsToolkitModule();
             physicsModule.Initialize(_world);
 
-            // 7. Seed GlobalTime ────────────────────────────────────────────────────
+            // 7. Seed GlobalTime â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             const float dt = 1f / 60f;
             _world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = dt, TimeScale = 1.0f });
         }
 
-        // ── Public API ────────────────────────────────────────────────────────────
+        // â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// Creates a single entity synchronously.  Runs enough ticks to:
@@ -315,7 +315,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             RequestSource.Enqueue(request);
 
             // The restructured Tick() runs simulation first, then spawn.
-            // Tick 1: CreateEntityRequestSystem fires (in spawn phase) → SpawnEntityCommand
+            // Tick 1: CreateEntityRequestSystem fires (in spawn phase) â†’ SpawnEntityCommand
             //         published + ACK written; entity reaches Active within this same tick.
             Tick(1f / 60f);
 
@@ -547,7 +547,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             };
         }
 
-        // ── IDisposable ───────────────────────────────────────────────────────────
+        // â”€â”€ IDisposable â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         public void Dispose()
         {
@@ -565,7 +565,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _world.Dispose();
         }
 
-        // ── Internal tick loop ────────────────────────────────────────────────────
+        // â”€â”€ Internal tick loop â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// Executes one simulation tick in the correct system-phase order,
@@ -577,7 +577,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// When no spawn request is pending the lifecycle sub-swaps are skipped,
         /// so the single end-of-tick <see cref="EntityEventBus.SwapBuffers"/> makes
         /// this tick's simulation events (e.g. <c>AssignDoctrineEvent</c>) visible
-        /// on the read buffer for the next tick's input group — exactly mirroring
+        /// on the read buffer for the next tick's input group â€” exactly mirroring
         /// the production <c>SimHostApp.OnUpdate()</c> pattern.
         /// </para>
         ///
@@ -597,7 +597,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             // Update GlobalTime so ComponentSystem.DeltaTime is valid.
             _world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = dt, TimeScale = 1.0f });
 
-            // ── Phase 1: Simulation Logic ──────────────────────────────────────
+            // â”€â”€ Phase 1: Simulation Logic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // Matches SimHostApp.OnUpdate() order: simulation runs first on the
             // previous tick's read buffer so DoctrineIngressSystem and other input
             // systems correctly see events published in the prior tick.
@@ -605,25 +605,25 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _simGroup.Run();
             _postSimGroup.Run();
 
-            // ── Phase 2: Geographic systems ────────────────────────────────────
+            // â”€â”€ Phase 2: Geographic systems â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             _geoSystems.ExecuteAll(view, dt);
             cmdBuf.Playback(_world);
 
-            // ── Phase 3: Entity Spawn & Lifecycle ──────────────────────────────
+            // â”€â”€ Phase 3: Entity Spawn & Lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // Only execute the spawn pipeline (and its internal sub-swaps) when a
             // create-entity request is actually pending.  Skipping sub-swaps in
             // the common steady-state case preserves the simulation write-buffer
             // so the final swap below makes sim events available next tick.
             if (RequestSource.HasPendingRequests)
             {
-                // CreateEntityRequestSystem → publishes SpawnEntityCommand + writes ACK.
+                // CreateEntityRequestSystem â†’ publishes SpawnEntityCommand + writes ACK.
                 _requestSystem.Execute(view, dt);
 
                 // Sub-swap A: SpawnEntityCommand moves to read buffer so
                 // NetworkSpawningSystem.ConsumeManagedEvents can pick it up.
                 _world.Bus.SwapBuffers();
 
-                // NetworkSpawningSystem → consumes SpawnEntityCommand, creates ECS entity,
+                // NetworkSpawningSystem â†’ consumes SpawnEntityCommand, creates ECS entity,
                 // calls elm.BeginConstruction (publishes ConstructionOrder via cmd buf).
                 _spawnSystem.Execute(view, dt);
                 cmdBuf.Playback(_world);
@@ -648,7 +648,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             // finalization system can detect Active lifecycle and emit Success ACKs.
             _finalizationSystem.Execute(view, dt);
 
-            // ── Phase 4: Final swap ────────────────────────────────────────────
+            // â”€â”€ Phase 4: Final swap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // In non-spawn ticks: sim events written in Phase 1 move to the read
             // buffer and are visible to the next tick's input group.
             // In spawn ticks:  spawn sub-swaps have already cycled the write buffer;
@@ -674,17 +674,17 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 _world.SetLifecycleState(entity, EntityLifecycle.Active);
         }
 
-        // ── World factory ─────────────────────────────────────────────────────────
+        // â”€â”€ World factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private static EntityRepository BuildWorld()
         {
             var world = new EntityRepository();
 
-            // ── IG metadata component ─────────────────────────────────────────────
+            // â”€â”€ IG metadata component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             world.RegisterComponent<IG.Components.EntityInfo>();
             world.RegisterManagedComponent<ActiveMissionPlan>();
 
-            // ── Network components ────────────────────────────────────────────────
+            // â”€â”€ Network components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             world.RegisterComponent<NetworkIdentity>();
             world.RegisterComponent<NetworkOwnership>();
             world.RegisterComponent<NetworkAuthority>();
@@ -692,11 +692,11 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<GhostStateTracker>();
             world.RegisterComponent<PendingNetworkAck>();
 
-            // ── Geographic components ─────────────────────────────────────────────
+            // â”€â”€ Geographic components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
 
-            // ── Behavior toolkit components ────────────────────────────────────────
+            // â”€â”€ Behavior toolkit components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             world.RegisterComponent<DoctrineState>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
@@ -724,23 +724,23 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<Health>();
             world.RegisterComponent<BallisticProjectile>();
 
-            // ── CarKinem / Navigation components ──────────────────────────────────
+            // â”€â”€ CarKinem / Navigation components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             world.RegisterComponent<CarKinem.Core.VehicleState>();
             world.RegisterComponent<CarKinem.Core.VehicleParams>();
             world.RegisterComponent<CarKinem.Core.NavState>();
             world.RegisterComponent<CarKinem.Formation.FormationRoster>();
 
-            // ── Mission components ────────────────────────────────────────────────
+            // â”€â”€ Mission components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             world.RegisterComponent<MissionPlanQueue>();
 
-            // ── CQRS navigation contract (MOD1-P1T1 / CT-MOD1-C2) ─────────────────
+            // â”€â”€ CQRS navigation contract (MOD1-P1T1 / CT-MOD1-C2) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // These components live in NedTkbBuilder.WithBehavior templates
             // and are written/read by MoveToExecutor and NavigationExecutionSystem.
             world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
             world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationStatus>();
             world.RegisterComponent<CarKinem.Core.FrustrationTicks>();
 
-            // ── Lifecycle events ───────────────────────────────────────────────────
+            // â”€â”€ Lifecycle events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             world.RegisterEvent<ConstructionOrder>();
             world.RegisterEvent<ConstructionAck>();
             world.RegisterEvent<DestructionOrder>();
@@ -749,7 +749,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             return world;
         }
 
-        // ── TKB database factory ──────────────────────────────────────────────────
+        // â”€â”€ TKB database factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// Builds a <see cref="TkbDatabase"/> with Tank_M1Abrams template.
@@ -825,7 +825,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             db.Register(template);
         }
 
-        // ── Doctrine registry factory ─────────────────────────────────────────────
+        // â”€â”€ Doctrine registry factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private static DoctrineRegistry BuildDoctrineRegistry(Fdp.Modules.Geographic.IGeographicTransform wgs84)
         {

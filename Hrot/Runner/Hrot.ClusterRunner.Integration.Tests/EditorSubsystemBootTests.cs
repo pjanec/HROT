@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Toolkit.Runner;
@@ -11,7 +11,7 @@ using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Definitions.Tkb;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication;
 using Fdp.Core;
 using Xunit;
 

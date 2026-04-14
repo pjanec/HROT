@@ -50,11 +50,11 @@ namespace Hrot.Map.Common.Replication.Egress
             _localNodeId = localNodeId;
         }
 
-        // ── Ingress (egress-only — nothing to consume) ────────────────────────
+        // â”€â”€ Ingress (egress-only â€” nothing to consume) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
-		// ── Egress ────────────────────────────────────────────────────────────
+		// â”€â”€ Egress â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 		/// <summary>
 		/// Scans all authority-owned entities with <see cref="EntityInfo"/> and
@@ -69,7 +69,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 .WithLifecycle( EntityLifecycle.All)
                 .Build();
 
-            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
             foreach (var entity in query)
             {
@@ -77,7 +77,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (!view.HasAuthority(entity, packedKey))
                     continue;
 
-                // Smart egress: Hrot.NED.Descriptors.EntityInfo is RELIABLE — publish once on first
+                // Smart egress: Hrot.NED.Descriptors.EntityInfo is RELIABLE â€” publish once on first
                 // encounter, then only when the IgEntityData component is dirty.
                 if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
                     continue;
@@ -101,7 +101,7 @@ namespace Hrot.Map.Common.Replication.Egress
             }
         }
 
-        // ── Ghost promotion (n/a for egress-only translator) ─────────────────
+        // â”€â”€ Ghost promotion (n/a for egress-only translator) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
@@ -113,7 +113,7 @@ namespace Hrot.Map.Common.Replication.Egress
 			_writer.DisposeInstance(new Hrot.NED.Descriptors.EntityInfo { EntityId = (int)networkEntityId } );
         }
 
-        // ── Helpers ───────────────────────────────────────────────────────────
+        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private static eForceIdentifier MapForceId(ForceId forceId) =>
             forceId switch

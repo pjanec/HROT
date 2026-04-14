@@ -9,7 +9,7 @@ using CarKinem.Core;
 using CarKinem.Road;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication;
 
 namespace Hrot.SimHost.Tests;
 
@@ -18,16 +18,16 @@ namespace Hrot.SimHost.Tests;
 /// <see cref="SpawnEntityCommand"/> so that entities are visible on the network
 /// (not just local ghosts).
 ///
-/// Uses a lightweight <see cref="IEventBus"/> stub — no DDS or Raylib required.
+/// Uses a lightweight <see cref="IEventBus"/> stub â€” no DDS or Raylib required.
 /// </summary>
 public class SpawnEntityCommandTests
 {
-    // ── Test constants (§CODE-STANDARDS §1) ───────────────────────────────────
+    // â”€â”€ Test constants (Â§CODE-STANDARDS Â§1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static readonly Vector2 DefaultPos     = new(100f, 200f);
     private static readonly Vector2 DefaultHeading = Vector2.UnitX; // East
 
-    // ── Bus stub ──────────────────────────────────────────────────────────────
+    // â”€â”€ Bus stub â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Capturing IEventBus implementation that records all managed publications.
@@ -44,7 +44,7 @@ public class SpawnEntityCommandTests
         public void PublishManaged<T>(T evt) => ManagedEvents.Add(evt!);
     }
 
-    // ── Factory ───────────────────────────────────────────────────────────────
+    // â”€â”€ Factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static (SimHostScenarioManager Sut, CapturingBus Bus) CreateSut()
     {
@@ -70,9 +70,9 @@ public class SpawnEntityCommandTests
         return (SpawnEntityCommand)bus.ManagedEvents[0];
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // P1-002-T1: TKB type mapping
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>Tank vehicle class must map to Tank_M1Abrams TKB type.</summary>
     [Fact]
@@ -104,15 +104,15 @@ public class SpawnEntityCommandTests
     {
         var (sut, bus) = CreateSut();
 
-        sut.SpawnVehicle(DefaultPos, DefaultHeading); // default = PersonalCar → maps to HMMWV
+        sut.SpawnVehicle(DefaultPos, DefaultHeading); // default = PersonalCar â†’ maps to HMMWV
 
         var cmd = ExtractCommand(bus);
         Assert.Equal(TkbEntityTypes.Truck_HMMWV, cmd.TkbType);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // P1-002-T2: Command structure
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>Published command must have NetworkId = 0 so DdsIdAllocator assigns one.</summary>
     [Fact]

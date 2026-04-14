@@ -11,8 +11,8 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Tkb;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.NetworkSpawning;
 
 namespace Hrot.IG.Tests;
@@ -20,7 +20,7 @@ namespace Hrot.IG.Tests;
 /// <summary>
 /// Integration tests verifying that <see cref="SpawningModule"/> correctly
 /// hosts <see cref="NetworkSpawningSystem"/> and that the full
-/// SpawnEntityCommand → ECS-entity lifecycle works end-to-end using the
+/// SpawnEntityCommand â†’ ECS-entity lifecycle works end-to-end using the
 /// IG node configuration (node ID = <see cref="IgNetworkConstants.LocalNodeId"/>).
 ///
 /// No DDS or network components are required.  The tests publish commands
@@ -28,11 +28,11 @@ namespace Hrot.IG.Tests;
 /// </summary>
 public class SpawningModuleIntegrationTests
 {
-    // ── Constants ─────────────────────────────────────────────────────────────
+    // â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private const long  TestTkbType   = 101L;
     private const long  TestNetworkId = 500L;
 
-    // ── Stub allocator ────────────────────────────────────────────────────────
+    // â”€â”€ Stub allocator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private sealed class StubIdAllocator : INetworkIdAllocator
     {
@@ -43,7 +43,7 @@ public class SpawningModuleIntegrationTests
         public void Dispose() { }
     }
 
-    // ── World factory ─────────────────────────────────────────────────────────
+    // â”€â”€ World factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private (EntityRepository repo, NetworkSpawningSystem system, NetworkEntityMap entityMap)
         BuildWorld()
@@ -81,7 +81,7 @@ public class SpawningModuleIntegrationTests
         cb.Playback(repo);
     }
 
-    // ── Module property contracts ─────────────────────────────────────────────
+    // â”€â”€ Module property contracts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void SpawningModule_Name_IsNetworkSpawning()
@@ -103,7 +103,7 @@ public class SpawningModuleIntegrationTests
         Assert.Equal(RunMode.Synchronous, module.Policy.Mode);
     }
 
-    // ── SpawnEntityCommand → entity manifests ─────────────────────────────────
+    // â”€â”€ SpawnEntityCommand â†’ entity manifests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// After a <see cref="SpawnEntityCommand"/> is published and the spawning
@@ -164,7 +164,7 @@ public class SpawningModuleIntegrationTests
 
     /// <summary>
     /// A second SpawnEntityCommand with the same NetworkId must be ignored
-    /// (entity already known — no duplicate entity created).
+    /// (entity already known â€” no duplicate entity created).
     /// </summary>
     [Fact]
     public void SpawnCommand_DuplicateNetworkId_DoesNotCreateSecondEntity()

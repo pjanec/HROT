@@ -12,12 +12,12 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Tkb;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.NetworkSpawning;
 
 namespace Hrot.SimHost.Tests
 {
-    // ─── Stubs ────────────────────────────────────────────────────────────────
+    // â”€â”€â”€ Stubs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     internal sealed class StubIdAllocator : INetworkIdAllocator
     {
@@ -68,7 +68,7 @@ namespace Hrot.SimHost.Tests
         public void Dispose() { }
     }
 
-    // ─── Tests ────────────────────────────────────────────────────────────────
+    // â”€â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public class CreateEntityRequestSystemTests
     {
@@ -77,7 +77,7 @@ namespace Hrot.SimHost.Tests
         private const ulong ValidDisType  = 0x0100_0000_0000_0001UL;
         private const int   LocalNodeId   = 7;
 
-        // ── Fixture helpers ──────────────────────────────────────────────────
+        // â”€â”€ Fixture helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private static TkbDatabase CreateTkb()
         {
@@ -120,7 +120,7 @@ namespace Hrot.SimHost.Tests
             return (system, ackSink, idAlloc);
         }
 
-        // ── Tests ────────────────────────────────────────────────────────────
+        // â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         public void ProcessRequest_ValidTkbType_PublishesSpawnEntityCommand()
@@ -137,7 +137,7 @@ namespace Hrot.SimHost.Tests
             // Act
             system.Execute(repo, 0f);
 
-            // Assert: SpawnEntityCommand must be in the write buffer — swap to make it visible
+            // Assert: SpawnEntityCommand must be in the write buffer â€” swap to make it visible
             repo.Bus.SwapBuffers();
             var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
 
@@ -195,12 +195,12 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((int)EntityOperationStatus.InProgress, ackSink.WrittenAcks[0].StatusCode);
         }
 
-        // ── GC04: Time-slicing ────────────────────────────────────────────────
+        // â”€â”€ GC04: Time-slicing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         public void TimeSlicing_OnThousandRequests_DispatchesExactlyMaxPerTickOnFirstFrame()
         {
-            // Arrange — enqueue 1000 valid requests.
+            // Arrange â€” enqueue 1000 valid requests.
             const int TotalRequests = 1000;
             var repo   = CreateWorld();
             var tkb    = CreateTkb();
@@ -210,7 +210,7 @@ namespace Hrot.SimHost.Tests
 
             var (system, _, _) = BuildSystem(tkb, source);
 
-            // Act — single tick.
+            // Act â€” single tick.
             system.Execute(repo, 0f);
 
             // Assert: exactly MaxRequestsPerTick commands published this tick.
@@ -226,7 +226,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void TimeSlicing_OnThousandRequests_AcksAllSentOnFirstFrame()
         {
-            // Arrange — enqueue 1000 valid requests.
+            // Arrange â€” enqueue 1000 valid requests.
             const int TotalRequests = 1000;
             var repo   = CreateWorld();
             var tkb    = CreateTkb();
@@ -240,7 +240,7 @@ namespace Hrot.SimHost.Tests
                 source, ackSink, tkb, idAlloc, LocalNodeId,
                 jsonAttributeCompiler: null);
 
-            // Act — single tick.
+            // Act â€” single tick.
             system.Execute(repo, 0f);
 
             // Assert: all 1000 Phase-1 InProgress ACKs sent synchronously, even though
@@ -254,7 +254,7 @@ namespace Hrot.SimHost.Tests
 
         [Fact]
         public void TimeSlicing_SecondFrame_ProcessesRemainingRequests()
-        {            // Arrange — enqueue exactly MaxRequestsPerTick + 1 requests.
+        {            // Arrange â€” enqueue exactly MaxRequestsPerTick + 1 requests.
             int totalRequests = CreateEntityRequestSystem.MaxRequestsPerTick + 1;
             var repo   = CreateWorld();
             var tkb    = CreateTkb();
@@ -264,14 +264,14 @@ namespace Hrot.SimHost.Tests
 
             var (system, _, _) = BuildSystem(tkb, source);
 
-            // Act — first tick: should dispatch MaxRequestsPerTick, leave 1 in queue.
+            // Act â€” first tick: should dispatch MaxRequestsPerTick, leave 1 in queue.
             system.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
             var firstFrameCmds = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
             // Capture count *before* a second swap clears the backing buffer.
             int firstFrameCount = firstFrameCmds.Count;
 
-            // Act — second tick: source is empty, queue has 1 item.
+            // Act â€” second tick: source is empty, queue has 1 item.
             system.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
             var secondFrameCmds = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
@@ -282,7 +282,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, system.PendingQueueCount);
         }
 
-        // ── ATTR-JSON: JSON attribute path ────────────────────────────────────────
+        // â”€â”€ ATTR-JSON: JSON attribute path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private static EntityRepository CreateWorldWithIgEntityData()
         {
@@ -333,11 +333,11 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("Delta", entityData.Name.ToString());
         }
 
-        // ── BD1-P7T1: Delegate caching ────────────────────────────────────────
+        // â”€â”€ BD1-P7T1: Delegate caching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// BD1-P7T1 SC1: The delegate passed to <c>ProcessRequests</c> must be the same
-        /// cached instance on every <c>Execute</c> call — ReferenceEquals must return
+        /// cached instance on every <c>Execute</c> call â€” ReferenceEquals must return
         /// <c>true</c> across two separate Execute invocations.
         /// </summary>
         [Fact]
@@ -364,7 +364,7 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// BD1-P7T1 SC2: Refactored path must preserve existing behaviour —
+        /// BD1-P7T1 SC2: Refactored path must preserve existing behaviour â€”
         /// a valid request still produces a SpawnEntityCommand and an ACK.
         /// </summary>
         [Fact]
@@ -378,7 +378,7 @@ namespace Hrot.SimHost.Tests
             var (system, ackSink, _) = BuildSystem(tkb, source);
             system.Execute(repo, 0f);
 
-            // ACK sent (Phase-1 InProgress — Phase-2 is dispatched by NedRequestFinalizationSystem).
+            // ACK sent (Phase-1 InProgress â€” Phase-2 is dispatched by NedRequestFinalizationSystem).
             Assert.Single(ackSink.WrittenAcks);
             Assert.Equal((int)EntityOperationStatus.InProgress, ackSink.WrittenAcks[0].StatusCode);
 
@@ -389,7 +389,7 @@ namespace Hrot.SimHost.Tests
         }
     }
 
-    // ── Delegate capture test helper ─────────────────────────────────────────
+    // â”€â”€ Delegate capture test helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// A <see cref="ICreateEntityRequestSource"/> stub that records the delegate

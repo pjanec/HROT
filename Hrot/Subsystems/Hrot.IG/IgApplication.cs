@@ -109,9 +109,7 @@ using Fdp.ModuleHost;
 
 using Fdp.ModuleHost.Abstractions;
 
-using Fdp.ModuleHost.Network;
-
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication;
 
 using Fdp.Network.Cyclone.Modules;
 

@@ -1,5 +1,5 @@
 using Fdp.Toolkit.Replication.Patching;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication.Abstractions;
 
 namespace Hrot.Core.Network;
 

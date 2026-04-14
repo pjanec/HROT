@@ -125,7 +125,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             NetworkId   = networkId,
             TkbType     = tkbType,
             OwnerNodeId = _context.NodeId,
-            InitType    = Fdp.ModuleHost.Network.Interfaces.ReliableInitType.AllPeers,
+            InitType    = Fdp.Toolkit.Replication.ReliableInitType.AllPeers,
             RequestId   = System.Guid.Empty,
         });
 

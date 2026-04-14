@@ -12,7 +12,7 @@ using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.UI.Common.Facades;
 using Hrot.ScenarioEditor.Tools;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication;
 
 namespace Hrot.Editor.Adapters
 {
@@ -20,9 +20,9 @@ namespace Hrot.Editor.Adapters
     /// Implements <see cref="ISpawnController"/> for the offline editor.
     /// Translates spawn requests into <see cref="MapCanvas"/> tool activations:
     /// <list type="bullet">
-    ///   <item>Entity placement → <see cref="CreationTool"/> pushed onto the canvas.</item>
-    ///   <item>Area authoring → <see cref="PointSequenceTool"/> pushed onto the canvas.</item>
-    ///   <item>Route authoring → <see cref="PointSequenceTool"/> pushed onto the canvas.</item>
+    ///   <item>Entity placement â†’ <see cref="CreationTool"/> pushed onto the canvas.</item>
+    ///   <item>Area authoring â†’ <see cref="PointSequenceTool"/> pushed onto the canvas.</item>
+    ///   <item>Route authoring â†’ <see cref="PointSequenceTool"/> pushed onto the canvas.</item>
     /// </list>
     /// No DDS or CycloneDDS references; all dispatch is done through the in-process
     /// <see cref="FdpEventBus"/>.
@@ -44,7 +44,7 @@ namespace Hrot.Editor.Adapters
         /// <param name="canvas">The map canvas that hosts the tool stack.</param>
         /// <param name="bus">The local FDP event bus used to route spawn commands.</param>
         /// <param name="jsonCompiler">
-        /// The JSON→ECS attribute compiler (from <c>AttributeCompilerFactory.Build</c>).
+        /// The JSONâ†’ECS attribute compiler (from <c>AttributeCompilerFactory.Build</c>).
         /// Used to parse <c>InitialAttributesJson</c> into concrete ECS component objects
         /// so the offline spawning pipeline attaches <see cref="EntityInfo"/> (name,
         /// affiliation) without going through the DDS pipeline.
@@ -126,7 +126,7 @@ namespace Hrot.Editor.Adapters
 
         /// <inheritdoc/>
         /// <remarks>
-        /// Pushes a <see cref="PointSequenceTool"/> requiring ≥ 3 points.
+        /// Pushes a <see cref="PointSequenceTool"/> requiring â‰Ą 3 points.
         /// On completion, emits a <see cref="SpawnEntityCommand"/> carrying an
         /// <see cref="EditablePolyline"/> and optional <see cref="MapOverlayStyle"/>.
         /// </remarks>
@@ -176,7 +176,7 @@ namespace Hrot.Editor.Adapters
 
         /// <inheritdoc/>
         /// <remarks>
-        /// Pushes a <see cref="PointSequenceTool"/> requiring ≥ 2 points.
+        /// Pushes a <see cref="PointSequenceTool"/> requiring â‰Ą 2 points.
         /// On completion, emits a <see cref="SpawnEntityCommand"/> carrying a
         /// <see cref="RoutePlan"/>.
         /// </remarks>

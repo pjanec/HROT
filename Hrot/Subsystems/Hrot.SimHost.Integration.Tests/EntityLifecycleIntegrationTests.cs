@@ -14,7 +14,7 @@ using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Network.Cyclone.Services;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication;
 
 namespace Hrot.SimHost.Integration.Tests;
 

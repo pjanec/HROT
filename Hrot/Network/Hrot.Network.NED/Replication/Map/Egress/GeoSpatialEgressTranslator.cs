@@ -80,8 +80,8 @@ namespace Hrot.Map.Common.Replication.Egress
         /// the <see cref="NetworkTransform"/> shadow component, which stores the position and
         /// rotation that were last sent to the network.  A packet is sent when:
         /// <list type="bullet">
-        ///   <item>The entity has moved more than 1 cm² (Position threshold).</item>
-        ///   <item>The entity has rotated by more than ~0.5° (Quaternion dot threshold).</item>
+        ///   <item>The entity has moved more than 1 cmÂ˛ (Position threshold).</item>
+        ///   <item>The entity has rotated by more than ~0.5Â° (Quaternion dot threshold).</item>
         ///   <item>A salted 600-tick heartbeat fires (UDP loss recovery).</item>
         /// </list>
         /// This bypass of <c>SmartEgressUtil</c> keeps the hot path entirely in unmanaged
@@ -105,11 +105,11 @@ namespace Hrot.Map.Common.Replication.Egress
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
-            const float PositionThresholdSq = 0.0001f; // 1 cm²  — avoids spurious sends from float noise
-            const float RotationDotThreshold = 0.9999f; // ~0.5° arc — Quaternion.Dot == 1 when identical
+            const float PositionThresholdSq = 0.0001f; // 1 cmÂ˛  â€” avoids spurious sends from float noise
+            const float RotationDotThreshold = 0.9999f; // ~0.5Â° arc â€” Quaternion.Dot == 1 when identical
             const uint  HeartbeatInterval   = 600;      // 10 s at 60 Hz for UDP loss recovery
 
-            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
             foreach (var entity in query)
             {
@@ -120,7 +120,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 ref readonly var simTf = ref view.GetComponentRO<SimTransform>(entity);
                 ref var          netTf = ref repo.GetComponentRW<NetworkTransform>(entity);
 
-                // Shadow comparison — entirely in unmanaged memory, no heap allocations.
+                // Shadow comparison â€” entirely in unmanaged memory, no heap allocations.
                 bool hasMoved   = Vector3.DistanceSquared(simTf.Position, netTf.LastPosition) > PositionThresholdSq;
                 bool hasRotated = Math.Abs(Quaternion.Dot(simTf.Rotation, netTf.LastRotation)) < RotationDotThreshold;
 
@@ -138,7 +138,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
-                // Direct conversion: SimTransform (Cartesian) → WorldPos (Geodetic)
+                // Direct conversion: SimTransform (Cartesian) â†’ WorldPos (Geodetic)
                 var (lat, lon, alt) = _geoTransform.ToGeodetic(simTf.Position);
                 float heading = SimTransformBridgeSystem.RotationToHeadingDeg(simTf.Rotation);
                 SimTransformBridgeSystem.RotationToPitchRollDeg(simTf.Rotation, out float pitch, out float roll);

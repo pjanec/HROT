@@ -7,21 +7,21 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Common.Orchestration.Handlers;
 using Hrot.NED.Descriptors.Orchestration;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
 /// <summary>
-/// PACK3-U003 — IT-5: Headless Editor Preview / Rewind integration test.
+/// PACK3-U003 â€” IT-5: Headless Editor Preview / Rewind integration test.
 ///
 /// <para>Proves the full memory-snapshot lifecycle:</para>
 /// <list type="number">
 ///   <item>Spawn an entity and move it to (100, 0, 0).</item>
-///   <item><c>LoadingPreview</c> — snapshot captured.</item>
-///   <item>Move entity to (999, 0, 0) — dirty preview state.</item>
-///   <item><c>UnloadingPreview</c> — entity rewound to (100, 0, 0).</item>
-///   <item><c>SaveScenario → NewScenario → LoadScenario</c> — file round-trip.</item>
+///   <item><c>LoadingPreview</c> â€” snapshot captured.</item>
+///   <item>Move entity to (999, 0, 0) â€” dirty preview state.</item>
+///   <item><c>UnloadingPreview</c> â€” entity rewound to (100, 0, 0).</item>
+///   <item><c>SaveScenario â†’ NewScenario â†’ LoadScenario</c> â€” file round-trip.</item>
 /// </list>
 ///
 /// <para>No DDS or network calls are made. Test runs entirely in memory.</para>
@@ -46,11 +46,11 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
     {
         using var harness = new EditorHarness();
 
-        // ── Step 1: Start fresh ───────────────────────────────────────────────
+        // â”€â”€ Step 1: Start fresh â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         harness.Editor.NewScenario();
         harness.PumpFrames(1);
 
-        // ── Step 2: Spawn entity ──────────────────────────────────────────────
+        // â”€â”€ Step 2: Spawn entity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
             TkbType     = TestTkbType,
@@ -62,12 +62,12 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
             harness.PumpUntil(() => harness.Repo.EntityCount == 1, PumpTimeoutMs),
             "Entity should appear within 5 s");
 
-        // ── Step 3: Find the spawned entity ───────────────────────────────────
+        // â”€â”€ Step 3: Find the spawned entity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Assert.True(
             harness.EntityMap.TryGetEntity(TestNetworkId, out var spawnedEntity),
             "EntityMap must contain the spawned entity");
 
-        // ── Step 4: Move entity to (100, 0, 0) ───────────────────────────────
+        // â”€â”€ Step 4: Move entity to (100, 0, 0) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         harness.Bus.PublishManaged(new UpdateEntityCommand
         {
             NetworkId          = TestNetworkId,
@@ -82,13 +82,13 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
         var tfBeforePreview = harness.Repo.GetComponent<SimTransform>(spawnedEntity);
         Assert.Equal(100f, tfBeforePreview.Position.X, precision: 2);
 
-        // ── Step 5: Capture snapshot (LoadingPreview) ─────────────────────────
+        // â”€â”€ Step 5: Capture snapshot (LoadingPreview) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         var handler = new PreviewClusterOpHandler(harness.Repo);
         handler.Commit(
             new NodeOpCommand { PayloadJson = "{\"TargetState\": 20}" },
             null);
 
-        // ── Step 6: Move entity to (999, 0, 0) in preview ────────────────────
+        // â”€â”€ Step 6: Move entity to (999, 0, 0) in preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         harness.Bus.PublishManaged(new UpdateEntityCommand
         {
             NetworkId          = TestNetworkId,
@@ -99,30 +99,30 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
         });
         harness.PumpFrames(5);
 
-        // ── Step 7: Assert preview state visible ──────────────────────────────
+        // â”€â”€ Step 7: Assert preview state visible â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         var tfDuringPreview = harness.Repo.GetComponent<SimTransform>(spawnedEntity);
         Assert.Equal(999f, tfDuringPreview.Position.X, precision: 2);
 
-        // ── Step 8: Rewind (UnloadingPreview) ────────────────────────────────
+        // â”€â”€ Step 8: Rewind (UnloadingPreview) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         handler.Commit(
             new NodeOpCommand { PayloadJson = "{\"TargetState\": 22}" },
             null);
 
-        // ── Step 9: Assert state restored to snapshot ─────────────────────────
+        // â”€â”€ Step 9: Assert state restored to snapshot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         var tfAfterRewind = harness.Repo.GetComponent<SimTransform>(spawnedEntity);
         Assert.Equal(100f, tfAfterRewind.Position.X, precision: 2);
 
-        // ── Step 10: Save scenario ────────────────────────────────────────────
+        // â”€â”€ Step 10: Save scenario â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         harness.Editor.SaveScenario(_tempFile);
         Assert.True(File.Exists(_tempFile), "Saved scenario file must exist");
         Assert.True(new FileInfo(_tempFile).Length > 0, "Saved scenario file must not be empty");
 
-        // ── Step 11: NewScenario — assert world is empty ──────────────────────
+        // â”€â”€ Step 11: NewScenario â€” assert world is empty â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         harness.Editor.NewScenario();
         harness.PumpFrames(2);
         Assert.Equal(0, harness.Repo.EntityCount);
 
-        // ── Step 12: LoadScenario — assert entity restored ────────────────────
+        // â”€â”€ Step 12: LoadScenario â€” assert entity restored â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         harness.Editor.LoadScenario(_tempFile);
         harness.PumpFrames(5);
 

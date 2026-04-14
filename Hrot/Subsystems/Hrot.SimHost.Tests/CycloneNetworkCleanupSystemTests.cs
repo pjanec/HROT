@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
-using Fdp.ModuleHost.Network;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Network.Cyclone.Systems;
 using Xunit;
@@ -16,7 +16,7 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public class CycloneNetworkCleanupSystemTests
     {
-        // ── Helpers ───────────────────────────────────────────────────────────
+        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>Minimal world with the components the cleanup system queries.</summary>
         private static EntityRepository CreateWorld()
@@ -44,7 +44,7 @@ namespace Hrot.SimHost.Tests
             return entity;
         }
 
-        // ── Mock translator ───────────────────────────────────────────────────
+        // â”€â”€ Mock translator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private sealed class MockTranslator : Fdp.Interfaces.IDescriptorTranslator
         {
@@ -64,7 +64,7 @@ namespace Hrot.SimHost.Tests
             }
         }
 
-        // ── BUG1-N002 Tests ───────────────────────────────────────────────────
+        // â”€â”€ BUG1-N002 Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         public void AllTranslatorsReceiveDispose_WhenEntityDies()
@@ -118,7 +118,7 @@ namespace Hrot.SimHost.Tests
             var t1     = new MockTranslator();
             var system = new CycloneNetworkCleanupSystem(new[] { t1 });
 
-            // PrimaryOwner=2, Local=1 → not authoritative
+            // PrimaryOwner=2, Local=1 â†’ not authoritative
             var entity = CreateAuthoritativeEntity(repo, netId: 300L, primaryOwner: 2, localNode: 1);
 
             system.Execute(repo, 0f);
@@ -140,7 +140,7 @@ namespace Hrot.SimHost.Tests
             system.Execute(repo, 0f);
             system.Execute(repo, 0f);
 
-            // Entity is still alive → no dispose
+            // Entity is still alive â†’ no dispose
             Assert.Empty(t1.DisposedIds);
         }
 

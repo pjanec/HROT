@@ -23,7 +23,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class NavigationStatusEgressTranslator : IDescriptorTranslator
     {
-        // ── DDS writer ────────────────────────────────────────────────────────
+        // â”€â”€ DDS writer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private readonly DdsWriter<Hrot.NED.Descriptors.NavigationStatus> _writer;
         private readonly NetworkEntityMap _entityMap;
@@ -36,10 +36,10 @@ namespace Hrot.Map.Common.Replication.Egress
         private static readonly IReadOnlyList<int> _targetIds = new int[] { Fdp.Toolkit.Navigation.NavigationContractsComponentIds.NavigationStatus };
         public IReadOnlyList<int> TargetComponentIds => _targetIds;
 
-        // ── Per-entity change-detection cache ────────────────────────────────
+        // â”€â”€ Per-entity change-detection cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Avoids publishing on every tick when the status is unchanging.
         // Keyed by Entity; value is the last-published (IntentId, Result).
-        // ProgressS is omitted from the key — it is included unconditionally
+        // ProgressS is omitted from the key â€” it is included unconditionally
         // in the publish payload but does not trigger a new publish on its own.
         private readonly Dictionary<Entity, (uint IntentId, EcsNavResult Result)> _lastPublished = new();
 
@@ -73,7 +73,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
-            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
             foreach (var entity in query)
             {
@@ -125,7 +125,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 _lastPublished.Remove(entity);
         }
 
-        // ── Enum mapping ──────────────────────────────────────────────────────
+        // â”€â”€ Enum mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private static ENavigationResult MapResult(EcsNavResult result) => result switch
         {

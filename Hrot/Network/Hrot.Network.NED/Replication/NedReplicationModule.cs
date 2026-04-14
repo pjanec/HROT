@@ -21,7 +21,7 @@ using Fdp.ModuleHost.Scheduling;
 using Fdp.Network.Cyclone.Modules;
 using Fdp.Network.Cyclone.Systems;
 using FdpIDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
-using DescriptorOwnershipMap    = Fdp.ModuleHost.Network.DescriptorOwnershipMap;
+using DescriptorOwnershipMap    = Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap;
 using EDescriptorType           = Hrot.NED.Descriptors.EDescriptorType;
 
 namespace Hrot.Network.Replication;
