@@ -12,4 +12,10 @@ namespace Fdp.Toolkit.Time.Domain
         public long FrameID;
         public int  NodeID;
     }
+
+    // Stub intents for future bus-driven time control (wired in HEXAG2-S010/S011).
+    public struct PauseTimeIntent    { }
+    public struct ResumeTimeIntent   { }
+    public struct StepTimeIntent     { public float DeltaSeconds; }
+    public struct SetTimeScaleIntent { public float TimeScale; }
 }
