@@ -3,15 +3,15 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using Xunit;
 using CycloneDDS.Runtime;
-using Fdp.ModuleHost.Network.Cyclone.Translators;
+using Fdp.Network.Cyclone.Translators;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost.Network.Cyclone.Topics;
+using Fdp.Network.Cyclone.Topics;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Tests.Translators
+namespace Fdp.Network.Cyclone.Tests.Translators
 {
     public class AutoCycloneTranslatorTests : IDisposable
     {
@@ -34,7 +34,7 @@ namespace Fdp.ModuleHost.Network.Cyclone.Tests.Translators
         public void Constructor_ValidatesLayout()
         {
             // Should succeed for EntityMasterTopic (has long EntityId at offset 0)
-            // Note: EntityMasterTopic is a valid DDS Topic defined in ModuleHost.Network.Cyclone
+            // Note: EntityMasterTopic is a valid DDS Topic defined in Network.Cyclone
             var translator = new AutoCycloneTranslator<EntityMasterTopic>(
                 _participant, "SST_EntityMaster", 1, _entityMap,
                 new GhostCreationSystem(_entityMap));

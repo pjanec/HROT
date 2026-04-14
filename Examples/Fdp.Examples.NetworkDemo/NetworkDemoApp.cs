@@ -30,10 +30,10 @@ using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Time.Controllers;
-using Fdp.ModuleHost.Network.Cyclone;
-using Fdp.ModuleHost.Network.Cyclone.Services;
-using Fdp.ModuleHost.Network.Cyclone.Modules;
-using Fdp.ModuleHost.Network.Cyclone.Providers;
+using Fdp.Network.Cyclone;
+using Fdp.Network.Cyclone.Services;
+using Fdp.Network.Cyclone.Modules;
+using Fdp.Network.Cyclone.Providers;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using NLog;
@@ -128,7 +128,7 @@ namespace Fdp.Examples.NetworkDemo
             // Force simple ID mapping for Demo/Test to ensure uniqueness in shared process
             nodeMapper = new NodeIdMapper(localDomain: 0, localInstance: instanceId);
             // Use Mapper to get consistent internal IDs (Local matches 1, Peers get 2, 3...)
-            localInternalId = nodeMapper.GetOrRegisterInternalId(new Fdp.ModuleHost.Network.Cyclone.Topics.NetworkAppId { AppDomainId = 0, AppInstanceId = instanceId });
+            localInternalId = nodeMapper.GetOrRegisterInternalId(new Fdp.Network.Cyclone.Topics.NetworkAppId { AppDomainId = 0, AppInstanceId = instanceId });
             
             INetworkIdAllocator? idAllocator = null;
             if (enableNetwork && participant != null)
@@ -137,7 +137,7 @@ namespace Fdp.Examples.NetworkDemo
             }
             
             var peerInstances = new int[] { 100, 200 }.Where(x => x != instanceId).ToArray();
-            var peerInternalIds = peerInstances.Select(p => nodeMapper.GetOrRegisterInternalId(new Fdp.ModuleHost.Network.Cyclone.Topics.NetworkAppId { AppDomainId = 0, AppInstanceId = p })).ToArray();
+            var peerInternalIds = peerInstances.Select(p => nodeMapper.GetOrRegisterInternalId(new Fdp.Network.Cyclone.Topics.NetworkAppId { AppDomainId = 0, AppInstanceId = p })).ToArray();
             var topology = new StaticNetworkTopology(localNodeId: localInternalId, peerInternalIds);
 
             // --- 2. TKB & Serialization ---
@@ -334,7 +334,7 @@ namespace Fdp.Examples.NetworkDemo
                  var entity = World.CreateEntity();
                  World.AddComponent(entity, new NetworkIdentity { Value = 999 });
                  World.AddComponent(entity, new FDP.Toolkit.Replication.Components.NetworkAuthority { 
-                     PrimaryOwnerId = nodeMapper.GetOrRegisterInternalId(new Fdp.ModuleHost.Network.Cyclone.Topics.NetworkAppId { AppDomainId = 0, AppInstanceId = 100 }), 
+                     PrimaryOwnerId = nodeMapper.GetOrRegisterInternalId(new Fdp.Network.Cyclone.Topics.NetworkAppId { AppDomainId = 0, AppInstanceId = 100 }), 
                      LocalNodeId = localInternalId 
                  });
                  World.AddComponent(entity, new Fdp.Examples.NetworkDemo.Components.TimeModeComponent());

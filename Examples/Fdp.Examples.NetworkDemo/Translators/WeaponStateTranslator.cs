@@ -7,7 +7,7 @@ using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Extensions;
 using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.ModuleHost_Core.Network;
-using Fdp.ModuleHost.Network.Cyclone.Translators;
+using Fdp.Network.Cyclone.Translators;
 using CycloneDDS.Runtime;
 
 namespace Fdp.Examples.NetworkDemo.Translators

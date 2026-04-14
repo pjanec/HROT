@@ -28,7 +28,7 @@ using FDP.Toolkit.Time.Controllers;
 using Fdp.ModuleHost_Core;
 using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.ModuleHost_Core.Network;
-using Fdp.ModuleHost.Network.Cyclone.Topics;
+using Fdp.Network.Cyclone.Topics;
 
 namespace Fdp.Examples.Scenarios.Network
 {

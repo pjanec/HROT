@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Fdp.Interfaces;
 using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost.Network.Cyclone.Systems;
+using Fdp.Network.Cyclone.Systems;
 
 namespace Fdp.Examples.NetworkDemo.Modules
 {

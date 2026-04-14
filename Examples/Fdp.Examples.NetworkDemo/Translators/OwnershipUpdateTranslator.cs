@@ -5,12 +5,12 @@ using Fdp.Interfaces;
 using Fdp.ModuleHost_Core.Abstractions;
 using FDP.Toolkit.Replication.Components;
 using ToolkitMsgs = FDP.Toolkit.Replication.Messages;
-using TopicMsgs = Fdp.ModuleHost.Network.Cyclone.Topics;
+using TopicMsgs = Fdp.Network.Cyclone.Topics;
 using Fdp.ModuleHost_Core.Network; 
 using FDP.Kernel.Logging;
-using Fdp.ModuleHost.Network.Cyclone.Services;
-using Fdp.ModuleHost.Network.Cyclone;
-using Fdp.ModuleHost.Network.Cyclone.Abstractions;
+using Fdp.Network.Cyclone.Services;
+using Fdp.Network.Cyclone;
+using Fdp.Network.Cyclone.Abstractions;
 using CycloneDDS.Runtime;
 
 namespace Fdp.Examples.NetworkDemo.Translators

@@ -1,7 +1,7 @@
 using System;
 using CycloneDDS.Schema;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Topics
+namespace Fdp.Network.Cyclone.Topics
 {
     /// <summary>
     /// SST ownership transfer message.

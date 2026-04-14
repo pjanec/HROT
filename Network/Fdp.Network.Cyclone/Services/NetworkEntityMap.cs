@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Fdp.Kernel;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Services
+namespace Fdp.Network.Cyclone.Services
 {
     public class NetworkEntityMap
     {

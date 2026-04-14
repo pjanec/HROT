@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Fdp.ModuleHost.Network.Cyclone.Services;
+using Fdp.Network.Cyclone.Services;
 using Xunit;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Tests.Services
+namespace Fdp.Network.Cyclone.Tests.Services
 {
     public class TypeIdMapperTests
     {

@@ -5,7 +5,7 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.ModuleHost_Core.Abstractions;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Providers
+namespace Fdp.Network.Cyclone.Providers
 {
     public class CycloneSerializationProvider<T> : ISerializationProvider where T : unmanaged
     {

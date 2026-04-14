@@ -2,10 +2,10 @@ using System;
 using System.Linq;
 using System.Reflection;
 using CycloneDDS.Schema;
-using Fdp.ModuleHost.Network.Cyclone.Topics;
+using Fdp.Network.Cyclone.Topics;
 using Xunit;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Tests.Topics
+namespace Fdp.Network.Cyclone.Tests.Topics
 {
     public class TopicSchemaTests
     {

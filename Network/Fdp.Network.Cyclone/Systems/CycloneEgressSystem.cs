@@ -7,7 +7,7 @@ using Fdp.Interfaces; // For Interfaces
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 // IDataWriter alias removed
 
-namespace Fdp.ModuleHost.Network.Cyclone.Systems
+namespace Fdp.Network.Cyclone.Systems
 {
     /// <summary>
     /// System responsible for publishing owned descriptors to the network.

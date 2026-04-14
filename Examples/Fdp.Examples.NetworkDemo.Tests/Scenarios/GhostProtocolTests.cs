@@ -5,7 +5,7 @@ using Fdp.Examples.NetworkDemo.Tests.Infrastructure;
 using Fdp.Examples.NetworkDemo.Tests.Extensions;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
-using Fdp.ModuleHost.Network.Cyclone.Components;
+using Fdp.Network.Cyclone.Components;
 using System.Linq;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Scenarios

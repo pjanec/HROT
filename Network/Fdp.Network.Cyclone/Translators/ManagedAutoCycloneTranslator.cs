@@ -10,9 +10,9 @@ using FDP.Toolkit.Replication.Utilities;
 using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Components; 
 using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost.Network.Cyclone.Abstractions;
+using Fdp.Network.Cyclone.Abstractions;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Translators
+namespace Fdp.Network.Cyclone.Translators
 {
     public class ManagedAutoCycloneTranslator<T> : IDescriptorTranslator, INetworkReplayTarget
         where T : class, new() 

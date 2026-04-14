@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using Xunit;
 using Moq;
-using Fdp.ModuleHost.Network.Cyclone.Translators;
-using Fdp.ModuleHost.Network.Cyclone.Topics;
+using Fdp.Network.Cyclone.Translators;
+using Fdp.Network.Cyclone.Topics;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.ModuleHost_Core.Abstractions;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Tests.Translators
+namespace Fdp.Network.Cyclone.Tests.Translators
 {
     public class DummySimulationView : ISimulationView
     {

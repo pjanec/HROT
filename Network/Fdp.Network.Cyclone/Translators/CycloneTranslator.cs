@@ -6,9 +6,9 @@ using Fdp.Kernel;
 using Fdp.ModuleHost_Core.Abstractions;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Utilities;
-using Fdp.ModuleHost.Network.Cyclone.Abstractions;
+using Fdp.Network.Cyclone.Abstractions;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Translators
+namespace Fdp.Network.Cyclone.Translators
 {
     /// <summary>
     /// Base class for high-performance translators using typed DDS readers/writers.

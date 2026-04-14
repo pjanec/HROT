@@ -20,7 +20,7 @@
   <!-- InternalsVisibleTo for test projects -->
   <ItemGroup>
     <InternalsVisibleTo Include="Fdp.Network.Cyclone.Tests" />
-    <InternalsVisibleTo Include="ModuleHost.Network.Cyclone.Tests" />
+    <InternalsVisibleTo Include="Network.Cyclone.Tests" />
   </ItemGroup>
 
   <Import Project="..\..\ExtDeps\FastCycloneDds\tools\CycloneDDS.CodeGen\CycloneDDS.targets" />

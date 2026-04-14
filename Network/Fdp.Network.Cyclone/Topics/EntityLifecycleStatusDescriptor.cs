@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Topics
+namespace Fdp.Network.Cyclone.Topics
 {
     /// <summary>
     /// DDS message published by peer nodes to confirm entity activation

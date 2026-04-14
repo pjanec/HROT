@@ -2,7 +2,7 @@ using Fdp.Kernel;
 using Fdp.Examples.NetworkDemo.Events;
 using Fdp.Examples.NetworkDemo.Descriptors;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost.Network.Cyclone.Translators;
+using Fdp.Network.Cyclone.Translators;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.ModuleHost_Core.Abstractions;

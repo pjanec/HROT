@@ -5,7 +5,7 @@ using Fdp.Kernel;
 using Fdp.Kernel.FlightRecorder;
 using Fdp.ModuleHost_Core.Abstractions;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Providers
+namespace Fdp.Network.Cyclone.Providers
 {
     public class ManagedSerializationProvider<T> : ISerializationProvider where T : class, new()
     {

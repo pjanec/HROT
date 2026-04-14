@@ -5,11 +5,11 @@ using Fdp.Kernel;
 using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.ModuleHost_Core.Network;
 using Fdp.Interfaces;
-using Fdp.ModuleHost.Network.Cyclone.Topics;
+using Fdp.Network.Cyclone.Topics;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Components;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Systems
+namespace Fdp.Network.Cyclone.Systems
 {
     [UpdateInPhase(SystemPhase.Export)]
     public class CycloneNetworkCleanupSystem : IEcsModuleSystem

@@ -6,7 +6,7 @@ using Fdp.Examples.NetworkDemo.Descriptors;
 using Fdp.Examples.NetworkDemo.Events; // Added
 using FDP.Toolkit.Replication.Components;
 using Fdp.ModuleHost_Core.Network;
-using Fdp.ModuleHost.Network.Cyclone.Components;
+using Fdp.Network.Cyclone.Components;
 using FDP.Toolkit.Lifecycle.Events;
 
 namespace Fdp.Examples.NetworkDemo.Configuration

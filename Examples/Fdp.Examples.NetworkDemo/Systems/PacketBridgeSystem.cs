@@ -6,7 +6,7 @@ using Fdp.ModuleHost_Core.Abstractions;
 using FDP.Toolkit.Time.Messages;
 using Fdp.Examples.NetworkDemo.Components;
 using FDP.Toolkit.Replication.Components;
-using Fdp.ModuleHost.Network.Cyclone.Topics; // For NetworkAppId
+using Fdp.Network.Cyclone.Topics; // For NetworkAppId
 
 namespace Fdp.Examples.NetworkDemo.Systems
 {

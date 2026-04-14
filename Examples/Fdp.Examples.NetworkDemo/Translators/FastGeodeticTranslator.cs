@@ -9,7 +9,7 @@ using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Components;
 using Fdp.Modules.Geographic;
 using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost.Network.Cyclone.Translators;
+using Fdp.Network.Cyclone.Translators;
 
 namespace Fdp.Examples.NetworkDemo.Translators
 {

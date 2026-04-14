@@ -10,10 +10,10 @@ using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Extensions;
 using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.ModuleHost_Core.Network;
-using Fdp.ModuleHost.Network.Cyclone.Abstractions;
+using Fdp.Network.Cyclone.Abstractions;
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Translators
+namespace Fdp.Network.Cyclone.Translators
 {
     /// <summary>
     /// Translator for multi-instance descriptors (EntityId + InstanceId).

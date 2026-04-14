@@ -31,7 +31,7 @@ namespace FDP.Toolkit.Replication.Systems
     /// <c>reliableInitTimeoutFrames</c> are force-acknowledged to prevent deadlocks.</para>
     ///
     /// <para>This class is the <b>canonical</b> home for gateway logic previously
-    /// duplicated across <c>ModuleHost.Network.Cyclone/Systems</c> and
+    /// duplicated across <c>Network.Cyclone/Systems</c> and
     /// <c>ModuleHost_Core/Network</c> (PACK3-N001).  All transport adapters
     /// (Cyclone, future adapters) must reference this class.</para>
     /// </summary>

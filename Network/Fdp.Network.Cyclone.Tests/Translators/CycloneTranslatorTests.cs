@@ -1,15 +1,15 @@
 ﻿using System;
 using Xunit;
 using Moq;
-using Fdp.ModuleHost.Network.Cyclone.Translators;
+using Fdp.Network.Cyclone.Translators;
 using CycloneDDS.Runtime;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost.Network.Cyclone.Topics;
+using Fdp.Network.Cyclone.Topics;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Tests.Translators
+namespace Fdp.Network.Cyclone.Tests.Translators
 {
 
     

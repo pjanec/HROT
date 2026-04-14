@@ -9,8 +9,8 @@ using FDP.Toolkit.Replication.Services;
 using Fdp.Examples.NetworkDemo.Descriptors;
 using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.ModuleHost_Core.Network;
-using Fdp.ModuleHost.Network.Cyclone.Services;
-using Fdp.ModuleHost.Network.Cyclone.Topics;
+using Fdp.Network.Cyclone.Services;
+using Fdp.Network.Cyclone.Topics;
 
 namespace Fdp.Examples.NetworkDemo.Translators
 {

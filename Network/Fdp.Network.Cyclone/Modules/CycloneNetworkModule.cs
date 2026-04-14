@@ -9,9 +9,9 @@ using Fdp.ModuleHost_Core.Network;
 using Fdp.ModuleHost_Core.Network.Interfaces;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Events;
-using Fdp.ModuleHost.Network.Cyclone.Services;
-using Fdp.ModuleHost.Network.Cyclone.Systems;
-using Fdp.ModuleHost.Network.Cyclone.Providers;
+using Fdp.Network.Cyclone.Services;
+using Fdp.Network.Cyclone.Systems;
+using Fdp.Network.Cyclone.Providers;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services; 
 
@@ -20,7 +20,7 @@ using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 using INetworkTopology = Fdp.Interfaces.INetworkTopology;
 using NetworkGatewaySystem = FDP.Toolkit.Replication.Systems.NetworkGatewaySystem;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Modules
+namespace Fdp.Network.Cyclone.Modules
 {
     public class CycloneNetworkModule : IEcsModule
     {

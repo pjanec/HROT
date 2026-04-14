@@ -4,9 +4,9 @@ using System.Threading;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Interop;
 using Fdp.ModuleHost_Core.Network.Interfaces;
-using Fdp.ModuleHost.Network.Cyclone.Topics;
+using Fdp.Network.Cyclone.Topics;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Services
+namespace Fdp.Network.Cyclone.Services
 {
     /// <summary>
     /// DDS-backed network-ID allocator client.

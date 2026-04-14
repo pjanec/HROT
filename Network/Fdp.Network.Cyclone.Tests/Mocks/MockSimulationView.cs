@@ -7,7 +7,7 @@ using Fdp.ModuleHost_Core.Abstractions;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Events;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Tests.Mocks
+namespace Fdp.Network.Cyclone.Tests.Mocks
 {
     public class TestMockView : ISimulationView
     {

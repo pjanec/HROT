@@ -10,7 +10,7 @@ namespace Fdp.ModuleHost_Core.Network
 {
     // === DESCRIPTOR DEFINITIONS ===
     
-    // EntityStateDescriptor removed in BATCH-09 (moved to ModuleHost.Network.Cyclone/Descriptors/EntityStateDescriptor.cs in earlier batches)
+    // EntityStateDescriptor removed in BATCH-09 (moved to Network.Cyclone/Descriptors/EntityStateDescriptor.cs in earlier batches)
 
     
     // === FDP COMPONENTS ===

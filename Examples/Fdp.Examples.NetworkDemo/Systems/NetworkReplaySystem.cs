@@ -8,7 +8,7 @@ using Fdp.Kernel;
 using FDP.Kernel.Logging; // Added
 using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.ModuleHost_Core.Network; 
-using Fdp.ModuleHost.Network.Cyclone.Abstractions;
+using Fdp.Network.Cyclone.Abstractions;
 
 namespace Fdp.Examples.NetworkDemo.Systems
 {

@@ -5,9 +5,9 @@ using Fdp.Kernel; // For IEventBus probably
 using Fdp.Interfaces; // Or Fdp.Interfaces for IEventBus if it moved
 using Fdp.ModuleHost_Core.Abstractions;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost.Network.Cyclone.Abstractions;
+using Fdp.Network.Cyclone.Abstractions;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Translators
+namespace Fdp.Network.Cyclone.Translators
 {
     /// <summary>
     /// Base class for MANAGED event translators (classes).

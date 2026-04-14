@@ -4,7 +4,7 @@ using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.Interfaces;
 using Fdp.Kernel; // For IEventBus probably
 
-namespace Fdp.ModuleHost.Network.Cyclone.Translators
+namespace Fdp.Network.Cyclone.Translators
 {
     /// <summary>
     /// High-performance translator for pure data events (no entity references).

@@ -1,6 +1,6 @@
 using CycloneDDS.Schema;
 
-namespace Fdp.ModuleHost.Network.Cyclone.Topics
+namespace Fdp.Network.Cyclone.Topics
 {
     /// <summary>
     /// DDS topic for entity state updates (position, velocity, etc.).
