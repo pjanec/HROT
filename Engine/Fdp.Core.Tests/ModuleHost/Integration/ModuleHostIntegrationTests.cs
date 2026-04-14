@@ -1,10 +1,10 @@
 using System;
 using Xunit;
 using Fdp.Kernel;
-using ModuleHost.Core;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Core.Abstractions;
 
-namespace ModuleHost.Core.Tests.Integration
+namespace Fdp.ModuleHost.Core.Tests.Integration
 {
     public class ModuleHostIntegrationTests
     {

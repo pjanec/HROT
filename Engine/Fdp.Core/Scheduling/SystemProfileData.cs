@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace ModuleHost.Core.Scheduling
+namespace Fdp.ModuleHost.Core.Scheduling
 {
     /// <summary>
     /// Performance profiling data for a system.

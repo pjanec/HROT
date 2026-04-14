@@ -16,10 +16,10 @@ using Fdp.Examples.NetworkDemo.Systems;
 using Fdp.Examples.NetworkDemo.Modules;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
-using ModuleHost.Core;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network;
-using ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Network.Interfaces;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Systems;
 using FDP.Toolkit.Lifecycle.Events;
@@ -30,10 +30,10 @@ using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Time.Controllers;
-using ModuleHost.Network.Cyclone;
-using ModuleHost.Network.Cyclone.Services;
-using ModuleHost.Network.Cyclone.Modules;
-using ModuleHost.Network.Cyclone.Providers;
+using Fdp.ModuleHost.Network.Cyclone;
+using Fdp.ModuleHost.Network.Cyclone.Services;
+using Fdp.ModuleHost.Network.Cyclone.Modules;
+using Fdp.ModuleHost.Network.Cyclone.Providers;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using NLog;
@@ -128,7 +128,7 @@ namespace Fdp.Examples.NetworkDemo
             // Force simple ID mapping for Demo/Test to ensure uniqueness in shared process
             nodeMapper = new NodeIdMapper(localDomain: 0, localInstance: instanceId);
             // Use Mapper to get consistent internal IDs (Local matches 1, Peers get 2, 3...)
-            localInternalId = nodeMapper.GetOrRegisterInternalId(new ModuleHost.Network.Cyclone.Topics.NetworkAppId { AppDomainId = 0, AppInstanceId = instanceId });
+            localInternalId = nodeMapper.GetOrRegisterInternalId(new Fdp.ModuleHost.Network.Cyclone.Topics.NetworkAppId { AppDomainId = 0, AppInstanceId = instanceId });
             
             INetworkIdAllocator? idAllocator = null;
             if (enableNetwork && participant != null)
@@ -137,7 +137,7 @@ namespace Fdp.Examples.NetworkDemo
             }
             
             var peerInstances = new int[] { 100, 200 }.Where(x => x != instanceId).ToArray();
-            var peerInternalIds = peerInstances.Select(p => nodeMapper.GetOrRegisterInternalId(new ModuleHost.Network.Cyclone.Topics.NetworkAppId { AppDomainId = 0, AppInstanceId = p })).ToArray();
+            var peerInternalIds = peerInstances.Select(p => nodeMapper.GetOrRegisterInternalId(new Fdp.ModuleHost.Network.Cyclone.Topics.NetworkAppId { AppDomainId = 0, AppInstanceId = p })).ToArray();
             var topology = new StaticNetworkTopology(localNodeId: localInternalId, peerInternalIds);
 
             // --- 2. TKB & Serialization ---
@@ -160,7 +160,7 @@ namespace Fdp.Examples.NetworkDemo
             // ELM timeout must exceed the NetworkGateway reliable-init timeout (300 frames)
             // so that the Gateway's fallback ACK is always processed before ELM destroys the entity.
             // In test mode, use 50 frames to allow the gateway fallback (30 + margin)
-            int lifecycleTimeout = testMode ? 50 : (ModuleHost.Core.Network.NetworkConstants.RELIABLE_INIT_TIMEOUT_FRAMES * 2 + 50);
+            int lifecycleTimeout = testMode ? 50 : (Fdp.ModuleHost.Core.Network.NetworkConstants.RELIABLE_INIT_TIMEOUT_FRAMES * 2 + 50);
             var elm = new EntityLifecycleModule(tkb, Array.Empty<int>(),
                         timeoutFrames: lifecycleTimeout); 
             Kernel.RegisterModule(elm);
@@ -300,7 +300,7 @@ namespace Fdp.Examples.NetworkDemo
             Kernel.RegisterModule(new BridgeModule(eventBus, replaySystem, localInternalId, instanceId == 100));
 
             // Time Controller setup — unified MasterSyncController / SlaveSyncController
-            ModuleHost.Core.Time.ITimeController timeController;
+            Fdp.ModuleHost.Core.Time.ITimeController timeController;
             if (isReplay)
             {
                 timeController = new SteppingTimeController(new GlobalTime { TimeScale = 1 });
@@ -334,7 +334,7 @@ namespace Fdp.Examples.NetworkDemo
                  var entity = World.CreateEntity();
                  World.AddComponent(entity, new NetworkIdentity { Value = 999 });
                  World.AddComponent(entity, new FDP.Toolkit.Replication.Components.NetworkAuthority { 
-                     PrimaryOwnerId = nodeMapper.GetOrRegisterInternalId(new ModuleHost.Network.Cyclone.Topics.NetworkAppId { AppDomainId = 0, AppInstanceId = 100 }), 
+                     PrimaryOwnerId = nodeMapper.GetOrRegisterInternalId(new Fdp.ModuleHost.Network.Cyclone.Topics.NetworkAppId { AppDomainId = 0, AppInstanceId = 100 }), 
                      LocalNodeId = localInternalId 
                  });
                  World.AddComponent(entity, new Fdp.Examples.NetworkDemo.Components.TimeModeComponent());
@@ -507,7 +507,7 @@ namespace Fdp.Examples.NetworkDemo
                 TkbType           = template.TkbType,
                 DisType           = 1,
                 OwnerNodeId       = localInternalId,
-                InitType          = ModuleHost.Core.Network.Interfaces.ReliableInitType.AllPeers,
+                InitType          = Fdp.ModuleHost.Core.Network.Interfaces.ReliableInitType.AllPeers,
                 InitialComponents = new System.Collections.Generic.List<object>
                 {
                     new SimTransform
@@ -549,9 +549,9 @@ namespace Fdp.Examples.NetworkDemo
                  ref readonly var auth = ref world.GetComponentRO<FDP.Toolkit.Replication.Components.NetworkAuthority>(e);
                  
                  string ownershipInfo = "No Ownership";
-                 if (world.HasComponent<ModuleHost.Core.Network.NetworkOwnership>(e))
+                 if (world.HasComponent<Fdp.ModuleHost.Core.Network.NetworkOwnership>(e))
                  {
-                     ref readonly var own = ref world.GetComponentRO<ModuleHost.Core.Network.NetworkOwnership>(e);
+                     ref readonly var own = ref world.GetComponentRO<Fdp.ModuleHost.Core.Network.NetworkOwnership>(e);
                      ownershipInfo = string.Concat("Own(P:", own.PrimaryOwnerId, " L:", own.LocalNodeId, ")");
                  }
 
@@ -585,7 +585,7 @@ namespace Fdp.Examples.NetworkDemo
         /// Entities published via SpawnEntityCommand with NetworkId = 0 will receive
         /// monotonically increasing IDs from this allocator.
         /// </summary>
-        private sealed class SequentialIdAllocator : ModuleHost.Core.Network.Interfaces.INetworkIdAllocator
+        private sealed class SequentialIdAllocator : Fdp.ModuleHost.Core.Network.Interfaces.INetworkIdAllocator
         {
             private long _nextId = 1;
             public long AllocateId() => System.Threading.Interlocked.Increment(ref _nextId);

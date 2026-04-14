@@ -7,8 +7,8 @@ using Fdp.Examples.NetworkDemo.Components;
 using System.Numerics;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
-using ModuleHost.Core.Network;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Abstractions;
 
 
 namespace Fdp.Examples.NetworkDemo.Tests.Integration

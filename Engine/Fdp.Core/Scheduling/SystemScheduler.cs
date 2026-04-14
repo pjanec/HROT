@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
-namespace ModuleHost.Core.Scheduling
+namespace Fdp.ModuleHost.Core.Scheduling
 {
     /// <summary>
     /// Schedules system execution using topological sorting of dependencies.

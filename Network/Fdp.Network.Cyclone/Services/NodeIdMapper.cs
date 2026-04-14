@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Concurrent;
-using ModuleHost.Network.Cyclone.Topics;
+using Fdp.ModuleHost.Network.Cyclone.Topics;
 
-namespace ModuleHost.Network.Cyclone.Services
+namespace Fdp.ModuleHost.Network.Cyclone.Services
 {
     /// <summary>
     /// Maps between DDS NetworkAppId (external) and Core's simple int IDs (internal).

@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace ModuleHost.Network.Cyclone.Services
+namespace Fdp.ModuleHost.Network.Cyclone.Services
 {
     /// <summary>
     /// Maps between DDS's ulong DisTypeValue (external) and Core's simple int TypeId (internal).

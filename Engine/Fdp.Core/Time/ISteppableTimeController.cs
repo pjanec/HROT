@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace ModuleHost.Core.Time
+namespace Fdp.ModuleHost.Core.Time
 {
     public interface ISteppableTimeController : ITimeController
     {

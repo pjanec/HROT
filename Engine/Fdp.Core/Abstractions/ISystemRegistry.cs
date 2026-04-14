@@ -1,4 +1,4 @@
-namespace ModuleHost.Core.Abstractions
+namespace Fdp.ModuleHost.Core.Abstractions
 {
     /// <summary>
     /// Registry for system registration and scheduling.

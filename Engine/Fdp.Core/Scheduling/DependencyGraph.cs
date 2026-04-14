@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
-namespace ModuleHost.Core.Scheduling
+namespace Fdp.ModuleHost.Core.Scheduling
 {
     /// <summary>
     /// Directed graph for system dependencies.

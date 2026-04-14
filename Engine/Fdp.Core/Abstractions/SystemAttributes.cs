@@ -1,6 +1,6 @@
 using System;
 
-namespace ModuleHost.Core.Abstractions
+namespace Fdp.ModuleHost.Core.Abstractions
 {
     /// <summary>
     /// Specifies which phase a system executes in.

@@ -3,7 +3,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Fdp.Kernel;
 using FDP.Toolkit.Replay;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Xunit;
 
 namespace FDP.Toolkit.Replay.Tests

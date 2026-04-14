@@ -2,7 +2,7 @@ using System;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using FDP.Toolkit.Lifecycle.Events;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Lifecycle.Systems
 {

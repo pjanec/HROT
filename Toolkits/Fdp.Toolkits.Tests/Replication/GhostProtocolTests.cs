@@ -5,7 +5,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Systems;
 using Fdp.Interfaces;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using FDP.Toolkit.Lifecycle.Events;
 
 namespace FDP.Toolkit.Replication.Tests

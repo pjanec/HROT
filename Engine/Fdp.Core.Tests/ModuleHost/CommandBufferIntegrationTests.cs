@@ -2,11 +2,11 @@ using System;
 using System.Threading;
 using Xunit;
 using Fdp.Kernel;
-using ModuleHost.Core;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Providers;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Providers;
 
-namespace ModuleHost.Core.Tests
+namespace Fdp.ModuleHost.Core.Tests
 {
     public class CommandBufferIntegrationTests
     {

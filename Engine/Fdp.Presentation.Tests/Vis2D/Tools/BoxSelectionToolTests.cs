@@ -6,7 +6,7 @@ using FDP.Toolkit.Vis2D.Abstractions;
 using FDP.Toolkit.Vis2D.Components;
 using FDP.Toolkit.Vis2D.Tests.Input;
 using FDP.Toolkit.Vis2D.Tools;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Moq;
 using Xunit;
 

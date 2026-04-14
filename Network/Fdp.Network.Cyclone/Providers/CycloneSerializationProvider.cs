@@ -3,9 +3,9 @@ using System.Runtime.CompilerServices; // For Unsafe
 using System.Runtime.InteropServices;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
-namespace ModuleHost.Network.Cyclone.Providers
+namespace Fdp.ModuleHost.Network.Cyclone.Providers
 {
     public class CycloneSerializationProvider<T> : ISerializationProvider where T : unmanaged
     {

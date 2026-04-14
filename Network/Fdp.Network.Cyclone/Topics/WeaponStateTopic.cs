@@ -1,7 +1,7 @@
 using System;
 using CycloneDDS.Core;
 
-namespace ModuleHost.Network.Cyclone.Topics
+namespace Fdp.ModuleHost.Network.Cyclone.Topics
 {
     public partial struct WeaponStateTopic
     {

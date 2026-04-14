@@ -5,7 +5,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Vis2D.Tools;
 using FDP.Toolkit.Vis2D.Abstractions;
 using FDP.Toolkit.Vis2D.Tests.Input;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Raylib_cs;
 
 namespace FDP.Toolkit.Vis2D.Tests.Tools

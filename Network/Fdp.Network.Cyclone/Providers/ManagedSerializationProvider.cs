@@ -3,9 +3,9 @@ using System.IO;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Kernel.FlightRecorder;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
-namespace ModuleHost.Network.Cyclone.Providers
+namespace Fdp.ModuleHost.Network.Cyclone.Providers
 {
     public class ManagedSerializationProvider<T> : ISerializationProvider where T : class, new()
     {

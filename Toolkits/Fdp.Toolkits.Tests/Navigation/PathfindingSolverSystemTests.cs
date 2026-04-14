@@ -7,7 +7,7 @@ using Fdp.Kernel.Collections;
 using FDP.Toolkit.Navigation.Modules;
 using FDP.Toolkit.Navigation.Systems;
 using Moq;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Xunit;
 
 namespace FDP.Toolkit.Navigation.Tests

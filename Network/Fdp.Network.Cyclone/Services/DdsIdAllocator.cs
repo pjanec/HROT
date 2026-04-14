@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Threading;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Interop;
-using ModuleHost.Core.Network.Interfaces;
-using ModuleHost.Network.Cyclone.Topics;
+using Fdp.ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost.Network.Cyclone.Topics;
 
-namespace ModuleHost.Network.Cyclone.Services
+namespace Fdp.ModuleHost.Network.Cyclone.Services
 {
     /// <summary>
     /// DDS-backed network-ID allocator client.

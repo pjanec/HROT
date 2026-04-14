@@ -3,12 +3,12 @@ using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Providers;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Providers;
 using System.Collections.Generic;
 using System.Threading;
 
-namespace ModuleHost.Core.Tests
+namespace Fdp.ModuleHost.Core.Tests
 {
     public class ReactiveSchedulingTests
     {

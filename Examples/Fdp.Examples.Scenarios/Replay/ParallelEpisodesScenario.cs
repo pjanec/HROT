@@ -16,8 +16,8 @@ using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Replay;
 using FDP.Toolkit.Time.Controllers;
 using FDP.Toolkit.Vis2D;
-using ModuleHost.Core;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Fdp.Examples.Scenarios.Replay
 {

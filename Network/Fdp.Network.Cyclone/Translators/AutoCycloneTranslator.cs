@@ -10,10 +10,10 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Systems;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Network.Cyclone.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Network.Cyclone.Abstractions;
 
-namespace ModuleHost.Network.Cyclone.Translators
+namespace Fdp.ModuleHost.Network.Cyclone.Translators
 {
     /// <summary>
     /// Zero-boilerplate translator for simple 1:1 mappings.

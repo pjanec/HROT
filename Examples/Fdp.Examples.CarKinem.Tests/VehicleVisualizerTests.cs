@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Xunit;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Fdp.Examples.CarKinem.Visualization;
 using Fdp.Examples.CarKinem.Core;
 using CarKinem.Core; 

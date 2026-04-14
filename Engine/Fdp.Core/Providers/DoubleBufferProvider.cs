@@ -1,8 +1,8 @@
 using System;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
-namespace ModuleHost.Core.Providers
+namespace Fdp.ModuleHost.Core.Providers
 {
     /// <summary>
     /// Global Double Buffering provider.

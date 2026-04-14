@@ -5,7 +5,7 @@ using Fdp.Examples.NetworkDemo; // Correct namespace
 using Fdp.Examples.NetworkDemo.Components; // For TurretState etc.
 using FDP.Toolkit.Replication.Components;
 // using FDP.Toolkit.CarKinem.Components; // Replaced by Fdp.Kernel (SimTransform)
-using ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Network;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Extensions
 {

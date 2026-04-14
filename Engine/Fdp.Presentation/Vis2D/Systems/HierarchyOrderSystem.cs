@@ -1,7 +1,7 @@
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
 using FDP.Toolkit.Vis2D.Components;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Vis2D.Systems;
 

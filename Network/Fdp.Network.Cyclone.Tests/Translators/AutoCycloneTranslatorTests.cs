@@ -3,15 +3,15 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using Xunit;
 using CycloneDDS.Runtime;
-using ModuleHost.Network.Cyclone.Translators;
+using Fdp.ModuleHost.Network.Cyclone.Translators;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Fdp.Kernel;
 using Fdp.Interfaces;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Network.Cyclone.Topics;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Network.Cyclone.Topics;
 
-namespace ModuleHost.Network.Cyclone.Tests.Translators
+namespace Fdp.ModuleHost.Network.Cyclone.Tests.Translators
 {
     public class AutoCycloneTranslatorTests : IDisposable
     {

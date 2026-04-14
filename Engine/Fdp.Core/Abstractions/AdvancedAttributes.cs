@@ -1,6 +1,6 @@
 using System;
 
-namespace ModuleHost.Core.Abstractions
+namespace Fdp.ModuleHost.Core.Abstractions
 {
     public enum ExecutionMode
     {

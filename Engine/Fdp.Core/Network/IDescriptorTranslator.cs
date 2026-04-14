@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Fdp.Kernel;
 
-namespace ModuleHost.Core.Network
+namespace Fdp.ModuleHost.Core.Network
 {
     public enum DdsInstanceState
     {

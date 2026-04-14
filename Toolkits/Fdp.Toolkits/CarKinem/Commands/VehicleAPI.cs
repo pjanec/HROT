@@ -2,7 +2,7 @@ using System.Numerics;
 using CarKinem.Core;
 using CarKinem.Formation;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace CarKinem.Commands
 {

@@ -10,8 +10,8 @@ using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Systems;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Replication.Components;
-using ModuleHost.Core;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Fdp.Examples.Scenarios.Perception
 {

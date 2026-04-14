@@ -1,9 +1,9 @@
 using System.Reflection;
 using Fdp.Kernel;
 using FDP.Toolkit.Time.Controllers;
-using ModuleHost.Core;
+using Fdp.ModuleHost.Core;
 
-namespace ModuleHost.Core
+namespace Fdp.ModuleHost.Core
 {
     public static class ModuleHostKernelTestExtensions
     {

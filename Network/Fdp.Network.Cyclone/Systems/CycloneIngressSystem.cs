@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Interfaces;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Network.Cyclone.Services;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Network.Cyclone.Services;
 
-namespace ModuleHost.Network.Cyclone.Systems
+namespace Fdp.ModuleHost.Network.Cyclone.Systems
 {
     /// <summary>
     /// System responsible for polling all registered translators for incoming network data.

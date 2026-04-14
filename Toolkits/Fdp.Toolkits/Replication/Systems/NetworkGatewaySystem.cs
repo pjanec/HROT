@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Events;
-using ModuleHost.Core.Network;
-using ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Network.Interfaces;
 using Fdp.Interfaces;
 using INetworkTopology = Fdp.Interfaces.INetworkTopology;
 

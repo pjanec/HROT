@@ -3,15 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using Xunit;
 using Moq;
-using ModuleHost.Network.Cyclone.Translators;
-using ModuleHost.Network.Cyclone.Topics;
+using Fdp.ModuleHost.Network.Cyclone.Translators;
+using Fdp.ModuleHost.Network.Cyclone.Topics;
 using CycloneDDS.Runtime;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
-namespace ModuleHost.Network.Cyclone.Tests.Translators
+namespace Fdp.ModuleHost.Network.Cyclone.Tests.Translators
 {
     public class TestManagedEvent 
     { 

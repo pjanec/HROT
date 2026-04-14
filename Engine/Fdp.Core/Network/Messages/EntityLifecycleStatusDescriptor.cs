@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace ModuleHost.Core.Network.Messages
+namespace Fdp.ModuleHost.Core.Network.Messages
 {
     /// <summary>
     /// DDS message published by peer nodes to confirm entity activation

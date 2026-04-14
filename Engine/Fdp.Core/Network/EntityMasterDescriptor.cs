@@ -1,7 +1,7 @@
 using System;
 using Fdp.Kernel;
 
-namespace ModuleHost.Core.Network
+namespace Fdp.ModuleHost.Core.Network
 {
     /// <summary>
     /// Flags for EntityMaster descriptor configuration.

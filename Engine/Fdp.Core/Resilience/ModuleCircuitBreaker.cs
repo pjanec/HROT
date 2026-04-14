@@ -2,7 +2,7 @@
 
 using System;
 
-namespace ModuleHost.Core.Resilience
+namespace Fdp.ModuleHost.Core.Resilience
 {
     /// <summary>
     /// Circuit breaker states following the standard pattern.

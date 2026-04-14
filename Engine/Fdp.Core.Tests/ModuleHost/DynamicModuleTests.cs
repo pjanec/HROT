@@ -26,12 +26,12 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
-using ModuleHost.Core;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Providers;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Providers;
 using Xunit;
 
-namespace ModuleHost.Core.Tests
+namespace Fdp.ModuleHost.Core.Tests
 {
     // ─────────────────────────────────────────────────────────────────────────────
     // Shared helpers for dynamic-module tests

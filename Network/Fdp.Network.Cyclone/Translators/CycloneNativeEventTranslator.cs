@@ -2,12 +2,12 @@
 using System.Runtime.InteropServices; // For MemoryMarshal
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using FDP.Toolkit.Replication.Services;
-using ModuleHost.Network.Cyclone.Abstractions;
+using Fdp.ModuleHost.Network.Cyclone.Abstractions;
 using Fdp.Interfaces;
 
-namespace ModuleHost.Network.Cyclone.Translators
+namespace Fdp.ModuleHost.Network.Cyclone.Translators
 {
     /// <summary>
     /// Specialized translator for Unmanaged (Struct) events.

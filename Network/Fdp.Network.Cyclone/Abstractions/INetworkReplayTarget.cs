@@ -1,8 +1,8 @@
 using System;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
-namespace ModuleHost.Network.Cyclone.Abstractions
+namespace Fdp.ModuleHost.Network.Cyclone.Abstractions
 {
     public interface INetworkReplayTarget
     {

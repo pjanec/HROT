@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace ModuleHost.Core.Network.Interfaces
+namespace Fdp.ModuleHost.Core.Network.Interfaces
 {
     /// <summary>
     /// Strategy interface for determining initial descriptor ownership

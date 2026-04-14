@@ -1,4 +1,4 @@
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Fdp.Modules.Geographic.Systems;
 
 namespace Fdp.Modules.Geographic

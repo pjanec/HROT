@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
-using ModuleHost.Core.Network;
-using ModuleHost.Core.Network.Interfaces;
-using ModuleHost.Core.Network.Messages;
+using Fdp.ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost.Core.Network.Messages;
 using Xunit;
 
-namespace ModuleHost.Core.Tests.Network
+namespace Fdp.ModuleHost.Core.Tests.Network
 {
     public class NetworkFoundationTests
     {

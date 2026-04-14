@@ -1,6 +1,6 @@
 using System;
 
-namespace ModuleHost.Core.Network.Messages
+namespace Fdp.ModuleHost.Core.Network.Messages
 {
     /// <summary>
     /// SST ownership transfer message.

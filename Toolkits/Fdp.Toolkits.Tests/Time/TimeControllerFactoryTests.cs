@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using ModuleHost.Core.Time;
+using Fdp.ModuleHost.Core.Time;
 using Fdp.Kernel;
 using Xunit;
 

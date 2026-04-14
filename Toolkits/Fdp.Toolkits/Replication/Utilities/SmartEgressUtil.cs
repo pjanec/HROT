@@ -1,7 +1,7 @@
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network.Messages;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Network.Messages;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;

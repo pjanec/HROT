@@ -1,4 +1,4 @@
-using ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost.Core.Network.Interfaces;
 
 namespace FDP.Toolkit.NetworkSpawning.Tests.Helpers
 {

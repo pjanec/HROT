@@ -7,10 +7,10 @@ using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Examples.NetworkDemo.Descriptors;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network;
-using ModuleHost.Network.Cyclone.Services;
-using ModuleHost.Network.Cyclone.Topics;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Network;
+using Fdp.ModuleHost.Network.Cyclone.Services;
+using Fdp.ModuleHost.Network.Cyclone.Topics;
 
 namespace Fdp.Examples.NetworkDemo.Translators
 {

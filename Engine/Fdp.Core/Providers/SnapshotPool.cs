@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Fdp.Kernel;
 
-namespace ModuleHost.Core.Providers
+namespace Fdp.ModuleHost.Core.Providers
 {
     /// <summary>
     /// Thread-safe pool of EntityRepository instances for snapshot reuse.

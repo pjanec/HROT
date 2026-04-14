@@ -1,5 +1,5 @@
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using FDP.Toolkit.Replication.Components;
 
 namespace Fdp.Examples.NetworkDemo.Systems
@@ -14,12 +14,12 @@ namespace Fdp.Examples.NetworkDemo.Systems
                 .With<SimTransform>()
                 .With<SimVelocity>()
                  // Only move local entities (remote positions come from network)
-                .With<ModuleHost.Core.Network.NetworkOwnership>() 
+                .With<Fdp.ModuleHost.Core.Network.NetworkOwnership>() 
                 .Build();
 
             foreach (var e in query)
             {
-                ref readonly var ownership = ref view.GetComponentRO<ModuleHost.Core.Network.NetworkOwnership>(e);
+                ref readonly var ownership = ref view.GetComponentRO<Fdp.ModuleHost.Core.Network.NetworkOwnership>(e);
                 if (ownership.PrimaryOwnerId != ownership.LocalNodeId)
                     continue;
 

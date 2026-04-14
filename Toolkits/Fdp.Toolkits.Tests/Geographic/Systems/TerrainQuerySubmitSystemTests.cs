@@ -4,7 +4,7 @@ using Fdp.Kernel;
 using Fdp.Kernel.Collections;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Systems;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Xunit;
 
 namespace Fdp.Modules.Geographic.Tests.Systems

@@ -1,6 +1,6 @@
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
-namespace ModuleHost.Core.Scheduling
+namespace Fdp.ModuleHost.Core.Scheduling
 {
     /// <summary>
     /// Groups the three network lifecycle systems — <c>LifecycleSystem</c>,

@@ -1,7 +1,7 @@
 using Xunit;
 using FDP.Toolkit.ImGui.Panels;
-using ModuleHost.Core;
-using ModuleHost.Core.Resilience;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Core.Resilience;
 using System.Collections.Generic;
 
 namespace FDP.Toolkit.ImGui.Tests

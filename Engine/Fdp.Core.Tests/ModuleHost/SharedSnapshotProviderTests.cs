@@ -3,10 +3,10 @@ using System.Threading;
 using System.Linq;
 using Xunit;
 using Fdp.Kernel;
-using ModuleHost.Core.Providers;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Providers;
+using Fdp.ModuleHost.Core.Abstractions;
 
-namespace ModuleHost.Core.Tests
+namespace Fdp.ModuleHost.Core.Tests
 {
     public class SharedSnapshotProviderTests
     {

@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Network;
 using Fdp.Interfaces;
-using ModuleHost.Network.Cyclone.Topics;
+using Fdp.ModuleHost.Network.Cyclone.Topics;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Components;
 
-namespace ModuleHost.Network.Cyclone.Systems
+namespace Fdp.ModuleHost.Network.Cyclone.Systems
 {
     [UpdateInPhase(SystemPhase.Export)]
     public class CycloneNetworkCleanupSystem : IEcsModuleSystem

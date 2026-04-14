@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 using Fdp.Kernel.FlightRecorder;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Replay
 {

@@ -5,7 +5,7 @@ using Fdp.Kernel;
 using Fdp.Interfaces;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Replication.Components;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Replication.Systems
 {

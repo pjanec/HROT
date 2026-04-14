@@ -1,7 +1,7 @@
 using System;
 using Fdp.Kernel;
 
-namespace ModuleHost.Core.Abstractions
+namespace Fdp.ModuleHost.Core.Abstractions
 {
     /// <summary>
     /// Read-only view of simulation state.

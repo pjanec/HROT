@@ -3,11 +3,11 @@ using System.Runtime.InteropServices;
 using CycloneDDS.Runtime;
 using Fdp.Kernel; // For IEventBus probably
 using Fdp.Interfaces; // Or Fdp.Interfaces for IEventBus if it moved
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using FDP.Toolkit.Replication.Services;
-using ModuleHost.Network.Cyclone.Abstractions;
+using Fdp.ModuleHost.Network.Cyclone.Abstractions;
 
-namespace ModuleHost.Network.Cyclone.Translators
+namespace Fdp.ModuleHost.Network.Cyclone.Translators
 {
     /// <summary>
     /// Base class for MANAGED event translators (classes).

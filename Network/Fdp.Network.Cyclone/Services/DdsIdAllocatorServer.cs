@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using ModuleHost.Network.Cyclone.Topics;
+using Fdp.ModuleHost.Network.Cyclone.Topics;
 using CycloneDDS.Runtime;
 
-namespace ModuleHost.Network.Cyclone.Services
+namespace Fdp.ModuleHost.Network.Cyclone.Services
 {
     /// <summary>
     /// Simple ID Allocator Server for testing.

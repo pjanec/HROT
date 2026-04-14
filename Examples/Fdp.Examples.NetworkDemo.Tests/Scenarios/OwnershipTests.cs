@@ -6,7 +6,7 @@ using Fdp.Examples.NetworkDemo.Tests.Extensions;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
 using Fdp.Examples.NetworkDemo.Components;
-using ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Network;
 using System.Linq;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Scenarios

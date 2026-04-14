@@ -1,13 +1,13 @@
 using System;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Network;
 using Fdp.Interfaces; // For Interfaces
 
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 // IDataWriter alias removed
 
-namespace ModuleHost.Network.Cyclone.Systems
+namespace Fdp.ModuleHost.Network.Cyclone.Systems
 {
     /// <summary>
     /// System responsible for publishing owned descriptors to the network.

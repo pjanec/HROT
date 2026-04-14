@@ -4,7 +4,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Time.Domain;
 using FDP.Toolkit.Time.Messages;
 using MessagePack;
-using ModuleHost.Core.Time;
+using Fdp.ModuleHost.Core.Time;
 using Xunit;
 
 namespace FDP.Toolkit.Time.Tests

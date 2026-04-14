@@ -2,7 +2,7 @@ using Raylib_cs;
 using CarKinem.Formation;
 using CarKinem.Core;
 using Fdp.Examples.CarKinem.Components;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using System.Numerics;
 using Fdp.Kernel; // Added
 

@@ -2,7 +2,7 @@ using System;
 using CarKinem.Road;
 using CarKinem.Trajectory;
 using FDP.Toolkit.Navigation.Systems;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Navigation.Modules
 {

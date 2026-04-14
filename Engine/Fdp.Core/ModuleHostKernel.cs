@@ -5,18 +5,18 @@ using System.Threading.Tasks;
 using System.Linq;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Providers;
-using ModuleHost.Core.Scheduling;
-using ModuleHost.Core.Resilience;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Providers;
+using Fdp.ModuleHost.Core.Scheduling;
+using Fdp.ModuleHost.Core.Resilience;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using ModuleHost.Core.Time;
+using Fdp.ModuleHost.Core.Time;
 
 [assembly: InternalsVisibleTo("ModuleHost.Core.Tests")]
 [assembly: InternalsVisibleTo("ModuleHost.Tests")]
 
-namespace ModuleHost.Core
+namespace Fdp.ModuleHost.Core
 {
     public struct ModuleStats
     {

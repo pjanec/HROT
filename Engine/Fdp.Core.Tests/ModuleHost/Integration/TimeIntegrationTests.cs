@@ -1,12 +1,12 @@
 using System;
 using System.Threading.Tasks;
 using Fdp.Kernel;
-using ModuleHost.Core;
-using ModuleHost.Core.Time;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Core.Time;
 using FDP.Toolkit.Time.Controllers;
 using Xunit;
 
-namespace ModuleHost.Core.Tests.Integration
+namespace Fdp.ModuleHost.Core.Tests.Integration
 {
     public class TimeIntegrationTests
     {

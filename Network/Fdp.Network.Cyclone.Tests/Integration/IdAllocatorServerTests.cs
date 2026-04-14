@@ -1,11 +1,11 @@
 using System;
 using System.Threading.Tasks;
 using CycloneDDS.Runtime;
-using ModuleHost.Network.Cyclone.Services;
-using ModuleHost.Network.Cyclone.Topics;
+using Fdp.ModuleHost.Network.Cyclone.Services;
+using Fdp.ModuleHost.Network.Cyclone.Topics;
 using Xunit;
 
-namespace ModuleHost.Network.Cyclone.Tests.Integration
+namespace Fdp.ModuleHost.Network.Cyclone.Tests.Integration
 {
     public class IdAllocatorServerTests : IDisposable
     {

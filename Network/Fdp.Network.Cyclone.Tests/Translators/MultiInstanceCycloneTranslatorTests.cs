@@ -3,12 +3,12 @@ using System.Runtime.InteropServices;
 using Xunit;
 using CycloneDDS.Runtime;
 using CycloneDDS.Schema;
-using ModuleHost.Network.Cyclone.Translators;
+using Fdp.ModuleHost.Network.Cyclone.Translators;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Fdp.Kernel;
 
-namespace ModuleHost.Network.Cyclone.Tests.Translators
+namespace Fdp.ModuleHost.Network.Cyclone.Tests.Translators
 {
     [StructLayout(LayoutKind.Sequential)]
     [DdsTopic("TestTopic_Multi_1")]

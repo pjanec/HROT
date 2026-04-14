@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
 
-namespace ModuleHost.Core.Network
+namespace Fdp.ModuleHost.Core.Network
 {
     /// <summary>
     /// Maps SST descriptor types to FDP component types and component IDs for ownership tracking.

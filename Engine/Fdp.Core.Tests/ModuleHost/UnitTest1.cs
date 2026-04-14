@@ -1,4 +1,4 @@
-﻿namespace ModuleHost.Core.Tests;
+﻿namespace Fdp.ModuleHost.Core.Tests;
 
 public class UnitTest1
 {

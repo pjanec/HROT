@@ -1,4 +1,4 @@
-namespace ModuleHost.Core.Abstractions
+namespace Fdp.ModuleHost.Core.Abstractions
 {
     /// <summary>
     /// Execution phases for systems within the simulation loop.

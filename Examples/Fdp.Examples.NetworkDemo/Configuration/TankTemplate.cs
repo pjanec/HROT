@@ -26,7 +26,7 @@ namespace Fdp.Examples.NetworkDemo.Configuration
             tank.AddComponent(new NetworkIdentity());
             tank.AddComponent(new NetworkTransform());
             tank.AddComponent(new NetworkVelocity());
-            tank.AddComponent(new ModuleHost.Core.Network.NetworkOwnership());
+            tank.AddComponent(new Fdp.ModuleHost.Core.Network.NetworkOwnership());
             
             // Define child: Turret (Instance 1)
             tank.ChildBlueprints.Add(new ChildBlueprintDefinition 

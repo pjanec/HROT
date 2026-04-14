@@ -1,9 +1,9 @@
 using Xunit;
-using ModuleHost.Core;
+using Fdp.ModuleHost.Core;
 using Fdp.Kernel;
-using ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Network;
 
-namespace ModuleHost.Core.Tests.Extraction
+namespace Fdp.ModuleHost.Core.Tests.Extraction
 {
     public class MigrationSmokeTests
     {

@@ -3,7 +3,7 @@ using Xunit;
 using Xunit.Abstractions;
 using Fdp.Examples.NetworkDemo.Tests.Infrastructure;
 using Fdp.Kernel;
-using ModuleHost.Core.Time;
+using Fdp.ModuleHost.Core.Time;
 using System.Linq;
 using FDP.Toolkit.Time.Messages;
 using System;

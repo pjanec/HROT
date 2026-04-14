@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace ModuleHost.Network.Cyclone.Topics
+namespace Fdp.ModuleHost.Network.Cyclone.Topics
 {
     /// <summary>
     /// Weapon state descriptor for entities with multiple weapon systems.

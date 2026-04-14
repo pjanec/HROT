@@ -1,9 +1,9 @@
 // File: ModuleHost.Core/Providers/SharedSnapshotProvider.cs
 using System;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
-namespace ModuleHost.Core.Providers
+namespace Fdp.ModuleHost.Core.Providers
 {
     public sealed class SharedSnapshotProvider : ISnapshotProvider, IDisposable
     {

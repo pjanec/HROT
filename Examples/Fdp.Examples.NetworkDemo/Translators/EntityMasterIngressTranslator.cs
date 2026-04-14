@@ -7,9 +7,9 @@ using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network;
-using ModuleHost.Network.Cyclone.Topics;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Network;
+using Fdp.ModuleHost.Network.Cyclone.Topics;
 
 namespace Fdp.Examples.NetworkDemo.Translators
 {
@@ -23,7 +23,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
         private readonly DdsReader<EntityMasterTopic> _reader;
         private readonly FDP.Toolkit.Replication.Services.NetworkEntityMap _entityMap;
         private readonly GhostCreationSystem _ghostCreationSystem;
-        private readonly ModuleHost.Network.Cyclone.Services.NodeIdMapper _nodeMapper;
+        private readonly Fdp.ModuleHost.Network.Cyclone.Services.NodeIdMapper _nodeMapper;
         private readonly int _localInternalId;
 
         // Use a distinctive negative ordinal so this translator never conflicts with egress
@@ -35,7 +35,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
             DdsParticipant participant,
             FDP.Toolkit.Replication.Services.NetworkEntityMap entityMap,
             GhostCreationSystem ghostCreationSystem,
-            ModuleHost.Network.Cyclone.Services.NodeIdMapper nodeMapper,
+            Fdp.ModuleHost.Network.Cyclone.Services.NodeIdMapper nodeMapper,
             int localInternalId)
         {
             _reader              = new DdsReader<EntityMasterTopic>(participant);

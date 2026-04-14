@@ -1,11 +1,11 @@
 using Xunit;
 using Fdp.Kernel;
-using ModuleHost.Core.Providers;
+using Fdp.ModuleHost.Core.Providers;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
-namespace ModuleHost.Core.Tests.Concurrency
+namespace Fdp.ModuleHost.Core.Tests.Concurrency
 {
     public class ProviderConcurrencyTests
     {

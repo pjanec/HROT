@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace ModuleHost.Core.Abstractions
+namespace Fdp.ModuleHost.Core.Abstractions
 {
     /// <summary>
     /// A group of related systems for hierarchical organization and profiling.

@@ -1,7 +1,7 @@
 using System;
 using CycloneDDS.Schema;
 
-namespace ModuleHost.Network.Cyclone.Topics
+namespace Fdp.ModuleHost.Network.Cyclone.Topics
 {
     /// <summary>
     /// Unique identifier for a network application instance.

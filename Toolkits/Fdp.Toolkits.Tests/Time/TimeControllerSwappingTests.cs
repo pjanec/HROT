@@ -1,8 +1,8 @@
 using System;
 using System.Threading;
 using Xunit;
-using ModuleHost.Core;
-using ModuleHost.Core.Time;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Core.Time;
 using Fdp.Kernel;
 
 using FDP.Toolkit.Time.Controllers;

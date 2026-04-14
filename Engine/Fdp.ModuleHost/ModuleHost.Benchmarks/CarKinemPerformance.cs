@@ -9,7 +9,7 @@ using CarKinem.Systems;
 using CarKinem.Trajectory;
 using Fdp.Kernel;
 
-namespace ModuleHost.Benchmarks
+namespace Fdp.ModuleHost.Benchmarks
 {
     [MemoryDiagnoser]
     [SimpleJob(warmupCount: 3, iterationCount: 10)]

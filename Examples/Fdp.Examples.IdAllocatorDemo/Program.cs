@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using CycloneDDS.Runtime;
-using ModuleHost.Network.Cyclone.Services;
+using Fdp.ModuleHost.Network.Cyclone.Services;
 
 namespace Fdp.Examples.IdAllocatorDemo
 {

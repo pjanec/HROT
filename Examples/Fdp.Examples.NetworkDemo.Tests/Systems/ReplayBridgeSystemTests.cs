@@ -7,7 +7,7 @@ using Fdp.Examples.NetworkDemo.Systems;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
 using Fdp.Kernel.FlightRecorder;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 using Xunit;
 

@@ -1,11 +1,11 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 using Fdp.Kernel;
-using ModuleHost.Core;
-using ModuleHost.Core.Providers;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Core.Providers;
 using System.Linq;
 
-namespace ModuleHost.Benchmarks
+namespace Fdp.ModuleHost.Benchmarks
 {
     [MemoryDiagnoser]
     public class HybridArchitectureBenchmarks

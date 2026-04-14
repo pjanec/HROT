@@ -1,6 +1,6 @@
 // File: ModuleHost.Core/Abstractions/ISnapshotProvider.cs
 
-namespace ModuleHost.Core.Abstractions
+namespace Fdp.ModuleHost.Core.Abstractions
 {
     /// <summary>
     /// Defines how a module acquires read-only views of simulation state.

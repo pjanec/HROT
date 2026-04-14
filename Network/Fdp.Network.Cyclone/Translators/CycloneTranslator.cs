@@ -3,12 +3,12 @@ using System.Runtime.InteropServices; // Required for MemoryMarshal
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Utilities;
-using ModuleHost.Network.Cyclone.Abstractions;
+using Fdp.ModuleHost.Network.Cyclone.Abstractions;
 
-namespace ModuleHost.Network.Cyclone.Translators
+namespace Fdp.ModuleHost.Network.Cyclone.Translators
 {
     /// <summary>
     /// Base class for high-performance translators using typed DDS readers/writers.

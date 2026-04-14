@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Fdp.Kernel;
 using Fdp.Kernel.FlightRecorder;
 using FDP.Toolkit.Replay;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Xunit;
 
 namespace FDP.Toolkit.Replay.Tests

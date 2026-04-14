@@ -1,10 +1,10 @@
 ﻿using System;
 using CycloneDDS.Runtime;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Fdp.Interfaces;
 using Fdp.Kernel; // For IEventBus probably
 
-namespace ModuleHost.Network.Cyclone.Translators
+namespace Fdp.ModuleHost.Network.Cyclone.Translators
 {
     /// <summary>
     /// High-performance translator for pure data events (no entity references).

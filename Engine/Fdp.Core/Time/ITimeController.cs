@@ -1,7 +1,7 @@
 using System;
 using Fdp.Kernel;
 
-namespace ModuleHost.Core.Time
+namespace Fdp.ModuleHost.Core.Time
 {
     /// <summary>
     /// Abstraction over time control logic.

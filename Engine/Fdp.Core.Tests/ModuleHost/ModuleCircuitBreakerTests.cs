@@ -1,12 +1,12 @@
 // File: ModuleHost.Core.Tests/ModuleCircuitBreakerTests.cs
 
 using Xunit;
-using ModuleHost.Core.Resilience;
+using Fdp.ModuleHost.Core.Resilience;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ModuleHost.Core.Tests
+namespace Fdp.ModuleHost.Core.Tests
 {
     public class ModuleCircuitBreakerTests
     {

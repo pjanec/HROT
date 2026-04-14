@@ -2,9 +2,9 @@
 using System;
 using System.Collections.Concurrent;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
-namespace ModuleHost.Core.Providers
+namespace Fdp.ModuleHost.Core.Providers
 {
     /// <summary>
     /// Snapshot-on-Demand provider.

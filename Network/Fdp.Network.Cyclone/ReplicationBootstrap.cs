@@ -9,10 +9,10 @@ using FDP.Toolkit.Replication.Systems;
 // using FDP.Toolkit.Replication.Translators;
 using FDP.Toolkit.Replication.Utilities;
 using CycloneDDS.Runtime;
-using ModuleHost.Network.Cyclone.Translators; // Added for ManagedAutoCycloneTranslator
-using ModuleHost.Network.Cyclone.Providers; // Added for ManagedSerializationProvider
+using Fdp.ModuleHost.Network.Cyclone.Translators; // Added for ManagedAutoCycloneTranslator
+using Fdp.ModuleHost.Network.Cyclone.Providers; // Added for ManagedSerializationProvider
 
-namespace ModuleHost.Network.Cyclone
+namespace Fdp.ModuleHost.Network.Cyclone
 {
     public static class ReplicationBootstrap
     {
