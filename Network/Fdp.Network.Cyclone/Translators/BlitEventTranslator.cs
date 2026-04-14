@@ -1,6 +1,6 @@
 ﻿using System;
 using CycloneDDS.Runtime;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Interfaces;
 using Fdp.Kernel; // For IEventBus probably
 

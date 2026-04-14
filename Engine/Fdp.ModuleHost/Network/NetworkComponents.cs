@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost_Core.Network.Messages;
-using Fdp.ModuleHost_Core.Network.Interfaces;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Network.Messages;
+using Fdp.ModuleHost.Network.Interfaces;
 
-namespace Fdp.ModuleHost_Core.Network
+namespace Fdp.ModuleHost.Network
 {
     // === DESCRIPTOR DEFINITIONS ===
     

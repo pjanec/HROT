@@ -1,4 +1,4 @@
-namespace Fdp.ModuleHost_Core.Network
+namespace Fdp.ModuleHost.Network
 {
     /// <summary>
     /// Centralized network constants and descriptor type IDs.

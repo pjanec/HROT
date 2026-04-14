@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Interfaces;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Network.Cyclone.Services;
 
 namespace Fdp.Network.Cyclone.Systems

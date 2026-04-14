@@ -1,9 +1,9 @@
 using System;
 using Xunit;
-using Fdp.ModuleHost_Core.Network;
+using Fdp.ModuleHost.Network;
 using Fdp.Kernel; // For component types
 
-namespace Fdp.ModuleHost_Core.Tests.Network
+namespace Fdp.ModuleHost.Tests.Network
 {
     public class DescriptorOwnershipMapTests
     {

@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using CycloneDDS.Runtime;
 using Fdp.Kernel; // For IEventBus probably
 using Fdp.Interfaces; // Or Fdp.Interfaces for IEventBus if it moved
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Network.Cyclone.Abstractions;
 

@@ -1,5 +1,5 @@
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using FDP.Toolkit.Replication.Components;
 using System.Numerics;
 using System;
@@ -15,12 +15,12 @@ namespace Fdp.Examples.NetworkDemo.Systems
             var query = view.Query()
                 .With<SimVelocity>()
                 .With<NetworkIdentity>()
-                .With<Fdp.ModuleHost_Core.Network.NetworkOwnership>() // Check Local ownership
+                .With<Fdp.ModuleHost.Network.NetworkOwnership>() // Check Local ownership
                 .Build();
 
             foreach (var e in query)
             {
-                ref readonly var ownership = ref view.GetComponentRO<Fdp.ModuleHost_Core.Network.NetworkOwnership>(e);
+                ref readonly var ownership = ref view.GetComponentRO<Fdp.ModuleHost.Network.NetworkOwnership>(e);
                 // Only modify local entities
                 if (ownership.PrimaryOwnerId != ownership.LocalNodeId)
                     continue;

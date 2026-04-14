@@ -1,6 +1,6 @@
 using System;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Time;
+using Fdp.ModuleHost.Time;
 
 namespace FDP.Toolkit.Time.Controllers
 {

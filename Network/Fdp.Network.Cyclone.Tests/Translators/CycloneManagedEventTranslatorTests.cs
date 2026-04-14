@@ -9,7 +9,7 @@ using CycloneDDS.Runtime;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Network.Cyclone.Tests.Translators
 {

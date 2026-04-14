@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost_Core.Scheduling;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Scheduling;
 using Xunit;
 
-namespace Fdp.ModuleHost_Core.Tests
+namespace Fdp.ModuleHost.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="NetworkLifecycleSystemGroup"/> (CGF1-S0304).

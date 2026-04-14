@@ -37,9 +37,9 @@ namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
             appA.World.AddComponent(partialEntity, new FDP.Toolkit.Replication.Components.NetworkIdentity { Value = id });
             appA.World.AddComponent(partialEntity, new FDP.Toolkit.Replication.Components.TkbIdentity { TkbType = 1 });
             appA.World.SetDisType(partialEntity, new Fdp.Kernel.DISEntityType { Value = 1 });
-            appA.World.AddComponent(partialEntity, new Fdp.ModuleHost_Core.Network.NetworkOwnership { PrimaryOwnerId = appA.LocalNodeId, LocalNodeId = appA.LocalNodeId });
+            appA.World.AddComponent(partialEntity, new Fdp.ModuleHost.Network.NetworkOwnership { PrimaryOwnerId = appA.LocalNodeId, LocalNodeId = appA.LocalNodeId });
             // FORCE PUBLISH triggers Egress
-            appA.World.AddComponent(partialEntity, new Fdp.ModuleHost_Core.Network.ForceNetworkPublish());
+            appA.World.AddComponent(partialEntity, new Fdp.ModuleHost.Network.ForceNetworkPublish());
 
             _output.WriteLine($"Created Partial Entity {id} on Node A");
 

@@ -5,7 +5,7 @@ using Raylib_cs;
 using FDP.Toolkit.Vis2D.Abstractions;
 using FDP.Toolkit.Vis2D.Components;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace FDP.Toolkit.Vis2D.Tools
 {

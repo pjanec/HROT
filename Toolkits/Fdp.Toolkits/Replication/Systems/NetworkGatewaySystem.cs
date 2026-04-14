@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Events;
-using Fdp.ModuleHost_Core.Network;
-using Fdp.ModuleHost_Core.Network.Interfaces;
+using Fdp.ModuleHost.Network;
+using Fdp.ModuleHost.Network.Interfaces;
 using Fdp.Interfaces;
 using INetworkTopology = Fdp.Interfaces.INetworkTopology;
 
@@ -32,7 +32,7 @@ namespace FDP.Toolkit.Replication.Systems
     ///
     /// <para>This class is the <b>canonical</b> home for gateway logic previously
     /// duplicated across <c>Network.Cyclone/Systems</c> and
-    /// <c>ModuleHost_Core/Network</c> (PACK3-N001).  All transport adapters
+    /// <c>ModuleHost/Network</c> (PACK3-N001).  All transport adapters
     /// (Cyclone, future adapters) must reference this class.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]

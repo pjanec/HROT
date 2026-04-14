@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Fdp.ModuleHost_Core.Network.Interfaces
+namespace Fdp.ModuleHost.Network.Interfaces
 {
     public enum ReliableInitType
     {

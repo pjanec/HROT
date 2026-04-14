@@ -40,8 +40,8 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Vis2D;
-using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Examples.Scenarios.Integrated
 {

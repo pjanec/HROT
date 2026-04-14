@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using Xunit;
 
-namespace Fdp.ModuleHost_Core.Tests
+namespace Fdp.ModuleHost.Tests
 {
     /// <summary>
     /// Test collection that disables parallelization for tests that measure

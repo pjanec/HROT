@@ -1,4 +1,4 @@
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using FDP.Toolkit.NetworkSpawning.Systems;
 
 namespace Fdp.Examples.NetworkDemo.Modules

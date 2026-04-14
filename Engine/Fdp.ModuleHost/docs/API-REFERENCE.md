@@ -5,9 +5,9 @@
 **Updated:** Post-BATCH-05.1 (Component Mask Optimization)  
 **Namespace Index:**
 - Fdp.Kernel
-- ModuleHost_Core.Abstractions
-- ModuleHost_Core.Providers
-- ModuleHost_Core.Resilience
+- ModuleHost.Abstractions
+- ModuleHost.Providers
+- ModuleHost.Resilience
 
 > **Note:** For conceptual guides and workflows, see [FDP-ModuleHost-User-Guide.md](./FDP-ModuleHost-User-Guide.md)
 
@@ -526,7 +526,7 @@ var stagingQuery = repo.Query()
 ### ExecutionPolicy
 
 **Implemented in:** BATCH-05 ⭐  
-**Namespace:** `ModuleHost_Core.Abstractions`
+**Namespace:** `ModuleHost.Abstractions`
 
 ```csharp
 public struct ExecutionPolicy
@@ -601,7 +601,7 @@ ExecutionPolicy.Custom()
 ### RunMode & DataStrategy
 
 **Implemented in:** BATCH-05 ⭐  
-**Namespace:** `ModuleHost_Core.Abstractions`
+**Namespace:** `ModuleHost.Abstractions`
 
 #### RunMode Enum
 
@@ -648,8 +648,8 @@ public enum DataStrategy
 
 ### ISimulationView
 
-**Namespace:** `ModuleHost_Core.Abstractions`  
-**Assembly:** ModuleHost_Core.dll
+**Namespace:** `ModuleHost.Abstractions`  
+**Assembly:** ModuleHost.dll
 
 ```csharp
 public interface ISimulationView
@@ -856,8 +856,8 @@ Iteration: O(matching entities)
 
 ### ISnapshotProvider
 
-**Namespace:** `ModuleHost_Core.Providers`  
-**Assembly:** ModuleHost_Core.dll
+**Namespace:** `ModuleHost.Providers`  
+**Assembly:** ModuleHost.dll
 
 ```csharp
 public interface ISnapshotProvider : IDisposable
@@ -921,7 +921,7 @@ Releases the view.
 
 ### DoubleBufferProvider
 
-**Namespace:** `ModuleHost_Core.Providers`
+**Namespace:** `ModuleHost.Providers`
 
 ```csharp
 public class DoubleBufferProvider : ISnapshotProvider
@@ -963,7 +963,7 @@ provider.ReleaseView(view);  // No-op
 
 ### OnDemandProvider
 
-**Namespace:** `ModuleHost_Core.Providers`
+**Namespace:** `ModuleHost.Providers`
 
 ```csharp
 public class OnDemandProvider : ISnapshotProvider
@@ -1006,7 +1006,7 @@ provider.ReleaseView(view);  // Returns to pool
 
 ### SharedSnapshotProvider
 
-**Namespace:** `ModuleHost_Core.Providers`
+**Namespace:** `ModuleHost.Providers`
 
 ```csharp
 public class SharedSnapshotProvider : ISnapshotProvider
@@ -1061,7 +1061,7 @@ if (provider.TryUpdateReplica())
 ### SnapshotPool
 
 **Implemented in:** BATCH-03 ⭐  
-**Namespace:** `ModuleHost_Core.Providers`
+**Namespace:** `ModuleHost.Providers`
 
 ```csharp
 public class SnapshotPool
@@ -1204,7 +1204,7 @@ public interface IModule
 ## Resilience & Safety
 
 **Implemented in:** BATCH-04 ⭐  
-**Namespace:** `ModuleHost_Core.Resilience`
+**Namespace:** `ModuleHost.Resilience`
 
 ModuleHost includes built-in fault isolation to prevent faulty modules from crashing or hanging the simulation.
 
@@ -1347,7 +1347,7 @@ foreach (var s in stats)
 ## Entity Lifecycle Management
 
 **Implemented in:** BATCH-06 ⭐  
-**Namespace:** `ModuleHost_Core.ELM`
+**Namespace:** `ModuleHost.ELM`
 
 Cooperative entity initialization and destruction across distributed modules.
 
@@ -1434,7 +1434,7 @@ Returns ELM statistics for monitoring.
 
 ### Lifecycle Events
 
-**Namespace:** `ModuleHost_Core.ELM`
+**Namespace:** `ModuleHost.ELM`
 
 All lifecycle events are **unmanaged structs** (zero GC).
 
@@ -1495,7 +1495,7 @@ foreach (var order in view.ConsumeEvents<ConstructionOrder>())
 ## Distributed Ownership & Network Integration
 
 **Implemented in:** BATCH-07 + BATCH-07.1 ⭐  
-**Namespace:** `ModuleHost_Core.Network`
+**Namespace:** `ModuleHost.Network`
 
 Network integration for distributed simulation with partial descriptor ownership.
 
@@ -2042,8 +2042,8 @@ var pos = view.GetComponentRO<Position>(target);
 
 ## Geographic Transform Services
 
-**Namespace:** `ModuleHost_Core.Geographic`  
-**Assembly:** ModuleHost_Core.dll  
+**Namespace:** `ModuleHost.Geographic`  
+**Assembly:** ModuleHost.dll  
 **Added:** BATCH-08 (January 2026)
 
 Bridge between FDP's local Cartesian physics and global WGS84 geodetic coordinates for network interoperability.
@@ -2388,9 +2388,9 @@ public void Tick(ISimulationView view, float deltaTime)
 
 ```csharp
 using Fdp.Kernel;
-using ModuleHost_Core;
-using ModuleHost_Core.Geographic;
-using ModuleHost_Core.Network;
+using ModuleHost;
+using ModuleHost.Geographic;
+using ModuleHost.Network;
 
 // 1. Create kernel
 var kernel = new ModuleHostKernel();

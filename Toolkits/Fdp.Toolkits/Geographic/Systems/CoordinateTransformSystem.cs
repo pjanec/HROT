@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Modules.Geographic.Components;
 
 using PositionGeodetic = Fdp.Modules.Geographic.Components.PositionGeodetic;

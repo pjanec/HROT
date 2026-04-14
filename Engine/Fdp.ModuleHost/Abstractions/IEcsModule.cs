@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
 
-namespace Fdp.ModuleHost_Core.Abstractions
+namespace Fdp.ModuleHost.Abstractions
 {
     /// <summary>
     /// Represents a self-contained unit of simulation logic in the ModuleHost architecture.

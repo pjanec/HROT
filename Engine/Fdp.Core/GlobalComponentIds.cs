@@ -17,7 +17,7 @@ namespace Fdp.Kernel
     ///   <item><term>50–79</term> <description>FDP.Toolkit.Replication components</description></item>
     ///   <item><term>80–109</term><description>FDP.Toolkit.Vis2D components</description></item>
     ///   <item><term>110–139</term><description>IG components</description></item>
-    ///   <item><term>140–159</term><description>ModuleHost_Core network components (Cyclone)</description></item>
+    ///   <item><term>140–159</term><description>ModuleHost network components (Cyclone)</description></item>
     ///   <item><term>160–199</term><description>Application-level descriptor components</description></item>
     ///   <item><term>200–255</term><description>Reserved — examples and future use</description></item>
     /// </list>
@@ -315,7 +315,7 @@ namespace Fdp.Kernel
 
         // IDs 124–139 are reserved for future IG components.
 
-        // ── ModuleHost_Core Network (140–159) ────────────────────────────────────
+        // ── ModuleHost Network (140–159) ────────────────────────────────────
         // Network ownership and coordination components managed by CycloneNetworkModule.
 
         /// <summary><c>NetworkOwnership</c> — tracks primary network owner and local node ID.</summary>
@@ -333,7 +333,7 @@ namespace Fdp.Kernel
         /// <summary><c>PendingAuthorityGrants</c> — transient component caching descriptor ownership intents from a DeferredTakeOwnership message. Stripped once the entity enters Constructing.</summary>
         public const byte PendingAuthorityGrants  = 144;
 
-        // IDs 145–159 are reserved for future ModuleHost_Core network components.
+        // IDs 145–159 are reserved for future ModuleHost network components.
 
         // ── Application-level Descriptors (160–199) ──────────────────────────────
         // These IDs are now declared in project specific ComponentIds.

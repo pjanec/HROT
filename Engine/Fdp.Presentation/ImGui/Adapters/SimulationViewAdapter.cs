@@ -4,7 +4,7 @@ using System.Linq;
 using System.Reflection;
 using Fdp.Kernel;
 using FDP.Toolkit.ImGui.Abstractions;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace FDP.Toolkit.ImGui.Adapters
 {

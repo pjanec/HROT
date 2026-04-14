@@ -1,6 +1,6 @@
 using System;
 
-namespace Fdp.ModuleHost_Core.Abstractions
+namespace Fdp.ModuleHost.Abstractions
 {
     /// <summary>
     /// Defines how a module executes and what data strategy it uses.

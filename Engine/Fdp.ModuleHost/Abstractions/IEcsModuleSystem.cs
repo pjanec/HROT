@@ -1,4 +1,4 @@
-namespace Fdp.ModuleHost_Core.Abstractions
+namespace Fdp.ModuleHost.Abstractions
 {
     /// <summary>
     /// A focused unit of logic that operates on components (Stateless).

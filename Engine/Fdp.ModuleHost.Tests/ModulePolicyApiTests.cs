@@ -1,10 +1,10 @@
 using Xunit;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Kernel;
 using System;
 using System.Collections.Generic;
 
-namespace Fdp.ModuleHost_Core.Tests
+namespace Fdp.ModuleHost.Tests
 {
     public class ModulePolicyApiTests
     {

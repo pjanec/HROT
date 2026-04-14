@@ -2,7 +2,7 @@ using System;
 using Xunit;
 using FDP.Toolkit.Lifecycle.Systems;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace FDP.Toolkit.Lifecycle.Tests.Systems
 {

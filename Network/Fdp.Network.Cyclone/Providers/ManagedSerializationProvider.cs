@@ -3,7 +3,7 @@ using System.IO;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Kernel.FlightRecorder;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Network.Cyclone.Providers
 {

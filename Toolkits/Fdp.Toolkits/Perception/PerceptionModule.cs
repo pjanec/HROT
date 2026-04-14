@@ -6,7 +6,7 @@ using FDP.Toolkit.Perception.Events;
 using FDP.Toolkit.Perception.Systems;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace FDP.Toolkit.Perception
 {

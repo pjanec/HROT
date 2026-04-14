@@ -15,8 +15,8 @@ using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Physics.Systems;
 using FDP.Toolkit.Vis2D;
-using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Examples.Scenarios.Physics
 {

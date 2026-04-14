@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Kernel; // SimTransform
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Extensions;
 using Fdp.Examples.NetworkDemo.Components;

@@ -11,8 +11,8 @@ using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Combat.Contracts;
 using FDP.Toolkit.Combat.Systems;
 using FDP.Toolkit.Vis2D;
-using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Examples.Scenarios.Kinematics
 {

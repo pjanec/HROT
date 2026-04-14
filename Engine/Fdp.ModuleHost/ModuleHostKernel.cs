@@ -1,22 +1,22 @@
-// File: ModuleHost_Core/ModuleHostKernel.cs
+// File: ModuleHost/ModuleHostKernel.cs
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
-using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost_Core.Providers;
-using Fdp.ModuleHost_Core.Scheduling;
-using Fdp.ModuleHost_Core.Resilience;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Providers;
+using Fdp.ModuleHost.Scheduling;
+using Fdp.ModuleHost.Resilience;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using Fdp.ModuleHost_Core.Time;
+using Fdp.ModuleHost.Time;
 
-[assembly: InternalsVisibleTo("ModuleHost_Core.Tests")]
+[assembly: InternalsVisibleTo("ModuleHost.Tests")]
 [assembly: InternalsVisibleTo("ModuleHost.Tests")]
 
-namespace Fdp.ModuleHost_Core
+namespace Fdp.ModuleHost
 {
     public struct ModuleStats
     {

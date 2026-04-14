@@ -1,11 +1,11 @@
-// File: ModuleHost_Core.Tests/Integration/FdpIntegrationExample.cs
+// File: ModuleHost.Tests/Integration/FdpIntegrationExample.cs
 using System;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
 using Xunit;
 
-namespace Fdp.ModuleHost_Core.Tests.Integration
+namespace Fdp.ModuleHost.Tests.Integration
 {
     /// <summary>
     /// Example integration of ModuleHostKernel with FDP simulation loop.

@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost_Core.Scheduling;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Scheduling;
 
-namespace Fdp.ModuleHost_Core
+namespace Fdp.ModuleHost
 {
     /// <summary>
     /// Immutable snapshot of the kernel's complete execution state.

@@ -4,7 +4,7 @@ using System.Linq;
 using Xunit;
 using Fdp.Kernel;
 using Fdp.Interfaces;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Messages;
 using FDP.Toolkit.Replication.Systems;

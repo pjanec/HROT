@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Kernel
 {

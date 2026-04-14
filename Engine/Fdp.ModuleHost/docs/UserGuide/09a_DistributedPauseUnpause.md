@@ -69,7 +69,7 @@ Time:  Master decides to pause
 The `DistributedTimeCoordinator` manages mode switches for  the Master node:
 
 ```csharp
-using ModuleHost_Core.Time;
+using ModuleHost.Time;
 
 // Create coordinator (Master only)
 var coordinator = new DistributedTimeCoordinator(
@@ -102,7 +102,7 @@ coordinator.Update();  // Call every frame
 The `SlaveTimeModeListener` responds to mode switch events from the Master:
 
 ```csharp
-using ModuleHost_Core.Time;
+using ModuleHost.Time;
 
 // Create listener (Slave only)
 var listener = new SlaveTimeModeListener(
@@ -135,7 +135,7 @@ listener.Update();  // Call every frame
 The coordination event published by Master, consumed by all Slaves:
 
 ```csharp
-using ModuleHost_Core.Time;
+using ModuleHost.Time;
 using MessagePack;
 
 [MessagePackObject]
@@ -213,8 +213,8 @@ var timeConfig = new TimeControllerConfig
 ### Example: Standalone Application with Pause
 
 ```csharp
-using ModuleHost_Core;
-using ModuleHost_Core.Time;
+using ModuleHost;
+using ModuleHost.Time;
 using Fdp.Kernel;
 
 public class GameSimulation

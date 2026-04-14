@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Fdp.Kernel;
 using Fdp.Kernel.Orchestration;
 using FDP.Kernel.Logging;
-using Fdp.ModuleHost_Core.Scheduling;
+using Fdp.ModuleHost.Scheduling;
 
 namespace FDP.Toolkit.Orchestration.Handlers
 {

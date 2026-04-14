@@ -4,7 +4,7 @@ using System.Numerics;
 using CarKinem.Road;
 using CarKinem.Trajectory;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace FDP.Toolkit.Navigation.Systems
 {

@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Network.Interfaces;
+using Fdp.ModuleHost.Network.Interfaces;
 
-namespace Fdp.ModuleHost_Core.Network
+namespace Fdp.ModuleHost.Network
 {
     /// <summary>
     /// Static network topology with hardcoded peer lists.

@@ -1,4 +1,4 @@
-namespace Fdp.ModuleHost_Core
+namespace Fdp.ModuleHost
 {
     /// <summary>
     /// Lifecycle state of a module managed by the <see cref="ModuleHostKernel"/>.

@@ -6,7 +6,7 @@ using Fdp.Examples.NetworkDemo.Modules;
 using Fdp.Examples.NetworkDemo.Systems;
 using Fdp.Examples.NetworkDemo.Events;
 using Fdp.Examples.NetworkDemo.Components;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
 

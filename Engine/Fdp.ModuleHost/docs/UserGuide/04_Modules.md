@@ -17,7 +17,7 @@ A **Module** is a collection of related systems that operate on a **snapshot** o
 ### Module Interface (Modern API)
 
 ```csharp
-using ModuleHost_Core;
+using ModuleHost;
 
 public interface IModule
 {

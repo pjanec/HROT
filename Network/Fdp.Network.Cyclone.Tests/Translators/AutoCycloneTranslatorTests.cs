@@ -8,7 +8,7 @@ using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Fdp.Kernel;
 using Fdp.Interfaces;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Network.Cyclone.Topics;
 
 namespace Fdp.Network.Cyclone.Tests.Translators

@@ -180,7 +180,7 @@ When Node B receives the `EntityMaster` and starts construction, its `NetworkGat
 
 ### 3\. Gaps and Flaws in Current Implementation
 
-Comparing your `ModuleHost_Core` code to this required logic reveals specific gaps.
+Comparing your `ModuleHost` code to this required logic reveals specific gaps.
 
 #### Gap 1: EntityMasterTranslator is Incomplete
 

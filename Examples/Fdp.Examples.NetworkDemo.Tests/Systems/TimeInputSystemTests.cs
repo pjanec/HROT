@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Systems;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Xunit;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Systems

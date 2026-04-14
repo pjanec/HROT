@@ -1,8 +1,8 @@
 using Xunit;
 using Moq;
-using Fdp.ModuleHost_Core.Network.Interfaces;
+using Fdp.ModuleHost.Network.Interfaces;
 
-namespace Fdp.ModuleHost_Core.Tests.Network.Interfaces
+namespace Fdp.ModuleHost.Tests.Network.Interfaces
 {
     public class NetworkInterfacesTests
     {

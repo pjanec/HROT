@@ -8,8 +8,8 @@ using Fdp.Kernel;
 using FDP.Interfaces.Abstractions;
 using Fdp.Kernel.FlightRecorder;
 using FDP.Toolkit.Replication.Components;
-using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost_Core.Network;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Network;
 using Fdp.Examples.NetworkDemo.Configuration;
 using FDP.Kernel.Logging;
 

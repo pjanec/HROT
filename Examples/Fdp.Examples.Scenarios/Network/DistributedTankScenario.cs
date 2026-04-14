@@ -25,9 +25,9 @@ using FDP.Toolkit.Replication.Messages;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Toolkit.Tkb;
 using FDP.Toolkit.Time.Controllers;
-using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost_Core.Network;
+using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Network;
 using Fdp.Network.Cyclone.Topics;
 
 namespace Fdp.Examples.Scenarios.Network

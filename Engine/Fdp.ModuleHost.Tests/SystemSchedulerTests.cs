@@ -1,15 +1,15 @@
 using System;
 using System.Collections.Generic;
 using Xunit;
-using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost_Core.Scheduling;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Scheduling;
 using Fdp.Kernel; // For Entity, CommandBuffer etc.
 
 using UpdateAfterAttribute = Fdp.Kernel.UpdateAfterAttribute;
 using UpdateBeforeAttribute = Fdp.Kernel.UpdateBeforeAttribute;
-using UpdateInPhaseAttribute = Fdp.ModuleHost_Core.Abstractions.UpdateInPhaseAttribute;
+using UpdateInPhaseAttribute = Fdp.ModuleHost.Abstractions.UpdateInPhaseAttribute;
 
-namespace Fdp.ModuleHost_Core.Tests
+namespace Fdp.ModuleHost.Tests
 {
     public class SystemSchedulerTests
     {

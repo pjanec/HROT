@@ -1,15 +1,15 @@
 using System;
 using System.Threading.Tasks;
 using Xunit;
-using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Kernel;
 using System.Linq;
 using System.Collections.Generic;
-using Fdp.ModuleHost_Core.Providers;
+using Fdp.ModuleHost.Providers;
 using System.Reflection;
 
-namespace Fdp.ModuleHost_Core.Tests
+namespace Fdp.ModuleHost.Tests
 {
     [Collection("SerialTests")]
     public class ConvoyIntegrationTests

@@ -1,4 +1,4 @@
-// File: ModuleHost_Core.Tests/DynamicModuleTests.cs
+// File: ModuleHost.Tests/DynamicModuleTests.cs
 // =====================================================================================
 // Comprehensive tests for the dynamic module hot-plugging infrastructure.
 //
@@ -26,12 +26,12 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost_Core.Providers;
+using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Providers;
 using Xunit;
 
-namespace Fdp.ModuleHost_Core.Tests
+namespace Fdp.ModuleHost.Tests
 {
     // ─────────────────────────────────────────────────────────────────────────────
     // Shared helpers for dynamic-module tests

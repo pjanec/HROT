@@ -1,8 +1,8 @@
-// File: ModuleHost_Core/Resilience/ModuleCircuitBreaker.cs
+// File: ModuleHost/Resilience/ModuleCircuitBreaker.cs
 
 using System;
 
-namespace Fdp.ModuleHost_Core.Resilience
+namespace Fdp.ModuleHost.Resilience
 {
     /// <summary>
     /// Circuit breaker states following the standard pattern.

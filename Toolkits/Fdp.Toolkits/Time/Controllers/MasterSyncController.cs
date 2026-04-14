@@ -4,7 +4,7 @@ using System.Diagnostics;
 using Fdp.Kernel;
 using FDP.Toolkit.Time.Domain;
 using FDP.Toolkit.Time.Messages;
-using Fdp.ModuleHost_Core.Time;
+using Fdp.ModuleHost.Time;
 
 namespace FDP.Toolkit.Time.Controllers
 {

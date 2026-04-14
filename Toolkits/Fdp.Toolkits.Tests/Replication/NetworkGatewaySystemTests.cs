@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using Xunit;
 using Fdp.Kernel;
 using Fdp.Interfaces;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Events;
-using Fdp.ModuleHost_Core.Network;
-using Fdp.ModuleHost_Core.Network.Interfaces;
+using Fdp.ModuleHost.Network;
+using Fdp.ModuleHost.Network.Interfaces;
 using INetworkTopology = Fdp.Interfaces.INetworkTopology;
 
 namespace FDP.Toolkit.Replication.Tests

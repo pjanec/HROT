@@ -1,9 +1,9 @@
 using System;
 using Xunit;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Kernel; // For EntityRepository used in mocks/fakes/tests generally
 
-namespace Fdp.ModuleHost_Core.Tests
+namespace Fdp.ModuleHost.Tests
 {
     public class ISnapshotProviderTests
     {

@@ -1,5 +1,5 @@
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using FDP.Toolkit.Lifecycle.Events;
 
 namespace FDP.Toolkit.Lifecycle.Systems

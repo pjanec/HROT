@@ -13,7 +13,7 @@ docs/
 │
 ├── 02-DESIGN/
 │   ├── FDP-Kernel-Design.md               [NEW] Actual Fdp.Kernel architecture
-│   ├── ModuleHost-Design.md               [NEW] Actual ModuleHost_Core architecture
+│   ├── ModuleHost-Design.md               [NEW] Actual ModuleHost architecture
 │   ├── Time-Synchronization-Design.md
 │   ├── Network-Gateway-Design.md
 │

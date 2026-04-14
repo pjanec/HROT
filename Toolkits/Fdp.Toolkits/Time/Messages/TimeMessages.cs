@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using CycloneDDS.Schema;
 using MessagePack;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Time;
+using Fdp.ModuleHost.Time;
 
 namespace FDP.Toolkit.Time.Messages
 {

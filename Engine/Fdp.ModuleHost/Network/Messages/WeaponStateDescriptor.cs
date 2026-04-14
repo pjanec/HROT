@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace Fdp.ModuleHost_Core.Network.Messages
+namespace Fdp.ModuleHost.Network.Messages
 {
     /// <summary>
     /// Weapon state descriptor for entities with multiple weapon systems.

@@ -2,7 +2,7 @@ using Xunit;
 using Fdp.Kernel;
 using System.Threading.Tasks;
 using System;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Tests
 {

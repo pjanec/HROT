@@ -3,7 +3,7 @@ using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Time.Messages;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace FDP.Toolkit.Time
 {

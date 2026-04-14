@@ -1,10 +1,10 @@
-// File: ModuleHost_Core/Providers/OnDemandProvider.cs
+// File: ModuleHost/Providers/OnDemandProvider.cs
 using System;
 using System.Collections.Concurrent;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
-namespace Fdp.ModuleHost_Core.Providers
+namespace Fdp.ModuleHost.Providers
 {
     /// <summary>
     /// Snapshot-on-Demand provider.
@@ -93,7 +93,7 @@ namespace Fdp.ModuleHost_Core.Providers
                 // I need to check. If not, I should use `Clear()`.
                 // Checking EntityRepository.cs: line 265 `internal void Clear()`.
                 // It is internal. I might need a public helper or expose it.
-                // But `ModuleHost_Core` might define an extension?
+                // But `ModuleHost` might define an extension?
                 // Or maybe I should implement it or use `Clear()` if accessible.
                 
                 // If SoftClear is missing, I might need to add it or use Reflection via UnsafeShim or similar hack, 

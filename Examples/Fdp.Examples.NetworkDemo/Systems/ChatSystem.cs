@@ -1,7 +1,7 @@
 using System;
 using Fdp.Kernel;
 using Fdp.Examples.NetworkDemo.Components;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Examples.NetworkDemo.Systems
 {

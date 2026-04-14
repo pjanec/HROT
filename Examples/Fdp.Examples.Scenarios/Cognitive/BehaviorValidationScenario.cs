@@ -12,8 +12,8 @@ using FDP.Toolkit.Behavior.Systems;
 using FDP.Toolkit.Combat;
 using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Vis2D;
-using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Examples.Scenarios.Cognitive
 {

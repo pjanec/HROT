@@ -6,7 +6,7 @@ using FDP.Toolkit.ImGui.Panels;
 using Fdp.Kernel.FlightRecorder;
 using FDP.Toolkit.ImGui.Abstractions;
 using FDP.Toolkit.ImGui.Adapters;
-using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost;
 
 namespace Fdp.Examples.CarKinem.UI
 {

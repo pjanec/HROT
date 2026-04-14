@@ -2,7 +2,7 @@
 using System.Runtime.InteropServices; // For MemoryMarshal
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Network.Cyclone.Abstractions;
 using Fdp.Interfaces;

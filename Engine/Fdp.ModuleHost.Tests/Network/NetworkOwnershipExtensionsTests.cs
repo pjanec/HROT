@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using Xunit;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Network;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Network;
+using Fdp.ModuleHost.Abstractions;
 
-namespace Fdp.ModuleHost_Core.Tests.Network
+namespace Fdp.ModuleHost.Tests.Network
 {
     public class NetworkOwnershipExtensionsTests : IDisposable
     {

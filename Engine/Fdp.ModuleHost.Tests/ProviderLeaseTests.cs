@@ -1,11 +1,11 @@
-// File: ModuleHost_Core.Tests/ProviderLeaseTests.cs
+// File: ModuleHost.Tests/ProviderLeaseTests.cs
 using System;
-using Fdp.ModuleHost_Core.Providers;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Providers;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Kernel;
 using Xunit;
 
-namespace Fdp.ModuleHost_Core.Tests
+namespace Fdp.ModuleHost.Tests
 {
     public class ProviderLeaseTests
     {

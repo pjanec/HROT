@@ -1,14 +1,14 @@
-// File: ModuleHost_Core.Tests/ModuleEntryResilienceTests.cs
+// File: ModuleHost.Tests/ModuleEntryResilienceTests.cs
 
 using Xunit;
-using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Resilience;
+using Fdp.ModuleHost.Resilience;
 using System.Reflection;
 using System.Linq;
 
-namespace Fdp.ModuleHost_Core.Tests
+namespace Fdp.ModuleHost.Tests
 {
     public class ModuleEntryResilienceTests
     {

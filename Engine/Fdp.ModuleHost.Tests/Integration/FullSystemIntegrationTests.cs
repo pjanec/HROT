@@ -1,11 +1,11 @@
 using Xunit;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost_Core.Providers;
+using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Providers;
 using System.Linq;
 
-namespace Fdp.ModuleHost_Core.Tests.Integration
+namespace Fdp.ModuleHost.Tests.Integration
 {
     public class FullSystemIntegrationTests
     {

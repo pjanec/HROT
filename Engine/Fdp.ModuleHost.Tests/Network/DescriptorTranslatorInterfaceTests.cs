@@ -1,9 +1,9 @@
 using Xunit;
-using Fdp.ModuleHost_Core.Network;
+using Fdp.ModuleHost.Network;
 using Moq;
 using System.Linq;
 
-namespace Fdp.ModuleHost_Core.Tests.Network
+namespace Fdp.ModuleHost.Tests.Network
 {
     public class DescriptorTranslatorInterfaceTests
     {

@@ -462,7 +462,7 @@ Master                Slave 1              Slave 2
 
 **Master:**
 ```csharp
-using ModuleHost_Core.Time;
+using ModuleHost.Time;
 
 var nodeIds = new HashSet<int> { 1, 2, 3 };  // IDs of all slave peers
 
@@ -688,8 +688,8 @@ Time control is configured via `TimeControllerConfig` with three key properties:
 For single-process simulations with local wall-clock time:
 
 ```csharp
-using ModuleHost_Core;
-using ModuleHost_Core.Time;
+using ModuleHost;
+using ModuleHost.Time;
 using Fdp.Kernel;
 
 // Create kernel

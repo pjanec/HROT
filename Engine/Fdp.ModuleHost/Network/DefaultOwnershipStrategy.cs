@@ -1,7 +1,7 @@
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Network.Interfaces;
+using Fdp.ModuleHost.Network.Interfaces;
 
-namespace Fdp.ModuleHost_Core.Network
+namespace Fdp.ModuleHost.Network
 {
     /// <summary>
     /// Default ownership strategy that assigns all descriptors to the master node.

@@ -4,7 +4,7 @@ using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Systems;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Xunit;
 
 namespace CarKinem.Tests.Commands

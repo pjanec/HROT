@@ -1,6 +1,6 @@
 using System;
 
-namespace Fdp.ModuleHost_Core.Network.Interfaces
+namespace Fdp.ModuleHost.Network.Interfaces
 {
     public interface INetworkIdAllocator : IDisposable
     {
