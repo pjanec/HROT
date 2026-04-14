@@ -14,7 +14,6 @@ namespace Hrot.Map.Common.Translators
     ///
     /// <para><b>Translators created (in DDS ordinal order):</b></para>
     /// <list type="number">
-    ///   <item><see cref="MapVisualOverlayEgressTranslator"/>    — publishes tactical graphic overlays for owned area entities.</item>
     ///   <item><see cref="MapRouteEgressTranslator"/>            — publishes route plans for owned entities.</item>
     ///   <item><see cref="NavigationStatusEgressTranslator"/>    — publishes nav completion status for owned entities (ordinal 53).</item>
     ///   <item><see cref="NavigationIntentIngressTranslator"/>   — receives nav commands from a Brain node (ordinal 52).</item>
@@ -24,6 +23,9 @@ namespace Hrot.Map.Common.Translators
     /// <b>Note:</b> <see cref="GeoSpatialEgressTranslator"/> (WorldPos, ordinal 2) was moved to
     /// <see cref="SharedTranslatorPack"/> so that Brain nodes can also publish the initial entity
     /// position before delegating physics authority to the Muscle.
+    /// <see cref="MapVisualOverlayEgressTranslator"/> was likewise moved to
+    /// <see cref="SharedTranslatorPack"/> so Brain nodes (CGF) can publish overlays for area
+    /// entities they own.
     /// </para>
     ///
     /// <para>Install on <see cref="NodeRole.MuscleGround"/> and <see cref="NodeRole.AllInOne"/> nodes.</para>
@@ -38,8 +40,7 @@ namespace Hrot.Map.Common.Translators
         /// <param name="geoTransform">
         ///   Geodetic transform used by <see cref="NavigationIntentIngressTranslator"/>
         ///   to convert incoming WGS-84 waypoints back to Cartesian <c>Vector2</c>, and by
-        ///   <see cref="MapVisualOverlayEgressTranslator"/> and <see cref="MapRouteEgressTranslator"/>
-        ///   for coordinate conversion.
+        ///   <see cref="MapRouteEgressTranslator"/> for coordinate conversion.
         /// </param>
         /// <param name="ghostCreationSystem">
         ///   Ghost-creation helper injected into <see cref="NavigationIntentIngressTranslator"/>.
@@ -52,7 +53,6 @@ namespace Hrot.Map.Common.Translators
             GhostCreationSystem? ghostCreationSystem = null,
             long                 localNodeId = 0)
         {
-            yield return new MapVisualOverlayEgressTranslator(participant, entityMap, geoTransform, localNodeId);
             yield return new MapRouteEgressTranslator(participant, entityMap, geoTransform);
             yield return new NavigationStatusEgressTranslator(participant, entityMap, localNodeId);
             yield return new NavigationIntentIngressTranslator(participant, entityMap, geoTransform, localNodeId);

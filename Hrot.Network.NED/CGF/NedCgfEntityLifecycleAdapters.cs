@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using CycloneDDS.Runtime;
+using Fdp.Modules.Geographic;
 using Hrot.Core.Network;
+using Hrot.Map.Common.Replication.Utils;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 
@@ -10,16 +13,22 @@ namespace Hrot.Network.NED.CGF;
 /// DDS-backed source of <c>CreateEntityRequest</c> messages.
 /// Converts NED wire messages to the neutral <see cref="EntityCreationRequest"/> DTO.
 ///
-/// Design: simple extraction. Only TkbType and DisType are extracted from the
-/// EntityMaster descriptor. InitialAttributesJson is passed through unchanged.
-/// No descriptor-to-component translation is performed here.
+/// Design: TkbType and DisType are extracted from the EntityMaster descriptor.
+/// Non-master descriptors (dtWorldPos, dtEntityInfo, dtMapVisualOverlay, dtMapRoute, etc.)
+/// are converted to ECS components via <see cref="DescriptorMapper.MapToComponents"/> and
+/// placed in <see cref="EntityCreationRequest.InitialComponents"/>.
+/// InitialAttributesJson is passed through unchanged and applied on top as an override.
 /// </summary>
 public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSource
 {
     private readonly DdsReader<CreateEntityRequest> _reader;
+    private readonly IGeographicTransform?          _geoTransform;
 
-    public NedEntityCreationRequestSource(DdsParticipant participant)
-        => _reader = new DdsReader<CreateEntityRequest>(participant);
+    public NedEntityCreationRequestSource(DdsParticipant participant, IGeographicTransform? geoTransform = null)
+    {
+        _reader       = new DdsReader<CreateEntityRequest>(participant);
+        _geoTransform = geoTransform;
+    }
 
     public void ProcessRequests(Action<EntityCreationRequest> handler)
     {
@@ -53,6 +62,16 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
                 }
             }
 
+            // Convert non-master descriptors (position, entity info, overlay, route, etc.)
+            // into ECS component instances so downstream systems don't need NED knowledge.
+            List<object>? initialComponents = null;
+            if (msg.InitialDescriptors != null && msg.InitialDescriptors.Count > 0)
+            {
+                var mapped = DescriptorMapper.MapToComponents(msg.InitialDescriptors, _geoTransform);
+                if (mapped.Count > 0)
+                    initialComponents = mapped;
+            }
+
             handler(new EntityCreationRequest
             {
                 RequestId             = msg.RequestId,
@@ -60,6 +79,7 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
                 TkbType               = tkbType,
                 DisType               = disType,
                 InitialAttributesJson = msg.InitialAttributesJson,
+                InitialComponents     = initialComponents,
             });
         }
     }

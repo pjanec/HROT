@@ -98,12 +98,31 @@ internal static class NedTranslationHelper
     /// </summary>
     public static CreateEntityRequest ToCreateEntityRequest(CreateEntityCommand cmd)
     {
+        // Include affiliation in InitialAttributesJson so CreateEntityRequestSystem
+        // processes it via the JSON-attribute path. The dtEntityInfo descriptor in
+        // InitialDescriptors carries the same data for older SimHost processors, but
+        // NedEntityCreationRequestSource only extracts TkbType/DisType from descriptors
+        // and passes InitialAttributesJson directly to CreateEntityRequestSystem.
+        string? attrsJson = null;
+        if (cmd.ForceId != 0)
+        {
+            string forceStr = cmd.ForceId switch
+            {
+                1 => "FORCE_FRIENDLY",
+                2 => "FORCE_OPPOSING",
+                3 => "FORCE_NEUTRAL",
+                _ => "FORCE_UNKNOWN",
+            };
+            attrsJson = "{\"Affiliation\":\"" + forceStr + "\"}";
+        }
+
         return new CreateEntityRequest
         {
-            RequestId          = cmd.RequestId,
-            Owner              = new NodeId { AppDomainId = 0, AppInstanceId = 0 },
-            Flags              = 0,
-            InitialDescriptors = BuildCreateEntityDescriptors(cmd),
+            RequestId             = cmd.RequestId,
+            Owner                 = new NodeId { AppDomainId = 0, AppInstanceId = 0 },
+            Flags                 = 0,
+            InitialDescriptors    = BuildCreateEntityDescriptors(cmd),
+            InitialAttributesJson = attrsJson,
         };
     }
 

@@ -256,7 +256,7 @@ public sealed class NedNetworkFactory : INetworkFactory
         var heartbeatReader = new DdsReader<NodeHeartbeat>(_participant);
 
         return new NedCgfEntityLifecycleAdapters(
-            requestSource:     new NedEntityCreationRequestSource(_participant),
+            requestSource:     new NedEntityCreationRequestSource(_participant, _geoTransform),
             deleteSource:      new NedEntityDeletionRequestSource(_participant),
             ackSink:           new NedEntityAckSink(_participant),
             ownershipStrategy: new BrainMuscleOwnershipStrategy(clusterCache),

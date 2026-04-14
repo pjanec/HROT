@@ -42,6 +42,15 @@ public sealed class EntityCreationRequest
     /// Processed by <c>JsonAttributeCompiler</c> inside <c>CreateEntityRequestSystem</c>.
     /// </summary>
     public string? InitialAttributesJson { get; init; }
+
+    /// <summary>
+    /// Optional pre-converted ECS component instances extracted from the wire
+    /// <c>InitialDescriptors</c> by the protocol adapter layer.  These are applied
+    /// alongside <see cref="InitialAttributesJson"/> when the entity is spawned.
+    /// Examples: <c>EditablePolyline</c> from <c>dtMapVisualOverlay</c>,
+    /// <c>RoutePlan</c> from <c>dtMapRoute</c>.
+    /// </summary>
+    public List<object>? InitialComponents { get; init; }
 }
 
 /// <summary>

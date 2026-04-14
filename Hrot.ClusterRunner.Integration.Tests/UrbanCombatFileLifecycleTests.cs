@@ -101,15 +101,14 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
         Assert.True(clusterMaster.NodeRoster.ActiveNodes.Count > 0,
             "At least one node should appear in the cluster roster within 5 s.");
 
-        // â”€â”€ 3b. Register UC doctrines in the SimHost's DoctrineRegistry â”€â”€â”€â”€â”€â”€â”€
-        // The SimHost only registers its built-in doctrines on startup.  The
-        // UrbanCombat scenario uses scenario-specific doctrines (ConvoyEscort,
-        // Ambush, WanderCivil, InfantryCombat) that must be present before the
-        // cluster transitions to OperatingLive and the scenario is deserialized.
-        // HsmActionRegistrar.RegisterAll() was already called during ExtractScenarioToFile()
-        // via UrbanCombatNewScenario.Configure() â€” no second call needed here.
+        // Register UC doctrines in both the SimHost's and the CGF's DoctrineRegistry.
+        // SimHost runs kinematic/combat systems (Muscle tier); CGF runs mission-control
+        // and doctrine execution (Brain tier). Both must know the UC doctrine definitions
+        // before the cluster transitions to OperatingLive and scenario missions start.
         UrbanCombatNewScenario.RegisterUrbanCombatDoctrines(
             harness.SimHost.TestHook_DoctrineRegistry);
+        UrbanCombatNewScenario.RegisterUrbanCombatDoctrines(
+            cgf.CgfSvc.TestHook_DoctrineRegistry!);
 
         var payloadJson = JsonSerializer.Serialize(new { TargetState = 31, ScenarioId = _scenarioId });
         await clusterMaster.HandleClusterOpRequestAsync(new ClusterOpRequest

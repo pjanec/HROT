@@ -28,6 +28,12 @@ namespace Hrot.Map.Common.Translators
     ///   <item><see cref="GeoSpatialIngressTranslator"/>   — ingests incoming WorldPos packets so every node (Brain, Muscle, IG)
     ///     can attach SimTransform to ghost entities and allow GhostPromotionSystem to advance lifecycle.</item>
     ///   <item><see cref="OwnershipUpdateTranslator"/>     — bidirectional authority-handover notification (Muscle egress / Brain ingress).</item>
+    ///   <item><see cref="MapVisualOverlayEgressTranslator"/> — publishes tactical-graphic overlay geometry for owned area entities.
+    ///     Moved here from <see cref="KinematicTranslatorPack"/> so Brain nodes (CGF) can publish overlays for area
+    ///     entities they own — same rationale as <see cref="GeoSpatialEgressTranslator"/>.</item>
+    ///   <item><see cref="MapVisualOverlayIngressTranslator"/> — applies incoming overlay geometry to ghost entities.
+    ///     Needed on all roles (Brain and Muscle) so non-owning nodes maintain an up-to-date
+    ///     <see cref="EditablePolyline"/> component for area entities published by the owning node.</item>
     /// </list>
     /// </summary>
     public static class SharedTranslatorPack
@@ -44,11 +50,12 @@ namespace Hrot.Map.Common.Translators
         /// </param>
         /// <param name="ghostCreationSystem">
         ///   Ghost-creation helper; used by <see cref="EntityMasterIngressTranslator"/>
-        ///   to materialise replicas of remote entities.
+        ///   and <see cref="MapVisualOverlayIngressTranslator"/> to materialise replicas of remote entities.
         /// </param>
         /// <param name="geoTransform">
-        ///   Geodetic coordinate transform; passed to <see cref="GeoSpatialEgressTranslator"/>
-        ///   so Brain nodes can broadcast the initial WorldPos before delegating physics authority.
+        ///   Geodetic coordinate transform; passed to <see cref="GeoSpatialEgressTranslator"/>,
+        ///   <see cref="GeoSpatialIngressTranslator"/>, <see cref="MapVisualOverlayEgressTranslator"/>,
+        ///   and <see cref="MapVisualOverlayIngressTranslator"/> for coordinate conversions.
         /// </param>
         public static IEnumerable<IDescriptorTranslator> Create(
             DdsParticipant       participant,
@@ -66,6 +73,8 @@ namespace Hrot.Map.Common.Translators
             yield return new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId);
             yield return new GeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId);
             yield return new OwnershipUpdateTranslator(participant, (int)localNodeId);
+            yield return new MapVisualOverlayEgressTranslator(participant, entityMap, geoTransform, localNodeId);
+            yield return new MapVisualOverlayIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId);
         }
     }
 }

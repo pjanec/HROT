@@ -90,6 +90,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
     /// <summary>TestHook: exposes the CGF ECS world for integration tests.</summary>
     internal Fdp.Kernel.EntityRepository? World => _context?.World;
 
+    /// <summary>TestHook: exposes the CGF doctrine registry so integration tests can register
+    /// scenario-specific doctrines (e.g. UrbanCombat) before the cluster transitions to
+    /// OperatingLive and scenario entities begin executing missions.</summary>
+    internal DoctrineRegistry? TestHook_DoctrineRegistry => _doctrineRegistry;
+
     /// <summary>
     /// TestHook: spawns an entity and publishes a <c>DeferredTakeOwnership</c> routing table
     /// that assigns the WorldPos descriptor to <paramref name="muscleNodeId"/>.

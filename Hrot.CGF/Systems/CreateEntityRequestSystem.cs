@@ -201,8 +201,12 @@ namespace Hrot.CGF.Systems
         {
             try
             {
-                // 1. Start with empty component list; JSON attribute patches are applied below.
-                List<object> allComponents = new List<object>();
+                // 1. Seed component list from descriptor-converted components (if any).
+                //    These are populated by the network adapter (e.g. NedEntityCreationRequestSource)
+                //    via DescriptorMapper and represent the base state from the wire message.
+                List<object> allComponents = pending.Request.InitialComponents != null
+                    ? new List<object>(pending.Request.InitialComponents)
+                    : new List<object>();
 
                 // 2. Apply JSON attribute patches from InitialAttributesJson (ATTR-S5T2).
                 //    Patches are applied AFTER descriptor-based defaults so fine-grained

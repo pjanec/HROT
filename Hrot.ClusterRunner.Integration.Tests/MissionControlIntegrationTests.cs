@@ -40,6 +40,15 @@ public class MissionControlIntegrationTests
             MissionSeedTimeoutFrames);
         Assert.True(simHostReady, "SimHost entity was not registered in time.");
 
+        // Wait for CGF to receive the ghost of the entity before sending the mission request.
+        // MissionControlExecutionSystem only retries MaxEntityWaitFrames (10) before NACKing,
+        // so the ghost must be present in CGF's entity map when the DDS message arrives.
+        bool cgfReady = harness.PumpUntil(
+            () => harness.Cgf!.GhostEntityMap != null
+               && harness.Cgf!.GhostEntityMap.TryGetEntity(networkId, out _),
+            MissionSeedTimeoutFrames);
+        Assert.True(cgfReady, "CGF ghost entity was not created in time.");
+
         using var participant = new DdsParticipant((uint)harness.DomainId);
         using var requestWriter = new DdsWriter<MissionControlRequest>(participant, "MissionControlRequest");
         using var ackReader = new DdsReader<MissionControlAck>(participant, "MissionControlAck");
@@ -95,12 +104,14 @@ public class MissionControlIntegrationTests
             }
         });
 
+        // MissionControlExecutionSystem runs on CGF (Brain tier) in the split architecture.
+        // Check CGF's ECS world for the MissionPlanQueue, not SimHost's.
         bool seeded = harness.PumpUntil(
-            () => TryGetMissionQueue(harness.SimHost.World, networkId, out var queue)
+            () => TryGetMissionQueue(harness.Cgf!.World!, networkId, out var queue)
                && queue.PhaseCount == 3
                && queue.CurrentPhase == 0,
             MissionSeedTimeoutFrames);
-        Assert.True(seeded, "SimHost did not apply the mission plan in time.");
+        Assert.True(seeded, "CGF did not apply the mission plan in time.");
 
         var jumpRequestId = Guid.NewGuid();
         harness.ExCon.Logic.TransactionManager.TrackRequest(jumpRequestId, "JumpToTask");
@@ -117,11 +128,12 @@ public class MissionControlIntegrationTests
             }
         });
 
+        // MissionControlExecutionSystem runs on CGF (Brain tier) in the split architecture.
         bool jumped = harness.PumpUntil(
-            () => TryGetMissionQueue(harness.SimHost.World, networkId, out var queue)
+            () => TryGetMissionQueue(harness.Cgf!.World!, networkId, out var queue)
                && queue.CurrentPhase == 2,
             JumpTimeoutFrames);
-        Assert.True(jumped, "SimHost did not jump to the target task in time.");
+        Assert.True(jumped, "CGF did not jump to the target task in time.");
 
         MissionControlAck ack = default;
         bool ackObserved = harness.PumpUntil(
@@ -142,7 +154,10 @@ public class MissionControlIntegrationTests
     private static bool TryGetMissionQueue(EntityRepository world, long networkId, out MissionPlanQueue queue)
     {
         var view = (ISimulationView)world;
-        var query = world.Query().With<NetworkIdentity>().With<MissionPlanQueue>().Build();
+        // Use EntityLifecycle.All so ghost entities in Constructing state are included.
+        // CGF (Brain) does not run GhostPromotionSystem, so ghost entities never reach Alive.
+        var query = world.Query().With<NetworkIdentity>().With<MissionPlanQueue>()
+            .WithLifecycle(EntityLifecycle.All).Build();
         foreach (var entity in query)
         {
             var id = view.GetComponentRO<NetworkIdentity>(entity);
