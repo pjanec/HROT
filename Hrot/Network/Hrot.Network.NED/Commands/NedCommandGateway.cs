@@ -4,7 +4,7 @@ using Hrot.Network.NED.ExCon;
 using Fdp.Toolkit.Commands;
 using CycloneDDS.Core;
 using CycloneDDS.Runtime;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 using System;
 using System.Threading;
 using System.Threading.Tasks;

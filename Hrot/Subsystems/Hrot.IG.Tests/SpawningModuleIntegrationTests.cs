@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Hrot.IG.Modules;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.NetworkSpawning.Events;

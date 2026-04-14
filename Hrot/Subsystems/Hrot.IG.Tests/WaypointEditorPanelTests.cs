@@ -4,7 +4,7 @@ using System.Numerics;
 using Hrot.ScenarioEditor.Tools;
 using Hrot.IG.UI;
 using Hrot.Map.Common.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D;
 using Xunit;
 

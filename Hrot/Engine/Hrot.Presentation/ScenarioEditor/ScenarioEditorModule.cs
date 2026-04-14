@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.ScenarioEditor.Services;
 using Fdp.ModuleHost.Abstractions;
 

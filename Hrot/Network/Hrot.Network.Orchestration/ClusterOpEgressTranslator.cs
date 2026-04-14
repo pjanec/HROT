@@ -1,7 +1,7 @@
 using System;
 using System.Text.Json;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
 using NedClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;

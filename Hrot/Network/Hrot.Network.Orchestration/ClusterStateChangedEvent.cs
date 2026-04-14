@@ -1,5 +1,5 @@
 using Hrot.NED.Descriptors.Orchestration;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Hrot.Common.Orchestration
 {

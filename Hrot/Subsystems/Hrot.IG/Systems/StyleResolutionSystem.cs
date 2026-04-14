@@ -3,8 +3,8 @@ using System.Globalization;
 using Hrot.NED.Descriptors;
 using Hrot.IG.Components;
 using Hrot.Map.Definitions.Tkb;
-using Fdp.Kernel.Logging;
-using Fdp.Kernel;
+using Fdp.Core.Logging;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 

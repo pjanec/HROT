@@ -8,7 +8,7 @@ using Hrot.Map.Common;
 using Hrot.Network.NED.Factory;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Engine.Runner;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Tests;

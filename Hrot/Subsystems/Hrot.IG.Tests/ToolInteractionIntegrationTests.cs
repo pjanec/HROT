@@ -7,7 +7,7 @@ using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Tools;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.NetworkSpawning.Events;

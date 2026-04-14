@@ -1,8 +1,8 @@
 using Hrot.NED.Descriptors;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.Kernel;
-using Fdp.Kernel.Logging;
+using Fdp.Core;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
 

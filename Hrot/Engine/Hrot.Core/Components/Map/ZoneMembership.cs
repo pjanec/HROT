@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.Map.Definitions;
 
 namespace Hrot.Map.Common.Components;

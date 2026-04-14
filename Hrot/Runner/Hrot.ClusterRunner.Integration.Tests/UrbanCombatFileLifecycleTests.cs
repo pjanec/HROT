@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Examples.Scenarios.Integrated;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Time.Controllers;
 using Hrot.Orchestrator;

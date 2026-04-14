@@ -9,7 +9,7 @@ using Hrot.SimHost.Configuration;
 using Hrot.Map.Common.Replication;
 using Hrot.Common.Abstractions;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Physics.Components;

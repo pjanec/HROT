@@ -32,7 +32,7 @@ public sealed class NedReplicationModuleWiringTests : System.IDisposable
             participant:   null,
             entityMap:     new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
             geoTransform:  HrotEnvironment.CreateGeoTransform(),
-            eventBus:      new Fdp.Kernel.FdpEventBus(),
+            eventBus:      new Fdp.Core.FdpEventBus(),
             localNodeId:   0,
             role:          NodeRole.MuscleGround | NodeRole.Perception);
         _app.InitializeEmbedded(headless: true, domainIdOverride: DomainId, networkFactory: factory);

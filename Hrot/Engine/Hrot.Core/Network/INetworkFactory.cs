@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.DER;
 using Hrot.Common;

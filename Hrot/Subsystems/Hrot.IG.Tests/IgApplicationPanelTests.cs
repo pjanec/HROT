@@ -8,7 +8,7 @@ using Hrot.IG.Systems;
 using Hrot.Map.Common.Replication;
 using Hrot.IG.UI;
 using Hrot.Common.Abstractions;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Vis2D;

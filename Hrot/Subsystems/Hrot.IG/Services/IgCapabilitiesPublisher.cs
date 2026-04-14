@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using Hrot.Core.Network;
 using Hrot.IG.Systems;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 
 namespace Hrot.IG.Services;
 

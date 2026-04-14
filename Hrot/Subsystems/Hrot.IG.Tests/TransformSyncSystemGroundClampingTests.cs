@@ -1,6 +1,6 @@
 using System.Numerics;
 using Fdp.Examples.NetworkDemo.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;

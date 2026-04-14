@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using Hrot.IG.Components;
 using Fdp.Toolkit.Replication.Patching;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 

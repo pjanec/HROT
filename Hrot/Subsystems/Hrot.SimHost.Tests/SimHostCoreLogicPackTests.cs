@@ -4,7 +4,7 @@ using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Systems;
 using CarKinem.Trajectory;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.CarKinem.Systems;
 using Fdp.Toolkit.Combat.Components;
@@ -57,7 +57,7 @@ namespace Hrot.SimHost.Tests
             world.RegisterComponent<Health>();
             world.RegisterComponent<BallisticProjectile>();
 
-            // Core simulation (Fdp.Kernel + CarKinem)
+            // Core simulation (Fdp.Core + CarKinem)
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
             world.RegisterComponent<VehicleState>();

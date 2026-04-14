@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Perception.Events;
 using Hrot.Map.Common;

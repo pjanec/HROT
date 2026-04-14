@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Engine.Runner;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.ImGui.Abstractions;
@@ -409,9 +409,9 @@ namespace Hrot.Editor
                 // Drag handler — update SimTransform so the entity follows the cursor.
                 _interactionTool.OnEntityMoved += (entity, pos) =>
                 {
-                    if (_world != null && _world.IsAlive(entity) && _world.HasComponent<Fdp.Kernel.SimTransform>(entity))
+                    if (_world != null && _world.IsAlive(entity) && _world.HasComponent<Fdp.Core.SimTransform>(entity))
                     {
-                        ref var tf = ref _world.GetComponentRW<Fdp.Kernel.SimTransform>(entity);
+                        ref var tf = ref _world.GetComponentRW<Fdp.Core.SimTransform>(entity);
                         tf.Position = new System.Numerics.Vector3(pos.X, pos.Y, tf.Position.Z);
                     }
                 };
@@ -585,7 +585,7 @@ namespace Hrot.Editor
                                 break;
                             }
                         }
-                        updatedInfo.Name = new Fdp.Kernel.FixedString64(_renameBuffer.Trim());
+                        updatedInfo.Name = new Fdp.Core.FixedString64(_renameBuffer.Trim());
                         _editorLogic?.CommitPropertyEdit(_renameTargetNetworkId, new List<object> { updatedInfo });
                     }
                     ImGuiNET.ImGui.CloseCurrentPopup();
@@ -712,8 +712,8 @@ namespace Hrot.Editor
                         var entity = _selectionState.PrimarySelected;
                         if (entity is { } e && e != Entity.Null && _world.HasManagedComponent<Hrot.IG.Components.EditablePolyline>(e))
                         {
-                            var transform = _world.HasComponent<Fdp.Kernel.SimTransform>(e)
-                                ? _world.GetComponent<Fdp.Kernel.SimTransform>(e)
+                            var transform = _world.HasComponent<Fdp.Core.SimTransform>(e)
+                                ? _world.GetComponent<Fdp.Core.SimTransform>(e)
                                 : default;
                             var offset = new System.Numerics.Vector2(transform.Position.X, transform.Position.Y);
                             _canvas!.PushTool(new Hrot.ScenarioEditor.Tools.EditTool(e, _world, offset));
@@ -758,13 +758,13 @@ namespace Hrot.Editor
                 if (_camera == null) continue;
                 var q = _world.Query()
                     .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
-                    .With<Fdp.Kernel.SimTransform>()
+                    .With<Fdp.Core.SimTransform>()
                     .Build();
                 foreach (var e in q)
                 {
                     if (_world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == cmd.NetworkId)
                     {
-                        ref readonly var tf = ref _world.GetComponentRO<Fdp.Kernel.SimTransform>(e);
+                        ref readonly var tf = ref _world.GetComponentRO<Fdp.Core.SimTransform>(e);
                         _camera.FocusOn(new System.Numerics.Vector2(tf.Position.X, tf.Position.Y));
                         break;
                     }

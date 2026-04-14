@@ -5,7 +5,7 @@ using Hrot.Map.Common;
 using Hrot.SimHost;
 using Hrot.SimHost.Utilities;
 using Fdp.Toolkit.Replication.Services;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Components;
 using System;
 using System.Collections.Generic;
@@ -151,7 +151,7 @@ namespace Hrot.SimHost
         /// TestHook: appends a custom ECS system to the kernel group after initialization.
         /// For use by in-process E2E test fixtures only.
         /// </summary>
-        internal void TestHook_AddSystem(Fdp.Kernel.ComponentSystem system)
+        internal void TestHook_AddSystem(Fdp.Core.ComponentSystem system)
             => App.TestHook_AddSystem(system);
 
         // ── ISubsystem ────────────────────────────────────────────────────────

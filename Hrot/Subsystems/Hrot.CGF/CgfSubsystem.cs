@@ -30,7 +30,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Engine.Runner;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.CGF;
@@ -88,7 +88,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
     internal NetworkEntityMap? GhostEntityMap => _entityMap;
 
     /// <summary>TestHook: exposes the CGF ECS world for integration tests.</summary>
-    internal Fdp.Kernel.EntityRepository? World => _context?.World;
+    internal Fdp.Core.EntityRepository? World => _context?.World;
 
     /// <summary>TestHook: exposes the CGF doctrine registry so integration tests can register
     /// scenario-specific doctrines (e.g. UrbanCombat) before the cluster transitions to

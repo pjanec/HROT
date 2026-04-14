@@ -9,7 +9,7 @@ using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Hrot.Map.Common.Commands;
 using CycloneDDS.Runtime;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 
 namespace Hrot.Network.NED.IG
 {

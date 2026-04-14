@@ -1,6 +1,6 @@
 using System.Numerics;
 using Hrot.Common.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;

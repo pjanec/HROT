@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.NED.Descriptors.Orchestration;

@@ -1,5 +1,5 @@
 using Hrot.IG.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.IG.UI;

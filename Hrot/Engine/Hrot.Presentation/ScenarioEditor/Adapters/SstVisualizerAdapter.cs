@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using Hrot.IG.Components;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Raylib_cs;
 

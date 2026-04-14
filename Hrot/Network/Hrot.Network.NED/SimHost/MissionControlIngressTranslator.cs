@@ -1,6 +1,6 @@
 using System;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Messages;
 using Hrot.NED.Descriptors;

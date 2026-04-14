@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Hrot.Map.Common;
 using Hrot.SimHost.Modules.Orchestration;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Toolkit.Replay;
 using Fdp.ModuleHost;

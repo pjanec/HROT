@@ -5,7 +5,7 @@ using Hrot.NED.Messages;
 using Hrot.Core.Network;
 using Hrot.IG.Components;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 

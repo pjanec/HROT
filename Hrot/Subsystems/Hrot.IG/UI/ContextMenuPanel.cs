@@ -2,7 +2,7 @@ using System;
 using System.Numerics;
 using Hrot.IG.Components;
 using Hrot.IG.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 using ImGuiNET;
 using Fdp.ModuleHost.Abstractions;
 

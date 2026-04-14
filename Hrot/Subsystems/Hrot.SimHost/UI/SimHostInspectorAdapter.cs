@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.ImGui.Abstractions;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using System.Collections.Generic;

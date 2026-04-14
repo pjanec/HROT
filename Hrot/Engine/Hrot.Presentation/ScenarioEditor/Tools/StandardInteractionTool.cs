@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Defaults;
@@ -230,7 +230,7 @@ public class StandardInteractionTool : IMapTool
     /// <summary>
     /// Clears all selection state in preparation for a world reset.
     /// Called by <see cref="Hrot.ScenarioEditor.Services.ScenarioFileService"/> immediately
-    /// before <see cref="Fdp.Kernel.EntityRepository.Clear()"/> is invoked.
+    /// before <see cref="Fdp.Core.EntityRepository.Clear()"/> is invoked.
     /// Must NOT access any ECS component after this call returns.
     /// </summary>
     public void FlushForWorldReset()

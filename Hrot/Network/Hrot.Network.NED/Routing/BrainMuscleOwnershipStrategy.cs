@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.Common;
 using Hrot.NED.Descriptors;
 using Fdp.ModuleHost.Network.Interfaces;

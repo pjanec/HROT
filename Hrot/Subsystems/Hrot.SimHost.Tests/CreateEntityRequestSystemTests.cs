@@ -6,7 +6,7 @@ using Hrot.CGF.Systems;
 using Hrot.Core.Network;
 using Hrot.SimHost.Installers;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Patching;

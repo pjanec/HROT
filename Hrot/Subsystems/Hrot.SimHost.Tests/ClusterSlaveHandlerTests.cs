@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 using Hrot.NED.Descriptors.Orchestration;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Xunit;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;

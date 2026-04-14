@@ -5,7 +5,7 @@ using Hrot.NED.Common;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Replication.Utils;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic;
 
 namespace Hrot.Map.Common.Tests;

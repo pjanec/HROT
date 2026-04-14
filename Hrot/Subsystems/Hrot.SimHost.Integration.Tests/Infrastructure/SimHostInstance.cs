@@ -22,7 +22,7 @@ using CarKinem.Road;
 using CarKinem.Spatial;
 using CarKinem.Trajectory;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
 using Fdp.Toolkit.Behavior;

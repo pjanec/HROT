@@ -4,7 +4,7 @@ using System.Numerics;
 using Hrot.Map.Common;
 using Hrot.SimHost.Integration.Tests.Infrastructure;
 using CarKinem.Core;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 namespace Hrot.SimHost.Integration.Tests

@@ -4,7 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Hrot.SimHost.Modules.Orchestration;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Toolkit.Replication.Services;

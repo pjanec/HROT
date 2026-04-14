@@ -1,6 +1,6 @@
 ﻿using Hrot.ScenarioEditor.Tools;
 using Hrot.Map.Common.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;

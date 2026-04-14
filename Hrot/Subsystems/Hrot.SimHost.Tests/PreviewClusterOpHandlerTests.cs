@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Common.Orchestration.Handlers;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

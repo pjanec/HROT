@@ -4,7 +4,7 @@ using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Events;
 using Hrot.Map.Common;
 using CarKinem.Commands;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;

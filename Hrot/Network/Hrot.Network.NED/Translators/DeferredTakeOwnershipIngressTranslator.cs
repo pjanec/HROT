@@ -1,8 +1,8 @@
 using System;
 using CycloneDDS.Runtime;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
@@ -73,7 +73,7 @@ namespace Hrot.Network.Translators
 
         public void ScanAndPublish(ISimulationView view) { /* ingress-only */ }
 
-        public void ApplyToEntity(Entity entity, object data, Fdp.Kernel.EntityRepository repo) { }
+        public void ApplyToEntity(Entity entity, object data, Fdp.Core.EntityRepository repo) { }
 
         public void Dispose(long networkEntityId) { }
 
@@ -87,7 +87,7 @@ namespace Hrot.Network.Translators
             if (sample.Grants == null || sample.Grants.Count == 0) return;
 
             long netId = sample.EntityId;
-            var  repo  = view as Fdp.Kernel.EntityRepository;
+            var  repo  = view as Fdp.Core.EntityRepository;
 
             // Filter: does any grant in this message target us?
             bool hasGrantForUs = false;

@@ -27,7 +27,7 @@ namespace Hrot.NED.Descriptors
     /// Wire representation of a DIS Entity Type decomposed into its seven standard fields.
     /// Replacing the raw <c>ulong</c> makes each field legible to DDS monitoring tools
     /// (RTI Spy, Cyclone introspection, etc.) without changing the engine-side
-    /// <c>Fdp.Kernel.DISEntityType</c> struct or any entity-query filter logic.
+    /// <c>Fdp.Core.DISEntityType</c> struct or any entity-query filter logic.
     /// </summary>
     [DdsStruct]
     [DdsTypeFormat("[{Kind:0:Number}:{Domain:0:Number}:{Country:0:Number}:{Category:0:Number}:{Subcategory:0:Number}:{Specific:0:Number}:{Extra:0:Number}]")]

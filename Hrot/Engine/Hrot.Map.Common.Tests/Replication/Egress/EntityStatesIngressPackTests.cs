@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using Hrot.Map.Common.Translators;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Modules.Geographic;

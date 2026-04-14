@@ -5,7 +5,7 @@ using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.Map.Common;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
 using Xunit.Abstractions;

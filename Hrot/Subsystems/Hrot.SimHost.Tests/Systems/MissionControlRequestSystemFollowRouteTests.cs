@@ -7,7 +7,7 @@ using Hrot.Core.Mission;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Helpers;
 using Hrot.SimHost.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Replication.Components;

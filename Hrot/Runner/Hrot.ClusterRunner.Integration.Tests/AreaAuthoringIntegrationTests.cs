@@ -5,7 +5,7 @@ using Hrot.NED.Messages;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
 

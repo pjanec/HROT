@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Hrot.CGF.Systems;
 using Hrot.Core.Network;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Xunit;
 

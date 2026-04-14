@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Hrot.ClusterRunner.Configuration;
 using Hrot.ClusterRunner.Services;
 using Hrot.ClusterRunner.Tests.Mocks;
-using Fdp.Kernel;
+using Fdp.Core;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using RunnerConfiguration = Hrot.ClusterRunner.Configuration.HrotRunnerConfiguration;

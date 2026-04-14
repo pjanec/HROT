@@ -5,9 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Common.Orchestration;
-using Fdp.Kernel;
-using Fdp.Kernel.Orchestration;
-using Fdp.Kernel.Logging;
+using Fdp.Core;
+using Fdp.Core.Orchestration;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.Replay;
 using Fdp.ModuleHost;
 

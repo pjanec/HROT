@@ -1,7 +1,7 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Toolkit.Scenario;

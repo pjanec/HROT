@@ -1,5 +1,5 @@
 using Hrot.SimHost.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Combat.Systems;
 using Fdp.Toolkit.Physics.Systems;
 using Fdp.Toolkit.Replication.Services;

@@ -2,8 +2,8 @@
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using CycloneDDS.Runtime;
-using Fdp.Kernel.Logging;
-using Fdp.Kernel;
+using Fdp.Core.Logging;
+using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Systems;

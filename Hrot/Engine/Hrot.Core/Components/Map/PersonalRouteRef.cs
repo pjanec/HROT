@@ -1,5 +1,5 @@
 using Hrot.Map.Definitions;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Hrot.Map.Common.Components;
 

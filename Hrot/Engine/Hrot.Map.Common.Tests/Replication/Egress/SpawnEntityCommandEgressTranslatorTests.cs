@@ -5,7 +5,7 @@ using System.Numerics;
 using Hrot.Map.Common.Dds;
 using Hrot.Map.Common.Replication.Egress;
 using Hrot.IG.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.NED.Descriptors;

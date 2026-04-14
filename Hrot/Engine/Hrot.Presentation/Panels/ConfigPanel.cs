@@ -1,5 +1,5 @@
 using ImGuiNET;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
 

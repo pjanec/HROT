@@ -1,7 +1,7 @@
 using System;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator.Panels;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Toolkit.Time;

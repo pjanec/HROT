@@ -1,6 +1,6 @@
 using System.IO;
 using System.Text.Json;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.ScenarioEditor.Events;
 using Fdp.ModuleHost.Network.Interfaces;

@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 
 namespace Hrot.Orchestrator;
 

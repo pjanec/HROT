@@ -1,5 +1,5 @@
 using Hrot.IG.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 

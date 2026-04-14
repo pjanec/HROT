@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using Fdp.Engine.Runner;
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.CGF;
 using Hrot.ClusterRunner.Services;
 using Hrot.Common;

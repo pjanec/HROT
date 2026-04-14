@@ -2,7 +2,7 @@ using Hrot.NED.Descriptors;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Replication.Ingress;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;

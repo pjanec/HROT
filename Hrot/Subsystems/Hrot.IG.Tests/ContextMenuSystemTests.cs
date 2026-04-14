@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Hrot.IG.Components;
 using Hrot.IG.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 

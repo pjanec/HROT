@@ -7,7 +7,7 @@ using Hrot.NED.Descriptors.Orchestration;
 using Hrot.NED.Messages;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;

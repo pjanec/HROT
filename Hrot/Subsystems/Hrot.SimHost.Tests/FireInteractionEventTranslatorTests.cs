@@ -2,7 +2,7 @@ using System.Threading;
 using Hrot.NED.Messages;
 using Hrot.Map.Common.Replication;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 
 using DdsFireInteractionEvent = Hrot.NED.Messages.FireInteractionEvent;

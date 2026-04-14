@@ -3,7 +3,7 @@ using System.Numerics;
 using Hrot.Map.Common.Components;
 using Hrot.SimHost.Systems.Routing;
 using CarKinem.Trajectory;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Xunit;
 

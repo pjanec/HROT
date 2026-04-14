@@ -9,7 +9,7 @@ using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using NLog;

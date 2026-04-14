@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using Hrot.Core.Network;
 using Hrot.SimHost.Modules.Orchestration;
-using Fdp.Kernel;
-using Fdp.Kernel.Orchestration;
+using Fdp.Core;
+using Fdp.Core.Orchestration;
 using CarKinem.Road;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
@@ -83,7 +83,7 @@ namespace Hrot.SimHost
         /// <c>FinalizeLive</c> awaits checkpoint drain before unloading (CGF1-S0303 A.1).
         /// </param>
         /// <param name="simGroup">
-        /// Optional <see cref="Fdp.Kernel.SimulationSystemGroup"/>.  When provided together
+        /// Optional <see cref="Fdp.Core.SimulationSystemGroup"/>.  When provided together
         /// with <paramref name="lifecycleGroup"/> and <paramref name="ghostCreationSystem"/>,
         /// a <see cref="ReplayLoadClusterOpHandler"/> is registered and these objects are disabled /
         /// re-enabled during <c>PrepareReplay</c> / <c>FinalizeReplay</c> transitions
@@ -101,15 +101,15 @@ namespace Hrot.SimHost
         public ClusterSlave BuildOrchestration(
             NodeRole role,
             Fdp.ModuleHost.ModuleHostKernel kernel,
-            Fdp.Kernel.EntityRepository world,
+            Fdp.Core.EntityRepository world,
             int nodeId,
             CycloneDDS.Runtime.DdsParticipant? participant = null,
             string subsystemName = "SimHost",
-            Fdp.Kernel.FdpEventBus? eventBus = null,
+            Fdp.Core.FdpEventBus? eventBus = null,
             Fdp.Toolkit.Scenario.ScenarioSerializer? scenarioSerializer = null,
             string localTempRoot = @"C:\FDP_Temp",
             CheckpointIOWorker? checkpointWorker = null,
-            Fdp.Kernel.SimulationSystemGroup? simGroup = null,
+            Fdp.Core.SimulationSystemGroup? simGroup = null,
             Fdp.ModuleHost.Scheduling.NetworkLifecycleSystemGroup? lifecycleGroup = null,
             Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null)
         {

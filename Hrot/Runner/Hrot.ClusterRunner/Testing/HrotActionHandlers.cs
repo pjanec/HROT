@@ -1,5 +1,5 @@
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Microsoft.Extensions.Logging;
 
 namespace Hrot.ClusterRunner.Testing

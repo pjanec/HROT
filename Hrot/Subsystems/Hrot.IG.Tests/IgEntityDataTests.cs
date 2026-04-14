@@ -1,7 +1,7 @@
 using System.Reflection;
 using Hrot.NED.Descriptors;
 using Hrot.IG.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 namespace Hrot.IG.Tests

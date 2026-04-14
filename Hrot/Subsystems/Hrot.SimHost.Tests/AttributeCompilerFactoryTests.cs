@@ -11,7 +11,7 @@ using Hrot.CGF.Systems;
 using Hrot.Core.Network;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;

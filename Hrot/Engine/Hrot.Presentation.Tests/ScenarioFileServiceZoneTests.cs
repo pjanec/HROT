@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Scenario;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Scenario;

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.DER;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Editor.Commands;

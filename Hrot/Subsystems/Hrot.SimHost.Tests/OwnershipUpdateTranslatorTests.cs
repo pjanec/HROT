@@ -1,6 +1,6 @@
 using System.Threading;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common.Replication;
 using Fdp.ModuleHost.Abstractions;

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Hrot.NED.Descriptors;
 using Hrot.Map.Common.Dds;
 using Hrot.Network.NED.SimHost;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Replication.Services;
 using System.Numerics;

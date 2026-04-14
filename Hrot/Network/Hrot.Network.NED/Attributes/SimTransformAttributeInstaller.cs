@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Fdp.Toolkit.Replication.Patching;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic;
 
 namespace Hrot.SimHost.Installers;

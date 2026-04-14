@@ -2,7 +2,7 @@ using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Definitions.Tkb;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;

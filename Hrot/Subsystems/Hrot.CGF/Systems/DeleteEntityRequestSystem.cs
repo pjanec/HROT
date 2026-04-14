@@ -1,8 +1,8 @@
 using System;
 using Hrot.Core.Network;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;

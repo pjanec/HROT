@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.DER;
@@ -130,11 +130,11 @@ public sealed class NedNetworkFactory : INetworkFactory
     }
 
     /// <inheritdoc/>
-    public IReadOnlyList<Fdp.Kernel.ComponentSystem> CreateSimHostAttributeUpdateSystems()
+    public IReadOnlyList<Fdp.Core.ComponentSystem> CreateSimHostAttributeUpdateSystems()
     {
-        if (_participant == null) return System.Array.Empty<Fdp.Kernel.ComponentSystem>();
+        if (_participant == null) return System.Array.Empty<Fdp.Core.ComponentSystem>();
         var jsonAttributeCompiler = Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
-        return new Fdp.Kernel.ComponentSystem[]
+        return new Fdp.Core.ComponentSystem[]
         {
             new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(
                 _participant, _entityMap, _geoTransform, jsonAttributeCompiler),

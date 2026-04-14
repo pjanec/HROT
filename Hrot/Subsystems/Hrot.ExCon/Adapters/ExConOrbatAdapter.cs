@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.DER;
 using Hrot.Core.Network;
 using Hrot.UI.Common.Facades;
@@ -19,7 +19,7 @@ namespace Hrot.ExCon.Adapters;
 ///
 /// <para>
 /// <b>No ECS imports:</b> this adapter relies solely on <see cref="IDerRepo"/> and
-/// never imports <c>Fdp.Kernel</c>, <c>EntityRepository</c>, or <c>ComponentSystem</c>.
+/// never imports <c>Fdp.Core</c>, <c>EntityRepository</c>, or <c>ComponentSystem</c>.
 /// </para>
 /// </summary>
 public sealed class ExConOrbatAdapter : IOrbatDataProvider, IOrbatController

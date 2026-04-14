@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Hrot.ScenarioEditor.Tools;
 using Hrot.Map.Common.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Raylib_cs;
 
 namespace Hrot.IG.Tests;

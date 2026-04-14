@@ -6,7 +6,7 @@ using Hrot.IG.Systems;
 using Hrot.ScenarioEditor.Tools;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.NetworkSpawning.Events;
-using Fdp.Kernel;
+using Fdp.Core;
 using Raylib_cs;
 
 namespace Hrot.IG.Tests;

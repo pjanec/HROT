@@ -2,7 +2,7 @@ using System;
 using Hrot.Map.Common;
 using Hrot.Map.Definitions.Tkb;
 using CarKinem.Core;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Replication.Systems;

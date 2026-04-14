@@ -7,8 +7,8 @@ using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Common.Orchestration;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
-using Fdp.Kernel.Logging;
+using Fdp.Core;
+using Fdp.Core.Logging;
 
 namespace Hrot.Orchestrator;
 

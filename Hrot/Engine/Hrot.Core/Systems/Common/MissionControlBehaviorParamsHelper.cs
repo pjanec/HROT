@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common.Components;
 

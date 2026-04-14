@@ -1,5 +1,5 @@
 using Hrot.ClusterRunner.Testing;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 

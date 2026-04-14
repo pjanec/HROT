@@ -1,5 +1,5 @@
 using System.Reflection;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.ModuleHost;
 

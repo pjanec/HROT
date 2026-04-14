@@ -1,5 +1,5 @@
 using System.Threading.Tasks;
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.Editor;
 using Hrot.ScenarioEditor.Services;
 using Xunit;

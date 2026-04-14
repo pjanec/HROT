@@ -5,7 +5,7 @@ using Hrot.Map.Common.Replication.Ingress;
 using Hrot.SimHost;
 using CarKinem.Road;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Replication.Services;
 using Xunit;

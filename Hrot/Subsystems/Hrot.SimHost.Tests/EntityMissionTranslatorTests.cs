@@ -5,7 +5,7 @@ using Hrot.SimHost.Modules;
 using Hrot.Map.Common.Replication.Egress;
 using Hrot.Map.Common.Replication.Ingress;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Lifecycle;

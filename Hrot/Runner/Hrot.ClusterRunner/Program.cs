@@ -1,7 +1,7 @@
 using CommandLine;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.ImGui.WindowManager;
 using Hrot.BDC.Factory;
 using Hrot.ClusterRunner.Configuration;

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using ImGuiNET;
 using Raylib_cs;
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.Core.Network;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Vis2D;
@@ -234,7 +234,7 @@ namespace Hrot.SimHost
             _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
             {
                 if (btn != MouseButton.Right) return;
-                var entities = new List<Fdp.Kernel.Entity>(_selection.SelectedEntities);
+                var entities = new List<Fdp.Core.Entity>(_selection.SelectedEntities);
                 if (entities.Count == 0) return;
 
                 var interp = _ui!.UIState.InterpolationMode;
@@ -339,7 +339,7 @@ namespace Hrot.SimHost
             // the network layer properly and IG removes the ghost entity.
             if (Raylib.IsKeyPressed(KeyboardKey.Delete) && _selection != null)
             {
-                foreach (var e in new List<Fdp.Kernel.Entity>(_selection.SelectedEntities))
+                foreach (var e in new List<Fdp.Core.Entity>(_selection.SelectedEntities))
                 {
                     if (!_repo.IsAlive(e)) continue;
 
@@ -414,7 +414,7 @@ namespace Hrot.SimHost
         }
 
         /// <summary>Centres the map camera on the entity's SimTransform position.</summary>
-        private void CenterCameraOnEntity(Fdp.Kernel.Entity entity)
+        private void CenterCameraOnEntity(Fdp.Core.Entity entity)
         {
             if (_repo == null || !_repo.IsAlive(entity)) return;
             if (!_repo.HasComponent<SimTransform>(entity)) return;

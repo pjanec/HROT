@@ -2,7 +2,7 @@ using System;
 using System.Numerics;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Components;
 using Xunit;

@@ -1,7 +1,7 @@
 ﻿using System.Numerics;
 using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Layers;
 

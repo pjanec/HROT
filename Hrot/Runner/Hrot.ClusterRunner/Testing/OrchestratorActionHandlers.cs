@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Engine.Runner.Testing;
 using Fdp.Toolkit.Orchestration;
 using Microsoft.Extensions.Logging;
@@ -19,7 +19,7 @@ namespace Hrot.ClusterRunner.Testing
     /// Registered only by E2E test fixtures — never wired into a production boot path.
     /// ComponentId 219 is an unoccupied byte value in the test-reserved range (200-255).
     /// </summary>
-    [Fdp.Kernel.ComponentId(219)]
+    [Fdp.Core.ComponentId(219)]
     public struct MovingTestTag
     {
         /// <summary>Metres per second along the X axis.</summary>

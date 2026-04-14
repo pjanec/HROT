@@ -2,7 +2,7 @@ using System;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.CarKinem.Modules;
 using Fdp.Toolkit.Combat.Modules;
 using Fdp.Toolkit.Navigation.Systems;

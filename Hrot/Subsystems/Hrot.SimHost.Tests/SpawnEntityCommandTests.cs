@@ -7,7 +7,7 @@ using Hrot.SimHost.Configuration;
 using Hrot.SimHost.UI;
 using CarKinem.Core;
 using CarKinem.Road;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.ModuleHost.Network.Interfaces;
 

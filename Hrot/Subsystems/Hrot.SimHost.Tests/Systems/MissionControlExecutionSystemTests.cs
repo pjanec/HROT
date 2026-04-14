@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Hrot.Core.Mission;
 using Hrot.Common.Events;
 using Hrot.Common.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Replication.Services;

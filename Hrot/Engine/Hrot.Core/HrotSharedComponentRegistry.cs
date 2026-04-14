@@ -1,6 +1,6 @@
 using Hrot.Map.Common.Events;
 using Hrot.Map.Definitions.Tkb;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.Replication.Components;

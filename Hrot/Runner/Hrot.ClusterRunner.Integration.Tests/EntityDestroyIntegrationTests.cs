@@ -8,7 +8,7 @@ using Hrot.Map.Common;
 using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
 

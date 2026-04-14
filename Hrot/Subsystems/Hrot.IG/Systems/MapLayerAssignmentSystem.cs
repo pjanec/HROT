@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.ModuleHost.Abstractions;
 

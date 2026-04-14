@@ -1,6 +1,6 @@
 using System.Reflection;
 using Hrot.IG.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 namespace Hrot.IG.Tests

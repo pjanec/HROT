@@ -19,7 +19,7 @@ using Hrot.Orchestrator.Panels;
 using Hrot.Orchestrator.Windows;
 using Fdp.Engine.Runner;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.ModuleHost.Time;

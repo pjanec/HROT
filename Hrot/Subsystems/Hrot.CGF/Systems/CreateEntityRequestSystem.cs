@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using Hrot.Core.Network;
 using Fdp.Toolkit.Replication.Patching;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
@@ -381,7 +381,7 @@ namespace Hrot.CGF.Systems
             var grants = new List<DescriptorGrant>();
             if (_ownershipStrategy == null) return grants;
 
-            var disType = new Fdp.Kernel.DISEntityType { Value = pending.DisType };
+            var disType = new Fdp.Core.DISEntityType { Value = pending.DisType };
 
             // Evaluate the strategy for every descriptor ordinal the Muscle node may own.
             foreach (long ordinal in new[]

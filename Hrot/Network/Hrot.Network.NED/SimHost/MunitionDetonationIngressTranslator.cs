@@ -2,7 +2,7 @@ using System;
 using Hrot.NED.Messages;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;

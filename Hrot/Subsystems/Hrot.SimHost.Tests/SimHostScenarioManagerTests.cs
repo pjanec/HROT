@@ -10,7 +10,7 @@ using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Navigation.Executors;
 using Fdp.Toolkit.NetworkSpawning.Events;

@@ -7,7 +7,7 @@ using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.Map.Common;
 using Hrot.Network.NED.Factory;
 using Fdp.Toolkit.Lifecycle.Events;

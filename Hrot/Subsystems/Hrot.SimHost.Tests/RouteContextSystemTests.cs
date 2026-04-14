@@ -2,7 +2,7 @@ using System.Numerics;
 using Hrot.Map.Common.Components;
 using Hrot.CGF.Brains;
 using Hrot.CGF.Systems.Routing;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Navigation;
 using Fdp.ModuleHost.Abstractions;

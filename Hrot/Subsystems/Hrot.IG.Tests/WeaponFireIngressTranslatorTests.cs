@@ -1,6 +1,6 @@
 using Hrot.NED.Messages;
 using Hrot.Network.NED.IG;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
 using System;

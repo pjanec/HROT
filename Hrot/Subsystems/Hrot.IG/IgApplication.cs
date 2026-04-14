@@ -40,7 +40,7 @@ using CycloneDDS.Runtime;
 
 using CycloneDDS.Runtime.Tracking;
 
-using Fdp.Kernel;
+using Fdp.Core;
 
 using Fdp.Modules.Geographic.Components;
 
@@ -50,7 +50,7 @@ using Fdp.Modules.Geographic.Transforms;
 
 using Fdp.Toolkit.Lifecycle;
 
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 
 using Fdp.Toolkit.Combat.Components;
 
@@ -210,7 +210,7 @@ public class IgApplication : IDisposable
     // -- ClusterSlave (CGF1-S0104 / CMC-S016) — wired in InitializeNetwork ------
     private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
     // CMC-S016: orchestration bus + slave translator (Option C).
-    private Fdp.Kernel.FdpEventBus?                             _igOrchestrationBus;
+    private Fdp.Core.FdpEventBus?                             _igOrchestrationBus;
     private Hrot.Common.Orchestration.NodeOpSlaveTranslator?    _igSlaveTranslator;
 
     // ── HrotNodeBuilder infrastructure context (EAM-M002) ─────────────────────
@@ -847,7 +847,7 @@ public class IgApplication : IDisposable
                 var igNodeId = _effectiveInstanceId;
 
                 // CMC-S016: each slave subsystem has its own orchestration bus + translator (Option C).
-                _igOrchestrationBus = new Fdp.Kernel.FdpEventBus();
+                _igOrchestrationBus = new Fdp.Core.FdpEventBus();
                 _igSlaveTranslator  = new Hrot.Common.Orchestration.NodeOpSlaveTranslator(
                     commandReader:   new CycloneDDS.Runtime.DdsReader<Hrot.NED.Descriptors.Orchestration.NodeOpCommand>(participant!),
                     statusWriter:    new CycloneDDS.Runtime.DdsWriter<Hrot.NED.Descriptors.Orchestration.NodeOpStatus>(participant!),

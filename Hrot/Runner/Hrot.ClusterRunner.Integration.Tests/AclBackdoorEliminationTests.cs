@@ -4,7 +4,7 @@ using System.Linq;
 using System.Numerics;
 using System.Threading;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Network.Interfaces;

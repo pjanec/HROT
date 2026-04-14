@@ -118,14 +118,14 @@ file sealed class FailingCIScenario : IScenario
 {
     public string ScenarioName => "failing_ci";
 
-    public void Configure(Fdp.Kernel.EntityRepository world, Fdp.ModuleHost.ModuleHostKernel kernel) { }
+    public void Configure(Fdp.Core.EntityRepository world, Fdp.ModuleHost.ModuleHostKernel kernel) { }
 
-    public bool EvaluateTick(uint currentTick, Fdp.Kernel.EntityRepository world)
+    public bool EvaluateTick(uint currentTick, Fdp.Core.EntityRepository world)
     {
         if (currentTick >= 1)
             throw new ScenarioFailureException(1, "[FailingCI] Deliberate assertion failure at tick 1.");
         return false;
     }
 
-    public void ConfigureVisuals(Fdp.Toolkit.Vis2D.MapCanvas? canvas, Fdp.Kernel.EntityRepository world) { }
+    public void ConfigureVisuals(Fdp.Toolkit.Vis2D.MapCanvas? canvas, Fdp.Core.EntityRepository world) { }
 }

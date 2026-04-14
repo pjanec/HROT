@@ -1,5 +1,5 @@
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Map.Common.Components;

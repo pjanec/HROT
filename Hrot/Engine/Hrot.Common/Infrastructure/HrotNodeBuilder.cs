@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.Orchestration;

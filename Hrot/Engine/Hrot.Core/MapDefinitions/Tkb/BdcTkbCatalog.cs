@@ -1,5 +1,5 @@
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Tkb;
 using Hrot.Map.Common;
 

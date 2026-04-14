@@ -1,7 +1,7 @@
 using System;
 using Fdp.Interfaces;
-using Fdp.Kernel;
-using Fdp.Kernel.Logging;
+using Fdp.Core;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Messages;
 using Fdp.Toolkit.Replication.Services;

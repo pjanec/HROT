@@ -12,7 +12,7 @@ using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Definitions.Tkb;
 using Fdp.ModuleHost.Network.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
@@ -465,7 +465,7 @@ public sealed class EditorSubsystemBootTests
 
         var expectedInfo = new Hrot.IG.Components.EntityInfo
         {
-            Name    = new Fdp.Kernel.FixedString64("TestTank"),
+            Name    = new Fdp.Core.FixedString64("TestTank"),
             ForceId = Hrot.IG.Components.ForceId.Hostile,
         };
 

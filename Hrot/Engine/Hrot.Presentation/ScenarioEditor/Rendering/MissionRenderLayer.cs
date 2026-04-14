@@ -2,7 +2,7 @@
 using System.Text.Json;
 using Fdp.Toolkit.Behavior.Components;
 using Hrot.IG.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Components;

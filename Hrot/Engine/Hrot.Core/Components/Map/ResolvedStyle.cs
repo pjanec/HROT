@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Hrot.IG.Components;
 

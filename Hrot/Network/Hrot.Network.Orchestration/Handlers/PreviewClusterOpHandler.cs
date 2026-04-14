@@ -3,8 +3,8 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
-using Fdp.Kernel;
-using Fdp.Kernel.Logging;
+using Fdp.Core;
+using Fdp.Core.Logging;
 
 namespace Hrot.Common.Orchestration.Handlers
 {

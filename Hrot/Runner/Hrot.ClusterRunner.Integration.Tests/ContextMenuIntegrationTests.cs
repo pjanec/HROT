@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Hrot.NED.Messages;
 using Hrot.IG.Components;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;

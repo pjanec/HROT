@@ -1,7 +1,7 @@
 using System;
 using Hrot.IG.Components;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.IG.Systems;

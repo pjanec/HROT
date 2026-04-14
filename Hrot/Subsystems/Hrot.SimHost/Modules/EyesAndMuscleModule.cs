@@ -2,7 +2,7 @@ using System.Numerics;
 using System.Threading;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.Common;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Interfaces;

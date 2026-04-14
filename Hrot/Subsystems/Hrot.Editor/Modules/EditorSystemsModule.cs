@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.Editor.Systems;
 using Hrot.Map.Common.Services;
 using Fdp.ModuleHost.Abstractions;

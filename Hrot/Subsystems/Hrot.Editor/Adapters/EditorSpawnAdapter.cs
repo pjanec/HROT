@@ -1,6 +1,6 @@
 using System.Numerics;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Patching;
@@ -95,7 +95,7 @@ namespace Hrot.Editor.Adapters
 
                     cmd.InitialComponents.Add(new EntityInfo
                     {
-                        Name    = new Fdp.Kernel.FixedString64(defaultName),
+                        Name    = new Fdp.Core.FixedString64(defaultName),
                         ForceId = ForceId.Unknown,
                     });
 

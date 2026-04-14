@@ -1,6 +1,6 @@
 using Hrot.NED.Messages;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Network.Cyclone.Translators;
 

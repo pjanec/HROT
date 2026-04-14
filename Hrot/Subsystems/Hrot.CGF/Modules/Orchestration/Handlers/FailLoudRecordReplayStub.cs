@@ -3,8 +3,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Common.Orchestration;
-using Fdp.Kernel;
-using Fdp.Kernel.Logging;
+using Fdp.Core;
+using Fdp.Core.Logging;
 
 namespace Hrot.CGF.Modules.Orchestration.Handlers
 {

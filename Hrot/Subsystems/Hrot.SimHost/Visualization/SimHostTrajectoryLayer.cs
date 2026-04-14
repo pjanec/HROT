@@ -2,7 +2,7 @@ using System.Numerics;
 using Raylib_cs;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.ImGui.Abstractions;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using CarKinem.Core;
 using CarKinem.Trajectory;

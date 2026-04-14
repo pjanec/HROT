@@ -1,6 +1,6 @@
 ﻿using System.Numerics;
 using Hrot.ScenarioEditor.Adapters;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 
 namespace Hrot.IG.Tests;

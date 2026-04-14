@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.Map.Common.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;

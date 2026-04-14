@@ -1,7 +1,7 @@
 using System.Numerics;
 using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Rendering;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.ModuleHost.Abstractions;

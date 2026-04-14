@@ -1,7 +1,7 @@
 ﻿using System.Numerics;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.ImGui.Abstractions;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Vis2D.Abstractions;

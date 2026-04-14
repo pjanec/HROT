@@ -17,7 +17,7 @@ namespace Hrot.SimHost.Integration.Tests
     ///   2. The entity's <see cref="NavState"/> is configured with a distant target so
     ///      <see cref="CarKinem.Systems.CarKinematicsSystem"/> starts driving it.
     ///   3. 10 simulated seconds are advanced at 60 Hz.
-    ///   4. The entity's <see cref="Fdp.Kernel.SimTransform"/> is read
+    ///   4. The entity's <see cref="Fdp.Core.SimTransform"/> is read
     ///      back via <see cref="SimHostInstance.ReadGeoSpatial"/> and converted to local
     ///      Cartesian coordinates; we assert the vehicle moved at least 50 m from the origin.
     ///

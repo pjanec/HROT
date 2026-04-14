@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior.Events;
 using Hrot.IG.Components;
 using Hrot.UI.Common.Facades;

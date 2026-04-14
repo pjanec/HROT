@@ -3,7 +3,7 @@ using Hrot.NED.Descriptors;
 using Hrot.Map.Common.Dds;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;

@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Tkb
 {

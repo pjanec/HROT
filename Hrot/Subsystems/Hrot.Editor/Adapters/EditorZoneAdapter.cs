@@ -1,5 +1,5 @@
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D;
 using Hrot.Editor.Tools;
 using Hrot.Map.Common.Events;

@@ -3,7 +3,7 @@ using System.Threading;
 using Hrot.NED.Descriptors;
 using Hrot.Map.Common.Replication.Egress;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.NED.Descriptors.Orchestration;
 using Fdp.Toolkit.Orchestration;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;

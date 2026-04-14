@@ -1,5 +1,5 @@
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.Map.Common.Events;
 using Xunit;
 

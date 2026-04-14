@@ -2,7 +2,7 @@ using System.Numerics;
 using Fdp.Toolkit.ImGui.WindowManager;
 using Hrot.SimHost;
 using Hrot.SimHost.UI;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost;
 
 namespace Hrot.SimHost.Windows;

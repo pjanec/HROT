@@ -4,7 +4,7 @@ using Hrot.IG.Components;
 using Hrot.IG.Systems;
 using Hrot.Map.Definitions.Tkb;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 

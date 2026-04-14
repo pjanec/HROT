@@ -4,7 +4,7 @@ using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Tools;
 using Hrot.IG.UI;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Raylib_cs;
 

@@ -8,7 +8,7 @@ using Hrot.IG.Components;
 using Hrot.SimHost.Installers;
 using Fdp.Toolkit.Replication.Patching;
 using Hrot.Map.Common.Replication;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic;
 
 namespace Hrot.SimHost.Tests

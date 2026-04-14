@@ -1,6 +1,6 @@
 using System;
 using System.Threading;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Map.Common;

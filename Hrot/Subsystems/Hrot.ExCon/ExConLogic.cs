@@ -4,7 +4,7 @@ using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
 using Hrot.ExCon.Services;
 using Hrot.Map.Common;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.DER;
 using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;

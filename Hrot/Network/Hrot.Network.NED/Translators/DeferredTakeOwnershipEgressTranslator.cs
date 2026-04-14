@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.Kernel;
-using Fdp.Kernel.Logging;
+using Fdp.Core;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
@@ -71,7 +71,7 @@ namespace Hrot.Network.Translators
             }
         }
 
-        public void ApplyToEntity(Entity entity, object data, Fdp.Kernel.EntityRepository repo) { }
+        public void ApplyToEntity(Entity entity, object data, Fdp.Core.EntityRepository repo) { }
 
         public void Dispose(long networkEntityId) { }
     }

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Network;
 using Fdp.ModuleHost.Network.Messages;

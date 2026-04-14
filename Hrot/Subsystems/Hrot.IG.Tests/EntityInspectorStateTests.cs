@@ -2,7 +2,7 @@ using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.IG.Components;
 using Hrot.IG.UI;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 

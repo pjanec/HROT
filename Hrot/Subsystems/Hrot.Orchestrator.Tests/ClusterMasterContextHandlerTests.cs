@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.NED.Descriptors.Orchestration;
 using CycloneDDS.Runtime;
 using Fdp.Toolkit.Orchestration;

@@ -1,6 +1,6 @@
 using System;
 using System.Text.Json;
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.Map.Common.Components;
 using Fdp.Toolkit.Replication.Components;
 

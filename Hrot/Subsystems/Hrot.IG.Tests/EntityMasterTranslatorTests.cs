@@ -1,6 +1,6 @@
 using Hrot.NED.Descriptors;
 using Hrot.Map.Common.Replication.Ingress;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;

@@ -1,8 +1,8 @@
 using System;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.Kernel;
-using Fdp.Kernel.Logging;
+using Fdp.Core;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Map.Common.Dds;

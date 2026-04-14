@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.Map.Common.Scenario;
 
 namespace Hrot.Map.Common.Services;

@@ -1,6 +1,6 @@
 using System;
 using System.Threading;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.SimHost;
 using Hrot.CGF;

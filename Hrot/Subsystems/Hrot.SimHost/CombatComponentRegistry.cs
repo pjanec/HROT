@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;

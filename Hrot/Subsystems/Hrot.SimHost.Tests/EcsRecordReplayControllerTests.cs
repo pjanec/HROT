@@ -3,7 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Hrot.SimHost.Modules.Orchestration;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replay;
 using Fdp.ModuleHost;
 using Xunit;
@@ -166,7 +166,7 @@ namespace Hrot.SimHost.Tests
             using var cts      = new CancellationTokenSource();
             var       loopTask = RunKernelLoop(_kernel, cts.Token);
 
-            _world.SetSingletonUnmanaged(new Fdp.Kernel.GlobalTime
+            _world.SetSingletonUnmanaged(new Fdp.Core.GlobalTime
             {
                 DeltaTime       = 0.016f,
                 TimeScale       = 1.0f,
@@ -178,7 +178,7 @@ namespace Hrot.SimHost.Tests
             // Drive 10 update frames so the recorder has real data.
             for (int i = 0; i < 10; i++)
             {
-                _world.SetSingletonUnmanaged(new Fdp.Kernel.GlobalTime
+                _world.SetSingletonUnmanaged(new Fdp.Core.GlobalTime
                 {
                     DeltaTime       = 0.016f,
                     TimeScale       = 1.0f,

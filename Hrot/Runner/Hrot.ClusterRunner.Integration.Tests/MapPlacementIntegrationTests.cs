@@ -7,7 +7,7 @@ using Hrot.Map.Common;
 using CycloneDDS.Runtime;
 using Fdp.Toolkit.DER;
 using Fdp.Toolkit.Replication.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;

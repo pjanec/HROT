@@ -6,7 +6,7 @@ using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Dds;
 using Hrot.Map.Common.Replication.Egress;
 using Hrot.Map.Common.Replication.Ingress;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
 using Fdp.Toolkit.Replication.Components;

@@ -1,7 +1,7 @@
 ﻿using Hrot.Core.Mission;
 using Hrot.Core.Network;
 using Hrot.Map.Definitions.Tkb;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.DER;
 
 namespace Hrot.ExCon.Services;

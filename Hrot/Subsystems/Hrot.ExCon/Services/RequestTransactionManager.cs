@@ -1,6 +1,6 @@
 namespace Hrot.ExCon.Services;
 
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 
 /// <summary>
 /// Thread-safe implementation of <see cref="IRequestTransactionManager"/>.

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.ImGui.Abstractions;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Perception.Components;

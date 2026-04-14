@@ -3,7 +3,7 @@ using Hrot.Core.Mission;
 using Hrot.Map.Common;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.NetworkSpawning.Events;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;

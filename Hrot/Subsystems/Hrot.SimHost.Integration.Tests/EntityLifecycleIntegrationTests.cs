@@ -10,7 +10,7 @@ using Hrot.SimHost;
 using Hrot.SimHost.Configuration;
 using Hrot.Network.NED.Factory;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Network.Cyclone.Services;

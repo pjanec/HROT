@@ -1,6 +1,6 @@
 using System;
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Hrot.IG.Tests.CommandHandling;
 

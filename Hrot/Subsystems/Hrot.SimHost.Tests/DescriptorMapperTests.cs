@@ -6,7 +6,7 @@ using Hrot.NED.Common;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Replication.Utils;
 using CarKinem.Core;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Systems;
 

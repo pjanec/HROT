@@ -4,7 +4,7 @@ using Hrot.Map.Common.Components;
 using Hrot.SimHost.Visualization;
 using CarKinem.Core;
 using CarKinem.Trajectory;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.ImGui.Abstractions;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.ModuleHost.Abstractions;

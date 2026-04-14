@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 using Hrot.IG.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 
 namespace Hrot.IG.Tests.CommandHandling;

@@ -1,7 +1,7 @@
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Hrot.Common.Abstractions;
@@ -43,8 +43,8 @@ internal sealed class MockNetworkFactory : INetworkFactory
     public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators() => new NullSimHostPerceptionTranslators();
 
     /// <inheritdoc/>
-    public System.Collections.Generic.IReadOnlyList<Fdp.Kernel.ComponentSystem> CreateSimHostAttributeUpdateSystems()
-        => System.Array.Empty<Fdp.Kernel.ComponentSystem>();
+    public System.Collections.Generic.IReadOnlyList<Fdp.Core.ComponentSystem> CreateSimHostAttributeUpdateSystems()
+        => System.Array.Empty<Fdp.Core.ComponentSystem>();
 
     /// <inheritdoc/>
     public IIgTranslators CreateIgTranslators() => new NullIgTranslators();
@@ -86,7 +86,7 @@ internal sealed class MockNetworkFactory : INetworkFactory
     public ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters() => null;
     public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreateIgEgressTranslators(
         CycloneDDS.Runtime.DdsParticipant participant,
-        Fdp.Kernel.FdpEventBus bus,
+        Fdp.Core.FdpEventBus bus,
         Fdp.Modules.Geographic.IGeographicTransform geoTransform,
         long nodeId)
         => System.Array.Empty<Fdp.Interfaces.IDescriptorTranslator>();

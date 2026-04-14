@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
@@ -24,8 +24,8 @@ internal sealed class StubAllOpsHandler : IClusterStateHandler
     public bool CanHandle(Fdp.Toolkit.Orchestration.NodeOpType op) => true;
     public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct) =>
         Task.FromResult<object?>(null);
-    public void Commit(ExecuteNodeOpIntent intent, Fdp.Kernel.EntityRepository? repo) { }
-    public void Abort(ExecuteNodeOpIntent  intent, Fdp.Kernel.EntityRepository? repo) { }
+    public void Commit(ExecuteNodeOpIntent intent, Fdp.Core.EntityRepository? repo) { }
+    public void Abort(ExecuteNodeOpIntent  intent, Fdp.Core.EntityRepository? repo) { }
 }
 
 /// <summary>
@@ -37,8 +37,8 @@ internal sealed class FailingPrepareHandler : IClusterStateHandler
     public bool CanHandle(Fdp.Toolkit.Orchestration.NodeOpType op) => true;
     public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct) =>
         Task.FromException<object?>(new InvalidOperationException("Simulated prepare failure"));
-    public void Commit(ExecuteNodeOpIntent intent, Fdp.Kernel.EntityRepository? repo) { }
-    public void Abort(ExecuteNodeOpIntent  intent, Fdp.Kernel.EntityRepository? repo) { }
+    public void Commit(ExecuteNodeOpIntent intent, Fdp.Core.EntityRepository? repo) { }
+    public void Abort(ExecuteNodeOpIntent  intent, Fdp.Core.EntityRepository? repo) { }
 }
 
 // ── Collection declaration (no parallelism) ───────────────────────────────────

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
@@ -237,12 +237,12 @@ namespace Hrot.Editor.Tests.Adapters
 
             _world.AddComponent(parent, new EntityInfo
             {
-                Name       = new Fdp.Kernel.FixedString64("Alpha"),
+                Name       = new Fdp.Core.FixedString64("Alpha"),
                 CommanderId = 0,
             });
             _world.AddComponent(child, new EntityInfo
             {
-                Name       = new Fdp.Kernel.FixedString64("Bravo"),
+                Name       = new Fdp.Core.FixedString64("Bravo"),
                 CommanderId = parent.Index, // parent.Index == 1 (not 0)
             });
 
@@ -266,12 +266,12 @@ namespace Hrot.Editor.Tests.Adapters
 
             _world.AddComponent(e1, new EntityInfo
             {
-                Name       = new Fdp.Kernel.FixedString64("Tiger"),
+                Name       = new Fdp.Core.FixedString64("Tiger"),
                 CommanderId = 0,
             });
             _world.AddComponent(e2, new EntityInfo
             {
-                Name       = new Fdp.Kernel.FixedString64("Wolf"),
+                Name       = new Fdp.Core.FixedString64("Wolf"),
                 CommanderId = 0,
             });
 
@@ -291,12 +291,12 @@ namespace Hrot.Editor.Tests.Adapters
 
             _world.AddComponent(passenger, new EntityInfo
             {
-                Name        = new Fdp.Kernel.FixedString64("Soldier"),
+                Name        = new Fdp.Core.FixedString64("Soldier"),
                 CommanderId = 0,
             });
             _world.AddComponent(vehicle, new EntityInfo
             {
-                Name        = new Fdp.Kernel.FixedString64("Apc"),
+                Name        = new Fdp.Core.FixedString64("Apc"),
                 CommanderId = 0,
             });
 
@@ -320,7 +320,7 @@ namespace Hrot.Editor.Tests.Adapters
             var passenger = _world.CreateEntity();
             _world.AddComponent(passenger, new EntityInfo
             {
-                Name        = new Fdp.Kernel.FixedString64("Soldier"),
+                Name        = new Fdp.Core.FixedString64("Soldier"),
                 CommanderId = 0,
             });
 

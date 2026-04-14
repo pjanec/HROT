@@ -1,7 +1,7 @@
 using System;
 using Hrot.Core.Network;
 using Hrot.IG.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using ImGuiNET;
 
 namespace Hrot.IG.UI;

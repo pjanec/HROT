@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Tools;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Raylib_cs;
 

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Numerics;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
-using Fdp.Kernel;
+using Fdp.Core;
 using ImGuiNET;
 using FdpClusterOpType   = Fdp.Toolkit.Orchestration.ClusterOpType;
 using ClusterOpIntent    = Fdp.Toolkit.Orchestration.ClusterOpIntent;

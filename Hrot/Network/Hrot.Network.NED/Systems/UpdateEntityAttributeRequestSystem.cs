@@ -5,9 +5,9 @@ using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Fdp.Toolkit.Replication.Patching;
 using CycloneDDS.Runtime;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.Replication.Services;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.ModuleHost.Abstractions;
 

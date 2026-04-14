@@ -3,7 +3,7 @@ using System.Numerics;
 using Fdp.Engine.Runner;
 using Fdp.Toolkit.ImGui.WindowManager;
 using Fdp.Toolkit.Vis2D.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.Common.Infrastructure;
 using Hrot.Network.Infrastructure;
 using Hrot.Map.Common;

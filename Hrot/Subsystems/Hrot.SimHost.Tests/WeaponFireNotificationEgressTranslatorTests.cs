@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Hrot.NED.Messages;
 using Hrot.Map.Common.Dds;
 using Hrot.Network.NED.SimHost;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Replication.Services;
 using Xunit;

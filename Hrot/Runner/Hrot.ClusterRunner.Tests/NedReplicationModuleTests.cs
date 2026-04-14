@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Hrot.Network.Replication;

@@ -1,6 +1,6 @@
 using CycloneDDS.Runtime;
 using Fdp.Toolkit.Replication.Services;
-using Fdp.Kernel;
+using Fdp.Core;
 using Hrot.Common;
 using Hrot.Map.Common;
 using Hrot.Network.NED.Factory;

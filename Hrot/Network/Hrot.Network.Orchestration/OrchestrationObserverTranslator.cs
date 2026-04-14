@@ -1,7 +1,7 @@
 using System;
 using System.Text.Json;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Time.Messages;
 using Hrot.NED.Descriptors.Orchestration;

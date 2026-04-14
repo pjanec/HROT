@@ -1,6 +1,6 @@
 using CarKinem.Spatial;
-using Fdp.Kernel;
-using Fdp.Kernel.Collections;
+using Fdp.Core;
+using Fdp.Core.Collections;
 using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Systems;
 using Fdp.ModuleHost.Abstractions;

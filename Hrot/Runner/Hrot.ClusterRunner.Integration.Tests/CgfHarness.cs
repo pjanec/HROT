@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using Fdp.Engine.Runner;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.CGF;
 using Hrot.Common;
@@ -34,7 +34,7 @@ public sealed class CgfHarness : IDisposable
     public CgfSubsystem CgfSvc   { get; }
 
     /// <summary>TestHook: direct access to CGF ghost ECS world for state assertions.</summary>
-    internal Fdp.Kernel.EntityRepository? World => CgfSvc.World;
+    internal Fdp.Core.EntityRepository? World => CgfSvc.World;
 
     // ── Auto-increment constructor ────────────────────────────────────────────
 

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Hrot.NED.Descriptors;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Replication.Ingress;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Replication.Services;

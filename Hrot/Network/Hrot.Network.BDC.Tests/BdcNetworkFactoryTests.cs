@@ -5,7 +5,7 @@ using Hrot.Core.Network;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Replication.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 using NSubstitute;
 

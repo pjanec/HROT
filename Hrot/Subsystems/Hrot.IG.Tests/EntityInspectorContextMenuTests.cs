@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.ImGui.Abstractions;
 using Fdp.Toolkit.ImGui.Utils;
 using Fdp.Toolkit.NetworkSpawning.Events;

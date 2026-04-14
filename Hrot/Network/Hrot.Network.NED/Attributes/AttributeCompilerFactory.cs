@@ -5,7 +5,7 @@ using Hrot.NED.Messages;
 using Hrot.IG.Components;
 using Hrot.SimHost.Installers;
 using Fdp.Toolkit.Replication.Patching;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic;
 
 namespace Hrot.SimHost;

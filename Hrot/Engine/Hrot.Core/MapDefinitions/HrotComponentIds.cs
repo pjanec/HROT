@@ -2,7 +2,7 @@ namespace Hrot.Map.Definitions
 {
     /// <summary>
     /// Project-wide ECS component ID registry for all Hrot-specific components.
-    /// FDP + toolkit IDs (0–159) remain in <c>Fdp.Kernel.GlobalComponentIds</c>.
+    /// FDP + toolkit IDs (0–159) remain in <c>Fdp.Core.GlobalComponentIds</c>.
     ///
     /// <para><b>ID block allocation</b></para>
     /// <list type="table">

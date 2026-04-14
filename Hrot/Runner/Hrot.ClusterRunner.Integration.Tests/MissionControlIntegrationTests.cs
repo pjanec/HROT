@@ -7,7 +7,7 @@ using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.ExCon.Services;
 using Hrot.Map.Common;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
