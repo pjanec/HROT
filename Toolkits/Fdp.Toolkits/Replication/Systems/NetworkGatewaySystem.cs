@@ -8,8 +8,7 @@ using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.ModuleHost.Network;
 using Fdp.ModuleHost.Network.Interfaces;
 using Fdp.Interfaces;
-using INetworkTopology = Fdp.Interfaces.INetworkTopology;
-using Fdp.Interfaces;
+using INetworkTopology = Fdp.Toolkit.Replication.INetworkTopology;
 
 namespace Fdp.Toolkit.Replication.Systems
 {

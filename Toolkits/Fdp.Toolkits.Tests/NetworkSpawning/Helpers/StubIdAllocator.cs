@@ -1,5 +1,3 @@
-using Fdp.ModuleHost.Network.Interfaces;
-
 namespace Fdp.Toolkit.NetworkSpawning.Tests.Helpers
 {
     /// <summary>

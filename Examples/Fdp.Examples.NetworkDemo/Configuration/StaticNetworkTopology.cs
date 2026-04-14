@@ -2,16 +2,17 @@ using System.Collections.Generic;
 using System.Linq;
 using Fdp.Core;
 using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication;
 
-namespace Fdp.ModuleHost.Network
+namespace Fdp.Examples.NetworkDemo.Configuration
 {
+
     /// <summary>
     /// Static network topology with hardcoded peer lists.
     /// For simple deployments and testing.
     /// </summary>
-    [Obsolete("Move to Network.Demo")]
-    public class StaticNetworkTopology : Fdp.Interfaces.INetworkTopology
-    {
+    public class StaticNetworkTopology : INetworkTopology
+	{
         private readonly int _localNodeId;
         private readonly int[] _allNodes;
         

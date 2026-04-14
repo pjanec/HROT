@@ -9,7 +9,7 @@ using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.ModuleHost.Network;
 using Fdp.ModuleHost.Network.Interfaces;
-using INetworkTopology = Fdp.Interfaces.INetworkTopology;
+using INetworkTopology = Fdp.Toolkit.Replication.INetworkTopology;
 
 namespace Fdp.Toolkit.Replication.Tests
 {

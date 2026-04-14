@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.NetworkSpawning;
 
 namespace Fdp.Toolkit.Replication.Services
 {

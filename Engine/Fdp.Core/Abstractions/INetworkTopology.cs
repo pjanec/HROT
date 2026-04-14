@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Fdp.Core;
 
-namespace Fdp.Interfaces
+namespace Fdp.Toolkit.Replication
 {
     [ComponentId(GlobalComponentIds.INetworkTopology)]
     public interface INetworkTopology

@@ -96,26 +96,6 @@ namespace Fdp.ModuleHost.Tests.Network
             }
         }
 
-        private class MockTopology : INetworkTopology
-        {
-            public int LocalNodeId => 1;
-            public IEnumerable<int> GetExpectedPeers(ReliableInitType type)
-            {
-                return new[] { 2, 3 };
-            }
-        }
-
-        [Fact]
-        public void Interfaces_CanBeImplemented()
-        {
-            var strategy = new MockStrategy { ReturnValue = 5 };
-            Assert.Equal(5, strategy.GetInitialOwner(0, new DISEntityType(), 1, 0));
-            
-            var topology = new MockTopology();
-            Assert.Equal(1, topology.LocalNodeId);
-            Assert.Equal(new[] { 2, 3 }, topology.GetExpectedPeers(ReliableInitType.None));
-            
-        }
 
 
         // 7. DISEntityType Tests

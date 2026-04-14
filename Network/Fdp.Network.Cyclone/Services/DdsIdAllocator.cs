@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Threading;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Interop;
-using Fdp.ModuleHost.Network.Interfaces;
 using Fdp.Network.Cyclone.Topics;
+using Fdp.Toolkit.NetworkSpawning;
 
 namespace Fdp.Network.Cyclone.Services
 {

@@ -19,7 +19,6 @@ using Fdp.Modules.Geographic.Transforms;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
-using Fdp.ModuleHost.Network.Interfaces;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.Lifecycle.Systems;
 using Fdp.Toolkit.Lifecycle.Events;
@@ -38,6 +37,7 @@ using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using NLog;
 using Fdp.Core.Logging;
+using Fdp.Toolkit.NetworkSpawning;
 
 namespace Fdp.Examples.NetworkDemo
 {
@@ -586,8 +586,8 @@ namespace Fdp.Examples.NetworkDemo
         /// Entities published via SpawnEntityCommand with NetworkId = 0 will receive
         /// monotonically increasing IDs from this allocator.
         /// </summary>
-        private sealed class SequentialIdAllocator : Fdp.ModuleHost.Network.Interfaces.INetworkIdAllocator
-        {
+        private sealed class SequentialIdAllocator : INetworkIdAllocator
+		{
             private long _nextId = 1;
             public long AllocateId() => System.Threading.Interlocked.Increment(ref _nextId);
             public void Reset(long startId = 0) => System.Threading.Interlocked.Exchange(ref _nextId, startId);

@@ -9,8 +9,4 @@ namespace Fdp.ModuleHost.Network.Interfaces
         AllPeers
     }
 
-    public interface INetworkTopology
-    {
-        IEnumerable<int> GetExpectedPeers(ReliableInitType type);
-    }
 }
