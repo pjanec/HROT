@@ -6,8 +6,7 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>12.0</LangVersion>
-    <AssemblyName>Fdp.Engine</AssemblyName>
-    <RootNamespace>Fdp.Engine</RootNamespace>
+    <RootNamespace>Fdp.Toolkit</RootNamespace>
   </PropertyGroup>
 
   <!-- InternalsVisibleTo consolidated from all absorbed projects -->
