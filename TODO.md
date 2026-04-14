@@ -2,8 +2,6 @@
 (wrong direction in clean architecture - code should never depend on higher level layers). Extract all ModuleHost into separate
 Fdp.ModuleHost assembly. It is already in separate folders
 
-[ARCH] Fdp.Engine project is now effectively just a set of toolkits. Should be renamed to Fdp.Toolkits
-
 
 [IDEA] Should we move the TransitionPlanner to FDP toolkit? Move whole cluster state machine the toolkit? Is the state machine separable
 from the 

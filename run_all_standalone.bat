@@ -2,7 +2,7 @@
 setlocal
 
 set DOMAIN=0
-set FOLDER=%~dp0Hrot.ClusterRunner\bin\Debug\net8.0
+set FOLDER=%~dp0Hrot\Runner\Hrot.ClusterRunner\bin\Debug\net8.0
 set RUNNER=Hrot.ClusterRunner.exe
                 
 start "SimHost" /d %FOLDER% %RUNNER% -d %DOMAIN% -m simhost --no-wait
