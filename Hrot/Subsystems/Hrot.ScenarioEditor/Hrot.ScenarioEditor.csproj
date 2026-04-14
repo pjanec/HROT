@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Expose internals to test projects -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hrot.IG.Tests" />
+    <InternalsVisibleTo Include="Hrot.ScenarioEditor.Tests" />
+    <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
+    <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
+    <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NLog" Version="5.2.8" />
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="rlImgui-cs" Version="3.2.0" />
+  </ItemGroup>
+
+</Project>

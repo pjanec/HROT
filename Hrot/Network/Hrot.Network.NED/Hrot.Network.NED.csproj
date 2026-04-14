@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.Network.NED.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.IG.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.SimHost.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.ClusterRunner.Integration.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.Map.Common.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Domain model and neutral interfaces -->
+    <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
+    <!-- Hrot.Common stub: HrotNodeBuilder and related -->
+    <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
+    <!-- NedStatusCode and orchestration message types (moved from GenericMessages.cs) -->
+    <ProjectReference Include="..\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
+    <!-- Fdp engine: ECS, behavioral, geographic -->
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- DDS runtime -->
+    <ProjectReference Include="..\..\..\FDP\Network\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />
+  </ItemGroup>
+  <Import Project="..\..\..\FDP\ExtDeps\FastCycloneDds\tools\CycloneDDS.CodeGen\CycloneDDS.targets" />
+</Project>

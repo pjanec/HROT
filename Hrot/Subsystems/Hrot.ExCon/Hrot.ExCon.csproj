@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Hrot.ExCon</RootNamespace>
+    <AssemblyName>Hrot.ExCon</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Shared UI panel library -->
+    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Hrot data model and map types -->
+    <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
+    <!-- FDP Toolkits -->
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
+    <!-- ExConSubsystem dependencies (moved from ClusterRunner) -->
+    <ProjectReference Include="..\..\Network\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
+    <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.ExCon.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.ClusterRunner.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.ClusterRunner.Integration.Tests</_Parameter1>
+    </AssemblyAttribute>  </ItemGroup>
+
+  <ItemGroup>
+    <!-- JSON serialisation -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+
+    <!-- Raylib window + ImGui rendering (application shell) -->
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="rlImGui-cs" Version="3.2.0" />  </ItemGroup>
+
+</Project>

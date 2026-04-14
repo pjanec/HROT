@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Hrot.ClusterRunner</RootNamespace>
+    <AssemblyName>Hrot.ClusterRunner</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hrot.ClusterRunner.Tests" />
+    <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Fdp.Engine provides ISubsystem, SubsystemConfig, IMapCameraProvider,
+         SubsystemOrchestrator, HeadlessTestExecutor, and RunnerConfiguration. -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- IWindowRegistrar (uses FDP.Toolkit.ImGui.WindowManager) is in Fdp.Presentation -->
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
+    <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
+    <ProjectReference Include="..\..\Network\Hrot.Network.BDC\Hrot.Network.BDC.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
+    <!-- Subsystem libraries (R2) -->
+
+    <ProjectReference Include="..\..\Subsystems\Hrot.CGF\Hrot.CGF.csproj" />
+    <ProjectReference Include="..\..\Subsystems\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
+    <ProjectReference Include="..\..\Subsystems\Hrot.SimHost\Hrot.SimHost.csproj" />
+    <ProjectReference Include="..\..\Subsystems\Hrot.IG\Hrot.IG.csproj" />
+    <ProjectReference Include="..\..\Subsystems\Hrot.ExCon\Hrot.ExCon.csproj" />
+    <ProjectReference Include="..\..\Subsystems\Hrot.Editor\Hrot.Editor.csproj" />
+    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <!-- IScenario + ScenarioSubsystem for mode ci -->
+    <ProjectReference Include="..\..\..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="rlImGui-cs" Version="3.2.0" />  </ItemGroup>
+
+</Project>
