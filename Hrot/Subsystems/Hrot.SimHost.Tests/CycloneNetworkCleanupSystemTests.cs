@@ -4,11 +4,9 @@ using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Network;
-using Fdp.ModuleHost.Network.Messages;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Network.Cyclone.Systems;
 using Xunit;
-using Fdp.Interfaces;
 
 namespace Hrot.SimHost.Tests
 {
