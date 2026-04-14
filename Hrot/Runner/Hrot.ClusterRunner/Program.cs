@@ -2,6 +2,7 @@ using CommandLine;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using Fdp.Kernel;
+using FDP.Toolkit.ImGui.WindowManager;
 using Hrot.BDC.Factory;
 using Hrot.ClusterRunner.Configuration;
 using Hrot.ClusterRunner.Scenarios;
@@ -183,6 +184,7 @@ class Program
         // ── Create + run orchestrator ─────────────────────────────────────────
         var orchestrator = new SubsystemOrchestrator(subsystems, options);
         Raylib_cs.Texture2D atlasTexture = default;
+        FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager = null;
         try
         {
             orchestrator.Initialize();
@@ -199,7 +201,6 @@ class Program
             var coordinator = new PerspectiveCoordinatorSystem(orchestrator, perspectiveMap);
             perspSubsystem.Coordinator = coordinator;
 
-            FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager = null;
 
             if (!config.Headless)
             {
@@ -219,6 +220,34 @@ class Program
                     if (sub is IWindowRegistrar registrar)
                         registrar.RegisterWindows(windowManager);
                 }
+
+                windowManager.OnPerspectiveChanged += (oldPersp, newPersp) =>
+                {
+                    coordinator.Enqueue(new TogglePerspectiveEvent(oldPersp, newPersp));
+                    Console.WriteLine($"[Runner] Perspective changed: {oldPersp} → {newPersp}");
+                };
+
+                // WM-S603: Reference status bar section — shows system state to operators.
+                windowManager.StatusBar.RegisterSection("system_health", sortOrder: 0, () =>
+                {
+                    ImGuiNET.ImGui.Text("System OK");
+                });
+
+                // Load persisted settings and get the last active perspective.
+                string? persistedPerspective = windowManager.LoadSettings();
+
+                // Identify the first user-facing subsystem (skip PerspectiveUpdateSubsystem).
+                var firstUserSubsystem = subsystems
+                    .Skip(1)  // skip PerspectiveUpdateSubsystem which is always index 0
+                    .FirstOrDefault();
+                string defaultPerspective = firstUserSubsystem?.Name ?? "Default";
+
+                // Apply the valid persisted perspective or fall back to the first available one.
+                bool isValidPersisted = !string.IsNullOrEmpty(persistedPerspective)
+                    && subsystems.Any(s => s.Name == persistedPerspective);
+
+                windowManager.SwitchPerspective(isValidPersisted ? persistedPerspective! : defaultPerspective);
+
 
                 // 4. The proper non-headless Render Loop
                 while (!Raylib_cs.Raylib.WindowShouldClose())
@@ -284,6 +313,9 @@ class Program
 
             if (!config.Headless)
             {
+                // ADD THIS: Persist window layouts and the active perspective before tearing down ImGui
+                windowManager?.SaveSettings();
+
                 rlImGui_cs.rlImGui.Shutdown();
                 
                 // Clean up the GPU texture we allocated for the IconAtlas
