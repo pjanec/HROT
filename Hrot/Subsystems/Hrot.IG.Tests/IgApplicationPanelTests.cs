@@ -14,7 +14,7 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Layers;
 using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost.Network.Cyclone.Modules;
+using Fdp.Network.Cyclone.Modules;
 
 namespace Hrot.IG.Tests;
 

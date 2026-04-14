@@ -1,7 +1,7 @@
 using Hrot.SimHost;
 using Hrot.Network.NED.Factory;
 using Hrot.Map.Common;
-using Fdp.ModuleHost.Network.Cyclone.Services;
+using Fdp.Network.Cyclone.Services;
 using CycloneDDS.Runtime;
 using Xunit;
 

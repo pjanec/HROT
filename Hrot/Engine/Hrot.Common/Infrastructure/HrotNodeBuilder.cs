@@ -15,7 +15,7 @@ using Hrot.NED.Descriptors.Orchestration;
 using Fdp.ModuleHost_Core;
 using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.ModuleHost_Core.Time;
-using Fdp.ModuleHost.Network.Cyclone.Services;
+using Fdp.Network.Cyclone.Services;
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 
 namespace Hrot.Common.Infrastructure;

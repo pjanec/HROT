@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using Hrot.SimHost;
 using CycloneDDS.Runtime;
-using Fdp.ModuleHost.Network.Cyclone.Services;
+using Fdp.Network.Cyclone.Services;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

@@ -19,7 +19,7 @@ using Fdp.ModuleHost_Core;
 using Fdp.ModuleHost_Core.Time;
 using Hrot.Orchestrator.Windows;
 using Hrot.Orchestrator.Panels;
-using Fdp.ModuleHost.Network.Cyclone.Services;
+using Fdp.Network.Cyclone.Services;
 
 namespace Hrot.Orchestrator;
 

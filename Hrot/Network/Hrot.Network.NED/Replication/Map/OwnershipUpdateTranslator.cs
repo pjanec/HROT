@@ -9,7 +9,7 @@ using Hrot.NED.Descriptors;
 using Fdp.ModuleHost_Core.Abstractions;
 
 using OwnershipUpdateMsg  = FDP.Toolkit.Replication.Messages.OwnershipUpdate;
-using OwnershipUpdateWire = Fdp.ModuleHost.Network.Cyclone.Topics.OwnershipUpdate;
+using OwnershipUpdateWire = Fdp.Network.Cyclone.Topics.OwnershipUpdate;
 
 namespace Hrot.Map.Common.Replication
 {

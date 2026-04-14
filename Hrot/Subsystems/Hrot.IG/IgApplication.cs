@@ -113,13 +113,13 @@ using Fdp.ModuleHost_Core.Network;
 
 using Fdp.ModuleHost_Core.Network.Interfaces;
 
-using Fdp.ModuleHost.Network.Cyclone.Modules;
+using Fdp.Network.Cyclone.Modules;
 
-using Fdp.ModuleHost.Network.Cyclone.Systems;
+using Fdp.Network.Cyclone.Systems;
 
-using DdsIdAllocator = Fdp.ModuleHost.Network.Cyclone.Services.DdsIdAllocator;
+using DdsIdAllocator = Fdp.Network.Cyclone.Services.DdsIdAllocator;
 
-using NodeIdMapper    = Fdp.ModuleHost.Network.Cyclone.Services.NodeIdMapper;
+using NodeIdMapper    = Fdp.Network.Cyclone.Services.NodeIdMapper;
 
 // Disambiguate StandardInteractionTool: both Hrot.IG.Tools and FDP.Toolkit.Vis2D.Tools define it.
 // Use the Hrot.IG variant which exposes OnWorldClick.

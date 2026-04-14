@@ -12,7 +12,7 @@ using Hrot.Map.Common;
 using Hrot.Network.NED.Factory;
 using FDP.Toolkit.Lifecycle.Events;
 using FDP.Toolkit.Replication.Components;
-using Fdp.ModuleHost.Network.Cyclone.Services;
+using Fdp.Network.Cyclone.Services;
 using CycloneDDS.Runtime;
 using NLog;
 using NLog.Config;

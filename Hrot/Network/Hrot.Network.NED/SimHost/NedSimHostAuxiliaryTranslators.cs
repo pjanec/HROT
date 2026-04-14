@@ -9,8 +9,8 @@ using FDP.Toolkit.Replication.Services;
 using Hrot.Common;
 using Hrot.Core.Network;
 using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost.Network.Cyclone.Modules;
-using Fdp.ModuleHost.Network.Cyclone.Systems;
+using Fdp.Network.Cyclone.Modules;
+using Fdp.Network.Cyclone.Systems;
 
 namespace Hrot.Network.NED.SimHost;
 

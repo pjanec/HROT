@@ -5,8 +5,8 @@ using Xunit;
 using Hrot.SimHost;
 using CycloneDDS.Runtime;
 using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost.Network.Cyclone.Services;
-using Fdp.ModuleHost.Network.Cyclone.Systems;
+using Fdp.Network.Cyclone.Services;
+using Fdp.Network.Cyclone.Systems;
 
 namespace Hrot.ClusterRunner.Tests
 {

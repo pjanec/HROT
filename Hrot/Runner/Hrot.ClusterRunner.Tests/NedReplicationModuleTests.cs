@@ -9,7 +9,7 @@ using Hrot.Map.Common;
 using Hrot.Common;
 using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.ModuleHost_Core.Scheduling;
-using Fdp.ModuleHost.Network.Cyclone.Systems;
+using Fdp.Network.Cyclone.Systems;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Tests;

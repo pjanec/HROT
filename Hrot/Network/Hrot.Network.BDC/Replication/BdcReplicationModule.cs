@@ -9,8 +9,8 @@ using Hrot.Common;
 using Hrot.Common.Systems;
 using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.ModuleHost_Core.Scheduling;
-using Fdp.ModuleHost.Network.Cyclone.Modules;
-using Fdp.ModuleHost.Network.Cyclone.Systems;
+using Fdp.Network.Cyclone.Modules;
+using Fdp.Network.Cyclone.Systems;
 
 namespace Hrot.BDC.Replication
 {

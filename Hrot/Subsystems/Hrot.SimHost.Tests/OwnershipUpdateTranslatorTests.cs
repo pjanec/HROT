@@ -6,7 +6,7 @@ using Hrot.Map.Common.Replication;
 using Fdp.ModuleHost_Core.Abstractions;
 
 using OwnershipUpdateMsg  = FDP.Toolkit.Replication.Messages.OwnershipUpdate;
-using OwnershipUpdateWire = Fdp.ModuleHost.Network.Cyclone.Topics.OwnershipUpdate;
+using OwnershipUpdateWire = Fdp.Network.Cyclone.Topics.OwnershipUpdate;
 
 namespace Hrot.SimHost.Tests
 {

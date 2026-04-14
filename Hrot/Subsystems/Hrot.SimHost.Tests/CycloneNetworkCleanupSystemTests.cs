@@ -6,7 +6,7 @@ using FDP.Toolkit.Replication.Components;
 using Fdp.ModuleHost_Core.Network;
 using Fdp.ModuleHost_Core.Network.Messages;
 using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost.Network.Cyclone.Systems;
+using Fdp.Network.Cyclone.Systems;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
