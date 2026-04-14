@@ -225,6 +225,20 @@ namespace Hrot.Editor
 
         // ── ISubsystem lifecycle ──────────────────────────────────────────────
 
+        // ctor for unit tests
+        public EditorSubsystem()
+        {
+        }
+
+
+        // ctor for ClusterRunner
+        public EditorSubsystem( INetworkFactory _ )
+        {
+            // we do not use the injected network factory in the offline editor,
+            // but we accept it in the constructor to satisfy the dependency graph and allow for future online features.
+        }
+
+
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)
         {
