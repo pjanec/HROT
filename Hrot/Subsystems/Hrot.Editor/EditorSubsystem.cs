@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
-using Fdp.Engine.Runner;
+using Fdp.Toolkit.Runner;
 using Fdp.Toolkit.Behavior;
-using Fdp.Toolkit.ImGui.Abstractions;
-using Fdp.Toolkit.ImGui.Adapters;
-using Fdp.Toolkit.ImGui.Panels;
+using Fdp.Presentation.Abstractions;
+using Fdp.Presentation.Adapters;
+using Fdp.Presentation.Panels;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.NetworkSpawning.Systems;
@@ -50,11 +50,11 @@ using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network.Interfaces;
 // Disambiguate IMapCameraProvider: Hrot.SimHost.Modules also defines this interface.
-using IMapCameraProvider = Fdp.Engine.Runner.IMapCameraProvider;
-using FdpEntityInspectorPanel = Fdp.Toolkit.ImGui.Panels.EntityInspectorPanel;
-using FdpEventBrowserPanel    = Fdp.Toolkit.ImGui.Panels.EventBrowserPanel;
-using FdpRepositoryAdapter    = Fdp.Toolkit.ImGui.Adapters.RepositoryAdapter;
-using FdpInspectorState       = Fdp.Toolkit.ImGui.Abstractions.InspectorState;
+using IMapCameraProvider = Fdp.Toolkit.Runner.IMapCameraProvider;
+using FdpEntityInspectorPanel = Fdp.Presentation.Panels.EntityInspectorPanel;
+using FdpEventBrowserPanel    = Fdp.Presentation.Panels.EventBrowserPanel;
+using FdpRepositoryAdapter    = Fdp.Presentation.Adapters.RepositoryAdapter;
+using FdpInspectorState       = Fdp.Presentation.Abstractions.InspectorState;
 using EditorInteractionTool   = Hrot.ScenarioEditor.Tools.StandardInteractionTool;
 
 namespace Hrot.Editor
@@ -531,7 +531,7 @@ namespace Hrot.Editor
             // Render the context menu popup.
             if (ImGuiNET.ImGui.BeginPopup("##editor_map_ctx"))
             {
-                var builder = new Fdp.Toolkit.ImGui.Utils.ContextMenuBuilder();
+                var builder = new Fdp.Presentation.Utils.ContextMenuBuilder();
 
                 if (_pendingContextMenuEntity != Entity.Null && _contextMenuHandler != null)
                 {
@@ -601,7 +601,7 @@ namespace Hrot.Editor
         }
 
         /// <inheritdoc/>
-        public void RegisterWindows(Fdp.Toolkit.ImGui.WindowManager.WindowManager windowManager)
+        public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
         {
             if (_editorLogic == null) return;
 

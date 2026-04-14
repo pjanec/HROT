@@ -2,7 +2,7 @@ using System.Numerics;
 using System.Reflection;
 using Hrot.Core.Network;
 using Fdp.Toolkit.DER;
-using Fdp.Toolkit.ImGui.Utils;
+using Fdp.Presentation.Utils;
 using ImGuiNET;
 
 namespace Hrot.ExCon.Panels;
@@ -12,7 +12,7 @@ namespace Hrot.ExCon.Panels;
 /// collapsible descriptor tree on the right (Task 44).
 ///
 /// <para><b>Deprecated.</b> This panel has been superseded by
-/// <see cref="Fdp.Toolkit.ImGui.Panels.DerEntityInspectorPanel"/> which
+/// <see cref="Fdp.Presentation.Panels.DerEntityInspectorPanel"/> which
 /// lives in the generic toolkit layer and provides live descriptor updates,
 /// search, and context-menu customisation.  This class is retained only for
 /// reference and will be removed in a future clean-up pass.</para>
@@ -25,7 +25,7 @@ namespace Hrot.ExCon.Panels;
 /// <see cref="GetDescriptorObjects"/> are public static helpers callable without
 /// an ImGui context.</para>
 /// </summary>
-[Obsolete("Use FDP.Toolkit.ImGui.Panels.DerEntityInspectorPanel instead.")]
+[Obsolete("Use FDP.Toolkit_ImGui.Panels.DerEntityInspectorPanel instead.")]
 public sealed class DataMonitorPanel
 {
     // ── Per-frame state ───────────────────────────────────────────────────────

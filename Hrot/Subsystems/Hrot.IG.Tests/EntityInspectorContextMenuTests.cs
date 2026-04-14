@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
-using Fdp.Toolkit.ImGui.Abstractions;
-using Fdp.Toolkit.ImGui.Utils;
+using Fdp.Presentation.Abstractions;
+using Fdp.Presentation.Utils;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
-using FdpInspectorState = Fdp.Toolkit.ImGui.Abstractions.InspectorState;
+using FdpInspectorState = Fdp.Presentation.Abstractions.InspectorState;
 
 namespace Hrot.IG.Tests;
 

@@ -1,9 +1,9 @@
 using System;
 using System.Numerics;
-using Fdp.Toolkit.ImGui.Abstractions;
-using Fdp.Toolkit.ImGui.Adapters;
-using Fdp.Toolkit.ImGui.Panels;
-using Fdp.Toolkit.ImGui.WindowManager;
+using Fdp.Presentation.Abstractions;
+using Fdp.Presentation.Adapters;
+using Fdp.Presentation.Panels;
+using Fdp.Presentation.WindowManager;
 
 namespace Hrot.Presentation.Windows;
 

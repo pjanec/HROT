@@ -10,7 +10,7 @@ using Fdp.Toolkit.Vis2D.Components;
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using Fdp.Engine.Runner;
+using Fdp.Toolkit.Runner;
 using Hrot.SimHost.Windows;
 using Hrot.Presentation.Windows;
 
@@ -190,7 +190,7 @@ namespace Hrot.SimHost
         }
 
         /// <inheritdoc/>
-        public void RegisterWindows(Fdp.Toolkit.ImGui.WindowManager.WindowManager windowManager)
+        public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
         {
             var vis = _app?.Visualization;
             if (vis == null) return;

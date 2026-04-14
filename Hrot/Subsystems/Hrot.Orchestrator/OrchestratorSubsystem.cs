@@ -9,7 +9,7 @@ using Hrot.Orchestrator.Translators;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
-using Fdp.Engine.Runner;
+using Fdp.Toolkit.Runner;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Controllers;
@@ -278,7 +278,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     public void DrawUI() { /* panels registered as ManagedWindows via IWindowRegistrar */ }
 
     /// <inheritdoc/>
-    public void RegisterWindows(Fdp.Toolkit.ImGui.WindowManager.WindowManager windowManager)
+    public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
     {
         if (_scenarioPanel == null) return;
         windowManager.RegisterWindow(new OrchestratorWindow(_scenarioPanel));

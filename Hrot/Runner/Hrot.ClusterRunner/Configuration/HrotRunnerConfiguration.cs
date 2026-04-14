@@ -10,7 +10,7 @@ namespace Hrot.ClusterRunner.Configuration
     /// (JSON override file), and the validation/parsing logic that is specific
     /// to Hrot's subsystem selection concept.</para>
     /// </summary>
-    public class HrotRunnerConfiguration : Fdp.Engine.Runner.RunnerConfiguration
+    public class HrotRunnerConfiguration : Fdp.Toolkit.Runner.RunnerConfiguration
     {
         // -- Hrot-specific CLI options ----------------------------------------
 
@@ -39,8 +39,8 @@ namespace Hrot.ClusterRunner.Configuration
 
         /// <summary>
         /// Parses <see cref="ModeString"/> into <see cref="RequestedSubsystems"/>,
-        /// <see cref="Fdp.Engine.Runner.RunnerConfiguration.WaitForString"/> into
-        /// <see cref="Fdp.Engine.Runner.RunnerConfiguration.WaitForPeers"/>,
+        /// <see cref="Fdp.Toolkit.Runner.RunnerConfiguration.WaitForString"/> into
+        /// <see cref="Fdp.Toolkit.Runner.RunnerConfiguration.WaitForPeers"/>,
         /// and enforces logical constraints.
         /// </summary>
         /// <exception cref="InvalidOperationException">

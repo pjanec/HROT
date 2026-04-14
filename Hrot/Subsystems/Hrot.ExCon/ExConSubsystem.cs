@@ -17,7 +17,7 @@ using Fdp.Toolkit.DER;
 using Hrot.ExCon.Windows;
 using Hrot.Orchestrator.Panels;
 using Hrot.Orchestrator.Windows;
-using Fdp.Engine.Runner;
+using Fdp.Toolkit.Runner;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.Time;
@@ -365,7 +365,7 @@ namespace Hrot.ExCon
         }
 
         /// <inheritdoc/>
-        public void RegisterWindows(Fdp.Toolkit.ImGui.WindowManager.WindowManager windowManager)
+        public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
         {
             windowManager.RegisterWindow(new ClusterControlWindow(_clusterPanel, _uiCache));
 

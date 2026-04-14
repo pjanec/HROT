@@ -2,17 +2,17 @@ using System.Linq;
 using System.Numerics;
 using ImGuiNET;
 using Raylib_cs;
-using Fdp.Toolkit.ImGui.Utils;
+using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Vis2D.Tools;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Hrot.Presentation.Windows;
-using FdpEntityInspectorPanel = Fdp.Toolkit.ImGui.Panels.EntityInspectorPanel;
-using FdpEventBrowserPanel    = Fdp.Toolkit.ImGui.Panels.EventBrowserPanel;
-using FdpRepositoryAdapter    = Fdp.Toolkit.ImGui.Adapters.RepositoryAdapter;
-using FdpInspectorState       = Fdp.Toolkit.ImGui.Abstractions.InspectorState;
+using FdpEntityInspectorPanel = Fdp.Presentation.Panels.EntityInspectorPanel;
+using FdpEventBrowserPanel    = Fdp.Presentation.Panels.EventBrowserPanel;
+using FdpRepositoryAdapter    = Fdp.Presentation.Adapters.RepositoryAdapter;
+using FdpInspectorState       = Fdp.Presentation.Abstractions.InspectorState;
 using Hrot.Map.Common;
 using Hrot.CGF.Brains;
 using CycloneDDS.Runtime;
@@ -29,7 +29,7 @@ using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
-using Fdp.Engine.Runner;
+using Fdp.Toolkit.Runner;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
@@ -39,7 +39,7 @@ namespace Hrot.CGF;
 /// Hosts the CGF (Computer Generated Forces) subsystem under the Runner process.
 /// Migrated in EAM-M003 to use <see cref="HrotNodeBuilder"/> instead of <see cref="CgfApplication"/>.
 /// </summary>
-public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvider, IWindowRegistrar
+public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProvider, IWindowRegistrar
 {
     private HrotNodeContext?  _context;
     private NetworkEntityMap? _entityMap;
@@ -418,7 +418,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
     public MapCamera? GetMapCamera() => _canvas?.Camera;
 
     /// <inheritdoc/>
-    public void RegisterWindows(Fdp.Toolkit.ImGui.WindowManager.WindowManager windowManager)
+    public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
     {
         if (_headless) return;
 

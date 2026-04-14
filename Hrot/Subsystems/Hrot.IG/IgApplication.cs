@@ -95,15 +95,15 @@ using Fdp.Toolkit.Vis2D.Tools;
 
 using ImGuiNET;
 
-using FdpEntityInspectorPanel = Fdp.Toolkit.ImGui.Panels.EntityInspectorPanel;
+using FdpEntityInspectorPanel = Fdp.Presentation.Panels.EntityInspectorPanel;
 
-using FdpEventBrowserPanel    = Fdp.Toolkit.ImGui.Panels.EventBrowserPanel;
+using FdpEventBrowserPanel    = Fdp.Presentation.Panels.EventBrowserPanel;
 
-using FdpRepositoryAdapter    = Fdp.Toolkit.ImGui.Adapters.RepositoryAdapter;
+using FdpRepositoryAdapter    = Fdp.Presentation.Adapters.RepositoryAdapter;
 
-using FdpInspectorState       = Fdp.Toolkit.ImGui.Abstractions.InspectorState;
+using FdpInspectorState       = Fdp.Presentation.Abstractions.InspectorState;
 
-using Fdp.Toolkit.ImGui.Utils;
+using Fdp.Presentation.Utils;
 
 using Fdp.ModuleHost;
 

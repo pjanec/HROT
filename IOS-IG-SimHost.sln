@@ -47,7 +47,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "FastBTree", "FastBTree", "{
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fdp.Core.Tests", "FDP\Engine\Fdp.Core.Tests\Fdp.Core.Tests.csproj", "{0E9665BE-9B00-4B60-AD7A-E2A3BB8B0E89}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModuleHost.Benchmarks", "FDP\Engine\Fdp.ModuleHost.Benchmarks\ModuleHost.Benchmarks.csproj", "{1A1284BB-48A6-F8FB-92C2-C93EB8EBF99E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fdp.ModuleHost.Benchmarks", "FDP\Engine\Fdp.ModuleHost.Benchmarks\Fdp.ModuleHost.Benchmarks.csproj", "{1A1284BB-48A6-F8FB-92C2-C93EB8EBF99E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Network.NED", "Hrot\Network\Hrot.Network.NED\Hrot.Network.NED.csproj", "{F6A7B8C9-D0E1-2345-F012-345678901205}"
 EndProject

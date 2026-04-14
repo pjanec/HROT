@@ -1,11 +1,11 @@
 using System.Collections.Concurrent;
-using Fdp.Engine.Runner;
+using Fdp.Toolkit.Runner;
 using Hrot.Common;
 
 namespace Hrot.ClusterRunner.Systems;
 
 /// <summary>
-/// Bridges <see cref="Fdp.Toolkit.ImGui.WindowManager.WindowManager.OnPerspectiveChanged"/>
+/// Bridges <see cref="Fdp.Presentation.WindowManager.WindowManager.OnPerspectiveChanged"/>
 /// UI events to the subsystem layer by queuing them thread-safely and draining the queue
 /// each frame via <see cref="ProcessPendingEvents"/>.
 ///

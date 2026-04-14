@@ -18,7 +18,7 @@
     <!-- Fdp.Engine provides ISubsystem, SubsystemConfig, IMapCameraProvider,
          SubsystemOrchestrator, HeadlessTestExecutor, and RunnerConfiguration. -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
-    <!-- IWindowRegistrar (uses FDP.Toolkit.ImGui.WindowManager) is in Fdp.Presentation -->
+    <!-- IWindowRegistrar (uses FDP.Toolkit_ImGui.WindowManager) is in Fdp.Presentation -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <ProjectReference Include="..\..\Network\Hrot.Network.BDC\Hrot.Network.BDC.csproj" />
