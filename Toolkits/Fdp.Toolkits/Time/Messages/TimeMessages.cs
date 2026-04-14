@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using CycloneDDS.Schema;
 using MessagePack;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Time;
 
 namespace Fdp.Toolkit.Time.Messages
@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Time.Messages
         public float TimeScale;
 
         /// <summary>
-        /// Master's authoritative <see cref="Fdp.Kernel.GlobalTime.TotalTime"/> (seconds)
+        /// Master's authoritative <see cref="Fdp.Core.GlobalTime.TotalTime"/> (seconds)
         /// AFTER advancing by this step.  When non-zero, slaves must set their own
         /// <c>TotalTime</c> to this value rather than computing <c>TotalTime += delta</c>
         /// from their locally-seeded state.
@@ -91,7 +91,7 @@ namespace Fdp.Toolkit.Time.Messages
     /// consumed by every Slave (<see cref="Fdp.Toolkit.Time.Controllers.SlaveTimeModeListener"/>).
     /// <para>
     /// Each node performs the controller swap when its own
-    /// <see cref="Fdp.Kernel.GlobalTime.TotalWallTicks"/> reaches
+    /// <see cref="Fdp.Core.GlobalTime.TotalWallTicks"/> reaches
     /// <see cref="BarrierWallTicks"/>: the FDP PLL-synchronized virtual wall clock —
     /// not a frame counter or OS clock — guaranteeing cluster-wide alignment
     /// regardless of per-node frame rates.
@@ -113,7 +113,7 @@ namespace Fdp.Toolkit.Time.Messages
         public TimeMode TargetMode;
 
         /// <summary>
-        /// Absolute <see cref="Fdp.Kernel.GlobalTime.TotalWallTicks"/> at which every node
+        /// Absolute <see cref="Fdp.Core.GlobalTime.TotalWallTicks"/> at which every node
         /// must perform the mode swap. Derived from the master's virtual wall clock at the
         /// moment of publishing, plus a configurable lookahead
         /// (≈ 200 ms by default, expressed as Stopwatch ticks).

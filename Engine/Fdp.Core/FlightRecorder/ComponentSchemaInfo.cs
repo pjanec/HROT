@@ -1,4 +1,4 @@
-namespace Fdp.Kernel.FlightRecorder
+namespace Fdp.Core.FlightRecorder
 {
     /// <summary>
     /// Captures the structural layout of a single ECS component type at record time.
@@ -17,7 +17,7 @@ namespace Fdp.Kernel.FlightRecorder
     public class ComponentSchemaInfo
     {
         /// <summary>
-        /// Fully qualified type name of the component struct (e.g. <c>Fdp.Kernel.SimTransform</c>).
+        /// Fully qualified type name of the component struct (e.g. <c>Fdp.Core.SimTransform</c>).
         /// Used for human-readable diagnostics when a mismatch is reported.
         /// </summary>
         public string Name { get; set; } = string.Empty;

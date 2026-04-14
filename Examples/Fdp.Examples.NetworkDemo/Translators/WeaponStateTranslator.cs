@@ -1,5 +1,5 @@
 using System;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Descriptors;
 using Fdp.Toolkit.Replication.Components;

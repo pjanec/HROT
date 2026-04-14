@@ -2,7 +2,7 @@ using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Systems;
 using CarKinem.Trajectory;
-using Fdp.Kernel;
+using Fdp.Core;
 using System;
 using System.Numerics;
 using Xunit;

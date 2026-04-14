@@ -12,7 +12,7 @@ docs/
 │   ├── Terminology-Glossary.md            [NEW] Actual terms used in code
 │
 ├── 02-DESIGN/
-│   ├── FDP-Kernel-Design.md               [NEW] Actual Fdp.Kernel architecture
+│   ├── FDP-Kernel-Design.md               [NEW] Actual Fdp.Core architecture
 │   ├── ModuleHost-Design.md               [NEW] Actual ModuleHost architecture
 │   ├── Time-Synchronization-Design.md
 │   ├── Network-Gateway-Design.md

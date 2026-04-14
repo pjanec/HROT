@@ -4,14 +4,14 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using Fdp.Examples.NetworkDemo.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Interfaces.Abstractions;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core.FlightRecorder;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
 using Fdp.Examples.NetworkDemo.Configuration;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 
 namespace Fdp.Examples.NetworkDemo.Systems
 {

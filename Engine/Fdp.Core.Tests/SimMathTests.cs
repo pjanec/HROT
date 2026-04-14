@@ -1,9 +1,9 @@
 using System;
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
-namespace Fdp.Kernel.Tests
+namespace Fdp.Core.Tests
 {
     public class SimMathTests
     {

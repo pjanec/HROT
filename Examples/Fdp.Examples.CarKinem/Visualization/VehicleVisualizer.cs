@@ -1,6 +1,6 @@
 using System.Numerics;
 using Raylib_cs;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using CarKinem.Core;
 using CarKinem.Formation;
@@ -9,7 +9,7 @@ using Fdp.Examples.CarKinem.Components; // Ensure components are available
 using System;
 using System.Diagnostics;
 using CarKinem.Trajectory; // Trajectory Pool
-using Fdp.Kernel.Collections;
+using Fdp.Core.Collections;
 using ExampleCore = Fdp.Examples.CarKinem.Core;
 
 namespace Fdp.Examples.CarKinem.Visualization;

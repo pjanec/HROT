@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.NetworkSpawning.Events
 {

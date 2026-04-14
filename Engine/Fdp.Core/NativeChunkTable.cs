@@ -2,7 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices; // For specialized copy ops if needed
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Page table for lazily-allocated 64KB chunks.

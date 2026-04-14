@@ -4,7 +4,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Scenario
 {
@@ -74,8 +74,8 @@ namespace Fdp.Toolkit.Scenario
         /// <para>
         /// <b>Why the static <see cref="ComponentTypeRegistry"/>?</b>
         /// <c>FDP.Toolkit.Scenario</c> may not reference any Hrot assembly; it has access
-        /// only to <c>Fdp.Kernel</c>.  The single global <see cref="ComponentTypeRegistry"/>
-        /// maintained by <c>Fdp.Kernel</c> is the authoritative roster of all registered
+        /// only to <c>Fdp.Core</c>.  The single global <see cref="ComponentTypeRegistry"/>
+        /// maintained by <c>Fdp.Core</c> is the authoritative roster of all registered
         /// component types at any point in the application lifecycle.  Accepting a registry
         /// parameter (as shown in the CGF1-S0306 task detail) would require the caller to
         /// pass an instance that is actually the same static registry — adding indirection

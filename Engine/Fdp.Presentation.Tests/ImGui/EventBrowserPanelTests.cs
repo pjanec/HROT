@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Reflection;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.ImGui.Panels;
 using Xunit;
 

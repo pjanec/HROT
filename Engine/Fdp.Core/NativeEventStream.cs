@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Lock-free, auto-expanding event stream for unmanaged events.

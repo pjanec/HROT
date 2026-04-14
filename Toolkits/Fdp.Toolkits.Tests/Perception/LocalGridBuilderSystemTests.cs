@@ -2,8 +2,8 @@ using System;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Toolkit.Perception.Systems;
-using Fdp.Kernel;
-using Fdp.Kernel.Collections;
+using Fdp.Core;
+using Fdp.Core.Collections;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
 

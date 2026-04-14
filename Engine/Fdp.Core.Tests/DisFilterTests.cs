@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 using System;
 using System.Collections.Generic;

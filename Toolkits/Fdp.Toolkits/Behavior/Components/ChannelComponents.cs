@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Fbt;
 using Fdp.Toolkit.Behavior;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Behavior.Components
 {

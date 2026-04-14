@@ -1,4 +1,4 @@
-// File: Fdp.Kernel/Internal/UnsafeShim.cs
+// File: Fdp.Core/Internal/UnsafeShim.cs
 
 using System;
 using System.Reflection;
@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 
 #nullable disable
 
-namespace Fdp.Kernel.Internal  
+namespace Fdp.Core.Internal  
 {  
     internal static class ComponentTypeHelper  
     {  

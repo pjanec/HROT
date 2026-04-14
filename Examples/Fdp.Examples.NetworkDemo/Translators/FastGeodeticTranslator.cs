@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Descriptors;
 using Fdp.Toolkit.Replication.Services;
@@ -56,7 +56,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
             var query = view.Query()
                 .With<SimTransform>()
                 .With<NetworkIdentity>()
-                .WithLifecycle(Fdp.Kernel.EntityLifecycle.All)
+                .WithLifecycle(Fdp.Core.EntityLifecycle.All)
                 .Build();
             long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 

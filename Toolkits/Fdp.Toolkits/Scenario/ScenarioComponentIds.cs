@@ -4,7 +4,7 @@ namespace Fdp.Toolkit.Scenario
     /// ECS component ID catalog for <c>FDP.Toolkit.Scenario</c>.
     /// ID 200 is reserved for the scenario-toolkit internal exclusion tag.
     /// ID 201 is freed (was previously <c>FDP.Toolkit.Scenario.EpisodeTag</c> — removed in
-    /// CGF-1-BATCH-12 A.7; use <c>Fdp.Kernel.EpisodeTag</c> with component ID 84 instead).
+    /// CGF-1-BATCH-12 A.7; use <c>Fdp.Core.EpisodeTag</c> with component ID 84 instead).
     /// </summary>
     public static class ScenarioComponentIds
     {

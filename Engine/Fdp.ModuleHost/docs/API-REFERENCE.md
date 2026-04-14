@@ -4,7 +4,7 @@
 **Date:** January 8, 2026  
 **Updated:** Post-BATCH-05.1 (Component Mask Optimization)  
 **Namespace Index:**
-- Fdp.Kernel
+- Fdp.Core
 - ModuleHost.Abstractions
 - ModuleHost.Providers
 - ModuleHost.Resilience
@@ -37,8 +37,8 @@
 
 ### EntityRepository
 
-**Namespace:** `Fdp.Kernel`  
-**Assembly:** Fdp.Kernel.dll
+**Namespace:** `Fdp.Core`  
+**Assembly:** Fdp.Core.dll
 
 #### Constructor
 
@@ -120,7 +120,7 @@ public sealed partial class EntityRepository : ISimulationView
 
 ### NativeChunkTable<T>
 
-**Namespace:** `Fdp.Kernel`
+**Namespace:** `Fdp.Core`
 
 #### SyncDirtyChunks()
 
@@ -158,7 +158,7 @@ myTable.SyncDirtyChunks(sourceTable);
 
 ### ManagedComponentTable<T>
 
-**Namespace:** `Fdp.Kernel`
+**Namespace:** `Fdp.Core`
 
 #### SyncDirtyChunks()
 
@@ -188,7 +188,7 @@ Because this is shallow copy, Tier 2 components **MUST** be immutable records. O
 ### Component Dirty Tracking
 
 **Implemented in:** BATCH-01 ⭐  
-**Namespace:** `Fdp.Kernel`
+**Namespace:** `Fdp.Core`
 
 #### IComponentTable.HasChanges()
 
@@ -251,7 +251,7 @@ if (repo.HasComponentChanged(typeof(Health), myLastTick))
 ### Event Bus Active Tracking
 
 **Implemented in:** BATCH-02 ⭐  
-**Namespace:** `Fdp.Kernel`
+**Namespace:** `Fdp.Core`
 
 #### FdpEventBus.HasEvent<T>()
 
@@ -290,7 +290,7 @@ if (bus.HasEvent<ExplosionEvent>())
 ### Event Bus Cleanup
 
 **Implemented in:** BATCH-03 ⭐  
-**Namespace:** `Fdp.Kernel`
+**Namespace:** `Fdp.Core`
 
 #### FdpEventBus.ClearAll()
 
@@ -328,8 +328,8 @@ Without this, reused snapshots would contain stale events from previous frames, 
 
 ### EventAccumulator
 
-**Namespace:** `Fdp.Kernel`  
-**Assembly:** Fdp.Kernel.dll
+**Namespace:** `Fdp.Core`  
+**Assembly:** Fdp.Core.dll
 
 ```csharp
 public class EventAccumulator
@@ -408,7 +408,7 @@ Replica now has events from `[lastSeenTick+1 ... current]`, enabling slow module
 ### Entity Lifecycle States
 
 **Implemented in:** BATCH-06 ⭐  
-**Namespace:** `Fdp.Kernel`
+**Namespace:** `Fdp.Core`
 
 ```csharp
 public enum EntityLifecycle
@@ -1761,7 +1761,7 @@ Reads and removes available samples from DDS topic.
 
 ### BitMask256
 
-**Namespace:** `Fdp.Kernel`
+**Namespace:** `Fdp.Core`
 
 ```csharp
 public struct BitMask256
@@ -2387,7 +2387,7 @@ public void Tick(ISimulationView view, float deltaTime)
 #### Complete Setup
 
 ```csharp
-using Fdp.Kernel;
+using Fdp.Core;
 using ModuleHost;
 using ModuleHost.Geographic;
 using ModuleHost.Network;

@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Fdp.Kernel.FlightRecorder.Metadata;
+using Fdp.Core.FlightRecorder.Metadata;
 
-namespace Fdp.Kernel.FlightRecorder
+namespace Fdp.Core.FlightRecorder
 {
     /// <summary>
     /// Advanced playback controller with seeking, fast-forward, and rewind capabilities.
@@ -380,10 +380,10 @@ namespace Fdp.Kernel.FlightRecorder
 
         /// <summary>
         /// Recording metadata loaded from the companion <c>.meta.json</c> file.
-        /// Provides access to fields such as <see cref="Fdp.Kernel.FlightRecorder.Metadata.RecordingMetadata.MaxNetworkId"/>
+        /// Provides access to fields such as <see cref="Fdp.Core.FlightRecorder.Metadata.RecordingMetadata.MaxNetworkId"/>
         /// for use during replay setup (e.g. ID allocator reset).
         /// </summary>
-        public Fdp.Kernel.FlightRecorder.Metadata.RecordingMetadata Metadata => _metadata;
+        public Fdp.Core.FlightRecorder.Metadata.RecordingMetadata Metadata => _metadata;
         
         public void Dispose()
         {

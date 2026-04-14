@@ -1,5 +1,5 @@
 using System;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Time.Messages;
 using Fdp.Toolkit.Time.Translators;
 using Xunit;

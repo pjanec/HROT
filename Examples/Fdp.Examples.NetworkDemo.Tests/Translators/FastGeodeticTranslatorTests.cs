@@ -10,7 +10,7 @@ using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.Kernel;
+using Fdp.Core;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Network;

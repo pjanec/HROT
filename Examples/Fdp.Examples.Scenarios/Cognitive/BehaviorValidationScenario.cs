@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Fdp.Examples.Common;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fbt;
 using Fbt.Runtime;
 using Fbt.Serialization;

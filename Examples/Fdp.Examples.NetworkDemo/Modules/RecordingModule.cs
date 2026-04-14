@@ -1,7 +1,7 @@
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Examples.NetworkDemo.Systems;
-using Fdp.Kernel;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core;
+using Fdp.Core.FlightRecorder;
 
 namespace Fdp.Examples.NetworkDemo.Modules
 {

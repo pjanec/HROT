@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Geographic;
 
 namespace Fdp.Modules.Geographic.Components

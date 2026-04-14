@@ -1,7 +1,7 @@
 using Xunit;
 using Moq;
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Tools;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Tests.Input;

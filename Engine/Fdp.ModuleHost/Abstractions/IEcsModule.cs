@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.ModuleHost.Abstractions
 {

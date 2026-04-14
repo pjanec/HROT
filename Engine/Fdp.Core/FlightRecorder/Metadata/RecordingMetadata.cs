@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core.FlightRecorder;
 
-namespace Fdp.Kernel.FlightRecorder.Metadata
+namespace Fdp.Core.FlightRecorder.Metadata
 {
     [Serializable]
     public class RecordingMetadata
@@ -28,7 +28,7 @@ namespace Fdp.Kernel.FlightRecorder.Metadata
 
         /// <summary>
         /// The highest network (DIS) entity ID observed during the recording session.
-        /// Written by <see cref="Fdp.Kernel.FlightRecorder.AsyncRecorder"/> when
+        /// Written by <see cref="Fdp.Core.FlightRecorder.AsyncRecorder"/> when
         /// <c>Dispose()</c> finalizes the recording.
         ///
         /// <para>

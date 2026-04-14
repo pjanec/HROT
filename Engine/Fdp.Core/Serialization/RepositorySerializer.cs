@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using MessagePack;
 
-namespace Fdp.Kernel.Serialization
+namespace Fdp.Core.Serialization
 {
     /// <summary>
     /// Handles serialization of the EntityRepository to/from streams and files.

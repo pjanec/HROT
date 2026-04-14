@@ -1,8 +1,8 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using Fdp.Kernel;
-using Fdp.Kernel.Orchestration;
+using Fdp.Core;
+using Fdp.Core.Orchestration;
 using Xunit;
 
 namespace Fdp.Tests

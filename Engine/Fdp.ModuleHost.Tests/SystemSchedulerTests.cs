@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using Xunit;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Scheduling;
-using Fdp.Kernel; // For Entity, CommandBuffer etc.
+using Fdp.Core; // For Entity, CommandBuffer etc.
 
-using UpdateAfterAttribute = Fdp.Kernel.UpdateAfterAttribute;
-using UpdateBeforeAttribute = Fdp.Kernel.UpdateBeforeAttribute;
+using UpdateAfterAttribute = Fdp.Core.UpdateAfterAttribute;
+using UpdateBeforeAttribute = Fdp.Core.UpdateBeforeAttribute;
 using UpdateInPhaseAttribute = Fdp.ModuleHost.Abstractions.UpdateInPhaseAttribute;
 using Fdp.Interfaces;
 

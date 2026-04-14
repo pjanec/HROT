@@ -1,6 +1,6 @@
 using CarKinem.Core;
 using CarKinem.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.CarKinem.Systems
 {

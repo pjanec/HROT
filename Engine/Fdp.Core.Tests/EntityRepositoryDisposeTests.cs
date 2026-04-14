@@ -1,5 +1,5 @@
 using Xunit;
-using Fdp.Kernel;
+using Fdp.Core;
 using System.Threading.Tasks;
 using System;
 using Fdp.ModuleHost.Abstractions;

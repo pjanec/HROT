@@ -1,5 +1,5 @@
 using System;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.ModuleHost.Network
 {

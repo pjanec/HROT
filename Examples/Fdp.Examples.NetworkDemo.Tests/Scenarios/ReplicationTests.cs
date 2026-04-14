@@ -3,7 +3,7 @@ using Xunit;
 using Xunit.Abstractions;
 using Fdp.Examples.NetworkDemo.Tests.Infrastructure;
 using Fdp.Examples.NetworkDemo.Tests.Extensions;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Scenarios

@@ -5,7 +5,7 @@ using CarKinem.Road;
 using CarKinem.Spatial;
 using CarKinem.Systems;
 using CarKinem.Trajectory;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 namespace CarKinem.Tests.Systems

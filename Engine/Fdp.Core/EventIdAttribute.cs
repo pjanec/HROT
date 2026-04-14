@@ -1,6 +1,6 @@
 using System;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Marks an event type with a stable ID for serialization.

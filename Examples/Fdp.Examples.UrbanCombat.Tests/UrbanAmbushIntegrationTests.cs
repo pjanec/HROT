@@ -3,7 +3,7 @@ using System.IO;
 using System.Numerics;
 using Fdp.Examples.UrbanCombat;
 using Fdp.Examples.UrbanCombat.Brains;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Combat.Events;

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading;
 using Xunit; // xUnit
 using Fdp.Examples.CarKinem.Headless;
-using Fdp.Kernel;
+using Fdp.Core;
 using CarKinem.Core;
 
 namespace Fdp.Examples.CarKinem.Tests

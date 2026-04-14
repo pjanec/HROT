@@ -4,9 +4,9 @@ using System.Linq;
 using System.Numerics;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core.FlightRecorder;
 using Fdp.ModuleHost.Abstractions;
 
 using Xunit;

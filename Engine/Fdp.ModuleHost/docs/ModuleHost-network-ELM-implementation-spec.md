@@ -383,7 +383,7 @@ ModuleHost/
 │   └── LifecycleSystem.cs           (EXISTS)
 └── ...
 
-Fdp.Kernel/
+Fdp.Core/
 ├── EntityLifecycle.cs               (UPDATE - add Ghost)
 └── Tkb/
     ├── TkbTemplate.cs               (UPDATE - add preserveExisting)

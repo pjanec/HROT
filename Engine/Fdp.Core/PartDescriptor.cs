@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Descriptor defining which parts of a component are present.

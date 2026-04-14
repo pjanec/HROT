@@ -1,5 +1,5 @@
 using Xunit;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core.FlightRecorder;
 using MessagePack;
 using System.IO;
 using System.Collections.Generic;

@@ -2,7 +2,7 @@
 using CycloneDDS.Runtime;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Interfaces;
-using Fdp.Kernel; // For IEventBus probably
+using Fdp.Core; // For IEventBus probably
 
 namespace Fdp.Network.Cyclone.Translators
 {

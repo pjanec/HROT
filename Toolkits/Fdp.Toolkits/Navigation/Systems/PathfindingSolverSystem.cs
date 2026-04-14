@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using CarKinem.Road;
 using CarKinem.Trajectory;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Navigation.Systems

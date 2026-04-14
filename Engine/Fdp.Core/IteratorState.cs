@@ -1,4 +1,4 @@
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Holds the state of a time-sliced iteration.

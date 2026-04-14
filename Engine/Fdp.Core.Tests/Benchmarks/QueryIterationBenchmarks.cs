@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using System;
 using System.Diagnostics;
 using Xunit;

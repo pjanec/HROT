@@ -7,7 +7,7 @@ using CarKinem.Road;
 using CarKinem.Spatial;
 using CarKinem.Systems;
 using CarKinem.Trajectory;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.ModuleHost.Benchmarks
 {

@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Threading;
 using Xunit;
 using Xunit.Abstractions;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Tests
 {

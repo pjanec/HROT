@@ -9,7 +9,7 @@ using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Spatial;
 using CarKinem.Trajectory;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace CarKinem.Systems
 {

@@ -1,6 +1,6 @@
 using System;
 using BenchmarkDotNet.Attributes;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Providers;

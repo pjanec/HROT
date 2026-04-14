@@ -4,7 +4,7 @@ using CarKinem.Core;
 using Fdp.Examples.CarKinem.Components;
 using Fdp.ModuleHost.Abstractions;
 using System.Numerics;
-using Fdp.Kernel; // Added
+using Fdp.Core; // Added
 
 namespace Fdp.Examples.CarKinem.Core
 {

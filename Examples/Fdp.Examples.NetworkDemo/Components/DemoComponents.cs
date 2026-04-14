@@ -1,5 +1,5 @@
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Examples.NetworkDemo.Components
 {

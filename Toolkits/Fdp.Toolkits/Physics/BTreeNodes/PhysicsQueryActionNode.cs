@@ -1,5 +1,5 @@
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Physics.Components;
 
 namespace Fdp.Toolkit.Physics.BTreeNodes

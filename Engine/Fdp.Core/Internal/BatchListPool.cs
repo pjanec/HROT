@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
-namespace Fdp.Kernel.Internal
+namespace Fdp.Core.Internal
 {
     /// <summary>
     /// Thread-safe object pool for batch lists used in parallel entity iteration.

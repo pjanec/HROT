@@ -1,5 +1,5 @@
 using System;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fbt;
 using Fbt.Runtime;
 using Fdp.Toolkit.Behavior;

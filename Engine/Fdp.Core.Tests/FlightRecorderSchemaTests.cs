@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Xunit;
-using Fdp.Kernel;
-using Fdp.Kernel.FlightRecorder;
-using Fdp.Kernel.FlightRecorder.Metadata;
+using Fdp.Core;
+using Fdp.Core.FlightRecorder;
+using Fdp.Core.FlightRecorder.Metadata;
 
 namespace Fdp.Tests
 {

@@ -1,5 +1,5 @@
 using System.Linq;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Time.Domain;
 using Fdp.Toolkit.Time.Translators;
 using Xunit;

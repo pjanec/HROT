@@ -1,7 +1,7 @@
 using System;
 using Xunit;
 using Fdp.Network.Cyclone.Providers;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Lifecycle;
 using MessagePack;
 using Fdp.Interfaces;
@@ -68,7 +68,7 @@ namespace Fdp.Network.Cyclone.Tests.Serialization
             public void AddManagedComponent<T>(Entity entity, T? component) where T : class => CapturedComponent = component;
             public void RemoveManagedComponent<T>(Entity entity) where T : class {}
             public void PublishEvent<T>(in T evt) where T : unmanaged {}
-            public void SetLifecycleState(Entity entity, Fdp.Kernel.EntityLifecycle state) {}
+            public void SetLifecycleState(Entity entity, Fdp.Core.EntityLifecycle state) {}
         }
     }
 }

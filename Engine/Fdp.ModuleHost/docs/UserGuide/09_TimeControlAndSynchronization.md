@@ -690,7 +690,7 @@ For single-process simulations with local wall-clock time:
 ```csharp
 using ModuleHost;
 using ModuleHost.Time;
-using Fdp.Kernel;
+using Fdp.Core;
 
 // Create kernel
 var repository = new EntityRepository();

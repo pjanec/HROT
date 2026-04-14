@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
-using Fdp.Kernel;
-using Fdp.Kernel.Collections;
+using Fdp.Core;
+using Fdp.Core.Collections;
 using Fdp.Toolkit.Geographic;
 
 namespace Fdp.Modules.Geographic.Components

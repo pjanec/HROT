@@ -20,7 +20,7 @@ namespace Fdp.Examples.CarKinem.UI
     {
         public bool IsOpen = false;
         
-        public void Render(System.Collections.Generic.IEnumerable<Fdp.Kernel.ComponentSystem> systems)
+        public void Render(System.Collections.Generic.IEnumerable<Fdp.Core.ComponentSystem> systems)
         {
             if (!IsOpen) return;
             

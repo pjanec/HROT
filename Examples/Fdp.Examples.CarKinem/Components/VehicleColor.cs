@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using System.Runtime.InteropServices;
 
 namespace Fdp.Examples.CarKinem.Components

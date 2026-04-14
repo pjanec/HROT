@@ -1,6 +1,6 @@
 using System;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Marks an ECS component struct with a stable, globally unique ID.

@@ -2,7 +2,7 @@ using System;
 using System.Numerics;
 using Xunit;
 using Moq;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Systems;

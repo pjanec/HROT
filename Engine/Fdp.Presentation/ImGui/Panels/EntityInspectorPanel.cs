@@ -1,5 +1,5 @@
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.ImGui.Abstractions;
 using Fdp.Toolkit.ImGui.Utils;
 using ImGuiNET;
@@ -57,7 +57,7 @@ public class EntityInspectorPanel
     /// Test helper: directly invokes all registered context menu handlers for a given entity.
     /// Not part of the public API — exposed as <c>internal</c> for unit tests.
     /// </summary>
-    internal void InvokeContextMenuHandlers(Fdp.Kernel.Entity entity, IContextMenuBuilder builder)
+    internal void InvokeContextMenuHandlers(Fdp.Core.Entity entity, IContextMenuBuilder builder)
     {
         for (int i = 0; i < _contextMenuHandlers.Count; i++)
             _contextMenuHandlers[i].PopulateMenu(entity, builder);

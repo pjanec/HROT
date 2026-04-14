@@ -4,9 +4,9 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Fdp.Kernel.FlightRecorder.Metadata;
+using Fdp.Core.FlightRecorder.Metadata;
 
-namespace Fdp.Kernel.FlightRecorder
+namespace Fdp.Core.FlightRecorder
 {
     /// <summary>
     /// Asynchronous Flight Recorder with double buffering.

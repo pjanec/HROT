@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Descriptors;
 using Fdp.Examples.NetworkDemo.Events; // Added

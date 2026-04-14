@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Fdp.Kernel.FlightRecorder
+namespace Fdp.Core.FlightRecorder
 {
     /// <summary>
     /// Binary contract for the outer frame header written to .fdp recording files.

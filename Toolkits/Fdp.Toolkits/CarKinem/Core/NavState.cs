@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace CarKinem.Core
 {

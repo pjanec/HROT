@@ -1,5 +1,5 @@
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Systems;

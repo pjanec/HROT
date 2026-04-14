@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 
         private readonly Fdp.Toolkit.Scenario.ScenarioSerializer _serializer;
         private readonly IScenarioLoader _scenarioLoader;
-        private readonly Fdp.Kernel.EntityRepository? _world;
+        private readonly Fdp.Core.EntityRepository? _world;
 
         private string? _pendingJson;
         private System.Guid? _pendingTransactionId;
@@ -27,7 +27,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         public ReferenceEditLoadHandler(
             Fdp.Toolkit.Scenario.ScenarioSerializer serializer,
             IScenarioLoader scenarioLoader,
-            Fdp.Kernel.EntityRepository? world = null)
+            Fdp.Core.EntityRepository? world = null)
         {
             _serializer = serializer ?? throw new System.ArgumentNullException(nameof(serializer));
             _scenarioLoader = scenarioLoader ?? throw new System.ArgumentNullException(nameof(scenarioLoader));
@@ -74,7 +74,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         }
 
         /// <inheritdoc />
-        public void Commit(ExecuteNodeOpIntent intent, Fdp.Kernel.EntityRepository? repo)
+        public void Commit(ExecuteNodeOpIntent intent, Fdp.Core.EntityRepository? repo)
         {
             if (_pendingTransactionId != intent.TransactionId) return;
 
@@ -106,7 +106,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         }
 
         /// <inheritdoc />
-        public void Abort(ExecuteNodeOpIntent intent, Fdp.Kernel.EntityRepository? repo)
+        public void Abort(ExecuteNodeOpIntent intent, Fdp.Core.EntityRepository? repo)
         {
             _pendingJson = null;
             _pendingTransactionId = null;

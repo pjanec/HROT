@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Type-agnostic interface for managed event stream operations.

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
@@ -100,7 +100,7 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             public void Register(TkbTemplate template) { }
             public IEnumerable<TkbTemplate> GetAll() => Array.Empty<TkbTemplate>();
             public TkbTemplate GetByName(string name) => null;
-            public TkbTemplate GetTemplateByEntityType(Fdp.Kernel.DISEntityType entityType) => null;
+            public TkbTemplate GetTemplateByEntityType(Fdp.Core.DISEntityType entityType) => null;
             public TkbTemplate GetTemplateByName(string templateName) => null;
         }
 

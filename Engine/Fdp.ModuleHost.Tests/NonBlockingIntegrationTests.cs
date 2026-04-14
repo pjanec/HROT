@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 namespace Fdp.ModuleHost.Tests

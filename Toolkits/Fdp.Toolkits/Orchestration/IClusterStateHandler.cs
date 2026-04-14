@@ -1,6 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Orchestration
 {

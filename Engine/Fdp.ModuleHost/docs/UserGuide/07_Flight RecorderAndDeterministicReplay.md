@@ -126,7 +126,7 @@ The `RecordingReader` provides sequential playback. For interactive replay tools
 #### Setup
 
 ```csharp
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core.FlightRecorder;
 
 // Load recording
 var reader = new RecordingReader("simulation.fdr");
@@ -316,7 +316,7 @@ public class FleeStrategy : IAIStrategy
 Before serialization, register all polymorphic types:
 
 ```csharp
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core.FlightRecorder;
 
 var serializer = new FdpPolymorphicSerializer();
 
@@ -509,8 +509,8 @@ recorder.CaptureFrame(repository, sinceTick: 42);
 From `FlightRecorderTests.cs` lines 34-75:
 
 ```csharp
-using Fdp.Kernel;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core;
+using Fdp.Core.FlightRecorder;
 
 [Fact]
 public void RecordAndReplay_SingleEntity_RestoresCorrectly()

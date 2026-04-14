@@ -2,7 +2,7 @@ using System.Numerics;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Perception.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 namespace Fdp.Toolkit.Perception.Tests

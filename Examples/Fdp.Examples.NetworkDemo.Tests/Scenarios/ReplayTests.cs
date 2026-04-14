@@ -7,7 +7,7 @@ using Xunit;
 using Xunit.Abstractions;
 using Fdp.Examples.NetworkDemo;
 using Fdp.Examples.NetworkDemo.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
 {

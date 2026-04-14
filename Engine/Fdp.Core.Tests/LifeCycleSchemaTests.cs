@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Xunit;
-using Fdp.Kernel;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core;
+using Fdp.Core.FlightRecorder;
 using MessagePack;
 
 namespace Fdp.Tests

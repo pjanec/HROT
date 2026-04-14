@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// A system that manages and executes a collection of other systems.

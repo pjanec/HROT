@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Fdp.Interfaces.Abstractions;
 using CycloneDDS.Schema;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Examples.NetworkDemo.Components
 {

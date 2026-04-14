@@ -1,6 +1,6 @@
 using System;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     public interface IEventBus
     {

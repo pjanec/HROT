@@ -1,5 +1,5 @@
 using System;
-using Fdp.Kernel;
+using Fdp.Core;
 using MessagePack;
 
 namespace Fdp.Toolkit.Replication.Messages

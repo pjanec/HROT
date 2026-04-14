@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Fdp.Kernel.FlightRecorder
+namespace Fdp.Core.FlightRecorder
 {
     /// <summary>
     /// Binary contract for the global recording header written at the start of every .fdp file.

@@ -1,4 +1,4 @@
-using Fdp.Kernel.Collections;
+using Fdp.Core.Collections;
 using System.Runtime.InteropServices;
 
 namespace CarKinem.Trajectory

@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Time;
 using Fdp.Toolkit.Time.Controllers;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core.FlightRecorder;
 using CarKinem.Core;
 using CarKinem.Road;
 using CarKinem.Formation;
@@ -14,7 +14,7 @@ using CarKinem.Systems;
 using CarKinem.Commands;
 using Fdp.Examples.CarKinem.Components; // VehicleState etc if local?
 using CarKinem.Trajectory;
-using Fdp.Kernel.Collections;
+using Fdp.Core.Collections;
 using System.Numerics;
 
 namespace Fdp.Examples.CarKinem.Headless

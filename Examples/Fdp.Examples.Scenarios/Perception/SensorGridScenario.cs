@@ -2,8 +2,8 @@
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Examples.Common;
-using Fdp.Kernel;
-using Fdp.Kernel.Collections;
+using Fdp.Core;
+using Fdp.Core.Collections;
 using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;

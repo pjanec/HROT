@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Interfaces;
@@ -86,7 +86,7 @@ namespace Fdp.Toolkit.Time.Translators
 
                 _responseWriter.Write(response);
 
-                Fdp.Kernel.Logging.FdpLog<MasterTimeSyncTranslator>.Trace(
+                Fdp.Core.Logging.FdpLog<MasterTimeSyncTranslator>.Trace(
                     "[TC3][Master] SyncResponse sent. Node={0}, RTT_approx={1} ticks",
                     request.ClientNodeId,
                     masterTransmitTicks - request.ClientSendTicks);

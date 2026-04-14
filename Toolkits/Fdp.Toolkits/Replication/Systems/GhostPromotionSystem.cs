@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.Replication.Components;

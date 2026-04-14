@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using NLog;
 
-namespace Fdp.Kernel.Logging
+namespace Fdp.Core.Logging
 {
     /// <summary>
     /// High-performance static logging facade optimized for hot-path usage.

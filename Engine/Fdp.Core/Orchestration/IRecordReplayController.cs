@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace Fdp.Kernel.Orchestration
+namespace Fdp.Core.Orchestration
 {
     /// <summary>
     /// Application-agnostic contract for ECS recording and replay lifecycle.
@@ -10,7 +10,7 @@ namespace Fdp.Kernel.Orchestration
     /// Implementations are responsible for wiring <c>RecordingModule</c> /
     /// <c>ReplayModule</c> into the <c>ModuleHostKernel</c> in response to
     /// Cluster state transitions.  The interface itself only uses types from
-    /// <c>Fdp.Kernel</c> — no <c>Hrot.*</c> references are permitted here.
+    /// <c>Fdp.Core</c> — no <c>Hrot.*</c> references are permitted here.
     /// </para>
     /// </summary>
     public interface IRecordReplayController

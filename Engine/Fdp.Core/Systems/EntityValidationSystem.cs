@@ -1,6 +1,6 @@
 using System;
 
-namespace Fdp.Kernel.Systems
+namespace Fdp.Core.Systems
 {
     /// <summary>
     /// Validates 'Constructing' entities and promotes them to 'Active' when ready.

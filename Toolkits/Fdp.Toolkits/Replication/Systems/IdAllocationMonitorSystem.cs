@@ -1,6 +1,6 @@
 using System;
 using System.Diagnostics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Messages;
 using Fdp.Toolkit.Replication.Services;
 

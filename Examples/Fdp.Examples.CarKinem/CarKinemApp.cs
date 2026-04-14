@@ -2,7 +2,7 @@ using System;
 using System.Numerics;
 using Raylib_cs;
 using ImGuiNET;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Framework.Raylib;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Layers;
@@ -22,7 +22,7 @@ using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Time; // ITimeController
 using Fdp.Toolkit.Time.Controllers;
-using Fdp.Kernel.FlightRecorder; // Recorder
+using Fdp.Core.FlightRecorder; // Recorder
 
 using Fdp.Toolkit.Vis2D.Tools; // Added Tools namespace
 
@@ -69,7 +69,7 @@ public class CarKinemApp : FdpApplication
     private MainUI _legacyUI = null!;
     
     // Systems List for Profiling
-    private List<Fdp.Kernel.ComponentSystem> _systems = new();
+    private List<Fdp.Core.ComponentSystem> _systems = new();
 
     // App State (Removed local state, using UIState from MainUI)
 

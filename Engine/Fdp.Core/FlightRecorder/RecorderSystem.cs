@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace Fdp.Kernel.FlightRecorder
+namespace Fdp.Core.FlightRecorder
 {
     /// <summary>
     /// Core Flight Recorder system.
@@ -626,10 +626,10 @@ namespace Fdp.Kernel.FlightRecorder
             if (_eventPolicyCache.TryGetValue(typeId, out bool shouldRecord))
                 return shouldRecord;
 
-            var attr = (Fdp.Kernel.DataPolicyAttribute?)Attribute.GetCustomAttribute(eventType, typeof(Fdp.Kernel.DataPolicyAttribute));
+            var attr = (Fdp.Core.DataPolicyAttribute?)Attribute.GetCustomAttribute(eventType, typeof(Fdp.Core.DataPolicyAttribute));
 
             shouldRecord = true;
-            if (attr != null && attr.Policy.HasFlag(Fdp.Kernel.DataPolicy.NoRecord))
+            if (attr != null && attr.Policy.HasFlag(Fdp.Core.DataPolicy.NoRecord))
             {
                 shouldRecord = false;
             }

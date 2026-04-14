@@ -1,5 +1,5 @@
 using System;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.ModuleHost.Network;

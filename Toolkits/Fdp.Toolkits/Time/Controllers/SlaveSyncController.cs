@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Time.Domain;
 using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
@@ -108,7 +108,7 @@ namespace Fdp.Toolkit.Time.Controllers
             // Send the initial handshake request.
             SendTimeSyncRequest();
 
-            Fdp.Kernel.Logging.FdpLog<SlaveSyncController>.Debug(
+            Fdp.Core.Logging.FdpLog<SlaveSyncController>.Debug(
                 "[TC3][Slave#{0}] Initialized. _baselineWallTicks={1}", _localNodeId, _baselineWallTicks);
         }
 
@@ -207,7 +207,7 @@ namespace Fdp.Toolkit.Time.Controllers
                 ClientNodeId    = _localNodeId,
                 ClientSendTicks = _lastSyncRequestTicks,
             });
-            Fdp.Kernel.Logging.FdpLog<SlaveSyncController>.Trace(
+            Fdp.Core.Logging.FdpLog<SlaveSyncController>.Trace(
                 "[TC3][Slave#{0}] TimeSyncRequest sent. ClientSendTicks={1}",
                 _localNodeId, _lastSyncRequestTicks);
         }
@@ -224,7 +224,7 @@ namespace Fdp.Toolkit.Time.Controllers
 
                 if (offset.Rtt > _config.MaxRttTicks)
                 {
-                    Fdp.Kernel.Logging.FdpLog<SlaveSyncController>.Debug(
+                    Fdp.Core.Logging.FdpLog<SlaveSyncController>.Debug(
                         "[TC3][Slave#{0}] Discarded sync result: RTT={1:F3}ms exceeds max={2:F3}ms",
                         _localNodeId, rttMs, _config.MaxRttTicks * 1000.0 / Stopwatch.Frequency);
                     continue;
@@ -239,7 +239,7 @@ namespace Fdp.Toolkit.Time.Controllers
                     _masterWallClockOffset += (long)((offset.NewOffset - _masterWallClockOffset)
                                                      * _config.SyncCorrectionWeight);
 
-                Fdp.Kernel.Logging.FdpLog<SlaveSyncController>.Trace(
+                Fdp.Core.Logging.FdpLog<SlaveSyncController>.Trace(
                     "[TC3][Slave#{0}] RTT={1:F3}ms, Offset={2} ticks. {3}",
                     _localNodeId, rttMs, _masterWallClockOffset,
                     hardSnap ? "HARD-SNAP" : "gentle-steer");
@@ -320,7 +320,7 @@ namespace Fdp.Toolkit.Time.Controllers
             // Check if the synced wall clock has reached the barrier.
             if (_pendingBarrierWallTicks >= 0 && SyncedWallTicks >= _pendingBarrierWallTicks)
             {
-                Fdp.Kernel.Logging.FdpLog<SlaveSyncController>.Debug(
+                Fdp.Core.Logging.FdpLog<SlaveSyncController>.Debug(
                     "[TC3][Slave#{0}] BARRIER HIT. SyncedWallTicks={1}, BarrierWallTicks={2}. Entering Stepping.",
                     _localNodeId, SyncedWallTicks, _pendingBarrierWallTicks);
                 _mode = SlaveMode.Stepping;

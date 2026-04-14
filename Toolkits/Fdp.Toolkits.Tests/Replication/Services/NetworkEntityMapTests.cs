@@ -1,6 +1,6 @@
 using System;
 using Xunit;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 
 namespace Fdp.Toolkit.Replication.Tests.Services

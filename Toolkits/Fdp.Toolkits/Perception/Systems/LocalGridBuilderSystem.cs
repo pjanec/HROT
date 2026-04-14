@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Numerics;
 using CarKinem.Spatial;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Perception.Systems
@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// <para>
     /// <b>Struct-copy / shared-memory note:</b>
     /// <see cref="SpatialHashGrid"/> is a value type whose fields are
-    /// <see cref="Fdp.Kernel.Collections.NativeArray{T}"/> wrappers around native pointers.
+    /// <see cref="Fdp.Core.Collections.NativeArray{T}"/> wrappers around native pointers.
     /// Passing a struct copy here shares those native pointers with the caller's copy, so
     /// all <c>Clear()</c>, <c>Add()</c>, and <c>Remove()</c> mutations are visible to every
     /// other holder of a struct copy (e.g. <see cref="VisionBroadphaseSystem"/>).

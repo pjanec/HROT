@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// 96-byte entity header stored in NativeChunkTable.

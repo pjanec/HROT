@@ -1,6 +1,6 @@
 using Xunit;
 using Fdp.ModuleHost;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Network;
 
 namespace Fdp.ModuleHost.Tests.Extraction

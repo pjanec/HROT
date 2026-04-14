@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using System;
 
 namespace Fdp.Toolkit.Replication.Components

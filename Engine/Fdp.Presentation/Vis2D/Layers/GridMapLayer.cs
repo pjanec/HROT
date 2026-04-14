@@ -1,6 +1,6 @@
 using System;
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;
 

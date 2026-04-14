@@ -4,7 +4,7 @@ using CarKinem.Core;
 using CarKinem.Spatial;
 using CarKinem.Systems;
 using Fdp.Toolkit.Physics.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 namespace CarKinem.Tests.Systems

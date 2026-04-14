@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Base class for all systems in the FDP engine.

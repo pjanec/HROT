@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Time;
 using Fdp.Toolkit.Time.Controllers;

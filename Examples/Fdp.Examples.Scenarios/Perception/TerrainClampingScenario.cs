@@ -4,7 +4,7 @@ using Fdp.Examples.Common;
 using Fdp.Examples.Common.Constants;
 using Fdp.Examples.Common.Helpers;
 using Fdp.Examples.Common.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Systems;

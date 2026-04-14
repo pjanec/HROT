@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.ModuleHost.Time;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 using Fdp.Toolkit.Time.Controllers;

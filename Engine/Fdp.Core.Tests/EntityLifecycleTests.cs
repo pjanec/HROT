@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using Xunit;
-using Fdp.Kernel;
-using Fdp.Kernel.Systems;
-using Fdp.Kernel.Internal;
+using Fdp.Core;
+using Fdp.Core.Systems;
+using Fdp.Core.Internal;
 using System.Runtime.InteropServices;
 
-namespace Fdp.Kernel.Tests
+namespace Fdp.Core.Tests
 {
     // Define Mock Modules as bits
     public static class Modules

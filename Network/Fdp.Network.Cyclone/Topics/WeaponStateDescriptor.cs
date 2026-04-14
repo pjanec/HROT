@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Network.Cyclone.Topics
 {

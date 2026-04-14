@@ -1,5 +1,5 @@
 using Xunit;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.ImGui.Utils;
 using System;
 using System.Reflection;

@@ -4,8 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using Fdp.Interfaces;
-using Fdp.Kernel;
-using Fdp.Kernel.Logging; // Added
+using Fdp.Core;
+using Fdp.Core.Logging; // Added
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network; 
 using Fdp.Network.Cyclone.Abstractions;

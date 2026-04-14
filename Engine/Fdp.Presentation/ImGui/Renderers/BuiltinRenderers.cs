@@ -1,5 +1,5 @@
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using ImGuiApi = ImGuiNET.ImGui;
 
 namespace Fdp.Toolkit.ImGui.Renderers;

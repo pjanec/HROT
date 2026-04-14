@@ -1,7 +1,7 @@
 using System;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core.FlightRecorder;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Stores managed components (classes, strings, etc.) in GC-managed arrays.

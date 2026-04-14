@@ -1,6 +1,6 @@
 using System.Numerics;
-using Fdp.Kernel;
-using Fdp.Kernel.Logging;
+using Fdp.Core;
+using Fdp.Core.Logging;
 using Fdp.Engine.Runner;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Vis2D;

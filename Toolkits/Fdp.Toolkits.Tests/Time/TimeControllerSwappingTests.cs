@@ -3,7 +3,7 @@ using System.Threading;
 using Xunit;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Time;
-using Fdp.Kernel;
+using Fdp.Core;
 
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Time.Messages;

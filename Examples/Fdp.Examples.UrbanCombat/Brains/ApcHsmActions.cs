@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fhsm.Kernel.Attributes;
 using Fhsm.Kernel.Data;
 using Fdp.Toolkit.Behavior;

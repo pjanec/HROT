@@ -1,6 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Combat.Events
 {
@@ -30,7 +30,7 @@ namespace Fdp.Toolkit.Combat.Events
     }
 
     // ── HitEvent ─────────────────────────────────────────────────────────────
-    // BATCH-10: HitEvent has been moved to Fdp.Kernel.HitEvent to break the circular
+    // BATCH-10: HitEvent has been moved to Fdp.Core.HitEvent to break the circular
     // project dependency between FDP.Toolkit.Physics and FDP.Toolkit.Combat.
-    // Import Fdp.Kernel (already referenced) to access HitEvent.
+    // Import Fdp.Core (already referenced) to access HitEvent.
 }

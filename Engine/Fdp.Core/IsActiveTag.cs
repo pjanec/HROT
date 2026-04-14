@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// A Tag Component marking an entity as fully initialized and ready for simulation.

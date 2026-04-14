@@ -1,7 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Fdp.Kernel;
-using Fdp.Kernel.Collections;
+using Fdp.Core;
+using Fdp.Core.Collections;
 
 namespace Fdp.Toolkit.Physics.Components
 {
@@ -49,9 +49,9 @@ namespace Fdp.Toolkit.Physics.Components
         public long RayId;
 
         /// <summary>
-        /// Full <see cref="Fdp.Kernel.Entity"/> handle of the entity to ignore during this cast
+        /// Full <see cref="Fdp.Core.Entity"/> handle of the entity to ignore during this cast
         /// (e.g. the shooter or the LOS observer that submitted the ray).  When no entity should
-        /// be excluded, leave this field at its default value; <see cref="Fdp.Kernel.Entity.Null"/>
+        /// be excluded, leave this field at its default value; <see cref="Fdp.Core.Entity.Null"/>
         /// has <c>IsNull == true</c>, which the solver uses as the "no ignore" sentinel.
         /// </summary>
         /// <remarks>

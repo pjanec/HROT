@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Network.Cyclone.Services
 {

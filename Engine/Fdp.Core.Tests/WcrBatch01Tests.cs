@@ -2,8 +2,8 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using Xunit;
-using Fdp.Kernel;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core;
+using Fdp.Core.FlightRecorder;
 
 namespace Fdp.Tests
 {

@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     [StructLayout(LayoutKind.Explicit, Size = 8)]
     public struct DISEntityType

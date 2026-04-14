@@ -4,8 +4,8 @@ using System.Diagnostics;
 using System.Threading;
 using Xunit;
 using Xunit.Abstractions;
-using Fdp.Kernel;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core;
+using Fdp.Core.FlightRecorder;
 
 namespace Fdp.Tests
 {

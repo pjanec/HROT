@@ -1,6 +1,6 @@
 // File: ModuleHost/Providers/SharedSnapshotProvider.cs
 using System;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.ModuleHost.Providers

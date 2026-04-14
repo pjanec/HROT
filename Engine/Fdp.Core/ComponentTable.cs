@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Stores components of type T using NativeChunkTable.
@@ -177,7 +177,7 @@ namespace Fdp.Kernel
                 // So we can look up generation.
                 
                 // Re-reading Step 5: "Rebuild ComponentMasks for entities as we go (The Deserialize method calls .Set() which updates masks/headers automatically in your kernel)"
-                // This implies the user THINKS .Set() updates masks. It DOES NOT in Fdp.Kernel.
+                // This implies the user THINKS .Set() updates masks. It DOES NOT in Fdp.Core.
                 // `ComponentTable.Set` only touches `_data`.
                 // `EntityRepository.SetUnmanagedComponent` calls `table.Set` AND updates `header.ComponentMask`.
                 

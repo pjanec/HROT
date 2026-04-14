@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Lifecycle;

@@ -7,7 +7,7 @@ using CarKinem.Spatial;
 using CarKinem.Systems;
 using CarKinem.Trajectory;
 using Fdp.Examples.Common;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Vis2D;
 using Fdp.ModuleHost;

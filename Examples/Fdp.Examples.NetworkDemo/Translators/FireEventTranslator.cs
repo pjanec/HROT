@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Examples.NetworkDemo.Events;
 using Fdp.Examples.NetworkDemo.Descriptors;
 using Fdp.Toolkit.Replication.Services;
@@ -32,7 +32,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
         // INGRESS: Network -> ECS
         protected override bool TryDecode(in NetworkFireEvent dds, out FireInteractionEvent ecs)
         {
-            Fdp.Kernel.Logging.FdpLog<FireEventTranslator>.Info(
+            Fdp.Core.Logging.FdpLog<FireEventTranslator>.Info(
                 "Decoded FireEvent: Atk={0} Tgt={1}",
                 dds.AttackerNetId,
                 dds.TargetNetId);
@@ -70,7 +70,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
             if (ecs.IsRemote) return false;
 
             if (!EntityMap.TryGetNetworkId(ecs.AttackerRoot, out long attId)) {
-                Fdp.Kernel.Logging.FdpLog<FireEventTranslator>.Warn("TryEncode: Failed to get Attacker ID");
+                Fdp.Core.Logging.FdpLog<FireEventTranslator>.Warn("TryEncode: Failed to get Attacker ID");
                 return false;
             }
             
@@ -78,7 +78,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
             if (ecs.TargetRoot != Entity.Null)
             {
                 if (!EntityMap.TryGetNetworkId(ecs.TargetRoot, out tgtId)) {
-                   Fdp.Kernel.Logging.FdpLog<FireEventTranslator>.Warn("TryEncode: Failed to get Target ID");
+                   Fdp.Core.Logging.FdpLog<FireEventTranslator>.Warn("TryEncode: Failed to get Target ID");
                    // Maybe allow failure if target is local-only? But FireEvent usually implies network relevance.
                 }
             }
@@ -91,7 +91,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
                 Damage = ecs.Damage
             };
             
-             Fdp.Kernel.Logging.FdpLog<FireEventTranslator>.Info(
+             Fdp.Core.Logging.FdpLog<FireEventTranslator>.Info(
                  "Encoded FireEvent: Atk={0} Tgt={1}",
                  attId,
                  tgtId);

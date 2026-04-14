@@ -1,6 +1,6 @@
 using System;
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Modules.Geographic.Components;
 

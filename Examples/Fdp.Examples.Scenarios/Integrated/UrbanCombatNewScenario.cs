@@ -10,7 +10,7 @@ using Fdp.Examples.Common;
 using Fdp.Examples.Common.Constants;
 using Fdp.Examples.Common.Helpers;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Tkb;
 using Fbt;
 using Fbt.Runtime;
@@ -38,7 +38,7 @@ using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Systems;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.Vis2D;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
@@ -349,7 +349,7 @@ namespace Fdp.Examples.Scenarios.Integrated
 
         private static void RegisterComponents(EntityRepository world)
         {
-            // Fdp.Kernel spatial primitives
+            // Fdp.Core spatial primitives
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
 

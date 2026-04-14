@@ -1,6 +1,6 @@
 using System;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Controls how component data is handled by the FDP engine pipeline.

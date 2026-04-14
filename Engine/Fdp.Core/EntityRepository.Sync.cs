@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using Fdp.Kernel.Internal;
+using Fdp.Core.Internal;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     public sealed partial class EntityRepository
     {

@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Fdp.Kernel.Internal
+namespace Fdp.Core.Internal
 {
     /// <summary>
     /// Padded version number to prevent false sharing in multi-threaded scenarios.

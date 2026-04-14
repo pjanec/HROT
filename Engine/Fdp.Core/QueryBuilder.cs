@@ -1,6 +1,6 @@
 using System;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Fluent API for building EntityQuery instances.

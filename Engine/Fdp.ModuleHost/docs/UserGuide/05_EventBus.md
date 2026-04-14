@@ -65,7 +65,7 @@ Every event type MUST have a unique ID specified via the `[EventId(n)]` attribut
 
 **Basic Event Definition:**
 ```csharp
-using Fdp.Kernel;
+using Fdp.Core;
 
 [EventId(1)]
 public struct DamageEvent
@@ -138,7 +138,7 @@ foreach (var dmg in damages)
 From `EventBusTests.cs` lines 76-96:
 
 ```csharp
-using Fdp.Kernel;
+using Fdp.Core;
 
 [EventId(1)]
 public struct SimpleEvent

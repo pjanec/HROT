@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Physics.Systems;
 using Fdp.ModuleHost.Abstractions;
 

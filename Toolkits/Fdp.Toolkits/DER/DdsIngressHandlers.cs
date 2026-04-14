@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using CycloneDDS.Runtime;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 
 namespace Fdp.Toolkit.DER
 {

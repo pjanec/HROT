@@ -1,4 +1,4 @@
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Global configuration constants for the Fast Data Plane engine.

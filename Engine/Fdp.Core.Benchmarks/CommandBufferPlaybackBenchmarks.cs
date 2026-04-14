@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Benchmarks
 {

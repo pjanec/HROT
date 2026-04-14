@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Tests
 {

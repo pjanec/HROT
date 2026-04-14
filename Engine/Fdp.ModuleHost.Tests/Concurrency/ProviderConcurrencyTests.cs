@@ -1,5 +1,5 @@
 using Xunit;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Providers;
 using System.Threading.Tasks;
 using System.Collections.Generic;

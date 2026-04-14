@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Physics.Components;
 using Xunit;
 

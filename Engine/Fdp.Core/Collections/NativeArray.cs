@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace Fdp.Kernel.Collections
+namespace Fdp.Core.Collections
 {
     public enum Allocator
     {

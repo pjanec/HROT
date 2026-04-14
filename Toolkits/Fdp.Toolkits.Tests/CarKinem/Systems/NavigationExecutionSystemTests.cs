@@ -1,7 +1,7 @@
 using System.Numerics;
 using CarKinem.Core;
 using CarKinem.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Navigation;
 using Xunit;
 

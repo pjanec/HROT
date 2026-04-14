@@ -1,5 +1,5 @@
 using CarKinem.Spatial;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace CarKinem.Spatial
 {

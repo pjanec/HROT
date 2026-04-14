@@ -9,7 +9,7 @@ namespace Fdp.ModuleHost.Scheduling
 {
     /// <summary>
     /// Schedules system execution using topological sorting of dependencies.
-    /// Systems execute in deterministic order based on Fdp.Kernel [UpdateAfter]/[UpdateBefore] attributes.
+    /// Systems execute in deterministic order based on Fdp.Core [UpdateAfter]/[UpdateBefore] attributes.
     /// </summary>
     public class SystemScheduler : ISystemRegistry
     {
@@ -156,10 +156,10 @@ namespace Fdp.ModuleHost.Scheduling
             // Second pass: Add edges
             foreach (var system in systems)
             {
-                // Extract [UpdateAfter] attributes (Using Fdp.Kernel Attribute)
+                // Extract [UpdateAfter] attributes (Using Fdp.Core Attribute)
                 var afterAttrs = Attribute.GetCustomAttributes(
-                    system.GetType(), typeof(Fdp.Kernel.UpdateAfterAttribute), inherit: true)
-                    .Cast<Fdp.Kernel.UpdateAfterAttribute>();
+                    system.GetType(), typeof(Fdp.Core.UpdateAfterAttribute), inherit: true)
+                    .Cast<Fdp.Core.UpdateAfterAttribute>();
                 
                 foreach (var attr in afterAttrs)
                 {
@@ -174,10 +174,10 @@ namespace Fdp.ModuleHost.Scheduling
                     }
                 }
                 
-                // Extract [UpdateBefore] attributes (Using Fdp.Kernel Attribute)
+                // Extract [UpdateBefore] attributes (Using Fdp.Core Attribute)
                 var beforeAttrs = Attribute.GetCustomAttributes(
-                    system.GetType(), typeof(Fdp.Kernel.UpdateBeforeAttribute), inherit: true)
-                    .Cast<Fdp.Kernel.UpdateBeforeAttribute>();
+                    system.GetType(), typeof(Fdp.Core.UpdateBeforeAttribute), inherit: true)
+                    .Cast<Fdp.Core.UpdateBeforeAttribute>();
                 
                 foreach (var attr in beforeAttrs)
                 {

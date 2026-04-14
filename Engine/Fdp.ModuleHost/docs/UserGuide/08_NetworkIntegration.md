@@ -431,7 +431,7 @@ using ModuleHost.Network;
 using ModuleHost.Network.Systems;
 using ModuleHost.Network.Translators;
 using ModuleHost.Network.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 
 public class Node1Setup
 {
@@ -3802,7 +3802,7 @@ public static class NetworkConstants
 
 ## Migration Guide: Adding Network-ELM to Existing Project
 
-### Step 1: Update Fdp.Kernel (if using submodule)
+### Step 1: Update Fdp.Core (if using submodule)
 
 ```bash
 cd FDP

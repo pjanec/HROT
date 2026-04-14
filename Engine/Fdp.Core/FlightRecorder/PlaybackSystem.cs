@@ -1,9 +1,9 @@
 using System;
 using System.IO;
 using System.Reflection;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 
-namespace Fdp.Kernel.FlightRecorder
+namespace Fdp.Core.FlightRecorder
 {
     /// <summary>
     /// Playback system for Flight Recorder snapshots.

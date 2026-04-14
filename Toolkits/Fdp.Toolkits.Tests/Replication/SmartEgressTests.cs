@@ -1,5 +1,5 @@
 using Xunit;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Replication.Components;
 

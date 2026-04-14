@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Numerics;
 using CarKinem.Spatial;
-using Fdp.Kernel;
-using Fdp.Kernel.Collections;
+using Fdp.Core;
+using Fdp.Core.Collections;
 using Xunit;
 
 namespace CarKinem.Tests.Spatial

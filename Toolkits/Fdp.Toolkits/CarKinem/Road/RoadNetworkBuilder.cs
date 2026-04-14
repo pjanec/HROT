@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Fdp.Kernel.Collections;
+using Fdp.Core.Collections;
 
 namespace CarKinem.Road
 {

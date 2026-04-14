@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Buffers;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Captures event history from live bus and flushes to replica buses.

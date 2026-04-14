@@ -2,7 +2,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 using Fdp.Examples.NetworkDemo;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Network;
 

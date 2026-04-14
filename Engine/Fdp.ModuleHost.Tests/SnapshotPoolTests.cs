@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Providers;
 using System.Collections.Generic;
 using System.Linq;

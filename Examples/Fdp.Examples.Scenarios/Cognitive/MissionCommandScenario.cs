@@ -2,7 +2,7 @@ using System;
 using System.Numerics;
 using Fdp.Examples.Common;
 using Fdp.Examples.Common.Constants;
-using Fdp.Kernel;
+using Fdp.Core;
 using CommonDoctrineIds = Fdp.Examples.Common.Constants.DemoDoctrineIds;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;

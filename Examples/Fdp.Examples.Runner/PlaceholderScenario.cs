@@ -1,6 +1,6 @@
 using Fdp.Examples.Common;
-using Fdp.Kernel.Logging;
-using Fdp.Kernel;
+using Fdp.Core.Logging;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D;
 using Fdp.ModuleHost;
 

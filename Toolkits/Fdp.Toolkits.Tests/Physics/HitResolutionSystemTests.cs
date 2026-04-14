@@ -1,7 +1,7 @@
 using System;
-using Fdp.Kernel;
-using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel
-// BATCH-10: HitEvent moved to Fdp.Kernel — using FDP.Toolkit.Combat.Events removed.
+using Fdp.Core;
+using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Core
+// BATCH-10: HitEvent moved to Fdp.Core — using FDP.Toolkit.Combat.Events removed.
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Systems;
 using Fdp.Toolkit.Perception.Events;

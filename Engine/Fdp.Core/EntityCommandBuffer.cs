@@ -2,7 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using Fdp.Interfaces;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Records structural changes (create, destroy, add/remove components) for deferred execution.

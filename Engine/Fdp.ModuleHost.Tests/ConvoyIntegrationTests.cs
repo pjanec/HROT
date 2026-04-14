@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Xunit;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.Kernel;
+using Fdp.Core;
 using System.Linq;
 using System.Collections.Generic;
 using Fdp.ModuleHost.Providers;

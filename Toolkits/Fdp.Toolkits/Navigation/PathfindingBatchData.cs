@@ -1,8 +1,8 @@
 using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Fdp.Kernel;
-using Fdp.Kernel.Collections;
+using Fdp.Core;
+using Fdp.Core.Collections;
 
 namespace Fdp.Toolkit.Navigation
 {

@@ -1,6 +1,6 @@
 using System;
 using Xunit;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Messages;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;

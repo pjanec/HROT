@@ -1,9 +1,9 @@
 using ImGuiNET;
 using System.Numerics;
 using Fdp.Examples.CarKinem.Core;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.ImGui.Panels;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core.FlightRecorder;
 using Fdp.Toolkit.ImGui.Abstractions;
 using Fdp.Toolkit.ImGui.Adapters;
 using Fdp.ModuleHost;
@@ -69,7 +69,7 @@ namespace Fdp.Examples.CarKinem.UI
             return req;
         }
 
-        public void Render(EntityRepository repository, ModuleHostKernel kernel, ScenarioManager scenarioManager, IInspectorContext inspectorCtx, IEnumerable<Fdp.Kernel.ComponentSystem> systems, PlaybackController? playback = null)
+        public void Render(EntityRepository repository, ModuleHostKernel kernel, ScenarioManager scenarioManager, IInspectorContext inspectorCtx, IEnumerable<Fdp.Core.ComponentSystem> systems, PlaybackController? playback = null)
         {
             ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiCond.FirstUseEver);
             ImGui.SetNextWindowSize(new Vector2(300, 500), ImGuiCond.FirstUseEver);

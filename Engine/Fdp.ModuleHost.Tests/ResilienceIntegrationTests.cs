@@ -4,7 +4,7 @@ using Xunit;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Resilience;
-using Fdp.Kernel;
+using Fdp.Core;
 using System;
 using System.Linq;
 using System.Threading;

@@ -1,7 +1,7 @@
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Descriptors;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Components;
 using System.Numerics;

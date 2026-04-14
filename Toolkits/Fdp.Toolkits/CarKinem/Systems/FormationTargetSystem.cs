@@ -3,7 +3,7 @@ using System.Numerics;
 using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Trajectory;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace CarKinem.Systems
 {

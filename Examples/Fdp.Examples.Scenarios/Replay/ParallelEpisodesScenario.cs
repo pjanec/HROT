@@ -9,8 +9,8 @@ using CarKinem.Systems;
 using CarKinem.Trajectory;
 using Fdp.Examples.Common;
 using Fdp.Examples.Common.Constants;
-using Fdp.Kernel;
-using Fdp.Kernel.Logging;
+using Fdp.Core;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.CarKinem.Systems;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Replay;
@@ -22,7 +22,7 @@ using Fdp.ModuleHost.Abstractions;
 namespace Fdp.Examples.Scenarios.Replay
 {
     /// <summary>
-    /// DEM1-D008 — ParallelEpisodes: prove <c>Fdp.Kernel.FlightRecorder</c> LZ4 recording and
+    /// DEM1-D008 — ParallelEpisodes: prove <c>Fdp.Core.FlightRecorder</c> LZ4 recording and
     /// naked-node replay produce bit-identical positions.
     ///
     /// <para><b>Phase A (Configure, synchronous):</b> A separate live world + kernel drives a

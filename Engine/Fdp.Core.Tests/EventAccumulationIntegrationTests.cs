@@ -1,5 +1,5 @@
 using Xunit;
-using Fdp.Kernel;
+using Fdp.Core;
 using System.Collections.Generic;
 
 namespace Fdp.Tests

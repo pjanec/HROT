@@ -1,7 +1,7 @@
 using CarKinem.Core;
 using Fdp.Examples.Common.Constants;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Tkb;
 

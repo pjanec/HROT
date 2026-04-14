@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Time.Domain;
 using Fdp.Toolkit.Time.Messages;

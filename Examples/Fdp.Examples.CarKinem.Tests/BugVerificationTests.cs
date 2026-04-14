@@ -3,7 +3,7 @@ using System.Numerics;
 using System.Linq;
 using Xunit;
 using Fdp.Examples.CarKinem.Headless;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Examples.CarKinem.Components;
 using CarKinem.Trajectory;
 using Fdp.Examples.CarKinem.Core;
@@ -76,7 +76,7 @@ namespace Fdp.Examples.CarKinem.Tests
             var recPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"replay_test_{Guid.NewGuid()}.fdprec");
             
             // Manually drive recorder
-            using(var recorder = new Fdp.Kernel.FlightRecorder.AsyncRecorder(recPath))
+            using(var recorder = new Fdp.Core.FlightRecorder.AsyncRecorder(recPath))
             {
                 _app.Repository.GetSingletonUnmanaged<GlobalTime>().DeltaTime = 0.016f;
                 // Capture Header (done in ctor)
@@ -89,7 +89,7 @@ namespace Fdp.Examples.CarKinem.Tests
             }
             
             // 2. Load Playback
-            var playback = new Fdp.Kernel.FlightRecorder.PlaybackController(recPath);
+            var playback = new Fdp.Core.FlightRecorder.PlaybackController(recPath);
             
             try
             {

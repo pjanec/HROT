@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Fdp.Interfaces;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 using Fdp.Interfaces.Abstractions;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Replication.Patching;
 

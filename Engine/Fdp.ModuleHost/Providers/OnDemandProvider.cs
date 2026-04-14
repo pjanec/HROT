@@ -1,7 +1,7 @@
 // File: ModuleHost/Providers/OnDemandProvider.cs
 using System;
 using System.Collections.Concurrent;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.ModuleHost.Providers

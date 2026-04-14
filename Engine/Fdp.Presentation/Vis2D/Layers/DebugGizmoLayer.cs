@@ -1,5 +1,5 @@
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Abstractions;
 //using FDP.Toolkit.Vis2D.Debug;
 using Raylib_cs;

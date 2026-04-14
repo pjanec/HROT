@@ -2,9 +2,9 @@ using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using Fdp.Kernel.Internal;
+using Fdp.Core.Internal;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Defines a query for entities with specific component requirements.

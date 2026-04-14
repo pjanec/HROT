@@ -1,6 +1,6 @@
 using Xunit;
 using Fdp.Toolkit.Lifecycle.Events;
-using Fdp.Kernel;
+using Fdp.Core;
 using System.Linq;
 
 namespace Fdp.Toolkit.Lifecycle.Tests

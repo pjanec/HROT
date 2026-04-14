@@ -1,11 +1,11 @@
 using System;
 using System.Threading;
-using Fdp.Kernel;
-using Fdp.Kernel.Internal;
+using Fdp.Core;
+using Fdp.Core.Internal;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Interfaces;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     public sealed partial class EntityRepository : ISimulationView
     {

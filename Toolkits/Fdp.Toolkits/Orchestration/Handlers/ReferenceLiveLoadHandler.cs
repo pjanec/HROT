@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Fdp.Kernel;
-using Fdp.Kernel.Orchestration;
-using Fdp.Kernel.Logging;
+using Fdp.Core;
+using Fdp.Core.Orchestration;
+using Fdp.Core.Logging;
 
 namespace Fdp.Toolkit.Orchestration.Handlers
 {

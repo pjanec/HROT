@@ -1,8 +1,8 @@
 using System;
 using System.Runtime.InteropServices;
-using Fdp.Kernel.FlightRecorder.Metadata;
+using Fdp.Core.FlightRecorder.Metadata;
 
-namespace Fdp.Kernel.FlightRecorder
+namespace Fdp.Core.FlightRecorder
 {
     /// <summary>
     /// Validates a Flight Recorder binary against the component schema manifest saved

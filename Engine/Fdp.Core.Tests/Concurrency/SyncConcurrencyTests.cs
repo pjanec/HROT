@@ -1,5 +1,5 @@
 using Xunit;
-using Fdp.Kernel;
+using Fdp.Core;
 using System.Threading.Tasks;
 
 namespace Fdp.Tests.Concurrency

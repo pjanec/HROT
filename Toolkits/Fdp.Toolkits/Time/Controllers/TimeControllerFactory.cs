@@ -1,5 +1,5 @@
 using System;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Time;
 
 namespace Fdp.Toolkit.Time.Controllers

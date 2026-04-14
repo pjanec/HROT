@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using CarKinem.Commands;
-using Fdp.Kernel.Logging;
-using Fdp.Kernel;
+using Fdp.Core.Logging;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Executors;
 using Fdp.Toolkit.Replication.Services;

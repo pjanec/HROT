@@ -2,7 +2,7 @@ using System;
 using Fdp.Interfaces.Abstractions;
 using CycloneDDS.Schema;
 using MessagePack;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Examples.NetworkDemo.Components
 {

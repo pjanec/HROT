@@ -1,8 +1,8 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Fdp.Kernel;
+using Fdp.Core;
 
-// DB-MOD1-23: NavigationIntent and NavigationStatus moved from Fdp.Kernel/CoreComponents/NavigationComponents.cs
+// DB-MOD1-23: NavigationIntent and NavigationStatus moved from Fdp.Core/CoreComponents/NavigationComponents.cs
 // into this thin contracts assembly so that both FDP.Toolkit.Navigation and FDP.Toolkit.CarKinem can
 // reference them without creating a circular assembly dependency.
 

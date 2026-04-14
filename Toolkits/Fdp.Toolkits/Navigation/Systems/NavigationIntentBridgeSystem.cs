@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using CarKinem.Core;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Navigation.Systems
 {

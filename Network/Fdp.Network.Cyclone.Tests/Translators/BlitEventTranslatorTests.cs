@@ -7,7 +7,7 @@ using Fdp.Network.Cyclone.Translators;
 using Fdp.Network.Cyclone.Topics;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Interfaces;
 

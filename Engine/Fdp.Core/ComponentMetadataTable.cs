@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Stores per-component metadata including authority and part descriptors.

@@ -2,8 +2,8 @@ using System.Linq;
 using System.Numerics;
 using CarKinem.Core;
 using CarKinem.Spatial;
-using Fdp.Kernel;
-using Fdp.Kernel.Collections;
+using Fdp.Core;
+using Fdp.Core.Collections;
 
 namespace CarKinem.Systems
 {
@@ -42,7 +42,7 @@ namespace CarKinem.Systems
             // Query only physics-collidable entities (SimTransform + PhysicsCollider).
             // Using WithComponentId avoids a circular project dependency: FDP.Toolkit.Physics
             // already references FDP.Toolkit.CarKinem, so CarKinem cannot reference Physics.
-            // GlobalComponentIds.PhysicsCollider is defined in Fdp.Kernel which CarKinem already references.
+            // GlobalComponentIds.PhysicsCollider is defined in Fdp.Core which CarKinem already references.
             var query = World.Query()
                 .With<SimTransform>()
                 .WithComponentId(GlobalComponentIds.PhysicsCollider)

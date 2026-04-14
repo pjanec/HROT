@@ -7,7 +7,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using MessagePack;
 
-namespace Fdp.Kernel.FlightRecorder
+namespace Fdp.Core.FlightRecorder
 {
     /// <summary>
     /// JIT-compiled serializer for managed types.

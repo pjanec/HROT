@@ -3,7 +3,7 @@ namespace Fdp.ModuleHost.Abstractions
     /// <summary>
     /// A focused unit of logic that operates on components (Stateless).
     /// Systems execute in a deterministic order based on declared dependencies.
-    /// Differs from Fdp.Kernel.ComponentSystem by signature (receives View).
+    /// Differs from Fdp.Core.ComponentSystem by signature (receives View).
     /// </summary>
     public interface IEcsModuleSystem
     {

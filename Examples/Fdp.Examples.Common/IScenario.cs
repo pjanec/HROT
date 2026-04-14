@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost;
 using Fdp.Toolkit.Vis2D;
 

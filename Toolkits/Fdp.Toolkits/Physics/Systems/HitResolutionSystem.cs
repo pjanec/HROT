@@ -1,7 +1,7 @@
 ﻿using System.Numerics;
-using Fdp.Kernel;
-using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel to Combat.Contracts
-// BATCH-10: HitEvent moved from FDP.Toolkit.Combat.Events to Fdp.Kernel â€” no extra using needed.
+using Fdp.Core;
+using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Core to Combat.Contracts
+// BATCH-10: HitEvent moved from FDP.Toolkit.Combat.Events to Fdp.Core â€” no extra using needed.
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Perception.Events;
 
@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Physics.Systems
     /// <b>Cross-toolkit dependency approach (BATCH-08 Q3):</b>
     /// <c>FDP.Toolkit.Physics</c> references <c>FDP.Toolkit.Perception</c> directly so it
     /// can publish <see cref="TargetVisibleEvent"/> without duplicating the type.
-    /// <see cref="HitEvent"/> is now defined in <c>Fdp.Kernel</c> (BATCH-10: moved from
+    /// <see cref="HitEvent"/> is now defined in <c>Fdp.Core</c> (BATCH-10: moved from
     /// <c>FDP.Toolkit.Combat.Events</c> to break the circular dependency introduced in
     /// BATCH-09 when Combat systems started needing Physics types).
     /// </para>

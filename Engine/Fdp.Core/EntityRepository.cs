@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Fdp.Kernel.Internal;
+using Fdp.Core.Internal;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     public enum TimeSliceMetric
     {

@@ -1,4 +1,4 @@
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Group for systems that run during the initialization phase of a frame.

@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.ModuleHost.Providers
 {

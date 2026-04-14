@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Buffers;
 using System.Linq;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Central event bus for transient, one-frame events.
@@ -78,7 +78,7 @@ namespace Fdp.Kernel
                 if (!_unmanagedEventIdCache.TryGetValue(type, out int id))
                 {
                     // Slow path: Reflection to get EventType<T>.Id
-                    // We assume the type has [EventId] attribute or is a valid event type using Fdp.Kernel event system.
+                    // We assume the type has [EventId] attribute or is a valid event type using Fdp.Core event system.
                     try 
                     {
                         var eventTypeGeneric = typeof(EventType<>).MakeGenericType(type);

@@ -1,4 +1,4 @@
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Defines write permissions for a specific phase.

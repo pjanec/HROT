@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Combat.Systems;
 
 namespace Fdp.Toolkit.Combat.Modules

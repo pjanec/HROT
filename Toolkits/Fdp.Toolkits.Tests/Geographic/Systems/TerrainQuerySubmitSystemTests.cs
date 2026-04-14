@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
-using Fdp.Kernel;
-using Fdp.Kernel.Collections;
+using Fdp.Core;
+using Fdp.Core.Collections;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Systems;
 using Fdp.ModuleHost.Abstractions;

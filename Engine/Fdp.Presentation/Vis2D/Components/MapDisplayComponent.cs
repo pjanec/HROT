@@ -4,7 +4,7 @@ namespace Fdp.Toolkit.Vis2D.Components
     /// Component attached to entities to control map layer visibility.
     /// Uses bitmask for layer membership (entity can appear on multiple layers).
     /// </summary>
-    [Fdp.Kernel.ComponentId(Fdp.Kernel.GlobalComponentIds.MapDisplayComponent)]
+    [Fdp.Core.ComponentId(Fdp.Core.GlobalComponentIds.MapDisplayComponent)]
     public struct MapDisplayComponent
     {
         /// <summary>

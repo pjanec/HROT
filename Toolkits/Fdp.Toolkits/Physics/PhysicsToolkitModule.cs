@@ -1,6 +1,6 @@
 using System;
-using Fdp.Kernel;
-using Fdp.Kernel.Collections;
+using Fdp.Core;
+using Fdp.Core.Collections;
 using Fdp.Toolkit.Physics.Components;
 
 namespace Fdp.Toolkit.Physics
@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Physics
     /// <see cref="RaycastBatchData"/> singleton and register it on the world.
     /// <para>
     /// <b>Memory ownership:</b> <see cref="Initialize"/> allocates two
-    /// <see cref="Fdp.Kernel.Collections.NativeArray{T}"/> arrays with
+    /// <see cref="Fdp.Core.Collections.NativeArray{T}"/> arrays with
     /// <see cref="Allocator.Persistent"/> and registers them as a world singleton.
     /// The module retains the array handles so that <see cref="Dispose"/> can free
     /// them when the simulation ends.  Scenarios must keep the module alive for the

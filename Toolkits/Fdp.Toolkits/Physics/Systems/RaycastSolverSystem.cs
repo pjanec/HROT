@@ -2,7 +2,7 @@ using System;
 using System.Numerics;
 using System.Threading.Tasks;
 using CarKinem.Spatial;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Math;
 

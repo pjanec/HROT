@@ -2,7 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Linq.Expressions;
 using System.Reflection;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.NetworkSpawning
 {

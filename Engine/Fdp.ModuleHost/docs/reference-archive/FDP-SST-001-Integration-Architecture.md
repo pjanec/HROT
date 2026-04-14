@@ -6,7 +6,7 @@
 | **Type** | Technical Specification (Core Architecture) |
 | **Status** | APPROVED - Definitive Design |
 | **Date** | January 2, 2026 |
-| **Dependencies** | Fdp.Kernel (existing), DDS, specification.md |
+| **Dependencies** | Fdp.Core (existing), DDS, specification.md |
 
 ---
 

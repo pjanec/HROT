@@ -1,6 +1,6 @@
 using Fdp.Interfaces.Abstractions;
 using CycloneDDS.Schema;
-using Fdp.Kernel;
+using Fdp.Core;
 // using ModuleHost.Time; // Unused if we use int
 
 namespace Fdp.Examples.NetworkDemo.Components

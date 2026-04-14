@@ -1,6 +1,6 @@
 using System.Threading;
 using Xunit;
-using Fdp.Kernel;
+using Fdp.Core;
 
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Time.Messages;

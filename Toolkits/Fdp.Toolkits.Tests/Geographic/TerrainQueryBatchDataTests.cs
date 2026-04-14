@@ -1,5 +1,5 @@
 using System;
-using Fdp.Kernel.Collections;
+using Fdp.Core.Collections;
 using Fdp.Modules.Geographic.Components;
 using Xunit;
 

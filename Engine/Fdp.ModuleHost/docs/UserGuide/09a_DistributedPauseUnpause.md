@@ -215,7 +215,7 @@ var timeConfig = new TimeControllerConfig
 ```csharp
 using ModuleHost;
 using ModuleHost.Time;
-using Fdp.Kernel;
+using Fdp.Core;
 
 public class GameSimulation
 {

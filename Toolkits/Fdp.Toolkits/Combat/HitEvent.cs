@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Combat.Contracts
 {
@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Combat.Contracts
     /// Published by <c>HitResolutionSystem</c> when a bullet ray resolves to a hit.
     /// Consumed by damage-application systems in the Combat toolkit.
     ///
-    /// <b>Placement note (DEBT-031):</b> Moved from <c>Fdp.Kernel</c> to this thin
+    /// <b>Placement note (DEBT-031):</b> Moved from <c>Fdp.Core</c> to this thin
     /// <c>FDP.Toolkit.Combat.Contracts</c> assembly to restore kernel purity.
     /// Both <c>FDP.Toolkit.Physics</c> and <c>FDP.Toolkit.Combat</c> reference
     /// <c>FDP.Toolkit.Combat.Contracts</c>; neither references the other directly,

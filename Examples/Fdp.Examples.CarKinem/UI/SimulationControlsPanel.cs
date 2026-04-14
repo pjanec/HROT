@@ -1,9 +1,9 @@
 using ImGuiNET;
 using System.Numerics;
 using System;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core.FlightRecorder;
 
 namespace Fdp.Examples.CarKinem.UI
 {

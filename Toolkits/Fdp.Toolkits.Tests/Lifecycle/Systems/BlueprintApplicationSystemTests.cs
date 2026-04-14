@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Xunit;
 using Fdp.Toolkit.Lifecycle.Systems;
 using Fdp.Toolkit.Lifecycle.Events;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Moq;

@@ -3,10 +3,10 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core.FlightRecorder;
 using K4os.Compression.LZ4;
 
-namespace Fdp.Kernel.Orchestration
+namespace Fdp.Core.Orchestration
 {
     /// <summary>
     /// Background-thread checkpoint I/O worker — implements Step 3 of the 3-step binary

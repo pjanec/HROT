@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 namespace Fdp.Tests
@@ -122,7 +122,7 @@ namespace Fdp.Tests
              var events = new TestInspectorEvent[] { new TestInspectorEvent { Value = 999 } };
              var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(new ReadOnlySpan<TestInspectorEvent>(events));
              
-             int typeId = Fdp.Kernel.EventType<TestInspectorEvent>.Id;
+             int typeId = Fdp.Core.EventType<TestInspectorEvent>.Id;
              eventBus.InjectIntoCurrent(typeId, bytes);
              
              // 3. Inspect immediately (Inspector should see injected data in Read buffer)

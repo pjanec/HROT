@@ -2,7 +2,7 @@ using System;
 using System.Numerics;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Events;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Examples.NetworkDemo.Modules

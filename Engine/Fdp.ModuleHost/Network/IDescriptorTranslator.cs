@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Interfaces;
 
 namespace Fdp.ModuleHost.Network

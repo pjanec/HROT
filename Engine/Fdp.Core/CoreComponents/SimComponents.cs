@@ -1,7 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>World position (meters) and orientation. Present on every entity with a spatial location.</summary>
     [StructLayout(LayoutKind.Sequential)]

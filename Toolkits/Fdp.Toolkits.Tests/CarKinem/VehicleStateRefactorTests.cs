@@ -1,6 +1,6 @@
 using Xunit;
 using CarKinem.Core;
-using Fdp.Kernel;
+using Fdp.Core;
 using System.Numerics;
 using CarKinem.Systems;
 using CarKinem.Road;

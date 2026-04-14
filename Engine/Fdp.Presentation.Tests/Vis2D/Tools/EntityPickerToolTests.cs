@@ -23,7 +23,7 @@ public class EntityPickerToolTests
                .Returns<string[]>(_ =>
                {
                    var filter = new Mock<IEntityFilter>();
-                   filter.Setup(f2 => f2.IsMatch(It.IsAny<Fdp.Kernel.Entity>())).Returns(hoveredValid);
+                   filter.Setup(f2 => f2.IsMatch(It.IsAny<Fdp.Core.Entity>())).Returns(hoveredValid);
                    capturedFilter = filter.Object;
                    return capturedFilter;
                });

@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using Xunit;
 
-namespace Fdp.Kernel.Tests
+namespace Fdp.Core.Tests
 {
     public class SimComponentTests
     {

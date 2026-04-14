@@ -3,7 +3,7 @@ using System.Numerics;
 using Xunit;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Fdp.Kernel;
+using Fdp.Core;
 using Moq;
 using Raylib_cs;
 

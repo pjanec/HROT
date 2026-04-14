@@ -6,7 +6,7 @@ using Fdp.Examples.UrbanCombat.Brains;
 using Fdp.Examples.UrbanCombat.Setup;
 using Fdp.Examples.UrbanCombat.Systems;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Tkb;
 using Fbt;
 using Fbt.Runtime;
@@ -226,7 +226,7 @@ namespace Fdp.Examples.UrbanCombat
 
         private void RegisterComponents()
         {
-            // Fdp.Kernel universal spatial primitives
+            // Fdp.Core universal spatial primitives
             World.RegisterComponent<SimTransform>();
             World.RegisterComponent<SimVelocity>();
             World.RegisterComponent<Health>();

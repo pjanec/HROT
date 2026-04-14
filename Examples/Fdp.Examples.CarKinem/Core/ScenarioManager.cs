@@ -7,7 +7,7 @@ using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
 using Fdp.Examples.CarKinem.Components;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Examples.CarKinem.Core
 {
@@ -41,7 +41,7 @@ namespace Fdp.Examples.CarKinem.Core
         {
              // Query all vehicles
              var query = _repository.Query().With<VehicleState>().Build();
-             var toDestroy = new System.Collections.Generic.List<Fdp.Kernel.Entity>();
+             var toDestroy = new System.Collections.Generic.List<Fdp.Core.Entity>();
              
              foreach(var e in query)
              {

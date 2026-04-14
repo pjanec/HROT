@@ -2,7 +2,7 @@ namespace Fdp.Toolkit.Navigation
 {
     /// <summary>
     /// ECS component ID catalog for <c>FDP.Toolkit.Navigation.Contracts</c>.
-    /// IDs 67–68 were previously defined in <c>Fdp.Kernel.GlobalComponentIds</c> and
+    /// IDs 67–68 were previously defined in <c>Fdp.Core.GlobalComponentIds</c> and
     /// have been moved here as part of DB-MOD1-23.  The numeric values are unchanged to
     /// preserve ECS registry compatibility.
     /// </summary>

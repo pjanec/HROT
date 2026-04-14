@@ -2,7 +2,7 @@ using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Fdp.Toolkit.Navigation;
-using Fdp.Kernel;
+using Fdp.Core;
 using Xunit;
 
 namespace Fdp.Toolkit.Navigation.Tests

@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Fdp.Kernel.FlightRecorder;
-using Fdp.Kernel.FlightRecorder.Metadata;
+using Fdp.Core.FlightRecorder;
+using Fdp.Core.FlightRecorder.Metadata;
 using Xunit;
 
 namespace Fdp.Tests

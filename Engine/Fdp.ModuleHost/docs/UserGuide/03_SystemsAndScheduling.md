@@ -123,10 +123,10 @@ Execution Order: A → B → C
 
 #### Example 1: Basic Movement System
 
-From `Fdp.Kernel` base class:
+From `Fdp.Core` base class:
 
 ```csharp
-using Fdp.Kernel;
+using Fdp.Core;
 
 /// <summary>
 /// Applies velocity to position every frame.

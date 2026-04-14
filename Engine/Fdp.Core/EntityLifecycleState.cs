@@ -1,4 +1,4 @@
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Represents the lifecycle state of an entity.

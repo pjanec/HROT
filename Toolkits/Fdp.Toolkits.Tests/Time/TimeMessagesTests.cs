@@ -1,6 +1,6 @@
 using System.Reflection;
 using CycloneDDS.Schema;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Time.Domain;
 using Fdp.Toolkit.Time.Messages;
 using MessagePack;

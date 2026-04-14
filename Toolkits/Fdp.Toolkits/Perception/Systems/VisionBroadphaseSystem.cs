@@ -3,7 +3,7 @@ using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Perception.Systems

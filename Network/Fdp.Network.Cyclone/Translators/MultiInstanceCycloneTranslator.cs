@@ -2,7 +2,7 @@
 using System.Runtime.InteropServices;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Utilities;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;

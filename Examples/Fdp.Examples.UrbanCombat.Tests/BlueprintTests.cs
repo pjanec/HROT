@@ -4,7 +4,7 @@ using Fdp.Examples.UrbanCombat.Brains;
 using Fdp.Examples.UrbanCombat.Setup;
 using Fdp.Examples.UrbanCombat.Systems;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fbt;
 using Fbt.Runtime;
 using Fbt.Serialization;

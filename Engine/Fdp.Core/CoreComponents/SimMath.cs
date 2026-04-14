@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Math helpers using the FDP world coordinate convention:

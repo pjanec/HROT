@@ -1,8 +1,8 @@
 using System;
 using System.IO;
 using Xunit;
-using Fdp.Kernel;
-using Fdp.Kernel.Serialization;
+using Fdp.Core;
+using Fdp.Core.Serialization;
 
 namespace Fdp.Tests.Serialization
 {

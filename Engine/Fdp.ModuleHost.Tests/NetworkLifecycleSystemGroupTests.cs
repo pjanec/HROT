@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Scheduling;
 using Xunit;

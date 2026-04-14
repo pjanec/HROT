@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Interface for inspecting event streams without generic constraints.

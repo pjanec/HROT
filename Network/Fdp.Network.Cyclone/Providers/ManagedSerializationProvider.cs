@@ -1,8 +1,8 @@
 using System;
 using System.IO;
 using Fdp.Interfaces;
-using Fdp.Kernel;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core;
+using Fdp.Core.FlightRecorder;
 using Fdp.Interfaces;
 
 namespace Fdp.Network.Cyclone.Providers

@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Events;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 using Fdp.Interfaces;
 
 namespace Fdp.Examples.NetworkDemo.Systems

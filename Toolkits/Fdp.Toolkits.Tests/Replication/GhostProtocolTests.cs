@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Xunit;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Interfaces;
@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Replication.Tests
         public IEnumerable<TkbTemplate> GetAll() => throw new NotImplementedException();
         public TkbTemplate GetByName(string name) => throw new NotImplementedException();
         public TkbTemplate GetByType(long tkbType) => TemplateToReturn;
-        public TkbTemplate GetTemplateByEntityType(Fdp.Kernel.DISEntityType entityType) => null;
+        public TkbTemplate GetTemplateByEntityType(Fdp.Core.DISEntityType entityType) => null;
         public TkbTemplate GetTemplateByName(string templateName) => null;
         public void Register(TkbTemplate template) {}
         public bool TryGetByName(string name, out TkbTemplate template) => throw new NotImplementedException();
@@ -42,7 +42,7 @@ namespace Fdp.Toolkit.Replication.Tests
             System.Threading.Thread.Sleep(5); // 5ms per entity, exceeds 2ms budget
             return TemplateToReturn;
         }
-        public TkbTemplate GetTemplateByEntityType(Fdp.Kernel.DISEntityType entityType) => null;
+        public TkbTemplate GetTemplateByEntityType(Fdp.Core.DISEntityType entityType) => null;
         public TkbTemplate GetTemplateByName(string templateName) => null;
         public void Register(TkbTemplate template) {}
         public bool TryGetByName(string name, out TkbTemplate template) => throw new NotImplementedException();

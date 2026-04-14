@@ -1,10 +1,10 @@
 using System.Numerics;
 using Xunit;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Components;
-using Fdp.Kernel.Collections;
+using Fdp.Core.Collections;
 using Fdp.ModuleHost.Abstractions;
 using Moq;
 using Raylib_cs;

@@ -1115,7 +1115,7 @@ public static class RoadGraphNavigator
 ### CarKinematicsSystem (Hot Path)
 
 ```csharp
-using Fdp.Kernel;
+using Fdp.Core;
 using System.Numerics;
 using CarKinematics.Core;
 using CarKinematics.Formation;
@@ -1326,7 +1326,7 @@ namespace CarKinematics.Systems
 Modules (AI, BT systems) interact with the vehicle system via **command events**:
 
 ```csharp
-using Fdp.Kernel;
+using Fdp.Core;
 using System.Numerics;
 
 namespace CarKinematics.Commands
@@ -1416,7 +1416,7 @@ namespace CarKinematics.Commands
 For ease of use from game code, provide a managed API facade:
 
 ```csharp
-using Fdp.Kernel;
+using Fdp.Core;
 using System.Numerics;
 
 namespace CarKinematics.API

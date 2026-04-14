@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Modules.Geographic.Components;
 using Fdp.ModuleHost.Abstractions;
 

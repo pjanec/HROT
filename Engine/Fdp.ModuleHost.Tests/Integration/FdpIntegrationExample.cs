@@ -1,6 +1,6 @@
 // File: ModuleHost.Tests/Integration/FdpIntegrationExample.cs
 using System;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;

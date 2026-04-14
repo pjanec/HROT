@@ -1,8 +1,8 @@
 using System;
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
-using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel
+using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Core
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Systems;
 using Fdp.Toolkit.Replication.Components;

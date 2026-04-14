@@ -1,10 +1,10 @@
 using System;
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Examples.NetworkDemo; // Correct namespace
 using Fdp.Examples.NetworkDemo.Components; // For TurretState etc.
 using Fdp.Toolkit.Replication.Components;
-// using FDP.Toolkit.CarKinem.Components; // Replaced by Fdp.Kernel (SimTransform)
+// using FDP.Toolkit.CarKinem.Components; // Replaced by Fdp.Core (SimTransform)
 using Fdp.ModuleHost.Network;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Extensions
@@ -48,7 +48,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Extensions
             // TkbType must be set so EntityMasterTranslator can carry it to peer nodes
             // and GhostPromotionSystem can look up the template on the receiving side.
             app.World.AddComponent(entity, new TkbIdentity { TkbType = 100 });
-            app.World.SetDisType(entity, new Fdp.Kernel.DISEntityType { Value = 100 });
+            app.World.SetDisType(entity, new Fdp.Core.DISEntityType { Value = 100 });
             
             // Initial Position
             app.World.SetComponent(entity, new SimTransform 

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Scenario
 {
@@ -33,7 +33,7 @@ namespace Fdp.Toolkit.Scenario
     /// <para>
     /// <b>Load pipeline:</b> Peek <c>Header.SubsystemType</c>; on mismatch return
     /// immediately.  Otherwise two-pass: create entities → resolve GUIDs → inject
-    /// components.  Optionally stamps <see cref="Fdp.Kernel.EpisodeTag"/> when <c>asEpisode == true</c>.
+    /// components.  Optionally stamps <see cref="Fdp.Core.EpisodeTag"/> when <c>asEpisode == true</c>.
     /// </para>
     /// </remarks>
     public sealed class ScenarioSerializer
@@ -195,12 +195,12 @@ namespace Fdp.Toolkit.Scenario
         /// <param name="repo">Target repository.</param>
         /// <param name="dom">Scenario DOM previously produced by <see cref="Serialize"/>.</param>
         /// <param name="asEpisode">
-        /// When <see langword="true"/>, stamps <see cref="Fdp.Kernel.EpisodeTag"/> on every created
+        /// When <see langword="true"/>, stamps <see cref="Fdp.Core.EpisodeTag"/> on every created
         /// entity.  <paramref name="episodeId"/> must be a non-null, non-empty <see cref="Guid"/>;
         /// passing <see langword="null"/> or <see cref="Guid.Empty"/> throws
         /// <see cref="InvalidOperationException"/>.
         /// </param>
-        /// <param name="episodeId">Episode identifier written to <see cref="Fdp.Kernel.EpisodeTag.EpisodeId"/>.</param>
+        /// <param name="episodeId">Episode identifier written to <see cref="Fdp.Core.EpisodeTag.EpisodeId"/>.</param>
         /// <remarks>
         /// Returns immediately (without creating any entities) if
         /// <c>Header.SubsystemType</c> does not match the type this serializer was
@@ -225,7 +225,7 @@ namespace Fdp.Toolkit.Scenario
             if (asEpisode && (episodeId == null || episodeId == Guid.Empty))
                 throw new InvalidOperationException(
                     "[ScenarioSerializer] Deserialize called with asEpisode=true but episodeId is null or Guid.Empty. " +
-                    "A non-empty Guid is required to stamp Fdp.Kernel.EpisodeTag on loaded entities.");
+                    "A non-empty Guid is required to stamp Fdp.Core.EpisodeTag on loaded entities.");
 
             // Peek header for subsystem-type filter.
             // Support both Pascal case ("Header"/"SubsystemType" from ScenarioSerializer.Serialize)
@@ -315,10 +315,10 @@ namespace Fdp.Toolkit.Scenario
                     AutoSerializer.TryInject(repo, entity, typeId, compKvp.Value, loadResolver);
                 }
 
-                // Stamp Fdp.Kernel.EpisodeTag if requested.
+                // Stamp Fdp.Core.EpisodeTag if requested.
                 if (asEpisode)
                 {
-                    repo.SetComponent(entity, new Fdp.Kernel.EpisodeTag { EpisodeId = episodeId!.Value });
+                    repo.SetComponent(entity, new Fdp.Core.EpisodeTag { EpisodeId = episodeId!.Value });
                 }
             }
         }

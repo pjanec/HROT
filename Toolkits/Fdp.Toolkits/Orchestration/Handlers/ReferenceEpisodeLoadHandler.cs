@@ -14,18 +14,18 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     {
         private readonly Fdp.Toolkit.Scenario.ScenarioSerializer _serializer;
         private readonly IScenarioLoader _scenarioLoader;
-        private readonly Fdp.Kernel.EntityRepository? _world;
+        private readonly Fdp.Core.EntityRepository? _world;
 
         private string? _pendingJson;
         private System.Guid _pendingEpisodeId;
         private System.Guid? _pendingTransactionId;
-        private System.Collections.Generic.List<Fdp.Kernel.Entity>? _pendingStopEntities;
+        private System.Collections.Generic.List<Fdp.Core.Entity>? _pendingStopEntities;
         private bool _pendingIsParticipating;
 
         public ReferenceEpisodeLoadHandler(
             Fdp.Toolkit.Scenario.ScenarioSerializer serializer,
             IScenarioLoader scenarioLoader,
-            Fdp.Kernel.EntityRepository? world = null)
+            Fdp.Core.EntityRepository? world = null)
         {
             _serializer = serializer ?? throw new System.ArgumentNullException(nameof(serializer));
             _scenarioLoader = scenarioLoader ?? throw new System.ArgumentNullException(nameof(scenarioLoader));
@@ -62,7 +62,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         }
 
         /// <inheritdoc />
-        public void Commit(ExecuteNodeOpIntent intent, Fdp.Kernel.EntityRepository? repo)
+        public void Commit(ExecuteNodeOpIntent intent, Fdp.Core.EntityRepository? repo)
         {
             if (_pendingTransactionId != intent.TransactionId) return;
 
@@ -73,7 +73,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         }
 
         /// <inheritdoc />
-        public void Abort(ExecuteNodeOpIntent intent, Fdp.Kernel.EntityRepository? repo)
+        public void Abort(ExecuteNodeOpIntent intent, Fdp.Core.EntityRepository? repo)
         {
             _pendingJson = null;
             _pendingEpisodeId = System.Guid.Empty;
@@ -109,7 +109,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             return System.Threading.Tasks.Task.FromResult<object?>(null);
         }
 
-        private void CommitStartEpisode(Fdp.Kernel.EntityRepository? repo)
+        private void CommitStartEpisode(Fdp.Core.EntityRepository? repo)
         {
             if (_pendingJson == null)
             {
@@ -160,7 +160,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             return System.Threading.Tasks.Task.FromResult<object?>(null);
         }
 
-        private void CommitStopEpisode(Fdp.Kernel.EntityRepository? repo)
+        private void CommitStopEpisode(Fdp.Core.EntityRepository? repo)
         {
             if (!_pendingIsParticipating)
             {
@@ -190,17 +190,17 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             _pendingIsParticipating = false;
         }
 
-        private static System.Collections.Generic.List<Fdp.Kernel.Entity> CollectEpisodeEntities(
-            Fdp.Kernel.EntityRepository repo,
+        private static System.Collections.Generic.List<Fdp.Core.Entity> CollectEpisodeEntities(
+            Fdp.Core.EntityRepository repo,
             System.Guid episodeId)
         {
-            var result = new System.Collections.Generic.List<Fdp.Kernel.Entity>();
-            if (!repo.IsComponentTypeRegistered<Fdp.Kernel.EpisodeTag>()) return result;
+            var result = new System.Collections.Generic.List<Fdp.Core.Entity>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Core.EpisodeTag>()) return result;
 
-            var query = repo.Query().With<Fdp.Kernel.EpisodeTag>().Build();
+            var query = repo.Query().With<Fdp.Core.EpisodeTag>().Build();
             foreach (var e in query)
             {
-                ref readonly var tag = ref repo.GetComponentRO<Fdp.Kernel.EpisodeTag>(e);
+                ref readonly var tag = ref repo.GetComponentRO<Fdp.Core.EpisodeTag>(e);
                 if (tag.EpisodeId == episodeId)
                     result.Add(e);
             }

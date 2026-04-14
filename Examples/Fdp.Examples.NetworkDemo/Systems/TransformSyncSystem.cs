@@ -1,6 +1,6 @@
 using System;
 using System.Numerics;
-using Fdp.Kernel; // SimTransform
+using Fdp.Core; // SimTransform
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;

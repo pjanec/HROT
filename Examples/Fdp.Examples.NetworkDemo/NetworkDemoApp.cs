@@ -4,9 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Numerics;
 using System.Collections.Generic;
-using Fdp.Kernel;
-using Fdp.Kernel.FlightRecorder;
-using Fdp.Kernel.FlightRecorder.Metadata;
+using Fdp.Core;
+using Fdp.Core.FlightRecorder;
+using Fdp.Core.FlightRecorder.Metadata;
 using Fdp.Interfaces;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Events;
@@ -37,7 +37,7 @@ using Fdp.Network.Cyclone.Providers;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using NLog;
-using Fdp.Kernel.Logging;
+using Fdp.Core.Logging;
 
 namespace Fdp.Examples.NetworkDemo
 {
@@ -58,7 +58,7 @@ namespace Fdp.Examples.NetworkDemo
         public int LocalNodeId => localInternalId;
         public Fdp.Interfaces.ITkbDatabase Tkb => tkb;
         public Fdp.Toolkit.Replication.Services.NetworkEntityMap EntityMap { get; private set; } = default!;
-        public Fdp.Kernel.FdpEventBus EventBus { get; private set; } = default!; // For testing
+        public Fdp.Core.FdpEventBus EventBus { get; private set; } = default!; // For testing
         
         private DdsParticipant participant = default!;
         private AsyncRecorder? recorder;

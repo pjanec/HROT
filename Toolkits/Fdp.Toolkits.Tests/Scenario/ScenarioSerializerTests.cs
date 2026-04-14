@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Scenario;
 using Xunit;
 
@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             repo.RegisterComponent<CachedSpeedComponent>();
             repo.RegisterComponent<NoSaveVelocity>(); // [DataPolicy(DataPolicy.NoSave)]
             repo.RegisterComponent<ScenarioIgnoreTag>();
-            repo.RegisterComponent<Fdp.Kernel.EpisodeTag>();   // canonical episode-membership tag (Guid)
+            repo.RegisterComponent<Fdp.Core.EpisodeTag>();   // canonical episode-membership tag (Guid)
         }
 
         // ── Helper ───────────────────────────────────────────────────────────────
@@ -305,7 +305,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         // ── EpisodeLoad_StampsEpisodeTag ──────────────────────────────────────────────
 
         /// <summary>
-        /// Deserializing with <c>asEpisode: true</c> stamps <see cref="Fdp.Kernel.EpisodeTag"/> on every
+        /// Deserializing with <c>asEpisode: true</c> stamps <see cref="Fdp.Core.EpisodeTag"/> on every
         /// created entity with the supplied <see cref="Guid"/> episode identifier.
         /// </summary>
         [Fact]
@@ -328,9 +328,9 @@ namespace Fdp.Toolkit.Scenario.Tests
                 var e = new Entity(i, freshRepo.GetHeader(i).Generation);
                 if (!freshRepo.IsAlive(e)) continue;
 
-                Assert.True(freshRepo.HasComponent<Fdp.Kernel.EpisodeTag>(e),
-                    $"Entity {e} must have Fdp.Kernel.EpisodeTag after episode load.");
-                ref readonly var tag = ref freshRepo.GetComponentRO<Fdp.Kernel.EpisodeTag>(e);
+                Assert.True(freshRepo.HasComponent<Fdp.Core.EpisodeTag>(e),
+                    $"Entity {e} must have Fdp.Core.EpisodeTag after episode load.");
+                ref readonly var tag = ref freshRepo.GetComponentRO<Fdp.Core.EpisodeTag>(e);
                 Assert.Equal(episodeGuid, tag.EpisodeId);
             }
 

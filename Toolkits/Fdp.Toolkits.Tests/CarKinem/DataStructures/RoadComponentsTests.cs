@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using CarKinem.Road;
-using Fdp.Kernel.Collections;
+using Fdp.Core.Collections;
 using Xunit;
 
 namespace CarKinem.Tests.DataStructures

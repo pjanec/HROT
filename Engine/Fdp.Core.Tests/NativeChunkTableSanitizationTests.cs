@@ -1,6 +1,6 @@
 using System;
 using Xunit;
-using Fdp.Kernel;
+using Fdp.Core;
 using System.Runtime.InteropServices;
 
 namespace Fdp.Tests

@@ -1,7 +1,7 @@
 using System;
 using System.Collections;
 
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Information about a managed event stream for recording purposes.

@@ -625,7 +625,7 @@ The **Technical Knowledge Base (TKB)** provides a template system for pre-config
 ### Creating Templates
 
 ```csharp
-using Fdp.Kernel.Tkb;
+using Fdp.Core.Tkb;
 
 // Create template database
 var tkb = new TkbDatabase();

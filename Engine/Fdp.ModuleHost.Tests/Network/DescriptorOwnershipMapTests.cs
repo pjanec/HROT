@@ -1,7 +1,7 @@
 using System;
 using Xunit;
 using Fdp.ModuleHost.Network;
-using Fdp.Kernel; // For component types
+using Fdp.Core; // For component types
 
 namespace Fdp.ModuleHost.Tests.Network
 {

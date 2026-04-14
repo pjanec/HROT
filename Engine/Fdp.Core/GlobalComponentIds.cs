@@ -1,4 +1,4 @@
-namespace Fdp.Kernel
+namespace Fdp.Core
 {
     /// <summary>
     /// Central catalog of globally unique ECS component IDs, allocated in named blocks.
@@ -12,7 +12,7 @@ namespace Fdp.Kernel
     ///
     /// <para><b>ID block allocation</b></para>
     /// <list type="table">
-    ///   <item><term>0–19</term>  <description>Fdp.Kernel core components</description></item>
+    ///   <item><term>0–19</term>  <description>Fdp.Core core components</description></item>
     ///   <item><term>20–49</term> <description>FDP toolkit expansion: Behavior, Physics, Combat, CarKinem, Geographic</description></item>
     ///   <item><term>50–79</term> <description>FDP.Toolkit.Replication components</description></item>
     ///   <item><term>80–109</term><description>FDP.Toolkit.Vis2D components</description></item>
@@ -30,7 +30,7 @@ namespace Fdp.Kernel
     /// </summary>
     public static class GlobalComponentIds
     {
-        // ── Fdp.Kernel (0–19) ────────────────────────────────────────────────────
+        // ── Fdp.Core (0–19) ────────────────────────────────────────────────────
         // Core simulation components present in every FDP application.
 
         /// <summary><see cref="SimTransform"/> — world position and orientation.</summary>
@@ -57,7 +57,7 @@ namespace Fdp.Kernel
         /// <summary><see cref="PartDescriptor"/> — bitmask of present component parts (network sync).</summary>
         public const byte PartDescriptor      = 7;
 
-        // IDs 8–19 are reserved for future Fdp.Kernel core components.
+        // IDs 8–19 are reserved for future Fdp.Core core components.
 
         // ── FDP.Toolkit expansion (20–49) ────────────────────────────────────────
         // Toolkit components added after initial release: geographic, behavior, physics.

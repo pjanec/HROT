@@ -1,6 +1,6 @@
 using Xunit;
-using Fdp.Kernel;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core;
+using Fdp.Core.FlightRecorder;
 using System.IO;
 
 namespace Fdp.Tests

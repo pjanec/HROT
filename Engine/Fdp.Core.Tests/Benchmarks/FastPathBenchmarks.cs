@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using Xunit;
 using Xunit.Abstractions;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Tests.Benchmarks
 {

@@ -1,6 +1,6 @@
 using System;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 
 namespace Fdp.Toolkit.Replication.Messages

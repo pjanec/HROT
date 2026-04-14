@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Time.Controllers
         /// Wall-clock lookahead (Stopwatch ticks) for the Future Barrier protocol.
         /// <para>
         /// <see cref="DistributedTimeCoordinator"/> adds this to the master's current
-        /// <see cref="Fdp.Kernel.GlobalTime.TotalWallTicks"/> when computing
+        /// <see cref="Fdp.Core.GlobalTime.TotalWallTicks"/> when computing
         /// <see cref="Fdp.Toolkit.Time.Messages.SwitchTimeModeEvent.BarrierWallTicks"/>.
         /// All PLL-synchronized slaves will reach that wall-tick value within
         /// approximately one ECS frame of the master, so the default

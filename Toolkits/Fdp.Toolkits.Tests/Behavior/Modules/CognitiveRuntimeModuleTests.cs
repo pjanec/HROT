@@ -1,4 +1,4 @@
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior.Modules;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Behavior.Components;

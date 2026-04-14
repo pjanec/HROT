@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Xunit;
 

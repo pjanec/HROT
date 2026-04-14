@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Xunit;
 using Xunit.Abstractions;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core.FlightRecorder;
 using MessagePack;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Tests
 {

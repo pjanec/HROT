@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 	{
 		private readonly Fdp.Toolkit.Scenario.ScenarioSerializer _serializer;
 		private readonly IScenarioLoader _scenarioLoader;
-		private readonly Fdp.Kernel.EntityRepository? _world;
+		private readonly Fdp.Core.EntityRepository? _world;
 
 		private string? _pendingJson;
 		private System.Guid? _pendingTransactionId;
@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 		public ReferenceScenarioLoadHandler(
 			Fdp.Toolkit.Scenario.ScenarioSerializer serializer,
 			IScenarioLoader scenarioLoader,
-			Fdp.Kernel.EntityRepository? world = null)
+			Fdp.Core.EntityRepository? world = null)
 		{
 			_serializer = serializer ?? throw new System.ArgumentNullException(nameof(serializer));
 			_scenarioLoader = scenarioLoader ?? throw new System.ArgumentNullException(nameof(scenarioLoader));
@@ -46,7 +46,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 				: intent.DomainPayload as string;
 			System.Console.WriteLine(
 				$"[DIAG] RSL.PrepareAsync: op={intent.Operation} scenId='{scenarioId ?? "(null)"}' payloadType={intent.DomainPayload?.GetType().Name ?? "(null)"}");
-			Fdp.Kernel.Logging.FdpLog<ReferenceScenarioLoadHandler>.Info(
+			Fdp.Core.Logging.FdpLog<ReferenceScenarioLoadHandler>.Info(
 				"[ReferenceScenarioLoadHandler] PrepareAsync called. Operation={0}, ScenarioId={1}, PayloadType={2}",
 				intent.Operation,
 				scenarioId ?? "(null)",
@@ -62,7 +62,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 		}
 
 		/// <inheritdoc />
-		public void Commit(ExecuteNodeOpIntent intent, Fdp.Kernel.EntityRepository? repo)
+		public void Commit(ExecuteNodeOpIntent intent, Fdp.Core.EntityRepository? repo)
 		{
 			System.Console.WriteLine(
 				$"[DIAG] RSL.Commit: txId={intent.TransactionId} pendingJson={(_pendingJson != null ? "set" : "null")} pendingTx={_pendingTransactionId} match={_pendingTransactionId == intent.TransactionId}");
@@ -88,7 +88,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 		}
 
 		/// <inheritdoc />
-		public void Abort(ExecuteNodeOpIntent intent, Fdp.Kernel.EntityRepository? repo)
+		public void Abort(ExecuteNodeOpIntent intent, Fdp.Core.EntityRepository? repo)
 		{
 			_pendingJson = null;
 			_pendingTransactionId = null;

@@ -1,5 +1,5 @@
 using System;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior.Executors;
 
 namespace Fdp.Toolkit.Behavior.Systems

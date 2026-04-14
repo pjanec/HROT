@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Interfaces;

@@ -6,7 +6,7 @@ using CycloneDDS.Schema;
 using Fdp.Network.Cyclone.Translators;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
-using Fdp.Kernel;
+using Fdp.Core;
 
 namespace Fdp.Network.Cyclone.Tests.Translators
 {

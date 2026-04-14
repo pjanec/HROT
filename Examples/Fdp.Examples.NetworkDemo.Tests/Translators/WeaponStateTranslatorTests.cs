@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Xunit;
 using CycloneDDS.Runtime;
-using Fdp.Kernel;
+using Fdp.Core;
 using Fdp.Examples.NetworkDemo.Translators;
 using Fdp.Examples.NetworkDemo.Descriptors;
 using Fdp.Examples.NetworkDemo.Components;
@@ -80,7 +80,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Translators
             // In unit tests, we can use repo directly if we cast or if we have a MockCommandBuffer.
             // Or just use repo which usually has methods.
             // But Decode signature takes IEntityCommandBuffer.
-            // EntityRepository DOES implement IEntityCommandBuffer in Fdp.Kernel?
+            // EntityRepository DOES implement IEntityCommandBuffer in Fdp.Core?
             // Let's assume we can use a mock wrapper or cast.
             // If repo doesn't implement it, we need a wrapper.
             

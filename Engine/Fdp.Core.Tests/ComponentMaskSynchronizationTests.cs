@@ -1,7 +1,7 @@
 using System;
 using System.IO;
-using Fdp.Kernel;
-using Fdp.Kernel.FlightRecorder;
+using Fdp.Core;
+using Fdp.Core.FlightRecorder;
 using MessagePack;
 using Xunit;
 
