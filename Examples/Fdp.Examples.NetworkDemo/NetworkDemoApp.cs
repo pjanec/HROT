@@ -160,7 +160,8 @@ namespace Fdp.Examples.NetworkDemo
             // ELM timeout must exceed the NetworkGateway reliable-init timeout (300 frames)
             // so that the Gateway's fallback ACK is always processed before ELM destroys the entity.
             // In test mode, use 50 frames to allow the gateway fallback (30 + margin)
-            int lifecycleTimeout = testMode ? 50 : (Fdp.ModuleHost.Network.NetworkConstants.RELIABLE_INIT_TIMEOUT_FRAMES * 2 + 50);
+            const int RELIABLE_INIT_TIMEOUT_FRAMES = 300;
+            int lifecycleTimeout = testMode ? 50 : (RELIABLE_INIT_TIMEOUT_FRAMES * 2 + 50);
             var elm = new EntityLifecycleModule(tkb, Array.Empty<int>(),
                         timeoutFrames: lifecycleTimeout); 
             Kernel.RegisterModule(elm);

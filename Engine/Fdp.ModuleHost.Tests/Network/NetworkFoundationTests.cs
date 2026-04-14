@@ -3,53 +3,12 @@ using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.ModuleHost.Network;
 using Fdp.ModuleHost.Network.Interfaces;
-using Fdp.ModuleHost.Network.Messages;
 using Xunit;
 
 namespace Fdp.ModuleHost.Tests.Network
 {
     public class NetworkFoundationTests
     {
-        // 1. NetworkConstants Tests
-        [Fact]
-        public void NetworkConstants_HaveCorrectValues()
-        {
-            Assert.Equal(0, NetworkConstants.ENTITY_MASTER_DESCRIPTOR_ID);
-            Assert.Equal(1, NetworkConstants.ENTITY_STATE_DESCRIPTOR_ID);
-            Assert.Equal(2, NetworkConstants.WEAPON_STATE_DESCRIPTOR_ID);
-            Assert.Equal(900, NetworkConstants.ENTITY_LIFECYCLE_STATUS_ID);
-            Assert.Equal(901, NetworkConstants.OWNERSHIP_UPDATE_ID);
-            Assert.Equal(300, NetworkConstants.GHOST_TIMEOUT_FRAMES);
-            Assert.Equal(300, NetworkConstants.RELIABLE_INIT_TIMEOUT_FRAMES);
-        }
-
-        // 2. MasterFlags Tests
-        [Fact]
-        public void MasterFlags_DefaultIsNone()
-        {
-            var descriptor = new EntityMasterDescriptor();
-            Assert.Equal(MasterFlags.None, descriptor.Flags);
-        }
-
-        [Fact]
-        public void MasterFlags_CanSetReliableInit()
-        {
-            var descriptor = new EntityMasterDescriptor();
-            descriptor.Flags = MasterFlags.ReliableInit;
-            Assert.True(descriptor.Flags.HasFlag(MasterFlags.ReliableInit));
-        }
-
-        [Fact]
-        public void MasterFlags_CanCombineFlags()
-        {
-            // Even though we only have one flag now, we test the bitwise capability
-            var flags = MasterFlags.None | MasterFlags.ReliableInit;
-            Assert.Equal(MasterFlags.ReliableInit, flags);
-            
-            flags &= ~MasterFlags.ReliableInit;
-            Assert.Equal(MasterFlags.None, flags);
-        }
-
         // 3. Composite Key Packing Tests
         [Fact]
         public void PackKey_WithSimpleValues_ReturnsCorrectKey()
@@ -158,35 +117,6 @@ namespace Fdp.ModuleHost.Tests.Network
             
         }
 
-        // 6. EntityLifecycleStatusDescriptor Tests
-        [Fact]
-        public void EntityLifecycleStatusDescriptor_PropertiesCanBeSet()
-        {
-            var msg = new EntityLifecycleStatusDescriptor
-            {
-                EntityId = 999,
-                NodeId = 2,
-                State = EntityLifecycle.Active,
-                Timestamp = 123456789
-            };
-            
-            Assert.Equal(999, msg.EntityId);
-            Assert.Equal(2, msg.NodeId);
-            Assert.Equal(EntityLifecycle.Active, msg.State);
-            Assert.Equal(123456789, msg.Timestamp);
-        }
-        
-        [Fact]
-        public void EntityLifecycleStatusDescriptor_DefaultValues()
-        {
-            var msg = new EntityLifecycleStatusDescriptor();
-            Assert.Equal(0, msg.EntityId);
-            Assert.Equal(0, msg.NodeId);
-            // Default enum value is typically 0, which corresponds to first enum member.
-            // Assuming EntityLifecycle.Uninitialized or similar is 0.
-            // We should just check it is default
-            Assert.Equal(default(EntityLifecycle), msg.State);
-        }
 
         // 7. DISEntityType Tests
         [Fact]
@@ -210,23 +140,5 @@ namespace Fdp.ModuleHost.Tests.Network
             Assert.Equal(t1.GetHashCode(), t2.GetHashCode());
         }
 
-        // 8. DefaultOwnershipStrategy Tests
-        [Fact]
-        public void DefaultOwnershipStrategy_AlwaysReturnsNull()
-        {
-            var strategy = new DefaultOwnershipStrategy();
-            var result = strategy.GetInitialOwner(1, new DISEntityType(), 10, 0);
-            
-            Assert.Null(result);
-        }
-        
-        [Fact]
-        public void DefaultOwnershipStrategy_ReturnsNullWithDifferentInputs()
-        {
-            var strategy = new DefaultOwnershipStrategy();
-            // Try with max values to ensure no overflow or weird logic
-            var result = strategy.GetInitialOwner(long.MaxValue, new DISEntityType(), int.MaxValue, long.MaxValue);
-            Assert.Null(result);
-        }
     }
 }

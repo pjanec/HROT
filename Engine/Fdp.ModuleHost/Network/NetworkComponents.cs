@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network.Messages;
 using Fdp.ModuleHost.Network.Interfaces;
 
 namespace Fdp.ModuleHost.Network

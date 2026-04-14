@@ -51,6 +51,9 @@ namespace Fdp.Toolkit.Replication.Systems
         // Track when entities entered the pending state (for timeout).
         private readonly Dictionary<Entity, uint> _pendingStartFrame;
 
+        /// <summary>Reliable init ACK timeout in frames (5 sec @ 60Hz)</summary>
+        public const int RELIABLE_INIT_TIMEOUT_FRAMES = 300;
+
         /// <summary>
         /// Constructs a new <see cref="NetworkGatewaySystem"/>.
         /// </summary>
@@ -63,7 +66,7 @@ namespace Fdp.Toolkit.Replication.Systems
         /// <param name="elm">Entity lifecycle module that drives construction/destruction events.</param>
         /// <param name="reliableInitTimeoutFrames">
         /// Number of frames before a pending ACK is force-acknowledged.
-        /// Negative or zero uses <see cref="NetworkConstants.RELIABLE_INIT_TIMEOUT_FRAMES"/>.
+        /// Negative or zero uses <see cref="NetworkGatewaySystem.RELIABLE_INIT_TIMEOUT_FRAMES"/>.
         /// </param>
         public NetworkGatewaySystem(
             int gatewayModuleId,
@@ -78,7 +81,7 @@ namespace Fdp.Toolkit.Replication.Systems
             _elm              = elm      ?? throw new ArgumentNullException(nameof(elm));
             _reliableInitTimeoutFrames = reliableInitTimeoutFrames > 0
                 ? reliableInitTimeoutFrames
-                : NetworkConstants.RELIABLE_INIT_TIMEOUT_FRAMES;
+                : RELIABLE_INIT_TIMEOUT_FRAMES;
 
             _pendingPeerAcks  = new Dictionary<Entity, HashSet<int>>();
             _pendingStartFrame = new Dictionary<Entity, uint>();
