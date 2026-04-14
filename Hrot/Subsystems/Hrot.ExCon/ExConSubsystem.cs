@@ -68,22 +68,19 @@ namespace Hrot.ExCon
         private int              _nodeIdOverride;
         private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
 
-        // ── CMC-S016: Orchestration bus + slave translator (BATCH-06) ──────────
-        private FdpEventBus?                          _orchestrationBus;
+        // ── CMC-S016: Unified event bus (HEXAG2-S001b) ─────────────────────────────
+        private FdpEventBus?                          _bus;
         private NodeOpSlaveTranslator?                _nodeOpSlaveTranslator;
 
-        // ── S0507 / PACK-C002: Observation bus + observer translator for ClusterUiCache ──
-        private FdpEventBus?                          _uiCacheBus;
+        // ── S0507 / PACK-C002: Observation + cluster control via unified bus ────
         private OrchestrationObserverTranslator?      _orchObserverTranslator;
 
         // ── S0507: Cluster control ─────────────────────────────────────────────
-        private FdpEventBus?                          _clusterOpEgressBus;
         private Hrot.Common.Orchestration.ClusterOpEgressTranslator? _clusterOpEgressTranslator;
         private ClusterUiCache?                   _uiCache;
         private ClusterScenarioPanel?             _clusterPanel;
 
         // ── TC2-P3: Slave time sync ─────────────────────────────────────────────────
-        private FdpEventBus?           _timeEventBus;
         private SlaveSyncController?   _slaveSyncController;
         private IDescriptorTranslator? _timeModeTranslator;
         private IDescriptorTranslator? _slaveLockstepTranslator;
@@ -93,6 +90,12 @@ namespace Hrot.ExCon
         private ITimeControlGateway?  _timeControl;
         private ICommandGateway?      _commandGateway;
         private INetworkFactory?      _networkFactory;
+
+        /// <summary>Internal test hook: exposes the unified event bus for bus-unification assertions.</summary>
+        internal FdpEventBus? BusForTest => _bus;
+
+        /// <summary>Internal test hook: exposes the <see cref="ClusterUiCache"/> for bus-unification assertions.</summary>
+        internal ClusterUiCache? UiCacheForTest => _uiCache;
 
         /// <summary>
         /// Creates ExConSubsystem without a network factory (headless / legacy path).
@@ -156,10 +159,9 @@ namespace Hrot.ExCon
             // ── ClusterSlave (CGF1-S0104 / CMC-S016 BATCH-06) ────────────────────────
             var iosNodeId  = config.NodeId != 0 ? config.NodeId : 500;
 
-            // CMC-S016: each subsystem has its own orchestration bus + translator (Option C).
-            // The bus and ClusterSlave are created unconditionally (no DDS needed).
-            // DDS translators are only created when a participant is available.
-            _orchestrationBus = new FdpEventBus();
+            // CMC-S016: single unified bus; ClusterSlave and translators are created unconditionally
+            // (no DDS needed). DDS translators are only created when a participant is available.
+            _bus = new FdpEventBus();
             if (_participant != null)
             {
                 var orchCmdReader    = new DdsReader<NodeOpCommand>(_participant);
@@ -169,21 +171,20 @@ namespace Hrot.ExCon
                     commandReader:   orchCmdReader,
                     statusWriter:    orchStatusWriter,
                     heartbeatWriter: orchHbWriter,
-                    bus:             _orchestrationBus,
+                    bus:             _bus,
                     nodeId:          iosNodeId);
             }
-            _clusterSlave = new Fdp.Toolkit.Orchestration.ClusterSlave(iosNodeId, SubsystemName, _orchestrationBus);
+            _clusterSlave = new Fdp.Toolkit.Orchestration.ClusterSlave(iosNodeId, SubsystemName, _bus);
 
             // ── TC2-P3-T1: Slave time sync pipeline ──────────────────────────────
             // SlaveSyncController is always created (no DDS needed).
             // DDS-backed translators are only wired when a participant is available.
-            _timeEventBus        = new FdpEventBus();
-            _slaveSyncController = new SlaveSyncController(_timeEventBus, iosNodeId, TimeConfig.Default);
+            _slaveSyncController = new SlaveSyncController(_bus, iosNodeId, TimeConfig.Default);
             if (_participant != null)
             {
-                _timeModeTranslator      = TimeNetworkModule.CreateDescriptorTranslator(_participant, _timeEventBus);
-                _slaveLockstepTranslator = TimeNetworkModule.CreateSlaveLockstepTranslator(_participant, _timeEventBus, iosNodeId);
-                _slaveTimeSyncTranslator = TimeNetworkModule.CreateSlaveTimeSyncTranslator(_participant, _timeEventBus, iosNodeId);
+                _timeModeTranslator      = TimeNetworkModule.CreateDescriptorTranslator(_participant, _bus);
+                _slaveLockstepTranslator = TimeNetworkModule.CreateSlaveLockstepTranslator(_participant, _bus, iosNodeId);
+                _slaveTimeSyncTranslator = TimeNetworkModule.CreateSlaveTimeSyncTranslator(_participant, _bus, iosNodeId);
             }
 
             // CGF1-BATCH-23 A.3: ExCon is an orchestrator instructor — it does NOT
@@ -254,15 +255,13 @@ namespace Hrot.ExCon
             }
 
             // ── Cluster control wiring (S0507 / PACK-C002) ────────────────────────────
-            _uiCacheBus  = new FdpEventBus();
-            _uiCache     = new ClusterUiCache(_uiCacheBus, _slaveSyncController);
-            // PACK-E001: panel now publishes ClusterOpIntent to egress bus; translator writes DDS
-            _clusterOpEgressBus = new FdpEventBus();
-            _clusterPanel = new ClusterScenarioPanel(_clusterOpEgressBus, _uiCache);
+            _uiCache     = new ClusterUiCache(_bus, _slaveSyncController);
+            // PACK-E001: panel publishes ClusterOpIntent to bus; translator writes DDS
+            _clusterPanel = new ClusterScenarioPanel(_bus, _uiCache);
             if (_participant != null)
             {
-                _orchObserverTranslator    = new OrchestrationObserverTranslator(_participant, _uiCacheBus);
-                _clusterOpEgressTranslator = new Hrot.Common.Orchestration.ClusterOpEgressTranslator(_clusterOpEgressBus, _participant);
+                _orchObserverTranslator    = new OrchestrationObserverTranslator(_participant, _bus);
+                _clusterOpEgressTranslator = new Hrot.Common.Orchestration.ClusterOpEgressTranslator(_bus, _participant);
             }
 
             var logic = new ExConLogic(
@@ -316,7 +315,10 @@ namespace Hrot.ExCon
         /// <inheritdoc/>
         public void Update(float deltaTime)
         {
-            // Time sync pipeline: ingest DDS → advance controller → egress ACKs + NTP requests → swap bus.
+            // Phase 1: Network boundary — DDS ingress and time-sync egress.
+            // PollIngress reads from DDS and writes to _bus WRITE buffer.
+            // SlaveSyncController reads from _bus CURRENT (previous frame events) and advances state.
+            // ScanAndPublish reads from _bus CURRENT and sends ACKs/NTP requests to DDS.
             _timeModeTranslator?.PollIngress(null!, null!);
             _slaveLockstepTranslator?.PollIngress(null!, null!);
             _slaveTimeSyncTranslator?.PollIngress(null!, null!);
@@ -327,22 +329,22 @@ namespace Hrot.ExCon
             // Without this call the ExCon clock offset stays 0 forever (NTP requests silently
             // discarded each SwapBuffers), making ExCon sim-time wrong in multi-process deployments.
             _slaveTimeSyncTranslator?.ScanAndPublish(null!);
-            _timeEventBus?.SwapBuffers();
 
-            // CMC-S016: orchestration bus pipeline — swap before tick so translators
-            // read events published in the previous frame.
-            _orchestrationBus?.SwapBuffers();
-            _nodeOpSlaveTranslator?.Tick();  // DDS NodeOpCommand → bus ExecuteNodeOpIntent;
-                                             // bus NodeHeartbeatEvent → DDS NodeHeartbeat;
-                                             // bus NodeOpCompletedEvent → DDS NodeOpStatus
+            // Phase 2: Single frame boundary swap — exactly one SwapBuffers per frame.
+            // Preserves phase discipline: all ingress/ScanAndPublish complete before swap.
+            _bus?.SwapBuffers();
+
+            // CMC-S016: orchestration + observer + egress processing after swap so translators
+            // read events published in Phase 1 and observe cluster state changes.
+            _nodeOpSlaveTranslator?.Tick();  // DDS NodeOpCommand -> bus ExecuteNodeOpIntent;
+                                             // bus NodeHeartbeatEvent -> DDS NodeHeartbeat;
+                                             // bus NodeOpCompletedEvent -> DDS NodeOpStatus
             _clusterSlave?.Tick();
-            // PACK-C002: translate DDS → _uiCacheBus events, then update the cache
+            // PACK-C002: translate DDS -> _bus events, then update the cache
             _orchObserverTranslator?.Tick();
-            _uiCacheBus?.SwapBuffers();
             _uiCache?.Update();
             _clusterPanel?.Update(deltaTime);
             // PACK-E001: flush panel's ClusterOpIntent events to DDS via egress translator
-            _clusterOpEgressBus?.SwapBuffers();
             _clusterOpEgressTranslator?.Tick();
 
             _mock?.Update(deltaTime);
@@ -392,10 +394,9 @@ namespace Hrot.ExCon
             _uiCache = null;
             _orchObserverTranslator?.Dispose();
             _orchObserverTranslator = null;
-            _uiCacheBus = null;
             _clusterOpEgressTranslator?.Dispose();
             _clusterOpEgressTranslator = null;
-            _clusterOpEgressBus = null;
+            _bus = null;
             (_egressWriters as IDisposable)?.Dispose();
             _egressWriters = null;
             (_timeControl as IDisposable)?.Dispose();
@@ -409,7 +410,6 @@ namespace Hrot.ExCon
             _timeModeTranslator = null;
             _slaveLockstepTranslator = null;
             _slaveTimeSyncTranslator = null;
-            _timeEventBus = null;
             if (_ingressDisposables != null)
             {
                 for (int i = 0; i < _ingressDisposables.Count; i++)

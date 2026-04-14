@@ -41,21 +41,20 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
 #pragma warning restore CS0169
 
     private bool _isPaused;   // S0503: toggled by TimeControlRequested handler
-    // ── Orchestration bus + translators (CMC-S016 / BATCH-06) ────────────────
-    private FdpEventBus?                             _orchestrationBus;
+    // ── Unified event bus + translators (HEXAG2-S001) ─────────────────────
+    private FdpEventBus?                             _bus;
     private Hrot.Orchestrator.Translators.ClusterOpMasterTranslator? _clusterOpTranslator;
     private Hrot.Orchestrator.Translators.NodeOpMasterTranslator?    _nodeOpTranslator;
     private DdsReader<ClusterOpRequest>?             _sysOpRequestReader;  // owned here in bus mode
     private DdsWriter<ClusterOpStatus>?              _sysOpStatusWriter;   // owned here in bus mode
     private DdsReader<NodeOpStatus>?                 _nodeOpStatusReader;
-    private DdsReader<NodeHeartbeat>?                _heartbeatReader;     // DDS→bus heartbeat bridge
+    private DdsReader<NodeHeartbeat>?                _heartbeatReader;     // DDS->bus heartbeat bridge
     // ── ID allocator server (bus-mode ClusterMaster doesn't create this) ──
     private DdsIdAllocatorServer?      _idAllocatorServer;
     private System.Threading.CancellationTokenSource? _idServerCts;
     private System.Threading.Thread?   _idServerThread;
     // ── Time controller (CGF1-A.1, BATCH-09) ─────────────────────────────
     // MasterSyncController unifies wall-clock advancement, barrier protocol, and stepping.
-    private FdpEventBus? _eventBus;
     private Fdp.Toolkit.Time.Controllers.MasterSyncController? _masterSync;
     private IDescriptorTranslator? _timeModeTranslator;
     private IDescriptorTranslator? _lockstepTranslator;
@@ -63,7 +62,10 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     private string? _lastProcessedTimeMode;
 
     /// <summary>Internal event bus exposed for test assertions on SwitchTimeModeEvent.</summary>
-    internal FdpEventBus? TimeBusForTest => _eventBus;
+    internal FdpEventBus? TimeBusForTest => _bus;
+
+    /// <summary>Internal test hook: exposes the <see cref="ClusterUiCache"/> for bus-unification assertions.</summary>
+    internal ClusterUiCache? UiCacheForTest => _uiCache;
 
     /// <summary>
     /// Internal test hook: exposes the <see cref="ClusterMaster"/> hosted by this subsystem so
@@ -101,18 +103,18 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             System.IO.Path.Combine(Directory.GetCurrentDirectory(), "orchestrator-config.json"));
         _participant = HrotEnvironment.CreateParticipant(config.DomainId);
 
-        // ── Orchestration bus + translators (CMC-S016 / BATCH-06) ────────────────
-        _orchestrationBus    = new FdpEventBus();
+        // ── Single unified event bus (HEXAG2-S001) ────────────────────────────────
+        _bus                 = new FdpEventBus();
         _heartbeatReader     = new DdsReader<NodeHeartbeat>(_participant);
         _sysOpRequestReader  = new DdsReader<ClusterOpRequest>(_participant);
         _sysOpStatusWriter   = new DdsWriter<ClusterOpStatus>(_participant);
         _nodeOpStatusReader  = new DdsReader<NodeOpStatus>(_participant);
-        _clusterMaster       = new ClusterMaster(_orchestrationBus, _config);
+        _clusterMaster       = new ClusterMaster(_bus, _config);
         _clusterOpTranslator = new Hrot.Orchestrator.Translators.ClusterOpMasterTranslator(
-            _sysOpRequestReader, _sysOpStatusWriter, _orchestrationBus,
+            _sysOpRequestReader, _sysOpStatusWriter, _bus,
             unhandledRequestCallback: _clusterMaster.HandleClusterOpRequest);
         _nodeOpTranslator    = new Hrot.Orchestrator.Translators.NodeOpMasterTranslator(
-            nodeId => new DdsWriter<NodeOpCommand>(_participant), _nodeOpStatusReader, _orchestrationBus);
+            nodeId => new DdsWriter<NodeOpCommand>(_participant), _nodeOpStatusReader, _bus);
 
         // DdsIdAllocatorServer: bus-mode ClusterMaster doesn't create this internally,
         // so OrchestratorSubsystem owns it (SimHost needs it to allocate entity IDs).
@@ -131,22 +133,21 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // ── Time controller setup (CGF1-A.1, BATCH-09) ─────────────────────
         // MasterSyncController replaces the minimal kernel + DistributedTimeCoordinator.
         // Must be created before _uiCache so it can be injected for smooth sim-time display.
-        _eventBus          = new FdpEventBus();
         _masterSync        = new Fdp.Toolkit.Time.Controllers.MasterSyncController(
-            _eventBus, new HashSet<int>(), Fdp.Toolkit.Time.Controllers.TimeConfig.Default);
+            _bus, new HashSet<int>(), Fdp.Toolkit.Time.Controllers.TimeConfig.Default);
         // MasterSyncController constructor publishes the initial SwitchTimeModeEvent{Continuous}
-        // to _eventBus PENDING.  Swap it to CURRENT now so the first frame's ScanAndPublish
+        // to _bus PENDING.  Swap it to CURRENT now so the first frame's ScanAndPublish
         // can read it and forward it to DDS before slaves (IG, ExCon) start their kernels.
         // Without this swap the event is destroyed by the two SwapBuffers calls in Update()
         // before ScanAndPublish ever gets a chance to read it, causing IG/ExCon to miss the
         // authoritative startup baseline and run ~180 ms behind Orch/SimHost.
-        _eventBus.SwapBuffers();
-        _timeModeTranslator  = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
-        _lockstepTranslator  = TimeNetworkModule.CreateMasterLockstepTranslator(_participant, _eventBus);
+        _bus.SwapBuffers();
+        _timeModeTranslator  = TimeNetworkModule.CreateDescriptorTranslator(_participant, _bus);
+        _lockstepTranslator  = TimeNetworkModule.CreateMasterLockstepTranslator(_participant, _bus);
         _masterTimeSyncTranslator = TimeNetworkModule.CreateMasterTimeSyncTranslator(_participant);
 
-        _uiCache       = new ClusterUiCache(_orchestrationBus!, _masterSync);
-        _scenarioPanel = new ClusterScenarioPanel(_clusterMaster, _uiCache);
+        _uiCache       = new ClusterUiCache(_bus, _masterSync);
+        _scenarioPanel = new ClusterScenarioPanel(_bus!, _uiCache);
 
         // S0503: Subscribe to time-control events from ClusterMaster.
         _clusterMaster.TimeControlRequested += (op, payload) =>
@@ -206,37 +207,22 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
 
     public void Update(float deltaTime)
     {
-        // Advance the master sync controller's wall clock and state machine.
-        _masterSync?.Update();
-
-        // ── Time-mode and lockstep DDS egress/ingress first, reading events ──────
-        // ── written at the end of the PREVIOUS frame (before clearing the read ───
-        // ── buffer). _lockstepTranslator.ScanAndPublish MUST run here (before ────
-        // ── the first swap) because AdvanceFrameIntent is a managed event: it is ──
-        // ── published via MasterSyncController.Step() in _clusterMaster.Tick() ───
-        // ── (which fires AFTER step 4's first swap), so it lands in the managed ──
-        // ── write buffer, and the second swap exposes it in managed_read for the ──
-        // ── NEXT frame. The FIRST swap of that next frame would CLEAR it before ───
-        // ── ScanAndPublish could read it. Running ScanAndPublish here (before first
-        // ── swap) reads managed_read that still contains AdvanceFrameIntent. ──────
+        // Phase 1: Network boundary — DDS ingress/egress; heartbeat bridge shim.
+        // ScanAndPublish reads from _bus CURRENT and sends to DDS.
+        // PollIngress reads from DDS and writes to _bus WRITE buffer.
         _timeModeTranslator?.ScanAndPublish(null!);
         _timeModeTranslator?.PollIngress(null!, null!);
         _lockstepTranslator?.ScanAndPublish(null!);
         _lockstepTranslator?.PollIngress(null!, null!);
 
-        // ── Swap event bus (clear previous frame's read buffer). ─────────────────
-        _eventBus?.SwapBuffers();
-
-        // ── Orchestration bus pipeline (CMC-S016 / BATCH-06) ──────────────────
-        // 1. Bridge DDS NodeHeartbeat → NodeHeartbeatEvent on orchestration bus so
-        //    ClusterMaster (bus mode) can update its roster.
-        if (_orchestrationBus != null && _heartbeatReader != null)
+        // Heartbeat bridging loop (manual DDS bridge): keep as temporary shim until HEXAG2-S008
+        if (_bus != null && _heartbeatReader != null)
         {
             using var hbScope = _heartbeatReader.Take();
             foreach (var sample in hbScope)
             {
                 if (!sample.IsValid) continue;
-                _orchestrationBus.PublishManaged(new Fdp.Toolkit.Orchestration.NodeHeartbeatEvent
+                _bus.PublishManaged(new Fdp.Toolkit.Orchestration.NodeHeartbeatEvent
                 {
                     NodeId        = sample.Data.NodeId,
                     LocalStateId  = (int)sample.Data.LocalClusterState,
@@ -246,18 +232,16 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             }
         }
 
-        // 2. Swap orchestration bus: publish → read buffer for this frame's consumers.
-        _orchestrationBus?.SwapBuffers();
+        // Phase 2: Single frame boundary swap — exactly one SwapBuffers per frame.
+        _bus?.SwapBuffers();
 
-        // 3. Translators tick BEFORE ClusterMaster so ingress (DDS→bus) is processed first.
-        _clusterOpTranslator?.Tick();  // DDS ClusterOpRequest → bus TransitionStateIntent etc.
-        _nodeOpTranslator?.Tick();     // bus ExecuteNodeOpIntent → DDS NodeOpCommand;
-                                       // DDS NodeOpStatus → bus NodeOpCompletedEvent
-
+        // Phase 3: Core logic — translators tick first so ingress (DDS->bus) is processed;
+        // then _masterSync advances the wall clock; then ClusterMaster ticks.
+        _clusterOpTranslator?.Tick();  // DDS ClusterOpRequest -> bus TransitionStateIntent etc.
+        _nodeOpTranslator?.Tick();     // bus ExecuteNodeOpIntent -> DDS NodeOpCommand;
+                                       // DDS NodeOpStatus -> bus NodeOpCompletedEvent
+        _masterSync?.Update();
         _clusterMaster?.Tick();
-
-        // CGF1-S0506: Update cache after ClusterMaster tick so it reflects latest DDS state.
-        _uiCache?.Update();
 
         // CGF1-A.1: Consume PendingTimeMode and drive MasterSyncController.
         var pendingMode = _clusterMaster?.PendingTimeMode;
@@ -275,16 +259,15 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             _lastProcessedTimeMode = pendingMode;
         }
 
-        // Time sync master ingress (NTP responses from slaves).
-        _masterTimeSyncTranslator?.PollIngress(null!, null!);
-
-        // ── Final event bus swap: expose events written this frame (e.g. by ──────
-        // ── SwitchToDeterministic, Step) to the read buffer so that the next ─────
-        // ── frame's ScanAndPublish can read and forward them to DDS. ───────────
-        _eventBus?.SwapBuffers();
+        // Phase 4: Local observation.
+        // CGF1-S0506: Update cache after ClusterMaster tick so it reflects latest state.
+        _uiCache?.Update();
 
         // S0503: Advance seek debounce.
         _scenarioPanel?.Update(deltaTime);
+
+        // Phase 5: Time-sync NTP ingress (NTP responses from slaves).
+        _masterTimeSyncTranslator?.PollIngress(null!, null!);
     }
 
     public void DrawWorld() { }
@@ -320,14 +303,13 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _idServerThread = null;
         _idAllocatorServer?.Dispose();
         _idAllocatorServer = null;
-        _orchestrationBus = null;
+        _bus = null;
         _clusterMaster?.Dispose();
         _clusterMaster = null;
         _masterSync?.Dispose();
         _masterSync = null;
         _lockstepTranslator = null;
         _masterTimeSyncTranslator = null;
-        _eventBus = null;
         _lastProcessedTimeMode = null;
         _participant?.Dispose();
         _participant = null;
