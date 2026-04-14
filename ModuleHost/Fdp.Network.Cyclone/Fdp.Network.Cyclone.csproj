@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />
-    <ProjectReference Include="..\..\Toolkits\Fdp.Engine\Fdp.Engine.csproj" />
+    <ProjectReference Include="..\..\Toolkits\Fdp.Engine\Fdp.Toolkits.csproj" />
     <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
     <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />

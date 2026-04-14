@@ -22,7 +22,7 @@
   </ItemGroup>
   
   <ItemGroup>
-    <ProjectReference Include="..\..\Toolkits\Fdp.Engine\Fdp.Engine.csproj" />
+    <ProjectReference Include="..\..\Toolkits\Fdp.Engine\Fdp.Toolkits.csproj" />
     <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\Framework\Fdp.Presentation\Fdp.Presentation.csproj" />
   </ItemGroup>

@@ -12,7 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Fdp.Engine\Fdp.Engine.csproj" />
+    <ProjectReference Include="..\Fdp.Engine\Fdp.Toolkits.csproj" />
     <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />
   </ItemGroup>
 

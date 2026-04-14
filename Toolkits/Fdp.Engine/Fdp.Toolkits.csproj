@@ -12,7 +12,7 @@
 
   <!-- InternalsVisibleTo consolidated from all absorbed projects -->
   <ItemGroup>
-    <InternalsVisibleTo Include="Fdp.Engine.Tests" />
+    <InternalsVisibleTo Include="Fdp.Toolkits.Tests" />
     <InternalsVisibleTo Include="FDP.Toolkit.Behavior.Tests" />
     <InternalsVisibleTo Include="FDP.Toolkit.Orchestration.Tests" />
     <InternalsVisibleTo Include="FDP.Toolkit.Replication.Tests" />

@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Toolkits\Fdp.Engine\Fdp.Engine.csproj" />
+    <ProjectReference Include="..\..\Toolkits\Fdp.Engine\Fdp.Toolkits.csproj" />
   </ItemGroup>
 
   <!-- Visual/UI NuGet packages (union of all three merged projects) -->
