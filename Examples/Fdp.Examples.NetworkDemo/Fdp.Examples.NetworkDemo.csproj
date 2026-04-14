@@ -13,7 +13,7 @@
     <PackageReference Include="NLog" Version="5.2.8" />  </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Engine\Fdp.ModuleHost.Core\Fdp.ModuleHost.Core.csproj" />    <ProjectReference Include="..\..\Network\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
+    <ProjectReference Include="..\..\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />    <ProjectReference Include="..\..\Network\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
     <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
     <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />  </ItemGroup>

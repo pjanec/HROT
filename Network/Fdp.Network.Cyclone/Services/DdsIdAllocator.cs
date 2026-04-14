@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Interop;
-using Fdp.ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost_Core.Network.Interfaces;
 using Fdp.ModuleHost.Network.Cyclone.Topics;
 
 namespace Fdp.ModuleHost.Network.Cyclone.Services

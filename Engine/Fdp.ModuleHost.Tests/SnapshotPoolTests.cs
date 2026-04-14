@@ -1,12 +1,12 @@
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Providers;
+using Fdp.ModuleHost_Core.Providers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Fdp.ModuleHost.Core.Tests
+namespace Fdp.ModuleHost_Core.Tests
 {
     public class SnapshotPoolTests
     {

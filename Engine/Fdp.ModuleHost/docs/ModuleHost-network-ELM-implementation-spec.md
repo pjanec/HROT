@@ -355,7 +355,7 @@ Node 1 (Current Owner)           Node 2 (New Owner)         DDS Network
 ### File Structure
 
 ```
-ModuleHost.Core/
+ModuleHost_Core/
 ├── Network/
 │   ├── NetworkConstants.cs          (NEW)
 │   ├── NetworkComponents.cs         (UPDATE)

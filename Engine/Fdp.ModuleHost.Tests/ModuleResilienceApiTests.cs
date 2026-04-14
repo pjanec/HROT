@@ -1,9 +1,9 @@
-// File: ModuleHost.Core.Tests/ModuleResilienceApiTests.cs
+// File: ModuleHost_Core.Tests/ModuleResilienceApiTests.cs
 using Xunit;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.Kernel;
 
-namespace Fdp.ModuleHost.Core.Tests
+namespace Fdp.ModuleHost_Core.Tests
 {
     public class ModuleResilienceApiTests
     {

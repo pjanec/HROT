@@ -4,7 +4,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Vis2D.Abstractions;
 using CarKinem.Core;
 using CarKinem.Formation;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.Examples.CarKinem.Components; // Ensure components are available
 using System;
 using System.Diagnostics;

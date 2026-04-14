@@ -6,8 +6,8 @@ using System.IO;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
-using Fdp.ModuleHost.Core.Network;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Network;
+using Fdp.ModuleHost_Core.Abstractions;
 
 using System.Collections.Generic; // Added
 

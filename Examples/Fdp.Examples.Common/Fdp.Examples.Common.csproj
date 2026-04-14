@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Engine\Fdp.ModuleHost.Core\Fdp.ModuleHost.Core.csproj" />
+    <ProjectReference Include="..\..\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />
     <ProjectReference Include="..\..\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <ProjectReference Include="..\..\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
   </ItemGroup>

@@ -1,8 +1,8 @@
 using System.Threading.Tasks;
-using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost_Core;
 using Xunit;
 
-namespace Fdp.ModuleHost.Core.Tests
+namespace Fdp.ModuleHost_Core.Tests
 {
     public class ModuleEntryStateTests
     {

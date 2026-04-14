@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using Xunit;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost_Core.Abstractions;
 
-namespace Fdp.ModuleHost.Core.Tests
+namespace Fdp.ModuleHost_Core.Tests
 {
     public class ModuleHostKernelTests
     {

@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Events;
 
-namespace Fdp.ModuleHost.Core.Tests.Mocks
+namespace Fdp.ModuleHost_Core.Tests.Mocks
 {
     public class TestMockView : ISimulationView
     {

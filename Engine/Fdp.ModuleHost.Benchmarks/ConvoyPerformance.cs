@@ -1,9 +1,9 @@
 using System;
 using BenchmarkDotNet.Attributes;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core;
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Providers;
+using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Providers;
 using System.Collections.Generic;
 
 namespace Fdp.ModuleHost.Benchmarks

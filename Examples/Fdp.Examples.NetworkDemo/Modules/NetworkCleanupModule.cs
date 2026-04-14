@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using Fdp.Interfaces;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.ModuleHost.Network.Cyclone.Systems;
 
 namespace Fdp.Examples.NetworkDemo.Modules

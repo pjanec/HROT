@@ -9,11 +9,11 @@ using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Components;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.Kernel;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.ModuleHost.Core.Network;
+using Fdp.ModuleHost_Core.Network;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Translators
 {

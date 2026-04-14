@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.Kernel;
 using FDP.Toolkit.Lifecycle.Systems;
 using FDP.Toolkit.Replication.Systems;

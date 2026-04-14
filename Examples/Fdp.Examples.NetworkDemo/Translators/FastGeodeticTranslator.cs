@@ -8,7 +8,7 @@ using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Components;
 using Fdp.Modules.Geographic;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.ModuleHost.Network.Cyclone.Translators;
 
 namespace Fdp.Examples.NetworkDemo.Translators
@@ -57,7 +57,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
                 .With<NetworkIdentity>()
                 .WithLifecycle(Fdp.Kernel.EntityLifecycle.All)
                 .Build();
-            long packedKey = Fdp.ModuleHost.Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            long packedKey = Fdp.ModuleHost_Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
             foreach (var entity in query)
             {

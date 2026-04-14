@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace FDP.Toolkit.Replication.Systems
 {

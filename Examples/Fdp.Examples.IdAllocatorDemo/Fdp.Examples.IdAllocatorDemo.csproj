@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Engine\Fdp.ModuleHost.Core\Fdp.ModuleHost.Core.csproj" />
+    <ProjectReference Include="..\..\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />
     <ProjectReference Include="..\..\Network\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
   </ItemGroup>
 

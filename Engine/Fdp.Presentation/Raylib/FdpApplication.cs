@@ -1,5 +1,5 @@
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost_Core;
 using Raylib_cs;
 using rlImGui_cs;
 

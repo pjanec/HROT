@@ -8,8 +8,8 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Extensions;
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Network;
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Network;
 using Fdp.ModuleHost.Network.Cyclone.Abstractions;
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 

@@ -27,7 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Fdp.Presentation\Fdp.Presentation.csproj" />
-    <ProjectReference Include="..\Fdp.ModuleHost.Core\Fdp.ModuleHost.Core.csproj" />
+    <ProjectReference Include="..\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />
   </ItemGroup>
 
   <!-- xunit.runner.json for ImGui tests (no parallel execution to avoid native lib conflicts) -->

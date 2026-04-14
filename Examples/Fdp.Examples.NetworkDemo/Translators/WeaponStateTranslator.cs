@@ -5,8 +5,8 @@ using Fdp.Examples.NetworkDemo.Descriptors;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Extensions;
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Network;
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Network;
 using Fdp.ModuleHost.Network.Cyclone.Translators;
 using CycloneDDS.Runtime;
 

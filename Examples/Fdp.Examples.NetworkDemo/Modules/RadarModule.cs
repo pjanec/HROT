@@ -1,4 +1,4 @@
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.Examples.NetworkDemo.Systems;
 using Fdp.Kernel;
 

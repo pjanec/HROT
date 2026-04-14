@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Fdp.ModuleHost.Core.Network;
+using Fdp.ModuleHost_Core.Network;
 
-namespace Fdp.ModuleHost.Core.Tests.Mocks
+namespace Fdp.ModuleHost_Core.Tests.Mocks
 {
     public class MockDataSample : IDataSample
     {
@@ -14,7 +14,7 @@ namespace Fdp.ModuleHost.Core.Tests.Mocks
         {
             get
             {
-                if (Data is Fdp.ModuleHost.Core.Network.Messages.OwnershipUpdate ou) return ou.EntityId;
+                if (Data is Fdp.ModuleHost_Core.Network.Messages.OwnershipUpdate ou) return ou.EntityId;
                 
                 // Generic fallback for any object with an EntityId property
                 var prop = Data.GetType().GetProperty("EntityId");

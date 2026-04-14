@@ -1,7 +1,7 @@
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
 using Fdp.Modules.Geographic.Components;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace Fdp.Modules.Geographic.Systems
 {

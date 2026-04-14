@@ -1,12 +1,12 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Fdp.ModuleHost.Core;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.Kernel;
 using Xunit;
 
-namespace Fdp.ModuleHost.Core.Tests
+namespace Fdp.ModuleHost_Core.Tests
 {
     public class NonBlockingIntegrationTests : IDisposable
     {

@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Fdp.ModuleHost.Core.Time;
+using Fdp.ModuleHost_Core.Time;
 
 namespace FDP.Toolkit.Time.Controllers
 {

@@ -4,7 +4,7 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Time.Domain;
 using FDP.Toolkit.Time.Messages;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace FDP.Toolkit.Time.Translators
 {

@@ -13,7 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Fdp.Toolkits\Fdp.Toolkits.csproj" />
-    <ProjectReference Include="..\..\Engine\Fdp.ModuleHost.Core\Fdp.ModuleHost.Core.csproj" />
+    <ProjectReference Include="..\..\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />
   </ItemGroup>
 
   <!-- Test framework packages (union of all absorbed test projects) -->

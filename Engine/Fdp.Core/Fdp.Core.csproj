@@ -15,7 +15,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Fdp.Tests" />
     <InternalsVisibleTo Include="Fdp.Core.Tests" />
-    <InternalsVisibleTo Include="Fdp.ModuleHost.Core" />
+    <InternalsVisibleTo Include="Fdp.ModuleHost" />
     <InternalsVisibleTo Include="Fdp.ModuleHost.Tests" />
   </ItemGroup>
 

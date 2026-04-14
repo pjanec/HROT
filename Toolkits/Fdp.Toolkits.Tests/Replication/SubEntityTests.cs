@@ -3,7 +3,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Lifecycle.Events;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Systems;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using System;
 using System.Collections.Generic;
 using Xunit;

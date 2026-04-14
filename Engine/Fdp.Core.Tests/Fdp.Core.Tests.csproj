@@ -25,7 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Fdp.Core\Fdp.Core.csproj" />
-    <ProjectReference Include="..\Fdp.ModuleHost.Core\Fdp.ModuleHost.Core.csproj" />
+    <ProjectReference Include="..\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />
     <ProjectReference Include="..\..\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />  </ItemGroup>
 
   <ItemGroup>

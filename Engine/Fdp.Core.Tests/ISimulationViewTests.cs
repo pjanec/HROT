@@ -1,6 +1,6 @@
 using Xunit;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using System;
 using System.Reflection;
 

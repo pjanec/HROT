@@ -10,8 +10,8 @@ using FDP.Toolkit.Perception.Events;
 using FDP.Toolkit.Perception.Systems;
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Vis2D;
-using Fdp.ModuleHost.Core;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace Fdp.Examples.Scenarios.Perception
 {

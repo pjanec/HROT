@@ -6,8 +6,8 @@ using System.Runtime.InteropServices;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Kernel.Logging; // Added
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Network; 
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Network; 
 using Fdp.ModuleHost.Network.Cyclone.Abstractions;
 
 namespace Fdp.Examples.NetworkDemo.Systems

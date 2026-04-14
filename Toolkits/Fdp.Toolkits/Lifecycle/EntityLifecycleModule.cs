@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using Fdp.Interfaces;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using FDP.Toolkit.Lifecycle.Events;
 using FDP.Toolkit.Lifecycle.Systems;
 

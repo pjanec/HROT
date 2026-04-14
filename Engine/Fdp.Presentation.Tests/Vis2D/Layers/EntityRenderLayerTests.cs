@@ -5,7 +5,7 @@ using FDP.Toolkit.Vis2D.Layers;
 using FDP.Toolkit.Vis2D.Abstractions;
 using FDP.Toolkit.Vis2D.Components;
 using Fdp.Kernel.Collections;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Moq;
 using Raylib_cs;
 

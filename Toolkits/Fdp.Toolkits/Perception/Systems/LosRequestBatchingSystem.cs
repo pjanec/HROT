@@ -3,7 +3,7 @@ using System.Numerics;
 using FDP.Toolkit.Perception.Components;
 using FDP.Toolkit.Perception.Events;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace FDP.Toolkit.Perception.Systems
 {

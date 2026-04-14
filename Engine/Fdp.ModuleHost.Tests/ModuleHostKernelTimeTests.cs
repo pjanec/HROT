@@ -1,11 +1,11 @@
 using System;
 using Xunit;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core;
-using Fdp.ModuleHost.Core.Time;
+using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost_Core.Time;
 using FDP.Toolkit.Time.Controllers;
 
-namespace Fdp.ModuleHost.Core.Tests
+namespace Fdp.ModuleHost_Core.Tests
 {
     public class ModuleHostKernelTimeTests
     {

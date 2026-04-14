@@ -6,7 +6,7 @@ using FDP.Toolkit.Perception.Events;
 using FDP.Toolkit.Perception.Modules;
 using FDP.Toolkit.Perception.Systems;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Xunit;
 
 namespace FDP.Toolkit.Perception.Tests

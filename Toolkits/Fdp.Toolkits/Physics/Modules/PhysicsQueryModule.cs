@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 using FDP.Toolkit.Physics.Systems;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace FDP.Toolkit.Physics.Modules
 {

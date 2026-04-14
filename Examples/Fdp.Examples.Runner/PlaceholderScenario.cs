@@ -2,7 +2,7 @@ using Fdp.Examples.Common;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D;
-using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost_Core;
 
 namespace Fdp.Examples.Runner
 {

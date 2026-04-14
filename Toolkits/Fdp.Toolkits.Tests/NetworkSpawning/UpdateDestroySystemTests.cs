@@ -9,8 +9,8 @@ using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.NetworkSpawning.Tests.Helpers;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Network;
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Network;
 using Xunit;
 
 namespace FDP.Toolkit.NetworkSpawning.Tests

@@ -62,10 +62,10 @@
 
 **Step 1: Create EntityLifecycleModule**
 ```csharp
-using ModuleHost.Core.ELM;
-using ModuleHost.Core.Network;
-using ModuleHost.Core.Network.Systems;
-using ModuleHost.Core.Network.Interfaces;
+using ModuleHost_Core.ELM;
+using ModuleHost_Core.Network;
+using ModuleHost_Core.Network.Systems;
+using ModuleHost_Core.Network.Interfaces;
 
 // ELM coordinates construction across modules
 var elm = new EntityLifecycleModule(new[] { 10 });  // Module ID 10 for gateway
@@ -425,12 +425,12 @@ void Update(float deltaTime)
 ### Node 1 Full Setup
 
 ```csharp
-using ModuleHost.Core;
-using ModuleHost.Core.ELM;
-using ModuleHost.Core.Network;
-using ModuleHost.Core.Network.Systems;
-using ModuleHost.Core.Network.Translators;
-using ModuleHost.Core.Network.Interfaces;
+using ModuleHost_Core;
+using ModuleHost_Core.ELM;
+using ModuleHost_Core.Network;
+using ModuleHost_Core.Network.Systems;
+using ModuleHost_Core.Network.Translators;
+using ModuleHost_Core.Network.Interfaces;
 using Fdp.Kernel;
 
 public class Node1Setup
@@ -622,7 +622,7 @@ Node 2 uses identical setup code with `localNodeId: 2`.
 ### Weapon Control System (Reactive to Ownership)
 
 ```csharp
-using ModuleHost.Core.Network;
+using ModuleHost_Core.Network;
 
 [UpdateInPhase(SystemPhase.Simulation)]
 public class WeaponControlSystem : IModuleSystem
@@ -1240,9 +1240,9 @@ The `NetworkSpawnerSystem` is the integration point between the network gateway 
 #### Configuration
 
 ```csharp
-using ModuleHost.Core.Network.Systems;
-using ModuleHost.Core.Network.Interfaces;
-using ModuleHost.Core.ELM;
+using ModuleHost_Core.Network.Systems;
+using ModuleHost_Core.Network.Interfaces;
+using ModuleHost_Core.ELM;
 
 // Create dependencies
 var tkbDatabase = new MyTkbDatabase();  // Implements ITkbDatabase
@@ -1444,9 +1444,9 @@ The `NetworkGatewayModule` participates in ELM to implement the barrier.
 
 **Setup:**
 ```csharp
-using ModuleHost.Core.Network;
-using ModuleHost.Core.Network.Interfaces;
-using ModuleHost.Core.ELM;
+using ModuleHost_Core.Network;
+using ModuleHost_Core.Network.Interfaces;
+using ModuleHost_Core.ELM;
 
 // Network topology (who are the peers?)
 var topology = new StaticNetworkTopology(
@@ -2879,7 +2879,7 @@ The Geographic Transform Services bridge FDP's local Cartesian coordinate system
 - **Smooth Network Updates:** Interpolate remote entity positions for rendering
 
 **Module:** `GeographicTransformModule`  
-**Namespace:** `ModuleHost.Core.Geographic`
+**Namespace:** `ModuleHost_Core.Geographic`
 
 ---
 
@@ -2921,7 +2921,7 @@ Remote Entities (Network Authority):
 #### 1. Create Module
 
 ```csharp
-using ModuleHost.Core.Geographic;
+using ModuleHost_Core.Geographic;
 
 // Place simulation origin (San Francisco coords used as example)
 var geoModule = new GeographicTransformModule(
@@ -2938,8 +2938,8 @@ kernel.RegisterModule(geoModule);
 #### 2. Add Components to Entities
 
 ```csharp
-using ModuleHost.Core.Geographic;
-using ModuleHost.Core.Network;
+using ModuleHost_Core.Geographic;
+using ModuleHost_Core.Network;
 
 // For networked entities:
 var entity = repo.CreateEntity();
@@ -4091,7 +4091,7 @@ Before deploying Network-ELM to production:
 
 - **Implementation Spec:** `docs/ModuleHost-network-ELM-implementation-spec.md` - Detailed architecture
 - **Analysis Summary:** `docs/ModuleHost-network-ELM-analysis-summary.md` - Design decisions
-- **Test Examples:** `ModuleHost.Core.Tests/Network/` - Unit and integration tests
+- **Test Examples:** `ModuleHost_Core.Tests/Network/` - Unit and integration tests
 - **Benchmarks:** `ModuleHost.Benchmarks/NetworkPerformanceBenchmarks.cs` - Performance baselines
 
 ---

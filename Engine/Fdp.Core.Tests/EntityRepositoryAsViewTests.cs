@@ -1,7 +1,7 @@
 using Xunit;
 using Fdp.Kernel;
 using Fdp.Kernel.Internal; // For UnsafeShim in tests
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using System;
 
 namespace Fdp.Tests

@@ -16,10 +16,10 @@ using Fdp.Examples.NetworkDemo.Systems;
 using Fdp.Examples.NetworkDemo.Modules;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
-using Fdp.ModuleHost.Core;
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Network;
-using Fdp.ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Network;
+using Fdp.ModuleHost_Core.Network.Interfaces;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Systems;
 using FDP.Toolkit.Lifecycle.Events;
@@ -160,7 +160,7 @@ namespace Fdp.Examples.NetworkDemo
             // ELM timeout must exceed the NetworkGateway reliable-init timeout (300 frames)
             // so that the Gateway's fallback ACK is always processed before ELM destroys the entity.
             // In test mode, use 50 frames to allow the gateway fallback (30 + margin)
-            int lifecycleTimeout = testMode ? 50 : (Fdp.ModuleHost.Core.Network.NetworkConstants.RELIABLE_INIT_TIMEOUT_FRAMES * 2 + 50);
+            int lifecycleTimeout = testMode ? 50 : (Fdp.ModuleHost_Core.Network.NetworkConstants.RELIABLE_INIT_TIMEOUT_FRAMES * 2 + 50);
             var elm = new EntityLifecycleModule(tkb, Array.Empty<int>(),
                         timeoutFrames: lifecycleTimeout); 
             Kernel.RegisterModule(elm);
@@ -300,7 +300,7 @@ namespace Fdp.Examples.NetworkDemo
             Kernel.RegisterModule(new BridgeModule(eventBus, replaySystem, localInternalId, instanceId == 100));
 
             // Time Controller setup — unified MasterSyncController / SlaveSyncController
-            Fdp.ModuleHost.Core.Time.ITimeController timeController;
+            Fdp.ModuleHost_Core.Time.ITimeController timeController;
             if (isReplay)
             {
                 timeController = new SteppingTimeController(new GlobalTime { TimeScale = 1 });
@@ -507,7 +507,7 @@ namespace Fdp.Examples.NetworkDemo
                 TkbType           = template.TkbType,
                 DisType           = 1,
                 OwnerNodeId       = localInternalId,
-                InitType          = Fdp.ModuleHost.Core.Network.Interfaces.ReliableInitType.AllPeers,
+                InitType          = Fdp.ModuleHost_Core.Network.Interfaces.ReliableInitType.AllPeers,
                 InitialComponents = new System.Collections.Generic.List<object>
                 {
                     new SimTransform
@@ -549,9 +549,9 @@ namespace Fdp.Examples.NetworkDemo
                  ref readonly var auth = ref world.GetComponentRO<FDP.Toolkit.Replication.Components.NetworkAuthority>(e);
                  
                  string ownershipInfo = "No Ownership";
-                 if (world.HasComponent<Fdp.ModuleHost.Core.Network.NetworkOwnership>(e))
+                 if (world.HasComponent<Fdp.ModuleHost_Core.Network.NetworkOwnership>(e))
                  {
-                     ref readonly var own = ref world.GetComponentRO<Fdp.ModuleHost.Core.Network.NetworkOwnership>(e);
+                     ref readonly var own = ref world.GetComponentRO<Fdp.ModuleHost_Core.Network.NetworkOwnership>(e);
                      ownershipInfo = string.Concat("Own(P:", own.PrimaryOwnerId, " L:", own.LocalNodeId, ")");
                  }
 
@@ -585,7 +585,7 @@ namespace Fdp.Examples.NetworkDemo
         /// Entities published via SpawnEntityCommand with NetworkId = 0 will receive
         /// monotonically increasing IDs from this allocator.
         /// </summary>
-        private sealed class SequentialIdAllocator : Fdp.ModuleHost.Core.Network.Interfaces.INetworkIdAllocator
+        private sealed class SequentialIdAllocator : Fdp.ModuleHost_Core.Network.Interfaces.INetworkIdAllocator
         {
             private long _nextId = 1;
             public long AllocateId() => System.Threading.Interlocked.Increment(ref _nextId);

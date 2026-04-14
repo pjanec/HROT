@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using Fdp.Kernel;
 using Fdp.Kernel.Internal;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace Fdp.Kernel
 {

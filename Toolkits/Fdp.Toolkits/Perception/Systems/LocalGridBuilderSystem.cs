@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace FDP.Toolkit.Perception.Systems
 {

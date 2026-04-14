@@ -3,10 +3,10 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using Xunit;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Providers;
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Providers;
 
-namespace Fdp.ModuleHost.Core.Tests
+namespace Fdp.ModuleHost_Core.Tests
 {
     public class OnDemandProviderTests
     {

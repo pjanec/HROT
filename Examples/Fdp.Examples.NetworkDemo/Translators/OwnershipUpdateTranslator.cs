@@ -2,11 +2,11 @@
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 using Fdp.Interfaces;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using FDP.Toolkit.Replication.Components;
 using ToolkitMsgs = FDP.Toolkit.Replication.Messages;
 using TopicMsgs = Fdp.ModuleHost.Network.Cyclone.Topics;
-using Fdp.ModuleHost.Core.Network; 
+using Fdp.ModuleHost_Core.Network; 
 using FDP.Kernel.Logging;
 using Fdp.ModuleHost.Network.Cyclone.Services;
 using Fdp.ModuleHost.Network.Cyclone;

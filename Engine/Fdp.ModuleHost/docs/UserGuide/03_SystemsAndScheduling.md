@@ -23,7 +23,7 @@
 #### The IModuleSystem Interface
 
 ```csharp
-namespace ModuleHost.Core.Abstractions
+namespace ModuleHost_Core.Abstractions
 {
     /// <summary>
     /// A system that executes within a module's context.
@@ -173,8 +173,8 @@ public class MovementSystem : ComponentSystem
 From `SystemSchedulerTests.cs` lines 17-40:
 
 ```csharp
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Scheduling;
+using ModuleHost_Core.Abstractions;
+using ModuleHost_Core.Scheduling;
 
 // System A runs first (no dependencies)
 [UpdateInPhase(SystemPhase.Simulation)]
@@ -243,7 +243,7 @@ scheduler.ExecutePhase(SystemPhase.Simulation, view, 0.016f);
 From `SystemSchedulerTests.cs` lines 66-86:
 
 ```csharp
-using ModuleHost.Core.Abstractions;
+using ModuleHost_Core.Abstractions;
 
 /// <summary>
 /// A group contains multiple systems that execute together.
@@ -837,7 +837,7 @@ public class BehaviorTreeSystem : IModuleSystem
 - See [API Reference - Systems & Scheduling](API-REFERENCE.md#systems--scheduling)
 
 **Example Code:**
-- `ModuleHost.Core.Tests/SystemSchedulerTests.cs` - Comprehensive system tests
+- `ModuleHost_Core.Tests/SystemSchedulerTests.cs` - Comprehensive system tests
 - `FDP/Fdp.Tests/*SystemTests.cs` - Real-world system examples
 
 **Related Batches:**

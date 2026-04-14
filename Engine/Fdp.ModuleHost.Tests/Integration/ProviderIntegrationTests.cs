@@ -1,11 +1,11 @@
-// File: ModuleHost.Core.Tests/Integration/ProviderIntegrationTests.cs
+// File: ModuleHost_Core.Tests/Integration/ProviderIntegrationTests.cs
 using System;
 using Xunit;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Providers;
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Providers;
 
-namespace Fdp.ModuleHost.Core.Tests.Integration
+namespace Fdp.ModuleHost_Core.Tests.Integration
 {
     public class ProviderIntegrationTests
     {

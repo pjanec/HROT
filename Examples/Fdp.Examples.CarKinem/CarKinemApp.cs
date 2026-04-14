@@ -18,9 +18,9 @@ using CarKinem.Formation;
 using CarKinem.Commands;
 using CarKinem.Systems;
 using CarKinem.Trajectory;
-using Fdp.ModuleHost.Core;
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Time; // ITimeController
+using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Time; // ITimeController
 using FDP.Toolkit.Time.Controllers;
 using Fdp.Kernel.FlightRecorder; // Recorder
 

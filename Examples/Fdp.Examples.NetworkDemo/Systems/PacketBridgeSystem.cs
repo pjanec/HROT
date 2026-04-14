@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using FDP.Toolkit.Time.Messages;
 using Fdp.Examples.NetworkDemo.Components;
 using FDP.Toolkit.Replication.Components;

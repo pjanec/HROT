@@ -1,5 +1,5 @@
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost_Core;
 using FDP.Toolkit.Vis2D;
 
 namespace Fdp.Examples.Common

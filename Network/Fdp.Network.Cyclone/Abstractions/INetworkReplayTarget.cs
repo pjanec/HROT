@@ -1,6 +1,6 @@
 using System;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace Fdp.ModuleHost.Network.Cyclone.Abstractions
 {

@@ -9,7 +9,7 @@ using Fdp.Examples.NetworkDemo.Components;
 using FDP.Toolkit.Replication.Components; // Fix: For ChildMap
 using FDP.Toolkit.Replication.Services;
 using Fdp.Interfaces;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Translators
 {

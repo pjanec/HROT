@@ -5,7 +5,7 @@ using Fdp.Engine.Runner;
 using FDP.Toolkit.Time.Controllers;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Components;
-using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost_Core;
 
 namespace Fdp.Examples.Common
 {

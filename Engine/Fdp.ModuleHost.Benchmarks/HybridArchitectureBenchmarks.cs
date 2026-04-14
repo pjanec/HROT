@@ -1,8 +1,8 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core;
-using Fdp.ModuleHost.Core.Providers;
+using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost_Core.Providers;
 using System.Linq;
 
 namespace Fdp.ModuleHost.Benchmarks

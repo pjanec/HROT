@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Numerics;
-using Fdp.ModuleHost.Core;
-using Fdp.ModuleHost.Core.Resilience;
+using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost_Core.Resilience;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 

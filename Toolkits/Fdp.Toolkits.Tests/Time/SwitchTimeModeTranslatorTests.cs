@@ -4,8 +4,8 @@ using Fdp.Kernel;
 using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Controllers;
 using FDP.Toolkit.Time.Messages;
-using Fdp.ModuleHost.Core;
-using Fdp.ModuleHost.Core.Time;
+using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost_Core.Time;
 using Xunit;
 
 namespace FDP.Toolkit.Time.Tests

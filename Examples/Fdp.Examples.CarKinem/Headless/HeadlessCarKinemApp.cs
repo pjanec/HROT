@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core;
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Time;
+using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Time;
 using FDP.Toolkit.Time.Controllers;
 using Fdp.Kernel.FlightRecorder;
 using CarKinem.Core;

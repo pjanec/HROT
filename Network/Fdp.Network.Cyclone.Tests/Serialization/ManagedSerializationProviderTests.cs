@@ -2,7 +2,7 @@ using System;
 using Xunit;
 using Fdp.ModuleHost.Network.Cyclone.Providers;
 using Fdp.Kernel; 
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using FDP.Toolkit.Lifecycle;
 using MessagePack;
 

@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace Fdp.Interfaces
 {

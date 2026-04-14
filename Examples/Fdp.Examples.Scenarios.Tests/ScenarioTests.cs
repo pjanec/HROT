@@ -12,7 +12,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Combat;
 using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Vis2D;
-using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost_Core;
 using NLog;
 using NLog.Config;
 using NLog.Targets;

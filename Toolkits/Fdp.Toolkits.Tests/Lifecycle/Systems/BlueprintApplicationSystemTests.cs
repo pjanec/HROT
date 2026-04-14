@@ -5,7 +5,7 @@ using FDP.Toolkit.Lifecycle.Systems;
 using FDP.Toolkit.Lifecycle.Events;
 using Fdp.Kernel;
 using Fdp.Interfaces;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Moq;
 
 namespace FDP.Toolkit.Lifecycle.Tests.Systems
