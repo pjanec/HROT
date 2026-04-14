@@ -4,7 +4,7 @@ using System.Numerics;
 using Hrot.Map.Common.Components;
 using CarKinem.Trajectory;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace Hrot.SimHost.Systems.Routing;
 

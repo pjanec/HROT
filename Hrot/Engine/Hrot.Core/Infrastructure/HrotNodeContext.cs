@@ -6,9 +6,9 @@ using Fdp.Modules.Geographic;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Replication.Systems;
 using Hrot.Common.Abstractions;
-using Fdp.ModuleHost.Core;
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Network.Interfaces;
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 // IOrchestrationTranslator lives in same namespace (Hrot.Common.Infrastructure)
 

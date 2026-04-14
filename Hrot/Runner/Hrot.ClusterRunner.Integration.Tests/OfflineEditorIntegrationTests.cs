@@ -5,7 +5,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Messages;
-using Fdp.ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost_Core.Network.Interfaces;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;

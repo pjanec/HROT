@@ -7,7 +7,7 @@ using FDP.Toolkit.Vis2D.Abstractions;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Transforms;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Raylib_cs;
 
 namespace Hrot.ScenarioEditor.Rendering;

@@ -6,7 +6,7 @@ using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Messages;
-using Fdp.ModuleHost.Core.Time;
+using Fdp.ModuleHost_Core.Time;
 using Xunit;
 using FdpClusterState = FDP.Toolkit.Orchestration.ClusterState;
 using FdpNodeOpType   = FDP.Toolkit.Orchestration.NodeOpType;

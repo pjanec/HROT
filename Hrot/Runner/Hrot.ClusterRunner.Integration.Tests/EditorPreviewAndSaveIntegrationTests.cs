@@ -7,7 +7,7 @@ using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using Hrot.Common.Orchestration.Handlers;
 using Hrot.NED.Descriptors.Orchestration;
-using Fdp.ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost_Core.Network.Interfaces;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;

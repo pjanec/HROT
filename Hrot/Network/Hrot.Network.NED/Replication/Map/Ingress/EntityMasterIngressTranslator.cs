@@ -9,8 +9,8 @@ using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Network.Interfaces;
 
 namespace Hrot.Map.Common.Replication.Ingress
 {

@@ -4,7 +4,7 @@ using Hrot.ExCon.Panels;
 using Hrot.ExCon.Services;
 using FDP.Toolkit.DER;
 using FDP.Toolkit.Time.Messages;
-using Fdp.ModuleHost.Core.Time;
+using Fdp.ModuleHost_Core.Time;
 using Moq;
 using Xunit;
 

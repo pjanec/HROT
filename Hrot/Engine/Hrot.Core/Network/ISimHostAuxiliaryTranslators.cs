@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost_Core;
 
 namespace Hrot.Core.Network;
 

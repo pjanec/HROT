@@ -12,7 +12,7 @@ using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Fdp.ModuleHost.Network.Cyclone.Translators;
 
 namespace Hrot.Map.Common.Replication.Egress
@@ -108,7 +108,7 @@ namespace Hrot.Map.Common.Replication.Egress
             const float RotationDotThreshold = 0.9999f; // ~0.5° arc — Quaternion.Dot == 1 when identical
             const uint  HeartbeatInterval   = 600;      // 10 s at 60 Hz for UDP loss recovery
 
-            long packedKey = Fdp.ModuleHost.Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            long packedKey = Fdp.ModuleHost_Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
             foreach (var entity in query)
             {

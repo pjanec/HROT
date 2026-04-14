@@ -4,7 +4,7 @@ using Hrot.IG.Components;
 using Hrot.IG.Systems;
 using Hrot.ScenarioEditor.Tools;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Raylib_cs;
 
 namespace Hrot.IG.Tests;

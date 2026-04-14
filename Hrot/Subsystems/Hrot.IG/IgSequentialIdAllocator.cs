@@ -1,5 +1,5 @@
 using System.Threading;
-using Fdp.ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost_Core.Network.Interfaces;
 
 namespace Hrot.IG;
 

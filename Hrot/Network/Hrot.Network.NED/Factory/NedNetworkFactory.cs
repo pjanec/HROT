@@ -21,7 +21,7 @@ using Hrot.Network.Routing;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.SimHost;
-using Fdp.ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost_Core.Network.Interfaces;
 using Hrot.Map.Common.Replication.Egress;
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 
@@ -340,21 +340,21 @@ internal sealed class NullSimHostMissionSender : ISimHostMissionSender
 /// <summary>No-op stub for ISimHostAuxiliaryTranslators.</summary>
 internal sealed class NullSimHostAuxiliaryTranslators : ISimHostAuxiliaryTranslators
 {
-    public void RegisterOn(Fdp.ModuleHost.Core.ModuleHostKernel kernel) { }
+    public void RegisterOn(Fdp.ModuleHost_Core.ModuleHostKernel kernel) { }
     public void Dispose() { }
 }
 
 /// <summary>No-op stub for ISimHostPathfindingTranslators.</summary>
 internal sealed class NullSimHostPathfindingTranslators : ISimHostPathfindingTranslators
 {
-    public void RegisterOn(Fdp.ModuleHost.Core.ModuleHostKernel kernel) { }
+    public void RegisterOn(Fdp.ModuleHost_Core.ModuleHostKernel kernel) { }
     public void Dispose() { }
 }
 
 /// <summary>No-op stub for ISimHostPerceptionTranslators.</summary>
 internal sealed class NullSimHostPerceptionTranslators : ISimHostPerceptionTranslators
 {
-    public void RegisterOn(Fdp.ModuleHost.Core.ModuleHostKernel kernel) { }
+    public void RegisterOn(Fdp.ModuleHost_Core.ModuleHostKernel kernel) { }
     public void Dispose() { }
 }
 

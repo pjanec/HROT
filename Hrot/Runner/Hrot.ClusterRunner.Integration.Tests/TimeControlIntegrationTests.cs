@@ -79,7 +79,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
         if (opType == ClusterOpType.PauseTime)
         {
             PumpUntil(
-                () => _simHost.TestHook_TimeControllerMode == Fdp.ModuleHost.Core.Time.TimeMode.Deterministic,
+                () => _simHost.TestHook_TimeControllerMode == Fdp.ModuleHost_Core.Time.TimeMode.Deterministic,
                 timeoutMs: 5000);
         }
     }
@@ -319,7 +319,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
     {
         // Arrange: confirm kernel uses SlaveSyncController starting in Continuous mode.
         Assert.Equal(typeof(SlaveSyncController), _simHost.TestHook_TimeControllerType);
-        Assert.Equal(Fdp.ModuleHost.Core.Time.TimeMode.Continuous, _simHost.TestHook_TimeControllerMode);
+        Assert.Equal(Fdp.ModuleHost_Core.Time.TimeMode.Continuous, _simHost.TestHook_TimeControllerMode);
 
         // Act: Pause
         await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
@@ -336,7 +336,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
 
         // After Resume: SlaveSyncController must be back in Continuous mode.
         Assert.Equal(typeof(SlaveSyncController), _simHost.TestHook_TimeControllerType);
-        Assert.Equal(Fdp.ModuleHost.Core.Time.TimeMode.Continuous, _simHost.TestHook_TimeControllerMode);
+        Assert.Equal(Fdp.ModuleHost_Core.Time.TimeMode.Continuous, _simHost.TestHook_TimeControllerMode);
 
         // Pump extra frames to let any DDS loopback echoes of SwitchTimeModeEvent(Continuous)
         // arrive.  With the idempotent guard in SlaveSyncController they must NOT cause any issue.
@@ -345,7 +345,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
 
         // Guard must hold: still SlaveSyncController in Continuous after echo settle.
         Assert.Equal(typeof(SlaveSyncController), _simHost.TestHook_TimeControllerType);
-        Assert.Equal(Fdp.ModuleHost.Core.Time.TimeMode.Continuous, _simHost.TestHook_TimeControllerMode);
+        Assert.Equal(Fdp.ModuleHost_Core.Time.TimeMode.Continuous, _simHost.TestHook_TimeControllerMode);
     }
 
     // ── Scenario F: second Pause/Step cycle after Resume works ───────────────

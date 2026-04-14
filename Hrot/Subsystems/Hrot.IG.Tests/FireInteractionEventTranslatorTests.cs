@@ -4,7 +4,7 @@ using Hrot.Map.Common.Replication;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 using DdsFireInteractionEvent = Hrot.NED.Messages.FireInteractionEvent;
 using EcsFireInteractionEvent = Hrot.Map.Common.Events.FireInteractionEvent;

@@ -3,7 +3,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Vis2D.Abstractions;
 using Hrot.Map.Common.Components;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Raylib_cs;
 
 namespace Hrot.ScenarioEditor.Rendering;

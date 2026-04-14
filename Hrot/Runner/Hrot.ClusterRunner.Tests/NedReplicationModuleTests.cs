@@ -7,8 +7,8 @@ using Hrot.Network.Replication;
 using Hrot.Common.Systems;
 using Hrot.Map.Common;
 using Hrot.Common;
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Scheduling;
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Scheduling;
 using Fdp.ModuleHost.Network.Cyclone.Systems;
 using Xunit;
 

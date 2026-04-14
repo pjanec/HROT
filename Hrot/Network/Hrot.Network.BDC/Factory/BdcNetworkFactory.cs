@@ -144,19 +144,19 @@ namespace Hrot.BDC.Factory
 
     internal sealed class BdcNullSimHostAuxiliaryTranslators : ISimHostAuxiliaryTranslators
     {
-        public void RegisterOn(Fdp.ModuleHost.Core.ModuleHostKernel kernel) { }
+        public void RegisterOn(Fdp.ModuleHost_Core.ModuleHostKernel kernel) { }
         public void Dispose() { }
     }
 
     internal sealed class BdcNullSimHostPathfindingTranslators : ISimHostPathfindingTranslators
     {
-        public void RegisterOn(Fdp.ModuleHost.Core.ModuleHostKernel kernel) { }
+        public void RegisterOn(Fdp.ModuleHost_Core.ModuleHostKernel kernel) { }
         public void Dispose() { }
     }
 
     internal sealed class BdcNullSimHostPerceptionTranslators : ISimHostPerceptionTranslators
     {
-        public void RegisterOn(Fdp.ModuleHost.Core.ModuleHostKernel kernel) { }
+        public void RegisterOn(Fdp.ModuleHost_Core.ModuleHostKernel kernel) { }
         public void Dispose() { }
     }
 

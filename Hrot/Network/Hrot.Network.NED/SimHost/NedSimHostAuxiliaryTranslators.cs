@@ -8,7 +8,7 @@ using FDP.Toolkit.Replication.Patching;
 using FDP.Toolkit.Replication.Services;
 using Hrot.Common;
 using Hrot.Core.Network;
-using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost_Core;
 using Fdp.ModuleHost.Network.Cyclone.Modules;
 using Fdp.ModuleHost.Network.Cyclone.Systems;
 

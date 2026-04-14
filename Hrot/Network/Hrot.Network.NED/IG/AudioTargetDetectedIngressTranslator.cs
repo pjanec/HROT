@@ -6,7 +6,7 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Perception.Events;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace Hrot.Network.NED.IG
 {

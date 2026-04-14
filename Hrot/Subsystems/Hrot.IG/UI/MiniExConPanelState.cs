@@ -9,7 +9,7 @@ using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.NetworkSpawning.Events;
-using Fdp.ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost_Core.Network.Interfaces;
 
 namespace Hrot.IG.UI;
 

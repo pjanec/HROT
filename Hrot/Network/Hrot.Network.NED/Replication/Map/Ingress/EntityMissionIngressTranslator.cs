@@ -10,7 +10,7 @@ using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;
 using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
 

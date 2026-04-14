@@ -80,7 +80,7 @@ public sealed class EyesAndMuscleIntegrationTests : IDisposable
 
     /// <summary>
     /// EAM-E003 Test 3: Because <see cref="EyesAndMuscleModule"/> uses
-    /// <see cref="Fdp.ModuleHost.Core.Abstractions.ExecutionPolicy.SlowBackground(int)"/>, its
+    /// <see cref="Fdp.ModuleHost_Core.Abstractions.ExecutionPolicy.SlowBackground(int)"/>, its
     /// <c>Tick</c> runs on a background thread. This test asserts that
     /// <see cref="EyesAndMuscleModule.LastTickThreadId"/> differs from the main thread's ID.
     /// </summary>

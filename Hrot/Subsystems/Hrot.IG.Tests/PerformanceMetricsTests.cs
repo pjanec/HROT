@@ -2,7 +2,7 @@ using System.Numerics;
 using Hrot.IG.Components;
 using Hrot.IG.UI;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace Hrot.IG.Tests;
 

@@ -8,7 +8,7 @@ using FDP.Kernel.Logging;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace Hrot.Network.NED.IG
 {

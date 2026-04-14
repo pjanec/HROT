@@ -4,7 +4,7 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic.Components;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using DdsEClampingMode = Hrot.NED.Descriptors.EClampingMode;
 using IgEClampingMode  = Fdp.Modules.Geographic.EClampingMode;
 

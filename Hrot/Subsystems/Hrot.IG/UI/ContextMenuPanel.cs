@@ -4,7 +4,7 @@ using Hrot.IG.Components;
 using Hrot.IG.Systems;
 using Fdp.Kernel;
 using ImGuiNET;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace Hrot.IG.UI;
 

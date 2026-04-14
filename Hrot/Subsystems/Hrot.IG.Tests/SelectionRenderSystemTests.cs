@@ -4,7 +4,7 @@ using Hrot.ScenarioEditor.Rendering;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D.Abstractions;
 using FDP.Toolkit.Vis2D.Components;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Xunit;
 
 namespace Hrot.IG.Tests;

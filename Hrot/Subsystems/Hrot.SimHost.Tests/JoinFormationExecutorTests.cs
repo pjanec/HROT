@@ -5,7 +5,7 @@ using Fbt;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Navigation.Executors;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace Hrot.SimHost.Tests
 {

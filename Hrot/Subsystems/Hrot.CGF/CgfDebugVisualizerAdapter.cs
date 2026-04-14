@@ -6,7 +6,7 @@ using FDP.Toolkit.Perception.Components;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Vis2D.Abstractions;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Raylib_cs;
 
 namespace Hrot.CGF;

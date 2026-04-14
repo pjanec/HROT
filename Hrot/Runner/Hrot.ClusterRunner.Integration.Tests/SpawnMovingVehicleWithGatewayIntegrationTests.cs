@@ -9,7 +9,7 @@ using Hrot.Map.Common;
 using CycloneDDS.Runtime;
 using FDP.Toolkit.Replication.Components;
 using Fdp.Kernel;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 

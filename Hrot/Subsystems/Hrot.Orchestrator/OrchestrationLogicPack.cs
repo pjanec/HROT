@@ -1,7 +1,7 @@
 using System;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
-using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost_Core.Abstractions;
 
 namespace Hrot.Orchestrator
 {

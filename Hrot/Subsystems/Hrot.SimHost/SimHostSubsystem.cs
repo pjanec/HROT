@@ -126,10 +126,10 @@ namespace Hrot.SimHost
         internal Type? TestHook_TimeControllerType => App.TestHook_TimeControllerType;
 
         /// <summary>
-        /// TestHook: current <see cref="Fdp.ModuleHost.Core.Time.TimeMode"/> of the SimHost
+        /// TestHook: current <see cref="Fdp.ModuleHost_Core.Time.TimeMode"/> of the SimHost
         /// kernel's time controller. Used to verify Pause → Deterministic → Resume → Continuous transitions.
         /// </summary>
-        internal Fdp.ModuleHost.Core.Time.TimeMode? TestHook_TimeControllerMode => App.TestHook_TimeControllerMode;
+        internal Fdp.ModuleHost_Core.Time.TimeMode? TestHook_TimeControllerMode => App.TestHook_TimeControllerMode;
 
         /// <summary>TestHook: teleports entity to <paramref name="worldPos"/> (simulates IG drag).</summary>
         internal void TestHook_SimulateDrag(long networkId, System.Numerics.Vector2 worldPos)

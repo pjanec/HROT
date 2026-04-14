@@ -13,7 +13,7 @@ using Hrot.ExCon;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Scenario;
 using Hrot.NED.Descriptors.Orchestration;
-using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost_Core;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;

@@ -15,9 +15,9 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Vis2D.Defaults;
 using FDP.Toolkit.Vis2D.Layers;
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Network;
-using Fdp.ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Network;
+using Fdp.ModuleHost_Core.Network.Interfaces;
 using Raylib_cs;
 
 namespace Hrot.IG.Tests;

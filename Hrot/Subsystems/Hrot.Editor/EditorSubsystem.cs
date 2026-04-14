@@ -46,9 +46,9 @@ using Hrot.SimHost.Modules;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
 using Hrot.Core.Network;
-using Fdp.ModuleHost.Core;
-using Fdp.ModuleHost.Core.Abstractions;
-using Fdp.ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost_Core.Network.Interfaces;
 // Disambiguate IMapCameraProvider: Hrot.SimHost.Modules also defines this interface.
 using IMapCameraProvider = Fdp.Engine.Runner.IMapCameraProvider;
 using FdpEntityInspectorPanel = FDP.Toolkit.ImGui.Panels.EntityInspectorPanel;
@@ -727,7 +727,7 @@ namespace Hrot.Editor
                         var entity = _selectionState.PrimarySelected;
                         if (entity is { } e && e != Entity.Null && _world.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(e))
                         {
-                            var plan = ((Fdp.ModuleHost.Core.Abstractions.ISimulationView)_world).GetManagedComponentRO<Hrot.Map.Common.Components.RoutePlan>(e);
+                            var plan = ((Fdp.ModuleHost_Core.Abstractions.ISimulationView)_world).GetManagedComponentRO<Hrot.Map.Common.Components.RoutePlan>(e);
                             _canvas!.PushTool(new Hrot.ScenarioEditor.Tools.RouteEditTool(
                                 e, plan,
                                 onCommit: (routeEntity, wps) =>
