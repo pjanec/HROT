@@ -358,7 +358,7 @@ namespace Hrot.SimHost
             var simulationSystemGroup = new SimulationSystemGroup();
             var networkLifecycleGroup = replicationModule.NetworkLifecycleGroup;
 
-            var bootstrapper = new NodeBootstrapper();
+            var bootstrapper = new NodeBootstrapper(_networkFactory);
             _clusterSlave = bootstrapper.BuildOrchestration(
                 _role, _kernel, _world, localNodeId,
                 participant: ddsParticipant,

@@ -20,6 +20,7 @@ using Fdp.ModuleHost.Time;
 using Hrot.Orchestrator.Windows;
 using Hrot.Orchestrator.Panels;
 using Fdp.Network.Cyclone.Services;
+using Hrot.Core.Network;
 
 namespace Hrot.Orchestrator;
 
@@ -80,6 +81,19 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     public string Name => "Orchestrator";
 
     public System.Numerics.Vector4 TitleBarColor => new(0.72f, 0.64f, 0.47f, 1f);  // S0501: beige
+
+    // used by tests
+    public OrchestratorSubsystem()
+    {
+    }
+
+
+    // used by ClusetMaster
+    public OrchestratorSubsystem( INetworkFactory networkFactory )
+    {
+		// TODO: decouple the OrchestratorSubsystem from concrete network implementation
+		//   to fullfill the hexagonal architecture requirements!
+    }
 
     public void Initialize(SubsystemConfig config)
     {

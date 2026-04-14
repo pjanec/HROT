@@ -43,7 +43,7 @@ namespace Hrot.SimHost
 
         // ── Core application ──────────────────────────────────────────────────
 
-        private readonly NodeRole _role;
+        private readonly NodeRole _role = NodeRole.MuscleGround | NodeRole.Perception;
         private readonly INetworkFactory? _networkFactory;
         private SimHostApp? _app;
         private bool _headless;
@@ -57,18 +57,16 @@ namespace Hrot.SimHost
         ///   Defaults to <c>MuscleGround | Perception</c>. SimHost is always the Muscle tier;
         ///   the Brain role belongs exclusively to CGF.
         /// </param>
-        public SimHostSubsystem(NodeRole role = NodeRole.MuscleGround | NodeRole.Perception)
+        public SimHostSubsystem()
         {
-            _role = role;
         }
 
         /// <summary>
         /// Initialises SimHost with a protocol factory injected by the composition root.
         /// </summary>
-        public SimHostSubsystem(INetworkFactory networkFactory, NodeRole role = NodeRole.MuscleGround | NodeRole.Perception)
+        public SimHostSubsystem(INetworkFactory networkFactory)
         {
             _networkFactory = networkFactory;
-            _role = role;
         }
 
         /// <summary>

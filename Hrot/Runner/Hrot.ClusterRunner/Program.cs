@@ -343,7 +343,7 @@ class Program
         if (baseNodeId == 0) return 0;
         int offset = subsystemName switch
         {
-            "SimHost"      => 0,
+            "SimHost"      => 1,
             "IG"           => 100,
             "ExCon"        => 200,
             "Orchestrator" => 300,
@@ -413,8 +413,7 @@ class Program
 
     /// <summary>
     /// Attempts to instantiate an <see cref="ISubsystem"/> from its <see cref="Type"/>.
-    /// Tries a constructor accepting <see cref="INetworkFactory"/> first, then falls back
-    /// to a constructor where all parameters have default values (e.g. parameterless).
+    /// Requires a constructor accepting <see cref="INetworkFactory"/>.
     /// Returns <c>null</c> when no suitable constructor is found.
     /// </summary>
     private static ISubsystem? TryCreateSubsystem(Type type, INetworkFactory networkFactory)
@@ -424,11 +423,6 @@ class Program
         if (factoryCtor != null)
             return (ISubsystem)factoryCtor.Invoke(new object[] { networkFactory });
 
-        // Fall back to a constructor where all parameters have default values.
-        var ctor = type.GetConstructors()
-            .FirstOrDefault(c => c.GetParameters().All(p => p.HasDefaultValue));
-        if (ctor != null)
-            return (ISubsystem)ctor.Invoke(ctor.GetParameters().Select(p => p.DefaultValue).ToArray());
 
         return null;
     }
