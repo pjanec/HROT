@@ -41,9 +41,9 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Tkb;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
-using Fdp.ModuleHost.Network.Interfaces;
 
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
+using Fdp.Toolkit.NetworkSpawning;
 
 namespace Hrot.SimHost.Integration.Tests.Infrastructure
 {

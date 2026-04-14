@@ -14,7 +14,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Navigation.Executors;
 using Fdp.Toolkit.NetworkSpawning.Events;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.NetworkSpawning;
 
 namespace Hrot.SimHost.Tests
 {

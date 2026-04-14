@@ -8,12 +8,12 @@ using Hrot.Core.Network;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Vis2D;
 using EcsNavigationIntent = Fdp.Toolkit.Navigation.NavigationIntent;
-using EcsNavigationMode   = Fdp.Toolkit.Navigation.NavigationMode;
+using EcsNavigationMode = Fdp.Toolkit.Navigation.NavigationMode;
 using Fdp.Toolkit.Vis2D.Components;
 using FdpEntityInspectorPanel = Fdp.Presentation.Panels.EntityInspectorPanel;
-using FdpEventBrowserPanel    = Fdp.Presentation.Panels.EventBrowserPanel;
-using FdpRepositoryAdapter    = Fdp.Presentation.Adapters.RepositoryAdapter;
-using FdpInspectorState       = Fdp.Presentation.Abstractions.InspectorState;
+using FdpEventBrowserPanel = Fdp.Presentation.Panels.EventBrowserPanel;
+using FdpRepositoryAdapter = Fdp.Presentation.Adapters.RepositoryAdapter;
+using FdpInspectorState = Fdp.Presentation.Abstractions.InspectorState;
 using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Vis2D.Tools;
@@ -21,7 +21,6 @@ using CarKinem.Commands;
 using CarKinem.Core;
 using CarKinem.Trajectory;
 using Fdp.ModuleHost;
-using Fdp.ModuleHost.Network.Interfaces;
 using Hrot.SimHost.UI;
 using Hrot.SimHost.Visualization;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -30,6 +29,7 @@ using Fdp.Toolkit.Replication.Utilities;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Hrot.Map.Common.Events;
+using Fdp.Toolkit.NetworkSpawning;
 
 namespace Hrot.SimHost
 {

@@ -48,14 +48,14 @@ using Hrot.UI.Common.Panels;
 using Hrot.Core.Network;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network.Interfaces;
 // Disambiguate IMapCameraProvider: Hrot.SimHost.Modules also defines this interface.
 using IMapCameraProvider = Fdp.Toolkit.Runner.IMapCameraProvider;
 using FdpEntityInspectorPanel = Fdp.Presentation.Panels.EntityInspectorPanel;
-using FdpEventBrowserPanel    = Fdp.Presentation.Panels.EventBrowserPanel;
-using FdpRepositoryAdapter    = Fdp.Presentation.Adapters.RepositoryAdapter;
-using FdpInspectorState       = Fdp.Presentation.Abstractions.InspectorState;
-using EditorInteractionTool   = Hrot.ScenarioEditor.Tools.StandardInteractionTool;
+using FdpEventBrowserPanel = Fdp.Presentation.Panels.EventBrowserPanel;
+using FdpRepositoryAdapter = Fdp.Presentation.Adapters.RepositoryAdapter;
+using FdpInspectorState = Fdp.Presentation.Abstractions.InspectorState;
+using EditorInteractionTool = Hrot.ScenarioEditor.Tools.StandardInteractionTool;
+using Fdp.Toolkit.NetworkSpawning;
 
 namespace Hrot.Editor
 {

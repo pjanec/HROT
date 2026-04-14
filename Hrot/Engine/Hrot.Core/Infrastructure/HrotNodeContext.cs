@@ -8,8 +8,8 @@ using Fdp.Toolkit.Replication.Systems;
 using Hrot.Common.Abstractions;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network.Interfaces;
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
+using Fdp.Toolkit.NetworkSpawning;
 // IOrchestrationTranslator lives in same namespace (Hrot.Common.Infrastructure)
 
 namespace Hrot.Common.Infrastructure;

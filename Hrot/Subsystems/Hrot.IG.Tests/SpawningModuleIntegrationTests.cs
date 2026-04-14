@@ -13,6 +13,7 @@ using Fdp.Toolkit.Tkb;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
 using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.NetworkSpawning;
 
 namespace Hrot.IG.Tests;
 

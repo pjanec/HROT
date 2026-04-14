@@ -9,6 +9,7 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.NetworkSpawning;
 
 namespace Hrot.CGF.Systems
 {

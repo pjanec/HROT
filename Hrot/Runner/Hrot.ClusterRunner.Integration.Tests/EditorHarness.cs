@@ -23,7 +23,7 @@ using Hrot.SimHost;
 using Hrot.SimHost.Modules;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.NetworkSpawning;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 

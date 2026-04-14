@@ -58,6 +58,7 @@ using System.Numerics;
 using System.Threading;
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
+using Fdp.Toolkit.NetworkSpawning;
 
 namespace Hrot.SimHost
 {
