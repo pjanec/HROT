@@ -10,8 +10,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Kernel\Fdp.Core\Fdp.Core.csproj" />
-    <ProjectReference Include="..\..\Toolkits\Fdp.Engine\Fdp.Toolkits.csproj" />
+    <ProjectReference Include="..\..\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <ProjectReference Include="..\..\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <ProjectReference Include="..\..\ExtDeps\FastHSM\src\Fhsm.Compiler\Fhsm.Compiler.csproj" />
     <ProjectReference Include="..\..\ExtDeps\FastHSM\src\Fhsm.SourceGen\Fhsm.SourceGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>

@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>12.0</LangVersion>
+    <AssemblyName>Fdp.Engine</AssemblyName>
+    <RootNamespace>Fdp.Engine</RootNamespace>
+  </PropertyGroup>
+
+  <!-- InternalsVisibleTo consolidated from all absorbed projects -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Fdp.Toolkits.Tests" />
+    <InternalsVisibleTo Include="FDP.Toolkit.Behavior.Tests" />
+    <InternalsVisibleTo Include="FDP.Toolkit.Orchestration.Tests" />
+    <InternalsVisibleTo Include="FDP.Toolkit.Replication.Tests" />
+  </ItemGroup>
+
+  <!-- Engine kernel -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Engine\Fdp.Core\Fdp.Core.csproj" />
+  </ItemGroup>
+
+  <!-- External ECS dependencies -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\ExtDeps\FastBTree\src\Fbt.Kernel\Fbt.Kernel.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
+  </ItemGroup>
+
+  <!-- CycloneDDS (project references - no PackageReference to CycloneDDS allowed) -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />
+  </ItemGroup>
+
+
+  <!-- Runner NuGet packages -->
+  <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="NLog" Version="5.2.8" />
+  </ItemGroup>
+
+
+</Project>
