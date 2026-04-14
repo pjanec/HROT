@@ -7,7 +7,8 @@ namespace Fdp.ModuleHost.Network
     /// Default ownership strategy that assigns all descriptors to the master node.
     /// Returns null for all queries, causing fallback to PrimaryOwnerId.
     /// </summary>
-    public class DefaultOwnershipStrategy : IOwnershipDistributionStrategy
+    [Obsolete("Remove this")]
+	public class DefaultOwnershipStrategy : IOwnershipDistributionStrategy
     {
         public int? GetInitialOwner(
             long descriptorTypeId,

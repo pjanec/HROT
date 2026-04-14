@@ -4,7 +4,7 @@ using System.Threading;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
-namespace Fdp.Toolkit.ImGui.Tests;
+namespace Fdp.Presentation.Tests;
 
 /// <summary>
 /// A headless ImGui context for testing.

@@ -1,4 +1,4 @@
-﻿namespace Fdp.Engine.Runner
+﻿namespace Fdp.Toolkit.Runner
 {
     /// <summary>
     /// Configuration passed to each subsystem during <c>Initialize()</c>.

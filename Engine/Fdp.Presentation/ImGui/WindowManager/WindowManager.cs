@@ -2,9 +2,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
-using Fdp.Toolkit.ImGui.Icons;
+using Fdp.Presentation.Icons;
 
-namespace Fdp.Toolkit.ImGui.WindowManager;
+namespace Fdp.Presentation.WindowManager;
 
 /// <summary>
 /// Central orchestrator for all <see cref="ManagedWindow"/> instances.

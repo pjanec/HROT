@@ -1,11 +1,11 @@
 using System;
-using Fdp.Toolkit.ImGui.Icons;
-using Fdp.Toolkit.ImGui.WindowManager;
+using Fdp.Presentation.Icons;
+using Fdp.Presentation.WindowManager;
 using Xunit;
 
-using WM = Fdp.Toolkit.ImGui.WindowManager.WindowManager;
+using WM = Fdp.Presentation.WindowManager.WindowManager;
 
-namespace Fdp.Toolkit.ImGui.Tests.WindowManager;
+namespace Fdp.Presentation.Tests.WindowManager;
 
 /// <summary>
 /// Tests for WM-S401: settings persistence — serialize/deserialize round-trips.

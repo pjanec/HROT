@@ -1,4 +1,4 @@
-namespace Fdp.Toolkit.ImGui.WindowManager;
+namespace Fdp.Presentation.WindowManager;
 
 /// <summary>
 /// A single node in the global menu trie. Represents one path segment.

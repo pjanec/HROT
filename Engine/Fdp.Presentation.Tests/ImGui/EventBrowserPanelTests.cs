@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using System.Reflection;
 using Fdp.Core;
-using Fdp.Toolkit.ImGui.Panels;
+using Fdp.Presentation.Panels;
 using Xunit;
 
-namespace Fdp.Toolkit.ImGui.Tests
+namespace Fdp.Presentation.Tests
 {
     [Collection("ImGui Sequential")]
     public class EventBrowserPanelTests

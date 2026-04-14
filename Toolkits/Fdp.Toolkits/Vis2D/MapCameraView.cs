@@ -4,7 +4,7 @@ namespace Fdp.Toolkit.Vis2D.Components
 {
     /// <summary>
     /// Plain-data snapshot of a 2-D map camera, used as the exchange type for
-    /// <see cref="Fdp.Engine.Runner.IMapCameraProvider"/> so that the engine layer
+    /// <see cref="Fdp.Toolkit.Runner.IMapCameraProvider"/> so that the engine layer
     /// can transfer camera state without depending on the Raylib rendering layer.
     /// </summary>
     public readonly struct MapCameraView

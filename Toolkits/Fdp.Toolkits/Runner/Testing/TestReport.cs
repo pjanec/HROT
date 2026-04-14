@@ -1,4 +1,4 @@
-﻿namespace Fdp.Engine.Runner.Testing
+﻿namespace Fdp.Toolkit.Runner.Testing
 {
     /// <summary>Statistical summary for a named metric.</summary>
     public sealed class MetricSummary

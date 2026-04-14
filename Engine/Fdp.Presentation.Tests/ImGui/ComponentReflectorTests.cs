@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Fdp.Core;
-using Fdp.Toolkit.ImGui.Abstractions;
-using Fdp.Toolkit.ImGui.Utils;
+using Fdp.Presentation.Abstractions;
+using Fdp.Presentation.Utils;
 using ImGuiNET;
 using Xunit;
 
 using ImGuiApi = ImGuiNET.ImGui;
 
-namespace Fdp.Toolkit.ImGui.Tests;
+namespace Fdp.Presentation.Tests;
 
 /// <summary>
 /// Tests for BD1-P6T1: <see cref="ComponentReflector"/> byte-cache change detection.

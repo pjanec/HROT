@@ -3,7 +3,7 @@ using Raylib_cs;
 using Xunit;
 using System.Collections.Generic;
 
-namespace Fdp.Framework.Raylib.Tests;
+namespace Fdp.Presentation.Raylib.Tests;
 
 [Collection("Raylib")]
 public class FdpApplicationTests

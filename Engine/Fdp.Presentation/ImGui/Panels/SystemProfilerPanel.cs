@@ -5,7 +5,7 @@ using Fdp.ModuleHost.Resilience;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
-namespace Fdp.Toolkit.ImGui.Panels;
+namespace Fdp.Presentation.Panels;
 
 public static class SystemProfilerPanel
 {

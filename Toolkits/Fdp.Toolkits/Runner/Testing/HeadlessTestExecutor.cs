@@ -3,7 +3,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
-namespace Fdp.Engine.Runner.Testing
+namespace Fdp.Toolkit.Runner.Testing
 {
     /// <summary>
     /// Drives a <see cref="SubsystemOrchestrator"/> in headless mode, executing a

@@ -5,13 +5,13 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Linq;
 using Fdp.Core;
-using Fdp.Toolkit.ImGui.Abstractions;
-using Fdp.Toolkit.ImGui.Renderers;
+using Fdp.Presentation.Abstractions;
+using Fdp.Presentation.Renderers;
 using ImGuiNET;
 
 using ImGuiApi = ImGuiNET.ImGui;
 
-namespace Fdp.Toolkit.ImGui.Utils;
+namespace Fdp.Presentation.Utils;
 
 /// <summary>
 /// Helper that draws all ECS components attached to an entity as collapsible headers,

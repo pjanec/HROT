@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Numerics;
 using Fdp.Toolkit.Vis2D.Components;
 
-namespace Fdp.Engine.Runner
+namespace Fdp.Toolkit.Runner
 {
     /// <summary>
     /// Manages the full lifecycle of all registered subsystems.

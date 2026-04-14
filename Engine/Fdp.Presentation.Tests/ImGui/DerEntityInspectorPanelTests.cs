@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Toolkit.DER;
-using Fdp.Toolkit.ImGui.Abstractions;
-using Fdp.Toolkit.ImGui.Panels;
-using Fdp.Toolkit.ImGui.Utils;
+using Fdp.Presentation.Abstractions;
+using Fdp.Presentation.Panels;
+using Fdp.Presentation.Utils;
 using Xunit;
 
-namespace Fdp.Toolkit.ImGui.Tests;
+namespace Fdp.Presentation.Tests;
 
 // ── Minimal descriptor stubs ──────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 ﻿using System.Numerics;
 
-namespace Fdp.Engine.Runner
+namespace Fdp.Toolkit.Runner
 {
     /// <summary>
     /// Interface for Runner subsystems (SimHost, IG, ExCon).

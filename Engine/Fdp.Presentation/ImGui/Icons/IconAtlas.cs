@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace Fdp.Toolkit.ImGui.Icons;
+namespace Fdp.Presentation.Icons;
 
 /// <summary>
 /// Wraps a texture-atlas sprite sheet and provides UV coordinate lookup for icon cells.
@@ -8,7 +8,7 @@ namespace Fdp.Toolkit.ImGui.Icons;
 /// the letter identifies the row ('a'=0, 'b'=1, …) and the number (1-based) identifies the column.
 /// </summary>
 /// <remarks>
-/// Design note: <c>Raylib_cs</c> is not referenced by <c>FDP.Toolkit.ImGui</c>.
+/// Design note: <c>Raylib_cs</c> is not referenced by <c>FDP.Toolkit_ImGui</c>.
 /// The caller (integration layer) is responsible for loading the texture and supplying the GPU
 /// handle as <paramref name="textureId"/>. This makes the class GPU-framework-agnostic and
 /// fully testable without a GPU context.

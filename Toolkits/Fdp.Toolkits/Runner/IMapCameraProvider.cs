@@ -1,6 +1,6 @@
 ﻿using Fdp.Toolkit.Vis2D.Components;
 
-namespace Fdp.Engine.Runner
+namespace Fdp.Toolkit.Runner
 {
     /// <summary>
     /// Optional interface for subsystems that own a 2-D map view.

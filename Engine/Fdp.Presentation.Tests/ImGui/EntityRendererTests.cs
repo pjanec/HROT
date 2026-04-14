@@ -1,8 +1,8 @@
 using Fdp.Core;
-using Fdp.Toolkit.ImGui.Renderers;
+using Fdp.Presentation.Renderers;
 using Xunit;
 
-namespace Fdp.Toolkit.ImGui.Tests
+namespace Fdp.Presentation.Tests
 {
     /// <summary>
     /// Tests for <see cref="EntityRenderer"/> — the built-in renderer that shows

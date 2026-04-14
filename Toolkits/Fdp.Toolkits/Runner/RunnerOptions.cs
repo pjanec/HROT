@@ -1,4 +1,4 @@
-﻿namespace Fdp.Engine.Runner
+﻿namespace Fdp.Toolkit.Runner
 {
     /// <summary>
     /// Generic runtime options for the <see cref="SubsystemOrchestrator"/>.

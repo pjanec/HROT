@@ -6,6 +6,7 @@ using Fdp.Interfaces;
 
 namespace Fdp.ModuleHost.Network
 {
+    [Obsolete("Remove this")]
     public enum DdsInstanceState
     {
         Alive,
@@ -13,6 +14,7 @@ namespace Fdp.ModuleHost.Network
         NotAliveNoWriters
     }
 
+    [Obsolete("Remove this")]
     public interface IDataSample
     {
         object Data { get; }
@@ -22,6 +24,7 @@ namespace Fdp.ModuleHost.Network
     }
 
     // Default implementation for simple use cases
+    [Obsolete("Remove this")]
     public class DataSample : IDataSample
     {
         public object Data { get; set; } = default!;
@@ -34,6 +37,7 @@ namespace Fdp.ModuleHost.Network
     /// Abstraction for a DDS DataReader.
     /// Decouples the core logic from specific DDS implementation.
     /// </summary>
+    [Obsolete("Remove this")]
     public interface IDataReader : IDisposable
     {
         IEnumerable<IDataSample> TakeSamples();
@@ -43,6 +47,7 @@ namespace Fdp.ModuleHost.Network
     /// <summary>
     /// Abstraction for a DDS DataWriter.
     /// </summary>
+    [Obsolete("Remove this")]
     public interface IDataWriter : IDisposable
     {
         void Write(object sample);
@@ -53,6 +58,7 @@ namespace Fdp.ModuleHost.Network
     /// <summary>
     /// Translates between Network Descriptors and FDP Components/Events.
     /// </summary>
+    [Obsolete("Remove this")]
     public interface IDescriptorTranslator
     {
         /// <summary>

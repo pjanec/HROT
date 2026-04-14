@@ -1,6 +1,6 @@
 using Fdp.Toolkit.DER;
 
-namespace Fdp.Toolkit.ImGui.Abstractions;
+namespace Fdp.Presentation.Abstractions;
 
 /// <summary>
 /// Implemented by application code to add items to the DER entity inspector's

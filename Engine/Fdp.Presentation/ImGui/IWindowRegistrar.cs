@@ -1,6 +1,6 @@
-﻿using Fdp.Toolkit.ImGui.WindowManager;
+﻿using Fdp.Presentation.WindowManager;
 
-namespace Fdp.Engine.Runner
+namespace Fdp.Toolkit.Runner
 {
     /// <summary>
     /// Optional interface for <see cref="ISubsystem"/> implementations that want

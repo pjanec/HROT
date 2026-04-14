@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Fdp.Toolkit.ImGui.Icons;
+using Fdp.Presentation.Icons;
 using Xunit;
 using ImGuiApi = ImGuiNET.ImGui;
 
-namespace Fdp.Toolkit.ImGui.Tests.Icons;
+namespace Fdp.Presentation.Tests.Icons;
 
 /// <summary>
 /// Integration tests for <see cref="IconWidgets"/> — WM-S102 through WM-S105.

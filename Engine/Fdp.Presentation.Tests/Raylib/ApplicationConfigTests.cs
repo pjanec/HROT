@@ -2,7 +2,7 @@ using FluentAssertions;
 using Raylib_cs;
 using Xunit;
 
-namespace Fdp.Framework.Raylib.Tests;
+namespace Fdp.Presentation.Raylib.Tests;
 
 public class ApplicationConfigTests
 {

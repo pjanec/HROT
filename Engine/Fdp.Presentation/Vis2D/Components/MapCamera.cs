@@ -2,7 +2,7 @@ using System.Numerics;
 using Raylib_cs;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Input;
-using Fdp.Engine.Runner;
+using Fdp.Toolkit.Runner;
 
 namespace Fdp.Toolkit.Vis2D.Components
 {

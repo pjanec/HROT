@@ -2,7 +2,7 @@ using System.Numerics;
 using Fdp.Core;
 using ImGuiApi = ImGuiNET.ImGui;
 
-namespace Fdp.Toolkit.ImGui.Renderers;
+namespace Fdp.Presentation.Renderers;
 
 /// <summary>Built-in renderer for <see cref="Vector2"/> — inline "[x, y]".</summary>
 [ImGuiRenderer(typeof(Vector2))]

@@ -8,7 +8,7 @@
 
   <!-- InternalsVisibleTo consolidated from all absorbed projects -->
   <ItemGroup>
-    <InternalsVisibleTo Include="FDP.Toolkit.ImGui.Tests" />
+    <InternalsVisibleTo Include="FDP.Toolkit_ImGui.Tests" />
     <InternalsVisibleTo Include="Fdp.Presentation.Tests" />
   </ItemGroup>
 
@@ -23,10 +23,10 @@
     <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
   </ItemGroup>
 
-  <!-- Embedded icon atlas (from FDP.Toolkit.ImGui) -->
+  <!-- Embedded icon atlas (from FDP.Toolkit_ImGui) -->
   <ItemGroup>
     <EmbeddedResource Include="..\..\Data\Icons\famfamfam-silk.png">
-      <LogicalName>FDP.Toolkit.ImGui.Icons.famfamfam-silk.png</LogicalName>
+      <LogicalName>FDP.Toolkit_ImGui.Icons.famfamfam-silk.png</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 </Project>

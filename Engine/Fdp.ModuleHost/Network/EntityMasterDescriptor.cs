@@ -19,6 +19,7 @@ namespace Fdp.ModuleHost.Network
         ReliableInit = 1 << 0,
     }
 
+    [Obsolete("Remove this")]
     public class EntityMasterDescriptor
     {
         public long EntityId { get; set; }

@@ -1,12 +1,12 @@
 using System;
-using Fdp.Toolkit.ImGui.Icons;
-using Fdp.Toolkit.ImGui.WindowManager;
+using Fdp.Presentation.Icons;
+using Fdp.Presentation.WindowManager;
 using ImGuiNET;
 using Xunit;
 
 using ImGuiApi = ImGuiNET.ImGui;
 
-namespace Fdp.Toolkit.ImGui.Tests.WindowManager;
+namespace Fdp.Presentation.Tests.WindowManager;
 
 /// <summary>
 /// Tests for <see cref="ManagedWindow"/> — WM-S201, WM-S202, WM-S203 success conditions.

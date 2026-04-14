@@ -9,6 +9,7 @@ namespace Fdp.ModuleHost.Network
     /// Static network topology with hardcoded peer lists.
     /// For simple deployments and testing.
     /// </summary>
+    [Obsolete("Move to Network.Demo")]
     public class StaticNetworkTopology : Fdp.Interfaces.INetworkTopology
     {
         private readonly int _localNodeId;

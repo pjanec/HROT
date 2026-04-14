@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Toolkit.DER;
-using Fdp.Toolkit.ImGui.Abstractions;
-using Fdp.Toolkit.ImGui.Utils;
+using Fdp.Presentation.Abstractions;
+using Fdp.Presentation.Utils;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
-namespace Fdp.Toolkit.ImGui.Panels;
+namespace Fdp.Presentation.Panels;
 
 /// <summary>
 /// Generic DER (Dynamic Entity Repository) entity inspector panel.

@@ -1,6 +1,6 @@
 ﻿using CommandLine;
 
-namespace Fdp.Engine.Runner
+namespace Fdp.Toolkit.Runner
 {
     /// <summary>
     /// Base runtime configuration shared by all FDP runner processes.

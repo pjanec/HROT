@@ -1,7 +1,7 @@
 using Fdp.Toolkit.DER;
-using Fdp.Toolkit.ImGui.Abstractions;
+using Fdp.Presentation.Abstractions;
 
-namespace Fdp.Toolkit.ImGui.Utils;
+namespace Fdp.Presentation.Utils;
 
 /// <summary>
 /// Adapter that wraps a delegate as an <see cref="IDerContextMenuHandler"/>.

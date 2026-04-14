@@ -1,6 +1,6 @@
-using Fdp.Toolkit.ImGui.Abstractions;
+using Fdp.Presentation.Abstractions;
 
-namespace Fdp.Toolkit.ImGui.Utils;
+namespace Fdp.Presentation.Utils;
 
 /// <summary>
 /// ImGui-backed implementation of <see cref="IContextMenuBuilder"/>.

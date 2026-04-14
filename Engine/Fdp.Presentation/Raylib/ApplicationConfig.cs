@@ -1,6 +1,6 @@
 using Raylib_cs;
 
-namespace Fdp.Framework.Raylib;
+namespace Fdp.Presentation.Raylib;
 
 /// <summary>
 /// Configuration for FdpApplication windowing and setup.

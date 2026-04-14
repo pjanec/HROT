@@ -1,6 +1,6 @@
 ﻿using Fdp.Core;
 
-namespace Fdp.Engine.Runner.Testing
+namespace Fdp.Toolkit.Runner.Testing
 {
     /// <summary>
     /// Thread-safe collector for numeric metrics sampled during a headless test run.

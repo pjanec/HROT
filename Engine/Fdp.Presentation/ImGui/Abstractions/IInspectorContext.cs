@@ -1,6 +1,6 @@
 using Fdp.Core;
 
-namespace Fdp.Toolkit.ImGui.Abstractions;
+namespace Fdp.Presentation.Abstractions;
 
 /// <summary>
 /// Provides selection state for inspectors, decoupled from game logic.

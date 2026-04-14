@@ -7,9 +7,9 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Fdp.Core;
-using Fdp.Toolkit.ImGui.Abstractions;
+using Fdp.Presentation.Abstractions;
 
-namespace Fdp.Toolkit.ImGui.Utils;
+namespace Fdp.Presentation.Utils;
 
 public static class EntityJsonDumper
 {

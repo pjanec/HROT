@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
-using Fdp.Toolkit.ImGui.Icons;
-using Fdp.Toolkit.ImGui.WindowManager;
+using Fdp.Presentation.Icons;
+using Fdp.Presentation.WindowManager;
 using ImGuiNET;
 using Xunit;
 
 using ImGuiApi = ImGuiNET.ImGui;
-using WM = Fdp.Toolkit.ImGui.WindowManager.WindowManager;
+using WM = Fdp.Presentation.WindowManager.WindowManager;
 
-namespace Fdp.Toolkit.ImGui.Tests.WindowManager;
+namespace Fdp.Presentation.Tests.WindowManager;
 
 /// <summary>
 /// Tests for <see cref="WindowManager"/> — WM-S302 through WM-S305 success conditions.

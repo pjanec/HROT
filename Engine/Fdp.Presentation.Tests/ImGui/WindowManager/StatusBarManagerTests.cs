@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using Fdp.Toolkit.ImGui.WindowManager;
+using Fdp.Presentation.WindowManager;
 using Xunit;
 
-namespace Fdp.Toolkit.ImGui.Tests.WindowManager;
+namespace Fdp.Presentation.Tests.WindowManager;
 
 /// <summary>
 /// Tests for <see cref="StatusBarManager"/> — WM-S601 success conditions.
