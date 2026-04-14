@@ -4,7 +4,7 @@ using Hrot.Network.NED.SimHost;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Contracts;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

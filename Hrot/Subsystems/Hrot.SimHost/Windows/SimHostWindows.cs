@@ -3,7 +3,7 @@ using FDP.Toolkit.ImGui.WindowManager;
 using Hrot.SimHost;
 using Hrot.SimHost.UI;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost;
 
 namespace Hrot.SimHost.Windows;
 

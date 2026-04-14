@@ -14,7 +14,7 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Utilities;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.Map.Common.Replication.Ingress
 {
@@ -23,7 +23,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// Consumes <see cref="UpdateEntityDescriptorRequest"/> messages from DDS.
     ///
     /// <para>When this node holds authority over the requested descriptor
-    /// (checked via <see cref="AuthorityExtensions.HasAuthority(Fdp.ModuleHost_Core.Abstractions.ISimulationView, Entity, long)"/>),
+    /// (checked via <see cref="AuthorityExtensions.HasAuthority(Fdp.ModuleHost.Abstractions.ISimulationView, Entity, long)"/>),
     /// the ECS state is updated and the egress translator is hinted to publish
     /// immediately via <see cref="SmartEgressUtil.MarkDirty"/>.</para>
     ///
@@ -136,7 +136,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         {
             // 2. Authority guard — only apply if this node owns the GeoSpatial descriptor.
             var view = (ISimulationView)World;
-            long packedKey = Fdp.ModuleHost_Core.Network.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
+            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
             if (!view.HasAuthority(entity, packedKey))
             {
                 FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
@@ -187,7 +187,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private void ProcessMapVisualOverlayUpdate(UpdateEntityDescriptorRequest req, Entity entity)
         {
             var view = (ISimulationView)World;
-            long packedKey = Fdp.ModuleHost_Core.Network.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
+            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
 
             if (!view.HasAuthority(entity, packedKey))
             {

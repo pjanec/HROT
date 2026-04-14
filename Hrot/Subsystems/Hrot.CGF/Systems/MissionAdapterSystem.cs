@@ -3,7 +3,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using FDP.Toolkit.Behavior.Events;
 
 namespace Hrot.CGF.Systems

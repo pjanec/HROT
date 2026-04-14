@@ -6,7 +6,7 @@ using FDP.Kernel.Logging;
 using FDP.Toolkit.NetworkSpawning.Events;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.Network.Translators
 {

@@ -4,7 +4,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Fdp.Modules.Geographic;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.Map.Common.Tests;
 

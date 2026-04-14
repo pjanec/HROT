@@ -6,7 +6,7 @@ using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Navigation;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.CGF.Systems.Routing;
 

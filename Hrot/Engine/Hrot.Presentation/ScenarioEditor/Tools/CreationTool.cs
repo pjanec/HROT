@@ -7,7 +7,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Abstractions;
-using Fdp.ModuleHost_Core.Network.Interfaces;
+using Fdp.ModuleHost.Network.Interfaces;
 using Raylib_cs;
 
 namespace Hrot.ScenarioEditor.Tools;

@@ -6,7 +6,7 @@ using Hrot.Map.Common;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Extensions;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -87,7 +87,7 @@ public class DragDropIntegrationTests
         // ── 2d. Diagnostic: check HasAuthority for GeoSpatial directly ────────
         // Confirm via extension method used by ScanAndPublish.
         bool shHasDescriptorOwnership = shWorld.HasManagedComponent<FDP.Toolkit.Replication.Components.DescriptorOwnership>(shEntity);
-        bool shHasAuthForGeoSpatial   = ((Fdp.ModuleHost_Core.Abstractions.ISimulationView)shWorld).HasAuthority(shEntity, (long)EDescriptorType.dtWorldPos);
+        bool shHasAuthForGeoSpatial   = ((Fdp.ModuleHost.Abstractions.ISimulationView)shWorld).HasAuthority(shEntity, (long)EDescriptorType.dtWorldPos);
         _out.WriteLine($"[D2d] HasDescriptorOwnership={shHasDescriptorOwnership}, HasAuthority(entity,dtGeoSpatial)={shHasAuthForGeoSpatial}");
         Assert.True(shHasAuthForGeoSpatial,
             "SimHost entity does NOT have authority for GeoSpatial. " +

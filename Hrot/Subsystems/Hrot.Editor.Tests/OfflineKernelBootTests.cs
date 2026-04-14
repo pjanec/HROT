@@ -9,7 +9,7 @@ using Hrot.Editor;
 using Hrot.Orchestrator;
 using Hrot.ScenarioEditor;
 using Hrot.SimHost;
-using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost;
 using Xunit;
 
 namespace Hrot.Editor.Tests;

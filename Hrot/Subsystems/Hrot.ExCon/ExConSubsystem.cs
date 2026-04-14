@@ -22,7 +22,7 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Controllers;
-using Fdp.ModuleHost_Core.Time;
+using Fdp.ModuleHost.Time;
 
 namespace Hrot.ExCon
 {

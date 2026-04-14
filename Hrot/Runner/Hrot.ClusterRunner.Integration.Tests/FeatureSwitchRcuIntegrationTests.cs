@@ -9,8 +9,8 @@ using Hrot.Map.Common;
 using Hrot.Map.Common.Dds;
 using Hrot.Map.Common.Replication.Egress;
 using Hrot.NED.Messages;
-using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost_Core.Network.Interfaces;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Network.Interfaces;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;

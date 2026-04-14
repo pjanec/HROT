@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Hrot.SimHost.Modules.Orchestration;
 using Fdp.Kernel;
 using FDP.Toolkit.Replay;
-using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

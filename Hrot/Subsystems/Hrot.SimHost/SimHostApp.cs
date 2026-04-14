@@ -40,12 +40,12 @@ using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Components;
 using FDP.Toolkit.Vis2D.Defaults;
 using FDP.Toolkit.Scenario;
-using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost_Core.Network;
-using Fdp.ModuleHost_Core.Scheduling;
+using Fdp.ModuleHost;
+using Fdp.ModuleHost.Network;
+using Fdp.ModuleHost.Scheduling;
 using Fdp.Kernel.Orchestration;
-using Fdp.ModuleHost_Core.Network.Interfaces;
-using Fdp.ModuleHost_Core.Time;
+using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.ModuleHost.Time;
 using Fdp.Network.Cyclone.Modules;
 using Fdp.Network.Cyclone.Services;
 using Fdp.Network.Cyclone.Systems;
@@ -609,11 +609,11 @@ namespace Hrot.SimHost
         public Type? TestHook_TimeControllerType => _kernel?.GetTimeController().GetType();
 
         /// <summary>
-        /// TestHook: returns the current <see cref="Fdp.ModuleHost_Core.Time.TimeMode"/> of
+        /// TestHook: returns the current <see cref="Fdp.ModuleHost.Time.TimeMode"/> of
         /// the kernel's time controller.  Used in integration tests to verify mode transitions
         /// of <see cref="FDP.Toolkit.Time.Controllers.SlaveSyncController"/>.
         /// </summary>
-        public Fdp.ModuleHost_Core.Time.TimeMode? TestHook_TimeControllerMode
+        public Fdp.ModuleHost.Time.TimeMode? TestHook_TimeControllerMode
             => _kernel?.GetTimeController().GetMode();
 
         /// <summary>
@@ -789,14 +789,14 @@ namespace Hrot.SimHost
     internal sealed class NullReplicationModule : Hrot.Common.Abstractions.IReplicationModule
     {
         private readonly GhostCreationSystem _gcs = new(new FDP.Toolkit.Replication.Services.NetworkEntityMap());
-        private readonly Fdp.ModuleHost_Core.Scheduling.NetworkLifecycleSystemGroup _nlg = new();
+        private readonly Fdp.ModuleHost.Scheduling.NetworkLifecycleSystemGroup _nlg = new();
         public string Name => "Null";
-        public Fdp.ModuleHost_Core.Abstractions.ExecutionPolicy Policy => Fdp.ModuleHost_Core.Abstractions.ExecutionPolicy.Synchronous();
+        public Fdp.ModuleHost.Abstractions.ExecutionPolicy Policy => Fdp.ModuleHost.Abstractions.ExecutionPolicy.Synchronous();
         public GhostCreationSystem GhostCreationSystem => _gcs;
         public bool DriveFromNetwork => false;
-        public Fdp.ModuleHost_Core.Scheduling.NetworkLifecycleSystemGroup NetworkLifecycleGroup => _nlg;
-        public void Tick(Fdp.ModuleHost_Core.Abstractions.ISimulationView view, float dt) { }
-        public void RegisterSystems(Fdp.ModuleHost_Core.Abstractions.ISystemRegistry registry)
+        public Fdp.ModuleHost.Scheduling.NetworkLifecycleSystemGroup NetworkLifecycleGroup => _nlg;
+        public void Tick(Fdp.ModuleHost.Abstractions.ISimulationView view, float dt) { }
+        public void RegisterSystems(Fdp.ModuleHost.Abstractions.ISystemRegistry registry)
         {
             registry.RegisterSystem(new CycloneNetworkCleanupSystem(System.Linq.Enumerable.Empty<IDescriptorTranslator>()));
         }

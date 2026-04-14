@@ -6,7 +6,7 @@ using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using Hrot.NED.Descriptors;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 using OwnershipUpdateMsg  = FDP.Toolkit.Replication.Messages.OwnershipUpdate;
 using OwnershipUpdateWire = Fdp.Network.Cyclone.Topics.OwnershipUpdate;
@@ -75,7 +75,7 @@ namespace Hrot.Map.Common.Replication
                 if (evt.NewOwnerNodeId != _localNodeId)
                     continue;
 
-                var (typeId, instanceId) = Fdp.ModuleHost_Core.Network.OwnershipExtensions.UnpackKey(evt.PackedKey);
+                var (typeId, instanceId) = Fdp.ModuleHost.Network.OwnershipExtensions.UnpackKey(evt.PackedKey);
 
                 _writer.Write(new OwnershipUpdateWire
                 {
@@ -111,7 +111,7 @@ namespace Hrot.Map.Common.Replication
                 if (msg.NewOwner == _localNodeId)
                     continue;
 
-                long packedKey = Fdp.ModuleHost_Core.Network.OwnershipExtensions.PackKey(msg.DescrTypeId, msg.InstanceId);
+                long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey(msg.DescrTypeId, msg.InstanceId);
 
                 repo.Bus.Publish(new OwnershipUpdateMsg
                 {

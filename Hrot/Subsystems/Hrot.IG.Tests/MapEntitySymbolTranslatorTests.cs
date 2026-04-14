@@ -4,7 +4,7 @@ using Hrot.Map.Common.Replication.Ingress;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Xunit;
 
 namespace Hrot.IG.Tests

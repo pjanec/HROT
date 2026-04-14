@@ -15,7 +15,7 @@ using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Navigation.Executors;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
-using Fdp.ModuleHost_Core.Network.Interfaces;
+using Fdp.ModuleHost.Network.Interfaces;
 
 namespace Hrot.SimHost.UI
 {

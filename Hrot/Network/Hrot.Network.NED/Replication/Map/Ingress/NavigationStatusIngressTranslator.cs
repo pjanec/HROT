@@ -4,7 +4,7 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 using EcsNavigationStatus = FDP.Toolkit.Navigation.NavigationStatus;
 using EcsNavResult        = FDP.Toolkit.Navigation.NavigationResult;

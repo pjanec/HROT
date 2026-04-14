@@ -7,7 +7,7 @@ using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Messages;
-using Fdp.ModuleHost_Core.Time;
+using Fdp.ModuleHost.Time;
 using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using FdpNodeOpType = FDP.Toolkit.Orchestration.NodeOpType;
 

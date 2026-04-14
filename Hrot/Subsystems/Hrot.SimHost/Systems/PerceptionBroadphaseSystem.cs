@@ -3,7 +3,7 @@ using Fdp.Kernel;
 using Fdp.Kernel.Collections;
 using FDP.Toolkit.Perception;
 using FDP.Toolkit.Perception.Systems;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.SimHost.Systems
 {

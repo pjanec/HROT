@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
-using Fdp.ModuleHost_Core.Network;
-using Fdp.ModuleHost_Core.Network.Messages;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Network;
+using Fdp.ModuleHost.Network.Messages;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Network.Cyclone.Systems;
 using Xunit;
 

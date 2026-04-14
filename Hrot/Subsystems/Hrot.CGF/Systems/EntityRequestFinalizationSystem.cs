@@ -4,7 +4,7 @@ using Hrot.Core.Network;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.CGF.Systems
 {

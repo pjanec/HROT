@@ -6,7 +6,7 @@ using Hrot.IG.Components;
 using Hrot.Map.Common;
 using FDP.Toolkit.Replication.Components;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 

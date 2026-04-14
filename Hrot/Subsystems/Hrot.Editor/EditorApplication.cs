@@ -9,8 +9,8 @@ using Hrot.Editor.Commands;
 using Hrot.Editor.Events;
 using Hrot.Editor.Modules;
 using Hrot.ScenarioEditor.Services;
-using Fdp.ModuleHost_Core;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.Editor;
 

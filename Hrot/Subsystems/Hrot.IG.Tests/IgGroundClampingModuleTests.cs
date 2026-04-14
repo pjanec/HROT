@@ -7,7 +7,7 @@ using Fdp.Kernel.Collections;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Systems;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Xunit;
 
 namespace Hrot.IG.Tests;

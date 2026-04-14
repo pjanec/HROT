@@ -10,7 +10,7 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Components;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Xunit;
 using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;
 

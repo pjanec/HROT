@@ -8,7 +8,7 @@ using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.Network.Translators
 {

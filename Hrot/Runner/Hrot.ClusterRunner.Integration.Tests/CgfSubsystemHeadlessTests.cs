@@ -11,7 +11,7 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 

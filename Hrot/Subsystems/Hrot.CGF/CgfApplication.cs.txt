@@ -15,10 +15,10 @@ using Hrot.Common.Scenario;
 using FDP.Toolkit.Scenario;
 using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Controllers;
-using ModuleHost_Core;
-using ModuleHost_Core.Time;
+using ModuleHost;
+using ModuleHost.Time;
 
-using ModuleHost_Core.Abstractions;
+using ModuleHost.Abstractions;
 
 namespace Hrot.CGF
 {

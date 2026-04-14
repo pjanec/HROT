@@ -3,7 +3,7 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
 using Hrot.Map.Common.Replication;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 using OwnershipUpdateMsg  = FDP.Toolkit.Replication.Messages.OwnershipUpdate;
 using OwnershipUpdateWire = Fdp.Network.Cyclone.Topics.OwnershipUpdate;
@@ -26,7 +26,7 @@ namespace Hrot.SimHost.Tests
             var repo = new EntityRepository();
             repo.RegisterEvent<OwnershipUpdateMsg>();
 
-            long packedKey = Fdp.ModuleHost_Core.Network.OwnershipExtensions.PackKey(descriptorTypeId: 2, instanceId: 0);
+            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey(descriptorTypeId: 2, instanceId: 0);
 
             repo.Bus.Publish(new OwnershipUpdateMsg
             {

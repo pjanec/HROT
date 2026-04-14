@@ -1,13 +1,13 @@
 using System.Reflection;
 using Fdp.Kernel;
 using FDP.Toolkit.Time.Controllers;
-using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost;
 
-namespace Fdp.ModuleHost_Core
+namespace Fdp.ModuleHost
 {
     /// <summary>
     /// Local copy of the kernel test setup extension for use in Hrot.SimHost.Integration.Tests.
-    /// Mirrors <c>ModuleHost_Core.Tests.ModuleHostKernelTestExtensions</c>.
+    /// Mirrors <c>ModuleHost.Tests.ModuleHostKernelTestExtensions</c>.
     /// </summary>
     internal static class ModuleHostKernelTestExtensions
     {

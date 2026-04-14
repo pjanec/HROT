@@ -11,7 +11,7 @@ using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Definitions.Tkb;
-using Fdp.ModuleHost_Core.Network.Interfaces;
+using Fdp.ModuleHost.Network.Interfaces;
 using Fdp.Kernel;
 using Xunit;
 

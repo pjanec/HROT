@@ -7,7 +7,7 @@ using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.Map.Common.Replication.Egress
 {
@@ -61,7 +61,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
-            long packedKey = Fdp.ModuleHost_Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
             foreach (var entity in query)
             {

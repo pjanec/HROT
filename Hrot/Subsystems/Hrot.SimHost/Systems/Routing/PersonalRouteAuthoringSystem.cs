@@ -7,7 +7,7 @@ using CarKinem.Commands;
 using Fdp.Kernel;
 using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Replication.Components;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.SimHost.Systems.Routing;
 

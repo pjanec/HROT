@@ -4,7 +4,7 @@ using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Replication.Components;
 using Fdp.Kernel;
 using Hrot.Common;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.SimHost.Modules;
 

@@ -7,7 +7,7 @@ using Hrot.NED.Descriptors;
 using Hrot.Common.Events;
 using Hrot.Core.Mission;
 using CycloneDDS.Runtime;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.Network.NED.SimHost
 {

@@ -8,7 +8,7 @@ using FDP.Kernel.Logging;
 using FDP.Toolkit.Combat.Events;
 using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.Network.NED.SimHost
 {

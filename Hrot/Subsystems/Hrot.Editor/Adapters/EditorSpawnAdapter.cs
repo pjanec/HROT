@@ -12,7 +12,7 @@ using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.UI.Common.Facades;
 using Hrot.ScenarioEditor.Tools;
-using Fdp.ModuleHost_Core.Network.Interfaces;
+using Fdp.ModuleHost.Network.Interfaces;
 
 namespace Hrot.Editor.Adapters
 {

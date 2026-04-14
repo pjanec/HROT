@@ -25,7 +25,7 @@
     <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
     <!-- Hrot.Network.Orchestration provides: NodeOpSlaveTranslator, DdsIdAllocatorHelper (used by HrotNodeBuilder) -->
     <ProjectReference Include="..\..\Network\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
-    <!-- Fdp.Core for EntityRepository, ModuleHost_Core.* (used by HrotNodeBuilder) -->
+    <!-- Fdp.Core for EntityRepository, ModuleHost.* (used by HrotNodeBuilder) -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <!-- Fdp.Network.Cyclone for DdsIdAllocator (used by HrotNodeBuilder) -->
     <ProjectReference Include="..\..\..\FDP\Network\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />

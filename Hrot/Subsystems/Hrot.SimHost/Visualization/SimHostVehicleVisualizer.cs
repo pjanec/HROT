@@ -5,7 +5,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Vis2D.Abstractions;
 using CarKinem.Core;
 using CarKinem.Formation;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.SimHost.Visualization
 {

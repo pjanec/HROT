@@ -105,13 +105,13 @@ using FdpInspectorState       = FDP.Toolkit.ImGui.Abstractions.InspectorState;
 
 using FDP.Toolkit.ImGui.Utils;
 
-using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost;
 
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
-using Fdp.ModuleHost_Core.Network;
+using Fdp.ModuleHost.Network;
 
-using Fdp.ModuleHost_Core.Network.Interfaces;
+using Fdp.ModuleHost.Network.Interfaces;
 
 using Fdp.Network.Cyclone.Modules;
 

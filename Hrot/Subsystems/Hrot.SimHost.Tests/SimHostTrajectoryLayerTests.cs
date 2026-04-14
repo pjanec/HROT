@@ -7,7 +7,7 @@ using CarKinem.Trajectory;
 using Fdp.Kernel;
 using FDP.Toolkit.ImGui.Abstractions;
 using FDP.Toolkit.Vis2D.Abstractions;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.SimHost.Tests;
 

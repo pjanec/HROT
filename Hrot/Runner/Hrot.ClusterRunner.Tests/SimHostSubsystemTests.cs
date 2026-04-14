@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Xunit;
 using Hrot.SimHost;
 using CycloneDDS.Runtime;
-using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost;
 using Fdp.Network.Cyclone.Services;
 using Fdp.Network.Cyclone.Systems;
 

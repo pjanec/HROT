@@ -5,7 +5,7 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Toolkit.Tkb;
 using FDP.Toolkit.Replication.Components;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.SimHost.Tests;
 

@@ -3,7 +3,7 @@ using Hrot.Map.Common.Components;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Raylib_cs;
 using System.Collections.Generic;
 using System.Numerics;

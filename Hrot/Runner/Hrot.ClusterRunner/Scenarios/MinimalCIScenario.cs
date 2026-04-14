@@ -1,7 +1,7 @@
 using Fdp.Examples.Common;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D;
-using Fdp.ModuleHost_Core;
+using Fdp.ModuleHost;
 
 namespace Hrot.ClusterRunner.Scenarios;
 

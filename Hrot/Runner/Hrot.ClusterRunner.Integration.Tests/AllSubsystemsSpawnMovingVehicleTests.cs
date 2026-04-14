@@ -10,7 +10,7 @@ using Hrot.NED.Messages;
 using CycloneDDS.Runtime;
 using FDP.Toolkit.Replication.Components;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 

@@ -8,7 +8,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Replication.Components;
 using Hrot.SimHost.Systems.Routing;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Xunit;
 
 namespace Hrot.SimHost.Tests;

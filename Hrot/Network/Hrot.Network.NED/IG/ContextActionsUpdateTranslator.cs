@@ -9,7 +9,7 @@ using Fdp.Interfaces;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Services;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Network.Cyclone.Translators;
 using DdsContextActionsUpdate = Hrot.NED.Messages.ContextActionsUpdate;
 using IgContextActionsUpdate = Hrot.IG.ContextActionsUpdate;

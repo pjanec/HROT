@@ -9,7 +9,7 @@ using FDP.Toolkit.Lifecycle.Events;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;

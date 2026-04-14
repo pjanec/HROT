@@ -10,7 +10,7 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Utilities;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;
 using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
@@ -60,7 +60,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
-            long packedKey = Fdp.ModuleHost_Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
             foreach (var entity in query)
             {

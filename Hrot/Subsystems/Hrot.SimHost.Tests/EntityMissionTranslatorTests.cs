@@ -14,8 +14,8 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Tkb;
-using Fdp.ModuleHost_Core.Abstractions;
-using Fdp.ModuleHost_Core.Network;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Network;
 using Fdp.Network.Cyclone.Services;
 using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;
 

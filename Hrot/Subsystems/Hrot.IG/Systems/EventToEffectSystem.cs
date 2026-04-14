@@ -2,7 +2,7 @@ using System.Numerics;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Events;
 using Fdp.Kernel;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.IG.Systems;
 

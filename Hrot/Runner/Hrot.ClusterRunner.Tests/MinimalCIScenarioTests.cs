@@ -118,7 +118,7 @@ file sealed class FailingCIScenario : IScenario
 {
     public string ScenarioName => "failing_ci";
 
-    public void Configure(Fdp.Kernel.EntityRepository world, Fdp.ModuleHost_Core.ModuleHostKernel kernel) { }
+    public void Configure(Fdp.Kernel.EntityRepository world, Fdp.ModuleHost.ModuleHostKernel kernel) { }
 
     public bool EvaluateTick(uint currentTick, Fdp.Kernel.EntityRepository world)
     {

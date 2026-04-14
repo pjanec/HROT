@@ -6,7 +6,7 @@ using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Modules.Geographic;
-using Fdp.ModuleHost_Core.Abstractions;
+using Fdp.ModuleHost.Abstractions;
 
 using EcsNavigationIntent = FDP.Toolkit.Navigation.NavigationIntent;
 using EcsNavMode          = FDP.Toolkit.Navigation.NavigationMode;
