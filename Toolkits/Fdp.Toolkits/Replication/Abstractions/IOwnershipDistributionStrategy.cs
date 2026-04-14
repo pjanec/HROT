@@ -1,6 +1,6 @@
 using Fdp.Core;
 
-namespace Fdp.ModuleHost.Network.Interfaces
+namespace Fdp.Toolkit.Replication.Abstractions
 {
     /// <summary>
     /// Strategy interface for determining initial descriptor ownership

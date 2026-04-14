@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
 using Fdp.Interfaces;
 using Fdp.Network.Cyclone.Topics;
 using Fdp.Core.Logging;

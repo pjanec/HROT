@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using Fdp.Core;
 
-namespace Fdp.ModuleHost.Network
+namespace Fdp.Toolkit.Replication.Services
 {
     /// <summary>
     /// Maps SST descriptor types to FDP component types and component IDs for ownership tracking.
     /// Bridges SST's descriptor-level ownership with FDP's component-level ownership.
     ///
     /// <para>
-    /// This is the <em>Single Source of Truth</em> for the network-descriptor → ECS-component
+    /// This is the <em>Single Source of Truth</em> for the network-descriptor -> ECS-component
     /// mapping.  It is populated during module bootstrap by iterating all registered
     /// <c>IDescriptorTranslator</c> instances and calling
     /// <see cref="RegisterFromTranslator"/> with each translator's
@@ -17,7 +17,7 @@ namespace Fdp.ModuleHost.Network
     /// <c>OwnershipIngressSystem</c> and <c>DeferredTakeoverSystem</c> call
     /// <see cref="GetComponentIdsForDescriptor"/> to obtain the precise integer component IDs
     /// on which <c>EntityRepository.SetAuthority(entity, componentId, bool)</c> must be called
-    /// — eliminating the legacy try/catch hack that miscast ordinals as component IDs.
+    /// -- eliminating the legacy try/catch hack that miscast ordinals as component IDs.
     /// </para>
     /// </summary>
     public class DescriptorOwnershipMap
@@ -26,7 +26,7 @@ namespace Fdp.ModuleHost.Network
         private readonly Dictionary<long, int[]>  _descriptorToComponentIds   = new();
         private readonly Dictionary<Type, long>   _componentTypeToDescriptor  = new();
 
-        // ── Registration ─────────────────────────────────────────────────────────
+        // -- Registration ---------------------------------------------------------
 
         /// <summary>
         /// Registers which FDP component <em>types</em> correspond to a descriptor.
@@ -41,8 +41,8 @@ namespace Fdp.ModuleHost.Network
 
         /// <summary>
         /// Registers which FDP component IDs (integers) correspond to a descriptor.
-        /// This is the preferred overload — it is used by <c>OwnershipIngressSystem</c> and
-        /// <c>DeferredTakeoverSystem</c> to avoid the legacy ordinal↔component-ID mismatch.
+        /// This is the preferred overload -- it is used by <c>OwnershipIngressSystem</c> and
+        /// <c>DeferredTakeoverSystem</c> to avoid the legacy ordinal--component-ID mismatch.
         /// </summary>
         public void RegisterMapping(long descriptorTypeId, params int[] componentIds)
         {
@@ -61,7 +61,7 @@ namespace Fdp.ModuleHost.Network
             _descriptorToComponentIds[descriptorOrdinal] = ids;
         }
 
-        // ── Lookup ───────────────────────────────────────────────────────────────
+        // -- Lookup ---------------------------------------------------------------
 
         /// <summary>
         /// Returns the ECS component IDs registered for the given descriptor ordinal.

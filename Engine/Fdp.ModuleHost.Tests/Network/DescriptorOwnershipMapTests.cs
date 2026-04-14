@@ -1,6 +1,6 @@
 using System;
 using Xunit;
-using Fdp.ModuleHost.Network;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Core; // For component types
 
 namespace Fdp.ModuleHost.Tests.Network

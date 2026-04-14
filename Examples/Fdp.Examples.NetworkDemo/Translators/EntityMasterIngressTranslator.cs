@@ -8,7 +8,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Network.Cyclone.Topics;
 using Fdp.Interfaces;
 

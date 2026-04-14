@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
-using Fdp.ModuleHost.Network;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Abstractions;
 using Xunit;
 
 namespace Fdp.ModuleHost.Tests.Network

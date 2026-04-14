@@ -1,8 +1,8 @@
 using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Messages;
 using Fdp.Toolkit.Replication.Services;
 

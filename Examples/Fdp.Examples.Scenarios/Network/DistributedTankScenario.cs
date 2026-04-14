@@ -27,7 +27,7 @@ using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Network.Cyclone.Topics;
 
 namespace Fdp.Examples.Scenarios.Network

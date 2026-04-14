@@ -1,6 +1,4 @@
-using System.Collections.Generic;
-
-namespace Fdp.ModuleHost.Network.Interfaces
+namespace Fdp.Toolkit.Replication
 {
     public enum ReliableInitType
     {
@@ -8,5 +6,4 @@ namespace Fdp.ModuleHost.Network.Interfaces
         PhysicsServer,
         AllPeers
     }
-
 }

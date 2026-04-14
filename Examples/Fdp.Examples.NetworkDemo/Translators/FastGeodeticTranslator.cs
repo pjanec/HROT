@@ -58,7 +58,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
                 .With<NetworkIdentity>()
                 .WithLifecycle(Fdp.Core.EntityLifecycle.All)
                 .Build();
-            long packedKey = Fdp.ModuleHost.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
             foreach (var entity in query)
             {

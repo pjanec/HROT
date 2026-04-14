@@ -6,7 +6,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
 using ToolkitMsgs = Fdp.Toolkit.Replication.Messages;
 using TopicMsgs = Fdp.Network.Cyclone.Topics;
-using Fdp.ModuleHost.Network; 
+using Fdp.Toolkit.Replication.Extensions; 
 using Fdp.Core.Logging;
 using Fdp.Network.Cyclone.Services;
 using Fdp.Network.Cyclone;

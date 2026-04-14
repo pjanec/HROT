@@ -18,7 +18,6 @@ using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.Lifecycle.Systems;
 using Fdp.Toolkit.Lifecycle.Events;
@@ -508,7 +507,7 @@ namespace Fdp.Examples.NetworkDemo
                 TkbType           = template.TkbType,
                 DisType           = 1,
                 OwnerNodeId       = localInternalId,
-                InitType          = Fdp.ModuleHost.Network.Interfaces.ReliableInitType.AllPeers,
+                InitType          = ReliableInitType.AllPeers,
                 InitialComponents = new System.Collections.Generic.List<object>
                 {
                     new SimTransform
@@ -550,9 +549,9 @@ namespace Fdp.Examples.NetworkDemo
                  ref readonly var auth = ref world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkAuthority>(e);
                  
                  string ownershipInfo = "No Ownership";
-                 if (world.HasComponent<Fdp.ModuleHost.Network.NetworkOwnership>(e))
+                 if (world.HasComponent<NetworkOwnership>(e))
                  {
-                     ref readonly var own = ref world.GetComponentRO<Fdp.ModuleHost.Network.NetworkOwnership>(e);
+                     ref readonly var own = ref world.GetComponentRO<NetworkOwnership>(e);
                      ownershipInfo = string.Concat("Own(P:", own.PrimaryOwnerId, " L:", own.LocalNodeId, ")");
                  }
 

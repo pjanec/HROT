@@ -9,7 +9,6 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Replication.Extensions;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
 using Fdp.Network.Cyclone.Abstractions;
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 using Fdp.Interfaces;

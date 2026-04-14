@@ -1,7 +1,7 @@
 using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Interfaces; // For Interfaces
 
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;

@@ -14,12 +14,12 @@ namespace Fdp.Examples.NetworkDemo.Systems
                 .With<SimTransform>()
                 .With<SimVelocity>()
                  // Only move local entities (remote positions come from network)
-                .With<Fdp.ModuleHost.Network.NetworkOwnership>() 
+                .With<NetworkOwnership>() 
                 .Build();
 
             foreach (var e in query)
             {
-                ref readonly var ownership = ref view.GetComponentRO<Fdp.ModuleHost.Network.NetworkOwnership>(e);
+                ref readonly var ownership = ref view.GetComponentRO<NetworkOwnership>(e);
                 if (ownership.PrimaryOwnerId != ownership.LocalNodeId)
                     continue;
 

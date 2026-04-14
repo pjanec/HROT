@@ -5,11 +5,10 @@ using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.Lifecycle.Events;
-using Fdp.ModuleHost.Network;
-using Fdp.ModuleHost.Network.Interfaces;
-using INetworkTopology = Fdp.Toolkit.Replication.INetworkTopology;
 
 namespace Fdp.Toolkit.Replication.Tests
 {

@@ -7,8 +7,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
-using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Toolkit.Replication;
 using Fdp.Interfaces;
 
 namespace Fdp.Toolkit.NetworkSpawning.Systems

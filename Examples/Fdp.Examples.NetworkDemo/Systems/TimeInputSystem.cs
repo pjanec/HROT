@@ -2,7 +2,6 @@ using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Examples.NetworkDemo.Components;
-using Fdp.ModuleHost.Network;
 using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
 

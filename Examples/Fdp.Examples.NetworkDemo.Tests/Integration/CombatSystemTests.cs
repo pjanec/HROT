@@ -9,7 +9,7 @@ using Fdp.Examples.NetworkDemo.Events;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using System.Numerics;
-using Fdp.ModuleHost.Network; // Added
+using Fdp.Toolkit.Replication.Components; // Added
 using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Integration

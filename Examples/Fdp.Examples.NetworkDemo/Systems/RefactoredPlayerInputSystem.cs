@@ -15,12 +15,12 @@ namespace Fdp.Examples.NetworkDemo.Systems
             var query = view.Query()
                 .With<SimVelocity>()
                 .With<NetworkIdentity>()
-                .With<Fdp.ModuleHost.Network.NetworkOwnership>() // Check Local ownership
+                .With<NetworkOwnership>() // Check Local ownership
                 .Build();
 
             foreach (var e in query)
             {
-                ref readonly var ownership = ref view.GetComponentRO<Fdp.ModuleHost.Network.NetworkOwnership>(e);
+                ref readonly var ownership = ref view.GetComponentRO<NetworkOwnership>(e);
                 // Only modify local entities
                 if (ownership.PrimaryOwnerId != ownership.LocalNodeId)
                     continue;

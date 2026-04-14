@@ -10,7 +10,6 @@ using Fdp.Toolkit.NetworkSpawning.Tests.Helpers;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Network;
 using Xunit;
 
 namespace Fdp.Toolkit.NetworkSpawning.Tests

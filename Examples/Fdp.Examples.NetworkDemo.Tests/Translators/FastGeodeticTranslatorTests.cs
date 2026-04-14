@@ -13,8 +13,6 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Core;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.ModuleHost.Network;
-using Fdp.Interfaces;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Translators
 {

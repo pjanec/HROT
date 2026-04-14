@@ -7,6 +7,7 @@ using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Messages;
+using DescriptorAuthorityChanged = Fdp.Toolkit.Replication.Messages.DescriptorAuthorityChanged;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Replication.Services;
 
