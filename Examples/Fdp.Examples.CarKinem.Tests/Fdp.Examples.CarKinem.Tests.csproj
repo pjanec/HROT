@@ -18,7 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Fdp.Examples.CarKinem\Fdp.Examples.CarKinem.csproj" />
-    <ProjectReference Include="..\..\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <ProjectReference Include="..\..\Engine\Fdp.ModuleHost.Core\Fdp.ModuleHost.Core.csproj" />
     <ProjectReference Include="..\..\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />  </ItemGroup>
 
 </Project>
