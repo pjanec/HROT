@@ -2,7 +2,7 @@ using System.Numerics;
 using Hrot.Map.Common;
 using Hrot.SimHost.Integration.Tests.Infrastructure;
 using CarKinem.Core;
-using FDP.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation;
 using Xunit;
 
 namespace Hrot.SimHost.Integration.Tests

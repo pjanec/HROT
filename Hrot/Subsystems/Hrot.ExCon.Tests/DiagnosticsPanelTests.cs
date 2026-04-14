@@ -1,6 +1,6 @@
 using Hrot.ExCon.Panels;
 using Hrot.ExCon.Services;
-using FDP.Toolkit.DER;
+using Fdp.Toolkit.DER;
 using Moq;
 
 namespace Hrot.ExCon.Tests;

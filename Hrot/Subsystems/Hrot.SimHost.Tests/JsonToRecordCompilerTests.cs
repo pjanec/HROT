@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using Hrot.NED.Messages;
 using Hrot.Map.Common.Replication;
-using FDP.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Patching;
 
 namespace Hrot.SimHost.Tests
 {

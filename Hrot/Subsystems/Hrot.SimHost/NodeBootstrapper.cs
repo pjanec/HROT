@@ -7,14 +7,14 @@ using Fdp.Kernel.Orchestration;
 using CarKinem.Road;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.Common.Orchestration.Handlers;
 using Hrot.Map.Common.Services;
 using Hrot.SimHost.Orchestration.Handlers;
 using Hrot.Common.Scenario;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 
 namespace Hrot.SimHost
 {
@@ -94,8 +94,8 @@ namespace Hrot.SimHost
         /// the three network lifecycle systems during replay.
         /// </param>
         /// <param name="ghostCreationSystem">
-        /// Optional <see cref="FDP.Toolkit.Replication.Systems.GhostCreationSystem"/> whose
-        /// <see cref="FDP.Toolkit.Replication.Systems.GhostCreationSystem.BypassLifecycle"/>
+        /// Optional <see cref="Fdp.Toolkit.Replication.Systems.GhostCreationSystem"/> whose
+        /// <see cref="Fdp.Toolkit.Replication.Systems.GhostCreationSystem.BypassLifecycle"/>
         /// flag is toggled during replay transitions.
         /// </param>
         public ClusterSlave BuildOrchestration(
@@ -106,12 +106,12 @@ namespace Hrot.SimHost
             CycloneDDS.Runtime.DdsParticipant? participant = null,
             string subsystemName = "SimHost",
             Fdp.Kernel.FdpEventBus? eventBus = null,
-            FDP.Toolkit.Scenario.ScenarioSerializer? scenarioSerializer = null,
+            Fdp.Toolkit.Scenario.ScenarioSerializer? scenarioSerializer = null,
             string localTempRoot = @"C:\FDP_Temp",
             CheckpointIOWorker? checkpointWorker = null,
             Fdp.Kernel.SimulationSystemGroup? simGroup = null,
             Fdp.ModuleHost.Scheduling.NetworkLifecycleSystemGroup? lifecycleGroup = null,
-            FDP.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null)
+            Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null)
         {
             if (participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),

@@ -3,7 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
@@ -14,14 +14,14 @@ namespace Hrot.Orchestrator.Integration.Tests;
 // ── Stub handler that accepts every operation ─────────────────────────────────
 
 /// <summary>
-/// Accepts any <see cref="FDP.Toolkit.Orchestration.NodeOpType"/> and completes
+/// Accepts any <see cref="Fdp.Toolkit.Orchestration.NodeOpType"/> and completes
 /// synchronously with <c>null</c> payload.  Used for AllInOne bus-mode tests.
 /// </summary>
 internal sealed class StubAllOpsHandler : IClusterStateHandler
 {
     private readonly int _nodeId;
     public StubAllOpsHandler(int nodeId) => _nodeId = nodeId;
-    public bool CanHandle(FDP.Toolkit.Orchestration.NodeOpType op) => true;
+    public bool CanHandle(Fdp.Toolkit.Orchestration.NodeOpType op) => true;
     public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct) =>
         Task.FromResult<object?>(null);
     public void Commit(ExecuteNodeOpIntent intent, Fdp.Kernel.EntityRepository? repo) { }
@@ -34,7 +34,7 @@ internal sealed class StubAllOpsHandler : IClusterStateHandler
 /// </summary>
 internal sealed class FailingPrepareHandler : IClusterStateHandler
 {
-    public bool CanHandle(FDP.Toolkit.Orchestration.NodeOpType op) => true;
+    public bool CanHandle(Fdp.Toolkit.Orchestration.NodeOpType op) => true;
     public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct) =>
         Task.FromException<object?>(new InvalidOperationException("Simulated prepare failure"));
     public void Commit(ExecuteNodeOpIntent intent, Fdp.Kernel.EntityRepository? repo) { }
@@ -137,7 +137,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         bus.PublishManaged(new TransitionStateIntent
         {
             TransactionId = txId,
-            TargetState   = FDP.Toolkit.Orchestration.ClusterState.LoadingLive,
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.LoadingLive,
         });
 
         var completed = RunUntilCompleted(bus, master, slave);
@@ -170,7 +170,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         bus.PublishManaged(new TransitionStateIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetState   = FDP.Toolkit.Orchestration.ClusterState.LoadingLive,
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.LoadingLive,
         });
 
         // Tick a few frames — bootstrap latch should block fan-out.
@@ -207,7 +207,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         bus.PublishManaged(new TransitionStateIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetState   = FDP.Toolkit.Orchestration.ClusterState.LoadingLive,
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.LoadingLive,
         });
         var step1 = RunUntilCompleted(bus, master, slave);
         Assert.NotNull(step1);
@@ -217,7 +217,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId        = 1,
-            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.LoadingLive,
+            LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.LoadingLive,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = "SimHost",
         });
@@ -227,7 +227,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         bus.PublishManaged(new TransitionStateIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetState   = FDP.Toolkit.Orchestration.ClusterState.OperatingLive,
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive,
         });
         var step2 = RunUntilCompleted(bus, master, slave);
         Assert.NotNull(step2);
@@ -237,7 +237,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId        = 1,
-            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.OperatingLive,
+            LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.OperatingLive,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = "SimHost",
         });
@@ -259,7 +259,7 @@ public sealed class CqrsOrchestrationIntegrationTests
             var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>();
             fanOut = intents.Cast<ExecuteNodeOpIntent?>()
                            .FirstOrDefault(x => x.HasValue &&
-                               x.Value.Operation == (FDP.Toolkit.Orchestration.NodeOpType)
+                               x.Value.Operation == (Fdp.Toolkit.Orchestration.NodeOpType)
                                    (int)NodeOpType.StartEpisode);
         }
 
@@ -288,7 +288,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         bus.PublishManaged(new TransitionStateIntent
         {
             TransactionId = txId,
-            TargetState   = FDP.Toolkit.Orchestration.ClusterState.LoadingLive,
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.LoadingLive,
         });
 
         // Advance 3 frames so the intent is processed and fan-out dispatched.
@@ -305,7 +305,7 @@ public sealed class CqrsOrchestrationIntegrationTests
             var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>();
             abortIntent = intents.Cast<ExecuteNodeOpIntent?>()
                                  .FirstOrDefault(x => x.HasValue &&
-                                     x.Value.Operation == (FDP.Toolkit.Orchestration.NodeOpType)
+                                     x.Value.Operation == (Fdp.Toolkit.Orchestration.NodeOpType)
                                          (int)NodeOpType.AbortTransaction);
         }
 
@@ -334,7 +334,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         bus.PublishManaged(new TransitionStateIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetState   = FDP.Toolkit.Orchestration.ClusterState.LoadingLive,
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.LoadingLive,
         });
 
         // Run enough frames for: intent→fan-out→slave-fails→ACK→master-publishes-failure
@@ -365,7 +365,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         bus.PublishManaged(new TransitionStateIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetState   = FDP.Toolkit.Orchestration.ClusterState.LoadingLive,
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.LoadingLive,
         });
 
         // Run until completed.

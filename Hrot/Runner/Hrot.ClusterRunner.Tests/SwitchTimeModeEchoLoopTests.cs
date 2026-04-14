@@ -2,8 +2,8 @@ using System;
 using System.Threading;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using FDP.Toolkit.Time;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
 using Xunit;
 

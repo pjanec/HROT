@@ -5,7 +5,7 @@ using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Tools;
 using Hrot.IG.UI;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D.Defaults;
+using Fdp.Toolkit.Vis2D.Defaults;
 using Raylib_cs;
 
 namespace Hrot.IG.Tests;
@@ -113,7 +113,7 @@ public class MapEventTranslatorTests
 
     /// <summary>
     /// The existing <see cref="MiniExConPanelState.Submit"/> method must still publish
-    /// a <see cref="FDP.Toolkit.NetworkSpawning.Events.SpawnEntityCommand"/> with
+    /// a <see cref="Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand"/> with
     /// the correct TKB type â€” Task 5 changes must not break this path.
     /// </summary>
     [Fact]
@@ -123,7 +123,7 @@ public class MapEventTranslatorTests
         var state   = new MiniExConPanelState { TkbType = expectedTkb };
         var bus     = new FdpEventBus();
 
-        FDP.Toolkit.NetworkSpawning.Events.SpawnEntityCommand? captured = null;
+        Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand? captured = null;
         state.OnCommandPublished += cmd => captured = cmd;
 
         state.Submit(bus);

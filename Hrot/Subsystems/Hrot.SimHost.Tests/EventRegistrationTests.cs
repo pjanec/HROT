@@ -1,6 +1,6 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Events;
-using FDP.Toolkit.Perception.Events;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Perception.Events;
 using Hrot.Map.Common;
 using Xunit;
 

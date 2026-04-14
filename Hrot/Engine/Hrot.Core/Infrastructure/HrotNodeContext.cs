@@ -3,13 +3,13 @@ using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Replication.Systems;
 using Hrot.Common.Abstractions;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network.Interfaces;
-using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
+using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 // IOrchestrationTranslator lives in same namespace (Hrot.Common.Infrastructure)
 
 namespace Hrot.Common.Infrastructure;

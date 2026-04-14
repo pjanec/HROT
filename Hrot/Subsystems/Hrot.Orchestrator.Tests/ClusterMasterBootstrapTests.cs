@@ -4,11 +4,11 @@ using System.Linq;
 using System.Threading;
 using Fdp.Kernel;
 using Hrot.NED.Descriptors.Orchestration;
-using FDP.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
-using FdpNodeOpType = FDP.Toolkit.Orchestration.NodeOpType;
+using FdpNodeOpType = Fdp.Toolkit.Orchestration.NodeOpType;
 
 namespace Hrot.Orchestrator.Tests;
 
@@ -35,7 +35,7 @@ public sealed class ClusterMasterBootstrapTests
 
         Assert.True(received.Count > 0, "No SystemStateUpdateEvent published at startup.");
         Assert.Single(received);
-        Assert.Equal(FDP.Toolkit.Orchestration.ClusterState.Idle, received[0].CurrentState);
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.Idle, received[0].CurrentState);
     }
 
     // ── CGF1-S0105 ────────────────────────────────────────────────────────────
@@ -81,7 +81,7 @@ public sealed class ClusterMasterBootstrapTests
         {
             NodeId        = 1,
             SubsystemName = "SimHost",
-            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
+            LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
         bus.SwapBuffers();
@@ -135,7 +135,7 @@ public sealed class ClusterMasterBootstrapTests
         {
             NodeId        = 1,
             SubsystemName = "SimHost",
-            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
+            LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
         bus.SwapBuffers();
@@ -150,7 +150,7 @@ public sealed class ClusterMasterBootstrapTests
         // Now stop heartbeats: wait long enough for timeout (0.1 s) then tick.
         Thread.Sleep(200);
 
-        FDP.Toolkit.Orchestration.ClusterState? degradedState = null;
+        Fdp.Toolkit.Orchestration.ClusterState? degradedState = null;
         var ejectionDeadline = DateTime.UtcNow.AddSeconds(2);
         while (DateTime.UtcNow < ejectionDeadline)
         {
@@ -158,7 +158,7 @@ public sealed class ClusterMasterBootstrapTests
             bus.SwapBuffers();
             foreach (var ev in bus.ConsumeManaged<SystemStateUpdateEvent>())
             {
-                if (ev.CurrentState == FDP.Toolkit.Orchestration.ClusterState.Degraded)
+                if (ev.CurrentState == Fdp.Toolkit.Orchestration.ClusterState.Degraded)
                 {
                     degradedState = ev.CurrentState;
                     break;
@@ -170,7 +170,7 @@ public sealed class ClusterMasterBootstrapTests
 
         Assert.True(degradedState.HasValue,
             "ClusterMaster did not publish Degraded after mandatory node timed out.");
-        Assert.Equal(FDP.Toolkit.Orchestration.ClusterState.Degraded, degradedState!.Value);
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.Degraded, degradedState!.Value);
         Assert.False(exercise.BootstrapComplete,
             "Bootstrap latch should re-engage after mandatory node ejection.");
     }
@@ -204,14 +204,14 @@ public sealed class ClusterMasterBootstrapTests
         {
             NodeId        = 1,
             SubsystemName = "SimHost",
-            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
+            LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
         bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId        = 400,
             SubsystemName = "CGF",
-            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
+            LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
         bus.SwapBuffers();
@@ -378,7 +378,7 @@ public sealed class ClusterMasterBootstrapTests
         bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId        = 1,
-            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
+            LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = "SimHost",  // different case from config
         });
@@ -392,7 +392,7 @@ public sealed class ClusterMasterBootstrapTests
         // A ClusterStateTransitionedEvent for Idle (Standby) should have been published.
         bus.SwapBuffers();
         var events = bus.ConsumeManaged<ClusterStateTransitionedEvent>().ToList();
-        Assert.True(events.Any(e => e.NewStateId == FDP.Toolkit.Orchestration.ClusterState.Idle),
+        Assert.True(events.Any(e => e.NewStateId == Fdp.Toolkit.Orchestration.ClusterState.Idle),
             "Expected ClusterStateTransitionedEvent(Idle) when bootstrap latch releases.");
     }
 
@@ -416,7 +416,7 @@ public sealed class ClusterMasterBootstrapTests
         bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId        = 1,
-            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
+            LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = "IG",
         });
@@ -429,7 +429,7 @@ public sealed class ClusterMasterBootstrapTests
 
         bus.SwapBuffers();
         var events = bus.ConsumeManaged<ClusterStateTransitionedEvent>().ToList();
-        Assert.DoesNotContain(events, e => e.NewStateId == FDP.Toolkit.Orchestration.ClusterState.Idle);
+        Assert.DoesNotContain(events, e => e.NewStateId == Fdp.Toolkit.Orchestration.ClusterState.Idle);
     }
 }
 

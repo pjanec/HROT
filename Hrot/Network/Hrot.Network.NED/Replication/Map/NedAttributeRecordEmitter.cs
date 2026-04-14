@@ -1,6 +1,6 @@
 using System;
 using Hrot.NED.Messages;
-using FDP.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Patching;
 
 namespace Hrot.Map.Common.Replication;
 

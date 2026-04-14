@@ -27,7 +27,7 @@ namespace Hrot.IG.UI;
 /// </summary>
 public class WaypointEditorPanel
 {
-    private readonly FDP.Toolkit.Vis2D.MapCanvas _canvas;
+    private readonly Fdp.Toolkit.Vis2D.MapCanvas _canvas;
 
     // Working buffer for the multiline JSON input (avoids per-frame allocation).
     private string _jsonBuffer = string.Empty;
@@ -52,9 +52,9 @@ public class WaypointEditorPanel
     /// <summary>Exposes the focus-tracking state for headless tests (CT-2).</summary>
     internal bool   TestHook_WasRouteToolActive => _wasRouteToolActive;
 
-    /// <param name="canvas">The map canvas whose <see cref="FDP.Toolkit.Vis2D.MapCanvas.ActiveTool"/>
+    /// <param name="canvas">The map canvas whose <see cref="Fdp.Toolkit.Vis2D.MapCanvas.ActiveTool"/>
     /// is inspected each frame.</param>
-    public WaypointEditorPanel(FDP.Toolkit.Vis2D.MapCanvas canvas)
+    public WaypointEditorPanel(Fdp.Toolkit.Vis2D.MapCanvas canvas)
         => _canvas = canvas ?? throw new ArgumentNullException(nameof(canvas));
 
     /// <summary>

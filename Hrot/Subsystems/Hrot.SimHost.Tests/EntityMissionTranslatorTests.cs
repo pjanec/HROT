@@ -6,20 +6,20 @@ using Hrot.Map.Common.Replication.Egress;
 using Hrot.Map.Common.Replication.Ingress;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.NetworkSpawning.Systems;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.NetworkSpawning.Systems;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Tkb;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
 using Fdp.Network.Cyclone.Services;
 using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;
 
-using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
+using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 
 namespace Hrot.SimHost.Tests
 {

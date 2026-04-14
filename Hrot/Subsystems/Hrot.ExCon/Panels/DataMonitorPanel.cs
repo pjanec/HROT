@@ -1,8 +1,8 @@
 using System.Numerics;
 using System.Reflection;
 using Hrot.Core.Network;
-using FDP.Toolkit.DER;
-using FDP.Toolkit.ImGui.Utils;
+using Fdp.Toolkit.DER;
+using Fdp.Toolkit.ImGui.Utils;
 using ImGuiNET;
 
 namespace Hrot.ExCon.Panels;
@@ -12,7 +12,7 @@ namespace Hrot.ExCon.Panels;
 /// collapsible descriptor tree on the right (Task 44).
 ///
 /// <para><b>Deprecated.</b> This panel has been superseded by
-/// <see cref="FDP.Toolkit.ImGui.Panels.DerEntityInspectorPanel"/> which
+/// <see cref="Fdp.Toolkit.ImGui.Panels.DerEntityInspectorPanel"/> which
 /// lives in the generic toolkit layer and provides live descriptor updates,
 /// search, and context-menu customisation.  This class is retained only for
 /// reference and will be removed in a future clean-up pass.</para>

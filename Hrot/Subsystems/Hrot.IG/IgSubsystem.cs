@@ -1,6 +1,6 @@
 using Hrot.IG;
 using Fdp.Engine.Runner;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Components;
 using Hrot.IG.Windows;
 using Hrot.Presentation.Windows;
 
@@ -99,7 +99,7 @@ namespace Hrot.IG
         /// the Window Manager and <see cref="DrawUI"/> only handles popup windows
         /// that cannot be wrapped as managed windows (context menus, vertex menus).
         /// </remarks>
-        public void RegisterWindows(FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager)
+        public void RegisterWindows(Fdp.Toolkit.ImGui.WindowManager.WindowManager windowManager)
         {
             if (_app == null) return;
             windowManager.RegisterWindow(new IgDebugWindow(_app.DebugPanel));

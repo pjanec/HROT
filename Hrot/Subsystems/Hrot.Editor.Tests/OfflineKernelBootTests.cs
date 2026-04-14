@@ -1,9 +1,9 @@
 using System;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Time.Controllers;
 using Hrot.CGF;
 using Hrot.Editor;
 using Hrot.Orchestrator;

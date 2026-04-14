@@ -5,10 +5,10 @@ using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Common.Orchestration;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.Common.Scenario;
-using FDP.Toolkit.Scenario;
+using Fdp.Toolkit.Scenario;
 using Xunit;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 
@@ -60,7 +60,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareState,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareState,
                 DomainPayload = new EditLoadHandlerPayload(scenarioId, IsNewScenario: isNew),
             };
 

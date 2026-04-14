@@ -2,8 +2,8 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 using Hrot.Common.Abstractions;
 using Hrot.Core.Network;
 using Fdp.ModuleHost;
@@ -53,10 +53,10 @@ public sealed class OfflineNetworkFactory : INetworkFactory
         => NullIgNetworkAdapter.Instance;
 
     /// <inheritdoc/>
-    public System.Collections.Generic.IEnumerable<FDP.Toolkit.DER.IIngressHandler> CreateExConIngressHandlers(
+    public System.Collections.Generic.IEnumerable<Fdp.Toolkit.DER.IIngressHandler> CreateExConIngressHandlers(
         CycloneDDS.Runtime.DdsParticipant?                participant,
         long                                              localNodeId,
-        FDP.Toolkit.DER.IDerRepo                         repo,
+        Fdp.Toolkit.DER.IDerRepo                         repo,
         System.Action<MapClickEventDto>                  onMapClick,
         System.Action<SelectionChangedEventDto>          onSelectionChanged,
         System.Action<EntityLifecycleAckDto>             onEntityLifecycleAck,
@@ -69,7 +69,7 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     public INetworkFactory ConfigureForNode(
         Hrot.Common.Infrastructure.HrotNodeContext       context,
         Hrot.Common.NodeRole                             role,
-        FDP.Toolkit.Behavior.DoctrineRegistry?           doctrineRegistry = null)
+        Fdp.Toolkit.Behavior.DoctrineRegistry?           doctrineRegistry = null)
         => this;
 
     /// <inheritdoc/>

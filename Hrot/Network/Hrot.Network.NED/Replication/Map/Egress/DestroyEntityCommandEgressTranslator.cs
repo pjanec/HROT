@@ -2,12 +2,13 @@ using System;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.NetworkSpawning.Events;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Messages;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
 namespace Hrot.Map.Common.Replication.Egress
 {

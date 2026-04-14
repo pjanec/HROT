@@ -7,21 +7,21 @@ using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Executors;
-using FDP.Toolkit.Behavior.Modules;
-using FDP.Toolkit.CarKinem.Modules;
-using FDP.Toolkit.Combat;
-using FDP.Toolkit.Combat.Executors;
-using FDP.Toolkit.Combat.Modules;
-using FDP.Toolkit.Combat.Systems;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Navigation.Executors;
-using FDP.Toolkit.Navigation.Systems;
-using FDP.Toolkit.Perception.Systems;
-using FDP.Toolkit.Physics.Systems;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Behavior.Modules;
+using Fdp.Toolkit.CarKinem.Modules;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Executors;
+using Fdp.Toolkit.Combat.Modules;
+using Fdp.Toolkit.Combat.Systems;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation.Executors;
+using Fdp.Toolkit.Navigation.Systems;
+using Fdp.Toolkit.Perception.Systems;
+using Fdp.Toolkit.Physics.Systems;
+using Fdp.Toolkit.Replication.Services;
 
 namespace Hrot.SimHost.Modules
 {
@@ -64,7 +64,7 @@ namespace Hrot.SimHost.Modules
         /// Initialises a new <see cref="SimulationLogicModule"/>.
         /// </summary>
         /// <param name="doctrineRegistry">
-        ///   Doctrine registry shared with <see cref="FDP.Toolkit.Behavior.Systems.BTreeTickSystem"/>.
+        ///   Doctrine registry shared with <see cref="Fdp.Toolkit.Behavior.Systems.BTreeTickSystem"/>.
         /// </param>
         /// <param name="entityMap">
         ///   Network entity map shared with <c>JoinFormationExecutor</c>.

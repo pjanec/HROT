@@ -2,7 +2,7 @@ using System;
 using System.Numerics;
 using Hrot.Core.Mission;
 using Hrot.Map.Common;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Kernel;
 using Xunit;
 

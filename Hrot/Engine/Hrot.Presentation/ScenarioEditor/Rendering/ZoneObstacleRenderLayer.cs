@@ -1,7 +1,7 @@
 using System.Numerics;
 using Fdp.Kernel;
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Map.Common.Components;
 using Fdp.ModuleHost.Abstractions;
 using Raylib_cs;

@@ -7,10 +7,10 @@ using System.Threading.Tasks;
 using Hrot.SimHost.Modules.Orchestration;
 using Fdp.Kernel;
 using Fdp.Kernel.FlightRecorder;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Scheduling;
 using Xunit;
@@ -150,7 +150,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
                 DomainPayload = branchedExerciseId,
             };
             var handler = new ReferenceReplayLoadHandler(

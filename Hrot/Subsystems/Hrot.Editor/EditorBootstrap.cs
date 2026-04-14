@@ -1,4 +1,4 @@
-using FDP.Toolkit.Scenario;
+using Fdp.Toolkit.Scenario;
 using Hrot.ScenarioEditor.Services;
 
 namespace Hrot.Editor;

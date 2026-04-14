@@ -9,13 +9,13 @@ using Hrot.IG.Components;
 using Hrot.Map.Common.Replication.Utils;
 using Hrot.CGF.Systems;
 using Hrot.Core.Network;
-using FDP.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Patching;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Tkb;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
@@ -165,8 +165,8 @@ namespace Hrot.SimHost.Tests
             repo.RegisterComponent<NetworkOwnership>();
             repo.RegisterComponent<TkbIdentity>();
             repo.RegisterComponent<GhostStateTracker>();
-            repo.RegisterEvent<FDP.Toolkit.Lifecycle.Events.ConstructionOrder>();
-            repo.RegisterEvent<FDP.Toolkit.Lifecycle.Events.DestructionOrder>();
+            repo.RegisterEvent<Fdp.Toolkit.Lifecycle.Events.ConstructionOrder>();
+            repo.RegisterEvent<Fdp.Toolkit.Lifecycle.Events.DestructionOrder>();
             return repo;
         }
 

@@ -4,7 +4,7 @@ using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
-using FDP.Toolkit.DER;
+using Fdp.Toolkit.DER;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
 using Hrot.Common.Infrastructure;
@@ -92,7 +92,7 @@ public interface INetworkFactory
     /// Used by subsystems that build their own <see cref="HrotNodeContext"/> and need a properly-wired
     /// factory for the participant/entityMap produced by the HrotNodeBuilder.
     /// </summary>
-    INetworkFactory ConfigureForNode(HrotNodeContext context, NodeRole role, FDP.Toolkit.Behavior.DoctrineRegistry? doctrineRegistry = null);
+    INetworkFactory ConfigureForNode(HrotNodeContext context, NodeRole role, Fdp.Toolkit.Behavior.DoctrineRegistry? doctrineRegistry = null);
 
     /// <summary>
     /// Returns a new factory instance configured with the given DDS participant and node ID.
@@ -105,7 +105,7 @@ public interface INetworkFactory
     /// Returns null when this protocol does not support CGF entity creation
     /// (e.g. BDC or offline factories).
     /// Must be called on a factory instance already configured via
-    /// <see cref="ConfigureForNode(HrotNodeContext, NodeRole, FDP.Toolkit.Behavior.DoctrineRegistry)"/>.
+    /// <see cref="ConfigureForNode(HrotNodeContext, NodeRole, Fdp.Toolkit.Behavior.DoctrineRegistry)"/>.
     /// </summary>
     ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters();
 

@@ -8,12 +8,13 @@ using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Extensions;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Utilities;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Utilities;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
 namespace Hrot.Map.Common.Replication.Egress
 {

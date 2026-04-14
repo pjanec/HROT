@@ -5,8 +5,8 @@ using Hrot.IG.Components;
 using Hrot.ExCon.Services;
 using Hrot.Map.Common;
 using CycloneDDS.Runtime;
-using FDP.Toolkit.DER;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.DER;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Kernel;
 using Xunit;
 

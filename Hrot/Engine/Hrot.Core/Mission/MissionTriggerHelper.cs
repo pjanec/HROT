@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Globalization;
-using FDP.Toolkit.Behavior.Components;
-using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
+using Fdp.Toolkit.Behavior.Components;
+using EcsMissionTrigger = Fdp.Toolkit.Behavior.Components.MissionTrigger;
 
 namespace Hrot.Core.Mission
 {

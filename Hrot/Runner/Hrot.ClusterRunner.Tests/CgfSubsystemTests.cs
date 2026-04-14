@@ -6,7 +6,7 @@ using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.Map.Common;
 using Hrot.Network.NED.Factory;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Engine.Runner;
 using Fdp.Kernel;
 using Xunit;

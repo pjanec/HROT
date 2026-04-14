@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using Fdp.Engine.Runner;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 using Hrot.CGF;
 using Hrot.Common;
 using Hrot.Map.Common;

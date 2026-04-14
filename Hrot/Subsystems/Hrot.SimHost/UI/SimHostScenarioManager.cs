@@ -9,12 +9,12 @@ using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using Fdp.Kernel;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Navigation.Executors;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation.Executors;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Network.Interfaces;
 
 namespace Hrot.SimHost.UI

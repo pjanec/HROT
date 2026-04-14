@@ -2,7 +2,7 @@ using CommandLine;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using Fdp.Kernel;
-using FDP.Toolkit.ImGui.WindowManager;
+using Fdp.Toolkit.ImGui.WindowManager;
 using Hrot.BDC.Factory;
 using Hrot.ClusterRunner.Configuration;
 using Hrot.ClusterRunner.Scenarios;
@@ -16,7 +16,7 @@ using ImGuiNET;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
-using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
+using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 
 namespace Hrot.Runner;
 
@@ -184,7 +184,7 @@ class Program
         // ── Create + run orchestrator ─────────────────────────────────────────
         var orchestrator = new SubsystemOrchestrator(subsystems, options);
         Raylib_cs.Texture2D atlasTexture = default;
-        FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager = null;
+        Fdp.Toolkit.ImGui.WindowManager.WindowManager windowManager = null;
         try
         {
             orchestrator.Initialize();
@@ -205,14 +205,14 @@ class Program
             if (!config.Headless)
             {
                 // 1. Load the embedded UI icon atlas to the GPU
-                byte[] pngBytes = FDP.Toolkit.ImGui.Icons.EmbeddedAtlasResources.GetSilkAtlasPngBytes();
+                byte[] pngBytes = Fdp.Toolkit.ImGui.Icons.EmbeddedAtlasResources.GetSilkAtlasPngBytes();
                 var img = Raylib_cs.Raylib.LoadImageFromMemory(".png", pngBytes);
                 atlasTexture = Raylib_cs.Raylib.LoadTextureFromImage(img);
                 Raylib_cs.Raylib.UnloadImage(img); // Clean up CPU-side image buffer
 
                 // 2. Inject the atlas into the Window Manager
-                var atlas = new FDP.Toolkit.ImGui.Icons.IconAtlas((nint)atlasTexture.Id, atlasTexture.Width, atlasTexture.Height, 16f);
-                windowManager = new FDP.Toolkit.ImGui.WindowManager.WindowManager(atlas);
+                var atlas = new Fdp.Toolkit.ImGui.Icons.IconAtlas((nint)atlasTexture.Id, atlasTexture.Width, atlasTexture.Height, 16f);
+                windowManager = new Fdp.Toolkit.ImGui.WindowManager.WindowManager(atlas);
 
                 // 3. Register all GUI panels to the Window Manager
                 foreach (var sub in subsystems)

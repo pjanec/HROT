@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using FDP.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time.Controllers;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
@@ -302,12 +302,12 @@ public sealed class TimeControlIntegrationTests : IDisposable
     // ── Scenario E: SimHost kernel must restore MasterTimeController on Resume ─
 
     /// <summary>
-    /// Regression test for the old bug where <see cref="FDP.Toolkit.Time.Controllers.SlaveTimeModeListener"/> installed
-    /// <see cref="FDP.Toolkit.Time.Controllers.SlaveTimeController"/> on every node on Resume, including SimHost which
+    /// Regression test for the old bug where <see cref="Fdp.Toolkit.Time.Controllers.SlaveTimeModeListener"/> installed
+    /// <see cref="Fdp.Toolkit.Time.Controllers.SlaveTimeController"/> on every node on Resume, including SimHost which
     /// must restore the continuous-time controller so that
     /// <c>TimePulseDescriptor</c> publication (and therefore ExCon display) is restored.
     ///
-    /// <para>With the unified <see cref="FDP.Toolkit.Time.Controllers.SlaveSyncController"/>,
+    /// <para>With the unified <see cref="Fdp.Toolkit.Time.Controllers.SlaveSyncController"/>,
     /// the mode is managed internally.  This test now verifies that the controller's
     /// reported mode transitions correctly: Continuous → Deterministic → Continuous.</para>
     ///

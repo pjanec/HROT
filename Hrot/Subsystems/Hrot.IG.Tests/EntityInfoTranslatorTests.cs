@@ -3,9 +3,9 @@ using Hrot.NED.Descriptors;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Replication.Ingress;
 using Fdp.Kernel;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.Replication.Systems;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.IG.Tests

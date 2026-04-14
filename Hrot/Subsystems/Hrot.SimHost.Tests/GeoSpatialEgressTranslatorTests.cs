@@ -6,7 +6,7 @@ using Hrot.Map.Common;
 using Hrot.Map.Common.Replication.Egress;
 using CycloneDDS.Runtime;
 using Fdp.Modules.Geographic.Systems;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

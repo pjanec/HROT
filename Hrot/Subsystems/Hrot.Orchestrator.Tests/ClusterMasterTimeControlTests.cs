@@ -1,7 +1,7 @@
 using System;
 using Fdp.Kernel;
 using Hrot.NED.Descriptors.Orchestration;
-using FDP.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;

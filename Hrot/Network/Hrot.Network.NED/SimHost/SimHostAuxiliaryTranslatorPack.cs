@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 using Hrot.Common;
 
 namespace Hrot.Network.NED.SimHost;
@@ -47,15 +47,15 @@ public static class SimHostAuxiliaryTranslatorPack
         // ── Time sync ──────────────────────────────────────────────────────
         // CGF1-A.1: Bridge SwitchTimeModeEvent between FdpEventBus and DDS for
         // distributed time-mode switching (SlaveSyncController ingress).
-        translators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(
+        translators.Add(Fdp.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(
             participant, eventBus));
 
         // Bridge FrameOrder/FrameAck for distributed lockstep stepping (slave side).
-        translators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateSlaveLockstepTranslator(
+        translators.Add(Fdp.Toolkit.Time.TimeNetworkModule.CreateSlaveLockstepTranslator(
             participant, eventBus, localNodeId));
 
         // NTP slave sync: receive TimeSyncRequest/Response from master, publish into bus.
-        translators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateSlaveTimeSyncTranslator(
+        translators.Add(Fdp.Toolkit.Time.TimeNetworkModule.CreateSlaveTimeSyncTranslator(
             participant, eventBus, localNodeId));
 
         // ── Mission control CQRS ───────────────────────────────────────────

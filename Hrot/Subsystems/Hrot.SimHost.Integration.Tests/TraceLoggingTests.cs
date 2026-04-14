@@ -10,8 +10,8 @@ using CarKinem.Trajectory;
 using Fdp.Kernel;
 using Hrot.Map.Common;
 using Hrot.Network.NED.Factory;
-using FDP.Toolkit.Lifecycle.Events;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Network.Cyclone.Services;
 using CycloneDDS.Runtime;
 using NLog;
@@ -37,7 +37,7 @@ public sealed class TraceLoggingTests
         using var simHost = new SimHostApp();
         var factory = new NedNetworkFactory(
             participant:  null,
-            entityMap:    new FDP.Toolkit.Replication.Services.NetworkEntityMap(),
+            entityMap:    new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
             geoTransform: HrotEnvironment.CreateGeoTransform(),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,

@@ -3,10 +3,10 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.Common.Scenario;
-using FDP.Toolkit.Scenario;
+using Fdp.Toolkit.Scenario;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -56,7 +56,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.StartEpisode,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode,
                 DomainPayload = new EpisodeHandlerPayload(Guid.Empty, "s1", IsStart: true),  // EpisodeId is Guid.Empty → not valid
             };
 
@@ -84,7 +84,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.StartEpisode,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode,
                 DomainPayload = new EpisodeHandlerPayload(Guid.NewGuid(), ScenarioId: null, IsStart: true),  // no ScenarioId
             };
 
@@ -121,7 +121,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.StartEpisode,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode,
                 DomainPayload = new EpisodeHandlerPayload(episodeId, scenarioId, IsStart: true),
             };
 
@@ -146,7 +146,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.StopEpisode,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StopEpisode,
                 DomainPayload = new EpisodeHandlerPayload(Guid.Empty, ScenarioId: null, IsStart: false),  // empty EpisodeId
             };
 
@@ -172,7 +172,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.StopEpisode,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StopEpisode,
                 DomainPayload = new EpisodeHandlerPayload(episodeId, ScenarioId: null, IsStart: false),
             };
 

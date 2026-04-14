@@ -8,8 +8,8 @@ using Hrot.Map.Common.Replication.Ingress;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Network;
 using Xunit;
 

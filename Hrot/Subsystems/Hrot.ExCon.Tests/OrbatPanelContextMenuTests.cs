@@ -1,5 +1,5 @@
 ﻿using Hrot.ExCon.Panels;
-using FDP.Toolkit.DER;
+using Fdp.Toolkit.DER;
 using Moq;
 using Xunit;
 

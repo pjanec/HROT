@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 
 namespace Hrot.Network.NED.SimHost
 {

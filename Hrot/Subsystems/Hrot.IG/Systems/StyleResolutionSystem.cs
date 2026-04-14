@@ -3,9 +3,9 @@ using System.Globalization;
 using Hrot.NED.Descriptors;
 using Hrot.IG.Components;
 using Hrot.Map.Definitions.Tkb;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.IG.Systems;

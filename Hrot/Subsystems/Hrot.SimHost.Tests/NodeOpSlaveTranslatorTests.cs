@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Threading;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.Common.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
 using NedNodeOpType  = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using NedClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
-using FdpNodeOpType  = FDP.Toolkit.Orchestration.NodeOpType;
+using FdpNodeOpType  = Fdp.Toolkit.Orchestration.NodeOpType;
 using Xunit;
 
 namespace Hrot.SimHost.Tests;

@@ -1,5 +1,5 @@
 using CycloneDDS.Runtime;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Kernel;
 using Hrot.Common;
 using Hrot.Map.Common;

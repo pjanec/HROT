@@ -1,7 +1,7 @@
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.IG.Components;
-using FDP.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Patching;
 
 namespace Hrot.SimHost.Installers;
 

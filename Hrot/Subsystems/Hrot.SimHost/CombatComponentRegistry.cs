@@ -1,8 +1,8 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Perception.Events;
-using FDP.Toolkit.Physics.Components;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Physics.Components;
 
 namespace Hrot.SimHost
 {

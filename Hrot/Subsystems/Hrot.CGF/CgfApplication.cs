@@ -7,13 +7,13 @@ using Hrot.NED.Descriptors.Orchestration;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.Common.Scenario;
-using FDP.Toolkit.Scenario;
-using FDP.Toolkit.Time;
-using FDP.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Scenario;
+using Fdp.Toolkit.Time;
+using Fdp.Toolkit.Time.Controllers;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Time;
 using Hrot.Map.Common;
@@ -32,7 +32,7 @@ namespace Hrot.CGF
 
         private readonly int _nodeId;
         private readonly DdsParticipant? _participant;
-        private readonly FDP.Toolkit.Orchestration.ClusterSlave _clusterSlave;
+        private readonly Fdp.Toolkit.Orchestration.ClusterSlave _clusterSlave;
         private readonly FdpEventBus _eventBus;
         private FdpEventBus _orchestrationBus => _eventBus;  // CMC-S016: alias, same bus
         private readonly NodeOpSlaveTranslator? _slaveTranslator;  // CMC-S016; null when no participant
@@ -45,8 +45,8 @@ namespace Hrot.CGF
         private readonly ModuleHostKernel _kernel;
         private bool _initialized;
 
-        /// <summary>Exposes the <see cref="FDP.Toolkit.Orchestration.ClusterSlave"/> for test assertions.</summary>
-        public FDP.Toolkit.Orchestration.ClusterSlave ClusterSlave => _clusterSlave;
+        /// <summary>Exposes the <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/> for test assertions.</summary>
+        public Fdp.Toolkit.Orchestration.ClusterSlave ClusterSlave => _clusterSlave;
 
         /// <summary>Internal accessor for subsystem wiring.</summary>
         internal DdsParticipant? Participant => _participant;
@@ -103,7 +103,7 @@ namespace Hrot.CGF
             // Note: _kernel.Initialize() is deferred until first Tick()
             // so callers can call Install() between construction and first tick.
 
-            _clusterSlave   = new FDP.Toolkit.Orchestration.ClusterSlave(nodeId, SubsystemName, _eventBus);
+            _clusterSlave   = new Fdp.Toolkit.Orchestration.ClusterSlave(nodeId, SubsystemName, _eventBus);
 
             // CMC-S016: NodeOpSlaveTranslator bridges DDS NodeOpCommand ↔ _eventBus ExecuteNodeOpIntent
             // and bus NodeHeartbeatEvent/NodeOpCompletedEvent ↔ DDS.

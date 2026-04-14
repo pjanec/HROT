@@ -1,7 +1,7 @@
 using CarKinem.Core;
 using CarKinem.Formation;
 using Fdp.Kernel;
-using FDP.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation;
 
 namespace Hrot.SimHost
 {

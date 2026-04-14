@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 using Hrot.Network.Replication;
 using Hrot.Common.Systems;
 using Hrot.Map.Common;

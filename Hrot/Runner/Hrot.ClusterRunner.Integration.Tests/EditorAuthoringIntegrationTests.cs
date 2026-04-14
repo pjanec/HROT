@@ -3,13 +3,13 @@ using System.IO;
 using System.Numerics;
 using CarKinem.Road;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Events;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Perception.Events;
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Replication.Components;
 using Hrot.Editor.Adapters;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
@@ -387,8 +387,8 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         world.AddComponent(insurgent, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
 
         // Build a DoctrineRegistry that only registers "Ambush" (not "MoveToLocation").
-        var registry = new FDP.Toolkit.Behavior.DoctrineRegistry();
-        registry.Register(1, "Ambush", new FDP.Toolkit.Behavior.DoctrineDefinition { Name = "Ambush" });
+        var registry = new Fdp.Toolkit.Behavior.DoctrineRegistry();
+        registry.Register(1, "Ambush", new Fdp.Toolkit.Behavior.DoctrineDefinition { Name = "Ambush" });
 
         var service = new EditorMissionService(world.Bus, world, registry);
 

@@ -2,13 +2,13 @@ using System;
 using System.Text.Json;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.Common.Infrastructure;
 using Hrot.NED.Descriptors.Orchestration;
 using NedClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using NedNodeOpType    = Hrot.NED.Descriptors.Orchestration.NodeOpType;
-using FdpNodeOpType    = FDP.Toolkit.Orchestration.NodeOpType;
+using FdpNodeOpType    = Fdp.Toolkit.Orchestration.NodeOpType;
 
 namespace Hrot.Common.Orchestration;
 

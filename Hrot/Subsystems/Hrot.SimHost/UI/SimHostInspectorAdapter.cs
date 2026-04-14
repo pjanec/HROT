@@ -1,6 +1,6 @@
 using Fdp.Kernel;
-using FDP.Toolkit.ImGui.Abstractions;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.ImGui.Abstractions;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using System.Collections.Generic;
 
 namespace Hrot.SimHost.UI

@@ -3,13 +3,14 @@ using Hrot.NED.Descriptors;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Modules.Geographic;
 using Fdp.ModuleHost.Abstractions;
 
-using EcsNavigationIntent = FDP.Toolkit.Navigation.NavigationIntent;
-using EcsNavMode          = FDP.Toolkit.Navigation.NavigationMode;
+using EcsNavigationIntent = Fdp.Toolkit.Navigation.NavigationIntent;
+using EcsNavMode          = Fdp.Toolkit.Navigation.NavigationMode;
+using Fdp.Interfaces;
 
 namespace Hrot.Map.Common.Replication.Ingress
 {

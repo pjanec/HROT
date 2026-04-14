@@ -1,6 +1,6 @@
 using System;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.Orchestrator
@@ -16,11 +16,11 @@ namespace Hrot.Orchestrator
     /// <see cref="IEcsModule"/> instances through <c>ModuleHostKernel</c>.</para>
     ///
     /// <para><b>Construction:</b> Build the wrapped <see cref="ClusterSlave"/> with all
-    /// desired <see cref="FDP.Toolkit.Orchestration.Handlers.IClusterStateHandler"/>
+    /// desired <see cref="Fdp.Toolkit.Orchestration.Handlers.IClusterStateHandler"/>
     /// registrations via <see cref="Hrot.SimHost.NodeBootstrapper.BuildOrchestration"/>
     /// (or a custom bootstrap method), then pass the result to this constructor.</para>
     ///
-    /// <para><b>Registration pattern:</b> Because <see cref="FDP.Toolkit.Orchestration.ClusterSlave"/>
+    /// <para><b>Registration pattern:</b> Because <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/>
     /// is not an ECS system, <see cref="IEcsModule.RegisterSystems(ISystemRegistry)"/> is
     /// a no-op. All work is performed in <see cref="Tick(ISimulationView, float)"/>
     /// which delegates to <see cref="ClusterSlave.Tick"/>.</para>

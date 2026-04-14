@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using Hrot.NED.Descriptors;
 using Hrot.Map.Common.Helpers;
-using FDP.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Components;
 using Xunit;
 using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;
-using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
+using EcsMissionTrigger = Fdp.Toolkit.Behavior.Components.MissionTrigger;
 
 namespace Hrot.Map.Common.Tests
 {

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Tools;
-using FDP.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Raylib_cs;
 
 namespace Hrot.IG.Tests;

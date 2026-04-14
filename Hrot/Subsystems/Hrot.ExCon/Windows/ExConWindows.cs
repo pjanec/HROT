@@ -1,5 +1,5 @@
 using System.Numerics;
-using FDP.Toolkit.ImGui.WindowManager;
+using Fdp.Toolkit.ImGui.WindowManager;
 using Hrot.ExCon;
 using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Facades;

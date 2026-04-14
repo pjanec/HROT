@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Globalization;
 using Hrot.NED.Descriptors;
-using FDP.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Components;
 using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;
-using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
+using EcsMissionTrigger = Fdp.Toolkit.Behavior.Components.MissionTrigger;
 
 namespace Hrot.Map.Common.Helpers
 {

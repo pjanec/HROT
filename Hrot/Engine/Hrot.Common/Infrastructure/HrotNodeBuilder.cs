@@ -4,11 +4,11 @@ using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Time.Controllers;
 using Hrot.Common.Orchestration;
 using Hrot.Map.Common;
 using Hrot.NED.Descriptors.Orchestration;
@@ -16,7 +16,7 @@ using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Time;
 using Fdp.Network.Cyclone.Services;
-using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
+using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 
 namespace Hrot.Common.Infrastructure;
 
@@ -84,7 +84,7 @@ public sealed class HrotNodeBuilder
             Mode        = TimeMode.Continuous,
             Role        = TimeRole.Slave,
             LocalNodeId = _config.NodeId,
-            SyncConfig  = FDP.Toolkit.Time.Controllers.TimeConfig.Default,
+            SyncConfig  = Fdp.Toolkit.Time.Controllers.TimeConfig.Default,
         };
         var timeCtrl = TimeControllerFactory.Create(eventBus, timeConfig);
         kernel.SetTimeController(timeCtrl);

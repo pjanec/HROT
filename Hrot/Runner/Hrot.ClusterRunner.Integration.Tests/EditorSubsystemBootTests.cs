@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Engine.Runner;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Vis2D.Components;
 using Hrot.Editor;
 using Hrot.Editor.Events;
 using Hrot.IG.Components;

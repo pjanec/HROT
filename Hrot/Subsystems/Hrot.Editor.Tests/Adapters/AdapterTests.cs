@@ -4,12 +4,12 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Events;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Common.Events;
 using Hrot.Common.Orchestration.Handlers;
 using Hrot.Editor.Adapters;
@@ -93,7 +93,7 @@ namespace Hrot.Editor.Tests.Adapters
             var adapter = new EditorSpawnAdapter(_canvas, _bus);
             adapter.StartAreaAuthoringMode("");
 
-            Assert.IsType<FDP.Toolkit.Vis2D.Tools.PointSequenceTool>(_canvas.ActiveTool);
+            Assert.IsType<Fdp.Toolkit.Vis2D.Tools.PointSequenceTool>(_canvas.ActiveTool);
         }
 
         [Fact]
@@ -102,7 +102,7 @@ namespace Hrot.Editor.Tests.Adapters
             var adapter = new EditorSpawnAdapter(_canvas, _bus);
             adapter.StartRouteAuthoringMode();
 
-            Assert.IsType<FDP.Toolkit.Vis2D.Tools.PointSequenceTool>(_canvas.ActiveTool);
+            Assert.IsType<Fdp.Toolkit.Vis2D.Tools.PointSequenceTool>(_canvas.ActiveTool);
         }
     }
 
@@ -518,7 +518,7 @@ namespace Hrot.Editor.Tests.Adapters
         public void GetCurrentConfig_ReflectsMapViewConfigDefaults()
         {
             var config  = new MapViewConfig();
-            var canvas  = new FDP.Toolkit.Vis2D.MapCanvas();
+            var canvas  = new Fdp.Toolkit.Vis2D.MapCanvas();
             var adapter = new EditorMapConfigAdapter(config, canvas);
 
             MapLayerState state = adapter.GetCurrentConfig();
@@ -537,7 +537,7 @@ namespace Hrot.Editor.Tests.Adapters
         public void ApplyConfig_SatelliteOff_UpdatesShowSatelliteLayerToFalse()
         {
             var config  = new MapViewConfig { ShowSatelliteLayer = true };
-            var canvas  = new FDP.Toolkit.Vis2D.MapCanvas();
+            var canvas  = new Fdp.Toolkit.Vis2D.MapCanvas();
             var adapter = new EditorMapConfigAdapter(config, canvas);
 
             adapter.ApplyConfig(new MapLayerState(
@@ -557,7 +557,7 @@ namespace Hrot.Editor.Tests.Adapters
         public void ApplyConfig_VehiclesOff_ClearsVehiclesBitInCanvasMask()
         {
             var config  = new MapViewConfig();
-            var canvas  = new FDP.Toolkit.Vis2D.MapCanvas();
+            var canvas  = new Fdp.Toolkit.Vis2D.MapCanvas();
             var adapter = new EditorMapConfigAdapter(config, canvas);
 
             adapter.ApplyConfig(new MapLayerState(
@@ -576,7 +576,7 @@ namespace Hrot.Editor.Tests.Adapters
         public void ApplyConfig_AllTrue_SetsAllFieldsTrue()
         {
             var config  = new MapViewConfig();
-            var canvas  = new FDP.Toolkit.Vis2D.MapCanvas();
+            var canvas  = new Fdp.Toolkit.Vis2D.MapCanvas();
             var adapter = new EditorMapConfigAdapter(config, canvas);
 
             adapter.ApplyConfig(new MapLayerState(true, true, true, true, true, true, true));

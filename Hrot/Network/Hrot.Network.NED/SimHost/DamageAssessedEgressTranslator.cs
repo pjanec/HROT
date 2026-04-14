@@ -4,9 +4,10 @@ using Hrot.Map.Common.Dds;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Events;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
 namespace Hrot.Network.NED.SimHost
 {

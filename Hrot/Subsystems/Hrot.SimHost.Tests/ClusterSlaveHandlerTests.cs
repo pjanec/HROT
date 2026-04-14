@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using Hrot.NED.Descriptors.Orchestration;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration;
 using Xunit;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
@@ -33,7 +33,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.CommitState,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.CommitState,
                 DomainPayload = new CommitStatePayload((int)ClusterState.LoadingLive),
             });
 
@@ -61,7 +61,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = txId,
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.CommitState,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.CommitState,
                 DomainPayload = new CommitStatePayload((int)ClusterState.LoadingLive),
             };
 
@@ -95,7 +95,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = txId,
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
                 DomainPayload = null,
             });
 
@@ -104,7 +104,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = txId,
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.CommitState,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.CommitState,
                 DomainPayload = new CommitStatePayload((int)ClusterState.LoadingLive),
             });
 
@@ -153,7 +153,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.CommitState,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.CommitState,
                 DomainPayload = new CommitStatePayload((int)ClusterState.LoadingLive),
             });
 

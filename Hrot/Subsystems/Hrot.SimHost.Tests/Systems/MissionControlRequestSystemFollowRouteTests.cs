@@ -8,10 +8,10 @@ using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Helpers;
 using Hrot.SimHost.Systems;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.SimHost.Tests.Systems;

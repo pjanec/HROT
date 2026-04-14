@@ -2,22 +2,22 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Hrot.NED.Descriptors.Orchestration;
-using FDP.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration;
 using ClusterState    = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType   = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
-using FdpClusterState = FDP.Toolkit.Orchestration.ClusterState;
+using FdpClusterState = Fdp.Toolkit.Orchestration.ClusterState;
 
 namespace Hrot.Orchestrator.Tests;
 
 /// <summary>
 /// Pure unit tests for <see cref="ClusterMasterPlanner"/> (Hrot-layer planner) and
-/// <see cref="FDP.Toolkit.Orchestration.TransitionPlanner"/> (generic BFS). No DDS, no ECS.
+/// <see cref="Fdp.Toolkit.Orchestration.TransitionPlanner"/> (generic BFS). No DDS, no ECS.
 /// </summary>
 [Collection("OrchestratorTests")]
 public sealed class TransitionPlannerTests
 {
     private readonly ClusterMasterPlanner _planner = new(HrotStateGraph.Build());
-    private readonly FDP.Toolkit.Orchestration.TransitionPlanner _tkPlanner =
+    private readonly Fdp.Toolkit.Orchestration.TransitionPlanner _tkPlanner =
         new(HrotStateGraph.Build());
 
     // -- Helpers --

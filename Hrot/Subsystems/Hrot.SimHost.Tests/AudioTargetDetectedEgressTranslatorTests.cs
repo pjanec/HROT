@@ -4,8 +4,8 @@ using Hrot.NED.Descriptors;
 using Hrot.Map.Common.Dds;
 using Hrot.Network.NED.SimHost;
 using Fdp.Kernel;
-using FDP.Toolkit.Perception.Events;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Replication.Services;
 using System.Numerics;
 using Xunit;
 

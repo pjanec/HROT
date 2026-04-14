@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using CycloneDDS.Runtime;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.DER;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.DER;
 using Hrot.Core.Network;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;

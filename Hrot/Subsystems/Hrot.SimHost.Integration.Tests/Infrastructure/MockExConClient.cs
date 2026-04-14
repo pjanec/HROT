@@ -6,7 +6,7 @@ using Hrot.Core.Network;
 using Hrot.IG.Components;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.SimHost.Integration.Tests.Infrastructure

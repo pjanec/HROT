@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.DER;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.DER;
 using Hrot.Core.Network;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;

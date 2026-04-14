@@ -3,6 +3,7 @@ using Hrot.IG.Components;
 using Hrot.Map.Common.Events;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
 namespace Hrot.IG.Systems;
 

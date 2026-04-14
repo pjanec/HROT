@@ -4,8 +4,8 @@ using Hrot.Map.Definitions.Tkb;
 using CarKinem.Core;
 using Fdp.Kernel;
 using Fdp.Toolkit.Tkb;
-using FDP.Toolkit.Physics;
-using FDP.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics;
+using Fdp.Toolkit.Physics.Components;
 
 namespace Hrot.Map.Common.Tests
 {

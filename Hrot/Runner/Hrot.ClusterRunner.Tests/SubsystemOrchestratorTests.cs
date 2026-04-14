@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Xunit;
 using Hrot.ClusterRunner.Tests.Mocks;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Components;
 
 namespace Hrot.ClusterRunner.Tests
 {

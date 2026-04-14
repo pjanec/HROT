@@ -3,22 +3,22 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Kernel;
 using Fdp.Engine.Runner;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.ImGui.Abstractions;
-using FDP.Toolkit.ImGui.Adapters;
-using FDP.Toolkit.ImGui.Panels;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.NetworkSpawning.Systems;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Scenario;
-using FDP.Toolkit.Time.Controllers;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.Vis2D.Components;
-using FDP.Toolkit.Vis2D.Defaults;
-using FDP.Toolkit.Vis2D.Layers;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.ImGui.Abstractions;
+using Fdp.Toolkit.ImGui.Adapters;
+using Fdp.Toolkit.ImGui.Panels;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Systems;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Scenario;
+using Fdp.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Defaults;
+using Fdp.Toolkit.Vis2D.Layers;
 using Hrot.CGF;
 using Hrot.Editor.Windows;
 using Hrot.Orchestrator.Panels;
@@ -51,10 +51,10 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network.Interfaces;
 // Disambiguate IMapCameraProvider: Hrot.SimHost.Modules also defines this interface.
 using IMapCameraProvider = Fdp.Engine.Runner.IMapCameraProvider;
-using FdpEntityInspectorPanel = FDP.Toolkit.ImGui.Panels.EntityInspectorPanel;
-using FdpEventBrowserPanel    = FDP.Toolkit.ImGui.Panels.EventBrowserPanel;
-using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;
-using FdpInspectorState       = FDP.Toolkit.ImGui.Abstractions.InspectorState;
+using FdpEntityInspectorPanel = Fdp.Toolkit.ImGui.Panels.EntityInspectorPanel;
+using FdpEventBrowserPanel    = Fdp.Toolkit.ImGui.Panels.EventBrowserPanel;
+using FdpRepositoryAdapter    = Fdp.Toolkit.ImGui.Adapters.RepositoryAdapter;
+using FdpInspectorState       = Fdp.Toolkit.ImGui.Abstractions.InspectorState;
 using EditorInteractionTool   = Hrot.ScenarioEditor.Tools.StandardInteractionTool;
 
 namespace Hrot.Editor
@@ -531,7 +531,7 @@ namespace Hrot.Editor
             // Render the context menu popup.
             if (ImGuiNET.ImGui.BeginPopup("##editor_map_ctx"))
             {
-                var builder = new FDP.Toolkit.ImGui.Utils.ContextMenuBuilder();
+                var builder = new Fdp.Toolkit.ImGui.Utils.ContextMenuBuilder();
 
                 if (_pendingContextMenuEntity != Entity.Null && _contextMenuHandler != null)
                 {
@@ -573,13 +573,13 @@ namespace Hrot.Editor
                     if (_world != null)
                     {
                         var q = _world.Query()
-                            .With<FDP.Toolkit.Replication.Components.NetworkIdentity>()
+                            .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
                             .With<Hrot.IG.Components.EntityInfo>()
                             .Build();
                         Hrot.IG.Components.EntityInfo updatedInfo = default;
                         foreach (var e in q)
                         {
-                            if (_world.GetComponent<FDP.Toolkit.Replication.Components.NetworkIdentity>(e).Value == _renameTargetNetworkId)
+                            if (_world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == _renameTargetNetworkId)
                             {
                                 updatedInfo = _world.GetComponent<Hrot.IG.Components.EntityInfo>(e);
                                 break;
@@ -601,7 +601,7 @@ namespace Hrot.Editor
         }
 
         /// <inheritdoc/>
-        public void RegisterWindows(FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager)
+        public void RegisterWindows(Fdp.Toolkit.ImGui.WindowManager.WindowManager windowManager)
         {
             if (_editorLogic == null) return;
 
@@ -734,9 +734,9 @@ namespace Hrot.Editor
                                 {
                                     var updated = new Hrot.Map.Common.Components.RoutePlan { IsLoop = plan.IsLoop };
                                     updated.Mutate(list => list.AddRange(wps));
-                                    _world!.Bus.PublishManaged(new FDP.Toolkit.NetworkSpawning.Events.UpdateEntityCommand
+                                    _world!.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.UpdateEntityCommand
                                     {
-                                        NetworkId          = _world.GetComponent<FDP.Toolkit.Replication.Components.NetworkIdentity>(routeEntity).Value,
+                                        NetworkId          = _world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(routeEntity).Value,
                                         ComponentsToUpdate = new System.Collections.Generic.List<object> { updated },
                                     });
                                     _canvas!.PopTool();
@@ -757,12 +757,12 @@ namespace Hrot.Editor
             {
                 if (_camera == null) continue;
                 var q = _world.Query()
-                    .With<FDP.Toolkit.Replication.Components.NetworkIdentity>()
+                    .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
                     .With<Fdp.Kernel.SimTransform>()
                     .Build();
                 foreach (var e in q)
                 {
-                    if (_world.GetComponent<FDP.Toolkit.Replication.Components.NetworkIdentity>(e).Value == cmd.NetworkId)
+                    if (_world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == cmd.NetworkId)
                     {
                         ref readonly var tf = ref _world.GetComponentRO<Fdp.Kernel.SimTransform>(e);
                         _camera.FocusOn(new System.Numerics.Vector2(tf.Position.X, tf.Position.Y));
@@ -780,12 +780,12 @@ namespace Hrot.Editor
 
                 // Pre-fill buffer with the entity's current name.
                 var q = _world.Query()
-                    .With<FDP.Toolkit.Replication.Components.NetworkIdentity>()
+                    .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
                     .With<Hrot.IG.Components.EntityInfo>()
                     .Build();
                 foreach (var e in q)
                 {
-                    if (_world.GetComponent<FDP.Toolkit.Replication.Components.NetworkIdentity>(e).Value == cmd.NetworkId)
+                    if (_world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == cmd.NetworkId)
                     {
                         _renameBuffer = _world.GetComponent<Hrot.IG.Components.EntityInfo>(e).Name.ToString();
                         break;

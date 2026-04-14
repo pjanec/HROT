@@ -1,8 +1,8 @@
 using Hrot.SimHost.Systems;
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Systems;
-using FDP.Toolkit.Physics.Systems;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Combat.Systems;
+using Fdp.Toolkit.Physics.Systems;
+using Fdp.Toolkit.Replication.Services;
 
 namespace Hrot.SimHost.Modules
 {
@@ -18,9 +18,9 @@ namespace Hrot.SimHost.Modules
     /// </list>
     ///
     /// <para>
-    /// <see cref="FDP.Toolkit.Behavior.Systems.HsmDamageBridgeSystem"/> was relocated
-    /// to <see cref="FDP.Toolkit.Behavior.Modules.CognitiveRuntimeModule"/> (PACK-M001)
-    /// so it runs on the Brain tier where <see cref="FDP.Toolkit.Behavior.Components.BrainHsm128"/>
+    /// <see cref="Fdp.Toolkit.Behavior.Systems.HsmDamageBridgeSystem"/> was relocated
+    /// to <see cref="Fdp.Toolkit.Behavior.Modules.CognitiveRuntimeModule"/> (PACK-M001)
+    /// so it runs on the Brain tier where <see cref="Fdp.Toolkit.Behavior.Components.BrainHsm128"/>
     /// components reside.
     /// </para>
     ///

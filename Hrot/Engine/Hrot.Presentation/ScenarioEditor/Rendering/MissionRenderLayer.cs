@@ -1,9 +1,9 @@
 ﻿using System.Numerics;
 using System.Text.Json;
-using FDP.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Components;
 using Hrot.IG.Components;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Transforms;

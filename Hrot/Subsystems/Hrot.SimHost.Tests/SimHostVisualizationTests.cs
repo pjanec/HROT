@@ -8,12 +8,12 @@ using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Replication.Components;
-using EcsNavigationIntent = FDP.Toolkit.Navigation.NavigationIntent;
-using EcsNavigationMode   = FDP.Toolkit.Navigation.NavigationMode;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Replication.Components;
+using EcsNavigationIntent = Fdp.Toolkit.Navigation.NavigationIntent;
+using EcsNavigationMode   = Fdp.Toolkit.Navigation.NavigationMode;
 using Fdp.ModuleHost;
 using Xunit;
 

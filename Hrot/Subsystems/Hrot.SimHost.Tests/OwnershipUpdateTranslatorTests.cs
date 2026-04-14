@@ -1,11 +1,11 @@
 using System.Threading;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common.Replication;
 using Fdp.ModuleHost.Abstractions;
 
-using OwnershipUpdateMsg  = FDP.Toolkit.Replication.Messages.OwnershipUpdate;
+using OwnershipUpdateMsg  = Fdp.Toolkit.Replication.Messages.OwnershipUpdate;
 using OwnershipUpdateWire = Fdp.Network.Cyclone.Topics.OwnershipUpdate;
 
 namespace Hrot.SimHost.Tests

@@ -6,7 +6,7 @@ using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.Map.Common;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
 using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;

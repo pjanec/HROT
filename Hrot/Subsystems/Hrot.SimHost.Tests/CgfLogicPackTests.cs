@@ -1,11 +1,11 @@
 using System;
 using CarKinem.Formation;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Modules;
-using FDP.Toolkit.Behavior.Systems;
-using FDP.Toolkit.CarKinem.Systems;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Modules;
+using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.CarKinem.Systems;
+using Fdp.Toolkit.Replication.Services;
 using Hrot.CGF;
 using Xunit;
 
@@ -21,18 +21,18 @@ namespace Hrot.SimHost.Tests
             var world = new EntityRepository();
 
             // Behavior toolkit components
-            world.RegisterComponent<FDP.Toolkit.Behavior.Components.DoctrineState>();
-            world.RegisterComponent<FDP.Toolkit.Behavior.Components.LocomotionChannel>();
-            world.RegisterComponent<FDP.Toolkit.Behavior.Components.WeaponChannel>();
-            world.RegisterComponent<FDP.Toolkit.Behavior.Components.InteractionChannel>();
-            world.RegisterComponent<FDP.Toolkit.Behavior.Components.ActorCapabilityState>();
-            world.RegisterComponent<FDP.Toolkit.Behavior.Components.BrainBTreeState>();
-            world.RegisterComponent<FDP.Toolkit.Behavior.Components.BrainBlackboard>();
-            world.RegisterComponent<FDP.Toolkit.Behavior.Components.BrainHsm64>();
-            world.RegisterComponent<FDP.Toolkit.Behavior.Components.BrainHsm128>();
-            world.RegisterComponent<FDP.Toolkit.Behavior.Components.PreviousCapabilities>();
-            world.RegisterComponent<FDP.Toolkit.Behavior.Components.PassengerBuffer>();
-            world.RegisterComponent<FDP.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.DoctrineState>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.InteractionChannel>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBTreeState>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBlackboard>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm64>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm128>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PreviousCapabilities>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
 
             world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
 

@@ -1,11 +1,11 @@
 using System.Numerics;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.Replication.Patching;
-using FDP.Toolkit.Vis2D.Components;
-using FDP.Toolkit.Vis2D.Tools;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Tools;
 using Hrot.Editor.Tools;
 using Hrot.IG.Components;
 using Hrot.Map.Common;

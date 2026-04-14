@@ -30,7 +30,7 @@ public sealed class NedReplicationModuleWiringTests : System.IDisposable
         _app = new SimHostApp(domainOverride: DomainId, role: NodeRole.MuscleGround | NodeRole.Perception);
         var factory = new NedNetworkFactory(
             participant:   null,
-            entityMap:     new FDP.Toolkit.Replication.Services.NetworkEntityMap(),
+            entityMap:     new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
             geoTransform:  HrotEnvironment.CreateGeoTransform(),
             eventBus:      new Fdp.Kernel.FdpEventBus(),
             localNodeId:   0,

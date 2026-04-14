@@ -1,5 +1,5 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Xunit;
 
 namespace Hrot.Map.Common.Tests

@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Threading;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
 using Hrot.Orchestrator.Translators;
 using NedClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
-using FdpClusterState  = FDP.Toolkit.Orchestration.ClusterState;
+using FdpClusterState  = Fdp.Toolkit.Orchestration.ClusterState;
 
 namespace Hrot.Orchestrator.Integration.Tests;
 
@@ -110,7 +110,7 @@ public sealed class TranslatorRoundTripTests : IDisposable
         bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId        = 1,
-            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
+            LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = "SimHost",
         });

@@ -4,9 +4,9 @@ using System.Numerics;
 using System.Text.Json;
 using Hrot.IG.Components;
 using Fdp.Kernel;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.ModuleHost.Network.Interfaces;
 using Raylib_cs;
 

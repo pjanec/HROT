@@ -1,10 +1,10 @@
 using System.Numerics;
 using System.Text;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
 using Raylib_cs;

@@ -1,7 +1,7 @@
 ﻿using Hrot.Core.Mission;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
-using FDP.Toolkit.DER;
+using Fdp.Toolkit.DER;
 using ImGuiNET;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
@@ -175,7 +175,7 @@ public sealed class OrbatPanel
     /// ExCon Ôćĺ <c>CMD_PLACE_ENTITY</c> Ôćĺ IG activates placement tool Ôćĺ operator
     /// clicks map Ôćĺ ExCon sends <c>CreateEntityRequest</c> Ôćĺ SimHost allocates
     /// a network ID and publishes <c>EntityMaster</c> + descriptors Ôćĺ
-    /// <see cref="FDP.Toolkit.DER.MasterIngressHandler{T}"/> populates the DER repo
+    /// <see cref="Fdp.Toolkit.DER.MasterIngressHandler{T}"/> populates the DER repo
     /// Ôćĺ <c>CreateEntityAck</c> arrives Ôćĺ ExCon logs the new ID and auto-selects
     /// the entity.</para>
     /// </summary>

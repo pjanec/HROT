@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Hrot.NED.Descriptors.Orchestration;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 
@@ -57,14 +57,14 @@ public sealed class OperationStep : ISysOpStep
 /// and is therefore unreachable/invalid as a planning target.
 ///
 /// <para>
-/// BFS is delegated to <see cref="FDP.Toolkit.Orchestration.TransitionPlanner"/> using
+/// BFS is delegated to <see cref="Fdp.Toolkit.Orchestration.TransitionPlanner"/> using
 /// the graph provided at construction time.  Use <see cref="HrotStateGraph.Build()"/>
 /// to create the canonical Hrot cluster state machine graph.
 /// </para>
 /// </remarks>
 public sealed class ClusterMasterPlanner
 {
-    private readonly FDP.Toolkit.Orchestration.TransitionPlanner _tkPlanner;
+    private readonly Fdp.Toolkit.Orchestration.TransitionPlanner _tkPlanner;
     private readonly ITransitionGraph _graph;
 
     /// <summary>
@@ -77,7 +77,7 @@ public sealed class ClusterMasterPlanner
     public ClusterMasterPlanner(ITransitionGraph graph)
     {
         _graph     = graph ?? throw new ArgumentNullException(nameof(graph));
-        _tkPlanner = new FDP.Toolkit.Orchestration.TransitionPlanner(graph);
+        _tkPlanner = new Fdp.Toolkit.Orchestration.TransitionPlanner(graph);
     }
 
     /// <summary>

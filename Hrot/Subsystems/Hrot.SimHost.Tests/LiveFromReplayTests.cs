@@ -5,10 +5,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hrot.SimHost.Modules.Orchestration;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Scheduling;
 using Xunit;
@@ -130,7 +130,7 @@ namespace Hrot.SimHost.Tests
         /// After <see cref="ReferenceReplayLoadHandler.PrepareAsync"/> handles a
         /// <c>PrepareLive</c> (operationId=9) command (the Live-from-Replay branch),
         /// the <see cref="EcsRecordReplayController"/> must have an active
-        /// <see cref="FDP.Toolkit.Replay.RecordingModule"/> installed in the kernel scheduler.
+        /// <see cref="Fdp.Toolkit.Replay.RecordingModule"/> installed in the kernel scheduler.
         /// </summary>
         [Fact(Timeout = 20_000)]
         public async Task AfterBranch_RecordingModuleIsInstalled()
@@ -175,7 +175,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
                 DomainPayload = branchedExerciseId,
             };
 
@@ -241,7 +241,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareReplay,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay,
                 DomainPayload = exerciseId,
             };
             handler.Commit(prepCmd, repo: null);
@@ -253,7 +253,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
                 DomainPayload = branchedExerciseId,
             };
             await handler.PrepareAsync(branchCmd, CancellationToken.None);

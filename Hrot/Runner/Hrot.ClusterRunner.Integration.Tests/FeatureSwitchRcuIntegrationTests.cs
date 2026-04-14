@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Editor;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Dds;

@@ -1,8 +1,8 @@
 using CarKinem.Core;
 using CarKinem.Formation;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Navigation;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Navigation;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;

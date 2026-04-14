@@ -3,9 +3,10 @@ using Hrot.NED.Messages;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Contracts;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
 namespace Hrot.Network.NED.SimHost
 {

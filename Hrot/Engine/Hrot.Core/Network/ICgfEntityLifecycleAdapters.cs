@@ -1,4 +1,4 @@
-using FDP.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Patching;
 using Fdp.ModuleHost.Network.Interfaces;
 
 namespace Hrot.Core.Network;

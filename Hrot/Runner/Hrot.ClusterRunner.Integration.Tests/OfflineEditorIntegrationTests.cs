@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Kernel;
-using FDP.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Messages;
 using Fdp.ModuleHost.Network.Interfaces;

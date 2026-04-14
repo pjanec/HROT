@@ -3,15 +3,15 @@ using System.Collections.Generic;
 using CarKinem.Core;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Physics;
-using FDP.Toolkit.Physics.Components;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Physics;
+using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Tkb;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common;
 
 namespace Hrot.Map.Definitions.Tkb

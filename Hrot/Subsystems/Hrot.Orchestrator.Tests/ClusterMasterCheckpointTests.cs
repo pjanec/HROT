@@ -1,12 +1,12 @@
 using System;
 using System.Linq;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
 using ClusterState   = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType  = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType     = Hrot.NED.Descriptors.Orchestration.NodeOpType;
-using FdpNodeOpType  = FDP.Toolkit.Orchestration.NodeOpType;
+using FdpNodeOpType  = Fdp.Toolkit.Orchestration.NodeOpType;
 
 namespace Hrot.Orchestrator.Tests;
 
@@ -36,7 +36,7 @@ public sealed class ClusterMasterCheckpointTests
         bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId        = NId,
-            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
+            LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = "SimHost",
         });

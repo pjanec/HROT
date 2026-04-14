@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
-using FDP.Toolkit.Scenario;
+using Fdp.Toolkit.Scenario;
 using Hrot.ScenarioEditor.Services;
 using Xunit;
 

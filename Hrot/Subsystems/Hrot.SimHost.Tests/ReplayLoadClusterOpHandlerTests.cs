@@ -4,11 +4,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hrot.SimHost.Modules.Orchestration;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
-using FDP.Toolkit.Replay;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Replay;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Scheduling;
 using Xunit;
@@ -111,7 +111,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareReplay,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay,
                 DomainPayload = payload,
             };
 
@@ -165,7 +165,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareReplay,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay,
                 DomainPayload = exerciseId,
             };
             await handler.PrepareAsync(prepareCmd, CancellationToken.None);
@@ -179,7 +179,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.FinalizeReplay,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.FinalizeReplay,
                 DomainPayload = null,
             };
             await handler.PrepareAsync(finalizeCmd, CancellationToken.None);

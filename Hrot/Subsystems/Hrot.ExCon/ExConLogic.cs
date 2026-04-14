@@ -4,9 +4,9 @@ using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
 using Hrot.ExCon.Services;
 using Hrot.Map.Common;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.DER;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.DER;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
 using Newtonsoft.Json;
 

@@ -1,10 +1,10 @@
 using System;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Behavior.Events;
 
 namespace Hrot.CGF.Systems
 {
@@ -23,7 +23,7 @@ namespace Hrot.CGF.Systems
     ///   </item>
     ///   <item>
     ///     <b>Event publication:</b> publishes an <see cref="AssignDoctrineEvent"/> so that
-    ///     <see cref="FDP.Toolkit.Behavior.Systems.DoctrineIngressSystem"/> can reset the
+    ///     <see cref="Fdp.Toolkit.Behavior.Systems.DoctrineIngressSystem"/> can reset the
     ///     <see cref="BrainBTreeState"/> execution pointer and set
     ///     <c>DoctrineState.BrainTier</c> when the event is consumed on the next frame.
     ///   </item>

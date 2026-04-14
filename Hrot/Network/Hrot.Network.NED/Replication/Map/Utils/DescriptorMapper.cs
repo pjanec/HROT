@@ -7,8 +7,8 @@ using Hrot.NED.Common;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Components;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Replication.Patching;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Replication.Patching;
 using Fdp.Modules.Geographic;
 
 namespace Hrot.Map.Common.Replication.Utils

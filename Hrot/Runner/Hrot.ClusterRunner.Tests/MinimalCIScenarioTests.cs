@@ -127,5 +127,5 @@ file sealed class FailingCIScenario : IScenario
         return false;
     }
 
-    public void ConfigureVisuals(FDP.Toolkit.Vis2D.MapCanvas? canvas, Fdp.Kernel.EntityRepository world) { }
+    public void ConfigureVisuals(Fdp.Toolkit.Vis2D.MapCanvas? canvas, Fdp.Kernel.EntityRepository world) { }
 }

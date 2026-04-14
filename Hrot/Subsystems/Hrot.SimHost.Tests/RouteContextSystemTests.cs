@@ -3,8 +3,8 @@ using Hrot.Map.Common.Components;
 using Hrot.CGF.Brains;
 using Hrot.CGF.Systems.Routing;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Navigation;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Navigation;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.SimHost.Tests;

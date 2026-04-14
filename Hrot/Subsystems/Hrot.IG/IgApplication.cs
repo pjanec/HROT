@@ -48,62 +48,62 @@ using Fdp.Modules.Geographic.Systems;
 
 using Fdp.Modules.Geographic.Transforms;
 
-using FDP.Toolkit.Lifecycle;
+using Fdp.Toolkit.Lifecycle;
 
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 
-using FDP.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Components;
 
-using FDP.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Lifecycle.Events;
 
-using FDP.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Components;
 
-using FDP.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Components;
 
-using FDP.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
-using FDP.Toolkit.NetworkSpawning.Systems;
+using Fdp.Toolkit.NetworkSpawning.Systems;
 
-using FDP.Toolkit.Replication;
+using Fdp.Toolkit.Replication;
 
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 
-using FDP.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Patching;
 
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Systems;
 
 using Hrot.Common.Orchestration;
 using Hrot.Common.Infrastructure;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 
-using FDP.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time.Controllers;
 
-using FDP.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D;
 
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Abstractions;
 
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Components;
 
-using FDP.Toolkit.Vis2D.Defaults;
+using Fdp.Toolkit.Vis2D.Defaults;
 
-using FDP.Toolkit.Vis2D.Layers;
+using Fdp.Toolkit.Vis2D.Layers;
 
-using FDP.Toolkit.Vis2D.Tools;
+using Fdp.Toolkit.Vis2D.Tools;
 
 using ImGuiNET;
 
-using FdpEntityInspectorPanel = FDP.Toolkit.ImGui.Panels.EntityInspectorPanel;
+using FdpEntityInspectorPanel = Fdp.Toolkit.ImGui.Panels.EntityInspectorPanel;
 
-using FdpEventBrowserPanel    = FDP.Toolkit.ImGui.Panels.EventBrowserPanel;
+using FdpEventBrowserPanel    = Fdp.Toolkit.ImGui.Panels.EventBrowserPanel;
 
-using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;
+using FdpRepositoryAdapter    = Fdp.Toolkit.ImGui.Adapters.RepositoryAdapter;
 
-using FdpInspectorState       = FDP.Toolkit.ImGui.Abstractions.InspectorState;
+using FdpInspectorState       = Fdp.Toolkit.ImGui.Abstractions.InspectorState;
 
-using FDP.Toolkit.ImGui.Utils;
+using Fdp.Toolkit.ImGui.Utils;
 
 using Fdp.ModuleHost;
 
@@ -208,7 +208,7 @@ public class IgApplication : IDisposable
     private bool _networkEnabled;
 
     // -- ClusterSlave (CGF1-S0104 / CMC-S016) — wired in InitializeNetwork ------
-    private FDP.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
+    private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
     // CMC-S016: orchestration bus + slave translator (Option C).
     private Fdp.Kernel.FdpEventBus?                             _igOrchestrationBus;
     private Hrot.Common.Orchestration.NodeOpSlaveTranslator?    _igSlaveTranslator;
@@ -289,7 +289,7 @@ public class IgApplication : IDisposable
     /// that would normally be forwarded to <see cref="_mapCommandController"/> or published on the bus.
     /// Only set by <see cref="TestHook_SetSpawnCommandSink"/>.
     /// </summary>
-    private Action<FDP.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>? _testSpawnCommandSink;
+    private Action<Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>? _testSpawnCommandSink;
     /// <summary>
     /// Orchestrator that manages tool-activation sessions for map commands
     /// (<c>CMD_PLACE_ENTITY</c>, <c>CMD_START_AUTHORING</c>) and routes
@@ -642,7 +642,7 @@ public class IgApplication : IDisposable
         _world.RegisterComponent<Health>();
         _world.RegisterComponent<PhysicsCollider>();
 
-        _world.RegisterManagedComponent<FDP.Toolkit.Behavior.Components.ActiveMissionPlan>();
+        _world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>();
 
         //  IG Advanced Features components 
         _world.RegisterComponent<HistoryTrail>();
@@ -796,16 +796,16 @@ public class IgApplication : IDisposable
                 // NOT _world.Bus which the kernel swaps independently.
                 var igTimeBus = _context!.EventBus;
                 customTranslators.Add(
-                    FDP.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(participant, igTimeBus));
+                    Fdp.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(participant, igTimeBus));
 
                 // NTP slave sync: receive TimeSyncRequest/Response from master, publish into bus.
                 customTranslators.Add(
-                    FDP.Toolkit.Time.TimeNetworkModule.CreateSlaveTimeSyncTranslator(participant, igTimeBus, _effectiveInstanceId));
+                    Fdp.Toolkit.Time.TimeNetworkModule.CreateSlaveTimeSyncTranslator(participant, igTimeBus, _effectiveInstanceId));
 
                 // Bridge FrameOrder/FrameAck for distributed lockstep stepping so IG sends
                 // its step ACK back to the Orchestrator on every Step() frame.
                 customTranslators.Add(
-                    FDP.Toolkit.Time.TimeNetworkModule.CreateSlaveLockstepTranslator(participant, igTimeBus, _effectiveInstanceId));
+                    Fdp.Toolkit.Time.TimeNetworkModule.CreateSlaveLockstepTranslator(participant, igTimeBus, _effectiveInstanceId));
 
                 if (_igTranslatorsProvider != null)
                 {
@@ -854,7 +854,7 @@ public class IgApplication : IDisposable
                     heartbeatWriter: new CycloneDDS.Runtime.DdsWriter<Hrot.NED.Descriptors.Orchestration.NodeHeartbeat>(participant!),
                     bus:             _igOrchestrationBus,
                     nodeId:          igNodeId);
-                _clusterSlave = new FDP.Toolkit.Orchestration.ClusterSlave(
+                _clusterSlave = new Fdp.Toolkit.Orchestration.ClusterSlave(
                     igNodeId, "IG", _igOrchestrationBus);
 
                 // CGF1-BATCH-23 A.2: IG participates in recording/replay cluster operations as a
@@ -864,7 +864,7 @@ public class IgApplication : IDisposable
 
                 // Wire ReferenceReplayLoadHandler FIRST (PrepareReplay / FinalizeReplay
                 // unconditional; PrepareLive only when replay active).
-                _clusterSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
+                _clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
                     igRrController,
                     simGroup:              null,
                     lifecycleGroup:        null,
@@ -873,7 +873,7 @@ public class IgApplication : IDisposable
 
                 // Wire ReferenceLiveLoadHandler: ACKs cold PrepareLive and FinalizeLive
                 // without recording (IG carries no ECS frame data).
-                _clusterSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
+                _clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
                     checkpointWorker: null,
                     controller:       igRrController,
                     storageDirectory: @"C:\FDP_Temp"));
@@ -884,8 +884,8 @@ public class IgApplication : IDisposable
                 _clusterSlave.RegisterHandler(new Hrot.IG.Modules.Orchestration.IgZoneDummyHandler(_effectiveInstanceId));
 
                 // Wire ReferencePrefetchHandler so IG can stage scenario files and ACK.
-                var igStorageProvider = new FDP.Toolkit.Orchestration.LocalDiskStorageProvider(@"C:\FDP_Temp");
-                _clusterSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferencePrefetchHandler(
+                var igStorageProvider = new Fdp.Toolkit.Orchestration.LocalDiskStorageProvider(@"C:\FDP_Temp");
+                _clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferencePrefetchHandler(
                     igStorageProvider));
 
                 // CGF1-S0309: wire dry-run snapshot/rewind handler (IG carries no ECS state in ClusterSlave).
@@ -1807,11 +1807,11 @@ public class IgApplication : IDisposable
 
 
     /// <summary>
-    /// Internal test hook: exposes the <see cref="FDP.Toolkit.Orchestration.ClusterSlave"/>
+    /// Internal test hook: exposes the <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/>
     /// for handler-registration assertions (CGF1-S0104 / A.2).  <c>null</c> when
     /// <see cref="InitializeNetwork"/> was not called (e.g. headless tests without DDS).
     /// </summary>
-    internal FDP.Toolkit.Orchestration.ClusterSlave? TestHook_ClusterSlave => _clusterSlave;
+    internal Fdp.Toolkit.Orchestration.ClusterSlave? TestHook_ClusterSlave => _clusterSlave;
 
     /// <summary>Current kernel sim time in seconds — available in both headless and normal mode.</summary>
     internal double TestHook_CurrentSimTime => _kernel.CurrentTime.TotalTime;
@@ -1978,7 +1978,7 @@ public class IgApplication : IDisposable
 
     /// </summary>
 
-    internal void TestHook_SetSpawnCommandSink(Action<FDP.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>? sink)
+    internal void TestHook_SetSpawnCommandSink(Action<Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>? sink)
 
         => _testSpawnCommandSink = sink;
 
@@ -3699,7 +3699,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             var polyline = new EditablePolyline { Points = relCartPoints };
             var style    = MapOverlayStyle.FromJson(styleJson);
 
-            var cmd = new FDP.Toolkit.NetworkSpawning.Events.SpawnEntityCommand
+            var cmd = new Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand
             {
                 NetworkId      = 0,
                 TkbType        = TkbEntityTypes.TacGraphic_Area,
@@ -3729,7 +3729,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     /// <summary>
     /// Activates a <see cref="PointSequenceTool"/> configured for route authoring
     /// (minimum 2 points). When finished, emits a <see cref="SpawnEntityCommand"/>
-    /// with <see cref="FDP.Toolkit.NetworkSpawning.Events.SpawnEntityCommand.InitialComponents"/>
+    /// with <see cref="Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand.InitialComponents"/>
     /// carrying a <see cref="Hrot.Map.Common.Components.RoutePlan"/>.
     /// </summary>
     private void ActivateRouteAuthoringTool(Guid requestId)
@@ -3780,7 +3780,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
                 }
             });
 
-            var cmd = new FDP.Toolkit.NetworkSpawning.Events.SpawnEntityCommand
+            var cmd = new Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand
             {
                 NetworkId        = 0,
                 TkbType          = TkbEntityTypes.TacGraphic_Route,
@@ -3861,7 +3861,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     /// <summary>
     /// Handles an incoming <see cref="CommandType.CMD_PICK_ENTITY"/> command.
     /// Extracts <c>contextId</c> and <c>filters</c> from the JSON args, then
-    /// activates the <see cref="FDP.Toolkit.Vis2D.Tools.EntityPickerTool"/>.
+    /// activates the <see cref="Fdp.Toolkit.Vis2D.Tools.EntityPickerTool"/>.
     /// When the operator clicks a valid entity the tool publishes a
     /// <see cref="MapClickEvent"/> (via <c>OnCanvasClicked</c>) with the entity
     /// in the <c>HitStack</c> so the ExCon can resolve its pending pick promise.
@@ -3916,10 +3916,10 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         }
 
-        if (_canvas.ActiveTool is FDP.Toolkit.Vis2D.Tools.EntityPickerTool)
+        if (_canvas.ActiveTool is Fdp.Toolkit.Vis2D.Tools.EntityPickerTool)
             _canvas.PopTool();
 
-        var tool = new FDP.Toolkit.Vis2D.Tools.EntityPickerTool(_entityFilterFactory, filters);
+        var tool = new Fdp.Toolkit.Vis2D.Tools.EntityPickerTool(_entityFilterFactory, filters);
 
         tool.OnEntityPicked += entity =>
         {

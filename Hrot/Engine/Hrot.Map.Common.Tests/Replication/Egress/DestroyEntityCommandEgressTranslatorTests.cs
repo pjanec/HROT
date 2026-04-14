@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using Hrot.Map.Common.Dds;
 using Hrot.Map.Common.Replication.Egress;
 using Fdp.Kernel;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Services;
 using Hrot.NED.Messages;
 
 namespace Hrot.Map.Common.Tests.Replication.Egress;

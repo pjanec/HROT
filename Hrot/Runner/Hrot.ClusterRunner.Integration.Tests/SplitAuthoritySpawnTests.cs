@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Hrot.SimHost;
 using Hrot.CGF;
 using Hrot.Map.Common;

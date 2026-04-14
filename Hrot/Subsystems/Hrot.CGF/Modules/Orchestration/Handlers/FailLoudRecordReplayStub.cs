@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Common.Orchestration;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 
 namespace Hrot.CGF.Modules.Orchestration.Handlers
 {

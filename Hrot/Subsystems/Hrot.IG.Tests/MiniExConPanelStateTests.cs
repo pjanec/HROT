@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Hrot.IG.Components;
 using Hrot.IG.UI;
 using Fdp.Kernel;
-using FDP.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.IG.Tests;
 

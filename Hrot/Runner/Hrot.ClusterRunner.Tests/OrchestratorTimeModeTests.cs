@@ -4,7 +4,7 @@ using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
 using CycloneDDS.Runtime;
 using Fdp.Engine.Runner;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
 
 namespace Hrot.ClusterRunner.Tests;
@@ -12,7 +12,7 @@ namespace Hrot.ClusterRunner.Tests;
 /// <summary>
 /// CGF1-A.1 (BATCH-09): Verifies that <see cref="OrchestratorSubsystem"/> consumes
 /// <see cref="Hrot.Orchestrator.ClusterMaster.PendingTimeMode"/> and drives
-/// <see cref="FDP.Toolkit.Time.Controllers.DistributedTimeCoordinator.SwitchToDeterministic"/>
+/// <see cref="Fdp.Toolkit.Time.Controllers.DistributedTimeCoordinator.SwitchToDeterministic"/>
 /// when a <c>TransitionState → LoadingLive</c> request carries
 /// <c>"TimeMode": "Deterministic"</c> in its payload.
 /// </summary>
@@ -28,7 +28,7 @@ public class OrchestratorTimeModeTests
     /// When OrchestratorSubsystem ticks after a ClusterOpRequest with
     /// <c>"TimeMode":"Deterministic"</c> heading toward LoadingLive is processed by ClusterMaster,
     /// the internal DistributedTimeCoordinator must publish a <see cref="SwitchTimeModeEvent"/>
-    /// with <see cref="FDP.Toolkit.Time.Messages.TimeMode.Deterministic"/> to the event bus.
+    /// with <see cref="Fdp.Toolkit.Time.Messages.TimeMode.Deterministic"/> to the event bus.
     /// </summary>
     [Fact(Timeout = 20_000)]
     public void PendingTimeMode_Deterministic_PublishesSwitchTimeModeEvent()

@@ -3,7 +3,7 @@ using Hrot.NED.Descriptors;
 using Hrot.IG.Components;
 using Hrot.IG.UI;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.IG.Tests;

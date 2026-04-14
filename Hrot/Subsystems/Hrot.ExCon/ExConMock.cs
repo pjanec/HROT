@@ -3,8 +3,8 @@ using Hrot.ExCon.Adapters;
 using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Panels;
 using Hrot.UI.Common.Facades;
-using FDP.Toolkit.ImGui.Panels;
-using FDP.Toolkit.ImGui.Utils;
+using Fdp.Toolkit.ImGui.Panels;
+using Fdp.Toolkit.ImGui.Utils;
 using ImGuiNET;
 
 namespace Hrot.ExCon;

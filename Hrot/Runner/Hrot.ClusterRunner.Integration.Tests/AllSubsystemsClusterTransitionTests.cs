@@ -9,7 +9,7 @@ using Hrot.Orchestrator;
 using Hrot.SimHost;
 using Hrot.IG;
 using Hrot.ExCon;
-using FDP.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration;
 using Microsoft.Extensions.Logging.Abstractions;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;

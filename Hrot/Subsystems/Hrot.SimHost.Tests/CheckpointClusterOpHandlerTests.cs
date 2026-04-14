@@ -3,8 +3,8 @@ using System.IO;
 using System.Threading.Tasks;
 using Fdp.Kernel;
 using Fdp.Kernel.Orchestration;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -49,7 +49,7 @@ namespace Hrot.SimHost.Tests
             {
                 TransactionId = txId ?? Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.TakeSnapshot,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.TakeSnapshot,
             };
 
         private ReferenceCheckpointHandler CreateHandler(CheckpointIOWorker worker) =>
@@ -192,7 +192,7 @@ namespace Hrot.SimHost.Tests
                 {
                     TransactionId = Guid.NewGuid(),
                     TargetNodeId  = 0,
-                    Operation     = FDP.Toolkit.Orchestration.NodeOpType.FinalizeLive,
+                    Operation     = Fdp.Toolkit.Orchestration.NodeOpType.FinalizeLive,
                 },
                 default);
 

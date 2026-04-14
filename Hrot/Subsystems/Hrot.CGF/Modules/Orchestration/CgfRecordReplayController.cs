@@ -2,7 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Fdp.Kernel;
 using Fdp.Kernel.Orchestration;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 
 namespace Hrot.CGF.Modules.Orchestration
 {

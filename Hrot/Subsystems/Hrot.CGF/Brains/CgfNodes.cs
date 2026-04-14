@@ -6,9 +6,9 @@ using CarKinem.Core;
 using Fbt;
 using Fbt.Runtime;
 using Fbt.Serialization;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Navigation;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Navigation;
 
 namespace Hrot.CGF.Brains
 {
@@ -184,7 +184,7 @@ namespace Hrot.CGF.Brains
 
             channel.ActiveAction = NavigationConstants.ActionIdFollowRoute;
 
-            var route = new FDP.Toolkit.Navigation.FollowRouteParams
+            var route = new Fdp.Toolkit.Navigation.FollowRouteParams
             {
                 TrajectoryId = p.TrajectoryId, // FIX: was hardcoded to 0; now reads from blackboard params
                 IsLooped     = (byte)(p.Loop ? 1 : 0)

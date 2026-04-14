@@ -1,8 +1,8 @@
 using System;
 using System.Numerics;
 using Fdp.Engine.Runner;
-using FDP.Toolkit.ImGui.WindowManager;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.ImGui.WindowManager;
+using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Kernel;
 using Hrot.Common.Infrastructure;
 using Hrot.Network.Infrastructure;
@@ -11,7 +11,7 @@ using Hrot.Common;
 using Hrot.SimHost;
 using Hrot.SimHost.Modules;
 
-using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
+using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 using IMapCameraProvider = Fdp.Engine.Runner.IMapCameraProvider;
 
 namespace Hrot.ClusterRunner.Services;

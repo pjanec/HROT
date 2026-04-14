@@ -4,10 +4,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hrot.CGF.Modules.Orchestration.Handlers;
 using Hrot.Common.Orchestration;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.Common.Scenario;
-using FDP.Toolkit.Scenario;
+using Fdp.Toolkit.Scenario;
 using Xunit;
 
 namespace Hrot.SimHost.Integration.Tests;
@@ -69,7 +69,7 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
         {
             TransactionId = Guid.NewGuid(),
             TargetNodeId  = 0,
-            Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+            Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
             DomainPayload = scenarioId,
         });
 
@@ -106,7 +106,7 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
         {
             TransactionId = Guid.NewGuid(),
             TargetNodeId  = 0,
-            Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+            Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
             DomainPayload = null,  // no scenario ID → handler skips gracefully
         });
 
@@ -143,7 +143,7 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
         {
             TransactionId = Guid.NewGuid(),
             TargetNodeId  = 0,
-            Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+            Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
             DomainPayload = scenarioId,
         };
 

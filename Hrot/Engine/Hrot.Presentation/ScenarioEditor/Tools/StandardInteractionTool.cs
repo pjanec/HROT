@@ -2,18 +2,18 @@
 using System.Numerics;
 using Hrot.IG.Components;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.Vis2D.Abstractions;
-using FDP.Toolkit.Vis2D.Defaults;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.ModuleHost.Abstractions;
 using Raylib_cs;
-using FdpStandardInteractionTool = FDP.Toolkit.Vis2D.Tools.StandardInteractionTool;
+using FdpStandardInteractionTool = Fdp.Toolkit.Vis2D.Tools.StandardInteractionTool;
 
 namespace Hrot.ScenarioEditor.Tools;
 
 /// <summary>
 /// IG-specific wrapper that wires the FDP
-/// <see cref="FDP.Toolkit.Vis2D.Tools.StandardInteractionTool"/> into the
+/// <see cref="Fdp.Toolkit.Vis2D.Tools.StandardInteractionTool"/> into the
 /// IG ECS world.
 ///
 /// Responsibilities:
@@ -23,12 +23,12 @@ namespace Hrot.ScenarioEditor.Tools;
 ///     click / drag / hover / box-select mechanics are fully reused.
 ///   </item>
 ///   <item>
-///     Subscribes to <see cref="FDP.Toolkit.Vis2D.Tools.StandardInteractionTool.OnEntitySelectRequest"/>
-///     and <see cref="FDP.Toolkit.Vis2D.Tools.StandardInteractionTool.OnRegionSelected"/>
+///     Subscribes to <see cref="Fdp.Toolkit.Vis2D.Tools.StandardInteractionTool.OnEntitySelectRequest"/>
+///     and <see cref="Fdp.Toolkit.Vis2D.Tools.StandardInteractionTool.OnRegionSelected"/>
 ///     to synchronise both:
 ///     <list type="bullet">
 ///       <item>The in-memory <see cref="DefaultSelectionState"/> consumed by
-///             <see cref="FDP.Toolkit.Vis2D.Layers.EntityRenderLayer"/>.</item>
+///             <see cref="Fdp.Toolkit.Vis2D.Layers.EntityRenderLayer"/>.</item>
 ///       <item>The ECS <see cref="SelectionState"/> components read by
 ///             <see cref="Hrot.IG.Systems.SelectionRenderSystem"/>.</item>
 ///     </list>
@@ -94,7 +94,7 @@ public class StandardInteractionTool : IMapTool
     /// Visualizer adapter used by the inner tool for hit-radius queries.
     /// </param>
     /// <param name="selection">
-    /// Shared selection state consumed by the <see cref="FDP.Toolkit.Vis2D.Layers.EntityRenderLayer"/>.
+    /// Shared selection state consumed by the <see cref="Fdp.Toolkit.Vis2D.Layers.EntityRenderLayer"/>.
     /// </param>
     public StandardInteractionTool(
         EntityRepository      world,

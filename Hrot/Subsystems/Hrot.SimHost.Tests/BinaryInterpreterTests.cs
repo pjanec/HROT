@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Hrot.NED.Messages;
-using FDP.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Patching;
 
 namespace Hrot.SimHost.Tests
 {

@@ -4,10 +4,10 @@ using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.DER;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.DER;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Replication.Patching;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
 using Hrot.Common.Infrastructure;
@@ -23,7 +23,7 @@ using Hrot.NED.Descriptors.Orchestration;
 using Hrot.SimHost;
 using Fdp.ModuleHost.Network.Interfaces;
 using Hrot.Map.Common.Replication.Egress;
-using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
+using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 
 namespace Hrot.Network.NED.Factory;
 

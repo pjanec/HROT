@@ -1,5 +1,5 @@
 using Fdp.Interfaces;
-using FDP.Toolkit.NetworkSpawning.Systems;
+using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.SimHost.Modules
@@ -7,7 +7,7 @@ namespace Hrot.SimHost.Modules
     // ─── Module ─────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Hosts a <see cref="FDP.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem"/>.
+    /// Hosts a <see cref="Fdp.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem"/>.
     /// Entity lifecycle (create/delete request handling) is a brain (CGF) responsibility
     /// and must NOT be wired here. Network translators are provided by the composition
     /// root via <c>INetworkFactory</c> and registered separately.

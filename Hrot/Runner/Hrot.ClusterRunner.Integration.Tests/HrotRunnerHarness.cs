@@ -65,7 +65,7 @@ public sealed class HrotRunnerHarness : IDisposable
 
         var factory = new NedNetworkFactory(
             participant:  null,
-            entityMap:    new FDP.Toolkit.Replication.Services.NetworkEntityMap(),
+            entityMap:    new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
             geoTransform: HrotEnvironment.CreateGeoTransform(),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
@@ -106,7 +106,7 @@ public sealed class HrotRunnerHarness : IDisposable
 
         var factory = new NedNetworkFactory(
             participant:  null,
-            entityMap:    new FDP.Toolkit.Replication.Services.NetworkEntityMap(),
+            entityMap:    new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
             geoTransform: HrotEnvironment.CreateGeoTransform(),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,

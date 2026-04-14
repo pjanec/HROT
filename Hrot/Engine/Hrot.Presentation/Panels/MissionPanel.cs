@@ -1,5 +1,5 @@
 using Hrot.Core.Mission;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using ImGuiNET;
 using System.Text.Json;
 using Hrot.UI.Common.Facades;

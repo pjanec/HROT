@@ -4,9 +4,9 @@ using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.SimHost;
 using Hrot.SimHost.Utilities;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Components;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -14,7 +14,7 @@ using Fdp.Engine.Runner;
 using Hrot.SimHost.Windows;
 using Hrot.Presentation.Windows;
 
-using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
+using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 
 namespace Hrot.SimHost
 {
@@ -109,7 +109,7 @@ namespace Hrot.SimHost
         /// TestHook: exposes the <see cref="DoctrineRegistry"/> so integration tests can
         /// register scenario-specific doctrines before transitioning the cluster to OperatingLive.
         /// </summary>
-        internal FDP.Toolkit.Behavior.DoctrineRegistry TestHook_DoctrineRegistry
+        internal Fdp.Toolkit.Behavior.DoctrineRegistry TestHook_DoctrineRegistry
             => App.TestHook_DoctrineRegistry;
 
         /// <summary>TestHook: spawns an entity and returns its network ID.</summary>
@@ -190,7 +190,7 @@ namespace Hrot.SimHost
         }
 
         /// <inheritdoc/>
-        public void RegisterWindows(FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager)
+        public void RegisterWindows(Fdp.Toolkit.ImGui.WindowManager.WindowManager windowManager)
         {
             var vis = _app?.Visualization;
             if (vis == null) return;

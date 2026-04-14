@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-using FDP.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

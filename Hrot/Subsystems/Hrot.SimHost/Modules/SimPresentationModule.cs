@@ -1,7 +1,7 @@
 using Hrot.SimHost.Systems;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Engine.Runner;
 
 namespace Hrot.SimHost.Modules

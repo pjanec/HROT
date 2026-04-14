@@ -1,7 +1,7 @@
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Scheduling;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Systems;
 
 namespace Hrot.Common.Abstractions; // preserve old namespace for callers
 

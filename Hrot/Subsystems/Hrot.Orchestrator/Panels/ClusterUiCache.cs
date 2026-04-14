@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
-using FDP.Toolkit.Time;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Time;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
 using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
-using FdpNodeOpType = FDP.Toolkit.Orchestration.NodeOpType;
+using FdpNodeOpType = Fdp.Toolkit.Orchestration.NodeOpType;
 
 namespace Hrot.Orchestrator.Panels;
 

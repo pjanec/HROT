@@ -231,7 +231,7 @@ namespace Hrot.Map.Definitions.Tkb
 
             // Tactical graphic: area overlay
             var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);
-            areaTemplate.AddComponent(new FDP.Toolkit.Replication.Components.NetworkTransform());
+            areaTemplate.AddComponent(new Fdp.Toolkit.Replication.Components.NetworkTransform());
             tkbDb.Register(areaTemplate);
 
             // Tactical graphic: route entity (ROUTES1-T003)

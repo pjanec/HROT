@@ -3,23 +3,23 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration;
 
 namespace Hrot.Common.Orchestration
 {
     /// <summary>
     /// Adapts a <see cref="IClusterOpHandler"/> (Hrot interface, takes <see cref="NodeOpCommand"/>)
-    /// to the <see cref="FDP.Toolkit.Orchestration.IClusterStateHandler"/> interface expected by
-    /// <see cref="FDP.Toolkit.Orchestration.ClusterSlave"/>.
+    /// to the <see cref="Fdp.Toolkit.Orchestration.IClusterStateHandler"/> interface expected by
+    /// <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/>.
     ///
     /// <para>
     /// Used during the G0402→G0404 migration window so existing Hrot handler
     /// implementations can be registered with the toolkit ClusterSlave without change.
     /// Remove once all handlers are migrated to implement
-    /// <see cref="FDP.Toolkit.Orchestration.IClusterStateHandler"/> directly (G0404/G0405).
+    /// <see cref="Fdp.Toolkit.Orchestration.IClusterStateHandler"/> directly (G0404/G0405).
     /// </para>
     /// </summary>
-    public sealed class HrotHandlerAdapter : FDP.Toolkit.Orchestration.ITickableClusterStateHandler
+    public sealed class HrotHandlerAdapter : Fdp.Toolkit.Orchestration.ITickableClusterStateHandler
     {
         private readonly IClusterOpHandler         _inner;
         private readonly EntityRepository?   _repo;
@@ -41,7 +41,7 @@ namespace Hrot.Common.Orchestration
         // ── FDP.Toolkit.Orchestration.IClusterStateHandler ────────────────────────────
 
         /// <inheritdoc />
-        public bool CanHandle(FDP.Toolkit.Orchestration.NodeOpType operation) =>
+        public bool CanHandle(Fdp.Toolkit.Orchestration.NodeOpType operation) =>
             _inner.CanHandle((Hrot.NED.Descriptors.Orchestration.NodeOpType)(int)operation);
 
         /// <inheritdoc />

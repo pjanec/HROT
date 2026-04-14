@@ -4,15 +4,16 @@ using Hrot.NED.Descriptors;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Replication.Extensions;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.ModuleHost.Abstractions;
 using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;
-using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
+using EcsMissionTrigger = Fdp.Toolkit.Behavior.Components.MissionTrigger;
+using Fdp.Interfaces;
 
 namespace Hrot.Map.Common.Replication.Ingress
 {

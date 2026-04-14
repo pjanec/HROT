@@ -2,7 +2,7 @@
 using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Panels;
 using Hrot.Core.Network;
-using FDP.Toolkit.DER;
+using Fdp.Toolkit.DER;
 using Xunit;
 using Moq;
 

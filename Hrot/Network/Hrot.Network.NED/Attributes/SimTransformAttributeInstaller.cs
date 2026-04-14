@@ -2,7 +2,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
-using FDP.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Patching;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 

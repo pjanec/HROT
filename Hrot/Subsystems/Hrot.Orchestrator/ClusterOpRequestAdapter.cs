@@ -1,11 +1,11 @@
 using System;
 using System.Text.Json;
 using Hrot.NED.Descriptors.Orchestration;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using ClusterState   = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType  = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
-using FdpClusterState = FDP.Toolkit.Orchestration.ClusterState;
+using FdpClusterState = Fdp.Toolkit.Orchestration.ClusterState;
 
 namespace Hrot.Orchestrator;
 

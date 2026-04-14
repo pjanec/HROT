@@ -1,5 +1,5 @@
 using Fdp.Modules.Geographic;
-using FDP.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior;
 using Hrot.CGF.Brains;
 
 namespace Hrot.CGF.Configuration

@@ -6,7 +6,7 @@ using Hrot.NED.Descriptors;
 using Hrot.Map.Common;
 using Hrot.IG.Components;
 using CycloneDDS.Runtime;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;

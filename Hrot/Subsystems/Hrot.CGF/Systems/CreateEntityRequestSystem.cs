@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using Hrot.Core.Network;
-using FDP.Toolkit.Replication.Patching;
-using FDP.Kernel.Logging;
+using Fdp.Toolkit.Replication.Patching;
+using Fdp.Kernel.Logging;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network.Interfaces;
 
@@ -309,7 +309,7 @@ namespace Hrot.CGF.Systems
                         var grants = BuildOwnershipGrants(pending, assignedOwner);
                         if (grants.Count > 0)
                         {
-                            var dtoCmd = new FDP.Toolkit.NetworkSpawning.Events.DeferredTakeOwnershipCommand
+                            var dtoCmd = new Fdp.Toolkit.NetworkSpawning.Events.DeferredTakeOwnershipCommand
                             {
                                 NetworkId = pending.NetworkId,
                             };

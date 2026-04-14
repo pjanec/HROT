@@ -3,14 +3,14 @@ namespace Hrot.CGF.Configuration
     /// <summary>
     /// Stable compile-time integer constants for the CGF Brain-tier doctrines.
     ///
-    /// These are passed to <see cref="FDP.Toolkit.Behavior.DoctrineRegistry.Register"/> at
+    /// These are passed to <see cref="Fdp.Toolkit.Behavior.DoctrineRegistry.Register"/> at
     /// application startup and stored in
-    /// <see cref="FDP.Toolkit.Behavior.Components.DoctrineState.ActiveDoctrineHash"/>.
+    /// <see cref="Fdp.Toolkit.Behavior.Components.DoctrineState.ActiveDoctrineHash"/>.
     ///
     /// <b>Range:</b> 3001-3099 (navigation and wander behaviours).
     /// Values must be globally unique and must never change once published.
     ///
-    /// See <see cref="FDP.Toolkit.Behavior.DoctrineIds"/> for framework-level doctrine IDs.
+    /// See <see cref="Fdp.Toolkit.Behavior.DoctrineIds"/> for framework-level doctrine IDs.
     /// </summary>
     public static class CgfDoctrineIds
     {

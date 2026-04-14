@@ -1,5 +1,5 @@
 using System.Reflection;
-using FDP.Toolkit.DER;
+using Fdp.Toolkit.DER;
 using ImGuiNET;
 
 namespace Hrot.ExCon.Panels;
@@ -17,7 +17,7 @@ public sealed record InspectorLine(string Category, string Field, string Value);
 /// attached to the currently selected entity.
 ///
 /// <para><b>Deprecated.</b> This panel has been superseded by
-/// <see cref="FDP.Toolkit.ImGui.Panels.DerEntityInspectorPanel"/> which
+/// <see cref="Fdp.Toolkit.ImGui.Panels.DerEntityInspectorPanel"/> which
 /// provides live descriptor updates, search, and context-menu support.
 /// This class is retained only for reference and will be removed in a future
 /// clean-up pass.</para>

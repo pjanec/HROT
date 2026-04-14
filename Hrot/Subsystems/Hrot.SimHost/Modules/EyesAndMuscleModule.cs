@@ -1,10 +1,11 @@
 using System.Numerics;
 using System.Threading;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Kernel;
 using Hrot.Common;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
 namespace Hrot.SimHost.Modules;
 

@@ -1,7 +1,7 @@
 ﻿using System;
 using CycloneDDS.Runtime;
-using FDP.Toolkit.DER;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.DER;
+using Fdp.Toolkit.Time.Messages;
 
 namespace Hrot.ExCon.Services;
 

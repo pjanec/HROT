@@ -8,7 +8,7 @@ using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using CycloneDDS.Runtime;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
@@ -130,9 +130,9 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
                 if (cgfMap == null || cgfWorld == null) return false;
                 if (!cgfMap.TryGetEntity(networkId, out var e)) return false;
                 if (!cgfWorld.IsAlive(e)) return false;
-                if (!cgfWorld.HasComponent<FDP.Toolkit.Navigation.NavigationIntent>(e)) return false;
-                return cgfWorld.GetComponent<FDP.Toolkit.Navigation.NavigationIntent>(e).Mode
-                       != FDP.Toolkit.Navigation.NavigationMode.None;
+                if (!cgfWorld.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(e)) return false;
+                return cgfWorld.GetComponent<Fdp.Toolkit.Navigation.NavigationIntent>(e).Mode
+                       != Fdp.Toolkit.Navigation.NavigationMode.None;
             }, 100);
             _out.WriteLine($"[DIAG] CGF NavigationIntent.Mode became non-None: {cgfNavReady}");
 
@@ -144,9 +144,9 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
                 if (shWorld == null) return false;
                 if (!shMap.TryGetEntity(networkId, out var e)) return false;
                 if (!shWorld.IsAlive(e)) return false;
-                if (!shWorld.HasComponent<FDP.Toolkit.Navigation.NavigationIntent>(e)) return false;
-                return shWorld.GetComponent<FDP.Toolkit.Navigation.NavigationIntent>(e).Mode
-                       != FDP.Toolkit.Navigation.NavigationMode.None;
+                if (!shWorld.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(e)) return false;
+                return shWorld.GetComponent<Fdp.Toolkit.Navigation.NavigationIntent>(e).Mode
+                       != Fdp.Toolkit.Navigation.NavigationMode.None;
             }, 200);
             _out.WriteLine($"[DIAG] SimHost NavigationIntent.Mode became non-None: {shNavReady}");
 
@@ -235,20 +235,20 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         if (!cgfMap.TryGetEntity(networkId, out var entity)) { output.WriteLine($"[DIAG-CGF] entity {networkId} not in map"); return; }
         if (!cgfWorld.IsAlive(entity)) { output.WriteLine("[DIAG-CGF] entity not alive"); return; }
 
-        string docHash = cgfWorld.HasComponent<FDP.Toolkit.Behavior.Components.DoctrineState>(entity)
-            ? cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.DoctrineState>(entity).ActiveDoctrineHash.ToString()
+        string docHash = cgfWorld.HasComponent<Fdp.Toolkit.Behavior.Components.DoctrineState>(entity)
+            ? cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.DoctrineState>(entity).ActiveDoctrineHash.ToString()
             : "no-component";
-        string navMode = cgfWorld.HasComponent<FDP.Toolkit.Navigation.NavigationIntent>(entity)
-            ? cgfWorld.GetComponent<FDP.Toolkit.Navigation.NavigationIntent>(entity).Mode.ToString()
+        string navMode = cgfWorld.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(entity)
+            ? cgfWorld.GetComponent<Fdp.Toolkit.Navigation.NavigationIntent>(entity).Mode.ToString()
             : "no-component";
-        string planPhase = cgfWorld.HasComponent<FDP.Toolkit.Behavior.Components.MissionPlanQueue>(entity)
-            ? $"phase={cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.MissionPlanQueue>(entity).CurrentPhase} count={cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.MissionPlanQueue>(entity).PhaseCount}"
+        string planPhase = cgfWorld.HasComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>(entity)
+            ? $"phase={cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>(entity).CurrentPhase} count={cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>(entity).PhaseCount}"
             : "no-component";
-        string loco = cgfWorld.HasComponent<FDP.Toolkit.Behavior.Components.LocomotionChannel>(entity)
-            ? $"action={cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.LocomotionChannel>(entity).ActiveAction} status={cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.LocomotionChannel>(entity).Status} dispId={cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.LocomotionChannel>(entity).DispatchedInstanceId} actId={cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.LocomotionChannel>(entity).ActionInstanceId}"
+        string loco = cgfWorld.HasComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(entity)
+            ? $"action={cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(entity).ActiveAction} status={cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(entity).Status} dispId={cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(entity).DispatchedInstanceId} actId={cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(entity).ActionInstanceId}"
             : "no-component";
-        string caps = cgfWorld.HasComponent<FDP.Toolkit.Behavior.Components.ActorCapabilityState>(entity)
-            ? cgfWorld.GetComponent<FDP.Toolkit.Behavior.Components.ActorCapabilityState>(entity).Capabilities.ToString()
+        string caps = cgfWorld.HasComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(entity)
+            ? cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(entity).Capabilities.ToString()
             : "no-component";
         output.WriteLine($"[DIAG-CGF] DoctrineHash={docHash} NavMode={navMode} MissionPlanQueue={planPhase}");
         output.WriteLine($"[DIAG-CGF] LocoChannel={loco} ActorCaps={caps}");
@@ -262,8 +262,8 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         if (!shMap.TryGetEntity(networkId, out var entity)) { output.WriteLine($"[DIAG-SH] entity {networkId} not in map"); return; }
         if (!shWorld.IsAlive(entity)) { output.WriteLine("[DIAG-SH] entity not alive"); return; }
 
-        string navMode = shWorld.HasComponent<FDP.Toolkit.Navigation.NavigationIntent>(entity)
-            ? shWorld.GetComponent<FDP.Toolkit.Navigation.NavigationIntent>(entity).Mode.ToString()
+        string navMode = shWorld.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(entity)
+            ? shWorld.GetComponent<Fdp.Toolkit.Navigation.NavigationIntent>(entity).Mode.ToString()
             : "no-component";
         string navStateMode = shWorld.HasComponent<CarKinem.Core.NavState>(entity)
             ? shWorld.GetComponent<CarKinem.Core.NavState>(entity).Mode.ToString()

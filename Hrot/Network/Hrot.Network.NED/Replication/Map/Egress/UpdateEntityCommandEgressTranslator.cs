@@ -5,10 +5,10 @@ using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.NetworkSpawning.Events;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Dds;
@@ -16,6 +16,7 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
 namespace Hrot.Map.Common.Replication.Egress
 {

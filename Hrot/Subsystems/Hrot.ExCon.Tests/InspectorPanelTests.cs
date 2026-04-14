@@ -1,5 +1,5 @@
-﻿using FDP.Toolkit.DER;
-using FDP.Toolkit.ImGui.Panels;
+﻿using Fdp.Toolkit.DER;
+using Fdp.Toolkit.ImGui.Panels;
 using Hrot.Core.Network;
 
 namespace Hrot.ExCon.Tests;

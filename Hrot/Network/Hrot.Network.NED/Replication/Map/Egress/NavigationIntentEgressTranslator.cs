@@ -4,15 +4,16 @@ using Hrot.NED.Common;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Extensions;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Modules.Geographic;
 using Fdp.ModuleHost.Abstractions;
 
-using EcsNavigationIntent = FDP.Toolkit.Navigation.NavigationIntent;
-using EcsNavMode          = FDP.Toolkit.Navigation.NavigationMode;
+using EcsNavigationIntent = Fdp.Toolkit.Navigation.NavigationIntent;
+using EcsNavMode          = Fdp.Toolkit.Navigation.NavigationMode;
+using Fdp.Interfaces;
 
 namespace Hrot.Map.Common.Replication.Egress
 {
@@ -32,7 +33,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationIntent;
 
         // NavigationIntent ECS component ID = NavigationContractsComponentIds.NavigationIntent = 67
-        private static readonly IReadOnlyList<int> _targetIds = new int[] { FDP.Toolkit.Navigation.NavigationContractsComponentIds.NavigationIntent };
+        private static readonly IReadOnlyList<int> _targetIds = new int[] { Fdp.Toolkit.Navigation.NavigationContractsComponentIds.NavigationIntent };
         public IReadOnlyList<int> TargetComponentIds => _targetIds;
 
         public NavigationIntentEgressTranslator(

@@ -19,27 +19,27 @@ using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Transforms;
 using Fdp.Toolkit.Tkb;
-using FDP.Framework.Raylib;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Lifecycle.Events;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.NetworkSpawning.Systems;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Physics;
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
-using FDP.Toolkit.Replication.Utilities;
-using FDP.Toolkit.Time;
-using FDP.Toolkit.Time.Controllers;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.Vis2D.Components;
-using FDP.Toolkit.Vis2D.Defaults;
-using FDP.Toolkit.Scenario;
+using Fdp.Framework.Raylib;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Lifecycle.Events;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Systems;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Physics;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Utilities;
+using Fdp.Toolkit.Time;
+using Fdp.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Defaults;
+using Fdp.Toolkit.Scenario;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Network;
 using Fdp.ModuleHost.Scheduling;
@@ -57,7 +57,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
-using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
+using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 
 namespace Hrot.SimHost
 {
@@ -112,7 +112,7 @@ namespace Hrot.SimHost
         private PhysicsToolkitModule? _physicsModule;
 
         // ── Orchestration (CGF1-S0104 / CMC-S016) ────────────────────────────
-        private FDP.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
+        private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
         private Hrot.Common.Orchestration.NodeOpSlaveTranslator? _slaveTranslator;
         // Time-control translators: bridge SwitchTimeModeEvent and FrameOrder/FrameAck so that
         // the SlaveSyncController (installed by HrotNodeBuilder) receives time events from the
@@ -403,7 +403,7 @@ namespace Hrot.SimHost
                 _kernel.RegisterModule(m);
 
             // Extract elm reference for spawning systems (uses same instance as BaseModules[0]).
-            var elm = (FDP.Toolkit.Lifecycle.EntityLifecycleModule)_context.BaseModules[0];
+            var elm = (Fdp.Toolkit.Lifecycle.EntityLifecycleModule)_context.BaseModules[0];
 
             var spawningSystem = new NetworkSpawningSystem(
                 tkbDb,
@@ -604,14 +604,14 @@ namespace Hrot.SimHost
         /// <summary>
         /// Internal test hook: returns the runtime type of the currently active time controller
         /// in the SimHost kernel.  Tests use this to verify that after Pause/Resume the
-        /// <see cref="FDP.Toolkit.Time.Controllers.SlaveSyncController"/> transitions correctly.
+        /// <see cref="Fdp.Toolkit.Time.Controllers.SlaveSyncController"/> transitions correctly.
         /// </summary>
         public Type? TestHook_TimeControllerType => _kernel?.GetTimeController().GetType();
 
         /// <summary>
         /// TestHook: returns the current <see cref="Fdp.ModuleHost.Time.TimeMode"/> of
         /// the kernel's time controller.  Used in integration tests to verify mode transitions
-        /// of <see cref="FDP.Toolkit.Time.Controllers.SlaveSyncController"/>.
+        /// of <see cref="Fdp.Toolkit.Time.Controllers.SlaveSyncController"/>.
         /// </summary>
         public Fdp.ModuleHost.Time.TimeMode? TestHook_TimeControllerMode
             => _kernel?.GetTimeController().GetMode();
@@ -788,7 +788,7 @@ namespace Hrot.SimHost
     /// <summary>No-op replication module used when no INetworkFactory is injected (unit-test / offline path).</summary>
     internal sealed class NullReplicationModule : Hrot.Common.Abstractions.IReplicationModule
     {
-        private readonly GhostCreationSystem _gcs = new(new FDP.Toolkit.Replication.Services.NetworkEntityMap());
+        private readonly GhostCreationSystem _gcs = new(new Fdp.Toolkit.Replication.Services.NetworkEntityMap());
         private readonly Fdp.ModuleHost.Scheduling.NetworkLifecycleSystemGroup _nlg = new();
         public string Name => "Null";
         public Fdp.ModuleHost.Abstractions.ExecutionPolicy Policy => Fdp.ModuleHost.Abstractions.ExecutionPolicy.Synchronous();

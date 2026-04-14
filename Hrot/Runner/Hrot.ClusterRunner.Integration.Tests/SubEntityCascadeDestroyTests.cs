@@ -1,8 +1,8 @@
 using System;
 using Hrot.Core.Mission;
 using Hrot.Map.Common;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Kernel;
 using Xunit;
 

@@ -12,8 +12,8 @@ public sealed class FdpOrchestrationEnumSyncTests
     [Fact]
     public void ClusterStateValuesMatchHrot()
     {
-        foreach (FDP.Toolkit.Orchestration.ClusterState fdpVal
-                 in Enum.GetValues<FDP.Toolkit.Orchestration.ClusterState>())
+        foreach (Fdp.Toolkit.Orchestration.ClusterState fdpVal
+                 in Enum.GetValues<Fdp.Toolkit.Orchestration.ClusterState>())
         {
             var nedVal = (Hrot.NED.Descriptors.Orchestration.ClusterState)(int)fdpVal;
             Assert.Equal(fdpVal.ToString(), nedVal.ToString());
@@ -23,8 +23,8 @@ public sealed class FdpOrchestrationEnumSyncTests
     [Fact]
     public void ClusterOpTypeValuesMatchHrot()
     {
-        foreach (FDP.Toolkit.Orchestration.ClusterOpType fdpVal
-                 in Enum.GetValues<FDP.Toolkit.Orchestration.ClusterOpType>())
+        foreach (Fdp.Toolkit.Orchestration.ClusterOpType fdpVal
+                 in Enum.GetValues<Fdp.Toolkit.Orchestration.ClusterOpType>())
         {
             var nedVal = (Hrot.NED.Descriptors.Orchestration.ClusterOpType)(int)fdpVal;
             Assert.Equal(fdpVal.ToString(), nedVal.ToString());
@@ -34,8 +34,8 @@ public sealed class FdpOrchestrationEnumSyncTests
     [Fact]
     public void NodeOpTypeValuesMatchHrot()
     {
-        foreach (FDP.Toolkit.Orchestration.NodeOpType fdpVal
-                 in Enum.GetValues<FDP.Toolkit.Orchestration.NodeOpType>())
+        foreach (Fdp.Toolkit.Orchestration.NodeOpType fdpVal
+                 in Enum.GetValues<Fdp.Toolkit.Orchestration.NodeOpType>())
         {
             var nedVal = (Hrot.NED.Descriptors.Orchestration.NodeOpType)(int)fdpVal;
             Assert.Equal(fdpVal.ToString(), nedVal.ToString());

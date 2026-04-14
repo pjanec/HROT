@@ -3,8 +3,8 @@ using Hrot.Common.Infrastructure;
 using Hrot.Map.Common;
 using Hrot.Network.Replication;
 using CycloneDDS.Runtime;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Lifecycle;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Lifecycle;
 
 namespace Hrot.Network.Infrastructure;
 

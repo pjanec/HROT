@@ -1,6 +1,6 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Physics;
-using FDP.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics;
+using Fdp.Toolkit.Physics.Components;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

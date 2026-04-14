@@ -1,9 +1,9 @@
 using System;
 using Hrot.NED.Descriptors;
 using Fdp.Interfaces;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.NetworkSpawning.Systems;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.NetworkSpawning.Systems;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.IG.Modules

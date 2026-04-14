@@ -1,5 +1,5 @@
 using System;
-using FDP.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Map.Common;
 using Hrot.Core.Mission;
 using Xunit;

@@ -7,7 +7,7 @@ using Hrot.NED.Common;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Commands;
-using FDP.Toolkit.Vis2D.Tools;
+using Fdp.Toolkit.Vis2D.Tools;
 
 namespace Hrot.IG.Tests.CommandHandling;
 

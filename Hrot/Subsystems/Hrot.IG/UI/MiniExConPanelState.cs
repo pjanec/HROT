@@ -5,10 +5,10 @@ using System.Threading.Tasks;
 using Hrot.Core.Mission;
 using Hrot.Core.Network;
 using Hrot.IG.Components;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
-using FDP.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.ModuleHost.Network.Interfaces;
 
 namespace Hrot.IG.UI;

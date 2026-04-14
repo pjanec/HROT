@@ -1,6 +1,6 @@
 using System;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D.Defaults;
+using Fdp.Toolkit.Vis2D.Defaults;
 using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Events;
 using Hrot.ScenarioEditor.Tools;

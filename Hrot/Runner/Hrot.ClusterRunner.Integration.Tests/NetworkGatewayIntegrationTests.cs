@@ -1,8 +1,8 @@
 using System;
 using System.Threading;
 using Fdp.Kernel;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Map.Common;
 using Hrot.Core.Mission;
 using Fdp.ModuleHost.Network.Interfaces;

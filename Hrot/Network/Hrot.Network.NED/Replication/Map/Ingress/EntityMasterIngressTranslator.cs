@@ -2,15 +2,16 @@ using System;
 using System.Runtime.InteropServices;
 using Hrot.NED.Descriptors;
 using CycloneDDS.Runtime;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using Fdp.Kernel;
 using Fdp.Interfaces;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Systems;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Interfaces;
 
 namespace Hrot.Map.Common.Replication.Ingress
 {

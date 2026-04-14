@@ -4,8 +4,8 @@ using Hrot.NED.Messages;
 using Hrot.Map.Common.Dds;
 using Hrot.Network.NED.SimHost;
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Contracts;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Replication.Services;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

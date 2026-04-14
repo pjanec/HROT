@@ -5,7 +5,7 @@ using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Panels;
 using Hrot.ExCon.Services;
-using FDP.Toolkit.DER;
+using Fdp.Toolkit.DER;
 using ImGuiNET;
 using Moq;
 

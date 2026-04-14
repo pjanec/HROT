@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Behavior.Events;
 using Hrot.IG.Components;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;

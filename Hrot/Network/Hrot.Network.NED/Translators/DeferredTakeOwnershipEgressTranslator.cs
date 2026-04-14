@@ -2,11 +2,12 @@ using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.NetworkSpawning.Events;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
 namespace Hrot.Network.Translators
 {

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
-using FDP.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Xunit;
 
 namespace Hrot.IG.Tests;

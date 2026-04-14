@@ -10,10 +10,10 @@ using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Engine.Runner;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Time;
-using FDP.Toolkit.Time.Controllers;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Time;
+using Fdp.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time.Messages;
 using ImGuiNET;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Time;
@@ -55,7 +55,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     // ── Time controller (CGF1-A.1, BATCH-09) ─────────────────────────────
     // MasterSyncController unifies wall-clock advancement, barrier protocol, and stepping.
     private FdpEventBus? _eventBus;
-    private FDP.Toolkit.Time.Controllers.MasterSyncController? _masterSync;
+    private Fdp.Toolkit.Time.Controllers.MasterSyncController? _masterSync;
     private IDescriptorTranslator? _timeModeTranslator;
     private IDescriptorTranslator? _lockstepTranslator;
     private IDescriptorTranslator? _masterTimeSyncTranslator;
@@ -118,8 +118,8 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // MasterSyncController replaces the minimal kernel + DistributedTimeCoordinator.
         // Must be created before _uiCache so it can be injected for smooth sim-time display.
         _eventBus          = new FdpEventBus();
-        _masterSync        = new FDP.Toolkit.Time.Controllers.MasterSyncController(
-            _eventBus, new HashSet<int>(), FDP.Toolkit.Time.Controllers.TimeConfig.Default);
+        _masterSync        = new Fdp.Toolkit.Time.Controllers.MasterSyncController(
+            _eventBus, new HashSet<int>(), Fdp.Toolkit.Time.Controllers.TimeConfig.Default);
         // MasterSyncController constructor publishes the initial SwitchTimeModeEvent{Continuous}
         // to _eventBus PENDING.  Swap it to CURRENT now so the first frame's ScanAndPublish
         // can read it and forward it to DDS before slaves (IG, ExCon) start their kernels.
@@ -222,7 +222,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             foreach (var sample in hbScope)
             {
                 if (!sample.IsValid) continue;
-                _orchestrationBus.PublishManaged(new FDP.Toolkit.Orchestration.NodeHeartbeatEvent
+                _orchestrationBus.PublishManaged(new Fdp.Toolkit.Orchestration.NodeHeartbeatEvent
                 {
                     NodeId        = sample.Data.NodeId,
                     LocalStateId  = (int)sample.Data.LocalClusterState,
@@ -278,7 +278,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     public void DrawUI() { /* panels registered as ManagedWindows via IWindowRegistrar */ }
 
     /// <inheritdoc/>
-    public void RegisterWindows(FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager)
+    public void RegisterWindows(Fdp.Toolkit.ImGui.WindowManager.WindowManager windowManager)
     {
         if (_scenarioPanel == null) return;
         windowManager.RegisterWindow(new OrchestratorWindow(_scenarioPanel));

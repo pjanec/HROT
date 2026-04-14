@@ -2,8 +2,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Orchestration;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Orchestration;
 
 namespace Hrot.IG.Modules.Orchestration
 {
@@ -37,9 +37,9 @@ namespace Hrot.IG.Modules.Orchestration
             _localNodeId = localNodeId;
         }
         /// <inheritdoc />
-        public bool CanHandle(FDP.Toolkit.Orchestration.NodeOpType operation)
-            => operation == FDP.Toolkit.Orchestration.NodeOpType.PrepareZone
-            || operation == FDP.Toolkit.Orchestration.NodeOpType.CommitZone;
+        public bool CanHandle(Fdp.Toolkit.Orchestration.NodeOpType operation)
+            => operation == Fdp.Toolkit.Orchestration.NodeOpType.PrepareZone
+            || operation == Fdp.Toolkit.Orchestration.NodeOpType.CommitZone;
 
         /// <inheritdoc />
         /// <remarks>

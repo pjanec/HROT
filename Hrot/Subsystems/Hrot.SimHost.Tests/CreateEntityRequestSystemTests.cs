@@ -7,9 +7,9 @@ using Hrot.Core.Network;
 using Hrot.SimHost.Installers;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Patching;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Tkb;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
@@ -95,8 +95,8 @@ namespace Hrot.SimHost.Tests
             repo.RegisterComponent<TkbIdentity>();
             repo.RegisterComponent<GhostStateTracker>();
             // Register events used by NetworkSpawningSystem if it were running
-            repo.RegisterEvent<FDP.Toolkit.Lifecycle.Events.ConstructionOrder>();
-            repo.RegisterEvent<FDP.Toolkit.Lifecycle.Events.DestructionOrder>();
+            repo.RegisterEvent<Fdp.Toolkit.Lifecycle.Events.ConstructionOrder>();
+            repo.RegisterEvent<Fdp.Toolkit.Lifecycle.Events.DestructionOrder>();
             return repo;
         }
 

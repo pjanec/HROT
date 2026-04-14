@@ -2,8 +2,8 @@
 using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D.Abstractions;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Components;
 using Fdp.ModuleHost.Abstractions;
 using Raylib_cs;
 

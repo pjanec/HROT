@@ -3,15 +3,16 @@ using Hrot.NED.Descriptors;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Extensions;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
 
-using EcsNavigationStatus = FDP.Toolkit.Navigation.NavigationStatus;
-using EcsNavResult        = FDP.Toolkit.Navigation.NavigationResult;
+using EcsNavigationStatus = Fdp.Toolkit.Navigation.NavigationStatus;
+using EcsNavResult        = Fdp.Toolkit.Navigation.NavigationResult;
+using Fdp.Interfaces;
 
 namespace Hrot.Map.Common.Replication.Egress
 {
@@ -32,7 +33,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationStatus;
 
         // NavigationStatus ECS component ID = NavigationContractsComponentIds.NavigationStatus = 68
-        private static readonly IReadOnlyList<int> _targetIds = new int[] { FDP.Toolkit.Navigation.NavigationContractsComponentIds.NavigationStatus };
+        private static readonly IReadOnlyList<int> _targetIds = new int[] { Fdp.Toolkit.Navigation.NavigationContractsComponentIds.NavigationStatus };
         public IReadOnlyList<int> TargetComponentIds => _targetIds;
 
         // ── Per-entity change-detection cache ────────────────────────────────

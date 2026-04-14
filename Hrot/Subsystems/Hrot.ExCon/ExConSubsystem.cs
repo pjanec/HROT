@@ -7,21 +7,21 @@ using Hrot.ExCon.Logic;
 using Hrot.ExCon.Services;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Dds;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Panels;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
-using FDP.Toolkit.DER;
+using Fdp.Toolkit.DER;
 using Hrot.ExCon.Windows;
 using Hrot.Orchestrator.Panels;
 using Hrot.Orchestrator.Windows;
 using Fdp.Engine.Runner;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Time;
-using FDP.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time;
+using Fdp.Toolkit.Time.Controllers;
 using Fdp.ModuleHost.Time;
 
 namespace Hrot.ExCon
@@ -66,7 +66,7 @@ namespace Hrot.ExCon
         private DdsParticipant?  _participant;
         private List<IDisposable>? _ingressDisposables;
         private int              _nodeIdOverride;
-        private FDP.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
+        private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
 
         // ── CMC-S016: Orchestration bus + slave translator (BATCH-06) ──────────
         private FdpEventBus?                          _orchestrationBus;
@@ -119,10 +119,10 @@ namespace Hrot.ExCon
         internal int TestHook_NodeIdOverride => _nodeIdOverride;
 
         /// <summary>
-        /// Internal test hook: exposes the <see cref="FDP.Toolkit.Orchestration.ClusterSlave"/>
+        /// Internal test hook: exposes the <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/>
         /// for handler-registration assertions (CGF1-S0104 / A.3).
         /// </summary>
-        internal FDP.Toolkit.Orchestration.ClusterSlave? TestHook_ClusterSlave => _clusterSlave;
+        internal Fdp.Toolkit.Orchestration.ClusterSlave? TestHook_ClusterSlave => _clusterSlave;
 
         /// <summary>
         /// Internal test hook: exposes the <see cref="SlaveSyncController"/> created
@@ -172,7 +172,7 @@ namespace Hrot.ExCon
                     bus:             _orchestrationBus,
                     nodeId:          iosNodeId);
             }
-            _clusterSlave = new FDP.Toolkit.Orchestration.ClusterSlave(iosNodeId, SubsystemName, _orchestrationBus);
+            _clusterSlave = new Fdp.Toolkit.Orchestration.ClusterSlave(iosNodeId, SubsystemName, _orchestrationBus);
 
             // ── TC2-P3-T1: Slave time sync pipeline ──────────────────────────────
             // SlaveSyncController is always created (no DDS needed).
@@ -195,7 +195,7 @@ namespace Hrot.ExCon
 
             // Wire ReferenceReplayLoadHandler FIRST (PrepareReplay / FinalizeReplay;
             // PrepareLive only when replay active — Live-from-Replay branch gate).
-            _clusterSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
+            _clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
                 iosRrController,
                 simGroup:              null,
                 lifecycleGroup:        null,
@@ -204,7 +204,7 @@ namespace Hrot.ExCon
 
             // Wire ReferenceLiveLoadHandler: ACKs cold PrepareLive and FinalizeLive.
             // ExCon carries no ECS state and does not start a recording.
-            _clusterSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
+            _clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
                 checkpointWorker: null,
                 controller:       iosRrController,
                 storageDirectory: @"C:\FDP_Temp"));
@@ -365,7 +365,7 @@ namespace Hrot.ExCon
         }
 
         /// <inheritdoc/>
-        public void RegisterWindows(FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager)
+        public void RegisterWindows(Fdp.Toolkit.ImGui.WindowManager.WindowManager windowManager)
         {
             windowManager.RegisterWindow(new ClusterControlWindow(_clusterPanel, _uiCache));
 

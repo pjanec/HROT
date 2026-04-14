@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
 using Hrot.NED.Descriptors.Orchestration;
-using FDP.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration;
 using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType    = Hrot.NED.Descriptors.Orchestration.NodeOpType;
@@ -59,7 +59,7 @@ public sealed class ClusterMasterArchiveTests
         {
             NodeId        = 1,
             SubsystemName = "TestNode",
-            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
+            LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
         bus.SwapBuffers();

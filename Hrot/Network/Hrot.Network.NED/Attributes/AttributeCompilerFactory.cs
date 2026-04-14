@@ -4,7 +4,7 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.IG.Components;
 using Hrot.SimHost.Installers;
-using FDP.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Patching;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 
@@ -21,7 +21,7 @@ namespace Hrot.SimHost;
 ///   <item><c>"Name"</c> → <see cref="IG.Components.EntityInfo.Name"/> (ordinal: <c>dtEntityInfo</c>)</item>
 ///   <item><c>"Affiliation"</c> → <see cref="IG.Components.EntityInfo.ForceId"/> (ordinal: <c>dtEntityInfo</c>)</item>
 ///   <item><c>"GeoPosition.Latitude"</c>, <c>"GeoPosition.Longitude"</c>, <c>"GeoPosition.Altitude"</c>
-///         → <see cref="FDP.Toolkit.Replication.Components.SimTransform.Position"/> via
+///         → <see cref="Fdp.Toolkit.Replication.Components.SimTransform.Position"/> via
 ///         <c>IGeographicTransform.ToCartesian</c> (ordinal: <c>dtGeoSpatial</c>).
 ///         Registered only when <paramref name="geoTransform"/> is non-null.</item>
 /// </list>

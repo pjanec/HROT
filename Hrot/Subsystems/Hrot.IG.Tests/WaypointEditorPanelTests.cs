@@ -5,7 +5,7 @@ using Hrot.ScenarioEditor.Tools;
 using Hrot.IG.UI;
 using Hrot.Map.Common.Components;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D;
 using Xunit;
 
 namespace Hrot.IG.Tests;

@@ -4,8 +4,8 @@ using System.Numerics;
 using Hrot.Core.Network;
 using Hrot.IG.Systems;
 using Hrot.ScenarioEditor.Tools;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Kernel;
 using Raylib_cs;
 

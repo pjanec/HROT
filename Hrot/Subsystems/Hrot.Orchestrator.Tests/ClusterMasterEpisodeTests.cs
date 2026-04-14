@@ -3,11 +3,11 @@ using System.Linq;
 using System.Threading;
 using Fdp.Kernel;
 using Hrot.NED.Descriptors.Orchestration;
-using FDP.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
-using FdpNodeOpType = FDP.Toolkit.Orchestration.NodeOpType;
+using FdpNodeOpType = Fdp.Toolkit.Orchestration.NodeOpType;
 using Xunit;
 
 namespace Hrot.Orchestrator.Tests;
@@ -43,7 +43,7 @@ public sealed class ClusterMasterEpisodeTests
         {
             NodeId        = nodeId,
             SubsystemName = "SimHost",
-            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
+            LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
         bus.SwapBuffers();

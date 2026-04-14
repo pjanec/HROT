@@ -7,8 +7,8 @@ using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
 using Fdp.Kernel;
 using ImGuiNET;
-using FdpClusterOpType   = FDP.Toolkit.Orchestration.ClusterOpType;
-using ClusterOpIntent    = FDP.Toolkit.Orchestration.ClusterOpIntent;
+using FdpClusterOpType   = Fdp.Toolkit.Orchestration.ClusterOpType;
+using ClusterOpIntent    = Fdp.Toolkit.Orchestration.ClusterOpIntent;
 
 namespace Hrot.Orchestrator.Panels;
 

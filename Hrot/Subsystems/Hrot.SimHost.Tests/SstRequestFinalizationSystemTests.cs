@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Hrot.CGF.Systems;
 using Hrot.Core.Network;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -21,7 +21,7 @@ namespace Hrot.SimHost.Tests
         private static EntityRepository CreateWorld()
         {
             var repo = new EntityRepository();
-            repo.RegisterComponent<FDP.Toolkit.Replication.Components.NetworkIdentity>();
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             return repo;
         }
 

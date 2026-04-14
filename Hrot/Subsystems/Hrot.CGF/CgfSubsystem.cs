@@ -2,17 +2,17 @@ using System.Linq;
 using System.Numerics;
 using ImGuiNET;
 using Raylib_cs;
-using FDP.Toolkit.ImGui.Utils;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.Vis2D.Components;
-using FDP.Toolkit.Vis2D.Layers;
-using FDP.Toolkit.Vis2D.Tools;
-using FDP.Toolkit.Vis2D.Defaults;
+using Fdp.Toolkit.ImGui.Utils;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Layers;
+using Fdp.Toolkit.Vis2D.Tools;
+using Fdp.Toolkit.Vis2D.Defaults;
 using Hrot.Presentation.Windows;
-using FdpEntityInspectorPanel = FDP.Toolkit.ImGui.Panels.EntityInspectorPanel;
-using FdpEventBrowserPanel    = FDP.Toolkit.ImGui.Panels.EventBrowserPanel;
-using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;
-using FdpInspectorState       = FDP.Toolkit.ImGui.Abstractions.InspectorState;
+using FdpEntityInspectorPanel = Fdp.Toolkit.ImGui.Panels.EntityInspectorPanel;
+using FdpEventBrowserPanel    = Fdp.Toolkit.ImGui.Panels.EventBrowserPanel;
+using FdpRepositoryAdapter    = Fdp.Toolkit.ImGui.Adapters.RepositoryAdapter;
+using FdpInspectorState       = Fdp.Toolkit.ImGui.Abstractions.InspectorState;
 using Hrot.Map.Common;
 using Hrot.CGF.Brains;
 using CycloneDDS.Runtime;
@@ -22,13 +22,13 @@ using Hrot.CGF.Systems;
 using Hrot.Core.Network;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.NetworkSpawning.Systems;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Systems;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.Engine.Runner;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
@@ -418,7 +418,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
     public MapCamera? GetMapCamera() => _canvas?.Camera;
 
     /// <inheritdoc/>
-    public void RegisterWindows(FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager)
+    public void RegisterWindows(Fdp.Toolkit.ImGui.WindowManager.WindowManager windowManager)
     {
         if (_headless) return;
 

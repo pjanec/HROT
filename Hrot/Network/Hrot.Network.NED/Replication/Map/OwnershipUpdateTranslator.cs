@@ -2,14 +2,15 @@ using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
 using Hrot.NED.Descriptors;
 using Fdp.ModuleHost.Abstractions;
 
-using OwnershipUpdateMsg  = FDP.Toolkit.Replication.Messages.OwnershipUpdate;
+using OwnershipUpdateMsg  = Fdp.Toolkit.Replication.Messages.OwnershipUpdate;
 using OwnershipUpdateWire = Fdp.Network.Cyclone.Topics.OwnershipUpdate;
+using Fdp.Interfaces;
 
 namespace Hrot.Map.Common.Replication
 {

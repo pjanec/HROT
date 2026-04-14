@@ -1,10 +1,10 @@
 using Hrot.NED.Messages;
 using Hrot.Core.Network;
 using Hrot.Network.NED.ExCon;
-using FDP.Toolkit.Commands;
+using Fdp.Toolkit.Commands;
 using CycloneDDS.Core;
 using CycloneDDS.Runtime;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using System;
 using System.Threading;
 using System.Threading.Tasks;

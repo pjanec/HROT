@@ -21,7 +21,7 @@ namespace Hrot.NED.Messages
     /// <summary>
     /// DDS message published by the Brain node when it issues a weapon-fire command.
     /// Consumed by the Muscle node's <c>WeaponFireRequestIngressTranslator</c>, which
-    /// re-emits a local <see cref="global::FDP.Toolkit.Combat.Events.WeaponFireIntent"/>
+    /// re-emits a local <see cref="global::Fdp.Toolkit.Combat.Events.WeaponFireIntent"/>
     /// on the Muscle's ECS event bus.
     /// </summary>
     [DdsTopic("WeaponFireRequest")]

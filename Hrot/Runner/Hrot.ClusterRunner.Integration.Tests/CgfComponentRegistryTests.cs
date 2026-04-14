@@ -1,7 +1,7 @@
 using CarKinem.Core;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Navigation;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Navigation;
 using Hrot.CGF;
 using Hrot.IG.Components;
 using Xunit;

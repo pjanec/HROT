@@ -3,8 +3,8 @@ using System.Numerics;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Components;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

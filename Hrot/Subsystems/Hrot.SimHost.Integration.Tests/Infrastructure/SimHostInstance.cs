@@ -25,25 +25,25 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Lifecycle.Events;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.NetworkSpawning.Systems;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Physics;
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Physics.Systems;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Systems;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Physics;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Systems;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Tkb;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
 using Fdp.ModuleHost.Network.Interfaces;
 
-using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
+using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 
 namespace Hrot.SimHost.Integration.Tests.Infrastructure
 {
@@ -404,21 +404,21 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             return new ActiveMissionPlan { Plan = plan };
         }
 
-        private static (FDP.Toolkit.Behavior.Components.MissionTrigger Trigger, float Param) ResolveTrigger(
+        private static (Fdp.Toolkit.Behavior.Components.MissionTrigger Trigger, float Param) ResolveTrigger(
             List<Hrot.NED.Descriptors.MissionTrigger>? triggers)
         {
             if (triggers == null || triggers.Count == 0)
-                return (FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, float.MaxValue);
+                return (Fdp.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, float.MaxValue);
 
             var trigger = triggers[0];
             var type = trigger.Type ?? string.Empty;
 
             return type switch
             {
-                "TimerElapsed"       => (FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, ParseTriggerParam(trigger.Params)),
-                "ReachedDestination" => (FDP.Toolkit.Behavior.Components.MissionTrigger.DoctrineFinished, 0f),
-                "HealthCritical"     => (FDP.Toolkit.Behavior.Components.MissionTrigger.HealthCritical, ParseTriggerParam(trigger.Params)),
-                _                    => (FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, float.MaxValue)
+                "TimerElapsed"       => (Fdp.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, ParseTriggerParam(trigger.Params)),
+                "ReachedDestination" => (Fdp.Toolkit.Behavior.Components.MissionTrigger.DoctrineFinished, 0f),
+                "HealthCritical"     => (Fdp.Toolkit.Behavior.Components.MissionTrigger.HealthCritical, ParseTriggerParam(trigger.Params)),
+                _                    => (Fdp.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, float.MaxValue)
             };
         }
 
@@ -736,8 +736,8 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             // ── CQRS navigation contract (MOD1-P1T1 / CT-MOD1-C2) ─────────────────
             // These components live in NedTkbBuilder.WithBehavior templates
             // and are written/read by MoveToExecutor and NavigationExecutionSystem.
-            world.RegisterComponent<FDP.Toolkit.Navigation.NavigationIntent>();
-            world.RegisterComponent<FDP.Toolkit.Navigation.NavigationStatus>();
+            world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+            world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationStatus>();
             world.RegisterComponent<CarKinem.Core.FrustrationTicks>();
 
             // ── Lifecycle events ───────────────────────────────────────────────────
@@ -799,7 +799,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             template.AddComponent(new SimVelocity  { Linear  = Vector3.Zero, Angular  = Vector3.Zero });
 
             // Behavior
-            template.AddComponent(new DoctrineState { BrainTier = FDP.Toolkit.Behavior.BehaviorConstants.BrainTierBTree });
+            template.AddComponent(new DoctrineState { BrainTier = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree });
             template.AddComponent(new BrainBlackboard());
             template.AddComponent(new BrainBTreeState());
             template.AddComponent(new LocomotionChannel());
@@ -807,16 +807,16 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             template.AddComponent(new InteractionChannel());
             template.AddComponent(new ActorCapabilityState
             {
-                Capabilities = FDP.Toolkit.Behavior.Components.ActorCapabilities.CanMove
-                             | FDP.Toolkit.Behavior.Components.ActorCapabilities.CanShoot
+                Capabilities = Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanMove
+                             | Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanShoot
             });
             template.AddComponent(new MissionPlanQueue());
 
             // CQRS navigation contract (CT-MOD1-C2 fix):
             // These must be present so MoveToExecutor.OnEnter does not throw
             // "Entity missing NavigationIntent".
-            template.AddComponent(new FDP.Toolkit.Navigation.NavigationIntent());
-            template.AddComponent(new FDP.Toolkit.Navigation.NavigationStatus());
+            template.AddComponent(new Fdp.Toolkit.Navigation.NavigationIntent());
+            template.AddComponent(new Fdp.Toolkit.Navigation.NavigationStatus());
             template.AddComponent(new CarKinem.Core.FrustrationTicks());
 
             // Managed components

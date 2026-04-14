@@ -7,8 +7,8 @@ using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Common.Orchestration;
 using Fdp.Kernel;
 using Fdp.Kernel.Orchestration;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Replay;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Replay;
 using Fdp.ModuleHost;
 
 namespace Hrot.SimHost.Modules.Orchestration
@@ -207,7 +207,7 @@ namespace Hrot.SimHost.Modules.Orchestration
 
         /// <summary>
         /// No-op in this ECS implementation: frame advancement is driven automatically
-        /// by <see cref="FDP.Toolkit.Replay.PlaybackTickSystem"/> which is registered
+        /// by <see cref="Fdp.Toolkit.Replay.PlaybackTickSystem"/> which is registered
         /// by <see cref="ReplayModule"/> into the kernel scheduler.
         /// </summary>
         public void ProcessPlaybackTick(GlobalTime currentTime) { }

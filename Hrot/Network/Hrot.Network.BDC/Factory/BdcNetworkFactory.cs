@@ -1,7 +1,7 @@
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 using Hrot.Common;
 using Hrot.Core.Network;
 
@@ -85,10 +85,10 @@ namespace Hrot.BDC.Factory
             => Hrot.Core.Network.NullIgNetworkAdapter.Instance;
 
         /// <inheritdoc/>
-        public System.Collections.Generic.IEnumerable<FDP.Toolkit.DER.IIngressHandler> CreateExConIngressHandlers(
+        public System.Collections.Generic.IEnumerable<Fdp.Toolkit.DER.IIngressHandler> CreateExConIngressHandlers(
             CycloneDDS.Runtime.DdsParticipant?                   participant,
             long                                                  localNodeId,
-            FDP.Toolkit.DER.IDerRepo                             repo,
+            Fdp.Toolkit.DER.IDerRepo                             repo,
             Action<Hrot.Core.Network.MapClickEventDto>           onMapClick,
             Action<Hrot.Core.Network.SelectionChangedEventDto>   onSelectionChanged,
             Action<Hrot.Core.Network.EntityLifecycleAckDto>      onEntityLifecycleAck,
@@ -101,7 +101,7 @@ namespace Hrot.BDC.Factory
         public Hrot.Core.Network.INetworkFactory ConfigureForNode(
             Hrot.Common.Infrastructure.HrotNodeContext context,
             Hrot.Common.NodeRole                       role,
-            FDP.Toolkit.Behavior.DoctrineRegistry?     doctrineRegistry = null)
+            Fdp.Toolkit.Behavior.DoctrineRegistry?     doctrineRegistry = null)
         {
             return new BdcNetworkFactory(
                 context.Participant,

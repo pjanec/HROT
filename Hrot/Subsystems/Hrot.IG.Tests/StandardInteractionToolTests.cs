@@ -2,8 +2,8 @@
 using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D.Defaults;
-using FDP.Toolkit.Vis2D.Layers;
+using Fdp.Toolkit.Vis2D.Defaults;
+using Fdp.Toolkit.Vis2D.Layers;
 
 namespace Hrot.IG.Tests;
 
@@ -13,7 +13,7 @@ namespace Hrot.IG.Tests;
 ///
 /// These tests exercise the underlying <see cref="EntityRenderLayer.PickEntity"/> logic
 /// and the <see cref="NedVisualizerAdapter.GetHitRadius"/> contract without requiring a
-/// Raylib window context or a real <see cref="FDP.Toolkit.Vis2D.MapCanvas"/>.
+/// Raylib window context or a real <see cref="Fdp.Toolkit.Vis2D.MapCanvas"/>.
 ///
 /// Coverage:
 /// <list type="bullet">

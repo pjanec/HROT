@@ -5,9 +5,9 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using Hrot.NED.Descriptors.Orchestration;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Kernel;
 using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
@@ -1051,12 +1051,12 @@ public sealed class ClusterMaster : IDisposable
     {
         _eventBus.PublishManaged(new ClusterStateTransitionedEvent
         {
-            NewStateId    = (FDP.Toolkit.Orchestration.ClusterState)(int)state,
+            NewStateId    = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
             SubsystemName = "Cluster",
         });
         _eventBus.PublishManaged(new SystemStateUpdateEvent
         {
-            CurrentState = (FDP.Toolkit.Orchestration.ClusterState)(int)state,
+            CurrentState = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
         });
     }
 
@@ -1072,7 +1072,7 @@ public sealed class ClusterMaster : IDisposable
             {
                 TransactionId = transactionId,
                 TargetNodeId  = nodeId,
-                Operation     = (FDP.Toolkit.Orchestration.NodeOpType)(int)operation,
+                Operation     = (Fdp.Toolkit.Orchestration.NodeOpType)(int)operation,
                 DomainPayload = domainPayload,
             });
         }
@@ -1215,7 +1215,7 @@ public sealed class ClusterMaster : IDisposable
                 _inflightTransitionTx.NodeResponses[ev.NodeId] = string.Empty;
 
             // SerializeLocal ACK handling.
-            if (ev.Operation == FDP.Toolkit.Orchestration.NodeOpType.SerializeLocal &&
+            if (ev.Operation == Fdp.Toolkit.Orchestration.NodeOpType.SerializeLocal &&
                 _pendingSerializeTasks.TryGetValue(ev.TransactionId, out var serTask))
             {
                 if (!ev.StatusCode.IsError() && ev.ResultPayload is List<FileManifestEntry> entries)

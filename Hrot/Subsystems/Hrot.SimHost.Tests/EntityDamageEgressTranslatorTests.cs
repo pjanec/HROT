@@ -4,9 +4,9 @@ using Hrot.NED.Descriptors;
 using Hrot.Map.Common.Replication.Egress;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

@@ -5,7 +5,7 @@ using Hrot.Core.Network;
 using Hrot.IG;
 using Hrot.Map.Common.Commands;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 
 namespace Hrot.IG.Tests;
 

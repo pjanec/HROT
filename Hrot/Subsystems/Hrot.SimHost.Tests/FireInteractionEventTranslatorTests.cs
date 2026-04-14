@@ -3,7 +3,7 @@ using Hrot.NED.Messages;
 using Hrot.Map.Common.Replication;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 
 using DdsFireInteractionEvent = Hrot.NED.Messages.FireInteractionEvent;
 using EcsFireInteractionEvent = Hrot.Map.Common.Events.FireInteractionEvent;

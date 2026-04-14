@@ -7,10 +7,10 @@ using Hrot.Common.Orchestration;
 using Hrot.Orchestrator;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.Common.Scenario;
-using FDP.Toolkit.Scenario;
+using Fdp.Toolkit.Scenario;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 
@@ -102,7 +102,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
                 DomainPayload = scenarioId,
             };
 
@@ -309,7 +309,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             {
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
-                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
                 DomainPayload = scenarioId,
             };
 

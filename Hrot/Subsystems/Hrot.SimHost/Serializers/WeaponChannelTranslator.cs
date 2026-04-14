@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Fdp.Kernel;
 using Fbt;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Combat;
-using FDP.Toolkit.Combat.Executors;
-using FDP.Toolkit.Scenario;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Executors;
+using Fdp.Toolkit.Scenario;
 
 namespace Hrot.SimHost.Serializers
 {

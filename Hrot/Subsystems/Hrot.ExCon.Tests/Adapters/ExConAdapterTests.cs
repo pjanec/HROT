@@ -7,7 +7,7 @@ using Hrot.Map.Common;
 using Hrot.Core.Mission;
 using Hrot.Core.Network;
 using Hrot.UI.Common.Facades;
-using FDP.Toolkit.DER;
+using Fdp.Toolkit.DER;
 using Moq;
 
 namespace Hrot.ExCon.Tests.Adapters;

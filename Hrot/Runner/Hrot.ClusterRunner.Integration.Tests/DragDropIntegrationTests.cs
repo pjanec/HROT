@@ -3,8 +3,8 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
 using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.Map.Common;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
@@ -86,7 +86,7 @@ public class DragDropIntegrationTests
 
         // ── 2d. Diagnostic: check HasAuthority for GeoSpatial directly ────────
         // Confirm via extension method used by ScanAndPublish.
-        bool shHasDescriptorOwnership = shWorld.HasManagedComponent<FDP.Toolkit.Replication.Components.DescriptorOwnership>(shEntity);
+        bool shHasDescriptorOwnership = shWorld.HasManagedComponent<Fdp.Toolkit.Replication.Components.DescriptorOwnership>(shEntity);
         bool shHasAuthForGeoSpatial   = ((Fdp.ModuleHost.Abstractions.ISimulationView)shWorld).HasAuthority(shEntity, (long)EDescriptorType.dtWorldPos);
         _out.WriteLine($"[D2d] HasDescriptorOwnership={shHasDescriptorOwnership}, HasAuthority(entity,dtGeoSpatial)={shHasAuthForGeoSpatial}");
         Assert.True(shHasAuthForGeoSpatial,

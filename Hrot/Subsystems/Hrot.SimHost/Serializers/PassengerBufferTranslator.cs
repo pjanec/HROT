@@ -2,15 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Scenario;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Scenario;
 
 namespace Hrot.SimHost.Serializers
 {
     /// <summary>
     /// Custom scenario translator for <see cref="PassengerBuffer"/>.
     ///
-    /// The <see cref="FDP.Toolkit.Scenario.FdpAutoSerializer"/> cannot serialise
+    /// The <see cref="Fdp.Toolkit.Scenario.FdpAutoSerializer"/> cannot serialise
     /// <c>[InlineArray]</c>-based <see cref="PassengerSlots"/> elements as
     /// GUID-patched entity references: the inline-array backing field is private and
     /// the entity handles are written as raw packed values that become stale after a

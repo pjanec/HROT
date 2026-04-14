@@ -3,7 +3,7 @@ using Hrot.Core.Mission;
 using Hrot.ExCon.Panels;
 using Hrot.UI.Common.Panels;
 using Hrot.ExCon.Services;
-using FDP.Toolkit.DER;
+using Fdp.Toolkit.DER;
 using Moq;
 using ExConPanelConst = Hrot.ExCon.Panels.PanelConstants;
 using UiPanelConst    = Hrot.UI.Common.Panels.PanelConstants;

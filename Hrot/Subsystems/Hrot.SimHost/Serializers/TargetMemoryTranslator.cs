@@ -2,16 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Fdp.Kernel;
-using FDP.Toolkit.Perception;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Scenario;
+using Fdp.Toolkit.Perception;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Scenario;
 
 namespace Hrot.SimHost.Serializers
 {
     /// <summary>
     /// Custom scenario translator for <see cref="TargetMemory"/>.
     ///
-    /// The <see cref="FDP.Toolkit.Scenario.FdpAutoSerializer"/> cannot serialize
+    /// The <see cref="Fdp.Toolkit.Scenario.FdpAutoSerializer"/> cannot serialize
     /// <c>fixed long[]</c> / <c>fixed float[]</c> buffers or entity-typed integer
     /// fields: the fixed-buffer backing structs are opaque and their contents are
     /// zeroed on every JSON round-trip.  This translator replaces the auto-generated

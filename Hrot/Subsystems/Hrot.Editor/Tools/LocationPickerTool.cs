@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Core.Mission;
 using Raylib_cs;
 
