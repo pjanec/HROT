@@ -5,7 +5,7 @@ using Hrot.IG.Components;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Abstractions;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Raylib_cs;
 
 namespace Hrot.ScenarioEditor.Tools;

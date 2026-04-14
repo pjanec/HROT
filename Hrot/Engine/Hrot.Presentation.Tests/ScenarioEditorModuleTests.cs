@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using Hrot.ScenarioEditor;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.ScenarioEditor.Tests;
 

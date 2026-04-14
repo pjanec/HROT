@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 using Hrot.ScenarioEditor.Services;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.ScenarioEditor;
 

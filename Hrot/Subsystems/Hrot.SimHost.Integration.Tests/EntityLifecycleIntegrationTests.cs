@@ -13,8 +13,8 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
-using ModuleHost.Network.Cyclone.Services;
-using ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost.Network.Cyclone.Services;
+using Fdp.ModuleHost.Core.Network.Interfaces;
 
 namespace Hrot.SimHost.Integration.Tests;
 

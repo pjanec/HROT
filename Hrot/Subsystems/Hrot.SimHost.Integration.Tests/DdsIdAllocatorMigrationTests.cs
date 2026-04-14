@@ -5,7 +5,7 @@ using Hrot.Core.Mission;
 using Hrot.Map.Common;
 using Hrot.SimHost;
 using CycloneDDS.Runtime;
-using ModuleHost.Network.Cyclone.Services;
+using Fdp.ModuleHost.Network.Cyclone.Services;
 using Xunit;
 
 namespace Hrot.SimHost.Integration.Tests;

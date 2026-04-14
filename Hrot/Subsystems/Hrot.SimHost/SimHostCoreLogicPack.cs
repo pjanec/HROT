@@ -10,7 +10,7 @@ using FDP.Toolkit.Perception.Modules;
 using FDP.Toolkit.Replication.Services;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems.Routing;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.SimHost
 {

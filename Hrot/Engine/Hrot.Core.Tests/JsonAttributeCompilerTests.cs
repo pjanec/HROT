@@ -6,7 +6,7 @@ using Hrot.IG.Components;
 using FDP.Toolkit.Replication.Patching;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.Map.Common.Tests;
 

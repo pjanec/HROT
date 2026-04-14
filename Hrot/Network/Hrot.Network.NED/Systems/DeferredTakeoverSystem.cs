@@ -6,8 +6,8 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Messages;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Network;
 
 namespace Hrot.Network.Systems
 {

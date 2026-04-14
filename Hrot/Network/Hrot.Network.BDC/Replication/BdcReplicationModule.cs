@@ -7,10 +7,10 @@ using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Hrot.Common;
 using Hrot.Common.Systems;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Scheduling;
-using ModuleHost.Network.Cyclone.Modules;
-using ModuleHost.Network.Cyclone.Systems;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Scheduling;
+using Fdp.ModuleHost.Network.Cyclone.Modules;
+using Fdp.ModuleHost.Network.Cyclone.Systems;
 
 namespace Hrot.BDC.Replication
 {
@@ -37,7 +37,7 @@ namespace Hrot.BDC.Replication
         public bool DriveFromNetwork => _driveFromNetwork;
 
         /// <inheritdoc/>
-        public ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup NetworkLifecycleGroup { get; }
+        public Fdp.ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup NetworkLifecycleGroup { get; }
 
         public BdcReplicationModule(
             DdsParticipant? participant,
@@ -58,7 +58,7 @@ namespace Hrot.BDC.Replication
             _driveFromNetwork  = !roleHasMuscle && !roleHasBrain;
 
             GhostCreationSystem = new GhostCreationSystem(entityMap);
-            NetworkLifecycleGroup = new ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup(GhostCreationSystem);
+            NetworkLifecycleGroup = new Fdp.ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup(GhostCreationSystem);
         }
 
         public void RegisterSystems(ISystemRegistry registry)

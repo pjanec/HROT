@@ -14,7 +14,7 @@ using FDP.Toolkit.Replication.Services;
 using Hrot.CGF.Systems;
 using Hrot.CGF.Systems.Routing;
 using Hrot.Common.Systems;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.CGF
 {

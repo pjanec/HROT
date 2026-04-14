@@ -3,7 +3,7 @@ using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.IG.Systems;
 

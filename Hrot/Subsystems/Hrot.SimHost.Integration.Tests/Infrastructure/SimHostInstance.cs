@@ -39,9 +39,9 @@ using FDP.Toolkit.Physics.Systems;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Toolkit.Tkb;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network;
-using ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Network.Interfaces;
 
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 

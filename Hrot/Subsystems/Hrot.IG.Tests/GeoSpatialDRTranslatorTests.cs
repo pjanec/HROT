@@ -8,7 +8,7 @@ using Fdp.Modules.Geographic;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Xunit;
 
 namespace Hrot.IG.Tests

@@ -8,7 +8,7 @@ using Hrot.IG.Components;
 using CycloneDDS.Runtime;
 using FDP.Toolkit.Replication.Components;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;

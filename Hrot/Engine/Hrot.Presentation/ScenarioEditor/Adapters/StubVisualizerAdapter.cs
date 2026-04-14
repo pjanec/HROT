@@ -2,7 +2,7 @@
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Vis2D.Abstractions;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Raylib_cs;
 
 namespace Hrot.ScenarioEditor.Adapters;

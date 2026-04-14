@@ -4,7 +4,7 @@ using Fdp.Kernel;
 using Fdp.Modules.Geographic.Components;
 using FDP.Toolkit.Lifecycle.Events;
 using FDP.Toolkit.Replication.Components;
-using ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Network;
 
 namespace Hrot.Map.Common;
 

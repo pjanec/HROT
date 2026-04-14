@@ -6,7 +6,7 @@ using Hrot.IG.Components;
 using Hrot.Map.Common;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;

@@ -6,7 +6,7 @@ using Hrot.Map.Definitions.Tkb;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.IG.Systems;
 

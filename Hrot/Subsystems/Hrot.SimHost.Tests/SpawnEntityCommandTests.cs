@@ -9,7 +9,7 @@ using CarKinem.Core;
 using CarKinem.Road;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
-using ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost.Core.Network.Interfaces;
 
 namespace Hrot.SimHost.Tests;
 

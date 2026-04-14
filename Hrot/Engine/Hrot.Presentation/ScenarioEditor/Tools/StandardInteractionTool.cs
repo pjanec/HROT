@@ -5,7 +5,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Abstractions;
 using FDP.Toolkit.Vis2D.Defaults;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Raylib_cs;
 using FdpStandardInteractionTool = FDP.Toolkit.Vis2D.Tools.StandardInteractionTool;
 

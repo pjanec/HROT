@@ -13,8 +13,8 @@ using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Layers;
-using ModuleHost.Core;
-using ModuleHost.Network.Cyclone.Modules;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Network.Cyclone.Modules;
 
 namespace Hrot.IG.Tests;
 

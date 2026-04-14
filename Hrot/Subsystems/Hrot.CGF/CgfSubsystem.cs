@@ -31,7 +31,7 @@ using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Fdp.Engine.Runner;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.CGF;
 
@@ -125,7 +125,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
             NetworkId   = networkId,
             TkbType     = tkbType,
             OwnerNodeId = _context.NodeId,
-            InitType    = ModuleHost.Core.Network.Interfaces.ReliableInitType.AllPeers,
+            InitType    = Fdp.ModuleHost.Core.Network.Interfaces.ReliableInitType.AllPeers,
             RequestId   = System.Guid.Empty,
         });
 

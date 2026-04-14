@@ -2,7 +2,7 @@ using Hrot.NED.Messages;
 using Hrot.Network.NED.IG;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using System;
 using Xunit;
 

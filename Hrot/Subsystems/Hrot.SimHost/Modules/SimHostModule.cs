@@ -1,6 +1,6 @@
 using Fdp.Interfaces;
 using FDP.Toolkit.NetworkSpawning.Systems;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.SimHost.Modules
 {

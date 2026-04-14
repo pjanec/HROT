@@ -6,7 +6,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.ImGui.Abstractions;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Vis2D.Abstractions;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.IG.Tests;
 

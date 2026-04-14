@@ -8,7 +8,7 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Replay;
-using ModuleHost.Core;
+using Fdp.ModuleHost.Core;
 using Xunit;
 
 namespace Hrot.SimHost.Integration.Tests

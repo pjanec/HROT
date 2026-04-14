@@ -1,5 +1,5 @@
 using System;
-using ModuleHost.Core;
+using Fdp.ModuleHost.Core;
 
 namespace Hrot.Core.Network;
 

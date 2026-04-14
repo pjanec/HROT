@@ -12,10 +12,10 @@ using FDP.Toolkit.Time.Controllers;
 using Hrot.Common.Orchestration;
 using Hrot.Map.Common;
 using Hrot.NED.Descriptors.Orchestration;
-using ModuleHost.Core;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Time;
-using ModuleHost.Network.Cyclone.Services;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Time;
+using Fdp.ModuleHost.Network.Cyclone.Services;
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 
 namespace Hrot.Common.Infrastructure;

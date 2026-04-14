@@ -13,9 +13,9 @@ using Fdp.Kernel;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Perception.Components;
 using FDP.Toolkit.Physics.Components;
-using ModuleHost.Network.Cyclone.Modules;
-using ModuleHost.Network.Cyclone.Services;
-using ModuleHost.Network.Cyclone.Systems;
+using Fdp.ModuleHost.Network.Cyclone.Modules;
+using Fdp.ModuleHost.Network.Cyclone.Services;
+using Fdp.ModuleHost.Network.Cyclone.Systems;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

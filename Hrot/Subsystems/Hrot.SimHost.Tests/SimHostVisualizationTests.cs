@@ -14,7 +14,7 @@ using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Replication.Components;
 using EcsNavigationIntent = FDP.Toolkit.Navigation.NavigationIntent;
 using EcsNavigationMode   = FDP.Toolkit.Navigation.NavigationMode;
-using ModuleHost.Core;
+using Fdp.ModuleHost.Core;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

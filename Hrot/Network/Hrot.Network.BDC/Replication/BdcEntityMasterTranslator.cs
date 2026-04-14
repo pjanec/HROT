@@ -10,7 +10,7 @@ using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Hrot.BDC.Messages;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.BDC.Replication
 {
@@ -60,7 +60,7 @@ namespace Hrot.BDC.Replication
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
-            long packedKey = ModuleHost.Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            long packedKey = Fdp.ModuleHost.Core.Network.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
             foreach (var entity in query)
             {

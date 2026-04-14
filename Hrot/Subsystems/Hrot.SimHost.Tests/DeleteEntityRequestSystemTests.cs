@@ -6,7 +6,7 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Services;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

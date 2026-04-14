@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
-using ModuleHost.Core.Network;
-using ModuleHost.Core.Network.Messages;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Network.Cyclone.Systems;
+using Fdp.ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Network.Messages;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Network.Cyclone.Systems;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

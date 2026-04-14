@@ -4,7 +4,7 @@ using Fdp.Interfaces;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication.Services;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.IG.Modules
 {

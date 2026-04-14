@@ -6,8 +6,8 @@ using Fdp.Modules.Geographic;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Hrot.Map.Common.Replication.Ingress;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Network.Cyclone.Modules;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Network.Cyclone.Modules;
 
 namespace Hrot.Map.Common.Translators;
 

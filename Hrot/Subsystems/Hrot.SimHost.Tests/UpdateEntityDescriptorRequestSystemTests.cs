@@ -10,7 +10,7 @@ using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
-using ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Network;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

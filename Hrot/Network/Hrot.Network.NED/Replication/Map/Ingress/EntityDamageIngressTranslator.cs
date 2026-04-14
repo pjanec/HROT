@@ -6,8 +6,8 @@ using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Services;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Network.Cyclone.Translators;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Network.Cyclone.Translators;
 
 namespace Hrot.Map.Common.Replication.Ingress
 {

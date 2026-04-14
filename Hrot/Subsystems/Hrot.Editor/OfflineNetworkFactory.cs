@@ -6,8 +6,8 @@ using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using Hrot.Common.Abstractions;
 using Hrot.Core.Network;
-using ModuleHost.Core;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.Editor;
 
@@ -101,14 +101,14 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     private sealed class NullReplicationModule : IReplicationModule
     {
         private readonly GhostCreationSystem _ghostCreationSystem = new(new NetworkEntityMap());
-        private readonly ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup _lifecycleGroup
-            = new ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup();
+        private readonly Fdp.ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup _lifecycleGroup
+            = new Fdp.ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup();
 
         public string Name => "NullReplication";
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
         public GhostCreationSystem GhostCreationSystem => _ghostCreationSystem;
         public bool DriveFromNetwork => false;
-        public ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup NetworkLifecycleGroup => _lifecycleGroup;
+        public Fdp.ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup NetworkLifecycleGroup => _lifecycleGroup;
         public void Tick(ISimulationView view, float deltaTime) { }
     }
 

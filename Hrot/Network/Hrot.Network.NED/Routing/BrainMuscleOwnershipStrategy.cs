@@ -1,7 +1,7 @@
 using Fdp.Kernel;
 using Hrot.Common;
 using Hrot.NED.Descriptors;
-using ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost.Core.Network.Interfaces;
 
 namespace Hrot.Network.Routing
 {

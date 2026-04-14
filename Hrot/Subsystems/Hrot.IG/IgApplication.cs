@@ -105,21 +105,21 @@ using FdpInspectorState       = FDP.Toolkit.ImGui.Abstractions.InspectorState;
 
 using FDP.Toolkit.ImGui.Utils;
 
-using ModuleHost.Core;
+using Fdp.ModuleHost.Core;
 
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
-using ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Network;
 
-using ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost.Core.Network.Interfaces;
 
-using ModuleHost.Network.Cyclone.Modules;
+using Fdp.ModuleHost.Network.Cyclone.Modules;
 
-using ModuleHost.Network.Cyclone.Systems;
+using Fdp.ModuleHost.Network.Cyclone.Systems;
 
-using DdsIdAllocator = ModuleHost.Network.Cyclone.Services.DdsIdAllocator;
+using DdsIdAllocator = Fdp.ModuleHost.Network.Cyclone.Services.DdsIdAllocator;
 
-using NodeIdMapper    = ModuleHost.Network.Cyclone.Services.NodeIdMapper;
+using NodeIdMapper    = Fdp.ModuleHost.Network.Cyclone.Services.NodeIdMapper;
 
 // Disambiguate StandardInteractionTool: both Hrot.IG.Tools and FDP.Toolkit.Vis2D.Tools define it.
 // Use the Hrot.IG variant which exposes OnWorldClick.

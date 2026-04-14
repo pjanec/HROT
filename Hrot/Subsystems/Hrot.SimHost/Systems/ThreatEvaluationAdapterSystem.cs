@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 using FDP.Toolkit.Perception.Systems;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.SimHost.Systems
 {

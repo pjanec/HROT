@@ -5,7 +5,7 @@ using Hrot.IG.Systems;
 using Hrot.Map.Definitions.Tkb;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.IG.Tests;
 

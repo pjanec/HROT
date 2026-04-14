@@ -9,7 +9,7 @@ using Fdp.Kernel;
 using Fdp.Kernel.Orchestration;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Replay;
-using ModuleHost.Core;
+using Fdp.ModuleHost.Core;
 
 namespace Hrot.SimHost.Modules.Orchestration
 {

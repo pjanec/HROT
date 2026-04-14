@@ -21,9 +21,9 @@ using Hrot.ScenarioEditor;
 using Hrot.ScenarioEditor.Services;
 using Hrot.SimHost;
 using Hrot.SimHost.Modules;
-using ModuleHost.Core;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Network.Interfaces;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 

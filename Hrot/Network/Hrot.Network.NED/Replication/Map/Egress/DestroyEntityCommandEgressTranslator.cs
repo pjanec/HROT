@@ -7,7 +7,7 @@ using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.NetworkSpawning.Events;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Messages;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.Map.Common.Replication.Egress
 {

@@ -5,7 +5,7 @@ using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Trajectory;
 using Fdp.Kernel;
-using ModuleHost.Core;
+using Fdp.ModuleHost.Core;
 
 namespace Hrot.SimHost.UI
 {

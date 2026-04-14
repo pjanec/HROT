@@ -3,7 +3,7 @@ using System.Text.Json;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
 using Hrot.ScenarioEditor.Events;
-using ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost.Core.Network.Interfaces;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;

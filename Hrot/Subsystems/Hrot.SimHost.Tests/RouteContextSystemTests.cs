@@ -5,7 +5,7 @@ using Hrot.CGF.Systems.Routing;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Navigation;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.SimHost.Tests;
 

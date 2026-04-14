@@ -11,8 +11,8 @@ using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
-using ModuleHost.Core;
-using ModuleHost.Core.Scheduling;
+using Fdp.ModuleHost.Core;
+using Fdp.ModuleHost.Core.Scheduling;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

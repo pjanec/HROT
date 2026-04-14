@@ -11,7 +11,7 @@ using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.Map.Common.Tests;
 

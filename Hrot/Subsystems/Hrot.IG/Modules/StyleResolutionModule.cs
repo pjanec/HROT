@@ -1,6 +1,6 @@
 using System;
 using Hrot.IG.Systems;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.IG.Modules;
 

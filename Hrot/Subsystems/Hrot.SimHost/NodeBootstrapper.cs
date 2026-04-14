@@ -90,7 +90,7 @@ namespace Hrot.SimHost
         /// (CGF1-S0304).
         /// </param>
         /// <param name="lifecycleGroup">
-        /// Optional <see cref="ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup"/> gating
+        /// Optional <see cref="Fdp.ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup"/> gating
         /// the three network lifecycle systems during replay.
         /// </param>
         /// <param name="ghostCreationSystem">
@@ -100,7 +100,7 @@ namespace Hrot.SimHost
         /// </param>
         public ClusterSlave BuildOrchestration(
             NodeRole role,
-            ModuleHost.Core.ModuleHostKernel kernel,
+            Fdp.ModuleHost.Core.ModuleHostKernel kernel,
             Fdp.Kernel.EntityRepository world,
             int nodeId,
             CycloneDDS.Runtime.DdsParticipant? participant = null,
@@ -110,7 +110,7 @@ namespace Hrot.SimHost
             string localTempRoot = @"C:\FDP_Temp",
             CheckpointIOWorker? checkpointWorker = null,
             Fdp.Kernel.SimulationSystemGroup? simGroup = null,
-            ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup? lifecycleGroup = null,
+            Fdp.ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup? lifecycleGroup = null,
             FDP.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null)
         {
             if (participant == null && role.HasFlag(NodeRole.Brain))

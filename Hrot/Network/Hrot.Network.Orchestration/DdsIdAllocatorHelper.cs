@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using CycloneDDS.Runtime;
 using FDP.Kernel.Logging;
-using ModuleHost.Network.Cyclone.Services;
+using Fdp.ModuleHost.Network.Cyclone.Services;
 
 namespace Hrot.Common.Infrastructure;
 

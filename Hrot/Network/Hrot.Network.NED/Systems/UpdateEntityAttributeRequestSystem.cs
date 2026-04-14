@@ -9,7 +9,7 @@ using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.Map.Common.Systems
 {

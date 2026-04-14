@@ -7,7 +7,7 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
-using ModuleHost.Core.Network.Interfaces;
+using Fdp.ModuleHost.Core.Network.Interfaces;
 using FDP.Toolkit.Replication.Services;
 using Hrot.IG.Components;
 using Hrot.Map.Common.Dds;

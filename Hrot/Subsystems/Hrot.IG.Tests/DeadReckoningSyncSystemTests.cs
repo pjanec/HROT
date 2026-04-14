@@ -2,7 +2,7 @@ using System.Numerics;
 using Hrot.Common.Systems;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using Xunit;
 
 namespace Hrot.IG.Tests

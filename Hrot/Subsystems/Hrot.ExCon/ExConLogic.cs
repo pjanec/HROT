@@ -7,7 +7,7 @@ using Hrot.Map.Common;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.DER;
 using FDP.Toolkit.Time.Messages;
-using ModuleHost.Core.Time;
+using Fdp.ModuleHost.Core.Time;
 using Newtonsoft.Json;
 
 namespace Hrot.ExCon;

@@ -16,12 +16,12 @@ using Hrot.Network.Systems;
 using Hrot.Network.Translators;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Scheduling;
-using ModuleHost.Network.Cyclone.Modules;
-using ModuleHost.Network.Cyclone.Systems;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Scheduling;
+using Fdp.ModuleHost.Network.Cyclone.Modules;
+using Fdp.ModuleHost.Network.Cyclone.Systems;
 using FdpIDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
-using DescriptorOwnershipMap    = ModuleHost.Core.Network.DescriptorOwnershipMap;
+using DescriptorOwnershipMap    = Fdp.ModuleHost.Core.Network.DescriptorOwnershipMap;
 using EDescriptorType           = Hrot.NED.Descriptors.EDescriptorType;
 
 namespace Hrot.Network.Replication;

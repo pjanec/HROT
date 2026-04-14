@@ -4,7 +4,7 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Messages;
-using ModuleHost.Core.Time;
+using Fdp.ModuleHost.Core.Time;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Tests;

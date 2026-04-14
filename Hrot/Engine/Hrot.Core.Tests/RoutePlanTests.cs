@@ -1,7 +1,7 @@
 using Hrot.Map.Common.Components;
 using Hrot.Map.Definitions;
 using Fdp.Kernel;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 using System.Numerics;
 using System.Runtime.InteropServices;
 

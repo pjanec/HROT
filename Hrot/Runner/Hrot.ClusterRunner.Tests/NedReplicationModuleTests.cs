@@ -7,9 +7,9 @@ using Hrot.Network.Replication;
 using Hrot.Common.Systems;
 using Hrot.Map.Common;
 using Hrot.Common;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Scheduling;
-using ModuleHost.Network.Cyclone.Systems;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Scheduling;
+using Fdp.ModuleHost.Network.Cyclone.Systems;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Tests;

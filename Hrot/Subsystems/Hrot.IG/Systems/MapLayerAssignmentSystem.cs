@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D.Components;
-using ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Abstractions;
 
 namespace Hrot.IG.Systems;
 

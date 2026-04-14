@@ -17,8 +17,8 @@ using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Toolkit.Tkb;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network;
+using Fdp.ModuleHost.Core.Abstractions;
+using Fdp.ModuleHost.Core.Network;
 
 namespace Hrot.SimHost.Tests
 {
