@@ -2,6 +2,7 @@ using Hrot.SimHost.Systems;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Components;
+using Fdp.Engine.Runner;
 
 namespace Hrot.SimHost.Modules
 {
@@ -38,7 +39,9 @@ namespace Hrot.SimHost.Modules
         public SimMapRenderSystem RenderSystem => _renderSystem;
 
         /// <inheritdoc/>
-        public MapCamera GetCamera() => _canvas.Camera;
+        public MapCameraView? GetCameraView() => _canvas?.Camera?.GetCameraView();
+
+        public void ApplyCameraView(MapCameraView view) => _canvas?.Camera?.ApplyCameraView(view);
 
         /// <summary>
         /// Registers <see cref="SimMapRenderSystem"/> into the provided

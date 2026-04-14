@@ -107,7 +107,7 @@ namespace Hrot.SimHost.Tests
 
             var module = new SimPresentationModule(canvas: productionCanvas);
 
-            Assert.Same(productionCanvas.Camera, module.GetCamera());
+            Assert.Same(productionCanvas.Camera.GetCameraView(), module.GetCameraView());
         }
     }
 }
