@@ -1,16 +1,17 @@
 using CommandLine;
-using Hrot.Common;
-using Hrot.Map.Common;
-using Hrot.ClusterRunner.Configuration;
-using Hrot.ClusterRunner.Services;
-using Hrot.ClusterRunner.Scenarios;
-using Hrot.ClusterRunner.Systems;
-using Fdp.Kernel;
-using Hrot.Core.Network;
-using Hrot.Network.NED.Factory;
-using Hrot.BDC.Factory;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
+using Fdp.Kernel;
+using Hrot.BDC.Factory;
+using Hrot.ClusterRunner.Configuration;
+using Hrot.ClusterRunner.Scenarios;
+using Hrot.ClusterRunner.Services;
+using Hrot.ClusterRunner.Systems;
+using Hrot.Common;
+using Hrot.Core.Network;
+using Hrot.Map.Common;
+using Hrot.Network.NED.Factory;
+using ImGuiNET;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
@@ -176,6 +177,7 @@ class Program
             Raylib_cs.Raylib.InitWindow(options.WindowWidth, options.WindowHeight, "HROT Cluster Runner");
             Raylib_cs.Raylib.SetTargetFPS(options.TargetFps);
             rlImGui_cs.rlImGui.Setup(true); 
+            ImGui.GetIO().ConfigFlags |= ImGuiConfigFlags.DockingEnable;
         }
         
         // ── Create + run orchestrator ─────────────────────────────────────────
@@ -222,20 +224,53 @@ class Program
                 while (!Raylib_cs.Raylib.WindowShouldClose())
                 {
                     float dt = Raylib_cs.Raylib.GetFrameTime();
-                    
+
                     orchestrator.Update(dt);
 
                     Raylib_cs.Raylib.BeginDrawing();
-                    Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.DarkGray);
+                    // Restore the black background
+                    Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
+
                     orchestrator.DrawWorldAll();
-                    
+
                     rlImGui_cs.rlImGui.Begin();
+
+                    // --- RESTORED DOCKSPACE SETUP ---
+                    var viewport = ImGuiNET.ImGui.GetMainViewport();
+                    ImGuiNET.ImGui.SetNextWindowPos(viewport.WorkPos);
+                    ImGuiNET.ImGui.SetNextWindowSize(viewport.WorkSize);
+                    ImGuiNET.ImGui.SetNextWindowViewport(viewport.ID);
+                    ImGuiNET.ImGui.PushStyleVar(ImGuiNET.ImGuiStyleVar.WindowRounding, 0f);
+                    ImGuiNET.ImGui.PushStyleVar(ImGuiNET.ImGuiStyleVar.WindowBorderSize, 0f);
+                    ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.WindowBg, System.Numerics.Vector4.Zero);
+
+                    var dockspaceFlags = ImGuiNET.ImGuiWindowFlags.NoDocking
+                        | ImGuiNET.ImGuiWindowFlags.NoTitleBar | ImGuiNET.ImGuiWindowFlags.NoCollapse
+                        | ImGuiNET.ImGuiWindowFlags.NoResize | ImGuiNET.ImGuiWindowFlags.NoMove
+                        | ImGuiNET.ImGuiWindowFlags.NoBringToFrontOnFocus | ImGuiNET.ImGuiWindowFlags.NoNavFocus
+                        | ImGuiNET.ImGuiWindowFlags.NoBackground;
+
+                    ImGuiNET.ImGui.Begin("##DockSpace", dockspaceFlags);
+                    ImGuiNET.ImGui.PopStyleColor();
+                    ImGuiNET.ImGui.PopStyleVar(2);
+
+                    // Reduce dockspace height to leave room for the status bar
+                    float statusBarHeight = windowManager?.StatusBar.Height ?? 0f;
+                    var dockspaceSize = statusBarHeight > 0f
+                        ? new System.Numerics.Vector2(viewport.WorkSize.X, viewport.WorkSize.Y - statusBarHeight)
+                        : System.Numerics.Vector2.Zero;
+
+                    ImGuiNET.ImGui.DockSpace(ImGuiNET.ImGui.GetID("MainDockSpace"), dockspaceSize, ImGuiNET.ImGuiDockNodeFlags.PassthruCentralNode);
+                    ImGuiNET.ImGui.End();
+                    // --------------------------------
+
                     windowManager.Render();
                     orchestrator.DrawUIAll();
                     rlImGui_cs.rlImGui.End();
 
                     Raylib_cs.Raylib.EndDrawing();
                 }
+
             }
             else
             {
