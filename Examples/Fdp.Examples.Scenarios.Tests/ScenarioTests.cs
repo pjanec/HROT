@@ -7,11 +7,11 @@ using Fdp.Examples.Scenarios.Network;
 using Fdp.Examples.Scenarios.Perception;
 using Fdp.Examples.Scenarios.Physics;
 using Fdp.Examples.Scenarios.Replay;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using Fdp.Kernel;
-using FDP.Toolkit.Combat;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Vis2D;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Vis2D;
 using Fdp.ModuleHost;
 using NLog;
 using NLog.Config;
@@ -526,7 +526,7 @@ namespace Fdp.Examples.Scenarios.Tests
 
         /// <summary>
         /// By tick 2 the bullet must have been spawned with the correct velocity.
-        /// Confirms <see cref="FDP.Toolkit.Combat.Systems.FireProcessingSystem"/> read the
+        /// Confirms <see cref="Fdp.Toolkit.Combat.Systems.FireProcessingSystem"/> read the
         /// muzzle velocity from <c>WeaponState.MuzzleVelocity</c> and applied it to
         /// <c>SimVelocity.Linear.X</c>.
         /// </summary>
@@ -562,7 +562,7 @@ namespace Fdp.Examples.Scenarios.Tests
 
         /// <summary>
         /// By Phase 4 the bullet entity must have been destroyed by
-        /// <see cref="FDP.Toolkit.Combat.Systems.DamageSystem"/> after the impact.
+        /// <see cref="Fdp.Toolkit.Combat.Systems.DamageSystem"/> after the impact.
         /// Exit code 0 confirms the full scenario succeeded, which includes the Phase 4
         /// assertion inside <see cref="BallisticsAndHitScenario.EvaluateTick"/>.
         /// </summary>

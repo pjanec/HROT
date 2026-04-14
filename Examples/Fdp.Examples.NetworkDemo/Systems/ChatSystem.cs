@@ -51,10 +51,10 @@ namespace Fdp.Examples.NetworkDemo.Systems
                 
                 // Attempt to find owned entity
                 // This logic is simplified for demo.
-                 var q = view.Query().WithManaged<SquadChat>().With<FDP.Toolkit.Replication.Components.NetworkAuthority>().Build();
+                 var q = view.Query().WithManaged<SquadChat>().With<Fdp.Toolkit.Replication.Components.NetworkAuthority>().Build();
                  foreach(var e in q)
                  {
-                     ref readonly var own = ref view.GetComponentRO<FDP.Toolkit.Replication.Components.NetworkAuthority>(e);
+                     ref readonly var own = ref view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkAuthority>(e);
                      if (own.PrimaryOwnerId == own.LocalNodeId)
                      {
                          myTank = e;

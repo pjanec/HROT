@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Behavior.Executors
+namespace Fdp.Toolkit.Behavior.Executors
 {
     public interface IActionExecutor<TChannel> where TChannel : struct
     {

@@ -4,12 +4,12 @@ using CarKinem.Spatial;
 using Fdp.Examples.Common;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-using FDP.Toolkit.Perception;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Perception.Events;
-using FDP.Toolkit.Perception.Systems;
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Vis2D;
+using Fdp.Toolkit.Perception;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Systems;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Vis2D;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 

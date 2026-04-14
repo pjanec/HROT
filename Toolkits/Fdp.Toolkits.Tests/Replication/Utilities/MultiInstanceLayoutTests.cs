@@ -1,7 +1,7 @@
 using Xunit;
-using FDP.Toolkit.Replication.Utilities;
+using Fdp.Toolkit.Replication.Utilities;
 
-namespace FDP.Toolkit.Replication.Tests.Utilities
+namespace Fdp.Toolkit.Replication.Tests.Utilities
 {
     public class MultiInstanceLayoutTests
     {

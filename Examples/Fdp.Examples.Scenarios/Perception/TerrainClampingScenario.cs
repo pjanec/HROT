@@ -8,8 +8,8 @@ using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Systems;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 

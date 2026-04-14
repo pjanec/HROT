@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.ModuleHost.Time;
 
-namespace FDP.Toolkit.Time.Controllers
+namespace Fdp.Toolkit.Time.Controllers
 {
     /// <summary>
     /// Configuration for time controller instantiation.

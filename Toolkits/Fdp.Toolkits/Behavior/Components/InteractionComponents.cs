@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Behavior.Components
+namespace Fdp.Toolkit.Behavior.Components
 {
     /// <summary>
     /// Fixed passenger roster on a vehicle entity.

@@ -2,10 +2,10 @@ using System;
 using System.Numerics;
 using CarKinem.Core;
 using Fdp.Kernel;
-using FDP.Toolkit.CarKinem.Systems;
+using Fdp.Toolkit.CarKinem.Systems;
 using Xunit;
 
-namespace FDP.Toolkit.CarKinem.Tests
+namespace Fdp.Toolkit.CarKinem.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="LinearKinematicsSystem"/> (CT-MOD1-F).

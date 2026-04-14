@@ -1,8 +1,8 @@
 using System;
-using FDP.Toolkit.ImGui.WindowManager;
+using Fdp.Toolkit.ImGui.WindowManager;
 using Xunit;
 
-namespace FDP.Toolkit.ImGui.Tests.WindowManager;
+namespace Fdp.Toolkit.ImGui.Tests.WindowManager;
 
 /// <summary>
 /// Unit tests for <see cref="GlobalMenuRegistry"/> and <see cref="MenuItemNode"/> — WM-S301 success conditions.

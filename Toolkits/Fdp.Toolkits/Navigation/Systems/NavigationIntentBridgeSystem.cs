@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using CarKinem.Core;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Navigation.Systems
+namespace Fdp.Toolkit.Navigation.Systems
 {
     /// <summary>
     /// Bridges <see cref="NavigationIntent"/> (CQRS command written by the Brain tier via

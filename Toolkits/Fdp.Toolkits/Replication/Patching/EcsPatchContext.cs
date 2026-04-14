@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Utilities;
+using Fdp.Toolkit.Replication.Utilities;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Replication.Patching;
+namespace Fdp.Toolkit.Replication.Patching;
 
 /// <summary>
 /// <see cref="IEntityPatchContext"/> implementation used during live entity attribute updates.

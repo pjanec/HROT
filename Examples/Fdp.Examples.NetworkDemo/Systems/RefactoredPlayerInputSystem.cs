@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using System.Numerics;
 using System;
 

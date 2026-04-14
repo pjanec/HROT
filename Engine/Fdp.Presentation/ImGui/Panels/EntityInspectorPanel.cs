@@ -1,11 +1,11 @@
 using System.Numerics;
 using Fdp.Kernel;
-using FDP.Toolkit.ImGui.Abstractions;
-using FDP.Toolkit.ImGui.Utils;
+using Fdp.Toolkit.ImGui.Abstractions;
+using Fdp.Toolkit.ImGui.Utils;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
-namespace FDP.Toolkit.ImGui.Panels;
+namespace Fdp.Toolkit.ImGui.Panels;
 
 /// <summary>
 /// Entity inspection panel with entity list and component details.

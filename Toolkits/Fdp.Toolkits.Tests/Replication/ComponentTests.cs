@@ -1,7 +1,7 @@
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Xunit;
 
-namespace FDP.Toolkit.Replication.Tests
+namespace Fdp.Toolkit.Replication.Tests
 {
     public class ComponentTests
     {

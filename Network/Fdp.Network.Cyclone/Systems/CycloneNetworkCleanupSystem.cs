@@ -6,8 +6,8 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
 using Fdp.Interfaces;
 using Fdp.Network.Cyclone.Topics;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Replication.Components;
 
 namespace Fdp.Network.Cyclone.Systems
 {

@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Combat.Components
+namespace Fdp.Toolkit.Combat.Components
 {
     /// <summary>
     /// Hit-point pool. <see cref="Current"/> &lt;= 0 means the entity is destroyed/defeated.

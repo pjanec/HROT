@@ -1,7 +1,7 @@
 using System;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Tkb;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Examples.NetworkDemo.Descriptors;
 
 namespace Fdp.Examples.NetworkDemo.Configuration

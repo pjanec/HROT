@@ -4,8 +4,8 @@ using Xunit;
 using CycloneDDS.Runtime;
 using CycloneDDS.Schema;
 using Fdp.Network.Cyclone.Translators;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.Kernel;
 
 namespace Fdp.Network.Cyclone.Tests.Translators

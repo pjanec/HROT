@@ -4,12 +4,13 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Descriptors;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Extensions;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Modules.Geographic;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Network.Cyclone.Translators;
+using Fdp.Interfaces;
 
 namespace Fdp.Examples.NetworkDemo.Translators
 {

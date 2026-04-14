@@ -1,12 +1,12 @@
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Combat.Executors
+namespace Fdp.Toolkit.Combat.Executors
 {
     /// <summary>
-    /// Parameters packed into <see cref="FDP.Toolkit.Behavior.Components.WeaponChannel.Params"/>
+    /// Parameters packed into <see cref="Fdp.Toolkit.Behavior.Components.WeaponChannel.Params"/>
     /// for the AimAndFire action.
-    /// Must fit within <see cref="FDP.Toolkit.Behavior.BehaviorConstants.ActionParamsByteSize"/> bytes.
+    /// Must fit within <see cref="Fdp.Toolkit.Behavior.BehaviorConstants.ActionParamsByteSize"/> bytes.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct AimAndFireParams

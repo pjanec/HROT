@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using ImGuiNET;
 
-namespace FDP.Toolkit.ImGui.Icons;
+namespace Fdp.Toolkit.ImGui.Icons;
 
 /// <summary>
 /// Static, stateless collection of immediate-mode icon-rendering widgets.

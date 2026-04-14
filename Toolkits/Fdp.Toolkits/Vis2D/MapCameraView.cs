@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace FDP.Toolkit.Vis2D.Components
+namespace Fdp.Toolkit.Vis2D.Components
 {
     /// <summary>
     /// Plain-data snapshot of a 2-D map camera, used as the exchange type for

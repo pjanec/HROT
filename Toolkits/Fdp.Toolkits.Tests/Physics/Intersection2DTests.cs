@@ -1,8 +1,8 @@
 using System.Numerics;
-using FDP.Toolkit.Physics.Math;
+using Fdp.Toolkit.Physics.Math;
 using Xunit;
 
-namespace FDP.Toolkit.Physics.Tests
+namespace Fdp.Toolkit.Physics.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="Intersection2D.RaycastCircle"/> (BCS-P4-T2).

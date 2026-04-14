@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 using Fdp.Examples.NetworkDemo.Tests.Infrastructure;
 using Fdp.Examples.NetworkDemo.Tests.Extensions;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.ModuleHost.Network;
 using System.Linq;

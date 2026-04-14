@@ -2,22 +2,22 @@ using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel
+using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel
 using Fbt;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Combat.Events;
-using FDP.Toolkit.Combat.Executors;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Combat.Executors;
 using Xunit;
 
-namespace FDP.Toolkit.Combat.Tests
+namespace Fdp.Toolkit.Combat.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="AimAndFireExecutor"/> (BCS-P5-T2 / BS1-T004).
     /// Each test drives the executor directly without a dispatcher system, using a real
     /// <see cref="EntityRepository"/> for component access and event bus assertions.
     ///
-    /// <b>PACK-P003:</b> Executor no longer uses <see cref="FDP.Toolkit.Replication.Services.NetworkEntityMap"/>.
+    /// <b>PACK-P003:</b> Executor no longer uses <see cref="Fdp.Toolkit.Replication.Services.NetworkEntityMap"/>.
     /// <see cref="WeaponFireIntent"/> carries local ECS <see cref="Entity"/> handles directly.
     /// The tests verify that the published entity handles match the spawned entities.
     /// </summary>

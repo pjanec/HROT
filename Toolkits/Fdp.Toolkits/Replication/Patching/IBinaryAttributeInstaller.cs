@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Replication.Patching;
+namespace Fdp.Toolkit.Replication.Patching;
 
 /// <summary>
 /// Installer interface for the <see cref="BinaryInterpreter{TRecord}"/> domain-hook extension

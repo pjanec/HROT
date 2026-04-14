@@ -3,10 +3,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
 using Fdp.Kernel.Orchestration;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using Fdp.ModuleHost.Scheduling;
 
-namespace FDP.Toolkit.Orchestration.Handlers
+namespace Fdp.Toolkit.Orchestration.Handlers
 {
     /// <summary>
     /// Reference implementation of the replay-load Cluster handler (CGF1-G0405).

@@ -1,14 +1,14 @@
 using System;
 using System.Diagnostics;
 using Fdp.Kernel;
-using FDP.Toolkit.Time;
-using FDP.Toolkit.Time.Controllers;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time;
+using Fdp.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Time;
 using Xunit;
 
-namespace FDP.Toolkit.Time.Tests
+namespace Fdp.Toolkit.Time.Tests
 {
     /// <summary>
     /// Verifies <see cref="SwitchTimeModeDescriptorTranslator"/> behaviour at the

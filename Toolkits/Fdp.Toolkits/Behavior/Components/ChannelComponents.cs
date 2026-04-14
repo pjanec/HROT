@@ -1,9 +1,9 @@
 using System.Runtime.InteropServices;
 using Fbt;
-using FDP.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Behavior.Components
+namespace Fdp.Toolkit.Behavior.Components
 {
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.LocomotionChannel)]

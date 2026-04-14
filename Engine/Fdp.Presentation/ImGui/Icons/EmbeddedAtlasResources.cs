@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.ImGui.Icons;
+namespace Fdp.Toolkit.ImGui.Icons;
 
 /// <summary>
 /// Provides access to icon-atlas PNG files embedded as managed resources in this assembly.

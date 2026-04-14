@@ -1,8 +1,8 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Components;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Vis2D.Abstractions;
+namespace Fdp.Toolkit.Vis2D.Abstractions;
 
 /// <summary>
 /// Adapter interface for hierarchy traversal.

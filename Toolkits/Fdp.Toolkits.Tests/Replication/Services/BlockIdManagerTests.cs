@@ -1,8 +1,8 @@
 using System;
 using Xunit;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 
-namespace FDP.Toolkit.Replication.Tests.Services
+namespace Fdp.Toolkit.Replication.Tests.Services
 {
     public class BlockIdManagerTests
     {

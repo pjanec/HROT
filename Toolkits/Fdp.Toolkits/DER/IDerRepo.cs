@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace FDP.Toolkit.DER
+namespace Fdp.Toolkit.DER
 {
     /// <summary>
     /// Non-ECS entity repository for ExCon Mock.

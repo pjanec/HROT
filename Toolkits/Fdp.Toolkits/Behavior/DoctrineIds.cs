@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Behavior
+namespace Fdp.Toolkit.Behavior
 {
     /// <summary>
     /// Stable compile-time integer constants for all registered doctrines.

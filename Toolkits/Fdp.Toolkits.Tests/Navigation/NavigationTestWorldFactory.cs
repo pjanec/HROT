@@ -1,9 +1,9 @@
 using CarKinem.Core;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Navigation;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Navigation;
 
-namespace FDP.Toolkit.Navigation.Tests
+namespace Fdp.Toolkit.Navigation.Tests
 {
     /// <summary>
     /// Creates a fully-registered <see cref="EntityRepository"/> for navigation executor unit tests.

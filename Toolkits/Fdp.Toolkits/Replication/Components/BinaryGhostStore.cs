@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Replication.Components
+namespace Fdp.Toolkit.Replication.Components
 {
     /// <summary>
     /// OBSOLETE: The BinaryGhostStore stashing mechanic has been replaced by

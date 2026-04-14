@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Replication.Patching;
+namespace Fdp.Toolkit.Replication.Patching;
 
 /// <summary>
 /// Application-layer callback interface that <see cref="JsonToRecordCompiler"/> uses to

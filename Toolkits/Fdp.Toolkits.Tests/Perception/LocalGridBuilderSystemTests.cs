@@ -1,13 +1,13 @@
 using System;
 using System.Numerics;
 using CarKinem.Spatial;
-using FDP.Toolkit.Perception.Systems;
+using Fdp.Toolkit.Perception.Systems;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
 
-namespace FDP.Toolkit.Perception.Tests
+namespace Fdp.Toolkit.Perception.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="LocalGridBuilderSystem"/> incremental-update behaviour

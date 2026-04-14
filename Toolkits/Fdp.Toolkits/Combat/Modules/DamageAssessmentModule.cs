@@ -1,7 +1,7 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Systems;
+using Fdp.Toolkit.Combat.Systems;
 
-namespace FDP.Toolkit.Combat.Modules
+namespace Fdp.Toolkit.Combat.Modules
 {
     /// <summary>
     /// Registers the systems required for damage assessment on the authority node.

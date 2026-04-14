@@ -1,12 +1,12 @@
 using System.Collections.Generic;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Kernel;
-using FDP.Toolkit.Lifecycle.Systems;
-using FDP.Toolkit.Replication.Systems;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Lifecycle.Systems;
+using Fdp.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Examples.NetworkDemo.Systems;
 using Fdp.Interfaces;
-using FDP.Toolkit.Lifecycle;
+using Fdp.Toolkit.Lifecycle;
 
 namespace Fdp.Examples.NetworkDemo.Configuration
 {

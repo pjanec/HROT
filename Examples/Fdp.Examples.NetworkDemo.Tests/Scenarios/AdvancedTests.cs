@@ -5,7 +5,7 @@ using Fdp.Examples.NetworkDemo.Tests.Infrastructure;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Time;
 using System.Linq;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Messages;
 using System;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Scenarios

@@ -3,11 +3,11 @@ using System.Numerics;
 using System;
 using Raylib_cs;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D.Abstractions;
-using FDP.Toolkit.Vis2D.Components;
-using FDP.Toolkit.Vis2D.Input;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Input;
 
-namespace FDP.Toolkit.Vis2D
+namespace Fdp.Toolkit.Vis2D
 {
     public class MapCanvas : IResourceProvider
     {
@@ -20,7 +20,7 @@ namespace FDP.Toolkit.Vis2D
 
         public MapCanvas(IInputProvider? input = null)
         {
-             _input = input ?? new FDP.Toolkit.Vis2D.Defaults.RaylibInputProvider();
+             _input = input ?? new Fdp.Toolkit.Vis2D.Defaults.RaylibInputProvider();
         }
 
         // Resources

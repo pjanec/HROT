@@ -1,10 +1,10 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Physics;
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Physics.Systems;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Physics;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Systems;
 
-namespace FDP.Toolkit.Combat.Systems
+namespace Fdp.Toolkit.Combat.Systems
 {
     /// <summary>
     /// Per-frame housekeeping for all live bullet entities.

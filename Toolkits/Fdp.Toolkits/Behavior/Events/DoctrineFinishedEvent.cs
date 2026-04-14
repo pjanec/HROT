@@ -1,7 +1,7 @@
 using Fdp.Kernel;
 using Fbt;
 
-namespace FDP.Toolkit.Behavior.Events
+namespace Fdp.Toolkit.Behavior.Events
 {
     /// <summary>
     /// Notification published by <see cref="Systems.BTreeTickSystem"/> when the doctrine's

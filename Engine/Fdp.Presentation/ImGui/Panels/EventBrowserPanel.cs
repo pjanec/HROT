@@ -4,12 +4,12 @@ using System.Linq;
 using System.Numerics;
 using System.Reflection;
 using Fdp.Kernel;
-using FDP.Toolkit.ImGui.Renderers;
-using FDP.Toolkit.ImGui.Utils;
+using Fdp.Toolkit.ImGui.Renderers;
+using Fdp.Toolkit.ImGui.Utils;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
-namespace FDP.Toolkit.ImGui.Panels;
+namespace Fdp.Toolkit.ImGui.Panels;
 
 public class EventBrowserPanel
 {

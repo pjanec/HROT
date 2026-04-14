@@ -2,10 +2,11 @@ using System;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
-namespace FDP.Toolkit.Time
+namespace Fdp.Toolkit.Time
 {
     /// <summary>
     /// Bridges <see cref="SwitchTimeModeEvent"/> between the local <see cref="FdpEventBus"/>

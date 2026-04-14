@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using CarKinem.Spatial;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-using FDP.Toolkit.Perception.Events;
-using FDP.Toolkit.Perception.Systems;
+using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Systems;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
-namespace FDP.Toolkit.Perception.Modules
+namespace Fdp.Toolkit.Perception.Modules
 {
     /// <summary>
     /// Wraps the four autonomous perception systems into a self-contained

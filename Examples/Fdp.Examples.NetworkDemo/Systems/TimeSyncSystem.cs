@@ -1,9 +1,9 @@
 using System;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.Examples.NetworkDemo.Components;
-using FDP.Toolkit.Replication;
+using Fdp.Toolkit.Replication;
 using Fdp.ModuleHost.Time; // For casts
 
 namespace Fdp.Examples.NetworkDemo.Systems

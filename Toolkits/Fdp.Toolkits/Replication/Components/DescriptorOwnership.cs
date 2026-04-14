@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Replication.Components
+namespace Fdp.Toolkit.Replication.Components
 {
     /// <summary>
     /// Managed component that tracks ownership of individual data descriptors (fields/components).

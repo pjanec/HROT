@@ -1,7 +1,7 @@
 using System.Numerics;
 using ImGuiNET;
 
-namespace FDP.Toolkit.ImGui.WindowManager;
+namespace Fdp.Toolkit.ImGui.WindowManager;
 
 /// <summary>
 /// Manages a persistent global status bar rendered at the bottom of the main viewport.

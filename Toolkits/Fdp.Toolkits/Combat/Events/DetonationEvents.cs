@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Combat.Events
+namespace Fdp.Toolkit.Combat.Events
 {
     // ── DetonationNotification ────────────────────────────────────────────────
     // Moved to FDP.Toolkit.Combat.Contracts (BS1-T010) so that FDP.Toolkit.Physics

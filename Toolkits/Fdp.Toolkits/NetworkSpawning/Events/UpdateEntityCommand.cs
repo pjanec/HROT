@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace FDP.Toolkit.NetworkSpawning.Events
+namespace Fdp.Toolkit.NetworkSpawning.Events
 {
     /// <summary>
     /// Universal command to update one or more components on an existing network entity.

@@ -1,8 +1,8 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Events;
 using Xunit;
 
-namespace FDP.Toolkit.Perception.Tests
+namespace Fdp.Toolkit.Perception.Tests
 {
     /// <summary>
     /// Round-trip publish/consume tests for <see cref="SeedTargetCommand"/>

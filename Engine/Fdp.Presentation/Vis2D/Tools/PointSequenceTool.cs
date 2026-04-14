@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Raylib_cs;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Abstractions;
 
-namespace FDP.Toolkit.Vis2D.Tools;
+namespace Fdp.Toolkit.Vis2D.Tools;
 
 /// <summary>
 /// Tool for drawing a sequence of points (a path or trajectory).

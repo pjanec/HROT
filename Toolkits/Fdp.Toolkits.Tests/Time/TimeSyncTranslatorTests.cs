@@ -1,10 +1,10 @@
 using System;
 using Fdp.Kernel;
-using FDP.Toolkit.Time.Messages;
-using FDP.Toolkit.Time.Translators;
+using Fdp.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Translators;
 using Xunit;
 
-namespace FDP.Toolkit.Time.Tests
+namespace Fdp.Toolkit.Time.Tests
 {
     /// <summary>
     /// Unit tests for MasterTimeSyncTranslator (TC3-P4-T01), SlaveTimeSyncTranslator (TC3-P4-T02),

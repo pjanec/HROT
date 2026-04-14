@@ -1,16 +1,17 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.ModuleHost.Network;
 using Fdp.ModuleHost.Network.Interfaces;
 using Fdp.Interfaces;
 using INetworkTopology = Fdp.Interfaces.INetworkTopology;
+using Fdp.Interfaces;
 
-namespace FDP.Toolkit.Replication.Systems
+namespace Fdp.Toolkit.Replication.Systems
 {
     /// <summary>
     /// Canonical, transport-agnostic <see cref="IEcsModuleSystem"/> that implements the

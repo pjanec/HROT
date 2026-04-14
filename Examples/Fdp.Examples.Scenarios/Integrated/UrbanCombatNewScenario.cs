@@ -19,27 +19,27 @@ using Fhsm.Compiler;
 using Fhsm.Kernel;
 using Fhsm.Kernel.Attributes;
 using Fhsm.Kernel.Data;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Executors;
-using FDP.Toolkit.Behavior.Systems;
-using FDP.Toolkit.CarKinem.Systems;
-using FDP.Toolkit.Combat;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Combat.Contracts;
-using FDP.Toolkit.Combat.Events;
-using FDP.Toolkit.Combat.Executors;
-using FDP.Toolkit.Combat.Systems;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Perception.Systems;
-using FDP.Toolkit.Physics;
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Physics.Systems;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Vis2D;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.CarKinem.Systems;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Combat.Executors;
+using Fdp.Toolkit.Combat.Systems;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Systems;
+using Fdp.Toolkit.Physics;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Systems;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Vis2D;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 
@@ -380,7 +380,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             world.RegisterComponent<PhysicsCollider>();
 
             // FDP.Toolkit.Combat
-            world.RegisterComponent<FDP.Toolkit.Combat.Components.Health>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<BallisticProjectile>();
 
@@ -474,7 +474,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
             t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Tank));
             t.AddComponent(new NavState());
-            t.AddComponent(new FDP.Toolkit.Combat.Components.Health
+            t.AddComponent(new Fdp.Toolkit.Combat.Components.Health
             {
                 Current = ApcMaxHealth,
                 Max     = ApcMaxHealth,
@@ -512,7 +512,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
             t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Pedestrian));
             t.AddComponent(new NavState());
-            t.AddComponent(new FDP.Toolkit.Combat.Components.Health
+            t.AddComponent(new Fdp.Toolkit.Combat.Components.Health
             {
                 Current = SoldierMaxHealth,
                 Max     = SoldierMaxHealth,
@@ -562,7 +562,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
             t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Pedestrian));
             t.AddComponent(new NavState());
-            t.AddComponent(new FDP.Toolkit.Combat.Components.Health
+            t.AddComponent(new Fdp.Toolkit.Combat.Components.Health
             {
                 Current = SoldierMaxHealth,
                 Max     = SoldierMaxHealth,

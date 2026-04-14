@@ -1,11 +1,11 @@
 using System;
 using Xunit;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Messages;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Messages;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 
-namespace FDP.Toolkit.Replication.Tests
+namespace Fdp.Toolkit.Replication.Tests
 {
     public class IdAllocationTests
     {

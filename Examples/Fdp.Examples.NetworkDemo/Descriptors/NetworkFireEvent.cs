@@ -1,5 +1,5 @@
 using CycloneDDS.Schema;
-using FDP.Interfaces.Abstractions;
+using Fdp.Interfaces.Abstractions;
 
 namespace Fdp.Examples.NetworkDemo.Descriptors
 {

@@ -4,11 +4,11 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Xunit;
 
-namespace FDP.Toolkit.Orchestration.Tests;
+namespace Fdp.Toolkit.Orchestration.Tests;
 
 /// <summary>
 /// Unit tests for G0404 reference handlers.

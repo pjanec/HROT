@@ -1,7 +1,7 @@
 using Fdp.Kernel;
 using System;
 
-namespace FDP.Toolkit.Replication.Components
+namespace Fdp.Toolkit.Replication.Components
 {
     /// <summary>
     /// OBSOLETE: Replaced by <see cref="TkbIdentity"/> (permanent identity component)

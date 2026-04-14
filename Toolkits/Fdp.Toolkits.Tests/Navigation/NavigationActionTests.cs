@@ -1,11 +1,11 @@
 using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using FDP.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation;
 using Fdp.Kernel;
 using Xunit;
 
-namespace FDP.Toolkit.Navigation.Tests
+namespace Fdp.Toolkit.Navigation.Tests
 {
     /// <summary>
     /// Tests for <see cref="NavigationActions"/> parameter structs and

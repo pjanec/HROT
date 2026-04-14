@@ -1,10 +1,10 @@
 using System.Numerics;
 using Raylib_cs;
-using FDP.Toolkit.Vis2D.Abstractions;
-using FDP.Toolkit.Vis2D.Input;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Input;
 using Fdp.Engine.Runner;
 
-namespace FDP.Toolkit.Vis2D.Components
+namespace Fdp.Toolkit.Vis2D.Components
 {
     /// <summary>
     /// Wrapper around Raylib Camera2D with mouse control.

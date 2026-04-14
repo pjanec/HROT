@@ -3,7 +3,7 @@ using Fbt;
 using Fhsm.Kernel.Data;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Behavior.Components
+namespace Fdp.Toolkit.Behavior.Components
 {
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.BrainBTreeState)]

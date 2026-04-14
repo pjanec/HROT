@@ -1,7 +1,7 @@
 using Fdp.Kernel;
-using FDP.Toolkit.ImGui.Abstractions;
+using Fdp.Toolkit.ImGui.Abstractions;
 
-namespace FDP.Toolkit.ImGui.Utils;
+namespace Fdp.Toolkit.ImGui.Utils;
 
 /// <summary>
 /// Adapter that wraps a delegate as an <see cref="IEntityContextMenuHandler"/>.

@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Scenario
+namespace Fdp.Toolkit.Scenario
 {
     /// <summary>
     /// Translates volatile <see cref="Entity"/> handles to stable persistent GUID strings

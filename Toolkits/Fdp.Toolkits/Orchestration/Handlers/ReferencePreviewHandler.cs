@@ -2,9 +2,9 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 
-namespace FDP.Toolkit.Orchestration.Handlers
+namespace Fdp.Toolkit.Orchestration.Handlers
 {
     /// <summary>
     /// Reference implementation of the dry-run snapshot / rewind handler (CGF1-G0405).

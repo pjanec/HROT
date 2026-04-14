@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Combat.Contracts
+namespace Fdp.Toolkit.Combat.Contracts
 {
     /// <summary>
     /// Published by <c>HitResolutionSystem</c> (in <c>FDP.Toolkit.Physics</c>) on the Muscle

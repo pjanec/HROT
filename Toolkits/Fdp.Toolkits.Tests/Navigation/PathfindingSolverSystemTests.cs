@@ -4,13 +4,13 @@ using CarKinem.Road;
 using CarKinem.Trajectory;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-using FDP.Toolkit.Navigation.Modules;
-using FDP.Toolkit.Navigation.Systems;
+using Fdp.Toolkit.Navigation.Modules;
+using Fdp.Toolkit.Navigation.Systems;
 using Moq;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
 
-namespace FDP.Toolkit.Navigation.Tests
+namespace Fdp.Toolkit.Navigation.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="PathfindingSolverSystem"/> and

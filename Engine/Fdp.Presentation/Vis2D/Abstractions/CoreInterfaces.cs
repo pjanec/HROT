@@ -3,7 +3,7 @@ using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
 using Raylib_cs;
 
-namespace FDP.Toolkit.Vis2D.Abstractions;
+namespace Fdp.Toolkit.Vis2D.Abstractions;
 
 /// <summary>
 /// Context passed to rendering layers and tools.

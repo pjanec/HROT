@@ -1,9 +1,9 @@
 using System;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-using FDP.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Components;
 
-namespace FDP.Toolkit.Physics
+namespace Fdp.Toolkit.Physics
 {
     /// <summary>
     /// Entry-point module for the Physics toolkit.

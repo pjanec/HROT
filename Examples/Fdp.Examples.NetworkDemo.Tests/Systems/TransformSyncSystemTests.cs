@@ -3,9 +3,9 @@ using System.Numerics;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Systems;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 
-using FDP.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Extensions;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
 

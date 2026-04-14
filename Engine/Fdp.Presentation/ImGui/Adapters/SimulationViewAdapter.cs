@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Fdp.Kernel;
-using FDP.Toolkit.ImGui.Abstractions;
+using Fdp.Toolkit.ImGui.Abstractions;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.ImGui.Adapters
+namespace Fdp.Toolkit.ImGui.Adapters
 {
     public class SimulationViewAdapter : IInspectableSession
     {

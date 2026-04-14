@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 using Fdp.Examples.NetworkDemo.Tests.Infrastructure;
 using Fdp.Examples.NetworkDemo.Tests.Extensions;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Network.Cyclone.Components;
 using System.Linq;
 
@@ -34,8 +34,8 @@ namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
             
             var partialEntity = appA.World.CreateEntity();
             
-            appA.World.AddComponent(partialEntity, new FDP.Toolkit.Replication.Components.NetworkIdentity { Value = id });
-            appA.World.AddComponent(partialEntity, new FDP.Toolkit.Replication.Components.TkbIdentity { TkbType = 1 });
+            appA.World.AddComponent(partialEntity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = id });
+            appA.World.AddComponent(partialEntity, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 1 });
             appA.World.SetDisType(partialEntity, new Fdp.Kernel.DISEntityType { Value = 1 });
             appA.World.AddComponent(partialEntity, new Fdp.ModuleHost.Network.NetworkOwnership { PrimaryOwnerId = appA.LocalNodeId, LocalNodeId = appA.LocalNodeId });
             // FORCE PUBLISH triggers Egress

@@ -6,7 +6,7 @@ using Fdp.Network.Cyclone.Translators;
 using Fdp.Kernel;
 using Fdp.Network.Cyclone;
 using CycloneDDS.Runtime;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 using Moq;
 using System.Reflection;
 using System.Runtime.Serialization;

@@ -1,10 +1,10 @@
 using System;
 using CarKinem.Road;
 using CarKinem.Trajectory;
-using FDP.Toolkit.Navigation.Systems;
+using Fdp.Toolkit.Navigation.Systems;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Navigation.Modules
+namespace Fdp.Toolkit.Navigation.Modules
 {
     /// <summary>
     /// Wraps <see cref="PathfindingSolverSystem"/> into a self-contained <see cref="IEcsModule"/>

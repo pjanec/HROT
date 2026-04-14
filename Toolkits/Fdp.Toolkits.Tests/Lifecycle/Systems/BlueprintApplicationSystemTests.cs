@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using Xunit;
-using FDP.Toolkit.Lifecycle.Systems;
-using FDP.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Lifecycle.Systems;
+using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Moq;
 
-namespace FDP.Toolkit.Lifecycle.Tests.Systems
+namespace Fdp.Toolkit.Lifecycle.Tests.Systems
 {
     [ComponentId(244)]
     public struct TestComponentA

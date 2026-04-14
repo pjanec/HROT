@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.Reflection;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
-namespace FDP.Toolkit.Lifecycle.Systems
+namespace Fdp.Toolkit.Lifecycle.Systems
 {
     /// <summary>
     /// Removes transient components from entities as soon as they become Active.

@@ -2,12 +2,12 @@ using System;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Combat.Events;
+using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Events;
 using Xunit;
 
-namespace FDP.Toolkit.Combat.Tests
+namespace Fdp.Toolkit.Combat.Tests
 {
     /// <summary>
     /// Unit tests for Combat component types and events (BCS-P5-T1 / BCS-P5-T2).

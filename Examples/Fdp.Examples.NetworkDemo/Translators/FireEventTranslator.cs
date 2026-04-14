@@ -1,11 +1,12 @@
 using Fdp.Kernel;
 using Fdp.Examples.NetworkDemo.Events;
 using Fdp.Examples.NetworkDemo.Descriptors;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Network.Cyclone.Translators;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
 namespace Fdp.Examples.NetworkDemo.Translators
 {
@@ -31,7 +32,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
         // INGRESS: Network -> ECS
         protected override bool TryDecode(in NetworkFireEvent dds, out FireInteractionEvent ecs)
         {
-            FDP.Kernel.Logging.FdpLog<FireEventTranslator>.Info(
+            Fdp.Kernel.Logging.FdpLog<FireEventTranslator>.Info(
                 "Decoded FireEvent: Atk={0} Tgt={1}",
                 dds.AttackerNetId,
                 dds.TargetNetId);
@@ -69,7 +70,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
             if (ecs.IsRemote) return false;
 
             if (!EntityMap.TryGetNetworkId(ecs.AttackerRoot, out long attId)) {
-                FDP.Kernel.Logging.FdpLog<FireEventTranslator>.Warn("TryEncode: Failed to get Attacker ID");
+                Fdp.Kernel.Logging.FdpLog<FireEventTranslator>.Warn("TryEncode: Failed to get Attacker ID");
                 return false;
             }
             
@@ -77,7 +78,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
             if (ecs.TargetRoot != Entity.Null)
             {
                 if (!EntityMap.TryGetNetworkId(ecs.TargetRoot, out tgtId)) {
-                   FDP.Kernel.Logging.FdpLog<FireEventTranslator>.Warn("TryEncode: Failed to get Target ID");
+                   Fdp.Kernel.Logging.FdpLog<FireEventTranslator>.Warn("TryEncode: Failed to get Target ID");
                    // Maybe allow failure if target is local-only? But FireEvent usually implies network relevance.
                 }
             }
@@ -90,7 +91,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
                 Damage = ecs.Damage
             };
             
-             FDP.Kernel.Logging.FdpLog<FireEventTranslator>.Info(
+             Fdp.Kernel.Logging.FdpLog<FireEventTranslator>.Info(
                  "Encoded FireEvent: Atk={0} Tgt={1}",
                  attId,
                  tgtId);

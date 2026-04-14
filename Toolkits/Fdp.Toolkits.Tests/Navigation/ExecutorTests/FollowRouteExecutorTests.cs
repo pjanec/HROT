@@ -2,11 +2,11 @@ using System.Runtime.CompilerServices;
 using CarKinem.Core;
 using Fdp.Kernel;
 using Fbt;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Navigation.Executors;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Navigation.Executors;
 using Xunit;
 
-namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
+namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
 {
     /// <summary>
     /// Unit tests for <see cref="FollowRouteExecutor"/> (BCS-P3-T5 / BS1-T020).

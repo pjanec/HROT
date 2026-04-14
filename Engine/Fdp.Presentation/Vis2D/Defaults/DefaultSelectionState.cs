@@ -1,8 +1,8 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using System.Collections.Generic;
 
-namespace FDP.Toolkit.Vis2D.Defaults
+namespace Fdp.Toolkit.Vis2D.Defaults
 {
     public class DefaultSelectionState : ISelectionState
     {

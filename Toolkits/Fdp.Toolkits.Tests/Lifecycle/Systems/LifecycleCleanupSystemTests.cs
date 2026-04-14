@@ -1,10 +1,10 @@
 using System;
 using Xunit;
-using FDP.Toolkit.Lifecycle.Systems;
+using Fdp.Toolkit.Lifecycle.Systems;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Lifecycle.Tests.Systems
+namespace Fdp.Toolkit.Lifecycle.Tests.Systems
 {
     [DataPolicy(DataPolicy.Transient)]
     [ComponentId(245)]

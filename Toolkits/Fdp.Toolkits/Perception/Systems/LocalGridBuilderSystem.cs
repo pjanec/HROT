@@ -4,7 +4,7 @@ using CarKinem.Spatial;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Perception.Systems
+namespace Fdp.Toolkit.Perception.Systems
 {
     /// <summary>
     /// Async module system that rebuilds the <see cref="PerceptionModule"/>'s private

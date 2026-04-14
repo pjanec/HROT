@@ -1,10 +1,10 @@
 using Xunit;
-using FDP.Toolkit.ImGui.Panels;
+using Fdp.Toolkit.ImGui.Panels;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Resilience;
 using System.Collections.Generic;
 
-namespace FDP.Toolkit.ImGui.Tests
+namespace Fdp.Toolkit.ImGui.Tests
 {
     [Collection("ImGui Sequential")]
     public class SystemProfilerPanelTests

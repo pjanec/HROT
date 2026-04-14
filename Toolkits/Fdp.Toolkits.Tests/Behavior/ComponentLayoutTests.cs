@@ -1,10 +1,10 @@
 using System.Runtime.CompilerServices;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using Fhsm.Kernel.Data;
 using Xunit;
 
-namespace FDP.Toolkit.Behavior.Tests
+namespace Fdp.Toolkit.Behavior.Tests
 {
     public class ComponentLayoutTests
     {

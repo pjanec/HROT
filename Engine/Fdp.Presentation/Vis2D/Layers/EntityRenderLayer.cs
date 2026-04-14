@@ -1,11 +1,11 @@
 using System.Numerics;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Vis2D.Abstractions;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Components;
 using Raylib_cs;
 
-namespace FDP.Toolkit.Vis2D.Layers
+namespace Fdp.Toolkit.Vis2D.Layers
 {
     public class EntityRenderLayer : IMapLayer
     {

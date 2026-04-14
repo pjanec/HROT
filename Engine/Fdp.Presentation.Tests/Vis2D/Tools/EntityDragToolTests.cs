@@ -2,11 +2,11 @@ using Xunit;
 using Moq;
 using System.Numerics;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D.Tools;
-using FDP.Toolkit.Vis2D.Tests.Input;
+using Fdp.Toolkit.Vis2D.Tools;
+using Fdp.Toolkit.Vis2D.Tests.Input;
 using Raylib_cs;
 
-namespace FDP.Toolkit.Vis2D.Tests.Tools
+namespace Fdp.Toolkit.Vis2D.Tests.Tools
 {
     public class EntityDragToolTests
     {

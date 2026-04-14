@@ -2,10 +2,10 @@ using System;
 using System.Numerics;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-using FDP.Toolkit.Navigation.BTreeNodes;
+using Fdp.Toolkit.Navigation.BTreeNodes;
 using Xunit;
 
-namespace FDP.Toolkit.Navigation.Tests
+namespace Fdp.Toolkit.Navigation.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="PathfindingActionNode"/> (MOD1-P6T5).

@@ -1,8 +1,8 @@
 using System;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 
-namespace FDP.Toolkit.Replication.Systems
+namespace Fdp.Toolkit.Replication.Systems
 {
     /// <summary>
     /// Destroys ghost entities that never receive their <c>EntityMaster</c> packet within the

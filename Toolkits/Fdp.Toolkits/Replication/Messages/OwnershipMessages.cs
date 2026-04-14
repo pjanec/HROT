@@ -1,9 +1,9 @@
 using System;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 
-namespace FDP.Toolkit.Replication.Messages
+namespace Fdp.Toolkit.Replication.Messages
 {
     /// <summary>
     /// Network message sent to update ownership of a specific descriptor.

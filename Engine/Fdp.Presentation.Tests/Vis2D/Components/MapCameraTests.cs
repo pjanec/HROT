@@ -1,11 +1,11 @@
 using System.Numerics;
 using Xunit;
-using FDP.Toolkit.Vis2D.Components;
-using FDP.Toolkit.Vis2D.Tests.Input;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Tests.Input;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;
 
-namespace FDP.Toolkit.Vis2D.Tests.Components
+namespace Fdp.Toolkit.Vis2D.Tests.Components
 {
     // Mock class to avoid native Raylib calls
     public class TestableMapCamera : MapCamera

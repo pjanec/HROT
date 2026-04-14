@@ -1,10 +1,10 @@
 using System;
 using Fdp.Kernel;
 using Fdp.Interfaces;
-using FDP.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Lifecycle.Systems
+namespace Fdp.Toolkit.Lifecycle.Systems
 {
     [UpdateInPhase(SystemPhase.BeforeSync)]
     public class BlueprintApplicationSystem : IEcsModuleSystem

@@ -1,7 +1,7 @@
 using System.Numerics;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Replication.Components
+namespace Fdp.Toolkit.Replication.Components
 {
     /// <summary>
     /// Shadow of the last-published (or last-received) position and orientation.

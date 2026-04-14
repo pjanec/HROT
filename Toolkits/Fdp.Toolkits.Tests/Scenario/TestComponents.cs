@@ -1,14 +1,14 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
-using FDP.Toolkit.Scenario;
+using Fdp.Toolkit.Scenario;
 
 // ── Test-only component IDs (200–255 reserved block) ────────────────────────
 // ScenarioIgnoreTag = 200 (defined in FDP.Toolkit.Scenario)
 // EpisodeTag = 84 (now Fdp.Kernel.EpisodeTag, unmanaged struct, Guid EpisodeId)
 // Test components occupy IDs 210–219.
 
-namespace FDP.Toolkit.Scenario.Tests
+namespace Fdp.Toolkit.Scenario.Tests
 {
     // ────────────────────────────────────────────────────────────────────────────
     // Saveable components

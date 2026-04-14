@@ -1,9 +1,9 @@
 using System.Linq;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Navigation.Executors;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation.Executors;
 using Xunit;
 
-namespace FDP.Toolkit.Navigation.Tests
+namespace Fdp.Toolkit.Navigation.Tests
 {
     /// <summary>
     /// Tests for MOD1-P1T1 — verifies the NavigationIntent / NavigationStatus ECS

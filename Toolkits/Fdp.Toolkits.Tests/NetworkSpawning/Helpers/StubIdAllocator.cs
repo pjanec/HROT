@@ -1,6 +1,6 @@
 using Fdp.ModuleHost.Network.Interfaces;
 
-namespace FDP.Toolkit.NetworkSpawning.Tests.Helpers
+namespace Fdp.Toolkit.NetworkSpawning.Tests.Helpers
 {
     /// <summary>
     /// Deterministic in-memory ID allocator for unit tests.

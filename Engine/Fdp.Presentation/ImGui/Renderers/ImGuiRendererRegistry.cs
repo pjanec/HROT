@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace FDP.Toolkit.ImGui.Renderers;
+namespace Fdp.Toolkit.ImGui.Renderers;
 
 /// <summary>
 /// Auto-discovers and caches all <see cref="IImGuiRenderer"/> implementations annotated

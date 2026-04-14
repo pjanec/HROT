@@ -1,7 +1,7 @@
 using System;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Lifecycle.Events
+namespace Fdp.Toolkit.Lifecycle.Events
 {
     /// <summary>
     /// Published when an entity begins construction.

@@ -1,6 +1,6 @@
 using System;
 
-namespace FDP.Interfaces.Abstractions
+namespace Fdp.Interfaces.Abstractions
 {
     /// <summary>
     /// Attribute to mark types for automatic translator generation (zero boilerplate networking).

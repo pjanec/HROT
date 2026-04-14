@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using CycloneDDS.Runtime;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 
-namespace FDP.Toolkit.DER
+namespace Fdp.Toolkit.DER
 {
     /// <summary>
     /// Base abstraction for bridging any DDS Topic into the DER Repo.

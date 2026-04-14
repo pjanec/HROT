@@ -1,4 +1,4 @@
-﻿namespace FDP.Toolkit.Commands;
+﻿namespace Fdp.Toolkit.Commands;
 
 public class Class1
 {

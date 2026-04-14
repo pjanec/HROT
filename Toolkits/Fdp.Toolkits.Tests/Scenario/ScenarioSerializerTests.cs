@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
 using Fdp.Kernel;
-using FDP.Toolkit.Scenario;
+using Fdp.Toolkit.Scenario;
 using Xunit;
 
-namespace FDP.Toolkit.Scenario.Tests
+namespace Fdp.Toolkit.Scenario.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="ScenarioSerializer"/> (CGF1-S0306 success conditions).

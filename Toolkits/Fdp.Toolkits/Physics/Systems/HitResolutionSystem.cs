@@ -1,11 +1,11 @@
 ﻿using System.Numerics;
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel to Combat.Contracts
+using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel to Combat.Contracts
 // BATCH-10: HitEvent moved from FDP.Toolkit.Combat.Events to Fdp.Kernel â€” no extra using needed.
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Perception.Events;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Perception.Events;
 
-namespace FDP.Toolkit.Physics.Systems
+namespace Fdp.Toolkit.Physics.Systems
 {
     /// <summary>
     /// Main-thread system that iterates resolved <see cref="RaycastHit"/>s and emits

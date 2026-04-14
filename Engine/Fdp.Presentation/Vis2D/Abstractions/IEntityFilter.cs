@@ -1,10 +1,10 @@
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Vis2D.Abstractions;
+namespace Fdp.Toolkit.Vis2D.Abstractions;
 
 /// <summary>
 /// A precompiled, allocation-free predicate that tests whether a given ECS entity
-/// is eligible for selection by the <see cref="FDP.Toolkit.Vis2D.Tools.EntityPickerTool"/>.
+/// is eligible for selection by the <see cref="Fdp.Toolkit.Vis2D.Tools.EntityPickerTool"/>.
 ///
 /// <para>
 /// Implementations are created once by an <see cref="IEntityFilterFactory"/> when a

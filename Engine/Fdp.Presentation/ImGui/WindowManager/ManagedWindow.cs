@@ -1,8 +1,8 @@
 using System.Numerics;
-using FDP.Toolkit.ImGui.Icons;
+using Fdp.Toolkit.ImGui.Icons;
 using ImGuiNET;
 
-namespace FDP.Toolkit.ImGui.WindowManager;
+namespace Fdp.Toolkit.ImGui.WindowManager;
 
 /// <summary>
 /// Abstract base class for all windows managed by the FDP Window Manager.

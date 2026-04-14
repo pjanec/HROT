@@ -1,9 +1,9 @@
 using Xunit;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Systems;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Components;
 
-namespace FDP.Toolkit.Replication.Tests
+namespace Fdp.Toolkit.Replication.Tests
 {
     public class SmartEgressTests
     {

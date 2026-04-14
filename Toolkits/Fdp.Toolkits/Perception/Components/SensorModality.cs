@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Perception.Components
+namespace Fdp.Toolkit.Perception.Components
 {
     /// <summary>
     /// Bitmask enum identifying which sensor modalities observed a target.

@@ -1,12 +1,12 @@
 using System.Numerics;
-using FDP.Toolkit.Vis2D.Abstractions;
-using FDP.Toolkit.Vis2D.Tests.Input;
-using FDP.Toolkit.Vis2D.Tools;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Tests.Input;
+using Fdp.Toolkit.Vis2D.Tools;
 using Moq;
 using Raylib_cs;
 using Xunit;
 
-namespace FDP.Toolkit.Vis2D.Tests.Tools;
+namespace Fdp.Toolkit.Vis2D.Tests.Tools;
 
 /// <summary>
 /// Unit tests for <see cref="EntityPickerTool"/> crosshair rendering (BUG2-T002).

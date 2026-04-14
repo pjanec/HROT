@@ -5,10 +5,10 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fhsm.Compiler;
 using Fhsm.Kernel.Data;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Replication.Services;
 
 namespace Fdp.Examples.UrbanCombat
 {
@@ -74,7 +74,7 @@ namespace Fdp.Examples.UrbanCombat
         /// <param name="entityMap">
         /// Optional <see cref="NetworkEntityMap"/> to register spawned entities in.
         /// When provided every spawned entity is registered with a sequential network ID
-        /// so the combat CQRS chain (<see cref="FDP.Toolkit.Combat.Events.WeaponFireIntent"/>
+        /// so the combat CQRS chain (<see cref="Fdp.Toolkit.Combat.Events.WeaponFireIntent"/>
         /// → translator → Muscle) can resolve shooter/target IDs in headless mode.
         /// </param>
         public ScenarioDirector(

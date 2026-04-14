@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 using Fdp.ModuleHost;
-using FDP.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D;
 
 namespace Fdp.Examples.Common
 {

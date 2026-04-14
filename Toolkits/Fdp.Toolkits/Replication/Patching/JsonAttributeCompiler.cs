@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Replication.Patching;
+namespace Fdp.Toolkit.Replication.Patching;
 
 // ─────────────────────────────────────────────────────────────
 // Internal dispatch abstraction

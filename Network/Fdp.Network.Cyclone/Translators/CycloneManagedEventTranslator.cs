@@ -4,8 +4,9 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel; // For IEventBus probably
 using Fdp.Interfaces; // Or Fdp.Interfaces for IEventBus if it moved
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Network.Cyclone.Abstractions;
+using Fdp.Interfaces;
 
 namespace Fdp.Network.Cyclone.Translators
 {

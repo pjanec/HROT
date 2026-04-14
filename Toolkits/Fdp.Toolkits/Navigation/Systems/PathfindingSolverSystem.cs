@@ -6,7 +6,7 @@ using CarKinem.Trajectory;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Navigation.Systems
+namespace Fdp.Toolkit.Navigation.Systems
 {
     /// <summary>
     /// Simulation-phase system that resolves all pending <see cref="PathRequest"/>s in

@@ -2,14 +2,15 @@ using System;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Interfaces;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
 using Fdp.Network.Cyclone.Topics;
+using Fdp.Interfaces;
 
 namespace Fdp.Examples.NetworkDemo.Translators
 {
@@ -21,7 +22,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
     public class EntityMasterIngressTranslator : Fdp.Interfaces.IDescriptorTranslator
     {
         private readonly DdsReader<EntityMasterTopic> _reader;
-        private readonly FDP.Toolkit.Replication.Services.NetworkEntityMap _entityMap;
+        private readonly Fdp.Toolkit.Replication.Services.NetworkEntityMap _entityMap;
         private readonly GhostCreationSystem _ghostCreationSystem;
         private readonly Fdp.Network.Cyclone.Services.NodeIdMapper _nodeMapper;
         private readonly int _localInternalId;
@@ -33,7 +34,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
 
         public EntityMasterIngressTranslator(
             DdsParticipant participant,
-            FDP.Toolkit.Replication.Services.NetworkEntityMap entityMap,
+            Fdp.Toolkit.Replication.Services.NetworkEntityMap entityMap,
             GhostCreationSystem ghostCreationSystem,
             Fdp.Network.Cyclone.Services.NodeIdMapper nodeMapper,
             int localInternalId)

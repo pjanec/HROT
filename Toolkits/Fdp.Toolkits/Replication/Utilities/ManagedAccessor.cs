@@ -2,7 +2,7 @@ using System;
 using System.Reflection;
 using System.Linq.Expressions;
 
-namespace FDP.Toolkit.Replication.Utilities
+namespace Fdp.Toolkit.Replication.Utilities
 {
     /// <summary>
     /// High-performance field access for Managed Types using Compiled Expression Trees.

@@ -1,13 +1,13 @@
 using System;
 using System.Numerics;
 using Xunit;
-using FDP.Toolkit.Vis2D.Defaults;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Defaults;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Kernel;
 using Moq;
 using Raylib_cs;
 
-namespace FDP.Toolkit.Vis2D.Tests.Defaults
+namespace Fdp.Toolkit.Vis2D.Tests.Defaults
 {
     public class DelegateAdapterTests
     {

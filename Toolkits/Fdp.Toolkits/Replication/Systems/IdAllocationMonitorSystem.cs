@@ -1,10 +1,10 @@
 using System;
 using System.Diagnostics;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Messages;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Messages;
+using Fdp.Toolkit.Replication.Services;
 
-namespace FDP.Toolkit.Replication.Systems
+namespace Fdp.Toolkit.Replication.Systems
 {
     public class IdAllocationMonitorSystem : ComponentSystem
     {

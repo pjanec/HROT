@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Network.Interfaces;
 
-namespace FDP.Toolkit.NetworkSpawning.Events
+namespace Fdp.Toolkit.NetworkSpawning.Events
 {
     /// <summary>
     /// Universal command to spawn an entity locally.

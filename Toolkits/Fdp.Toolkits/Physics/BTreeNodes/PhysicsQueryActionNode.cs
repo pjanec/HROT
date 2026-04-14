@@ -1,8 +1,8 @@
 using System.Numerics;
 using Fdp.Kernel;
-using FDP.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Components;
 
-namespace FDP.Toolkit.Physics.BTreeNodes
+namespace Fdp.Toolkit.Physics.BTreeNodes
 {
     /// <summary>
     /// Static helpers for submitting and retrieving batched raycast queries from the ECS

@@ -1,8 +1,8 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
 
-namespace FDP.Toolkit.Perception.Tests
+namespace Fdp.Toolkit.Perception.Tests
 {
     /// <summary>
     /// Creates a fully-registered <see cref="EntityRepository"/> for perception unit tests.

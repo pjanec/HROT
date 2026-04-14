@@ -1,8 +1,8 @@
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Lifecycle.Events;
 
-namespace FDP.Toolkit.Lifecycle.Systems
+namespace Fdp.Toolkit.Lifecycle.Systems
 {
     /// <summary>
     /// Processes lifecycle events (ACKs) and manages entity state transitions.

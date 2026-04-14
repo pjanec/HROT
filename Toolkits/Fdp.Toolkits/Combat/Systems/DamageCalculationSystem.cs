@@ -1,10 +1,10 @@
 using System;
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Contracts;
-using FDP.Toolkit.Combat.Events;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Replication.Components;
 
-namespace FDP.Toolkit.Combat.Systems
+namespace Fdp.Toolkit.Combat.Systems
 {
     /// <summary>
     /// Consumes <see cref="DetonationNotification"/> events, computes a flat HP loss

@@ -1,10 +1,10 @@
 using System;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
-using FDP.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Components;
 using Xunit;
 
-namespace FDP.Toolkit.Physics.Tests
+namespace Fdp.Toolkit.Physics.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="PhysicsToolkitModule"/> (BCS-P4-T1).

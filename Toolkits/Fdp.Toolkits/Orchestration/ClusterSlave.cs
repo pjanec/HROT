@@ -4,10 +4,10 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Orchestration.Handlers;
 
-namespace FDP.Toolkit.Orchestration
+namespace Fdp.Toolkit.Orchestration
 {
     /// <summary>
     /// Generic cluster state machine slave.

@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Replication.Patching;
+namespace Fdp.Toolkit.Replication.Patching;
 
 /// <summary>
 /// Per-request context object passed to every <see cref="BinaryInterpreter"/> handler

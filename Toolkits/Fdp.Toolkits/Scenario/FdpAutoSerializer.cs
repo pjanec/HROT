@@ -6,7 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Scenario
+namespace Fdp.Toolkit.Scenario
 {
     /// <summary>
     /// DOM-aware 1:1 fallback serializer that compiles typed

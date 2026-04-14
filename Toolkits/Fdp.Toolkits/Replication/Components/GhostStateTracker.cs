@@ -1,15 +1,15 @@
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Replication.Components
+namespace Fdp.Toolkit.Replication.Components
 {
     /// <summary>
     /// Tracks the birth frame of a ghost entity, enabling the
-    /// <see cref="FDP.Toolkit.Replication.Systems.GhostPromotionSystem"/> to honour
+    /// <see cref="Fdp.Toolkit.Replication.Systems.GhostPromotionSystem"/> to honour
     /// soft-timeout requirements and the
-    /// <see cref="FDP.Toolkit.Replication.Systems.GhostTimeoutSystem"/> to destroy
+    /// <see cref="Fdp.Toolkit.Replication.Systems.GhostTimeoutSystem"/> to destroy
     /// ghosts that never receive their <c>EntityMaster</c> packet.
     ///
-    /// Attached by <see cref="FDP.Toolkit.Replication.Systems.GhostCreationSystem"/>
+    /// Attached by <see cref="Fdp.Toolkit.Replication.Systems.GhostCreationSystem"/>
     /// at ghost creation time and removed by <c>GhostPromotionSystem</c> upon successful
     /// promotion to <c>EntityLifecycle.Constructing</c>.
     /// </summary>

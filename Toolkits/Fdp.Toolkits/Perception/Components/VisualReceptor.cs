@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Perception.Components
+namespace Fdp.Toolkit.Perception.Components
 {
     /// <summary>
     /// Per-entity optical sensor configuration.

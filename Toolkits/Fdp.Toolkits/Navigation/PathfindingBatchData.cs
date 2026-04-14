@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
 
-namespace FDP.Toolkit.Navigation
+namespace Fdp.Toolkit.Navigation
 {
     // ── Path request / result structs ─────────────────────────────────────────────
 

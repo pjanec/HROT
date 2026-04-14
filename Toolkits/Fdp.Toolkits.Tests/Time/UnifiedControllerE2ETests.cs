@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Fdp.Kernel;
-using FDP.Toolkit.Time.Controllers;
-using FDP.Toolkit.Time.Domain;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time.Domain;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
 using Xunit;
 
-namespace FDP.Toolkit.Time.Tests
+namespace Fdp.Toolkit.Time.Tests
 {
     /// <summary>
     /// TCU-T006: Full in-process end-to-end test wiring one <see cref="MasterSyncController"/>

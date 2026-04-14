@@ -2,12 +2,12 @@
 using System.Numerics;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-using FDP.Toolkit.Combat.Contracts;
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Physics.Systems;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Systems;
 using Xunit;
 
-namespace FDP.Toolkit.Physics.Tests
+namespace Fdp.Toolkit.Physics.Tests
 {
     /// <summary>
     /// Tests for <see cref="HitResolutionSystem"/> focused on the PACK-P003 requirement:
@@ -16,7 +16,7 @@ namespace FDP.Toolkit.Physics.Tests
     /// LOS-check rays must emit neither.
     ///
     /// <b>PACK-P003:</b> <see cref="HitResolutionSystem"/> no longer requires
-    /// <see cref="FDP.Toolkit.Replication.Services.NetworkEntityMap"/> — it always emits
+    /// <see cref="Fdp.Toolkit.Replication.Services.NetworkEntityMap"/> — it always emits
     /// <see cref="DetonationNotification"/> with local ECS handles.
     /// </summary>
     public class HitResolutionSystemDetonationTests : IDisposable

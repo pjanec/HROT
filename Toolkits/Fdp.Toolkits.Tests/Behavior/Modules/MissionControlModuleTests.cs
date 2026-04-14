@@ -1,9 +1,9 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Modules;
-using FDP.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Behavior.Modules;
+using Fdp.Toolkit.Behavior.Systems;
 using Xunit;
 
-namespace FDP.Toolkit.Behavior.Tests.Modules
+namespace Fdp.Toolkit.Behavior.Tests.Modules
 {
     /// <summary>
     /// Verifies that <see cref="MissionControlModule"/> registers exactly the expected

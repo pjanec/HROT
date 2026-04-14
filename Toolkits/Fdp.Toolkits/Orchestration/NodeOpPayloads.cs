@@ -1,6 +1,6 @@
 using System;
 
-namespace FDP.Toolkit.Orchestration
+namespace Fdp.Toolkit.Orchestration
 {
     /// <summary>
     /// Payload for <see cref="NodeOpType.CommitState"/> intents.

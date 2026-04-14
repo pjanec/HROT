@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 
-namespace FDP.Toolkit.Physics.Math
+namespace Fdp.Toolkit.Physics.Math
 {
     /// <summary>
     /// Pure-static 2-D geometric intersection utilities.

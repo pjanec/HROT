@@ -1,6 +1,6 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace FDP.Toolkit.Commands.Tests;
+namespace Fdp.Toolkit.Commands.Tests;
 
 [TestClass]
 public sealed class Test1

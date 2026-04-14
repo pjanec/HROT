@@ -2,7 +2,7 @@ using Fdp.Kernel;
 using Fdp.Kernel.FlightRecorder;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Replay
+namespace Fdp.Toolkit.Replay
 {
     /// <summary>
     /// Per-frame playback tick system that advances the <see cref="PlaybackController"/>

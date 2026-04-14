@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace FDP.Toolkit.ImGui.Icons;
+namespace Fdp.Toolkit.ImGui.Icons;
 
 /// <summary>
 /// Wraps a texture-atlas sprite sheet and provides UV coordinate lookup for icon cells.

@@ -3,8 +3,8 @@ using System.Numerics;
 using Fdp.Kernel;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Configuration;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Examples.NetworkDemo.Systems

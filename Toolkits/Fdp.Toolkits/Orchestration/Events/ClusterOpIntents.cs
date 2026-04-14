@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Orchestration
+namespace Fdp.Toolkit.Orchestration
 {
     /// <summary>
     /// Published by <c>ClusterOpMasterTranslator</c> when a DDS <c>ClusterOpRequest</c>

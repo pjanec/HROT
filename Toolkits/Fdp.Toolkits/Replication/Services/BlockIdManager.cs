@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Network.Interfaces;
 
-namespace FDP.Toolkit.Replication.Services
+namespace Fdp.Toolkit.Replication.Services
 {
     [ComponentId(GlobalComponentIds.BlockIdManager)]
     public class BlockIdManager : INetworkIdAllocator

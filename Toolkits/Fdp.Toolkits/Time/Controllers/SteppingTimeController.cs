@@ -3,7 +3,7 @@ using System.Diagnostics;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Time;
 
-namespace FDP.Toolkit.Time.Controllers
+namespace Fdp.Toolkit.Time.Controllers
 {
     /// <summary>
     /// Time controller for manual stepping only.

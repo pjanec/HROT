@@ -1,11 +1,11 @@
 using System.Numerics;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Perception.Events;
-using FDP.Toolkit.Perception.Systems;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Systems;
 using Fdp.Kernel;
 using Xunit;
 
-namespace FDP.Toolkit.Perception.Tests
+namespace Fdp.Toolkit.Perception.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="AudioPerceptionSystem"/> (PACK-A001).

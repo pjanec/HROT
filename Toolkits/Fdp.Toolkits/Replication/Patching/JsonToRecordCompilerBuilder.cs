@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace FDP.Toolkit.Replication.Patching;
+namespace Fdp.Toolkit.Replication.Patching;
 
 /// <summary>
 /// Maps a pre-computed FNV-1a path hash to the attribute ID and expected value type

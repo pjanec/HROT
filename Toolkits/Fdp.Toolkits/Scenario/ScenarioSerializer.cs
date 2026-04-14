@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Scenario
+namespace Fdp.Toolkit.Scenario
 {
     /// <summary>
     /// Serializes and deserializes an <see cref="EntityRepository"/> to/from an

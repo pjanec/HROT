@@ -3,7 +3,7 @@ using Fdp.Kernel;
 using Fdp.Kernel.FlightRecorder;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Replay
+namespace Fdp.Toolkit.Replay
 {
     /// <summary>
     /// Per-frame recording system that alternates between keyframes (every

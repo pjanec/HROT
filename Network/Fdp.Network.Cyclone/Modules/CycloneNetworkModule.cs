@@ -2,23 +2,23 @@ using System;
 using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using Fdp.Interfaces; 
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
 using Fdp.ModuleHost.Network.Interfaces;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Network.Cyclone.Services;
 using Fdp.Network.Cyclone.Systems;
 using Fdp.Network.Cyclone.Providers;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services; 
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services; 
 
-using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap; 
+using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap; 
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 using INetworkTopology = Fdp.Interfaces.INetworkTopology;
-using NetworkGatewaySystem = FDP.Toolkit.Replication.Systems.NetworkGatewaySystem;
+using NetworkGatewaySystem = Fdp.Toolkit.Replication.Systems.NetworkGatewaySystem;
 
 namespace Fdp.Network.Cyclone.Modules
 {

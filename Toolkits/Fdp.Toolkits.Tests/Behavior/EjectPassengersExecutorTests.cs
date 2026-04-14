@@ -2,11 +2,11 @@ using System;
 using System.Numerics;
 using Fdp.Kernel;
 using Fbt;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Executors;
 using Xunit;
 
-namespace FDP.Toolkit.Behavior.Tests
+namespace Fdp.Toolkit.Behavior.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="EjectPassengersExecutor"/> (BCS-P6-T4).

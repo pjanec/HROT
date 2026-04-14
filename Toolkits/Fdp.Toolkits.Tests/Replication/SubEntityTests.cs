@@ -1,14 +1,14 @@
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Lifecycle.Events;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.ModuleHost.Abstractions;
 using System;
 using System.Collections.Generic;
 using Xunit;
 
-namespace FDP.Toolkit.Replication.Tests
+namespace Fdp.Toolkit.Replication.Tests
 {
     public class SubEntityTests
     {
@@ -39,7 +39,7 @@ namespace FDP.Toolkit.Replication.Tests
             var parentTemplate = new TkbTemplate("Parent", 100);
             tkb.Register(parentTemplate);
 
-            var elm = new FDP.Toolkit.Lifecycle.EntityLifecycleModule(tkb, Array.Empty<int>());
+            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(tkb, Array.Empty<int>());
             var sys = new GhostPromotionSystem(tkb, elm);
 
             repo.RegisterComponent<TkbIdentity>();

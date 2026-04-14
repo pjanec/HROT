@@ -8,8 +8,8 @@ using CarKinem.Systems;
 using CarKinem.Trajectory;
 using Fdp.Examples.Common;
 using Fdp.Kernel;
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Vis2D;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Vis2D;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 
@@ -182,7 +182,7 @@ namespace Fdp.Examples.Scenarios.Kinematics
         }
 
         /// <inheritdoc/>
-        public void ConfigureVisuals(FDP.Toolkit.Vis2D.MapCanvas? canvas, EntityRepository world) { }
+        public void ConfigureVisuals(Fdp.Toolkit.Vis2D.MapCanvas? canvas, EntityRepository world) { }
 
         // ── Helpers ───────────────────────────────────────────────────────────
 

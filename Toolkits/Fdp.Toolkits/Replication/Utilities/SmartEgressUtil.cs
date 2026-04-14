@@ -1,5 +1,5 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network.Messages;
 using System;
@@ -14,7 +14,7 @@ using System.Threading.Channels;
 using static System.Net.Mime.MediaTypeNames;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
-namespace FDP.Toolkit.Replication.Utilities
+namespace Fdp.Toolkit.Replication.Utilities
 {
     /// <summary>
     /// Static utility that encapsulates dirty-tracking and throttling logic for

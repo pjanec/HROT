@@ -2,10 +2,10 @@ using System;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Time.Messages;
-using FDP.Toolkit.Time.Translators;
+using Fdp.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Translators;
 
-namespace FDP.Toolkit.Time
+namespace Fdp.Toolkit.Time
 {
     /// <summary>
     /// Composition-root helper for wiring <see cref="SwitchTimeModeEvent"/> over CycloneDDS

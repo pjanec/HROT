@@ -4,8 +4,9 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Lifecycle.Events;
+using Fdp.Interfaces;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Lifecycle.Events;
 
 namespace Fdp.Network.Cyclone.Tests.Mocks
 {

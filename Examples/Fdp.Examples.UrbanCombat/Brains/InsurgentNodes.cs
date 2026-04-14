@@ -1,11 +1,11 @@
 using System.Runtime.CompilerServices;
 using Fbt;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Combat;
-using FDP.Toolkit.Combat.Executors;
-using FDP.Toolkit.Perception.Components;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Executors;
+using Fdp.Toolkit.Perception.Components;
 
 namespace Fdp.Examples.UrbanCombat.Brains
 {
@@ -58,7 +58,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
         /// <para>
         /// Also increments <see cref="WeaponChannel.ActionInstanceId"/> whenever the
         /// action changes (or revives from a Failure state) so that
-        /// <see cref="FDP.Toolkit.Behavior.Systems.WeaponDispatcherSystem"/> triggers
+        /// <see cref="Fdp.Toolkit.Behavior.Systems.WeaponDispatcherSystem"/> triggers
         /// <see cref="AimAndFireExecutor.OnEnter"/>, which stores the target in the
         /// channel's <c>State</c> buffer and sets <c>Status = Running</c>.
         /// </para>

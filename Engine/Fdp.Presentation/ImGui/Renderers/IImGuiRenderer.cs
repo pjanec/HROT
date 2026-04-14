@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.ImGui.Renderers;
+namespace Fdp.Toolkit.ImGui.Renderers;
 
 /// <summary>
 /// Custom ImGui renderer that can replace summary or detail rendering for a specific C# type.
@@ -29,7 +29,7 @@ public interface IImGuiRenderer
 
     /// <summary>
     /// Renders a custom value cell in the current ImGui table row (column 1 is active).
-    /// Called by <see cref="FDP.Toolkit.ImGui.Utils.ImGuiPropertyTree"/> when matching this type.
+    /// Called by <see cref="Fdp.Toolkit.ImGui.Utils.ImGuiPropertyTree"/> when matching this type.
     /// Return <c>true</c> if rendering was performed; return <c>false</c> to fall through to
     /// the default hierarchical tree rendering.
     /// </summary>

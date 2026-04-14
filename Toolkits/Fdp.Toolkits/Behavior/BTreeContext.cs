@@ -2,7 +2,7 @@ using System.Numerics;
 using Fdp.Kernel;
 using Fbt;
 
-namespace FDP.Toolkit.Behavior
+namespace Fdp.Toolkit.Behavior
 {
     /// <summary>
     /// Per-entity execution context passed to FastBTree action nodes during <c>Interpreter.Tick</c>.

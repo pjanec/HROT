@@ -1,10 +1,10 @@
 using System.Numerics;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using Fdp.Engine.Runner;
-using FDP.Toolkit.Time.Controllers;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Components;
 using Fdp.ModuleHost;
 
 namespace Fdp.Examples.Common

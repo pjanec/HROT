@@ -1,8 +1,8 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Physics.Modules;
+using Fdp.Toolkit.Physics.Modules;
 using Xunit;
 
-namespace FDP.Toolkit.Physics.Tests
+namespace Fdp.Toolkit.Physics.Tests
 {
     public class PhysicsQueryModuleTests
     {

@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace FDP.Toolkit.Replication.Patching;
+namespace Fdp.Toolkit.Replication.Patching;
 
 /// <summary>
 /// Delegate for mutating an unmanaged struct ECS component via ref.

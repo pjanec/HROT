@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Orchestration
+namespace Fdp.Toolkit.Orchestration
 {
     /// <summary>
     /// Strongly-typed status codes used across all FDP orchestration domain events.

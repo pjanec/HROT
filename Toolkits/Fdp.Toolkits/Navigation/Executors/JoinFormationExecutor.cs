@@ -1,13 +1,13 @@
 using System.Runtime.InteropServices;
 using CarKinem.Commands;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Executors;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Replication.Services;
 using Fbt;
 
-namespace FDP.Toolkit.Navigation.Executors
+namespace Fdp.Toolkit.Navigation.Executors
 {
     // ── Parameter and tag structs ─────────────────────────────────────────────────
 
@@ -50,7 +50,7 @@ namespace FDP.Toolkit.Navigation.Executors
 
     /// <summary>
     /// Action executor for the <c>JoinFormation</c> locomotion behavior
-    /// (<see cref="FDP.Toolkit.Navigation.NavigationConstants.ActionIdJoinFormation"/>).
+    /// (<see cref="Fdp.Toolkit.Navigation.NavigationConstants.ActionIdJoinFormation"/>).
     ///
     /// <para>
     /// <b>OnEnter:</b> reads <see cref="JoinFormationParams"/> from

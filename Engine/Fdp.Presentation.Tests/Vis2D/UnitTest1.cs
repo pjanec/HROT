@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Vis2D.Tests;
+namespace Fdp.Toolkit.Vis2D.Tests;
 
 public class UnitTest1
 {

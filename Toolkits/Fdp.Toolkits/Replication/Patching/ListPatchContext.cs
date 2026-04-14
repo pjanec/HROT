@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace FDP.Toolkit.Replication.Patching;
+namespace Fdp.Toolkit.Replication.Patching;
 
 /// <summary>
 /// <see cref="IEntityPatchContext"/> implementation used during entity creation.

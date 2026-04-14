@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using Fdp.Kernel;
-using FDP.Toolkit.Time.Controllers;
-using FDP.Toolkit.Time.Domain;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time.Domain;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
 using Xunit;
 
-namespace FDP.Toolkit.Time.Tests
+namespace Fdp.Toolkit.Time.Tests
 {
     /// <summary>
     /// TC3-P5-T01: Unit tests for NTP offset computation inside

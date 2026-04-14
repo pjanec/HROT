@@ -2,19 +2,19 @@ using System.Collections.Generic;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Tkb;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Lifecycle.Events;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.NetworkSpawning.Systems;
-using FDP.Toolkit.NetworkSpawning.Tests.Helpers;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Systems;
+using Fdp.Toolkit.NetworkSpawning.Tests.Helpers;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
 using Fdp.ModuleHost.Network.Interfaces;
 using Xunit;
 
-namespace FDP.Toolkit.NetworkSpawning.Tests
+namespace Fdp.Toolkit.NetworkSpawning.Tests
 {
     /// <summary>
     /// Full spawn → update → destroy lifecycle flow (NS1.6).

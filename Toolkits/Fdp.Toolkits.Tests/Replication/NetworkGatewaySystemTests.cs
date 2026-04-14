@@ -4,14 +4,14 @@ using Xunit;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Replication.Systems;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.ModuleHost.Network;
 using Fdp.ModuleHost.Network.Interfaces;
 using INetworkTopology = Fdp.Interfaces.INetworkTopology;
 
-namespace FDP.Toolkit.Replication.Tests
+namespace Fdp.Toolkit.Replication.Tests
 {
     /// <summary>
     /// Unit tests for the canonical <see cref="NetworkGatewaySystem"/> (PACK3-N001).

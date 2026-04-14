@@ -1,11 +1,11 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Systems;
 using Fbt;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace FDP.Toolkit.Behavior.Tests
+namespace Fdp.Toolkit.Behavior.Tests
 {
     public class ChannelArbitrationTests
     {

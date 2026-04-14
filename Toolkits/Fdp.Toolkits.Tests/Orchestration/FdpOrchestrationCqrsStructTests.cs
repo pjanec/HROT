@@ -2,10 +2,10 @@ using System;
 using System.Linq;
 using System.Reflection;
 using Fdp.Kernel;
-using FDP.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration;
 using Xunit;
 
-namespace FDP.Toolkit.Orchestration.Tests;
+namespace Fdp.Toolkit.Orchestration.Tests;
 
 /// <summary>
 /// CMC-S002 and CMC-S003: Verifies structural and attribute contracts for the
@@ -173,7 +173,7 @@ public sealed class FdpOrchestrationCqrsStructTests
 
         Assert.NotNull(field);
         // Must use the FDP domain enum, NOT Hrot.NED
-        Assert.Equal(typeof(FDP.Toolkit.Orchestration.ClusterState), field!.FieldType);
+        Assert.Equal(typeof(Fdp.Toolkit.Orchestration.ClusterState), field!.FieldType);
     }
 
     // ── CMC-S003: ManageEpisodeIntent field types ──────────────────────────

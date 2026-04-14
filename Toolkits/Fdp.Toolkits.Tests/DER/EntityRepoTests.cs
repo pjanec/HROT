@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using FDP.Toolkit.DER;
+using Fdp.Toolkit.DER;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace FDP.Toolkit.DER.Tests
+namespace Fdp.Toolkit.DER.Tests
 {
     [TestClass]
     public class EntityRepoTests

@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Replication.Components
+namespace Fdp.Toolkit.Replication.Components
 {
     /// <summary>
     /// Permanent identity component holding the blueprint type key for a networked entity.

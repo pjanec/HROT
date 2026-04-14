@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
 
-namespace FDP.Toolkit.DER
+namespace Fdp.Toolkit.DER
 {
     public class DerRepo : IDerRepo
     {

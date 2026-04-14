@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Behavior.Events
+namespace Fdp.Toolkit.Behavior.Events
 {
     /// <summary>
     /// Managed event that requests assignment of a new doctrine to an entity.

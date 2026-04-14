@@ -1,8 +1,8 @@
 using System.Numerics;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;
 
-namespace FDP.Toolkit.Vis2D.Tests.Input
+namespace Fdp.Toolkit.Vis2D.Tests.Input
 {
     public class MockInputProvider : IInputProvider
     {

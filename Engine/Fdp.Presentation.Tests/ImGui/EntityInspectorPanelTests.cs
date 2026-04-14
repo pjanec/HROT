@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Kernel;
-using FDP.Toolkit.ImGui.Panels;
-using FDP.Toolkit.ImGui.Abstractions;
-using FDP.Toolkit.ImGui.Adapters;
-using FDP.Toolkit.ImGui.Utils;
+using Fdp.Toolkit.ImGui.Panels;
+using Fdp.Toolkit.ImGui.Abstractions;
+using Fdp.Toolkit.ImGui.Adapters;
+using Fdp.Toolkit.ImGui.Utils;
 using Xunit;
 using ImGuiApi = ImGuiNET.ImGui;
 
-namespace FDP.Toolkit.ImGui.Tests
+namespace Fdp.Toolkit.ImGui.Tests
 {
     public class FakeInspectorContext : IInspectorContext
     {

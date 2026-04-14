@@ -1,10 +1,10 @@
 using Fdp.Kernel;
 using Fbt;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Executors;
 using System.Runtime.CompilerServices;
 
-namespace FDP.Toolkit.Behavior.Tests
+namespace Fdp.Toolkit.Behavior.Tests
 {
     /// <summary>
     /// Reusable spy executor that records how many times each lifecycle method was called.

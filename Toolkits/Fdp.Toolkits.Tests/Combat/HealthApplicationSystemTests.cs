@@ -1,13 +1,13 @@
 using System;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Combat.Events;
-using FDP.Toolkit.Combat.Systems;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Combat.Systems;
+using Fdp.Toolkit.Replication.Components;
 using Xunit;
 
-namespace FDP.Toolkit.Combat.Tests
+namespace Fdp.Toolkit.Combat.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="HealthApplicationSystem"/> (BS1-T014).

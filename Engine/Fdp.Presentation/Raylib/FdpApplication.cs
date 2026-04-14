@@ -3,7 +3,7 @@ using Fdp.ModuleHost;
 using Raylib_cs;
 using rlImGui_cs;
 
-namespace FDP.Framework.Raylib;
+namespace Fdp.Framework.Raylib;
 
 /// <summary>
 /// Abstract base class for FDP applications with Raylib rendering.

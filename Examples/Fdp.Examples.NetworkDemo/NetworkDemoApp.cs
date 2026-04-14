@@ -20,16 +20,16 @@ using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
 using Fdp.ModuleHost.Network.Interfaces;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Lifecycle.Systems;
-using FDP.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Lifecycle.Systems;
+using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.Tkb;
-using FDP.Toolkit.Replication;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Systems;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.NetworkSpawning.Systems;
-using FDP.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Replication;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Systems;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Systems;
+using Fdp.Toolkit.Time.Controllers;
 using Fdp.Network.Cyclone;
 using Fdp.Network.Cyclone.Services;
 using Fdp.Network.Cyclone.Modules;
@@ -37,7 +37,7 @@ using Fdp.Network.Cyclone.Providers;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using NLog;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 
 namespace Fdp.Examples.NetworkDemo
 {
@@ -57,7 +57,7 @@ namespace Fdp.Examples.NetworkDemo
         public int InstanceId => instanceId;
         public int LocalNodeId => localInternalId;
         public Fdp.Interfaces.ITkbDatabase Tkb => tkb;
-        public FDP.Toolkit.Replication.Services.NetworkEntityMap EntityMap { get; private set; } = default!;
+        public Fdp.Toolkit.Replication.Services.NetworkEntityMap EntityMap { get; private set; } = default!;
         public Fdp.Kernel.FdpEventBus EventBus { get; private set; } = default!; // For testing
         
         private DdsParticipant participant = default!;
@@ -69,7 +69,7 @@ namespace Fdp.Examples.NetworkDemo
         private int localInternalId;
         private NodeIdMapper nodeMapper = default!;
         private TkbDatabase tkb = default!;
-        private FDP.Toolkit.Time.Controllers.MasterSyncController? _masterSyncController;
+        private Fdp.Toolkit.Time.Controllers.MasterSyncController? _masterSyncController;
         private bool _testMode;
 
         /// <summary>
@@ -105,7 +105,7 @@ namespace Fdp.Examples.NetworkDemo
             
             // Common Setup
             World = new EntityRepository();
-            EntityMap = new FDP.Toolkit.Replication.Services.NetworkEntityMap();
+            EntityMap = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
             DemoComponentRegistry.Register(World);
             // Ensure Combat events are registered (Fix for CombatSystemTests)
             World.RegisterEvent<FireInteractionEvent>();
@@ -221,9 +221,9 @@ namespace Fdp.Examples.NetworkDemo
                 if (!isReplay)
                 {
                     if (instanceId == 100)
-                        allTranslators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateMasterTimeSyncTranslator(participant));
+                        allTranslators.Add(Fdp.Toolkit.Time.TimeNetworkModule.CreateMasterTimeSyncTranslator(participant));
                     else
-                        allTranslators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateSlaveTimeSyncTranslator(participant, eventBus, localInternalId));
+                        allTranslators.Add(Fdp.Toolkit.Time.TimeNetworkModule.CreateSlaveTimeSyncTranslator(participant, eventBus, localInternalId));
                 }
 
                 var networkModule = new CycloneNetworkModule(
@@ -307,19 +307,19 @@ namespace Fdp.Examples.NetworkDemo
             }
             else
             {
-                var timeConfig = new FDP.Toolkit.Time.Controllers.TimeControllerConfig { LocalNodeId = localInternalId };
+                var timeConfig = new Fdp.Toolkit.Time.Controllers.TimeControllerConfig { LocalNodeId = localInternalId };
                 timeConfig.SyncConfig.LookaheadWallTicks = (long)(0.2 * System.Diagnostics.Stopwatch.Frequency);
 
                 if (instanceId == 100)
                 {
                      var slaveSet = new System.Collections.Generic.HashSet<int>(peerInternalIds);
-                     _masterSyncController = new FDP.Toolkit.Time.Controllers.MasterSyncController(
+                     _masterSyncController = new Fdp.Toolkit.Time.Controllers.MasterSyncController(
                         eventBus, slaveSet, timeConfig.SyncConfig);
                      timeController = _masterSyncController;
                 }
                 else
                 {
-                     timeController = new FDP.Toolkit.Time.Controllers.SlaveSyncController(
+                     timeController = new Fdp.Toolkit.Time.Controllers.SlaveSyncController(
                         eventBus, localInternalId, timeConfig.SyncConfig);
                 }
             }
@@ -333,7 +333,7 @@ namespace Fdp.Examples.NetworkDemo
             {
                  var entity = World.CreateEntity();
                  World.AddComponent(entity, new NetworkIdentity { Value = 999 });
-                 World.AddComponent(entity, new FDP.Toolkit.Replication.Components.NetworkAuthority { 
+                 World.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkAuthority { 
                      PrimaryOwnerId = nodeMapper.GetOrRegisterInternalId(new Fdp.Network.Cyclone.Topics.NetworkAppId { AppDomainId = 0, AppInstanceId = 100 }), 
                      LocalNodeId = localInternalId 
                  });
@@ -535,7 +535,7 @@ namespace Fdp.Examples.NetworkDemo
         {
             var query = world.Query()
                 .With<NetworkIdentity>()
-                .With<FDP.Toolkit.Replication.Components.NetworkAuthority>() // Use Authority
+                .With<Fdp.Toolkit.Replication.Components.NetworkAuthority>() // Use Authority
                 .Build();
 
             FdpLog<NetworkDemoApp>.Info("[STATUS] Frame snapshot:");
@@ -546,7 +546,7 @@ namespace Fdp.Examples.NetworkDemo
             foreach (var e in query)
             {
                  ref readonly var netId = ref world.GetComponentRO<NetworkIdentity>(e);
-                 ref readonly var auth = ref world.GetComponentRO<FDP.Toolkit.Replication.Components.NetworkAuthority>(e);
+                 ref readonly var auth = ref world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkAuthority>(e);
                  
                  string ownershipInfo = "No Ownership";
                  if (world.HasComponent<Fdp.ModuleHost.Network.NetworkOwnership>(e))

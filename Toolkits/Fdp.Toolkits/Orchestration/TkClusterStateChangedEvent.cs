@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Orchestration
+namespace Fdp.Toolkit.Orchestration
 {
     /// <summary>
     /// Published to the local <see cref="FdpEventBus"/> whenever the cluster 

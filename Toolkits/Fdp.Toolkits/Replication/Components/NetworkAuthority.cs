@@ -1,7 +1,7 @@
 using System;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Replication.Components
+namespace Fdp.Toolkit.Replication.Components
 {
     /// <summary>
     /// Defines ownership and authority for a networked entity.

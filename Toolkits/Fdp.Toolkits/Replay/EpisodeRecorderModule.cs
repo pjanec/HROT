@@ -2,7 +2,7 @@ using System;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Replay
+namespace Fdp.Toolkit.Replay
 {
     /// <summary>
     /// Data-plane module for per-episode recording.  Functions identically to

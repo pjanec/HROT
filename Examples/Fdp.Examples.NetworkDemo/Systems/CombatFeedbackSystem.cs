@@ -5,7 +5,8 @@ using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Events;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
+using Fdp.Interfaces;
 
 namespace Fdp.Examples.NetworkDemo.Systems
 {
@@ -43,7 +44,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
             }
         }
 
-        private void ProcessEvent(FireInteractionEvent evt, ISimulationView view, Fdp.ModuleHost.Abstractions.IEntityCommandBuffer cmd)
+        private void ProcessEvent(FireInteractionEvent evt, ISimulationView view, IEntityCommandBuffer cmd )
         {
             FdpLog<CombatFeedbackSystem>.Info(
                 $"[Combat] Fire event: Attacker={evt.AttackerRoot.Index} " +

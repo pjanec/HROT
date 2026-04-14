@@ -1,9 +1,9 @@
 using System;
 using System.Numerics;
-using FDP.Toolkit.ImGui.Icons;
+using Fdp.Toolkit.ImGui.Icons;
 using Xunit;
 
-namespace FDP.Toolkit.ImGui.Tests.Icons;
+namespace Fdp.Toolkit.ImGui.Tests.Icons;
 
 /// <summary>
 /// Unit tests for <see cref="IconAtlas"/> — WM-S101 success conditions.

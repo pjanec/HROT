@@ -1,8 +1,8 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Combat.Components;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat.Components;
 
-namespace FDP.Toolkit.Behavior.Tests
+namespace Fdp.Toolkit.Behavior.Tests
 {
     public static class TestWorldFactory
     {

@@ -5,6 +5,7 @@ using Fdp.Kernel;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Providers;
+using Fdp.Interfaces;
 
 namespace Fdp.ModuleHost.Tests
 {

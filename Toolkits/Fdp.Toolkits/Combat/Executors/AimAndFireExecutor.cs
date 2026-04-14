@@ -2,16 +2,16 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using Fdp.Kernel;
 using Fbt;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Executors;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Combat.Events;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Events;
 
-namespace FDP.Toolkit.Combat.Executors
+namespace Fdp.Toolkit.Combat.Executors
 {
     /// <summary>
     /// Executor for the AimAndFire weapon action.
-    /// Registered with <see cref="FDP.Toolkit.Behavior.Systems.WeaponDispatcherSystem"/> as the
+    /// Registered with <see cref="Fdp.Toolkit.Behavior.Systems.WeaponDispatcherSystem"/> as the
     /// handler for the AimAndFire action ID.
     ///
     /// PACK-P003: Publishes WeaponFireIntent with local ECS Entity handles (Shooter and Target)

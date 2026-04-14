@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Orchestration
+namespace Fdp.Toolkit.Orchestration
 {
     /// <summary>
     /// Pure FDP domain mirror of <c>Hrot.NED.Descriptors.Orchestration.ClusterOpType</c>.

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.ImGui.Abstractions
+namespace Fdp.Toolkit.ImGui.Abstractions
 {
     public interface IInspectableSession
     {

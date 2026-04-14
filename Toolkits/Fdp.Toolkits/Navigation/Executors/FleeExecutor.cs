@@ -3,10 +3,10 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using Fdp.Kernel;
 using Fbt;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Executors;
 
-namespace FDP.Toolkit.Navigation.Executors
+namespace Fdp.Toolkit.Navigation.Executors
 {
     /// <summary>
     /// Executor for the <see cref="NavigationConstants.ActionIdFlee"/> action.

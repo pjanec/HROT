@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using Xunit;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Lifecycle.Events;
 
-namespace FDP.Toolkit.Replication.Tests
+namespace Fdp.Toolkit.Replication.Tests
 {
     // Mocks
     class MockTkbDatabase : ITkbDatabase
@@ -62,7 +62,7 @@ namespace FDP.Toolkit.Replication.Tests
 
             var template = new TkbTemplate("Test", 123);
             var mockTkb = new MockTkbDatabase { TemplateToReturn = template };
-            var elm = new FDP.Toolkit.Lifecycle.EntityLifecycleModule(mockTkb, Array.Empty<int>());
+            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(mockTkb, Array.Empty<int>());
             var sys = new GhostPromotionSystem(mockTkb, elm);
 
             repo.RegisterComponent<TkbIdentity>();
@@ -90,7 +90,7 @@ namespace FDP.Toolkit.Replication.Tests
 
             var template = new TkbTemplate("Test", 123);
             var slowTkb = new SlowMockTkbDatabase { TemplateToReturn = template };
-            var elm = new FDP.Toolkit.Lifecycle.EntityLifecycleModule(slowTkb, Array.Empty<int>());
+            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(slowTkb, Array.Empty<int>());
             var sys = new GhostPromotionSystem(slowTkb, elm);
 
             repo.RegisterComponent<TkbIdentity>();
@@ -122,7 +122,7 @@ namespace FDP.Toolkit.Replication.Tests
 
             var template = new TkbTemplate("Test", 123);
             var mockTkb = new MockTkbDatabase { TemplateToReturn = template };
-            var elm = new FDP.Toolkit.Lifecycle.EntityLifecycleModule(mockTkb, Array.Empty<int>());
+            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(mockTkb, Array.Empty<int>());
             var sys = new GhostPromotionSystem(mockTkb, elm);
 
             repo.RegisterComponent<TkbIdentity>();

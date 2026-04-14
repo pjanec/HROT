@@ -1,9 +1,9 @@
 using Xunit;
-using FDP.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Kernel;
 using System.Linq;
 
-namespace FDP.Toolkit.Lifecycle.Tests
+namespace Fdp.Toolkit.Lifecycle.Tests
 {
     public class LifecycleEventsTests
     {

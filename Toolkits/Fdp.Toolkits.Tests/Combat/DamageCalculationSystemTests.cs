@@ -1,12 +1,12 @@
 using System;
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Contracts;
-using FDP.Toolkit.Combat.Events;
-using FDP.Toolkit.Combat.Systems;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Combat.Systems;
+using Fdp.Toolkit.Replication.Components;
 using Xunit;
 
-namespace FDP.Toolkit.Combat.Tests
+namespace Fdp.Toolkit.Combat.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="DamageCalculationSystem"/> (BS1-T012).
@@ -20,7 +20,7 @@ namespace FDP.Toolkit.Combat.Tests
         {
             _world = new EntityRepository();
             _world.RegisterComponent<NetworkAuthority>();
-            _world.RegisterComponent<FDP.Toolkit.Combat.Components.Health>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             _world.RegisterEvent<DetonationNotification>();
             _world.RegisterEvent<DamageAssessedEvent>();
 
@@ -111,12 +111,12 @@ namespace FDP.Toolkit.Combat.Tests
         {
             // Register Health and add it to the target — system must not touch it.
             var entity = SpawnTarget(authoritative: true);
-            _world.AddComponent(entity, new FDP.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            _world.AddComponent(entity, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
 
             PublishDetonation(target: entity);
             _sys.Run();
 
-            var health = _world.GetComponent<FDP.Toolkit.Combat.Components.Health>(entity);
+            var health = _world.GetComponent<Fdp.Toolkit.Combat.Components.Health>(entity);
             Assert.Equal(100f, health.Current);
         }
 

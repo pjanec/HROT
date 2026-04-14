@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Behavior.Components
+namespace Fdp.Toolkit.Behavior.Components
 {
     /// <summary>
     /// Condition that must be met for a <see cref="MissionPhase"/> to advance to the next phase.

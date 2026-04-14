@@ -6,10 +6,11 @@ using Moq;
 using Fdp.Network.Cyclone.Translators;
 using Fdp.Network.Cyclone.Topics;
 using CycloneDDS.Runtime;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
 namespace Fdp.Network.Cyclone.Tests.Translators
 {

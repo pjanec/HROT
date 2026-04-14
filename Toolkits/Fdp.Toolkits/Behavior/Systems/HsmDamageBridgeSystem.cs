@@ -2,9 +2,9 @@ using System.Collections.Generic;
 using Fdp.Kernel;
 using Fhsm.Kernel;
 using Fhsm.Kernel.Data;
-using FDP.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Components;
 
-namespace FDP.Toolkit.Behavior.Systems
+namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
     /// Detects when <see cref="ActorCapabilities.CanMove"/> is cleared on an entity that

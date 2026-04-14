@@ -11,7 +11,8 @@ using CarKinem.Formation;
 using Fdp.Examples.CarKinem.Components;
 using Raylib_cs;
 
-using ExamplePresets = Fdp.Examples.CarKinem.Core.ExampleVehiclePresets; 
+using ExamplePresets = Fdp.Examples.CarKinem.Core.ExampleVehiclePresets;
+using Fdp.Interfaces;
 
 namespace Fdp.Examples.CarKinem.Tests
 {

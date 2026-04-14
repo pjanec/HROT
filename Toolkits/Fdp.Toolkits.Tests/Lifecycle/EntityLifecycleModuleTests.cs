@@ -1,13 +1,13 @@
 using Xunit;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Interfaces;
 using Moq; 
 using System.Linq;
 
-namespace FDP.Toolkit.Lifecycle.Tests
+namespace Fdp.Toolkit.Lifecycle.Tests
 {
     public class EntityLifecycleModuleTests
     {

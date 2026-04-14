@@ -1,11 +1,11 @@
 using System.Collections;
 using System.Numerics;
 using System.Reflection;
-using FDP.Toolkit.ImGui.Renderers;
+using Fdp.Toolkit.ImGui.Renderers;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
-namespace FDP.Toolkit.ImGui.Utils;
+namespace Fdp.Toolkit.ImGui.Utils;
 
 /// <summary>
 /// Shared utility that renders any object's public fields and properties as a

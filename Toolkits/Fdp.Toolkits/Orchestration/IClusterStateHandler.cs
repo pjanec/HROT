@@ -2,7 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Orchestration
+namespace Fdp.Toolkit.Orchestration
 {
     /// <summary>
     /// Implemented by each per-subsystem component that participates in the

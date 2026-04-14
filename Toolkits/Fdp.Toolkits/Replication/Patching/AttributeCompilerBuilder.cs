@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Replication.Patching;
+namespace Fdp.Toolkit.Replication.Patching;
 
 /// <summary>
 /// Fluent builder that registers JSON attribute paths and their typed setter delegates,

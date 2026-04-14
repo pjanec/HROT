@@ -2,10 +2,10 @@ using System;
 using System.Numerics;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;
 
-namespace FDP.Toolkit.Vis2D.Defaults
+namespace Fdp.Toolkit.Vis2D.Defaults
 {
     public class DelegateAdapter : IVisualizerAdapter
     {

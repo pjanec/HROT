@@ -2,7 +2,7 @@ using System;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Time;
 
-namespace FDP.Toolkit.Time.Controllers
+namespace Fdp.Toolkit.Time.Controllers
 {
     /// <summary>
     /// Factory for creating time controllers based on configuration.

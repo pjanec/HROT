@@ -1,7 +1,7 @@
 using System.Numerics;
 using Raylib_cs;
 
-namespace FDP.Toolkit.Vis2D.Abstractions
+namespace Fdp.Toolkit.Vis2D.Abstractions
 {
     public interface IInputProvider
     {

@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Orchestration.Handlers
+namespace Fdp.Toolkit.Orchestration.Handlers
 {
     /// <summary>
     /// Payload for <see cref="ReferenceEditLoadHandler"/> commands.
@@ -16,7 +16,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
         /// <summary>Integer value of <c>ClusterState.LoadingEdit</c>.</summary>
         private const int LoadingEditState = 10;
 
-        private readonly FDP.Toolkit.Scenario.ScenarioSerializer _serializer;
+        private readonly Fdp.Toolkit.Scenario.ScenarioSerializer _serializer;
         private readonly IScenarioLoader _scenarioLoader;
         private readonly Fdp.Kernel.EntityRepository? _world;
 
@@ -25,7 +25,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
         private bool _pendingIsNew;
 
         public ReferenceEditLoadHandler(
-            FDP.Toolkit.Scenario.ScenarioSerializer serializer,
+            Fdp.Toolkit.Scenario.ScenarioSerializer serializer,
             IScenarioLoader scenarioLoader,
             Fdp.Kernel.EntityRepository? world = null)
         {

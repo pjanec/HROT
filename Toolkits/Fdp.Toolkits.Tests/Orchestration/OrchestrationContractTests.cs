@@ -1,8 +1,8 @@
 using System;
-using FDP.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration;
 using Xunit;
 
-namespace FDP.Toolkit.Orchestration.Tests;
+namespace Fdp.Toolkit.Orchestration.Tests;
 
 /// <summary>
 /// Unit tests verifying the G0401 core contract types and their behaviour.

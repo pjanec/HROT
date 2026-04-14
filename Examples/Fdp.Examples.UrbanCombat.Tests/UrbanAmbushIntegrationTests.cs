@@ -4,11 +4,11 @@ using System.Numerics;
 using Fdp.Examples.UrbanCombat;
 using Fdp.Examples.UrbanCombat.Brains;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Combat.Contracts;
-using FDP.Toolkit.Combat.Events;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Perception.Components;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Perception.Components;
 using Xunit;
 
 namespace Fdp.Examples.UrbanCombat.Tests

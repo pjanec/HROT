@@ -2,7 +2,7 @@ using System;
 using Fdp.Kernel;
 using MessagePack;
 
-namespace FDP.Toolkit.Replication.Messages
+namespace Fdp.Toolkit.Replication.Messages
 {
     [EventId(9020)]
     [MessagePackObject]

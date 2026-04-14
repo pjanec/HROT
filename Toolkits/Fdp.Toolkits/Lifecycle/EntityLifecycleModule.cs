@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Lifecycle.Events;
-using FDP.Toolkit.Lifecycle.Systems;
+using Fdp.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Lifecycle.Systems;
+using Fdp.Interfaces;
 
-namespace FDP.Toolkit.Lifecycle
+namespace Fdp.Toolkit.Lifecycle
 {
     /// <summary>
     /// Coordinates entity lifecycle across distributed modules.

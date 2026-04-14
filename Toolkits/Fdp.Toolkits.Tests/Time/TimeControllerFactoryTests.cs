@@ -4,10 +4,10 @@ using Fdp.ModuleHost.Time;
 using Fdp.Kernel;
 using Xunit;
 
-using FDP.Toolkit.Time.Controllers;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time.Messages;
 
-namespace FDP.Toolkit.Time.Tests
+namespace Fdp.Toolkit.Time.Tests
 {
     public class TimeControllerFactoryTests
     {

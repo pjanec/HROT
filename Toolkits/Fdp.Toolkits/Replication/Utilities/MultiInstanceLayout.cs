@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace FDP.Toolkit.Replication.Utilities
+namespace Fdp.Toolkit.Replication.Utilities
 {
     /// <summary>
     /// Provides zero-overhead access to EntityId and InstanceId fields for multi-instance descriptors.

@@ -1,8 +1,8 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Behavior.Events;
 using Xunit;
 
-namespace FDP.Toolkit.Behavior.Tests
+namespace Fdp.Toolkit.Behavior.Tests
 {
     /// <summary>
     /// Round-trip publish/consume tests for the embarkation command events

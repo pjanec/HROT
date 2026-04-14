@@ -2,10 +2,10 @@ using System.Threading;
 using Xunit;
 using Fdp.Kernel;
 
-using FDP.Toolkit.Time.Controllers;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time.Messages;
 
-namespace FDP.Toolkit.Time.Tests
+namespace Fdp.Toolkit.Time.Tests
 {
     public class GlobalTimeTests
     {

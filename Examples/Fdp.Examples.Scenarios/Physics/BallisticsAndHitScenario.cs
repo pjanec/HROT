@@ -5,16 +5,16 @@ using CarKinem.Systems;
 using Fdp.Examples.Common;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Combat.Contracts;
-using FDP.Toolkit.Combat.Events;
-using FDP.Toolkit.Combat.Systems;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.CarKinem.Systems;
-using FDP.Toolkit.Physics;
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Physics.Systems;
-using FDP.Toolkit.Vis2D;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Combat.Systems;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.CarKinem.Systems;
+using Fdp.Toolkit.Physics;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Systems;
+using Fdp.Toolkit.Vis2D;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 
@@ -34,7 +34,7 @@ namespace Fdp.Examples.Scenarios.Physics
     ///   <item><see cref="FireProcessingSystem"/> — Input: consumes <see cref="FireRequestEvent"/>, spawns bullet</item>
     ///   <item><see cref="SpatialHashSystem"/> — Sim: rebuilds spatial grid</item>
     ///   <item><see cref="BallisticsSystem"/> — PostSim: submits swept-segment raycast <em>before</em> position advance</item>
-    ///   <item><see cref="FDP.Toolkit.CarKinem.Systems.LinearKinematicsSystem"/> — PostSim: advances bullet position</item>
+    ///   <item><see cref="Fdp.Toolkit.CarKinem.Systems.LinearKinematicsSystem"/> — PostSim: advances bullet position</item>
     ///   <item><see cref="RaycastSolverSystem"/> — Input (next logical step): resolves batch from step 3</item>
     ///   <item><see cref="HitResolutionSystem"/> — Input: emits <see cref="HitEvent"/> to event bus write buffer</item>
     ///   <item><see cref="DamageSystem"/> — Sim: applies damage from the <em>previous</em> tick's HitEvent (after bus swap)</item>

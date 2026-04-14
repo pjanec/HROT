@@ -1,10 +1,10 @@
-using FDP.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel to Combat.Contracts
+using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel to Combat.Contracts
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Replication.Components;
 
-namespace FDP.Toolkit.Combat.Systems
+namespace Fdp.Toolkit.Combat.Systems
 {
     /// <summary>
     /// Consumes <see cref="HitEvent"/>s and applies damage to the struck entity's

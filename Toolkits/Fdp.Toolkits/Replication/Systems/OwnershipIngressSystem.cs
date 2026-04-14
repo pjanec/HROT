@@ -3,11 +3,11 @@ using Fdp.Kernel;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Messages;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Messages;
+using Fdp.Toolkit.Replication.Services;
 
-namespace FDP.Toolkit.Replication.Systems
+namespace Fdp.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.Input)]
     public class OwnershipIngressSystem : IEcsModuleSystem
@@ -85,7 +85,7 @@ namespace FDP.Toolkit.Replication.Systems
 
                 if (isAuth)
                 {
-                    repo.Bus.Publish(new FDP.Toolkit.Replication.Messages.DescriptorAuthorityChanged
+                    repo.Bus.Publish(new Fdp.Toolkit.Replication.Messages.DescriptorAuthorityChanged
                     {
                         Entity          = entity,
                         PackedKey       = update.PackedKey,

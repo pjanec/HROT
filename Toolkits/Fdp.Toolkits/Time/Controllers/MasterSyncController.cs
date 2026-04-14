@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Fdp.Kernel;
-using FDP.Toolkit.Time.Domain;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Domain;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
 
-namespace FDP.Toolkit.Time.Controllers
+namespace Fdp.Toolkit.Time.Controllers
 {
     /// <summary>
     /// Unified master time controller that subsumes <see cref="MasterTimeController"/>,
@@ -75,7 +75,7 @@ namespace FDP.Toolkit.Time.Controllers
             long now        = _getTick();
             _lastTickSample = now;
             _totalWallTicks = now;
-            FDP.Kernel.Logging.FdpLog<MasterSyncController>.Debug(
+            Fdp.Kernel.Logging.FdpLog<MasterSyncController>.Debug(
                 "[TC3][Master] Initialized. _totalWallTicks={0}, Stopwatch.Frequency={1}",
                 _totalWallTicks, Stopwatch.Frequency);
 
@@ -190,14 +190,14 @@ namespace FDP.Toolkit.Time.Controllers
             // Re-arm the pending ACK set so the next Step() blocks until all slaves confirm.
             _pendingAcks = new HashSet<int>(_expectedSlaves);
 
-            FDP.Kernel.Logging.FdpLog<MasterSyncController>.Debug(
+            Fdp.Kernel.Logging.FdpLog<MasterSyncController>.Debug(
                 "[TC3][Master] STEP #{0}. TargetSimTime={1}, Delta={2:F4}s, AwaitingACKs=[{3}]",
                 _frameNumber,
                 TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"),
                 fixedDelta,
                 string.Join(", ", _pendingAcks));
 
-            FDP.Kernel.Logging.FdpLog<MasterSyncController>.Info(
+            Fdp.Kernel.Logging.FdpLog<MasterSyncController>.Info(
                 "[TimeSync] STEP #{0}. SimTime: {1}, StepSize: {2:F4}s, Waiting for nodes: [{3}]",
                 _frameNumber,
                 TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"),
@@ -232,12 +232,12 @@ namespace FDP.Toolkit.Time.Controllers
             _pendingBarrierWallTicks    = barrierWallTicks;
             _mode                       = MasterMode.BarrierPending;
 
-            FDP.Kernel.Logging.FdpLog<MasterSyncController>.Debug(
+            Fdp.Kernel.Logging.FdpLog<MasterSyncController>.Debug(
                 "[TC3][Master] PAUSE issued. BarrierTicks={0}, SimTime={1}",
                 barrierWallTicks,
                 TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"));
 
-            FDP.Kernel.Logging.FdpLog<MasterSyncController>.Info(
+            Fdp.Kernel.Logging.FdpLog<MasterSyncController>.Info(
                 "[TimeSync] PAUSE. SimTime: {0}, BarrierTicks: {1}, Expecting ACKs from {2} slave(s): [{3}]",
                 TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"),
                 barrierWallTicks,
@@ -270,7 +270,7 @@ namespace FDP.Toolkit.Time.Controllers
             if (_mode == MasterMode.Continuous && _pendingBarrierWallTicks < 0)
                 return;
 
-            FDP.Kernel.Logging.FdpLog<MasterSyncController>.Info(
+            Fdp.Kernel.Logging.FdpLog<MasterSyncController>.Info(
                 "[TimeSync] RESUME. SimTime: {0}, Cleared {1} pending ACK(s).",
                 TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"),
                 _pendingAcks.Count);
@@ -354,13 +354,13 @@ namespace FDP.Toolkit.Time.Controllers
             foreach (var ack in acks)
             {
                 if (_pendingAcks.Remove(ack.NodeID))
-                    FDP.Kernel.Logging.FdpLog<MasterSyncController>.Debug(
+                    Fdp.Kernel.Logging.FdpLog<MasterSyncController>.Debug(
                         "[TC3][Master] ACKs remaining={0}", _pendingAcks.Count);
             }
 
             if (wasWaiting && _pendingAcks.Count == 0)
             {
-                FDP.Kernel.Logging.FdpLog<MasterSyncController>.Info(
+                Fdp.Kernel.Logging.FdpLog<MasterSyncController>.Info(
                     "[TimeSync] STEP SUCCESS. All slaves ACKed. SimTime: {0}",
                     TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"));
             }

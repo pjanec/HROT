@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Orchestration
+namespace Fdp.Toolkit.Orchestration
 {
     /// <summary>
     /// Provides the adjacency information required by <c>TransitionPlanner</c> to

@@ -2,11 +2,11 @@ using System.Numerics;
 using CarKinem.Core;
 using CarKinem.Systems;
 using Fdp.Kernel;
-using FDP.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation;
 using Xunit;
 
-using NavMode   = FDP.Toolkit.Navigation.NavigationMode;
-using NavResult = FDP.Toolkit.Navigation.NavigationResult;
+using NavMode   = Fdp.Toolkit.Navigation.NavigationMode;
+using NavResult = Fdp.Toolkit.Navigation.NavigationResult;
 
 namespace CarKinem.Tests.Systems
 {

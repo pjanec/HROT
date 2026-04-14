@@ -2,11 +2,12 @@ using System;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Time.Domain;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Domain;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
-namespace FDP.Toolkit.Time.Translators
+namespace Fdp.Toolkit.Time.Translators
 {
     /// <summary>
     /// Slave-side lockstep translator.

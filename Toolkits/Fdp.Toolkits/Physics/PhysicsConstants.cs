@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Physics
+namespace Fdp.Toolkit.Physics
 {
     /// <summary>
     /// Shared numeric constants for the Physics toolkit.

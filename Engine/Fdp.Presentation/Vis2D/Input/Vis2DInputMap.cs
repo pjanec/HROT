@@ -1,6 +1,6 @@
 using Raylib_cs;
 
-namespace FDP.Toolkit.Vis2D.Input
+namespace Fdp.Toolkit.Vis2D.Input
 {
     public class Vis2DInputMap
     {

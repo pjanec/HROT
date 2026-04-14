@@ -2,7 +2,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Navigation
+namespace Fdp.Toolkit.Navigation
 {
     // ────────────────────────────────────────────────────────────────────────────
     // Navigation action parameter structs

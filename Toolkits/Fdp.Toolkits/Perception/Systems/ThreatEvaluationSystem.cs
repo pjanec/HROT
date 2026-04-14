@@ -1,10 +1,10 @@
 using System.Numerics;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Perception.Systems
+namespace Fdp.Toolkit.Perception.Systems
 {
     /// <summary>
     /// Async threat evaluation — runs inside <see cref="PerceptionModule"/> on the

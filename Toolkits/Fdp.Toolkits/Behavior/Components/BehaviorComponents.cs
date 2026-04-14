@@ -1,9 +1,9 @@
 using System;
 using System.Runtime.InteropServices;
-using FDP.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Behavior.Components
+namespace Fdp.Toolkit.Behavior.Components
 {
     [Flags]
     public enum ActorCapabilities : byte

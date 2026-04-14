@@ -3,9 +3,9 @@ using CarKinem.Road;
 using CarKinem.Systems;
 using CarKinem.Trajectory;
 using Fdp.Kernel;
-using FDP.Toolkit.CarKinem.Systems;
+using Fdp.Toolkit.CarKinem.Systems;
 
-namespace FDP.Toolkit.CarKinem.Modules
+namespace Fdp.Toolkit.CarKinem.Modules
 {
     /// <summary>
     /// Grouping for ground-vehicle physics and spatial management systems

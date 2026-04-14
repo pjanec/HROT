@@ -2,15 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D.Abstractions;
-using FDP.Toolkit.Vis2D.Components;
-using FDP.Toolkit.Vis2D.Tests.Input;
-using FDP.Toolkit.Vis2D.Tools;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Tests.Input;
+using Fdp.Toolkit.Vis2D.Tools;
 using Fdp.ModuleHost.Abstractions;
 using Moq;
 using Xunit;
 
-namespace FDP.Toolkit.Vis2D.Tests.Tools
+namespace Fdp.Toolkit.Vis2D.Tests.Tools
 {
     /// <summary>
     /// Tests for <see cref="BoxSelectionTool"/> layer-visibility enforcement (BUG2-V001).

@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Navigation
+namespace Fdp.Toolkit.Navigation
 {
     /// <summary>
     /// Shared constants for the Navigation toolkit.

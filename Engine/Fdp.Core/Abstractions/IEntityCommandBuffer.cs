@@ -1,7 +1,7 @@
 using System;
 using Fdp.Kernel;
 
-namespace Fdp.ModuleHost.Abstractions
+namespace Fdp.Interfaces
 {
     /// <summary>
     /// Interface for recording deferred mutations to the world.

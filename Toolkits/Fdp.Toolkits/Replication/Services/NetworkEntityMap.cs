@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Replication.Services
+namespace Fdp.Toolkit.Replication.Services
 {
     [ComponentId(GlobalComponentIds.NetworkEntityMap)]
     public class NetworkEntityMap

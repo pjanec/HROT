@@ -1,13 +1,13 @@
 using System;
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel
+using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel
 // BATCH-10: HitEvent moved to Fdp.Kernel — using FDP.Toolkit.Combat.Events removed.
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Physics.Systems;
-using FDP.Toolkit.Perception.Events;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Systems;
+using Fdp.Toolkit.Perception.Events;
 using Xunit;
 
-namespace FDP.Toolkit.Physics.Tests
+namespace Fdp.Toolkit.Physics.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="HitResolutionSystem"/> (BCS-P4-T4).

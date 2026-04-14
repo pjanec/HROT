@@ -15,10 +15,10 @@
         public int DomainId { get; set; }
 
         /// <summary>Initial window width; ignored in headless mode.</summary>
-        public int WindowWidth { get; set; } = 1600;
+        public int WindowWidth { get; set; } = 2200;
 
         /// <summary>Initial window height; ignored in headless mode.</summary>
-        public int WindowHeight { get; set; } = 900;
+        public int WindowHeight { get; set; } = 1200;
 
         /// <summary>Target frame rate cap; ignored in headless mode.</summary>
         public int TargetFps { get; set; } = 60;

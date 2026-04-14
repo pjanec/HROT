@@ -8,7 +8,7 @@ using CarKinem.Trajectory;
 using System;
 using CarKinem.Spatial;
 
-namespace FDP.Toolkit.CarKinem.Tests
+namespace Fdp.Toolkit.CarKinem.Tests
 {
     public class VehicleStateRefactorTests
     {

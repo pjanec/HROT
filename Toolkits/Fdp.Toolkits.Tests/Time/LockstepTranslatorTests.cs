@@ -1,10 +1,10 @@
 using System.Linq;
 using Fdp.Kernel;
-using FDP.Toolkit.Time.Domain;
-using FDP.Toolkit.Time.Translators;
+using Fdp.Toolkit.Time.Domain;
+using Fdp.Toolkit.Time.Translators;
 using Xunit;
 
-namespace FDP.Toolkit.Time.Tests
+namespace Fdp.Toolkit.Time.Tests
 {
     /// <summary>
     /// Unit tests for TCU-TR001 (MasterLockstepTranslator) and TCU-TR002

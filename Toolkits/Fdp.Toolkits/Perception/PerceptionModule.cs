@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using CarKinem.Spatial;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Perception.Events;
-using FDP.Toolkit.Perception.Systems;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Systems;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Perception
+namespace Fdp.Toolkit.Perception
 {
     /// <summary>
     /// Async perception module — runs at 10 Hz on a background thread using the

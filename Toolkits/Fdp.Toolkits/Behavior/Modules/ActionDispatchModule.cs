@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Executors;
-using FDP.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Behavior.Systems;
 
-namespace FDP.Toolkit.Behavior.Modules
+namespace Fdp.Toolkit.Behavior.Modules
 {
     /// <summary>
     /// Generic action-dispatch grouping: registers a <see cref="LocomotionDispatcherSystem"/>

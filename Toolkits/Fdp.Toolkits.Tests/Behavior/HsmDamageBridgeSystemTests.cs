@@ -3,12 +3,12 @@ using System.Runtime.CompilerServices;
 using Fdp.Kernel;
 using Fhsm.Kernel;
 using Fhsm.Kernel.Data;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Systems;
 using Xunit;
 
-namespace FDP.Toolkit.Behavior.Tests
+namespace Fdp.Toolkit.Behavior.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="HsmDamageBridgeSystem"/> (BCS-P6-T2).

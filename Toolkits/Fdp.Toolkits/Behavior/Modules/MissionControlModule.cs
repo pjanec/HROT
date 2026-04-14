@@ -1,7 +1,7 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Behavior.Systems;
 
-namespace FDP.Toolkit.Behavior.Modules
+namespace Fdp.Toolkit.Behavior.Modules
 {
     /// <summary>
     /// Grouping for top-down command processing systems: doctrine assignment and

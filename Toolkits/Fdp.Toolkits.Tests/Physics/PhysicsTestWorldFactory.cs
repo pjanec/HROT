@@ -1,11 +1,11 @@
 using CarKinem.Spatial;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-using FDP.Toolkit.Combat.Contracts;
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Perception.Events;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Perception.Events;
 
-namespace FDP.Toolkit.Physics.Tests
+namespace Fdp.Toolkit.Physics.Tests
 {
     /// <summary>
     /// Creates a fully-registered <see cref="EntityRepository"/> for Physics toolkit unit tests.

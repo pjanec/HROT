@@ -1,11 +1,11 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Modules;
-using FDP.Toolkit.Behavior.Systems;
-using FDP.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Modules;
+using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Behavior.Components;
 using System.Linq;
 using Xunit;
 
-namespace FDP.Toolkit.Behavior.Tests.Modules
+namespace Fdp.Toolkit.Behavior.Tests.Modules
 {
     /// <summary>
     /// Verifies that <see cref="CognitiveRuntimeModule"/> registers exactly the expected

@@ -1,8 +1,8 @@
 using System;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Behavior.Executors;
 
-namespace FDP.Toolkit.Behavior.Systems
+namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
     /// Shared registration and previous-action tracking for all dispatcher systems.

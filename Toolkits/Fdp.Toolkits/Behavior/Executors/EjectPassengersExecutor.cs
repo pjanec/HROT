@@ -1,10 +1,10 @@
 using System.Numerics;
 using Fdp.Kernel;
 using Fbt;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Executors;
 
-namespace FDP.Toolkit.Behavior.Executors
+namespace Fdp.Toolkit.Behavior.Executors
 {
     /// <summary>
     /// Executor for the <c>EjectPassengers</c> interaction action

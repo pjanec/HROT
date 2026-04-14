@@ -1,8 +1,8 @@
 using System.Numerics;
 using Fdp.Kernel;
-using FDP.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Components;
 
-namespace FDP.Toolkit.Physics.BTreeNodes
+namespace Fdp.Toolkit.Physics.BTreeNodes
 {
     /// <summary>
     /// Lightweight configuration object for a single raycast query.

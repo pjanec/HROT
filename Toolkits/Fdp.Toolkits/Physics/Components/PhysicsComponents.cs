@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
 
-namespace FDP.Toolkit.Physics.Components
+namespace Fdp.Toolkit.Physics.Components
 {
     // ── PhysicsCollider ───────────────────────────────────────────────────────────
 
@@ -65,7 +65,7 @@ namespace FDP.Toolkit.Physics.Components
         /// that owns <c>BallisticProjectile.Shooter</c>) when submitting a swept-bullet ray.
         /// <c>HitResolutionSystem</c> relies on this convention to recover the shooter's network ID
         /// via <c>NetworkEntityMap.TryGetNetworkId(request.IgnoreEntity, out long shooterNetId)</c>
-        /// and embed it in the emitted <see cref="FDP.Toolkit.Combat.Contracts.DetonationNotification"/>.
+        /// and embed it in the emitted <see cref="Fdp.Toolkit.Combat.Contracts.DetonationNotification"/>.
         /// Callers that add bullet rays to <see cref="RaycastBatchData"/> <b>must</b> set
         /// <c>IgnoreEntity</c> to the shooter entity, or the shooter ID in
         /// <c>DetonationNotification</c> will be zero (unknown).
@@ -116,7 +116,7 @@ namespace FDP.Toolkit.Physics.Components
 
         /// <summary>
         /// For LOS rays: observer entity propagated from <see cref="RaycastRequest.Observer"/>.
-        /// Used by <see cref="Systems.HitResolutionSystem"/> to emit <see cref="FDP.Toolkit.Perception.Events.TargetVisibleEvent"/>
+        /// Used by <see cref="Systems.HitResolutionSystem"/> to emit <see cref="Fdp.Toolkit.Perception.Events.TargetVisibleEvent"/>
         /// without bit-unpacking from <see cref="RayId"/>.
         /// </summary>
         public Entity Observer;

@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.NetworkSpawning.Events
+namespace Fdp.Toolkit.NetworkSpawning.Events
 {
     /// <summary>
     /// Universal command to destroy a network entity via proper ELM lifecycle teardown.

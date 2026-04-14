@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Fdp.Kernel;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Time;
-using FDP.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time.Controllers;
 using Xunit;
 
 namespace Fdp.ModuleHost.Tests.Integration

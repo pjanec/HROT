@@ -1,7 +1,7 @@
 using System.Linq;
 using Fhsm.Compiler;
 using Fhsm.Kernel.Data;
-using FDP.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior;
 
 namespace Fdp.Examples.UrbanCombat.Brains
 {

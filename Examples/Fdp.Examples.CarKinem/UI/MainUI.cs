@@ -2,10 +2,10 @@ using ImGuiNET;
 using System.Numerics;
 using Fdp.Examples.CarKinem.Core;
 using Fdp.Kernel;
-using FDP.Toolkit.ImGui.Panels;
+using Fdp.Toolkit.ImGui.Panels;
 using Fdp.Kernel.FlightRecorder;
-using FDP.Toolkit.ImGui.Abstractions;
-using FDP.Toolkit.ImGui.Adapters;
+using Fdp.Toolkit.ImGui.Abstractions;
+using Fdp.Toolkit.ImGui.Adapters;
 using Fdp.ModuleHost;
 
 namespace Fdp.Examples.CarKinem.UI

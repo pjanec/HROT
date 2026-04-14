@@ -2,13 +2,13 @@ using System;
 using CarKinem.Core;
 using Fdp.Kernel;
 using Fbt;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Events;
-using FDP.Toolkit.Behavior.Systems;
-using FDP.Toolkit.Combat.Components;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Combat.Components;
 using Xunit;
 
-namespace FDP.Toolkit.Behavior.Tests
+namespace Fdp.Toolkit.Behavior.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="MissionDirectorSystem"/> (BCS-P6-T1).

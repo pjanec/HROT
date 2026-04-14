@@ -1,10 +1,10 @@
 using System;
 using System.Runtime.CompilerServices;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
 
-namespace FDP.Toolkit.Behavior.Systems
+namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
     /// Consumes <see cref="AssignDoctrineEvent"/>s and applies them to the relevant entities:

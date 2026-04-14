@@ -2,11 +2,11 @@ using System;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Kernel;
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Physics.Systems;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Systems;
 using Xunit;
 
-namespace FDP.Toolkit.Physics.Tests
+namespace Fdp.Toolkit.Physics.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="RaycastSolverSystem"/> (BCS-P4-T3).

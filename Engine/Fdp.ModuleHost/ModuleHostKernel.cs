@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Providers;
 using Fdp.ModuleHost.Scheduling;

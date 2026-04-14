@@ -17,7 +17,7 @@ namespace CarKinem.Core
     /// </para>
     ///
     /// <para>The component is written exclusively by <c>NavigationExecutionSystem</c> and is
-    /// reset to zero whenever a new <see cref="FDP.Toolkit.Navigation.NavigationIntent"/> is
+    /// reset to zero whenever a new <see cref="Fdp.Toolkit.Navigation.NavigationIntent"/> is
     /// detected (intent-ID mismatch).  Consumer code must not write this component.</para>
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]

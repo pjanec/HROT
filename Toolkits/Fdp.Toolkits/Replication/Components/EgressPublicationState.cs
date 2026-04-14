@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Replication.Components
+namespace Fdp.Toolkit.Replication.Components
 {
     /// <summary>
     /// Tracks publication state for smart egress optimization.

@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Vis2D.Components
+namespace Fdp.Toolkit.Vis2D.Components
 {
     /// <summary>
     /// Component attached to entities to control map layer visibility.

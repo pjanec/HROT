@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Numerics;
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Combat.Events;
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Replication.Components;
 
-namespace FDP.Toolkit.Combat.Systems
+namespace Fdp.Toolkit.Combat.Systems
 {
     /// <summary>
     /// Consumes <see cref="WeaponFireIntent"/> events and spawns a bullet entity for each shot.

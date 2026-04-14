@@ -1,8 +1,8 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Replication.Extensions
+namespace Fdp.Toolkit.Replication.Extensions
 {
     public static class AuthorityExtensions
     {

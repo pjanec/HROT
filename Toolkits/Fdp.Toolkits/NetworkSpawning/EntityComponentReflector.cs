@@ -4,7 +4,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.NetworkSpawning
+namespace Fdp.Toolkit.NetworkSpawning
 {
     /// <summary>
     /// Utility to set components on an entity when the component type is only known at runtime.

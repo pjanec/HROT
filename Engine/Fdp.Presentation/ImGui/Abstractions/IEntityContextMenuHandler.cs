@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.ImGui.Abstractions;
+namespace Fdp.Toolkit.ImGui.Abstractions;
 
 /// <summary>
 /// Implemented by application code to add items to the entity inspector's

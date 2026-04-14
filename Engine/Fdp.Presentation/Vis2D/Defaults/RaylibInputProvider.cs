@@ -1,9 +1,9 @@
 using System.Numerics;
 using Raylib_cs;
 using ImGuiNET;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Abstractions;
 
-namespace FDP.Toolkit.Vis2D.Defaults
+namespace Fdp.Toolkit.Vis2D.Defaults
 {
     public class RaylibInputProvider : IInputProvider
     {

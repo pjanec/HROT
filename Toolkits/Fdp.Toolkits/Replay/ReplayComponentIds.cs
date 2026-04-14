@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Replay
+namespace Fdp.Toolkit.Replay
 {
     /// <summary>
     /// Toolkit-local component ID registry for <c>FDP.Toolkit.Replay</c>.

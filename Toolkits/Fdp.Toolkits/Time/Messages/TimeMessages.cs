@@ -4,7 +4,7 @@ using MessagePack;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Time;
 
-namespace FDP.Toolkit.Time.Messages
+namespace Fdp.Toolkit.Time.Messages
 {
     [MessagePackObject]
     [DdsTopic("FrameOrder")]
@@ -26,7 +26,7 @@ namespace FDP.Toolkit.Time.Messages
         /// <summary>
         /// Time scale to apply when advancing sim-time by <see cref="FixedDelta"/>.
         /// Zero means "unchanged — keep the scale already in effect on the slave".
-        /// Populated by <see cref="FDP.Toolkit.Time.Controllers.SteppedMasterController.Step"/>
+        /// Populated by <see cref="Fdp.Toolkit.Time.Controllers.SteppedMasterController.Step"/>
         /// so all slaves stay in lock-step with the master's effective scale.
         /// </summary>
         [Key(3)]
@@ -40,9 +40,9 @@ namespace FDP.Toolkit.Time.Messages
         /// from their locally-seeded state.
         ///
         /// <para>Without this field every slave arrives at a different <c>TotalTime</c>
-        /// because each slave seeds its <see cref="FDP.Toolkit.Time.Controllers.SteppedSlaveController"/>
+        /// because each slave seeds its <see cref="Fdp.Toolkit.Time.Controllers.SteppedSlaveController"/>
         /// at its own local wall-clock moment (before the barrier is crossed), while the master
-        /// seeds <see cref="FDP.Toolkit.Time.Controllers.SteppedMasterController"/> at the barrier
+        /// seeds <see cref="Fdp.Toolkit.Time.Controllers.SteppedMasterController"/> at the barrier
         /// time.  The two seeds differ by up to the barrier look-ahead (~200 ms of sim-time),
         /// so after one step the slave's <c>TotalTime</c> is ~200 ms behind the master.</para>
         /// </summary>
@@ -52,7 +52,7 @@ namespace FDP.Toolkit.Time.Messages
     }
 
     /// <summary>
-    /// Received by SimHost's <see cref="FDP.Toolkit.Time.Controllers.MasterTimeController"/>
+    /// Received by SimHost's <see cref="Fdp.Toolkit.Time.Controllers.MasterTimeController"/>
     /// so the new scale is embedded in subsequent <see cref="TimePulseDescriptor"/> messages,
     /// and slave PLL nodes (IG, CGF) converge to the updated speed automatically.
     /// </summary>
@@ -87,8 +87,8 @@ namespace FDP.Toolkit.Time.Messages
 
     /// <summary>
     /// Network event to switch time mode across a distributed cluster.
-    /// Published by the Master (<see cref="FDP.Toolkit.Time.Controllers.DistributedTimeCoordinator"/>),
-    /// consumed by every Slave (<see cref="FDP.Toolkit.Time.Controllers.SlaveTimeModeListener"/>).
+    /// Published by the Master (<see cref="Fdp.Toolkit.Time.Controllers.DistributedTimeCoordinator"/>),
+    /// consumed by every Slave (<see cref="Fdp.Toolkit.Time.Controllers.SlaveTimeModeListener"/>).
     /// <para>
     /// Each node performs the controller swap when its own
     /// <see cref="Fdp.Kernel.GlobalTime.TotalWallTicks"/> reaches
@@ -98,7 +98,7 @@ namespace FDP.Toolkit.Time.Messages
     /// </para>
     /// <para>
     /// <b>DDS transport note:</b> use <see cref="SwitchTimeModeWireDto"/> with
-    /// <see cref="FDP.Toolkit.Time.SwitchTimeModeDescriptorTranslator"/> via
+    /// <see cref="Fdp.Toolkit.Time.SwitchTimeModeDescriptorTranslator"/> via
     /// <c>TimeNetworkModule.CreateDescriptorTranslator</c> at the composition root.
     /// Do not register <c>SwitchTimeModeEvent</c> directly on DDS (see
     /// <see cref="SwitchTimeModeWireDto"/> XML).
@@ -208,9 +208,9 @@ namespace FDP.Toolkit.Time.Messages
     }
 
     /// <summary>
-    /// Local-bus-only event published by <see cref="FDP.Toolkit.Time.Translators.SlaveTimeSyncTranslator"/>
+    /// Local-bus-only event published by <see cref="Fdp.Toolkit.Time.Translators.SlaveTimeSyncTranslator"/>
     /// after computing the NTP offset at the network boundary (precise <c>t4</c> capture).
-    /// Consumed by <see cref="FDP.Toolkit.Time.Controllers.SlaveSyncController"/> to update
+    /// Consumed by <see cref="Fdp.Toolkit.Time.Controllers.SlaveSyncController"/> to update
     /// <c>_masterWallClockOffset</c>.  Never sent over DDS.
     /// </summary>
     [EventId(110)]

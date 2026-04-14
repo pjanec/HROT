@@ -1,11 +1,11 @@
 using System;
 using System.Numerics;
 using CarKinem.Spatial;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Perception.Systems
+namespace Fdp.Toolkit.Perception.Systems
 {
     /// <summary>
     /// Main-thread system that consumes <see cref="AudioStimulusEvent"/>s and updates

@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Scenario
+namespace Fdp.Toolkit.Scenario
 {
     /// <summary>
     /// Immutable header block written as the first entry in every scenario JSON file.

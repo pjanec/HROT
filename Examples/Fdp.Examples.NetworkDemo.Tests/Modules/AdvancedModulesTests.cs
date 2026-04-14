@@ -8,7 +8,7 @@ using Fdp.Examples.NetworkDemo.Events;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 
 
 namespace Fdp.Examples.NetworkDemo.Tests.Modules

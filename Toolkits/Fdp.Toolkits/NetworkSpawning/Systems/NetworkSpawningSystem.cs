@@ -1,16 +1,17 @@
 using System;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
 using Fdp.ModuleHost.Network.Interfaces;
+using Fdp.Interfaces;
 
-namespace FDP.Toolkit.NetworkSpawning.Systems
+namespace Fdp.Toolkit.NetworkSpawning.Systems
 {
     /// <summary>
     /// Centralised system that replaces per-node entity-spawning boilerplate.

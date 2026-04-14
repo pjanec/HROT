@@ -2,14 +2,14 @@ using System;
 using System.Numerics;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-using FDP.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Combat.Systems;
-using FDP.Toolkit.Physics;
-using FDP.Toolkit.Physics.Components;
+using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Systems;
+using Fdp.Toolkit.Physics;
+using Fdp.Toolkit.Physics.Components;
 using Xunit;
 
-namespace FDP.Toolkit.Combat.Tests
+namespace Fdp.Toolkit.Combat.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="BallisticsSystem"/> (BCS-P5-T4, second half).

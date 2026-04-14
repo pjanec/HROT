@@ -1,12 +1,12 @@
 ﻿using CycloneDDS.Core;
 using CycloneDDS.Runtime;
 using CycloneDDS.Schema; // For [DdsTopic], [DdsKey]
-using FDP.Toolkit.Commands;
+using Fdp.Toolkit.Commands;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Threading.Tasks;
 
-namespace FDP.Toolkit.Commands.Tests
+namespace Fdp.Toolkit.Commands.Tests
 {
     [DdsTopic("TestRequest")]
     [DdsManaged]

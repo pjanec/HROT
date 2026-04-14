@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Fdp.Kernel;
 using Fdp.Interfaces;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
-namespace FDP.Toolkit.Replication.Systems
+namespace Fdp.Toolkit.Replication.Systems
 {
     /// <summary>
     /// Promotes ghost entities to <see cref="EntityLifecycle.Constructing"/> once all their

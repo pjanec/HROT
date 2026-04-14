@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Orchestration
+namespace Fdp.Toolkit.Orchestration
 {
     /// <summary>
     /// Abstracts the "where and how" of scenario file staging, replacing the raw

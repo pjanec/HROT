@@ -3,11 +3,11 @@ using System.IO;
 using System.Threading.Tasks;
 using Fdp.Kernel;
 using Fdp.Kernel.FlightRecorder;
-using FDP.Toolkit.Replay;
+using Fdp.Toolkit.Replay;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
 
-namespace FDP.Toolkit.Replay.Tests
+namespace Fdp.Toolkit.Replay.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="ReplayModule"/> and <see cref="PlaybackTickSystem"/> (P8T4).

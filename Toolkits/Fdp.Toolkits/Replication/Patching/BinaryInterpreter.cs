@@ -1,7 +1,7 @@
 using System.Numerics;
-using FDP.Toolkit.Replication.Patching;
+using Fdp.Toolkit.Replication.Patching;
 
-namespace FDP.Toolkit.Replication.Patching;
+namespace Fdp.Toolkit.Replication.Patching;
 
 /// <summary>
 /// Zero-overhead dispatch engine: maps attribute IDs to strongly-typed handlers

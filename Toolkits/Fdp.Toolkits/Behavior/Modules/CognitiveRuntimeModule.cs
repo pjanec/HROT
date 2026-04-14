@@ -1,8 +1,8 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Systems;
 
-namespace FDP.Toolkit.Behavior.Modules
+namespace Fdp.Toolkit.Behavior.Modules
 {
     /// <summary>
     /// Grouping for per-frame AI evaluation systems: behavior tree and HSM stepping,

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Scenario
+namespace Fdp.Toolkit.Scenario
 {
     /// <summary>
     /// Custom translator that handles N ECS component types → M scenario DOM entries (N:M mapping).

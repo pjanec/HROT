@@ -13,18 +13,18 @@ using Fdp.Examples.Common.Setup;
 using Fdp.Examples.DDS;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Combat;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Lifecycle.Events;
-using FDP.Toolkit.Replication;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Messages;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Kernel.Logging;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Replication;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Messages;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Tkb;
-using FDP.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time.Controllers;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
@@ -643,7 +643,7 @@ namespace Fdp.Examples.Scenarios.Network
         }
 
         /// <inheritdoc/>
-        public void ConfigureVisuals(FDP.Toolkit.Vis2D.MapCanvas? canvas, EntityRepository world) { }
+        public void ConfigureVisuals(Fdp.Toolkit.Vis2D.MapCanvas? canvas, EntityRepository world) { }
 
         /// <inheritdoc/>
         /// <remarks>

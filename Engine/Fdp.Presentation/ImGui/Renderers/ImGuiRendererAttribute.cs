@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.ImGui.Renderers;
+namespace Fdp.Toolkit.ImGui.Renderers;
 
 /// <summary>
 /// Marks a class as a custom ImGui renderer that is auto-discovered by

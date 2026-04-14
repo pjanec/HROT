@@ -1,8 +1,8 @@
 using System.Diagnostics;
-using FDP.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time.Controllers;
 using Xunit;
 
-namespace FDP.Toolkit.Time.Tests
+namespace Fdp.Toolkit.Time.Tests
 {
     /// <summary>
     /// Unit tests for TC3-P1-T02: TimeConfig NTP sync property defaults.

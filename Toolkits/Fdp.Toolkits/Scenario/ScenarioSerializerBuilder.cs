@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace FDP.Toolkit.Scenario
+namespace Fdp.Toolkit.Scenario
 {
     /// <summary>
     /// Fluent builder that assembles a <see cref="ScenarioSerializer"/> for a specific

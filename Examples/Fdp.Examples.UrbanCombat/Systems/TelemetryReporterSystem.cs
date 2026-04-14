@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Combat.Contracts;
-using FDP.Toolkit.Combat.Events;
-using FDP.Toolkit.Navigation;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Navigation;
 
 namespace Fdp.Examples.UrbanCombat.Systems
 {
@@ -18,8 +18,8 @@ namespace Fdp.Examples.UrbanCombat.Systems
     /// <b>Events reported:</b>
     /// <list type="table">
     ///   <item><term>DOCTRINE ASSIGNED</term><description><see cref="DoctrineState.InstanceId"/> changes.</description></item>
-    ///   <item><term>GUNFIRE</term><description><see cref="FDP.Toolkit.Combat.Events.WeaponFireIntent"/> on bus.</description></item>
-    ///   <item><term>HIT</term><description><see cref="FDP.Toolkit.Combat.Contracts.HitEvent"/> on bus.</description></item>
+    ///   <item><term>GUNFIRE</term><description><see cref="Fdp.Toolkit.Combat.Events.WeaponFireIntent"/> on bus.</description></item>
+    ///   <item><term>HIT</term><description><see cref="Fdp.Toolkit.Combat.Contracts.HitEvent"/> on bus.</description></item>
     ///   <item><term>CAPABILITY LOST</term><description><c>CanMove</c> cleared (compare vs prev frame).</description></item>
     ///   <item><term>HSM TRANSITION</term><description><see cref="BrainHsm128"/> state index changes.</description></item>
     ///   <item><term>INTERACTION: EjectPassengers</term><description><see cref="InteractionChannel.ActiveAction"/> == 3.</description></item>
@@ -81,8 +81,8 @@ namespace Fdp.Examples.UrbanCombat.Systems
                 // Resolve damage from the bullet entity if still alive.
                 float dmg = 0f;
                 var bullet = World.GetEntityByIndex(evt.BulletIndex);
-                if (World.IsAlive(bullet) && World.HasComponent<FDP.Toolkit.Combat.Components.BallisticProjectile>(bullet))
-                    dmg = World.GetComponent<FDP.Toolkit.Combat.Components.BallisticProjectile>(bullet).Damage;
+                if (World.IsAlive(bullet) && World.HasComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bullet))
+                    dmg = World.GetComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bullet).Damage;
                 System.Console.Out.WriteLine($"{frameTag} HIT: target {evt.HitEntity.Index}, damage {dmg}");
             }
 

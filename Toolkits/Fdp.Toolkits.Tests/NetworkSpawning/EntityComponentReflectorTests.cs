@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using Xunit;
 using Fdp.Kernel;
-using FDP.Toolkit.NetworkSpawning;
+using Fdp.Toolkit.NetworkSpawning;
 
-namespace FDP.Toolkit.NetworkSpawning.Tests
+namespace Fdp.Toolkit.NetworkSpawning.Tests
 {
     // Simple test components
     [ComponentId(239)]

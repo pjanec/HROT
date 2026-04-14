@@ -1,4 +1,4 @@
-﻿namespace FDP.Toolkit.Lifecycle;
+﻿namespace Fdp.Toolkit.Lifecycle;
 
 public class Class1
 {

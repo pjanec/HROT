@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
 using Fbt;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Events;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Perception.Components;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Perception.Components;
 
-namespace FDP.Toolkit.Behavior.Systems
+namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
     /// Evaluates the trigger condition of the current <see cref="MissionPhase"/> for every entity

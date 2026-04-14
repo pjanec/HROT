@@ -1,7 +1,7 @@
 using System.Numerics;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Navigation.BTreeNodes
+namespace Fdp.Toolkit.Navigation.BTreeNodes
 {
     /// <summary>
     /// Lightweight configuration object for a single pathfinding query.

@@ -7,7 +7,7 @@ using Fdp.Kernel;
 using Fdp.Examples.CarKinem.Components;
 using CarKinem.Trajectory;
 using Fdp.Examples.CarKinem.Core;
-using FDP.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time.Controllers;
 
 namespace Fdp.Examples.CarKinem.Tests
 {

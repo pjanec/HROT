@@ -4,7 +4,7 @@ using Fdp.Kernel;
 using Fdp.Kernel.FlightRecorder;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Replay
+namespace Fdp.Toolkit.Replay
 {
     /// <summary>
     /// Data-plane module that strictly owns one <see cref="PlaybackController"/> and the

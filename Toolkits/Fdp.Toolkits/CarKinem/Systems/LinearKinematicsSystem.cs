@@ -2,7 +2,7 @@ using CarKinem.Core;
 using CarKinem.Systems;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.CarKinem.Systems
+namespace Fdp.Toolkit.CarKinem.Systems
 {
     /// <summary>
     /// Advances the position of any entity that has <see cref="SimTransform"/> and
@@ -30,7 +30,7 @@ namespace FDP.Toolkit.CarKinem.Systems
     /// <b>Ordering note:</b>
     /// The ordering relative to <see cref="CarKinematicsSystem"/> and
     /// <see cref="SpatialHashSystem"/> is maintained by registration order inside
-    /// <see cref="FDP.Toolkit.CarKinem.Modules.GroundKinematicsModule.RegisterSystems"/>
+    /// <see cref="Fdp.Toolkit.CarKinem.Modules.GroundKinematicsModule.RegisterSystems"/>
     /// (LinearKinematicsSystem is added last). Using explicit <c>[UpdateAfter]</c> or
     /// <c>[UpdateBefore]</c> attribute constraints within this group would create a
     /// cycle because <c>CarKinematicsSystem</c> carries

@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Fdp.Interfaces;
-using FDP.Kernel.Logging;
-using FDP.Interfaces.Abstractions;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Kernel.Logging;
+using Fdp.Interfaces.Abstractions;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 // using FDP.Toolkit.Replication.Translators;
-using FDP.Toolkit.Replication.Utilities;
+using Fdp.Toolkit.Replication.Utilities;
 using CycloneDDS.Runtime;
 using Fdp.Network.Cyclone.Translators; // Added for ManagedAutoCycloneTranslator
 using Fdp.Network.Cyclone.Providers; // Added for ManagedSerializationProvider

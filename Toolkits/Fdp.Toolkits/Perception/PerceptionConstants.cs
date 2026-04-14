@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Perception
+namespace Fdp.Toolkit.Perception
 {
     /// <summary>
     /// Shared numeric constants for the Perception toolkit.

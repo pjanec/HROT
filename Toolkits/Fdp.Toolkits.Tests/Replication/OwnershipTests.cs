@@ -5,12 +5,12 @@ using Xunit;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Messages;
-using FDP.Toolkit.Replication.Systems;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Messages;
+using Fdp.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Replication.Services;
 
-namespace FDP.Toolkit.Replication.Tests
+namespace Fdp.Toolkit.Replication.Tests
 {
     class MockNetworkTopology : INetworkTopology
     {

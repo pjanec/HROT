@@ -1,7 +1,7 @@
 using System.Numerics;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Vis2D.Components;
+namespace Fdp.Toolkit.Vis2D.Components;
 
 /// <summary>
 /// Defines parent-child relationships for hierarchical entities (ORGBAT).

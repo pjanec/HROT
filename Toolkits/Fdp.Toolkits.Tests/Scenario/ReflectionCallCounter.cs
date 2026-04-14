@@ -2,7 +2,7 @@ using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-namespace FDP.Toolkit.Scenario.Tests
+namespace Fdp.Toolkit.Scenario.Tests
 {
     /// <summary>
     /// Test-only utility that counts <see cref="PropertyInfo.GetValue(object?)"/> invocations

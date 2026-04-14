@@ -2,12 +2,12 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using Fdp.Kernel;
 using Fbt;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Navigation.Executors;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation.Executors;
 using Xunit;
 
-namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
+namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
 {
     /// <summary>
     /// Unit tests for the refactored CQRS <see cref="MoveToExecutor"/> (MOD1-P1T2).

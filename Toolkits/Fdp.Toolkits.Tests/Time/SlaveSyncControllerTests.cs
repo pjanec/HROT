@@ -4,13 +4,13 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using Fdp.Kernel;
-using FDP.Toolkit.Time.Controllers;
-using FDP.Toolkit.Time.Domain;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time.Domain;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
 using Xunit;
 
-namespace FDP.Toolkit.Time.Tests
+namespace Fdp.Toolkit.Time.Tests
 {
     /// <summary>
     /// Unit tests for TCU-SC001 (SlaveSyncController) and TCU-T002 (coverage spec).

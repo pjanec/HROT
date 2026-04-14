@@ -1,11 +1,11 @@
 using System.Numerics;
 using CarKinem.Core;
 using Fdp.Kernel;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Navigation.Systems;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation.Systems;
 using Xunit;
 
-namespace FDP.Toolkit.Navigation.Tests
+namespace Fdp.Toolkit.Navigation.Tests
 {
     /// <summary>
     /// PACK-I003 SC3 — NavigationIntentBridgeSystem still translates NavigationIntent → NavState

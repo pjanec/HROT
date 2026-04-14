@@ -8,6 +8,7 @@ using Fdp.Kernel; // For Entity, CommandBuffer etc.
 using UpdateAfterAttribute = Fdp.Kernel.UpdateAfterAttribute;
 using UpdateBeforeAttribute = Fdp.Kernel.UpdateBeforeAttribute;
 using UpdateInPhaseAttribute = Fdp.ModuleHost.Abstractions.UpdateInPhaseAttribute;
+using Fdp.Interfaces;
 
 namespace Fdp.ModuleHost.Tests
 {

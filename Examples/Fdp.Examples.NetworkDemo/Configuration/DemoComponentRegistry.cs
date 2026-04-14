@@ -4,10 +4,10 @@ using Fdp.Kernel;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Descriptors;
 using Fdp.Examples.NetworkDemo.Events; // Added
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Network;
 using Fdp.Network.Cyclone.Components;
-using FDP.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Lifecycle.Events;
 
 namespace Fdp.Examples.NetworkDemo.Configuration
 {
@@ -89,7 +89,7 @@ namespace Fdp.Examples.NetworkDemo.Configuration
 
         /// <summary>
         /// Returns explicit descriptor ordinal mappings for component types that cannot carry
-        /// <see cref="FDP.Interfaces.Abstractions.FdpDescriptorAttribute"/> directly
+        /// <see cref="Fdp.Interfaces.Abstractions.FdpDescriptorAttribute"/> directly
         /// (e.g. kernel primitives defined in external assemblies).
         /// The ordinal determines which authority key is checked when copying components during replay.
         /// </summary>

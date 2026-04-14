@@ -1,14 +1,14 @@
 using System;
 using System.Numerics;
-using FDP.Toolkit.Perception.Components;
-using FDP.Toolkit.Perception.Events;
-using FDP.Toolkit.Perception.Systems;
-using FDP.Toolkit.Physics.Components;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Systems;
+using Fdp.Toolkit.Physics.Components;
 using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
 
-namespace FDP.Toolkit.Perception.Tests
+namespace Fdp.Toolkit.Perception.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="LosRequestBatchingSystem"/>.

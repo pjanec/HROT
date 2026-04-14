@@ -1,10 +1,10 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
 
-namespace FDP.Toolkit.Replication.Tests
+namespace Fdp.Toolkit.Replication.Tests
 {
     /// <summary>
     /// Unit tests that pin the <see cref="AuthorityExtensions.HasAuthority"/> contract.

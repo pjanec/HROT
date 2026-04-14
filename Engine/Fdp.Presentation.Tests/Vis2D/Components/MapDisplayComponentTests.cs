@@ -1,7 +1,7 @@
 using Xunit;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Components;
 
-namespace FDP.Toolkit.Vis2D.Tests.Components
+namespace Fdp.Toolkit.Vis2D.Tests.Components
 {
     public class MapDisplayComponentTests
     {

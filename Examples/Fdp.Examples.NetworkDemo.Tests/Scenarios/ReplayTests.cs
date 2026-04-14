@@ -46,7 +46,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
 
         private bool CheckForEntities(NetworkDemoApp app)
         {
-            var entities = app.World.Query().With<FDP.Toolkit.Replication.Components.NetworkIdentity>().Build();
+            var entities = app.World.Query().With<Fdp.Toolkit.Replication.Components.NetworkIdentity>().Build();
             foreach (var e in entities) return true;
             return false;
         }

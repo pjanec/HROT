@@ -11,20 +11,20 @@ using Fdp.Toolkit.Tkb;
 using Fbt;
 using Fbt.Runtime;
 using Fbt.Serialization;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Executors;
-using FDP.Toolkit.Behavior.Systems;
-using FDP.Toolkit.Combat;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Combat.Executors;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Combat.Systems;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Perception.Systems;
-using FDP.Toolkit.Physics;
-using FDP.Toolkit.Physics.Systems;
-using FDP.Toolkit.CarKinem.Systems;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Executors;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Combat.Systems;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Perception.Systems;
+using Fdp.Toolkit.Physics;
+using Fdp.Toolkit.Physics.Systems;
+using Fdp.Toolkit.CarKinem.Systems;
 
 namespace Fdp.Examples.UrbanCombat
 {
@@ -109,7 +109,7 @@ namespace Fdp.Examples.UrbanCombat
         /// <summary>
         /// The shared <see cref="NetworkEntityMap"/> used by the combat CQRS chain.
         /// Pass this to <see cref="ScenarioDirector"/> so spawned entities are registered
-        /// and <see cref="FDP.Toolkit.Combat.Events.WeaponFireIntent"/> IDs resolve correctly.
+        /// and <see cref="Fdp.Toolkit.Combat.Events.WeaponFireIntent"/> IDs resolve correctly.
         /// </summary>
         public NetworkEntityMap EntityMap => _entityMap;
 
@@ -232,33 +232,33 @@ namespace Fdp.Examples.UrbanCombat
             World.RegisterComponent<Health>();
 
             // FDP.Toolkit.Behavior
-            World.RegisterComponent<FDP.Toolkit.Behavior.Components.DoctrineState>();
-            World.RegisterComponent<FDP.Toolkit.Behavior.Components.SimTier>();
-            World.RegisterComponent<FDP.Toolkit.Behavior.Components.BrainBlackboard>();
-            World.RegisterComponent<FDP.Toolkit.Behavior.Components.BrainBTreeState>();
-            World.RegisterComponent<FDP.Toolkit.Behavior.Components.BrainHsm128>();
-            World.RegisterComponent<FDP.Toolkit.Behavior.Components.BrainHsm64>();
-            World.RegisterComponent<FDP.Toolkit.Behavior.Components.ActorCapabilityState>();
-            World.RegisterComponent<FDP.Toolkit.Behavior.Components.PreviousCapabilities>();
-            World.RegisterComponent<FDP.Toolkit.Behavior.Components.LocomotionChannel>();
-            World.RegisterComponent<FDP.Toolkit.Behavior.Components.WeaponChannel>();
-            World.RegisterComponent<FDP.Toolkit.Behavior.Components.InteractionChannel>();
-            World.RegisterComponent<FDP.Toolkit.Behavior.Components.PassengerBuffer>();
-            World.RegisterComponent<FDP.Toolkit.Behavior.Components.IsEmbarkedTag>();
-            World.RegisterComponent<FDP.Toolkit.Behavior.Components.MissionPlanQueue>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.DoctrineState>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.SimTier>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBlackboard>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBTreeState>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm128>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm64>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.PreviousCapabilities>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.InteractionChannel>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>();
 
             // FDP.Toolkit.Perception
-            World.RegisterComponent<FDP.Toolkit.Perception.Components.Faction>();
-            World.RegisterComponent<FDP.Toolkit.Perception.Components.PerceptionReceptor>();
-            World.RegisterComponent<FDP.Toolkit.Perception.Components.TargetMemory>();
+            World.RegisterComponent<Fdp.Toolkit.Perception.Components.Faction>();
+            World.RegisterComponent<Fdp.Toolkit.Perception.Components.PerceptionReceptor>();
+            World.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
 
             // FDP.Toolkit.Physics
-            World.RegisterComponent<FDP.Toolkit.Physics.Components.PhysicsCollider>();
+            World.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
 
             // FDP.Toolkit.Combat
-            World.RegisterComponent<FDP.Toolkit.Combat.Components.WeaponState>();
-            World.RegisterComponent<FDP.Toolkit.Combat.Components.Health>();
-            World.RegisterComponent<FDP.Toolkit.Combat.Components.BallisticProjectile>();
+            World.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponState>();
+            World.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            World.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
 
             // FDP.Toolkit.CarKinem
             World.RegisterComponent<CarKinem.Core.VehicleState>();

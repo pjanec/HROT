@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Behavior.Events
+namespace Fdp.Toolkit.Behavior.Events
 {
     /// <summary>
     /// Imperative command published by higher-level systems to forcibly clear the active doctrine

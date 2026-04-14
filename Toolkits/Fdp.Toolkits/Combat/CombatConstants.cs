@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Combat
+namespace Fdp.Toolkit.Combat
 {
     /// <summary>
     /// Compile-time constants for the Combat toolkit.
@@ -33,7 +33,7 @@ namespace FDP.Toolkit.Combat
         /// <summary>Event ID for <see cref="Events.WeaponFireNotification"/>.</summary>
         public const int WeaponFireNotificationEventId = 5004;
 
-        /// <summary>Event ID for <see cref="global::FDP.Toolkit.Combat.Contracts.DetonationNotification"/> (moved to Contracts in BS1-T010).</summary>
+        /// <summary>Event ID for <see cref="global::Fdp.Toolkit.Combat.Contracts.DetonationNotification"/> (moved to Contracts in BS1-T010).</summary>
         public const int DetonationNotificationEventId = 5005;
 
         /// <summary>Event ID for <see cref="Events.DamageAssessedEvent"/>.</summary>

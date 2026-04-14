@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace FDP.Toolkit.Time.Controllers
+namespace Fdp.Toolkit.Time.Controllers
 {
     /// <summary>
     /// Configuration for time controllers.
@@ -54,7 +54,7 @@ namespace FDP.Toolkit.Time.Controllers
         /// <para>
         /// <see cref="DistributedTimeCoordinator"/> adds this to the master's current
         /// <see cref="Fdp.Kernel.GlobalTime.TotalWallTicks"/> when computing
-        /// <see cref="FDP.Toolkit.Time.Messages.SwitchTimeModeEvent.BarrierWallTicks"/>.
+        /// <see cref="Fdp.Toolkit.Time.Messages.SwitchTimeModeEvent.BarrierWallTicks"/>.
         /// All PLL-synchronized slaves will reach that wall-tick value within
         /// approximately one ECS frame of the master, so the default
         /// of ≈ 200 ms (expressed as Stopwatch ticks) is sufficient for DDS delivery

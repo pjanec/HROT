@@ -1,10 +1,10 @@
 using Fdp.Examples.Common;
 using Fdp.Examples.Scenarios.Integrated;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Combat;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Replication.Components;
 using Xunit;
 
 namespace Fdp.Examples.Scenarios.Tests

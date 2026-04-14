@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
 using Fbt;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
 
-namespace FDP.Toolkit.Behavior.Systems
+namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
     /// Steps the <see cref="BrainBTreeState"/> for every entity whose

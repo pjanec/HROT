@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Time.Domain
+namespace Fdp.Toolkit.Time.Domain
 {
     public struct AdvanceFrameIntent
     {

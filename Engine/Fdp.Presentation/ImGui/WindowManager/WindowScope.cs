@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.ImGui.WindowManager;
+namespace Fdp.Toolkit.ImGui.WindowManager;
 
 /// <summary>
 /// Controls the perspective-visibility behaviour of a <see cref="ManagedWindow"/>.

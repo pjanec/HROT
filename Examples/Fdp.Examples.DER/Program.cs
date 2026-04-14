@@ -2,7 +2,7 @@ using System;
 using System.Threading.Tasks;
 using CycloneDDS.Runtime;
 
-namespace FDP.Toolkit.DER.Examples
+namespace Fdp.Toolkit.DER.Examples
 {
     class Program
     {

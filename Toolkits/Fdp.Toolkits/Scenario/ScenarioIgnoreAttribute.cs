@@ -1,6 +1,6 @@
 using System;
 
-namespace FDP.Toolkit.Scenario
+namespace Fdp.Toolkit.Scenario
 {
     /// <summary>
     /// Marks a field on an ECS component struct as excluded from scenario

@@ -1,7 +1,7 @@
 using System;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Replay
+namespace Fdp.Toolkit.Replay
 {
     /// <summary>
     /// ECS tag component marking a ghost entity injected during episode replay.

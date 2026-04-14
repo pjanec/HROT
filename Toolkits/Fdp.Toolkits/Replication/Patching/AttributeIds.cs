@@ -1,6 +1,6 @@
 using System;
 
-namespace FDP.Toolkit.Replication.Patching;
+namespace Fdp.Toolkit.Replication.Patching;
 
 /// <summary>
 /// Well-known attribute ID constants for the ATTR2 binary wire schema.

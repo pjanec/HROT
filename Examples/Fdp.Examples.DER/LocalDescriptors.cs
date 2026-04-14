@@ -1,7 +1,7 @@
 using System;
 using CycloneDDS.Schema;
 
-namespace FDP.Toolkit.DER.Examples
+namespace Fdp.Toolkit.DER.Examples
 {
     [DdsTopic("LocalEntityMaster")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]

@@ -6,12 +6,12 @@ using Fdp.Kernel;
 using Fbt;
 using Fbt.Runtime;
 using Fbt.Serialization;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Systems;
-using FDP.Toolkit.Combat;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Vis2D;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Vis2D;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 

@@ -5,13 +5,13 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Kernel;
-using FDP.Interfaces.Abstractions;
+using Fdp.Interfaces.Abstractions;
 using Fdp.Kernel.FlightRecorder;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Network;
 using Fdp.Examples.NetworkDemo.Configuration;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 
 namespace Fdp.Examples.NetworkDemo.Systems
 {

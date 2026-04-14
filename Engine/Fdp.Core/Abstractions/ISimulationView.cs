@@ -1,5 +1,6 @@
 using System;
 using Fdp.Kernel;
+using Fdp.Interfaces;
 
 namespace Fdp.ModuleHost.Abstractions
 {

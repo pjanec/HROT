@@ -6,7 +6,7 @@ using Fdp.Kernel;
 // into this thin contracts assembly so that both FDP.Toolkit.Navigation and FDP.Toolkit.CarKinem can
 // reference them without creating a circular assembly dependency.
 
-namespace FDP.Toolkit.Navigation
+namespace Fdp.Toolkit.Navigation
 {
     // ── Engine-side enums ────────────────────────────────────────────────────
     /// <summary>

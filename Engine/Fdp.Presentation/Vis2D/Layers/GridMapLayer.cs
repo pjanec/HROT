@@ -1,10 +1,10 @@
 using System;
 using System.Numerics;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;
 
-namespace FDP.Toolkit.Vis2D.Layers;
+namespace Fdp.Toolkit.Vis2D.Layers;
 
 /// <summary>
 /// <see cref="IMapLayer"/> that renders an adaptive coordinate grid over the 2-D map canvas.

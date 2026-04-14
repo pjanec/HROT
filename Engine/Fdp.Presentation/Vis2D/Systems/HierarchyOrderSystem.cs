@@ -1,9 +1,9 @@
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Components;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Vis2D.Systems;
+namespace Fdp.Toolkit.Vis2D.Systems;
 
 /// <summary>
 /// Maintains a flattened list of entities sorted Bottom-Up (Children before Parents).

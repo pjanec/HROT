@@ -1,8 +1,8 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Components;
 using Fbt;
 
-namespace FDP.Toolkit.Behavior.Systems
+namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
     /// Routes the active <see cref="LocomotionChannel"/> to the registered

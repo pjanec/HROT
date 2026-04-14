@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 
 namespace Fdp.Kernel.FlightRecorder
 {

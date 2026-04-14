@@ -2,7 +2,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Combat.Events
+namespace Fdp.Toolkit.Combat.Events
 {
     // ── FireRequestEvent ──────────────────────────────────────────────────────
 

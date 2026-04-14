@@ -3,7 +3,7 @@ using CycloneDDS.Runtime;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
-namespace FDP.Toolkit.Commands
+namespace Fdp.Toolkit.Commands
 {
     /// <summary>
     /// A generic client for sending requests and awaiting corresponding acknowledgments over DDS.

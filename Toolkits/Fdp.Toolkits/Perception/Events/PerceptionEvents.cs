@@ -2,7 +2,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Perception.Events
+namespace Fdp.Toolkit.Perception.Events
 {
     // ── AudioStimulusEvent ────────────────────────────────────────────────────────
 

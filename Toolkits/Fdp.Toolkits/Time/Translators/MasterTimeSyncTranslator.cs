@@ -3,10 +3,11 @@ using System.Diagnostics;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
-namespace FDP.Toolkit.Time.Translators
+namespace Fdp.Toolkit.Time.Translators
 {
     /// <summary>
     /// Master-side NTP clock-sync translator.
@@ -85,7 +86,7 @@ namespace FDP.Toolkit.Time.Translators
 
                 _responseWriter.Write(response);
 
-                FDP.Kernel.Logging.FdpLog<MasterTimeSyncTranslator>.Trace(
+                Fdp.Kernel.Logging.FdpLog<MasterTimeSyncTranslator>.Trace(
                     "[TC3][Master] SyncResponse sent. Node={0}, RTT_approx={1} ticks",
                     request.ClientNodeId,
                     masterTransmitTicks - request.ClientSendTicks);

@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Behavior.Events
+namespace Fdp.Toolkit.Behavior.Events
 {
     /// <summary>
     /// Unmanaged command event requesting that a passenger entity exits their current vehicle.

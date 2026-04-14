@@ -6,11 +6,11 @@ using Fdp.Interfaces;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Time;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Lifecycle.Events;
 using Xunit;
 
-namespace FDP.Toolkit.Lifecycle.Tests
+namespace Fdp.Toolkit.Lifecycle.Tests
 {
     public class EntityLifecycleIntegrationTests
     {

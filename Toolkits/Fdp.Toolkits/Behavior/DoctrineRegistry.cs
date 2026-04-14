@@ -4,9 +4,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Fbt.Runtime;
 using Fhsm.Kernel.Data;
-using FDP.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Components;
 
-namespace FDP.Toolkit.Behavior
+namespace Fdp.Toolkit.Behavior
 {
     /// <summary>
     /// Delegate that parses a JSON parameter string and writes the result directly into

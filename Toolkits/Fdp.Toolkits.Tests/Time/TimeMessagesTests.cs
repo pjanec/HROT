@@ -1,13 +1,13 @@
 using System.Reflection;
 using CycloneDDS.Schema;
 using Fdp.Kernel;
-using FDP.Toolkit.Time.Domain;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Domain;
+using Fdp.Toolkit.Time.Messages;
 using MessagePack;
 using Fdp.ModuleHost.Time;
 using Xunit;
 
-namespace FDP.Toolkit.Time.Tests
+namespace Fdp.Toolkit.Time.Tests
 {
     /// <summary>
     /// Unit tests for TCU-M001 (wire DTO fields and round-trip) and

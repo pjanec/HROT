@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Behavior
+namespace Fdp.Toolkit.Behavior
 {
     /// <summary>
     /// Compile-time constants governing buffer sizes and capacities in the Behavior toolkit.

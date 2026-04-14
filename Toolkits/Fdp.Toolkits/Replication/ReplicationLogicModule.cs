@@ -1,12 +1,12 @@
 using System;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Lifecycle;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
+using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Replication
+namespace Fdp.Toolkit.Replication
 {
     public class ReplicationLogicModule : IEcsModule
     {

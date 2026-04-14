@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 
-namespace FDP.Toolkit.Orchestration
+namespace Fdp.Toolkit.Orchestration
 {
     /// <summary>
     /// Reference <see cref="IScenarioLoader"/> implementation that returns the first

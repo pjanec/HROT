@@ -1,12 +1,12 @@
 using Xunit;
 using Moq;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.Vis2D.Abstractions;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Components;
 using System.Numerics;
 using Raylib_cs;
 
-namespace FDP.Toolkit.Vis2D.Tests
+namespace Fdp.Toolkit.Vis2D.Tests
 {
     public class TestableInputProvider : IInputProvider
     {

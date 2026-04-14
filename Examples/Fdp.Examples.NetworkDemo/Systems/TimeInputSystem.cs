@@ -3,7 +3,7 @@ using Fdp.Kernel;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.ModuleHost.Network;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
 
 namespace Fdp.Examples.NetworkDemo.Systems

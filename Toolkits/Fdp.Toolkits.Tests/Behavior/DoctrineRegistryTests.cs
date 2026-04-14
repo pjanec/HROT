@@ -1,7 +1,7 @@
-using FDP.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior;
 using Xunit;
 
-namespace FDP.Toolkit.Behavior.Tests
+namespace Fdp.Toolkit.Behavior.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="DoctrineRegistry"/> (DEBT-006).

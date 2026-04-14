@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.NetworkSpawning.Events
+namespace Fdp.Toolkit.NetworkSpawning.Events
 {
     /// <summary>
     /// A single (descriptorTypeId, nodeId) grant pair carried in

@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Orchestration
+namespace Fdp.Toolkit.Orchestration
 {
     /// <summary>
     /// Fluent builder that constructs an <see cref="ITransitionGraph"/> from

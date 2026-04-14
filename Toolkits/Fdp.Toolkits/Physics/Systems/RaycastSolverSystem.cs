@@ -3,10 +3,10 @@ using System.Numerics;
 using System.Threading.Tasks;
 using CarKinem.Spatial;
 using Fdp.Kernel;
-using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Physics.Math;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Math;
 
-namespace FDP.Toolkit.Physics.Systems
+namespace Fdp.Toolkit.Physics.Systems
 {
     /// <summary>
     /// Main-thread system that resolves all pending <see cref="RaycastRequest"/>s in

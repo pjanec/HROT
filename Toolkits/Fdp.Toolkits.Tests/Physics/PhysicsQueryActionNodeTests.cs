@@ -2,11 +2,11 @@ using System;
 using System.Numerics;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-using FDP.Toolkit.Physics.BTreeNodes;
-using FDP.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.BTreeNodes;
+using Fdp.Toolkit.Physics.Components;
 using Xunit;
 
-namespace FDP.Toolkit.Physics.Tests
+namespace Fdp.Toolkit.Physics.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="PhysicsQueryActionNode"/> (MOD1-P6T4).

@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Xunit;
 using Fdp.Examples.NetworkDemo;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Network;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Integration

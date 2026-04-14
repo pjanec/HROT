@@ -1,15 +1,15 @@
 using System.Numerics;
 using Xunit;
 using Fdp.Kernel;
-using FDP.Toolkit.Vis2D.Layers;
-using FDP.Toolkit.Vis2D.Abstractions;
-using FDP.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Layers;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Kernel.Collections;
 using Fdp.ModuleHost.Abstractions;
 using Moq;
 using Raylib_cs;
 
-namespace FDP.Toolkit.Vis2D.Tests.Layers
+namespace Fdp.Toolkit.Vis2D.Tests.Layers
 {
     public class EntityRenderLayerTests
     {

@@ -1,10 +1,10 @@
 using System;
 using Xunit;
 using Fdp.Network.Cyclone.Providers;
-using Fdp.Kernel; 
-using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Lifecycle;
+using Fdp.Kernel;
+using Fdp.Toolkit.Lifecycle;
 using MessagePack;
+using Fdp.Interfaces;
 
 namespace Fdp.Network.Cyclone.Tests.Serialization
 {

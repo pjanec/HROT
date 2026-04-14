@@ -1,8 +1,8 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Physics.Systems;
+using Fdp.Toolkit.Physics.Systems;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Physics.Modules
+namespace Fdp.Toolkit.Physics.Modules
 {
     /// <summary>
     /// Wraps <see cref="RaycastSolverSystem"/> and <see cref="HitResolutionSystem"/> into a

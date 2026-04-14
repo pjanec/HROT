@@ -3,10 +3,11 @@ using System.Diagnostics;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
-namespace FDP.Toolkit.Time.Translators
+namespace Fdp.Toolkit.Time.Translators
 {
     /// <summary>
     /// Slave-side NTP clock-sync translator.

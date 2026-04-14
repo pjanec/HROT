@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Orchestration.Handlers
+namespace Fdp.Toolkit.Orchestration.Handlers
 {
     /// <summary>
     /// Payload for <see cref="ReferenceEpisodeLoadHandler"/> episode operations.
@@ -12,7 +12,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
     /// </summary>
     public sealed class ReferenceEpisodeLoadHandler : IClusterStateHandler
     {
-        private readonly FDP.Toolkit.Scenario.ScenarioSerializer _serializer;
+        private readonly Fdp.Toolkit.Scenario.ScenarioSerializer _serializer;
         private readonly IScenarioLoader _scenarioLoader;
         private readonly Fdp.Kernel.EntityRepository? _world;
 
@@ -23,7 +23,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
         private bool _pendingIsParticipating;
 
         public ReferenceEpisodeLoadHandler(
-            FDP.Toolkit.Scenario.ScenarioSerializer serializer,
+            Fdp.Toolkit.Scenario.ScenarioSerializer serializer,
             IScenarioLoader scenarioLoader,
             Fdp.Kernel.EntityRepository? world = null)
         {

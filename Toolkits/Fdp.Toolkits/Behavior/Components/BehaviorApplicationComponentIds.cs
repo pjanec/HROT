@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Behavior.Components
+namespace Fdp.Toolkit.Behavior.Components
 {
     /// <summary>
     /// Application-level ECS component IDs for FDP.Toolkit.Behavior managed components.

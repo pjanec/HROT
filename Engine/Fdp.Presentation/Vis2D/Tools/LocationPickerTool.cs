@@ -1,9 +1,9 @@
 using System;
 using System.Numerics;
 using Raylib_cs;
-using FDP.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Abstractions;
 
-namespace FDP.Toolkit.Vis2D.Tools;
+namespace Fdp.Toolkit.Vis2D.Tools;
 
 /// <summary>
 /// A map tool that lets the operator click any point on the canvas to return a

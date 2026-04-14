@@ -1,11 +1,11 @@
 using System;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Combat.Components;
-using FDP.Toolkit.Combat.Events;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Replication.Components;
 
-namespace FDP.Toolkit.Combat.Systems
+namespace Fdp.Toolkit.Combat.Systems
 {
     /// <summary>
     /// Consumes <see cref="DamageAssessedEvent"/> events, checks authority, and applies

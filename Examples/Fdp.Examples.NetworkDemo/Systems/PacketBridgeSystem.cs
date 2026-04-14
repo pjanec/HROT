@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Time.Messages;
+using Fdp.Toolkit.Time.Messages;
 using Fdp.Examples.NetworkDemo.Components;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Network.Cyclone.Topics; // For NetworkAppId
 
 namespace Fdp.Examples.NetworkDemo.Systems

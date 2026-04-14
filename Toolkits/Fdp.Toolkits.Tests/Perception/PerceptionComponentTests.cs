@@ -1,8 +1,8 @@
 using System;
-using FDP.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Components;
 using Xunit;
 
-namespace FDP.Toolkit.Perception.Tests
+namespace Fdp.Toolkit.Perception.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="TargetMemory"/> struct and

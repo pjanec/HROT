@@ -1,11 +1,11 @@
-namespace FDP.Toolkit.Orchestration.Handlers
+namespace Fdp.Toolkit.Orchestration.Handlers
 {
 	/// <summary>
 	/// Reference implementation of the scenario-load Cluster handler.
 	/// </summary>
 	public sealed class ReferenceScenarioLoadHandler : IClusterStateHandler
 	{
-		private readonly FDP.Toolkit.Scenario.ScenarioSerializer _serializer;
+		private readonly Fdp.Toolkit.Scenario.ScenarioSerializer _serializer;
 		private readonly IScenarioLoader _scenarioLoader;
 		private readonly Fdp.Kernel.EntityRepository? _world;
 
@@ -20,7 +20,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
 		public int PrepareCallCountForTest => _prepareCallCount;
 
 		public ReferenceScenarioLoadHandler(
-			FDP.Toolkit.Scenario.ScenarioSerializer serializer,
+			Fdp.Toolkit.Scenario.ScenarioSerializer serializer,
 			IScenarioLoader scenarioLoader,
 			Fdp.Kernel.EntityRepository? world = null)
 		{
@@ -46,7 +46,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
 				: intent.DomainPayload as string;
 			System.Console.WriteLine(
 				$"[DIAG] RSL.PrepareAsync: op={intent.Operation} scenId='{scenarioId ?? "(null)"}' payloadType={intent.DomainPayload?.GetType().Name ?? "(null)"}");
-			FDP.Kernel.Logging.FdpLog<ReferenceScenarioLoadHandler>.Info(
+			Fdp.Kernel.Logging.FdpLog<ReferenceScenarioLoadHandler>.Info(
 				"[ReferenceScenarioLoadHandler] PrepareAsync called. Operation={0}, ScenarioId={1}, PayloadType={2}",
 				intent.Operation,
 				scenarioId ?? "(null)",

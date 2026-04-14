@@ -1,6 +1,6 @@
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Behavior.Events
+namespace Fdp.Toolkit.Behavior.Events
 {
     /// <summary>
     /// Unmanaged event published by <see cref="Systems.MissionDirectorSystem"/> when a phase

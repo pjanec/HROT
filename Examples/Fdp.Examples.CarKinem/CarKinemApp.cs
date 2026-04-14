@@ -3,10 +3,10 @@ using System.Numerics;
 using Raylib_cs;
 using ImGuiNET;
 using Fdp.Kernel;
-using FDP.Framework.Raylib;
-using FDP.Toolkit.Vis2D;
-using FDP.Toolkit.Vis2D.Layers;
-using FDP.Toolkit.ImGui.Panels;
+using Fdp.Framework.Raylib;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Layers;
+using Fdp.Toolkit.ImGui.Panels;
 using Fdp.Examples.CarKinem.Visualization;
 using Fdp.Examples.CarKinem.Core;
 using Fdp.Examples.CarKinem.Components;
@@ -21,10 +21,10 @@ using CarKinem.Trajectory;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Time; // ITimeController
-using FDP.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Time.Controllers;
 using Fdp.Kernel.FlightRecorder; // Recorder
 
-using FDP.Toolkit.Vis2D.Tools; // Added Tools namespace
+using Fdp.Toolkit.Vis2D.Tools; // Added Tools namespace
 
 namespace Fdp.Examples.CarKinem;
 

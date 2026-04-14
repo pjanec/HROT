@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Navigation
+namespace Fdp.Toolkit.Navigation
 {
     /// <summary>
     /// ECS component ID catalog for <c>FDP.Toolkit.Navigation.Contracts</c>.

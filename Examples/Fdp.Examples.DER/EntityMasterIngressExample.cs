@@ -4,11 +4,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Interop;
-using FDP.Toolkit.DER;
+using Fdp.Toolkit.DER;
 using System.Collections.Concurrent;
 using System.Linq;
 
-namespace FDP.Toolkit.DER.Examples
+namespace Fdp.Toolkit.DER.Examples
 {
     /// <summary>
     /// Example of a generic "Ingress" component that dynamically reads ANY

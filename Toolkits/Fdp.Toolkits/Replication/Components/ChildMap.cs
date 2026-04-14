@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Replication.Components
+namespace Fdp.Toolkit.Replication.Components
 {
     [ComponentId(GlobalComponentIds.ChildMap)]
     public class ChildMap

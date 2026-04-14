@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Scenario
+namespace Fdp.Toolkit.Scenario
 {
     /// <summary>
     /// ECS component ID catalog for <c>FDP.Toolkit.Scenario</c>.

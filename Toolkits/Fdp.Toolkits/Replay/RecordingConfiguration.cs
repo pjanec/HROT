@@ -1,7 +1,7 @@
 using System;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Replay
+namespace Fdp.Toolkit.Replay
 {
     /// <summary>
     /// Initialization contract for <see cref="RecordingModule"/> and

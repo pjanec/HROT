@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
-using FDP.Toolkit.DER; // Ensure namespace correct
+using Fdp.Toolkit.DER; // Ensure namespace correct
 
-namespace FDP.Toolkit.DER
+namespace Fdp.Toolkit.DER
 {
     public class DerEntity : IDerEntity
     {

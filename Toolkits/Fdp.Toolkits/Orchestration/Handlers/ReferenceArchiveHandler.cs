@@ -3,9 +3,9 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
-using FDP.Kernel.Logging;
+using Fdp.Kernel.Logging;
 
-namespace FDP.Toolkit.Orchestration.Handlers;
+namespace Fdp.Toolkit.Orchestration.Handlers;
 
 /// <summary>
 /// Payload for <see cref="ReferenceArchiveHandler"/> commands.

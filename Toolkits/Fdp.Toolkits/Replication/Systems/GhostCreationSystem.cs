@@ -1,10 +1,10 @@
 using System;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
 
-namespace FDP.Toolkit.Replication.Systems
+namespace Fdp.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.BeforeSync)]
     public class GhostCreationSystem : IEcsModuleSystem

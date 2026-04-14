@@ -1,10 +1,10 @@
 using Xunit;
 using Fdp.Kernel;
-using FDP.Toolkit.ImGui.Utils;
+using Fdp.Toolkit.ImGui.Utils;
 using System;
 using System.Reflection;
 
-namespace FDP.Toolkit.ImGui.Tests;
+namespace Fdp.Toolkit.ImGui.Tests;
 
 public class RepoReflectorTests
 {

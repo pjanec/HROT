@@ -1,4 +1,4 @@
-using FDP.Interfaces.Abstractions;
+using Fdp.Interfaces.Abstractions;
 using CycloneDDS.Schema;
 using Fdp.Kernel;
 

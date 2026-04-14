@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Kernel;
-using FDP.Toolkit.ImGui.Abstractions;
-using FDP.Toolkit.ImGui.Utils;
+using Fdp.Toolkit.ImGui.Abstractions;
+using Fdp.Toolkit.ImGui.Utils;
 
-namespace FDP.Toolkit.ImGui.Adapters
+namespace Fdp.Toolkit.ImGui.Adapters
 {
     public class RepositoryAdapter : IInspectableSession
     {

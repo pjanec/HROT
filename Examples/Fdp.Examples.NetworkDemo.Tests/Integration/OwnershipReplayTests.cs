@@ -5,10 +5,10 @@ using Fdp.Examples.NetworkDemo;
 using System.IO;
 using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Network;
 using Fdp.ModuleHost.Abstractions;
-using FDP.Toolkit.Replication.Messages;
+using Fdp.Toolkit.Replication.Messages;
 
 
 namespace Fdp.Examples.NetworkDemo.Tests.Integration
@@ -45,22 +45,22 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                     for(int i=0; i<10; i++) app.Update(0.1f);
                     
                     // Transfer Ownership to Remote (2)
-                    app.EnqueueAction(repo => {
+                    app.EnqueueAction((Action<EntityRepository>)(repo => {
                          // Simulate sending ownership transfer
                          // This should be picked up by PacketBridgeSystem/OwnershipUpdateTranslator and recorded
                          long packedKey = 0; // Master (0) + Instance (0)
-                         var msg = new FDP.Toolkit.Replication.Messages.OwnershipUpdate
+                         var msg = new Fdp.Toolkit.Replication.Messages.OwnershipUpdate
                          {
-                             NetworkId = new NetworkIdentity { Value = 200002 },
+                             NetworkId = new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 200002 },
                              PackedKey = packedKey,
                              NewOwnerNodeId = 2 // Remote
                          };
-                         repo.Bus.Publish(msg);
+                         repo.Bus.Publish<Fdp.Toolkit.Replication.Messages.OwnershipUpdate>((Fdp.Toolkit.Replication.Messages.OwnershipUpdate)msg );
                          
                          // Update local state to match "Live" behavior
-                         var mutAuth = new NetworkAuthority { PrimaryOwnerId = 2, LocalNodeId = 1 };
-                         repo.SetComponent(testEntity, mutAuth);
-                    });
+                         var mutAuth = new Fdp.Toolkit.Replication.Components.NetworkAuthority { PrimaryOwnerId = 2, LocalNodeId = 1 };
+                         repo.SetComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>( testEntity, (Fdp.Toolkit.Replication.Components.NetworkAuthority)mutAuth);
+                    }));
                     
                     for(int i=0; i<10; i++) app.Update(0.1f);
                     

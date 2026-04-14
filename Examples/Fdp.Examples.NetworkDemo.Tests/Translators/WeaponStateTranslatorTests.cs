@@ -6,10 +6,11 @@ using Fdp.Kernel;
 using Fdp.Examples.NetworkDemo.Translators;
 using Fdp.Examples.NetworkDemo.Descriptors;
 using Fdp.Examples.NetworkDemo.Components;
-using FDP.Toolkit.Replication.Components; // Fix: For ChildMap
-using FDP.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Components; // Fix: For ChildMap
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Interfaces;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Translators
 {

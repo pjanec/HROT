@@ -1,4 +1,4 @@
-namespace FDP.Toolkit.Replication.Patching;
+namespace Fdp.Toolkit.Replication.Patching;
 
 /// <summary>
 /// Framework-native type discriminant used by <see cref="JsonToRecordCompilerBuilder"/>

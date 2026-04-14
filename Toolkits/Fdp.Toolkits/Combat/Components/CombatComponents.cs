@@ -2,7 +2,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 
-namespace FDP.Toolkit.Combat.Components
+namespace Fdp.Toolkit.Combat.Components
 {
     /// <summary>
     /// State of a weapon attachment (gun, launcher, etc.).
