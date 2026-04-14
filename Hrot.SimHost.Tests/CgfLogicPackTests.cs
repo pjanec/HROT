@@ -67,8 +67,9 @@ namespace Hrot.SimHost.Tests
             //   BTreeTickSystem, HsmTickSystem<BrainHsm128>, HsmTickSystem<BrainHsm64> (5)
             // ActionDispatchModule: LocomotionDispatcherSystem, WeaponDispatcherSystem,
             //   InteractionDispatcherSystem (3)
-            // total = 12
-            Assert.Equal(12, simGroup.SystemCount);
+            // RouteContextSystem (1)
+            // total = 13
+            Assert.Equal(13, simGroup.SystemCount);
 
             simGroup.Dispose();
         }

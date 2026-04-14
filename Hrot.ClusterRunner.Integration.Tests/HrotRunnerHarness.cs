@@ -67,6 +67,7 @@ public sealed class HrotRunnerHarness : IDisposable
         SimHost = new SimHostSubsystem(factory);
         Ig = new IgSubsystem(factory);
         ExCon = new ExConSubsystem(factory);
+        Cgf = new CgfSubsystem(factory);  // CGF processes CreateEntityRequest and sends ACKs
 
         var options = new RunnerOptions { Headless = true, DomainId = DomainId };
         Orchestrator = new SubsystemOrchestrator(new ISubsystem[]
@@ -74,7 +75,8 @@ public sealed class HrotRunnerHarness : IDisposable
             OrchestratorSvc,   // must be first: starts DdsIdAllocatorServer before SimHost
             SimHost,
             Ig,
-            ExCon
+            ExCon,
+            Cgf,
         }, options);
 
         Orchestrator.Initialize();
@@ -114,7 +116,7 @@ public sealed class HrotRunnerHarness : IDisposable
         if (requested.Contains("excon"))   subsystems.Add(ExCon);
         if (requested.Contains("cgf"))
         {
-            Cgf = new CgfSubsystem();
+            Cgf = new CgfSubsystem(factory);  // factory (participant=null) triggers participant creation inside CgfSubsystem
             subsystems.Add(Cgf);
         }
 

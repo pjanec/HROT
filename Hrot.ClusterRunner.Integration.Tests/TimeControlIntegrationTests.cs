@@ -65,10 +65,23 @@ public sealed class TimeControlIntegrationTests : IDisposable
             PayloadJson   = payload,
         }).ConfigureAwait(false);
 
-        // Pump enough frames for the DDS loopback to carry SwitchTimeModeEvent/FrameOrder
-        // to all slave nodes and back.
-        _harness.PumpFrames(SettleFrames);
-        Thread.Sleep(SettleFrames * PumpSleepMs);
+        // PumpUntil sleeps PumpSleepMs per frame, giving real wall-clock time for
+        // MasterSyncController's barrier (LookaheadWallTicks = 200 ms) to be crossed
+        // before the next op is issued.  PumpFrames (tight loop, no sleep) is too fast
+        // and leaves the master in BarrierPending when the next Step() is called.
+        _harness.PumpUntil(() => false, SettleFrames);
+
+        // On machines where Thread.Sleep(PumpSleepMs) wakes early (e.g. 1-2 ms instead
+        // of 5 ms), SettleFrames * actual_sleep can be less than 200 ms — not enough to
+        // cross the lookahead barrier.  After a Pause, stay in the pump loop until the
+        // slave's SlaveSyncController actually enters Stepping mode (barrier crossed),
+        // which is the necessary precondition for Step() to have any effect.
+        if (opType == ClusterOpType.PauseTime)
+        {
+            PumpUntil(
+                () => _simHost.TestHook_TimeControllerMode == ModuleHost.Core.Time.TimeMode.Deterministic,
+                timeoutMs: 5000);
+        }
     }
 
     /// <summary>
@@ -95,8 +108,10 @@ public sealed class TimeControlIntegrationTests : IDisposable
     {
         double before = _simHost.TestHook_CurrentSimTime;
         int frames = Math.Max(1, observeMs / PumpSleepMs);
-        _harness.PumpFrames(frames);
-        Thread.Sleep(observeMs);
+        // Use PumpUntil (5 ms sleep per frame) so real wall-clock time passes at a predictable
+        // rate. PumpFrames (tight loop, no sleep) is too fast and produces an unreliably small
+        // delta on machines where DDS loopback overhead is near zero.
+        _harness.PumpUntil(() => false, frames);
         return _simHost.TestHook_CurrentSimTime - before;
     }
 

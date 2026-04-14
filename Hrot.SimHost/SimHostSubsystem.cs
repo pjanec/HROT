@@ -4,7 +4,6 @@ using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.SimHost;
 using Hrot.SimHost.Utilities;
-using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D.Components;
@@ -136,29 +135,13 @@ namespace Hrot.SimHost
         internal void TestHook_SimulateDrag(long networkId, System.Numerics.Vector2 worldPos)
             => App.TestHook_SimulateDrag(networkId, worldPos);
 
-        /// <summary>TestHook: directly assigns WanderMilitary doctrine to the entity.</summary>
-        internal void TestHook_AssignWanderMission(long networkId)
-            => App.TestHook_AssignWanderMission(networkId);
+        /// <summary>TestHook: attaches a MoveTo NavigationIntent to the entity, triggering movement.</summary>
+        internal void TestHook_SetMovementIntent(long networkId, System.Numerics.Vector2 destination, float speed = 15f)
+            => App.TestHook_SetMovementIntent(networkId, destination, speed);
 
         /// <summary>TestHook: returns the current <see cref="SimTransform"/>, or default.</summary>
         internal SimTransform TestHook_GetSimTransform(long networkId)
             => App.TestHook_GetSimTransform(networkId);
-
-        /// <summary>TestHook: returns the current <see cref="DoctrineState"/>, or default.</summary>
-        internal DoctrineState TestHook_GetDoctrineState(long networkId)
-            => App.TestHook_GetDoctrineState(networkId);
-
-        /// <summary>TestHook: returns <c>true</c> if the entity has a <see cref="MissionPlanQueue"/>.</summary>
-        internal bool TestHook_HasMissionPlanQueue(long networkId)
-            => App.TestHook_HasMissionPlanQueue(networkId);
-
-        /// <summary>TestHook: returns the current <see cref="MissionPlanQueue"/>, or default.</summary>
-        internal MissionPlanQueue TestHook_GetMissionPlanQueue(long networkId)
-            => App.TestHook_GetMissionPlanQueue(networkId);
-
-        /// <summary>TestHook: directly activates WanderMilitary doctrine, bypassing MissionDirectorSystem.</summary>
-        internal void TestHook_ForceDoctrineActive(long networkId)
-            => App.TestHook_ForceDoctrineActive(networkId);
 
         /// <summary>TestHook: returns child entities that reference the given parent.</summary>
         internal List<Entity> TestHook_GetChildEntities(Entity parentEntity)

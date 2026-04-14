@@ -11,7 +11,7 @@ using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Navigation.Executors;
 using FDP.Toolkit.NetworkSpawning.Events;
 using ModuleHost.Core.Network.Interfaces;
@@ -86,20 +86,6 @@ namespace Hrot.SimHost.Tests
         }
 
         [Fact]
-        public void SpawnRoamers_EachCommand_HasWanderMilitaryDoctrine()
-        {
-            var (sut, bus) = CreateSut();
-            sut.SpawnRoamers(2, VehicleClass.PersonalCar);
-
-            foreach (var cmd in ExtractCommands(bus))
-            {
-                Assert.NotNull(cmd.InitialComponents);
-                var doctrine = cmd.InitialComponents.OfType<DoctrineState>().Single();
-                Assert.Equal(SimHostDoctrineIds.WanderMilitary_BT, doctrine.ActiveDoctrineHash);
-            }
-        }
-
-        [Fact]
         public void SpawnRoamers_EachCommand_HasEntityInfo()
         {
             var (sut, bus) = CreateSut();
@@ -110,17 +96,6 @@ namespace Hrot.SimHost.Tests
                 Assert.NotNull(cmd.InitialComponents);
                 Assert.Contains(cmd.InitialComponents, c => c is EntityInfo);
             }
-        }
-
-        [Fact]
-        public void SpawnRoamers_EachCommand_HasBrainBlackboard()
-        {
-            var (sut, bus) = CreateSut();
-            sut.SpawnRoamers(1, VehicleClass.PersonalCar);
-
-            var cmd = ExtractCommands(bus)[0];
-            Assert.NotNull(cmd.InitialComponents);
-            Assert.Contains(cmd.InitialComponents, c => c is BrainBlackboard);
         }
 
         [Fact]
@@ -140,13 +115,7 @@ namespace Hrot.SimHost.Tests
             var (sut, bus) = CreateSut();
             sut.SpawnRoadUsers(3, VehicleClass.PersonalCar);
 
-            var cmds = ExtractCommands(bus);
-            Assert.Equal(3, cmds.Count);
-            foreach (var cmd in cmds)
-            {
-                var doctrine = cmd.InitialComponents!.OfType<DoctrineState>().Single();
-                Assert.Equal(SimHostDoctrineIds.WanderMilitary_BT, doctrine.ActiveDoctrineHash);
-            }
+            Assert.Equal(3, ExtractCommands(bus).Count);
         }
 
         // ── SpawnCollisionTest ────────────────────────────────────────────────
@@ -168,26 +137,25 @@ namespace Hrot.SimHost.Tests
             foreach (var cmd in ExtractCommands(bus))
             {
                 Assert.NotNull(cmd.InitialComponents);
-                var doctrine = cmd.InitialComponents.OfType<DoctrineState>().Single();
-                Assert.Equal(SimHostDoctrineIds.FollowRoute_BT, doctrine.ActiveDoctrineHash);
+                var intent = cmd.InitialComponents.OfType<NavigationIntent>().Single();
+                Assert.Equal(NavigationMode.FollowRoute, intent.Mode);
             }
         }
 
         [Fact]
-        public unsafe void SpawnCollisionTest_BothCommands_HaveDistinctNonZeroTrajectoryIds()
+        public void SpawnCollisionTest_BothCommands_HaveDistinctNonZeroTrajectoryIds()
         {
             var (sut, bus) = CreateSut();
             sut.SpawnCollisionTest(VehicleClass.PersonalCar);
 
-            var cmds   = ExtractCommands(bus);
+            var cmds    = ExtractCommands(bus);
             var trajIds = new List<int>();
 
             foreach (var cmd in cmds)
             {
-                var bb = cmd.InitialComponents!.OfType<BrainBlackboard>().Single();
-                int trajId = *(int*)(&bb); // TrajectoryId is first int in FollowRouteParams
-                Assert.True(trajId > 0, $"Expected non-zero TrajectoryId but got {trajId}");
-                trajIds.Add(trajId);
+                var intent = cmd.InitialComponents!.OfType<NavigationIntent>().Single();
+                Assert.True(intent.TrajectoryId > 0, $"Expected non-zero TrajectoryId but got {intent.TrajectoryId}");
+                trajIds.Add(intent.TrajectoryId);
             }
 
             Assert.NotEqual(trajIds[0], trajIds[1]);
@@ -222,34 +190,6 @@ namespace Hrot.SimHost.Tests
 
             var cmds = ExtractCommands(bus);
             Assert.Equal(500L, cmds[0].NetworkId); // leader uses the pre-allocated ID
-        }
-
-        [Fact]
-        public void SpawnFormation_LeaderCommand_HasWanderMilitaryDoctrine()
-        {
-            var alloc  = new StubAllocator();
-            var (sut, bus) = CreateSut(alloc);
-            sut.SpawnFormation(VehicleClass.PersonalCar, FormationType.Column, count: 2);
-
-            var leaderCmd = ExtractCommands(bus)[0];
-            var doctrine  = leaderCmd.InitialComponents!.OfType<DoctrineState>().Single();
-            Assert.Equal(SimHostDoctrineIds.WanderMilitary_BT, doctrine.ActiveDoctrineHash);
-        }
-
-        [Fact]
-        public unsafe void SpawnFormation_FollowerCommand_HasJoinFormationDoctrineWithLeaderNetworkId()
-        {
-            var alloc  = new StubAllocator(startId: 500);
-            var (sut, bus) = CreateSut(alloc);
-            sut.SpawnFormation(VehicleClass.PersonalCar, FormationType.Wedge, count: 2);
-
-            var followerCmd = ExtractCommands(bus)[1];
-            var doctrine    = followerCmd.InitialComponents!.OfType<DoctrineState>().Single();
-            Assert.Equal(SimHostDoctrineIds.JoinFormation_BT, doctrine.ActiveDoctrineHash);
-
-            var bb = followerCmd.InitialComponents.OfType<BrainBlackboard>().Single();
-            var p = (JoinFormationParams*)(&bb);
-            Assert.Equal(500, p->LeaderNetworkId); // must match pre-allocated leader ID
         }
 
         [Fact]

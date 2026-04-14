@@ -62,41 +62,26 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
     public void IG_SpawnMovingVehicleViaGateway_EntityMovesOnIg()
     {
         using var harness = new HrotRunnerHarness();
-        // CGF is the default processor for broadcast CreateEntityRequests (Owner==0).
-        // It must run alongside the harness so spawn-via-gateway requests get processed.
-        using var cgf = new CgfHarness(harness.DomainId);
-
-        // Extra settle: pump BOTH together so DDS discovery completes cross-node and
-        // CGF's cluster cache receives at least one SimHost heartbeat before spawning.
-        for (int i = 0; i < 20; i++) { harness.PumpFrames(1); cgf.PumpFrames(1); System.Threading.Thread.Sleep(5); }
-        System.Threading.Thread.Sleep(200);
+        // CGF is included in the default HrotRunnerHarness and processes broadcast
+        // CreateEntityRequests (Owner==0). No separate CgfHarness needed.
 
         var igApp = harness.Ig.App;
 
         // Observe CreateUpdateDeleteEntityAck to learn the allocated network ID.
-        // Same-process DDS participants match instantly (intraprocess SPDP), so the
-        // observer reliably sees data within 2–10 frames of it being published.
-        // Only the ACK reader is needed — reqObserved and missionAckObserved are
-        // redundant given that the ACK implies the request was processed and that
-        // movement detection proves mission success.
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
         using var ackReader           = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
 
         // ── 1. Fire the gateway spawn+wander flow (mirrors the UI button press) ──
-        // Task runs asynchronously; we don't block on it in PumpUntil — we use
-        // observer DDS reads to confirm each step, then verify movement as proof
-        // that the full flow (both ACKs, WanderMilitary mission) succeeded.
         var spawnTask = igApp.TestHook_SubmitMiniExConSpawnWithWanderMission(
             tkbType, ForceId.Friend, 100f, 200f);
         _out.WriteLine("[G1] TestHook_SubmitMiniExConSpawnWithWanderMission fired.");
 
         // ── 2. Capture the CreateEntityAck to get the allocated network ID ───
-        // CGF is the default processor so it sends the ACK; pump both to advance the flow.
+        // CGF (in the default harness) is the default processor so it sends the ACK.
         CreateUpdateDeleteEntityAck spawnAck = default;
-        bool ackObserved = PumpBothUntil(
-            harness, cgf,
+        bool ackObserved = harness.PumpUntil(
             () => TryTakeAnyCreateAck(ackReader, out spawnAck),
             GatewayTimeoutFrames);
         Assert.True(ackObserved,
@@ -109,7 +94,7 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
         _out.WriteLine($"[G2] ACK received. networkId={networkId}.");
 
         // ── 3. Wait for the full async chain to complete (MissionControl included) ─
-        bool taskDone = PumpBothUntil(harness, cgf, () => spawnTask.IsCompleted, 200);
+        bool taskDone = harness.PumpUntil(() => spawnTask.IsCompleted, 200);
         if (!taskDone && !spawnTask.IsCompleted)
             spawnTask.Wait(2000);
         if (spawnTask.IsFaulted)
@@ -117,8 +102,7 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
         _out.WriteLine($"[G3b] Gateway task done: {spawnTask.Result}.");
 
         // ── 4. Wait for IG entity to appear with Active lifecycle ────────────
-        bool igActive = PumpBothUntil(
-            harness, cgf,
+        bool igActive = harness.PumpUntil(
             () => IgEntityIsActive(harness, networkId),
             SpawnTimeoutFrames);
         Assert.True(igActive,
@@ -130,7 +114,7 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
         _out.WriteLine($"[G5] Baseline IG position: ({posA.X:F3}, {posA.Y:F3}).");
 
         // ── 6. Verify position changes — proves WanderMilitary mission is active ─
-        bool moved = PumpBothUntil(harness, cgf, () =>
+        bool moved = harness.PumpUntil(() =>
         {
             var posNow = GetIgSimTransform(harness, networkId).Position;
             return Vector3.Distance(posNow, posA) >= MovementThresholdMetres;
@@ -150,23 +134,6 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private static bool PumpBothUntil(
-        HrotRunnerHarness harness,
-        CgfHarness        cgf,
-        Func<bool>        condition,
-        int               timeoutFrames)
-    {
-        if (condition()) return true;
-        for (int i = 0; i < timeoutFrames; i++)
-        {
-            harness.PumpFrames(1);
-            cgf.PumpFrames(1);
-            System.Threading.Thread.Sleep(5);
-            if (condition()) return true;
-        }
-        return false;
-    }
 
     private static bool TryTakeAnyCreateAck(
         DdsReader<CreateUpdateDeleteEntityAck> reader,

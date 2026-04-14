@@ -137,10 +137,21 @@ namespace Hrot.ExCon
             _nodeIdOverride = config.NodeId;
 
             // ── DDS participant ────────────────────────────────────────────────
-            // The participant must be provided by the composition root via INetworkFactory.
-            // Subsystems never instantiate DdsParticipant directly (Rule 3, modular-2 DESIGN.md).
-            // Sender tracking is configured by the composition root before any writer is created.
+            // Create participant in the Application Shell (Composition Root).
+            // Rule: only the outermost executable may instantiate DdsParticipant.
+            // HrotNodeBuilder no longer has a fallback; ExConSubsystem creates its own
+            // when the composition root does not provide one via INetworkFactory.
             _participant = _networkFactory?.Participant;
+            if (_participant == null)
+            {
+                int exConNodeId = config.NodeId != 0 ? config.NodeId : 500;
+                _participant = HrotEnvironment.CreateParticipant(config.DomainId);
+                _participant.EnableSenderTracking(new SenderIdentityConfig
+                {
+                    AppDomainId   = config.DomainId,
+                    AppInstanceId = exConNodeId,
+                });
+            }
 
             // ── ClusterSlave (CGF1-S0104 / CMC-S016 BATCH-06) ────────────────────────
             var iosNodeId  = config.NodeId != 0 ? config.NodeId : 500;

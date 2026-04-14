@@ -16,10 +16,13 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 
 public class EntityDestroyIntegrationTests
 {
-    private const int ConfigSyncTimeoutFrames = 100;
     private const int SimHostSpawnTimeoutFrames = 100;
     private const int IgSpawnTimeoutFrames = 100;
     private const int DestroyTimeoutFrames = 100;
+
+    // Spawn position used for direct SimHost entity creation.
+    private static readonly CoreGeoPoint SpawnGeo = new CoreGeoPoint
+        { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
 
     [Fact]
     public void SimHost_DestroyEntity_IgGhostIsRemoved()
@@ -27,7 +30,10 @@ public class EntityDestroyIntegrationTests
         using var harness = new HrotRunnerHarness();
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
-        long networkId = SpawnEntityThroughPlacement(harness, tkbType);
+        // Spawn directly on SimHost so SimHost is the authority (NetworkOwnership.HasAuthority=true).
+        // This ensures CycloneNetworkCleanupSystem fires on destroy and publishes EntityMaster DISPOSE
+        // to DDS, which causes EntityMasterIngressTranslator on IG to remove the ghost.
+        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, SpawnGeo);
 
         Entity simHostEntity = Entity.Null;
         bool simHostEntityReady = harness.PumpUntil(
@@ -61,31 +67,6 @@ public class EntityDestroyIntegrationTests
             () => !IgHasEntityWithNetworkId(harness.Ig.App.World, networkId),
             DestroyTimeoutFrames);
         Assert.True(igGhostRemoved, "IG ghost entity was not removed after destroy.");
-    }
-
-    private static long SpawnEntityThroughPlacement(HrotRunnerHarness harness, long tkbType)
-    {
-        var iosLogic = harness.ExCon.Logic;
-        var igApp = harness.Ig.App;
-
-        iosLogic.StartPlacementMode(tkbType);
-        Assert.Equal(tkbType, iosLogic.PlacementType);
-
-        bool configSynced = harness.PumpUntil(
-            () => iosLogic.ActiveContextId != Guid.Empty
-               && igApp.TestHook_ActiveContextId == iosLogic.ActiveContextId,
-            ConfigSyncTimeoutFrames);
-        Assert.True(configSynced, "MapInteractionConfig did not reach IG in time.");
-
-        igApp.TestHook_SimulateMapClick(new Vector2(100f, 200f));
-
-        bool simHostSpawned = harness.PumpUntil(
-            () => TryGetSimHostNetworkId(harness.SimHost.World, tkbType, out _),
-            SimHostSpawnTimeoutFrames);
-        Assert.True(simHostSpawned, "SimHost did not spawn an entity in time.");
-
-        Assert.True(TryGetSimHostNetworkId(harness.SimHost.World, tkbType, out long networkId));
-        return networkId;
     }
 
     private static bool TryGetSimHostNetworkId(EntityRepository world, long tkbType, out long networkId)
@@ -143,12 +124,13 @@ public class EntityDestroyIntegrationTests
         using var harness = new HrotRunnerHarness();
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
-        var geo1 = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
-        var geo2 = new CoreGeoPoint { Latitude = 52.522, Longitude = 13.407, Altitude = 0 };
 
         // ── Spawn two entities ────────────────────────────────────────────────
-        long networkId1 = SpawnEntityThroughPlacement(harness, tkbType);
-        long networkId2 = harness.SimHost.TestHook_SpawnEntity(tkbType, geo2);
+        // Both spawned directly on SimHost so SimHost is the authority and
+        // CycloneNetworkCleanupSystem sends EntityMaster DISPOSE on destruction.
+        long networkId1 = harness.SimHost.TestHook_SpawnEntity(tkbType, SpawnGeo);
+        long networkId2 = harness.SimHost.TestHook_SpawnEntity(tkbType,
+            new CoreGeoPoint { Latitude = 52.522, Longitude = 13.407, Altitude = 0 });
 
         bool bothOnIg = harness.PumpUntil(
             () => IgHasEntityWithNetworkId(harness.Ig.App.World, networkId1)

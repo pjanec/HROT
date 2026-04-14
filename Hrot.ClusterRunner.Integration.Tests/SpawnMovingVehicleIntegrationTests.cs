@@ -4,7 +4,6 @@ using Hrot.NED.Common;
 using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
-using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Components;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
@@ -75,27 +74,19 @@ public class SpawnMovingVehicleIntegrationTests
             $"No entity with SimTransform appeared on IG within {SpawnTimeoutFrames} frames.");
         _out.WriteLine($"[M2] IG entity appeared: networkId={networkId}");
 
-        // ── 3. Assign WanderMilitary doctrine directly (no DDS round-trip) ───
-        harness.SimHost.TestHook_AssignWanderMission(networkId);
-        _out.WriteLine("[M3] WanderMilitary doctrine assigned via TestHook");
+        // ── 3. Set movement intent directly (no DDS round-trip) ──────────────
+        harness.SimHost.TestHook_SetMovementIntent(networkId, new Vector2(500f, 500f));
+        _out.WriteLine("[M3] Movement intent set via TestHook");
 
-        // ── 3b. Log SimHost state after 20 frames to verify doctrine + movement ──
+        // ── 3b. Log SimHost state after 20 frames to verify movement ──────────
         harness.PumpFrames(20);
-        var shTf0       = harness.SimHost.TestHook_GetSimTransform(networkId);
-        var shDoctrine0 = harness.SimHost.TestHook_GetDoctrineState(networkId);
-        var mpq0        = harness.SimHost.TestHook_GetMissionPlanQueue(networkId);
-        bool hasMpq0    = harness.SimHost.TestHook_HasMissionPlanQueue(networkId);
-        _out.WriteLine($"[M3b] SimHost pos=({shTf0.Position.X:F3}, {shTf0.Position.Y:F3}) " +
-                       $"doctrine.ActiveHash={shDoctrine0.ActiveDoctrineHash} " +
-                       $"doctrine.InstanceId={shDoctrine0.InstanceId} " +
-                       $"hasMPQ={hasMpq0} mpq.PhaseCount={mpq0.PhaseCount} mpq.CurrentPhase={mpq0.CurrentPhase}");
+        var shTf0   = harness.SimHost.TestHook_GetSimTransform(networkId);
+        _out.WriteLine($"[M3b] SimHost pos=({shTf0.Position.X:F3}, {shTf0.Position.Y:F3})");
 
         harness.PumpFrames(50);
-        var shTf1 = harness.SimHost.TestHook_GetSimTransform(networkId);
-        var shDoc1 = harness.SimHost.TestHook_GetDoctrineState(networkId);
+        var shTf1   = harness.SimHost.TestHook_GetSimTransform(networkId);
         float shMoved = Vector3.Distance(shTf0.Position, shTf1.Position);
         _out.WriteLine($"[M3c] SimHost pos after +50 frames=({shTf1.Position.X:F3}, {shTf1.Position.Y:F3}) " +
-                       $"doctrine.ActiveHash={shDoc1.ActiveDoctrineHash} " +
                        $"SimHost moved={shMoved:F4} m");
 
         // ── 4. Wait for the entity to be promoted to Active lifecycle ─────────
@@ -160,8 +151,8 @@ public class SpawnMovingVehicleIntegrationTests
         Assert.True(entityAppeared,
             $"Entity networkId={networkId} did not appear on IG within {SpawnTimeoutFrames} frames.");
 
-        // ── 3. Assign WanderMilitary doctrine directly (no DDS round-trip) ───
-        harness.SimHost.TestHook_AssignWanderMission(networkId);
+        // ── 3. Set movement intent directly (no DDS round-trip) ──────────────
+        harness.SimHost.TestHook_SetMovementIntent(networkId, new Vector2(500f, 500f));
 
         bool igActive = harness.PumpUntil(
             () => IgEntityIsActive(harness, networkId),

@@ -120,6 +120,13 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _eventBus          = new FdpEventBus();
         _masterSync        = new FDP.Toolkit.Time.Controllers.MasterSyncController(
             _eventBus, new HashSet<int>(), FDP.Toolkit.Time.Controllers.TimeConfig.Default);
+        // MasterSyncController constructor publishes the initial SwitchTimeModeEvent{Continuous}
+        // to _eventBus PENDING.  Swap it to CURRENT now so the first frame's ScanAndPublish
+        // can read it and forward it to DDS before slaves (IG, ExCon) start their kernels.
+        // Without this swap the event is destroyed by the two SwapBuffers calls in Update()
+        // before ScanAndPublish ever gets a chance to read it, causing IG/ExCon to miss the
+        // authoritative startup baseline and run ~180 ms behind Orch/SimHost.
+        _eventBus.SwapBuffers();
         _timeModeTranslator  = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
         _lockstepTranslator  = TimeNetworkModule.CreateMasterLockstepTranslator(_participant, _eventBus);
         _masterTimeSyncTranslator = TimeNetworkModule.CreateMasterTimeSyncTranslator(_participant);
@@ -133,7 +140,13 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             switch (op)
             {
                 case ClusterOpType.PauseTime:
-                    var ids = new HashSet<int>(_clusterMaster.NodeRoster.ActiveNodes.Keys);
+                    // Only simulation-kernel nodes (SimHost, IG, CGF) participate in
+                    // lockstep ACK. ExCon has no kernel and never sends FrameAck, so it
+                    // must be excluded to prevent Step() from blocking indefinitely.
+                    var ids = _clusterMaster.NodeRoster.ActiveNodes
+                        .Where(kv => kv.Value.SubsystemName is "SimHost" or "IG" or "CGF")
+                        .Select(kv => kv.Key)
+                        .ToHashSet();
                     _masterSync?.SwitchToDeterministic(ids);
                     _isPaused = true;
                     break;
@@ -182,10 +195,20 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // Advance the master sync controller's wall clock and state machine.
         _masterSync?.Update();
 
-        // ── Time-mode DDS egress/ingress first, reading events written at the ──
-        // ── end of the PREVIOUS frame (before clearing the read buffer). ────────
+        // ── Time-mode and lockstep DDS egress/ingress first, reading events ──────
+        // ── written at the end of the PREVIOUS frame (before clearing the read ───
+        // ── buffer). _lockstepTranslator.ScanAndPublish MUST run here (before ────
+        // ── the first swap) because AdvanceFrameIntent is a managed event: it is ──
+        // ── published via MasterSyncController.Step() in _clusterMaster.Tick() ───
+        // ── (which fires AFTER step 4's first swap), so it lands in the managed ──
+        // ── write buffer, and the second swap exposes it in managed_read for the ──
+        // ── NEXT frame. The FIRST swap of that next frame would CLEAR it before ───
+        // ── ScanAndPublish could read it. Running ScanAndPublish here (before first
+        // ── swap) reads managed_read that still contains AdvanceFrameIntent. ──────
         _timeModeTranslator?.ScanAndPublish(null!);
         _timeModeTranslator?.PollIngress(null!, null!);
+        _lockstepTranslator?.ScanAndPublish(null!);
+        _lockstepTranslator?.PollIngress(null!, null!);
 
         // ── Swap event bus (clear previous frame's read buffer). ─────────────────
         _eventBus?.SwapBuffers();
@@ -228,20 +251,22 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         {
             if (pendingMode == "Deterministic" && _masterSync != null && _clusterMaster != null)
             {
-                var slaveIds = new HashSet<int>(_clusterMaster.NodeRoster.ActiveNodes.Keys);
+                // Exclude ExCon: it has no simulation kernel and never sends FrameAck.
+                var slaveIds = _clusterMaster.NodeRoster.ActiveNodes
+                    .Where(kv => kv.Value.SubsystemName is "SimHost" or "IG" or "CGF")
+                    .Select(kv => kv.Key)
+                    .ToHashSet();
                 _masterSync.SwitchToDeterministic(slaveIds);
             }
             _lastProcessedTimeMode = pendingMode;
         }
 
-        // Translate lockstep frames, time sync, and mode switches to/from DDS.
-        _lockstepTranslator?.ScanAndPublish(null!);
-        _lockstepTranslator?.PollIngress(null!, null!);
+        // Time sync master ingress (NTP responses from slaves).
         _masterTimeSyncTranslator?.PollIngress(null!, null!);
 
         // ── Final event bus swap: expose events written this frame (e.g. by ──────
-        // ── SwitchToDeterministic) to the read buffer so that test assertions ────
-        // ── and the next-frame ScanAndPublish can both see them. ────────────────
+        // ── SwitchToDeterministic, Step) to the read buffer so that the next ─────
+        // ── frame's ScanAndPublish can read and forward them to DDS. ───────────
         _eventBus?.SwapBuffers();
 
         // S0503: Advance seek debounce.

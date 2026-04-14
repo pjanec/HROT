@@ -1,7 +1,6 @@
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Behavior;
 using Hrot.CGF.Brains;
-using Hrot.SimHost;
 
 namespace Hrot.CGF.Configuration
 {
@@ -19,7 +18,7 @@ namespace Hrot.CGF.Configuration
 
             unsafe
             {
-                registry.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
+                registry.Register(CgfDoctrineIds.MoveTo_BT, "MoveToLocation",
                     new DoctrineDefinition
                     {
                         Name = "MoveToLocation",
@@ -28,7 +27,7 @@ namespace Hrot.CGF.Configuration
                         BTreeInterpreter = CgfNodes.BuildMoveToLocationInterpreter()
                     });
 
-                registry.Register(SimHostDoctrineIds.FollowRoute_BT, "FollowRoute",
+                registry.Register(CgfDoctrineIds.FollowRoute_BT, "FollowRoute",
                     new DoctrineDefinition
                     {
                         Name = "FollowRoute",
@@ -38,7 +37,7 @@ namespace Hrot.CGF.Configuration
                     });
             }
 
-            registry.Register(SimHostDoctrineIds.JoinFormation_BT, "JoinFormation",
+            registry.Register(CgfDoctrineIds.JoinFormation_BT, "JoinFormation",
                 new DoctrineDefinition
                 {
                     Name = "JoinFormation",
@@ -46,14 +45,14 @@ namespace Hrot.CGF.Configuration
                     BTreeInterpreter = CgfNodes.BuildJoinFormationInterpreter()
                 });
 
-            registry.Register(SimHostDoctrineIds.Idle_HSM, "Idle",
+            registry.Register(CgfDoctrineIds.Idle_HSM, "Idle",
                 new DoctrineDefinition
                 {
                     Name = "Idle",
                     BrainTier = BehaviorConstants.BrainTierHsm
                 });
 
-            registry.Register(SimHostDoctrineIds.WanderMilitary_BT, "WanderMilitary",
+            registry.Register(CgfDoctrineIds.WanderMilitary_BT, "WanderMilitary",
                 new DoctrineDefinition
                 {
                     Name = "WanderMilitary",

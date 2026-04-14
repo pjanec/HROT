@@ -15,6 +15,8 @@ using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;
 using FdpInspectorState       = FDP.Toolkit.ImGui.Abstractions.InspectorState;
 using Hrot.Map.Common;
 using Hrot.CGF.Brains;
+using CycloneDDS.Runtime;
+using CycloneDDS.Runtime.Tracking;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
 using Hrot.Core.Network;
@@ -130,6 +132,20 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
     /// <inheritdoc/>
     public void Initialize(SubsystemConfig config)
     {        _headless = config.Headless;
+        // ── Create DDS participant in the Application Shell (Composition Root) ───
+        // Rule: only the outermost executable may instantiate DdsParticipant.
+        // HrotNodeBuilder no longer has a fallback.
+        var shellParticipant = _networkFactory?.Participant;
+        if (shellParticipant == null)
+        {
+            int cgfNodeId = config.NodeId != 0 ? config.NodeId : 400;
+            shellParticipant = HrotEnvironment.CreateParticipant(config.DomainId);
+            shellParticipant.EnableSenderTracking(new SenderIdentityConfig
+            {
+                AppDomainId   = config.DomainId,
+                AppInstanceId = cgfNodeId,
+            });
+        }
         // ── Build common infrastructure ────────────────────────────────────────
         var nodeConfig = new HrotNodeConfig
         {
@@ -139,7 +155,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Engine.Runner.IMapCameraProvi
             // the Raylib/ImGui window (UI), not the network layer.
             // This mirrors SimHostApp which also hardcodes Headless = false for HrotNodeConfig.
             Headless            = false,
-            ExternalParticipant = _networkFactory?.Participant,  // use composition root's participant when available
+            ExternalParticipant = shellParticipant,
             SubsystemName       = "CGF",
         };
         _context = new HrotNodeBuilder(nodeConfig)

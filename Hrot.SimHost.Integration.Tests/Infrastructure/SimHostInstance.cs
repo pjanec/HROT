@@ -8,6 +8,8 @@ using NedMissionTask = Hrot.NED.Descriptors.MissionTask;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.IG.Components;
+using Hrot.CGF.Brains;
+using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
@@ -831,29 +833,29 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             unsafe
             {
-                reg.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
+                reg.Register(CgfDoctrineIds.MoveTo_BT, "MoveToLocation",
                     new DoctrineDefinition
                     {
                         Name       = "MoveToLocation",
                         BrainTier  = BehaviorConstants.BrainTierBTree,
-                        ParseParams = (json, ptr) => Hrot.SimHost.Brains.SimHostNodes.ParseMoveToParams(json, ptr, wgs84),
-                        BTreeInterpreter = Hrot.SimHost.Brains.SimHostNodes.BuildMoveToLocationInterpreter()
+                        ParseParams = (json, ptr) => CgfNodes.ParseMoveToParams(json, ptr, wgs84),
+                        BTreeInterpreter = CgfNodes.BuildMoveToLocationInterpreter()
                     });
-                reg.Register(SimHostDoctrineIds.FollowRoute_BT, "FollowRoute",
+                reg.Register(CgfDoctrineIds.FollowRoute_BT, "FollowRoute",
                     new DoctrineDefinition
                     {
                         Name       = "FollowRoute",
                         BrainTier  = BehaviorConstants.BrainTierBTree,
                         ParseParams = null,
                     });
-                reg.Register(SimHostDoctrineIds.JoinFormation_BT, "JoinFormation",
+                reg.Register(CgfDoctrineIds.JoinFormation_BT, "JoinFormation",
                     new DoctrineDefinition
                     {
                         Name       = "JoinFormation",
                         BrainTier  = BehaviorConstants.BrainTierBTree,
                         ParseParams = null,
                     });
-                reg.Register(SimHostDoctrineIds.Idle_HSM, "Idle",
+                reg.Register(CgfDoctrineIds.Idle_HSM, "Idle",
                     new DoctrineDefinition
                     {
                         Name       = "Idle",

@@ -574,16 +574,26 @@ public class IgApplication : IDisposable
     {
 
         // ── Build core ECS infrastructure (EAM-M002) ─────────────────────────
-        // Headless=_headless: when false (production), HrotNodeBuilder creates the DDS
-        // participant so NedReplicationModule gets a live participant. In test mode
-        // (headless:true) participant stays null and the participant is created in
-        // InitializeNetwork using HrotEnvironment.CreateParticipant.
+        // Create participant in the Application Shell (Composition Root) before calling
+        // HrotNodeBuilder. Rule: only the outermost executable may instantiate DdsParticipant.
+        // HrotNodeBuilder no longer has a fallback.
+        var shellParticipant = _networkFactory?.Participant;
+        if (shellParticipant == null)
+        {
+            int igDomainId = _domainOverride ?? IgNetworkConstants.DdsDomain;
+            shellParticipant = HrotEnvironment.CreateParticipant(igDomainId);
+            shellParticipant.EnableSenderTracking(new SenderIdentityConfig
+            {
+                AppDomainId   = igDomainId,
+                AppInstanceId = _effectiveInstanceId,
+            });
+        }
         var igConfig = new HrotNodeConfig
         {
             DomainId              = _domainOverride ?? IgNetworkConstants.DdsDomain,
             NodeId                = _effectiveInstanceId,
-            Headless              = _headless,              // false in production; true in headless tests
-            ExternalParticipant   = _networkFactory?.Participant,  // use composition root's participant when available
+            Headless              = false,             // always live since we always have a participant
+            ExternalParticipant   = shellParticipant,
             SubsystemName         = "IgApplication",
             // IG creates its own DdsIdAllocator in InitializeNetwork; skip the builder's routing wait.
             SkipAllocatorRouting  = true,
@@ -782,27 +792,27 @@ public class IgApplication : IDisposable
                 customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>();
 
                 // CGF1-A.1: Bridge SwitchTimeModeEvent for distributed time-mode switching.
+                // Must use _context.EventBus (the same bus as SlaveSyncController),
+                // NOT _world.Bus which the kernel swaps independently.
+                var igTimeBus = _context!.EventBus;
                 customTranslators.Add(
-                    FDP.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(participant, _world.Bus));
+                    FDP.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(participant, igTimeBus));
 
                 // NTP slave sync: receive TimeSyncRequest/Response from master, publish into bus.
                 customTranslators.Add(
-                    FDP.Toolkit.Time.TimeNetworkModule.CreateSlaveTimeSyncTranslator(participant, _world.Bus, _effectiveInstanceId));
+                    FDP.Toolkit.Time.TimeNetworkModule.CreateSlaveTimeSyncTranslator(participant, igTimeBus, _effectiveInstanceId));
 
                 // Bridge FrameOrder/FrameAck for distributed lockstep stepping so IG sends
                 // its step ACK back to the Orchestrator on every Step() frame.
                 customTranslators.Add(
-                    FDP.Toolkit.Time.TimeNetworkModule.CreateSlaveLockstepTranslator(participant, _world.Bus, _effectiveInstanceId));
+                    FDP.Toolkit.Time.TimeNetworkModule.CreateSlaveLockstepTranslator(participant, igTimeBus, _effectiveInstanceId));
 
-                if (!_headless)
+                if (_igTranslatorsProvider != null)
                 {
-                    if (_igTranslatorsProvider != null)
+                    foreach (var t in _igTranslatorsProvider.GetTranslators(
+                        participant, _entityMap, _world.Bus, _ghostCreationSystem, _effectiveInstanceId, _headless))
                     {
-                        foreach (var t in _igTranslatorsProvider.GetTranslators(
-                            participant, _entityMap, _world.Bus, _ghostCreationSystem, _effectiveInstanceId, _headless))
-                        {
-                            customTranslators.Add(t);
-                        }
+                        customTranslators.Add(t);
                     }
                 }
 
@@ -1082,9 +1092,10 @@ public class IgApplication : IDisposable
 
 
 
-        // E. SlaveSyncController — unified slave that handles Continuous/Stepping transitions
-
-        var timeController = new SlaveSyncController(_world.Bus, _effectiveInstanceId);
+        // E. SlaveSyncController — unified slave that handles Continuous/Stepping transitions.
+        // Must use _context!.EventBus (the same bus as the time translators above),
+        // NOT _world.Bus which is swapped internally by the kernel and carries ECS events.
+        var timeController = new SlaveSyncController(_context!.EventBus, _effectiveInstanceId);
 
         _kernel.SetTimeController(timeController);
 
@@ -1174,6 +1185,11 @@ public class IgApplication : IDisposable
         // Always tick ECS/network ÔÇö even in headless mode DDS messages must be processed.
 
         _kernel.Update();
+
+        // Swap the context event bus so that SlaveSyncController (time controller) sees events
+        // published by the time translators (SwitchTimeModeEvent, AdvanceFrameIntent) in the
+        // next kernel.Update() call. Mirrors the SimHostApp.OnUpdate() pattern.
+        _context?.EventBus.SwapBuffers();
 
         _fdpFrameCount++;
         _fdpEventBrowser.Update(_world.Bus, _fdpFrameCount);

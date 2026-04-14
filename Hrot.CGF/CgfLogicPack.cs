@@ -12,6 +12,7 @@ using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Navigation.Executors;
 using FDP.Toolkit.Replication.Services;
 using Hrot.CGF.Systems;
+using Hrot.CGF.Systems.Routing;
 using Hrot.Common.Systems;
 using ModuleHost.Core.Abstractions;
 
@@ -131,6 +132,8 @@ namespace Hrot.CGF
             _missionControlModule.RegisterSystems(simGroup);
             _cognitiveRuntimeModule.RegisterSystems(simGroup);
             _actionDispatchModule.RegisterSystems(simGroup);
+            // Route context: writes per-waypoint ExtensionJson danger level to BrainBlackboard.
+            simGroup.AddSystem(new RouteContextSystem());
         }
     }
 }

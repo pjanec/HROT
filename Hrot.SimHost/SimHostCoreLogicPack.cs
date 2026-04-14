@@ -154,7 +154,6 @@ namespace Hrot.SimHost
             simGroup.AddSystem(new NavigationIntentBridgeSystem());
             simGroup.AddSystem(new RouteTrajectorySyncSystem(_groundKinematicsModule.TrajectoryPool));
             inputGroup.AddSystem(new PersonalRouteAuthoringSystem());
-            simGroup.AddSystem(new RouteContextSystem());
 
             // Ground kinematics (Sim).
             _groundKinematicsModule.RegisterSystems(simGroup);

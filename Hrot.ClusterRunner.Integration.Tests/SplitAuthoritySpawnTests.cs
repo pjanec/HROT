@@ -21,11 +21,11 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// authority flags after the entity transitions from Ghost → Constructing.
 /// </para>
 ///
-/// <para>Domain range: 220–229 (after DistributedBrainMuscleIntegrationTests 219).</para>
-/// </summary>
-public sealed class SplitAuthoritySpawnTests
-{
-    private static int _domainCounter = 219;
+/// <para>Domain range: 230–239 (after DistributedBrainMuscleIntegrationTests 219–221).</para>
+    /// </summary>
+    public sealed class SplitAuthoritySpawnTests
+    {
+        private static int _domainCounter = 229;
 
     private const int PropagationTimeoutMs = 5_000;
     private const int AuthorityTimeoutMs   = 8_000;

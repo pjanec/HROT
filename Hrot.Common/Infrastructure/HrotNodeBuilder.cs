@@ -98,30 +98,23 @@ public sealed class HrotNodeBuilder
 
         if (!_config.Headless)
         {
-            // Step 5 — DDS participant + sender identity.
-            // Use the externally-provided participant from the composition root when available;
-            // otherwise create one for standalone / test environments.
-            participant = _config.ExternalParticipant ?? HrotEnvironment.CreateParticipant(_config.DomainId);
-            if (_config.ExternalParticipant == null)
-            {
-                // Configure tracking only when WE created the participant.
-                // When participant comes from the composition root (ExternalParticipant),
-                // tracking is already configured there before any writer is created.
-                participant.EnableSenderTracking(new SenderIdentityConfig
-                {
-                    AppDomainId   = _config.DomainId,
-                    AppInstanceId = _config.NodeId
-                });
-            }
+            // Step 5 — DDS participant.
+            // The participant MUST be provided by the Application Shell / Composition Root
+            // (Rule 3: only the outermost executable may instantiate DdsParticipant).
+            // Tracking must also be configured by the caller before any writer is created.
+            participant = _config.ExternalParticipant;
 
             // Step 6 — Network entity map (already created above, reused here)
 
             // Step 7 — ID allocator client + routing wait
             //
             // ── ID Allocator routing ──────────────────────────────────────────
-            idAllocator = new DdsIdAllocator(participant, (_config.SubsystemName ?? _subsystemName) + "Allocator");
-            if (!_config.SkipAllocatorRouting)
-                DdsIdAllocatorHelper.EnsureRouting(participant, idAllocator);
+            if (participant != null)
+            {
+                idAllocator = new DdsIdAllocator(participant, (_config.SubsystemName ?? _subsystemName) + "Allocator");
+                if (!_config.SkipAllocatorRouting)
+                    DdsIdAllocatorHelper.EnsureRouting(participant, idAllocator);
+            }
         }
         else if (_config.ExternalParticipant != null)
         {

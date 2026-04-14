@@ -1,69 +1,38 @@
 using System;
 using System.Collections.Generic;
-using Hrot.SimHost.Modules;
-using Hrot.SimHost.Modules.Orchestration;
 using Hrot.Core.Network;
+using Hrot.SimHost.Modules.Orchestration;
 using Fdp.Kernel;
 using Fdp.Kernel.Orchestration;
-using CarKinem.Commands;
-using CarKinem.Formation;
 using CarKinem.Road;
-using CarKinem.Trajectory;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
-using FDP.Toolkit.Behavior.Executors;
-using FDP.Toolkit.Behavior.Modules;
-using FDP.Toolkit.CarKinem.Modules;
-using FDP.Toolkit.Combat;
-using FDP.Toolkit.Combat.Executors;
-using FDP.Toolkit.Combat.Modules;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Navigation.Executors;
-using FDP.Toolkit.Navigation.Modules;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using Hrot.Common.Orchestration.Handlers;
 using Hrot.Map.Common.Services;
 using Hrot.SimHost.Orchestration.Handlers;
 using Hrot.Common.Scenario;
-using FDP.Toolkit.Perception.Modules;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 
 namespace Hrot.SimHost
 {
     /// <summary>
-    /// Role-based composition root that replaces the monolithic initialisation block
-    /// in <c>SimHostApp.OnLoad</c>.
+    /// Orchestration composition root for Hrot nodes.
     ///
     /// <para>
-    /// <see cref="Bootstrap"/> populates the <see cref="RegisteredModules"/> list with
-    /// the sub-module instances appropriate for the given <see cref="NodeRole"/>, enabling
-    /// tests to assert module presence/absence without running a full DDS stack.
+    /// Handles role-appropriate <see cref="ClusterSlave"/> construction and handler
+    /// registration via <see cref="BuildOrchestration"/>.  Simulation-logic module
+    /// composition is handled by the role-specific logic packs
+    /// (<see cref="SimHostCoreLogicPack"/>, <c>CgfLogicPack</c>, etc.).
     /// </para>
-    ///
-    /// <para><b>Role → module mapping:</b></para>
-    /// <list type="table">
-    ///   <listheader><term>Role</term><description>Module set</description></listheader>
-    ///   <item><term>AllInOne</term><description>All six modules.</description></item>
-    ///   <item><term>Brain</term><description>MissionControl + CognitiveRuntime + ActionDispatch (no Combat, no GroundKinematics).</description></item>
-    ///   <item><term>MuscleGround</term><description>ActionDispatch + GroundKinematics + Combat + DamageAssessment (no MissionControl or CognitiveRuntime).</description></item>
-    ///   <item><term>ImageGenerator</term><description>No simulation modules (presentation only).</description></item>
-    /// </list>
     /// </summary>
     public sealed class NodeBootstrapper
     {
-        private readonly List<object> _registeredModules = new();
         private readonly INetworkFactory? _networkFactory;
 
-        /// <param name="networkFactory">
-        /// Optional network factory. When provided, pathfinding and perception translators are
-        /// created via the factory and registered directly on the kernel (see
-        /// <see cref="BuildTranslators"/>). When <c>null</c>, pack factories are called directly
-        /// (backward-compatible path used by unit tests).
-        /// </param>
+        /// <param name="networkFactory">Optional network factory (reserved for future use).</param>
         public NodeBootstrapper(INetworkFactory? networkFactory = null)
         {
             _networkFactory = networkFactory;
@@ -72,125 +41,12 @@ namespace Hrot.SimHost
         /// <summary>
         /// After <see cref="BuildOrchestration"/> is called with a non-null <paramref name="participant"/>
         /// and <paramref name="eventBus"/>, this property holds the <see cref="NodeOpSlaveTranslator"/>
-        /// that bridges DDS ↔ the slave event bus (CMC-S016 / BATCH-06).
+        /// that bridges DDS <-> the slave event bus (CMC-S016 / BATCH-06).
         /// <c>null</c> when no DDS participant was supplied.
         /// </summary>
         public Hrot.Common.Orchestration.NodeOpSlaveTranslator? SlaveTranslator { get; private set; }
 
-        /// <summary>
-        /// The sub-module instances that were registered during the last
-        /// <see cref="BuildSimulationLogic"/> call. Populated in dependency order.
-        /// </summary>
-        public IReadOnlyList<object> RegisteredModules => _registeredModules;
-
-        // ── Module construction ───────────────────────────────────────────────
-
-        /// <summary>
-        /// Creates and tracks the role-appropriate simulation sub-modules, then
-        /// returns a fully wired <see cref="SimulationLogicModule"/> for use with
-        /// <see cref="ModuleHostKernel"/> registration.
-        /// </summary>
-        /// <param name="role">Node role that determines which modules are included.</param>
-        /// <param name="doctrineRegistry">Doctrine definitions registry (required for Brain-tier modules).</param>
-        /// <param name="entityMap">Shared network entity map (required for ActionDispatch).</param>
-        /// <param name="vehicleApi">Optional high-level vehicle command façade.</param>
-        /// <param name="roadNetwork">Road-network blob for CarKinematicsSystem.</param>
-        /// <param name="trajectoryPool">Shared trajectory pool; a new pool is created when <c>null</c>.</param>
-        /// <param name="formationTemplates">Formation templates; defaults are created when <c>null</c>.</param>
-        public SimulationLogicModule BuildSimulationLogic(
-            NodeRole                  role,
-            DoctrineRegistry          doctrineRegistry,
-            NetworkEntityMap          entityMap,
-            VehicleAPI?               vehicleApi         = null,
-            RoadNetworkBlob           roadNetwork        = default,
-            TrajectoryPoolManager?    trajectoryPool     = null,
-            FormationTemplateManager? formationTemplates = null)
-        {
-            _registeredModules.Clear();
-
-            // Dedicated Perception solver — only autonomous perception systems.
-            if (role == NodeRole.Perception)
-            {
-                _registeredModules.Add(new AutonomousPerceptionModule());
-                return new SimulationLogicModule(
-                    doctrineRegistry,
-                    entityMap,
-                    vehicleApi,
-                    roadNetwork,
-                    trajectoryPool,
-                    formationTemplates,
-                    NodeRole.Perception);
-            }
-
-            // Dedicated NavigationSolver — only path computation.
-            if (role == NodeRole.NavigationSolver)
-            {
-                _registeredModules.Add(new NavigationSolverModule(roadNetwork, trajectoryPool));
-                return new SimulationLogicModule(
-                    doctrineRegistry,
-                    entityMap,
-                    vehicleApi,
-                    roadNetwork,
-                    trajectoryPool,
-                    formationTemplates,
-                    NodeRole.NavigationSolver);
-            }
-
-            // Brain tier — absent on MuscleGround (receives NavigationIntent via DDS instead).
-            if (role.HasFlag(NodeRole.Brain))
-            {
-                _registeredModules.Add(new MissionControlModule(doctrineRegistry));
-                _registeredModules.Add(new CognitiveRuntimeModule(doctrineRegistry));
-            }
-
-            // Action dispatch — present on Brain, MuscleGround, AllInOne.
-            if (role.HasFlag(NodeRole.Brain) || role.HasFlag(NodeRole.MuscleGround))
-            {
-                _registeredModules.Add(new ActionDispatchModule(
-                    locoExecutors: new (ushort, IActionExecutor<LocomotionChannel>)[]
-                    {
-                        (NavigationConstants.ActionIdMoveTo,        new MoveToExecutor()),
-                        (NavigationConstants.ActionIdFollowRoute,   new FollowRouteExecutor()),
-                        (NavigationConstants.ActionIdJoinFormation, new JoinFormationExecutor(vehicleApi, entityMap)),
-                    },
-                    weaponExecutors: new (ushort, IActionExecutor<WeaponChannel>)[]
-                    {
-                        (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor()),
-                    },
-                    interactionExecutors: new (ushort, IActionExecutor<InteractionChannel>)[]
-                    {
-                        (BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor()),
-                    }));
-            }
-
-            // Ground kinematics — absent on Brain (movement is handled by remote Muscle).
-            if (role.HasFlag(NodeRole.MuscleGround))
-            {
-                _registeredModules.Add(new GroundKinematicsModule(roadNetwork, trajectoryPool, formationTemplates));
-            }
-
-            // Combat — present on Muscle and AllInOne; absent on Brain (no ballistics on the Brain tier).
-            if (role.HasFlag(NodeRole.MuscleGround))
-            {
-                _registeredModules.Add(new CombatModule());
-            }
-
-            // DamageAssessment — collocated with Muscle; also present on AllInOne.
-            if (role.HasFlag(NodeRole.MuscleGround))
-            {
-                _registeredModules.Add(new DamageAssessmentModule());
-            }
-
-            // Return a SimulationLogicModule with role-filtered sub-module construction.
-            return new SimulationLogicModule(
-                doctrineRegistry,
-                entityMap,
-                vehicleApi,
-                roadNetwork,
-                trajectoryPool,
-                formationTemplates,
-                role);
-        }
+        // ── Orchestration construction ─────────────────────────────────────────
 
         // ── Orchestration construction ─────────────────────────────────────────
 

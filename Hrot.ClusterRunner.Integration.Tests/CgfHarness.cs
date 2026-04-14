@@ -1,7 +1,12 @@
 using System;
 using System.Threading;
 using Fdp.Engine.Runner;
+using Fdp.Kernel;
+using FDP.Toolkit.Replication.Services;
 using Hrot.CGF;
+using Hrot.Common;
+using Hrot.Map.Common;
+using Hrot.Network.NED.Factory;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
@@ -52,7 +57,16 @@ public sealed class CgfHarness : IDisposable
     public CgfHarness(int domainId)
     {
         DomainId = domainId;
-        CgfSvc   = new CgfSubsystem();
+        // Provide a factory so CgfSubsystem can set up its DDS replication module.
+        // The participant is null here — CgfSubsystem.Initialize creates its own from config.DomainId.
+        var cgfFactory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.Brain);
+        CgfSvc   = new CgfSubsystem(cgfFactory);
         CgfSvc.Initialize(new SubsystemConfig
         {
             DomainId = domainId,

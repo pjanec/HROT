@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
-using Hrot.SimHost.Brains;
 using Hrot.SimHost.Configuration;
 using CarKinem.Commands;
 using CarKinem.Core;
@@ -12,8 +11,6 @@ using CarKinem.Road;
 using CarKinem.Trajectory;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Navigation.Executors;
 using FDP.Toolkit.NetworkSpawning.Events;
@@ -159,25 +156,6 @@ namespace Hrot.SimHost.UI
                     Rotation = SimMath.FromYaw(angle),
                 };
 
-                var doctrine = new DoctrineState
-                {
-                    ActiveDoctrineHash = SimHostDoctrineIds.WanderMilitary_BT,
-                    BrainTier          = BehaviorConstants.BrainTierBTree,
-                    InstanceId         = 1,
-                };
-
-                // BrainBlackboard: WanderMilitary requires no parameters — a blank blackboard
-                // is correct.  To switch to a parameterised doctrine (e.g. MoveTo_BT), replace
-                // the doctrine hash above and optionally write params into the blackboard:
-                //
-                //   unsafe {
-                //       fixed (byte* ptr = blackboard.Memory) {
-                //           var p = (SimHostNodes.MoveToLocationParams*)ptr;
-                //           p->X = targetX; p->Y = targetY; p->Speed = 15f;
-                //       }
-                //   }
-                var blackboard = new BrainBlackboard();
-
                 var entityInfo = new EntityInfo
                 {
                     Name        = $"Roamer-{i + 1}",
@@ -193,7 +171,7 @@ namespace Hrot.SimHost.UI
                     OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
                     InitType          = ReliableInitType.AllPeers,
                     InitialTransform  = transform,
-                    InitialComponents = new List<object> { doctrine, blackboard, entityInfo },
+                    InitialComponents = new List<object> { entityInfo },
                 });
             }
         }
@@ -230,15 +208,6 @@ namespace Hrot.SimHost.UI
                     Rotation = SimMath.FromYaw(angle),
                 };
 
-                var doctrine = new DoctrineState
-                {
-                    ActiveDoctrineHash = SimHostDoctrineIds.WanderMilitary_BT,
-                    BrainTier          = BehaviorConstants.BrainTierBTree,
-                    InstanceId         = 1,
-                };
-
-                var blackboard = new BrainBlackboard();
-
                 var entityInfo = new EntityInfo
                 {
                     Name        = $"RoadUser-{i + 1}",
@@ -254,19 +223,19 @@ namespace Hrot.SimHost.UI
                     OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
                     InitType          = ReliableInitType.AllPeers,
                     InitialTransform  = transform,
-                    InitialComponents = new List<object> { doctrine, blackboard, entityInfo },
+                    InitialComponents = new List<object> { entityInfo },
                 });
             }
         }
 
         /// <summary>
-        /// Spawns a formation of <paramref name="count"/> vehicles: one leader executing
-        /// <c>WanderMilitary_BT</c> and <c>count-1</c> followers executing
-        /// <c>JoinFormation_BT</c> with the leader's network ID pre-wired in their blackboard.
+        /// Spawns a formation of <paramref name="count"/> vehicles: one leader and
+        /// <c>count-1</c> followers. The CGF node assigns doctrines (WanderMilitary for
+        /// leader, JoinFormation for followers) via MissionControlRequest after spawn.
         /// Requires an <see cref="INetworkIdAllocator"/> (supplied at construction time) to
-        /// pre-allocate the leader ID so followers can wire it at spawn time.
+        /// pre-allocate the leader ID so followers can reference it at spawn time.
         /// </summary>
-        public unsafe void SpawnFormation(VehicleClass cls, FormationType formType, int count, TrajectoryInterpolation interp = TrajectoryInterpolation.CatmullRom)
+        public void SpawnFormation(VehicleClass cls, FormationType formType, int count, TrajectoryInterpolation interp = TrajectoryInterpolation.CatmullRom)
         {
             long tkbType = MapVehicleClassToTkbType(cls);
             var  center  = RandomPos(300);
@@ -275,16 +244,7 @@ namespace Hrot.SimHost.UI
             // Without an allocator the leader uses 0 (deferred) and followers cannot pre-wire it.
             long leaderNetId = _idAllocator?.AllocateId() ?? 0L;
 
-            // 1. Leader — uses WanderMilitary so it roams autonomously while followers trail it.
-            var leaderDoctrine = new DoctrineState
-            {
-                ActiveDoctrineHash = SimHostDoctrineIds.WanderMilitary_BT,
-                BrainTier          = BehaviorConstants.BrainTierBTree,
-                InstanceId         = 1,
-            };
-
-            var leaderBlackboard = new BrainBlackboard();
-
+            // 1. Leader
             var leaderInfo = new EntityInfo
             {
                 Name        = "Leader",
@@ -300,24 +260,12 @@ namespace Hrot.SimHost.UI
                 OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
                 InitType          = ReliableInitType.AllPeers,
                 InitialTransform  = new SimTransform { Position = new Vector3(center.X, center.Y, 0f), Rotation = SimMath.FromYaw(0f) },
-                InitialComponents = new List<object> { leaderDoctrine, leaderBlackboard, leaderInfo },
+                InitialComponents = new List<object> { leaderInfo },
             });
 
             // 2. Followers
             for (int i = 0; i < count - 1; i++)
             {
-                var followerDoctrine = new DoctrineState
-                {
-                    ActiveDoctrineHash = SimHostDoctrineIds.JoinFormation_BT,
-                    BrainTier          = BehaviorConstants.BrainTierBTree,
-                    InstanceId         = 1,
-                };
-
-                var followerBlackboard = new BrainBlackboard();
-                var jp = (JoinFormationParams*)(&followerBlackboard);
-                jp->LeaderNetworkId = (int)leaderNetId;
-                jp->FormationTypeId = (byte)formType;
-
                 var followerPos  = center + new Vector2(_rng.Next(-20, 20), _rng.Next(-20, 20));
                 var followerInfo = new EntityInfo
                 {
@@ -334,7 +282,7 @@ namespace Hrot.SimHost.UI
                     OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
                     InitType          = ReliableInitType.AllPeers,
                     InitialTransform  = new SimTransform { Position = new Vector3(followerPos.X, followerPos.Y, 0f), Rotation = SimMath.FromYaw(0f) },
-                    InitialComponents = new List<object> { followerDoctrine, followerBlackboard, followerInfo },
+                    InitialComponents = new List<object> { followerInfo },
                 });
             }
         }
@@ -343,7 +291,7 @@ namespace Hrot.SimHost.UI
         /// Spawns two opposing vehicles on a collision course using <c>FollowRoute_BT</c>.
         /// Both entities are network-visible and their trajectories are pre-registered.
         /// </summary>
-        public unsafe void SpawnCollisionTest(VehicleClass cls)
+        public void SpawnCollisionTest(VehicleClass cls)
         {
             long tkbType = MapVehicleClassToTkbType(cls);
 
@@ -357,7 +305,7 @@ namespace Hrot.SimHost.UI
             SpawnNetworkedTrajectoryVehicle(tkbType, new Vector2(300f, 100f), -Vector2.UnitX, trajIdB, "Test-B");
         }
 
-        private unsafe void SpawnNetworkedTrajectoryVehicle(
+        private void SpawnNetworkedTrajectoryVehicle(
             long tkbType, Vector2 startPos, Vector2 heading, int trajId, string name)
         {
             float angle   = VectorMath.SignedAngle(Vector2.UnitX, heading);
@@ -367,18 +315,16 @@ namespace Hrot.SimHost.UI
                 Rotation = SimMath.FromYaw(angle),
             };
 
-            var doctrine = new DoctrineState
+            // Use NavigationIntent directly (FollowRoute mode) instead of doctrine + blackboard.
+            // This is the architecturally-correct Muscle-tier mechanism: receive navigation
+            // commands as pure data, not as Brain-tier AI directives.
+            var intent = new NavigationIntent
             {
-                ActiveDoctrineHash = SimHostDoctrineIds.FollowRoute_BT,
-                BrainTier          = BehaviorConstants.BrainTierBTree,
-                InstanceId         = 1,
+                Mode         = NavigationMode.FollowRoute,
+                TrajectoryId = trajId,
+                TargetSpeed  = 15f,
+                IntentId     = 1,
             };
-
-            var blackboard = new BrainBlackboard();
-            var rp = (SimHostNodes.FollowRouteParams*)(&blackboard);
-            rp->TrajectoryId = trajId;
-            rp->Speed        = 15f;
-            rp->Loop         = false;
 
             var entityInfo = new EntityInfo
             {
@@ -395,7 +341,7 @@ namespace Hrot.SimHost.UI
                 OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
                 InitType          = ReliableInitType.AllPeers,
                 InitialTransform  = transform,
-                InitialComponents = new List<object> { doctrine, blackboard, entityInfo },
+                InitialComponents = new List<object> { intent, entityInfo },
             });
         }
 

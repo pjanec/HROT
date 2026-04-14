@@ -213,8 +213,6 @@ namespace Hrot.SimHost.Modules
                 simGroup.AddSystem(new RouteTrajectorySyncSystem(_groundKinematicsModule.TrajectoryPool!));
                 // Personal route authoring: processes CmdAppendPersonalWaypoint events.
                 inputGroup.AddSystem(new PersonalRouteAuthoringSystem());
-                // Route context: writes per-waypoint ExtensionJson advice to BrainBlackboard.
-                simGroup.AddSystem(new RouteContextSystem());
             }
 
             // Ground kinematics (MuscleGround / AllInOne).

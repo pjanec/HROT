@@ -1,14 +1,14 @@
 using System;
 using System.Text.Json;
 using Hrot.Map.Common.Components;
-using Hrot.SimHost.Brains;
+using Hrot.CGF.Brains;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Navigation;
 using ModuleHost.Core.Abstractions;
 
-namespace Hrot.SimHost.Systems.Routing;
+namespace Hrot.CGF.Systems.Routing;
 
 /// <summary>
 /// Low-frequency system that reads per-waypoint <see cref="RouteWaypoint.ExtensionJson"/>
@@ -193,7 +193,7 @@ public sealed class RouteContextSystem : ComponentSystem
         catch (JsonException ex)
         {
             FdpLog<RouteContextSystem>.Warn(
-                "[ROUTE-CTX] Malformed ExtensionJson — skipping vehicle {0}: {1}",
+                "[ROUTE-CTX] Malformed ExtensionJson -- skipping vehicle {0}: {1}",
                 vehicleEntity, ex.Message);
         }
     }

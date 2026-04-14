@@ -37,6 +37,11 @@ public sealed class NedNetworkFactory : INetworkFactory
     private readonly NetworkEntityMap     _entityMap;
     private readonly IGeographicTransform _geoTransform;
     private readonly FdpEventBus          _eventBus;
+    // World bus used by replication-module ingress translators so they publish ECS commands
+    // (SpawnEntityCommand, DestroyEntityCommand, UpdateEntityCommand) directly onto the ECS
+    // world bus where NetworkSpawningSystem can consume them.  Null when not wired via
+    // ConfigureForNode(HrotNodeContext,...); falls back to _eventBus in that case.
+    private readonly FdpEventBus?         _worldBus;
     private readonly int                  _localNodeId;
     private readonly NodeRole             _role;
     private readonly ITkbDatabase?        _tkbDb;
@@ -52,12 +57,14 @@ public sealed class NedNetworkFactory : INetworkFactory
         NodeRole              role,
         ITkbDatabase?         tkbDb            = null,
         EntityLifecycleModule? lifecycleModule  = null,
-        DoctrineRegistry?     doctrineRegistry = null)
+        DoctrineRegistry?     doctrineRegistry = null,
+        FdpEventBus?          worldBus          = null)
     {
         _participant      = participant;
         _entityMap        = entityMap;
         _geoTransform     = geoTransform;
         _eventBus         = eventBus;
+        _worldBus         = worldBus;
         _localNodeId      = localNodeId;
         _role             = role;
         _tkbDb            = tkbDb;
@@ -75,7 +82,11 @@ public sealed class NedNetworkFactory : INetworkFactory
                role:              _role,
                entityMap:         _entityMap,
                geoTransform:      _geoTransform,
-               eventBus:          _eventBus,
+               // Use world bus when available so ingress translators publish ECS commands
+               // (DestroyEntityCommand, UpdateEntityCommand) to the same bus that
+               // NetworkSpawningSystem reads from.  Falls back to _eventBus in contexts
+               // where no world bus was provided (e.g. standalone tests).
+               eventBus:          _worldBus ?? _eventBus,
                localNodeId:       _localNodeId,
                domainId:          0,
                tkbDb:             _tkbDb,
@@ -202,7 +213,8 @@ public sealed class NedNetworkFactory : INetworkFactory
             role:             role,
             tkbDb:            context.TkbDb,
             lifecycleModule:  elm,
-            doctrineRegistry: doctrineRegistry ?? _doctrineRegistry);
+            doctrineRegistry: doctrineRegistry ?? _doctrineRegistry,
+            worldBus:         context.World.Bus);
     }
 
     /// <inheritdoc/>

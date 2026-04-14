@@ -3,7 +3,6 @@ using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Events;
 using Hrot.Map.Definitions.Tkb;
-using Hrot.SimHost.Brains;
 using Hrot.SimHost.Configuration;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Utilities;
@@ -22,20 +21,20 @@ using Fdp.Modules.Geographic.Transforms;
 using Fdp.Toolkit.Tkb;
 using FDP.Framework.Raylib;
 using FDP.Toolkit.Behavior;
-using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Events;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.NetworkSpawning.Systems;
-using FDP.Toolkit.Perception.Components;
+using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Utilities;
+using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Controllers;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Components;
@@ -107,7 +106,7 @@ namespace Hrot.SimHost
         private DoctrineRegistry? _doctrineRegistry;
 
         // ── SimLogic ─────────────────────────────────────────────────────────
-        private SimulationLogicModule? _simLogicModule;
+        private SimHostCoreLogicPack? _simCorePack;
 
         // ── Physics ───────────────────────────────────────────────────────────
         private PhysicsToolkitModule? _physicsModule;
@@ -115,6 +114,11 @@ namespace Hrot.SimHost
         // ── Orchestration (CGF1-S0104 / CMC-S016) ────────────────────────────
         private FDP.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
         private Hrot.Common.Orchestration.NodeOpSlaveTranslator? _slaveTranslator;
+        // Time-control translators: bridge SwitchTimeModeEvent and FrameOrder/FrameAck so that
+        // the SlaveSyncController (installed by HrotNodeBuilder) receives time events from the
+        // Orchestrator via DDS (same pattern as CgfApplication).
+        private Fdp.Interfaces.IDescriptorTranslator? _timeModeTranslator;
+        private Fdp.Interfaces.IDescriptorTranslator? _lockstepTranslator;
         // CheckpointIOWorker owns the background I/O thread; created in OnLoad,
         // passed to BuildOrchestration, and disposed in Shutdown (CGF1-S0303 A.1).
         private CheckpointIOWorker? _checkpointWorker;
@@ -246,51 +250,32 @@ namespace Hrot.SimHost
             var wgs84     = HrotEnvironment.CreateGeoTransform();
             _geoTransform = wgs84;
 
-            // ── 3. Doctrine registry — created before builder so WithDoctrineRegistry can capture it ──
+            // ── 3. Doctrine registry (empty on the Muscle shell; Brain doctrines live in CgfDoctrineSetup) ──
             var doctrineRegistry = new DoctrineRegistry();
             _doctrineRegistry = doctrineRegistry;
-            unsafe
-            {
-                doctrineRegistry.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
-                    new DoctrineDefinition {
-                        Name = "MoveToLocation",
-                        BrainTier = BehaviorConstants.BrainTierBTree,
-                        ParseParams = (json, ptr) => SimHostNodes.ParseMoveToParams(json, ptr, wgs84),
-                        BTreeInterpreter = SimHostNodes.BuildMoveToLocationInterpreter()
-                    });
-                
-                doctrineRegistry.Register(SimHostDoctrineIds.FollowRoute_BT, "FollowRoute",
-                    new DoctrineDefinition { 
-                        Name = "FollowRoute",   
-                        BrainTier = BehaviorConstants.BrainTierBTree,
-                        ParseParams = (json, ptr) => SimHostNodes.ParseFollowRouteParams(json, ptr),
-                        BTreeInterpreter = SimHostNodes.BuildFollowRouteInterpreter()
-                    });
-            }
-            doctrineRegistry.Register(SimHostDoctrineIds.JoinFormation_BT, "JoinFormation",
-                new DoctrineDefinition { 
-                    Name = "JoinFormation", 
-                    BrainTier = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = SimHostNodes.BuildJoinFormationInterpreter() 
-                });
-            doctrineRegistry.Register(SimHostDoctrineIds.Idle_HSM, "Idle",
-                new DoctrineDefinition { Name = "Idle",          BrainTier = BehaviorConstants.BrainTierHsm });
-            doctrineRegistry.Register(SimHostDoctrineIds.WanderMilitary_BT, "WanderMilitary",
-                new DoctrineDefinition
-                {
-                    Name             = "WanderMilitary",
-                    BrainTier        = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = SimHostNodes.BuildWanderMilitaryInterpreter(),
-                });
 
-            // ── 5. Build Hrot node infrastructure — includes DDS participant, entity map,
+            // ── 4. Create DDS participant in the Application Shell (Composition Root) ───
+            // Rule: only the outermost executable may instantiate DdsParticipant.
+            // HrotNodeBuilder no longer has a fallback — the participant must come from here.
+            DdsParticipant? shellParticipant = _networkFactory?.Participant;
+            if (shellParticipant == null)
+            {
+                shellParticipant = HrotEnvironment.CreateParticipant(domainId);
+                shellParticipant.EnableSenderTracking(new SenderIdentityConfig
+                {
+                    AppDomainId   = domainId,
+                    AppInstanceId = localNodeId
+                });
+            }
+
+            // ── 5. Build Hrot node infrastructure — includes entity map,
             //        elm, geoModule (via BaseModules). Replication is created via INetworkFactory.
             var hrotConfig = new HrotNodeConfig
             {
                 DomainId            = domainId,
                 NodeId              = localNodeId,
                 Headless            = false,  // SimHostApp always creates DDS; _headless only controls Raylib window
-                ExternalParticipant = _networkFactory?.Participant,  // use composition root's participant when available
+                ExternalParticipant = shellParticipant,
                 LocalTempRoot       = nodeConfig.LocalTempRoot,
                 SubsystemName       = "SimHost",
             };
@@ -321,20 +306,27 @@ namespace Hrot.SimHost
             base.Kernel = _kernel;
             RegisterSimComponents(_world);
 
+            // Distributed time control: bridge SwitchTimeModeEvent and FrameOrder/FrameAck
+            // over DDS so the SlaveSyncController (installed by HrotNodeBuilder via
+            // TimeControllerFactory) can transition to Stepping mode and advance time on Step.
+            if (ddsParticipant != null)
+            {
+                _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(
+                    ddsParticipant, _eventBus!);
+                _lockstepTranslator = TimeNetworkModule.CreateSlaveLockstepTranslator(
+                    ddsParticipant, _eventBus!, localNodeId);
+            }
+
             // tkbDb and wgs84 come from the built context (same instances as in BaseModules).
             var tkbDb = _context.TkbDb!;
 
             // ── 6. Road network ───────────────────────────────────────────────
             var roadNetwork = LoadRoadNetwork(nodeConfig.RoadNetworkBlobPath, localNodeId: localNodeId);
 
-            // ── 7. SimulationLogicModule (role-based via NodeBootstrapper) ─────
-            var bootstrapper = new NodeBootstrapper();
-            _simLogicModule = bootstrapper.BuildSimulationLogic(
-                _role,
-                doctrineRegistry,
+            // ── 7. SimHostCoreLogicPack (Muscle-tier simulation modules) ──────
+            _simCorePack = new SimHostCoreLogicPack(
                 entityMap,
-                vehicleApi:  null,
-                roadNetwork: roadNetwork);
+                roadNetwork);
 
             // ── 8. ClusterSlave (CGF1-S0104) ────────────────────────────────────
             // Build ScenarioSerializer for production scenario load/save (CGF1-S0307 / CGF1-S0302).
@@ -366,6 +358,7 @@ namespace Hrot.SimHost
             var simulationSystemGroup = new SimulationSystemGroup();
             var networkLifecycleGroup = replicationModule.NetworkLifecycleGroup;
 
+            var bootstrapper = new NodeBootstrapper();
             _clusterSlave = bootstrapper.BuildOrchestration(
                 _role, _kernel, _world, localNodeId,
                 participant: ddsParticipant,
@@ -387,7 +380,7 @@ namespace Hrot.SimHost
                 foreach (var sys in nodeFactory.CreateSimHostAttributeUpdateSystems())
                     _kernelGroup.AddSystem(sys);
             }
-            _simLogicModule.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);
+            _simCorePack!.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);
 
             // Seed GlobalTime singleton.
             _world.SetSingletonUnmanaged(new GlobalTime
@@ -464,9 +457,9 @@ namespace Hrot.SimHost
                 _vis.Initialize(
                     _world,
                     _kernel,
-                    _simLogicModule.RoadNetwork,
-                    _simLogicModule.TrajectoryPool ?? new TrajectoryPoolManager(),
-                    _simLogicModule.FormationTemplates ?? new FormationTemplateManager(),
+                    roadNetwork,
+                    _simCorePack!.TrajectoryPool,
+                    _simCorePack!.FormationTemplates,
                     nodeFactory?.CreateSimHostMissionSender() ?? new NullSimHostMissionSender(),
                     idAllocator: _idAllocator,
                     localNodeId: localNodeId,
@@ -481,12 +474,19 @@ namespace Hrot.SimHost
 
         protected override void OnUpdate(float dt)
         {
-            // CMC-S016: translator tick BEFORE clusterSlave so DDS→bus ingress is processed first.
+            // CMC-S016: translator tick BEFORE clusterSlave so DDS->bus ingress is processed first.
             _slaveTranslator?.Tick();
             _clusterSlave?.Tick();
             _vis?.Update(dt);
             _kernelGroup?.Run();   // process incoming requests first (sets dirty flags)
-            _kernel?.Update();     // then run egress scan (picks up dirty → publishes immediately)
+            _kernel?.Update();     // then run egress scan (picks up dirty -> publishes immediately)
+            // Bridge SwitchTimeModeEvent and FrameOrder/FrameAck for distributed time control.
+            // Placed after kernel.Update() so ScanAndPublish picks up FrameStepCompletedEvent
+            // that SlaveSyncController published this frame (1-frame-delay egress).
+            _timeModeTranslator?.ScanAndPublish(null!);
+            _timeModeTranslator?.PollIngress(null!, null!);
+            _lockstepTranslator?.ScanAndPublish(null!);
+            _lockstepTranslator?.PollIngress(null!, null!);
             _eventBus?.SwapBuffers();
         }
 
@@ -672,10 +672,11 @@ namespace Hrot.SimHost
         }
 
         /// <summary>
-        /// TestHook: directly assigns the WanderMilitary BTree doctrine to an entity,
-        /// bypassing the DDS <c>MissionControlRequest</c> round-trip.
+        /// TestHook: attaches a <see cref="NavigationIntent"/> (MoveTo) directly to the entity,
+        /// simulating the intent that would arrive from the CGF Brain over the network.
+        /// This is the architecturally-correct way to trigger movement on the Muscle node in tests.
         /// </summary>
-        public void TestHook_AssignWanderMission(long networkId)
+        public void TestHook_SetMovementIntent(long networkId, Vector2 destination, float speed = 15f)
         {
             if (_world == null || _entityMap == null)
                 throw new InvalidOperationException("SimHostApp is not initialized.");
@@ -686,42 +687,19 @@ namespace Hrot.SimHost
             if (!_world.IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive.");
 
-            var newPhase = new MissionPhase
+            var intent = new NavigationIntent
             {
-                DoctrineId   = SimHostDoctrineIds.WanderMilitary_BT,
-                Trigger      = FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed,
-                TriggerParam = float.MaxValue,
+                Mode             = NavigationMode.DirectPoint,
+                FinalDestination = destination,
+                TargetSpeed      = speed,
+                ArrivalRadius    = 20f,
             };
+            unchecked { intent.IntentId++; }
 
-            if (_world.HasComponent<MissionPlanQueue>(entity))
-            {
-                var queue = _world.GetComponent<MissionPlanQueue>(entity);
-                queue.CurrentPhase        = 0;
-                queue.PhaseElapsedSeconds = 0f;
-                queue.PhaseCount          = 1;
-                Span<MissionPhase> phases = queue.Phases;
-                phases[0] = newPhase;
-                _world.SetComponent(entity, queue);
-            }
+            if (_world.HasComponent<NavigationIntent>(entity))
+                _world.SetComponent(entity, intent);
             else
-            {
-                var queue = new MissionPlanQueue
-                {
-                    CurrentPhase        = 0,
-                    PhaseElapsedSeconds = 0f,
-                    PhaseCount          = 1,
-                };
-                Span<MissionPhase> phases = queue.Phases;
-                phases[0] = newPhase;
-                _world.AddComponent(entity, queue);
-            }
-
-            if (_world.HasComponent<DoctrineState>(entity))
-            {
-                ref var doctrine = ref _world.GetComponentRW<DoctrineState>(entity);
-                unchecked { doctrine.InstanceId++; }
-                doctrine.ActiveDoctrineHash = SimHostDoctrineIds.WanderMilitary_BT;
-            }
+                _world.AddComponent(entity, intent);
         }
 
         /// <summary>TestHook: returns the current <see cref="SimTransform"/> of the entity, or default.</summary>
@@ -731,55 +709,6 @@ namespace Hrot.SimHost
             if (!_entityMap.TryGetEntity(networkId, out var entity)) return default;
             if (!_world.IsAlive(entity) || !_world.HasComponent<SimTransform>(entity)) return default;
             return _world.GetComponent<SimTransform>(entity);
-        }
-
-        /// <summary>TestHook: returns the current <see cref="DoctrineState"/> of the entity, or default.</summary>
-        public DoctrineState TestHook_GetDoctrineState(long networkId)
-        {
-            if (_world == null || _entityMap == null) return default;
-            if (!_entityMap.TryGetEntity(networkId, out var entity)) return default;
-            if (!_world.IsAlive(entity) || !_world.HasComponent<DoctrineState>(entity)) return default;
-            return _world.GetComponent<DoctrineState>(entity);
-        }
-
-        /// <summary>TestHook: returns <c>true</c> if the entity has a <see cref="MissionPlanQueue"/> component.</summary>
-        public bool TestHook_HasMissionPlanQueue(long networkId)
-        {
-            if (_world == null || _entityMap == null) return false;
-            if (!_entityMap.TryGetEntity(networkId, out var entity)) return false;
-            return _world.IsAlive(entity) && _world.HasComponent<MissionPlanQueue>(entity);
-        }
-
-        /// <summary>TestHook: returns the current <see cref="MissionPlanQueue"/> of the entity, or default.</summary>
-        public MissionPlanQueue TestHook_GetMissionPlanQueue(long networkId)
-        {
-            if (_world == null || _entityMap == null) return default;
-            if (!_entityMap.TryGetEntity(networkId, out var entity)) return default;
-            if (!_world.IsAlive(entity) || !_world.HasComponent<MissionPlanQueue>(entity)) return default;
-            return _world.GetComponent<MissionPlanQueue>(entity);
-        }
-
-        /// <summary>
-        /// TestHook: directly activates the WanderMilitary doctrine on the entity's
-        /// <see cref="DoctrineState"/>, bypassing <see cref="MissionDirectorSystem"/>.
-        /// </summary>
-        public void TestHook_ForceDoctrineActive(long networkId)
-        {
-            if (_world == null || _entityMap == null)
-                throw new InvalidOperationException("SimHostApp is not initialized.");
-
-            if (!_entityMap.TryGetEntity(networkId, out var entity))
-                throw new InvalidOperationException($"Entity with networkId={networkId} not found.");
-
-            if (!_world.IsAlive(entity))
-                throw new InvalidOperationException($"Entity {entity} is not alive.");
-
-            if (_world.HasComponent<DoctrineState>(entity))
-            {
-                ref var doctrine = ref _world.GetComponentRW<DoctrineState>(entity);
-                unchecked { doctrine.InstanceId++; }
-                doctrine.ActiveDoctrineHash = SimHostDoctrineIds.WanderMilitary_BT;
-            }
         }
 
         /// <summary>TestHook: returns child entities that reference the given parent via <see cref="PartMetadata"/>.</summary>

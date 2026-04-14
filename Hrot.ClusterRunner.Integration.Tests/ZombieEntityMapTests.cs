@@ -57,7 +57,12 @@ public class ZombieEntityMapTests
     {
         using var harness = new HrotRunnerHarness();
 
-        long networkId = SpawnEntityThroughPlacement(harness);
+        // Spawn directly on SimHost so SimHost is the authority (NetworkOwnership.HasAuthority=true).
+        // This ensures CycloneNetworkCleanupSystem fires on destroy and sends EntityMaster DISPOSE
+        // to DDS, which allows IG to detect the removal and prune its NetworkEntityMap.
+        long networkId = harness.SimHost.TestHook_SpawnEntity(
+            TkbEntityTypes.Tank_M1Abrams,
+            new CoreGeoPoint { Latitude = 32.0, Longitude = 34.0 });
 
         var igMap = harness.Ig.App.TestHook_EntityMap;
         bool igEntityAppeared = harness.PumpUntil(
@@ -77,49 +82,5 @@ public class ZombieEntityMapTests
 
         Assert.True(removedFromIgMap,
             "NetworkEntityMap was not pruned after remote destroy on IG.");
-    }
-
-    private static long SpawnEntityThroughPlacement(HrotRunnerHarness harness)
-    {
-        var iosLogic = harness.ExCon.Logic;
-        var igApp = harness.Ig.App;
-        long tkbType = TkbEntityTypes.Tank_M1Abrams;
-
-        iosLogic.StartPlacementMode(tkbType);
-
-        bool configSynced = harness.PumpUntil(
-            () => iosLogic.ActiveContextId != Guid.Empty
-               && igApp.TestHook_ActiveContextId == iosLogic.ActiveContextId,
-            SpawnTimeoutFrames);
-        Assert.True(configSynced, "MapInteractionConfig did not reach IG in time.");
-
-        igApp.TestHook_SimulateMapClick(new Vector2(100f, 200f));
-
-        bool simHostSpawned = harness.PumpUntil(
-            () => TryGetSimHostNetworkId(harness.SimHost.World, tkbType, out _),
-            SpawnTimeoutFrames);
-        Assert.True(simHostSpawned, "SimHost did not spawn an entity in time.");
-
-        Assert.True(TryGetSimHostNetworkId(harness.SimHost.World, tkbType, out long networkId));
-        return networkId;
-    }
-
-    private static bool TryGetSimHostNetworkId(EntityRepository world, long tkbType, out long networkId)
-    {
-        var view = (ISimulationView)world;
-        var query = world.Query().IncludeAll().With<NetworkIdentity>().With<TkbIdentity>().Build();
-        foreach (var entity in query)
-        {
-            var tkbId = view.GetComponentRO<TkbIdentity>(entity);
-            if (tkbId.TkbType != tkbType)
-                continue;
-
-            var netId = view.GetComponentRO<NetworkIdentity>(entity);
-            networkId = netId.Value;
-            return true;
-        }
-
-        networkId = 0;
-        return false;
     }
 }

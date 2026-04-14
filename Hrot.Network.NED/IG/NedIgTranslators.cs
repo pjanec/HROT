@@ -24,7 +24,7 @@ public sealed class NedIgTranslators : IIgTranslators
     {
         var translators = new List<IDescriptorTranslator>();
 
-        if (!headless && ghostCreationSystem != null)
+        if (ghostCreationSystem != null)
         {
             translators.Add(new IgMissionIngressTranslator(
                 participant, entityMap, ghostCreationSystem, localNodeId));

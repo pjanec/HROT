@@ -1,20 +1,20 @@
-namespace Hrot.SimHost
+namespace Hrot.CGF.Configuration
 {
     /// <summary>
-    /// Stable compile-time integer constants for the SimHost-registered doctrines.
+    /// Stable compile-time integer constants for the CGF Brain-tier doctrines.
     ///
     /// These are passed to <see cref="FDP.Toolkit.Behavior.DoctrineRegistry.Register"/> at
     /// application startup and stored in
     /// <see cref="FDP.Toolkit.Behavior.Components.DoctrineState.ActiveDoctrineHash"/>.
     ///
-    /// <b>Range:</b> 3001-3099 (SimHost navigation behaviours).
+    /// <b>Range:</b> 3001-3099 (navigation and wander behaviours).
     /// Values must be globally unique and must never change once published.
     ///
     /// See <see cref="FDP.Toolkit.Behavior.DoctrineIds"/> for framework-level doctrine IDs.
     /// </summary>
-    public static class SimHostDoctrineIds
+    public static class CgfDoctrineIds
     {
-        // ── SimHost navigation behaviours (BTree, 3001–3009) ─────────────────────
+        // ── Navigation behaviours (BTree, 3001-3009) ──────────────────────────
 
         /// <summary>
         /// Move to a fixed 2-D location (BTree).
@@ -33,11 +33,11 @@ namespace Hrot.SimHost
         /// <summary>
         /// Join an existing formation led by another entity (BTree).
         /// BehaviorId string: <c>"JoinFormation"</c>.
-        /// Params: <see cref="Hrot.SimHost.Systems.JoinFormationParams"/> <c>{ LeaderNetworkId, FormationType }</c>.
+        /// Params: <c>JoinFormationParams { LeaderNetworkId, FormationType }</c>.
         /// </summary>
         public const int JoinFormation_BT = 3003;
 
-        // ── SimHost idle behaviour (HSM, 3010–3019) ──────────────────────────────
+        // ── Idle behaviour (HSM, 3010-3019) ───────────────────────────────────
 
         /// <summary>
         /// Idle / stand-still behaviour (HSM).
@@ -46,7 +46,7 @@ namespace Hrot.SimHost
         /// </summary>
         public const int Idle_HSM = 3010;
 
-        // ── SimHost wander behaviour (BTree, 3011–3019) ───────────────────────────
+        // ── Wander behaviour (BTree, 3011-3019) ───────────────────────────────
 
         /// <summary>
         /// Military wander behaviour (BTree).
