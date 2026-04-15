@@ -24,6 +24,7 @@ public sealed class ClusterOpMasterTranslator
     private readonly DdsReader<ClusterOpRequest>    _requestReader;
     private readonly DdsWriter<ClusterOpStatus>     _statusWriter;
     private readonly DdsWriter<AssetInventoryTopic>? _inventoryWriter;
+    private readonly DdsWriter<SystemStateTopic>?   _systemStateWriter;
     private readonly FdpEventBus                    _bus;
     private readonly JsonSerializerOptions          _jsonOptions;
 
@@ -33,13 +34,15 @@ public sealed class ClusterOpMasterTranslator
         DdsWriter<ClusterOpStatus>     statusWriter,
         FdpEventBus                    bus,
         JsonSerializerOptions?         jsonOptions = null,
-        DdsWriter<AssetInventoryTopic>? inventoryWriter = null)
+        DdsWriter<AssetInventoryTopic>? inventoryWriter = null,
+        DdsWriter<SystemStateTopic>?   systemStateWriter = null)
     {
-        _requestReader   = requestReader   ?? throw new ArgumentNullException(nameof(requestReader));
-        _statusWriter    = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
-        _bus             = bus             ?? throw new ArgumentNullException(nameof(bus));
-        _jsonOptions     = jsonOptions ?? OrchestrationJsonOptions.Default;
-        _inventoryWriter = inventoryWriter;
+        _requestReader     = requestReader     ?? throw new ArgumentNullException(nameof(requestReader));
+        _statusWriter      = statusWriter      ?? throw new ArgumentNullException(nameof(statusWriter));
+        _bus               = bus               ?? throw new ArgumentNullException(nameof(bus));
+        _jsonOptions       = jsonOptions       ?? OrchestrationJsonOptions.Default;
+        _inventoryWriter   = inventoryWriter;
+        _systemStateWriter = systemStateWriter;
     }
 
     /// <summary>Processes one frame: ingests DDS requests and publishes completed statuses.</summary>
@@ -76,6 +79,17 @@ public sealed class ClusterOpMasterTranslator
         }
 
         // ── Egress: Bus AssetInventoryUpdateEvent → DDS AssetInventoryTopic ──
+        if (_systemStateWriter != null)
+        {
+            foreach (var ev in _bus.ConsumeManaged<ClusterStateTransitionedEvent>())
+            {
+                _systemStateWriter.Write(new SystemStateTopic
+                {
+                    CurrentState = (NedClusterState)(int)ev.NewStateId,
+                });
+            }
+        }
+
         if (_inventoryWriter != null)
         {
             foreach (var ev in _bus.ConsumeManaged<AssetInventoryUpdateEvent>())

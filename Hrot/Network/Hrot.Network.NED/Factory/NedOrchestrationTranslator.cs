@@ -4,6 +4,7 @@ using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
+using Hrot.NED.Messages;
 
 namespace Hrot.Network.NED.Factory;
 
@@ -23,6 +24,8 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
     private readonly DdsReader<ClusterOpRequest>                       _sysOpRequestReader;
     private readonly DdsWriter<ClusterOpStatus>                        _sysOpStatusWriter;
     private readonly DdsReader<NodeOpStatus>                           _nodeOpStatusReader;
+    private readonly DdsWriter<AssetInventoryTopic>                    _inventoryWriter;
+    private readonly DdsWriter<SystemStateTopic>                       _stateWriter;
     // Per-node command writers, created on demand and cached.
     private readonly Dictionary<int, DdsWriter<NodeOpCommand>>         _commandWriters = new();
     private readonly DdsParticipant                                    _participant;
@@ -36,8 +39,10 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _sysOpRequestReader  = new DdsReader<ClusterOpRequest>(_participant);
         _sysOpStatusWriter   = new DdsWriter<ClusterOpStatus>(_participant);
         _nodeOpStatusReader  = new DdsReader<NodeOpStatus>(_participant);
+        _inventoryWriter     = new DdsWriter<AssetInventoryTopic>(_participant);
+        _stateWriter         = new DdsWriter<SystemStateTopic>(_participant);
         _clusterOpTranslator = new Hrot.Network.Orchestration.ClusterOpMasterTranslator(
-            _sysOpRequestReader, _sysOpStatusWriter, _bus);
+            _sysOpRequestReader, _sysOpStatusWriter, _bus, null, _inventoryWriter, _stateWriter);
         _nodeOpTranslator    = new Hrot.Network.Orchestration.NodeOpMasterTranslator(
             GetOrCreateCommandWriter, _nodeOpStatusReader, _bus);
     }
@@ -73,6 +78,8 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _sysOpRequestReader.Dispose();
         _sysOpStatusWriter.Dispose();
         _nodeOpStatusReader.Dispose();
+        _inventoryWriter.Dispose();
+        _stateWriter.Dispose();
         foreach (var w in _commandWriters.Values)
             w.Dispose();
         _commandWriters.Clear();
