@@ -2,16 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using Hrot.NED.Descriptors.Orchestration;
-using Hrot.Map.Common;
 using Hrot.Orchestrator;
-using Hrot.Network.Orchestration;
-using CycloneDDS.Runtime;
-using Fdp.Interfaces;
+using Hrot.Common;
 using Fdp.Core;
 using Fdp.Toolkit.Runner;
 using Fdp.Core.Logging;
-using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Time.Messages;
 using ImGuiNET;
@@ -19,7 +14,6 @@ using Fdp.ModuleHost;
 using Fdp.ModuleHost.Time;
 using Hrot.Orchestrator.Windows;
 using Hrot.Orchestrator.Panels;
-using Fdp.Network.Cyclone.Services;
 using Hrot.Core.Network;
 
 namespace Hrot.Orchestrator;
@@ -31,34 +25,22 @@ namespace Hrot.Orchestrator;
 /// </summary>
 public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
 {
-    private DdsParticipant? _participant;
     private ClusterMaster? _clusterMaster;
     private ClusterConfiguration _config = ClusterConfiguration.Default;
     private ClusterUiCache?        _uiCache;
     private ClusterScenarioPanel?  _scenarioPanel;
-#pragma warning disable CS0169 // dead field retained per TODO PACK-E001
-    private DdsWriter<ClusterOpRequest>? _sysOpWriter;  // S0502 — TODO PACK-E001: dead field; remove in follow-up
-#pragma warning restore CS0169
 
-    // ── Unified event bus + translators (HEXAG2-S001) ─────────────────────
-    private FdpEventBus?                             _bus;
-    private Hrot.Network.Orchestration.ClusterOpMasterTranslator? _clusterOpTranslator;
-    private Hrot.Network.Orchestration.NodeOpMasterTranslator?    _nodeOpTranslator;
-    private DdsReader<ClusterOpRequest>?             _sysOpRequestReader;  // owned here in bus mode
-    private DdsWriter<ClusterOpStatus>?              _sysOpStatusWriter;   // owned here in bus mode
-    private DdsReader<NodeOpStatus>?                 _nodeOpStatusReader;
-    private DdsReader<NodeHeartbeat>?                _heartbeatReader;     // DDS->bus heartbeat bridge
-    // ── ID allocator server (bus-mode ClusterMaster doesn't create this) ──
-    private DdsIdAllocatorServer?      _idAllocatorServer;
-    private System.Threading.CancellationTokenSource? _idServerCts;
-    private System.Threading.Thread?   _idServerThread;
+    // ── Unified event bus (HEXAG2-S001) ─────────────────────────────────────
+    private FdpEventBus?                   _bus;
+    // ── Factory-managed infrastructure handles (HEXAG2-S008) ─────────────
+    private INetworkFactory?               _networkFactory;
+    private IOrchestrationTranslator?      _translator;
+    private IDisposable?                   _idAllocatorServerHandle;
+    private IMasterTimeTranslators?        _timeTranslators;
     // ── Time controller (CGF1-A.1, BATCH-09) ─────────────────────────────
     // MasterSyncController unifies wall-clock advancement, barrier protocol, and stepping.
-    private Fdp.Toolkit.Time.Controllers.MasterSyncController? _masterSync;
-    private IDescriptorTranslator? _timeModeTranslator;
-    private IDescriptorTranslator? _lockstepTranslator;
-    private IDescriptorTranslator? _masterTimeSyncTranslator;
-    private string? _lastProcessedTimeMode;
+    private MasterSyncController?          _masterSync;
+    private string?                        _lastProcessedTimeMode;
 
     /// <summary>Internal event bus exposed for test assertions on SwitchTimeModeEvent.</summary>
     internal FdpEventBus? TimeBusForTest => _bus;
@@ -86,122 +68,90 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     }
 
 
-    // used by ClusetMaster
-    public OrchestratorSubsystem( INetworkFactory networkFactory )
+    // used by ClusterMaster (HEXAG2-S008: factory-based constructor)
+    public OrchestratorSubsystem(INetworkFactory networkFactory)
     {
-		// TODO: decouple the OrchestratorSubsystem from concrete network implementation
-		//   to fullfill the hexagonal architecture requirements!
+        _networkFactory = networkFactory;
     }
 
     public void Initialize(SubsystemConfig config)
     {
-        _config      = ClusterConfiguration.LoadFrom(
+        _config = ClusterConfiguration.LoadFrom(
             System.IO.Path.Combine(Directory.GetCurrentDirectory(), "orchestrator-config.json"));
-        _participant = HrotEnvironment.CreateParticipant(config.DomainId);
+
+        // HEXAG2-S008: Use INetworkFactory to create the participant.
+        // Parameterless constructor (headless/test mode) leaves _networkFactory null;
+        // in that case factory calls return Null-object implementations via ?. / ?? operator.
+        if (_networkFactory != null)
+        {
+            _networkFactory = _networkFactory.ConfigureForNode(null, config.NodeId, NodeRole.None);
+        }
 
         // ── Single unified event bus (HEXAG2-S001) ────────────────────────────────
-        _bus                 = new FdpEventBus();
-        _heartbeatReader     = new DdsReader<NodeHeartbeat>(_participant);
-        _sysOpRequestReader  = new DdsReader<ClusterOpRequest>(_participant);
-        _sysOpStatusWriter   = new DdsWriter<ClusterOpStatus>(_participant);
-        _nodeOpStatusReader  = new DdsReader<NodeOpStatus>(_participant);
-        _clusterMaster       = new ClusterMaster(_bus, _config);
-        _clusterOpTranslator = new Hrot.Network.Orchestration.ClusterOpMasterTranslator(
-            _sysOpRequestReader, _sysOpStatusWriter, _bus);
-        _nodeOpTranslator    = new Hrot.Network.Orchestration.NodeOpMasterTranslator(
-            nodeId => new DdsWriter<NodeOpCommand>(_participant), _nodeOpStatusReader, _bus);
-
-        // DdsIdAllocatorServer: bus-mode ClusterMaster doesn't create this internally,
-        // so OrchestratorSubsystem owns it (SimHost needs it to allocate entity IDs).
-        _idAllocatorServer = new DdsIdAllocatorServer(_participant);
-        _idServerCts       = new System.Threading.CancellationTokenSource();
-        _idServerThread    = new System.Threading.Thread(() =>
-        {
-            while (!_idServerCts.IsCancellationRequested)
-            {
-                _idAllocatorServer?.ProcessRequests();
-                System.Threading.Thread.Sleep(1);
-            }
-        }) { IsBackground = true, Name = "Orchestrator-IdAllocServer" };
-        _idServerThread.Start();
+        _bus          = new FdpEventBus();
+        _clusterMaster = new ClusterMaster(_bus, _config);
+        _translator    = _networkFactory?.CreateOrchestratorTranslators(_bus, config.NodeId)
+                         ?? new NullOrchestrationTranslator();
+        _idAllocatorServerHandle = _networkFactory?.CreateIdAllocatorServer()
+                                   ?? new NullDisposable();
 
         // ── Time controller setup (CGF1-A.1, BATCH-09) ─────────────────────
-        // MasterSyncController replaces the minimal kernel + DistributedTimeCoordinator.
-        // Must be created before _uiCache so it can be injected for smooth sim-time display.
-        _masterSync        = new Fdp.Toolkit.Time.Controllers.MasterSyncController(
-            _bus, new HashSet<int>(), Fdp.Toolkit.Time.Controllers.TimeConfig.Default);
-        // MasterSyncController constructor publishes the initial SwitchTimeModeEvent{Continuous}
-        // to _bus PENDING.  Swap it to CURRENT now so the first frame's ScanAndPublish
-        // can read it and forward it to DDS before slaves (IG, ExCon) start their kernels.
-        // Without this swap the event is destroyed by the two SwapBuffers calls in Update()
-        // before ScanAndPublish ever gets a chance to read it, causing IG/ExCon to miss the
-        // authoritative startup baseline and run ~180 ms behind Orch/SimHost.
+        // Must be created before _timeTranslators so the initial SwitchTimeModeEvent{Continuous}
+        // is published to _bus PENDING. Swap it immediately so the first ScanAndPublish can
+        // read it and forward it to DDS before slaves start their kernels.
+        _masterSync       = new MasterSyncController(
+            _bus, new HashSet<int>(), TimeConfig.Default);
         _bus.SwapBuffers();
-        _timeModeTranslator  = TimeNetworkModule.CreateDescriptorTranslator(_participant, _bus);
-        _lockstepTranslator  = TimeNetworkModule.CreateMasterLockstepTranslator(_participant, _bus);
-        _masterTimeSyncTranslator = TimeNetworkModule.CreateMasterTimeSyncTranslator(_participant);
+        _timeTranslators  = _networkFactory?.CreateMasterTimeTranslators(_bus, config.NodeId)
+                            ?? new NullMasterTimeTranslators();
 
         _uiCache       = new ClusterUiCache(_bus, _masterSync);
         _scenarioPanel = new ClusterScenarioPanel(_bus!, _uiCache);
 
         // CGF1-S0307: Create the global-context handler, subscribe to OnContextLoaded so the
-        // MasterTimeController is seeded with the scenario's saved timeline on every load, and
+        // MasterSyncController is seeded with the scenario's saved timeline on every load, and
         // register it with ClusterMaster so CommitState fan-outs trigger the local load path.
-        var contextHandler = new GlobalContextClusterOpHandler(_participant, string.Empty);
-        contextHandler.OnContextLoaded += (startTicks, simTimeSeconds) =>
+        // In headless mode (_networkFactory?.Participant == null) no DDS writer is available;
+        // skip creation and leave _globalContextHandler null in ClusterMaster.
+        var participant = _networkFactory?.Participant;
+        if (participant != null)
         {
-            if (_masterSync != null)
+            var contextHandler = new GlobalContextClusterOpHandler(participant, string.Empty);
+            contextHandler.OnContextLoaded += (startTicks, simTimeSeconds) =>
             {
-                _masterSync.SeedState(new GlobalTime
+                if (_masterSync != null)
                 {
-                    TotalWallTicks    = startTicks,
-                    TotalTime         = simTimeSeconds,
-                    UnscaledTotalTime = simTimeSeconds,
-                    TimeScale         = _masterSync.GetTimeScale(),
-                });
-                FdpLog<OrchestratorSubsystem>.Info(
-                    "[Orchestrator] Seeded MasterSyncController: WallTicks={0}, SimTime={1:F1}s",
-                    startTicks, simTimeSeconds);
-            }
-        };
-        _clusterMaster.SetGlobalContextHandler(contextHandler);
+                    _masterSync.SeedState(new GlobalTime
+                    {
+                        TotalWallTicks    = startTicks,
+                        TotalTime         = simTimeSeconds,
+                        UnscaledTotalTime = simTimeSeconds,
+                        TimeScale         = _masterSync.GetTimeScale(),
+                    });
+                    FdpLog<OrchestratorSubsystem>.Info(
+                        "[Orchestrator] Seeded MasterSyncController: WallTicks={0}, SimTime={1:F1}s",
+                        startTicks, simTimeSeconds);
+                }
+            };
+            _clusterMaster.SetGlobalContextHandler(contextHandler);
+        }
     }
 
     public void Update(float deltaTime)
     {
-        // Phase 1: Network boundary — DDS ingress/egress; heartbeat bridge shim.
-        // ScanAndPublish reads from _bus CURRENT and sends to DDS.
+        // Phase 1: Network boundary — DDS ingress/egress (HEXAG2-S008).
+        // ScanAndPublish reads from _bus CURRENT and sends to DDS (time-mode + lockstep).
         // PollIngress reads from DDS and writes to _bus WRITE buffer.
-        _timeModeTranslator?.ScanAndPublish(null!);
-        _timeModeTranslator?.PollIngress(null!, null!);
-        _lockstepTranslator?.ScanAndPublish(null!);
-        _lockstepTranslator?.PollIngress(null!, null!);
-
-        // Heartbeat bridging loop (manual DDS bridge): keep as temporary shim until HEXAG2-S008
-        if (_bus != null && _heartbeatReader != null)
-        {
-            using var hbScope = _heartbeatReader.Take();
-            foreach (var sample in hbScope)
-            {
-                if (!sample.IsValid) continue;
-                _bus.PublishManaged(new Fdp.Toolkit.Orchestration.NodeHeartbeatEvent
-                {
-                    NodeId        = sample.Data.NodeId,
-                    LocalStateId  = (int)sample.Data.LocalClusterState,
-                    WallTicksUtc  = sample.Data.WallTicksUtc,
-                    SubsystemName = sample.Data.SubsystemName ?? string.Empty,
-                });
-            }
-        }
+        // _translator.Tick() bridges DDS heartbeats, ClusterOpRequests, and NodeOpStatuses.
+        _timeTranslators?.ScanAndPublish();
+        _timeTranslators?.PollIngress();
+        _translator?.Tick();
 
         // Phase 2: Single frame boundary swap — exactly one SwapBuffers per frame.
         _bus?.SwapBuffers();
 
-        // Phase 3: Core logic — translators tick first so ingress (DDS->bus) is processed;
-        // then _masterSync advances the wall clock; then ClusterMaster ticks.
-        _clusterOpTranslator?.Tick();  // DDS ClusterOpRequest -> bus TransitionStateIntent etc.
-        _nodeOpTranslator?.Tick();     // bus ExecuteNodeOpIntent -> DDS NodeOpCommand;
-                                       // DDS NodeOpStatus -> bus NodeOpCompletedEvent
+        // Phase 3: Core logic — MasterSyncController drains bus intents (HEXAG2-S011),
+        // then ClusterMaster ticks to process fan-out ops and 2PC tracking.
         _masterSync?.Update();
         _clusterMaster?.Tick();
 
@@ -229,7 +179,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _scenarioPanel?.Update(deltaTime);
 
         // Phase 5: Time-sync NTP ingress (NTP responses from slaves).
-        _masterTimeSyncTranslator?.PollIngress(null!, null!);
+        _timeTranslators?.PollNtpIngress();
     }
 
     public void DrawWorld() { }
@@ -248,33 +198,22 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _scenarioPanel = null;
         _uiCache?.Dispose();
         _uiCache = null;
-        _clusterOpTranslator = null;
-        _nodeOpTranslator = null;
-        _sysOpRequestReader?.Dispose();
-        _sysOpRequestReader = null;
-        _sysOpStatusWriter?.Dispose();
-        _sysOpStatusWriter = null;
-        _nodeOpStatusReader?.Dispose();
-        _nodeOpStatusReader = null;
-        _heartbeatReader?.Dispose();
-        _heartbeatReader = null;
-        _idServerCts?.Cancel();
-        _idServerThread?.Join(System.TimeSpan.FromSeconds(2));
-        _idServerCts?.Dispose();
-        _idServerCts = null;
-        _idServerThread = null;
-        _idAllocatorServer?.Dispose();
-        _idAllocatorServer = null;
+        // Dispose ID allocator server first — joins its polling thread before any DDS teardown.
+        _idAllocatorServerHandle?.Dispose();
+        _idAllocatorServerHandle = null;
+        // Dispose the orchestration translator — tears down DDS readers/writers.
+        _translator?.Dispose();
+        _translator = null;
+        // Dispose time translators.
+        _timeTranslators?.Dispose();
+        _timeTranslators = null;
         _bus = null;
         _clusterMaster?.Dispose();
         _clusterMaster = null;
         _masterSync?.Dispose();
         _masterSync = null;
-        _lockstepTranslator = null;
-        _masterTimeSyncTranslator = null;
         _lastProcessedTimeMode = null;
-        _participant?.Dispose();
-        _participant = null;
+        _networkFactory = null;
     }
 
     /// <summary>

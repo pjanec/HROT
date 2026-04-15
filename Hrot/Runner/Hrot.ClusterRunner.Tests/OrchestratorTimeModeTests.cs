@@ -36,20 +36,16 @@ public class OrchestratorTimeModeTests
         var subsystem = new OrchestratorSubsystem();
         subsystem.Initialize(new SubsystemConfig { DomainId = TestDomain });
 
-        using var testParticipant = new DdsParticipant(TestDomain);
-        using var sysOpWriter     = new DdsWriter<ClusterOpRequest>(testParticipant);
-
-        // Allow DDS endpoint discovery to settle.
-        Thread.Sleep(400);
-
-        // Send TransitionState → LoadingLive with Deterministic time mode.
-            // TargetState must use the enum name (StrictStringEnumConverter rejects integers).
-            sysOpWriter.Write(new ClusterOpRequest
-            {
-                RequestId     = Guid.NewGuid(),
-                OperationType = ClusterOpType.TransitionState,
-                PayloadJson   = @"{""TargetState"":""LoadingLive"",""TimeMode"":""Deterministic""}",
-            });
+        // Inject TransitionState → LoadingLive with Deterministic time mode via test hook.
+        // HEXAG2-S008: DDS translator path removed in headless mode; UI buttons use HandleClusterOpRequest.
+        // TargetState must be the integer value (30 = LoadingLive); ClusterOpRequestAdapter.ToTransitionStateIntent
+        // uses GetInt32() for JSON object payloads.
+        subsystem.TestHook_ClusterMaster!.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = @"{""TargetState"":30,""TimeMode"":""Deterministic""}",
+        });
 
         // Tick until a SwitchTimeModeEvent with TargetMode=Deterministic appears on the bus.
         SwitchTimeModeEvent? captured = null;

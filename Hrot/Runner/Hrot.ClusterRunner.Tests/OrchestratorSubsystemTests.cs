@@ -200,29 +200,23 @@ public sealed class OrchestratorSubsystemTests
             // Verify initial state: not paused (button woud show "Pause").
             Assert.False(subsystem.UiCacheForTest!.IsPaused, "Expected not paused initially.");
 
-            // Simulate the button click: write a ClusterOpRequest{PauseTime} via the DDS writer
-            // on the same domain (ClusterMaster reads from its _sysOpRequestReader on that domain).
-            using var probe = new DdsParticipant(TestDomain);
-            using var writer = new DdsWriter<ClusterOpRequest>(probe);
-            Thread.Sleep(300);  // Allow DDS discovery
-
-            writer.Write(new ClusterOpRequest
+            // Inject PauseTime via the ClusterMaster test hook (HEXAG2-S008: DDS translator
+            // path removed; headless path uses HandleClusterOpRequest like the UI buttons do).
+            subsystem.TestHook_ClusterMaster!.HandleClusterOpRequest(new ClusterOpRequest
             {
                 RequestId     = Guid.NewGuid(),
                 OperationType = ClusterOpType.PauseTime,
                 PayloadJson   = string.Empty,
             });
 
-            // Update until IsPaused is set (3-frame bus pipeline: DDS read->bus->MasterSync->UiCache).
-            var deadline = DateTime.UtcNow.AddSeconds(5);
-            while (!subsystem.UiCacheForTest!.IsPaused && DateTime.UtcNow < deadline)
-            {
-                subsystem.Update(1f / 60f);
-                Thread.Sleep(20);
-            }
+            // 3 frames needed: Tick->PauseTimeIntent(WRITE); swap->READ; MasterSync->SwitchTimeModeEvent(WRITE);
+            // swap->READ; UiCache->IsPaused=true.
+            subsystem.Update(1f / 60f);
+            subsystem.Update(1f / 60f);
+            subsystem.Update(1f / 60f);
 
             Assert.True(subsystem.UiCacheForTest!.IsPaused,
-                "PauseTime ClusterOpRequest published on DDS should set UiCacheForTest.IsPaused = true.");
+                "PauseTime ClusterOpRequest injected via test hook should set UiCacheForTest.IsPaused = true.");
         }
         finally
         {
