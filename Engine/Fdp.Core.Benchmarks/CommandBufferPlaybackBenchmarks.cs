@@ -61,12 +61,4 @@ namespace Fdp.Benchmarks
     {
         public float Vx, Vy;
     }
-    
-    public class Program
-    {
-        public static void Main(string[] args)
-        {
-            BenchmarkRunner.Run<CommandBufferPlaybackBenchmarks>();
-        }
-    }
 }
