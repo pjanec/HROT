@@ -286,11 +286,15 @@ public sealed class NedNetworkFactory : INetworkFactory
 
     /// <inheritdoc/>
     public Hrot.Core.Network.ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus bus, int nodeId)
-        => new Hrot.Core.Network.NullSlaveOrchestrationTranslator();
+        => _participant != null
+            ? new NedSlaveOrchestrationTranslator(_participant, bus, nodeId)
+            : new Hrot.Core.Network.NullSlaveOrchestrationTranslator();
 
     /// <inheritdoc/>
     public Hrot.Core.Network.IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus bus)
-        => new Hrot.Core.Network.NullOrchestrationObserver();
+        => _participant != null
+            ? new NedOrchestrationObserver(_participant, bus)
+            : new Hrot.Core.Network.NullOrchestrationObserver();
 }
 
 /// <summary>

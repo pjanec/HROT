@@ -70,13 +70,9 @@ namespace Hrot.ExCon
 
         // ── CMC-S016: Unified event bus (HEXAG2-S001b) ─────────────────────────────
         private FdpEventBus?                          _bus;
-        private NodeOpSlaveTranslator?                _nodeOpSlaveTranslator;
-
-        // ── S0507 / PACK-C002: Observation + cluster control via unified bus ────
-        private OrchestrationObserverTranslator?      _orchObserverTranslator;
-
-        // ── S0507: Cluster control ─────────────────────────────────────────────
-        private Hrot.Common.Orchestration.ClusterOpEgressTranslator? _clusterOpEgressTranslator;
+        // ── HEXAG2-S012: factory-managed slave orchestration handles ──────────
+        private ISlaveOrchestrationTranslator?        _slaveTranslator;
+        private IOrchestrationObserver?               _observer;
         private ClusterUiCache?                   _uiCache;
         private ClusterScenarioPanel?             _clusterPanel;
 
@@ -160,20 +156,8 @@ namespace Hrot.ExCon
             var iosNodeId  = config.NodeId != 0 ? config.NodeId : 500;
 
             // CMC-S016: single unified bus; ClusterSlave and translators are created unconditionally
-            // (no DDS needed). DDS translators are only created when a participant is available.
+            // (no DDS needed). DDS translators are wired via factory when available (HEXAG2-S012).
             _bus = new FdpEventBus();
-            if (_participant != null)
-            {
-                var orchCmdReader    = new DdsReader<NodeOpCommand>(_participant);
-                var orchStatusWriter = new DdsWriter<NodeOpStatus>(_participant);
-                var orchHbWriter     = new DdsWriter<NodeHeartbeat>(_participant);
-                _nodeOpSlaveTranslator = new NodeOpSlaveTranslator(
-                    commandReader:   orchCmdReader,
-                    statusWriter:    orchStatusWriter,
-                    heartbeatWriter: orchHbWriter,
-                    bus:             _bus,
-                    nodeId:          iosNodeId);
-            }
             _clusterSlave = new Fdp.Toolkit.Orchestration.ClusterSlave(iosNodeId, SubsystemName, _bus);
 
             // ── TC2-P3-T1: Slave time sync pipeline ──────────────────────────────
@@ -256,13 +240,12 @@ namespace Hrot.ExCon
 
             // ── Cluster control wiring (S0507 / PACK-C002) ────────────────────────────
             _uiCache     = new ClusterUiCache(_bus, _slaveSyncController);
-            // PACK-E001: panel publishes ClusterOpIntent to bus; translator writes DDS
             _clusterPanel = new ClusterScenarioPanel(_bus, _uiCache);
-            if (_participant != null)
-            {
-                _orchObserverTranslator    = new OrchestrationObserverTranslator(_participant, _bus);
-                _clusterOpEgressTranslator = new Hrot.Common.Orchestration.ClusterOpEgressTranslator(_bus, _participant);
-            }
+            // HEXAG2-S012: factory-based slave orchestration handles.
+            _slaveTranslator = nodeFactory?.CreateSlaveOrchestratorTranslators(_bus!, iosNodeId)
+                               ?? new NullSlaveOrchestrationTranslator();
+            _observer        = nodeFactory?.CreateOrchestrationObserver(_bus!)
+                               ?? new NullOrchestrationObserver();
 
             var logic = new ExConLogic(
                 repo:                 repo,
@@ -336,16 +319,12 @@ namespace Hrot.ExCon
 
             // CMC-S016: orchestration + observer + egress processing after swap so translators
             // read events published in Phase 1 and observe cluster state changes.
-            _nodeOpSlaveTranslator?.Tick();  // DDS NodeOpCommand -> bus ExecuteNodeOpIntent;
-                                             // bus NodeHeartbeatEvent -> DDS NodeHeartbeat;
-                                             // bus NodeOpCompletedEvent -> DDS NodeOpStatus
+            _slaveTranslator?.Tick();  // HEXAG2-S012: NodeOpCommand ingress + heartbeat/status egress + ClusterOp egress
             _clusterSlave?.Tick();
-            // PACK-C002: translate DDS -> _bus events, then update the cache
-            _orchObserverTranslator?.Tick();
+            // HEXAG2-S012: translate DDS orchestration observations -> bus events, then update the cache
+            _observer?.Tick();
             _uiCache?.Update();
             _clusterPanel?.Update(deltaTime);
-            // PACK-E001: flush panel's ClusterOpIntent events to DDS via egress translator
-            _clusterOpEgressTranslator?.Tick();
 
             _mock?.Update(deltaTime);
         }
@@ -392,10 +371,10 @@ namespace Hrot.ExCon
             _clusterPanel = null;
             _uiCache?.Dispose();
             _uiCache = null;
-            _orchObserverTranslator?.Dispose();
-            _orchObserverTranslator = null;
-            _clusterOpEgressTranslator?.Dispose();
-            _clusterOpEgressTranslator = null;
+            _observer?.Dispose();
+            _observer = null;
+            _slaveTranslator?.Dispose();
+            _slaveTranslator = null;
             _bus = null;
             (_egressWriters as IDisposable)?.Dispose();
             _egressWriters = null;

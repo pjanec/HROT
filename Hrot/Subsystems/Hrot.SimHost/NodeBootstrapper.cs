@@ -40,11 +40,11 @@ namespace Hrot.SimHost
 
         /// <summary>
         /// After <see cref="BuildOrchestration"/> is called with a non-null <paramref name="participant"/>
-        /// and <paramref name="eventBus"/>, this property holds the <see cref="NodeOpSlaveTranslator"/>
+        /// and <paramref name="eventBus"/>, this property holds the <see cref="ISlaveOrchestrationTranslator"/>
         /// that bridges DDS <-> the slave event bus (CMC-S016 / BATCH-06).
         /// <c>null</c> when no DDS participant was supplied.
         /// </summary>
-        public Hrot.Common.Orchestration.NodeOpSlaveTranslator? SlaveTranslator { get; private set; }
+        public Hrot.Core.Network.ISlaveOrchestrationTranslator? SlaveTranslator { get; private set; }
 
         // ── Orchestration construction ─────────────────────────────────────────
 
@@ -122,12 +122,10 @@ namespace Hrot.SimHost
             SlaveTranslator = null;
             if (participant != null && eventBus != null)
             {
-                SlaveTranslator = new Hrot.Common.Orchestration.NodeOpSlaveTranslator(
-                    commandReader:   new CycloneDDS.Runtime.DdsReader<Hrot.NED.Descriptors.Orchestration.NodeOpCommand>(participant),
-                    statusWriter:    new CycloneDDS.Runtime.DdsWriter<Hrot.NED.Descriptors.Orchestration.NodeOpStatus>(participant),
-                    heartbeatWriter: new CycloneDDS.Runtime.DdsWriter<Hrot.NED.Descriptors.Orchestration.NodeHeartbeat>(participant),
-                    bus:             eventBus,
-                    nodeId:          nodeId);
+                // HEXAG2-S012: use factory when available; fall back to null-object otherwise.
+                var nodeFactory = _networkFactory?.ConfigureForNode(participant, nodeId, role);
+                SlaveTranslator = nodeFactory?.CreateSlaveOrchestratorTranslators(eventBus, nodeId)
+                    ?? new Hrot.Core.Network.NullSlaveOrchestrationTranslator();
             }
             var storageProvider = new LocalDiskStorageProvider(localTempRoot);
 

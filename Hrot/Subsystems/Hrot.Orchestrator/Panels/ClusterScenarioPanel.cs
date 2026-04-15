@@ -3,12 +3,21 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Text.Json;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
 using Fdp.Core;
+using Fdp.Toolkit.Time.Domain;
 using ImGuiNET;
-using FdpClusterOpType   = Fdp.Toolkit.Orchestration.ClusterOpType;
-using ClusterOpIntent    = Fdp.Toolkit.Orchestration.ClusterOpIntent;
+using FdpClusterOpType        = Fdp.Toolkit.Orchestration.ClusterOpType;
+using FdpClusterState         = Fdp.Toolkit.Orchestration.ClusterState;
+using TransitionStateIntent   = Fdp.Toolkit.Orchestration.TransitionStateIntent;
+using ManageEpisodeIntent     = Fdp.Toolkit.Orchestration.ManageEpisodeIntent;
+using ExecuteStorageOpIntent  = Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent;
+using StorageOpType           = Fdp.Toolkit.Orchestration.StorageOpType;
+using TakeCheckpointIntent    = Fdp.Toolkit.Orchestration.TakeCheckpointIntent;
+using SeekReplayIntent        = Fdp.Toolkit.Orchestration.SeekReplayIntent;
+using CancelOperationIntent   = Fdp.Toolkit.Orchestration.CancelOperationIntent;
 
 namespace Hrot.Orchestrator.Panels;
 
@@ -36,14 +45,187 @@ public sealed class ClusterScenarioPanel
     private void SendRequest(ClusterOpRequest req)
     {
         if (_master != null)
+        {
             _master.HandleClusterOpRequest(req);
-        else
-            _bus!.PublishManaged(new ClusterOpIntent
+            return;
+        }
+
+        // Bus path (remote/ExCon): publish typed intents consumed by ClusterOpEgressTranslator.
+        // HEXAG2-S012: zero ClusterOpIntent references; each operation type is mapped directly.
+        switch ((FdpClusterOpType)(int)req.OperationType)
+        {
+            case FdpClusterOpType.PauseTime:
+                _bus!.PublishManaged(new PauseTimeIntent());
+                break;
+
+            case FdpClusterOpType.ResumeTime:
+                _bus!.PublishManaged(new ResumeTimeIntent());
+                break;
+
+            case FdpClusterOpType.StepTime:
             {
-                RequestId     = req.RequestId,
-                OperationType = (FdpClusterOpType)(int)req.OperationType,
-                DomainPayload = req.PayloadJson,
-            });
+                float delta = TryParseFloat(req.PayloadJson, 1f / 60f);
+                _bus!.PublishManaged(new StepTimeIntent { DeltaSeconds = delta });
+                break;
+            }
+
+            case FdpClusterOpType.SetTimeScale:
+            {
+                float scale = TryParseFloat(req.PayloadJson, 1f);
+                _bus!.PublishManaged(new SetTimeScaleIntent { TimeScale = scale });
+                break;
+            }
+
+            case FdpClusterOpType.TransitionState:
+            {
+                var intent = ParseTransitionStateIntent(req);
+                _bus!.PublishManaged(intent);
+                break;
+            }
+
+            case FdpClusterOpType.ManageEpisode:
+            {
+                var intent = ParseManageEpisodeIntent(req);
+                _bus!.PublishManaged(intent);
+                break;
+            }
+
+            case FdpClusterOpType.SaveScenario:
+                _bus!.PublishManaged(new ExecuteStorageOpIntent
+                {
+                    RequestId  = req.RequestId,
+                    Operation  = StorageOpType.SaveScenario,
+                });
+                break;
+
+            case FdpClusterOpType.ExportArchive:
+                _bus!.PublishManaged(new ExecuteStorageOpIntent
+                {
+                    RequestId  = req.RequestId,
+                    Operation  = StorageOpType.Export,
+                    ExerciseId = string.IsNullOrWhiteSpace(req.PayloadJson) ? null : req.PayloadJson,
+                });
+                break;
+
+            case FdpClusterOpType.ImportArchive:
+                _bus!.PublishManaged(new ExecuteStorageOpIntent
+                {
+                    RequestId  = req.RequestId,
+                    Operation  = StorageOpType.Import,
+                    ExerciseId = string.IsNullOrWhiteSpace(req.PayloadJson) ? null : req.PayloadJson,
+                });
+                break;
+
+            case FdpClusterOpType.TakeCheckpoint:
+                _bus!.PublishManaged(new TakeCheckpointIntent { RequestId = req.RequestId });
+                break;
+
+            case FdpClusterOpType.ReplaySeek:
+            {
+                long ticks = TryParseWallTicks(req.PayloadJson);
+                _bus!.PublishManaged(new SeekReplayIntent { RequestId = req.RequestId, TargetWallTicks = ticks });
+                break;
+            }
+
+            case FdpClusterOpType.CancelOperation:
+                _bus!.PublishManaged(new CancelOperationIntent
+                {
+                    TargetRequestId = Guid.TryParse(req.PayloadJson, out var tid) ? tid : req.RequestId,
+                });
+                break;
+        }
+    }
+
+    // ── Payload parsing helpers (bus path only) ────────────────────────────
+
+    private static float TryParseFloat(string? json, float defaultValue)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return defaultValue;
+        if (float.TryParse(json, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var v))
+            return v;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            // Accept {"FixedDelta":N} or just a bare float literal wrapped in JSON
+            if (root.ValueKind == JsonValueKind.Number) return root.GetSingle();
+            if (root.TryGetProperty("FixedDelta",  out var fd)) return fd.GetSingle();
+            if (root.TryGetProperty("TimeScale",   out var ts)) return ts.GetSingle();
+        }
+        catch { }
+        return defaultValue;
+    }
+
+    private static long TryParseWallTicks(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return 0;
+        if (long.TryParse(json, out var v)) return v;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("TargetWallTicks", out var p))
+                return p.GetInt64();
+        }
+        catch { }
+        return 0;
+    }
+
+    private static TransitionStateIntent ParseTransitionStateIntent(ClusterOpRequest req)
+    {
+        if (int.TryParse(req.PayloadJson, out var rawInt))
+            return new TransitionStateIntent { TransactionId = req.RequestId, TargetState = (FdpClusterState)rawInt };
+
+        try
+        {
+            using var doc = JsonDocument.Parse(req.PayloadJson);
+            var root = doc.RootElement;
+            int targetInt = root.TryGetProperty("TargetState", out var tsp) ? tsp.GetInt32() : 0;
+            string? scenarioId = root.TryGetProperty("ScenarioId",  out var sp)  ? sp.GetString()  : null;
+            string? exerciseId = root.TryGetProperty("ExerciseId",  out var ep)  ? ep.GetString()  : null;
+            string? timeMode   = root.TryGetProperty("TimeMode",    out var tm)  ? tm.GetString()  : null;
+            return new TransitionStateIntent
+            {
+                TransactionId = req.RequestId,
+                TargetState   = (FdpClusterState)targetInt,
+                ScenarioId    = scenarioId,
+                ExerciseId    = exerciseId,
+                TimeMode      = timeMode,
+            };
+        }
+        catch { }
+        return new TransitionStateIntent { TransactionId = req.RequestId };
+    }
+
+    private static ManageEpisodeIntent ParseManageEpisodeIntent(ClusterOpRequest req)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(req.PayloadJson);
+            var root = doc.RootElement;
+            // Panel uses Mode:"Start"/"Stop"; DTO uses IsStart bool.
+            bool isStart = false;
+            if (root.TryGetProperty("Mode", out var modeProp))
+                isStart = string.Equals(modeProp.GetString(), "Start", StringComparison.OrdinalIgnoreCase);
+            else if (root.TryGetProperty("IsStart", out var isp))
+                isStart = isp.GetBoolean();
+
+            Guid episodeId = Guid.Empty;
+            if (root.TryGetProperty("EpisodeId", out var ep) && Guid.TryParse(ep.GetString(), out var parsed))
+                episodeId = parsed;
+
+            string? scenarioId = root.TryGetProperty("ScenarioId", out var sp) ? sp.GetString() : null;
+
+            return new ManageEpisodeIntent
+            {
+                TransactionId = req.RequestId,
+                IsStart       = isStart,
+                EpisodeId     = episodeId,
+                ScenarioId    = scenarioId,
+            };
+        }
+        catch { }
+        return new ManageEpisodeIntent { TransactionId = req.RequestId };
     }
 
     // ── Adapter properties: use _master when present, else fall back to _uiCache ─
@@ -95,7 +277,7 @@ public sealed class ClusterScenarioPanel
         _bus     = null;
     }
 
-    /// <param name="bus">Event bus for publishing <see cref="ClusterOpIntent"/> commands (remote/ExCon path).</param>
+    /// <param name="bus">Event bus for publishing typed intent commands (remote/ExCon path).</param>
     /// <param name="uiCache">Network projection cache to read cluster state from.</param>
     public ClusterScenarioPanel(FdpEventBus bus, ClusterUiCache uiCache)
     {

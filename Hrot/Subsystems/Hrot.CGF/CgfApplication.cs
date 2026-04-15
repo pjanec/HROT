@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Hrot.CGF.Modules.Orchestration;
+using Hrot.Common;
 using Hrot.Common.Orchestration;
+using Hrot.Core.Network;
 using Hrot.NED.Descriptors.Orchestration;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
@@ -35,7 +37,7 @@ namespace Hrot.CGF
         private readonly Fdp.Toolkit.Orchestration.ClusterSlave _clusterSlave;
         private readonly FdpEventBus _eventBus;
         private FdpEventBus _orchestrationBus => _eventBus;  // CMC-S016: alias, same bus
-        private readonly NodeOpSlaveTranslator? _slaveTranslator;  // CMC-S016; null when no participant
+        private readonly ISlaveOrchestrationTranslator? _slaveTranslator;  // CMC-S016; null when no participant
         private readonly IDescriptorTranslator? _timeModeTranslator;
         private readonly IDescriptorTranslator? _lockstepTranslator;
         private bool _disposed;
@@ -80,7 +82,8 @@ namespace Hrot.CGF
         /// </param>
         public CgfApplication(int domainId = 0, int nodeId = DefaultNodeId,
             DdsParticipant? participant = null,
-            ScenarioSerializer? scenarioSerializer = null, string localTempRoot = @"C:\FDP_Temp")
+            ScenarioSerializer? scenarioSerializer = null, string localTempRoot = @"C:\FDP_Temp",
+            INetworkFactory? networkFactory = null)
         {
             _nodeId      = nodeId;
             // Accept participant from composition root (Rule 3, modular-2 DESIGN.md).
@@ -105,18 +108,14 @@ namespace Hrot.CGF
 
             _clusterSlave   = new Fdp.Toolkit.Orchestration.ClusterSlave(nodeId, SubsystemName, _eventBus);
 
-            // CMC-S016: NodeOpSlaveTranslator bridges DDS NodeOpCommand ↔ _eventBus ExecuteNodeOpIntent
-            // and bus NodeHeartbeatEvent/NodeOpCompletedEvent ↔ DDS.
+            // CMC-S016: ISlaveOrchestrationTranslator bridges DDS NodeOpCommand <-> _eventBus ExecuteNodeOpIntent
+            // and bus NodeHeartbeatEvent/NodeOpCompletedEvent <-> DDS.
             // Same bus as ClusterSlave so no extra swap is needed.
             // Only wired when a DDS participant is available.
             if (_participant != null)
             {
-                _slaveTranslator  = new NodeOpSlaveTranslator(
-                    commandReader:   new DdsReader<NodeOpCommand>(_participant),
-                    statusWriter:    new DdsWriter<NodeOpStatus>(_participant),
-                    heartbeatWriter: new DdsWriter<NodeHeartbeat>(_participant),
-                    bus:             _orchestrationBus,
-                    nodeId:          nodeId);
+                var nodeFactory = networkFactory?.ConfigureForNode(_participant, nodeId, NodeRole.Brain);
+                _slaveTranslator = nodeFactory?.CreateSlaveOrchestratorTranslators(_orchestrationBus, nodeId);
             }
 
             var storageProvider = new LocalDiskStorageProvider(localTempRoot);

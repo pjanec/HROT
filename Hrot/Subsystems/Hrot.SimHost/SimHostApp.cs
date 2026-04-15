@@ -113,7 +113,8 @@ namespace Hrot.SimHost
 
         // ── Orchestration (CGF1-S0104 / CMC-S016) ────────────────────────────
         private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
-        private Hrot.Common.Orchestration.NodeOpSlaveTranslator? _slaveTranslator;
+        // HEXAG2-S012: factory-managed slave translator (was NodeOpSlaveTranslator directly).
+        private Hrot.Core.Network.ISlaveOrchestrationTranslator? _slaveTranslator;
         // Time-control translators: bridge SwitchTimeModeEvent and FrameOrder/FrameAck so that
         // the SlaveSyncController (installed by HrotNodeBuilder) receives time events from the
         // Orchestrator via DDS (same pattern as CgfApplication).
