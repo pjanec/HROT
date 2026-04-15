@@ -929,5 +929,66 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.True(events[0].BarrierWallTicks > 0,
                 "BarrierWallTicks must be non-zero on Resume so slaves can anchor their baseline.");
         }
+
+        // ── Bus-drain intent tests (HEXAG2-S011) ─────────────────────────────
+
+        /// <summary>
+        /// Publishing a <see cref="PauseTimeIntent"/> to the bus and calling Update()
+        /// causes MasterSyncController to call SwitchToDeterministic, which publishes
+        /// a <see cref="SwitchTimeModeEvent"/> with <see cref="TimeMode.Deterministic"/>.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_DrainsPauseTimeIntent_SwitchesToDeterministic()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, tickSource: () => ticks);
+
+            // Drain the initial baseline event published by the constructor.
+            bus.SwapBuffers();
+            bus.Consume<SwitchTimeModeEvent>();
+
+            // Publish SlaveNodeSetUpdatedEvent + PauseTimeIntent to the WRITE buffer.
+            bus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = new HashSet<int> { 1, 2 } });
+            bus.PublishManaged(new PauseTimeIntent());
+
+            // Promote to READ so Update() can drain them.
+            bus.SwapBuffers();
+            ctrl.Update();
+
+            // SwitchToDeterministic publishes SwitchTimeModeEvent to WRITE; promote to READ.
+            bus.SwapBuffers();
+            var events = bus.Consume<SwitchTimeModeEvent>().ToArray();
+
+            Assert.Single(events);
+            Assert.Equal(TimeMode.Deterministic, events[0].TargetMode);
+        }
+
+        /// <summary>
+        /// Publishing a <see cref="ResumeTimeIntent"/> to the bus after pausing and
+        /// calling Update() causes MasterSyncController to call SwitchToContinuous, so
+        /// <see cref="MasterSyncController.GetMode"/> returns <see cref="TimeMode.Continuous"/>.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_DrainsResumeTimeIntent_SwitchesToContinuous()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, tickSource: () => ticks);
+
+            // Switch to deterministic directly (tests the bus-drain resume path, not the pause path).
+            ctrl.SwitchToDeterministic(new HashSet<int>());
+            bus.SwapBuffers();
+            bus.Consume<SwitchTimeModeEvent>(); // drain that event
+
+            // Publish ResumeTimeIntent to the WRITE buffer.
+            bus.PublishManaged(new ResumeTimeIntent());
+
+            // Promote to READ so Update() can drain it.
+            bus.SwapBuffers();
+            ctrl.Update();
+
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+        }
     }
 }

@@ -103,6 +103,22 @@ namespace Fdp.Toolkit.Time.Controllers
         /// </summary>
         public GlobalTime Update()
         {
+            // Drain bus-published time-control intents (HEXAG2-S011).
+            // SlaveNodeSetUpdatedEvent must be consumed before PauseTimeIntent so
+            // SwitchToDeterministic gets the correct slave roster.
+            HashSet<int>? updatedSlaves = null;
+            foreach (var ev in _eventBus.ConsumeManaged<SlaveNodeSetUpdatedEvent>())
+                updatedSlaves = new HashSet<int>(ev.SlaveNodeIds);
+
+            foreach (var _ in _eventBus.ConsumeManaged<PauseTimeIntent>())
+                SwitchToDeterministic(updatedSlaves ?? new HashSet<int>(_expectedSlaves));
+            foreach (var _ in _eventBus.ConsumeManaged<ResumeTimeIntent>())
+                SwitchToContinuous();
+            foreach (var ev in _eventBus.ConsumeManaged<StepTimeIntent>())
+                Step(ev.DeltaSeconds);
+            foreach (var ev in _eventBus.ConsumeManaged<SetTimeScaleIntent>())
+                SetTimeScale(ev.TimeScale);
+
             long currentTicks  = _getTick();
             long elapsedTicks  = currentTicks - _lastTickSample;
             _lastTickSample    = currentTicks;
