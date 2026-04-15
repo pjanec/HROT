@@ -342,7 +342,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         if (!_headless && _context != null)
         {
             _fdpFrameCount++;
-            _fdpEventBrowser.Update(_context.EventBus, _fdpFrameCount);
+            _fdpEventBrowser.Update(_context.World.Bus, _fdpFrameCount);
             _canvas?.Update(deltaTime);
         }
         _context?.EventBus.SwapBuffers();

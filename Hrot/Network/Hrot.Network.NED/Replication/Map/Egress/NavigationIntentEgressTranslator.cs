@@ -1,6 +1,7 @@
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
+using Hrot.Map.Common.Dds;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -24,10 +25,18 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class NavigationIntentEgressTranslator : IDescriptorTranslator
     {
-        private readonly DdsWriter<Hrot.NED.Descriptors.NavigationIntent> _writer;
+        private readonly IDdsWriter<Hrot.NED.Descriptors.NavigationIntent> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly IGeographicTransform _geoTransform;
         private readonly long _localNodeId;
+        // Tracks the tick of the last scan so QueryDelta can skip unchanged chunks.
+        private uint _lastScanTick;
+        // Fine-grained per-entity change filter: stores the last-published IntentId so that
+        // chunk-level false positives (multiple entities in a dirty 64KB block) are dropped
+        // without any executor coupling or shadow ECS component.
+        // Key = entity index, Value = last IntentId that was published to DDS for that entity.
+        private readonly System.Collections.Generic.Dictionary<int, uint> _lastPublishedIntentId
+            = new System.Collections.Generic.Dictionary<int, uint>();
 
         public string TopicName      => "NavigationIntent";
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationIntent;
@@ -41,9 +50,23 @@ namespace Hrot.Map.Common.Replication.Egress
             NetworkEntityMap    entityMap,
             IGeographicTransform geoTransform,
             long localNodeId)
+            : this(new DdsWriterAdapter<Hrot.NED.Descriptors.NavigationIntent>(dds, "NavigationIntent"),
+                   entityMap, geoTransform, localNodeId)
         {
-            _writer       = new DdsWriter<Hrot.NED.Descriptors.NavigationIntent>(dds, "NavigationIntent");
-            _entityMap    = entityMap   ?? throw new System.ArgumentNullException(nameof(entityMap));
+        }
+
+        /// <summary>
+        /// Testable constructor. Accepts a pre-built writer so unit tests can
+        /// capture published samples without a live DDS participant.
+        /// </summary>
+        internal NavigationIntentEgressTranslator(
+            IDdsWriter<Hrot.NED.Descriptors.NavigationIntent> writer,
+            NetworkEntityMap    entityMap,
+            IGeographicTransform geoTransform,
+            long localNodeId)
+        {
+            _writer       = writer       ?? throw new System.ArgumentNullException(nameof(writer));
+            _entityMap    = entityMap    ?? throw new System.ArgumentNullException(nameof(entityMap));
             _geoTransform = geoTransform ?? throw new System.ArgumentNullException(nameof(geoTransform));
             _localNodeId  = localNodeId;
         }
@@ -53,10 +76,27 @@ namespace Hrot.Map.Common.Replication.Egress
 
         /// <summary>
         /// Publishes <see cref="Hrot.NED.Descriptors.NavigationIntent"/> to DDS for every
-        /// authority-owned entity that has an active <see cref="EcsNavigationIntent"/>.
+        /// authority-owned entity whose <see cref="EcsNavigationIntent"/> has changed since
+        /// the last scan.
+        ///
+        /// Two-tier filtering:
+        ///   1. Coarse (unmanaged, zero-alloc): QueryDelta skips entire 64KB EntityHeader
+        ///      chunks that have not been written since _lastScanTick.
+        ///   2. Fine (per-entity, O(1)): IntentId comparison in a local dictionary drops the
+        ///      remaining chunk-level false positives — entities adjacent in memory to the one
+        ///      that actually changed — without requiring any executor coupling or shadow ECS
+        ///      component.  Because every executor (MoveToExecutor, FollowRouteExecutor, etc.)
+        ///      increments IntentId on each new command, a change in IntentId is a strict
+        ///      proxy for "this entity's navigation order actually changed".
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
+            // QueryDelta is a concrete-repository API; bail out gracefully when view
+            // is a snapshot or test double that does not implement it.
+            var repo = view as EntityRepository;
+            if (repo == null)
+                return;
+
             var query = view.Query()
                 .With<EcsNavigationIntent>()
                 .With<NetworkIdentity>()
@@ -65,16 +105,25 @@ namespace Hrot.Map.Common.Replication.Egress
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
-            foreach (var entity in query)
+            // 1. Coarse unmanaged filter: skips all chunks unchanged since the last scan.
+            foreach (var entity in repo.QueryDelta(query, _lastScanTick))
             {
                 // Only publish navigation intent for locally-owned entities.
                 if (!view.HasAuthority(entity, packedKey))
                     continue;
 
-                var intent = view.GetComponentRO<EcsNavigationIntent>(entity);
+                ref readonly var intent = ref view.GetComponentRO<EcsNavigationIntent>(entity);
 
-                // Skip inactive intents â€” no command to broadcast.
+                // Skip inactive intents -- no command to broadcast.
                 if (intent.Mode == EcsNavMode.None)
+                    continue;
+
+                // 2. Fine-grained per-entity filter: only publish when IntentId changed.
+                //    IntentId is incremented by every executor (MoveToExecutor, FollowRouteExecutor,
+                //    etc.) on each new navigation command, making it a zero-coupling change
+                //    fingerprint that needs no MarkDirty calls anywhere in the AI layer.
+                if (_lastPublishedIntentId.TryGetValue(entity.Index, out uint lastId)
+                    && lastId == intent.IntentId)
                     continue;
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
@@ -93,10 +142,15 @@ namespace Hrot.Map.Common.Replication.Egress
                     ArrivalRadius    = intent.ArrivalRadius
                 });
 
+                // Record the published IntentId so the same command is not resent next frame.
+                _lastPublishedIntentId[entity.Index] = intent.IntentId;
+
                 FdpLog<NavigationIntentEgressTranslator>.Debug(
                     "[Node-{0}] NavigationIntent egress: EntityId={1} IntentId={2} Mode={3}",
                     _localNodeId, netId.Value, intent.IntentId, intent.Mode);
             }
+
+            _lastScanTick = view.Tick;
         }
 
         /// <summary>
