@@ -134,6 +134,26 @@ namespace Hrot.BDC.Factory
 
         /// <inheritdoc/>
         public long WorldPosDescriptorId => 0;
+
+        /// <inheritdoc/>
+        public IOrchestrationTranslator CreateOrchestratorTranslators(FdpEventBus bus, int nodeId)
+            => new NullOrchestrationTranslator();
+
+        /// <inheritdoc/>
+        public IDisposable CreateIdAllocatorServer()
+            => new NullDisposable();
+
+        /// <inheritdoc/>
+        public IMasterTimeTranslators CreateMasterTimeTranslators(FdpEventBus bus, int nodeId)
+            => new NullMasterTimeTranslators();
+
+        /// <inheritdoc/>
+        public ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus bus, int nodeId)
+            => new NullSlaveOrchestrationTranslator();
+
+        /// <inheritdoc/>
+        public IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus bus)
+            => new NullOrchestrationObserver();
     }
 
     internal sealed class BdcNullSimHostMissionSender : ISimHostMissionSender

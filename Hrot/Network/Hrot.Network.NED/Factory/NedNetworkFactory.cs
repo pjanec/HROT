@@ -267,6 +267,26 @@ public sealed class NedNetworkFactory : INetworkFactory
 
     /// <inheritdoc/>
     public long WorldPosDescriptorId => (long)EDescriptorType.dtWorldPos;
+
+    /// <inheritdoc/>
+    public Hrot.Core.Network.IOrchestrationTranslator CreateOrchestratorTranslators(FdpEventBus bus, int nodeId)
+        => new Hrot.Core.Network.NullOrchestrationTranslator();
+
+    /// <inheritdoc/>
+    public IDisposable CreateIdAllocatorServer()
+        => new Hrot.Core.Network.NullDisposable();
+
+    /// <inheritdoc/>
+    public Hrot.Core.Network.IMasterTimeTranslators CreateMasterTimeTranslators(FdpEventBus bus, int nodeId)
+        => new Hrot.Core.Network.NullMasterTimeTranslators();
+
+    /// <inheritdoc/>
+    public Hrot.Core.Network.ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus bus, int nodeId)
+        => new Hrot.Core.Network.NullSlaveOrchestrationTranslator();
+
+    /// <inheritdoc/>
+    public Hrot.Core.Network.IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus bus)
+        => new Hrot.Core.Network.NullOrchestrationObserver();
 }
 
 /// <summary>

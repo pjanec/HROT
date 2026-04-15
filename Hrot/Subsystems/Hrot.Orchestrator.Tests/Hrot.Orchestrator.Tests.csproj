@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
+    <ProjectReference Include="..\..\Network\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
   </ItemGroup>
 

@@ -123,4 +123,41 @@ public interface INetworkFactory
     /// Returns 0 for protocols that do not use this descriptor.
     /// </summary>
     long WorldPosDescriptorId { get; }
+
+    /// <summary>
+    /// Creates the orchestrator master-side DDS translators (ClusterOp, NodeOp, heartbeat).
+    /// All created DDS resources are owned by the returned translator and released on Dispose().
+    /// Returns a no-op translator when there is no DDS participant (headless / test mode).
+    /// No domain types (ClusterMaster, etc.) are accepted; integration is via bus events only.
+    /// </summary>
+    IOrchestrationTranslator CreateOrchestratorTranslators(FdpEventBus bus, int nodeId);
+
+    /// <summary>
+    /// Creates and starts the hosted DDS ID allocator server background thread.
+    /// The caller owns the returned handle; Dispose() blocks via Thread.Join to guarantee
+    /// clean teardown before the shared DdsParticipant is destroyed.
+    /// Returns a no-op IDisposable when there is no DDS participant.
+    /// </summary>
+    IDisposable CreateIdAllocatorServer();
+
+    /// <summary>
+    /// Creates the master-side time-sync DDS translators (time-mode broadcast,
+    /// lockstep barrier, master NTP sync). Absorbs _timeModeTranslator, _lockstepTranslator,
+    /// and _masterTimeSyncTranslator. Returns a no-op implementation when there is no
+    /// DDS participant.
+    /// </summary>
+    IMasterTimeTranslators CreateMasterTimeTranslators(FdpEventBus bus, int nodeId);
+
+    /// <summary>
+    /// Creates the slave-side orchestration translator (NodeOpCommand ingress,
+    /// NodeOpStatus + NodeHeartbeat egress).
+    /// Returns a no-op translator when there is no DDS participant.
+    /// </summary>
+    ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus bus, int nodeId);
+
+    /// <summary>
+    /// Creates the cluster observer translator (SystemStateTopic, AssetInventoryTopic ingress).
+    /// Returns a no-op translator when there is no DDS participant.
+    /// </summary>
+    IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus bus);
 }

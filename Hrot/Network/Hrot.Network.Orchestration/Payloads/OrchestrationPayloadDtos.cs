@@ -2,7 +2,7 @@ using System;
 using System.Text.Json.Serialization;
 using Hrot.NED.Descriptors.Orchestration;
 
-namespace Hrot.Orchestrator.Translators.Payloads;
+namespace Hrot.Network.Orchestration;
 
 /// <summary>
 /// A <see cref="JsonStringEnumConverter"/> variant that rejects numeric enum values,
@@ -108,3 +108,23 @@ public record NodePrefetchPayloadDto(
     [property: JsonPropertyName("ScenarioId")]
     string?        ScenarioId
 );
+
+/// <summary>
+/// Identifies a file to be pulled from a node's local storage to the central NAS.
+/// Returned as <c>ResultPayload</c> in <see cref="Fdp.Toolkit.Orchestration.NodeOpCompletedEvent"/>
+/// for the <c>SerializeLocal</c> operation.
+/// </summary>
+public sealed record FileManifestEntry
+{
+    /// <summary>
+    /// UNC or fully-qualified source path of the file on the originating node
+    /// (e.g. <c>\\NODE01\c$\FDP_Temp\checkpoint_a.fdp</c>).
+    /// </summary>
+    public string SourceUnc { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Relative destination path under the NAS base directory into which the file
+    /// should be written (e.g. <c>exercises\2026-03-29\checkpoint_a.fdp</c>).
+    /// </summary>
+    public string RelativeDest { get; init; } = string.Empty;
+}

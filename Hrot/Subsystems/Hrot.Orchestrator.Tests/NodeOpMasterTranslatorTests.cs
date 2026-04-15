@@ -8,7 +8,7 @@ using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.Common.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
-using Hrot.Orchestrator.Translators;
+using Hrot.Network.Orchestration;
 using NedNodeOpType  = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using NedClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using FdpNodeOpType  = Fdp.Toolkit.Orchestration.NodeOpType;

@@ -6,26 +6,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core.Logging;
+using Hrot.Network.Orchestration;
 
 namespace Hrot.Orchestrator;
-
-/// <summary>
-/// Identifies a file to be pulled from a node's local storage to the central NAS.
-/// </summary>
-public sealed record FileManifestEntry
-{
-    /// <summary>
-    /// UNC or fully-qualified source path of the file on the originating node
-    /// (e.g. <c>\\NODE01\c$\FDP_Temp\checkpoint_a.fdp</c>).
-    /// </summary>
-    public string SourceUnc { get; init; } = string.Empty;
-
-    /// <summary>
-    /// Relative destination path under the NAS base directory into which the file
-    /// should be written (e.g. <c>exercises\2026-03-29\checkpoint_a.fdp</c>).
-    /// </summary>
-    public string RelativeDest { get; init; } = string.Empty;
-}
 
 /// <summary>
 /// Identifies a push target on a remote simulation node.

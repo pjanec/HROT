@@ -5,7 +5,7 @@ using System.Numerics;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Map.Common;
 using Hrot.Orchestrator;
-using Hrot.Orchestrator.Translators;
+using Hrot.Network.Orchestration;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -43,8 +43,8 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     private bool _isPaused;   // S0503: toggled by TimeControlRequested handler
     // ── Unified event bus + translators (HEXAG2-S001) ─────────────────────
     private FdpEventBus?                             _bus;
-    private Hrot.Orchestrator.Translators.ClusterOpMasterTranslator? _clusterOpTranslator;
-    private Hrot.Orchestrator.Translators.NodeOpMasterTranslator?    _nodeOpTranslator;
+    private Hrot.Network.Orchestration.ClusterOpMasterTranslator? _clusterOpTranslator;
+    private Hrot.Network.Orchestration.NodeOpMasterTranslator?    _nodeOpTranslator;
     private DdsReader<ClusterOpRequest>?             _sysOpRequestReader;  // owned here in bus mode
     private DdsWriter<ClusterOpStatus>?              _sysOpStatusWriter;   // owned here in bus mode
     private DdsReader<NodeOpStatus>?                 _nodeOpStatusReader;
@@ -110,10 +110,10 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _sysOpStatusWriter   = new DdsWriter<ClusterOpStatus>(_participant);
         _nodeOpStatusReader  = new DdsReader<NodeOpStatus>(_participant);
         _clusterMaster       = new ClusterMaster(_bus, _config);
-        _clusterOpTranslator = new Hrot.Orchestrator.Translators.ClusterOpMasterTranslator(
+        _clusterOpTranslator = new Hrot.Network.Orchestration.ClusterOpMasterTranslator(
             _sysOpRequestReader, _sysOpStatusWriter, _bus,
             unhandledRequestCallback: _clusterMaster.HandleClusterOpRequest);
-        _nodeOpTranslator    = new Hrot.Orchestrator.Translators.NodeOpMasterTranslator(
+        _nodeOpTranslator    = new Hrot.Network.Orchestration.NodeOpMasterTranslator(
             nodeId => new DdsWriter<NodeOpCommand>(_participant), _nodeOpStatusReader, _bus);
 
         // DdsIdAllocatorServer: bus-mode ClusterMaster doesn't create this internally,

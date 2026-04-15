@@ -91,6 +91,26 @@ internal sealed class MockNetworkFactory : INetworkFactory
         long nodeId)
         => System.Array.Empty<Fdp.Interfaces.IDescriptorTranslator>();
 
+    /// <inheritdoc/>
+    public IOrchestrationTranslator CreateOrchestratorTranslators(Fdp.Core.FdpEventBus bus, int nodeId)
+        => new NullOrchestrationTranslator();
+
+    /// <inheritdoc/>
+    public IDisposable CreateIdAllocatorServer()
+        => new NullDisposable();
+
+    /// <inheritdoc/>
+    public IMasterTimeTranslators CreateMasterTimeTranslators(Fdp.Core.FdpEventBus bus, int nodeId)
+        => new NullMasterTimeTranslators();
+
+    /// <inheritdoc/>
+    public ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(Fdp.Core.FdpEventBus bus, int nodeId)
+        => new NullSlaveOrchestrationTranslator();
+
+    /// <inheritdoc/>
+    public IOrchestrationObserver CreateOrchestrationObserver(Fdp.Core.FdpEventBus bus)
+        => new NullOrchestrationObserver();
+
     // ---- null stubs -------------------------------------------------------
 
     private sealed class NullReplicationModule : IReplicationModule

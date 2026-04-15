@@ -1,7 +1,7 @@
 using System;
 using System.Text.Json;
 using Hrot.NED.Descriptors.Orchestration;
-using Hrot.Orchestrator.Translators.Payloads;
+using Hrot.Network.Orchestration;
 
 namespace Hrot.Orchestrator.Tests;
 

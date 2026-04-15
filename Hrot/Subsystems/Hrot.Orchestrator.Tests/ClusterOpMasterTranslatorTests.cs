@@ -6,7 +6,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.NED.Messages;
-using Hrot.Orchestrator.Translators;
+using Hrot.Network.Orchestration;
 using NedClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using FdpClusterState  = Fdp.Toolkit.Orchestration.ClusterState;
 using Xunit;

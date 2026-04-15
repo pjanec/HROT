@@ -5,12 +5,11 @@ using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.NED.Messages;
-using Hrot.Orchestrator.Translators.Payloads;
 using NedClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using NedClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using FdpClusterState = Fdp.Toolkit.Orchestration.ClusterState;
 
-namespace Hrot.Orchestrator.Translators;
+namespace Hrot.Network.Orchestration;
 
 /// <summary>
 /// Anti-Corruption Layer translator for the cluster-level orchestration traffic.

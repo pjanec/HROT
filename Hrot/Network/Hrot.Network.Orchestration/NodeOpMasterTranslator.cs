@@ -6,12 +6,10 @@ using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.NED.Descriptors.Orchestration;
-using Hrot.Orchestrator;
-using Hrot.Orchestrator.Translators.Payloads;
 using NedNodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using FdpNodeOpType = Fdp.Toolkit.Orchestration.NodeOpType;
 
-namespace Hrot.Orchestrator.Translators;
+namespace Hrot.Network.Orchestration;
 
 /// <summary>
 /// Anti-Corruption Layer translator for the ClusterMaster (orchestrator) side.
