@@ -1,6 +1,7 @@
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
+using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Common;
 using Hrot.Core.Network;
@@ -142,6 +143,10 @@ namespace Hrot.BDC.Factory
         /// <inheritdoc/>
         public IDisposable CreateIdAllocatorServer()
             => new NullDisposable();
+
+        /// <inheritdoc/>
+        public INetworkIdAllocator CreateIdAllocator(string clientId, bool skipRoutingWait = false)
+            => new SequentialIdAllocator();
 
         /// <inheritdoc/>
         public IMasterTimeTranslators CreateMasterTimeTranslators(FdpEventBus bus, int nodeId)

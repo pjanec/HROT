@@ -5,6 +5,7 @@ using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.DER;
+using Fdp.Toolkit.NetworkSpawning;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
 using Hrot.Common.Infrastructure;
@@ -139,6 +140,18 @@ public interface INetworkFactory
     /// Returns a no-op IDisposable when there is no DDS participant.
     /// </summary>
     IDisposable CreateIdAllocatorServer();
+
+    /// <summary>
+    /// Creates a network ID allocator client for the given logical client identifier.
+    /// Returns a <c>DdsIdAllocator</c> when a live DDS participant is available; otherwise
+    /// returns a local <see cref="SequentialIdAllocator"/> for offline/headless environments.
+    /// </summary>
+    /// <param name="clientId">Human-readable logical name used in DDS discovery (e.g. "SimHostAllocator").</param>
+    /// <param name="skipRoutingWait">
+    /// When <c>true</c>, skips the publication-match wait for server discovery.
+    /// Use for ghost nodes (e.g. IG) that do not require an authoritative allocator.
+    /// </param>
+    INetworkIdAllocator CreateIdAllocator(string clientId, bool skipRoutingWait = false);
 
     /// <summary>
     /// Creates the master-side time-sync DDS translators (time-mode broadcast,

@@ -138,19 +138,8 @@ namespace Hrot.ExCon
             // ── DDS participant ────────────────────────────────────────────────
             // Create participant in the Application Shell (Composition Root).
             // Rule: only the outermost executable may instantiate DdsParticipant.
-            // HrotNodeBuilder no longer has a fallback; ExConSubsystem creates its own
-            // when the composition root does not provide one via INetworkFactory.
+            // HrotNodeBuilder no longer has a fallback
             _participant = _networkFactory?.Participant;
-            if (_participant == null)
-            {
-                int exConNodeId = config.NodeId != 0 ? config.NodeId : 500;
-                _participant = HrotEnvironment.CreateParticipant(config.DomainId);
-                _participant.EnableSenderTracking(new SenderIdentityConfig
-                {
-                    AppDomainId   = config.DomainId,
-                    AppInstanceId = exConNodeId,
-                });
-            }
 
             // ── ClusterSlave (CGF1-S0104 / CMC-S016 BATCH-06) ────────────────────────
             var iosNodeId  = config.NodeId != 0 ? config.NodeId : 500;
@@ -395,7 +384,14 @@ namespace Hrot.ExCon
                     _ingressDisposables[i].Dispose();
                 _ingressDisposables = null;
             }
-            _participant?.Dispose();
+
+            // Only dispose the participant if ExCon instantiated it locally.
+            // If it was provided by the factory, the application shell owns it.
+            if (_networkFactory?.Participant == null)
+            {
+                _participant?.Dispose();
+            }
+
             _participant = null;
         }
     }

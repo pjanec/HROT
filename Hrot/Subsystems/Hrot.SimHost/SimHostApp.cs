@@ -282,6 +282,7 @@ namespace Hrot.SimHost
             };
             var baseContext = new HrotNodeBuilder(hrotConfig)
                 .WithRole("SimHost", _role)
+                .WithNetworkFactory(_networkFactory)
                 .Build();
 
             // Configure the injected factory with this node's participant, entityMap, etc.

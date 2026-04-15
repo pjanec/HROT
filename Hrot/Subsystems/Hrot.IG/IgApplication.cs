@@ -598,6 +598,7 @@ public class IgApplication : IDisposable
         };
         _context = new HrotNodeBuilder(igConfig)
             .WithRole("IgApplication", Hrot.Common.NodeRole.ImageGenerator)
+            .WithNetworkFactory(_networkFactory)
             .Build();
 
         // Create replication module via factory (prevents direct NED reference in IG).

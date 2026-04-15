@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core;
+using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Hrot.Common.Abstractions;
@@ -16,7 +17,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// DDS domain. Mirrors the structure of <see cref="Hrot.Editor.OfflineNetworkFactory"/>,
 /// but lives in the test assembly so it can be used without a reference to Hrot.Editor.
 /// </summary>
-internal sealed class MockNetworkFactory : INetworkFactory
+internal class MockNetworkFactory : INetworkFactory
 {
     /// <inheritdoc/>
     public IReplicationModule CreateReplicationModule() => new NullReplicationModule();
@@ -96,8 +97,12 @@ internal sealed class MockNetworkFactory : INetworkFactory
         => new NullOrchestrationTranslator();
 
     /// <inheritdoc/>
-    public IDisposable CreateIdAllocatorServer()
+    public virtual IDisposable CreateIdAllocatorServer()
         => new NullDisposable();
+
+    /// <inheritdoc/>
+    public INetworkIdAllocator CreateIdAllocator(string clientId, bool skipRoutingWait = false)
+        => new SequentialIdAllocator();
 
     /// <inheritdoc/>
     public IMasterTimeTranslators CreateMasterTimeTranslators(Fdp.Core.FdpEventBus bus, int nodeId)

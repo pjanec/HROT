@@ -84,7 +84,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // in that case factory calls return Null-object implementations via ?. / ?? operator.
         if (_networkFactory != null)
         {
-            _networkFactory = _networkFactory.ConfigureForNode(null, config.NodeId, NodeRole.None);
+            _networkFactory = _networkFactory.ConfigureForNode(_networkFactory.Participant, config.NodeId, NodeRole.None);
         }
 
         // ── Single unified event bus (HEXAG2-S001) ────────────────────────────────
@@ -135,6 +135,11 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             };
             _clusterMaster.SetGlobalContextHandler(contextHandler);
         }
+
+
+        // Drain the read buffer locally so the cache captures the bootstrapped state
+        // before the first frame's Phase 2 SwapBuffers wipes it out.
+        _uiCache.Update();
     }
 
     public void Update(float deltaTime)

@@ -4,9 +4,11 @@ using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
+using Fdp.Network.Cyclone.Services;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.DER;
 using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Replication.Patching;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
@@ -279,6 +281,18 @@ public sealed class NedNetworkFactory : INetworkFactory
         => _participant != null
             ? new HostedIdAllocatorServer(_participant)
             : new Hrot.Core.Network.NullDisposable();
+
+    /// <inheritdoc/>
+    public INetworkIdAllocator CreateIdAllocator(string clientId, bool skipRoutingWait = false)
+    {
+        if (_participant == null)
+            return new Hrot.Core.Network.SequentialIdAllocator();
+
+        var allocator = new DdsIdAllocator(_participant, clientId);
+        if (!skipRoutingWait)
+            DdsIdAllocatorHelper.EnsureRouting(_participant, allocator);
+        return allocator;
+    }
 
     /// <inheritdoc/>
     public Hrot.Core.Network.IMasterTimeTranslators CreateMasterTimeTranslators(FdpEventBus bus, int nodeId)

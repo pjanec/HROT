@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core;
+using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Hrot.Common.Abstractions;
@@ -103,6 +104,10 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     /// <inheritdoc/>
     public IDisposable CreateIdAllocatorServer()
         => new NullDisposable();
+
+    /// <inheritdoc/>
+    public INetworkIdAllocator CreateIdAllocator(string clientId, bool skipRoutingWait = false)
+        => new SequentialIdAllocator();
 
     /// <inheritdoc/>
     public IMasterTimeTranslators CreateMasterTimeTranslators(FdpEventBus bus, int nodeId)

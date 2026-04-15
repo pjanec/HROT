@@ -5,11 +5,13 @@ using CycloneDDS.Runtime.Tracking;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Time.Controllers;
 using Hrot.Common.Orchestration;
+using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.NED.Descriptors.Orchestration;
 using Fdp.ModuleHost;
@@ -38,8 +40,9 @@ namespace Hrot.Common.Infrastructure;
 public sealed class HrotNodeBuilder
 {
     private readonly HrotNodeConfig _config;
-    private string   _subsystemName = "Node";
-    private bool     _built;
+    private string            _subsystemName = "Node";
+    private INetworkFactory?  _networkFactory;
+    private bool              _built;
 
     public HrotNodeBuilder(HrotNodeConfig config)
     {
@@ -50,6 +53,17 @@ public sealed class HrotNodeBuilder
     public HrotNodeBuilder WithRole(string subsystemName, Hrot.Common.NodeRole role)
     {
         _subsystemName = subsystemName;
+        return this;
+    }
+
+    /// <summary>
+    /// Supplies the <see cref="INetworkFactory"/> used to create the ID allocator client.
+    /// When provided, <see cref="Build"/> delegates ID allocator creation to the factory
+    /// instead of directly instantiating <c>DdsIdAllocator</c>.
+    /// </summary>
+    public HrotNodeBuilder WithNetworkFactory(INetworkFactory? networkFactory)
+    {
+        _networkFactory = networkFactory;
         return this;
     }
 
@@ -92,9 +106,9 @@ public sealed class HrotNodeBuilder
 
         // ── Part B: Hrot / DDS-specific ───────────────────────────────────────
 
-        DdsParticipant? participant  = null;
+        DdsParticipant?  participant  = null;
         NetworkEntityMap entityMap   = new NetworkEntityMap();
-        DdsIdAllocator?  idAllocator = null;
+        INetworkIdAllocator? idAllocator = null;
 
         if (!_config.Headless)
         {
@@ -109,11 +123,27 @@ public sealed class HrotNodeBuilder
             // Step 7 — ID allocator client + routing wait
             //
             // ── ID Allocator routing ──────────────────────────────────────────
-            if (participant != null)
+            // When a network factory is provided, delegate allocator creation to it
+            // so the factory decides whether to return a DdsIdAllocator or a
+            // SequentialIdAllocator (e.g. in offline/headless environments).
+            // Without a factory, fall back to direct DDS instantiation (legacy path).
+            if (_networkFactory != null)
             {
-                idAllocator = new DdsIdAllocator(participant, (_config.SubsystemName ?? _subsystemName) + "Allocator");
+                // Factory path: delegate to factory regardless of participant availability.
+                // NedNetworkFactory returns DdsIdAllocator when its internal participant is
+                // non-null, SequentialIdAllocator otherwise.  Offline/mock factories always
+                // return SequentialIdAllocator.
+                idAllocator = _networkFactory.CreateIdAllocator(
+                    (_config.SubsystemName ?? _subsystemName) + "Allocator",
+                    skipRoutingWait: _config.SkipAllocatorRouting);
+            }
+            else if (participant != null)
+            {
+                // Legacy path (no factory injected): create DdsIdAllocator directly.
+                var ddsAllocator = new DdsIdAllocator(participant, (_config.SubsystemName ?? _subsystemName) + "Allocator");
                 if (!_config.SkipAllocatorRouting)
-                    DdsIdAllocatorHelper.EnsureRouting(participant, idAllocator);
+                    DdsIdAllocatorHelper.EnsureRouting(participant, ddsAllocator);
+                idAllocator = ddsAllocator;
             }
         }
         else if (_config.ExternalParticipant != null)
@@ -122,6 +152,16 @@ public sealed class HrotNodeBuilder
             // use the participant for DDS communication (e.g. integration tests that need
             // ingress/egress but skip the Raylib window), but skip allocator routing.
             participant = _config.ExternalParticipant;
+        }
+
+        // Factory-provided allocator in headless mode: let the factory decide (returns
+        // SequentialIdAllocator for offline/mock factories, enabling unit tests to spawn
+        // entities without a live DDS participant.
+        if (_networkFactory != null && idAllocator == null)
+        {
+            idAllocator = _networkFactory.CreateIdAllocator(
+                (_config.SubsystemName ?? _subsystemName) + "Allocator",
+                skipRoutingWait: true);
         }
 
         // Step 8 — ClusterSlave + NodeOpSlaveTranslator (inline)

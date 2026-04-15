@@ -165,6 +165,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         };
         _context = new HrotNodeBuilder(nodeConfig)
             .WithRole("CgfNode", NodeRole.Brain)
+            .WithNetworkFactory(_networkFactory)
             .Build();
 
         _entityMap = _context.EntityMap;
@@ -488,7 +489,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _simGroup?.Dispose();
         _simGroup = null;
         _context?.Kernel.Dispose();
-        _context?.Participant?.Dispose();
+
+        // Guard the participant disposal.
+        if (_networkFactory?.Participant == null)
+        {
+            _context?.Participant?.Dispose();
+        }
+
         _context = null;
     }
 
