@@ -20,8 +20,9 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// pure presentation node and is NOT wired for lockstep.</para>
 ///
 /// <para>Observable state: <see cref="SimHostSubsystem.TestHook_CurrentSimTime"/> is
-/// the ground-truth sim-time source; <see cref="OrchestratorSubsystem.IsPausedForTest"/>
-/// is the pause-state flag updated by the <c>TimeControlRequested</c> handler.</para>
+/// the ground-truth sim-time source; <see cref="ClusterUiCache.IsPaused"/>
+/// (via <c>OrchestratorSubsystem.UiCacheForTest</c>) is the pause-state flag driven
+/// by the bus pipeline (HEXAG2-S011).</para>
 /// </summary>
 public sealed class TimeControlIntegrationTests : IDisposable
 {
@@ -133,8 +134,8 @@ public sealed class TimeControlIntegrationTests : IDisposable
         await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
 
         // Assert: IsPaused flag
-        bool pauseReached = PumpUntil(() => _orchestratorSvc.IsPausedForTest, timeoutMs: 3000);
-        Assert.True(pauseReached, "OrchestratorSubsystem.IsPausedForTest should become true after PauseTime");
+        bool pauseReached = PumpUntil(() => _orchestratorSvc.UiCacheForTest!.IsPaused, timeoutMs: 3000);
+        Assert.True(pauseReached, "UiCacheForTest.IsPaused should become true after PauseTime");
 
         // Assert: sim-time is frozen
         double deltaWhilePaused = ObserveSimTimeDelta(600);
@@ -145,8 +146,8 @@ public sealed class TimeControlIntegrationTests : IDisposable
         await SendTimeOpAsync(ClusterOpType.ResumeTime).ConfigureAwait(false);
 
         // Assert: IsPaused flag cleared
-        bool resumeReached = PumpUntil(() => !_orchestratorSvc.IsPausedForTest, timeoutMs: 3000);
-        Assert.True(resumeReached, "OrchestratorSubsystem.IsPausedForTest should become false after ResumeTime");
+        bool resumeReached = PumpUntil(() => !_orchestratorSvc.UiCacheForTest!.IsPaused, timeoutMs: 3000);
+        Assert.True(resumeReached, "UiCacheForTest.IsPaused should become false after ResumeTime");
 
         // Assert: sim-time is advancing again
         double deltaAfterResume = ObserveSimTimeDelta(800);
@@ -169,7 +170,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
 
         // Pause
         await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
-        bool paused = PumpUntil(() => _orchestratorSvc.IsPausedForTest, timeoutMs: 3000);
+        bool paused = PumpUntil(() => _orchestratorSvc.UiCacheForTest!.IsPaused, timeoutMs: 3000);
         Assert.True(paused, "Should be paused before stepping");
 
         // Record sim-time at pause
@@ -192,7 +193,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
 
         // Resume
         await SendTimeOpAsync(ClusterOpType.ResumeTime).ConfigureAwait(false);
-        bool resumed = PumpUntil(() => !_orchestratorSvc.IsPausedForTest, timeoutMs: 3000);
+        bool resumed = PumpUntil(() => !_orchestratorSvc.UiCacheForTest!.IsPaused, timeoutMs: 3000);
         Assert.True(resumed, "Should be running after Resume");
 
         // Confirm time advances freely
@@ -219,7 +220,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
 
             // Pause
             await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
-            bool paused = PumpUntil(() => _orchestratorSvc.IsPausedForTest, timeoutMs: 3000);
+            bool paused = PumpUntil(() => _orchestratorSvc.UiCacheForTest!.IsPaused, timeoutMs: 3000);
             Assert.True(paused, $"Cycle {cycle}: should be paused");
 
             // Confirm frozen
@@ -229,7 +230,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
 
             // Resume
             await SendTimeOpAsync(ClusterOpType.ResumeTime).ConfigureAwait(false);
-            bool resumed = PumpUntil(() => !_orchestratorSvc.IsPausedForTest, timeoutMs: 3000);
+            bool resumed = PumpUntil(() => !_orchestratorSvc.UiCacheForTest!.IsPaused, timeoutMs: 3000);
             Assert.True(resumed, $"Cycle {cycle}: should be running after Resume");
         }
 
@@ -253,7 +254,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
 
         // ── First pause block ─────────────────────────────────────────────────
         await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
-        Assert.True(PumpUntil(() => _orchestratorSvc.IsPausedForTest), "Block 1: should be paused");
+        Assert.True(PumpUntil(() => _orchestratorSvc.UiCacheForTest!.IsPaused), "Block 1: should be paused");
 
         double t0 = _simHost.TestHook_CurrentSimTime;
 
@@ -270,7 +271,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
             $"Block 1: expected ~{2 * StepDelta}s advance; got {t1 - t0:F3}s");
 
         await SendTimeOpAsync(ClusterOpType.ResumeTime).ConfigureAwait(false);
-        Assert.True(PumpUntil(() => !_orchestratorSvc.IsPausedForTest), "Block 1: should resume");
+        Assert.True(PumpUntil(() => !_orchestratorSvc.UiCacheForTest!.IsPaused), "Block 1: should resume");
 
         // Let clock run briefly
         Thread.Sleep(300);
@@ -278,7 +279,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
 
         // ── Second pause block ────────────────────────────────────────────────
         await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
-        Assert.True(PumpUntil(() => _orchestratorSvc.IsPausedForTest), "Block 2: should be paused");
+        Assert.True(PumpUntil(() => _orchestratorSvc.UiCacheForTest!.IsPaused), "Block 2: should be paused");
 
         double t2 = _simHost.TestHook_CurrentSimTime;
 
@@ -291,7 +292,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
             $"Block 2: expected ~{StepDelta}s advance; got {t3 - t2:F3}s");
 
         await SendTimeOpAsync(ClusterOpType.ResumeTime).ConfigureAwait(false);
-        Assert.True(PumpUntil(() => !_orchestratorSvc.IsPausedForTest), "Block 2: should resume");
+        Assert.True(PumpUntil(() => !_orchestratorSvc.UiCacheForTest!.IsPaused), "Block 2: should resume");
 
         // Final advancing check
         double finalDelta = ObserveSimTimeDelta(600);
@@ -323,7 +324,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
 
         // Act: Pause
         await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
-        bool paused = PumpUntil(() => _orchestratorSvc.IsPausedForTest, timeoutMs: 3000);
+        bool paused = PumpUntil(() => _orchestratorSvc.UiCacheForTest!.IsPaused, timeoutMs: 3000);
         Assert.True(paused, "Should be paused");
 
         // During Pause: SlaveSyncController must be in Deterministic mode.
@@ -331,7 +332,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
 
         // Act: Resume
         await SendTimeOpAsync(ClusterOpType.ResumeTime).ConfigureAwait(false);
-        bool resumed = PumpUntil(() => !_orchestratorSvc.IsPausedForTest, timeoutMs: 3000);
+        bool resumed = PumpUntil(() => !_orchestratorSvc.UiCacheForTest!.IsPaused, timeoutMs: 3000);
         Assert.True(resumed, "Should be running after Resume");
 
         // After Resume: SlaveSyncController must be back in Continuous mode.
@@ -372,10 +373,10 @@ public sealed class TimeControlIntegrationTests : IDisposable
 
         // ── First Pause/Resume cycle ──────────────────────────────────────────
         await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
-        Assert.True(PumpUntil(() => _orchestratorSvc.IsPausedForTest), "Cycle 1: paused");
+        Assert.True(PumpUntil(() => _orchestratorSvc.UiCacheForTest!.IsPaused), "Cycle 1: paused");
 
         await SendTimeOpAsync(ClusterOpType.ResumeTime).ConfigureAwait(false);
-        Assert.True(PumpUntil(() => !_orchestratorSvc.IsPausedForTest), "Cycle 1: resumed");
+        Assert.True(PumpUntil(() => !_orchestratorSvc.UiCacheForTest!.IsPaused), "Cycle 1: resumed");
 
         // Let clock advance between cycles
         double betweenDelta = ObserveSimTimeDelta(400);
@@ -383,7 +384,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
 
         // ── Second Pause/Step cycle ───────────────────────────────────────────
         await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
-        Assert.True(PumpUntil(() => _orchestratorSvc.IsPausedForTest), "Cycle 2: paused");
+        Assert.True(PumpUntil(() => _orchestratorSvc.UiCacheForTest!.IsPaused), "Cycle 2: paused");
 
         double simBeforeStep = _simHost.TestHook_CurrentSimTime;
 
@@ -397,7 +398,7 @@ public sealed class TimeControlIntegrationTests : IDisposable
             $"Second-cycle step must advance sim-time by ~{StepDelta}s; got {advanced:F3}s");
 
         await SendTimeOpAsync(ClusterOpType.ResumeTime).ConfigureAwait(false);
-        Assert.True(PumpUntil(() => !_orchestratorSvc.IsPausedForTest), "Cycle 2: resumed");
+        Assert.True(PumpUntil(() => !_orchestratorSvc.UiCacheForTest!.IsPaused), "Cycle 2: resumed");
 
         double finalDelta = ObserveSimTimeDelta(600);
         Assert.True(finalDelta > 0.3,

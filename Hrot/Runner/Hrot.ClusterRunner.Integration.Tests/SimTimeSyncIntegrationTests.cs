@@ -175,7 +175,7 @@ public sealed class SimTimeSyncIntegrationTests : IDisposable
         await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
         LogAllSimTimes("after-send-pause (in Settle(80) + 400ms sleep)");
 
-        bool ok = _harness.PumpUntil(() => _orch.IsPausedForTest, 300);
+        bool ok = _harness.PumpUntil(() => _orch.UiCacheForTest!.IsPaused, 300);
         Assert.True(ok, "Master should be paused");
         LogAllSimTimes("after-PumpUntil");
 
@@ -202,7 +202,7 @@ public sealed class SimTimeSyncIntegrationTests : IDisposable
         string payload = $"{{\"FixedDelta\":{StepDelta.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}}}";
 
         await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
-        bool paused = _harness.PumpUntil(() => _orch.IsPausedForTest, 300);
+        bool paused = _harness.PumpUntil(() => _orch.UiCacheForTest!.IsPaused, 300);
         Assert.True(paused, "Should enter paused state");
 
         for (int i = 1; i <= Steps; i++)
@@ -228,7 +228,7 @@ public sealed class SimTimeSyncIntegrationTests : IDisposable
         Settle(100);
 
         await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
-        bool paused = _harness.PumpUntil(() => _orch.IsPausedForTest, 300);
+        bool paused = _harness.PumpUntil(() => _orch.UiCacheForTest!.IsPaused, 300);
         Assert.True(paused);
 
         // 2 steps
@@ -236,7 +236,7 @@ public sealed class SimTimeSyncIntegrationTests : IDisposable
         await SendTimeOpAsync(ClusterOpType.StepTime, payload).ConfigureAwait(false);
 
         await SendTimeOpAsync(ClusterOpType.ResumeTime).ConfigureAwait(false);
-        bool resumed = _harness.PumpUntil(() => !_orch.IsPausedForTest, 300);
+        bool resumed = _harness.PumpUntil(() => !_orch.UiCacheForTest!.IsPaused, 300);
         Assert.True(resumed);
 
         // Give slaves time to re-anchor and run a few frames.
@@ -263,7 +263,7 @@ public sealed class SimTimeSyncIntegrationTests : IDisposable
         Assert.True(e  >= 0, $"ExCon sim time is negative: {e:F4}");
 
         await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
-        _harness.PumpUntil(() => _orch.IsPausedForTest, 300);
+        _harness.PumpUntil(() => _orch.UiCacheForTest!.IsPaused, 300);
         Settle(SettleFrames);
 
         var (o2, s2, ig2, e2) = AllTimes();

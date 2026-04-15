@@ -10,6 +10,7 @@ using Fdp.Core.Logging;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Core;
+using Fdp.Toolkit.Time.Domain;
 using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType    = Hrot.NED.Descriptors.Orchestration.NodeOpType;
@@ -231,13 +232,6 @@ public sealed class ClusterMaster : IDisposable
     // ── Public surface ────────────────────────────────────────────────────
     public NodeRoster NodeRoster => _roster;
 
-    /// <summary>
-    /// Raised for time-control operations (Pause/Resume/Step/SetTimeScale) that do
-    /// not require 2PC across simulation nodes.  <see cref="OrchestratorSubsystem"/>
-    /// subscribes to route these to <see cref="DistributedTimeCoordinator"/>.
-    /// </summary>
-    public event Action<ClusterOpType, string>? TimeControlRequested;
-
     /// <summary><c>true</c> once all mandatory nodes have reached <c>Standby</c>.</summary>
     public bool BootstrapComplete => _bootstrapLatch;
 
@@ -425,10 +419,38 @@ public sealed class ClusterMaster : IDisposable
         }
 
         // S0503: Time-control operations bypass 2PC.
+        // Publish typed intents to the bus; MasterSyncController drains them in Phase 3 (HEXAG2-S011).
         if (req.OperationType is ClusterOpType.PauseTime or ClusterOpType.ResumeTime
                               or ClusterOpType.StepTime  or ClusterOpType.SetTimeScale)
         {
-            TimeControlRequested?.Invoke(req.OperationType, ClusterOpRequestAdapter.GetPayloadString(req));
+            switch (req.OperationType)
+            {
+                case ClusterOpType.PauseTime:
+                {
+                    var slaveIds = _roster.ActiveNodes
+                        .Where(kv => kv.Value.SubsystemName is "SimHost" or "IG" or "CGF")
+                        .Select(kv => kv.Key)
+                        .ToHashSet();
+                    _eventBus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = slaveIds });
+                    _eventBus.PublishManaged(new PauseTimeIntent());
+                    break;
+                }
+                case ClusterOpType.ResumeTime:
+                    _eventBus.PublishManaged(new ResumeTimeIntent());
+                    break;
+                case ClusterOpType.StepTime:
+                {
+                    float delta = ParseStepDelta(ClusterOpRequestAdapter.GetPayloadString(req), 1f / 60f);
+                    _eventBus.PublishManaged(new StepTimeIntent { DeltaSeconds = delta });
+                    break;
+                }
+                case ClusterOpType.SetTimeScale:
+                {
+                    float scale = ParseTimeScale(ClusterOpRequestAdapter.GetPayloadString(req), 1f);
+                    _eventBus.PublishManaged(new SetTimeScaleIntent { TimeScale = scale });
+                    break;
+                }
+            }
             return;
         }
 
@@ -1421,6 +1443,40 @@ public sealed class ClusterMaster : IDisposable
             });
         }
         return targets;
+    }
+
+    // ── Time-control payload parsers ──────────────────────────────────────
+
+    /// <summary>
+    /// Parses a FixedDelta seconds value from a StepTime payload JSON.
+    /// Returns <paramref name="fallback"/> when the payload is absent, malformed, or non-positive.
+    /// </summary>
+    private static float ParseStepDelta(string? payload, float fallback)
+    {
+        if (string.IsNullOrWhiteSpace(payload)) return fallback;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(payload);
+            if (doc.RootElement.TryGetProperty("FixedDelta", out var el))
+            {
+                float v = el.GetSingle();
+                return v > 0f ? v : fallback;
+            }
+        }
+        catch { }
+        return fallback;
+    }
+
+    /// <summary>Parses a plain float time-scale value from a SetTimeScale payload.</summary>
+    private static float ParseTimeScale(string? payload, float fallback)
+    {
+        if (string.IsNullOrWhiteSpace(payload)) return fallback;
+        if (float.TryParse(payload,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out float s) && s > 0f)
+            return s;
+        return fallback;
     }
 
     private void PublishStandby() => PublishClusterState(ClusterState.Idle);

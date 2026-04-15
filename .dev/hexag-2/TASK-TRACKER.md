@@ -19,11 +19,11 @@
 
 **Goal:** Remove all CycloneDDS dependencies from subsystem domain logic; close all C# event couplings.
 
-- [ ] **HEXAG2-S003** Define `IOrchestrationTranslator` interface [details](./TASK-DETAIL.md#hexag2-s003--define-iOrchestrationtranslator-interface)
-- [ ] **HEXAG2-S004** Extend `INetworkFactory` with master + slave ports [details](./TASK-DETAIL.md#hexag2-s004--extend-inetworkfactory-with-createorchestratortranslators)
-- [ ] **HEXAG2-S005** Move master translators to `Hrot.Network.Orchestration` [details](./TASK-DETAIL.md#hexag2-s005--move-master-translators-to-hrotnetworkOrchestration)
-- [ ] **HEXAG2-S010** Sever `unhandledRequestCallback`; add time-control intents to bus [details](./TASK-DETAIL.md#hexag2-s010--sever-unhandledRequestcallback-from-clusterOpmastertranslator)
-- [ ] **HEXAG2-S011** Eliminate `ClusterMaster.TimeControlRequested` C# event; wire `MasterSyncController` to bus [details](./TASK-DETAIL.md#hexag2-s011--eliminate-clustermastertimecontrolrequested-c-event)
+- [x] **HEXAG2-S003** Define `IOrchestrationTranslator` interface [details](./TASK-DETAIL.md#hexag2-s003--define-iOrchestrationtranslator-interface)
+- [x] **HEXAG2-S004** Extend `INetworkFactory` with master + slave ports [details](./TASK-DETAIL.md#hexag2-s004--extend-inetworkfactory-with-createorchestratortranslators)
+- [x] **HEXAG2-S005** Move master translators to `Hrot.Network.Orchestration` [details](./TASK-DETAIL.md#hexag2-s005--move-master-translators-to-hrotnetworkOrchestration)
+- [x] **HEXAG2-S010** Sever `unhandledRequestCallback`; add time-control intents to bus [details](./TASK-DETAIL.md#hexag2-s010--sever-unhandledRequestcallback-from-clusterOpmastertranslator)
+- [x] **HEXAG2-S011** Eliminate `ClusterMaster.TimeControlRequested` C# event; wire `MasterSyncController` to bus [details](./TASK-DETAIL.md#hexag2-s011--eliminate-clustermastertimecontrolrequested-c-event)
 - [ ] **HEXAG2-S006** Implement `CreateOrchestratorTranslators` in `NedNetworkFactory` [details](./TASK-DETAIL.md#hexag2-s006--implement-createorchestratortranslators-in-nednetworkfactory)
 - [ ] **HEXAG2-S007** Extract `DdsIdAllocatorServer` behind `CreateIdAllocatorServer()` port [details](./TASK-DETAIL.md#hexag2-s007--extract-ddsidAllocatorserver-behind-dedicated-factory-port)
 - [ ] **HEXAG2-S008** Refactor `OrchestratorSubsystem` to use `INetworkFactory` [details](./TASK-DETAIL.md#hexag2-s008--refactor-orchestratorsubsystem-to-use-inetworkfactory)

@@ -40,7 +40,6 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     private DdsWriter<ClusterOpRequest>? _sysOpWriter;  // S0502 — TODO PACK-E001: dead field; remove in follow-up
 #pragma warning restore CS0169
 
-    private bool _isPaused;   // S0503: toggled by TimeControlRequested handler
     // ── Unified event bus + translators (HEXAG2-S001) ─────────────────────
     private FdpEventBus?                             _bus;
     private Hrot.Network.Orchestration.ClusterOpMasterTranslator? _clusterOpTranslator;
@@ -73,9 +72,6 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     /// <see cref="ClusterMaster.HandleClusterOpRequest"/> and read cluster state.
     /// </summary>
     internal ClusterMaster? TestHook_ClusterMaster => _clusterMaster;
-
-    /// <summary>Internal test hook: exposes current pause state for assertions.</summary>
-    internal bool IsPausedForTest => _isPaused;
 
     /// <summary>Internal test hook: current master sim time in seconds.</summary>
     internal double TestHook_CurrentSimTime => _masterSync?.GetCurrentState().TotalTime ?? 0.0;
@@ -111,8 +107,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _nodeOpStatusReader  = new DdsReader<NodeOpStatus>(_participant);
         _clusterMaster       = new ClusterMaster(_bus, _config);
         _clusterOpTranslator = new Hrot.Network.Orchestration.ClusterOpMasterTranslator(
-            _sysOpRequestReader, _sysOpStatusWriter, _bus,
-            unhandledRequestCallback: _clusterMaster.HandleClusterOpRequest);
+            _sysOpRequestReader, _sysOpStatusWriter, _bus);
         _nodeOpTranslator    = new Hrot.Network.Orchestration.NodeOpMasterTranslator(
             nodeId => new DdsWriter<NodeOpCommand>(_participant), _nodeOpStatusReader, _bus);
 
@@ -148,39 +143,6 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
 
         _uiCache       = new ClusterUiCache(_bus, _masterSync);
         _scenarioPanel = new ClusterScenarioPanel(_bus!, _uiCache);
-
-        // S0503: Subscribe to time-control events from ClusterMaster.
-        _clusterMaster.TimeControlRequested += (op, payload) =>
-        {
-            switch (op)
-            {
-                case ClusterOpType.PauseTime:
-                    // Only simulation-kernel nodes (SimHost, IG, CGF) participate in
-                    // lockstep ACK. ExCon has no kernel and never sends FrameAck, so it
-                    // must be excluded to prevent Step() from blocking indefinitely.
-                    var ids = _clusterMaster.NodeRoster.ActiveNodes
-                        .Where(kv => kv.Value.SubsystemName is "SimHost" or "IG" or "CGF")
-                        .Select(kv => kv.Key)
-                        .ToHashSet();
-                    _masterSync?.SwitchToDeterministic(ids);
-                    _isPaused = true;
-                    break;
-                case ClusterOpType.ResumeTime:
-                    _masterSync?.SwitchToContinuous();
-                    _isPaused = false;
-                    break;
-                case ClusterOpType.StepTime:
-                    _masterSync?.Step(ParseStepDelta(payload, 1f / 60f));
-                    break;
-                case ClusterOpType.SetTimeScale:
-                    if (float.TryParse(payload,
-                            System.Globalization.NumberStyles.Float,
-                            System.Globalization.CultureInfo.InvariantCulture,
-                            out float s))
-                        _masterSync?.SetTimeScale(s);
-                    break;
-            }
-        };
 
         // CGF1-S0307: Create the global-context handler, subscribe to OnContextLoaded so the
         // MasterTimeController is seeded with the scenario's saved timeline on every load, and

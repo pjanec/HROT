@@ -145,9 +145,13 @@ public sealed class OrchestratorSubsystemTests
     // ── S0503: Time Control ───────────────────────────────────────────────────
 
     /// <summary>
-    /// When not paused, <see cref="OrchestratorSubsystem.IsPausedForTest"/> is false.
+    /// When not paused, <see cref="ClusterUiCache.IsPaused"/> is false.
     /// After a PauseTime request processes through ClusterMaster (via HandleClusterOpRequest +
-    /// Update), <see cref="OrchestratorSubsystem.IsPausedForTest"/> becomes true.
+    /// 3 Update frames for the bus pipeline), <see cref="ClusterUiCache.IsPaused"/> becomes true.
+    /// Frame 1: ClusterMaster.Tick publishes PauseTimeIntent to WRITE.
+    /// Frame 2: SwapBuffers promotes it to READ; MasterSyncController.Update drains it
+    ///          and publishes SwitchTimeModeEvent{Deterministic} to WRITE.
+    /// Frame 3: SwapBuffers promotes it to READ; ClusterUiCache.Update drains it -> IsPaused=true.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void TimeControlRequested_PauseTime_SetsIsPaused()
@@ -156,7 +160,7 @@ public sealed class OrchestratorSubsystemTests
         subsystem.Initialize(new SubsystemConfig { DomainId = TestDomain });
         try
         {
-            Assert.False(subsystem.IsPausedForTest, "Expected not paused initially.");
+            Assert.False(subsystem.UiCacheForTest!.IsPaused, "Expected not paused initially.");
 
             // Inject PauseTime via the ClusterMaster test hook (simulates what the UI button writes).
             subsystem.TestHook_ClusterMaster!.HandleClusterOpRequest(new ClusterOpRequest
@@ -165,10 +169,14 @@ public sealed class OrchestratorSubsystemTests
                 OperationType = ClusterOpType.PauseTime,
                 PayloadJson   = string.Empty,
             });
-            subsystem.Update(1f / 60f);  // Tick processes injected requests → fires TimeControlRequested
+            // 3 frames needed: Tick->PauseTimeIntent(WRITE); swap->READ; MasterSync->SwitchTimeModeEvent(WRITE);
+            // swap->READ; UiCache->IsPaused=true.
+            subsystem.Update(1f / 60f);
+            subsystem.Update(1f / 60f);
+            subsystem.Update(1f / 60f);
 
-            Assert.True(subsystem.IsPausedForTest,
-                "After PauseTime is handled, _isPaused must be true.");
+            Assert.True(subsystem.UiCacheForTest!.IsPaused,
+                "After 3 frames, UiCacheForTest.IsPaused must be true.");
         }
         finally
         {
@@ -179,7 +187,7 @@ public sealed class OrchestratorSubsystemTests
     /// <summary>
     /// When not paused, the Pause button label is "Pause##OrcPause".
     /// Writing a PauseTime ClusterOpRequest (simulating the button click) and processing it
-    /// sets _isPaused, so the button label would become "Resume##OrcResume" next frame.
+    /// causes UiCacheForTest.IsPaused to become true after 3 frames (bus pipeline latency).
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void PauseButton_WhenNotPaused_DispatchesPauseTime()
@@ -190,7 +198,7 @@ public sealed class OrchestratorSubsystemTests
         try
         {
             // Verify initial state: not paused (button woud show "Pause").
-            Assert.False(subsystem.IsPausedForTest, "Expected not paused initially.");
+            Assert.False(subsystem.UiCacheForTest!.IsPaused, "Expected not paused initially.");
 
             // Simulate the button click: write a ClusterOpRequest{PauseTime} via the DDS writer
             // on the same domain (ClusterMaster reads from its _sysOpRequestReader on that domain).
@@ -205,16 +213,16 @@ public sealed class OrchestratorSubsystemTests
                 PayloadJson   = string.Empty,
             });
 
-            // Update until _isPaused is set (ClusterMaster reads the DDS request and fires event).
+            // Update until IsPaused is set (3-frame bus pipeline: DDS read->bus->MasterSync->UiCache).
             var deadline = DateTime.UtcNow.AddSeconds(5);
-            while (!subsystem.IsPausedForTest && DateTime.UtcNow < deadline)
+            while (!subsystem.UiCacheForTest!.IsPaused && DateTime.UtcNow < deadline)
             {
                 subsystem.Update(1f / 60f);
                 Thread.Sleep(20);
             }
 
-            Assert.True(subsystem.IsPausedForTest,
-                "PauseTime ClusterOpRequest published on DDS should set _isPaused = true.");
+            Assert.True(subsystem.UiCacheForTest!.IsPaused,
+                "PauseTime ClusterOpRequest published on DDS should set UiCacheForTest.IsPaused = true.");
         }
         finally
         {
@@ -224,7 +232,7 @@ public sealed class OrchestratorSubsystemTests
 
     /// <summary>
     /// When not paused, Step is not reachable.  After a Pause, Step requests are processed.
-    /// Verify that <see cref="OrchestratorSubsystem.IsPausedForTest"/> remains coherent
+    /// Verify that <see cref="ClusterUiCache.IsPaused"/> remains coherent
     /// and that StepTime can only fire when paused.
     /// </summary>
     [Fact(Timeout = 10_000)]
@@ -236,7 +244,7 @@ public sealed class OrchestratorSubsystemTests
         try
         {
             // Not paused — Step button is wrapped in BeginDisabled / EndDisabled.
-            Assert.False(subsystem.IsPausedForTest, "Expected not paused initially.");
+            Assert.False(subsystem.UiCacheForTest!.IsPaused, "Expected not paused initially.");
 
             // Inject a StepTime request when not paused (the button is disabled, so this
             // simulates the guard: StepTime should also be processed, but the _isPaused guard
@@ -250,9 +258,9 @@ public sealed class OrchestratorSubsystemTests
             });
             subsystem.Update(1f / 60f);
 
-            // StepTime should not affect _isPaused.
-            Assert.False(subsystem.IsPausedForTest,
-                "StepTime must not change _isPaused state.");
+            // StepTime should not affect IsPaused.
+            Assert.False(subsystem.UiCacheForTest!.IsPaused,
+                "StepTime must not change IsPaused state.");
         }
         finally
         {

@@ -3,6 +3,7 @@ using System.Text.Json;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Time.Domain;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.NED.Messages;
 using NedClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
@@ -25,7 +26,6 @@ public sealed class ClusterOpMasterTranslator
     private readonly DdsWriter<AssetInventoryTopic>? _inventoryWriter;
     private readonly FdpEventBus                    _bus;
     private readonly JsonSerializerOptions          _jsonOptions;
-    private readonly Action<ClusterOpRequest>?      _unhandledRequestCallback;
 
     /// <summary>Initialises a new <see cref="ClusterOpMasterTranslator"/>.</summary>
     public ClusterOpMasterTranslator(
@@ -33,15 +33,13 @@ public sealed class ClusterOpMasterTranslator
         DdsWriter<ClusterOpStatus>     statusWriter,
         FdpEventBus                    bus,
         JsonSerializerOptions?         jsonOptions = null,
-        DdsWriter<AssetInventoryTopic>? inventoryWriter = null,
-        Action<ClusterOpRequest>?      unhandledRequestCallback = null)
+        DdsWriter<AssetInventoryTopic>? inventoryWriter = null)
     {
-        _requestReader            = requestReader   ?? throw new ArgumentNullException(nameof(requestReader));
-        _statusWriter             = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
-        _bus                      = bus             ?? throw new ArgumentNullException(nameof(bus));
-        _jsonOptions              = jsonOptions ?? OrchestrationJsonOptions.Default;
-        _inventoryWriter          = inventoryWriter;
-        _unhandledRequestCallback = unhandledRequestCallback;
+        _requestReader   = requestReader   ?? throw new ArgumentNullException(nameof(requestReader));
+        _statusWriter    = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
+        _bus             = bus             ?? throw new ArgumentNullException(nameof(bus));
+        _jsonOptions     = jsonOptions ?? OrchestrationJsonOptions.Default;
+        _inventoryWriter = inventoryWriter;
     }
 
     /// <summary>Processes one frame: ingests DDS requests and publishes completed statuses.</summary>
@@ -213,10 +211,31 @@ public sealed class ClusterOpMasterTranslator
                 break;
             }
 
-            // Time control and other ops are not translated here -- forwarded to the
-            // unhandled-request callback (e.g. ClusterMaster.HandleClusterOpRequest) if set.
+            // Time control ops (HEXAG2-S010): publish typed intents to bus.
+            // MasterSyncController.Update() drains them in Phase 3 after SwapBuffers.
+            case NedClusterOpType.PauseTime:
+                _bus.PublishManaged(new PauseTimeIntent());
+                break;
+
+            case NedClusterOpType.ResumeTime:
+                _bus.PublishManaged(new ResumeTimeIntent());
+                break;
+
+            case NedClusterOpType.StepTime:
+            {
+                float delta = TryParseFloat(req.PayloadJson, 1f / 60f);
+                _bus.PublishManaged(new StepTimeIntent { DeltaSeconds = delta });
+                break;
+            }
+
+            case NedClusterOpType.SetTimeScale:
+            {
+                float scale = TryParseFloat(req.PayloadJson, 1f);
+                _bus.PublishManaged(new SetTimeScaleIntent { TimeScale = scale });
+                break;
+            }
+
             default:
-                _unhandledRequestCallback?.Invoke(req);
                 break;
         }
     }
@@ -236,5 +255,21 @@ public sealed class ClusterOpMasterTranslator
         if (string.IsNullOrWhiteSpace(json)) return null;
         try { return JsonSerializer.Deserialize<T>(json, _jsonOptions); }
         catch { return null; }
+    }
+
+    /// <summary>
+    /// Parses a plain floating-point value from <paramref name="json"/>.
+    /// Returns <paramref name="defaultVal"/> when the input is absent, malformed, or non-positive.
+    /// Used for StepTime (FixedDelta) and SetTimeScale payloads.
+    /// </summary>
+    private static float TryParseFloat(string? json, float defaultVal)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return defaultVal;
+        if (float.TryParse(json,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out float value) && value > 0f)
+            return value;
+        return defaultVal;
     }
 }

@@ -201,4 +201,112 @@ public sealed class ClusterOpMasterTranslatorTests
         // ExecuteNodeOpIntents would require a registered node. Just assert no exception and that master is alive.
         Assert.True(master.BootstrapComplete); // no mandatory nodes → bootstrap complete immediately
     }
+
+    // ── Time-control intent tests (HEXAG2-S010) ───────────────────────────────
+
+    [Fact(Timeout = 10_000)]
+    public void ClusterOpMasterTranslator_PauseTime_PublishesIntentToBus()
+    {
+        using var participant   = new DdsParticipant(TestDomain);
+        using var requestWriter = new DdsWriter<ClusterOpRequest>(participant);
+        using var requestReader = new DdsReader<ClusterOpRequest>(participant);
+        using var statusWriter  = new DdsWriter<ClusterOpStatus>(participant);
+
+        var bus        = new FdpEventBus();
+        var translator = new ClusterOpMasterTranslator(requestReader, statusWriter, bus);
+
+        Thread.Sleep(400);
+        requestWriter.Write(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = NedClusterOpType.PauseTime,
+            PayloadJson   = string.Empty,
+        });
+        Thread.Sleep(300);
+        translator.Tick();
+        bus.SwapBuffers();
+
+        var intents = bus.ConsumeManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>();
+        Assert.Single(intents);
+    }
+
+    [Fact(Timeout = 10_000)]
+    public void ClusterOpMasterTranslator_ResumeTime_PublishesIntentToBus()
+    {
+        using var participant   = new DdsParticipant(TestDomain);
+        using var requestWriter = new DdsWriter<ClusterOpRequest>(participant);
+        using var requestReader = new DdsReader<ClusterOpRequest>(participant);
+        using var statusWriter  = new DdsWriter<ClusterOpStatus>(participant);
+
+        var bus        = new FdpEventBus();
+        var translator = new ClusterOpMasterTranslator(requestReader, statusWriter, bus);
+
+        Thread.Sleep(400);
+        requestWriter.Write(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = NedClusterOpType.ResumeTime,
+            PayloadJson   = string.Empty,
+        });
+        Thread.Sleep(300);
+        translator.Tick();
+        bus.SwapBuffers();
+
+        var intents = bus.ConsumeManaged<Fdp.Toolkit.Time.Domain.ResumeTimeIntent>();
+        Assert.Single(intents);
+    }
+
+    [Fact(Timeout = 10_000)]
+    public void ClusterOpMasterTranslator_StepTime_PublishesIntentWithDelta()
+    {
+        using var participant   = new DdsParticipant(TestDomain);
+        using var requestWriter = new DdsWriter<ClusterOpRequest>(participant);
+        using var requestReader = new DdsReader<ClusterOpRequest>(participant);
+        using var statusWriter  = new DdsWriter<ClusterOpStatus>(participant);
+
+        var bus        = new FdpEventBus();
+        var translator = new ClusterOpMasterTranslator(requestReader, statusWriter, bus);
+
+        Thread.Sleep(400);
+        requestWriter.Write(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = NedClusterOpType.StepTime,
+            PayloadJson   = "0.05",
+        });
+        Thread.Sleep(300);
+        translator.Tick();
+        bus.SwapBuffers();
+
+        var intents = bus.ConsumeManaged<Fdp.Toolkit.Time.Domain.StepTimeIntent>();
+        Assert.Single(intents);
+        Assert.Equal(0.05f, intents[0].DeltaSeconds, precision: 5);
+    }
+
+    [Fact(Timeout = 10_000)]
+    public void ClusterOpMasterTranslator_SetTimeScale_PublishesIntentWithScale()
+    {
+        using var participant   = new DdsParticipant(TestDomain);
+        using var requestWriter = new DdsWriter<ClusterOpRequest>(participant);
+        using var requestReader = new DdsReader<ClusterOpRequest>(participant);
+        using var statusWriter  = new DdsWriter<ClusterOpStatus>(participant);
+
+        var bus        = new FdpEventBus();
+        var translator = new ClusterOpMasterTranslator(requestReader, statusWriter, bus);
+
+        Thread.Sleep(400);
+        requestWriter.Write(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = NedClusterOpType.SetTimeScale,
+            PayloadJson   = "2.0",
+        });
+        Thread.Sleep(300);
+        translator.Tick();
+        bus.SwapBuffers();
+
+        var intents = bus.ConsumeManaged<Fdp.Toolkit.Time.Domain.SetTimeScaleIntent>();
+        Assert.Single(intents);
+        Assert.Equal(2.0f, intents[0].TimeScale, precision: 5);
+    }
 }
