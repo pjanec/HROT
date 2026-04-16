@@ -231,4 +231,45 @@ public sealed class NavigationIntentEgressTranslatorTests
 
         Assert.Empty(writer.Publishes);
     }
+
+    /// <summary>
+    /// When an entity is destroyed and its slot is recycled for a new generation,
+    /// the new entity must not inherit the old entity's cached publish state.
+    /// </summary>
+    [Fact]
+    public void RecycledEntitySlot_NewGenerationPublishesBaselineIntent()
+    {
+        using var world = CreateWorld();
+        var (translator, writer) = CreateTranslator();
+
+        var oldEntity = SpawnAuthoritativeEntity(world, netId: 10);
+
+        world.Tick();
+        world.SetComponent(oldEntity, new EcsNavigationIntent
+        {
+            IntentId = 5,
+            Mode     = EcsNavMode.DirectPoint,
+        });
+        translator.ScanAndPublish(world);
+        Assert.Single(writer.Publishes);
+
+        world.DestroyEntity(oldEntity);
+
+        var newEntity = SpawnAuthoritativeEntity(world, netId: 11);
+        Assert.Equal(oldEntity.Index, newEntity.Index);
+        Assert.NotEqual(oldEntity.Generation, newEntity.Generation);
+
+        world.Tick();
+        world.SetComponent(newEntity, new EcsNavigationIntent
+        {
+            IntentId         = 1,
+            Mode             = EcsNavMode.DirectPoint,
+            FinalDestination = new Vector2(25f, 35f),
+        });
+        translator.ScanAndPublish(world);
+
+        Assert.Equal(2, writer.Publishes.Count);
+        Assert.Equal(11, writer.Publishes[1].EntityId);
+        Assert.Equal(1u, writer.Publishes[1].IntentId);
+    }
 }

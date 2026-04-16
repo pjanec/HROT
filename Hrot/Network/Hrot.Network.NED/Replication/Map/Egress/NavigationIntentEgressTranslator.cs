@@ -34,9 +34,10 @@ namespace Hrot.Map.Common.Replication.Egress
         // Fine-grained per-entity change filter: stores the last-published IntentId so that
         // chunk-level false positives (multiple entities in a dirty 64KB block) are dropped
         // without any executor coupling or shadow ECS component.
-        // Key = entity index, Value = last IntentId that was published to DDS for that entity.
-        private readonly System.Collections.Generic.Dictionary<int, uint> _lastPublishedIntentId
-            = new System.Collections.Generic.Dictionary<int, uint>();
+        // Key = full Entity handle (Index + Generation), Value = last IntentId that was
+        // published to DDS for that exact entity instance.
+        private readonly System.Collections.Generic.Dictionary<Entity, uint> _lastPublishedIntentId
+            = new System.Collections.Generic.Dictionary<Entity, uint>();
 
         public string TopicName      => "NavigationIntent";
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationIntent;
@@ -122,7 +123,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 //    IntentId is incremented by every executor (MoveToExecutor, FollowRouteExecutor,
                 //    etc.) on each new navigation command, making it a zero-coupling change
                 //    fingerprint that needs no MarkDirty calls anywhere in the AI layer.
-                if (_lastPublishedIntentId.TryGetValue(entity.Index, out uint lastId)
+                if (_lastPublishedIntentId.TryGetValue(entity, out uint lastId)
                     && lastId == intent.IntentId)
                     continue;
 
@@ -143,7 +144,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 });
 
                 // Record the published IntentId so the same command is not resent next frame.
-                _lastPublishedIntentId[entity.Index] = intent.IntentId;
+                _lastPublishedIntentId[entity] = intent.IntentId;
 
                 FdpLog<NavigationIntentEgressTranslator>.Debug(
                     "[Node-{0}] NavigationIntent egress: EntityId={1} IntentId={2} Mode={3}",
