@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CarKinem.Core;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -7,6 +8,7 @@ using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Hrot.Common.Systems;
@@ -20,6 +22,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Scheduling;
 using Fdp.Network.Cyclone.Modules;
 using Fdp.Network.Cyclone.Systems;
+using Fdp.Toolkit.Navigation;
 using FdpIDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 using DescriptorOwnershipMap    = Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap;
 using EDescriptorType           = Hrot.NED.Descriptors.EDescriptorType;
@@ -231,7 +234,17 @@ public sealed class NedReplicationModule : INedReplicationModule
         ingressTranslators.AddRange(allTranslators);
 
         var egressTranslators = new List<FdpIDescriptorTranslator>(allTranslators.Count + 1);
-        egressTranslators.AddRange(allTranslators);
+        foreach (var t in allTranslators)
+        {
+            // On Brain-only nodes, exclude OwnershipUpdateTranslator from the egress set.
+            // CycloneEgressSystem.ScanAndPublish destructively consumes OwnershipUpdate
+            // bus events (published by PollIngress) before OwnershipIngressSystem can read
+            // them to clear local authority bits. Brain never writes OwnershipUpdate to DDS
+            // so the egress path is unused — excluding it is safe and fixes the race.
+            if (_roleHasBrain && !_roleHasMuscle && t.DescriptorOrdinal == (long)EDescriptorType.dtOwnershipUpdate)
+                continue;
+            egressTranslators.Add(t);
+        }
         if (_dtoEgress != null) egressTranslators.Add(_dtoEgress);
 
         // Register ingress + egress systems only when a live DDS participant is available.
@@ -306,6 +319,15 @@ public sealed class NedReplicationModule : INedReplicationModule
         if (pureBrainRole)
             registry.RegisterSystem(new OwnershipIngressSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
 
+        // ── LocalAuthorityYieldSystem (pure-Brain only) ──────────────────────
+        // When CGF spawns a split-authority entity, NetworkSpawningSystem sets AuthorityMask =
+        // ComponentMask (full authority) because CGF is OwnerNodeId. However, the DeferredTakeover
+        // grants in the same bus frame delegate some descriptors (e.g. dtWorldPos) to the Muscle.
+        // This system runs after NetworkSpawningSystem in BeforeSync and proactively clears the
+        // authority bits for those delegated components, without waiting for the DDS round-trip.
+        if (pureBrainRole)
+            registry.RegisterSystem(new LocalAuthorityYieldSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
+
         // ── DeferredTakeover (Muscle and AllInOne only) ──────────────────────
         // Runs BeforeSync: entity must be Constructing + have PendingAuthorityGrants.
         // Ghost promotion for Muscle: promotes ghosts received from remote Brain (CGF) nodes.
@@ -338,14 +360,29 @@ public sealed class NedReplicationModule : INedReplicationModule
             foreach (var t in _cognitiveTranslators)
                 _descriptorOwnershipMap.RegisterFromTranslator(t.DescriptorOrdinal, t.TargetComponentIds);
 
-        // Explicit mapping: WorldPos descriptor → SimTransform component.
+        // Explicit mapping: WorldPos descriptor represents the entire physical/kinematic authority block.
         // GeoSpatialIngressTranslator writes NetworkTransform (ordinal 10), but the authoritative
-        // component on the Muscle side is SimTransform (fed by SimTransformBridgeSystem).
-        // DeferredTakeoverSystem uses this mapping to SetAuthority(entity, simTransformId, true)
+        // components on the Muscle side are SimTransform + SimVelocity (fed by SimTransformBridgeSystem)
+        // plus the CarKinem physics state that CarKinematicsSystem requires write access to.
+        // DeferredTakeoverSystem uses these mappings to SetAuthority(entity, componentId, true)
         // when the Muscle receives a split-authority WorldPos delegation.
+        // All five IDs are passed in a single call to avoid overwriting the prior entry.
         _descriptorOwnershipMap.RegisterMapping(
             (long)EDescriptorType.dtWorldPos,
-            ComponentType<SimTransform>.ID);
+            ComponentType<SimTransform>.ID,
+            ComponentType<SimVelocity>.ID,
+            ComponentType<VehicleState>.ID,
+            ComponentType<VehicleParams>.ID,
+            ComponentType<NavState>.ID);
+
+        // Explicit mapping: NavigationStatus descriptor -> NavigationStatus ECS component.
+        // NavigationStatusEgressTranslator (Muscle-only) provides TargetComponentIds for Muscle,
+        // but the Brain's NavigationStatusIngressTranslator has empty TargetComponentIds.
+        // This mapping ensures OwnershipIngressSystem on Brain clears NavigationStatus authority
+        // when SimHost claims dtNavigationStatus via DeferredTakeover.
+        _descriptorOwnershipMap.RegisterMapping(
+            (long)EDescriptorType.dtNavigationStatus,
+            NavigationContractsComponentIds.NavigationStatus);
     }
 
     public void Tick(ISimulationView view, float dt)
@@ -364,6 +401,54 @@ public sealed class NedReplicationModule : INedReplicationModule
     /// and from <see cref="NetworkEntityMap"/>.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Clears authority bits on the Brain for descriptors delegated to remote nodes.
+    /// Runs in BeforeSync after <see cref="NetworkSpawningSystem"/> so the entity is already
+    /// registered in <see cref="NetworkEntityMap"/> when this system executes.
+    /// </summary>
+    [UpdateInPhase(SystemPhase.BeforeSync)]
+    [UpdateAfter(typeof(NetworkSpawningSystem))]
+    private sealed class LocalAuthorityYieldSystem : IEcsModuleSystem
+    {
+        private readonly NetworkEntityMap    _entityMap;
+        private readonly int                 _localNodeId;
+        private readonly DescriptorOwnershipMap _descriptorMap;
+
+        internal LocalAuthorityYieldSystem(
+            NetworkEntityMap    entityMap,
+            int                 localNodeId,
+            DescriptorOwnershipMap descriptorMap)
+        {
+            _entityMap    = entityMap;
+            _localNodeId  = localNodeId;
+            _descriptorMap = descriptorMap;
+        }
+
+        public void Execute(ISimulationView view, float dt)
+        {
+            if (view is not EntityRepository repo) return;
+
+            var commands = view.ConsumeManagedEvents<DeferredTakeOwnershipCommand>();
+            foreach (var cmd in commands)
+            {
+                if (!_entityMap.TryGetEntity(cmd.NetworkId, out Entity entity)) continue;
+                if (!repo.IsAlive(entity)) continue;
+
+                foreach (var grant in cmd.Grants)
+                {
+                    if (grant.NodeId == _localNodeId) continue;
+
+                    var componentIds = _descriptorMap.GetComponentIdsForDescriptor(grant.DescriptorTypeId);
+                    foreach (int cid in componentIds)
+                    {
+                        if (repo.HasComponentByTypeId(entity, cid))
+                            repo.SetAuthority(entity, cid, false);
+                    }
+                }
+            }
+        }
+    }
+
     [UpdateInPhase(SystemPhase.PostSimulation)]
     private sealed class GhostDestructionSystem : IEcsModuleSystem
     {

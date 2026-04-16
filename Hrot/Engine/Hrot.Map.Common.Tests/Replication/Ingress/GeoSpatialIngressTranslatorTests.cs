@@ -1,28 +1,25 @@
-using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
-using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Modules.Geographic;
 using Hrot.Map.Common.Replication.Ingress;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
-using CycloneDDS.Runtime;
 using Xunit;
 
 namespace Hrot.Map.Common.Tests.Replication.Ingress;
 
 /// <summary>
-/// Unit tests for the split-authority loopback guard in
+/// Unit tests for the authority-mask loopback guard in
 /// <see cref="GeoSpatialIngressTranslator"/>.
 ///
 /// <para>
-/// When the Muscle node (SimHost) is granted authority over dtWorldPos via
-/// <c>DeferredTakeOwnership</c>, <c>GeoSpatialIngressTranslator.Decode</c> must
+/// When the Muscle node (SimHost) is granted authority over <c>SimTransform</c> via
+/// AuthorityMask, <c>GeoSpatialIngressTranslator.Decode</c> must
 /// suppress the DDS loopback packet and NOT overwrite <c>SimTransform</c>.
 /// Failing to do so causes the "shivering" symptom where physics and network
 /// ingress fight over the entity position every frame.
@@ -32,7 +29,6 @@ namespace Hrot.Map.Common.Tests.Replication.Ingress;
 /// </summary>
 public sealed class GeoSpatialIngressTranslatorTests
 {
-    private const long WorldPosOrdinal = (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos; // = 2
     private const int  LocalNodeId     = 1;
     private const int  RemoteNodeId    = 2;
 
@@ -75,7 +71,6 @@ public sealed class GeoSpatialIngressTranslatorTests
         world.RegisterComponent<SimTransform>();
         world.RegisterComponent<NetworkTransform>();
         world.RegisterComponent<NetworkVelocity>();
-        world.RegisterManagedComponent<DescriptorOwnership>();
         return world;
     }
 
@@ -148,6 +143,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: LocalNodeId, localNodeId: LocalNodeId));
         var originalPos = new Vector3(999f, 888f, 0f);
         world.AddComponent(entity, new SimTransform { Position = originalPos });
+        world.SetAuthority<SimTransform>(entity, true);
         world.AddComponent(entity, new NetworkTransform());
         world.AddComponent(entity, new NetworkVelocity());
         map.Register(netId, entity);
@@ -165,8 +161,8 @@ public sealed class GeoSpatialIngressTranslatorTests
     // ── GEOINGRESS-3: Split-authority (Muscle) loopback — SimTransform NOT updated
 
     /// <summary>
-    /// When the Muscle node holds split-authority for dtWorldPos via
-    /// <c>DescriptorOwnership</c>, Decode must NOT overwrite SimTransform.
+    /// When the Muscle node holds split-authority for <c>SimTransform</c> via
+    /// AuthorityMask, Decode must NOT overwrite SimTransform.
     /// This is the "shivering" fix: the entity's physics position must be
     /// preserved even though the network packet carries a stale loopback echo.
     /// </summary>
@@ -187,11 +183,8 @@ public sealed class GeoSpatialIngressTranslatorTests
         world.AddComponent(entity, new NetworkVelocity());
         map.Register(netId, entity);
 
-        // DeferredTakeoverSystem already ran: Muscle was granted dtWorldPos authority.
-        long packedKey = OwnershipExtensions.PackKey(WorldPosOrdinal, 0);
-        var ownership  = new DescriptorOwnership();
-        ownership.SetOwner(packedKey, LocalNodeId);
-        world.SetManagedComponent(entity, ownership);
+        // DeferredTakeoverSystem already ran: Muscle was granted SimTransform authority.
+        world.SetAuthority<SimTransform>(entity, true);
 
         // A loopback packet arrives — Muscle should drop it for SimTransform.
         var sample = MakeSample(netId, lat: 1f, lon: 2f);
@@ -212,8 +205,7 @@ public sealed class GeoSpatialIngressTranslatorTests
     // ── GEOINGRESS-4: Split-authority belonging to ANOTHER node — SimTransform updated
 
     /// <summary>
-    /// When <c>DescriptorOwnership</c> exists but grants dtWorldPos to a DIFFERENT node
-    /// (not the local node), the local node is a remote observer and must apply
+    /// When local node does not own <c>SimTransform</c> in AuthorityMask, it must apply
     /// the incoming packet to SimTransform normally.
     /// </summary>
     [Fact]
@@ -231,11 +223,8 @@ public sealed class GeoSpatialIngressTranslatorTests
         world.AddComponent(entity, new NetworkVelocity());
         map.Register(netId, entity);
 
-        // DescriptorOwnership exists, but dtWorldPos belongs to node 3 (a third node).
-        long packedKey = OwnershipExtensions.PackKey(WorldPosOrdinal, 0);
-        var ownership  = new DescriptorOwnership();
-        ownership.SetOwner(packedKey, 3);
-        world.SetManagedComponent(entity, ownership);
+        // Local node does not own SimTransform for this entity.
+        world.SetAuthority<SimTransform>(entity, false);
 
         var sample = MakeSample(netId, lat: 7f, lon: 8f);
         ISimulationView view4 = world;

@@ -259,6 +259,7 @@ public sealed class HexagonalBoundaryTests
 
         public DdsParticipant?     Participant          => _base.Participant;
         public long                WorldPosDescriptorId => _base.WorldPosDescriptorId;
+        public long                NavigationStatusDescriptorId => _base.NavigationStatusDescriptorId;
 
         // Return this (not _base) so the spy is preserved after ConfigureForNode.
         public INetworkFactory ConfigureForNode(DdsParticipant? p, int n, NodeRole r) => this;
@@ -317,6 +318,7 @@ public sealed class HexagonalBoundaryTests
 
         public DdsParticipant?     Participant          => _base.Participant;
         public long                WorldPosDescriptorId => _base.WorldPosDescriptorId;
+        public long                NavigationStatusDescriptorId => _base.NavigationStatusDescriptorId;
 
         public INetworkFactory ConfigureForNode(DdsParticipant? p, int n, NodeRole r) => this;
         public INetworkFactory ConfigureForNode(HrotNodeContext c, NodeRole r, DoctrineRegistry? d = null) => this;

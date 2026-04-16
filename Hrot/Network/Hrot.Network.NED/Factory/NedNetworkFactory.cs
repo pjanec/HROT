@@ -271,6 +271,9 @@ public sealed class NedNetworkFactory : INetworkFactory
     public long WorldPosDescriptorId => (long)EDescriptorType.dtWorldPos;
 
     /// <inheritdoc/>
+    public long NavigationStatusDescriptorId => (long)EDescriptorType.dtNavigationStatus;
+
+    /// <inheritdoc/>
     public Hrot.Core.Network.IOrchestrationTranslator CreateOrchestratorTranslators(FdpEventBus bus, int nodeId)
         => _participant != null
             ? new NedOrchestrationTranslator(_participant, bus)

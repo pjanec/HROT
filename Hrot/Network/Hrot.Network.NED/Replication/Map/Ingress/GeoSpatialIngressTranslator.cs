@@ -46,16 +46,16 @@ namespace Hrot.Map.Common.Replication.Ingress
         protected override void Decode(in WorldPos data, IEntityCommandBuffer cmd, ISimulationView view)
         {
             long netId = data.EntityId;
+            var repo = view as EntityRepository;
+            if (repo == null)
+            {
+                FdpLog<GeoSpatialIngressTranslator>.Warn(
+                    "[Node-{0}] Cannot create ghost for NetID {1}: view is read-only.", _localNodeId, netId);
+                return;
+            }
+
             if (!EntityMap.TryGetEntity(netId, out var entity))
             {
-                var repo = view as EntityRepository;
-                if (repo == null)
-                {
-                    FdpLog<GeoSpatialIngressTranslator>.Warn(
-                        "[Node-{0}] Cannot create ghost for NetID {1}: view is read-only.", _localNodeId, netId);
-                    return;
-                }
-
                 entity = _ghostCreationSystem.CreateGhost(repo, netId);
             }
 
@@ -81,26 +81,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
             // 1. Primary Owner check (handles Brain-node loopback for entities whose Brain IS
             //    also the NetworkAuthority primary owner).
-            bool isLocallyOwned = false;
-            if (view.HasComponent<NetworkAuthority>(entity))
-            {
-                isLocallyOwned = view.GetComponentRO<NetworkAuthority>(entity).HasAuthority;
-            }
-
-            // 2. Granular Split-Authority check (handles Muscle-node loopback).
-            //    When the Brain delegated dtWorldPos to the Muscle via DeferredTakeOwnership,
-            //    the Muscle node holds an explicit DescriptorOwnership entry for this ordinal.
-            //    Without this check the Muscle would overwrite its own live physics position
-            //    with the stale loopback packet it just published, causing "shivering".
-            if (!isLocallyOwned && view.HasManagedComponent<DescriptorOwnership>(entity))
-            {
-                var ownership = view.GetManagedComponentRO<DescriptorOwnership>(entity);
-                long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(OrdinalValue, 0);
-                if (ownership.Map.TryGetValue(packedKey, out int ownerNodeId))
-                {
-                    isLocallyOwned = (ownerNodeId == (int)_localNodeId);
-                }
-            }
+            bool isLocallyOwned = repo.HasAuthority<SimTransform>(entity);
 
             if (!isLocallyOwned)
             {

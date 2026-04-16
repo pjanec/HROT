@@ -126,6 +126,13 @@ public interface INetworkFactory
     long WorldPosDescriptorId { get; }
 
     /// <summary>
+    /// Protocol-specific ordinal for the "NavigationStatus" descriptor,
+    /// used in split-authority routing from domain code.
+    /// Returns 0 for protocols that do not use this descriptor.
+    /// </summary>
+    long NavigationStatusDescriptorId { get; }
+
+    /// <summary>
     /// Creates the orchestrator master-side DDS translators (ClusterOp, NodeOp, heartbeat).
     /// All created DDS resources are owned by the returned translator and released on Dispose().
     /// Returns a no-op translator when there is no DDS participant (headless / test mode).

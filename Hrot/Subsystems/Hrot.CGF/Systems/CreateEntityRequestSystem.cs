@@ -375,30 +375,16 @@ namespace Hrot.CGF.Systems
         /// Builds the list of descriptor grants that should be delegated to non-local
         /// nodes, according to the injected <see cref="_ownershipStrategy"/>.
         ///
-        /// <para>Each known descriptor ordinal is evaluated; if the strategy returns a target
-        /// node different from this node, a <see cref="DescriptorGrant"/> entry is added.</para>
+        /// <para>Delegates entirely to the strategy: no network ordinal knowledge in the domain layer.</para>
         /// </summary>
         private List<DescriptorGrant> BuildOwnershipGrants(in PendingRequest pending, int assignedOwner)
         {
-            var grants = new List<DescriptorGrant>();
-            if (_ownershipStrategy == null) return grants;
+            if (_ownershipStrategy == null) return new List<DescriptorGrant>();
 
             var disType = new Fdp.Core.DISEntityType { Value = pending.DisType };
 
-            // Evaluate the strategy for every descriptor ordinal the Muscle node may own.
-            foreach (long ordinal in new[]
-            {
-                DescriptorTypeOrdinals.WorldPos,
-                DescriptorTypeOrdinals.NavigationStatus,
-            })
-            {
-                int? targetNode = _ownershipStrategy.GetInitialOwner(
-                    ordinal, disType, assignedOwner, instanceId: 0);
-
-                if (targetNode.HasValue && targetNode.Value != _localNodeId)
-                    grants.Add(new DescriptorGrant { DescriptorTypeId = ordinal, NodeId = targetNode.Value });
-            }
-            return grants;
+            // Delegate fully to the strategy: no network ordinal knowledge in the domain layer.
+            return new List<DescriptorGrant>(_ownershipStrategy.GetInitialGrants(disType, assignedOwner));
         }
 
         // ─── Inner types ─────────────────────────────────────────────────────

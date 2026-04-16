@@ -1,10 +1,51 @@
-[ARCH] ModuleHost is not mixed in the Fdp.Core. In separate namespace, but not preventing the core to access modulehost stuff
-(wrong direction in clean architecture - code should never depend on higher level layers). Extract all ModuleHost into separate
-Fdp.ModuleHost assembly. It is already in separate folders
+[BUG] When switching perspective between IG and SimHost, map pan/zoom is transferred to the new perspective. But not such with CGF perspective.
+
+[BUG] CGF entity inspector does not show any component header in green as if no component was locally owned by cgf node!
+
+[BUG] CGF does not show entities moving on its map. in IG perspective and SimHost perspective they move!
+
+[BUG] Once entity executes MoveToLocation doctrine and finishes, something is still sending orientation changes in WorldPos (floating point errors maybe).
+                                                                                                                                        
+
+[BUG] CgfSubsystem  should be network independent in the hexagonal architecture. But TestHook_SpawnEntityWithSplitAuthority references 
+Hrot.Core.Network.DescriptorTypeOrdinals.NavigationStatus or touches _networkFactory?.WorldPosDescriptorId, with fallback magic number!!!
+
+        dtoCmd.Grants.Add(new DescriptorGrant
+        {
+            DescriptorTypeId = _networkFactory?.WorldPosDescriptorId ?? 2L,
+            NodeId           = muscleNodeId,
+        });
+        dtoCmd.Grants.Add(new DescriptorGrant
+        {
+            DescriptorTypeId = Hrot.Core.Network.DescriptorTypeOrdinals.NavigationStatus,
+            NodeId           = muscleNodeId,
+        });
 
 
-[IDEA] Should we move the TransitionPlanner to FDP toolkit? Move whole cluster state machine the toolkit? Is the state machine separable
-from the 
+[BUG] CreateEntityRequestSystem seems to use concrete network descriptor ordinals - shouldn't it be network independent?
+
+        private List<DescriptorGrant> BuildOwnershipGrants(in PendingRequest pending, int assignedOwner)
+        {
+            var grants = new List<DescriptorGrant>();
+            if (_ownershipStrategy == null) return grants;
+
+            var disType = new Fdp.Core.DISEntityType { Value = pending.DisType };
+
+            // Evaluate the strategy for every descriptor ordinal the Muscle node may own.
+            foreach (long ordinal in new[]
+            {
+                DescriptorTypeOrdinals.WorldPos,
+                DescriptorTypeOrdinals.NavigationStatus,
+            })
+            {
+                int? targetNode = _ownershipStrategy.GetInitialOwner(
+                    ordinal, disType, assignedOwner, instanceId: 0);
+
+                if (targetNode.HasValue && targetNode.Value != _localNodeId)
+                    grants.Add(new DescriptorGrant { DescriptorTypeId = ordinal, NodeId = targetNode.Value });
+            }
+            return grants;
+        }
 
 
 
@@ -35,29 +76,12 @@ Should be CommanderId = local entity id (Entity struct)
 
 
 
-
-----------
-# Scene tree graph in ECS?
-Invent ECS components for scene graph implementation in ECS
- - parent component (contains parent entity id)
- - child component (contains entity id of first child)
- - sibling component (containd entity id of prev and next sibling)
-Queue for structural change commands
- - reparent command
-Optimized recalculation of transforms every frame if something changes
-(in case we need to calculate the transforms of child entities - like aircraft on board of a carrier)
-etc.
-----------
-# sample.IsValid issue
-Some places processing dds samples check sample.IsValid even before testing the instance state.
-because disposal sample have sample.IsValid==false, the disposal migh not be detected at all!
 -----------
 
-We have two identical components
- - EntityMissionholder component
- - IgMissionHolder component
-why? can't we unify them?
 
+
+[IDEA] Should we move the TransitionPlanner to FDP toolkit? Move whole cluster state machine the toolkit? Is the state machine separable
+from the 
 
 
 

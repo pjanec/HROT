@@ -84,6 +84,7 @@ internal class MockNetworkFactory : INetworkFactory
     /// <inheritdoc/>
     public CycloneDDS.Runtime.DdsParticipant? Participant => null;
     public long WorldPosDescriptorId => 0;
+    public long NavigationStatusDescriptorId => 0;
     public ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters() => null;
     public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreateIgEgressTranslators(
         CycloneDDS.Runtime.DdsParticipant participant,

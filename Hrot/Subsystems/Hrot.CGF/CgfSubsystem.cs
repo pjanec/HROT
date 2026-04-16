@@ -137,16 +137,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // 1. Publish DeferredTakeOwnership FIRST (pre-genesis, before EntityMaster).
         var dtoCmd = new DeferredTakeOwnershipCommand { NetworkId = networkId };
-        dtoCmd.Grants.Add(new DescriptorGrant
-        {
-            DescriptorTypeId = _networkFactory?.WorldPosDescriptorId ?? 2L,
-            NodeId           = muscleNodeId,
-        });
-        dtoCmd.Grants.Add(new DescriptorGrant
-        {
-            DescriptorTypeId = Hrot.Core.Network.DescriptorTypeOrdinals.NavigationStatus,
-            NodeId           = muscleNodeId,
-        });
+        long worldPosId  = _networkFactory?.WorldPosDescriptorId          ?? 0;
+        long navStatusId = _networkFactory?.NavigationStatusDescriptorId   ?? 0;
+        if (worldPosId != 0)
+            dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = worldPosId,  NodeId = muscleNodeId });
+        if (navStatusId != 0)
+            dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = navStatusId, NodeId = muscleNodeId });
         _context.World.Bus.PublishManaged(dtoCmd);
 
         // 2. Publish SpawnEntityCommand (CGF/Brain owns entity identity).

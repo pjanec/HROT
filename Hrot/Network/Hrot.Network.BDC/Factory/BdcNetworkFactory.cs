@@ -137,6 +137,9 @@ namespace Hrot.BDC.Factory
         public long WorldPosDescriptorId => 0;
 
         /// <inheritdoc/>
+        public long NavigationStatusDescriptorId => 0;
+
+        /// <inheritdoc/>
         public IOrchestrationTranslator CreateOrchestratorTranslators(FdpEventBus bus, int nodeId)
             => new NullOrchestrationTranslator();
 

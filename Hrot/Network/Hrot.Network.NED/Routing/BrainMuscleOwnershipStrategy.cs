@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Abstractions;
 using Hrot.Common;
 using Hrot.NED.Descriptors;
-using Fdp.Toolkit.Replication.Abstractions;
 
 namespace Hrot.Network.Routing
 {
@@ -14,13 +16,14 @@ namespace Hrot.Network.Routing
     /// Descriptor routing table (CODE-STANDARDS §1 — no magic numbers):
     /// <list type="bullet">
     ///   <item><see cref="EDescriptorType.dtWorldPos"/> → <see cref="NodeRole.MuscleGround"/>.</item>
-    ///   <item><see cref="EDescriptorType.dtEntityMission"/> → creator (Brain), returns <c>null</c>.</item>
-    ///   <item><see cref="EDescriptorType.dtNavigationIntent"/> → creator (Brain), returns <c>null</c>.</item>
+    ///   <item><see cref="EDescriptorType.dtNavigationStatus"/> → <see cref="NodeRole.MuscleGround"/>.</item>
+    ///   <item><see cref="EDescriptorType.dtEntityMission"/> → creator (Brain), not included in grants.</item>
+    ///   <item><see cref="EDescriptorType.dtNavigationIntent"/> → creator (Brain), not included in grants.</item>
     /// </list>
     /// </para>
     ///
     /// <para>
-    /// Safe fallbacks: when no Muscle node is available, returns <c>null</c> so the
+    /// Safe fallbacks: when no Muscle node is available, returns an empty list so the
     /// Brain retains physics authority and avoids a cluster-wide failure.
     /// </para>
     /// </summary>
@@ -34,26 +37,21 @@ namespace Hrot.Network.Routing
         }
 
         /// <inheritdoc/>
-        public int? GetInitialOwner(
-            long descriptorTypeId,
-            DISEntityType entityType,
-            int masterNodeId,
-            long instanceId)
+        public IReadOnlyList<DescriptorGrant> GetInitialGrants(DISEntityType entityType, int masterNodeId)
         {
+            // O(1) query — evaluates CpuUsagePercent across known Muscle nodes.
+            int? muscleNode = _clusterCache.GetLeastLoadedNode(NodeRole.MuscleGround);
+
+            if (!muscleNode.HasValue || muscleNode.Value == masterNodeId)
+                return System.Array.Empty<DescriptorGrant>();
+
             // Physics descriptors: delegate to the least-loaded MuscleGround node.
             // Using EDescriptorType enum constants (CODE-STANDARDS §1 — no magic numbers).
-            bool isPhysicsDescriptor =
-                descriptorTypeId == (long)EDescriptorType.dtWorldPos
-                || descriptorTypeId == (long)EDescriptorType.dtNavigationStatus;
-
-            if (isPhysicsDescriptor)
+            return new DescriptorGrant[]
             {
-                // O(1) O(1) query — evaluates CpuUsagePercent across known Muscle nodes.
-                return _clusterCache.GetLeastLoadedNode(NodeRole.MuscleGround);
-            }
-
-            // Cognitive descriptors remain with the Brain creator (return null = masterNodeId).
-            return null;
+                new DescriptorGrant { DescriptorTypeId = (long)EDescriptorType.dtWorldPos,          NodeId = muscleNode.Value },
+                new DescriptorGrant { DescriptorTypeId = (long)EDescriptorType.dtNavigationStatus,  NodeId = muscleNode.Value },
+            };
         }
     }
 }

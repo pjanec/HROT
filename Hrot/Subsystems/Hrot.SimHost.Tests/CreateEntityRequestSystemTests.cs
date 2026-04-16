@@ -70,12 +70,13 @@ namespace Hrot.SimHost.Tests
 
     internal sealed class StubOwnershipStrategy : Fdp.Toolkit.Replication.Abstractions.IOwnershipDistributionStrategy
     {
-        private readonly Dictionary<long, int?> _owners = new();
+        private readonly List<DescriptorGrant> _grants = new();
 
-        public void SetOwner(long descriptorTypeId, int? nodeId) => _owners[descriptorTypeId] = nodeId;
+        public void AddGrant(long descriptorTypeId, int nodeId)
+            => _grants.Add(new DescriptorGrant { DescriptorTypeId = descriptorTypeId, NodeId = nodeId });
 
-        public int? GetInitialOwner(long descriptorTypeId, DISEntityType entityType, int masterNodeId, long instanceId)
-            => _owners.TryGetValue(descriptorTypeId, out var owner) ? owner : null;
+        public IReadOnlyList<DescriptorGrant> GetInitialGrants(Fdp.Core.DISEntityType entityType, int masterNodeId)
+            => _grants;
     }
 
     // â”€â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -409,8 +410,8 @@ namespace Hrot.SimHost.Tests
             var ackSink = new StubAckSink();
             var idAlloc = new StubIdAllocator(startId: 100);
             var ownershipStrategy = new StubOwnershipStrategy();
-            ownershipStrategy.SetOwner(DescriptorTypeOrdinals.WorldPos, 11);
-            ownershipStrategy.SetOwner(DescriptorTypeOrdinals.NavigationStatus, 11);
+            ownershipStrategy.AddGrant(DescriptorTypeOrdinals.WorldPos, 11);
+            ownershipStrategy.AddGrant(DescriptorTypeOrdinals.NavigationStatus, 11);
 
             var system = new CreateEntityRequestSystem(
                 source, ackSink, tkb, idAlloc, LocalNodeId,
