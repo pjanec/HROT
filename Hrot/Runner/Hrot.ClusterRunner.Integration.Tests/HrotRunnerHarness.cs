@@ -1,6 +1,8 @@
 using System;
 using System.Threading;
+using CycloneDDS.Runtime;
 using Fdp.Toolkit.Runner;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Core;
 using Hrot.CGF;
 using Hrot.ClusterRunner.Services;
@@ -59,19 +61,26 @@ public sealed class HrotRunnerHarness : IDisposable
     public ExConSubsystem ExCon { get; }
     public CgfSubsystem? Cgf { get; private set; }
 
+    // Shared DDS participant owned by the harness; disposed after Orchestrator.Shutdown().
+    private readonly DdsParticipant _participant;
+
     public HrotRunnerHarness()
     {
         DomainId = Interlocked.Increment(ref _domainCounter);
 
+        // Create a single shared DDS participant for the harness domain.
+        // All subsystems share this participant so the composition root (this harness)
+        // owns the DDS lifecycle, matching the hexagonal architecture requirement.
+        _participant = HrotEnvironment.CreateParticipant(DomainId);
         var factory = new NedNetworkFactory(
-            participant:  null,
-            entityMap:    new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
+            participant:  _participant,
+            entityMap:    new NetworkEntityMap(),
             geoTransform: HrotEnvironment.CreateGeoTransform(),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
             role:         NodeRole.MuscleGround | NodeRole.Perception);
 
-        OrchestratorSvc = new OrchestratorSubsystem();
+        OrchestratorSvc = new OrchestratorSubsystem(factory);  // HEXAG2-S009: factory required
         SimHost = new SimHostSubsystem(factory);
         Ig = new IgSubsystem(factory);
         ExCon = new ExConSubsystem(factory);
@@ -104,15 +113,17 @@ public sealed class HrotRunnerHarness : IDisposable
             modes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
             StringComparer.OrdinalIgnoreCase);
 
+        // Create a single shared DDS participant for the harness domain.
+        _participant = HrotEnvironment.CreateParticipant(domainId);
         var factory = new NedNetworkFactory(
-            participant:  null,
-            entityMap:    new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
+            participant:  _participant,
+            entityMap:    new NetworkEntityMap(),
             geoTransform: HrotEnvironment.CreateGeoTransform(),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
             role:         NodeRole.MuscleGround | NodeRole.Perception);
 
-        OrchestratorSvc = new OrchestratorSubsystem();
+        OrchestratorSvc = new OrchestratorSubsystem(factory);  // HEXAG2-S009: factory required
         SimHost         = new SimHostSubsystem(factory);
         Ig              = new IgSubsystem(factory);
         ExCon           = new ExConSubsystem(factory);
@@ -124,7 +135,7 @@ public sealed class HrotRunnerHarness : IDisposable
         if (requested.Contains("excon"))   subsystems.Add(ExCon);
         if (requested.Contains("cgf"))
         {
-            Cgf = new CgfSubsystem(factory);  // factory (participant=null) triggers participant creation inside CgfSubsystem
+            Cgf = new CgfSubsystem(factory);
             subsystems.Add(Cgf);
         }
 
@@ -161,6 +172,9 @@ public sealed class HrotRunnerHarness : IDisposable
     public void Dispose()
     {
         Orchestrator.Shutdown();
+        // Dispose the shared participant after all DDS readers/writers owned by the
+        // subsystems have been torn down inside Shutdown().
+        _participant.Dispose();
     }
 
     private void Warmup()

@@ -4,11 +4,17 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using CycloneDDS.Runtime;
+using Fdp.Core;
+using Fdp.Toolkit.Replication.Services;
 using Hrot.NED.Descriptors.Orchestration;
+using Hrot.Network.NED.Factory;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
 using Hrot.IG;
 using Hrot.ExCon;
+using Hrot.Common;
+using Hrot.Map.Common;
 using Fdp.Toolkit.Orchestration;
 using Microsoft.Extensions.Logging.Abstractions;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
@@ -50,20 +56,31 @@ public sealed class AllSubsystemsClusterTransitionTests
 
     // â”€â”€ Shared harness builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    private static (SubsystemOrchestrator orchestrator, OrchestratorSubsystem orchestratorSvc, ExConSubsystem exConSvc)
+    private static (SubsystemOrchestrator orchestrator, OrchestratorSubsystem orchestratorSvc, ExConSubsystem exConSvc, DdsParticipant participant)
         BuildOrchestrator(int domainId)
     {
-        var orchestratorSvc = new OrchestratorSubsystem();
-        var simHostSvc      = new SimHostSubsystem();
-        var igSvc           = new IgSubsystem();
-        var exConSvc        = new ExConSubsystem();
+        // Create a single shared DDS participant so all subsystems (including Orchestrator
+        // and ExCon) have real DDS connectivity for heartbeats and cluster-op routing.
+        var participant = HrotEnvironment.CreateParticipant(domainId);
+        var factory = new NedNetworkFactory(
+            participant:  participant,
+            entityMap:    new NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.None);
+
+        var orchestratorSvc = new OrchestratorSubsystem(factory);
+        var simHostSvc      = new SimHostSubsystem(factory);
+        var igSvc           = new IgSubsystem(factory);
+        var exConSvc        = new ExConSubsystem(factory);
 
         var options = new RunnerOptions { Headless = true, DomainId = domainId };
         var orchestrator = new SubsystemOrchestrator(
             new ISubsystem[] { orchestratorSvc, simHostSvc, igSvc, exConSvc },
             options);
 
-        return (orchestrator, orchestratorSvc, exConSvc);
+        return (orchestrator, orchestratorSvc, exConSvc, participant);
     }
 
     // â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -80,7 +97,8 @@ public sealed class AllSubsystemsClusterTransitionTests
     public async Task AllSubsystems_TransitionToOperatingLive_CommitStateIsNotDroppedAsDuplicate()
     {
         int domainId = NextDomainId();
-        var (orchestrator, orchestratorSvc, exConSvc) = BuildOrchestrator(domainId);
+        var (orchestrator, orchestratorSvc, exConSvc, participant) = BuildOrchestrator(domainId);
+        using var _ = participant;
 
         var executor = new HeadlessTestExecutor(
             orchestrator,
@@ -109,7 +127,8 @@ public sealed class AllSubsystemsClusterTransitionTests
     public async Task AllSubsystems_FullCycleTwice_LoadOperateUnloadIdle()
     {
         int domainId = NextDomainId();
-        var (orchestrator, orchestratorSvc, exConSvc) = BuildOrchestrator(domainId);
+        var (orchestrator, orchestratorSvc, exConSvc, participant) = BuildOrchestrator(domainId);
+        using var _ = participant;
 
         var executor = new HeadlessTestExecutor(
             orchestrator,

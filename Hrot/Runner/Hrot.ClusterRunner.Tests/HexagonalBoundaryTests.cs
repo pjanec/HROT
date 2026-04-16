@@ -8,6 +8,7 @@ using Fdp.ModuleHost.Time;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.DER;
+using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Time.Domain;
@@ -273,6 +274,7 @@ public sealed class HexagonalBoundaryTests
         // Delegate everything else to _base.
         public HrotCoreOrchTranslator           CreateOrchestratorTranslators(FdpEventBus b, int n)    => _base.CreateOrchestratorTranslators(b, n);
         public IDisposable                      CreateIdAllocatorServer()                              => _base.CreateIdAllocatorServer();
+        public INetworkIdAllocator              CreateIdAllocator(string clientId, bool skipRoutingWait = false) => _base.CreateIdAllocator(clientId, skipRoutingWait);
         public IMasterTimeTranslators           CreateMasterTimeTranslators(FdpEventBus b, int n)      => _base.CreateMasterTimeTranslators(b, n);
         public IOrchestrationObserver           CreateOrchestrationObserver(FdpEventBus b)             => _base.CreateOrchestrationObserver(b);
         public ICommandGateway                  CreateCommandGateway()                                 => _base.CreateCommandGateway();
@@ -321,6 +323,7 @@ public sealed class HexagonalBoundaryTests
 
         // Return spy instead of NullDisposable.
         public IDisposable CreateIdAllocatorServer() => _spy;
+        public INetworkIdAllocator              CreateIdAllocator(string clientId, bool skipRoutingWait = false) => _base.CreateIdAllocator(clientId, skipRoutingWait);
 
         // Delegate everything else to _base.
         public HrotCoreOrchTranslator           CreateOrchestratorTranslators(FdpEventBus b, int n)    => _base.CreateOrchestratorTranslators(b, n);

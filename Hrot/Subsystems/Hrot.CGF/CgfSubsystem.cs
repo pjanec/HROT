@@ -1,27 +1,8 @@
-using System.Linq;
-using System.Numerics;
-using ImGuiNET;
-using Raylib_cs;
-using Fdp.Presentation.Utils;
-using Fdp.Toolkit.Vis2D;
-using Fdp.Toolkit.Vis2D.Components;
-using Fdp.Toolkit.Vis2D.Layers;
-using Fdp.Toolkit.Vis2D.Tools;
-using Fdp.Toolkit.Vis2D.Defaults;
-using Hrot.Presentation.Windows;
-using FdpEntityInspectorPanel = Fdp.Presentation.Panels.EntityInspectorPanel;
-using FdpEventBrowserPanel    = Fdp.Presentation.Panels.EventBrowserPanel;
-using FdpRepositoryAdapter    = Fdp.Presentation.Adapters.RepositoryAdapter;
-using FdpInspectorState       = Fdp.Presentation.Abstractions.InspectorState;
-using Hrot.Map.Common;
-using Hrot.CGF.Brains;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
-using Hrot.CGF.Configuration;
-using Hrot.CGF.Systems;
-using Hrot.Core.Network;
-using Hrot.Common;
-using Hrot.Common.Infrastructure;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -30,8 +11,28 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Runner;
-using Fdp.Core;
-using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Defaults;
+using Fdp.Toolkit.Vis2D.Layers;
+using Fdp.Toolkit.Vis2D.Tools;
+using Hrot.CGF.Brains;
+using Hrot.CGF.Configuration;
+using Hrot.CGF.Systems;
+using Hrot.Common;
+using Hrot.Common.Infrastructure;
+using Hrot.Core.Network;
+using Hrot.Map.Common;
+using Hrot.Presentation.Windows;
+using ImGuiNET;
+using Raylib_cs;
+using System.Linq;
+using System.Numerics;
+using System.Reflection;
+using FdpEntityInspectorPanel = Fdp.Presentation.Panels.EntityInspectorPanel;
+using FdpEventBrowserPanel    = Fdp.Presentation.Panels.EventBrowserPanel;
+using FdpInspectorState       = Fdp.Presentation.Abstractions.InspectorState;
+using FdpRepositoryAdapter    = Fdp.Presentation.Adapters.RepositoryAdapter;
 
 namespace Hrot.CGF;
 
@@ -41,6 +42,30 @@ namespace Hrot.CGF;
 /// </summary>
 public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProvider, IWindowRegistrar
 {
+    /// <summary>
+    /// Encapsulates the legacy CGF SystemGroup into a formal synchronous module.
+    /// Executes during the kernel's Simulation dispatch phase on the main thread.
+    /// </summary>
+    private sealed class CgfSimGroupModule : IEcsModule
+    {
+        private readonly SystemGroup _group;
+
+        public string Name => "CgfBrainLogic";
+        public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
+
+        public CgfSimGroupModule(SystemGroup group) => _group = group;
+
+        public void RegisterSystems(ISystemRegistry registry) { }
+
+        public void Tick(ISimulationView view, float dt)
+        {
+            _group.Run();
+        }
+
+        public IEnumerable<Type>? GetRequiredComponents() => null;
+    }
+
+
     private HrotNodeContext?  _context;
     private NetworkEntityMap? _entityMap;
     private Action?           _cgfNetworkPolling;
@@ -206,10 +231,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context.Kernel.RegisterModule(cgfLogicPack);
 
         // Execute the Brain systems every frame via a SystemGroup.
+        // It ticks CGF Brain logic (BTree / mission / locomotion dispatch)
         var simGroup = new SystemGroup();
         simGroup.Create(_context.World);
         _simGroup = simGroup;
         cgfLogicPack.RegisterSystems(simGroup);
+        // Register the group as a synchronous module, placing it dynamically 
+        // inside the kernel's Simulation dispatch phase.
+        _context.Kernel.RegisterModule(new CgfSimGroupModule(_simGroup));
 
         var adapters = nodeFactory?.CreateCgfEntityLifecycleAdapters();
         if (adapters != null)
@@ -335,7 +364,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         _context?.SlaveTranslator?.Tick();
         _context?.ClusterSlave.Tick();
-        _simGroup?.Run();   // tick CGF Brain logic (BTree / mission / locomotion dispatch)
+
 #pragma warning disable CS0618 // legacy Update(float) used intentionally in CgfSubsystem
         _context?.Kernel.Update(deltaTime);
 #pragma warning restore CS0618

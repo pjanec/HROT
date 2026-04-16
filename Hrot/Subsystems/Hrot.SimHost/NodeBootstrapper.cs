@@ -129,9 +129,11 @@ namespace Hrot.SimHost
             }
             var storageProvider = new LocalDiskStorageProvider(localTempRoot);
 
-            // Create EcsRecordReplayController for Brain-tier nodes.
+            // Create EcsRecordReplayController for Brain-tier and MuscleGround nodes.
+            // MuscleGround (SimHost) must also handle PrepareReplay/FinalizeReplay so that
+            // replay transitions can ACK back to ClusterMaster and not time out.
             EcsRecordReplayController? controller = null;
-            if (role.HasFlag(NodeRole.Brain))
+            if (role.HasFlag(NodeRole.Brain) || role.HasFlag(NodeRole.MuscleGround))
                 controller = new EcsRecordReplayController(kernel, nodeId, world);
 
             // Wire ReferenceReplayLoadHandler BEFORE ReferenceLiveLoadHandler so the

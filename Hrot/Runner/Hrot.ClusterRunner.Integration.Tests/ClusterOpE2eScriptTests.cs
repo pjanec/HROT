@@ -2,12 +2,17 @@
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using CycloneDDS.Runtime;
+using Fdp.Core;
+using Fdp.Toolkit.Replication.Services;
+using Hrot.Common;
+using Hrot.Map.Common;
 using Hrot.NED.Descriptors.Orchestration;
+using Hrot.Network.NED.Factory;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
 using Hrot.ExCon;
 using Hrot.ClusterRunner.Testing;
-using CycloneDDS.Runtime;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -49,8 +54,19 @@ public sealed class ClusterOpE2eScriptTests
     {
         int domainId = NextDomainId();
 
-        var orchestratorSvc = new OrchestratorSubsystem();
-        var simHostSvc      = new SimHostSubsystem();
+        // Create the shared participant first so both the factory and the status reader use it.
+        // This gives OrchestratorSubsystem real DDS connectivity (HEXAG2-S009).
+        using var testParticipant = new DdsParticipant((uint)domainId);
+        var factory = new NedNetworkFactory(
+            participant:  testParticipant,
+            entityMap:    new NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.None);
+
+        var orchestratorSvc = new OrchestratorSubsystem(factory);
+        var simHostSvc      = new SimHostSubsystem(factory);
 
         var options = new RunnerOptions { Headless = true, DomainId = domainId };
         var orchestrator = new SubsystemOrchestrator(
@@ -61,9 +77,8 @@ public sealed class ClusterOpE2eScriptTests
 
         var executor = new HeadlessTestExecutor(orchestrator, ScriptPath(scriptFileName), logger);
 
-        // Create a DDS participant + SysOpStatus reader BEFORE Initialize so that
+        // Create a SysOpStatus reader on the shared participant BEFORE Initialize so that
         // the subscription is in place before the first SysOpStatus publication.
-        using var testParticipant = new DdsParticipant((uint)domainId);
         using var statusReader    = new DdsReader<ClusterOpStatus>(testParticipant);
 
         // Wire everything that requires a live world/ClusterMaster inside AfterInitialize,
