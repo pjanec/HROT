@@ -52,14 +52,15 @@ namespace Fdp.Toolkit.Navigation.Systems
             {
                 var intent = World.GetComponent<NavigationIntent>(entity);
 
-                // Skip inactive intents — let NavState retain its current value.
-                if (intent.Mode == NavigationMode.None)
-                    continue;
-
                 var nav = World.GetComponent<NavState>(entity);
 
                 switch (intent.Mode)
                 {
+                    case NavigationMode.None:
+                        nav.Mode = KinematicsMode.None;
+                        nav.TargetSpeed = 0f; // Critical: Prevents "Drive to point" fallback in CarKinematicsSystem
+                        break;
+
                     case NavigationMode.DirectPoint:
                         nav.Mode             = KinematicsMode.Direct;
                         nav.FinalDestination = intent.FinalDestination;
