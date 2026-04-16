@@ -57,7 +57,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
             
             if (timeEnt != Entity.Null)
             {
-                foreach (var order in _bus.Consume<FrameOrderDescriptor>())
+                foreach (var order in _bus.Read<FrameOrderDescriptor>())
                 {
                      FdpLog<PacketBridgeSystem>.Info(
                          "[Bridge-Master] Forwarding Order {0}",
@@ -134,7 +134,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
                 });
             }
             
-            foreach (var ack in _bus.Consume<FrameAckDescriptor>())
+            foreach (var ack in _bus.Read<FrameAckDescriptor>())
             {
                 FdpLog<PacketBridgeSystem>.Info(
                     "[Bridge-Slave] Sending Ack Local({0}) Frame({1}) to Component",

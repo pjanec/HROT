@@ -747,7 +747,7 @@ public class PhysicsInitSystem : IModuleSystem
     {
         var cmd = view.GetCommandBuffer();
         
-        foreach (var order in view.ConsumeEvents<ConstructionOrder>())
+        foreach (var order in view.ReadEvents<ConstructionOrder>())
         {
             if (order.TypeId == VEHICLE_TYPE_ID)
             {
@@ -805,7 +805,7 @@ public struct DestructionOrder
 
 ```csharp
 // Network Module
-foreach (var order in view.ConsumeEvents<DestructionOrder>())
+foreach (var order in view.ReadEvents<DestructionOrder>())
 {
     // Unregister from replication
     networkTable.Unregister(order.Entity);

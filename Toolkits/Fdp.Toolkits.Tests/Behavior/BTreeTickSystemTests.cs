@@ -205,7 +205,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Events published by the system land in the write buffer; swap to read them.
             world.Bus.SwapBuffers();
-            var events = world.Bus.Consume<DoctrineFinishedEvent>();
+            var events = world.Bus.Read<DoctrineFinishedEvent>();
 
             int count = 0;
             DoctrineFinishedEvent? found = null;
@@ -237,7 +237,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             sys.Run();
 
             world.Bus.SwapBuffers();
-            var events = world.Bus.Consume<DoctrineFinishedEvent>();
+            var events = world.Bus.Read<DoctrineFinishedEvent>();
 
             DoctrineFinishedEvent? found = null;
             foreach (var evt in events)
@@ -265,7 +265,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             sys.Run();
 
             world.Bus.SwapBuffers();
-            var events = world.Bus.Consume<DoctrineFinishedEvent>();
+            var events = world.Bus.Read<DoctrineFinishedEvent>();
 
             bool anyForEntity = false;
             foreach (var evt in events)
@@ -295,14 +295,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             sys.Run();
             world.Bus.SwapBuffers();
             int frame1Count = 0;
-            foreach (var evt in world.Bus.Consume<DoctrineFinishedEvent>())
+            foreach (var evt in world.Bus.Read<DoctrineFinishedEvent>())
                 if (evt.Entity.Index == e.Index) frame1Count++;
 
             // Frame 2: same InstanceId — must NOT re-publish.
             sys.Run();
             world.Bus.SwapBuffers();
             int frame2Count = 0;
-            foreach (var evt in world.Bus.Consume<DoctrineFinishedEvent>())
+            foreach (var evt in world.Bus.Read<DoctrineFinishedEvent>())
                 if (evt.Entity.Index == e.Index) frame2Count++;
 
             Assert.Equal(1, frame1Count);
@@ -340,7 +340,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // No DoctrineFinishedEvent should appear on the bus.
             world.Bus.SwapBuffers();
             bool anyEvent = false;
-            foreach (var evt in world.Bus.Consume<DoctrineFinishedEvent>())
+            foreach (var evt in world.Bus.Read<DoctrineFinishedEvent>())
                 if (evt.Entity.Index != 0) anyEvent = true;
 
             Assert.False(anyEvent);

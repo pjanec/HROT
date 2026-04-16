@@ -68,7 +68,7 @@ namespace Fdp.Toolkit.Physics.Tests
             _world.Bus.SwapBuffers();
 
             // Assert
-            var events = _world.Bus.Consume<TargetVisibleEvent>();
+            var events = _world.Bus.Read<TargetVisibleEvent>();
             Assert.Equal(1, events.Length);
             Assert.Equal(observerEntity, events[0].Observer);
             Assert.Equal(targetEntity,   events[0].Target);
@@ -103,7 +103,7 @@ namespace Fdp.Toolkit.Physics.Tests
             _world.Bus.SwapBuffers();
 
             // Assert
-            var events = _world.Bus.Consume<HitEvent>();
+            var events = _world.Bus.Read<HitEvent>();
             Assert.Equal(1, events.Length);
             Assert.Equal(bulletIdx, events[0].BulletIndex);
             Assert.Equal(entity,    events[0].HitEntity);

@@ -60,7 +60,7 @@ namespace Fdp.Toolkit.Time.Tests
 
             // After SwapBuffers the current buffer should be an empty span, not a crash.
             bus.SwapBuffers();
-            var events = bus.Consume<SwitchTimeModeEvent>();
+            var events = bus.Read<SwitchTimeModeEvent>();
             Assert.Empty(events.ToArray());
         }
 

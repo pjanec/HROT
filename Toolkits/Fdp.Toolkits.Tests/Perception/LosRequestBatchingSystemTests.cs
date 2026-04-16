@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Perception.Tests
     ///
     /// Test pattern (<see cref="IModuleSystem"/>):
     ///   1. Publish <see cref="LosCheckRequestEvent"/>s to the bus.
-    ///   2. <c>world.Bus.SwapBuffers()</c> so they are visible to <c>ConsumeEvents</c>.
+    ///   2. <c>world.Bus.SwapBuffers()</c> so they are visible to <c>ReadEvents</c>.
     ///   3. <c>sys.Execute(view, 0f)</c>.
     ///   4. Flush the ECB: <c>ecb.Playback(world)</c>.
     ///   5. <c>world.Bus.SwapBuffers()</c> to expose events published by the system.
@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Perception.Tests
             var obs2 = new Entity(3, 1);
             var tgt2 = new Entity(4, 1);
 
-            // Publish two LOS requests then swap so the system can ConsumeEvents them.
+            // Publish two LOS requests then swap so the system can ReadEvents them.
             world.Bus.Publish(new LosCheckRequestEvent { Observer = obs1, Target = tgt1 });
             world.Bus.Publish(new LosCheckRequestEvent { Observer = obs2, Target = tgt2 });
             world.Bus.SwapBuffers();
@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Perception.Tests
             FlushEcbAndSwap(view, world);
 
             // Assert — two TargetVisibleEvents, one per request, in order.
-            var events = world.Bus.Consume<TargetVisibleEvent>();
+            var events = world.Bus.Read<TargetVisibleEvent>();
             Assert.Equal(2, events.Length);
             Assert.Equal(obs1, events[0].Observer);
             Assert.Equal(tgt1, events[0].Target);
@@ -89,7 +89,7 @@ namespace Fdp.Toolkit.Perception.Tests
             FlushEcbAndSwap(view, world);
 
             // Production mode skips dead/missing entities — no TargetVisibleEvents.
-            var events = world.Bus.Consume<TargetVisibleEvent>();
+            var events = world.Bus.Read<TargetVisibleEvent>();
             Assert.Equal(0, events.Length);
         }
 
@@ -127,7 +127,7 @@ namespace Fdp.Toolkit.Perception.Tests
             FlushEcbAndSwap(view, world);
 
             // Assert — no occluder → TargetVisibleEvent emitted.
-            var events = world.Bus.Consume<TargetVisibleEvent>();
+            var events = world.Bus.Read<TargetVisibleEvent>();
             Assert.Equal(1, events.Length);
             Assert.Equal(obs, events[0].Observer);
             Assert.Equal(tgt, events[0].Target);
@@ -168,7 +168,7 @@ namespace Fdp.Toolkit.Perception.Tests
             FlushEcbAndSwap(view, world);
 
             // Assert — wall blocks LOS → no TargetVisibleEvent.
-            var events = world.Bus.Consume<TargetVisibleEvent>();
+            var events = world.Bus.Read<TargetVisibleEvent>();
             Assert.Equal(0, events.Length);
         }
     }

@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Perception.Tests
             bus.Publish(new SeedTargetCommand { Perceiver = perceiver, Target = target, ScoreBoost = 100f });
             bus.SwapBuffers();
 
-            var events = bus.Consume<SeedTargetCommand>();
+            var events = bus.Read<SeedTargetCommand>();
 
             var evt = Assert.Single(events.ToArray());
             Assert.Equal(perceiver, evt.Perceiver);
@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Perception.Tests
             });
             bus.SwapBuffers();
 
-            var events = bus.Consume<SeedTargetCommand>();
+            var events = bus.Read<SeedTargetCommand>();
 
             var evt = Assert.Single(events.ToArray());
             Assert.Equal(75.5f, evt.ScoreBoost);

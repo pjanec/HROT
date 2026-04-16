@@ -27,7 +27,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
             var ecb = view.GetCommandBuffer();
 
             // 1. Process ECS Events (from EntityRepository)
-            var ecsEvents = view.ConsumeEvents<FireInteractionEvent>();
+            var ecsEvents = view.ReadEvents<FireInteractionEvent>();
             foreach (ref readonly var evt in ecsEvents)
             {
                 ProcessEvent(evt, view, ecb);
@@ -36,7 +36,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
             // 2. Process Bus Events (from FdpEventBus/Translators)
             if (_bus is FdpEventBus fdpBus)
             {
-                var busEvents = fdpBus.Consume<FireInteractionEvent>();
+                var busEvents = fdpBus.Read<FireInteractionEvent>();
                 foreach (ref readonly var evt in busEvents)
                 {
                     ProcessEvent(evt, view, ecb);

@@ -98,7 +98,7 @@ namespace Fdp.Tests
             Assert.False(bus.HasEvent<TestEvent>()); // Should clear
             
             // Verify events were consumed
-            Assert.True(bus.Consume<TestEvent>().IsEmpty);
+            Assert.True(bus.Read<TestEvent>().IsEmpty);
         }
 
         [Fact]

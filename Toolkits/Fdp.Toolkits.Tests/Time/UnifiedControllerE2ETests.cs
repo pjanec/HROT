@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Time.Tests
         /// </summary>
         private static void RelaySwitchTimeModeEvents(FdpEventBus source, params FdpEventBus[] targets)
         {
-            var span = source.Consume<SwitchTimeModeEvent>();
+            var span = source.Read<SwitchTimeModeEvent>();
             if (span.Length == 0) return;
             // Copy span (ref struct) to a local array before iterating targets.
             var buffer = new SwitchTimeModeEvent[span.Length];
@@ -50,7 +50,7 @@ namespace Fdp.Toolkit.Time.Tests
         /// </summary>
         private static void RelayAdvanceFrameIntents(FdpEventBus source, params FdpEventBus[] targets)
         {
-            var intents = source.ConsumeManaged<AdvanceFrameIntent>();
+            var intents = source.ReadManaged<AdvanceFrameIntent>();
             foreach (var target in targets)
                 foreach (var intent in intents)
                     target.PublishManaged(intent);
@@ -62,7 +62,7 @@ namespace Fdp.Toolkit.Time.Tests
         /// </summary>
         private static void RelayFrameStepCompletedEvents(FdpEventBus source, params FdpEventBus[] targets)
         {
-            var acks = source.ConsumeManaged<FrameStepCompletedEvent>();
+            var acks = source.ReadManaged<FrameStepCompletedEvent>();
             foreach (var target in targets)
                 foreach (var ack in acks)
                     target.PublishManaged(ack);
@@ -98,15 +98,15 @@ namespace Fdp.Toolkit.Time.Tests
             var slave2 = new SlaveSyncController(slave2Bus, localNodeId: 2, config: cfg, tickSource: () => sharedTicks);
 
             // Sync both slaves so _isTimeSynced = true before any SwitchTimeModeEvent.
-            slave1Bus.SwapBuffers(); slave1Bus.Consume<TimeSyncRequest>();
+            slave1Bus.SwapBuffers(); slave1Bus.Read<TimeSyncRequest>();
             slave1Bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 0L });
             slave1Bus.SwapBuffers(); slave1.Update();
-            slave1Bus.SwapBuffers(); slave1Bus.Consume<TimeSyncRequest>();
+            slave1Bus.SwapBuffers(); slave1Bus.Read<TimeSyncRequest>();
 
-            slave2Bus.SwapBuffers(); slave2Bus.Consume<TimeSyncRequest>();
+            slave2Bus.SwapBuffers(); slave2Bus.Read<TimeSyncRequest>();
             slave2Bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 0L });
             slave2Bus.SwapBuffers(); slave2.Update();
-            slave2Bus.SwapBuffers(); slave2Bus.Consume<TimeSyncRequest>();
+            slave2Bus.SwapBuffers(); slave2Bus.Read<TimeSyncRequest>();
 
             // ── Phase 1: 20 Continuous frames ─────────────────────────────────
             for (int i = 0; i < 20; i++)

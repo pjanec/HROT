@@ -45,7 +45,7 @@ namespace Fdp.ModuleHost.Tests.Mocks
 
         public IEntityCommandBuffer GetCommandBuffer() => CommandBuffer;
 
-        public ReadOnlySpan<T> ConsumeEvents<T>() where T : unmanaged
+        public ReadOnlySpan<T> ReadEvents<T>() where T : unmanaged
         {
             if (typeof(T) == typeof(ConstructionOrder))
             {
@@ -98,7 +98,7 @@ namespace Fdp.ModuleHost.Tests.Mocks
 
         public bool IsAlive(Entity entity) => ComponentArrays.ContainsKey(entity) || ManagedComponents.ContainsKey(entity);
         
-        public IReadOnlyList<T> ConsumeManagedEvents<T>() => Array.Empty<T>();
+        public IReadOnlyList<T> ReadManagedEvents<T>() => Array.Empty<T>();
     }
     
     public class MockCommandBuffer : IEntityCommandBuffer

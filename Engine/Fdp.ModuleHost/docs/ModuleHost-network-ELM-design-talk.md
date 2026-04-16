@@ -346,7 +346,7 @@ public void Execute(ISimulationView view, float deltaTime)
 
     // 1\. Handle Outbound Construction Orders (From Local ELM)
 
-    foreach (var order in view.ConsumeEvents\<ConstructionOrder\>())
+    foreach (var order in view.ReadEvents\<ConstructionOrder\>())
 
     {
 
@@ -559,7 +559,7 @@ public class WeaponSystem : IModuleSystem
 
         // React to ownership changes
 
-        foreach (var change in view.ConsumeEvents\<DescriptorAuthorityChanged\>())
+        foreach (var change in view.ReadEvents\<DescriptorAuthorityChanged\>())
 
         {
 

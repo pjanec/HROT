@@ -113,7 +113,7 @@ namespace Fdp.Toolkit.Combat.Tests
             // Swap buffers so published events are visible to Consume.
             _world.Bus.SwapBuffers();
 
-            var intents = _world.Bus.Consume<WeaponFireIntent>();
+            var intents = _world.Bus.Read<WeaponFireIntent>();
             Assert.Equal(1, intents.Length);
 
             var intent = intents[0];
@@ -150,7 +150,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _executor.Execute(shooter, ref channel, _world, 0.016f);
             _world.Bus.SwapBuffers();
 
-            var fireRequests = _world.Bus.Consume<FireRequestEvent>();
+            var fireRequests = _world.Bus.Read<FireRequestEvent>();
             Assert.Equal(0, fireRequests.Length);
         }
 
@@ -176,7 +176,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _executor.Execute(shooter, ref channel, _world, 0.016f);
             _world.Bus.SwapBuffers();
 
-            var intents = _world.Bus.Consume<WeaponFireIntent>();
+            var intents = _world.Bus.Read<WeaponFireIntent>();
             Assert.Equal(0, intents.Length);
 
             Assert.Equal(NodeStatus.Running, channel.Status);
@@ -208,7 +208,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             Assert.Equal(NodeStatus.Failure, channel.Status);
 
-            var intents = _world.Bus.Consume<WeaponFireIntent>();
+            var intents = _world.Bus.Read<WeaponFireIntent>();
             Assert.Equal(0, intents.Length);
         }
 
@@ -240,7 +240,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             Assert.Equal(NodeStatus.Success, channel.Status);
 
-            var intents = _world.Bus.Consume<WeaponFireIntent>();
+            var intents = _world.Bus.Read<WeaponFireIntent>();
             Assert.Equal(0, intents.Length);
         }
 
@@ -271,7 +271,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 _executor.Execute(shooter, ref channel, _world, 0.016f);
                 _world.Bus.SwapBuffers();
 
-                var earlyIntents = _world.Bus.Consume<WeaponFireIntent>();
+                var earlyIntents = _world.Bus.Read<WeaponFireIntent>();
                 Assert.Equal(0, earlyIntents.Length);
                 Assert.Equal(NodeStatus.Running, channel.Status);
             }
@@ -283,7 +283,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _executor.Execute(shooter, ref channel, _world, 0.016f);
             _world.Bus.SwapBuffers();
 
-            var fireIntents = _world.Bus.Consume<WeaponFireIntent>();
+            var fireIntents = _world.Bus.Read<WeaponFireIntent>();
             Assert.Equal(1, fireIntents.Length);
             Assert.Equal(NodeStatus.Running, channel.Status);
         }

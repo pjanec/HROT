@@ -58,7 +58,7 @@ namespace Fdp.Network.Cyclone.Translators
 
         public void ScanAndPublish(ISimulationView view)
         {
-             var events = view.ConsumeManagedEvents<TEcs>();
+             var events = view.ReadManagedEvents<TEcs>();
              foreach(var evt in events)
              {
                   if(TryEncode(evt, out TDds dds)) 

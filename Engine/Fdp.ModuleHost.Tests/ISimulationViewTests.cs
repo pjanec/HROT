@@ -8,7 +8,7 @@ namespace Fdp.ModuleHost.Tests
     public class ISimulationViewTests
     {
         [Fact]
-        public void ConsumeManagedEvents_ReturnsEvents()
+        public void ReadManagedEvents_ReturnsEvents()
         {
             // Arrange
             var repo = new EntityRepository();
@@ -21,7 +21,7 @@ namespace Fdp.ModuleHost.Tests
             repo.Bus.SwapBuffers();
             
             // Consume via interface
-            var events = view.ConsumeManagedEvents<TestManagedEvent>();
+            var events = view.ReadManagedEvents<TestManagedEvent>();
             
             // Assert
             Assert.NotNull(events);

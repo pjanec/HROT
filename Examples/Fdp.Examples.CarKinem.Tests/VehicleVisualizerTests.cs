@@ -119,13 +119,13 @@ namespace Fdp.Examples.CarKinem.Tests
 
         public bool HasManagedComponent<T>(Entity e) where T : class => false;
 
-        public ReadOnlySpan<T> ConsumeEvents<T>() where T : unmanaged => ReadOnlySpan<T>.Empty;
+        public ReadOnlySpan<T> ReadEvents<T>() where T : unmanaged => ReadOnlySpan<T>.Empty;
         
         public IEntityCommandBuffer GetCommandBuffer() => throw new NotImplementedException();
         
         public QueryBuilder Query() => throw new NotImplementedException();
         
-        public System.Collections.Generic.IReadOnlyList<T> ConsumeManagedEvents<T>() => throw new NotImplementedException();
+        public System.Collections.Generic.IReadOnlyList<T> ReadManagedEvents<T>() => throw new NotImplementedException();
         
         // Static holder for ref return trick (unsafe for concurrency but ok for single thread unit test)
         private static class _tempStorage<T> where T : struct { public static T Value; }

@@ -92,7 +92,7 @@ namespace Fdp.Toolkit.Replication.Tests
 
             repo.Bus.SwapBuffers(); // Make generated event visible
 
-            var events = ((ISimulationView)repo).ConsumeEvents<DescriptorAuthorityChanged>();
+            var events = ((ISimulationView)repo).ReadEvents<DescriptorAuthorityChanged>();
             bool found = false;
             foreach (var e in events)
             {
@@ -124,7 +124,7 @@ namespace Fdp.Toolkit.Replication.Tests
             sys.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
 
-            var events = ((ISimulationView)repo).ConsumeEvents<OwnershipUpdate>();
+            var events = ((ISimulationView)repo).ReadEvents<OwnershipUpdate>();
             Assert.Equal(1, events.Length);
             Assert.Equal(100, events[0].PackedKey);
             Assert.Equal(5, events[0].NewOwnerNodeId);
@@ -132,14 +132,14 @@ namespace Fdp.Toolkit.Replication.Tests
             // Execute again - No change
             sys.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
-            Assert.Equal(0, ((ISimulationView)repo).ConsumeEvents<OwnershipUpdate>().Length);
+            Assert.Equal(0, ((ISimulationView)repo).ReadEvents<OwnershipUpdate>().Length);
 
             // Update ownership and verify change is published
             own.SetOwner(100, 6);
             sys.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
 
-            events = ((ISimulationView)repo).ConsumeEvents<OwnershipUpdate>();
+            events = ((ISimulationView)repo).ReadEvents<OwnershipUpdate>();
             Assert.Equal(1, events.Length);
             Assert.Equal(6, events[0].NewOwnerNodeId);
         }

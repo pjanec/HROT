@@ -130,7 +130,7 @@ public sealed class FdpOrchestrationCqrsStructTests
         bus.SwapBuffers();
 
         // Consume reads from the now-readable buffer
-        var consumed = bus.ConsumeManaged<ExecuteNodeOpIntent>();
+        var consumed = bus.ReadManaged<ExecuteNodeOpIntent>();
         Assert.NotEmpty(consumed);
         Assert.Equal(intent.TransactionId, consumed[0].TransactionId);
     }

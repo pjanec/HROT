@@ -179,7 +179,7 @@ namespace Fdp.Toolkit.Time.Controllers
 
         private void DrainModeSwitchEvents()
         {
-            var events = _eventBus.Consume<SwitchTimeModeEvent>();
+            var events = _eventBus.Read<SwitchTimeModeEvent>();
             foreach (var evt in events)
             {
                 if (evt.TargetMode == TimeMode.Deterministic)
@@ -217,7 +217,7 @@ namespace Fdp.Toolkit.Time.Controllers
             // Consume pre-computed NTP offsets produced by SlaveTimeSyncTranslator.
             // The translator captures t1 and t4 at the exact network boundary, eliminating
             // event-bus double-buffer jitter from the RTT measurement.
-            var offsets = _eventBus.Consume<TimeSyncOffsetCalculatedEvent>();
+            var offsets = _eventBus.Read<TimeSyncOffsetCalculatedEvent>();
             foreach (var offset in offsets)
             {
                 double rttMs = offset.Rtt * 1000.0 / Stopwatch.Frequency;
@@ -302,7 +302,7 @@ namespace Fdp.Toolkit.Time.Controllers
         private GlobalTime UpdateContinuous()
         {
             // Prevent memory leak: drain any AdvanceFrameIntent that arrived while in Continuous mode
-            _eventBus.ConsumeManaged<AdvanceFrameIntent>();
+            _eventBus.ReadManaged<AdvanceFrameIntent>();
 
             return AdvanceContinuousTime();
         }
@@ -312,7 +312,7 @@ namespace Fdp.Toolkit.Time.Controllers
         private GlobalTime UpdateBarrierPending()
         {
             // Drain stray step intents so they don't pile up.
-            _eventBus.ConsumeManaged<AdvanceFrameIntent>();
+            _eventBus.ReadManaged<AdvanceFrameIntent>();
 
             // Do NOT advance simulation time: the slave freezes sim-time immediately on entering
             // BarrierPending. The cached _totalTime from the last Continuous frame is returned.
@@ -336,7 +336,7 @@ namespace Fdp.Toolkit.Time.Controllers
         private GlobalTime UpdateStepping()
         {
             // Drain AdvanceFrameIntent from managed bus.
-            var intents = _eventBus.ConsumeManaged<AdvanceFrameIntent>();
+            var intents = _eventBus.ReadManaged<AdvanceFrameIntent>();
 
             // Filter stale / out-of-order intents.  Use _lastAcceptedStepFrameId rather than
             // _frameNumber because the continuous-mode frame counter and the master's step

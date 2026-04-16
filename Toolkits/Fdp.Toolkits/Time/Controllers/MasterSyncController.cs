@@ -107,16 +107,16 @@ namespace Fdp.Toolkit.Time.Controllers
             // SlaveNodeSetUpdatedEvent must be consumed before PauseTimeIntent so
             // SwitchToDeterministic gets the correct slave roster.
             HashSet<int>? updatedSlaves = null;
-            foreach (var ev in _eventBus.ConsumeManaged<SlaveNodeSetUpdatedEvent>())
+            foreach (var ev in _eventBus.ReadManaged<SlaveNodeSetUpdatedEvent>())
                 updatedSlaves = new HashSet<int>(ev.SlaveNodeIds);
 
-            foreach (var _ in _eventBus.ConsumeManaged<PauseTimeIntent>())
+            foreach (var _ in _eventBus.ReadManaged<PauseTimeIntent>())
                 SwitchToDeterministic(updatedSlaves ?? new HashSet<int>(_expectedSlaves));
-            foreach (var _ in _eventBus.ConsumeManaged<ResumeTimeIntent>())
+            foreach (var _ in _eventBus.ReadManaged<ResumeTimeIntent>())
                 SwitchToContinuous();
-            foreach (var ev in _eventBus.ConsumeManaged<StepTimeIntent>())
+            foreach (var ev in _eventBus.ReadManaged<StepTimeIntent>())
                 Step(ev.DeltaSeconds);
-            foreach (var ev in _eventBus.ConsumeManaged<SetTimeScaleIntent>())
+            foreach (var ev in _eventBus.ReadManaged<SetTimeScaleIntent>())
                 SetTimeScale(ev.TimeScale);
 
             long currentTicks  = _getTick();
@@ -364,7 +364,7 @@ namespace Fdp.Toolkit.Time.Controllers
         private GlobalTime UpdateStepping()
         {
             // Drain any incoming ACKs from slaves.  Unknown node IDs are silently discarded.
-            var acks = _eventBus.ConsumeManaged<FrameStepCompletedEvent>();
+            var acks = _eventBus.ReadManaged<FrameStepCompletedEvent>();
             bool wasWaiting = _pendingAcks.Count > 0;
 
             foreach (var ack in acks)

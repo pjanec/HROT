@@ -25,7 +25,7 @@ namespace CarKinem.Systems
         
         private void ProcessSpawnCommands()
         {
-            var events = World.Bus.Consume<CmdSpawnVehicle>();
+            var events = World.Bus.Read<CmdSpawnVehicle>();
             
             foreach (var cmd in events)
             {
@@ -88,7 +88,7 @@ namespace CarKinem.Systems
 
         private void ProcessCreateFormationCommands()
         {
-            var events = World.Bus.Consume<CmdCreateFormation>();
+            var events = World.Bus.Read<CmdCreateFormation>();
             
             foreach (var cmd in events)
             {
@@ -128,7 +128,7 @@ namespace CarKinem.Systems
 
         private void ProcessJoinFormationCommands()
         {
-            var events = World.Bus.Consume<CmdJoinFormation>();
+            var events = World.Bus.Read<CmdJoinFormation>();
             
             foreach (var cmd in events)
             {
@@ -178,7 +178,7 @@ namespace CarKinem.Systems
         
         private void ProcessLeaveFormationCommands()
         {
-            var events = World.Bus.Consume<CmdLeaveFormation>();
+            var events = World.Bus.Read<CmdLeaveFormation>();
             
             foreach (var cmd in events)
             {

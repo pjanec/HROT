@@ -36,7 +36,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
         private void ExecuteMaster(ISimulationView view)
         {
             var cmd = view.GetCommandBuffer();
-            foreach (var evt in _bus.Consume<SwitchTimeModeEvent>())
+            foreach (var evt in _bus.Read<SwitchTimeModeEvent>())
             {
                 var query = view.Query().With<TimeModeComponent>().Build();
                 foreach (var entity in query)

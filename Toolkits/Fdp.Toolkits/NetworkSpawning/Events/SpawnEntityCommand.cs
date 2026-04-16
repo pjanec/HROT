@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
     /// Design note: defined as a struct (value type) to minimise GC pressure during bulk spawning.
     /// It travels through the Managed event stream (not Native) because it contains
     /// a <see cref="List{T}"/> reference field (<see cref="InitialComponents"/>).
-    /// The Kernel's <c>ConsumeManagedEvents&lt;T&gt;</c> has no <c>class</c> constraint,
+    /// The Kernel's <c>ReadManagedEvents&lt;T&gt;</c> has no <c>class</c> constraint,
     /// so managed structs are explicitly supported.
     /// </summary>
     public struct SpawnEntityCommand

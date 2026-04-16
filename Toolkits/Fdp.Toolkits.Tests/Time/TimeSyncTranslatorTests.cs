@@ -66,7 +66,7 @@ namespace Fdp.Toolkit.Time.Tests
 
             // After swap, bus should be empty
             bus.SwapBuffers();
-            var remaining = bus.Consume<TimeSyncRequest>();
+            var remaining = bus.Read<TimeSyncRequest>();
             Assert.True(remaining.IsEmpty,
                 "SlaveTimeSyncTranslator should drain TimeSyncRequests from bus even with null participant");
         }
@@ -171,7 +171,7 @@ namespace Fdp.Toolkit.Time.Tests
             t.ScanAndPublish(null!); // no-op for DDS write, but must drain bus
 
             bus.SwapBuffers();
-            Assert.True(bus.Consume<TimeSyncRequest>().IsEmpty,
+            Assert.True(bus.Read<TimeSyncRequest>().IsEmpty,
                 "Request must be drained from bus even with null DDS participant");
         }
     }

@@ -373,7 +373,7 @@ namespace Fdp.Toolkit.Perception.Tests
             FlushEcbAndSwap(view, world);
 
             // Assert: the emitted event carries full Entity handles matching the live entities.
-            var events = world.Bus.Consume<LosCheckRequestEvent>();
+            var events = world.Bus.Read<LosCheckRequestEvent>();
             Assert.Equal(1, events.Length);
             Assert.Equal(observer, events[0].Observer);
             Assert.Equal(target,   events[0].Target);

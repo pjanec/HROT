@@ -73,7 +73,7 @@ namespace Fdp.Toolkit.Perception.Systems
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
-            var requests = view.ConsumeEvents<LosCheckRequestEvent>();
+            var requests = view.ReadEvents<LosCheckRequestEvent>();
             if (requests.IsEmpty) return;
 
             var cmds = view.GetCommandBuffer();

@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Swap to bring next write buffer into view — should be empty.
             bus.SwapBuffers();
-            var remaining = bus.ConsumeManaged<AdvanceFrameIntent>().ToList();
+            var remaining = bus.ReadManaged<AdvanceFrameIntent>().ToList();
 
             Assert.Empty(remaining);
         }
@@ -68,7 +68,7 @@ namespace Fdp.Toolkit.Time.Tests
             translator.PollIngress(null!, null!);
             bus.SwapBuffers();
 
-            var events = bus.ConsumeManaged<FrameStepCompletedEvent>().ToList();
+            var events = bus.ReadManaged<FrameStepCompletedEvent>().ToList();
 
             Assert.Empty(events);
         }
@@ -124,7 +124,7 @@ namespace Fdp.Toolkit.Time.Tests
             translator.PollIngress(null!, null!);
             bus.SwapBuffers();
 
-            var events = bus.ConsumeManaged<AdvanceFrameIntent>().ToList();
+            var events = bus.ReadManaged<AdvanceFrameIntent>().ToList();
 
             Assert.Empty(events);
         }
@@ -150,7 +150,7 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Swap to bring next write buffer into view — should be empty.
             bus.SwapBuffers();
-            var remaining = bus.ConsumeManaged<FrameStepCompletedEvent>().ToList();
+            var remaining = bus.ReadManaged<FrameStepCompletedEvent>().ToList();
 
             Assert.Empty(remaining);
         }

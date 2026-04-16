@@ -57,13 +57,13 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
 
             var cmdBuffer = view.GetCommandBuffer();
 
-            foreach (var cmd in view.ConsumeManagedEvents<SpawnEntityCommand>())
+            foreach (var cmd in view.ReadManagedEvents<SpawnEntityCommand>())
                 ProcessSpawn(world, view.Tick, cmd, cmdBuffer);
 
-            foreach (var cmd in view.ConsumeManagedEvents<UpdateEntityCommand>())
+            foreach (var cmd in view.ReadManagedEvents<UpdateEntityCommand>())
                 ProcessUpdate(world, cmd);
 
-            foreach (var cmd in view.ConsumeManagedEvents<DestroyEntityCommand>())
+            foreach (var cmd in view.ReadManagedEvents<DestroyEntityCommand>())
                 ProcessDestroy(world, view.Tick, cmd, cmdBuffer);
         }
 

@@ -111,7 +111,7 @@ public sealed partial class EntityRepository : ISimulationView
     public ref readonly T GetComponentRO<T>(Entity e) where T : unmanaged;
     public T GetManagedComponentRO<T>(Entity e) where T : class;
     public bool IsAlive(Entity e);
-    public ReadOnlySpan<T> ConsumeEvents<T>() where T : unmanaged;
+    public ReadOnlySpan<T> ReadEvents<T>() where T : unmanaged;
     public EntityQueryBuilder Query();
 }
 ```
@@ -274,7 +274,7 @@ Uses `HashSet<int>` populated during `Swap Buffers()` for constant-time lookup.
 // Reactive trigger: module only runs if ExplosionEvent exists
 if (bus.HasEvent<ExplosionEvent>())
 {
-    var explosions = bus.ConsumeEvents<ExplosionEvent>();
+    var explosions = bus.ReadEvents<ExplosionEvent>();
     ProcessExplosions(explosions);
 }
 ```
@@ -282,7 +282,7 @@ if (bus.HasEvent<ExplosionEvent>())
 **Performance:** ~5ns HashSet lookup
 
 **See Also:**  
-- `ConsumeEvents<T>()` - Retrieve actual events
+- `ReadEvents<T>()` - Retrieve actual events
 - Reactive Scheduling (User Guide)
 
 ---
@@ -661,7 +661,7 @@ public interface ISimulationView
     T GetManagedComponentRO<T>(Entity e) where T : class;
     
     bool IsAlive(Entity e);
-    ReadOnlySpan<T> ConsumeEvents<T>() where T : unmanaged;
+    ReadOnlySpan<T> ReadEvents<T>() where T : unmanaged;
     EntityQueryBuilder Query();
 }
 ```
@@ -783,10 +783,10 @@ if (!view.IsAlive(target))
 
 ---
 
-##### ConsumeEvents<T>()
+##### ReadEvents<T>()
 
 ```csharp
-ReadOnlySpan<T> ConsumeEvents<T>() where T : unmanaged
+ReadOnlySpan<T> ReadEvents<T>() where T : unmanaged
 ```
 
 **Description:**  
@@ -803,7 +803,7 @@ Gets all events of type `T` accumulated since module's last run.
 
 **Usage:**
 ```csharp
-var explosions = view.ConsumeEvents<ExplosionEvent>();
+var explosions = view.ReadEvents<ExplosionEvent>();
 if (explosions.Length > 0)
 {
     Console.WriteLine($"Detected {explosions.Length} explosions!");
@@ -1470,7 +1470,7 @@ public struct DestructionAck
 **Usage:**
 ```csharp
 // Module reacts to construction order
-foreach (var order in view.ConsumeEvents<ConstructionOrder>())
+foreach (var order in view.ReadEvents<ConstructionOrder>())
 {
     if (order.TypeId == MY_ENTITY_TYPE)
     {
@@ -1860,7 +1860,7 @@ public JobHandle Tick(FrameTime time, ISimulationView view, ICommandBuffer comma
 ```csharp
 public JobHandle Tick(FrameTime time, ISimulationView view, ICommandBuffer commands)
 {
-    var explosions = view.ConsumeEvents<ExplosionEvent>();
+    var explosions = view.ReadEvents<ExplosionEvent>();
     if (explosions.Length == 0)
         return default;  // No events, early exit
     
@@ -1947,7 +1947,7 @@ public class HostSetup
 | `GetComponentRO<T>()` | <20ns | Direct array access |
 | `GetManagedComponentRO<T>()` | <30ns | Array access + cast |
 | `IsAlive()` | <10ns | Bit check |
-| `ConsumeEvents<T>()` | <50ns | Span creation |
+| `ReadEvents<T>()` | <50ns | Span creation |
 | `Query().Build()` | <1μs | Archetype iteration |
 | `SyncFrom()` (full) | <2ms | 100K entities, 30% dirty |
 | `SyncFrom()` (filtered 50%) | <500μs | 100K entities, 30% dirty |
@@ -1963,7 +1963,7 @@ public class HostSetup
 | `NativeChunkTable.SyncDirtyChunks()` | ❌ NO | Main thread only |
 | `EventAccumulator.CaptureFrame()` | ❌ NO | Main thread only |
 | `ISimulationView.GetComponentRO()` | ✅ YES | Read-only, safe for background threads |
-| `ISimulationView.ConsumeEvents()` | ✅ YES | Read-only |
+| `ISimulationView.ReadEvents()` | ✅ YES | Read-only |
 | `SharedSnapshotProvider.AcquireView()` | ✅ YES | Thread-safe (uses Interlocked) |
 | `ICommandBuffer.SetComponent()` | ✅ YES | Thread-safe (ConcurrentQueue) |
 

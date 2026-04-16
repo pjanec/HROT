@@ -232,7 +232,7 @@ public struct DescriptorAuthorityChanged
 
 **Usage Example (Weapon System):**
 ```csharp
-foreach (var change in view.ConsumeEvents<DescriptorAuthorityChanged>())
+foreach (var change in view.ReadEvents<DescriptorAuthorityChanged>())
 {
     if (change.DescriptorTypeId == NetworkConstants.WEAPON_STATE_DESCRIPTOR_ID)
     {
@@ -534,7 +534,7 @@ public void OwnershipUpdate_FiresAuthorityChangedEvent()
     
     // Act
     _ownershipTranslator.PollIngress(_mockReader, _cmd, _repo);
-    var events = _repo.ConsumeEvents<DescriptorAuthorityChanged>();
+    var events = _repo.ReadEvents<DescriptorAuthorityChanged>();
     
     // Assert
     var evt = events.Single();

@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             
             // Verify event is in current frame buffer
             bus.SwapBuffers();
-            var events = bus.Consume<ConstructionOrder>();
+            var events = bus.Read<ConstructionOrder>();
             Assert.Contains(events.ToArray(), e => e.Entity.Index == 123);
         }
     }

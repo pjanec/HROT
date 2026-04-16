@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Time.Tests
             long masterTick, long slaveTick, int nodeId = SlaveNodeId)
         {
             slaveBus.SwapBuffers();
-            slaveBus.Consume<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncRequest>();
 
             // Pre-compute zero-RTT offset: master domain offset = masterTick - slaveTick.
             slaveBus.Publish(new TimeSyncOffsetCalculatedEvent
@@ -35,14 +35,14 @@ namespace Fdp.Toolkit.Time.Tests
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Consume<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncRequest>();
         }
 
         private static void RelayModeSwitch(FdpEventBus masterBus, FdpEventBus slaveBus)
         {
             // Relay SwitchTimeModeEvent from master to slave.
             // Must be called AFTER masterBus.SwapBuffers() and BEFORE advancing ticks.
-            var events = masterBus.Consume<SwitchTimeModeEvent>();
+            var events = masterBus.Read<SwitchTimeModeEvent>();
             foreach (var e in events) slaveBus.Publish(e);
             slaveBus.SwapBuffers();
         }
@@ -103,7 +103,7 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Drain slave's initial TimeSyncRequest but do NOT respond (no NTP sync)
             slaveBus.SwapBuffers();
-            slaveBus.Consume<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncRequest>();
 
             // Master pauses — barrier = masterTicks + lookahead = 0 + 100_000 = 100_000
             master.SwitchToDeterministic(new HashSet<int> { SlaveNodeId });
@@ -142,7 +142,7 @@ namespace Fdp.Toolkit.Time.Tests
             master.SwitchToDeterministic(new HashSet<int> { 1, 2 });
             masterBus.SwapBuffers(); // event → masterBus.current
 
-            var events = masterBus.Consume<SwitchTimeModeEvent>();
+            var events = masterBus.Read<SwitchTimeModeEvent>();
             foreach (var e in events)
             {
                 slave1Bus.Publish(e);
@@ -197,7 +197,7 @@ namespace Fdp.Toolkit.Time.Tests
             master.SwitchToDeterministic(new HashSet<int> { 1, 2 });
             masterBus.SwapBuffers(); // event → masterBus.current
 
-            var modeEvents = masterBus.Consume<SwitchTimeModeEvent>();
+            var modeEvents = masterBus.Read<SwitchTimeModeEvent>();
             foreach (var e in modeEvents) { slave1Bus.Publish(e); slave2Bus.Publish(e); }
             slave1Bus.SwapBuffers(); slave2Bus.SwapBuffers();
 

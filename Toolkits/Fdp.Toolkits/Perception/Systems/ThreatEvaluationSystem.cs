@@ -75,7 +75,7 @@ namespace Fdp.Toolkit.Perception.Systems
             }
 
             // ── Step 2: Boost scores from confirmed visible events ─────────────────
-            var visibleEvents = view.ConsumeEvents<TargetVisibleEvent>();
+            var visibleEvents = view.ReadEvents<TargetVisibleEvent>();
             foreach (ref readonly var evt in visibleEvents)
             {
                 // Generational guard — entity may have been destroyed between LOS submission and now.
@@ -107,7 +107,7 @@ namespace Fdp.Toolkit.Perception.Systems
             }
 
             // ── Step 3: Boost scores from confirmed heard events ──────────────────
-            var heardEvents = view.ConsumeEvents<TargetHeardEvent>();
+            var heardEvents = view.ReadEvents<TargetHeardEvent>();
             foreach (ref readonly var evt in heardEvents)
             {
                 if (!view.IsAlive(evt.Listener))

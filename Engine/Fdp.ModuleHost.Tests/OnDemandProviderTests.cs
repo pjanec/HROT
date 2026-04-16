@@ -177,7 +177,7 @@ namespace Fdp.ModuleHost.Tests
             var view = provider.AcquireView();
             var repo = (EntityRepository)view;
             
-            var events = repo.Bus.Consume<TestEvent>();
+            var events = repo.Bus.Read<TestEvent>();
             Assert.Equal(1, events.Length);
             Assert.Equal(999, events[0].Value);
         }

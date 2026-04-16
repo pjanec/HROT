@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Perception.Systems
 
         protected override void OnUpdate()
         {
-            var events = World.Bus.Consume<AudioStimulusEvent>();
+            var events = World.Bus.Read<AudioStimulusEvent>();
             if (events.IsEmpty) return;
 
             bool hasGrid = World.HasSingleton<SpatialGridData>();

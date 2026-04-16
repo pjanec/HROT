@@ -83,13 +83,13 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Drain the initial baseline event published by the constructor (Bug 3 fix).
             bus.SwapBuffers();
-            bus.Consume<SwitchTimeModeEvent>();
+            bus.Read<SwitchTimeModeEvent>();
 
             long wallTicksBefore = ctrl.GetCurrentState().TotalWallTicks; // 0 — no Updates yet
             ctrl.SwitchToDeterministic(new HashSet<int>());
 
             bus.SwapBuffers();
-            var events = bus.Consume<SwitchTimeModeEvent>().ToArray();
+            var events = bus.Read<SwitchTimeModeEvent>().ToArray();
 
             Assert.Single(events);
             Assert.Equal(TimeMode.Deterministic, events[0].TargetMode);
@@ -138,7 +138,7 @@ namespace Fdp.Toolkit.Time.Tests
             ctrl.Step(0.016f);
 
             bus.SwapBuffers();
-            var intents = bus.ConsumeManaged<AdvanceFrameIntent>();
+            var intents = bus.ReadManaged<AdvanceFrameIntent>();
 
             Assert.Single(intents);
             Assert.Equal(1L,    intents[0].FrameID);
@@ -206,7 +206,7 @@ namespace Fdp.Toolkit.Time.Tests
             // Transition to Stepping. bus.Consume drains both constructor event and barrier event.
             ctrl.SwitchToDeterministic(new HashSet<int>());
             bus.SwapBuffers();
-            bus.Consume<SwitchTimeModeEvent>(); // discard (constructor + barrier events)
+            bus.Read<SwitchTimeModeEvent>(); // discard (constructor + barrier events)
 
             ticks = 1;
             ctrl.Update(); // crosses barrier → Stepping (adds negligible delta)
@@ -214,7 +214,7 @@ namespace Fdp.Toolkit.Time.Tests
             // Switch back to Continuous and inspect the published snapshot.
             ctrl.SwitchToContinuous();
             bus.SwapBuffers();
-            var events = bus.Consume<SwitchTimeModeEvent>().ToArray();
+            var events = bus.Read<SwitchTimeModeEvent>().ToArray();
 
             Assert.Single(events);
             Assert.Equal(TimeMode.Continuous, events[0].TargetMode);
@@ -236,16 +236,16 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Drain the initial baseline event published by the constructor (Bug 3 fix).
             bus.SwapBuffers();
-            bus.Consume<SwitchTimeModeEvent>();
+            bus.Read<SwitchTimeModeEvent>();
 
             // Both calls should be no-ops (already Continuous, no pending barrier).
             ctrl.SwitchToContinuous();
             bus.SwapBuffers();
-            var firstCallEvents = bus.Consume<SwitchTimeModeEvent>().ToArray();
+            var firstCallEvents = bus.Read<SwitchTimeModeEvent>().ToArray();
 
             ctrl.SwitchToContinuous();
             bus.SwapBuffers();
-            var secondCallEvents = bus.Consume<SwitchTimeModeEvent>().ToArray();
+            var secondCallEvents = bus.Read<SwitchTimeModeEvent>().ToArray();
 
             Assert.Empty(firstCallEvents);
             Assert.Empty(secondCallEvents);
@@ -477,7 +477,7 @@ namespace Fdp.Toolkit.Time.Tests
             // Resume to Continuous, then switch again with {3}
             ctrl.SwitchToContinuous();
             bus.SwapBuffers();
-            bus.Consume<SwitchTimeModeEvent>(); // discard
+            bus.Read<SwitchTimeModeEvent>(); // discard
 
             ctrl.SwitchToDeterministic(new HashSet<int> { 3 });
             ticks += 1;
@@ -534,12 +534,12 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Drain initial baseline published by constructor (Bug 3 fix).
             bus.SwapBuffers();
-            bus.Consume<SwitchTimeModeEvent>();
+            bus.Read<SwitchTimeModeEvent>();
 
             ctrl.SwitchToDeterministic(new HashSet<int>());
 
             bus.SwapBuffers();
-            var events = bus.Consume<SwitchTimeModeEvent>().ToArray();
+            var events = bus.Read<SwitchTimeModeEvent>().ToArray();
 
             Assert.Single(events);
             Assert.True(events[0].BarrierWallTicks >= 1_500_000L,
@@ -563,20 +563,20 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Sync slave.
             slaveBus.SwapBuffers();
-            slaveBus.Consume<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncRequest>();
             slaveBus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 0L });
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Consume<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncRequest>();
 
             // Drain constructor event from masterBus before SwitchToDeterministic.
             masterBus.SwapBuffers();
-            masterBus.Consume<SwitchTimeModeEvent>();
+            masterBus.Read<SwitchTimeModeEvent>();
 
             master.SwitchToDeterministic(new HashSet<int>());
             masterBus.SwapBuffers();
-            var events = masterBus.Consume<SwitchTimeModeEvent>().ToArray();
+            var events = masterBus.Read<SwitchTimeModeEvent>().ToArray();
             Assert.Single(events);
             Assert.True(events[0].BarrierWallTicks >= 1_500_000L);
 
@@ -615,7 +615,7 @@ namespace Fdp.Toolkit.Time.Tests
             ctrl.Step(0.016f);
 
             bus.SwapBuffers();
-            var intents = bus.ConsumeManaged<AdvanceFrameIntent>();
+            var intents = bus.ReadManaged<AdvanceFrameIntent>();
 
             Assert.Single(intents);
             Assert.True(intents[0].TargetSimTime > 0.0,
@@ -641,14 +641,14 @@ namespace Fdp.Toolkit.Time.Tests
             // First step
             ctrl.Step(0.016f);
             bus.SwapBuffers();
-            var intents1 = bus.ConsumeManaged<AdvanceFrameIntent>();
+            var intents1 = bus.ReadManaged<AdvanceFrameIntent>();
             Assert.Single(intents1);
             Assert.Equal(0.016f, (float)intents1[0].TargetSimTime, 5);
 
             // Second step (no slaves, so no ACK wait)
             ctrl.Step(0.016f);
             bus.SwapBuffers();
-            var intents2 = bus.ConsumeManaged<AdvanceFrameIntent>();
+            var intents2 = bus.ReadManaged<AdvanceFrameIntent>();
             Assert.Single(intents2);
             Assert.Equal(0.032f, (float)intents2[0].TargetSimTime, 4);
         }
@@ -669,21 +669,21 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Sync slave so _isTimeSynced = true.
             slaveBus.SwapBuffers();
-            slaveBus.Consume<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncRequest>();
             slaveBus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 0L });
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Consume<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncRequest>();
 
             // Transition master to Stepping
             // Drain constructor event first so only the Deterministic event is relayed.
             masterBus.SwapBuffers();
-            masterBus.Consume<SwitchTimeModeEvent>(); // drain constructor event
+            masterBus.Read<SwitchTimeModeEvent>(); // drain constructor event
 
             master.SwitchToDeterministic(new HashSet<int>());
             masterBus.SwapBuffers();
-            var switchEvents = masterBus.Consume<SwitchTimeModeEvent>().ToArray();
+            var switchEvents = masterBus.Read<SwitchTimeModeEvent>().ToArray();
 
             // Relay switch event to slave → BarrierPending
             slaveBus.Publish(switchEvents[0]);
@@ -697,7 +697,7 @@ namespace Fdp.Toolkit.Time.Tests
             // Step master
             master.Step(0.016f);
             masterBus.SwapBuffers();
-            var intents = masterBus.ConsumeManaged<AdvanceFrameIntent>().ToArray();
+            var intents = masterBus.ReadManaged<AdvanceFrameIntent>().ToArray();
 
             // Relay intent to slave
             slaveBus.PublishManaged(intents[0]);
@@ -724,12 +724,12 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Drain initial baseline published by constructor (Bug 3 fix).
             bus.SwapBuffers();
-            bus.Consume<SwitchTimeModeEvent>();
+            bus.Read<SwitchTimeModeEvent>();
 
             ctrl.SwitchToDeterministic(new HashSet<int>());
 
             bus.SwapBuffers();
-            var events = bus.Consume<SwitchTimeModeEvent>().ToArray();
+            var events = bus.Read<SwitchTimeModeEvent>().ToArray();
 
             long expectedBarrier = ticks + config.LookaheadWallTicks; // 6_000_000
             Assert.Equal(expectedBarrier, events[0].BarrierWallTicks);
@@ -750,7 +750,7 @@ namespace Fdp.Toolkit.Time.Tests
             // First pause → barrier issued
             ctrl.SwitchToDeterministic(new HashSet<int>());
             bus.SwapBuffers();
-            bus.Consume<SwitchTimeModeEvent>(); // discard
+            bus.Read<SwitchTimeModeEvent>(); // discard
 
             // Cross barrier → Stepping
             ticks += 500_001L; // now = 1_500_001 >= 1_500_000
@@ -762,18 +762,18 @@ namespace Fdp.Toolkit.Time.Tests
                 ctrl.Step(1.0f);
             bus.SwapBuffers();
             for (int i = 0; i < 10; i++)
-                bus.ConsumeManaged<AdvanceFrameIntent>();
+                bus.ReadManaged<AdvanceFrameIntent>();
 
             // Resume
             ctrl.SwitchToContinuous();
             bus.SwapBuffers();
-            bus.Consume<SwitchTimeModeEvent>(); // discard resume
+            bus.Read<SwitchTimeModeEvent>(); // discard resume
 
             // Second pause — ticks have NOT advanced physically
             long ticksAtSecondPause = ticks; // still 1_500_001L
             ctrl.SwitchToDeterministic(new HashSet<int>());
             bus.SwapBuffers();
-            var events = bus.Consume<SwitchTimeModeEvent>().ToArray();
+            var events = bus.Read<SwitchTimeModeEvent>().ToArray();
 
             long expectedBarrier = ticksAtSecondPause + config.LookaheadWallTicks; // 2_000_001
             Assert.Equal(expectedBarrier, events[0].BarrierWallTicks);
@@ -795,7 +795,7 @@ namespace Fdp.Toolkit.Time.Tests
             long expectedBarrier = ticks + config.LookaheadWallTicks; // 1_000_100
 
             bus.SwapBuffers();
-            bus.Consume<SwitchTimeModeEvent>(); // drain
+            bus.Read<SwitchTimeModeEvent>(); // drain
 
             // One tick below barrier
             ticks = expectedBarrier - 1; // 1_000_099
@@ -859,7 +859,7 @@ namespace Fdp.Toolkit.Time.Tests
             var ctrl   = new MasterSyncController(bus, config: TimeConfig.Default, tickSource: () => ticks);
 
             bus.SwapBuffers();
-            var events = bus.Consume<SwitchTimeModeEvent>().ToArray();
+            var events = bus.Read<SwitchTimeModeEvent>().ToArray();
 
             Assert.Single(events);
             Assert.Equal(TimeMode.Continuous, events[0].TargetMode);
@@ -885,7 +885,7 @@ namespace Fdp.Toolkit.Time.Tests
                 ticks += TicksFromSeconds(0.016);
                 ctrl.Update();
                 bus.SwapBuffers();
-                bus.Consume<SwitchTimeModeEvent>(); // drain initial + any events
+                bus.Read<SwitchTimeModeEvent>(); // drain initial + any events
             }
 
             double simBefore = ctrl.GetCurrentState().TotalTime;
@@ -893,7 +893,7 @@ namespace Fdp.Toolkit.Time.Tests
 
             ctrl.SwitchToDeterministic(new HashSet<int>());
             bus.SwapBuffers();
-            var events = bus.Consume<SwitchTimeModeEvent>().ToArray();
+            var events = bus.Read<SwitchTimeModeEvent>().ToArray();
 
             Assert.Single(events);
             Assert.Equal(TimeMode.Deterministic, events[0].TargetMode);
@@ -916,13 +916,13 @@ namespace Fdp.Toolkit.Time.Tests
             // Transition into Stepping (drains all prior events).
             ctrl.SwitchToDeterministic(new HashSet<int>());
             bus.SwapBuffers();
-            bus.Consume<SwitchTimeModeEvent>();
+            bus.Read<SwitchTimeModeEvent>();
             ticks = 1;
             ctrl.Update(); // → Stepping
 
             ctrl.SwitchToContinuous();
             bus.SwapBuffers();
-            var events = bus.Consume<SwitchTimeModeEvent>().ToArray();
+            var events = bus.Read<SwitchTimeModeEvent>().ToArray();
 
             Assert.Single(events);
             Assert.Equal(TimeMode.Continuous, events[0].TargetMode);
@@ -946,7 +946,7 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Drain the initial baseline event published by the constructor.
             bus.SwapBuffers();
-            bus.Consume<SwitchTimeModeEvent>();
+            bus.Read<SwitchTimeModeEvent>();
 
             // Publish SlaveNodeSetUpdatedEvent + PauseTimeIntent to the WRITE buffer.
             bus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = new HashSet<int> { 1, 2 } });
@@ -958,7 +958,7 @@ namespace Fdp.Toolkit.Time.Tests
 
             // SwitchToDeterministic publishes SwitchTimeModeEvent to WRITE; promote to READ.
             bus.SwapBuffers();
-            var events = bus.Consume<SwitchTimeModeEvent>().ToArray();
+            var events = bus.Read<SwitchTimeModeEvent>().ToArray();
 
             Assert.Single(events);
             Assert.Equal(TimeMode.Deterministic, events[0].TargetMode);
@@ -979,7 +979,7 @@ namespace Fdp.Toolkit.Time.Tests
             // Switch to deterministic directly (tests the bus-drain resume path, not the pause path).
             ctrl.SwitchToDeterministic(new HashSet<int>());
             bus.SwapBuffers();
-            bus.Consume<SwitchTimeModeEvent>(); // drain that event
+            bus.Read<SwitchTimeModeEvent>(); // drain that event
 
             // Publish ResumeTimeIntent to the WRITE buffer.
             bus.PublishManaged(new ResumeTimeIntent());

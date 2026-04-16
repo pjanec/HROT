@@ -43,9 +43,9 @@ namespace Fdp.Network.Cyclone.Translators
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
-            // Assuming ConsumeEvents exists on ISimulationView and returns Span or similar
+            // Assuming ReadEvents exists on ISimulationView and returns Span or similar
             // Requires checks on ISimulationView
-            var events = view.ConsumeEvents<T>();
+            var events = view.ReadEvents<T>();
             
             foreach (ref readonly var evt in events)
             {

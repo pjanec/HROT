@@ -76,7 +76,7 @@ namespace Fdp.ModuleHost.Tests
             
             // Verify replica received event
             var replica = (EntityRepository)provider.AcquireView();
-            var events = replica.Bus.Consume<TestEvent>();
+            var events = replica.Bus.Read<TestEvent>();
             
             Assert.Equal(1, events.Length);
             Assert.Equal(123, events[0].Value);

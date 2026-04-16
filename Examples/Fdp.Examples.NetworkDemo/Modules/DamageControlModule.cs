@@ -15,7 +15,7 @@ namespace Fdp.Examples.NetworkDemo.Modules
         public void Execute(ISimulationView view, float dt)
         {
             // Only executes when DetonationEvent occurs
-            var events = view.ConsumeEvents<DetonationEvent>();
+            var events = view.ReadEvents<DetonationEvent>();
             
             foreach (var evt in events) {
                 // Apply damage to nearby entities

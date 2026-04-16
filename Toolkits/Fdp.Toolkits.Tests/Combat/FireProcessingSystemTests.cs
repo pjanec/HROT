@@ -133,7 +133,7 @@ namespace Fdp.Toolkit.Combat.Tests
             // Notifications are published to the write buffer; swap to expose them.
             _world.Bus.SwapBuffers();
 
-            var notifications = _world.Bus.Consume<WeaponFireNotification>();
+            var notifications = _world.Bus.Read<WeaponFireNotification>();
             Assert.Equal(1, notifications.Length);
             // PACK-P003: notification carries Entity handles, not network IDs.
             Assert.Equal(shooter, notifications[0].Shooter);
@@ -238,7 +238,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _sys.Run();
             _world.Bus.SwapBuffers();
 
-            var notifications = _world.Bus.Consume<WeaponFireNotification>();
+            var notifications = _world.Bus.Read<WeaponFireNotification>();
             Assert.Equal(1, notifications.Length);
 
             // PACK-P003: notification carries Entity handles directly.
@@ -309,7 +309,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(0, bulletCount);
 
             _world.Bus.SwapBuffers();
-            var notifications = _world.Bus.Consume<WeaponFireNotification>();
+            var notifications = _world.Bus.Read<WeaponFireNotification>();
             Assert.Equal(0, notifications.Length);
         }
 

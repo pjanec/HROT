@@ -84,12 +84,12 @@ namespace Fdp.Toolkit.Physics.Tests
             _world.Bus.SwapBuffers();
 
             // Assert — HitEvent still published
-            var hitEvents = _world.Bus.Consume<HitEvent>();
+            var hitEvents = _world.Bus.Read<HitEvent>();
             Assert.Equal(1, hitEvents.Length);
             Assert.Equal(hitEntity, hitEvents[0].HitEntity);
 
             // Assert — DetonationNotification also published with Entity handles
-            var detonations = _world.Bus.Consume<DetonationNotification>();
+            var detonations = _world.Bus.Read<DetonationNotification>();
             Assert.Equal(1, detonations.Length);
 
             var det = detonations[0];
@@ -137,7 +137,7 @@ namespace Fdp.Toolkit.Physics.Tests
             _sys.Run();
             _world.Bus.SwapBuffers();
 
-            var detonations = _world.Bus.Consume<DetonationNotification>();
+            var detonations = _world.Bus.Read<DetonationNotification>();
             Assert.Equal(0, detonations.Length);
         }
 
@@ -179,7 +179,7 @@ namespace Fdp.Toolkit.Physics.Tests
             });
             Assert.Null(ex);
 
-            var detonations = _world.Bus.Consume<DetonationNotification>();
+            var detonations = _world.Bus.Read<DetonationNotification>();
             Assert.Equal(1, detonations.Length);
             // Entity handles carried directly — no network-ID lookup needed.
             Assert.Equal(hitEntity,     detonations[0].Target);

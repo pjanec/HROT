@@ -158,7 +158,7 @@ namespace Fdp.Core
         /// </summary>
         /// <typeparam name="T">Unmanaged event type</typeparam>
         /// <returns>Read-only span of events from previous frame</returns>
-        public unsafe ReadOnlySpan<T> Consume<T>() where T : unmanaged
+        public unsafe ReadOnlySpan<T> Read<T>() where T : unmanaged
         {
             if (_nativeStreams.TryGetValue(EventType<T>.Id, out var stream))
             {
@@ -185,7 +185,7 @@ namespace Fdp.Core
         /// </summary>
         /// <typeparam name="T">Managed event type</typeparam>
         /// <returns>Read-only list of events from previous frame</returns>
-        public IReadOnlyList<T> ConsumeManaged<T>() // No class constraint — allows managed structs
+        public IReadOnlyList<T> ReadManaged<T>() // No class constraint — allows managed structs
         {
             if (_managedStreams.TryGetValue(GetManagedTypeId<T>(), out var stream))
             {

@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Lifecycle.Systems
             }
 
             // Consume ConstructionOrder events
-            var orders = view.ConsumeEvents<ConstructionOrder>();
+            var orders = view.ReadEvents<ConstructionOrder>();
             foreach (ref readonly var order in orders)
             {
                 if (_tkb.TryGetByType(order.BlueprintId, out var template))

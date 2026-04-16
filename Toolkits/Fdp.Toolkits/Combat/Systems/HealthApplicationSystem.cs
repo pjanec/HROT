@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
         protected override void OnUpdate()
         {
-            var events = World.Bus.Consume<DamageAssessedEvent>();
+            var events = World.Bus.Read<DamageAssessedEvent>();
             if (events.Length == 0) return;
 
             for (int i = 0; i < events.Length; i++)

@@ -40,7 +40,7 @@ namespace Fdp.Network.Cyclone.Tests.Translators
     {
         public List<object> ManagedEventsToReturn = new List<object>();
 
-        public IReadOnlyList<T> ConsumeManagedEvents<T>()
+        public IReadOnlyList<T> ReadManagedEvents<T>()
         {
             // Simple filtering
             var res = new List<T>();
@@ -52,7 +52,7 @@ namespace Fdp.Network.Cyclone.Tests.Translators
         }
         
         // Members not used
-        public ReadOnlySpan<T> ConsumeEvents<T>() where T : unmanaged => ReadOnlySpan<T>.Empty;
+        public ReadOnlySpan<T> ReadEvents<T>() where T : unmanaged => ReadOnlySpan<T>.Empty;
         public uint Tick => 0;
         public float Time => 0;
         public ref readonly T GetComponentRO<T>(Entity e) where T : unmanaged => throw new NotImplementedException();

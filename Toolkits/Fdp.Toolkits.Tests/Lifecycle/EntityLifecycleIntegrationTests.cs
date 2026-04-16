@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Lifecycle.Tests
                 public void Execute(ISimulationView view, float deltaTime)
                 {
                     var cmd = view.GetCommandBuffer();
-                    foreach(var order in view.ConsumeEvents<ConstructionOrder>())
+                    foreach(var order in view.ReadEvents<ConstructionOrder>())
                     {
                         if (order.BlueprintId == 1) 
                         {
@@ -76,7 +76,7 @@ namespace Fdp.Toolkit.Lifecycle.Tests
                         }
                     }
                     
-                    foreach(var order in view.ConsumeEvents<DestructionOrder>())
+                    foreach(var order in view.ReadEvents<DestructionOrder>())
                     {
                         cmd.PublishEvent(new DestructionAck {
                             Entity = order.Entity,

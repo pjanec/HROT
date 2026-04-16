@@ -33,7 +33,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
         protected override void OnUpdate()
         {
-            var events = World.Bus.Consume<DetonationNotification>();
+            var events = World.Bus.Read<DetonationNotification>();
             if (events.Length == 0) return;
 
             for (int i = 0; i < events.Length; i++)

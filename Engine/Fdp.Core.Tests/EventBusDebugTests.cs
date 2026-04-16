@@ -70,7 +70,7 @@ namespace Fdp.Tests
             
             // 4. Consume
             _output.WriteLine("3. Consuming from Current buffer...");
-            var events = eventBus.Consume<SimpleEvent>();
+            var events = eventBus.Read<SimpleEvent>();
             _output.WriteLine($"   Consumed {events.Length} events");
             if (events.Length > 0)
             {
@@ -119,7 +119,7 @@ namespace Fdp.Tests
             
             // Consume
             _output.WriteLine("4. Consuming...");
-            var events = eventBus.Consume<SimpleEvent>();
+            var events = eventBus.Read<SimpleEvent>();
             _output.WriteLine($"   Consumed {events.Length} events");
             if (events.Length > 0)
             {
@@ -195,7 +195,7 @@ namespace Fdp.Tests
                 
                 // Try to consume
                 _output.WriteLine("\n2. Consuming events...");
-                var events = eventBus.Consume<SimpleEvent>();
+                var events = eventBus.Read<SimpleEvent>();
                 _output.WriteLine($"   Consumed {events.Length} events");
                 
                 if (events.Length > 0)

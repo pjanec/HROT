@@ -26,7 +26,7 @@ namespace Fdp.Tests
             using var replicaBus = new FdpEventBus();
             accum.FlushToReplica(replicaBus, 9); // Last seen 9, should see 10
             
-            var events = replicaBus.Consume<TestEventA>();
+            var events = replicaBus.Read<TestEventA>();
             Assert.Equal(1, events.Length);
             Assert.Equal(42, events[0].Value);
         }
@@ -50,7 +50,7 @@ namespace Fdp.Tests
             using var replicaBus = new FdpEventBus();
             accum.FlushToReplica(replicaBus, 0); // Replay all
             
-            var events = replicaBus.Consume<TestEventA>();
+            var events = replicaBus.Read<TestEventA>();
             Assert.Equal(2, events.Length);
             Assert.Equal(1, events[0].Value);
             Assert.Equal(2, events[1].Value);
@@ -75,7 +75,7 @@ namespace Fdp.Tests
             using var replicaBus = new FdpEventBus();
             accum.FlushToReplica(replicaBus, 1); // Seen 1, expect 2
             
-            var events = replicaBus.Consume<TestEventA>();
+            var events = replicaBus.Read<TestEventA>();
             Assert.Equal(1, events.Length);
             Assert.Equal(2, events[0].Value);
         }
@@ -93,7 +93,7 @@ namespace Fdp.Tests
             using var replicaBus = new FdpEventBus();
             accum.FlushToReplica(replicaBus, 0);
             
-            var events = replicaBus.ConsumeManaged<TestManagedEventA>();
+            var events = replicaBus.ReadManaged<TestManagedEventA>();
             Assert.Single(events);
             Assert.Equal("Hello", events[0].Message);
         }
@@ -105,7 +105,7 @@ namespace Fdp.Tests
             // Pre-warm type
             bus.Publish(new TestEventA { Value = 0 });
             bus.SwapBuffers();
-            bus.Consume<TestEventA>();
+            bus.Read<TestEventA>();
             
             // Create 6 frames of data
             var accum = new EventAccumulator();
@@ -128,7 +128,7 @@ namespace Fdp.Tests
             sw.Stop();
             
             // Verify
-            var events = replicaBus.Consume<TestEventA>();
+            var events = replicaBus.Read<TestEventA>();
             Assert.Equal(6000, events.Length);
             
             // Benchmark

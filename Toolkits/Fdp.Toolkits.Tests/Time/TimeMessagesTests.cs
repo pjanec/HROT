@@ -115,7 +115,7 @@ namespace Fdp.Toolkit.Time.Tests
 
             bus.SwapBuffers();
 
-            var events = bus.ConsumeManaged<AdvanceFrameIntent>();
+            var events = bus.ReadManaged<AdvanceFrameIntent>();
 
             Assert.Single(events);
             Assert.Equal(7L,    events[0].FrameID);
@@ -136,7 +136,7 @@ namespace Fdp.Toolkit.Time.Tests
 
             bus.SwapBuffers();
 
-            var events = bus.ConsumeManaged<FrameStepCompletedEvent>();
+            var events = bus.ReadManaged<FrameStepCompletedEvent>();
 
             Assert.Single(events);
             Assert.Equal(42L, events[0].FrameID);
@@ -199,7 +199,7 @@ namespace Fdp.Toolkit.Time.Tests
             bus.Publish(original);
             bus.SwapBuffers();
 
-            var events = bus.Consume<TimeSyncRequest>().ToArray();
+            var events = bus.Read<TimeSyncRequest>().ToArray();
 
             Assert.Single(events);
             Assert.Equal(original.ClientNodeId,    events[0].ClientNodeId);
@@ -224,7 +224,7 @@ namespace Fdp.Toolkit.Time.Tests
             bus.Publish(original);
             bus.SwapBuffers();
 
-            var events = bus.Consume<TimeSyncResponse>().ToArray();
+            var events = bus.Read<TimeSyncResponse>().ToArray();
 
             Assert.Single(events);
             Assert.Equal(original.ClientNodeId,        events[0].ClientNodeId);
@@ -265,7 +265,7 @@ namespace Fdp.Toolkit.Time.Tests
             bus.Register<TimeSyncOffsetCalculatedEvent>();
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 7L, NewOffset = 42L });
             bus.SwapBuffers();
-            var events = bus.Consume<TimeSyncOffsetCalculatedEvent>().ToArray();
+            var events = bus.Read<TimeSyncOffsetCalculatedEvent>().ToArray();
 
             Assert.Single(events);
             Assert.Equal(7L,  events[0].Rtt);

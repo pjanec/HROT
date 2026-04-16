@@ -83,14 +83,14 @@ namespace Fdp.Tests
             _bus.Publish(evt);
 
             // Assert - Frame 1: Should be empty (events not swapped yet)
-            var consumed1 = _bus.Consume<SimpleEvent>();
+            var consumed1 = _bus.Read<SimpleEvent>();
             Assert.Equal(0, consumed1.Length);
 
             // Act - Swap buffers (end of frame)
             _bus.SwapBuffers();
 
             // Assert - Frame 2: Should see the event
-            var consumed2 = _bus.Consume<SimpleEvent>();
+            var consumed2 = _bus.Read<SimpleEvent>();
             Assert.Equal(1, consumed2.Length);
             Assert.Equal(42, consumed2[0].Value);
         }
@@ -105,7 +105,7 @@ namespace Fdp.Tests
 
             // Act
             _bus.SwapBuffers();
-            var events = _bus.Consume<SimpleEvent>();
+            var events = _bus.Read<SimpleEvent>();
 
             // Assert
             Assert.Equal(3, events.Length);
@@ -126,8 +126,8 @@ namespace Fdp.Tests
             _bus.SwapBuffers();
 
             // Assert
-            var simpleEvents = _bus.Consume<SimpleEvent>();
-            var damageEvents = _bus.Consume<DamageEvent>();
+            var simpleEvents = _bus.Read<SimpleEvent>();
+            var damageEvents = _bus.Read<DamageEvent>();
 
             Assert.Equal(2, simpleEvents.Length);
             Assert.Equal(1, damageEvents.Length);
@@ -140,7 +140,7 @@ namespace Fdp.Tests
         public void Consume_NoEventsPublished_ReturnsEmptySpan()
         {
             // Act
-            var events = _bus.Consume<SimpleEvent>();
+            var events = _bus.Read<SimpleEvent>();
 
             // Assert
             Assert.True(events.IsEmpty);
@@ -156,7 +156,7 @@ namespace Fdp.Tests
 
             // Act - Swap again without publishing new events
             _bus.SwapBuffers();
-            var events = _bus.Consume<SimpleEvent>();
+            var events = _bus.Read<SimpleEvent>();
 
             // Assert - Old events should be cleared
             Assert.Equal(0, events.Length);
@@ -234,7 +234,7 @@ namespace Fdp.Tests
             });
 
             _bus.SwapBuffers();
-            var events = _bus.Consume<SimpleEvent>();
+            var events = _bus.Read<SimpleEvent>();
 
             // Assert
             Assert.Equal(ExpectedTotal, events.Length);
@@ -272,7 +272,7 @@ namespace Fdp.Tests
                     Thread.Sleep(10);
                     _bus.SwapBuffers();
                     // Consume events after each swap
-                    var events = _bus.Consume<SimpleEvent>();
+                    var events = _bus.Read<SimpleEvent>();
                     Interlocked.Add(ref totalConsumed, events.Length);
                 }
             });
@@ -286,7 +286,7 @@ namespace Fdp.Tests
 
             // Final swap and consume
             _bus.SwapBuffers();
-            var finalEvents = _bus.Consume<SimpleEvent>();
+            var finalEvents = _bus.Read<SimpleEvent>();
             totalConsumed += finalEvents.Length;
 
             // Assert - We should have consumed events
@@ -321,7 +321,7 @@ namespace Fdp.Tests
             });
 
             _bus.SwapBuffers();
-            var events = _bus.Consume<LargeEvent>();
+            var events = _bus.Read<LargeEvent>();
 
             // Assert - Verify data integrity
             Assert.Equal(ThreadCount * EventsPerThread, events.Length);
@@ -352,7 +352,7 @@ namespace Fdp.Tests
             }
 
             _bus.SwapBuffers();
-            var events = _bus.Consume<SimpleEvent>();
+            var events = _bus.Read<SimpleEvent>();
 
             // Assert
             Assert.Equal(EventCount, events.Length);
@@ -382,7 +382,7 @@ namespace Fdp.Tests
             }
 
             _bus.SwapBuffers();
-            var events = _bus.Consume<DamageEvent>();
+            var events = _bus.Read<DamageEvent>();
 
             // Assert
             Assert.Equal(EventCount, events.Length);
@@ -411,7 +411,7 @@ namespace Fdp.Tests
             });
 
             _bus.SwapBuffers();
-            var events = _bus.Consume<SimpleEvent>();
+            var events = _bus.Read<SimpleEvent>();
 
             // Assert
             Assert.Equal(ThreadCount * EventsPerThread, events.Length);
@@ -433,13 +433,13 @@ namespace Fdp.Tests
         {
             // Frame 1: Publish A
             _bus.Publish(new SimpleEvent { Value = 1 });
-            Assert.Equal(0, _bus.Consume<SimpleEvent>().Length); // Not visible yet
+            Assert.Equal(0, _bus.Read<SimpleEvent>().Length); // Not visible yet
 
             // End of Frame 1
             _bus.SwapBuffers();
 
             // Frame 2: Consume A, Publish B
-            var frame2Events = _bus.Consume<SimpleEvent>();
+            var frame2Events = _bus.Read<SimpleEvent>();
             Assert.Equal(1, frame2Events.Length);
             Assert.Equal(1, frame2Events[0].Value);
 
@@ -449,7 +449,7 @@ namespace Fdp.Tests
             _bus.SwapBuffers();
 
             // Frame 3: Consume B (A is gone)
-            var frame3Events = _bus.Consume<SimpleEvent>();
+            var frame3Events = _bus.Read<SimpleEvent>();
             Assert.Equal(1, frame3Events.Length);
             Assert.Equal(2, frame3Events[0].Value);
 
@@ -457,7 +457,7 @@ namespace Fdp.Tests
             _bus.SwapBuffers();
 
             // Frame 4: Nothing
-            var frame4Events = _bus.Consume<SimpleEvent>();
+            var frame4Events = _bus.Read<SimpleEvent>();
             Assert.Equal(0, frame4Events.Length);
         }
 
@@ -469,13 +469,13 @@ namespace Fdp.Tests
             _bus.SwapBuffers();
 
             // Act - Consume and publish in same frame
-            var events1 = _bus.Consume<SimpleEvent>();
+            var events1 = _bus.Read<SimpleEvent>();
             Assert.Equal(1, events1.Length);
 
             _bus.Publish(new SimpleEvent { Value = 2 });
 
             // Consume again in same frame
-            var events2 = _bus.Consume<SimpleEvent>();
+            var events2 = _bus.Read<SimpleEvent>();
 
             // Assert - Should still see only the first event
             Assert.Equal(1, events2.Length);
@@ -483,7 +483,7 @@ namespace Fdp.Tests
 
             // Next frame
             _bus.SwapBuffers();
-            var events3 = _bus.Consume<SimpleEvent>();
+            var events3 = _bus.Read<SimpleEvent>();
             Assert.Equal(1, events3.Length);
             Assert.Equal(2, events3[0].Value);
         }
@@ -498,7 +498,7 @@ namespace Fdp.Tests
             _bus.SwapBuffers();
 
             // Frame 2: Process damage, trigger death
-            var damageEvents = _bus.Consume<DamageEvent>();
+            var damageEvents = _bus.Read<DamageEvent>();
             Assert.Equal(1, damageEvents.Length);
 
             // Simulate death logic
@@ -510,7 +510,7 @@ namespace Fdp.Tests
             _bus.SwapBuffers();
 
             // Frame 3: Process death
-            var explosionEvents = _bus.Consume<ExplosionEvent>();
+            var explosionEvents = _bus.Read<ExplosionEvent>();
             Assert.Equal(1, explosionEvents.Length);
             Assert.Equal(10, explosionEvents[0].X);
         }
@@ -608,7 +608,7 @@ namespace Fdp.Tests
         public void Consume_BeforeAnyPublish_DoesNotThrow()
         {
             // Act & Assert - Should not throw
-            var events = _bus.Consume<SimpleEvent>();
+            var events = _bus.Read<SimpleEvent>();
             Assert.Equal(0, events.Length);
         }
 
@@ -640,7 +640,7 @@ namespace Fdp.Tests
             bus.Publish(new MinimalEvent { Flag = 1 });
             bus.SwapBuffers();
 
-            var events = bus.Consume<MinimalEvent>();
+            var events = bus.Read<MinimalEvent>();
 
             // Assert
             Assert.Equal(1, events.Length);

@@ -75,7 +75,7 @@ namespace Fdp.Toolkit.Time.Translators
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
-            foreach (var evt in _eventBus.ConsumeManaged<FrameStepCompletedEvent>())
+            foreach (var evt in _eventBus.ReadManaged<FrameStepCompletedEvent>())
             {
                 if (_ackWriter is null) continue;
 

@@ -44,7 +44,7 @@ namespace Fdp.Toolkit.Replication.Systems
 
             int localNodeId = _localNodeId;
 
-            var updates = view.ConsumeEvents<OwnershipUpdate>();
+            var updates = view.ReadEvents<OwnershipUpdate>();
             foreach (var update in updates)
             {
                 if (!_entityMap.TryGetEntity(update.NetworkId.Value, out Entity entity))

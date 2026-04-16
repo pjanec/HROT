@@ -24,14 +24,14 @@ namespace Fdp.Toolkit.Lifecycle.Systems
             uint currentFrame = view.Tick;
             
             // Process construction ACKs
-            var constructionAcks = view.ConsumeEvents<ConstructionAck>();
+            var constructionAcks = view.ReadEvents<ConstructionAck>();
             foreach (var ack in constructionAcks)
             {
                 _manager.ProcessConstructionAck(ack, currentFrame, cmd);
             }
             
             // Process destruction ACKs
-            var destructionAcks = view.ConsumeEvents<DestructionAck>();
+            var destructionAcks = view.ReadEvents<DestructionAck>();
             foreach (var ack in destructionAcks)
             {
                 _manager.ProcessDestructionAck(ack, currentFrame, cmd);

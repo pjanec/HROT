@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.Perception.Tests
         /// Inter-stage events (<see cref="LosCheckRequestEvent"/>, <see cref="TargetVisibleEvent"/>)
         /// that flow through the module-private scoped bus must NOT appear on the global world bus
         /// after <see cref="AutonomousPerceptionModule.Tick"/> returns.
-        /// This proves that the <c>PerceptionScopedView.ConsumeEvents</c> whitelist and the
+        /// This proves that the <c>PerceptionScopedView.ReadEvents</c> whitelist and the
         /// scoped-bus isolation strategy prevent world-bus contamination.
         /// </summary>
         [Fact]
@@ -86,9 +86,9 @@ namespace Fdp.Toolkit.Perception.Tests
 
             // Assert: the scoped inter-stage events must NOT have leaked to the world bus.
             // World bus swap has not been called, so its write buffer is the one to check.
-            // ConsumeEvents on the live EntityRepository reads from the world bus read slot.
-            var worldLos     = world.Bus.Consume<LosCheckRequestEvent>();
-            var worldVisible = world.Bus.Consume<TargetVisibleEvent>();
+            // ReadEvents on the live EntityRepository reads from the world bus read slot.
+            var worldLos     = world.Bus.Read<LosCheckRequestEvent>();
+            var worldVisible = world.Bus.Read<TargetVisibleEvent>();
 
             Assert.True(worldLos.IsEmpty,
                 "LosCheckRequestEvent must stay on the scoped bus — not the world bus.");

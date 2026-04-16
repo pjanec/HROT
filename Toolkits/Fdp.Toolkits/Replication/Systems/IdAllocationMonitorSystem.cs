@@ -44,7 +44,7 @@ namespace Fdp.Toolkit.Replication.Systems
             // 2. Consume Network Responses
             if (World.Bus.HasManagedEvent<IdBlockResponse>())
             {
-                var responses = World.Bus.ConsumeManaged<IdBlockResponse>();
+                var responses = World.Bus.ReadManaged<IdBlockResponse>();
                 foreach (var resp in responses)
                 {
                     if (resp.ClientId == _clientId)

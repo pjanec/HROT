@@ -73,7 +73,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _sys.Run();
 
             _world.Bus.SwapBuffers();
-            var events = _world.Bus.Consume<DamageAssessedEvent>();
+            var events = _world.Bus.Read<DamageAssessedEvent>();
 
             Assert.Equal(1, events.Length);
             Assert.Equal(target, events[0].HitEntity);
@@ -95,7 +95,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _sys.Run();
 
             _world.Bus.SwapBuffers();
-            var events = _world.Bus.Consume<DamageAssessedEvent>();
+            var events = _world.Bus.Read<DamageAssessedEvent>();
 
             Assert.Equal(0, events.Length);
         }
@@ -138,7 +138,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Null(ex);
 
             _world.Bus.SwapBuffers();
-            var events = _world.Bus.Consume<DamageAssessedEvent>();
+            var events = _world.Bus.Read<DamageAssessedEvent>();
             Assert.Equal(0, events.Length);
         }
     }

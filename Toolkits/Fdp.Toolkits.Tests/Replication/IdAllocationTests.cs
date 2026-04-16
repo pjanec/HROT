@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Replication.Tests
             repo.Bus.SwapBuffers(); 
             
             // Use ConsumeManaged for the class-based event
-            var requests = repo.Bus.ConsumeManaged<IdBlockRequest>();
+            var requests = repo.Bus.ReadManaged<IdBlockRequest>();
             Assert.NotEmpty(requests);
             Assert.NotNull(requests[0].ClientId);
         }
@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.Replication.Tests
             try { manager.AllocateId(); } catch {}
             monitor.Run();
             repo.Bus.SwapBuffers();
-            var requests = repo.Bus.ConsumeManaged<IdBlockRequest>();
+            var requests = repo.Bus.ReadManaged<IdBlockRequest>();
             var clientId = requests[0].ClientId;
             
             // 2. Send Response

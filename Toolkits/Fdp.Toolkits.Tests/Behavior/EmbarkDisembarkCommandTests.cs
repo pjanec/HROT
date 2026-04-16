@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             bus.Publish(new EmbarkEntityCommand { Passenger = passenger, Vehicle = vehicle });
             bus.SwapBuffers();
 
-            var events = bus.Consume<EmbarkEntityCommand>();
+            var events = bus.Read<EmbarkEntityCommand>();
 
             var evt = Assert.Single(events.ToArray());
             Assert.Equal(passenger, evt.Passenger);
@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             bus.Publish(new EmbarkEntityCommand { Passenger = passenger, Vehicle = vehicle });
             bus.SwapBuffers();
 
-            var events = bus.Consume<EmbarkEntityCommand>();
+            var events = bus.Read<EmbarkEntityCommand>();
 
             var evt = Assert.Single(events.ToArray());
             Assert.Equal(vehicle, evt.Vehicle);
@@ -58,7 +58,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             bus.Publish(new DisembarkEntityCommand { Passenger = passenger });
             bus.SwapBuffers();
 
-            var events = bus.Consume<DisembarkEntityCommand>();
+            var events = bus.Read<DisembarkEntityCommand>();
 
             var evt = Assert.Single(events.ToArray());
             Assert.Equal(passenger, evt.Passenger);

@@ -186,7 +186,7 @@ namespace Fdp.Toolkit.Orchestration
             // are queued internally so they survive the next SwapBuffers().
             if (_eventBus != null)
             {
-                foreach (var intent in _eventBus.ConsumeManaged<ExecuteNodeOpIntent>())
+                foreach (var intent in _eventBus.ReadManaged<ExecuteNodeOpIntent>())
                 {
                     if (_pendingPrepare.HasValue)
                     {

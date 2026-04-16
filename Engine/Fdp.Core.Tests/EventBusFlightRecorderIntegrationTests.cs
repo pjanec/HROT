@@ -133,13 +133,13 @@ namespace Fdp.Tests
                     playbackSystem.ApplyFrame(replayRepo, reader, replayBus);
                     
                     // Verify events were injected
-                    var testEvents = replayBus.Consume<TestEvent>();
+                    var testEvents = replayBus.Read<TestEvent>();
                     Assert.Equal(1, testEvents.Length);
                     Assert.Equal(framesReplayed, testEvents[0].Value);
                     Assert.Equal(framesReplayed * 1.5f, testEvents[0].Amount, precision: 2);
                     
                     // Check combat events (every 3rd frame)
-                    var combatEvents = replayBus.Consume<CombatEvent>();
+                    var combatEvents = replayBus.Read<CombatEvent>();
                     if (framesReplayed % 3 == 0)
                     {
                         Assert.Equal(1, combatEvents.Length);
@@ -209,8 +209,8 @@ namespace Fdp.Tests
                 {
                     playback.ApplyFrame(repo, reader, eventBus);
                     
-                    var testEvents = eventBus.Consume<TestEvent>();
-                    var combatEvents = eventBus.Consume<CombatEvent>();
+                    var testEvents = eventBus.Read<TestEvent>();
+                    var combatEvents = eventBus.Read<CombatEvent>();
                     
                     Assert.Equal(1, testEvents.Length);
                     Assert.Equal(1, combatEvents.Length);
@@ -272,7 +272,7 @@ namespace Fdp.Tests
             eventBus.SwapBuffers();
             
             // Verify old event is there
-            var oldEvents = eventBus.Consume<TestEvent>();
+            var oldEvents = eventBus.Read<TestEvent>();
             Assert.Equal(1, oldEvents.Length);
             Assert.Equal(999, oldEvents[0].Value);
             
@@ -308,7 +308,7 @@ namespace Fdp.Tests
             }
             
             // Should only see NEW event, not old one
-            var finalEvents = eventBus.Consume<TestEvent>();
+            var finalEvents = eventBus.Read<TestEvent>();
             Assert.Equal(1, finalEvents.Length);
             Assert.Equal(42, finalEvents[0].Value);
             
@@ -375,7 +375,7 @@ namespace Fdp.Tests
                 playback.ApplyFrame(repo, reader, eventBus);
                 
                 // Verify
-                var events = eventBus.ConsumeManaged<TestManagedEvent>();
+                var events = eventBus.ReadManaged<TestManagedEvent>();
                 var evt = Assert.Single(events);
                 Assert.Equal("Hello World", evt.Message);
                 Assert.Equal(1, evt.Priority);

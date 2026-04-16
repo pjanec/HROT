@@ -18,7 +18,7 @@ namespace Fdp.Tests
             Assert.NotNull(type.GetMethod("GetComponentRO"));
             Assert.NotNull(type.GetMethod("GetManagedComponentRO"));
             Assert.NotNull(type.GetMethod("IsAlive"));
-            Assert.NotNull(type.GetMethod("ConsumeEvents"));
+            Assert.NotNull(type.GetMethod("ReadEvents"));
             Assert.NotNull(type.GetMethod("Query"));
         }
 

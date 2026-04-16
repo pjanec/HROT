@@ -65,7 +65,7 @@ namespace Fdp.Toolkit.Replication.Tests
 
             // ConstructionOrder event should have been published
             repo.Bus.SwapBuffers();
-            var orders = ((ISimulationView)repo).ConsumeEvents<ConstructionOrder>();
+            var orders = ((ISimulationView)repo).ReadEvents<ConstructionOrder>();
             Assert.Equal(1, orders.Length);
             Assert.Equal(entity, orders[0].Entity);
         }

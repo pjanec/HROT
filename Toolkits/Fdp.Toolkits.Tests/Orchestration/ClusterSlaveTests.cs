@@ -154,7 +154,7 @@ public sealed class ClusterSlaveTests
         eventBus.SwapBuffers();
 
         var events = new List<TkClusterStateChangedEvent>();
-        foreach (var e in eventBus.Consume<TkClusterStateChangedEvent>())
+        foreach (var e in eventBus.Read<TkClusterStateChangedEvent>())
             events.Add(e);
 
         Assert.Single(events);
@@ -218,7 +218,7 @@ public sealed class ClusterSlaveTests
         eventBus.SwapBuffers();
 
         var completed = new List<NodeOpCompletedEvent>();
-        foreach (var e in eventBus.ConsumeManaged<NodeOpCompletedEvent>())
+        foreach (var e in eventBus.ReadManaged<NodeOpCompletedEvent>())
             completed.Add(e);
 
         Assert.Single(completed);
@@ -244,7 +244,7 @@ public sealed class ClusterSlaveTests
         eventBus.SwapBuffers();
 
         var heartbeats = new List<NodeHeartbeatEvent>();
-        foreach (var e in eventBus.ConsumeManaged<NodeHeartbeatEvent>())
+        foreach (var e in eventBus.ReadManaged<NodeHeartbeatEvent>())
             heartbeats.Add(e);
 
         Assert.Single(heartbeats);

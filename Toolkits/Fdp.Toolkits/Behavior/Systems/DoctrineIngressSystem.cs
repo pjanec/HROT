@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         protected override unsafe void OnUpdate()
         {
-            var events = World.Bus.ConsumeManaged<AssignDoctrineEvent>();
+            var events = World.Bus.ReadManaged<AssignDoctrineEvent>();
 
             // Shadow buffer allocated once per OnUpdate call (outside the loop) to avoid
             // CA2014 stack-overflow risk. BrainBlackboardByteSize is a compile-time constant.
@@ -125,7 +125,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             // Forcibly resets the active doctrine to DoctrineIds.None (brain-death).
             // Published top-down by MissionDirectorSystem (plan exhausted) and
             // MissionControlRequestSystem (CMD_ABORT_ALL).
-            var clearEvents = World.Bus.Consume<ClearDoctrineEvent>();
+            var clearEvents = World.Bus.Read<ClearDoctrineEvent>();
             foreach (var evt in clearEvents)
             {
                 if (!World.HasComponent<DoctrineState>(evt.Entity)) continue;
@@ -143,7 +143,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             // Activates a doctrine by integer hash — published by MissionDirectorSystem
             // during phase transitions where only the hash (not the name) is known.
             // Increments InstanceId so ChannelArbitrationSystem preempts stale channels.
-            var hashEvents = World.Bus.Consume<AssignDoctrineHashEvent>();
+            var hashEvents = World.Bus.Read<AssignDoctrineHashEvent>();
             foreach (var evt in hashEvents)
             {
                 if (!World.HasComponent<DoctrineState>(evt.Entity)) continue;

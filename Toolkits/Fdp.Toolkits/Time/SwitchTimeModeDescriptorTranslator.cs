@@ -87,7 +87,7 @@ namespace Fdp.Toolkit.Time
         public void ScanAndPublish(ISimulationView view)
         {
             if (_writer is null) return;
-            foreach (var evt in _eventBus.Consume<SwitchTimeModeEvent>())
+            foreach (var evt in _eventBus.Read<SwitchTimeModeEvent>())
             {
                 // Break the echo loop: skip events that were just ingested from DDS.
                 if (_lastIngressed.HasValue &&

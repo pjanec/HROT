@@ -639,7 +639,7 @@ public class WeaponControlSystem : IModuleSystem
         var cmd = view.GetCommandBuffer();
         
         // === React to ownership changes ===
-        foreach (var evt in view.ConsumeEvents<DescriptorAuthorityChanged>())
+        foreach (var evt in view.ReadEvents<DescriptorAuthorityChanged>())
         {
             if (evt.DescriptorTypeId == NetworkConstants.WEAPON_STATE_DESCRIPTOR_ID)
             {
@@ -1984,7 +1984,7 @@ public class WeaponControlSystem : IModuleSystem
         var cmd = view.GetCommandBuffer();
         
         // React to ownership changes
-        foreach (var evt in view.ConsumeEvents<DescriptorAuthorityChanged>())
+        foreach (var evt in view.ReadEvents<DescriptorAuthorityChanged>())
         {
             if (evt.DescriptorTypeId == NetworkConstants.WEAPON_STATE_DESCRIPTOR_ID)
             {
@@ -2373,7 +2373,7 @@ public class PhysicsInitSystem : IModuleSystem
     {
         var cmd = view.GetCommandBuffer();
         
-        foreach (var order in view.ConsumeEvents<ConstructionOrder>())
+        foreach (var order in view.ReadEvents<ConstructionOrder>())
         {
             if (order.TypeId == VEHICLE_TYPE_ID)
             {
@@ -2431,7 +2431,7 @@ public struct DestructionOrder
 
 ```csharp
 // Network Module
-foreach (var order in view.ConsumeEvents<DestructionOrder>())
+foreach (var order in view.ReadEvents<DestructionOrder>())
 {
     // Unregister from replication
     networkTable.Unregister(order.Entity);
@@ -3536,7 +3536,7 @@ public struct DescriptorAuthorityChanged
 
 **Usage:**
 ```csharp
-foreach (var evt in view.ConsumeEvents<DescriptorAuthorityChanged>())
+foreach (var evt in view.ReadEvents<DescriptorAuthorityChanged>())
 {
     if (evt.IsNowOwner && evt.DescriptorTypeId == WEAPON_STATE_DESCRIPTOR_ID)
     {

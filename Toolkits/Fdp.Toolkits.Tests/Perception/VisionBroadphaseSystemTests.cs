@@ -98,7 +98,7 @@ namespace Fdp.Toolkit.Perception.Tests
             FlushEcbAndSwap(view, world);
 
             // Assert â€” exactly one LOS request emitted.
-            var events = world.Bus.Consume<LosCheckRequestEvent>();
+            var events = world.Bus.Read<LosCheckRequestEvent>();
             Assert.Equal(1, events.Length);
             Assert.Equal(observer, events[0].Observer);
             Assert.Equal(target,   events[0].Target);
@@ -150,7 +150,7 @@ namespace Fdp.Toolkit.Perception.Tests
             FlushEcbAndSwap(view, world);
 
             // Assert â€” no event because target is friendly.
-            var events = world.Bus.Consume<LosCheckRequestEvent>();
+            var events = world.Bus.Read<LosCheckRequestEvent>();
             Assert.Equal(0, events.Length);
 
             grid.Dispose();
@@ -199,7 +199,7 @@ namespace Fdp.Toolkit.Perception.Tests
             FlushEcbAndSwap(view, world);
 
             // Assert â€” no event because target is beyond VisionRange.
-            var events = world.Bus.Consume<LosCheckRequestEvent>();
+            var events = world.Bus.Read<LosCheckRequestEvent>();
             Assert.Equal(0, events.Length);
 
             grid.Dispose();
@@ -251,7 +251,7 @@ namespace Fdp.Toolkit.Perception.Tests
             FlushEcbAndSwap(view, world);
 
             // Assert â€” dot(east, north) = 0 < 0.866 â†’ outside FOV â†’ no event.
-            var events = world.Bus.Consume<LosCheckRequestEvent>();
+            var events = world.Bus.Read<LosCheckRequestEvent>();
             Assert.Equal(0, events.Length);
 
             grid.Dispose();
@@ -323,7 +323,7 @@ namespace Fdp.Toolkit.Perception.Tests
 
             // Assert: only one LosCheckRequest â€” for Target A.
             // If the system were scanning the world it would emit two events (one per enemy).
-            var events = world.Bus.Consume<LosCheckRequestEvent>();
+            var events = world.Bus.Read<LosCheckRequestEvent>();
             Assert.Equal(1, events.Length);
             Assert.Equal(observer, events[0].Observer);
             Assert.Equal(targetA,  events[0].Target);

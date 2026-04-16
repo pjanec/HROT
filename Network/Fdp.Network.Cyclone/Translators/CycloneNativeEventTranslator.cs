@@ -68,7 +68,7 @@ namespace Fdp.Network.Cyclone.Translators
         public void ScanAndPublish(ISimulationView view)
         {
             // Get Span of events (Zero Copy)
-            var events = view.ConsumeEvents<TEcs>();
+            var events = view.ReadEvents<TEcs>();
 
             foreach (ref readonly var evt in events)
             {

@@ -75,7 +75,7 @@ namespace Fdp.Toolkit.Time.Translators
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
-            var requests = _eventBus.Consume<TimeSyncRequest>();
+            var requests = _eventBus.Read<TimeSyncRequest>();
             foreach (var request in requests)
             {
                 if (_requestWriter is null) continue;

@@ -42,7 +42,7 @@ namespace Fdp.Toolkit.Combat.Systems
     {
         protected override void OnUpdate()
         {
-            var events = World.Bus.Consume<WeaponFireIntent>();
+            var events = World.Bus.Read<WeaponFireIntent>();
             if (events.Length == 0) return;
 
             uint currentTick = World.HasSingleton<GlobalTime>()

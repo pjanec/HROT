@@ -77,7 +77,7 @@ namespace Fdp.Toolkit.Perception.Tests
             world.Bus.SwapBuffers();
 
             // Assert — TargetHeardEvent published for the listener.
-            var events = world.Bus.Consume<TargetHeardEvent>();
+            var events = world.Bus.Read<TargetHeardEvent>();
             Assert.Equal(1, events.Length);
             Assert.Equal(listener, events[0].Listener);
             Assert.Equal(source.Index, events[0].SourceEntityIndex);
@@ -138,7 +138,7 @@ namespace Fdp.Toolkit.Perception.Tests
             world.Bus.SwapBuffers();
 
             // Assert — HearingRange=30 < dist=50 → no event published.
-            var events = world.Bus.Consume<TargetHeardEvent>();
+            var events = world.Bus.Read<TargetHeardEvent>();
             Assert.True(events.IsEmpty, "No TargetHeardEvent must be published when listener is outside hearing range.");
         }
 
@@ -201,7 +201,7 @@ namespace Fdp.Toolkit.Perception.Tests
             world.Bus.SwapBuffers();
 
             // Assert — exactly one event, for listenerA.
-            var events = world.Bus.Consume<TargetHeardEvent>();
+            var events = world.Bus.Read<TargetHeardEvent>();
             Assert.Equal(1, events.Length);
             Assert.Equal(listenerA, events[0].Listener);
         }

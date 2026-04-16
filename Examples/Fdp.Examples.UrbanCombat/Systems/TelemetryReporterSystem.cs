@@ -67,14 +67,14 @@ namespace Fdp.Examples.UrbanCombat.Systems
 
             // ── Bus events (GUNFIRE, HIT) ────────────────────────────────────────
 
-            var fireIntents = World.Bus.Consume<WeaponFireIntent>();
+            var fireIntents = World.Bus.Read<WeaponFireIntent>();
             for (int i = 0; i < fireIntents.Length; i++)
             {
                 ref readonly var evt = ref fireIntents[i];
                 System.Console.Out.WriteLine($"{frameTag} GUNFIRE: shooter #{evt.Shooter.Index}");
             }
 
-            var hitEvents = World.Bus.Consume<HitEvent>();
+            var hitEvents = World.Bus.Read<HitEvent>();
             for (int i = 0; i < hitEvents.Length; i++)
             {
                 ref readonly var evt = ref hitEvents[i];

@@ -397,7 +397,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // Plan exhausted → ClearDoctrineEvent must be on write buffer.
             _world.Bus.SwapBuffers();
             bool clearPublished = false;
-            foreach (var evt in _world.Bus.Consume<ClearDoctrineEvent>())
+            foreach (var evt in _world.Bus.Read<ClearDoctrineEvent>())
                 if (evt.Entity.Index == entity.Index) clearPublished = true;
             Assert.True(clearPublished);
         }
@@ -422,7 +422,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // Phase advance: still in plan, so no ClearDoctrineEvent.
             _world.Bus.SwapBuffers();
             bool clearPublished = false;
-            foreach (var evt in _world.Bus.Consume<ClearDoctrineEvent>())
+            foreach (var evt in _world.Bus.Read<ClearDoctrineEvent>())
                 if (evt.Entity.Index == entity.Index) clearPublished = true;
             Assert.False(clearPublished);
 
@@ -463,7 +463,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // ClearDoctrineEvent goes to write buffer; swap to read it.
             _world.Bus.SwapBuffers();
             bool found = false;
-            foreach (var evt in _world.Bus.Consume<ClearDoctrineEvent>())
+            foreach (var evt in _world.Bus.Read<ClearDoctrineEvent>())
                 if (evt.Entity.Index == entity.Index) found = true;
 
             Assert.True(found);

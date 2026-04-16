@@ -104,7 +104,7 @@ namespace Fdp.Toolkit.Replication.Systems
 
         private void ProcessConstructionOrders(ISimulationView view, IEntityCommandBuffer cmd, uint currentFrame)
         {
-            var events = view.ConsumeEvents<ConstructionOrder>();
+            var events = view.ReadEvents<ConstructionOrder>();
 
             foreach (var evt in events)
             {
@@ -213,7 +213,7 @@ namespace Fdp.Toolkit.Replication.Systems
 
         private void ProcessDestructionOrders(ISimulationView view, IEntityCommandBuffer cmd)
         {
-            var events = view.ConsumeEvents<DestructionOrder>();
+            var events = view.ReadEvents<DestructionOrder>();
             foreach (var evt in events)
             {
                 _pendingPeerAcks.Remove(evt.Entity);

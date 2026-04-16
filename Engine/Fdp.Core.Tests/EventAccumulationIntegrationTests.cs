@@ -54,7 +54,7 @@ namespace Fdp.Tests
             
             // 5. Verify Client State
             // Native Events
-            var posEvents = clientRepo.Bus.Consume<PositionEvent>();
+            var posEvents = clientRepo.Bus.Read<PositionEvent>();
             Assert.Equal(5, posEvents.Length);
             for(int i=0; i<5; i++)
             {
@@ -63,7 +63,7 @@ namespace Fdp.Tests
             }
             
             // Managed Events
-            var msgEvents = clientRepo.Bus.ConsumeManaged<ChatMessageEvent>();
+            var msgEvents = clientRepo.Bus.ReadManaged<ChatMessageEvent>();
             Assert.Equal(5, msgEvents.Count);
             for(int i=0; i<5; i++)
             {
@@ -91,7 +91,7 @@ namespace Fdp.Tests
             // Client already saw up to frame 2
             accumulator.FlushToReplica(clientRepo.Bus, 2);
             
-            var events = clientRepo.Bus.Consume<PositionEvent>();
+            var events = clientRepo.Bus.Read<PositionEvent>();
             Assert.Equal(1, events.Length);
             Assert.Equal(3u, events[0].Frame);
         }

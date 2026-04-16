@@ -36,7 +36,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
 
         public void ScanAndPublish(ISimulationView view)
         {
-            var toolkitEvents = view.ConsumeEvents<ToolkitMsgs.OwnershipUpdate>();
+            var toolkitEvents = view.ReadEvents<ToolkitMsgs.OwnershipUpdate>();
             
             foreach (var evt in toolkitEvents)
             {

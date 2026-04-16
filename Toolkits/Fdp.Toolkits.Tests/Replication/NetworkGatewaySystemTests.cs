@@ -54,7 +54,7 @@ namespace Fdp.Toolkit.Replication.Tests
 
         /// <summary>
         /// Runs a single Execute tick: plays back the command buffer and swaps bus buffers
-        /// so that output events are visible to <see cref="ISimulationView.ConsumeEvents{T}"/>.
+        /// so that output events are visible to <see cref="ISimulationView.ReadEvents{T}"/>.
         /// </summary>
         private static void RunTick(EntityRepository repo, NetworkGatewaySystem gateway, float dt = 0f)
         {
@@ -85,7 +85,7 @@ namespace Fdp.Toolkit.Replication.Tests
             RunTick(repo, gateway);
 
             bool found = false;
-            foreach (var ack in ((ISimulationView)repo).ConsumeEvents<ConstructionAck>())
+            foreach (var ack in ((ISimulationView)repo).ReadEvents<ConstructionAck>())
                 if (ack.Entity == entity && ack.Success) { found = true; break; }
             Assert.True(found, "Expected immediate ConstructionAck for entity with no PendingNetworkAck");
         }
@@ -111,7 +111,7 @@ namespace Fdp.Toolkit.Replication.Tests
             RunTick(repo, gateway);
 
             bool found = false;
-            foreach (var ack in ((ISimulationView)repo).ConsumeEvents<ConstructionAck>())
+            foreach (var ack in ((ISimulationView)repo).ReadEvents<ConstructionAck>())
                 if (ack.Entity == entity && ack.Success) { found = true; break; }
             Assert.True(found, "Expected immediate ConstructionAck when topology has no peers");
         }
@@ -137,7 +137,7 @@ namespace Fdp.Toolkit.Replication.Tests
             // First Execute: entity enters pending state — no ACK yet.
             RunTick(repo, gateway);
 
-            var acksAfterFirstExec = ((ISimulationView)repo).ConsumeEvents<ConstructionAck>();
+            var acksAfterFirstExec = ((ISimulationView)repo).ReadEvents<ConstructionAck>();
             Assert.Equal(0, acksAfterFirstExec.Length);
 
             // Peer nodeId=2 reports Active — gateway must now publish ACK.
@@ -148,7 +148,7 @@ namespace Fdp.Toolkit.Replication.Tests
             repo.Bus.SwapBuffers();
 
             bool found = false;
-            foreach (var ack in ((ISimulationView)repo).ConsumeEvents<ConstructionAck>())
+            foreach (var ack in ((ISimulationView)repo).ReadEvents<ConstructionAck>())
                 if (ack.Entity == entity && ack.Success) { found = true; break; }
             Assert.True(found, "Expected ConstructionAck after all peers respond");
         }

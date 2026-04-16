@@ -68,7 +68,7 @@ namespace Fdp.Toolkit.Time.Translators
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
-            foreach (var intent in _eventBus.ConsumeManaged<AdvanceFrameIntent>())
+            foreach (var intent in _eventBus.ReadManaged<AdvanceFrameIntent>())
             {
                 if (_orderWriter is null) continue;
 

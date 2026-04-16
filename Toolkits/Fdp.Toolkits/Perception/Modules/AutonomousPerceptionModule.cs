@@ -33,7 +33,7 @@ namespace Fdp.Toolkit.Perception.Modules
     /// flow through a module-private <see cref="FdpEventBus"/> (<c>_scopedBus</c>) rather than
     /// the global world bus.  A <see cref="PerceptionScopedView"/> wrapper redirects
     /// <c>GetCommandBuffer().PublishEvent</c> writes to the scoped bus and
-    /// <c>ConsumeEvents&lt;T&gt;</c> reads from it.  Between pipeline stages the module calls
+    /// <c>ReadEvents&lt;T&gt;</c> reads from it.  Between pipeline stages the module calls
     /// <c>_scopedBus.SwapBuffers()</c> — a private operation that never touches the live-world
     /// event state, eliminating the global bus-corruption risk described in BATCH-05.
     /// Only the final ECB component mutations (TargetMemory updates) reach the real command
@@ -209,11 +209,11 @@ namespace Fdp.Toolkit.Perception.Modules
             ///     extending this scoped path — to keep the isolation contract explicit.
             /// </para>
             /// </summary>
-            public ReadOnlySpan<T> ConsumeEvents<T>() where T : unmanaged
-                => _scopedBus.Consume<T>();
+            public ReadOnlySpan<T> ReadEvents<T>() where T : unmanaged
+                => _scopedBus.Read<T>();
 
-            public System.Collections.Generic.IReadOnlyList<T> ConsumeManagedEvents<T>()
-                => _inner.ConsumeManagedEvents<T>();
+            public System.Collections.Generic.IReadOnlyList<T> ReadManagedEvents<T>()
+                => _inner.ReadManagedEvents<T>();
 
             public QueryBuilder Query() => _inner.Query();
 

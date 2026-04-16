@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Time.Tests
             long masterTick, long slaveTick)
         {
             slaveBus.SwapBuffers();
-            slaveBus.Consume<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncRequest>();
             slaveBus.Publish(new TimeSyncOffsetCalculatedEvent
             {
                 Rtt       = 0L,
@@ -35,7 +35,7 @@ namespace Fdp.Toolkit.Time.Tests
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Consume<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncRequest>();
         }
 
         [Fact]
@@ -87,7 +87,7 @@ namespace Fdp.Toolkit.Time.Tests
 
                 slave.Update();            // DrainTimeSyncResponses (may apply offset)
                 slaveBus.SwapBuffers();    // any new request → current
-                slaveBus.Consume<TimeSyncRequest>(); // drain outbound requests
+                slaveBus.Read<TimeSyncRequest>(); // drain outbound requests
             }
 
             // After 600 frames with periodic re-sync, SyncedWallTicks should track masterTicks
@@ -116,7 +116,7 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Establish offset=0 at start
             slaveBus.SwapBuffers();
-            slaveBus.Consume<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncRequest>();
             slaveBus.Publish(new TimeSyncResponse
             {
                 ClientNodeId        = 1,
@@ -127,7 +127,7 @@ namespace Fdp.Toolkit.Time.Tests
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Consume<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncRequest>();
 
             for (int frame = 0; frame < FrameCount; frame++)
             {
@@ -136,7 +136,7 @@ namespace Fdp.Toolkit.Time.Tests
                 slaveBus.SwapBuffers();
                 slave.Update();
                 slaveBus.SwapBuffers();
-                slaveBus.Consume<TimeSyncRequest>();
+                slaveBus.Read<TimeSyncRequest>();
             }
 
             // Without re-sync, SyncedWallTicks = slaveTicks + offset = 606_000 + 0 = 606_000

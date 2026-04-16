@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Time.Tests
             long masterTick, long slaveTick, int nodeId = 1)
         {
             slaveBus.SwapBuffers();
-            slaveBus.Consume<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncRequest>();
 
             slaveBus.Publish(new TimeSyncOffsetCalculatedEvent
             {
@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Time.Tests
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Consume<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncRequest>();
         }
 
         [Fact]
@@ -66,7 +66,7 @@ namespace Fdp.Toolkit.Time.Tests
             master.SwitchToDeterministic(new HashSet<int> { 1 });
             masterBus.SwapBuffers(); // SwitchTimeModeEvent → masterBus.current
 
-            var modeEvts = masterBus.Consume<SwitchTimeModeEvent>();
+            var modeEvts = masterBus.Read<SwitchTimeModeEvent>();
             foreach (var e in modeEvts) slaveBus.Publish(e);
             slaveBus.SwapBuffers(); // event → slaveBus.current
 
@@ -83,13 +83,13 @@ namespace Fdp.Toolkit.Time.Tests
                 master.Step(delta);
                 masterBus.SwapBuffers(); // AdvanceFrameIntent → masterBus.current
 
-                var intents = masterBus.ConsumeManaged<AdvanceFrameIntent>();
+                var intents = masterBus.ReadManaged<AdvanceFrameIntent>();
                 foreach (var x in intents) slaveBus.PublishManaged(x);
                 slaveBus.SwapBuffers(); // intent → slaveBus.current
                 slave.Update();         // snaps TotalTime to TargetSimTime, emits ACK
                 slaveBus.SwapBuffers(); // ACK → slaveBus.current
 
-                var acks = slaveBus.ConsumeManaged<FrameStepCompletedEvent>();
+                var acks = slaveBus.ReadManaged<FrameStepCompletedEvent>();
                 foreach (var a in acks) masterBus.PublishManaged(a);
                 masterBus.SwapBuffers(); // ACK → masterBus.current
                 master.Update();         // processes ACK, clears _pendingAcks
@@ -101,7 +101,7 @@ namespace Fdp.Toolkit.Time.Tests
             // Phase 4: Resume
             master.SwitchToContinuous();
             masterBus.SwapBuffers(); // SwitchTimeModeEvent(Continuous) → masterBus.current
-            var resumeEvts = masterBus.Consume<SwitchTimeModeEvent>();
+            var resumeEvts = masterBus.Read<SwitchTimeModeEvent>();
             foreach (var e in resumeEvts) slaveBus.Publish(e);
             slaveBus.SwapBuffers(); // event → slaveBus.current
 
@@ -143,7 +143,7 @@ namespace Fdp.Toolkit.Time.Tests
             master.SwitchToDeterministic(new HashSet<int> { 1, 2 });
             mBus.SwapBuffers();
 
-            var modeEvts = mBus.Consume<SwitchTimeModeEvent>();
+            var modeEvts = mBus.Read<SwitchTimeModeEvent>();
             foreach (var e in modeEvts) { s1Bus.Publish(e); s2Bus.Publish(e); }
             s1Bus.SwapBuffers(); s2Bus.SwapBuffers();
 
@@ -157,14 +157,14 @@ namespace Fdp.Toolkit.Time.Tests
                 master.Step(delta);
                 mBus.SwapBuffers(); // intent → mBus.current
 
-                var intents = mBus.ConsumeManaged<AdvanceFrameIntent>();
+                var intents = mBus.ReadManaged<AdvanceFrameIntent>();
                 foreach (var x in intents) { s1Bus.PublishManaged(x); s2Bus.PublishManaged(x); }
                 s1Bus.SwapBuffers(); s2Bus.SwapBuffers();
                 slave1.Update(); slave2.Update();
                 s1Bus.SwapBuffers(); s2Bus.SwapBuffers();
 
-                var ack1 = s1Bus.ConsumeManaged<FrameStepCompletedEvent>();
-                var ack2 = s2Bus.ConsumeManaged<FrameStepCompletedEvent>();
+                var ack1 = s1Bus.ReadManaged<FrameStepCompletedEvent>();
+                var ack2 = s2Bus.ReadManaged<FrameStepCompletedEvent>();
                 foreach (var a in ack1) mBus.PublishManaged(a);
                 foreach (var a in ack2) mBus.PublishManaged(a);
                 mBus.SwapBuffers(); // ACKs → mBus.current

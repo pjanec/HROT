@@ -63,14 +63,14 @@ namespace Fdp.Core
             return HasManagedComponent<T>(e);
         }
         
-        ReadOnlySpan<T> ISimulationView.ConsumeEvents<T>()
+        ReadOnlySpan<T> ISimulationView.ReadEvents<T>()
         {
-            return Bus.Consume<T>();
+            return Bus.Read<T>();
         }
 
-        System.Collections.Generic.IReadOnlyList<T> ISimulationView.ConsumeManagedEvents<T>()
+        System.Collections.Generic.IReadOnlyList<T> ISimulationView.ReadManagedEvents<T>()
         {
-            return Bus.ConsumeManaged<T>();
+            return Bus.ReadManaged<T>();
         }
         
         QueryBuilder ISimulationView.Query()

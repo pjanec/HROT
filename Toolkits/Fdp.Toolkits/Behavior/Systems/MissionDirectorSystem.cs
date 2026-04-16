@@ -76,7 +76,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             // Consume all DoctrineFinishedEvents once, cache the entity indices, then
             // look them up in O(1) during the entity query loop below.
             _doctrineFinishedThisFrame.Clear();
-            var doctrineFinishedEvents = World.Bus.Consume<DoctrineFinishedEvent>();
+            var doctrineFinishedEvents = World.Bus.Read<DoctrineFinishedEvent>();
             foreach (var finishedEvt in doctrineFinishedEvents)
             {
                 _doctrineFinishedThisFrame.Add(finishedEvt.Entity.Index);

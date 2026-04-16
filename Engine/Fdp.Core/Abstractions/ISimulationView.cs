@@ -54,7 +54,7 @@ namespace Fdp.ModuleHost.Abstractions
         /// Returns zero-copy span of events.
         /// Events include history since module's last run.
         /// </summary>
-        ReadOnlySpan<T> ConsumeEvents<T>() where T : unmanaged;
+        ReadOnlySpan<T> ReadEvents<T>() where T : unmanaged;
         
         /// <summary>
         /// Creates a query builder for iterating entities.
@@ -66,7 +66,7 @@ namespace Fdp.ModuleHost.Abstractions
         /// Returns a read-only list (snapshot) of events.
         /// Accepts both reference types (classes) and managed structs (structs containing references).
         /// </summary>
-        System.Collections.Generic.IReadOnlyList<T> ConsumeManagedEvents<T>();
+        System.Collections.Generic.IReadOnlyList<T> ReadManagedEvents<T>();
 
         /// <summary>
         /// Acquires a command buffer for queueing mutations.
