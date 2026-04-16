@@ -41,15 +41,14 @@ namespace Fdp.Toolkit.Replication.Extensions
 
             var netAuth = view.GetComponentRO<NetworkAuthority>(rootEntity);
 
-            // 2. Component authority from EntityHeader.AuthorityMask (single source of truth).
-            if (packedKey != 0 && view is EntityRepository repo)
+            // 2. Specific Descriptor Ownership Override (Granular Authority)
+            // Fix: HasManagedComponent now handles BitMask overflow internally (via Fallback).
+            if (packedKey != 0 && view.HasManagedComponent<DescriptorOwnership>(rootEntity))
             {
-                var (componentTypeId, _) = OwnershipExtensions.UnpackKey(packedKey);
-                if (componentTypeId >= 0 &&
-                    componentTypeId < FdpConfig.MAX_COMPONENT_TYPES &&
-                    repo.HasComponentByTypeId(rootEntity, (int)componentTypeId))
+                var ownership = view.GetManagedComponentRO<DescriptorOwnership>(rootEntity);
+                if (ownership.TryGetOwner(packedKey, out int specificOwner))
                 {
-                    return repo.HasAuthority(rootEntity, (int)componentTypeId);
+                    return specificOwner == netAuth.LocalNodeId;
                 }
             }
 

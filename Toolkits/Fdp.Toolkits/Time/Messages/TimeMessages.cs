@@ -51,20 +51,6 @@ namespace Fdp.Toolkit.Time.Messages
         public double TargetSimTime;
     }
 
-    /// <summary>
-    /// Received by SimHost's <see cref="Fdp.Toolkit.Time.Controllers.MasterTimeController"/>
-    /// so the new scale is embedded in subsequent <see cref="TimePulseDescriptor"/> messages,
-    /// and slave PLL nodes (IG, CGF) converge to the updated speed automatically.
-    /// </summary>
-    [MessagePackObject]
-    [DdsTopic("SetTimeScale")]
-    [EventId(107)]
-    public partial struct SetTimeScaleDescriptor
-    {
-        [Key(0)]
-        [DdsId(0)]
-        public float TimeScale;
-    }
     
     [MessagePackObject]
     [DdsTopic("FrameAck")]
