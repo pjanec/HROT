@@ -16,5 +16,11 @@ namespace Fdp.Presentation.Abstractions
         void SetComponent(Entity e, Type componentType, object componentData);
         
         IEnumerable<Type> GetAllComponentTypes();
+
+        /// <summary>
+        /// Returns <c>true</c> if the local node holds authority over the specified component type
+        /// on the given entity. Used by the Entity Inspector UI to colour-code authority boundaries.
+        /// </summary>
+        bool HasAuthority(Entity e, Type componentType);
     }
 }

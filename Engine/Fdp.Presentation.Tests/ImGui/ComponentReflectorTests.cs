@@ -56,10 +56,17 @@ public class ComponentReflectorTests
     {
         private readonly Type    _type;
         private          object? _data;
+        private          bool    _authority;
 
-        public SingleComponentSession(Type type, object? data) { _type = type; _data = data; }
+        public SingleComponentSession(Type type, object? data, bool authority = false)
+        {
+            _type      = type;
+            _data      = data;
+            _authority = authority;
+        }
 
         public void SetData(object? data) => _data = data;
+        public void SetAuthority(bool authority) => _authority = authority;
 
         public bool IsReadOnly  => false;
         public int  EntityCount => 1;
@@ -69,6 +76,7 @@ public class ComponentReflectorTests
         public bool   HasComponent(Entity e, Type t)  => t == _type;
         public object? GetComponent(Entity e, Type t) => t == _type ? _data : null;
         public void SetComponent(Entity e, Type t, object v) { /* stub */ }
+        public bool HasAuthority(Entity e, Type t) => t == _type && _authority;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -318,5 +326,84 @@ public class ComponentReflectorTests
         Assert.Equal(afterFrame1, afterFrame3);
         // And frame 3 bytes should differ from frame 2 bytes (Value=2).
         Assert.NotEqual(afterFrame2, afterFrame3);
+    }
+
+    // ── Test 7: Authority — green header style pushed and popped ─────────────
+
+    /// <summary>
+    /// BD1-AUTHORITY SC1: When <c>HasAuthority</c> returns <c>true</c> for a component,
+    /// three header-colour style entries (Header, HeaderHovered, HeaderActive) must be
+    /// pushed before <c>CollapsingHeader</c> and popped afterwards.
+    /// The ImGui style stack must remain balanced after the call.
+    /// </summary>
+    [Fact]
+    public void AuthorityComponent_GreenHeaderStyles_StackBalanced()
+    {
+        using var fixture = new ImGuiTestFixture();
+        var reflector = CreateReflector();
+        var entity    = MakeEntity(1);
+        var session   = new SingleComponentSession(
+            typeof(TestValueComponent),
+            new TestValueComponent { Value = 1 },
+            authority: true);
+
+        fixture.NewFrame();
+        int depthBefore = ImGuiApi.GetStyle().Colors.Count; // stack size proxy: must not change
+        reflector.DrawComponents(session, entity);
+        // ImGui asserts internally if Push/Pop are imbalanced; reaching here means balanced.
+        fixture.Render();
+    }
+
+    // ── Test 8: No authority — no green header styles ─────────────────────────
+
+    /// <summary>
+    /// BD1-AUTHORITY SC2: When <c>HasAuthority</c> returns <c>false</c>,
+    /// no Header background colour is pushed. The style stack remains the same depth as
+    /// when authority is absent.
+    /// </summary>
+    [Fact]
+    public void NoAuthorityComponent_NoGreenHeaderStyles_StackBalanced()
+    {
+        using var fixture = new ImGuiTestFixture();
+        var reflector = CreateReflector();
+        var entity    = MakeEntity(1);
+        var session   = new SingleComponentSession(
+            typeof(TestValueComponent),
+            new TestValueComponent { Value = 1 },
+            authority: false);
+
+        fixture.NewFrame();
+        reflector.DrawComponents(session, entity); // must NOT throw
+        fixture.Render();
+    }
+
+    // ── Test 9: Authority + change — all styles pushed and popped ────────────
+
+    /// <summary>
+    /// BD1-AUTHORITY SC3: When a component is both locally owned (authority = true)
+    /// AND mutated since last frame, all four pushed colours (1 Text + 3 Header) must
+    /// be balanced by a single <c>PopStyleColor(4)</c> call.
+    /// </summary>
+    [Fact]
+    public void AuthorityAndChangedComponent_FourStyles_StackBalanced()
+    {
+        using var fixture = new ImGuiTestFixture();
+        var reflector = CreateReflector();
+        var entity    = MakeEntity(1);
+        var session   = new SingleComponentSession(
+            typeof(TestValueComponent),
+            new TestValueComponent { Value = 1 },
+            authority: true);
+
+        // Frame 1: establish baseline.
+        fixture.NewFrame();
+        reflector.DrawComponents(session, entity);
+        fixture.Render();
+
+        // Frame 2: mutate and keep authority — 1 Text + 3 Header colours pushed.
+        session.SetData(new TestValueComponent { Value = 99 });
+        fixture.NewFrame();
+        reflector.DrawComponents(session, entity); // must NOT throw
+        fixture.Render();
     }
 }

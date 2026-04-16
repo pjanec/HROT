@@ -71,5 +71,17 @@ namespace Fdp.Presentation.Adapters
         public void SetComponent(Entity e, Type t, object data) => throw new InvalidOperationException("Read Only Session");
 
         public IEnumerable<Type> GetAllComponentTypes() => ComponentTypeRegistry.GetAllTypes();
+
+        public bool HasAuthority(Entity e, Type componentType)
+        {
+            int typeId = ComponentTypeRegistry.GetId(componentType);
+            if (typeId < 0) return false;
+            if (!_view.IsAlive(e)) return false;
+            // ISimulationView does not expose a typed HasAuthority; delegate to EntityRepository
+            // via the EntityRepository-backed ISimulationView cast when available.
+            if (_view is EntityRepository repo)
+                return repo.HasAuthority(e, typeId);
+            return false;
+        }
     }
 }

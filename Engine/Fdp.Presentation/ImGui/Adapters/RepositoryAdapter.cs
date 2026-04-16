@@ -50,5 +50,12 @@ namespace Fdp.Presentation.Adapters
         {
             return ComponentTypeRegistry.GetAllTypes();
         }
+
+        public bool HasAuthority(Entity e, Type componentType)
+        {
+            int typeId = ComponentTypeRegistry.GetId(componentType);
+            if (typeId < 0) return false;
+            return _repo.HasAuthority(e, typeId);
+        }
     }
 }

@@ -130,16 +130,32 @@ internal class ComponentReflector
                 ImGuiApi.SetNextItemOpen(false, ImGuiCond.Always);
 
             string label = BuildHeaderLabel(type, data);
+            int popColors = 0;
 
-            // Draw header in yellow when the component was mutated since last frame.
+            // 1. Text colour: yellow when the component was mutated since last frame.
             if (changed)
+            {
                 ImGuiApi.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 1f, 0f, 1f));
+                popColors++;
+            }
+
+            // 2. Header background: green when the local node holds authority over
+            //    this component. Uses the EntityHeader.AuthorityMask as the canonical
+            //    source of truth, queried via IInspectableSession.HasAuthority.
+            bool hasAuthority = session.HasAuthority(e, type);
+            if (hasAuthority)
+            {
+                ImGuiApi.PushStyleColor(ImGuiCol.Header,        new Vector4(0.15f, 0.45f, 0.15f, 0.8f));
+                ImGuiApi.PushStyleColor(ImGuiCol.HeaderHovered, new Vector4(0.20f, 0.55f, 0.20f, 0.8f));
+                ImGuiApi.PushStyleColor(ImGuiCol.HeaderActive,  new Vector4(0.25f, 0.65f, 0.25f, 0.8f));
+                popColors += 3;
+            }
 
             // Headers are collapsed by default (no DefaultOpen flag)
             bool open = ImGuiApi.CollapsingHeader(label);
 
-            if (changed)
-                ImGuiApi.PopStyleColor();
+            if (popColors > 0)
+                ImGuiApi.PopStyleColor(popColors);
 
             if (open && data != null)
             {
