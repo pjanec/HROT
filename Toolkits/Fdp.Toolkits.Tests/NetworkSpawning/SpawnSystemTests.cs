@@ -192,6 +192,36 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             var ownership = repo.GetComponent<NetworkOwnership>(entity);
             Assert.Equal(LocalNodeId, ownership.LocalNodeId);
             Assert.Equal(3, ownership.PrimaryOwnerId);
+            Assert.False(repo.HasAuthority<NetworkIdentity>(entity));
+        }
+
+        [Fact]
+        public void Spawn_LocalOwner_InitializesAuthorityMaskForPresentComponents()
+        {
+            var repo        = CreateWorld();
+            var tkb         = CreateTkb();
+            var elm         = CreateElm(tkb);
+            var networkMap  = new NetworkEntityMap();
+            var idAllocator = new StubIdAllocator();
+            var system      = CreateSystem(repo, networkMap, idAllocator, tkb, elm);
+
+            RunSpawn(repo, system, new SpawnEntityCommand
+            {
+                NetworkId   = 11L,
+                TkbType     = DefaultTkbType,
+                OwnerNodeId = LocalNodeId,
+                InitialComponents = new List<object>
+                {
+                    new TestPositionComponent { X = 1f, Y = 2f }
+                }
+            });
+
+            Assert.True(networkMap.TryGetEntity(11L, out var entity));
+            Assert.True(repo.HasAuthority<NetworkIdentity>(entity));
+            Assert.True(repo.HasAuthority<NetworkOwnership>(entity));
+            Assert.True(repo.HasAuthority<NetworkAuthority>(entity));
+            Assert.True(repo.HasAuthority<TkbIdentity>(entity));
+            Assert.True(repo.HasAuthority<TestPositionComponent>(entity));
         }
 
         [Fact]

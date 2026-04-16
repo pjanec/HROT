@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Fdp.Toolkit.Replication.Abstractions
 {
@@ -9,20 +11,16 @@ namespace Fdp.Toolkit.Replication.Abstractions
     public interface IOwnershipDistributionStrategy
     {
         /// <summary>
-        /// Determines the initial owner for a specific descriptor on a newly created entity.
+        /// Returns the complete set of descriptor grants for a newly created entity.
+        /// Each grant specifies a descriptor type ID and the non-master node that should own it.
+        /// Descriptors absent from the returned list remain on the creator (masterNodeId).
         /// </summary>
-        /// <param name="descriptorTypeId">DDS descriptor type ID (e.g. <c>(long)EDescriptorType.dtWorldPos</c>).</param>
         /// <param name="entityType">DIS entity type from EntityMaster.</param>
         /// <param name="masterNodeId">Primary owner (EntityMaster owner / creator node ID).</param>
-        /// <param name="instanceId">Descriptor instance ID (0 for single-instance).</param>
         /// <returns>
-        /// Node ID that should own this descriptor, or <c>null</c> to retain ownership on
-        /// the creator node (masterNodeId).
+        /// List of descriptor grants for non-master nodes.
+        /// Returns an empty list when all descriptors remain on the creator.
         /// </returns>
-        int? GetInitialOwner(
-            long descriptorTypeId,
-            DISEntityType entityType,
-            int masterNodeId,
-            long instanceId);
+        IReadOnlyList<DescriptorGrant> GetInitialGrants(DISEntityType entityType, int masterNodeId);
     }
 }

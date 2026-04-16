@@ -130,6 +130,13 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
                     EntityComponentReflector.SetComponent(world, entity, component);
 
             bool isLocalAuthority = cmd.OwnerNodeId == _localNodeId;
+            if (isLocalAuthority)
+            {
+                // Locally spawned entities must start with authority bits enabled for
+                // every component currently present on the entity.
+                ref var header = ref world.GetHeader(entity.Index);
+                header.AuthorityMask = header.ComponentMask;
+            }
             _onEntitySpawned?.Invoke(world, entity, isLocalAuthority);
 
 

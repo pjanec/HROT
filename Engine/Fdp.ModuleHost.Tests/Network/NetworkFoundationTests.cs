@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Abstractions;
@@ -90,11 +91,8 @@ namespace Fdp.ModuleHost.Tests.Network
         // 5. Interface Mock Tests
         private class MockStrategy : IOwnershipDistributionStrategy
         {
-            public int? ReturnValue { get; set; }
-            public int? GetInitialOwner(long descriptorTypeId, DISEntityType entityType, int masterNodeId, long instanceId)
-            {
-                return ReturnValue;
-            }
+            public IReadOnlyList<DescriptorGrant> GetInitialGrants(DISEntityType entityType, int masterNodeId)
+                => Array.Empty<DescriptorGrant>();
         }
 
 
