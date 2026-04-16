@@ -105,6 +105,7 @@ namespace Fdp.Toolkit.Navigation.Executors
             var intent = world.GetComponent<NavigationIntent>(entity);
             intent.Mode        = NavigationMode.None;
             intent.TargetSpeed = 0f;
+            intent.IntentId++;
             world.SetComponent(entity, intent);
         }
     }

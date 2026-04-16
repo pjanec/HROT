@@ -193,6 +193,7 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
             var intentAfterExit = world.GetComponent<NavigationIntent>(entity);
             Assert.Equal(NavigationMode.None, intentAfterExit.Mode);
             Assert.Equal(0f, intentAfterExit.TargetSpeed);
+            Assert.Equal(intentAfterEnter.IntentId + 1, intentAfterExit.IntentId);
         }
 
         // ── Test 6: Execute returns Failure when FailedUnreachable ───────────────────────────────
