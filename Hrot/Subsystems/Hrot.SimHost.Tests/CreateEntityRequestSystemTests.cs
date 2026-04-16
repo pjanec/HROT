@@ -68,6 +68,16 @@ namespace Hrot.SimHost.Tests
         public void Dispose() { }
     }
 
+    internal sealed class StubOwnershipStrategy : Fdp.Toolkit.Replication.Abstractions.IOwnershipDistributionStrategy
+    {
+        private readonly Dictionary<long, int?> _owners = new();
+
+        public void SetOwner(long descriptorTypeId, int? nodeId) => _owners[descriptorTypeId] = nodeId;
+
+        public int? GetInitialOwner(long descriptorTypeId, DISEntityType entityType, int masterNodeId, long instanceId)
+            => _owners.TryGetValue(descriptorTypeId, out var owner) ? owner : null;
+    }
+
     // â”€â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public class CreateEntityRequestSystemTests
@@ -386,6 +396,37 @@ namespace Hrot.SimHost.Tests
             repo.Bus.SwapBuffers();
             var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
             Assert.Single(commands);
+        }
+
+        [Fact]
+        public void ProcessRequest_DefaultProcessor_PublishesDeferredTakeOwnershipForNavigationStatus()
+        {
+            var repo    = CreateWorld();
+            var tkb     = CreateTkb();
+            var source  = new StubRequestSource();
+            source.Enqueue(MakeValidRequest());
+
+            var ackSink = new StubAckSink();
+            var idAlloc = new StubIdAllocator(startId: 100);
+            var ownershipStrategy = new StubOwnershipStrategy();
+            ownershipStrategy.SetOwner(DescriptorTypeOrdinals.WorldPos, 11);
+            ownershipStrategy.SetOwner(DescriptorTypeOrdinals.NavigationStatus, 11);
+
+            var system = new CreateEntityRequestSystem(
+                source, ackSink, tkb, idAlloc, LocalNodeId,
+                jsonAttributeCompiler: null,
+                finalizationSystem: null,
+                isDefaultProcessor: true,
+                ownershipStrategy: ownershipStrategy);
+
+            system.Execute(repo, 0f);
+
+            repo.Bus.SwapBuffers();
+            var dtoCommands = ((ISimulationView)repo).ConsumeManagedEvents<DeferredTakeOwnershipCommand>();
+
+            Assert.Single(dtoCommands);
+            Assert.Contains(dtoCommands[0].Grants, g => g.DescriptorTypeId == DescriptorTypeOrdinals.WorldPos && g.NodeId == 11);
+            Assert.Contains(dtoCommands[0].Grants, g => g.DescriptorTypeId == DescriptorTypeOrdinals.NavigationStatus && g.NodeId == 11);
         }
     }
 

@@ -24,7 +24,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     public class GeoSpatialIngressTranslator : CycloneTranslator<WorldPos, WorldPos>
     {
         private const string DdsTopicName = "WorldPos";
-        private const long OrdinalValue = 10;
+        private const long OrdinalValue = (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos;
 
         private readonly IGeographicTransform _geoTransform;
         private readonly GhostCreationSystem _ghostCreationSystem;
@@ -78,14 +78,29 @@ namespace Hrot.Map.Common.Replication.Ingress
             // to receive WorldPos samples published by the SAME node. Without this guard
             // the last-published position would be written back every frame via loopback,
             // undoing any position changes made by physics or drag operations.
-            //
-            // We check NetworkAuthority directly (not view.HasAuthority) because
-            // HasAuthority() returns true for entities WITHOUT a NetworkAuthority component
-            // (ghost entities, test entities) — which would incorrectly block their updates.
-            // The correct rule: skip only when the entity explicitly has a NetworkAuthority
-            // component AND that authority is held by this node.
-            bool isLocallyOwned = view.HasComponent<NetworkAuthority>(entity)
-                                  && view.GetComponentRO<NetworkAuthority>(entity).HasAuthority;
+
+            // 1. Primary Owner check (handles Brain-node loopback for entities whose Brain IS
+            //    also the NetworkAuthority primary owner).
+            bool isLocallyOwned = false;
+            if (view.HasComponent<NetworkAuthority>(entity))
+            {
+                isLocallyOwned = view.GetComponentRO<NetworkAuthority>(entity).HasAuthority;
+            }
+
+            // 2. Granular Split-Authority check (handles Muscle-node loopback).
+            //    When the Brain delegated dtWorldPos to the Muscle via DeferredTakeOwnership,
+            //    the Muscle node holds an explicit DescriptorOwnership entry for this ordinal.
+            //    Without this check the Muscle would overwrite its own live physics position
+            //    with the stale loopback packet it just published, causing "shivering".
+            if (!isLocallyOwned && view.HasManagedComponent<DescriptorOwnership>(entity))
+            {
+                var ownership = view.GetManagedComponentRO<DescriptorOwnership>(entity);
+                long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(OrdinalValue, 0);
+                if (ownership.Map.TryGetValue(packedKey, out int ownerNodeId))
+                {
+                    isLocallyOwned = (ownerNodeId == (int)_localNodeId);
+                }
+            }
 
             if (!isLocallyOwned)
             {

@@ -43,7 +43,8 @@ namespace Hrot.Network.Routing
             // Physics descriptors: delegate to the least-loaded MuscleGround node.
             // Using EDescriptorType enum constants (CODE-STANDARDS §1 — no magic numbers).
             bool isPhysicsDescriptor =
-                descriptorTypeId == (long)EDescriptorType.dtWorldPos;
+                descriptorTypeId == (long)EDescriptorType.dtWorldPos
+                || descriptorTypeId == (long)EDescriptorType.dtNavigationStatus;
 
             if (isPhysicsDescriptor)
             {

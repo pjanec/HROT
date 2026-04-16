@@ -142,6 +142,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             DescriptorTypeId = _networkFactory?.WorldPosDescriptorId ?? 2L,
             NodeId           = muscleNodeId,
         });
+        dtoCmd.Grants.Add(new DescriptorGrant
+        {
+            DescriptorTypeId = Hrot.Core.Network.DescriptorTypeOrdinals.NavigationStatus,
+            NodeId           = muscleNodeId,
+        });
         _context.World.Bus.PublishManaged(dtoCmd);
 
         // 2. Publish SpawnEntityCommand (CGF/Brain owns entity identity).

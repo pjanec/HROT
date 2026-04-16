@@ -389,6 +389,7 @@ namespace Hrot.CGF.Systems
             foreach (long ordinal in new[]
             {
                 DescriptorTypeOrdinals.WorldPos,
+                DescriptorTypeOrdinals.NavigationStatus,
             })
             {
                 int? targetNode = _ownershipStrategy.GetInitialOwner(
