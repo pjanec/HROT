@@ -152,6 +152,13 @@ namespace Fdp.Toolkit.Behavior.Systems
                 doctrine.ActiveDoctrineHash = evt.DoctrineHash;
                 unchecked { doctrine.InstanceId++; }
 
+                // Resolve the definition from the registry and restore the BrainTier.
+                // Without this, entities remain brain-dead (BrainTier = 0) after a ClearDoctrineEvent.
+                if (_registry.TryGetDefinition(evt.DoctrineHash, out var def))
+                {
+                    doctrine.BrainTier = def.BrainTier;
+                }
+
                 // Reset BTree execution pointer so the new phase starts from the root.
                 if (World.HasComponent<BrainBTreeState>(evt.Entity))
                     World.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
