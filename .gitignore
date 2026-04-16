@@ -54,7 +54,7 @@ nunit-*.xml
 .vscode/
 .obsolete
 .dumps
-
+.tmp
 imgui.ini
 cyclonedds.log
 *.csproj.user
