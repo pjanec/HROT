@@ -41,5 +41,11 @@ namespace Fdp.Network.Cyclone.Topics
         /// </summary>
         [DdsId(4)]
         public long Timestamp;
+
+        /// <summary>
+        /// Node ID that originated the ownership update.
+        /// </summary>
+        [DdsId(5)]
+        public int OriginNodeId;
     }
 }

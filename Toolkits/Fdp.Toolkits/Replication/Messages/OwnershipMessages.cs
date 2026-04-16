@@ -15,10 +15,11 @@ namespace Fdp.Toolkit.Replication.Messages
         public NetworkIdentity NetworkId;
         public long PackedKey;
         public int NewOwnerNodeId;
+        public int OriginNodeId;
 
         public override string ToString()
         {
-            return $"OwnershipUpdate(NetId={NetworkId.Value}, Key={Fdp.Interfaces.PackedKey.ToString(PackedKey)}, Owner={NewOwnerNodeId})";
+            return $"OwnershipUpdate(NetId={NetworkId.Value}, Key={Fdp.Interfaces.PackedKey.ToString(PackedKey)}, Owner={NewOwnerNodeId}, Origin={OriginNodeId})";
         }
     }
 

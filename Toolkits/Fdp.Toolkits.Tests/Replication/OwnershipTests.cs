@@ -110,7 +110,7 @@ namespace Fdp.Toolkit.Replication.Tests
             repo.RegisterManagedComponent<DescriptorOwnership>();
             repo.RegisterEvent<OwnershipUpdate>();
 
-            var sys = new OwnershipEgressSystem();
+            var sys = new OwnershipEgressSystem(new MockNetworkTopology { LocalNodeId = 77 });
 
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(1));
@@ -128,6 +128,7 @@ namespace Fdp.Toolkit.Replication.Tests
             Assert.Equal(1, events.Length);
             Assert.Equal(100, events[0].PackedKey);
             Assert.Equal(5, events[0].NewOwnerNodeId);
+            Assert.Equal(77, events[0].OriginNodeId);
 
             // Execute again - No change
             sys.Execute(repo, 0f);
@@ -142,6 +143,7 @@ namespace Fdp.Toolkit.Replication.Tests
             events = ((ISimulationView)repo).ReadEvents<OwnershipUpdate>();
             Assert.Equal(1, events.Length);
             Assert.Equal(6, events[0].NewOwnerNodeId);
+            Assert.Equal(77, events[0].OriginNodeId);
         }
     }
 }

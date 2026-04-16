@@ -9,11 +9,19 @@ namespace Fdp.Toolkit.Replication.Systems
     [UpdateInPhase(SystemPhase.Export)]
     public class OwnershipEgressSystem : IEcsModuleSystem
     {
+        private readonly int _localNodeId;
+
         // Cache to track changes: Entity -> (PackedKey -> OwnerNodeId)
         private readonly Dictionary<Entity, Dictionary<long, int>> _lastKnownOwnership = new();
 
         // Used for cleanup
         private readonly List<Entity> _deadEntities = new();
+
+        public OwnershipEgressSystem(
+            global::Fdp.Toolkit.Replication.INetworkTopology? topology = null)
+        {
+            _localNodeId = topology?.LocalNodeId ?? 0;
+        }
 
         public void Execute(ISimulationView view, float dt)
         {
@@ -32,6 +40,8 @@ namespace Fdp.Toolkit.Replication.Systems
                     lastMap = new Dictionary<long, int>();
                     _lastKnownOwnership[entity] = lastMap;
                 }
+
+                int originNodeId = _localNodeId;
                 
                 // Check all current ownerships
                 foreach (var kvp in currentOwnership.Map)
@@ -58,7 +68,8 @@ namespace Fdp.Toolkit.Replication.Systems
                         {
                             NetworkId = netId,
                             PackedKey = key,
-                            NewOwnerNodeId = newOwner
+                            NewOwnerNodeId = newOwner,
+                            OriginNodeId = originNodeId
                         });
                     }
                 }
