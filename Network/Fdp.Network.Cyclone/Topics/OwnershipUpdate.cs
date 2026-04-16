@@ -8,6 +8,7 @@ namespace Fdp.Network.Cyclone.Topics
     /// Sent when descriptor ownership changes between nodes.
     /// </summary>
     [DdsTopic("SST_OwnershipUpdate")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll, HistoryDepth = 1)]
     public partial struct OwnershipUpdate
     {
         /// <summary>
