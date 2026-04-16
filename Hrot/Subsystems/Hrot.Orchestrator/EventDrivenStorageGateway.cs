@@ -54,7 +54,7 @@ public sealed class EventDrivenStorageGateway
     public void Tick()
     {
         // ── Dispatch new storage operations ────────────────────────────────
-        foreach (var intent in _bus.ConsumeManaged<ExecuteStorageOpIntent>())
+        foreach (var intent in _bus.ReadManaged<ExecuteStorageOpIntent>())
         {
             var cts = new CancellationTokenSource();
             _activeCancellations[intent.RequestId] = cts;
@@ -63,7 +63,7 @@ public sealed class EventDrivenStorageGateway
         }
 
         // ── Handle cancellation requests ────────────────────────────────────
-        foreach (var cancel in _bus.ConsumeManaged<CancelOperationIntent>())
+        foreach (var cancel in _bus.ReadManaged<CancelOperationIntent>())
         {
             if (_activeCancellations.TryGetValue(cancel.TargetRequestId, out var cts))
                 cts.Cancel();

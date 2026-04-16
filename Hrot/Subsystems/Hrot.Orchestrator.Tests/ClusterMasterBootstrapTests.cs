@@ -31,7 +31,7 @@ public sealed class ClusterMasterBootstrapTests
 
         // Constructor calls PublishStandby() (empty mandatory) → SystemStateUpdateEvent in write buffer.
         bus.SwapBuffers();
-        var received = bus.ConsumeManaged<SystemStateUpdateEvent>().ToList();
+        var received = bus.ReadManaged<SystemStateUpdateEvent>().ToList();
 
         Assert.True(received.Count > 0, "No SystemStateUpdateEvent published at startup.");
         Assert.Single(received);
@@ -69,7 +69,7 @@ public sealed class ClusterMasterBootstrapTests
         exercise.Tick();
         bus.SwapBuffers();
 
-        var phase1Events = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        var phase1Events = bus.ReadManaged<ClusterOpCompletedEvent>().ToList();
         Assert.True(phase1Events.Any(e => e.RequestId == reqId1),
             "ClusterMaster did not respond to ClusterOpRequest before bootstrap.");
         Assert.True(phase1Events.Any(e => e.RequestId == reqId1 && e.StatusCode == OrchestrationStatusCode.Rejected),
@@ -105,8 +105,8 @@ public sealed class ClusterMasterBootstrapTests
         // A TransitionState with nodes fans out ExecuteNodeOpIntents (waits for ACKs),
         // so ClusterOpCompletedEvent is not published immediately.
         // Acceptance is verified by the presence of fan-out intents.
-        var phase3Intents    = bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
-        var phase3Completed  = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        var phase3Intents    = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        var phase3Completed  = bus.ReadManaged<ClusterOpCompletedEvent>().ToList();
         Assert.True(phase3Intents.Any(),
             "ClusterMaster did not fan out node op intents — request was not accepted after bootstrap.");
         Assert.False(phase3Completed.Any(e => e.RequestId == reqId2 && e.StatusCode == OrchestrationStatusCode.Rejected),
@@ -145,7 +145,7 @@ public sealed class ClusterMasterBootstrapTests
         Assert.True(exercise.BootstrapComplete, "Bootstrap should have cleared after SimHost Standby heartbeat.");
 
         // Drain any already-published events (e.g. bootstrap Standby publish).
-        bus.ConsumeManaged<SystemStateUpdateEvent>().ToList();
+        bus.ReadManaged<SystemStateUpdateEvent>().ToList();
 
         // Now stop heartbeats: wait long enough for timeout (0.1 s) then tick.
         Thread.Sleep(200);
@@ -156,7 +156,7 @@ public sealed class ClusterMasterBootstrapTests
         {
             exercise.Tick();
             bus.SwapBuffers();
-            foreach (var ev in bus.ConsumeManaged<SystemStateUpdateEvent>())
+            foreach (var ev in bus.ReadManaged<SystemStateUpdateEvent>())
             {
                 if (ev.CurrentState == Fdp.Toolkit.Orchestration.ClusterState.Degraded)
                 {
@@ -222,7 +222,7 @@ public sealed class ClusterMasterBootstrapTests
         Assert.Equal(2, exercise.NodeRoster.ActiveNodes.Count);
 
         // Drain any pre-ejection events.
-        bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
+        bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
 
         // Stop SimHost heartbeats; wait for timeout then trigger ejection via Tick.
         Thread.Sleep(200);
@@ -233,7 +233,7 @@ public sealed class ClusterMasterBootstrapTests
         {
             exercise.Tick();
             bus.SwapBuffers();
-            allIntents.AddRange(bus.ConsumeManaged<ExecuteNodeOpIntent>());
+            allIntents.AddRange(bus.ReadManaged<ExecuteNodeOpIntent>());
             if (!exercise.NodeRoster.ActiveNodes.ContainsKey(1)) break;
             Thread.Sleep(20);
         }
@@ -327,7 +327,7 @@ public sealed class ClusterMasterBootstrapTests
         exercise.Tick();
         bus.SwapBuffers();
 
-        var phase1Events = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        var phase1Events = bus.ReadManaged<ClusterOpCompletedEvent>().ToList();
         bool req1Accepted = !phase1Events.Any(e => e.RequestId == req1Id && e.StatusCode == OrchestrationStatusCode.Rejected);
         Assert.True(req1Accepted, "First TransitionState request should be accepted.");
 
@@ -343,7 +343,7 @@ public sealed class ClusterMasterBootstrapTests
         exercise.Tick();
         bus.SwapBuffers();
 
-        var phase2Events = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        var phase2Events = bus.ReadManaged<ClusterOpCompletedEvent>().ToList();
         bool req2Accepted = !phase2Events.Any(e => e.RequestId == req2Id && e.StatusCode == OrchestrationStatusCode.Rejected);
         Assert.True(req2Accepted, "Second TransitionState request should be accepted.");
 
@@ -391,7 +391,7 @@ public sealed class ClusterMasterBootstrapTests
 
         // A ClusterStateTransitionedEvent for Idle (Standby) should have been published.
         bus.SwapBuffers();
-        var events = bus.ConsumeManaged<ClusterStateTransitionedEvent>().ToList();
+        var events = bus.ReadManaged<ClusterStateTransitionedEvent>().ToList();
         Assert.True(events.Any(e => e.NewStateId == Fdp.Toolkit.Orchestration.ClusterState.Idle),
             "Expected ClusterStateTransitionedEvent(Idle) when bootstrap latch releases.");
     }
@@ -428,7 +428,7 @@ public sealed class ClusterMasterBootstrapTests
             "Bootstrap latch must NOT release for a non-matching subsystem name.");
 
         bus.SwapBuffers();
-        var events = bus.ConsumeManaged<ClusterStateTransitionedEvent>().ToList();
+        var events = bus.ReadManaged<ClusterStateTransitionedEvent>().ToList();
         Assert.DoesNotContain(events, e => e.NewStateId == Fdp.Toolkit.Orchestration.ClusterState.Idle);
     }
 }

@@ -51,7 +51,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
     /// </summary>
     public void Tick()
     {
-        foreach (var _ in _bus.ConsumeManaged<PauseTimeIntent>())
+        foreach (var _ in _bus.ReadManaged<PauseTimeIntent>())
             _writer.Write(new ClusterOpRequest
             {
                 RequestId     = Guid.NewGuid(),
@@ -59,7 +59,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 PayloadJson   = string.Empty,
             });
 
-        foreach (var _ in _bus.ConsumeManaged<ResumeTimeIntent>())
+        foreach (var _ in _bus.ReadManaged<ResumeTimeIntent>())
             _writer.Write(new ClusterOpRequest
             {
                 RequestId     = Guid.NewGuid(),
@@ -67,7 +67,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 PayloadJson   = string.Empty,
             });
 
-        foreach (var intent in _bus.ConsumeManaged<StepTimeIntent>())
+        foreach (var intent in _bus.ReadManaged<StepTimeIntent>())
             _writer.Write(new ClusterOpRequest
             {
                 RequestId     = Guid.NewGuid(),
@@ -75,7 +75,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 PayloadJson   = intent.DeltaSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
             });
 
-        foreach (var intent in _bus.ConsumeManaged<SetTimeScaleIntent>())
+        foreach (var intent in _bus.ReadManaged<SetTimeScaleIntent>())
             _writer.Write(new ClusterOpRequest
             {
                 RequestId     = Guid.NewGuid(),
@@ -83,7 +83,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 PayloadJson   = intent.TimeScale.ToString(System.Globalization.CultureInfo.InvariantCulture),
             });
 
-        foreach (var intent in _bus.ConsumeManaged<TransitionStateIntent>())
+        foreach (var intent in _bus.ReadManaged<TransitionStateIntent>())
             _writer.Write(new ClusterOpRequest
             {
                 RequestId     = intent.TransactionId,
@@ -91,7 +91,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 PayloadJson   = SerializeTransitionPayload(intent),
             });
 
-        foreach (var intent in _bus.ConsumeManaged<ManageEpisodeIntent>())
+        foreach (var intent in _bus.ReadManaged<ManageEpisodeIntent>())
             _writer.Write(new ClusterOpRequest
             {
                 RequestId     = intent.TransactionId,
@@ -99,7 +99,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 PayloadJson   = SerializeManageEpisodePayload(intent),
             });
 
-        foreach (var intent in _bus.ConsumeManaged<ExecuteStorageOpIntent>())
+        foreach (var intent in _bus.ReadManaged<ExecuteStorageOpIntent>())
         {
             NedClusterOpType opType = intent.Operation switch
             {
@@ -116,7 +116,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
             });
         }
 
-        foreach (var intent in _bus.ConsumeManaged<TakeCheckpointIntent>())
+        foreach (var intent in _bus.ReadManaged<TakeCheckpointIntent>())
             _writer.Write(new ClusterOpRequest
             {
                 RequestId     = intent.RequestId,
@@ -124,7 +124,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 PayloadJson   = string.Empty,
             });
 
-        foreach (var intent in _bus.ConsumeManaged<SeekReplayIntent>())
+        foreach (var intent in _bus.ReadManaged<SeekReplayIntent>())
             _writer.Write(new ClusterOpRequest
             {
                 RequestId     = intent.RequestId,
@@ -132,7 +132,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 PayloadJson   = $"{{\"TargetWallTicks\":{intent.TargetWallTicks}}}",
             });
 
-        foreach (var intent in _bus.ConsumeManaged<CancelOperationIntent>())
+        foreach (var intent in _bus.ReadManaged<CancelOperationIntent>())
             _writer.Write(new ClusterOpRequest
             {
                 RequestId     = intent.TargetRequestId,

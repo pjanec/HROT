@@ -98,7 +98,7 @@ public class EntityInspectorContextMenuTests : IDisposable
         // Consume the managed event after invoking the action.
         InvokeItem(handler, entity, "Delete entity");
         _world.Bus.SwapBuffers();
-        foreach (var cmd in ((ISimulationView)_world).ConsumeManagedEvents<DestroyEntityCommand>())
+        foreach (var cmd in ((ISimulationView)_world).ReadManagedEvents<DestroyEntityCommand>())
             captured = cmd;
 
         Assert.NotNull(captured);

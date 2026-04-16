@@ -519,7 +519,7 @@ public sealed class ClusterMaster : IDisposable
 
     private void IngestHeartbeats()
     {
-        foreach (var hb in _eventBus.ConsumeManaged<NodeHeartbeatEvent>())
+        foreach (var hb in _eventBus.ReadManaged<NodeHeartbeatEvent>())
         {
             var profile = new NodeHealthProfile
             {
@@ -635,7 +635,7 @@ public sealed class ClusterMaster : IDisposable
 
     private void ProcessTransitionStateIntents()
     {
-        foreach (var intent in _eventBus.ConsumeManaged<TransitionStateIntent>())
+        foreach (var intent in _eventBus.ReadManaged<TransitionStateIntent>())
         {
             if (!_bootstrapLatch) { PublishOpStatus(intent.TransactionId, OrchestrationStatusCode.Rejected); continue; }
             try   { ProcessTransitionStateIntent(intent); }
@@ -649,7 +649,7 @@ public sealed class ClusterMaster : IDisposable
 
     private void ProcessManageEpisodeIntents()
     {
-        foreach (var intent in _eventBus.ConsumeManaged<ManageEpisodeIntent>())
+        foreach (var intent in _eventBus.ReadManaged<ManageEpisodeIntent>())
         {
             if (!_bootstrapLatch) { PublishOpStatus(intent.TransactionId, OrchestrationStatusCode.Rejected); continue; }
             try   { ProcessManageEpisodeIntent(intent); }
@@ -663,13 +663,13 @@ public sealed class ClusterMaster : IDisposable
 
     private void ProcessStorageOpIntents()
     {
-        foreach (var intent in _eventBus.ConsumeManaged<ExecuteStorageOpIntent>())
+        foreach (var intent in _eventBus.ReadManaged<ExecuteStorageOpIntent>())
             ProcessStorageOpIntent(intent);
     }
 
     private void ProcessTakeCheckpointIntents()
     {
-        foreach (var intent in _eventBus.ConsumeManaged<TakeCheckpointIntent>())
+        foreach (var intent in _eventBus.ReadManaged<TakeCheckpointIntent>())
         {
             var ckNodeIds = new List<int>(_roster.ActiveNodes.Keys);
             if (ckNodeIds.Count == 0)
@@ -689,7 +689,7 @@ public sealed class ClusterMaster : IDisposable
 
     private void ProcessSeekReplayIntents()
     {
-        foreach (var intent in _eventBus.ConsumeManaged<SeekReplayIntent>())
+        foreach (var intent in _eventBus.ReadManaged<SeekReplayIntent>())
         {
             ProcessSeekReplayIntent(intent);
             PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
@@ -698,7 +698,7 @@ public sealed class ClusterMaster : IDisposable
 
     private void ProcessCancelOperationIntents()
     {
-        foreach (var intent in _eventBus.ConsumeManaged<CancelOperationIntent>())
+        foreach (var intent in _eventBus.ReadManaged<CancelOperationIntent>())
             ProcessCancelOperationIntent(intent);
     }
 
@@ -1171,7 +1171,7 @@ public sealed class ClusterMaster : IDisposable
     /// </summary>
     private void ConsumeNodeOpStatuses()
     {
-        foreach (var ev in _eventBus.ConsumeManaged<NodeOpCompletedEvent>())
+        foreach (var ev in _eventBus.ReadManaged<NodeOpCompletedEvent>())
         {
             // CGF1-S0305: Branch-transition ACK.
             if (_pendingBranchTasks.TryGetValue(ev.TransactionId, out var branchTask))

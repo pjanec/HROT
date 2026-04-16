@@ -52,7 +52,7 @@ namespace Hrot.SimHost.Tests
             cmd.Playback(_world);
             _world.Bus.SwapBuffers();
 
-            return _world.Bus.Consume<DetonationNotification>();
+            return _world.Bus.Read<DetonationNotification>();
         }
 
         // ── SC-1: DDS message → DetonationNotification with Entity handles ────
@@ -119,7 +119,7 @@ namespace Hrot.SimHost.Tests
             Assert.Null(ex);
 
             _world.Bus.SwapBuffers();
-            var events = _world.Bus.Consume<DetonationNotification>();
+            var events = _world.Bus.Read<DetonationNotification>();
             Assert.Equal(0, events.Length);
         }
 

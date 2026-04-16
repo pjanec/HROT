@@ -91,7 +91,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         exercise.Tick();
         bus.SwapBuffers();
 
-        var immediateIntents = bus.ConsumeManaged<ExecuteNodeOpIntent>()
+        var immediateIntents = bus.ReadManaged<ExecuteNodeOpIntent>()
             .Where(i => i.Operation == FdpNodeOpType.PrefetchFiles)
             .ToList();
 
@@ -103,7 +103,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         {
             exercise.Tick();
             bus.SwapBuffers();
-            prefetchFilesReceived = bus.ConsumeManaged<ExecuteNodeOpIntent>()
+            prefetchFilesReceived = bus.ReadManaged<ExecuteNodeOpIntent>()
                 .Any(i => i.Operation == FdpNodeOpType.PrefetchFiles);
             Thread.Sleep(10);
         }
@@ -155,13 +155,13 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
             bus.SwapBuffers();
             Thread.Sleep(15);
 
-            foreach (var ev in bus.ConsumeManaged<ClusterOpCompletedEvent>())
+            foreach (var ev in bus.ReadManaged<ClusterOpCompletedEvent>())
             {
                 if (ev.RequestId == reqId && ev.StatusCode.IsError())
                     observedFailure = true;
             }
 
-            foreach (var intent in bus.ConsumeManaged<ExecuteNodeOpIntent>())
+            foreach (var intent in bus.ReadManaged<ExecuteNodeOpIntent>())
             {
                 if (intent.Operation == FdpNodeOpType.PrefetchFiles)
                     prefetchFilesReceived = true;

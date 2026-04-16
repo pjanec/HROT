@@ -68,7 +68,7 @@ namespace Hrot.Network.NED.SimHost
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
-            var events = view.ConsumeEvents<DetonationNotification>();
+            var events = view.ReadEvents<DetonationNotification>();
 
             foreach (ref readonly var evt in events)
             {

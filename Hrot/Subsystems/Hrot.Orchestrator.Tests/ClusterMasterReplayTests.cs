@@ -157,7 +157,7 @@ public sealed class ClusterMasterReplayTests
         Assert.Equal(0.0f, currentScale);
 
         // ── Capture the branch TransactionId from the fanned-out ExecuteNodeOpIntent ──
-        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>()
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>()
             .Where(i => i.Operation == FdpNodeOpType.PrepareLive)
             .ToList();
         Assert.True(intents.Any(), "ClusterMaster must fan out a PrepareLive NodeOpIntent.");

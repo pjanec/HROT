@@ -57,7 +57,7 @@ public sealed class ClusterOpMasterTranslator
         }
 
         // ── Egress: Bus ClusterOpCompletedEvent → DDS ClusterOpStatus ────────
-        foreach (var ev in _bus.ConsumeManaged<ClusterOpCompletedEvent>())
+        foreach (var ev in _bus.ReadManaged<ClusterOpCompletedEvent>())
         {
             _statusWriter.Write(new ClusterOpStatus
             {
@@ -68,7 +68,7 @@ public sealed class ClusterOpMasterTranslator
         }
 
         // ── Egress: Bus StorageOpCompletedEvent → DDS ClusterOpStatus ────────
-        foreach (var ev in _bus.ConsumeManaged<StorageOpCompletedEvent>())
+        foreach (var ev in _bus.ReadManaged<StorageOpCompletedEvent>())
         {
             _statusWriter.Write(new ClusterOpStatus
             {
@@ -81,7 +81,7 @@ public sealed class ClusterOpMasterTranslator
         // ── Egress: Bus AssetInventoryUpdateEvent → DDS AssetInventoryTopic ──
         if (_systemStateWriter != null)
         {
-            foreach (var ev in _bus.ConsumeManaged<ClusterStateTransitionedEvent>())
+            foreach (var ev in _bus.ReadManaged<ClusterStateTransitionedEvent>())
             {
                 _systemStateWriter.Write(new SystemStateTopic
                 {
@@ -92,7 +92,7 @@ public sealed class ClusterOpMasterTranslator
 
         if (_inventoryWriter != null)
         {
-            foreach (var ev in _bus.ConsumeManaged<AssetInventoryUpdateEvent>())
+            foreach (var ev in _bus.ReadManaged<AssetInventoryUpdateEvent>())
             {
                 _inventoryWriter.Write(new AssetInventoryTopic
                 {

@@ -46,7 +46,7 @@ public sealed class EditorZoneAuthoringSystem : ComponentSystem
 
     private void ProcessObstacles()
     {
-        foreach (var cmd in World.Bus.ConsumeManaged<SpawnZoneObstacleCommand>())
+        foreach (var cmd in World.Bus.ReadManaged<SpawnZoneObstacleCommand>())
         {
             var entity = World.CreateEntity();
 
@@ -84,7 +84,7 @@ public sealed class EditorZoneAuthoringSystem : ComponentSystem
 
     private void ProcessZoneConfig()
     {
-        foreach (var cmd in World.Bus.ConsumeManaged<UpdateZoneConfigCommand>())
+        foreach (var cmd in World.Bus.ReadManaged<UpdateZoneConfigCommand>())
         {
             if (string.IsNullOrEmpty(cmd.RoadNetworkPath)) continue;
 

@@ -26,7 +26,7 @@ namespace Hrot.Map.Common.Tests
             });
             bus.SwapBuffers();
 
-            var events = bus.ConsumeManaged<SpawnZoneObstacleCommand>();
+            var events = bus.ReadManaged<SpawnZoneObstacleCommand>();
 
             var evt = Assert.Single(events);
             Assert.Equal("Obstacle_Alpha", evt.ZoneName);
@@ -45,7 +45,7 @@ namespace Hrot.Map.Common.Tests
             });
             bus.SwapBuffers();
 
-            var events = bus.ConsumeManaged<SpawnZoneObstacleCommand>();
+            var events = bus.ReadManaged<SpawnZoneObstacleCommand>();
 
             var evt = Assert.Single(events);
             Assert.Equal(7.25f, evt.Radius);
@@ -65,7 +65,7 @@ namespace Hrot.Map.Common.Tests
             });
             bus.SwapBuffers();
 
-            var events = bus.ConsumeManaged<UpdateZoneConfigCommand>();
+            var events = bus.ReadManaged<UpdateZoneConfigCommand>();
 
             var evt = Assert.Single(events);
             Assert.Equal("Zone_North",                   evt.ZoneName);
@@ -84,7 +84,7 @@ namespace Hrot.Map.Common.Tests
             });
             bus.SwapBuffers();
 
-            var events = bus.ConsumeManaged<UpdateZoneConfigCommand>();
+            var events = bus.ReadManaged<UpdateZoneConfigCommand>();
 
             var evt = Assert.Single(events);
             Assert.Null(evt.RoadNetworkPath);

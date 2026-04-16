@@ -14,7 +14,7 @@ public sealed unsafe class EditorPerceptionSetupSystem : ComponentSystem
     /// <inheritdoc/>
     protected override void OnUpdate()
     {
-        var cmds = World.Bus.Consume<SeedTargetCommand>();
+        var cmds = World.Bus.Read<SeedTargetCommand>();
         for (int i = 0; i < cmds.Length; i++)
         {
             ref readonly var cmd = ref cmds[i];

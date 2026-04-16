@@ -50,7 +50,7 @@ namespace Hrot.Network.Translators
         {
             if (_writer == null) return;
 
-            foreach (var cmd in view.ConsumeManagedEvents<DeferredTakeOwnershipCommand>())
+            foreach (var cmd in view.ReadManagedEvents<DeferredTakeOwnershipCommand>())
             {
                 if (cmd.Grants.Count == 0) continue;
 

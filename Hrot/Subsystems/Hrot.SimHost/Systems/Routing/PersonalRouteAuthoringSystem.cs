@@ -84,7 +84,7 @@ public sealed class PersonalRouteAuthoringSystem : ComponentSystem
         }
 
         // ── 2. Process CmdAppendPersonalWaypoint events ───────────────────────────
-        var events = World.Bus.Consume<CmdAppendPersonalWaypoint>();
+        var events = World.Bus.Read<CmdAppendPersonalWaypoint>();
         if (events.Length == 0) return;
 
         foreach (var evt in events)

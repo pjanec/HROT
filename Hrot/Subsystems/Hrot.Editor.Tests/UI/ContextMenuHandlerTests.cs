@@ -151,7 +151,7 @@ public sealed class EditorEntityContextMenuHandlerTests : IDisposable
         handler.DeleteEntity(42L);
 
         _bus.SwapBuffers();
-        var cmds = _bus.ConsumeManaged<DestroyEntityCommand>();
+        var cmds = _bus.ReadManaged<DestroyEntityCommand>();
 
         Assert.Single(cmds);
         Assert.Equal(42L, cmds[0].NetworkId);

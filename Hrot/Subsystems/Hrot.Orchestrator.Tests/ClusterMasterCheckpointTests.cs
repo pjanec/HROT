@@ -57,7 +57,7 @@ public sealed class ClusterMasterCheckpointTests
         for (int round = 0; round < 10; round++)
         {
             bus.SwapBuffers();
-            foreach (var intent in bus.ConsumeManaged<ExecuteNodeOpIntent>()
+            foreach (var intent in bus.ReadManaged<ExecuteNodeOpIntent>()
                          .Where(i => i.TargetNodeId == NId && i.Operation != FdpNodeOpType.CommitState))
             {
                 bus.PublishManaged(new NodeOpCompletedEvent
@@ -109,7 +109,7 @@ public sealed class ClusterMasterCheckpointTests
 
         // Collect TakeSnapshot intent.
         bus.SwapBuffers();
-        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>()
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>()
             .Where(i => i.Operation == FdpNodeOpType.TakeSnapshot)
             .ToList();
 
@@ -130,7 +130,7 @@ public sealed class ClusterMasterCheckpointTests
 
         // Step 3: ClusterMaster should now publish ClusterOpCompletedEvent(Success).
         bus.SwapBuffers();
-        var completed = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        var completed = bus.ReadManaged<ClusterOpCompletedEvent>().ToList();
         Assert.True(
             completed.Any(e => e.RequestId == ckRequestId && !e.StatusCode.IsError()),
             $"Expected ClusterOpCompletedEvent(Success) for requestId={ckRequestId}. " +
@@ -161,7 +161,7 @@ public sealed class ClusterMasterCheckpointTests
         master.Tick();
 
         bus.SwapBuffers();
-        var completed = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        var completed = bus.ReadManaged<ClusterOpCompletedEvent>().ToList();
         Assert.True(
             completed.Any(e => e.RequestId == ckRequestId && !e.StatusCode.IsError()),
             "Expected immediate success for TakeCheckpoint with empty roster.");
@@ -195,7 +195,7 @@ public sealed class ClusterMasterCheckpointTests
         master.Tick();
 
         bus.SwapBuffers();
-        var completed = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        var completed = bus.ReadManaged<ClusterOpCompletedEvent>().ToList();
         Assert.True(
             completed.Any(e => e.RequestId == seekRequestId && !e.StatusCode.IsError()),
             $"Expected immediate ClusterOpCompletedEvent(Success) for ReplaySeek requestId={seekRequestId}. " +

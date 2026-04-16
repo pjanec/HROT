@@ -52,7 +52,7 @@ public sealed class NodeOpSlaveTranslatorTests
         translator.Tick();
         bus.SwapBuffers();
 
-        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>();
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>();
         Assert.Single(intents);
         Assert.Equal(FdpNodeOpType.PrepareLive, intents[0].Operation);
         Assert.IsType<EditLoadHandlerPayload>(intents[0].DomainPayload);
@@ -87,7 +87,7 @@ public sealed class NodeOpSlaveTranslatorTests
         translator.Tick();
         bus.SwapBuffers();
 
-        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>();
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>();
         Assert.Empty(intents);
     }
 

@@ -41,7 +41,7 @@ public sealed class EditorFileIOIntegrationTests
         harness.PumpFrames(1);  // flush any pending command buffer entries; also triggers SwapBuffers
 
         // WorldResetEvent must be visible in the read buffer after the swap
-        bool eventFired = harness.Bus.ConsumeManaged<WorldResetEvent>().Count > 0;
+        bool eventFired = harness.Bus.ReadManaged<WorldResetEvent>().Count > 0;
 
         Assert.True(eventFired, "WorldResetEvent must fire on NewScenario");
         Assert.Equal(0, harness.Repo.EntityCount);

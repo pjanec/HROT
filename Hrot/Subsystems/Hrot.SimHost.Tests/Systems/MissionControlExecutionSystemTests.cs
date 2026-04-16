@@ -64,7 +64,7 @@ public class MissionControlExecutionSystemTests
 
     private static MissionControlAckEvent? FindAck(EntityRepository repo, Guid requestId)
     {
-        foreach (var evt in repo.Bus.Consume<MissionControlAckEvent>())
+        foreach (var evt in repo.Bus.Read<MissionControlAckEvent>())
         {
             if (evt.RequestId == requestId)
                 return evt;

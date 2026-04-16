@@ -141,7 +141,7 @@ public sealed class HexagonalBoundaryTests
         var bus  = new FdpEventBus();
         // Drain the initial SwitchTimeModeEvent{Continuous} published by the constructor.
         bus.SwapBuffers();
-        bus.Consume<SwitchTimeModeEvent>();
+        bus.Read<SwitchTimeModeEvent>();
 
         using var ctrl = new Fdp.Toolkit.Time.Controllers.MasterSyncController(bus);
 
@@ -155,7 +155,7 @@ public sealed class HexagonalBoundaryTests
 
         // Swap once more to promote SwitchTimeModeEvent to the native read buffer.
         bus.SwapBuffers();
-        var events = bus.Consume<SwitchTimeModeEvent>().ToArray();
+        var events = bus.Read<SwitchTimeModeEvent>().ToArray();
 
         Assert.True(events.Any(e => e.TargetMode == TimeMode.Deterministic),
             "MasterSyncController must emit SwitchTimeModeEvent{Deterministic} when it " +
@@ -233,7 +233,7 @@ public sealed class HexagonalBoundaryTests
         public void Tick()
         {
             if (Bus == null) return;
-            foreach (var _ in Bus.ConsumeManaged<PauseTimeIntent>())
+            foreach (var _ in Bus.ReadManaged<PauseTimeIntent>())
                 PauseIntentSeen = true;
         }
 

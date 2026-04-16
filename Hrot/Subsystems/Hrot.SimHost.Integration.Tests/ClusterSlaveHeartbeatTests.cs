@@ -39,11 +39,11 @@ namespace Hrot.SimHost.Integration.Tests
             cgfBus.SwapBuffers();
 
             var simHostHeartbeats = new List<NodeHeartbeatEvent>();
-            foreach (var e in simHostBus.ConsumeManaged<NodeHeartbeatEvent>())
+            foreach (var e in simHostBus.ReadManaged<NodeHeartbeatEvent>())
                 simHostHeartbeats.Add(e);
 
             var cgfHeartbeats = new List<NodeHeartbeatEvent>();
-            foreach (var e in cgfBus.ConsumeManaged<NodeHeartbeatEvent>())
+            foreach (var e in cgfBus.ReadManaged<NodeHeartbeatEvent>())
                 cgfHeartbeats.Add(e);
 
             Assert.Single(simHostHeartbeats);

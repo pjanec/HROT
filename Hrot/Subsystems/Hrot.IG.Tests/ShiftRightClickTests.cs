@@ -49,7 +49,7 @@ public class ShiftRightClickTests : System.IDisposable
     private CmdAppendPersonalWaypoint[] ConsumeWaypointEvents()
     {
         _app.World.Bus.SwapBuffers();
-        var span = _app.World.Bus.Consume<CmdAppendPersonalWaypoint>();
+        var span = _app.World.Bus.Read<CmdAppendPersonalWaypoint>();
         var results = new CmdAppendPersonalWaypoint[span.Length];
         for (int i = 0; i < span.Length; i++)
             results[i] = span[i];

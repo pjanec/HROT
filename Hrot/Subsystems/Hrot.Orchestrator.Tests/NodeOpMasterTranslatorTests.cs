@@ -145,7 +145,7 @@ public sealed class NodeOpMasterTranslatorTests
         translator.Tick();
         bus.SwapBuffers();
 
-        var events = bus.ConsumeManaged<NodeOpCompletedEvent>();
+        var events = bus.ReadManaged<NodeOpCompletedEvent>();
         Assert.Single(events);
         Assert.Equal(3, events[0].NodeId);
         Assert.Null(events[0].ResultPayload);
@@ -196,7 +196,7 @@ public sealed class NodeOpMasterTranslatorTests
         slaveTranslator.Tick(); // deserializes from DDS, publishes ExecuteNodeOpIntent
         slaveBus.SwapBuffers();
 
-        var intents = slaveBus.ConsumeManaged<ExecuteNodeOpIntent>();
+        var intents = slaveBus.ReadManaged<ExecuteNodeOpIntent>();
         Assert.Single(intents);
         Assert.Equal(txId,   intents[0].TransactionId);
         var payload = Assert.IsType<CommitStatePayload>(intents[0].DomainPayload);
@@ -238,7 +238,7 @@ public sealed class NodeOpMasterTranslatorTests
         translator.Tick();
         bus.SwapBuffers();
 
-        var events = bus.ConsumeManaged<NodeOpCompletedEvent>();
+        var events = bus.ReadManaged<NodeOpCompletedEvent>();
         Assert.Single(events);
         Assert.Equal(FdpNodeOpType.SerializeLocal, events[0].Operation);
         var entries = Assert.IsType<List<FileManifestEntry>>(events[0].ResultPayload);
@@ -274,7 +274,7 @@ public sealed class NodeOpMasterTranslatorTests
         translator.Tick();
         bus.SwapBuffers();
 
-        var events = bus.ConsumeManaged<NodeOpCompletedEvent>();
+        var events = bus.ReadManaged<NodeOpCompletedEvent>();
         Assert.Single(events);
         Assert.Equal(FdpNodeOpType.CommitState, events[0].Operation);
         Assert.Null(events[0].ResultPayload);

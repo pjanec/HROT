@@ -3,7 +3,7 @@ using Fdp.Core;
 
 namespace Hrot.IG;
 
-// -- Managed events (published via FdpEventBus.PublishManaged / ConsumeManagedEvents) --
+// -- Managed events (published via FdpEventBus.PublishManaged / ReadManagedEvents) --
 
 /// <summary>
 /// Sent from IG to ExCon when the operator selects a non-local context action.

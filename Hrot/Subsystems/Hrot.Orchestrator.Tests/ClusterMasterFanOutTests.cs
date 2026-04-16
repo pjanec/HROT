@@ -79,7 +79,7 @@ public sealed class ClusterMasterFanOutTests
         exercise.Tick();
         bus.SwapBuffers();
 
-        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
         Assert.True(
             intents.Any(i => i.Operation == FdpNodeOpType.PrepareLive),
             "ClusterMaster must fan out a PrepareLive NodeOpCommand for Standby→LoadingLive.");
@@ -110,7 +110,7 @@ public sealed class ClusterMasterFanOutTests
         exercise.Tick();
         bus.SwapBuffers();
 
-        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
         Assert.True(
             intents.Any(i => i.Operation == FdpNodeOpType.CommitState),
             "ClusterMaster must fan out a CommitState command with target-state payload after PrepareXxx.");
@@ -227,7 +227,7 @@ public sealed class ClusterMasterFanOutTests
         bus.SwapBuffers();
 
         // Drain any PrepareReplay / CommitState messages from the transition.
-        bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
+        bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
 
         // Now send standalone ReplaySeek.
         exercise.HandleClusterOpRequest(new ClusterOpRequest
@@ -240,7 +240,7 @@ public sealed class ClusterMasterFanOutTests
         exercise.Tick();
         bus.SwapBuffers();
 
-        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
         Assert.True(
             intents.Any(i => i.Operation == FdpNodeOpType.NodeReplaySeek),
             "ClusterMaster must fan out a NodeReplaySeek command for a standalone ReplaySeek request.");

@@ -110,7 +110,7 @@ public sealed class EventDrivenStorageGatewayTests
         {
             Thread.Sleep(50);
             bus.SwapBuffers();
-            var events = bus.ConsumeManaged<StorageOpCompletedEvent>();
+            var events = bus.ReadManaged<StorageOpCompletedEvent>();
             foreach (var ev in events)
             {
                 if (ev.RequestId == reqId)

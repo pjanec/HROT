@@ -45,7 +45,7 @@ public class FireInteractionEventTranslatorTests
         ((EntityCommandBuffer)cmd).Playback(repo);
 
         repo.Bus.SwapBuffers();
-        var events = repo.Bus.Consume<EcsFireInteractionEvent>();
+        var events = repo.Bus.Read<EcsFireInteractionEvent>();
 
         Assert.Equal(1, events.Length);
         Assert.Equal(expected.ShooterX, events[0].ShooterX);

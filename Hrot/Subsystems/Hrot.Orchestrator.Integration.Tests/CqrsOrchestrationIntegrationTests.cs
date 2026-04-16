@@ -79,7 +79,7 @@ public sealed class CqrsOrchestrationIntegrationTests
     /// Runs up to <paramref name="maxFrames"/> frames and returns the first
     /// <see cref="ClusterOpCompletedEvent"/> found, or <c>null</c> if none arrived.
     /// The bus is swapped an extra time at the end so the caller can immediately
-    /// call <see cref="FdpEventBus.ConsumeManaged{T}"/>.
+    /// call <see cref="FdpEventBus.ReadManaged{T}"/>.
     /// </summary>
     private static ClusterOpCompletedEvent? RunUntilCompleted(
         FdpEventBus bus, ClusterMaster master, ClusterSlave slave, int maxFrames = 15)
@@ -88,13 +88,13 @@ public sealed class CqrsOrchestrationIntegrationTests
         {
             Frame(bus, master, slave);
             // Check read buffer (was swapped at start of this frame)
-            var events = bus.ConsumeManaged<ClusterOpCompletedEvent>();
+            var events = bus.ReadManaged<ClusterOpCompletedEvent>();
             if (events.Count > 0)
                 return events[0];
         }
         // One extra swap so the caller can inspect the final read buffer.
         bus.SwapBuffers();
-        return bus.ConsumeManaged<ClusterOpCompletedEvent>()
+        return bus.ReadManaged<ClusterOpCompletedEvent>()
                   .Cast<ClusterOpCompletedEvent?>()
                   .FirstOrDefault();
     }
@@ -178,7 +178,7 @@ public sealed class CqrsOrchestrationIntegrationTests
             Frame(bus, master, slave);
 
         bus.SwapBuffers();
-        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>();
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>();
         Assert.Empty(intents);
     }
 
@@ -256,7 +256,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         for (int i = 0; i < 10 && fanOut is null; i++)
         {
             Frame(bus, master, slave);
-            var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>();
+            var intents = bus.ReadManaged<ExecuteNodeOpIntent>();
             fanOut = intents.Cast<ExecuteNodeOpIntent?>()
                            .FirstOrDefault(x => x.HasValue &&
                                x.Value.Operation == (Fdp.Toolkit.Orchestration.NodeOpType)
@@ -302,7 +302,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         for (int i = 0; i < 8 && abortIntent is null; i++)
         {
             Frame(bus, master, slave);
-            var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>();
+            var intents = bus.ReadManaged<ExecuteNodeOpIntent>();
             abortIntent = intents.Cast<ExecuteNodeOpIntent?>()
                                  .FirstOrDefault(x => x.HasValue &&
                                      x.Value.Operation == (Fdp.Toolkit.Orchestration.NodeOpType)
@@ -376,7 +376,7 @@ public sealed class CqrsOrchestrationIntegrationTests
             Frame(bus, master, slave);
 
         bus.SwapBuffers();
-        var strayIntents = bus.ConsumeManaged<ExecuteNodeOpIntent>();
+        var strayIntents = bus.ReadManaged<ExecuteNodeOpIntent>();
         Assert.Empty(strayIntents);
     }
 }

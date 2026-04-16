@@ -36,7 +36,7 @@ public class MapCommandControllerTests
     private static IReadOnlyList<SpawnEntityCommand> DrainSpawnCmds(FdpEventBus bus)
     {
         bus.SwapBuffers();
-        return bus.ConsumeManaged<SpawnEntityCommand>();
+        return bus.ReadManaged<SpawnEntityCommand>();
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class MapCommandControllerTests
         var requestId = Guid.NewGuid();
         ctrl.ActivatePlacementCommand(requestId, Guid.NewGuid(), 202L, null);
         ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MouseButton.Right);
-        Assert.Empty(bus.ConsumeManaged<SpawnEntityCommand>());
+        Assert.Empty(bus.ReadManaged<SpawnEntityCommand>());
         Assert.Single(ackCapture.Written);
         Assert.Equal(requestId, ackCapture.Written[0].RequestId);
         Assert.Equal(MapCommandController.StatusCancelled, ackCapture.Written[0].StatusCode);
@@ -139,7 +139,7 @@ public class MapCommandControllerTests
         var requestId = Guid.NewGuid();
         ctrl.BeginAreaAuthoringSession(requestId, Guid.NewGuid());
         ctrl.OnAreaToolCancelled();
-        Assert.Empty(bus.ConsumeManaged<SpawnEntityCommand>());
+        Assert.Empty(bus.ReadManaged<SpawnEntityCommand>());
         Assert.Single(ackCapture.Written);
         Assert.Equal(requestId, ackCapture.Written[0].RequestId);
         Assert.Equal(MapCommandController.StatusCancelled, ackCapture.Written[0].StatusCode);
@@ -169,7 +169,7 @@ public class MapCommandControllerTests
     {
         var (_, bus, _, ctrl) = BuildController();
         ctrl.OnAreaEntityCreated(new SpawnEntityCommand { RequestId = Guid.NewGuid() });
-        Assert.Empty(bus.ConsumeManaged<SpawnEntityCommand>());
+        Assert.Empty(bus.ReadManaged<SpawnEntityCommand>());
     }
 
     [Fact]

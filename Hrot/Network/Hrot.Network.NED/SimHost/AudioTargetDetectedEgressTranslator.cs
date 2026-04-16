@@ -47,7 +47,7 @@ namespace Hrot.Network.NED.SimHost
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
-            var events = view.ConsumeEvents<TargetHeardEvent>();
+            var events = view.ReadEvents<TargetHeardEvent>();
             foreach (ref readonly var evt in events)
             {
                 if (!_entityMap.TryGetNetworkId(evt.Listener, out long listenerId)) continue;

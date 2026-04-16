@@ -79,7 +79,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         }
 
         // ── Heartbeat egress: Bus NodeHeartbeatEvent → DDS NodeHeartbeat ─────
-        foreach (var hb in _bus.ConsumeManaged<NodeHeartbeatEvent>())
+        foreach (var hb in _bus.ReadManaged<NodeHeartbeatEvent>())
         {
             _heartbeatWriter.Write(new NodeHeartbeat
             {
@@ -95,7 +95,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         }
 
         // ── Status egress: Bus NodeOpCompletedEvent → DDS NodeOpStatus ───────
-        foreach (var ev in _bus.ConsumeManaged<NodeOpCompletedEvent>())
+        foreach (var ev in _bus.ReadManaged<NodeOpCompletedEvent>())
         {
             _statusWriter.Write(new NodeOpStatus
             {

@@ -91,7 +91,7 @@ namespace Hrot.SimHost.Tests
 
             // No DestroyEntityCommand should have been published.
             world.Bus.SwapBuffers();
-            var cmds = ((ISimulationView)world).ConsumeManagedEvents<DestroyEntityCommand>();
+            var cmds = ((ISimulationView)world).ReadManagedEvents<DestroyEntityCommand>();
             Assert.Empty(cmds);
         }
 
@@ -128,7 +128,7 @@ namespace Hrot.SimHost.Tests
 
             // DestroyEntityCommand must be on the event bus.
             world.Bus.SwapBuffers();
-            var cmds = ((ISimulationView)world).ConsumeManagedEvents<DestroyEntityCommand>();
+            var cmds = ((ISimulationView)world).ReadManagedEvents<DestroyEntityCommand>();
             Assert.Single(cmds);
             Assert.Equal(entityId, cmds[0].NetworkId);
         }

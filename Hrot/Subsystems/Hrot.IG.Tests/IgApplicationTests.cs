@@ -49,7 +49,7 @@ public class IgApplicationTests : System.IDisposable
         // Assert: DestroyEntityCommand published with the correct NetworkId.
         _app.World.Bus.SwapBuffers();
         DestroyEntityCommand? captured = null;
-        foreach (var cmd in ((ISimulationView)_app.World).ConsumeManagedEvents<DestroyEntityCommand>())
+        foreach (var cmd in ((ISimulationView)_app.World).ReadManagedEvents<DestroyEntityCommand>())
             captured = cmd;
 
         Assert.NotNull(captured);

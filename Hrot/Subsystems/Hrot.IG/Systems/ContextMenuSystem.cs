@@ -79,7 +79,7 @@ public class ContextMenuSystem : IEcsModuleSystem
         var cmd = view.GetCommandBuffer();
 
         // ── 1. Process ExCon ContextActionsUpdate events ────────────────────────
-        var updates = view.ConsumeManagedEvents<ContextActionsUpdate>();
+        var updates = view.ReadManagedEvents<ContextActionsUpdate>();
 
         foreach (var update in updates)
         {

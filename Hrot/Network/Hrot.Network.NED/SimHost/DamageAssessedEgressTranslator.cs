@@ -55,7 +55,7 @@ namespace Hrot.Network.NED.SimHost
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
-            var events = view.ConsumeEvents<DamageAssessedEvent>();
+            var events = view.ReadEvents<DamageAssessedEvent>();
 
             foreach (ref readonly var evt in events)
             {

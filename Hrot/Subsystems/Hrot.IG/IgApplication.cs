@@ -3980,7 +3980,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             var world = view as EntityRepository;
             if (world == null) return;
 
-            foreach (var cmd in view.ConsumeManagedEvents<DestroyEntityCommand>())
+            foreach (var cmd in view.ReadManagedEvents<DestroyEntityCommand>())
             {
                 if (_entityMap.TryGetEntity(cmd.NetworkId, out var entity))
                 {

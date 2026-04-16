@@ -68,7 +68,7 @@ public sealed class HrotNodeBuilderWithReplication
             geoTransform:     HrotEnvironment.CreateGeoTransform(),
             // Use world.Bus so that events published by EntityMasterIngressTranslator.ProcessDispose()
             // during the Input kernel phase are made visible to GhostDestructionSystem (PostSimulation)
-            // via view.ConsumeManagedEvents<T>() after the kernel's internal Bus.SwapBuffers().
+            // via view.ReadManagedEvents<T>() after the kernel's internal Bus.SwapBuffers().
             eventBus:         context.World.Bus,
             localNodeId:      context.NodeId,
             domainId:         0,

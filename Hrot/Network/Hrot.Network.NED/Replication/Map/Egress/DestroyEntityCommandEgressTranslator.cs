@@ -62,7 +62,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
-            foreach (var destroyCmd in _eventBus.ConsumeManaged<DestroyEntityCommand>())
+            foreach (var destroyCmd in _eventBus.ReadManaged<DestroyEntityCommand>())
             {
                 // Prevent echo loop: do not forward bottom-up disposal notifications back to
                 // the server.  When SimHost sends EntityMaster DISPOSE the IG publishes a

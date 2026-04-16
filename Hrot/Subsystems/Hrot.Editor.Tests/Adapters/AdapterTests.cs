@@ -177,7 +177,7 @@ namespace Hrot.Editor.Tests.Adapters
             // Inject an ACK event that matches the published intent.
             // SwapBuffers is required — PublishManaged writes to the "next frame" buffer.
             _bus.SwapBuffers();
-            var intents = _bus.ConsumeManaged<MissionControlIntent>();
+            var intents = _bus.ReadManaged<MissionControlIntent>();
             Assert.Single(intents);
 
             Guid requestId = intents[0].RequestId;
@@ -307,7 +307,7 @@ namespace Hrot.Editor.Tests.Adapters
             adapter.RequestEmbark(passenger.Index, vehicle.Index);
 
             _bus.SwapBuffers();
-            var events = _bus.Consume<EmbarkEntityCommand>().ToArray();
+            var events = _bus.Read<EmbarkEntityCommand>().ToArray();
             Assert.Single(events);
             Assert.Equal(passenger, events[0].Passenger);
             Assert.Equal(vehicle,   events[0].Vehicle);
@@ -330,7 +330,7 @@ namespace Hrot.Editor.Tests.Adapters
             adapter.RequestDisembark(passenger.Index);
 
             _bus.SwapBuffers();
-            var events = _bus.Consume<DisembarkEntityCommand>().ToArray();
+            var events = _bus.Read<DisembarkEntityCommand>().ToArray();
             Assert.Single(events);
             Assert.Equal(passenger, events[0].Passenger);
         }
@@ -402,7 +402,7 @@ namespace Hrot.Editor.Tests.Adapters
             adapter.SetRoadNetworkPath("zone_alpha", "Assets/roads.json");
 
             _bus.SwapBuffers(); // PublishManaged writes to next-frame buffer
-            var events = _bus.ConsumeManaged<UpdateZoneConfigCommand>();
+            var events = _bus.ReadManaged<UpdateZoneConfigCommand>();
             Assert.Single(events);
             Assert.Equal("zone_alpha",       events[0].ZoneName);
             Assert.Equal("Assets/roads.json", events[0].RoadNetworkPath);
@@ -427,7 +427,7 @@ namespace Hrot.Editor.Tests.Adapters
             tool.OnObstaclePlaced?.Invoke(new Vector2(100f, 200f));
 
             _bus.SwapBuffers(); // PublishManaged writes to next-frame buffer
-            var events = _bus.ConsumeManaged<SpawnZoneObstacleCommand>();
+            var events = _bus.ReadManaged<SpawnZoneObstacleCommand>();
             Assert.Single(events);
             Assert.Equal("zone_beta", events[0].ZoneName);
             Assert.Equal(5f,          events[0].Radius);

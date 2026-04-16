@@ -133,7 +133,7 @@ namespace Hrot.Editor.Adapters
         /// </summary>
         public void PollAcks()
         {
-            foreach (var ack in _bus.Consume<MissionControlAckEvent>())
+            foreach (var ack in _bus.Read<MissionControlAckEvent>())
             {
                 if (_pendingCommits.TryGetValue(ack.RequestId, out var tcs))
                 {

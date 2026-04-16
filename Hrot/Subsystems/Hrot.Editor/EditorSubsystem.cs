@@ -706,7 +706,7 @@ namespace Hrot.Editor
         {
             if (_world == null || _canvas == null || _selectionState == null) return;
 
-            foreach (var evt in _world.Bus.ConsumeManaged<Hrot.Editor.Events.ActivateEditorToolEvent>())
+            foreach (var evt in _world.Bus.ReadManaged<Hrot.Editor.Events.ActivateEditorToolEvent>())
             {
                 switch (evt.Tool)
                 {
@@ -767,7 +767,7 @@ namespace Hrot.Editor
             }
 
             // ── Drain camera-center requests ──────────────────────────────────
-            foreach (var cmd in _world.Bus.ConsumeManaged<Hrot.Editor.Commands.CenterOnEntityCommand>())
+            foreach (var cmd in _world.Bus.ReadManaged<Hrot.Editor.Commands.CenterOnEntityCommand>())
             {
                 if (_camera == null) continue;
                 var q = _world.Query()
@@ -786,7 +786,7 @@ namespace Hrot.Editor
             }
 
             // ── Drain rename-dialog requests ──────────────────────────────────
-            foreach (var cmd in _world.Bus.ConsumeManaged<Hrot.Editor.Commands.OpenRenameDialogCommand>())
+            foreach (var cmd in _world.Bus.ReadManaged<Hrot.Editor.Commands.OpenRenameDialogCommand>())
             {
                 _renameTargetNetworkId    = cmd.NetworkId;
                 _openRenameModalThisFrame = true;

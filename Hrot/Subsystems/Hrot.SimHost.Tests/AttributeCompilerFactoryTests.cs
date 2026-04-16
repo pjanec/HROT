@@ -211,7 +211,7 @@ namespace Hrot.SimHost.Tests
 
             // Assert: SpawnEntityCommand carries IgEntityData with patched name.
             repo.Bus.SwapBuffers();
-            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
 
             Assert.Single(commands);
             var cmd      = commands[0];
@@ -236,7 +236,7 @@ namespace Hrot.SimHost.Tests
             // Assert
             Assert.Null(ex);
             repo.Bus.SwapBuffers();
-            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
             Assert.Single(commands);
             // Phase-1 InProgress ACK is sent immediately; Phase-2 Success is dispatched
             // by NedRequestFinalizationSystem once the entity reaches Active.

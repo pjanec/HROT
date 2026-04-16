@@ -37,7 +37,7 @@ namespace Hrot.IG.Tests
         /// <summary>
         /// Calls <see cref="WeaponFireIngressTranslator.ProcessSample"/>, plays back the
         /// command buffer, and swaps event buffers so <see cref="IgWeaponFireEvent"/> events
-        /// are visible to <see cref="FdpEventBus.Consume{T}"/>.
+        /// are visible to <see cref="FdpEventBus.Read{T}"/>.
         /// </summary>
         private ReadOnlySpan<IgWeaponFireEvent> ProcessAndFlush(
             WeaponFireIngressTranslator translator,
@@ -50,7 +50,7 @@ namespace Hrot.IG.Tests
             cmd.Playback(_world);
             _world.Bus.SwapBuffers();
 
-            return _world.Bus.Consume<IgWeaponFireEvent>();
+            return _world.Bus.Read<IgWeaponFireEvent>();
         }
 
         // ── SC-1: DDS message → one IgWeaponFireEvent ─────────────────────────

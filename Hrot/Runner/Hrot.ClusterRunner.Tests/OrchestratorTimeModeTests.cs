@@ -56,7 +56,7 @@ public class OrchestratorTimeModeTests
             var bus = subsystem.TimeBusForTest;
             if (bus != null)
             {
-                foreach (var ev in bus.Consume<SwitchTimeModeEvent>())
+                foreach (var ev in bus.Read<SwitchTimeModeEvent>())
                 {
                     if (ev.TargetMode == TimeMode.Deterministic)
                     {
@@ -110,7 +110,7 @@ public class OrchestratorTimeModeTests
             var bus = subsystem.TimeBusForTest;
             if (bus != null)
             {
-                foreach (var ev in bus.Consume<SwitchTimeModeEvent>())
+                foreach (var ev in bus.Read<SwitchTimeModeEvent>())
                 {
                     if (ev.TargetMode == TimeMode.Deterministic)
                         seenDeterministicEvent = true;

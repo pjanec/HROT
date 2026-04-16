@@ -620,7 +620,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 _requestSystem.Execute(view, dt);
 
                 // Sub-swap A: SpawnEntityCommand moves to read buffer so
-                // NetworkSpawningSystem.ConsumeManagedEvents can pick it up.
+                // NetworkSpawningSystem.ReadManagedEvents can pick it up.
                 _world.Bus.SwapBuffers();
 
                 // NetworkSpawningSystem â†’ consumes SpawnEntityCommand, creates ECS entity,

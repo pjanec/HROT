@@ -428,7 +428,7 @@ public sealed class NedReplicationModule : INedReplicationModule
         {
             if (view is not EntityRepository repo) return;
 
-            var commands = view.ConsumeManagedEvents<DeferredTakeOwnershipCommand>();
+            var commands = view.ReadManagedEvents<DeferredTakeOwnershipCommand>();
             foreach (var cmd in commands)
             {
                 if (!_entityMap.TryGetEntity(cmd.NetworkId, out Entity entity)) continue;
@@ -462,7 +462,7 @@ public sealed class NedReplicationModule : INedReplicationModule
             var world = view as EntityRepository;
             if (world == null) return;
 
-            foreach (var cmd in view.ConsumeManagedEvents<DestroyEntityCommand>())
+            foreach (var cmd in view.ReadManagedEvents<DestroyEntityCommand>())
             {
                 if (_entityMap.TryGetEntity(cmd.NetworkId, out var entity))
                 {

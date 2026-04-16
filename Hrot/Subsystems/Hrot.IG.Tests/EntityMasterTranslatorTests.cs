@@ -152,7 +152,7 @@ public class EntityMasterTranslatorTests
         translator.ProcessSample(in updatedMaster, cmd, view);
 
         eventBus.SwapBuffers();
-        Assert.Empty(eventBus.ConsumeManaged<DestroyEntityCommand>());
+        Assert.Empty(eventBus.ReadManaged<DestroyEntityCommand>());
         Assert.False(cmd.SetComponentCalled, "SetComponent must not be called for known entities");
         Assert.True(cmd.AddComponentCalled, "AddComponent must be called with TkbIdentity");
     }
@@ -211,7 +211,7 @@ public class EntityMasterTranslatorTests
         translator.ProcessDispose(TestNetworkId);
 
         eventBus.SwapBuffers();
-        var commands = eventBus.ConsumeManaged<DestroyEntityCommand>();
+        var commands = eventBus.ReadManaged<DestroyEntityCommand>();
 
         Assert.Single(commands);
         Assert.Equal(TestNetworkId, commands[0].NetworkId);
@@ -236,7 +236,7 @@ public class EntityMasterTranslatorTests
         translator.PollIngress(cmd, view);
 
         eventBus.SwapBuffers();
-        Assert.Empty(eventBus.ConsumeManaged<DestroyEntityCommand>());
+        Assert.Empty(eventBus.ReadManaged<DestroyEntityCommand>());
         Assert.False(cmd.AddComponentCalled, "No AddComponent calls expected when PollIngress is a no-op");
     }
 

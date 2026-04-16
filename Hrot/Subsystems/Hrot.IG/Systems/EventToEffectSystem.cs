@@ -36,7 +36,7 @@ public class EventToEffectSystem : IEcsModuleSystem
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
     {
-        var events = view.ConsumeEvents<FireInteractionEvent>();
+        var events = view.ReadEvents<FireInteractionEvent>();
         if (events.IsEmpty)
             return;
 

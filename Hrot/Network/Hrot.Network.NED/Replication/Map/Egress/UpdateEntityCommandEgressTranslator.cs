@@ -87,7 +87,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
-            foreach (var updateCmd in _eventBus.ConsumeManaged<UpdateEntityCommand>())
+            foreach (var updateCmd in _eventBus.ReadManaged<UpdateEntityCommand>())
             {
                 if (updateCmd.ComponentsToUpdate == null) continue;
 

@@ -66,7 +66,7 @@ public sealed class NodeOpMasterTranslator
     public void Tick()
     {
         // ── Egress: Bus ExecuteNodeOpIntent → DDS NodeOpCommand ──────────────
-        foreach (var intent in _bus.ConsumeManaged<ExecuteNodeOpIntent>())
+        foreach (var intent in _bus.ReadManaged<ExecuteNodeOpIntent>())
         {
             var payloadJson = SerializeNodePayload(intent.Operation, intent.DomainPayload);
             var writer      = _commandWriterFactory(intent.TargetNodeId);

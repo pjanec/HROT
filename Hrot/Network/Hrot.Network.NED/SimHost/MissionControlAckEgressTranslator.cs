@@ -47,7 +47,7 @@ namespace Hrot.Network.NED.SimHost
         {
             if (_writer is null) return;
 
-            var acks = view.ConsumeEvents<MissionControlAckEvent>();
+            var acks = view.ReadEvents<MissionControlAckEvent>();
             for (int i = 0; i < acks.Length; i++)
             {
                 ref readonly var evt = ref acks[i];

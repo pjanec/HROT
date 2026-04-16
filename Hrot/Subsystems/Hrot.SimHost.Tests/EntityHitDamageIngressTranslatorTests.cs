@@ -41,7 +41,7 @@ namespace Hrot.SimHost.Tests
             cmd.Playback(_world);
             _world.Bus.SwapBuffers();
 
-            return _world.Bus.Consume<DamageAssessedEvent>();
+            return _world.Bus.Read<DamageAssessedEvent>();
         }
 
         // ── SC-1: DDS message → DamageAssessedEvent ───────────────────────────
@@ -89,7 +89,7 @@ namespace Hrot.SimHost.Tests
             Assert.Null(ex);
 
             _world.Bus.SwapBuffers();
-            var events = _world.Bus.Consume<DamageAssessedEvent>();
+            var events = _world.Bus.Read<DamageAssessedEvent>();
             Assert.Equal(0, events.Length);
         }
     }

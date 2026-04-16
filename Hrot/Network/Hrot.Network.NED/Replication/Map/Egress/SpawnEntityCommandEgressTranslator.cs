@@ -75,7 +75,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
-            foreach (var spawnCmd in _eventBus.ConsumeManaged<SpawnEntityCommand>())
+            foreach (var spawnCmd in _eventBus.ReadManaged<SpawnEntityCommand>())
             {
                 var request = BuildCreateEntityRequest(spawnCmd);
                 _writer.Write(request);

@@ -48,7 +48,7 @@ public sealed class ClusterOpMasterTranslatorTests
         translator.Tick();
         bus.SwapBuffers();
 
-        var intents = bus.ConsumeManaged<TransitionStateIntent>();
+        var intents = bus.ReadManaged<TransitionStateIntent>();
         Assert.Single(intents);
         Assert.Equal(FdpClusterState.OperatingLive, intents[0].TargetState);
     }
@@ -82,7 +82,7 @@ public sealed class ClusterOpMasterTranslatorTests
 
         // Nothing should be on bus
         bus.SwapBuffers();
-        var intents = bus.ConsumeManaged<TransitionStateIntent>();
+        var intents = bus.ReadManaged<TransitionStateIntent>();
         Assert.Empty(intents);
 
         // ValidationFailed status should be written to DDS
@@ -195,7 +195,7 @@ public sealed class ClusterOpMasterTranslatorTests
 
         // The intent should be consumed
         bus.SwapBuffers();
-        var intents = bus.ConsumeManaged<TransitionStateIntent>();
+        var intents = bus.ReadManaged<TransitionStateIntent>();
         // After ClusterMaster consumed it, it should be empty on next read
         // What we really verify is that the translator correctly translated and ClusterMaster ran without error.
         // ExecuteNodeOpIntents would require a registered node. Just assert no exception and that master is alive.
@@ -226,7 +226,7 @@ public sealed class ClusterOpMasterTranslatorTests
         translator.Tick();
         bus.SwapBuffers();
 
-        var intents = bus.ConsumeManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>();
+        var intents = bus.ReadManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>();
         Assert.Single(intents);
     }
 
@@ -252,7 +252,7 @@ public sealed class ClusterOpMasterTranslatorTests
         translator.Tick();
         bus.SwapBuffers();
 
-        var intents = bus.ConsumeManaged<Fdp.Toolkit.Time.Domain.ResumeTimeIntent>();
+        var intents = bus.ReadManaged<Fdp.Toolkit.Time.Domain.ResumeTimeIntent>();
         Assert.Single(intents);
     }
 
@@ -278,7 +278,7 @@ public sealed class ClusterOpMasterTranslatorTests
         translator.Tick();
         bus.SwapBuffers();
 
-        var intents = bus.ConsumeManaged<Fdp.Toolkit.Time.Domain.StepTimeIntent>();
+        var intents = bus.ReadManaged<Fdp.Toolkit.Time.Domain.StepTimeIntent>();
         Assert.Single(intents);
         Assert.Equal(0.05f, intents[0].DeltaSeconds, precision: 5);
     }
@@ -305,7 +305,7 @@ public sealed class ClusterOpMasterTranslatorTests
         translator.Tick();
         bus.SwapBuffers();
 
-        var intents = bus.ConsumeManaged<Fdp.Toolkit.Time.Domain.SetTimeScaleIntent>();
+        var intents = bus.ReadManaged<Fdp.Toolkit.Time.Domain.SetTimeScaleIntent>();
         Assert.Single(intents);
         Assert.Equal(2.0f, intents[0].TimeScale, precision: 5);
     }

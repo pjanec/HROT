@@ -61,7 +61,7 @@ public sealed class ClusterMasterEpisodeTests
         master.Tick();
         bus.SwapBuffers();
         // Drain transition fan-out intents so they don't interfere with episode assertions.
-        bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
+        bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
 
         return (master, bus);
     }
@@ -98,7 +98,7 @@ public sealed class ClusterMasterEpisodeTests
         Assert.Empty(exercise.ActiveEpisodes);
 
         // ── Capture the StartEpisode intent TransactionId ──────────────────
-        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>()
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>()
             .Where(i => i.Operation == FdpNodeOpType.StartEpisode)
             .ToList();
         Assert.True(intents.Any(),
@@ -149,7 +149,7 @@ public sealed class ClusterMasterEpisodeTests
 
         Assert.Empty(exercise.ActiveEpisodes); // still deferred
 
-        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>()
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>()
             .Where(i => i.Operation == FdpNodeOpType.StartEpisode)
             .ToList();
         Assert.True(intents.Any());
@@ -200,7 +200,7 @@ public sealed class ClusterMasterEpisodeTests
         Assert.Empty(exercise.ActiveEpisodes);
 
         // Capture the StartEpisode intent TransactionId.
-        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>()
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>()
             .Where(i => i.Operation == FdpNodeOpType.StartEpisode)
             .ToList();
         Assert.True(intents.Any(), "ClusterMaster must fan out StartEpisode.");
@@ -223,7 +223,7 @@ public sealed class ClusterMasterEpisodeTests
         Assert.Empty(exercise.ActiveEpisodes);
 
         // ClusterOpCompletedEvent with Rejected status must be published.
-        var completed = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        var completed = bus.ReadManaged<ClusterOpCompletedEvent>().ToList();
         Assert.True(
             completed.Any(e => e.RequestId == requestId && e.StatusCode == OrchestrationStatusCode.Rejected),
             "ClusterOpCompletedEvent(Rejected) must be published when a node NAKs ManageEpisode.");
@@ -254,12 +254,12 @@ public sealed class ClusterMasterEpisodeTests
         bus.SwapBuffers();
 
         // No StartEpisode intent must have been issued.
-        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
         Assert.False(intents.Any(i => i.Operation == FdpNodeOpType.StartEpisode),
             "No StartEpisode intent must be issued for a bad ManageEpisode payload.");
 
         // ClusterOpCompletedEvent(Rejected) must be published.
-        var completed = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        var completed = bus.ReadManaged<ClusterOpCompletedEvent>().ToList();
         Assert.True(
             completed.Any(e => e.RequestId == requestId && e.StatusCode == OrchestrationStatusCode.Rejected),
             "ClusterOpCompletedEvent(Rejected) must be published for bad ManageEpisode payload.");
@@ -293,7 +293,7 @@ public sealed class ClusterMasterEpisodeTests
         bus.SwapBuffers();
 
         // Capture StartEpisode TransactionId.
-        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>()
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>()
             .Where(i => i.Operation == FdpNodeOpType.StartEpisode)
             .ToList();
         Assert.True(intents.Any());
@@ -316,7 +316,7 @@ public sealed class ClusterMasterEpisodeTests
         Assert.Contains(episodeId, exercise.ActiveEpisodes);
 
         // ClusterOpCompletedEvent(Success) must be published.
-        var completed = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        var completed = bus.ReadManaged<ClusterOpCompletedEvent>().ToList();
         Assert.True(
             completed.Any(e => e.RequestId == requestId && !e.StatusCode.IsError()),
             "ClusterOpCompletedEvent(Success) must be published after all ManageEpisode ACKs arrive.");

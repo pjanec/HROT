@@ -42,7 +42,7 @@ namespace Hrot.IG.Tests
             translator.ProcessSample(info, netId: 1);
 
             eventBus.SwapBuffers();
-            var commands = eventBus.ConsumeManaged<UpdateEntityCommand>();
+            var commands = eventBus.ReadManaged<UpdateEntityCommand>();
 
             Assert.Single(commands);
             var update = commands[0];
@@ -72,7 +72,7 @@ namespace Hrot.IG.Tests
             translator.ProcessSample(info, netId: 1);
 
             eventBus.SwapBuffers();
-            var commands = eventBus.ConsumeManaged<UpdateEntityCommand>();
+            var commands = eventBus.ReadManaged<UpdateEntityCommand>();
 
             Assert.Single(commands);
 			Assert.DoesNotContain( commands[0].ComponentsToUpdate, c => c is Hrot.NED.Descriptors.EntityInfo );

@@ -190,7 +190,7 @@ public sealed class ClusterMasterArchiveTests
         exercise.Tick();
         bus.SwapBuffers();
 
-        var events = bus.ConsumeManaged<AssetInventoryUpdateEvent>().ToList();
+        var events = bus.ReadManaged<AssetInventoryUpdateEvent>().ToList();
         Assert.True(events.Any(),
             "ClusterMaster.Tick() must publish AssetInventoryUpdateEvent after SetStorageGateway.");
 

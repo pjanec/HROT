@@ -59,7 +59,7 @@ public sealed class ReferenceArchiveHandlerTests
             eventBus.SwapBuffers();
 
             var completed = new List<NodeOpCompletedEvent>();
-            foreach (var e in eventBus.ConsumeManaged<NodeOpCompletedEvent>())
+            foreach (var e in eventBus.ReadManaged<NodeOpCompletedEvent>())
                 completed.Add(e);
 
             Assert.Single(completed);

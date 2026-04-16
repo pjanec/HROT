@@ -150,7 +150,7 @@ namespace Hrot.SimHost.Tests
 
             // Assert: SpawnEntityCommand must be in the write buffer â€” swap to make it visible
             repo.Bus.SwapBuffers();
-            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
 
             Assert.Single(commands);
             var cmd = commands[0];
@@ -181,7 +181,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(request.RequestId, ackSink.WrittenAcks[0].RequestId);
 
             repo.Bus.SwapBuffers();
-            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
             Assert.Empty(commands);
         }
 
@@ -226,7 +226,7 @@ namespace Hrot.SimHost.Tests
 
             // Assert: exactly MaxRequestsPerTick commands published this tick.
             repo.Bus.SwapBuffers();
-            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
             Assert.Equal(CreateEntityRequestSystem.MaxRequestsPerTick, commands.Count);
 
             // Assert: remaining requests are still in the queue.
@@ -278,14 +278,14 @@ namespace Hrot.SimHost.Tests
             // Act â€” first tick: should dispatch MaxRequestsPerTick, leave 1 in queue.
             system.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
-            var firstFrameCmds = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            var firstFrameCmds = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
             // Capture count *before* a second swap clears the backing buffer.
             int firstFrameCount = firstFrameCmds.Count;
 
             // Act â€” second tick: source is empty, queue has 1 item.
             system.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
-            var secondFrameCmds = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            var secondFrameCmds = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
 
             // Assert
             Assert.Equal(CreateEntityRequestSystem.MaxRequestsPerTick, firstFrameCount);
@@ -335,7 +335,7 @@ namespace Hrot.SimHost.Tests
 
             // Assert: SpawnEntityCommand carries EntityInfo with Name = "Delta".
             repo.Bus.SwapBuffers();
-            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
             Assert.Single(commands);
 
             var initialComponents = commands[0].InitialComponents;
@@ -395,7 +395,7 @@ namespace Hrot.SimHost.Tests
 
             // SpawnEntityCommand produced.
             repo.Bus.SwapBuffers();
-            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
             Assert.Single(commands);
         }
 
@@ -423,7 +423,7 @@ namespace Hrot.SimHost.Tests
             system.Execute(repo, 0f);
 
             repo.Bus.SwapBuffers();
-            var dtoCommands = ((ISimulationView)repo).ConsumeManagedEvents<DeferredTakeOwnershipCommand>();
+            var dtoCommands = ((ISimulationView)repo).ReadManagedEvents<DeferredTakeOwnershipCommand>();
 
             Assert.Single(dtoCommands);
             Assert.Contains(dtoCommands[0].Grants, g => g.DescriptorTypeId == DescriptorTypeOrdinals.WorldPos && g.NodeId == 11);

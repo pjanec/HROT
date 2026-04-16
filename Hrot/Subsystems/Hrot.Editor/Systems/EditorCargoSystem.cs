@@ -21,7 +21,7 @@ public sealed class EditorCargoSystem : ComponentSystem
 
     private void ProcessEmbark()
     {
-        var cmds = World.Bus.Consume<EmbarkEntityCommand>();
+        var cmds = World.Bus.Read<EmbarkEntityCommand>();
         for (int i = 0; i < cmds.Length; i++)
         {
             ref readonly var cmd = ref cmds[i];
@@ -47,7 +47,7 @@ public sealed class EditorCargoSystem : ComponentSystem
 
     private void ProcessDisembark()
     {
-        var cmds = World.Bus.Consume<DisembarkEntityCommand>();
+        var cmds = World.Bus.Read<DisembarkEntityCommand>();
         for (int i = 0; i < cmds.Length; i++)
         {
             ref readonly var cmd = ref cmds[i];

@@ -42,7 +42,7 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// Calls <see cref="ProcessSample"/>, plays back the command buffer, and swaps
         /// event buffers so <see cref="WeaponFireIntent"/> events are visible to
-        /// <see cref="FdpEventBus.Consume{T}"/>.
+        /// <see cref="FdpEventBus.Read{T}"/>.
         /// </summary>
         private ReadOnlySpan<WeaponFireIntent> ProcessAndFlush(
             WeaponFireRequestIngressTranslator translator,
@@ -55,7 +55,7 @@ namespace Hrot.SimHost.Tests
             cmd.Playback(_world);
             _world.Bus.SwapBuffers();
 
-            return _world.Bus.Consume<WeaponFireIntent>();
+            return _world.Bus.Read<WeaponFireIntent>();
         }
 
         // ── SC-1: Valid sample → WeaponFireIntent on bus ───────────────────────

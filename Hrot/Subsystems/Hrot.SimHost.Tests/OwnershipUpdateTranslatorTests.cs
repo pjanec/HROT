@@ -90,7 +90,7 @@ namespace Hrot.SimHost.Tests
             translator.PollIngress(cmd, view);
 
             repo.Bus.SwapBuffers();
-            var events = repo.Bus.Consume<OwnershipUpdateMsg>();
+            var events = repo.Bus.Read<OwnershipUpdateMsg>();
             Assert.Equal(0, events.Length);
         }
     }

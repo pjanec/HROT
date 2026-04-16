@@ -69,7 +69,7 @@ namespace Hrot.Map.Common.Replication
         {
             if (_writer == null) return;
 
-            var updates = view.ConsumeEvents<OwnershipUpdateMsg>();
+            var updates = view.ReadEvents<OwnershipUpdateMsg>();
             foreach (var evt in updates)
             {
                 // Only forward claims originated by this node to prevent DDSâ†”bus echo loops.

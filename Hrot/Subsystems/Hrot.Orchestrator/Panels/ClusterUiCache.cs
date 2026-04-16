@@ -108,7 +108,7 @@ public sealed class ClusterUiCache : IDisposable
 
     private void DrainSystemState()
     {
-        foreach (var ev in _bus.ConsumeManaged<SystemStateUpdateEvent>())
+        foreach (var ev in _bus.ReadManaged<SystemStateUpdateEvent>())
         {
             var prev = CurrentState;
             CurrentState   = (ClusterState)(int)ev.CurrentState;
@@ -120,7 +120,7 @@ public sealed class ClusterUiCache : IDisposable
 
     private void DrainInventory()
     {
-        foreach (var ev in _bus.ConsumeManaged<AssetInventoryUpdateEvent>())
+        foreach (var ev in _bus.ReadManaged<AssetInventoryUpdateEvent>())
         {
             AvailableScenarios           = ev.LocalScenarios           ?? Array.Empty<string>();
             AvailableExercises           = ev.LocalExercises           ?? Array.Empty<string>();
@@ -131,7 +131,7 @@ public sealed class ClusterUiCache : IDisposable
 
     private void DrainHeartbeats()
     {
-        foreach (var ev in _bus.ConsumeManaged<NodeHeartbeatEvent>())
+        foreach (var ev in _bus.ReadManaged<NodeHeartbeatEvent>())
         {
             _activeNodes[ev.NodeId] = new NodeHeartbeat
             {
@@ -146,7 +146,7 @@ public sealed class ClusterUiCache : IDisposable
 
     private void DrainTimeMode()
     {
-        foreach (var ev in _bus.Consume<SwitchTimeModeEvent>())
+        foreach (var ev in _bus.Read<SwitchTimeModeEvent>())
         {
             var isDeterministic = ev.TargetMode == TimeMode.Deterministic;
             IsPaused = isDeterministic;
@@ -162,7 +162,7 @@ public sealed class ClusterUiCache : IDisposable
     private void Process2PcNetworkTraffic()
     {
         // Insert new transactions when ExecuteNodeOpIntent arrives
-        foreach (var intent in _bus.ConsumeManaged<ExecuteNodeOpIntent>())
+        foreach (var intent in _bus.ReadManaged<ExecuteNodeOpIntent>())
         {
             // Sniff ManageEpisode Start/Stop/Forget to maintain active episodes set
             if (intent.Operation == FdpNodeOpType.StartEpisode
@@ -203,7 +203,7 @@ public sealed class ClusterUiCache : IDisposable
         HasInFlightTransaction = _inFlight.Count > 0;
 
         // Append NodeOpCompletedEvent ACKs to in-flight transactions
-        foreach (var ev in _bus.ConsumeManaged<NodeOpCompletedEvent>())
+        foreach (var ev in _bus.ReadManaged<NodeOpCompletedEvent>())
         {
             if (_inFlight.TryGetValue(ev.TransactionId, out var tx))
                 tx.NodeResponses[ev.NodeId] = ev.ResultPayload?.ToString() ?? string.Empty;
@@ -212,7 +212,7 @@ public sealed class ClusterUiCache : IDisposable
 
     private void DrainSysOpStatus()
     {
-        foreach (var ev in _bus.ConsumeManaged<ClusterOpCompletedEvent>())
+        foreach (var ev in _bus.ReadManaged<ClusterOpCompletedEvent>())
         {
             // Skip InProgress (non-terminal) status codes
             if (ev.StatusCode == OrchestrationStatusCode.InProgress) continue;

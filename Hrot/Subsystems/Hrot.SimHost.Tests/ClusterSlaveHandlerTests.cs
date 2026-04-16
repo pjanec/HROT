@@ -40,7 +40,7 @@ namespace Hrot.SimHost.Tests
             slave.Tick();
             eventBus.SwapBuffers();
 
-            var events = eventBus.Consume<TkClusterStateChangedEvent>().ToArray();
+            var events = eventBus.Read<TkClusterStateChangedEvent>().ToArray();
             Assert.Single(events);
             Assert.Equal((int)ClusterState.LoadingLive, events[0].NextStateId);
         }
@@ -72,7 +72,7 @@ namespace Hrot.SimHost.Tests
             slave.Tick();
             eventBus.SwapBuffers();
 
-            var events = eventBus.Consume<TkClusterStateChangedEvent>().ToArray();
+            var events = eventBus.Read<TkClusterStateChangedEvent>().ToArray();
             Assert.Single(events);
         }
 
@@ -112,7 +112,7 @@ namespace Hrot.SimHost.Tests
             eventBus.SwapBuffers();
 
             // CommitState must have fired → exactly one TkClusterStateChangedEvent.
-            var events = eventBus.Consume<TkClusterStateChangedEvent>().ToArray();
+            var events = eventBus.Read<TkClusterStateChangedEvent>().ToArray();
             Assert.Single(events);
             Assert.Equal((int)ClusterState.LoadingLive, events[0].NextStateId);
         }

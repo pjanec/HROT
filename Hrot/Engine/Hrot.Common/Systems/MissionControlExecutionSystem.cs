@@ -105,7 +105,7 @@ namespace Hrot.Common.Systems
             }
 
             // ── 2. Process newly-arrived intents ─────────────────────────────
-            var intents = World.Bus.ConsumeManaged<MissionControlIntent>();
+            var intents = World.Bus.ReadManaged<MissionControlIntent>();
             foreach (var intent in intents)
             {
                 ProcessIntent(World, intent);
