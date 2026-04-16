@@ -115,9 +115,6 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 ref readonly var intent = ref view.GetComponentRO<EcsNavigationIntent>(entity);
 
-                // Skip inactive intents -- no command to broadcast.
-                if (intent.Mode == EcsNavMode.None)
-                    continue;
 
                 // 2. Fine-grained per-entity filter: only publish when IntentId changed.
                 //    IntentId is incremented by every executor (MoveToExecutor, FollowRouteExecutor,

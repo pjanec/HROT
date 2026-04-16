@@ -135,6 +135,8 @@ namespace Hrot.Map.Common.Replication.Ingress
         private void ProcessGeoSpatialUpdate(UpdateEntityDescriptorRequest req, Entity entity)
         {
             // 2. Authority guard â€” only apply if this node owns the GeoSpatial descriptor.
+            // FIXME: Check native ECS component authority instead of the descriptor key
+            //        if (!repo.HasAuthority<SimTransform>(entity))
             var view = (ISimulationView)World;
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
             if (!view.HasAuthority(entity, packedKey))
@@ -163,9 +165,6 @@ namespace Hrot.Map.Common.Replication.Ingress
                 Rotation = currentRot,
             });
 
-            // 5. Force immediate GeoSpatial egress on this tick rather than waiting
-            //    for the next heartbeat window (GeoSpatial uses unreliable/UDP transport).
-            SmartEgressUtil.MarkDirty(World, entity, GeoSpatialOrdinal);
 
             FdpLog<UpdateEntityDescriptorRequestSystem>.Info(
                 "[UpdDescReq] Applied GeoSpatial move for NetID {0} â†’ ({1:F1}, {2:F1}, {3:F1}) Cartesian.",
