@@ -236,13 +236,6 @@ public sealed class NedReplicationModule : INedReplicationModule
         var egressTranslators = new List<FdpIDescriptorTranslator>(allTranslators.Count + 1);
         foreach (var t in allTranslators)
         {
-            // On Brain-only nodes, exclude OwnershipUpdateTranslator from the egress set.
-            // CycloneEgressSystem.ScanAndPublish destructively consumes OwnershipUpdate
-            // bus events (published by PollIngress) before OwnershipIngressSystem can read
-            // them to clear local authority bits. Brain never writes OwnershipUpdate to DDS
-            // so the egress path is unused — excluding it is safe and fixes the race.
-            if (_roleHasBrain && !_roleHasMuscle && t.DescriptorOrdinal == (long)EDescriptorType.dtOwnershipUpdate)
-                continue;
             egressTranslators.Add(t);
         }
         if (_dtoEgress != null) egressTranslators.Add(_dtoEgress);
@@ -319,22 +312,15 @@ public sealed class NedReplicationModule : INedReplicationModule
         if (pureBrainRole)
             registry.RegisterSystem(new OwnershipIngressSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
 
-        // ── LocalAuthorityYieldSystem (pure-Brain only) ──────────────────────
-        // When CGF spawns a split-authority entity, NetworkSpawningSystem sets AuthorityMask =
-        // ComponentMask (full authority) because CGF is OwnerNodeId. However, the DeferredTakeover
-        // grants in the same bus frame delegate some descriptors (e.g. dtWorldPos) to the Muscle.
-        // This system runs after NetworkSpawningSystem in BeforeSync and proactively clears the
-        // authority bits for those delegated components, without waiting for the DDS round-trip.
-        if (pureBrainRole)
-            registry.RegisterSystem(new LocalAuthorityYieldSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
 
-        // ── DeferredTakeover (Muscle and AllInOne only) ──────────────────────
-        // Runs BeforeSync: entity must be Constructing + have PendingAuthorityGrants.
-        // Ghost promotion for Muscle: promotes ghosts received from remote Brain (CGF) nodes.
-        // Pure-IG ghost promotion is registered above (pureIgRole block). Muscle needs a
-        // separate registration so that CGF-spawned entities (WorldPos delegated to Muscle)
-        // transition from Ghost → Constructing before DeferredTakeoverSystem claims authority.
-        if (_roleHasMuscle && _tkbDb != null && _lifecycleModule != null)
+
+		// ── DeferredTakeover (Muscle and AllInOne only) ──────────────────────
+		// Runs BeforeSync: entity must be Constructing + have PendingAuthorityGrants.
+		// Ghost promotion for Muscle: promotes ghosts received from remote Brain (CGF) nodes.
+		// Pure-IG ghost promotion is registered above (pureIgRole block). Muscle needs a
+		// separate registration so that CGF-spawned entities (WorldPos delegated to Muscle)
+		// transition from Ghost → Constructing before DeferredTakeoverSystem claims authority.
+		if( _roleHasMuscle && _tkbDb != null && _lifecycleModule != null)
             registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule));
         if (_roleHasMuscle)
             registry.RegisterSystem(new DeferredTakeoverSystem(_entityMap, _localNodeId, _descriptorOwnershipMap, _tkbDb));

@@ -139,27 +139,25 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 
         Assert.True(arrived, "Entity must reach SimHost before checking Brain authority");
 
-        // Give a few more frames so the OwnershipUpdate from Muscle flows back to CGF.
-        PumpBothFrames(simHost, cgf, frames: 30);
+        // Wait until OwnershipUpdate returns from Muscle and Brain drops SimTransform authority.
+        bool released = PumpBothUntil(simHost, cgf,
+            () =>
+            {
+                var cgfWorld = cgf.World;
+                var cgfMap   = cgf.CgfSvc.GhostEntityMap;
+                if (cgfWorld == null || cgfMap == null) return true;
 
-        // CGF should not have SimTransform authority (Muscle owns it).
-        var cgfWorld = cgf.World;
-        var cgfMap   = cgf.CgfSvc.GhostEntityMap;
+                if (!cgfMap.TryGetEntity(networkId, out Entity cgfEntity)) return true;
+                if (!cgfWorld.IsAlive(cgfEntity)) return true;
+                if (!cgfWorld.HasComponent<SimTransform>(cgfEntity)) return true;
 
-        if (cgfWorld == null || cgfMap == null)
-        {
-            // No CGF ghost map means nothing to assert — skip gracefully.
-            return;
-        }
+                return !cgfWorld.HasAuthority<SimTransform>(cgfEntity);
+            },
+            AuthorityTimeoutMs);
 
-        if (!cgfMap.TryGetEntity(networkId, out Entity cgfEntity)) return;
-        if (!cgfWorld.IsAlive(cgfEntity)) return;
-        if (!cgfWorld.HasComponent<SimTransform>(cgfEntity)) return;
-
-        bool cgfHasAuth = cgfWorld.HasAuthority<SimTransform>(cgfEntity);
-        Assert.False(cgfHasAuth,
-            $"CGF Brain should NOT have SimTransform authority for entity {networkId} " +
-            "when WorldPos was delegated to Muscle");
+        Assert.True(released,
+            $"CGF Brain should release SimTransform authority for entity {networkId} " +
+            $"within {AuthorityTimeoutMs} ms when WorldPos is delegated to Muscle");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -191,4 +189,5 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             Thread.Sleep(PumpSleepMs);
         }
     }
+
 }

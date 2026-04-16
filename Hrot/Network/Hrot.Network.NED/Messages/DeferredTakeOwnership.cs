@@ -21,6 +21,7 @@ namespace Hrot.NED.Messages
     /// <summary>
     /// Pre-genesis routing table broadcast by the Creator (Brain/CGF) node
     /// before publishing <c>EntityMaster</c>.
+    /// Exists to leave the ownership on the sender until the target receives all mandatory initial descriptors.
     ///
     /// <para>By arriving on the receiving Muscle (SimHost) before the <c>EntityMaster</c>
     /// packet, this message lets the ingress pipeline materialise a bare ghost and attach

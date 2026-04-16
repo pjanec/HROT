@@ -15,7 +15,7 @@ namespace Hrot.SimHost.Tests
     {
         [Fact]
         [Trait("Category", "Integration")]
-        public void ScanAndPublish_ForwardsOnlyLocalOwnerClaims()
+        public void ScanAndPublish_ForwardsOnlyLocalOriginClaims()
         {
             const int localNodeId = 7;
             const uint domainId = 212u;
@@ -32,14 +32,16 @@ namespace Hrot.SimHost.Tests
             {
                 NetworkId = new NetworkIdentity { Value = 1001 },
                 PackedKey = packedKey,
-                NewOwnerNodeId = localNodeId
+                NewOwnerNodeId = localNodeId + 1,
+                OriginNodeId = localNodeId
             });
 
             repo.Bus.Publish(new OwnershipUpdateMsg
             {
                 NetworkId = new NetworkIdentity { Value = 1002 },
                 PackedKey = packedKey,
-                NewOwnerNodeId = localNodeId + 1
+                NewOwnerNodeId = localNodeId,
+                OriginNodeId = localNodeId + 1
             });
 
             repo.Bus.SwapBuffers();
@@ -57,7 +59,8 @@ namespace Hrot.SimHost.Tests
 
                 written++;
                 Assert.Equal(1001, sample.Data.EntityId);
-                Assert.Equal(localNodeId, sample.Data.NewOwner);
+                Assert.Equal(localNodeId + 1, sample.Data.NewOwner);
+                Assert.Equal(localNodeId, sample.Data.OriginNodeId);
             }
 
             Assert.Equal(1, written);
@@ -65,7 +68,7 @@ namespace Hrot.SimHost.Tests
 
         [Fact]
         [Trait("Category", "Integration")]
-        public void PollIngress_DropsLoopbackSamplesForLocalOwner()
+        public void PollIngress_DropsLoopbackSamplesForLocalOrigin()
         {
             const int localNodeId = 9;
             const uint domainId = 213u;
@@ -81,7 +84,8 @@ namespace Hrot.SimHost.Tests
                 EntityId = 2222,
                 DescrTypeId = 2,
                 InstanceId = 0,
-                NewOwner = localNodeId
+                NewOwner = localNodeId + 1,
+                OriginNodeId = localNodeId
             });
 
             Thread.Sleep(200);
@@ -92,6 +96,40 @@ namespace Hrot.SimHost.Tests
             repo.Bus.SwapBuffers();
             var events = repo.Bus.Read<OwnershipUpdateMsg>();
             Assert.Equal(0, events.Length);
+        }
+
+        [Fact]
+        [Trait("Category", "Integration")]
+        public void PollIngress_AllowsRemoteOriginEvenIfNewOwnerIsLocal()
+        {
+            const int localNodeId = 10;
+            const uint domainId = 214u;
+            using var participant = new DdsParticipant(domainId);
+            using var writer = new DdsWriter<OwnershipUpdateWire>(participant, "SST_OwnershipUpdate");
+            var translator = new OwnershipUpdateTranslator(participant, localNodeId);
+
+            var repo = new EntityRepository();
+            repo.RegisterEvent<OwnershipUpdateMsg>();
+
+            writer.Write(new OwnershipUpdateWire
+            {
+                EntityId = 3333,
+                DescrTypeId = 3,
+                InstanceId = 0,
+                NewOwner = localNodeId,
+                OriginNodeId = localNodeId + 5
+            });
+
+            Thread.Sleep(200);
+            ISimulationView view = repo;
+            var cmd = view.GetCommandBuffer();
+            translator.PollIngress(cmd, view);
+
+            repo.Bus.SwapBuffers();
+            var events = repo.Bus.Read<OwnershipUpdateMsg>();
+            Assert.Equal(1, events.Length);
+            Assert.Equal(localNodeId, events[0].NewOwnerNodeId);
+            Assert.Equal(localNodeId + 5, events[0].OriginNodeId);
         }
     }
 }

@@ -128,6 +128,7 @@ namespace Hrot.Network.Systems
                         NetworkId      = new NetworkIdentity(netId.Value),
                         PackedKey      = packedKey,
                         NewOwnerNodeId = _localNodeId,
+                        OriginNodeId   = _localNodeId,
                     });
                 }
             }

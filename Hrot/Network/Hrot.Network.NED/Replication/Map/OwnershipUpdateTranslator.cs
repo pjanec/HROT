@@ -73,7 +73,7 @@ namespace Hrot.Map.Common.Replication
             foreach (var evt in updates)
             {
                 // Only forward claims originated by this node to prevent DDSâ†”bus echo loops.
-                if (evt.NewOwnerNodeId != _localNodeId)
+                if (evt.OriginNodeId != 0 && evt.OriginNodeId != _localNodeId)
                     continue;
 
                 var (typeId, instanceId) = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.UnpackKey(evt.PackedKey);
@@ -84,6 +84,7 @@ namespace Hrot.Map.Common.Replication
                     DescrTypeId = typeId,
                     InstanceId  = instanceId,
                     NewOwner    = evt.NewOwnerNodeId,
+                    OriginNodeId = evt.OriginNodeId != 0 ? evt.OriginNodeId : _localNodeId,
                 });
 
                 FdpLog<OwnershipUpdateTranslator>.Debug(
@@ -109,7 +110,7 @@ namespace Hrot.Map.Common.Replication
                 var msg = sample.Data;
 
                 // Drop DDS loopback of our own claim to prevent local echo storms.
-                if (msg.NewOwner == _localNodeId)
+                if (msg.OriginNodeId == _localNodeId)
                     continue;
 
                 long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(msg.DescrTypeId, msg.InstanceId);
@@ -119,6 +120,7 @@ namespace Hrot.Map.Common.Replication
                     NetworkId      = new NetworkIdentity { Value = msg.EntityId },
                     PackedKey      = packedKey,
                     NewOwnerNodeId = msg.NewOwner,
+                    OriginNodeId   = msg.OriginNodeId,
                 });
 
                 FdpLog<OwnershipUpdateTranslator>.Debug(
