@@ -35,30 +35,40 @@ namespace Fdp.Toolkit.Navigation.Systems
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     public class NavigationIntentBridgeSystem : ComponentSystem
     {
-        // Tracks the last IntentId applied per entity index (used for FollowRoute loop-reset).
-        // Key: entity index (int). Stale entries for destroyed entities are harmless — a new
-        // entity at the same slot will have IntentId=0 (default) which never matches the stored
-        // value, so ProgressS will be reset on first activation (correct behaviour).
-        private readonly Dictionary<int, uint> _lastAppliedIntentId = new();
+        // FIX: Cache by the full Entity struct (Index + Generation) to prevent
+        // false-positives when entity indices are recycled by the free-list.
+        private readonly Dictionary<Entity, uint> _lastAppliedIntentId = new();
+    
+        private uint _lastScanTick;
 
         protected override void OnUpdate()
         {
-            var query = World.Query()
+            if (World is not EntityRepository repo) return;
+
+            var query = repo.Query()
                 .With<NavigationIntent>()
                 .With<NavState>()
                 .Build();
 
-            foreach (var entity in query)
+            // 1. Coarse unmanaged filter
+            foreach (var entity in repo.QueryDelta(query, _lastScanTick))
             {
-                var intent = World.GetComponent<NavigationIntent>(entity);
+                var intent = repo.GetComponent<NavigationIntent>(entity);
 
-                var nav = World.GetComponent<NavState>(entity);
+                // 2. Fine-grained filter using the full Entity struct
+                if (_lastAppliedIntentId.TryGetValue(entity, out uint lastId) 
+                    && lastId == intent.IntentId)
+                {
+                    continue;
+                }
+
+                var nav = repo.GetComponent<NavState>(entity);
 
                 switch (intent.Mode)
                 {
                     case NavigationMode.None:
                         nav.Mode = KinematicsMode.None;
-                        nav.TargetSpeed = 0f; // Critical: Prevents "Drive to point" fallback in CarKinematicsSystem
+                        nav.TargetSpeed = 0f;
                         break;
 
                     case NavigationMode.DirectPoint:
@@ -78,26 +88,13 @@ namespace Fdp.Toolkit.Navigation.Systems
                         break;
 
                     case NavigationMode.FollowRoute:
-                    {
-                        bool isNewIntent = !_lastAppliedIntentId.TryGetValue(entity.Index, out uint lastId)
-                                           || lastId != intent.IntentId;
-
                         nav.Mode         = KinematicsMode.CustomTrajectory;
                         nav.TrajectoryId = intent.TrajectoryId;
                         nav.HasArrived   = 0;
-                        if (isNewIntent)
-                            // ProgressS is reset ONLY when the intent id changes (i.e. a new or
-                            // looped command), NOT every tick.  Resetting unconditionally would
-                            // restart the route from the beginning on every frame while the
-                            // vehicle is driving, making forward progress impossible.
-                            nav.ProgressS = 0f;  // restart route from beginning on new intent
-
-                        _lastAppliedIntentId[entity.Index] = intent.IntentId;
+                        nav.ProgressS    = 0f; 
                         break;
-                    }
 
                     default:
-                        // Unsupported modes fall through as Direct (best-effort).
                         nav.Mode             = KinematicsMode.Direct;
                         nav.FinalDestination = intent.FinalDestination;
                         nav.TargetSpeed      = intent.TargetSpeed;
@@ -106,8 +103,13 @@ namespace Fdp.Toolkit.Navigation.Systems
                         break;
                 }
 
-                World.SetComponent(entity, nav);
+                repo.SetComponent(entity, nav);
+            
+                // Cache against the generation-safe handle
+                _lastAppliedIntentId[entity] = intent.IntentId;
             }
+
+            _lastScanTick = repo.GlobalVersion; 
         }
     }
 }
