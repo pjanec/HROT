@@ -1,4 +1,6 @@
 using System.Linq;
+using System.Numerics;
+using System.Reflection;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Systems;
 using Hrot.Map.Common.Replication.Ingress;
@@ -7,6 +9,7 @@ using CarKinem.Road;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Services;
 using Xunit;
 
@@ -104,6 +107,40 @@ namespace Hrot.SimHost.Tests
 
             Assert.False(loaderCalled);
             Assert.Equal(default, returned);
+        }
+
+        [Fact]
+        public void TestHook_SetMovementIntent_PreservesAndIncrementsExistingIntentId()
+        {
+            using var world = new EntityRepository();
+            world.RegisterComponent<NavigationIntent>();
+
+            var entity = world.CreateEntity();
+            world.AddComponent(entity, new NavigationIntent { IntentId = 5u });
+
+            var entityMap = new NetworkEntityMap();
+            entityMap.Register(42L, entity);
+
+            var app = new SimHostApp();
+            SetPrivateField(app, "_world", world);
+            SetPrivateField(app, "_entityMap", entityMap);
+
+            var destination = new Vector2(10f, 20f);
+            app.TestHook_SetMovementIntent(42L, destination, speed: 12f);
+
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            Assert.Equal(6u, intent.IntentId);
+            Assert.Equal(NavigationMode.DirectPoint, intent.Mode);
+            Assert.Equal(destination, intent.FinalDestination);
+            Assert.Equal(12f, intent.TargetSpeed);
+            Assert.Equal(20f, intent.ArrivalRadius);
+        }
+
+        private static void SetPrivateField(object target, string fieldName, object? value)
+        {
+            var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(field);
+            field!.SetValue(target, value);
         }
     }
 }

@@ -689,16 +689,18 @@ namespace Hrot.SimHost
             if (!_world.IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive.");
 
-            var intent = new NavigationIntent
-            {
-                Mode             = NavigationMode.DirectPoint,
-                FinalDestination = destination,
-                TargetSpeed      = speed,
-                ArrivalRadius    = 20f,
-            };
+            var hasIntent = _world.HasComponent<NavigationIntent>(entity);
+            var intent = hasIntent
+                ? _world.GetComponent<NavigationIntent>(entity)
+                : new NavigationIntent();
+
+            intent.Mode             = NavigationMode.DirectPoint;
+            intent.FinalDestination = destination;
+            intent.TargetSpeed      = speed;
+            intent.ArrivalRadius    = 20f;
             unchecked { intent.IntentId++; }
 
-            if (_world.HasComponent<NavigationIntent>(entity))
+            if (hasIntent)
                 _world.SetComponent(entity, intent);
             else
                 _world.AddComponent(entity, intent);
