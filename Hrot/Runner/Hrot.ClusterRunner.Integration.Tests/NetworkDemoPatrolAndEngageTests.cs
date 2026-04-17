@@ -433,7 +433,7 @@ public sealed class NetworkDemoPatrolAndEngageTests
 
                 // Pack AimAndFireParams into the channel's inline buffer.
                 fixed (byte* ptr = ch.Params)
-                    *(AimAndFireParams*)ptr = new AimAndFireParams { Target = Entity.Null, CooldownTicks = 0 };
+                    *(AimAndFireParams*)ptr = new AimAndFireParams { Target = Entity.Null, CooldownSeconds = 0f };
 
                 bool needsReactivation =
                     ch.ActiveAction != CombatConstants.ActionIdAimAndFire

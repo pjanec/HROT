@@ -32,6 +32,7 @@ using Hrot.Editor.Modules;
 using Hrot.Editor.Rendering;
 using Hrot.Editor.UI;
 using Hrot.IG.Systems;
+using Hrot.IG.Modules;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Config;
 using Hrot.Map.Common.Services;
@@ -146,6 +147,11 @@ namespace Hrot.Editor
 
         private DefaultSelectionState? _selectionState;
 
+        // ── Production visualizer dependencies ───────────────────────────────────
+
+        private readonly MapUserConfig     _userConfig     = new();
+        private readonly MapCameraViewport _cameraViewport = new();
+
         // ── Tool handling ─────────────────────────────────────────────────────────
 
         private EditorInteractionTool? _interactionTool;
@@ -258,6 +264,10 @@ namespace Hrot.Editor
             // MapDisplayComponent is used by MapLayerAssignmentSystem to tag entities
             // with the layer bitmask read by EntityRenderLayer for visibility culling.
             _world.RegisterComponent<MapDisplayComponent>();
+            // IG presentation components required by NedVisualizerAdapter.
+            _world.RegisterComponent<Hrot.IG.Components.CullingState>();
+            _world.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();
+            _world.RegisterManagedComponent<Hrot.IG.Components.IgSymbolOverride>();
 
             // ── 2. Time controller (stepping — no DDS sync partner) ──────────
             _stepping = new SteppingTimeController(new GlobalTime { TimeScale = 1.0f });
@@ -266,6 +276,7 @@ namespace Hrot.Editor
             // ── 3. Shared services ────────────────────────────────────────────
             var entityMap        = new NetworkEntityMap();
             var doctrineRegistry = new DoctrineRegistry();
+            Hrot.CGF.Configuration.CgfDoctrineSetup.RegisterAll(doctrineRegistry, geoTransform: null, entityMap);
             var clusterSlave     = new ClusterSlave(0, "Editor", _world.Bus);
             var zoneService      = new ZoneManagerService();
 
@@ -317,6 +328,11 @@ namespace Hrot.Editor
             // Stamps MapDisplayComponent.LayerMask on each entity so EntityRenderLayer
             // can cull entities whose layer is toggled off in the editor's config panel.
             _kernel.RegisterGlobalSystem(new MapLayerAssignmentSystem());
+
+            // ── 4e. IG presentation modules — compute CullingState and ResolvedStyle ──
+            // Must be registered BEFORE Initialize() so their component queries are built.
+            _kernel.RegisterModule(new MapCullingModule(_cameraViewport));
+            _kernel.RegisterModule(new StyleResolutionModule(_userConfig, localNodeId: 0));
 
             // ── 5. Kernel initialization ──────────────────────────────────────
             _kernel.Initialize();
@@ -379,7 +395,7 @@ namespace Hrot.Editor
                     .Build();
 
                 // Entity render layer — draws entity symbols on the map.
-                var visualizerAdapter = new StubVisualizerAdapter();
+                var visualizerAdapter = new NedVisualizerAdapter(localNodeId: 0);
                 var renderLayer = new EntityRenderLayer(
                     "Entities", layerBitIndex: -1,
                     _world, entityQuery, visualizerAdapter, _selectionState)
@@ -489,6 +505,20 @@ namespace Hrot.Editor
             // Process input pipeline BEFORE kernel update so authored tools
             // (CreationTool, ObstaclePlacementTool, etc.) receive mouse events this frame.
             _canvas?.Update(deltaTime);
+
+            // Update camera viewport so MapCullingModule knows what area is on-screen.
+            if (_camera != null)
+            {
+                var topLeft     = _camera.ScreenToWorld(System.Numerics.Vector2.Zero);
+                var bottomRight = _camera.ScreenToWorld(
+                    new System.Numerics.Vector2(Raylib_cs.Raylib.GetScreenWidth(), Raylib_cs.Raylib.GetScreenHeight()));
+
+                _cameraViewport.WorldMinX = System.MathF.Min(topLeft.X, bottomRight.X);
+                _cameraViewport.WorldMaxX = System.MathF.Max(topLeft.X, bottomRight.X);
+                _cameraViewport.WorldMinY = System.MathF.Min(topLeft.Y, bottomRight.Y);
+                _cameraViewport.WorldMaxY = System.MathF.Max(topLeft.Y, bottomRight.Y);
+                _cameraViewport.Zoom      = _camera.Zoom;
+            }
 
             // Kernel.Update() internally calls bus.SwapBuffers() then ticks registered modules.
             _kernel?.Update();

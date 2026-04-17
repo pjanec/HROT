@@ -152,7 +152,7 @@ namespace Hrot.Map.Definitions.Tkb
                 {
                     Ammo                   = primary.Ammunition,
                     MuzzleVelocity         = primary.Range > 0f ? primary.Range : 800f,
-                    CooldownTicksRemaining = 0
+                    CooldownSecondsRemaining = 0f
                 });
             }
 

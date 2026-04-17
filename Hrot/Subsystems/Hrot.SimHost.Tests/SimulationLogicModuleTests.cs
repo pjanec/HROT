@@ -207,7 +207,7 @@ namespace Hrot.SimHost.Tests
             world.AddComponent(entity, new SimVelocity());
             world.AddComponent(entity, new PerceptionReceptor { VisionRange = 500f, HearingRange = 250f, FieldOfViewCos = 0f });
             world.AddComponent(entity, new TargetMemory());
-            world.AddComponent(entity, new WeaponState { Ammo = 1, MuzzleVelocity = 800f, CooldownTicksRemaining = 0 });
+            world.AddComponent(entity, new WeaponState { Ammo = 1, MuzzleVelocity = 800f, CooldownSecondsRemaining = 0f });
             world.AddComponent(entity, new Health { Current = 100f, Max = 100f });
             world.AddComponent(entity, new PhysicsCollider { Radius = 1.0f, CollisionLayer = 1 });
             world.AddComponent(entity, new Faction { FactionId = 1 });

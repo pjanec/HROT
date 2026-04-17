@@ -56,5 +56,16 @@ namespace Hrot.CGF.Configuration
         /// No configurable parameters (params block is ignored).
         /// </summary>
         public const int WanderMilitary_BT = 3011;
+
+        // ── Combat doctrines (BTree, 3012-3019) ───────────────────────────────
+
+        /// <summary>
+        /// Fire at a specific target entity (BTree).
+        /// BehaviorId string: <c>"FireAtTarget"</c>.
+        /// Params JSON: <c>{ "targetNetworkId": &lt;long&gt;, "maxRounds": &lt;int&gt;, "cooldownSeconds": &lt;float&gt; }</c>.
+        /// Finishes with Success when the target is destroyed or max rounds are exhausted.
+        /// Finishes with Failure when the target leaves sensor range.
+        /// </summary>
+        public const int FireAtTarget_BT = 3012;
     }
 }

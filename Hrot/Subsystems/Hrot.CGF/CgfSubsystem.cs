@@ -206,7 +206,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ── Create replication module via factory (Brain role) ─────────────────
         // Replaces: EntityStatesIngressPack + ActuatorIntentsEgressPack + GhostCleanupModule
         var doctrineRegistry = new DoctrineRegistry();
-        CgfDoctrineSetup.RegisterAll(doctrineRegistry, _context.GeoTransform!);
+        CgfDoctrineSetup.RegisterAll(doctrineRegistry, _context.GeoTransform, _entityMap);
         _doctrineRegistry = doctrineRegistry;
 
         // Configure network factory for this node so auxiliary translators can be created.

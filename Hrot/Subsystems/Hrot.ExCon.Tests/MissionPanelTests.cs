@@ -660,5 +660,88 @@ public class MissionPanelTests
         // Even with no selection the service is called to get behaviors for entity 0.
         missionSvc.Verify(s => s.GetAvailableBehaviors(0L), Times.Once);
     }
+
+    // ── FireAtTarget param helpers ────────────────────────────────────────────
+
+    [Fact]
+    public void BuildFireAtTargetParams_ProducesValidJson()
+    {
+        string json = MissionPanel.BuildFireAtTargetParams(targetNetworkId: 42, maxRounds: 5, cooldownSeconds: 1.5f);
+
+        Assert.Contains("\"targetNetworkId\":42", json);
+        Assert.Contains("\"maxRounds\":5", json);
+        Assert.Contains("\"cooldownSeconds\":", json);
+    }
+
+    [Fact]
+    public void TryParseFireAtTargetParams_ValidJson_ReturnsTrue_AndParsesFields()
+    {
+        string json = "{\"targetNetworkId\":99,\"maxRounds\":3,\"cooldownSeconds\":2.0}";
+
+        bool ok = MissionPanel.TryParseFireAtTargetParams(
+            json, out long targetId, out int maxRounds, out float cooldownSeconds);
+
+        Assert.True(ok);
+        Assert.Equal(99L, targetId);
+        Assert.Equal(3, maxRounds);
+        Assert.Equal(2.0f, cooldownSeconds, precision: 3);
+    }
+
+    [Fact]
+    public void TryParseFireAtTargetParams_EmptyString_ReturnsFalse()
+    {
+        bool ok = MissionPanel.TryParseFireAtTargetParams(
+            "", out long targetId, out _, out _);
+
+        Assert.False(ok);
+        Assert.Equal(0L, targetId);
+    }
+
+    [Fact]
+    public void TryParseFireAtTargetParams_MalformedJson_ReturnsFalse()
+    {
+        bool ok = MissionPanel.TryParseFireAtTargetParams(
+            "not-json", out _, out _, out _);
+
+        Assert.False(ok);
+    }
+
+    [Fact]
+    public void TryParseFireAtTargetParams_ZeroTargetNetworkId_ReturnsFalse()
+    {
+        // targetNetworkId == 0 means "not resolved", should return false.
+        string json = "{\"targetNetworkId\":0,\"maxRounds\":1,\"cooldownSeconds\":1.0}";
+
+        bool ok = MissionPanel.TryParseFireAtTargetParams(
+            json, out long targetId, out _, out _);
+
+        Assert.False(ok);
+        Assert.Equal(0L, targetId);
+    }
+
+    [Fact]
+    public void BuildFireAtTargetParams_RoundTrip_PreservesAllFields()
+    {
+        string json = MissionPanel.BuildFireAtTargetParams(77L, maxRounds: 10, cooldownSeconds: 0.5f);
+
+        bool ok = MissionPanel.TryParseFireAtTargetParams(
+            json, out long targetId, out int maxRounds, out float cooldownSeconds);
+
+        Assert.True(ok);
+        Assert.Equal(77L, targetId);
+        Assert.Equal(10, maxRounds);
+        Assert.Equal(0.5f, cooldownSeconds, precision: 3);
+    }
+
+    [Fact]
+    public void HandleEditBehaviorId_FireAtTarget_SetsBehaviorId()
+    {
+        var panel = new MissionPanel { SelectedEntityId = 1 };
+        panel.SetDraftPlan(BuildPlan(""), baseVersion: 0);
+
+        panel.HandleEditBehaviorId(0, "FireAtTarget");
+
+        Assert.Equal("FireAtTarget", panel.DraftPlan!.Tasks![0].BehaviorId);
+    }
 }
 

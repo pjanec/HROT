@@ -79,8 +79,8 @@ namespace Hrot.SimHost.Serializers
                     ? string.Empty
                     : resolver.Resolve(p.Target);
 
-                obj["Params_AimAndFire_Target"]       = targetGuid;
-                obj["Params_AimAndFire_CooldownTicks"] = p.CooldownTicks;
+                obj["Params_AimAndFire_Target"]          = targetGuid;
+                obj["Params_AimAndFire_CooldownSeconds"] = p.CooldownSeconds;
             }
 
             return new Dictionary<string, object> { [Key] = obj };
@@ -111,9 +111,9 @@ namespace Hrot.SimHost.Serializers
                     ? Entity.Null
                     : resolver.Resolve(guidStr);
 
-                int cooldown = obj["Params_AimAndFire_CooldownTicks"]?.GetValue<int>() ?? 0;
+                float cooldownSeconds = obj["Params_AimAndFire_CooldownSeconds"]?.GetValue<float>() ?? 0f;
 
-                var p = new AimAndFireParams { Target = target, CooldownTicks = cooldown };
+                var p = new AimAndFireParams { Target = target, CooldownSeconds = cooldownSeconds };
                 WeaponChannel* chPtr = &ch;
                 *(AimAndFireParams*)(&chPtr->Params) = p;
             }

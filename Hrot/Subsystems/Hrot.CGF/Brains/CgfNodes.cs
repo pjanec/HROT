@@ -393,5 +393,212 @@ namespace Hrot.CGF.Brains
             var blob = TreeCompiler.CompileFromJson(JoinFormationJson);
             return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
         }
+
+        // ── FireAtTarget ───────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Blackboard layout for the FireAtTarget doctrine (20 bytes total):
+        ///   [0..7]   TargetPacked (long)  - Entity.PackedValue of the target
+        ///   [8..11]  MaxRounds    (int)   - 0 = unlimited
+        ///   [12..15] CooldownSeconds (float) - seconds between shots
+        ///   [16..19] RoundsFired  (int)   - runtime state, initialized to 0
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct FireAtTargetParams
+        {
+            /// <summary>Packed ECS entity value of the target. 0 = no target resolved yet.</summary>
+            public long  TargetPacked;
+            /// <summary>Maximum number of fire activations. 0 = unlimited.</summary>
+            public int   MaxRounds;
+            /// <summary>Seconds to wait between successive shots.</summary>
+            public float CooldownSeconds;
+            /// <summary>Runtime counter of fire activations (written back to blackboard).</summary>
+            public int   RoundsFired;
+        }
+
+        private class FireAtTargetParamsJsonDto
+        {
+            public long  TargetNetworkId  { get; set; }
+            public int   MaxRounds        { get; set; }
+            public float CooldownSeconds  { get; set; }
+        }
+
+        /// <summary>
+        /// Parses FireAtTarget JSON params and writes the resolved
+        /// <see cref="FireAtTargetParams"/> into the blackboard memory pointer.
+        /// </summary>
+        public static unsafe void ParseFireAtTargetParams(
+            string json, byte* ptr,
+            Fdp.Toolkit.Replication.Services.NetworkEntityMap entityMap)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                Unsafe.Write(ptr, default(FireAtTargetParams));
+                return;
+            }
+
+            var dto = JsonSerializer.Deserialize<FireAtTargetParamsJsonDto>(json, JsonOptions);
+            if (dto == null)
+            {
+                Unsafe.Write(ptr, default(FireAtTargetParams));
+                return;
+            }
+
+            long targetPacked = 0;
+            if (dto.TargetNetworkId != 0
+                && entityMap.TryGetEntity(dto.TargetNetworkId, out var entity))
+            {
+                targetPacked = (long)entity.PackedValue;
+            }
+
+            Unsafe.Write(ptr, new FireAtTargetParams
+            {
+                TargetPacked    = targetPacked,
+                MaxRounds       = dto.MaxRounds,
+                CooldownSeconds = dto.CooldownSeconds,
+                RoundsFired     = 0,
+            });
+        }
+
+        /// <summary>
+        /// BTree condition node: returns Success when the target entity is alive and
+        /// currently tracked in the entity's TargetMemory (visible + threat score > 0).
+        /// Returns Failure when the target is dead or out of sensor range.
+        /// </summary>
+        public static unsafe NodeStatus Condition_TargetAliveAndVisible(
+            ref BrainBlackboard blackboard,
+            ref BehaviorTreeState state,
+            ref BTreeContext ctx,
+            int paramIndex)
+        {
+            FireAtTargetParams p;
+            fixed (byte* src = blackboard.Memory)
+                p = Unsafe.Read<FireAtTargetParams>(src);
+
+            var target = new Fdp.Core.Entity((ulong)p.TargetPacked);
+
+            if (!ctx.World.IsAlive(target))
+                return NodeStatus.Failure;
+
+            if (!ctx.World.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self))
+                return NodeStatus.Failure;
+
+            ref readonly var mem = ref ctx.World.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self);
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.EntityIds[i] == p.TargetPacked && mem.ThreatScores[i] > 0f)
+                    return NodeStatus.Success;
+            }
+
+            return NodeStatus.Failure;
+        }
+
+        /// <summary>
+        /// BTree action node: manages continuous firing at the configured target via
+        /// <see cref="Fdp.Toolkit.Behavior.Components.WeaponChannel"/> and the AimAndFire executor.
+        ///
+        /// <list type="bullet">
+        ///   <item>Returns Success when the target is destroyed or max rounds are exhausted.</item>
+        ///   <item>Returns Failure when the target leaves sensor range.</item>
+        ///   <item>Returns Running while actively firing.</item>
+        /// </list>
+        /// </summary>
+        public static unsafe NodeStatus Action_FireAtTarget(
+            ref BrainBlackboard blackboard,
+            ref BehaviorTreeState state,
+            ref BTreeContext ctx,
+            int paramIndex)
+        {
+            FireAtTargetParams p;
+            fixed (byte* src = blackboard.Memory)
+                p = Unsafe.Read<FireAtTargetParams>(src);
+
+            var target = new Fdp.Core.Entity((ulong)p.TargetPacked);
+
+            // Target destroyed = mission accomplished.
+            if (!ctx.World.IsAlive(target))
+                return NodeStatus.Success;
+
+            // Target out of sensor range = mission aborted.
+            if (ctx.World.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self))
+            {
+                bool visible = false;
+                ref readonly var mem = ref ctx.World.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self);
+                for (int i = 0; i < mem.Count; i++)
+                {
+                    if (mem.EntityIds[i] == p.TargetPacked && mem.ThreatScores[i] > 0f)
+                    {
+                        visible = true;
+                        break;
+                    }
+                }
+                if (!visible) return NodeStatus.Failure;
+            }
+
+            // Max rounds reached = cease fire.
+            if (p.MaxRounds > 0 && p.RoundsFired >= p.MaxRounds)
+                return NodeStatus.Success;
+
+            if (!ctx.World.HasComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>(ctx.Self))
+                return NodeStatus.Failure;
+
+            ref var channel = ref ctx.World.GetComponentRW<Fdp.Toolkit.Behavior.Components.WeaponChannel>(ctx.Self);
+
+            // Propagate executor success (target died mid-fire session).
+            if (channel.Status == Fbt.NodeStatus.Success
+                && channel.ActiveAction == Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire)
+            {
+                return NodeStatus.Success;
+            }
+
+            bool needsActivation =
+                channel.ActiveAction != Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire
+                || channel.Status    == Fbt.NodeStatus.Failure;
+
+            if (needsActivation)
+            {
+                fixed (byte* ptr = channel.Params)
+                    *(Fdp.Toolkit.Combat.Executors.AimAndFireParams*)ptr =
+                        new Fdp.Toolkit.Combat.Executors.AimAndFireParams
+                        {
+                            Target          = target,
+                            CooldownSeconds = p.CooldownSeconds,
+                        };
+
+                unchecked { channel.ActionInstanceId++; }
+                channel.ActiveAction = Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire;
+
+                // Write incremented RoundsFired back into blackboard memory.
+                fixed (byte* src = blackboard.Memory)
+                    *(int*)(src + 16) = p.RoundsFired + 1;
+            }
+
+            return NodeStatus.Running;
+        }
+
+        private const string FireAtTargetJson = """
+            {
+              "TreeName": "FireAtTarget",
+              "Root": {
+                "Type": "Sequence",
+                "Children": [
+                  { "Type": "Condition", "Action": "Condition_TargetAliveAndVisible" },
+                  { "Type": "Action",    "Action": "Action_FireAtTarget" }
+                ]
+              }
+            }
+            """;
+
+        /// <summary>
+        /// Builds and returns a ready-to-use BTree interpreter for the FireAtTarget_BT doctrine.
+        /// </summary>
+        public static Interpreter<BrainBlackboard, BTreeContext> BuildFireAtTargetInterpreter()
+        {
+            var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            registry.Register("Condition_TargetAliveAndVisible", Condition_TargetAliveAndVisible);
+            registry.Register("Action_FireAtTarget",             Action_FireAtTarget);
+            var blob = TreeCompiler.CompileFromJson(FireAtTargetJson);
+            return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
+        }
     }
 }

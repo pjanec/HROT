@@ -1,5 +1,6 @@
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Replication.Services;
 using Hrot.CGF.Brains;
 
 namespace Hrot.CGF.Configuration
@@ -11,10 +12,17 @@ namespace Hrot.CGF.Configuration
     /// </summary>
     public static class CgfDoctrineSetup
     {
-        public static void RegisterAll(DoctrineRegistry registry, IGeographicTransform geoTransform)
+        /// <param name="geoTransform">
+        /// Geographic coordinate transform used by MoveToLocation. May be <c>null</c>
+        /// in the offline editor where only Cartesian coordinates are used.
+        /// </param>
+        public static void RegisterAll(
+            DoctrineRegistry registry,
+            IGeographicTransform? geoTransform,
+            NetworkEntityMap entityMap)
         {
-            if (registry == null) throw new System.ArgumentNullException(nameof(registry));
-            if (geoTransform == null) throw new System.ArgumentNullException(nameof(geoTransform));
+            if (registry  == null) throw new System.ArgumentNullException(nameof(registry));
+            if (entityMap == null) throw new System.ArgumentNullException(nameof(entityMap));
 
             unsafe
             {
@@ -34,6 +42,15 @@ namespace Hrot.CGF.Configuration
                         BrainTier = BehaviorConstants.BrainTierBTree,
                         ParseParams = (json, ptr) => CgfNodes.ParseFollowRouteParams(json, ptr),
                         BTreeInterpreter = CgfNodes.BuildFollowRouteInterpreter()
+                    });
+
+                registry.Register(CgfDoctrineIds.FireAtTarget_BT, "FireAtTarget",
+                    new DoctrineDefinition
+                    {
+                        Name = "FireAtTarget",
+                        BrainTier = BehaviorConstants.BrainTierBTree,
+                        ParseParams = (json, ptr) => CgfNodes.ParseFireAtTargetParams(json, ptr, entityMap),
+                        BTreeInterpreter = CgfNodes.BuildFireAtTargetInterpreter()
                     });
             }
 

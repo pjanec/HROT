@@ -58,6 +58,7 @@ public sealed class MissionPanel
 
     private const string BehaviorNameMoveToLocation = "MoveToLocation";
     private const string BehaviorNameFollowRoute    = "FollowRoute";
+    private const string BehaviorNameFireAtTarget   = "FireAtTarget";
 
     /// <summary>Returns the default params string for the given trigger type.</summary>
     public static string GetDefaultTriggerParams(string triggerType) => triggerType switch
@@ -374,6 +375,38 @@ public sealed class MissionPanel
         => $"{{\"routeEntityId\":{routeEntityId}}}";
 
     /// <summary>
+    /// Builds the canonical <c>FireAtTarget</c> behavior-params JSON.
+    /// </summary>
+    internal static string BuildFireAtTargetParams(long targetNetworkId, int maxRounds = 0, float cooldownSeconds = 1.0f)
+        => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{{\"targetNetworkId\":{targetNetworkId},\"maxRounds\":{maxRounds},\"cooldownSeconds\":{cooldownSeconds:F2}}}");
+
+    /// <summary>
+    /// Tries to parse the target network ID, max rounds, and cooldown seconds from a
+    /// <c>FireAtTarget</c> params JSON string.
+    /// </summary>
+    internal static bool TryParseFireAtTargetParams(
+        string json, out long targetNetworkId, out int maxRounds, out float cooldownSeconds)
+    {
+        targetNetworkId = 0; maxRounds = 0; cooldownSeconds = 1.0f;
+        if (string.IsNullOrWhiteSpace(json)) return false;
+        try
+        {
+            using var doc  = JsonDocument.Parse(json);
+            var       root = doc.RootElement;
+            if (root.TryGetProperty("targetNetworkId", out var idEl))
+                targetNetworkId = idEl.GetInt64();
+            if (root.TryGetProperty("maxRounds", out var mrEl))
+                maxRounds = mrEl.GetInt32();
+            if (root.TryGetProperty("cooldownSeconds", out var csEl))
+                cooldownSeconds = csEl.GetSingle();
+            return targetNetworkId != 0;
+        }
+        catch { /* malformed */ }
+        return false;
+    }
+
+    /// <summary>
     /// Tries to parse lat/lon from a <c>MoveToLocation</c> params JSON string.
     /// </summary>
     internal static bool TryParseMoveToLocationParams(string json, out double lat, out double lon)
@@ -491,6 +524,10 @@ public sealed class MissionPanel
                 else if (task.BehaviorId == BehaviorNameFollowRoute)
                 {
                     DrawFollowRouteParams(i, paramsBuffer, pick);
+                }
+                else if (task.BehaviorId == BehaviorNameFireAtTarget)
+                {
+                    DrawFireAtTargetParams(i, paramsBuffer, pick);
                 }
                 else
                 {
@@ -728,6 +765,39 @@ public sealed class MissionPanel
 
     // ── Behavior-specific parameter editors ───────────────────────────────────
 
+    private void DrawFireAtTargetParams(int taskIndex, string currentParams, IMapPickService pick)
+    {
+        bool pickingThis = IsEntityPickPending && _pendingPickTaskIndex == taskIndex;
+
+        if (TryParseFireAtTargetParams(currentParams, out long targetId, out _, out _))
+            ImGui.Text($"Target NetID: {targetId}");
+        else
+            ImGui.TextDisabled("No target set");
+
+        if (pickingThis)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0f, 1f), "[Picking Entity...]");
+        }
+        else
+        {
+            ImGui.SameLine();
+            if (ImGui.SmallButton($"Pick Target##{taskIndex}"))
+                HandlePickEntity(taskIndex, pick, filterPresets: null);
+        }
+
+        var paramsSize = new System.Numerics.Vector2(
+            ImGui.GetContentRegionAvail().X,
+            ImGui.GetTextLineHeightWithSpacing() * PanelConstants.MissionBehaviorParamsEditorLines);
+
+        string buffer = currentParams;
+        if (ImGui.InputTextMultiline($"##Params{taskIndex}", ref buffer,
+                PanelConstants.MissionBehaviorParamsMaxLength, paramsSize))
+        {
+            HandleEditBehaviorParams(taskIndex, buffer);
+        }
+    }
+
     private void DrawMoveToLocationParams(int taskIndex, string currentParams, IMapPickService pick)
     {
         bool pickingThis = IsLocationPickPending && _pendingPickTaskIndex == taskIndex;
@@ -806,10 +876,31 @@ public sealed class MissionPanel
             if (!task.IsFaulted && !task.IsCanceled && idx >= 0)
             {
                 int entityId = task.Result;
-                string json  = BuildFollowRouteParams(entityId);
+
+                // Build params JSON appropriate for the behavior being edited.
+                string json;
+                string behaviorId = (_draftPlan?.Tasks != null && idx < _draftPlan.Tasks.Count)
+                    ? (_draftPlan.Tasks[idx].BehaviorId ?? string.Empty)
+                    : string.Empty;
+
+                if (behaviorId == BehaviorNameFireAtTarget)
+                {
+                    // Preserve existing MaxRounds / CooldownSeconds; update only TargetNetworkId.
+                    string existing = (_draftPlan?.Tasks != null && idx < _draftPlan.Tasks.Count)
+                        ? (_draftPlan.Tasks[idx].BehaviorParams ?? string.Empty)
+                        : string.Empty;
+                    TryParseFireAtTargetParams(existing, out _, out int maxRounds, out float cooldownSeconds);
+                    json = BuildFireAtTargetParams((long)entityId, maxRounds, cooldownSeconds);
+                }
+                else
+                {
+                    json = BuildFollowRouteParams(entityId);
+                }
+
                 HandleEditBehaviorParams(idx, json);
                 FdpLog<MissionPanel>.Info(
-                    "[Node-{0}] EntityPick resolved: task={1} entityId={2}", _localNodeId, idx, entityId);
+                    "[Node-{0}] EntityPick resolved: task={1} entityId={2} behavior={3}",
+                    _localNodeId, idx, entityId, behaviorId);
             }
         }
     }
