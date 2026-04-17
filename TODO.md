@@ -1,51 +1,5 @@
 [BUG] When switching perspective between IG and SimHost, map pan/zoom is transferred to the new perspective. But not such with CGF perspective.
 
-[BUG] CGF entity inspector does not show any component header in green as if no component was locally owned by cgf node!
-
-[BUG] CGF does not show entities moving on its map. in IG perspective and SimHost perspective they move!
-
-[BUG] Once entity executes MoveToLocation doctrine and finishes, something is still sending orientation changes in WorldPos (floating point errors maybe).
-                                                                                                                                        
-
-[BUG] CgfSubsystem  should be network independent in the hexagonal architecture. But TestHook_SpawnEntityWithSplitAuthority references 
-Hrot.Core.Network.DescriptorTypeOrdinals.NavigationStatus or touches _networkFactory?.WorldPosDescriptorId, with fallback magic number!!!
-
-        dtoCmd.Grants.Add(new DescriptorGrant
-        {
-            DescriptorTypeId = _networkFactory?.WorldPosDescriptorId ?? 2L,
-            NodeId           = muscleNodeId,
-        });
-        dtoCmd.Grants.Add(new DescriptorGrant
-        {
-            DescriptorTypeId = Hrot.Core.Network.DescriptorTypeOrdinals.NavigationStatus,
-            NodeId           = muscleNodeId,
-        });
-
-
-[BUG] CreateEntityRequestSystem seems to use concrete network descriptor ordinals - shouldn't it be network independent?
-
-        private List<DescriptorGrant> BuildOwnershipGrants(in PendingRequest pending, int assignedOwner)
-        {
-            var grants = new List<DescriptorGrant>();
-            if (_ownershipStrategy == null) return grants;
-
-            var disType = new Fdp.Core.DISEntityType { Value = pending.DisType };
-
-            // Evaluate the strategy for every descriptor ordinal the Muscle node may own.
-            foreach (long ordinal in new[]
-            {
-                DescriptorTypeOrdinals.WorldPos,
-                DescriptorTypeOrdinals.NavigationStatus,
-            })
-            {
-                int? targetNode = _ownershipStrategy.GetInitialOwner(
-                    ordinal, disType, assignedOwner, instanceId: 0);
-
-                if (targetNode.HasValue && targetNode.Value != _localNodeId)
-                    grants.Add(new DescriptorGrant { DescriptorTypeId = ordinal, NodeId = targetNode.Value });
-            }
-            return grants;
-        }
 
 
 

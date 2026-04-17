@@ -2,6 +2,7 @@ using CarKinem.Core;
 using CarKinem.Formation;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Navigation;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
@@ -85,5 +86,10 @@ public static class CgfComponentRegistry
 
         // MissionAdapterSystem uses MissionAdapterState to track phase-change transitions.
         world.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
+
+        // ── Combat pipeline events (Brain-tier ingress) ───────────────────────
+        // EntityHitDamageIngressTranslator publishes DamageAssessedEvent via EntityCommandBuffer;
+        // the stream must exist before Playback runs, so we pre-register it here.
+        world.RegisterEvent<DamageAssessedEvent>();
     }
 }

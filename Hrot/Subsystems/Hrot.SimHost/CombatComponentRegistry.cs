@@ -29,7 +29,7 @@ namespace Hrot.SimHost
             world.RegisterComponent<PerceptionReceptor>();
             world.RegisterComponent<TargetMemory>();
             world.RegisterComponent<WeaponState>();
-            world.RegisterComponent<Health>();
+            // Health is registered in HrotSharedComponentRegistry (shared across all nodes).
             world.RegisterComponent<BallisticProjectile>();
             world.RegisterComponent<PhysicsCollider>();
 

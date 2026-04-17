@@ -58,7 +58,11 @@ namespace Hrot.SimHost.Modules
             // LosRequestBatchingSystem removed: it is now IEcsModuleSystem-only and
             // runs exclusively inside AutonomousPerceptionModule on the background thread.
             simGroup.AddSystem(new ThreatEvaluationAdapterSystem());
-            simGroup.AddSystem(new DamageSystem());
+            // DamageSystem removed: the distributed pipeline is used instead.
+            // HitResolutionSystem emits DetonationNotification; DamageAssessmentModule
+            // (MuscleGround) picks it up, calculates damage, and broadcasts EntityHitDamage
+            // over DDS. Brain receives it via EntityHitDamageIngressTranslator and applies
+            // it in HealthApplicationSystem (registered in CgfLogicPack).
             // HsmDamageBridgeSystem relocated to CognitiveRuntimeModule (PACK-M001).
 
             // ── Post-simulation ───────────────────────────────────────────────

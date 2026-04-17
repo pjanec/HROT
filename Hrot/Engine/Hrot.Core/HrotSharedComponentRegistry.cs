@@ -2,6 +2,7 @@ using Hrot.Map.Common.Events;
 using Hrot.Map.Definitions.Tkb;
 using Fdp.Core;
 using Fdp.Modules.Geographic.Components;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Components;
@@ -67,6 +68,11 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<ConstructionAck>();
         world.RegisterEvent<DestructionOrder>();
         world.RegisterEvent<DestructionAck>();
+
+        // ── Combat ────────────────────────────────────────────────────────────
+        // Health is shared so Brain, Muscle, and IG all materialise the same
+        // unmanaged struct layout when applying a TKB template.
+        world.RegisterComponent<Health>();
 
         // ── Application-layer events ──────────────────────────────────────────
         world.RegisterEvent<FireInteractionEvent>();

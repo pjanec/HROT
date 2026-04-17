@@ -8,6 +8,7 @@ using Fdp.Toolkit.Behavior.Executors;
 using Fdp.Toolkit.Behavior.Modules;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Executors;
+using Fdp.Toolkit.Combat.Systems;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Navigation.Executors;
 using Fdp.Toolkit.Replication.Services;
@@ -130,6 +131,11 @@ namespace Hrot.CGF
             // Adapter bridges MissionPlanQueue phase changes into active DoctrineState.
             simGroup.AddSystem(_missionAdapterSystem);
             _missionControlModule.RegisterSystems(simGroup);
+            // Brain applies authoritative damage: EntityHitDamageIngressTranslator delivers
+            // DamageAssessedEvent; HealthApplicationSystem mutates Health and strips
+            // ActorCapabilities so HsmDamageBridgeSystem (in CognitiveRuntimeModule) can
+            // detect the capability change and inject MobilityLost into the HSM.
+            simGroup.AddSystem(new HealthApplicationSystem());
             _cognitiveRuntimeModule.RegisterSystems(simGroup);
             _actionDispatchModule.RegisterSystems(simGroup);
             // Route context: writes per-waypoint ExtensionJson danger level to BrainBlackboard.
