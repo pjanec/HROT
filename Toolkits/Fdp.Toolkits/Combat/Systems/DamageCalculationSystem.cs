@@ -12,10 +12,11 @@ namespace Fdp.Toolkit.Combat.Systems
     /// node to apply to the entity's <c>Health</c> component.
     ///
     /// <para>
-    /// <b>Authority gate:</b> Only publishes <see cref="DamageAssessedEvent"/> when the
-    /// local node has authority over the target entity.  In the POC, the damage value is
-    /// always <see cref="CombatConstants.DefaultBulletDamage"/>; armor penetration curves
-    /// are deferred.
+    /// <b>No entity-ownership gate:</b> This system runs exclusively on the Muscle node.
+    /// Because the Muscle is the designated damage-calculation authority for all detonations
+    /// it observes (via <c>HitResolutionSystem</c> or <c>MunitionDetonationIngressTranslator</c>),
+    /// the existence of a live target entity is sufficient to publish the verdict.
+    /// Entity CQRS ownership (Brain vs. Muscle) is not checked here.
     /// </para>
     ///
     /// <para>
@@ -45,14 +46,12 @@ namespace Fdp.Toolkit.Combat.Systems
                 var targetEntity = evt.Target;
                 if (!World.IsAlive(targetEntity)) continue;
 
-                // Authority gate: only the owning node computes and publishes damage.
-                // Fall through (authoritative) when no NetworkAuthority component is present
-                // (single-node / AllInOne / unit-test scenario).
-                if (World.HasComponent<NetworkAuthority>(targetEntity))
-                {
-                    ref readonly var auth = ref World.GetComponentRO<NetworkAuthority>(targetEntity);
-                    if (!auth.HasAuthority) continue;
-                }
+                // No entity-ownership gate here: DamageCalculationSystem runs exclusively
+                // on the Muscle node. The fact that a DetonationNotification was emitted
+                // (by HitResolutionSystem or MunitionDetonationIngressTranslator) is
+                // sufficient — the Muscle is the designated damage-calculation authority for
+                // all detonations it observes, regardless of which node owns the entity in
+                // the CQRS ownership map.
 
                 // POC: flat damage value; armor/penetration curves are deferred.
                 World.Bus.Publish(new DamageAssessedEvent

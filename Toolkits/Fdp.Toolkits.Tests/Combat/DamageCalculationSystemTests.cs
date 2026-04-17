@@ -80,14 +80,17 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(CombatConstants.DefaultBulletDamage, events[0].TotalDamage);
         }
 
-        // ── SC-2: Non-authority → no DamageAssessedEvent ─────────────────────
+        // ── SC-2: Non-authority → DamageAssessedEvent is still published ────────
 
         /// <summary>
-        /// BS1-T012 SC-2: When the local node does not have authority over the target entity,
-        /// no <see cref="DamageAssessedEvent"/> should be published.
+        /// BS1-T012 SC-2: <see cref="DamageCalculationSystem"/> runs exclusively on the
+        /// Muscle node and does not gate on entity ownership. When a
+        /// <see cref="DetonationNotification"/> arrives for a live entity that is owned
+        /// by a remote node (Brain), the Muscle still publishes
+        /// <see cref="DamageAssessedEvent"/> so the Brain can apply the damage.
         /// </summary>
         [Fact]
-        public void DamageCalculation_DoesNotPublish_WhenNotAuthoritative()
+        public void DamageCalculation_PublishesDamageAssessedEvent_EvenWhenNotAuthoritative()
         {
             var target2 = SpawnTarget(authoritative: false);
             PublishDetonation(target: target2);
@@ -97,7 +100,8 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.Bus.SwapBuffers();
             var events = _world.Bus.Read<DamageAssessedEvent>();
 
-            Assert.Equal(0, events.Length);
+            Assert.Equal(1, events.Length);
+            Assert.Equal(target2, events[0].HitEntity);
         }
 
         // ── SC-3: DamageCalculationSystem does not mutate Health ──────────────

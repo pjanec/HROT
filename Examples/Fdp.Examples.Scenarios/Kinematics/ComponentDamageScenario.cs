@@ -9,6 +9,7 @@ using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Combat.Systems;
 using Fdp.Toolkit.Vis2D;
 using Fdp.ModuleHost;
@@ -20,10 +21,11 @@ namespace Fdp.Examples.Scenarios.Kinematics
     /// DEM1-D002 — ComponentDamage: Partial entity kill pipeline.
     ///
     /// <para>A single MilitaryAPC entity starts at full health with locomotion active.
-    /// At tick 20 a <see cref="HitEvent"/> is injected, causing the <see cref="DamageSystem"/>
-    /// to reduce health. The scenario verifies that the mobility-kill pipeline
-    /// strips <see cref="ActorCapabilities.CanMove"/>, clears the locomotion channel,
-    /// and keeps the weapon channel active (firepower retained).</para>
+    /// At tick 20 a <see cref="DetonationNotification"/> is injected, causing
+    /// <see cref="DamageCalculationSystem"/> to emit a <see cref="DamageAssessedEvent"/>
+    /// which <see cref="HealthApplicationSystem"/> applies. The scenario verifies that
+    /// the mobility-kill pipeline strips <see cref="ActorCapabilities.CanMove"/>,
+    /// clears the locomotion channel, and keeps the weapon channel active (firepower retained).</para>
     ///
     /// <para>Phase table:</para>
     /// <list type="table">
@@ -83,7 +85,6 @@ namespace Fdp.Examples.Scenarios.Kinematics
             // ── Component registration ────────────────────────────────────────
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<Health>();
-            world.RegisterComponent<BallisticProjectile>();
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<LocomotionChannel>();
@@ -91,22 +92,26 @@ namespace Fdp.Examples.Scenarios.Kinematics
             world.RegisterComponent<BrainHsm128>();
 
             // ── Event registration ────────────────────────────────────────────
-            world.RegisterEvent<HitEvent>();
+            world.RegisterEvent<DetonationNotification>();
+            world.RegisterEvent<DamageAssessedEvent>();
 
             // ── Systems (constructed and created against the live world) ──────
-            var damageSystem     = new DamageSystem();
-            var mobilityKill     = new MobilityKillSystem();
+            // DamageCalculationSystem: DetonationNotification -> DamageAssessedEvent.
+            // HealthApplicationSystem: DamageAssessedEvent -> mutates Health + ActorCapabilities.
+            // MobilityKillSystem is no longer needed: HealthApplicationSystem strips CanMove.
+            var damageCalc       = new DamageCalculationSystem();
+            var healthApply      = new HealthApplicationSystem();
             var hsmBridge        = new HsmDamageBridgeSystem();
             var locoKillOnDamage = new LocomotionClearOnMobilityKillSystem();
 
-            damageSystem.Create(world);
-            mobilityKill.Create(world);
+            damageCalc.Create(world);
+            healthApply.Create(world);
             hsmBridge.Create(world);
             locoKillOnDamage.Create(world);
 
             kernel.RegisterModule(new DirectSystemsModule(
                 "ComponentDamageModule",
-                damageSystem, mobilityKill, hsmBridge, locoKillOnDamage));
+                damageCalc, healthApply, hsmBridge, locoKillOnDamage));
 
             // ── Entity spawning ───────────────────────────────────────────────
             _apc = SpawnApc(world);
@@ -131,34 +136,21 @@ namespace Fdp.Examples.Scenarios.Kinematics
                         "Phase 1 FAILED: CanMove expected true at tick 15 (baseline)");
             }
 
-            // ── Inject HitEvent at tick 20 (before kernel processes this frame) ─
+            // ── Inject DetonationNotification at tick 20 ─────────────────────
+            // Simulates HitResolutionSystem emitting the event after raycast resolution.
+            // DamageCalculationSystem will consume it and emit DamageAssessedEvent;
+            // HealthApplicationSystem applies the damage in the same frame.
             if (tick == 20 && !_hitInjected)
             {
                 _hitInjected = true;
 
-                // Create a one-shot bullet entity that DamageSystem will consume.
-                var bullet = world.CreateEntity();
-                world.AddComponent(bullet, new SimTransform
+                world.Bus.Publish(new DetonationNotification
                 {
-                    Position = new Vector3(0f, 0f, 0f),
-                    Rotation = Quaternion.Identity
-                });
-                world.AddComponent(bullet, new BallisticProjectile
-                {
-                    Damage           = HitDamage,
-                    Shooter          = Entity.Null,
-                    PreviousPosition = Vector3.Zero,
-                    SpawnTick        = tick,
-                });
-
-                // DamageSystem reads HitEntity + BulletIndex from HitEvent.
-                // Publishing directly on the bus (write side) — SwapBuffers inside
-                // kernel.Update() makes it readable before module systems execute.
-                world.Bus.Publish(new HitEvent
-                {
-                    HitEntity   = _apc,
-                    BulletIndex = bullet.Index,
-                    HitT        = 0.5f
+                    Shooter = Entity.Null,
+                    Target  = _apc,
+                    HitX    = 0f,
+                    HitY    = 0f,
+                    HitZ    = 0f,
                 });
             }
 
@@ -294,40 +286,6 @@ namespace Fdp.Examples.Scenarios.Kinematics
             }
 
             public IReadOnlyList<Type>? GetRequiredComponents() => null;
-        }
-
-        // ── MobilityKillSystem ────────────────────────────────────────────────
-
-        /// <summary>
-        /// Strips <see cref="ActorCapabilities.CanMove"/> from any entity whose
-        /// <see cref="Health.Current"/> has dropped below its maximum value.
-        /// Mirrors the <c>ApcMobilitySystem</c> logic used in the UrbanCombat demo
-        /// without requiring that legacy dependency.
-        /// Must execute after <see cref="DamageSystem"/> within the same frame.
-        /// </summary>
-        [UpdateInGroup(typeof(SimulationSystemGroup))]
-        [UpdateAfter(typeof(DamageSystem))]
-        [UpdateBefore(typeof(HsmDamageBridgeSystem))]
-        private sealed class MobilityKillSystem : ComponentSystem
-        {
-            protected override void OnUpdate()
-            {
-                var q = World.Query()
-                    .With<Health>()
-                    .With<ActorCapabilityState>()
-                    .Build();
-
-                foreach (var entity in q)
-                {
-                    var health = World.GetComponent<Health>(entity);
-                    if (health.Current >= health.Max) continue;
-
-                    ref var caps = ref World.GetComponentRW<ActorCapabilityState>(entity);
-                    if ((caps.Capabilities & ActorCapabilities.CanMove) == 0) continue;
-
-                    caps.Capabilities &= ~ActorCapabilities.CanMove;
-                }
-            }
         }
 
         // ── LocomotionClearOnMobilityKillSystem ───────────────────────────────
