@@ -14,7 +14,7 @@ namespace Fdp.Toolkit.Combat.Executors
         /// <summary>The entity to aim at and fire upon.</summary>
         public Entity Target;
 
-        /// <summary>Number of ticks to wait between successive shots.</summary>
-        public int CooldownTicks;
+        /// <summary>Seconds to wait between successive shots.</summary>
+        public float CooldownSeconds;
     }
 }

@@ -272,7 +272,7 @@ namespace Fdp.Examples.Scenarios.Physics
             {
                 Ammo             = 100,
                 MuzzleVelocity   = MuzzleVelocity,
-                CooldownTicksRemaining = 0,
+                CooldownSecondsRemaining = 0f,
             });
             return e;
         }

@@ -521,7 +521,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             {
                 Ammo                   = RifleAmmo,
                 MuzzleVelocity         = RifleMuzzleVelocity,
-                CooldownTicksRemaining = 0,
+                CooldownSecondsRemaining = 0f,
             });
             t.AddComponent(new PerceptionReceptor
             {
@@ -571,7 +571,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             {
                 Ammo                   = RpgAmmo,
                 MuzzleVelocity         = RpgMuzzleVelocity,
-                CooldownTicksRemaining = 0,
+                CooldownSecondsRemaining = 0f,
             });
             t.AddComponent(new PerceptionReceptor
             {
@@ -871,7 +871,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 ref var channel = ref ctx.World.GetComponentRW<WeaponChannel>(ctx.Self);
 
                 fixed (byte* ptr = channel.Params)
-                    *(AimAndFireParams*)ptr = new AimAndFireParams { Target = targetEntity, CooldownTicks = 0 };
+                    *(AimAndFireParams*)ptr = new AimAndFireParams { Target = targetEntity, CooldownSeconds = 0f };
 
                 bool needsReactivation =
                     channel.ActiveAction != CombatConstants.ActionIdAimAndFire

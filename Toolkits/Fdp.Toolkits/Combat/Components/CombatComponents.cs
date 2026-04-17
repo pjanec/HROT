@@ -15,8 +15,8 @@ namespace Fdp.Toolkit.Combat.Components
         /// <summary>Current ammo count. Fire is refused when 0.</summary>
         public int Ammo;
 
-        /// <summary>Remaining cooldown ticks before the next shot is allowed.</summary>
-        public int CooldownTicksRemaining;
+        /// <summary>Remaining cooldown in seconds before the next shot is allowed.</summary>
+        public float CooldownSecondsRemaining;
 
         /// <summary>Muzzle velocity in m/s (copied from doctrine at init time).</summary>
         public float MuzzleVelocity;

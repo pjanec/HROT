@@ -43,7 +43,7 @@ namespace Fdp.Core
         /// - Event serialization format changes
         /// Recordings are NOT backwards compatible - version must match exactly.
         /// </summary>
-        public const uint FORMAT_VERSION = 3;
+        public const uint FORMAT_VERSION = 4;
         
         /// <summary>
         /// Calculate chunk capacity for a given element size.

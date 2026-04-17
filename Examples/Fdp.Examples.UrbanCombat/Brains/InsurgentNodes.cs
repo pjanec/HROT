@@ -87,7 +87,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
 
             // Write AimAndFireParams into the channel's inline Params buffer.
             fixed (byte* ptr = channel.Params)
-                *(AimAndFireParams*)ptr = new AimAndFireParams { Target = targetEntity, CooldownTicks = 0 };
+                *(AimAndFireParams*)ptr = new AimAndFireParams { Target = targetEntity, CooldownSeconds = 0f };
 
             // Signal a new dispatch whenever the action is being (re)activated so that
             // WeaponDispatcherSystem calls OnEnter (which copies Params → State and sets

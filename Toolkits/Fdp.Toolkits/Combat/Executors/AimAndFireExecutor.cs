@@ -57,9 +57,10 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
 
-            if (weapon.CooldownTicksRemaining > 0)
+            // Refactored to use continuous delta time for determinism across variable tick rates.
+            if (weapon.CooldownSecondsRemaining > 0f)
             {
-                weapon.CooldownTicksRemaining--;
+                weapon.CooldownSecondsRemaining -= dt;
                 channel.Status = NodeStatus.Running;
                 return;
             }
@@ -72,7 +73,7 @@ namespace Fdp.Toolkit.Combat.Executors
             });
 
             weapon.Ammo--;
-            weapon.CooldownTicksRemaining = p.CooldownTicks;
+            weapon.CooldownSecondsRemaining = p.CooldownSeconds;
 
             channel.Status = NodeStatus.Running;
         }

@@ -50,26 +50,26 @@ namespace Fdp.Toolkit.Combat.Tests
         /// Spawns a shooter entity at <paramref name="shooterPos"/> with a
         /// <see cref="WeaponState"/> and a <see cref="WeaponChannel"/> whose
         /// Params are pre-populated with the given <paramref name="target"/> and
-        /// <paramref name="cooldownTicks"/>.
+        /// <paramref name="cooldownSeconds"/>.
         /// </summary>
         private unsafe (Entity shooter, WeaponChannel channel)
-            SpawnShooter(Vector3 shooterPos, int ammo, int cooldownRemaining,
-                         Entity target, int cooldownTicks)
+            SpawnShooter(Vector3 shooterPos, int ammo, float cooldownRemaining,
+                         Entity target, float cooldownSeconds)
         {
             var shooter = _world.CreateEntity();
             _world.AddComponent(shooter, new SimTransform { Position = shooterPos, Rotation = Quaternion.Identity });
             _world.AddComponent(shooter, new WeaponState
             {
-                Ammo                    = ammo,
-                CooldownTicksRemaining  = cooldownRemaining,
-                MuzzleVelocity          = 800f,
+                Ammo                       = ammo,
+                CooldownSecondsRemaining   = cooldownRemaining,
+                MuzzleVelocity             = 800f,
             });
             _world.AddComponent(shooter, new WeaponChannel());
 
             var channel = _world.GetComponent<WeaponChannel>(shooter);
             channel.Status = NodeStatus.Running;
 
-            var p = new AimAndFireParams { Target = target, CooldownTicks = cooldownTicks };
+            var p = new AimAndFireParams { Target = target, CooldownSeconds = cooldownSeconds };
             Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
             _world.SetComponent(shooter, channel);
             channel = _world.GetComponent<WeaponChannel>(shooter);
@@ -101,11 +101,11 @@ namespace Fdp.Toolkit.Combat.Tests
         {
             var target = SpawnTarget(new Vector3(10f, 0f, 0f));
             var (shooter, channel) = SpawnShooter(
-                shooterPos:        Vector3.Zero,
-                ammo:              5,
-                cooldownRemaining: 0,
-                target:            target,
-                cooldownTicks:     3);
+                shooterPos:       Vector3.Zero,
+                ammo:             5,
+                cooldownRemaining: 0f,
+                target:           target,
+                cooldownSeconds:  0.05f);
 
             _executor.OnEnter(shooter, ref channel, _world);
             _executor.Execute(shooter, ref channel, _world, 0.016f);
@@ -142,9 +142,9 @@ namespace Fdp.Toolkit.Combat.Tests
             var (shooter, channel) = SpawnShooter(
                 shooterPos:        Vector3.Zero,
                 ammo:              5,
-                cooldownRemaining: 0,
+                cooldownRemaining: 0f,
                 target:            target,
-                cooldownTicks:     3);
+                cooldownSeconds:   0.05f);
 
             _executor.OnEnter(shooter, ref channel, _world);
             _executor.Execute(shooter, ref channel, _world, 0.016f);
@@ -157,8 +157,8 @@ namespace Fdp.Toolkit.Combat.Tests
         // ── Test 2 ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// BS1-T004 SC-3: When <see cref="WeaponState.CooldownTicksRemaining"/> > 0, Execute must
-        /// decrement the cooldown and NOT publish a <see cref="WeaponFireIntent"/>.
+        /// BS1-T004 SC-3: When <see cref="WeaponState.CooldownSecondsRemaining"/> > 0, Execute must
+        /// decrement the cooldown by dt and NOT publish a <see cref="WeaponFireIntent"/>.
         /// Status stays Running.
         /// </summary>
         [Fact]
@@ -168,9 +168,9 @@ namespace Fdp.Toolkit.Combat.Tests
             var (shooter, channel) = SpawnShooter(
                 shooterPos:        Vector3.Zero,
                 ammo:              5,
-                cooldownRemaining: 5,
+                cooldownRemaining: 0.5f,
                 target:            target,
-                cooldownTicks:     5);
+                cooldownSeconds:   0.5f);
 
             _executor.OnEnter(shooter, ref channel, _world);
             _executor.Execute(shooter, ref channel, _world, 0.016f);
@@ -181,8 +181,8 @@ namespace Fdp.Toolkit.Combat.Tests
 
             Assert.Equal(NodeStatus.Running, channel.Status);
 
-            // Cooldown decremented from 5 to 4.
-            Assert.Equal(4, _world.GetComponent<WeaponState>(shooter).CooldownTicksRemaining);
+            // Cooldown decremented by dt (0.5 - 0.016 = 0.484).
+            Assert.True(_world.GetComponent<WeaponState>(shooter).CooldownSecondsRemaining < 0.5f);
         }
 
         // ── Test 3 ────────────────────────────────────────────────────────────
@@ -198,9 +198,9 @@ namespace Fdp.Toolkit.Combat.Tests
             var (shooter, channel) = SpawnShooter(
                 shooterPos:        Vector3.Zero,
                 ammo:              0,
-                cooldownRemaining: 0,
+                cooldownRemaining: 0f,
                 target:            target,
-                cooldownTicks:     3);
+                cooldownSeconds:   0.05f);
 
             _executor.OnEnter(shooter, ref channel, _world);
             _executor.Execute(shooter, ref channel, _world, 0.016f);
@@ -226,9 +226,9 @@ namespace Fdp.Toolkit.Combat.Tests
             var (shooter, channel) = SpawnShooter(
                 shooterPos:        Vector3.Zero,
                 ammo:              5,
-                cooldownRemaining: 0,
+                cooldownRemaining: 0f,
                 target:            target,
-                cooldownTicks:     3);
+                cooldownSeconds:   0.05f);
 
             _executor.OnEnter(shooter, ref channel, _world);
 
@@ -247,28 +247,32 @@ namespace Fdp.Toolkit.Combat.Tests
         // ── Test 5 ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// BS1-T004 SC-3 (ammo/cooldown preserved): Multi-tick cooldown gating — a cooldown
-        /// of 3 means the executor fires (publishes WeaponFireIntent) on tick 4, not on
-        /// ticks 1–3.  Ammo is decremented exactly once on the firing tick.
+        /// <summary>
+        /// BS1-T004 SC-3 (cooldown drain): A cooldown of 0.1 s drains to zero after enough
+        /// dt steps, then the executor fires on the next call with no remaining cooldown.
+        /// Ammo is decremented exactly once on the firing step.
         /// </summary>
         [Fact]
-        public void AimAndFire_DecrementsCooldown_EachTick_UntilCanFire()
+        public void AimAndFire_DrainsCooldown_ByDt_UntilCanFire()
         {
-            const int initialCooldown = 3;
+            const float cooldownSec = 0.1f;
+            const float dt         = 0.016f; // ~60 Hz frame
+
             var target = SpawnTarget(new Vector3(10f, 0f, 0f));
             var (shooter, channel) = SpawnShooter(
                 shooterPos:        Vector3.Zero,
                 ammo:              5,
-                cooldownRemaining: initialCooldown,
+                cooldownRemaining: cooldownSec,
                 target:            target,
-                cooldownTicks:     initialCooldown);
+                cooldownSeconds:   cooldownSec);
 
             _executor.OnEnter(shooter, ref channel, _world);
 
-            // Ticks 1, 2, 3: cooldown is still > 0 — no intent should be emitted.
-            for (int tick = 1; tick <= initialCooldown; tick++)
+            // Drain cooldown step by step; no intent should fire while cooldown > 0.
+            int drainSteps = (int)System.Math.Ceiling(cooldownSec / dt);
+            for (int i = 0; i < drainSteps; i++)
             {
-                _executor.Execute(shooter, ref channel, _world, 0.016f);
+                _executor.Execute(shooter, ref channel, _world, dt);
                 _world.Bus.SwapBuffers();
 
                 var earlyIntents = _world.Bus.Read<WeaponFireIntent>();
@@ -276,11 +280,11 @@ namespace Fdp.Toolkit.Combat.Tests
                 Assert.Equal(NodeStatus.Running, channel.Status);
             }
 
-            // After the loop the cooldown on the weapon is 0 (decremented by executor).
-            Assert.Equal(0, _world.GetComponent<WeaponState>(shooter).CooldownTicksRemaining);
+            // Cooldown is now <= 0 (fully drained).
+            Assert.True(_world.GetComponent<WeaponState>(shooter).CooldownSecondsRemaining <= 0f);
 
-            // Tick 4: cooldown == 0 → executor fires.
-            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            // Next Execute fires.
+            _executor.Execute(shooter, ref channel, _world, dt);
             _world.Bus.SwapBuffers();
 
             var fireIntents = _world.Bus.Read<WeaponFireIntent>();

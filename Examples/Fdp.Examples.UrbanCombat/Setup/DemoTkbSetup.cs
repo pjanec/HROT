@@ -199,9 +199,9 @@ namespace Fdp.Examples.UrbanCombat.Setup
             // Rifle: ammo=30, muzzle=800 m/s, 5 Hz → cooldown = 60/5 = 12 ticks
             t.AddComponent(new WeaponState
             {
-                Ammo                   = UrbanCombatConstants.RifleAmmo,
-                MuzzleVelocity         = UrbanCombatConstants.RifleMuzzleVelocity,
-                CooldownTicksRemaining = 0
+                Ammo                      = UrbanCombatConstants.RifleAmmo,
+                MuzzleVelocity            = UrbanCombatConstants.RifleMuzzleVelocity,
+                CooldownSecondsRemaining  = 0f
             });
 
             t.AddComponent(new PerceptionReceptor
@@ -260,12 +260,12 @@ namespace Fdp.Examples.UrbanCombat.Setup
             // Health — damageable (BATCH-13 back-port)
             t.AddComponent(new Health { Current = UrbanCombatConstants.SoldierMaxHealth, Max = UrbanCombatConstants.SoldierMaxHealth });
 
-            // RPG: ammo=1, muzzle=300 m/s, 0.1 Hz → cooldown = 60/0.1 = 600 ticks
+            // RPG: ammo=1, muzzle=300 m/s, 0.1 Hz -> cooldown = 10 seconds between shots
             t.AddComponent(new WeaponState
             {
-                Ammo                   = UrbanCombatConstants.RpgAmmo,
-                MuzzleVelocity         = UrbanCombatConstants.RpgMuzzleVelocity,
-                CooldownTicksRemaining = 0
+                Ammo                      = UrbanCombatConstants.RpgAmmo,
+                MuzzleVelocity            = UrbanCombatConstants.RpgMuzzleVelocity,
+                CooldownSecondsRemaining  = 0f
             });
 
             t.AddComponent(new PerceptionReceptor

@@ -36,9 +36,9 @@ namespace Fdp.Tests
         // ================================================================
 
         [Fact]
-        public void WCR_P1_T001_FormatVersion_Is3()
+        public void WCR_P1_T001_FormatVersion_Is4()
         {
-            Assert.Equal(3u, FdpConfig.FORMAT_VERSION);
+            Assert.Equal(4u, FdpConfig.FORMAT_VERSION);
         }
 
         [Fact]
