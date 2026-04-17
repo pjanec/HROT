@@ -37,7 +37,7 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     public ISimHostAuxiliaryTranslators CreateSimHostAuxiliaryTranslators() => new NullSimHostAuxiliaryTranslators();
 
     /// <inheritdoc/>
-    public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators() => new NullSimHostPathfindingTranslators();
+    public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? trajectoryPool = null) => new NullSimHostPathfindingTranslators();
 
     /// <inheritdoc/>
     public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators() => new NullSimHostPerceptionTranslators();

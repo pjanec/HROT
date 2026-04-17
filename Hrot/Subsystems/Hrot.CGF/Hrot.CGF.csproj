@@ -44,6 +44,8 @@
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <!-- Hrot.Presentation.Windows (ClusterControlWindow etc.); previously transitive via Hrot.SimHost -->
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <!-- NodeBootstrapper and EcsRecordReplayController (CGF record/replay wiring, feedback-5 Point 4) -->
+    <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
   </ItemGroup>
 
 </Project>

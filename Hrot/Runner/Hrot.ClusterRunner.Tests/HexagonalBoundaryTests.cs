@@ -283,7 +283,7 @@ public sealed class HexagonalBoundaryTests
         public ITimeControlGateway              CreateTimeControlGateway()                             => _base.CreateTimeControlGateway();
         public ISimHostMissionSender            CreateSimHostMissionSender()                           => _base.CreateSimHostMissionSender();
         public ISimHostAuxiliaryTranslators     CreateSimHostAuxiliaryTranslators()                    => _base.CreateSimHostAuxiliaryTranslators();
-        public ISimHostPathfindingTranslators   CreateSimHostPathfindingTranslators()                  => _base.CreateSimHostPathfindingTranslators();
+        public ISimHostPathfindingTranslators   CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? trajectoryPool = null) => _base.CreateSimHostPathfindingTranslators(trajectoryPool);
         public ISimHostPerceptionTranslators    CreateSimHostPerceptionTranslators()                   => _base.CreateSimHostPerceptionTranslators();
         public IReadOnlyList<Fdp.Core.ComponentSystem> CreateSimHostAttributeUpdateSystems()          => _base.CreateSimHostAttributeUpdateSystems();
         public IIgTranslators                   CreateIgTranslators()                                  => _base.CreateIgTranslators();
@@ -337,7 +337,7 @@ public sealed class HexagonalBoundaryTests
         public ITimeControlGateway              CreateTimeControlGateway()                             => _base.CreateTimeControlGateway();
         public ISimHostMissionSender            CreateSimHostMissionSender()                           => _base.CreateSimHostMissionSender();
         public ISimHostAuxiliaryTranslators     CreateSimHostAuxiliaryTranslators()                    => _base.CreateSimHostAuxiliaryTranslators();
-        public ISimHostPathfindingTranslators   CreateSimHostPathfindingTranslators()                  => _base.CreateSimHostPathfindingTranslators();
+        public ISimHostPathfindingTranslators   CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? trajectoryPool = null) => _base.CreateSimHostPathfindingTranslators(trajectoryPool);
         public ISimHostPerceptionTranslators    CreateSimHostPerceptionTranslators()                   => _base.CreateSimHostPerceptionTranslators();
         public IReadOnlyList<Fdp.Core.ComponentSystem> CreateSimHostAttributeUpdateSystems()          => _base.CreateSimHostAttributeUpdateSystems();
         public IIgTranslators                   CreateIgTranslators()                                  => _base.CreateIgTranslators();

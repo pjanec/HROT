@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CarKinem.Trajectory;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -43,7 +44,7 @@ public interface INetworkFactory
     ISimHostAuxiliaryTranslators CreateSimHostAuxiliaryTranslators();
 
     /// <summary>Creates the pathfinding network translators for the given node role.</summary>
-    ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators();
+    ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(TrajectoryPoolManager? trajectoryPool = null);
 
     /// <summary>Creates the perception network translators for the given node role.</summary>
     ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators();

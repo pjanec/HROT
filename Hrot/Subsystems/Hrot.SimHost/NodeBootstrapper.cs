@@ -46,6 +46,16 @@ namespace Hrot.SimHost
         /// </summary>
         public Hrot.Core.Network.ISlaveOrchestrationTranslator? SlaveTranslator { get; private set; }
 
+        /// <summary>
+        /// After <see cref="BuildOrchestration"/> is called for a Brain or MuscleGround role,
+        /// this property exposes the <see cref="EcsRecordReplayController"/> so callers that
+        /// cannot supply a <c>simGroup</c>/<c>lifecycleGroup</c> (e.g. CGF) can still
+        /// manually register <see cref="Fdp.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler"/>
+        /// on the returned <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/>.
+        /// <c>null</c> for non-Brain/MuscleGround roles.
+        /// </summary>
+        public EcsRecordReplayController? RecordReplayController { get; private set; }
+
         // ── Orchestration construction ─────────────────────────────────────────
 
         // ── Orchestration construction ─────────────────────────────────────────
@@ -135,6 +145,7 @@ namespace Hrot.SimHost
             EcsRecordReplayController? controller = null;
             if (role.HasFlag(NodeRole.Brain) || role.HasFlag(NodeRole.MuscleGround))
                 controller = new EcsRecordReplayController(kernel, nodeId, world);
+            RecordReplayController = controller;
 
             // Wire ReferenceReplayLoadHandler BEFORE ReferenceLiveLoadHandler so the
             // dispatch loop considers the Live-from-Replay branch first (CGF1-S0305).

@@ -146,17 +146,17 @@ public sealed class NedNetworkFactory : INetworkFactory
     }
 
     /// <inheritdoc/>
-    public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators()
+    public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? trajectoryPool = null)
     {
         if (_participant == null) return new NullSimHostPathfindingTranslators();
-        return new NedSimHostPathfindingTranslators(_participant, _entityMap, _geoTransform, _role);
+        return new NedSimHostPathfindingTranslators(_participant, _entityMap, _geoTransform, _role, trajectoryPool, _localNodeId);
     }
 
     /// <inheritdoc/>
     public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators()
     {
         if (_participant == null) return new NullSimHostPerceptionTranslators();
-        return new NedSimHostPerceptionTranslators(_participant, _entityMap, _geoTransform, _role);
+        return new NedSimHostPerceptionTranslators(_participant, _entityMap, _geoTransform, _role, _localNodeId);
     }
 
     /// <inheritdoc/>

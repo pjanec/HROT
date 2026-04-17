@@ -264,6 +264,8 @@ namespace Hrot.NED.Descriptors
     public partial struct PathResponseBatch
     {
         [DdsKey] public int          TargetNodeId;
+        /// <summary>High-precision geographic anchor for coordinate reconstruction on the Brain node.</summary>
+        public GeoPoint              BatchOrigin;
         [DdsManaged] public List<DdsPathResult> Results;
     }
 

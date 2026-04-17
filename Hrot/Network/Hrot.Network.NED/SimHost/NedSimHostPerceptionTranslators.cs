@@ -25,10 +25,11 @@ internal sealed class NedSimHostPerceptionTranslators : ISimHostPerceptionTransl
         DdsParticipant       participant,
         NetworkEntityMap     entityMap,
         IGeographicTransform geoTransform,
-        NodeRole             role)
+        NodeRole             role,
+        int                  localNodeId = 0)
     {
         if (role.HasFlag(NodeRole.Brain))
-            _translators.AddRange(BrainPerceptionTranslatorPack.Create(participant, entityMap, geoTransform));
+            _translators.AddRange(BrainPerceptionTranslatorPack.Create(participant, entityMap, geoTransform, localNodeId));
         if (role.HasFlag(NodeRole.Perception))
             _translators.AddRange(SimPerceptionTranslatorPack.Create(participant, entityMap, geoTransform));
     }
@@ -43,3 +44,4 @@ internal sealed class NedSimHostPerceptionTranslators : ISimHostPerceptionTransl
 
     public void Dispose() { }
 }
+

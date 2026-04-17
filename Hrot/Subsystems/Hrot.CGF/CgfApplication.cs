@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using Hrot.CGF.Modules.Orchestration;
 using Hrot.Common;
 using Hrot.Common.Orchestration;
 using Hrot.Core.Network;
 using Hrot.NED.Descriptors.Orchestration;
+using Hrot.SimHost.Modules.Orchestration;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -120,11 +120,11 @@ namespace Hrot.CGF
 
             var storageProvider = new LocalDiskStorageProvider(localTempRoot);
 
-            // CGF1-BATCH-23 A.1: brain-appropriate record/replay controller seam.
-            // Phase 3 skeleton: participates in the cluster handshake (ACK) without writing
-            // ECS frames.  Shared between ReferenceReplayLoadHandler and
-            // ReferenceLiveLoadHandler so IsReplayActive state is consistent.
-            var rrController = new CgfRecordReplayController();
+            // CGF1-BATCH-23 A.1 / feedback-5 Point 4: use the production EcsRecordReplayController
+            // so CGF participates in recording and replay with actual ECS frame capture.
+            // Shared between ReferenceReplayLoadHandler and ReferenceLiveLoadHandler
+            // so IsReplayActive state is consistent.
+            var rrController = new EcsRecordReplayController(_kernel, _nodeId, _world);
 
             // Wire ReferenceReplayLoadHandler FIRST so it claims PrepareReplay /
             // FinalizeReplay unconditionally and claims PrepareLive only when a replay

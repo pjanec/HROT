@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CarKinem.Trajectory;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
@@ -11,8 +12,8 @@ namespace Hrot.Network.NED.SimHost
     ///
     /// <para>Translators created:</para>
     /// <list type="bullet">
-    ///   <item><see cref="PathRequestSolverIngressTranslator"/>   — Brain → Solver: receives path requests for resolution.</item>
-    ///   <item><see cref="PathResponseSolverEgressTranslator"/>   — Solver → Brain: publishes computed path results.</item>
+    ///   <item><see cref="PathRequestSolverIngressTranslator"/>   -- Brain -> Solver: receives path requests for resolution.</item>
+    ///   <item><see cref="PathResponseSolverEgressTranslator"/>   -- Solver -> Brain: publishes computed path results.</item>
     /// </list>
     ///
     /// <para>Install on <see cref="NodeRole.NavigationSolver"/> and <see cref="NodeRole.AllInOne"/> nodes.</para>
@@ -23,10 +24,11 @@ namespace Hrot.Network.NED.SimHost
         public static IEnumerable<IDescriptorTranslator> Create(
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
-            IGeographicTransform geoTransform)
+            IGeographicTransform geoTransform,
+            TrajectoryPoolManager trajectoryPool)
         {
             yield return new PathRequestSolverIngressTranslator(participant, entityMap, geoTransform);
-            yield return new PathResponseSolverEgressTranslator(participant, entityMap);
+            yield return new PathResponseSolverEgressTranslator(participant, entityMap, geoTransform, trajectoryPool);
         }
     }
 }

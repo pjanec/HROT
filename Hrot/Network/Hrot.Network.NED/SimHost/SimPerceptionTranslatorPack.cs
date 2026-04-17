@@ -28,7 +28,7 @@ namespace Hrot.Network.NED.SimHost
             IGeographicTransform geoTransform)
         {
             yield return new SensorConfigIngressTranslator(participant, entityMap);
-            yield return new RaycastBatchSolverIngressTranslator(participant, entityMap);
+            yield return new RaycastBatchSolverIngressTranslator(participant, entityMap, geoTransform);
             yield return new SensorTargetsEgressTranslator(participant, entityMap);
             yield return new RaycastBatchSolverEgressTranslator(participant, entityMap);
         }

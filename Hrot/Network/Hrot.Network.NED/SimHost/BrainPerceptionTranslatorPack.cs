@@ -25,12 +25,13 @@ namespace Hrot.Network.NED.SimHost
         public static IEnumerable<IDescriptorTranslator> Create(
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
-            IGeographicTransform geoTransform)
+            IGeographicTransform geoTransform,
+            int                  localNodeId = 0)
         {
             yield return new SensorConfigEgressTranslator(participant, entityMap, geoTransform);
-            yield return new RaycastBatchEgressTranslator(participant, entityMap, geoTransform);
+            yield return new RaycastBatchEgressTranslator(participant, entityMap, geoTransform, localNodeId);
             yield return new SensorTargetsIngressTranslator(participant, entityMap);
-            yield return new RaycastBatchIngressTranslator(participant, entityMap);
+            yield return new RaycastBatchIngressTranslator(participant, entityMap, localNodeId);
         }
     }
 }

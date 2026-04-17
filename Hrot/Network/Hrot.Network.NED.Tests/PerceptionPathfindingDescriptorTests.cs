@@ -1,3 +1,4 @@
+using Hrot.NED.Common;
 using Hrot.NED.Descriptors;
 using Xunit;
 
@@ -91,6 +92,60 @@ namespace Hrot.DDS.DataModel.Tests
             var result = default(DdsPathResult);
             Assert.False(result.IsReachable);
             Assert.Equal(0f, result.TotalDistanceMeters);
+        }
+
+        // ── SourceNodeId routing fields ───────────────────────────────────────
+
+        /// <summary>
+        /// Verifies that <see cref="PathRequestBatch"/> carries a
+        /// <c>SourceNodeId</c> field for originating-node routing.
+        /// </summary>
+        [Fact]
+        public void PathRequestBatch_HasSourceNodeId()
+        {
+            var batch = new PathRequestBatch
+            {
+                SourceNodeId = 3,
+                BatchOrigin  = new GeoPoint { Latitude = 0f, Longitude = 0f, Altitude = 0f },
+                Requests     = new System.Collections.Generic.List<DdsPathRequest>(),
+            };
+            Assert.Equal(3, batch.SourceNodeId);
+        }
+
+        /// <summary>
+        /// Verifies that <see cref="PathResponseBatch"/> carries both
+        /// <c>TargetNodeId</c> and <c>BatchOrigin</c> so the Brain-ingress
+        /// translator can demultiplex responses and reconstruct absolute coordinates.
+        /// </summary>
+        [Fact]
+        public void PathResponseBatch_HasTargetNodeIdAndBatchOrigin()
+        {
+            var origin = new GeoPoint { Latitude = 52.5f, Longitude = 13.4f, Altitude = 100f };
+            var batch  = new PathResponseBatch
+            {
+                TargetNodeId = 7,
+                BatchOrigin  = origin,
+                Results      = new System.Collections.Generic.List<DdsPathResult>(),
+            };
+            Assert.Equal(7, batch.TargetNodeId);
+            Assert.Equal(52.5f, batch.BatchOrigin.Latitude);
+        }
+
+        /// <summary>
+        /// Verifies that <see cref="RaycastRequestBatch"/> carries a
+        /// <c>SourceNodeId</c> field for originating-node routing.
+        /// </summary>
+        [Fact]
+        public void RaycastRequestBatch_HasSourceNodeId()
+        {
+            var batch = new RaycastRequestBatch
+            {
+                SourceNodeId       = 4,
+                BatchCorrelationId = 12u,
+                BatchOrigin        = new GeoPoint(),
+                Requests           = new System.Collections.Generic.List<DdsRaycastRequest>(),
+            };
+            Assert.Equal(4, batch.SourceNodeId);
         }
     }
 }

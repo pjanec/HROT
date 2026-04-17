@@ -16,6 +16,7 @@ using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Vis2D.Tools;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.CGF.Brains;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
@@ -24,6 +25,7 @@ using Hrot.Common.Infrastructure;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Presentation.Windows;
+using Hrot.SimHost;
 using ImGuiNET;
 using Raylib_cs;
 using System.Linq;
@@ -288,6 +290,42 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // Auxiliary translators (time-sync, combat, mission-control) via the injected factory.
         // Mirrors SimHostApp.cs pattern: nodeFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(kernel)
         nodeFactory?.CreateSimHostAuxiliaryTranslators()?.RegisterOn(_context.Kernel);
+
+        // ── Wire ClusterSlave with EcsRecordReplayController (CGF-Point-4) ────────
+        // Replace HrotNodeBuilder's bare ClusterSlave with a NodeBootstrapper-produced
+        // ClusterSlave that has the real EcsRecordReplayController installed for the
+        // Brain role. NodeBootstrapper won't register ReferenceReplayLoadHandler when
+        // simGroup is null (no SimulationSystemGroup), so we register it manually after.
+        var bootstrapper = new NodeBootstrapper(_networkFactory);
+        var newClusterSlave = bootstrapper.BuildOrchestration(
+            NodeRole.Brain,
+            _context.Kernel,
+            _context.World,
+            _context.NodeId,
+            shellParticipant,
+            "CGF",
+            _context.EventBus);
+
+        // Manually register ReferenceReplayLoadHandler with the real controller so that
+        // CGF participates in replay cluster operations (CgfHandlerRegistrationTests).
+        // Inserted BEFORE the handlers already added by NodeBootstrapper (which ends with
+        // ReferenceLiveLoadHandler) by registering it immediately after BuildOrchestration.
+        // Since this produces a fresh ClusterSlave the handler list is ordered correctly.
+        if (bootstrapper.RecordReplayController != null)
+        {
+            newClusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
+                bootstrapper.RecordReplayController,
+                simGroup:              null,
+                lifecycleGroup:        null,
+                bypassLifecycleToggle: null,
+                storageDirectory:      @"C:\FDP_Temp"));
+        }
+
+        _context = _context with
+        {
+            ClusterSlave   = newClusterSlave,
+            SlaveTranslator = bootstrapper.SlaveTranslator as Hrot.Common.Infrastructure.IOrchestrationTranslator,
+        };
 
         // ── Initialize ─────────────────────────────────────────────────────────
         _context.Kernel.Initialize();

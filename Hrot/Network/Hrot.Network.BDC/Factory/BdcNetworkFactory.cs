@@ -66,7 +66,7 @@ namespace Hrot.BDC.Factory
             => new BdcNullSimHostAuxiliaryTranslators();
 
         /// <inheritdoc/>
-        public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators()
+        public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? trajectoryPool = null)
             => new BdcNullSimHostPathfindingTranslators();
 
         /// <inheritdoc/>

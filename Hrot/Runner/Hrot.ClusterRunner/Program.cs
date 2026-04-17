@@ -98,7 +98,9 @@ class Program
         int factoryNodeId = ResolveAppNodeId("Runner", config.NodeId);
         // Create the DDS participant exactly once here (composition root).
         // All subsystems that need a participant will receive it via INetworkFactory.Participant.
-        var participant = config.Headless ? null : HrotEnvironment.CreateParticipant(config.DomainId);
+        // The participant is always created regardless of headless mode; headless mode only
+        // suppresses the rendering window, not the network stack.
+        var participant = HrotEnvironment.CreateParticipant(config.DomainId);
         // Configure sender tracking immediately after creation, before any DDS writer is created.
         participant?.EnableSenderTracking(new SenderIdentityConfig
         {

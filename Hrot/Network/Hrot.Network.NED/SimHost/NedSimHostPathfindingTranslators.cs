@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CarKinem.Trajectory;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
@@ -25,12 +26,14 @@ internal sealed class NedSimHostPathfindingTranslators : ISimHostPathfindingTran
         DdsParticipant       participant,
         NetworkEntityMap     entityMap,
         IGeographicTransform geoTransform,
-        NodeRole             role)
+        NodeRole             role,
+        TrajectoryPoolManager? trajectoryPool = null,
+        int                  localNodeId = 0)
     {
-        if (role.HasFlag(NodeRole.Brain))
-            _translators.AddRange(BrainPathfindingTranslatorPack.Create(participant, entityMap, geoTransform));
-        if (role.HasFlag(NodeRole.NavigationSolver))
-            _translators.AddRange(SimPathfindingTranslatorPack.Create(participant, entityMap, geoTransform));
+        if (role.HasFlag(NodeRole.Brain) && trajectoryPool != null)
+            _translators.AddRange(BrainPathfindingTranslatorPack.Create(participant, entityMap, geoTransform, trajectoryPool, localNodeId));
+        if (role.HasFlag(NodeRole.NavigationSolver) && trajectoryPool != null)
+            _translators.AddRange(SimPathfindingTranslatorPack.Create(participant, entityMap, geoTransform, trajectoryPool));
     }
 
     public void RegisterOn(ModuleHostKernel kernel)
