@@ -4,6 +4,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Perception.Components;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
@@ -58,6 +59,16 @@ public static class CgfComponentRegistry
         world.RegisterComponent<BrainHsm64>();
         world.RegisterComponent<MissionPlanQueue>();
         world.RegisterComponent<NavigationIntent>();
+
+        // ── Tier 2: Perception (Brain-side threat awareness) ──────────────────
+        // Faction, PerceptionReceptor, and TargetMemory are part of the TKB entity template
+        // (added by NedTkbBuilder.WithCombat + WithFaction). Registering them here ensures
+        // that blueprint application stamps them on CGF entities, enabling the Brain node to
+        // receive TargetMemory updates when the SensorTargets DDS translator is fully
+        // implemented (currently a stub in PerceptionTranslators.cs).
+        world.RegisterComponent<Faction>();
+        world.RegisterComponent<PerceptionReceptor>();
+        world.RegisterComponent<TargetMemory>();
 
         // ── Tier 2: Kinematic (Muscle-tier physics) ───────────────────────────
         world.RegisterComponent<VehicleState>();
