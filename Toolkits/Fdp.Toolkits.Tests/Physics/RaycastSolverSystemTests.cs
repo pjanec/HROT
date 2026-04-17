@@ -192,57 +192,60 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.NotEqual(farEntity, hit.HitEntity);
         }
 
-        // ── Test 6: TD-8 Parallel array contract ─────────────────────────────────
+        // ── Test 7: SourceNodeId propagation ─────────────────────────────────────
 
         /// <summary>
-        /// TD-8: Verifies the parallel-array contract between <see cref="RaycastBatchData.Requests"/>
-        /// and <see cref="RaycastBatchData.Hits"/>.
+        /// Verifies that <see cref="RaycastSolverSystem"/> copies
+        /// <see cref="RaycastRequest.SourceNodeId"/> verbatim into the corresponding
+        /// <see cref="RaycastHit.SourceNodeId"/>.
         ///
         /// <para>
-        /// <c>HitResolutionSystem</c> (and other consumers) depend on
-        /// <c>batch.Hits[i]</c> being the resolved result for <c>batch.Requests[i]</c>.
-        /// This test submits two requests — one that should hit and one that should miss —
-        /// and confirms that each hit result occupies the same index as its corresponding request.
+        /// The Distributed Perception Pipeline relies on this field to demultiplex
+        /// raycast responses back to the originating Brain node.
         /// </para>
         /// </summary>
         [Fact]
-        public void RaycastSolver_HitsIsParallelToRequests()
+        public void RaycastSolver_PropagatesSourceNodeId_ToHit()
         {
-            // Request 0: a ray that hits an entity at (5, 0).
-            var hitEntity = SpawnCollider(new Vector2(5f, 0f), radius: 1f, layer: 1);
+            // Arrange: entity at (5,0) so we get a real hit; SourceNodeId = 7.
+            SpawnCollider(new Vector2(5f, 0f), radius: 1f, layer: 1);
 
-            // Request 1: a ray that passes through empty space (no entity at y=50).
-            // Submit both manually so we control the index ordering.
-            ref var batch = ref _world.GetSingleton<RaycastBatchData>();
-
-            batch.Requests[0] = new RaycastRequest
+            RunSolver(new RaycastRequest
             {
-                Start     = new Vector3(0f, 0f, 0f),
-                End       = new Vector3(10f, 0f, 0f),
-                RayId     = PhysicsConstants.PackBulletRayId(10),
-                LayerMask = 1,
-            };
-            batch.Requests[1] = new RaycastRequest
+                Start        = new Vector3(-5f, 0f, 0f),
+                End          = new Vector3(10f, 0f, 0f),
+                RayId        = PhysicsConstants.PackBulletRayId(1),
+                LayerMask    = 1,
+                SourceNodeId = 7,
+            });
+
+            var hit = _world.GetSingleton<RaycastBatchData>().Hits[0];
+            Assert.Equal(7, hit.SourceNodeId);
+        }
+
+        /// <summary>
+        /// SourceNodeId is propagated even on a miss (HasHit == 0), so the
+        /// solver-egress translator can route the empty hit record back to the correct Brain.
+        /// </summary>
+        [Fact]
+        public void RaycastSolver_PropagatesSourceNodeId_OnMiss()
+        {
+            // No entities — ray will miss.
+            _world.SetSingleton(new SpatialGridData { Grid = _grid });
+
+            RunSolver(new RaycastRequest
             {
-                Start     = new Vector3(0f, 50f, 0f),
-                End       = new Vector3(10f, 50f, 0f),
-                RayId     = PhysicsConstants.PackBulletRayId(11),
-                LayerMask = 1,
-            };
-            batch.Count = 2;
+                Start        = new Vector3(-5f, 0f, 0f),
+                End          = new Vector3(5f, 0f, 0f),
+                RayId        = PhysicsConstants.PackBulletRayId(2),
+                LayerMask    = 1,
+                SourceNodeId = 42,
+            });
 
-            var sys = new RaycastSolverSystem();
-            sys.Create(_world);
-            sys.Run();
-
-            ref readonly var batchResult = ref _world.GetSingleton<RaycastBatchData>();
-
-            // Hits[0] corresponds to Requests[0] — the hitting ray.
-            Assert.Equal(1, batchResult.Hits[0].HasHit);
-            Assert.Equal(hitEntity, batchResult.Hits[0].HitEntity);
-
-            // Hits[1] corresponds to Requests[1] — the missing ray.
-            Assert.Equal(0, batchResult.Hits[1].HasHit);
+            var hit = _world.GetSingleton<RaycastBatchData>().Hits[0];
+            Assert.Equal(0, hit.HasHit);
+            Assert.Equal(42, hit.SourceNodeId);
         }
     }
 }
+

@@ -69,6 +69,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                         IsReachable        = false,
                         TotalDistanceMeters = 0f,
                         RouteHandle        = -1,
+                        SourceNodeId       = req.SourceNodeId,
                     };
                     continue;
                 }
@@ -92,7 +93,7 @@ namespace Fdp.Toolkit.Navigation.Systems
             int endNode   = FindNearestNode(end2D);
 
             if (startNode < 0 || endNode < 0)
-                return Unreachable(req.RequestId);
+                return Unreachable(in req);
 
             // Dijkstra
             int  nodeCount = _roadNetwork.Nodes.Length;
@@ -141,7 +142,7 @@ namespace Fdp.Toolkit.Navigation.Systems
 
             // No path found
             if (dist[endNode] == float.MaxValue)
-                return Unreachable(req.RequestId);
+                return Unreachable(in req);
 
             // Reconstruct node sequence
             var nodePath = new List<int>();
@@ -165,6 +166,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                 IsReachable         = true,
                 TotalDistanceMeters = dist[endNode],
                 RouteHandle         = handle,
+                SourceNodeId        = req.SourceNodeId,
             };
         }
 
@@ -181,7 +183,7 @@ namespace Fdp.Toolkit.Navigation.Systems
             return best;
         }
 
-        private static PathResult Unreachable(long requestId) =>
-            new PathResult { RequestId = requestId, IsReachable = false, TotalDistanceMeters = 0f, RouteHandle = -1 };
+        private static PathResult Unreachable(in PathRequest req) =>
+            new PathResult { RequestId = req.RequestId, IsReachable = false, TotalDistanceMeters = 0f, RouteHandle = -1, SourceNodeId = req.SourceNodeId };
     }
 }

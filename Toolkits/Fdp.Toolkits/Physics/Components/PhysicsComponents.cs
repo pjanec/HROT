@@ -93,7 +93,13 @@ namespace Fdp.Toolkit.Physics.Components
         /// <see cref="PhysicsCollider.CollisionLayer"/> has at least one shared bit.
         /// </summary>
         public int LayerMask;
-    }
+        /// <summary>
+        /// Originating Brain node ID stamped by the network ingress translator.
+        /// Propagated through the solver to <see cref="RaycastHit.SourceNodeId"/> so that
+        /// the egress translator can demultiplex hits back to the requesting Brain node.
+        /// 0 = local-only (no distributed routing required).
+        /// </summary>
+        public int SourceNodeId;    }
 
     // ── RaycastHit ────────────────────────────────────────────────────────────────
 
@@ -128,7 +134,11 @@ namespace Fdp.Toolkit.Physics.Components
 
         /// <summary>0 = miss, 1 = hit.</summary>
         public byte HasHit;
-    }
+        /// <summary>
+        /// Propagated from <see cref="RaycastRequest.SourceNodeId"/> by <c>RaycastSolverSystem</c>.
+        /// Used by the egress translator to route the result back to the originating Brain.
+        /// </summary>
+        public int SourceNodeId;    }
 
     // ── RaycastBatchData ──────────────────────────────────────────────────────────
 

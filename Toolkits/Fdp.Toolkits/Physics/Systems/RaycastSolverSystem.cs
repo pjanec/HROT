@@ -130,12 +130,13 @@ namespace Fdp.Toolkit.Physics.Systems
                 // Write result — exclusive write to index i (thread-safe by construction).
                 hits[i] = new RaycastHit
                 {
-                    T         = bestT,
-                    HitEntity = bestEnt,
-                    RayId     = req.RayId,
-                    Observer  = req.Observer,
-                    Target    = req.Target,
-                    HasHit    = (byte)(anyHit ? 1 : 0),
+                    T          = bestT,
+                    HitEntity  = bestEnt,
+                    RayId      = req.RayId,
+                    Observer   = req.Observer,
+                    Target     = req.Target,
+                    HasHit     = (byte)(anyHit ? 1 : 0),
+                    SourceNodeId = req.SourceNodeId,
                 };
                 } // end unsafe
             });

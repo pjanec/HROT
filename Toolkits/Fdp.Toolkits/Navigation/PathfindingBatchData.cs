@@ -26,6 +26,14 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>Mobility type: 0 = Wheeled, 1 = Tracked, 2 = Infantry.</summary>
         public byte    MobilityProfile;
+
+        /// <summary>
+        /// Originating Brain node ID stamped by the network ingress translator.
+        /// Propagated through the solver to <see cref="PathResult.SourceNodeId"/> so that
+        /// the egress translator can demultiplex results back to the requesting Brain node.
+        /// 0 = local-only (no distributed routing required).
+        /// </summary>
+        public int     SourceNodeId;
     }
 
     /// <summary>
@@ -48,6 +56,12 @@ namespace Fdp.Toolkit.Navigation
         /// Handle into the shared route/waypoint store. -1 if unreachable or not yet populated.
         /// </summary>
         public int   RouteHandle;
+
+        /// <summary>
+        /// Propagated from <see cref="PathRequest.SourceNodeId"/> by <c>PathfindingSolverSystem</c>.
+        /// Used by the egress translator to route the result back to the originating Brain.
+        /// </summary>
+        public int   SourceNodeId;
     }
 
     // ── Singleton ECS component ───────────────────────────────────────────────────

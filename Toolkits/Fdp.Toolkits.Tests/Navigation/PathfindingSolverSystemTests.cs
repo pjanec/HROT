@@ -130,5 +130,92 @@ namespace Fdp.Toolkit.Navigation.Tests
             // Assert
             mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<PathfindingSolverSystem>()), Times.Once);
         }
+
+        // ── Test 4: SourceNodeId propagation ─────────────────────────────────────
+
+        /// <summary>
+        /// Verifies that <see cref="PathfindingSolverSystem"/> copies
+        /// <see cref="PathRequest.SourceNodeId"/> verbatim into the corresponding
+        /// <see cref="PathResult.SourceNodeId"/>.
+        ///
+        /// <para>
+        /// The Distributed Pathfinding Pipeline relies on this field to route
+        /// path responses back to the originating Brain node.
+        /// </para>
+        /// </summary>
+        [Fact]
+        public void PathfindingSolverSystem_PropagatesSourceNodeId_ToResult()
+        {
+            // Arrange — two-node network so the solver can find a route.
+            var builder = new RoadNetworkBuilder();
+            builder.AddNode(new Vector2(0f, 0f));
+            builder.AddNode(new Vector2(100f, 0f));
+            builder.AddSegment(
+                new Vector2(0f, 0f),   new Vector2(50f, 0f),
+                new Vector2(100f, 0f), new Vector2(50f, 0f),
+                startNodeIdx: 0, endNodeIdx: 1);
+            var roadNet = builder.Build(cellSize: 20f, gridWidth: 10, gridHeight: 10);
+
+            var pool = new TrajectoryPoolManager();
+            var view = (ISimulationView)_world;
+
+            ref var batch = ref _world.GetSingleton<PathfindingBatchData>();
+            batch.Requests[0] = new PathRequest
+            {
+                RequestId       = 10L,
+                Start           = Vector3.Zero,
+                End             = new Vector3(100f, 0f, 0f),
+                MobilityProfile = 0,
+                SourceNodeId    = 5,
+            };
+            batch.Count = 1;
+
+            var system = new PathfindingSolverSystem(roadNet, pool);
+
+            // Act
+            system.Execute(view, 0f);
+
+            // Assert
+            ref readonly var result = ref _world.GetSingleton<PathfindingBatchData>();
+            Assert.Equal(5, result.Results[0].SourceNodeId);
+
+            roadNet.Dispose();
+            pool.Dispose();
+        }
+
+        /// <summary>
+        /// SourceNodeId is propagated even when the solver cannot find a path
+        /// (IsReachable == false), so the egress translator can still route the
+        /// "unreachable" result back to the originating Brain node.
+        /// </summary>
+        [Fact]
+        public void PathfindingSolverSystem_PropagatesSourceNodeId_WhenUnreachable()
+        {
+            var pool = new TrajectoryPoolManager();
+            var view = (ISimulationView)_world;
+
+            ref var batch = ref _world.GetSingleton<PathfindingBatchData>();
+            batch.Requests[0] = new PathRequest
+            {
+                RequestId       = 11L,
+                Start           = Vector3.Zero,
+                End             = new Vector3(500f, 500f, 0f),
+                MobilityProfile = 0,
+                SourceNodeId    = 99,
+            };
+            batch.Count = 1;
+
+            var system = new PathfindingSolverSystem(default(RoadNetworkBlob), pool);
+
+            // Act
+            system.Execute(view, 0f);
+
+            // Assert
+            ref readonly var result = ref _world.GetSingleton<PathfindingBatchData>();
+            Assert.False(result.Results[0].IsReachable);
+            Assert.Equal(99, result.Results[0].SourceNodeId);
+
+            pool.Dispose();
+        }
     }
 }
