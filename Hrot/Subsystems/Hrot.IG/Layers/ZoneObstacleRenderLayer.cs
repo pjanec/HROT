@@ -3,10 +3,9 @@ using Fdp.Core;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Map.Common.Components;
-using Fdp.ModuleHost.Abstractions;
 using Raylib_cs;
 
-namespace Hrot.ScenarioEditor.Rendering;
+namespace Hrot.IG.Layers;
 
 /// <summary>
 /// Always-on map overlay layer that renders LOS obstacle entities created by
@@ -34,12 +33,12 @@ public sealed class ZoneObstacleRenderLayer : IMapLayer
     public string Name => "Zone Obstacles";
 
     /// <inheritdoc/>
-    /// <remarks>-1 means always-on; the editor layer mask does not gate this layer.</remarks>
+    /// <remarks>-1 means always-on; the layer mask does not gate this layer.</remarks>
     public int LayerBitIndex => -1;
 
     // ── Fields ────────────────────────────────────────────────────────────────
 
-    private readonly ISimulationView _view;
+    private readonly EntityRepository _world;
     private EntityQuery? _query;
 
     // ── Test hooks ────────────────────────────────────────────────────────────
@@ -55,10 +54,10 @@ public sealed class ZoneObstacleRenderLayer : IMapLayer
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
-    /// <param name="view">Simulation view used to query obstacle entities.</param>
-    public ZoneObstacleRenderLayer(ISimulationView view)
+    /// <param name="world">ECS world used to query obstacle entities.</param>
+    public ZoneObstacleRenderLayer(EntityRepository world)
     {
-        _view = view ?? throw new System.ArgumentNullException(nameof(view));
+        _world = world ?? throw new System.ArgumentNullException(nameof(world));
     }
 
     // ── IMapLayer methods ─────────────────────────────────────────────────────
@@ -70,7 +69,7 @@ public sealed class ZoneObstacleRenderLayer : IMapLayer
     public void Draw(RenderContext ctx)
     {
         // Build the query lazily so all component types are registered before first use.
-        _query ??= _view
+        _query ??= _world
             .Query()
             .WithManaged<ZoneMembership>()
             .With<PhysicsCollider>()
@@ -81,8 +80,8 @@ public sealed class ZoneObstacleRenderLayer : IMapLayer
 
         foreach (var entity in _query)
         {
-            ref readonly var tf  = ref _view.GetComponentRO<SimTransform>(entity);
-            ref readonly var col = ref _view.GetComponentRO<PhysicsCollider>(entity);
+            ref readonly var tf  = ref _world.GetComponentRO<SimTransform>(entity);
+            ref readonly var col = ref _world.GetComponentRO<PhysicsCollider>(entity);
 
             var center = new Vector2(tf.Position.X, tf.Position.Y);
             float radius = col.Radius;
@@ -106,8 +105,8 @@ public sealed class ZoneObstacleRenderLayer : IMapLayer
 
         foreach (var entity in _query)
         {
-            ref readonly var tf  = ref _view.GetComponentRO<SimTransform>(entity);
-            ref readonly var col = ref _view.GetComponentRO<PhysicsCollider>(entity);
+            ref readonly var tf  = ref _world.GetComponentRO<SimTransform>(entity);
+            ref readonly var col = ref _world.GetComponentRO<PhysicsCollider>(entity);
 
             var center = new Vector2(tf.Position.X, tf.Position.Y);
             if (Vector2.DistanceSquared(center, worldPos) <= col.Radius * col.Radius)

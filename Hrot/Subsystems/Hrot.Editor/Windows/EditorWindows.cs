@@ -82,7 +82,7 @@ internal sealed class EditorSpawnerWindow : ManagedWindow
         TitleBarColor = EditorWindowColor.TitleBar;
     }
 
-    protected override void DrawClientArea() => _panel.Draw(_spawn);
+    protected override void DrawClientArea() => _panel.DrawContent(_spawn);
 }
 
 /// <summary>Mission editor panel (shared) as a perspective-bound managed window.</summary>

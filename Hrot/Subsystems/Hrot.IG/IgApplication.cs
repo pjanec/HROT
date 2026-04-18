@@ -662,6 +662,9 @@ public class IgApplication : IDisposable
         _world.RegisterComponent<Hrot.Map.Common.Components.PersonalRouteRef>();
         _world.RegisterComponent<Hrot.Map.Common.Components.RouteTrajectoryCache>();
 
+        // Zone obstacle components required by ZoneObstacleRenderLayer.
+        _world.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
+
         // ── Ground clamping components (MOD1-P7T2) ────────────────────────────
         // Registered unconditionally so they are available even when
         // IgGroundClampingModule is not installed (e.g. 2D-only deployments).
@@ -1037,6 +1040,9 @@ public class IgApplication : IDisposable
 
         // EffectRenderLayer — draws explosion circles and tracer lines from VisualEffectState.
         _canvas.AddLayer(new Hrot.IG.Layers.EffectRenderLayer(_world));
+
+        // ZoneObstacleRenderLayer — draws LOS obstacle circles (always-on overlay).
+        _canvas.AddLayer(new Hrot.IG.Layers.ZoneObstacleRenderLayer(_world));
 
         // Cache SelectionState query once to avoid per-click allocations (CT-2).
         _selectionStateQuery = _world.Query()

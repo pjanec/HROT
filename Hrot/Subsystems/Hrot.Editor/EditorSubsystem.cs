@@ -150,7 +150,9 @@ namespace Hrot.Editor
         // ── Selection state ───────────────────────────────────────────────────────
 
         private DefaultSelectionState? _selectionState;
+        // ── Doctrine registry (promoted for tooltip rendering) ─────────────────
 
+        private DoctrineRegistry? _doctrineRegistry;
         // ── Production visualizer dependencies ───────────────────────────────────
 
         private readonly MapUserConfig     _userConfig     = new();
@@ -284,6 +286,7 @@ namespace Hrot.Editor
             var geoTransform     = HrotEnvironment.CreateGeoTransform();
             var entityMap        = new NetworkEntityMap();
             var doctrineRegistry = new DoctrineRegistry();
+            _doctrineRegistry = doctrineRegistry;
             Hrot.CGF.Configuration.CgfDoctrineSetup.RegisterAll(doctrineRegistry, geoTransform, entityMap);
             // Register Urban Combat doctrines so MissionAdapterSystem can resolve Ambush
             // and InfantryCombat behavior trees when loading UrbanCombatNew scenario files.
@@ -411,9 +414,9 @@ namespace Hrot.Editor
                     .WithLifecycle(EntityLifecycle.All)
                     .Build();
 
-                // Entity render layer — uses CgfDebugVisualizerAdapter so the editor
-                // (which locally hosts the Brain tier) can show cognitive state tooltips.
-                var visualizerAdapter = new Hrot.CGF.CgfDebugVisualizerAdapter(doctrineRegistry);
+                // Entity render layer — uses NedVisualizerAdapter for production-grade
+                // MIL-STD-2525 symbology and affiliation colours in the offline editor.
+                var visualizerAdapter = new Hrot.ScenarioEditor.Adapters.NedVisualizerAdapter(localNodeId: 0);
                 var renderLayer = new EntityRenderLayer(
                     "Entities", layerBitIndex: -1,
                     _world, entityQuery, visualizerAdapter, _selectionState)
@@ -440,7 +443,7 @@ namespace Hrot.Editor
                 _canvas.AddLayer(new RouteRenderLayer(_world, routeQuery, _fdpInspectorState));
 
                 // Zone obstacle render layer — draws LOS obstacle circles (always-on overlay).
-                _canvas.AddLayer(new ZoneObstacleRenderLayer(_world));
+                _canvas.AddLayer(new Hrot.IG.Layers.ZoneObstacleRenderLayer(_world));
 
                 // Perception map layer — draws target-memory links between perceivers and targets.
                 var perceptionLayer = new PerceptionMapLayer(_world);
@@ -559,6 +562,23 @@ namespace Hrot.Editor
             // Poll mission ACKs so async CommitMissionAsync tasks can resolve.
             _missionService?.PollAcks();
 
+            // Synchronise map selection to the MissionPanel using Network ID.
+            if (_missionPanel != null && _selectionState != null && _world != null)
+            {
+                var selected = _selectionState.PrimarySelected;
+                int selectedNetId = 0;
+
+                if (selected.HasValue && selected.Value != Entity.Null && _world.IsAlive(selected.Value))
+                {
+                    if (_world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(selected.Value))
+                    {
+                        selectedNetId = (int)_world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(selected.Value).Value;
+                    }
+                }
+
+                _missionPanel.SelectedEntityId = selectedNetId;
+            }
+
             // Feed the FDP event browser each frame.
             if (!_headless && _world != null)
             {
@@ -588,6 +608,49 @@ namespace Hrot.Editor
         public void DrawUI()
         {
             if (_headless) return;
+
+            // Render hover tooltip with entity info (label, health, cognitive state).
+            if (!ImGuiNET.ImGui.GetIO().WantCaptureMouse && _canvas != null && _world != null)
+            {
+                var mouseWorld = _canvas.Camera.ScreenToWorld(Raylib_cs.Raylib.GetMousePosition());
+                var hovered = _canvas.PickTopmostEntity(mouseWorld);
+
+                if (hovered.HasValue && hovered.Value != Entity.Null)
+                {
+                    var sb = new System.Text.StringBuilder();
+
+                    if (_world.HasComponent<Hrot.IG.Components.ResolvedStyle>(hovered.Value))
+                    {
+                        ref readonly var style = ref _world.GetComponentRO<Hrot.IG.Components.ResolvedStyle>(hovered.Value);
+                        string label = style.GetLabelText();
+                        if (!string.IsNullOrEmpty(label)) sb.AppendLine(label);
+                    }
+
+                    if (_world.HasComponent<Fdp.Toolkit.Combat.Components.Health>(hovered.Value))
+                    {
+                        ref readonly var hp = ref _world.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(hovered.Value);
+                        sb.AppendLine($"Health: {hp.Current:F0} / {hp.Max:F0}");
+                    }
+
+                    if (_world.HasComponent<Fdp.Toolkit.Behavior.Components.DoctrineState>(hovered.Value))
+                    {
+                        ref readonly var ds = ref _world.GetComponentRO<Fdp.Toolkit.Behavior.Components.DoctrineState>(hovered.Value);
+                        string docName = ds.ActiveDoctrineHash == 0 ? "Idle" : ds.ActiveDoctrineHash.ToString();
+
+                        if (_doctrineRegistry != null && _doctrineRegistry.TryGetName(ds.ActiveDoctrineHash, out string? name))
+                            docName = name;
+
+                        sb.AppendLine($"Doctrine: {docName} (Tier {ds.BrainTier})");
+                    }
+
+                    if (sb.Length > 0)
+                    {
+                        ImGuiNET.ImGui.BeginTooltip();
+                        ImGuiNET.ImGui.TextUnformatted(sb.ToString().TrimEnd());
+                        ImGuiNET.ImGui.EndTooltip();
+                    }
+                }
+            }
 
             // Trigger ImGui popup when a right-click was recorded this frame.
             if (_openContextMenuThisFrame)
@@ -676,7 +739,6 @@ namespace Hrot.Editor
             // ── Legacy editor-specific windows ────────────────────────────────
             windowManager.RegisterWindow(new EditorToolbarWindow(_toolbarPanel!, _editorLogic));
             windowManager.RegisterWindow(new EditorBrowserWindow(_browserPanel!, _editorLogic));
-            windowManager.RegisterWindow(new EditorOrbatWindow(_orbatPanel!, _editorLogic));
 
             if (_headless) return;
 

@@ -18,16 +18,16 @@ public static class DoctrineCatalog
         ["WanderCivil", "PanicFlee"];
 
     private static readonly IReadOnlyList<string> s_militaryApcDoctrines =
-        ["ConvoyEscort", "MoveToLocation", "FollowRoute"];
+        ["ConvoyEscort", "MoveToLocation", "FollowRoute", "FireAtTarget"];
 
     private static readonly IReadOnlyList<string> s_infantryDoctrines =
-        ["InfantryCombat", "MoveToLocation", "JoinFormation"];
+        ["InfantryCombat", "MoveToLocation", "JoinFormation", "FireAtTarget"];
 
     private static readonly IReadOnlyList<string> s_insurgentDoctrines =
-        ["Ambush", "MoveToLocation"];
+        ["Ambush", "MoveToLocation", "FireAtTarget"];
 
     private static readonly IReadOnlyList<string> s_defaultDoctrines =
-        ["MoveToLocation", "FollowRoute", "JoinFormation", "Idle"];
+        ["MoveToLocation", "FollowRoute", "JoinFormation", "Idle", "FireAtTarget"];
 
     /// <summary>
     /// Returns the list of doctrine names valid for the given TKB entity type.

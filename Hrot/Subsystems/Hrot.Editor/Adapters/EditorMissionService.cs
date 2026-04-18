@@ -49,10 +49,23 @@ namespace Hrot.Editor.Adapters
             _registry = registry;
         }
 
+        // ── Private entity resolution ─────────────────────────────────────────
+
+        private Entity FindEntityByNetworkId(long networkId)
+        {
+            var query = _repo.Query().With<NetworkIdentity>().Build();
+            foreach (var e in query)
+            {
+                if (_repo.GetComponent<NetworkIdentity>(e).Value == networkId)
+                    return e;
+            }
+            return Entity.Null;
+        }
+
         /// <inheritdoc/>
         public IReadOnlyList<string> GetAvailableBehaviors(long entityId)
         {
-            var entity = _repo.GetEntityByIndex((int)entityId);
+            var entity = FindEntityByNetworkId(entityId);
             if (entity.IsNull || !_repo.IsAlive(entity))
                 return Array.Empty<string>();
 
@@ -68,7 +81,7 @@ namespace Hrot.Editor.Adapters
         /// <inheritdoc/>
         public (Hrot.Core.Mission.MissionPlan? Plan, long Version) GetMissionSnapshot(long entityId)
         {
-            var entity = _repo.GetEntityByIndex((int)entityId);
+            var entity = FindEntityByNetworkId(entityId);
             if (entity.IsNull || !_repo.IsAlive(entity))
                 return (null, 0);
 

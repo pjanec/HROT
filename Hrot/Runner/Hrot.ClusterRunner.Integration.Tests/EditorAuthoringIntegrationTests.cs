@@ -382,9 +382,11 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         using var harness = new EditorHarness();
         var world = harness.Repo;
 
-        // Spawn an Insurgent entity with TkbIdentity.
+        // Spawn an Insurgent entity with TkbIdentity and a stable NetworkIdentity.
+        const long insurgentNetId = 1001L;
         var insurgent = world.CreateEntity();
         world.AddComponent(insurgent, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
+        world.AddComponent(insurgent, new Fdp.Toolkit.Replication.Components.NetworkIdentity(insurgentNetId));
 
         // Build a DoctrineRegistry that only registers "Ambush" (not "MoveToLocation").
         var registry = new Fdp.Toolkit.Behavior.DoctrineRegistry();
@@ -392,8 +394,8 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
 
         var service = new EditorMissionService(world.Bus, world, registry);
 
-        // GetAvailableBehaviors uses entity index as the ID.
-        var behaviors = service.GetAvailableBehaviors((long)insurgent.Index);
+        // GetAvailableBehaviors resolves entities via NetworkIdentity, not ECS index.
+        var behaviors = service.GetAvailableBehaviors(insurgentNetId);
 
         Assert.Contains("Ambush",           behaviors);
         Assert.DoesNotContain("MoveToLocation", behaviors);
