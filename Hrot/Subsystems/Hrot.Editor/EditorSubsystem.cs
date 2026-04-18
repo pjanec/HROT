@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Examples.Scenarios.Integrated;
+using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Runner;
 using Fdp.Toolkit.Behavior;
 using Fdp.Presentation.Abstractions;
@@ -31,6 +33,8 @@ using Hrot.Editor.Events;
 using Hrot.Editor.Modules;
 using Hrot.Editor.Rendering;
 using Hrot.Editor.UI;
+using Hrot.IG.Components;
+using Hrot.IG.Layers;
 using Hrot.IG.Systems;
 using Hrot.IG.Modules;
 using Hrot.Map.Common;
@@ -268,15 +272,22 @@ namespace Hrot.Editor
             _world.RegisterComponent<Hrot.IG.Components.CullingState>();
             _world.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();
             _world.RegisterManagedComponent<Hrot.IG.Components.IgSymbolOverride>();
+            // Visual effect components required by EventEffectModule (EventToEffectSystem).
+            _world.RegisterComponent<VisualEffectState>();
+            _world.RegisterComponent<TracerTarget>();
 
             // ── 2. Time controller (stepping — no DDS sync partner) ──────────
             _stepping = new SteppingTimeController(new GlobalTime { TimeScale = 1.0f });
             _kernel.SetTimeController(_stepping);
 
             // ── 3. Shared services ────────────────────────────────────────────
+            var geoTransform     = HrotEnvironment.CreateGeoTransform();
             var entityMap        = new NetworkEntityMap();
             var doctrineRegistry = new DoctrineRegistry();
-            Hrot.CGF.Configuration.CgfDoctrineSetup.RegisterAll(doctrineRegistry, geoTransform: null, entityMap);
+            Hrot.CGF.Configuration.CgfDoctrineSetup.RegisterAll(doctrineRegistry, geoTransform, entityMap);
+            // Register Urban Combat doctrines so MissionAdapterSystem can resolve Ambush
+            // and InfantryCombat behavior trees when loading UrbanCombatNew scenario files.
+            UrbanCombatNewScenario.RegisterUrbanCombatDoctrines(doctrineRegistry);
             var clusterSlave     = new ClusterSlave(0, "Editor", _world.Bus);
             var zoneService      = new ZoneManagerService();
 
@@ -293,6 +304,9 @@ namespace Hrot.Editor
 
             // ── 3b. TKB + ELM + offline spawning ─────────────────────────────
             var tkbDb       = HrotEnvironment.CreateTkb();
+            // Register Urban Combat entity blueprints (TKB types 1001–2003) so the
+            // ScenarioSerializer can resolve MilitaryApc, InfantrySoldier, and Insurgent.
+            UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb);
             var elm         = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
             var idAllocator = new SequentialIdAllocator();
             var spawnSys    = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: 0);
@@ -334,6 +348,9 @@ namespace Hrot.Editor
             _kernel.RegisterModule(new MapCullingModule(_cameraViewport));
             _kernel.RegisterModule(new StyleResolutionModule(_userConfig, localNodeId: 0));
 
+            // ── 4f. Visual effects module — spawns and cleans up tracers / explosions ──
+            _kernel.RegisterModule(new EventEffectModule());
+
             // ── 5. Kernel initialization ──────────────────────────────────────
             _kernel.Initialize();
 
@@ -367,11 +384,11 @@ namespace Hrot.Editor
             if (!_headless)
             {
                 _mapViewConfig    = new MapViewConfig();
-                _mapPickAdapter   = new EditorMapPickAdapter(_canvas!);
+                _mapPickAdapter   = new EditorMapPickAdapter(_canvas!, geoTransform);
 
-                // Build the JSON→ECS attribute compiler (no geo-transform: editor uses
-                // Cartesian map coords) to inject EntityInfo on entity placement.
-                var jsonCompiler  = Hrot.SimHost.AttributeCompilerFactory.Build(geoTransform: null);
+                // Build the JSON→ECS attribute compiler with the geo-transform so that
+                // geodetic spawn coordinates are projected correctly on entity placement.
+                var jsonCompiler  = Hrot.SimHost.AttributeCompilerFactory.Build(geoTransform);
                 _spawnAdapter     = new EditorSpawnAdapter(_canvas!, _world.Bus, jsonCompiler, tkbDb);
                 _zoneAdapter      = new EditorZoneAdapter(_canvas!, _world.Bus);
                 _mapConfigAdapter = new EditorMapConfigAdapter(_mapViewConfig, _canvas!);
@@ -394,8 +411,9 @@ namespace Hrot.Editor
                     .WithLifecycle(EntityLifecycle.All)
                     .Build();
 
-                // Entity render layer — draws entity symbols on the map.
-                var visualizerAdapter = new NedVisualizerAdapter(localNodeId: 0);
+                // Entity render layer — uses CgfDebugVisualizerAdapter so the editor
+                // (which locally hosts the Brain tier) can show cognitive state tooltips.
+                var visualizerAdapter = new Hrot.CGF.CgfDebugVisualizerAdapter(doctrineRegistry);
                 var renderLayer = new EntityRenderLayer(
                     "Entities", layerBitIndex: -1,
                     _world, entityQuery, visualizerAdapter, _selectionState)
@@ -431,6 +449,12 @@ namespace Hrot.Editor
                 // Grid map layer — reads MapViewConfig.ShowGrid each frame.
                 var gridLayer = new GridMapLayer(() => _mapViewConfig!.ShowGrid);
                 _canvas!.AddLayer(gridLayer);
+
+                // Mission route layer — draws orange lines from entity to its mission waypoints.
+                _canvas.AddLayer(new MissionRenderLayer(_world, geoTransform));
+
+                // Visual effects layer — draws explosion circles and tracer lines.
+                _canvas.AddLayer(new EffectRenderLayer(_world));
 
                 // Standard interaction tool — pan, zoom, select, drag-and-drop.
                 _interactionTool = new EditorInteractionTool(_world, entityQuery, visualizerAdapter, _selectionState);

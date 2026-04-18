@@ -346,6 +346,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 { Canvas = _canvas };
             _canvas.AddLayer(renderLayer);
 
+            // Mission route layer — draws orange lines from entity to its mission waypoints.
+            _canvas.AddLayer(new Hrot.ScenarioEditor.Rendering.MissionRenderLayer(
+                _context.World, _context.GeoTransform!));
+
             _interactionTool = new StandardInteractionTool(_context.World, _entityQuery, _visualizerAdapter);
 
             _interactionTool.OnEntitySelectRequest += (entity, augment) =>

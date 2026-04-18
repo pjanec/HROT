@@ -34,7 +34,7 @@ namespace Hrot.CGF;
 /// with a fallback to <see cref="SimTransform"/> for locally-owned entities that have not
 /// yet delegated authority.</para>
 /// </summary>
-internal sealed class CgfDebugVisualizerAdapter : IVisualizerAdapter
+public sealed class CgfDebugVisualizerAdapter : IVisualizerAdapter
 {
     // ── Rendering constants ───────────────────────────────────────────────────
     private const int   CircleRadius  = 8;

@@ -1,24 +1,26 @@
 using System.Numerics;
 using Hrot.IG.Components;
-using Hrot.Map.Common.Events;
 using Fdp.Core;
-using Fdp.ModuleHost.Abstractions;
 using Fdp.Interfaces;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Combat.Events;
 
 namespace Hrot.IG.Systems;
 
 /// <summary>
-/// Simulation-phase system that consumes <see cref="FireInteractionEvent"/> events
-/// and spawns short-lived visual effect entities for each event:
+/// Simulation-phase system that consumes <see cref="DetonationNotification"/> and
+/// <see cref="WeaponFireNotification"/> events and spawns short-lived visual effect
+/// entities for each event:
 /// <list type="bullet">
 ///   <item>
 ///     <b>Explosion</b> — a <see cref="EffectType.Explosion"/> entity placed at the
-///     target position, expanding circle fading over
+///     detonation hit position, expanding circle fading over
 ///     <see cref="VisualEffectStateConstants.ExplosionDurationSeconds"/>.
 ///   </item>
 ///   <item>
 ///     <b>Tracer</b> — a <see cref="EffectType.Tracer"/> entity placed at the shooter
-///     position with a <see cref="TracerTarget"/> pointing at the impact, fading over
+///     position with a <see cref="TracerTarget"/> pointing at the target, fading over
 ///     <see cref="VisualEffectStateConstants.TracerDurationSeconds"/>.
 ///   </item>
 /// </list>
@@ -36,16 +38,29 @@ public class EventToEffectSystem : IEcsModuleSystem
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
     {
-        var events = view.ReadEvents<FireInteractionEvent>();
-        if (events.IsEmpty)
-            return;
-
         var cmd = view.GetCommandBuffer();
 
-        foreach (ref readonly var evt in events)
+        // Explosions from DetonationNotification (published by HitResolutionSystem locally
+        // or by MunitionDetonationIngressTranslator on the IG node).
+        var detonations = view.ReadEvents<DetonationNotification>();
+        foreach (ref readonly var evt in detonations)
         {
-            SpawnExplosion(cmd, evt.TargetX, evt.TargetY);
-            SpawnTracer(cmd, evt.ShooterX, evt.ShooterY, evt.TargetX, evt.TargetY);
+            SpawnExplosion(cmd, evt.HitX, evt.HitY);
+        }
+
+        // Tracers from WeaponFireNotification (published by FireProcessingSystem locally
+        // or by WeaponFireIngressTranslator on the IG node).
+        var weaponFires = view.ReadEvents<WeaponFireNotification>();
+        foreach (ref readonly var evt in weaponFires)
+        {
+            // Skip if either entity is gone or lacks a position.
+            if (evt.Shooter == Entity.Null || evt.Target == Entity.Null) continue;
+            if (!view.IsAlive(evt.Shooter) || !view.IsAlive(evt.Target)) continue;
+            if (!view.HasComponent<SimTransform>(evt.Shooter) || !view.HasComponent<SimTransform>(evt.Target)) continue;
+
+            ref readonly var shooterTf = ref view.GetComponentRO<SimTransform>(evt.Shooter);
+            ref readonly var targetTf  = ref view.GetComponentRO<SimTransform>(evt.Target);
+            SpawnTracer(cmd, shooterTf.Position.X, shooterTf.Position.Y, targetTf.Position.X, targetTf.Position.Y);
         }
     }
 

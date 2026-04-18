@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Vis2D;
 using Hrot.Editor.Tools;
 using Hrot.UI.Common.Facades;
@@ -26,18 +27,21 @@ namespace Hrot.Editor.Adapters
     public sealed class EditorMapPickAdapter : IMapPickService
     {
         private readonly MapCanvas _canvas;
+        private readonly IGeographicTransform _geoTransform;
 
         /// <param name="canvas">The map canvas that hosts the tool stack.</param>
-        public EditorMapPickAdapter(MapCanvas canvas)
+        /// <param name="geoTransform">Used to convert flat-map Cartesian picks to WGS-84 geodetic coordinates.</param>
+        public EditorMapPickAdapter(MapCanvas canvas, IGeographicTransform geoTransform)
         {
-            _canvas = canvas;
+            _canvas       = canvas;
+            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
         }
 
         /// <inheritdoc/>
         public Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default)
         {
             var tcs  = new TaskCompletionSource<Hrot.Core.Mission.GeoPoint>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var tool = new LocationPickerTool();
+            var tool = new LocationPickerTool(_geoTransform);
 
             tool.OnLocationPicked += geo =>
             {

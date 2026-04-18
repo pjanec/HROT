@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Core.Mission;
@@ -9,8 +10,9 @@ namespace Hrot.Editor.Tools
 {
     /// <summary>
     /// Single-click tool that fires <see cref="OnLocationPicked"/> with the world-space
-    /// click position (expressed as a <see cref="GeoPoint"/> with X→Longitude, Y→Latitude)
-    /// and pops itself immediately.  Supports cancellation via ESC or right-click.
+    /// click position converted to WGS-84 geodetic coordinates via
+    /// <see cref="IGeographicTransform"/> and pops itself immediately.
+    /// Supports cancellation via ESC or right-click.
     /// </summary>
     public sealed class LocationPickerTool : IMapTool
     {
@@ -24,6 +26,13 @@ namespace Hrot.Editor.Tools
         public Action? OnCancelled;
 
         private MapCanvas? _canvas;
+        private readonly IGeographicTransform _geoTransform;
+
+        /// <param name="geoTransform">Used to convert flat-map Cartesian X/Y to WGS-84 lat/lon.</param>
+        public LocationPickerTool(IGeographicTransform geoTransform)
+        {
+            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
+        }
 
         /// <inheritdoc/>
         public void OnEnter(MapCanvas canvas) => _canvas = canvas;
@@ -42,7 +51,9 @@ namespace Hrot.Editor.Tools
         {
             if (button == MouseButton.Left)
             {
-                var geo = new GeoPoint { Latitude = worldPos.Y, Longitude = worldPos.X, Altitude = 0.0 };
+                // Convert flat-map Cartesian X/Y to WGS-84 geodetic coordinates.
+                var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(worldPos.X, worldPos.Y, 0f));
+                var geo = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt };
                 OnLocationPicked?.Invoke(geo);
                 _canvas?.PopTool();
                 return true;

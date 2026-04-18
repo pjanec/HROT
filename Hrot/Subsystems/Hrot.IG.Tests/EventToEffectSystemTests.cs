@@ -2,20 +2,21 @@ using System.Numerics;
 using Hrot.IG.Components;
 using Hrot.IG.Systems;
 using Fdp.Core;
+using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Combat.Events;
 
 namespace Hrot.IG.Tests;
 
 /// <summary>
-/// Unit tests for Task IG.4.2: <see cref="EventToEffectSystem"/> and
-/// <see cref="VisualEffectCleanupSystem"/>.
+/// Unit tests for <see cref="EventToEffectSystem"/> and <see cref="VisualEffectCleanupSystem"/>.
 ///
 /// Validates:
 /// <list type="bullet">
-///   <item>A <see cref="FireInteractionEvent"/> spawns exactly two effect entities
-///   (one explosion + one tracer).</item>
-///   <item>Spawned entities carry correct <see cref="VisualEffectState"/> values.</item>
-///   <item>The tracer entity also carries a <see cref="TracerTarget"/>.</item>
+///   <item>A <see cref="DetonationNotification"/> spawns one explosion at the hit position.</item>
+///   <item>A <see cref="WeaponFireNotification"/> with live shooter/target spawns one tracer.</item>
+///   <item>A <see cref="WeaponFireNotification"/> with null or dead entities spawns no tracer.</item>
 ///   <item>No event → no effect entities.</item>
 ///   <item><see cref="VisualEffectCleanupSystem"/> increments <see cref="VisualEffectState.ElapsedTime"/>.</item>
 ///   <item><see cref="VisualEffectCleanupSystem"/> destroys entities whose
@@ -26,12 +27,14 @@ namespace Hrot.IG.Tests;
 /// </summary>
 public class EventToEffectSystemTests
 {
-    // ── Test constants (§CODE-STANDARDS §1) ───────────────────────────────────
+    // ── Test constants ────────────────────────────────────────────────────────
 
     private const float ShooterX = 100f;
     private const float ShooterY = 200f;
     private const float TargetX  = 500f;
     private const float TargetY  = 600f;
+    private const float HitX     = 450f;
+    private const float HitY     = 550f;
     private const float TickDt   = 0.1f;
 
     // ── World factory ─────────────────────────────────────────────────────────
@@ -42,7 +45,8 @@ public class EventToEffectSystemTests
         repo.RegisterComponent<SimTransform>();
         repo.RegisterComponent<VisualEffectState>();
         repo.RegisterComponent<TracerTarget>();
-        repo.RegisterEvent<Hrot.Map.Common.Events.FireInteractionEvent>();
+        repo.RegisterEvent<DetonationNotification>();
+        repo.RegisterEvent<WeaponFireNotification>();
         return repo;
     }
 
@@ -60,18 +64,6 @@ public class EventToEffectSystemTests
         system.Execute(repo, dt);
         var cb = (EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer();
         cb.Playback(repo);
-    }
-
-    /// <summary>Publishes a FireInteractionEvent to the repo's bus (before SwapBuffers).</summary>
-    private static void PublishFire(EntityRepository repo,
-        float sx = ShooterX, float sy = ShooterY,
-        float tx = TargetX,  float ty = TargetY)
-    {
-        repo.Bus.Publish(new Hrot.Map.Common.Events.FireInteractionEvent
-        {
-            ShooterX = sx, ShooterY = sy,
-            TargetX  = tx, TargetY  = ty,
-        });
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -97,8 +89,7 @@ public class EventToEffectSystemTests
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// When no <see cref="FireInteractionEvent"/> is published, the system must not
-    /// create any effect entities.
+    /// When no events are published, the system must not create any effect entities.
     /// </summary>
     [Fact]
     public void Execute_NoEvent_NoEffectEntitiesSpawned()
@@ -114,15 +105,15 @@ public class EventToEffectSystemTests
     }
 
     /// <summary>
-    /// A single <see cref="FireInteractionEvent"/> must spawn exactly one explosion entity.
+    /// A single <see cref="DetonationNotification"/> must spawn exactly one explosion entity.
     /// </summary>
     [Fact]
-    public void Execute_SingleFireEvent_SpawnsOneExplosionEntity()
+    public void Execute_DetonationNotification_SpawnsOneExplosionEntity()
     {
         var repo   = CreateRepo();
         var system = new EventToEffectSystem();
 
-        PublishFire(repo);
+        repo.Bus.Publish(new DetonationNotification { HitX = HitX, HitY = HitY });
         RunSpawnSystem(repo, system);
 
         var (explosions, _) = CountEffects(repo);
@@ -130,32 +121,16 @@ public class EventToEffectSystemTests
     }
 
     /// <summary>
-    /// A single <see cref="FireInteractionEvent"/> must spawn exactly one tracer entity.
+    /// The explosion entity must be positioned at the event's hit coordinates.
     /// </summary>
     [Fact]
-    public void Execute_SingleFireEvent_SpawnsOneTracerEntity()
-    {
-        var repo   = CreateRepo();
-        var system = new EventToEffectSystem();
-
-        PublishFire(repo);
-        RunSpawnSystem(repo, system);
-
-        var (_, tracers) = CountEffects(repo);
-        Assert.Equal(1, tracers);
-    }
-
-    /// <summary>
-    /// The explosion entity must be positioned at the event's target coordinates.
-    /// </summary>
-    [Fact]
-    public void Execute_FireEvent_ExplosionPositionedAtTarget()
+    public void Execute_DetonationNotification_ExplosionPositionedAtHitPoint()
     {
         var repo   = CreateRepo();
         var system = new EventToEffectSystem();
         var view   = (ISimulationView)repo;
 
-        PublishFire(repo);
+        repo.Bus.Publish(new DetonationNotification { HitX = HitX, HitY = HitY });
         RunSpawnSystem(repo, system);
 
         var query = view.Query().With<VisualEffectState>().Build();
@@ -166,26 +141,53 @@ public class EventToEffectSystemTests
 
             if (state.Type == EffectType.Explosion)
             {
-                Assert.Equal(TargetX,  transform.Position.X);
-                Assert.Equal(TargetY,  transform.Position.Y);
+                Assert.Equal(HitX, transform.Position.X);
+                Assert.Equal(HitY, transform.Position.Y);
                 return;
             }
         }
 
-        Assert.Fail("No explosion entity found after FireInteractionEvent.");
+        Assert.Fail("No explosion entity found after DetonationNotification.");
     }
 
     /// <summary>
-    /// The tracer entity must be positioned at the event's shooter coordinates.
+    /// A <see cref="WeaponFireNotification"/> with live shooter and target entities
+    /// must spawn exactly one tracer entity.
     /// </summary>
     [Fact]
-    public void Execute_FireEvent_TracerPositionedAtShooter()
+    public void Execute_WeaponFireNotification_LiveEntities_SpawnsOneTracerEntity()
+    {
+        var repo   = CreateRepo();
+        var system = new EventToEffectSystem();
+
+        var shooter = repo.CreateEntity();
+        var target  = repo.CreateEntity();
+        repo.AddComponent(shooter, new SimTransform { Position = new Vector3(ShooterX, ShooterY, 0f), Rotation = Quaternion.Identity });
+        repo.AddComponent(target,  new SimTransform { Position = new Vector3(TargetX,  TargetY,  0f), Rotation = Quaternion.Identity });
+
+        repo.Bus.Publish(new WeaponFireNotification { Shooter = shooter, Target = target });
+        RunSpawnSystem(repo, system);
+
+        var (_, tracers) = CountEffects(repo);
+        Assert.Equal(1, tracers);
+    }
+
+    /// <summary>
+    /// The tracer entity must be positioned at the shooter's world position.
+    /// </summary>
+    [Fact]
+    public void Execute_WeaponFireNotification_TracerPositionedAtShooter()
     {
         var repo   = CreateRepo();
         var system = new EventToEffectSystem();
         var view   = (ISimulationView)repo;
 
-        PublishFire(repo);
+        var shooter = repo.CreateEntity();
+        var target  = repo.CreateEntity();
+        repo.AddComponent(shooter, new SimTransform { Position = new Vector3(ShooterX, ShooterY, 0f), Rotation = Quaternion.Identity });
+        repo.AddComponent(target,  new SimTransform { Position = new Vector3(TargetX,  TargetY,  0f), Rotation = Quaternion.Identity });
+
+        repo.Bus.Publish(new WeaponFireNotification { Shooter = shooter, Target = target });
         RunSpawnSystem(repo, system);
 
         var query = view.Query().With<VisualEffectState>().Build();
@@ -202,29 +204,33 @@ public class EventToEffectSystemTests
             }
         }
 
-        Assert.Fail("No tracer entity found after FireInteractionEvent.");
+        Assert.Fail("No tracer entity found after WeaponFireNotification.");
     }
 
     /// <summary>
-    /// The tracer entity must carry a <see cref="TracerTarget"/> pointing at the
-    /// event's target coordinates.
+    /// The tracer entity must carry a <see cref="TracerTarget"/> pointing at the target's position.
     /// </summary>
     [Fact]
-    public void Execute_FireEvent_TracerHasCorrectTracerTarget()
+    public void Execute_WeaponFireNotification_TracerHasCorrectTracerTarget()
     {
         var repo   = CreateRepo();
         var system = new EventToEffectSystem();
         var view   = (ISimulationView)repo;
 
-        PublishFire(repo);
+        var shooter = repo.CreateEntity();
+        var target  = repo.CreateEntity();
+        repo.AddComponent(shooter, new SimTransform { Position = new Vector3(ShooterX, ShooterY, 0f), Rotation = Quaternion.Identity });
+        repo.AddComponent(target,  new SimTransform { Position = new Vector3(TargetX,  TargetY,  0f), Rotation = Quaternion.Identity });
+
+        repo.Bus.Publish(new WeaponFireNotification { Shooter = shooter, Target = target });
         RunSpawnSystem(repo, system);
 
         var query = view.Query().With<VisualEffectState>().With<TracerTarget>().Build();
         foreach (var entity in query)
         {
-            ref readonly var target = ref view.GetComponentRO<TracerTarget>(entity);
-            Assert.Equal(TargetX, target.EndX);
-            Assert.Equal(TargetY, target.EndY);
+            ref readonly var tracerTarget = ref view.GetComponentRO<TracerTarget>(entity);
+            Assert.Equal(TargetX, tracerTarget.EndX);
+            Assert.Equal(TargetY, tracerTarget.EndY);
             return;
         }
 
@@ -232,22 +238,41 @@ public class EventToEffectSystemTests
     }
 
     /// <summary>
-    /// Two separate events in the same frame must each spawn their own pair of
-    /// effect entities (4 total: 2 explosions + 2 tracers).
+    /// A <see cref="WeaponFireNotification"/> with <see cref="Entity.Null"/> shooter
+    /// must not spawn a tracer (null-entity guard).
     /// </summary>
     [Fact]
-    public void Execute_TwoFireEvents_SpawnsFourEffectEntities()
+    public void Execute_WeaponFireNotification_NullShooter_NoTracerSpawned()
     {
         var repo   = CreateRepo();
         var system = new EventToEffectSystem();
 
-        repo.Bus.Publish(new Hrot.Map.Common.Events.FireInteractionEvent { ShooterX = 0f, ShooterY = 0f, TargetX = 100f, TargetY = 100f });
-        repo.Bus.Publish(new Hrot.Map.Common.Events.FireInteractionEvent { ShooterX = 200f, ShooterY = 200f, TargetX = 300f, TargetY = 300f });
+        var target = repo.CreateEntity();
+        repo.AddComponent(target, new SimTransform { Position = new Vector3(TargetX, TargetY, 0f), Rotation = Quaternion.Identity });
+
+        repo.Bus.Publish(new WeaponFireNotification { Shooter = Entity.Null, Target = target });
         RunSpawnSystem(repo, system);
 
-        var (explosions, tracers) = CountEffects(repo);
+        var (_, tracers) = CountEffects(repo);
+        Assert.Equal(0, tracers);
+    }
+
+    /// <summary>
+    /// Two separate <see cref="DetonationNotification"/> events in the same frame must
+    /// each spawn one explosion (2 total).
+    /// </summary>
+    [Fact]
+    public void Execute_TwoDetonationNotifications_SpawnsTwoExplosions()
+    {
+        var repo   = CreateRepo();
+        var system = new EventToEffectSystem();
+
+        repo.Bus.Publish(new DetonationNotification { HitX = 100f, HitY = 100f });
+        repo.Bus.Publish(new DetonationNotification { HitX = 200f, HitY = 200f });
+        RunSpawnSystem(repo, system);
+
+        var (explosions, _) = CountEffects(repo);
         Assert.Equal(2, explosions);
-        Assert.Equal(2, tracers);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

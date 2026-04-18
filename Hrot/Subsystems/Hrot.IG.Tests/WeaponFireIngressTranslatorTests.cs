@@ -1,6 +1,7 @@
 using Hrot.NED.Messages;
 using Hrot.Network.NED.IG;
 using Fdp.Core;
+using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
 using System;
@@ -22,7 +23,7 @@ namespace Hrot.IG.Tests
         public WeaponFireIngressTranslatorTests()
         {
             _world = new EntityRepository();
-            _world.RegisterEvent<IgWeaponFireEvent>();
+            _world.RegisterEvent<WeaponFireNotification>();
 
             _entityMap = new NetworkEntityMap();
         }
@@ -36,10 +37,10 @@ namespace Hrot.IG.Tests
 
         /// <summary>
         /// Calls <see cref="WeaponFireIngressTranslator.ProcessSample"/>, plays back the
-        /// command buffer, and swaps event buffers so <see cref="IgWeaponFireEvent"/> events
+        /// command buffer, and swaps event buffers so <see cref="WeaponFireNotification"/> events
         /// are visible to <see cref="FdpEventBus.Read{T}"/>.
         /// </summary>
-        private ReadOnlySpan<IgWeaponFireEvent> ProcessAndFlush(
+        private ReadOnlySpan<WeaponFireNotification> ProcessAndFlush(
             WeaponFireIngressTranslator translator,
             in WeaponFire msg)
         {
@@ -50,17 +51,18 @@ namespace Hrot.IG.Tests
             cmd.Playback(_world);
             _world.Bus.SwapBuffers();
 
-            return _world.Bus.Read<IgWeaponFireEvent>();
+            return _world.Bus.Read<WeaponFireNotification>();
         }
 
-        // ── SC-1: DDS message → one IgWeaponFireEvent ─────────────────────────
+        // ── SC-1: DDS message → one WeaponFireNotification ────────────────────
 
         /// <summary>
         /// BS1-T009 SC-1: A <see cref="WeaponFire"/> DDS message with both entities known
-        /// in the map must produce exactly one <see cref="IgWeaponFireEvent"/> with matching data.
+        /// in the map must produce exactly one <see cref="WeaponFireNotification"/> with
+        /// resolved <see cref="Entity"/> handles.
         /// </summary>
         [Fact]
-        public void ProcessSample_PublishesIgWeaponFireEvent_WhenEntitiesKnown()
+        public void ProcessSample_PublishesWeaponFireNotification_WhenEntitiesKnown()
         {
             var translator = BuildTranslator();
 
@@ -79,20 +81,21 @@ namespace Hrot.IG.Tests
             var events = ProcessAndFlush(translator, in msg);
 
             Assert.Equal(1, events.Length);
-            Assert.Equal(1L, events[0].ShooterEntityId);
-            Assert.Equal(2L, events[0].TargetEntityId);
-            Assert.Equal(0,  events[0].WeaponIndex);
+            Assert.Equal(entityA, events[0].Shooter);
+            Assert.Equal(entityB, events[0].Target);
+            Assert.Equal(0,       events[0].WeaponIndex);
         }
 
-        // ── SC-2: Unknown entity → still publish event ────────────────────────
+        // ── SC-2: Unknown entity → publish with Entity.Null ───────────────────
 
         /// <summary>
         /// BS1-T009 SC-2: When the shooter entity ID is not registered in
         /// <see cref="NetworkEntityMap"/> the translator must still publish
-        /// <see cref="IgWeaponFireEvent"/> and must not throw.
+        /// <see cref="WeaponFireNotification"/> with <see cref="Entity.Null"/> for the
+        /// unknown handle, and must not throw.
         /// </summary>
         [Fact]
-        public void ProcessSample_StillPublishesEvent_WhenShooterEntityUnknown()
+        public void ProcessSample_PublishesNullShooter_WhenShooterEntityUnknown()
         {
             var translator = BuildTranslator();
 
@@ -110,9 +113,10 @@ namespace Hrot.IG.Tests
             var ex = Record.Exception(() =>
             {
                 var events = ProcessAndFlush(translator, in msg);
-                Assert.Equal(1, events.Length);
-                Assert.Equal(5L, events[0].ShooterEntityId);
-                Assert.Equal(1,  events[0].WeaponIndex);
+                Assert.Equal(1,           events.Length);
+                Assert.Equal(Entity.Null, events[0].Shooter);
+                Assert.Equal(entityB,     events[0].Target);
+                Assert.Equal(1,           events[0].WeaponIndex);
             });
 
             Assert.Null(ex);
@@ -124,7 +128,7 @@ namespace Hrot.IG.Tests
         /// When neither entity is known, the event is still published with the raw IDs.
         /// </summary>
         [Fact]
-        public void ProcessSample_StillPublishesEvent_WhenBothEntitiesUnknown()
+        public void ProcessSample_PublishesNullHandles_WhenBothEntitiesUnknown()
         {
             var translator = BuildTranslator();
 
@@ -138,8 +142,8 @@ namespace Hrot.IG.Tests
             var events = ProcessAndFlush(translator, in msg);
 
             Assert.Equal(1, events.Length);
-            Assert.Equal(99L,  events[0].ShooterEntityId);
-            Assert.Equal(100L, events[0].TargetEntityId);
+            Assert.Equal(Entity.Null, events[0].Shooter);
+            Assert.Equal(Entity.Null, events[0].Target);
         }
     }
 }

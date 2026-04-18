@@ -23,6 +23,8 @@
     <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
     <!-- AttributeCompilerFactory is used by EditorSubsystem to build the JSON→ECS attribute compiler -->
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
+    <!-- UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates / RegisterUrbanCombatDoctrines -->
+    <ProjectReference Include="..\..\..\FDP\Examples\Fdp.Examples.Scenarios\Fdp.Examples.Scenarios.csproj" />
   </ItemGroup>
 
   <ItemGroup>

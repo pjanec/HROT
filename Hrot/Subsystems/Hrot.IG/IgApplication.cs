@@ -647,6 +647,10 @@ public class IgApplication : IDisposable
         _world.RegisterComponent<HistoryTrail>();
         _world.RegisterComponent<VisualEffectState>();
         _world.RegisterComponent<TracerTarget>();
+        // Events consumed by EventToEffectSystem (registered in CombatComponentRegistry on
+        // SimHost nodes; registered explicitly here since IG does not call that registry).
+        _world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
+        _world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
         _world.RegisterManagedComponent<ContextMenuState>();
         _world.RegisterManagedComponent<EditablePolyline>();
         _world.RegisterComponent<MapOverlayStyle>();
@@ -1030,6 +1034,9 @@ public class IgApplication : IDisposable
             .Build();
         var routeRenderLayer = new RouteRenderLayer(_world, routeQuery, _fdpInspectorState);
         _canvas.AddLayer(routeRenderLayer);
+
+        // EffectRenderLayer — draws explosion circles and tracer lines from VisualEffectState.
+        _canvas.AddLayer(new Hrot.IG.Layers.EffectRenderLayer(_world));
 
         // Cache SelectionState query once to avoid per-click allocations (CT-2).
         _selectionStateQuery = _world.Query()

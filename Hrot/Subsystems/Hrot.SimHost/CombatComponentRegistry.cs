@@ -1,5 +1,7 @@
 using Fdp.Core;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Physics.Components;
@@ -41,6 +43,12 @@ namespace Hrot.SimHost
 
             // Target seeding command (edit-1/EDIT1-E002)
             world.RegisterEvent<SeedTargetCommand>();
+
+            // ── Combat pipeline notifications ─────────────────────────────────
+            // Published by FireProcessingSystem and HitResolutionSystem; consumed by
+            // EventToEffectSystem (visual effects) and network egress translators.
+            world.RegisterEvent<WeaponFireNotification>();
+            world.RegisterEvent<DetonationNotification>();
         }
     }
 }

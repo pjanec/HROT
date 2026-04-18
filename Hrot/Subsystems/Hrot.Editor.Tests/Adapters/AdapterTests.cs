@@ -347,7 +347,7 @@ namespace Hrot.Editor.Tests.Adapters
         [Fact]
         public async Task PickLocationAsync_ToolFires_TaskCompletesWithGeoPoint()
         {
-            var adapter = new EditorMapPickAdapter(_canvas);
+            var adapter = new EditorMapPickAdapter(_canvas, HrotEnvironment.CreateGeoTransform());
             Task<Hrot.Core.Mission.GeoPoint> task = adapter.PickLocationAsync();
 
             // Simulate the tool firing the callback.
@@ -363,7 +363,7 @@ namespace Hrot.Editor.Tests.Adapters
         public async Task PickLocationAsync_CancellationToken_TaskCancelled()
         {
             var cts     = new CancellationTokenSource();
-            var adapter = new EditorMapPickAdapter(_canvas);
+            var adapter = new EditorMapPickAdapter(_canvas, HrotEnvironment.CreateGeoTransform());
             Task<Hrot.Core.Mission.GeoPoint> task = adapter.PickLocationAsync(cts.Token);
 
             // Cancel before the pick fires.
@@ -375,7 +375,7 @@ namespace Hrot.Editor.Tests.Adapters
         [Fact]
         public async Task PickAreaEntitiesAsync_ToolFires_TaskCompletesWithList()
         {
-            var adapter = new EditorMapPickAdapter(_canvas);
+            var adapter = new EditorMapPickAdapter(_canvas, HrotEnvironment.CreateGeoTransform());
             Task<IReadOnlyList<int>> task = adapter.PickAreaEntitiesAsync();
 
             var tool = Assert.IsType<ModalBoxSelectionTool>(_canvas.ActiveTool);

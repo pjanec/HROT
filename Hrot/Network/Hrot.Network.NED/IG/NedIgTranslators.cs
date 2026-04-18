@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Hrot.Core.Network;
+using Hrot.Network.NED.SimHost;
 
 namespace Hrot.Network.NED.IG;
 
@@ -33,6 +34,8 @@ public sealed class NedIgTranslators : IIgTranslators
             translators.Add(new AudioTargetDetectedIngressTranslator(
                 participant, entityMap));
             translators.Add(new WeaponFireIngressTranslator(
+                participant, entityMap));
+            translators.Add(new MunitionDetonationIngressTranslator(
                 participant, entityMap));
             translators.Add(new ContextActionsUpdateTranslator(
                 participant, entityMap, bus, ghostCreationSystem, localNodeId));

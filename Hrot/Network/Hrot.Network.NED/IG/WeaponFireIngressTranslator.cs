@@ -3,21 +3,20 @@ using Hrot.NED.Messages;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
+using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.Interfaces;
 
 namespace Hrot.Network.NED.IG
 {
     /// <summary>
     /// IG-node ingress translator: polls the <c>WeaponFire</c> DDS topic and publishes
-    /// each received sample as a local <see cref="Hrot.IG.IgWeaponFireEvent"/> on the IG's event bus.
+    /// each received sample as a local <see cref="WeaponFireNotification"/> on the IG's event bus.
     ///
     /// <para>
-    /// <b>Unknown-entity tolerance:</b> The IG event is always published regardless of whether
-    /// the shooter or target is present in the local <see cref="NetworkEntityMap"/>. The entity
-    /// may have been destroyed between the muzzle-flash emit and its DDS delivery, but the IG
-    /// visual layer can still draw a tracer or muzzle-flash by position if it chooses to.
+    /// <b>Entity resolution:</b> DDS long IDs are resolved to local <see cref="Entity"/> handles
+    /// via the <see cref="NetworkEntityMap"/>. Unknown IDs resolve to <see cref="Entity.Null"/>;
+    /// <see cref="Hrot.IG.Systems.EventToEffectSystem"/> skips tracers for null entities.
     /// </para>
     /// </summary>
     public sealed class WeaponFireIngressTranslator : IDescriptorTranslator
@@ -46,7 +45,7 @@ namespace Hrot.Network.NED.IG
 
         /// <summary>
         /// Polls the DDS reader for incoming <see cref="WeaponFire"/> samples and
-        /// publishes each as an <see cref="Hrot.IG.IgWeaponFireEvent"/> on the local event bus.
+        /// publishes each as a <see cref="WeaponFireNotification"/> on the local event bus.
         /// </summary>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
@@ -64,15 +63,18 @@ namespace Hrot.Network.NED.IG
         /// <summary>
         /// Processes a single <see cref="WeaponFire"/> DDS sample.
         /// Exposed as <c>internal</c> so unit tests can inject samples without a live DDS stack.
-        /// Always publishes <see cref="Hrot.IG.IgWeaponFireEvent"/> -- unknown entity IDs are tolerated.
+        /// Unknown entity IDs resolve to <see cref="Entity.Null"/>.
         /// </summary>
         internal void ProcessSample(in WeaponFire msg, IEntityCommandBuffer cmd)
         {
-            cmd.PublishEvent(new Hrot.IG.IgWeaponFireEvent
+            _entityMap.TryGetEntity(msg.ShooterEntityId, out var shooter);
+            _entityMap.TryGetEntity(msg.TargetEntityId,  out var target);
+
+            cmd.PublishEvent(new WeaponFireNotification
             {
-                ShooterEntityId = msg.ShooterEntityId,
-                TargetEntityId  = msg.TargetEntityId,
-                WeaponIndex     = msg.WeaponIndex,
+                Shooter     = shooter,
+                Target      = target,
+                WeaponIndex = msg.WeaponIndex,
             });
         }
 
