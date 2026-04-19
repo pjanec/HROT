@@ -1,5 +1,4 @@
 using Hrot.NED.Descriptors;
-using Hrot.IG.Components;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -64,7 +63,7 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             var query = view.Query()
                 .With<NetworkIdentity>()
-                .With<IG.Components.EntityInfo>()
+                .With<Fdp.Core.EntityInfo>()
                 // Include Constructing so affiliation is broadcast at spawn time.
                 .WithLifecycle( EntityLifecycle.All)
                 .Build();
@@ -83,7 +82,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     continue;
 
                 ref readonly var netId  = ref view.GetComponentRO<NetworkIdentity>(entity);
-                ref readonly var data   = ref view.GetComponentRO<IG.Components.EntityInfo>(entity);
+                ref readonly var data   = ref view.GetComponentRO<Fdp.Core.EntityInfo>(entity);
 
 				_writer.Write(new Hrot.NED.Descriptors.EntityInfo
                 {

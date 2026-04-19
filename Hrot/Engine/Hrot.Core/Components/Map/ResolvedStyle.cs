@@ -66,7 +66,7 @@ public unsafe struct ResolvedStyle
 
     /// <summary>
     /// Returns a <see cref="ResolvedStyle"/> pre-loaded with neutral defaults:
-    /// white tint, <see cref="ForceId.Unknown"/> affiliation, zero damage, all flags off.
+    /// white tint, <see cref="ForceId.Neutral"/> affiliation, zero damage, all flags off.
     /// </summary>
     public static ResolvedStyle CreateDefault()
     {
@@ -75,7 +75,7 @@ public unsafe struct ResolvedStyle
         s.TintG       = ResolvedStyleConstants.UnknownTintG;
         s.TintB       = ResolvedStyleConstants.UnknownTintB;
         s.TintA       = ResolvedStyleConstants.UnknownTintA;
-        s.Affiliation = ForceId.Unknown;
+        s.Affiliation = ForceId.Neutral;
         s.DamageLevel = ResolvedStyleConstants.DamageMin;
         s.ShowTrail   = false;
         s.ShowSensors = false;

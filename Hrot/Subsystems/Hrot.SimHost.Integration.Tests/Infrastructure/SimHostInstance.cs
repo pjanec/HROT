@@ -7,7 +7,7 @@ using NedMissionPlan = Hrot.NED.Descriptors.MissionPlan;
 using NedMissionTask = Hrot.NED.Descriptors.MissionTask;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
-using Hrot.IG.Components;
+using Fdp.Toolkit.Perception.Components;
 using Hrot.CGF.Brains;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
@@ -32,7 +32,6 @@ using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.NetworkSpawning.Systems;
-using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Systems;
@@ -681,7 +680,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             var world = new EntityRepository();
 
             // â”€â”€ IG metadata component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            world.RegisterComponent<IG.Components.EntityInfo>();
+            world.RegisterComponent<Fdp.Core.EntityInfo>();
             world.RegisterManagedComponent<ActiveMissionPlan>();
 
             // â”€â”€ Network components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -714,7 +713,6 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<IsEmbarkedTag>();
 
             // Perception
-            world.RegisterComponent<Faction>();
             world.RegisterComponent<PerceptionReceptor>();
             world.RegisterComponent<TargetMemory>();
 

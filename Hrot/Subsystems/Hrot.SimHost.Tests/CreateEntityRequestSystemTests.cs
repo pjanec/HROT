@@ -298,7 +298,7 @@ namespace Hrot.SimHost.Tests
         private static EntityRepository CreateWorldWithIgEntityData()
         {
             var repo = CreateWorld();
-            repo.RegisterComponent<IG.Components.EntityInfo>();
+            repo.RegisterComponent<EntityInfo>();
             return repo;
         }
 
@@ -340,7 +340,7 @@ namespace Hrot.SimHost.Tests
 
             var initialComponents = commands[0].InitialComponents;
             Assert.NotNull(initialComponents);
-            var entityData = Assert.Single(initialComponents!.OfType<IG.Components.EntityInfo>());
+            var entityData = Assert.Single(initialComponents!.OfType<EntityInfo>());
             Assert.Equal("Delta", entityData.Name.ToString());
         }
 

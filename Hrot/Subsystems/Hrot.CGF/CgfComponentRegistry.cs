@@ -61,12 +61,11 @@ public static class CgfComponentRegistry
         world.RegisterComponent<NavigationIntent>();
 
         // ── Tier 2: Perception (Brain-side threat awareness) ──────────────────
-        // Faction, PerceptionReceptor, and TargetMemory are part of the TKB entity template
-        // (added by NedTkbBuilder.WithCombat + WithFaction). Registering them here ensures
+        // PerceptionReceptor and TargetMemory are part of the TKB entity template
+        // (added by NedTkbBuilder.WithCombat). Registering them here ensures
         // that blueprint application stamps them on CGF entities, enabling the Brain node to
         // receive TargetMemory updates when the SensorTargets DDS translator is fully
         // implemented (currently a stub in PerceptionTranslators.cs).
-        world.RegisterComponent<Faction>();
         world.RegisterComponent<PerceptionReceptor>();
         world.RegisterComponent<TargetMemory>();
 

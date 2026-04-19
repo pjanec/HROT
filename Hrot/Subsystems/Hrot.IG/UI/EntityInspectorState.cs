@@ -54,7 +54,7 @@ public class EntityInspectorState
 
     /// <summary>
     /// Resolved force affiliation from <see cref="ResolvedStyle.Affiliation"/>.
-    /// Defaults to <see cref="ForceId.Unknown"/> when no <see cref="ResolvedStyle"/> is present.
+    /// Defaults to <see cref="ForceId.Neutral"/> when no <see cref="ResolvedStyle"/> is present.
     /// </summary>
     public ForceId Affiliation { get; private set; }
 

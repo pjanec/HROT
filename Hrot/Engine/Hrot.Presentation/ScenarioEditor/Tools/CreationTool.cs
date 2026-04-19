@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Numerics;
 using System.Text.Json;
-using Hrot.IG.Components;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Vis2D;
@@ -247,14 +246,14 @@ public class CreationTool : IMapTool
     /// </summary>
     private static ForceId ParseAffiliationFromJson(string? json)
     {
-        if (string.IsNullOrWhiteSpace(json)) return ForceId.Unknown;
+        if (string.IsNullOrWhiteSpace(json)) return ForceId.Neutral;
         try
         {
             using var doc = JsonDocument.Parse(json);
             JsonElement affEl;
             if (!doc.RootElement.TryGetProperty("affiliation", out affEl) &&
                 !doc.RootElement.TryGetProperty("Affiliation",  out affEl))
-                return ForceId.Unknown;
+                return ForceId.Neutral;
 
             var raw = affEl.GetString() ?? string.Empty;
             return raw.ToUpperInvariant() switch
@@ -262,11 +261,11 @@ public class CreationTool : IMapTool
                 "FORCE_FRIENDLY" => ForceId.Friend,
                 "FORCE_OPPOSING" => ForceId.Hostile,
                 "FORCE_NEUTRAL"  => ForceId.Neutral,
-                _                => ForceId.Unknown,
+                _                => ForceId.Neutral,
             };
         }
         catch { /* malformed JSON */ }
-        return ForceId.Unknown;
+        return ForceId.Neutral;
     }
 
     private static Color GetAffiliationColor(ForceId affiliation) =>

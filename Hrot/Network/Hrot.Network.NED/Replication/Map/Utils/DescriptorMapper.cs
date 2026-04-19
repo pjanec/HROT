@@ -97,7 +97,7 @@ namespace Hrot.Map.Common.Replication.Utils
                         break;
 
                     case EDescriptorType.dtEntityInfo:
-                        result.Add(new IG.Components.EntityInfo
+                        result.Add(new Fdp.Core.EntityInfo
                         {
                             Name = d.EntityInfo.Name,
                             ForceId = (ForceId)(int)d.EntityInfo.ForceIdentifier,
@@ -277,7 +277,7 @@ namespace Hrot.Map.Common.Replication.Utils
                             ctx);
 
                         // CommanderId is not in the JSON schema; set directly.
-                        ref var ei = ref ctx.GetUnmanagedComponent<IG.Components.EntityInfo>();
+                        ref var ei = ref ctx.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
                         ei.CommanderId = d.EntityInfo.CommanderId;
 
                         result = ctx.FlushComponents();

@@ -37,7 +37,7 @@ public class MiniExConPanelState
     public long TkbType { get; set; } = MiniExConPanelConstants.DefaultTkbType;
 
     /// <summary>Force affiliation to assign to the spawned entity.</summary>
-    public ForceId Affiliation { get; set; } = ForceId.Unknown;
+    public ForceId Affiliation { get; set; } = ForceId.Neutral;
 
     /// <summary>Initial world-space X position (metres) for the spawned entity.</summary>
     public float PositionX { get; set; }

@@ -170,7 +170,7 @@ namespace Hrot.Map.Definitions.Tkb
         }
 
         /// <summary>
-        /// Add faction identification for perception/combat systems.
+        /// Add force affiliation for perception/combat systems.
         /// </summary>
         public NedTkbBuilder WithFaction(long tkbId, byte factionId)
         {
@@ -178,7 +178,13 @@ namespace Hrot.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
 
-            template.AddComponent(new Faction { FactionId = factionId });
+            var forceId = factionId switch
+            {
+                1 => ForceId.Friend,
+                2 => ForceId.Hostile,
+                _ => ForceId.Neutral,
+            };
+            template.AddComponent(new EntityInfo { ForceId = forceId });
             return this;
         }
 

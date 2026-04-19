@@ -96,7 +96,7 @@ namespace Hrot.Editor.Adapters
                     cmd.InitialComponents.Add(new EntityInfo
                     {
                         Name    = new Fdp.Core.FixedString64(defaultName),
-                        ForceId = ForceId.Unknown,
+                        ForceId = ForceId.Neutral,
                     });
 
                     // Apply JSON overrides (e.g. Affiliation) on top of the baseline.

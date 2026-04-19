@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Hrot.NED.Descriptors;
-using Hrot.IG.Components;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -17,7 +16,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 	/// <summary>
 	/// Ingress translator for the Hrot <c>EntityInfo</c> DDS topic.
 	///
-	/// The ECS <see cref="IG.Components.EntityInfo"/> is an unmanaged struct applied directly
+	/// The ECS <see cref="Fdp.Core.EntityInfo"/> is an unmanaged struct applied directly
 	/// via <see cref="EntityRepository.SetComponent{T}"/> when the view exposes a writable
 	/// <see cref="EntityRepository"/> (the normal IG role).  When the repo is unavailable the
 	/// translator falls back to publishing an <see cref="UpdateEntityCommand"/> so that a
@@ -99,7 +98,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         {
             if ( data is Hrot.NED.Descriptors.EntityInfo info)
             {
-                repo.SetComponent( entity, new IG.Components.EntityInfo
+                repo.SetComponent( entity, new Fdp.Core.EntityInfo
                 {
                     Name = info.Name,
                     ForceId = (ForceId)(int)info.ForceIdentifier,
@@ -114,7 +113,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         internal void ProcessSample(Hrot.NED.Descriptors.EntityInfo info, long netId, EntityRepository? repo = null)
         {
-            var igData = new IG.Components.EntityInfo
+            var igData = new Fdp.Core.EntityInfo
             {
                 Name = info.Name,
                 ForceId = (ForceId)(int)info.ForceIdentifier,

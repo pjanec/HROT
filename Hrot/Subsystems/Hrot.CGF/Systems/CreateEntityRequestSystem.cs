@@ -239,8 +239,8 @@ namespace Hrot.CGF.Systems
                     fallbackComponents.Add(comp);
                 }
 
-                // 3.5. Ensure parent has IgEntityData if it's an auto-spawn composite
-                Hrot.IG.Components.EntityInfo? parentInfo = null;
+				// 3.5. Ensure parent has IgEntityData if it's an auto-spawn composite
+				EntityInfo? parentInfo = null;
                 int parentInfoIdx = -1;
                 if (_tkbDb.TryGetByType(pending.TkbType, out var parentTemplate) && parentTemplate.ChildBlueprints.Count > 0)
                 {
@@ -248,7 +248,7 @@ namespace Hrot.CGF.Systems
                     {
                         for (int fi = 0; fi < fallbackComponents.Count; fi++)
                         {
-                            if (fallbackComponents[fi] is Hrot.IG.Components.EntityInfo info)
+                            if (fallbackComponents[fi] is EntityInfo info )
                             {
                                 parentInfo = info;
                                 parentInfoIdx = fi;
@@ -261,10 +261,10 @@ namespace Hrot.CGF.Systems
                     // so it's visible in the ORBAT tree and can be tracked.
                     if (parentInfo == null)
                     {
-                        var newInfo = new Hrot.IG.Components.EntityInfo
+                        var newInfo = new Fdp.Core.EntityInfo
                         {
                             Name = parentTemplate.Name,
-                            ForceId = Hrot.IG.Components.ForceId.Unknown
+                            ForceId = ForceId.Neutral
                         };
                         fallbackComponents ??= new List<object>();
                         fallbackComponents.Add(newInfo);
@@ -335,7 +335,7 @@ namespace Hrot.CGF.Systems
 
                             var childComponents = new List<object>
                             {
-                                new Hrot.IG.Components.EntityInfo
+                                new Fdp.Core.EntityInfo
                                 {
                                     Name = $"{parentInfo!.Value.Name}-{childDef.InstanceId}",
                                     ForceId = parentInfo.Value.ForceId,

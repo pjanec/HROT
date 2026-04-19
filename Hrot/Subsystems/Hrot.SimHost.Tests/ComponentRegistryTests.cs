@@ -4,6 +4,7 @@ using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Physics.Components;
+using Hrot.Map.Common;
 using Xunit;
 using CarKinem.Core;
 using CarKinem.Formation;
@@ -101,9 +102,10 @@ namespace Hrot.SimHost.Tests
         public void CombatComponentRegistry_RegisterAll_RegistersCombatPerceptionComponents()
         {
             using var world = new EntityRepository();
+            HrotSharedComponentRegistry.RegisterAll(world);
             CombatComponentRegistry.RegisterAll(world);
 
-            Assert.Null(Record.Exception(() => world.GetComponentTable<Faction>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<EntityInfo>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<PerceptionReceptor>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<TargetMemory>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<WeaponState>()));
@@ -125,7 +127,7 @@ namespace Hrot.SimHost.Tests
             Assert.Null(Record.Exception(() => world.GetComponentTable<NavigationIntent>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<NavigationStatus>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<VehicleState>()));
-            Assert.Null(Record.Exception(() => world.GetComponentTable<Faction>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<EntityInfo>()));
         }
     }
 }

@@ -14,7 +14,6 @@ using Hrot.Common.Events;
 using Hrot.Common.Orchestration.Handlers;
 using Hrot.Editor.Adapters;
 using Hrot.Editor.Tools;
-using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Config;
 using Hrot.Map.Common.Events;

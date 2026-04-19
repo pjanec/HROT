@@ -5,7 +5,6 @@ using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
-using Hrot.IG.Components;
 using Hrot.Map.Common.Replication.Utils;
 using Hrot.CGF.Systems;
 using Hrot.Core.Network;
@@ -47,7 +46,7 @@ namespace Hrot.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<SimTransform>();
-            repo.RegisterComponent<IG.Components.EntityInfo>();
+            repo.RegisterComponent<Fdp.Core.EntityInfo>();
             return repo;
         }
 
@@ -62,7 +61,7 @@ namespace Hrot.SimHost.Tests
             compiler.Compile("{\"Name\":\"Test\"}", ctx);
 
             var result = ctx.FlushComponents();
-            var data   = result.OfType<IG.Components.EntityInfo>().Single();
+            var data   = result.OfType<Fdp.Core.EntityInfo>().Single();
             Assert.Equal("Test", data.Name);
         }
 
@@ -75,7 +74,7 @@ namespace Hrot.SimHost.Tests
             compiler.Compile("{\"Affiliation\":\"FORCE_FRIENDLY\"}", ctx);
 
             var result = ctx.FlushComponents();
-            var data   = result.OfType<IG.Components.EntityInfo>().Single();
+            var data   = result.OfType<Fdp.Core.EntityInfo>().Single();
             Assert.Equal(ForceId.Friend, data.ForceId);
         }
 
@@ -83,13 +82,13 @@ namespace Hrot.SimHost.Tests
         public void SimHostAttributeCompiler_Affiliation_PreservesExistingName()
         {
             var compiler = AttributeCompilerFactory.Build(new FactoryTestGeoTransform());
-            var seed     = new IG.Components.EntityInfo { Name = "Alpha", ForceId = ForceId.Unknown };
+            var seed     = new Fdp.Core.EntityInfo { Name = "Alpha", ForceId = ForceId.Neutral };
             var ctx      = new ListPatchContext(new List<object> { seed });
 
             compiler.Compile("{\"Affiliation\":\"FORCE_OPPOSING\"}", ctx);
 
             var result = ctx.FlushComponents();
-            var data   = result.OfType<IG.Components.EntityInfo>().Single();
+            var data   = result.OfType<Fdp.Core.EntityInfo>().Single();
             Assert.Equal("Alpha",         data.Name);  // unchanged
             Assert.Equal(ForceId.Hostile, data.ForceId);
         }
@@ -103,9 +102,9 @@ namespace Hrot.SimHost.Tests
 
             var repo   = CreateRepo();
             var entity = repo.CreateEntity();
-            repo.SetComponent( entity, new IG.Components.EntityInfo { Name = "original" });
+            repo.SetComponent( entity, new Fdp.Core.EntityInfo { Name = "original" });
             // Grant authority so the invoker dispatches the setter.
-            repo.SetAuthority<IG.Components.EntityInfo>( entity, true);
+            repo.SetAuthority<Fdp.Core.EntityInfo>( entity, true);
 
             var context = compiler.CreatePatchContext(repo, entity);
             compiler.Compile("{\"Name\":\"X\"}", context);
@@ -160,7 +159,7 @@ namespace Hrot.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<SimTransform>();
-            repo.RegisterComponent<IG.Components.EntityInfo>();
+            repo.RegisterComponent<Fdp.Core.EntityInfo>();
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterComponent<NetworkOwnership>();
             repo.RegisterComponent<TkbIdentity>();
@@ -215,7 +214,7 @@ namespace Hrot.SimHost.Tests
 
             Assert.Single(commands);
             var cmd      = commands[0];
-            var igData   = Assert.Single(cmd.InitialComponents!.OfType<IG.Components.EntityInfo>());
+            var igData   = Assert.Single(cmd.InitialComponents!.OfType<Fdp.Core.EntityInfo>());
 
             Assert.Equal("Delta-7", igData.Name.ToString());
         }
@@ -275,7 +274,7 @@ namespace Hrot.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors, GeoTransform, compiler);
 
-            var igData = Assert.Single( components.OfType<IG.Components.EntityInfo>());
+            var igData = Assert.Single( components.OfType<Fdp.Core.EntityInfo>());
             Assert.Equal("TestUnit",     igData.Name);
             Assert.Equal(ForceId.Friend, igData.ForceId);
             Assert.Equal(42,             igData.CommanderId);
@@ -296,7 +295,7 @@ namespace Hrot.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors, GeoTransform, compiler);
 
-            int count = components.OfType<IG.Components.EntityInfo>().Count();
+            int count = components.OfType<Fdp.Core.EntityInfo>().Count();
             Assert.Equal(1, count);
         }
 

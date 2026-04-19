@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Hrot.NED.Descriptors;
-using Hrot.IG.Components;
 using Hrot.Map.Common.Replication.Ingress;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -16,7 +15,7 @@ namespace Hrot.IG.Tests
             CreateFixture()
         {
             var repo = new EntityRepository();
-            repo.RegisterComponent<Components.EntityInfo>();
+            repo.RegisterComponent<Fdp.Core.EntityInfo>();
             var entityMap = new NetworkEntityMap();
             var eventBus = new FdpEventBus();
             var ghostCreationSystem = new GhostCreationSystem(entityMap);
@@ -49,7 +48,7 @@ namespace Hrot.IG.Tests
             Assert.Equal(1, update.NetworkId);
             Assert.Single(update.ComponentsToUpdate);
 
-            var igData = Assert.IsType<Components.EntityInfo>( update.ComponentsToUpdate[0]);
+            var igData = Assert.IsType<Fdp.Core.EntityInfo>( update.ComponentsToUpdate[0]);
             Assert.Equal("Alpha-1", igData.Name);
             Assert.Equal(ForceId.Friend, igData.ForceId);
         }
@@ -93,7 +92,7 @@ namespace Hrot.IG.Tests
             }, repo);
 
             ISimulationView view = repo;
-            ref readonly var data = ref view.GetComponentRO<Components.EntityInfo>( entity );
+            ref readonly var data = ref view.GetComponentRO<Fdp.Core.EntityInfo>( entity );
 
             Assert.Equal("Bravo", data.Name.ToString());
             Assert.Equal(ForceId.Hostile, data.ForceId);

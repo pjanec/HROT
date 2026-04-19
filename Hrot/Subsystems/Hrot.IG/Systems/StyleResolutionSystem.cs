@@ -91,7 +91,7 @@ public class StyleResolutionSystem : IEcsModuleSystem
         byte   tintB       = ResolvedStyleConstants.UnknownTintB;
         byte   tintA       = ResolvedStyleConstants.UnknownTintA;
         string labelText   = string.Empty;
-        var    affiliation = ForceId.Unknown;
+        var    affiliation = ForceId.Neutral;
 
         if (view.HasComponent<VisualData>(entity))
         {
@@ -106,14 +106,11 @@ public class StyleResolutionSystem : IEcsModuleSystem
 
         // ── Layer 1.5: IgEntityData (from Hrot.NED.Descriptors.EntityInfo DDS / spawn descriptor) ──
         // Provides force affiliation and human-readable name when no IgSymbolOverride is present.
-        if ( view.HasComponent<Components.EntityInfo>( entity ) )
+        if ( view.HasComponent<EntityInfo>( entity ) )
         {
-            ref readonly var entityData = ref view.GetComponentRO<Components.EntityInfo>( entity );
-            if ( entityData.ForceId != ForceId.Unknown)
-            {
-                affiliation = entityData.ForceId;
-				ApplyAffiliationColor( affiliation, out tintR, out tintG, out tintB, out tintA);
-            }
+            ref readonly var entityData = ref view.GetComponentRO<EntityInfo>( entity );
+            affiliation = entityData.ForceId;
+			ApplyAffiliationColor( affiliation, out tintR, out tintG, out tintB, out tintA);
             if (!entityData.Name.IsEmpty)
                 labelText = entityData.Name;
         }
@@ -198,7 +195,7 @@ public class StyleResolutionSystem : IEcsModuleSystem
         if (styleSetId.Equals(IgSymbolOverride.StyleSetNeutral, StringComparison.OrdinalIgnoreCase))
             return ForceId.Neutral;
         if (styleSetId.Equals(IgSymbolOverride.StyleSetUnknown, StringComparison.OrdinalIgnoreCase))
-            return ForceId.Unknown;
+            return ForceId.Neutral;
 
         return null;
     }

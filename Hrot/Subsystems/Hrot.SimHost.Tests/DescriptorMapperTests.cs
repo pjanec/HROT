@@ -3,7 +3,6 @@ using System.Linq;
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
-using Hrot.IG.Components;
 using Hrot.Map.Common.Replication.Utils;
 using CarKinem.Core;
 using Fdp.Core;
@@ -121,8 +120,8 @@ namespace Hrot.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
 
-            var igData = Assert.Single( components, c => c is IG.Components.EntityInfo );
-            var entityInfo = (IG.Components.EntityInfo)igData;
+            var igData = Assert.Single( components, c => c is Fdp.Core.EntityInfo );
+            var entityInfo = (Fdp.Core.EntityInfo)igData;
             Assert.Equal("TestUnit", entityInfo.Name);
         }
 

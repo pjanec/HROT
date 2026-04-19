@@ -705,14 +705,14 @@ namespace Hrot.Editor
                     {
                         var q = _world.Query()
                             .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
-                            .With<Hrot.IG.Components.EntityInfo>()
+                            .With<EntityInfo>()
                             .Build();
-                        Hrot.IG.Components.EntityInfo updatedInfo = default;
+						EntityInfo updatedInfo = default;
                         foreach (var e in q)
                         {
                             if (_world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == _renameTargetNetworkId)
                             {
-                                updatedInfo = _world.GetComponent<Hrot.IG.Components.EntityInfo>(e);
+                                updatedInfo = _world.GetComponent<EntityInfo>(e);
                                 break;
                             }
                         }
@@ -911,13 +911,13 @@ namespace Hrot.Editor
                 // Pre-fill buffer with the entity's current name.
                 var q = _world.Query()
                     .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
-                    .With<Hrot.IG.Components.EntityInfo>()
+                    .With<EntityInfo>()
                     .Build();
                 foreach (var e in q)
                 {
                     if (_world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == cmd.NetworkId)
                     {
-                        _renameBuffer = _world.GetComponent<Hrot.IG.Components.EntityInfo>(e).Name.ToString();
+                        _renameBuffer = _world.GetComponent<EntityInfo>(e).Name.ToString();
                         break;
                     }
                 }

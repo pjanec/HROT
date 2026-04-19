@@ -1,6 +1,5 @@
 using System.Reflection;
 using Hrot.NED.Descriptors;
-using Hrot.IG.Components;
 using Fdp.Core;
 using Xunit;
 
@@ -11,17 +10,17 @@ namespace Hrot.IG.Tests
         [Fact]
         public void DefaultValues_AreCorrect()
         {
-            var data = new Components.EntityInfo();
+            var data = new Fdp.Core.EntityInfo();
 
             Assert.Equal(string.Empty, data.Name);
-            Assert.Equal(ForceId.Unknown, data.ForceId);
+            Assert.Equal(ForceId.Neutral, data.ForceId);
             Assert.Equal(0, data.CommanderId);
         }
 
         [Fact]
         public void ComponentIdAttribute_IsPresent()
         {
-            var attribute = typeof( Components.EntityInfo).GetCustomAttribute<ComponentIdAttribute>();
+            var attribute = typeof( Fdp.Core.EntityInfo ).GetCustomAttribute<ComponentIdAttribute>();
 
             Assert.NotNull(attribute);
         }

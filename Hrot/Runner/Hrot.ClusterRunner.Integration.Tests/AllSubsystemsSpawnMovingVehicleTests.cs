@@ -1,7 +1,6 @@
 using System;
 using System.Numerics;
 using System.Threading;
-using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.NED.Common;
 using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;

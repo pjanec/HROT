@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Hrot.NED.Messages;
 using Hrot.Core.Network;
-using Hrot.IG.Components;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
@@ -106,19 +105,19 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         }
 
 		/// <summary>
-		/// Reads the <see cref="IG.Components.EntityInfo"/> component from the ECS world for the entity
+		/// Reads the <see cref="Fdp.Core.EntityInfo"/> component from the ECS world for the entity
 		/// with network-id <paramref name="networkId"/>.
 		/// Returns <c>null</c> if no such entity exists or the component has not been assigned.
 		/// </summary>
-		public IG.Components.EntityInfo? ReadIgEntityData(int networkId)
+		public EntityInfo? ReadIgEntityData(int networkId)
         {
             if (!_host.EntityMap.TryGetEntity(networkId, out var entity))
                 return null;
 
-            if (!_host.World.HasComponent<IG.Components.EntityInfo>( entity ) )
+            if (!_host.World.HasComponent<EntityInfo>( entity ) )
                 return null;
 
-            return ((ISimulationView)_host.World).GetComponentRO<IG.Components.EntityInfo>( entity );
+            return ((ISimulationView)_host.World).GetComponentRO<EntityInfo>( entity );
         }
     }
 }

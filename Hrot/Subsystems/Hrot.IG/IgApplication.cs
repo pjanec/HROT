@@ -634,7 +634,6 @@ public class IgApplication : IDisposable
         // and query support, but does not run the associated logic systems.)
         _world.RegisterComponent<VehicleParams>();
         _world.RegisterComponent<IgHealthState>();
-        _world.RegisterComponent<Faction>();
         _world.RegisterComponent<PerceptionReceptor>();
         _world.RegisterComponent<TargetMemory>();
         _world.RegisterComponent<WeaponState>();
@@ -655,7 +654,7 @@ public class IgApplication : IDisposable
         _world.RegisterManagedComponent<EditablePolyline>();
         _world.RegisterComponent<MapOverlayStyle>();
         _world.RegisterComponent<MapDisplayComponent>();
-        _world.RegisterComponent<Components.EntityInfo>();
+        _world.RegisterComponent<EntityInfo>();
 
         // ── Route planning components (ROUTES1) ───────────────────────────────
         _world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();

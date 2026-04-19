@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Fdp.Core;
 using Hrot.Core.Network;
-using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.SimHost.Integration.Tests.Infrastructure;
 using Xunit;
@@ -214,7 +214,7 @@ namespace Hrot.SimHost.Integration.Tests
             // No IgEntityData patch was applied; the component is either absent or defaulted.
             var igDataD = _client.ReadIgEntityData(ack.Value.EntityId);
             if (igDataD.HasValue)
-                Assert.Equal(ForceId.Unknown, igDataD.Value.ForceId);
+                Assert.Equal(ForceId.Neutral, igDataD.Value.ForceId);
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────────────

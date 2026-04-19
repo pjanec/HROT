@@ -147,7 +147,7 @@ public class IgApplicationPanelTests
             var entity = app.World.CreateEntity();
 
             var exception = Record.Exception(() =>
-                app.World.SetComponent( entity, new Components.EntityInfo()));
+                app.World.SetComponent( entity, new Fdp.Core.EntityInfo()));
 
             Assert.Null(exception);
         }

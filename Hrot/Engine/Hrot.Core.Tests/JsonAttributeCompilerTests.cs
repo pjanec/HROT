@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using Hrot.IG.Components;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
@@ -168,7 +167,7 @@ public class ListPatchContextTests
                     c.Name = r.GetString() ?? string.Empty)
             .RegisterValuePath<EntityInfo>("Affiliation",
                 (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
-                    c.ForceId = r.GetString() == "FORCE_HOSTILE" ? ForceId.Hostile : ForceId.Unknown)
+                    c.ForceId = r.GetString() == "FORCE_HOSTILE" ? ForceId.Hostile : ForceId.Neutral)
             .Build();
 
         compiler.Compile("{\"Name\":\"new\",\"Affiliation\":\"FORCE_HOSTILE\"}", ctx);

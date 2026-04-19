@@ -1,5 +1,4 @@
 using System;
-using Hrot.IG.Components;
 using Hrot.IG.Systems;
 using Fdp.Core;
 

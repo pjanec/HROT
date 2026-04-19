@@ -463,10 +463,10 @@ public sealed class EditorSubsystemBootTests
         var subsystem = new EditorSubsystem();
         subsystem.Initialize(HeadlessConfig());
 
-        var expectedInfo = new Hrot.IG.Components.EntityInfo
+        var expectedInfo = new Fdp.Core.EntityInfo
         {
             Name    = new Fdp.Core.FixedString64("TestTank"),
-            ForceId = Hrot.IG.Components.ForceId.Hostile,
+            ForceId = ForceId.Hostile,
         };
 
         subsystem.World.Bus.PublishManaged(new SpawnEntityCommand
@@ -478,23 +478,23 @@ public sealed class EditorSubsystemBootTests
             InitialComponents = new System.Collections.Generic.List<object> { expectedInfo },
         });
 
-        Hrot.IG.Components.EntityInfo? found = null;
+		EntityInfo? found = null;
         for (int i = 0; i < 10 && found == null; i++)
         {
             subsystem.Update(0.016f);
             var q = subsystem.World.Query()
-                .With<Hrot.IG.Components.EntityInfo>()
+                .With<EntityInfo>()
                 .Build();
             foreach (var e in q)
             {
-                found = subsystem.World.GetComponent<Hrot.IG.Components.EntityInfo>(e);
+                found = subsystem.World.GetComponent<EntityInfo>(e);
                 break;
             }
         }
 
         Assert.NotNull(found);
         Assert.Equal("TestTank", found!.Value.Name.ToString());
-        Assert.Equal(Hrot.IG.Components.ForceId.Hostile, found.Value.ForceId);
+        Assert.Equal( ForceId.Hostile, found.Value.ForceId);
 
         subsystem.Shutdown();
     }

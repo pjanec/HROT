@@ -4,7 +4,6 @@ using System.Numerics;
 using Hrot.NED.Messages;
 using Hrot.NED.Descriptors;
 using Hrot.Map.Common;
-using Hrot.IG.Components;
 using CycloneDDS.Runtime;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Core;
@@ -454,7 +453,7 @@ public class MiniExConIntegrationTests
 	/// <summary>
 	/// Regression test for Task-3: entity spawned by the Mini ExCon panel with a hostile
 	/// affiliation must arrive in the IG ECS world with
-	/// <see cref="IG.Components.EntityInfo.ForceId"/> == <see cref="ForceId.Hostile"/>.
+	/// <see cref="Fdp.Core.EntityInfo.ForceId"/> == <see cref="ForceId.Hostile"/>.
 	///
 	/// Flow:
 	/// <list type="number">
@@ -464,7 +463,7 @@ public class MiniExConIntegrationTests
 	///   <item>SimHost <see cref="CreateEntityRequestSystem"/> publishes the
 	///         <see cref="EntityInfo"/> DDS topic after spawning the entity.</item>
 	///   <item>IG <c>EntityInfoIngressTranslator</c> reads the topic and updates
-	///         <see cref="IG.Components.EntityInfo.ForceId"/> on the matching ghost/active entity.</item>
+	///         <see cref="Fdp.Core.EntityInfo.ForceId"/> on the matching ghost/active entity.</item>
 	///   <item><see cref="StyleResolutionSystem"/> layer 1.5 applies hostile tint.</item>
 	/// </list>
 	/// </summary>
@@ -526,9 +525,9 @@ public class MiniExConIntegrationTests
         if (!TryGetSimHostEntity(world, networkId, out var entity))
             return false;
         var view = (ISimulationView)world;
-        if (!view.HasComponent<Hrot.IG.Components.EntityInfo>(entity))
+        if (!view.HasComponent<Fdp.Core.EntityInfo>(entity))
             return false;
-        ref readonly var data = ref view.GetComponentRO<Hrot.IG.Components.EntityInfo>(entity);
+        ref readonly var data = ref view.GetComponentRO<Fdp.Core.EntityInfo>(entity);
         return data.ForceId == forceId;
     }
 

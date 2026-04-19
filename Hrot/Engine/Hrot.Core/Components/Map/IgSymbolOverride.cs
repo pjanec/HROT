@@ -31,7 +31,7 @@ public class IgSymbolOverride
     /// <summary>StyleSetId value that forces <see cref="ForceId.Neutral"/> affiliation.</summary>
     public const string StyleSetNeutral = "neutral";
 
-    /// <summary>StyleSetId value that forces <see cref="ForceId.Unknown"/> affiliation.</summary>
+    /// <summary>StyleSetId value that forces <see cref="ForceId.Neutral"/> affiliation.</summary>
     public const string StyleSetUnknown = "unknown";
 
     // ── Properties ────────────────────────────────────────────────────────────

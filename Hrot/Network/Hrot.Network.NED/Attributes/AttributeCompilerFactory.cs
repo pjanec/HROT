@@ -2,7 +2,6 @@ using System.Numerics;
 using System.Text.Json;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
-using Hrot.IG.Components;
 using Hrot.SimHost.Installers;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Core;
@@ -18,8 +17,8 @@ namespace Hrot.SimHost;
 /// <para>
 /// Registers the following JSON attribute paths:
 /// <list type="bullet">
-///   <item><c>"Name"</c> → <see cref="IG.Components.EntityInfo.Name"/> (ordinal: <c>dtEntityInfo</c>)</item>
-///   <item><c>"Affiliation"</c> → <see cref="IG.Components.EntityInfo.ForceId"/> (ordinal: <c>dtEntityInfo</c>)</item>
+///   <item><c>"Name"</c> → <see cref="Fdp.Core.EntityInfo.Name"/> (ordinal: <c>dtEntityInfo</c>)</item>
+///   <item><c>"Affiliation"</c> → <see cref="Fdp.Core.EntityInfo.ForceId"/> (ordinal: <c>dtEntityInfo</c>)</item>
 ///   <item><c>"GeoPosition.Latitude"</c>, <c>"GeoPosition.Longitude"</c>, <c>"GeoPosition.Altitude"</c>
 ///         → <see cref="Fdp.Toolkit.Replication.Components.SimTransform.Position"/> via
 ///         <c>IGeographicTransform.ToCartesian</c> (ordinal: <c>dtGeoSpatial</c>).
@@ -48,15 +47,15 @@ public static class AttributeCompilerFactory
         var builder = new AttributeCompilerBuilder()
 
             // ── IgEntityData — unmanaged struct paths ───────────────────────────────────
-            .RegisterValuePath<IG.Components.EntityInfo>(
+            .RegisterValuePath<Fdp.Core.EntityInfo>(
                 "Name",
-                ( ref IG.Components.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
+                ( ref Fdp.Core.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
                     c.Name = r.GetString() ?? string.Empty,
                 descriptorOrdinal: EntityInfoOrdinal )
 
-            .RegisterValuePath<IG.Components.EntityInfo>(
+            .RegisterValuePath<Fdp.Core.EntityInfo>(
                 "Affiliation",
-                ( ref IG.Components.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
+                ( ref Fdp.Core.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
                     c.ForceId = r.TokenType == JsonTokenType.Number
                         ? MapAffiliationInt( r.GetInt32())
                         : MapAffiliationString( r.GetString()),
@@ -143,7 +142,7 @@ public static class AttributeCompilerFactory
 
     /// <summary>
     /// Maps a JSON affiliation string (e.g. <c>"FORCE_FRIENDLY"</c>) to a <see cref="ForceId"/>.
-    /// Unrecognised values map to <see cref="ForceId.Unknown"/>.
+    /// Unrecognised values map to <see cref="ForceId.Neutral"/>.
     /// </summary>
     internal static ForceId MapAffiliationString(string? value) =>
         value switch
@@ -151,7 +150,7 @@ public static class AttributeCompilerFactory
             "FORCE_FRIENDLY" => ForceId.Friend,
             "FORCE_OPPOSING" => ForceId.Hostile,
             "FORCE_NEUTRAL"  => ForceId.Neutral,
-            _                => ForceId.Unknown,
+            _                => ForceId.Neutral,
         };
 
     /// <summary>
@@ -165,7 +164,7 @@ public static class AttributeCompilerFactory
             eForceIdentifier.FORCE_FRIENDLY => ForceId.Friend,
             eForceIdentifier.FORCE_OPPOSING => ForceId.Hostile,
             eForceIdentifier.FORCE_NEUTRAL  => ForceId.Neutral,
-            _                               => ForceId.Unknown,
+            _                               => ForceId.Neutral,
         };
 
     /// <summary>

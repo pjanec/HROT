@@ -90,7 +90,7 @@ namespace Hrot.SimHost.Tests
             Assert.Null(Record.Exception(() => repo.GetComponentTable<PerceptionReceptor>()));
             Assert.Null(Record.Exception(() => repo.GetComponentTable<WeaponState>()));
             Assert.Null(Record.Exception(() => repo.GetComponentTable<Health>()));
-            Assert.Null(Record.Exception(() => repo.GetComponentTable<Faction>()));
+            Assert.Null(Record.Exception(() => repo.GetComponentTable<Fdp.Core.EntityInfo>()));
             Assert.Null(Record.Exception(() => repo.GetComponentTable<PhysicsCollider>()));
         }
 

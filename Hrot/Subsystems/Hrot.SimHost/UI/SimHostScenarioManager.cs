@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.SimHost.Configuration;
 using CarKinem.Commands;
@@ -110,7 +109,7 @@ namespace Hrot.SimHost.UI
             var entityInfo = new EntityInfo
             {
                 Name        = vehicleClass.ToString(),
-                ForceId     = ForceId.Unknown,
+                ForceId     = ForceId.Neutral,
                 CommanderId = 0,
             };
 
@@ -160,7 +159,7 @@ namespace Hrot.SimHost.UI
                 var entityInfo = new EntityInfo
                 {
                     Name        = $"Roamer-{i + 1}",
-                    ForceId     = ForceId.Unknown,
+                    ForceId     = ForceId.Neutral,
                     CommanderId = 0,
                 };
 
@@ -212,7 +211,7 @@ namespace Hrot.SimHost.UI
                 var entityInfo = new EntityInfo
                 {
                     Name        = $"RoadUser-{i + 1}",
-                    ForceId     = ForceId.Unknown,
+                    ForceId     = ForceId.Neutral,
                     CommanderId = 0,
                 };
 
@@ -330,7 +329,7 @@ namespace Hrot.SimHost.UI
             var entityInfo = new EntityInfo
             {
                 Name        = name,
-                ForceId     = ForceId.Unknown,
+                ForceId     = ForceId.Neutral,
                 CommanderId = 0,
             };
 

@@ -47,7 +47,7 @@ namespace Hrot.SimHost.Tests
             world.RegisterComponent<IsEmbarkedTag>();
 
             // Perception
-            world.RegisterComponent<Faction>();
+            world.RegisterComponent<EntityInfo>();
             world.RegisterComponent<PerceptionReceptor>();
             world.RegisterComponent<TargetMemory>();
 
@@ -133,13 +133,14 @@ namespace Hrot.SimHost.Tests
             // PersonalRouteAuthoringSystem (input=1) → inputGroup total = 4
             Assert.Equal(4, inputGroup.SystemCount);
 
-            // CombatModule: PerceptionBroadphaseSystem, ThreatEvaluationAdapterSystem, DamageSystem (sim=3)
+            // CombatModule: PerceptionBroadphaseSystem, ThreatEvaluationAdapterSystem (sim=2)
+            // (FactionSyncAdapterSystem was removed)
             // DamageAssessmentModule: DamageCalculationSystem (sim=1)
             // Navigation bridges: NavigationIntentBridgeSystem, RouteTrajectorySyncSystem (sim=2)
             // GroundKinematicsModule: SpatialHashSystem, FormationTargetSystem, VehicleCommandSystem,
             //   CarKinematicsSystem, NavigationExecutionSystem, LinearKinematicsSystem (sim=6)
-            // total sim = 12
-            Assert.Equal(12, simGroup.SystemCount);
+            // total sim = 11
+            Assert.Equal(11, simGroup.SystemCount);
 
             // CombatModule: BallisticsSystem (postSim=1)
             Assert.Equal(1, postSimGroup.SystemCount);

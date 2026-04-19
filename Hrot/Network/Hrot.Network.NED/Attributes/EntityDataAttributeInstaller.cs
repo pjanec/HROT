@@ -1,13 +1,12 @@
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
-using Hrot.IG.Components;
 using Fdp.Toolkit.Replication.Patching;
 
 namespace Hrot.SimHost.Installers;
 
 /// <summary>
 /// <see cref="IBinaryAttributeInstaller"/> that routes <c>Name</c> and
-/// <c>Affiliation</c> binary attribute records to <see cref="IG.Components.EntityInfo"/> ECS
+/// <c>Affiliation</c> binary attribute records to <see cref="Fdp.Core.EntityInfo"/> ECS
 /// component writes.
 ///
 /// <para>
@@ -36,10 +35,10 @@ public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<Att
 
     private static void HandleName(BinaryPatchContext ctx, AttributeRecord record)
     {
-        if (!ctx.PatchContext.CanWrite<IG.Components.EntityInfo>())
+        if (!ctx.PatchContext.CanWrite<Fdp.Core.EntityInfo>())
             return;
 
-		ref var data = ref ctx.PatchContext.GetUnmanagedComponent<IG.Components.EntityInfo>();
+		ref var data = ref ctx.PatchContext.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
         data.Name = record.Value.StringValue ?? string.Empty;
 
         ctx.MarkDescriptorDirty(EntityInfoOrdinal);
@@ -47,10 +46,10 @@ public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<Att
 
     private static void HandleAffiliation(BinaryPatchContext ctx, AttributeRecord record)
     {
-        if (!ctx.PatchContext.CanWrite<IG.Components.EntityInfo>())
+        if (!ctx.PatchContext.CanWrite<Fdp.Core.EntityInfo>())
             return;
 
-		ref var data = ref ctx.PatchContext.GetUnmanagedComponent<IG.Components.EntityInfo>();
+		ref var data = ref ctx.PatchContext.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
 
         data.ForceId = record.Value.ValueType == AttributeValueType.KindInt32
             ? AttributeCompilerFactory.MapAffiliationInt(record.Value.IntValue)

@@ -1,6 +1,5 @@
 using System;
 using Hrot.Core.Network;
-using Hrot.IG.Components;
 using Fdp.Core;
 using ImGuiNET;
 

@@ -11,7 +11,7 @@ namespace Hrot.SimHost
     /// <summary>
     /// ECS component registry for combat and perception components.
     ///
-    /// <para>Registers: faction alignment, perception receptors and target memory,
+    /// <para>Registers: perception receptors and target memory,
     /// weapon state, health buffers, ballistic projectiles, and physics colliders.</para>
     ///
     /// <para>
@@ -27,10 +27,10 @@ namespace Hrot.SimHost
         /// </summary>
         public static void RegisterAll(EntityRepository world)
         {
-            world.RegisterComponent<Faction>();
             world.RegisterComponent<PerceptionReceptor>();
             world.RegisterComponent<TargetMemory>();
             world.RegisterComponent<WeaponState>();
+            world.RegisterComponent<EntityInfo>();
             // Health is registered in HrotSharedComponentRegistry (shared across all nodes).
             world.RegisterComponent<BallisticProjectile>();
             world.RegisterComponent<PhysicsCollider>();

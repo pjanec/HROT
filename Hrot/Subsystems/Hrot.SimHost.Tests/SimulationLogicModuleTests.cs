@@ -52,7 +52,7 @@ namespace Hrot.SimHost.Tests
             world.RegisterComponent<IsEmbarkedTag>();
 
             // Perception
-            world.RegisterComponent<Faction>();
+            world.RegisterComponent<EntityInfo>();
             world.RegisterComponent<PerceptionReceptor>();
             world.RegisterComponent<TargetMemory>();
 
@@ -150,7 +150,7 @@ namespace Hrot.SimHost.Tests
             Assert.Null(exception);
 
             Assert.Equal(4, inputGroup.SystemCount);
-            Assert.Equal(15, simGroup.SystemCount);
+            Assert.Equal(14, simGroup.SystemCount);
             Assert.Equal(1, postSimGroup.SystemCount);
 
             // ── Cleanup ───────────────────────────────────────────────────────
@@ -210,7 +210,7 @@ namespace Hrot.SimHost.Tests
             world.AddComponent(entity, new WeaponState { Ammo = 1, MuzzleVelocity = 800f, CooldownSecondsRemaining = 0f });
             world.AddComponent(entity, new Health { Current = 100f, Max = 100f });
             world.AddComponent(entity, new PhysicsCollider { Radius = 1.0f, CollisionLayer = 1 });
-            world.AddComponent(entity, new Faction { FactionId = 1 });
+            world.AddComponent(entity, new EntityInfo { ForceId = ForceId.Friend });
             world.AddComponent(entity, new BrainBTreeState());
             world.AddComponent(entity, new BrainBlackboard());
             world.AddComponent(entity, new DoctrineState());
@@ -264,7 +264,7 @@ namespace Hrot.SimHost.Tests
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<IsEmbarkedTag>();
-            world.RegisterComponent<Faction>();
+            world.RegisterComponent<EntityInfo>();
             world.RegisterComponent<PerceptionReceptor>();
             world.RegisterComponent<TargetMemory>();
             world.RegisterComponent<PhysicsCollider>();

@@ -79,7 +79,7 @@ namespace Hrot.Map.Common.Tests
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<Health>();
             world.RegisterComponent<PhysicsCollider>();
-            world.RegisterComponent<Faction>();
+            world.RegisterComponent<EntityInfo>();
             world.RegisterComponent<VisualData>();
             world.RegisterComponent<VehicleParams>();
             world.RegisterManagedComponent<SimCombatDef>();

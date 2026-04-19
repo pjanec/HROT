@@ -3,7 +3,6 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Navigation;
 using Hrot.CGF;
-using Hrot.IG.Components;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;

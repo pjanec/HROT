@@ -1,3 +1,5 @@
+using Fdp.Core;
+
 namespace Hrot.IG.Systems;
 
 /// <summary>
@@ -9,12 +11,12 @@ namespace Hrot.IG.Systems;
 /// </summary>
 public class MapUserConfig
 {
-    /// <summary>
-    /// When <c>true</c>, <see cref="StyleResolutionSystem"/> forces every entity's
-    /// affiliation to <see cref="Hrot.IG.Components.ForceId.Hostile"/> and applies a
-    /// red tint, overriding both TKB defaults and network overrides.
-    /// </summary>
-    public bool ForceHostile { get; set; }
+	/// <summary>
+	/// When <c>true</c>, <see cref="StyleResolutionSystem"/> forces every entity's
+	/// affiliation to <see cref="ForceId.Hostile"/> and applies a
+	/// red tint, overriding both TKB defaults and network overrides.
+	/// </summary>
+	public bool ForceHostile { get; set; }
 
     /// <summary>
     /// When <c>true</c>, label text is suppressed (set to empty string) so the renderer

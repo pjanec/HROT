@@ -4,7 +4,6 @@ using System.Linq;
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
-using Hrot.IG.Components;
 using Hrot.SimHost.Installers;
 using Fdp.Toolkit.Replication.Patching;
 using Hrot.Map.Common.Replication;
@@ -71,7 +70,7 @@ namespace Hrot.SimHost.Tests
             var ctx     = interpreter.CreateContext(listCtx);
             interpreter.Apply(ctx, new[] { StringRecord(AttributeIds.Name, "Bravo") });
 
-            var data = listCtx.GetUnmanagedComponent<IG.Components.EntityInfo>();
+            var data = listCtx.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
             Assert.Equal("Bravo", data.Name.ToString());
         }
 
@@ -86,7 +85,7 @@ namespace Hrot.SimHost.Tests
             var ctx     = interpreter.CreateContext(listCtx);
             interpreter.Apply(ctx, new[] { StringRecord(AttributeIds.Affiliation, "FORCE_FRIENDLY") });
 
-            ref var data0 = ref listCtx.GetUnmanagedComponent<IG.Components.EntityInfo>();
+            ref var data0 = ref listCtx.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
             Assert.Equal(ForceId.Friend, data0.ForceId);
         }
 
@@ -103,7 +102,7 @@ namespace Hrot.SimHost.Tests
             var ctx     = interpreter.CreateContext(listCtx);
             interpreter.Apply(ctx, new[] { Int32Record(AttributeIds.Affiliation, friendlyInt) });
 
-            ref var data3 = ref listCtx.GetUnmanagedComponent<IG.Components.EntityInfo>();
+            ref var data3 = ref listCtx.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
             Assert.Equal(ForceId.Friend, data3.ForceId);
         }
 
@@ -253,7 +252,7 @@ namespace Hrot.SimHost.Tests
                 Float64Record(AttributeIds.GeoAlt, 100.0),
             });
 
-            var data2 = listCtx.GetUnmanagedComponent<IG.Components.EntityInfo>();
+            var data2 = listCtx.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
             Assert.Equal("Delta", data2.Name.ToString());
 
             ref SimTransform st = ref listCtx.GetUnmanagedComponent<SimTransform>();

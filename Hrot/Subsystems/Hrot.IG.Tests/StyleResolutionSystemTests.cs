@@ -102,10 +102,10 @@ public class StyleResolutionSystemTests
     }
 
     [Fact]
-    public void ResolvedStyle_Default_HasUnknownAffiliation()
+    public void ResolvedStyle_Default_HasNeutralAffiliation()
     {
         var s = ResolvedStyle.CreateDefault();
-        Assert.Equal(ForceId.Unknown, s.Affiliation);
+        Assert.Equal(ForceId.Neutral, s.Affiliation);
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public class StyleResolutionSystemTests
 
         var style = repo.GetComponent<ResolvedStyle>(entity);
         Assert.Equal(ResolvedStyleConstants.UnknownTintR, style.TintR);
-        Assert.Equal(ForceId.Unknown,                     style.Affiliation);
+        Assert.Equal(ForceId.Neutral,                     style.Affiliation);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

@@ -4,7 +4,6 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
-using Hrot.IG.Components;
 using Hrot.Map.Common;
 using CycloneDDS.Runtime;
 using Fdp.Toolkit.Replication.Components;
