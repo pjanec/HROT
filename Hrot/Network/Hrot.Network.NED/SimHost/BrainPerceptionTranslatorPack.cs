@@ -11,10 +11,10 @@ namespace Hrot.Network.NED.SimHost
     ///
     /// <para>Translators created:</para>
     /// <list type="bullet">
-    ///   <item><see cref="SensorConfigEgressTranslator"/>      — Brain → Perception Solver: sensor configuration.</item>
-    ///   <item><see cref="RaycastBatchEgressTranslator"/>      — Brain → Perception Solver: raycast request batch.</item>
-    ///   <item><see cref="SensorTargetsIngressTranslator"/>    — Perception Solver → Brain: perceived targets.</item>
-    ///   <item><see cref="RaycastBatchIngressTranslator"/>     — Perception Solver → Brain: raycast results.</item>
+    ///   <item><see cref="SensorConfigEgressTranslator"/>          — Brain → Perception Solver: sensor configuration.</item>
+    ///   <item><see cref="RaycastBatchEgressTranslator"/>          — Brain → Perception Solver: raycast request batch.</item>
+    ///   <item><see cref="SensorTrackStateIngressTranslator"/>     — Perception Solver → Brain: discrete contact acquired/lost events.</item>
+    ///   <item><see cref="RaycastBatchIngressTranslator"/>         — Perception Solver → Brain: raycast results.</item>
     /// </list>
     ///
     /// <para>Install on <see cref="NodeRole.Brain"/> and <see cref="NodeRole.AllInOne"/> nodes.</para>
@@ -30,7 +30,7 @@ namespace Hrot.Network.NED.SimHost
         {
             yield return new SensorConfigEgressTranslator(participant, entityMap, geoTransform);
             yield return new RaycastBatchEgressTranslator(participant, entityMap, geoTransform, localNodeId);
-            yield return new SensorTargetsIngressTranslator(participant, entityMap);
+            yield return new SensorTrackStateIngressTranslator(participant, entityMap);
             yield return new RaycastBatchIngressTranslator(participant, entityMap, localNodeId);
         }
     }

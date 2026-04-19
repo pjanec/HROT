@@ -180,28 +180,31 @@ namespace Hrot.Network.NED.SimHost
     }
 
     /// <summary>
-    /// Ingress translator. Receives <c>SensorTargets</c> published by the Perception Solver
-    /// and writes the target data into the local unmanaged <c>TargetMemory</c> component.
-    /// Enforces entity-pointer safety: raw network IDs are never written to TargetMemory;
-    /// only resolved local ECS handles are stored.
+    /// Ingress translator. Receives discrete <c>SensorTrackState</c> events from the Perception Solver
+    /// and maintains the local <c>TargetMemory</c> on Brain-side observer entities.
+    /// <list type="bullet">
+    ///   <item>State = 1 (Acquired): adds the target to TargetMemory via <see cref="TargetMemory.AddOrUpdateTarget"/>.</item>
+    ///   <item>State = 0 (Lost): compact-removes the target slot (swap-with-last, decrement Count).</item>
+    /// </list>
+    /// Enforces entity-pointer safety: raw network IDs are resolved to generational ECS handles before storage.
     /// </summary>
-    public sealed class SensorTargetsIngressTranslator : IDescriptorTranslator
+    public sealed class SensorTrackStateIngressTranslator : IDescriptorTranslator
     {
-        private readonly DdsReader<SensorTargets>? _reader;
+        private readonly DdsReader<SensorTrackState>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
         public long   DescriptorOrdinal => 62;
-        public string TopicName         => "SensorTargets";
+        public string TopicName         => "SensorTrackState";
 
-        public SensorTargetsIngressTranslator(
+        public SensorTrackStateIngressTranslator(
             DdsParticipant?  participant,
             NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _reader    = participant != null ? new DdsReader<SensorTargets>(participant, TopicName) : null;
+            _reader    = participant != null ? new DdsReader<SensorTrackState>(participant, TopicName) : null;
         }
 
-        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        public unsafe void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (_reader is null) return;
 
@@ -215,28 +218,44 @@ namespace Hrot.Network.NED.SimHost
                 if (!_entityMap.TryGetEntity(data.ObserverEntityId, out var observer)) continue;
                 if (!view.IsAlive(observer) || !view.HasComponent<TargetMemory>(observer)) continue;
 
+                // Resolve target network ID to local ECS handle.
+                if (!_entityMap.TryGetEntity(data.TargetEntityId, out var targetEntity)) continue;
+
                 // Read-Modify-Write: value-copy to stack to avoid violating SoD contract.
                 ref readonly var memRO = ref view.GetComponentRO<TargetMemory>(observer);
                 TargetMemory mem = memRO;
 
-                if (data.Targets != null)
+                long localTargetId = (long)targetEntity.PackedValue;
+
+                if (data.State == 1) // Acquired
                 {
-                    foreach (var target in data.Targets)
+                    TargetMemory.AddOrUpdateTarget(
+                        ref mem,
+                        entityId:   localTargetId,
+                        posX:       data.PositionX,
+                        posY:       data.PositionY,
+                        scoreBoost: 1.0f,
+                        tick:       data.Tick,
+                        modality:   SensorModality.Visual);
+                }
+                else // Lost (State == 0)
+                {
+                    // Compact-remove: swap the target slot with the last entry, then shrink Count.
+                    for (int i = 0; i < mem.Count; i++)
                     {
-                        // Firewall: only store entities that are alive and have a transform.
-                        if (!_entityMap.TryGetEntity(target.TargetEntityId, out var targetEntity)) continue;
-                        if (!view.IsAlive(targetEntity) || !view.HasComponent<SimTransform>(targetEntity)) continue;
-
-                        ref readonly var tgtTf = ref view.GetComponentRO<SimTransform>(targetEntity);
-
-                        TargetMemory.AddOrUpdateTarget(
-                            ref mem,
-                            entityId:   (long)targetEntity.PackedValue,
-                            posX:       tgtTf.Position.X,
-                            posY:       tgtTf.Position.Y,
-                            scoreBoost: target.ThreatScore,
-                            tick:       data.Tick,
-                            modality:   SensorModality.Visual);
+                        if (mem.EntityIds[i] != localTargetId) continue;
+                        int last = mem.Count - 1;
+                        if (i < last)
+                        {
+                            mem.EntityIds[i]    = mem.EntityIds[last];
+                            mem.PositionsX[i]   = mem.PositionsX[last];
+                            mem.PositionsY[i]   = mem.PositionsY[last];
+                            mem.ThreatScores[i] = mem.ThreatScores[last];
+                            mem.LastSeenTick[i] = mem.LastSeenTick[last];
+                            mem.Modalities[i]   = mem.Modalities[last];
+                        }
+                        mem.Count--;
+                        break;
                     }
                 }
 
@@ -472,25 +491,33 @@ namespace Hrot.Network.NED.SimHost
     }
 
     /// <summary>
-    /// Egress translator. Reads the local <c>TargetMemory</c> components on the Perception Solver,
-    /// converts absolute Cartesian positions to radial wire format (Distance + BearingDegrees),
-    /// and publishes <c>SensorTargets</c> to Brain nodes.
-    /// Uses best-effort / volatile DDS QoS -- SmartEgress dirty tracking is intentionally omitted.
+    /// Egress translator. Monitors <c>TargetMemory</c> on the Perception Solver each tick and
+    /// emits discrete <c>SensorTrackState</c> samples to Brain nodes only when a target is
+    /// first acquired or finally lost.  The previous-tick target set for each observer is
+    /// maintained in <see cref="_previousTargets"/>.
+    /// Uses Reliable / TransientLocal QoS -- one sample per contact event,
+    /// never a continuous per-tick flood.
     /// </summary>
-    public sealed class SensorTargetsEgressTranslator : IDescriptorTranslator
+    public sealed class SensorTrackStateEgressTranslator : IDescriptorTranslator
     {
-        private readonly DdsWriter<SensorTargets>? _writer;
+        private readonly DdsWriter<SensorTrackState>? _writer;
         private readonly NetworkEntityMap _entityMap;
 
-        public long   DescriptorOrdinal => 62;
-        public string TopicName         => "SensorTargets";
+        // Per observer (keyed by observer network ID): set of target network IDs currently tracked.
+        private readonly Dictionary<long, HashSet<long>> _previousTargets = new();
 
-        public SensorTargetsEgressTranslator(
+        // Scratch set reused each tick to detect stale observer entries without allocation.
+        private readonly HashSet<long> _seenThisTick = new();
+
+        public long   DescriptorOrdinal => 62;
+        public string TopicName         => "SensorTrackState";
+
+        public SensorTrackStateEgressTranslator(
             DdsParticipant?  participant,
             NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _writer    = participant != null ? new DdsWriter<SensorTargets>(participant, TopicName) : null;
+            _writer    = participant != null ? new DdsWriter<SensorTrackState>(participant, TopicName) : null;
         }
 
         public unsafe void ScanAndPublish(ISimulationView view)
@@ -500,71 +527,100 @@ namespace Hrot.Network.NED.SimHost
             var query = view.Query()
                 .With<TargetMemory>()
                 .With<NetworkIdentity>()
-                .With<SimTransform>()
                 .Build();
+
+            _seenThisTick.Clear();
 
             foreach (var entity in query)
             {
-                ref readonly var mem   = ref view.GetComponentRO<TargetMemory>(entity);
-                if (mem.Count == 0) continue;
-
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-                ref readonly var obsTf = ref view.GetComponentRO<SimTransform>(entity);
+                ref readonly var mem   = ref view.GetComponentRO<TargetMemory>(entity);
 
-                var obsPos2D = new Vector2(obsTf.Position.X, obsTf.Position.Y);
+                long observerId = netId.Value;
+                _seenThisTick.Add(observerId);
 
-                // Extract 2-D forward direction from observer quaternion for bearing calculation.
-                Vector3 fwd3D = Vector3.Transform(Vector3.UnitX, obsTf.Rotation);
-                Vector2 fwd2D = new Vector2(fwd3D.X, fwd3D.Y);
-                float fwdLen = fwd2D.Length();
-                if (fwdLen > 0.001f) fwd2D /= fwdLen;
+                if (!_previousTargets.TryGetValue(observerId, out var previous))
+                {
+                    previous = new HashSet<long>();
+                    _previousTargets[observerId] = previous;
+                }
 
-                var ddsTargets = new List<DdsTrackedTarget>(mem.Count);
-
+                // Build current target set (resolved to network IDs).
+                var current = new HashSet<long>(mem.Count);
                 for (int i = 0; i < mem.Count; i++)
                 {
-                    // Firewall: map local ECS handle back to network ID.
                     var localTarget = new Entity((ulong)mem.EntityIds[i]);
-                    if (!_entityMap.TryGetNetworkId(localTarget, out long targetNetId)) continue;
+                    if (_entityMap.TryGetNetworkId(localTarget, out long targetNetId))
+                        current.Add(targetNetId);
+                }
 
-                    // Radial translation: Cartesian absolute -> (Distance, BearingDegrees).
-                    var tgtPos2D = new Vector2(mem.PositionsX[i], mem.PositionsY[i]);
-                    var toTarget = tgtPos2D - obsPos2D;
-                    float distance = toTarget.Length();
+                // Emit Acquired events for newly tracked targets.
+                foreach (long targetId in current)
+                {
+                    if (previous.Contains(targetId)) continue;
 
-                    float bearingDegrees = 0f;
-                    if (distance > 0.001f)
+                    // Retrieve last-known position for this target from TargetMemory.
+                    float posX = 0f, posY = 0f;
+                    for (int i = 0; i < mem.Count; i++)
                     {
-                        var toNorm = toTarget / distance;
-                        float dot = Vector2.Dot(fwd2D, toNorm);
-                        float det = fwd2D.X * toNorm.Y - fwd2D.Y * toNorm.X;
-                        bearingDegrees = MathF.Atan2(det, dot) * (180f / MathF.PI);
+                        var localTarget = new Entity((ulong)mem.EntityIds[i]);
+                        if (_entityMap.TryGetNetworkId(localTarget, out long tnetId) && tnetId == targetId)
+                        {
+                            posX = mem.PositionsX[i];
+                            posY = mem.PositionsY[i];
+                            break;
+                        }
                     }
 
-                    ddsTargets.Add(new DdsTrackedTarget
+                    _writer.Write(new SensorTrackState
                     {
-                        TargetEntityId = targetNetId,
-                        ThreatScore    = mem.ThreatScores[i],
-                        Distance       = distance,
-                        BearingDegrees = bearingDegrees,
+                        ObserverEntityId = observerId,
+                        TargetEntityId   = targetId,
+                        State            = 1, // Acquired
+                        PositionX        = posX,
+                        PositionY        = posY,
+                        Tick             = view.Tick,
                     });
                 }
 
-                if (ddsTargets.Count > 0)
+                // Emit Lost events for targets no longer in TargetMemory.
+                foreach (long targetId in previous)
                 {
-                    _writer.Write(new SensorTargets
+                    if (current.Contains(targetId)) continue;
+
+                    _writer.Write(new SensorTrackState
                     {
-                        ObserverEntityId = netId.Value,
+                        ObserverEntityId = observerId,
+                        TargetEntityId   = targetId,
+                        State            = 0, // Lost
+                        PositionX        = 0f,
+                        PositionY        = 0f,
                         Tick             = view.Tick,
-                        Targets          = ddsTargets,
                     });
                 }
+
+                // Update tracking state for this observer.
+                _previousTargets[observerId] = current;
             }
+
+            // Remove state for observers that have left the query (entity destroyed or TargetMemory removed).
+            var staleKeys = new List<long>();
+            foreach (var key in _previousTargets.Keys)
+            {
+                if (!_seenThisTick.Contains(key))
+                    staleKeys.Add(key);
+            }
+            foreach (long staleId in staleKeys)
+                _previousTargets.Remove(staleId);
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+
+        public void Dispose(long networkEntityId)
+        {
+            _previousTargets.Remove(networkEntityId);
+        }
     }
 
     /// <summary>

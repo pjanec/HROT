@@ -224,6 +224,33 @@ namespace Hrot.NED.Descriptors
         [DdsManaged] public List<DdsTrackedTarget> Targets;
     }
 
+    /// <summary>
+    /// Discrete state-change event published by the Perception Solver when a new target
+    /// enters or leaves an observer's sensor coverage after debounce filtering.
+    /// Uses Reliable / TransientLocal QoS so no events are dropped even under transient
+    /// congestion and new Brain nodes receive the last state for each observer/target pair.
+    /// </summary>
+    [DdsTopic("SensorTrackState")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct SensorTrackState
+    {
+        /// <summary>ECS/network ID of the observer entity that holds the sensor.</summary>
+        [DdsKey] public long ObserverEntityId;
+        /// <summary>ECS/network ID of the detected (or lost) target entity.</summary>
+        [DdsKey] public long TargetEntityId;
+        /// <summary>
+        /// <c>1</c> = contact Acquired (target entered sensor coverage);
+        /// <c>0</c> = contact Lost (target left coverage after hysteresis hold-off).
+        /// </summary>
+        public byte State;
+        /// <summary>Last known X position (metres, ground plane) at the time of the state change.</summary>
+        public float PositionX;
+        /// <summary>Last known Y position (metres, ground plane) at the time of the state change.</summary>
+        public float PositionY;
+        /// <summary>Simulation tick when the state change was detected.</summary>
+        public uint Tick;
+    }
+
     // ── Pathfinding pipeline (MOD1-P6T2) ───────────────────────────────────────────
 
     /// <summary>A single path request submitted by a Brain node.</summary>

@@ -446,6 +446,8 @@ namespace Hrot.SimHost
             if (ddsParticipant != null && nodeFactory != null)
             {
                 nodeFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(_kernel);
+                nodeFactory.CreateSimHostPerceptionTranslators().RegisterOn(_kernel);
+                nodeFactory.CreateSimHostPathfindingTranslators(_simCorePack!.TrajectoryPool).RegisterOn(_kernel);
             }
 
             // ── 11. Kernel init ───────────────────────────────────────────────
@@ -481,6 +483,8 @@ namespace Hrot.SimHost
             _clusterSlave?.Tick();
             _vis?.Update(dt);
             _kernelGroup?.Run();   // process incoming requests first (sets dirty flags)
+            // Drive the AutonomousPerceptionModule which uses direct-execution pattern (Pattern 2).
+            _simCorePack?.Tick(_world!, dt);
             _kernel?.Update();     // then run egress scan (picks up dirty -> publishes immediately)
             // Bridge SwitchTimeModeEvent and FrameOrder/FrameAck for distributed time control.
             // Placed after kernel.Update() so ScanAndPublish picks up FrameStepCompletedEvent

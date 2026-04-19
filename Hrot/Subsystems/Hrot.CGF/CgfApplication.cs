@@ -116,6 +116,9 @@ namespace Hrot.CGF
             {
                 var nodeFactory = networkFactory?.ConfigureForNode(_participant, nodeId, NodeRole.Brain);
                 _slaveTranslator = nodeFactory?.CreateSlaveOrchestratorTranslators(_orchestrationBus, nodeId);
+                // Wire the Brain-side perception translators (SensorTargetsIngressTranslator, etc.)
+                // so the CGF node receives SensorTrack state-change packets from SimHost.
+                nodeFactory?.CreateSimHostPerceptionTranslators().RegisterOn(_kernel);
             }
 
             var storageProvider = new LocalDiskStorageProvider(localTempRoot);

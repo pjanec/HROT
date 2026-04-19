@@ -55,6 +55,7 @@ namespace Hrot.SimHost.Modules
 
             // ── Simulation phase ──────────────────────────────────────────────
             simGroup.AddSystem(new PerceptionBroadphaseSystem());
+            simGroup.AddSystem(new FactionSyncAdapterSystem());
             // LosRequestBatchingSystem removed: it is now IEcsModuleSystem-only and
             // runs exclusively inside AutonomousPerceptionModule on the background thread.
             simGroup.AddSystem(new ThreatEvaluationAdapterSystem());

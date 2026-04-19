@@ -387,7 +387,7 @@ namespace Hrot.Editor
             if (!_headless)
             {
                 _mapViewConfig    = new MapViewConfig();
-                _mapPickAdapter   = new EditorMapPickAdapter(_canvas!, geoTransform);
+                _mapPickAdapter   = new EditorMapPickAdapter(_canvas!, geoTransform, _world);
 
                 // Build the JSON→ECS attribute compiler with the geo-transform so that
                 // geodetic spawn coordinates are projected correctly on entity placement.

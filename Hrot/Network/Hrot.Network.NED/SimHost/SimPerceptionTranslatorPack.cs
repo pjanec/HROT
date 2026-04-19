@@ -13,7 +13,7 @@ namespace Hrot.Network.NED.SimHost
     /// <list type="bullet">
     ///   <item><see cref="SensorConfigIngressTranslator"/>         — Brain → Solver: populates sensor component from DDS.</item>
     ///   <item><see cref="RaycastBatchSolverIngressTranslator"/>   — Brain → Solver: receives raycast batch for resolution.</item>
-    ///   <item><see cref="SensorTargetsEgressTranslator"/>         — Solver → Brain: publishes computed sensor targets.</item>
+    ///   <item><see cref="SensorTrackStateEgressTranslator"/>      — Solver → Brain: discrete contact acquired/lost events.</item>
     ///   <item><see cref="RaycastBatchSolverEgressTranslator"/>    — Solver → Brain: publishes resolved raycast hits.</item>
     /// </list>
     ///
@@ -29,7 +29,7 @@ namespace Hrot.Network.NED.SimHost
         {
             yield return new SensorConfigIngressTranslator(participant, entityMap);
             yield return new RaycastBatchSolverIngressTranslator(participant, entityMap, geoTransform);
-            yield return new SensorTargetsEgressTranslator(participant, entityMap);
+            yield return new SensorTrackStateEgressTranslator(participant, entityMap);
             yield return new RaycastBatchSolverEgressTranslator(participant, entityMap);
         }
     }

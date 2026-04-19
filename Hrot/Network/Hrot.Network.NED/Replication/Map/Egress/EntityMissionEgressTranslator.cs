@@ -76,10 +76,15 @@ namespace Hrot.Map.Common.Replication.Egress
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
                 ref readonly var queue = ref view.GetComponentRO<MissionPlanQueue>(entity);
 
+                // Read BehaviorParams from the managed ActiveMissionPlan companion component.
+                ActiveMissionPlan? activePlan = view.HasManagedComponent<ActiveMissionPlan>(entity)
+                    ? view.GetManagedComponentRO<ActiveMissionPlan>(entity)
+                    : null;
+
                 _writer.Write(new EntityMission
                 {
                     EntityId = netId.Value,
-                    Plan     = BuildDdsPlan(in queue)
+                    Plan     = BuildDdsPlan(in queue, activePlan)
                 });
 
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
@@ -88,8 +93,10 @@ namespace Hrot.Map.Common.Replication.Egress
 
         /// <summary>
         /// Converts the internal <see cref="MissionPlanQueue"/> to a DDS <see cref="MissionPlan"/>.
+        /// <paramref name="activePlan"/> is used to restore <see cref="MissionTask.BehaviorParams"/>
+        /// which are not stored in the unmanaged <see cref="MissionPlanQueue"/>.
         /// </summary>
-        private MissionPlan BuildDdsPlan(in MissionPlanQueue queue)
+        private MissionPlan BuildDdsPlan(in MissionPlanQueue queue, ActiveMissionPlan? activePlan)
         {
             var tasks = new List<MissionTask>(queue.PhaseCount);
 
@@ -111,12 +118,16 @@ namespace Hrot.Map.Common.Replication.Egress
                     ? resolvedName
                     : phase.DoctrineId.ToString(CultureInfo.InvariantCulture);
 
+                string behaviorParams = (activePlan?.Plan?.Tasks != null && i < activePlan.Plan.Tasks.Count)
+                    ? activePlan.Plan.Tasks[i].BehaviorParams ?? string.Empty
+                    : string.Empty;
+
                 tasks.Add(new MissionTask
                 {
                     TaskId          = System.Guid.Empty,
                     ExecutingEngine = "SimHost",
                     BehaviorId      = behaviorId,
-                    BehaviorParams  = string.Empty,
+                    BehaviorParams  = behaviorParams,
                     Triggers        = new List<DdsMissionTrigger>
                     {
                         new DdsMissionTrigger
