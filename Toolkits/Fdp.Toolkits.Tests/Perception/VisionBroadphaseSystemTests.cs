@@ -71,7 +71,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 Position = Vector3.Zero,
                 Rotation = Quaternion.Identity, // facing east
             });
-            world.AddComponent(observer, new Faction    { FactionId = 1 }); // Blue
+            world.AddComponent(observer, new EntityInfo    { ForceId = ForceId.Friend }); // Blue
             world.AddComponent(observer, new PerceptionReceptor
             {
                 VisionRange    = 200f,
@@ -87,7 +87,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 Position = new Vector3(100f, 0f, 0f), // due east of observer
                 Rotation = Quaternion.Identity,
             });
-            world.AddComponent(target, new Faction { FactionId = 2 }); // Red
+            world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile }); // Red
 
             // Add target to the local grid at its position.
             grid.Clear();
@@ -124,7 +124,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 Position = Vector3.Zero,
                 Rotation = Quaternion.Identity,
             });
-            world.AddComponent(observer, new Faction    { FactionId = 1 });
+            world.AddComponent(observer, new EntityInfo    { ForceId = ForceId.Friend });
             world.AddComponent(observer, new PerceptionReceptor
             {
                 VisionRange    = 200f,
@@ -139,7 +139,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 Position = new Vector3(50f, 0f, 0f),
                 Rotation = Quaternion.Identity,
             });
-            world.AddComponent(target, new Faction { FactionId = 1 }); // also Blue
+            world.AddComponent(target, new EntityInfo { ForceId = ForceId.Friend }); // also Blue
 
             // Add target to grid (it's in the world but same faction â€” should be excluded).
             grid.Clear();
@@ -173,7 +173,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 Position = Vector3.Zero,
                 Rotation = Quaternion.Identity,
             });
-            world.AddComponent(observer, new Faction    { FactionId = 1 });
+            world.AddComponent(observer, new EntityInfo    { ForceId = ForceId.Friend });
             world.AddComponent(observer, new PerceptionReceptor
             {
                 VisionRange    = 50f,    // target is at 100 m â€” outside range
@@ -188,7 +188,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 Position = new Vector3(100f, 0f, 0f), // 100 m east â€” beyond 50 m range
                 Rotation = Quaternion.Identity,
             });
-            world.AddComponent(target, new Faction { FactionId = 2 });
+            world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
 
             // Target is in the grid at 100 m. QueryNeighbors with radius 50 m won't return it.
             grid.Clear();
@@ -224,7 +224,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 Position = Vector3.Zero,
                 Rotation = Quaternion.Identity, // yaw=0 â†’ east
             });
-            world.AddComponent(observer, new Faction    { FactionId = 1 });
+            world.AddComponent(observer, new EntityInfo    { ForceId = ForceId.Friend });
             world.AddComponent(observer, new PerceptionReceptor
             {
                 VisionRange    = 200f,
@@ -240,7 +240,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 Position = new Vector3(0f, 100f, 0f), // due north
                 Rotation = Quaternion.Identity,
             });
-            world.AddComponent(target, new Faction { FactionId = 2 });
+            world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
 
             // Add target to grid at its position (within VisionRange, but outside FOV cone).
             grid.Clear();
@@ -285,7 +285,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 Position = Vector3.Zero,
                 Rotation = Quaternion.Identity,
             });
-            world.AddComponent(observer, new Faction { FactionId = 1 });
+            world.AddComponent(observer, new EntityInfo { ForceId = ForceId.Friend });
             world.AddComponent(observer, new PerceptionReceptor
             {
                 VisionRange    = 200f,
@@ -301,7 +301,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 Position = new Vector3(50f, 0f, 0f), // due east â€” inside FOV
                 Rotation = Quaternion.Identity,
             });
-            world.AddComponent(targetA, new Faction { FactionId = 2 }); // Red
+            world.AddComponent(targetA, new EntityInfo { ForceId = ForceId.Hostile }); // Red
 
             // Target B: in the world but NOT in the grid.
             var targetB = world.CreateEntity();
@@ -310,7 +310,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 Position = new Vector3(80f, 0f, 0f), // also due east â€” inside FOV
                 Rotation = Quaternion.Identity,
             });
-            world.AddComponent(targetB, new Faction { FactionId = 2 }); // Red
+            world.AddComponent(targetB, new EntityInfo { ForceId = ForceId.Hostile }); // Red
 
             // Local grid contains only Target A.
             grid.Clear();

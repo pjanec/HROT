@@ -19,7 +19,7 @@ namespace Fdp.Toolkit.Perception.Tests
             world.RegisterComponent<SimVelocity>();
 
             // Perception-specific components.
-            world.RegisterComponent<Faction>();
+            world.RegisterComponent<EntityInfo>();
             world.RegisterComponent<PerceptionReceptor>();
             world.RegisterComponent<TargetMemory>();
 

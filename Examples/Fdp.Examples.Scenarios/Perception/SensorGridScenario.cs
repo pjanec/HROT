@@ -86,7 +86,7 @@ namespace Fdp.Examples.Scenarios.Perception
         {
             // ── Component registration ─────────────────────────────────────────
             world.RegisterComponent<SimTransform>();
-            world.RegisterComponent<Faction>();
+            world.RegisterComponent<EntityInfo>();
             world.RegisterComponent<PerceptionReceptor>();
             world.RegisterComponent<TargetMemory>();
             world.RegisterComponent<PhysicsCollider>();
@@ -210,7 +210,7 @@ namespace Fdp.Examples.Scenarios.Perception
         {
             var e = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
-            world.AddComponent(e, new Faction { FactionId = 1 });
+            world.AddComponent(e, new EntityInfo { ForceId = ForceId.Friend });
             world.AddComponent(e, new PerceptionReceptor
             {
                 VisionRange    = 200f,
@@ -224,7 +224,7 @@ namespace Fdp.Examples.Scenarios.Perception
         {
             var e = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = new Vector3(100f, 0f, 0f), Rotation = Quaternion.Identity });
-            world.AddComponent(e, new Faction { FactionId = 2 });  // enemy
+            world.AddComponent(e, new EntityInfo { ForceId = ForceId.Hostile });  // enemy
             world.AddComponent(e, new PhysicsCollider { Radius = 2f });
             return e;
         }

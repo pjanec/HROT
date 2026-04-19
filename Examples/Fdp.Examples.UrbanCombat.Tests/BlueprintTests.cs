@@ -111,9 +111,9 @@ namespace Fdp.Examples.UrbanCombat.Tests
             template.ApplyTo(_app.World, e);
 
             Assert.True(_app.World.HasComponent<PassengerBuffer>(e));
-            Assert.True(_app.World.HasComponent<Faction>(e));
-            var faction = _app.World.GetComponent<Faction>(e);
-            Assert.Equal(UrbanCombatConstants.FactionBlue, faction.FactionId);   // FactionBlue = 1
+            Assert.True(_app.World.HasComponent<EntityInfo>(e));
+            var info = _app.World.GetComponent<EntityInfo>(e);
+            Assert.Equal(ForceId.Friend, info.ForceId);   // FactionBlue = Friend
         }
 
         /// <summary>The MilitaryAPC template must stamp DoctrineState with BrainTierHsm (=1), not BrainTierBTree (=2).</summary>
@@ -152,9 +152,9 @@ namespace Fdp.Examples.UrbanCombat.Tests
             var ws = _app.World.GetComponent<WeaponState>(e);
             Assert.Equal(UrbanCombatConstants.RpgAmmo, ws.Ammo);   // RPG: single rocket
 
-            Assert.True(_app.World.HasComponent<Faction>(e));
-            var faction = _app.World.GetComponent<Faction>(e);
-            Assert.Equal(UrbanCombatConstants.FactionRed, faction.FactionId);   // FactionRed = 2
+            Assert.True(_app.World.HasComponent<EntityInfo>(e));
+            var info = _app.World.GetComponent<EntityInfo>(e);
+            Assert.Equal(ForceId.Hostile, info.ForceId);   // FactionRed = Hostile
         }
 
         // ════════════════════════════════════════════════════════════════════════════

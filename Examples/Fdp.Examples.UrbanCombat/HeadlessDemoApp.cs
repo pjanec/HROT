@@ -248,7 +248,7 @@ namespace Fdp.Examples.UrbanCombat
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>();
 
             // FDP.Toolkit.Perception
-            World.RegisterComponent<Fdp.Toolkit.Perception.Components.Faction>();
+            World.RegisterComponent<EntityInfo>();
             World.RegisterComponent<Fdp.Toolkit.Perception.Components.PerceptionReceptor>();
             World.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
 

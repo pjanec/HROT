@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Perception
     /// <list type="bullet">
     ///   <item><see cref="LocalGridBuilderSystem"/> — rebuilds the module-private
     ///     <see cref="SpatialHashGrid"/> from the snapshot each tick.</item>
-    ///   <item><see cref="VisionBroadphaseSystem"/> — faction + FOV filtering via the local grid
+    ///   <item><see cref="VisionBroadphaseSystem"/> — force affiliation + FOV filtering via the local grid
     ///     → emits <see cref="LosCheckRequestEvent"/>.</item>
     ///   <item><see cref="ThreatEvaluationSystem"/> — threat score decay + visible-target boost.</item>
     /// </list>
@@ -85,7 +85,7 @@ namespace Fdp.Toolkit.Perception
         public IEnumerable<System.Type>? GetRequiredComponents() => new System.Type[]
         {
             typeof(SimTransform),
-            typeof(Faction),
+            typeof(EntityInfo),
             typeof(PerceptionReceptor),
             typeof(TargetMemory),
         };

@@ -8,7 +8,6 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Navigation;
-using Fdp.Toolkit.Perception.Components;
 using Xunit;
 
 namespace Fdp.Examples.UrbanCombat.Tests
@@ -83,11 +82,11 @@ namespace Fdp.Examples.UrbanCombat.Tests
             _director.SetupAmbushScenario();
 
             int redCount = 0;
-            var q = _app.World.Query().With<Faction>().Build();
+            var q = _app.World.Query().With<EntityInfo>().Build();
             foreach (var entity in q)
             {
-                var faction = _app.World.GetComponent<Faction>(entity);
-                if (faction.FactionId == UrbanCombatConstants.FactionRed)
+                var info = _app.World.GetComponent<EntityInfo>(entity);
+                if (info.ForceId == ForceId.Hostile)
                     redCount++;
             }
 

@@ -4,24 +4,6 @@ using Fdp.Core;
 
 namespace Fdp.Toolkit.Perception.Components
 {
-    // ── Faction ──────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Identifies the side an entity belongs to for perception filtering.
-    /// Entities with the same <see cref="FactionId"/> are considered friendly and
-    /// are excluded from vision-broadphase checks.
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(250)]
-    public struct Faction
-    {
-        /// <summary>
-        /// Faction identifier. Entities sharing the same ID are treated as allies.
-        /// Convention: 0 = neutral/unset, 1 = Blue force, 2 = Red force.
-        /// </summary>
-        public byte FactionId;
-    }
-
     // ── PerceptionReceptor ────────────────────────────────────────────────────────
 
     /// <summary>

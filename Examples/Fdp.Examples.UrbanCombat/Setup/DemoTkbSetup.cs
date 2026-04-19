@@ -5,6 +5,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Perception.Components;
+
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
 
@@ -149,7 +150,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
 
             t.AddComponent(new PhysicsCollider { Radius = UrbanCombatConstants.ApcColliderRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
             t.AddComponent(new PassengerBuffer());
-            t.AddComponent(new Faction { FactionId = UrbanCombatConstants.FactionBlue });
+            t.AddComponent(new EntityInfo { ForceId = ForceId.Friend });
 
             tkb.Register(t);
         }
@@ -213,7 +214,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(new TargetMemory());
 
             t.AddComponent(new PhysicsCollider { Radius = UrbanCombatConstants.HumanoidColliderRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
-            t.AddComponent(new Faction { FactionId = UrbanCombatConstants.FactionBlue });
+            t.AddComponent(new EntityInfo { ForceId = ForceId.Friend });
 
             tkb.Register(t);
         }
@@ -277,7 +278,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(new TargetMemory());
 
             t.AddComponent(new PhysicsCollider { Radius = UrbanCombatConstants.HumanoidColliderRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
-            t.AddComponent(new Faction { FactionId = UrbanCombatConstants.FactionRed });
+            t.AddComponent(new EntityInfo { ForceId = ForceId.Hostile });
 
             tkb.Register(t);
         }

@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 FieldOfViewCos = 0.5f,
             });
             world.AddComponent(listener, new TargetMemory());
-            world.AddComponent(listener, new Faction { FactionId = 1 });
+            world.AddComponent(listener, new EntityInfo { ForceId = ForceId.Friend });
 
             // Create a source entity.
             var source = world.CreateEntity();
@@ -116,7 +116,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 FieldOfViewCos = 0.5f,
             });
             world.AddComponent(listener, new TargetMemory());
-            world.AddComponent(listener, new Faction { FactionId = 1 });
+            world.AddComponent(listener, new EntityInfo { ForceId = ForceId.Friend });
 
             var dummySource = world.CreateEntity();
             world.AddComponent(dummySource, new SimTransform
@@ -169,7 +169,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 FieldOfViewCos = 0.5f,
             });
             world.AddComponent(listenerA, new TargetMemory());
-            world.AddComponent(listenerA, new Faction { FactionId = 1 });
+            world.AddComponent(listenerA, new EntityInfo { ForceId = ForceId.Friend });
 
             // Listener B far away (200 m from event — beyond broadphase radius).
             var listenerB = world.CreateEntity();
@@ -185,7 +185,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 FieldOfViewCos = 0.5f,
             });
             world.AddComponent(listenerB, new TargetMemory());
-            world.AddComponent(listenerB, new Faction { FactionId = 1 });
+            world.AddComponent(listenerB, new EntityInfo { ForceId = ForceId.Friend });
 
             // Event at (50, 0, 0) with broadphase radius 100 — listenerA is inside, listenerB not.
             world.Bus.Publish(new AudioStimulusEvent

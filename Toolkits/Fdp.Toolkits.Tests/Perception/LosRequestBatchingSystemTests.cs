@@ -110,13 +110,13 @@ namespace Fdp.Toolkit.Perception.Tests
 
             var obs = world.CreateEntity();
             world.AddComponent(obs, new SimTransform { Position = new Vector3(0f, 0f, 0f) });
-            world.AddComponent(obs, new Faction { FactionId = 1 });
+            world.AddComponent(obs, new EntityInfo { ForceId = ForceId.Friend });
             world.AddComponent(obs, new TargetMemory());
 
             var tgt = world.CreateEntity();
             world.AddComponent(tgt, new SimTransform { Position = new Vector3(100f, 0f, 0f) });
             world.AddComponent(tgt, new PhysicsCollider { Radius = 2f });
-            world.AddComponent(tgt, new Faction { FactionId = 2 });
+            world.AddComponent(tgt, new EntityInfo { ForceId = ForceId.Hostile });
 
             world.Bus.Publish(new LosCheckRequestEvent { Observer = obs, Target = tgt });
             world.Bus.SwapBuffers();
@@ -146,13 +146,13 @@ namespace Fdp.Toolkit.Perception.Tests
 
             var obs = world.CreateEntity();
             world.AddComponent(obs, new SimTransform { Position = new Vector3(0f, 0f, 0f) });
-            world.AddComponent(obs, new Faction { FactionId = 1 });
+            world.AddComponent(obs, new EntityInfo { ForceId = ForceId.Friend });
             world.AddComponent(obs, new TargetMemory());
 
             var tgt = world.CreateEntity();
             world.AddComponent(tgt, new SimTransform { Position = new Vector3(100f, 0f, 0f) });
             world.AddComponent(tgt, new PhysicsCollider { Radius = 2f });
-            world.AddComponent(tgt, new Faction { FactionId = 2 });
+            world.AddComponent(tgt, new EntityInfo { ForceId = ForceId.Hostile });
 
             // Wall sits directly on the observer→target segment at mid-range.
             var wall = world.CreateEntity();

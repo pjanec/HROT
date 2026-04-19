@@ -229,7 +229,8 @@ namespace Fdp.Core
         /// <summary><c>InFormationTag</c> — tag added to an entity that has successfully joined a formation slot (FDP.Toolkit.Navigation).</summary>
         public const byte InFormationTag          = 70;
 
-        /// <summary><c>Faction</c> — entity side identifier used by perception broadphase (FDP.Toolkit.Perception).</summary>
+        /// <summary><c>Faction</c> — REMOVED. Entity side identifier (replaced by <see cref="EntityInfo"/> from <c>Hrot.IG.Components</c>). ID reserved for serialization compatibility.</summary>
+        [System.Obsolete("Faction has been removed. Use Hrot.IG.Components.EntityInfo.ForceId instead.")]
         public const byte Faction                 = 71;
 
         /// <summary><c>PerceptionReceptor</c> — combined sensor range/FOV parameters (FDP.Toolkit.Perception).</summary>
@@ -343,6 +344,9 @@ namespace Fdp.Core
         // DO NOT add new project specific component IDs here — use project specific ComponentIds instead.
 
         // IDs 160–199 are reserved for project specific application-level components.
+
+        /// <summary><c>EntityInfo / IgEntityData</c> — IG-internal entity metadata (name, force affiliation, commander). Moved to Fdp.Core to remove the Faction component.</summary>
+        public const byte EntityInfo            = 164;
 
         // ── Zone toolkit (201+) ─────────────────────────────────────────────────
         // NOTE: IDs 20–79 are fully allocated across toolkit expansion blocks.

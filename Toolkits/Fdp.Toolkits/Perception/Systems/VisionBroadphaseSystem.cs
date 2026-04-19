@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// For each observer entity with a <see cref="PerceptionReceptor"/>:
     /// <list type="number">
     ///   <item>Queries the module-private <see cref="SpatialHashGrid"/> for candidates within VisionRange.</item>
-    ///   <item>Skips candidates that are not alive, lack a <see cref="Faction"/>, or share the observer's faction.</item>
+    ///   <item>Skips candidates that are not alive, lack an <see cref="EntityInfo"/>, or share the observer's force affiliation.</item>
     ///   <item>Performs a dot-product FOV cone check using the precomputed <c>FieldOfViewCos</c> cosine.</item>
     ///   <item>Emits a <see cref="LosCheckRequestEvent"/> via the entity command buffer for candidates that pass.</item>
     /// </list>
@@ -62,10 +62,10 @@ namespace Fdp.Toolkit.Perception.Systems
         {
             var ecb = view.GetCommandBuffer();
 
-            // Query all observer entities (must have a receptor, faction, and spatial presence).
+            // Query all observer entities (must have a receptor, entity info, and spatial presence).
             var observerQuery = view.Query()
                 .With<PerceptionReceptor>()
-                .With<Faction>()
+                .With<EntityInfo>()
                 .With<SimTransform>()
                 .Build();
 
@@ -74,9 +74,9 @@ namespace Fdp.Toolkit.Perception.Systems
 
             foreach (var observer in observerQuery)
             {
-                ref readonly var receptor   = ref view.GetComponentRO<PerceptionReceptor>(observer);
-                ref readonly var obsFaction = ref view.GetComponentRO<Faction>(observer);
-                ref readonly var obsTf      = ref view.GetComponentRO<SimTransform>(observer);
+                ref readonly var receptor  = ref view.GetComponentRO<PerceptionReceptor>(observer);
+                ref readonly var obsInfo   = ref view.GetComponentRO<EntityInfo>(observer);
+                ref readonly var obsTf     = ref view.GetComponentRO<SimTransform>(observer);
 
                 var obsPos2D = new Vector2(obsTf.Position.X, obsTf.Position.Y);
 
@@ -98,13 +98,13 @@ namespace Fdp.Toolkit.Perception.Systems
                     // Generational liveness check â€” grid stores full Entity handles.
                     if (!view.IsAlive(target)) continue;
 
-                    // Target must have a faction to participate in vision checks.
-                    if (!view.HasComponent<Faction>(target)) continue;
+                    // Target must have an EntityInfo to participate in vision checks.
+                    if (!view.HasComponent<EntityInfo>(target)) continue;
 
-                    ref readonly var targetFaction = ref view.GetComponentRO<Faction>(target);
+                    ref readonly var targetInfo = ref view.GetComponentRO<EntityInfo>(target);
 
-                    // Same-faction exclusion â€” allies are invisible to the broadphase.
-                    if (targetFaction.FactionId == obsFaction.FactionId) continue;
+                    // Same-force exclusion — allies are invisible to the broadphase.
+                    if (targetInfo.ForceId == obsInfo.ForceId) continue;
 
                     // Distance is already filtered by QueryNeighbors (radius = VisionRange).
                     Vector2 toTarget = targetPos2D - obsPos2D;

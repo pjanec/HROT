@@ -348,7 +348,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 Position = Vector3.Zero,
                 Rotation = Quaternion.Identity, // facing east
             });
-            world.AddComponent(observer, new Faction    { FactionId = 1 });
+            world.AddComponent(observer, new EntityInfo    { ForceId = ForceId.Friend });
             world.AddComponent(observer, new PerceptionReceptor
             {
                 VisionRange    = 200f,
@@ -363,7 +363,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 Position = new Vector3(100f, 0f, 0f),
                 Rotation = Quaternion.Identity,
             });
-            world.AddComponent(target, new Faction { FactionId = 2 });
+            world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
 
             grid.Clear();
             grid.Add(target, new Vector2(100f, 0f));

@@ -160,9 +160,7 @@ namespace Fdp.Examples.Scenarios.Integrated
         private const int DoctrineAmbush        = 2003;
 
         // ── Faction IDs ───────────────────────────────────────────────────────
-        private const byte FactionNeutral = 0;
-        private const byte FactionBlue    = 1;
-        private const byte FactionRed     = 2;
+        // FactionNeutral/Blue/Red constants removed; use ForceId.Neutral/Friend/Hostile directly.
 
         // ── Sensor ranges (m) ─────────────────────────────────────────────────
         private const float CivilianVisionRange  = 30f;
@@ -372,7 +370,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             world.RegisterComponent<MissionPlanQueue>();
 
             // FDP.Toolkit.Perception
-            world.RegisterComponent<Faction>();
+            world.RegisterComponent<EntityInfo>();
             world.RegisterComponent<PerceptionReceptor>();
             world.RegisterComponent<TargetMemory>();
 
@@ -485,7 +483,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 CollisionLayer = PhysicsConstants.EntityCollisionLayer,
             });
             t.AddComponent(new PassengerBuffer());
-            t.AddComponent(new Faction { FactionId = FactionBlue });
+            t.AddComponent(new EntityInfo { ForceId = ForceId.Friend });
             _tkb.Register(t);
         }
 
@@ -535,7 +533,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 Radius         = HumanoidRadius,
                 CollisionLayer = PhysicsConstants.EntityCollisionLayer,
             });
-            t.AddComponent(new Faction { FactionId = FactionBlue });
+            t.AddComponent(new EntityInfo { ForceId = ForceId.Friend });
             _tkb.Register(t);
         }
 
@@ -585,7 +583,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 Radius         = HumanoidRadius,
                 CollisionLayer = PhysicsConstants.EntityCollisionLayer,
             });
-            t.AddComponent(new Faction { FactionId = FactionRed });
+            t.AddComponent(new EntityInfo { ForceId = ForceId.Hostile });
             _tkb.Register(t);
         }
 
@@ -714,7 +712,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 t.AddComponent(new Fdp.Toolkit.Combat.Components.Health { Current = ApcMaxHealth, Max = ApcMaxHealth });
                 t.AddComponent(new PhysicsCollider { Radius = ApcRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
                 t.AddComponent(new PassengerBuffer());
-                t.AddComponent(new Faction { FactionId = FactionBlue });
+                t.AddComponent(new EntityInfo { ForceId = ForceId.Friend });
                 tkb.Register(t);
             }
 
@@ -740,7 +738,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 t.AddComponent(new PerceptionReceptor { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewCos = 0f });
                 t.AddComponent(new TargetMemory());
                 t.AddComponent(new PhysicsCollider { Radius = HumanoidRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
-                t.AddComponent(new Faction { FactionId = FactionBlue });
+                t.AddComponent(new EntityInfo { ForceId = ForceId.Friend });
                 tkb.Register(t);
             }
 
@@ -766,7 +764,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 t.AddComponent(new PerceptionReceptor { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewCos = 0f });
                 t.AddComponent(new TargetMemory());
                 t.AddComponent(new PhysicsCollider { Radius = HumanoidRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
-                t.AddComponent(new Faction { FactionId = FactionRed });
+                t.AddComponent(new EntityInfo { ForceId = ForceId.Hostile });
                 tkb.Register(t);
             }
         }
