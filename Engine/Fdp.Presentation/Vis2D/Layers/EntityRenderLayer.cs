@@ -80,42 +80,8 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         public bool HandleInput(Vector2 worldPos, MouseButton button, bool isPressed)
         {
-            if (!isPressed) return false;
-
-            float bestDistSq = float.MaxValue;
-            Entity bestEntity = Entity.Null;
-
-            foreach (var entity in _query)
-            {
-                uint entityMask = _view.HasComponent<MapDisplayComponent>(entity)
-                    ? _view.GetComponentRO<MapDisplayComponent>(entity).LayerMask
-                    : 1u;
-
-                if (LayerBitIndex >= 0)
-                {
-                    uint bit = 1u << LayerBitIndex;
-                    if ((entityMask & bit) == 0) continue;
-                }
-
-                Vector2? pos = _adapter.GetPosition(_view, entity);
-                if (!pos.HasValue) continue;
-
-                float radius = _adapter.GetHitRadius(_view, entity);
-                float distSq = Vector2.DistanceSquared(pos.Value, worldPos);
-
-                if (distSq <= radius * radius && distSq < bestDistSq)
-                {
-                    bestDistSq = distSq;
-                    bestEntity = entity;
-                }
-            }
-
-            if (_view.IsAlive(bestEntity))
-            {
-                _selection.PrimarySelected = bestEntity;
-                return true;
-            }
-
+            // Architectural Correction: Render layers must not mutate selection state.
+            // Spatial resolution is deferred to PickEntity() and managed exclusively by active IMapTool implementations.
             return false;
         }
 
