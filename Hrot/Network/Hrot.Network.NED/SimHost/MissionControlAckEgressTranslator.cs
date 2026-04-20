@@ -7,7 +7,6 @@ using Hrot.Common.Events;
 using CycloneDDS.Runtime;
 using Fdp.ModuleHost.Abstractions;
 using NedStatusCode = Hrot.NED.Messages.NedStatusCode;
-using Fdp.Interfaces;
 
 namespace Hrot.Network.NED.SimHost
 {

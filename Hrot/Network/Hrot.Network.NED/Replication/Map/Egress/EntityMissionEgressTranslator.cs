@@ -14,7 +14,6 @@ using Fdp.ModuleHost.Abstractions;
 
 using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;
 using EcsMissionTrigger = Fdp.Toolkit.Behavior.Components.MissionTrigger;
-using Fdp.Interfaces;
 
 namespace Hrot.Map.Common.Replication.Egress
 {

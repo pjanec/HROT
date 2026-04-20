@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
-using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Network.Cyclone.Systems;
 using Xunit;

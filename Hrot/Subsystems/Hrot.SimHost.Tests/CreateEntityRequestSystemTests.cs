@@ -12,7 +12,6 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Tkb;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.NetworkSpawning;
 
 namespace Hrot.SimHost.Tests

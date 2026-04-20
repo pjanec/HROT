@@ -17,7 +17,6 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Tkb;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.Toolkit.Replication.Components;
 
 namespace Hrot.SimHost.Tests
 {

@@ -1,10 +1,8 @@
 using Hrot.Map.Common.Events;
 using Hrot.Map.Definitions.Tkb;
 using Fdp.Core;
-using Fdp.Modules.Geographic.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Lifecycle.Events;
-using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Components;
 
 namespace Hrot.Map.Common;

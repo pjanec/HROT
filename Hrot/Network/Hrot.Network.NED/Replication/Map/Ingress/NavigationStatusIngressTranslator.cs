@@ -8,7 +8,6 @@ using Fdp.ModuleHost.Abstractions;
 
 using EcsNavigationStatus = Fdp.Toolkit.Navigation.NavigationStatus;
 using EcsNavResult        = Fdp.Toolkit.Navigation.NavigationResult;
-using Fdp.Interfaces;
 
 namespace Hrot.Map.Common.Replication.Ingress
 {

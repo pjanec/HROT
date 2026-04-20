@@ -68,6 +68,7 @@ namespace Hrot.Map.Common.Translators
             yield return new EntityMasterEgressTranslator(participant, entityMap, localNodeId);
             yield return new EntityMasterIngressTranslator(participant, entityMap, localNodeId, eventBus, ghostCreationSystem);
             yield return new EntityInfoEgressTranslator(participant, entityMap, localNodeId);
+            yield return new EntityInfoIngressTranslator(participant, entityMap, eventBus, ghostCreationSystem, localNodeId);
             yield return new FireInteractionEventTranslator(participant, entityMap);
             yield return new EntityDamageEgressTranslator(participant, entityMap);
             yield return new GeoSpatialEgressTranslator(participant, entityMap, geoTransform, localNodeId);

@@ -16,7 +16,6 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication;
 using Raylib_cs;
 

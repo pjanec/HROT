@@ -32,6 +32,13 @@ namespace Hrot.Map.Definitions.Tkb
         {
             var template = new TkbTemplate(name, tkbId);
 
+            template.AddComponent(new EntityInfo
+            {
+                Name = new FixedString64(name),
+                ForceId = ForceId.Neutral
+            });
+            template.AddMandatoryComponent<EntityInfo>(isHard: true);
+
             // Include SimTransform so that the Muscle authority path (DeferredTakeoverSystem)
             // can claim it when WorldPos is delegated. Silently skipped on worlds that
             // haven't registered the component (e.g. pure-IG worlds that receive SimTransform
@@ -259,6 +266,12 @@ namespace Hrot.Map.Definitions.Tkb
             var template = _db.GetByType(tkbId);
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
+
+            var entityInfoTypeId = ComponentTypeRegistry.GetOrRegisterManaged(typeof(EntityInfo));
+            if (!template.MandatoryComponents.Exists(c => c.ComponentTypeId == entityInfoTypeId))
+            {
+                template.AddMandatoryComponent<EntityInfo>(isHard: true);
+            }
             
             // Evaluate composition immediately to populate TkbTemplate metadata.
             var compositionDef = new TkbCompositionDef();

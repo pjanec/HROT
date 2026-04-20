@@ -8,7 +8,6 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Messages;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.Interfaces;
 
 namespace Hrot.Map.Common.Replication.Egress
 {

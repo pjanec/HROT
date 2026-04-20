@@ -13,7 +13,6 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Network.Cyclone.Translators;
 using DdsContextActionsUpdate = Hrot.NED.Messages.ContextActionsUpdate;
 using IgContextActionsUpdate = Hrot.IG.ContextActionsUpdate;
-using Fdp.Interfaces;
 
 namespace Hrot.Network.NED.IG
 {

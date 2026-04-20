@@ -15,7 +15,6 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.Interfaces;
 
 namespace Hrot.Map.Common.Replication.Egress
 {
