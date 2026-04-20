@@ -113,6 +113,8 @@ namespace Fdp.Toolkit.Perception.Systems
                 {
                     // The target's own collider must not block the ray to itself.
                     if (candidate.Index == req.Target.Index) continue;
+                    // The observer's own collider must not self-occlude.
+                    if (candidate.Index == req.Observer.Index) continue;
 
                     if (!view.IsAlive(candidate)) continue;
 
