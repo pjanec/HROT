@@ -44,6 +44,7 @@ namespace Hrot.SimHost
 
             // Target seeding command (edit-1/EDIT1-E002)
             world.RegisterEvent<SeedTargetCommand>();
+            world.RegisterEvent<WeaponFireIntent>();
 
             // ── Combat pipeline notifications ─────────────────────────────────
             // Published by FireProcessingSystem and HitResolutionSystem; consumed by

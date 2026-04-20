@@ -69,6 +69,7 @@ public static class CgfComponentRegistry
         world.RegisterComponent<PerceptionReceptor>();
         world.RegisterComponent<TargetMemory>();
         world.RegisterComponent<ActiveSensorTracks>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponState>();
 
         // ── Tier 2: Kinematic (Muscle-tier physics) ───────────────────────────
         world.RegisterComponent<VehicleState>();
@@ -102,5 +103,6 @@ public static class CgfComponentRegistry
         // EntityHitDamageIngressTranslator publishes DamageAssessedEvent via EntityCommandBuffer;
         // the stream must exist before Playback runs, so we pre-register it here.
         world.RegisterEvent<DamageAssessedEvent>();
+        world.RegisterEvent<WeaponFireIntent>();
     }
 }
