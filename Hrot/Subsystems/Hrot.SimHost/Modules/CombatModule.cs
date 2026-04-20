@@ -54,10 +54,9 @@ namespace Hrot.SimHost.Modules
             inputGroup.AddSystem(new HitResolutionSystem());
 
             // ── Simulation phase ──────────────────────────────────────────────
-            simGroup.AddSystem(new PerceptionBroadphaseSystem());
-            // LosRequestBatchingSystem removed: it is now IEcsModuleSystem-only and
-            // runs exclusively inside AutonomousPerceptionModule on the background thread.
-            simGroup.AddSystem(new ThreatEvaluationAdapterSystem());
+            // PerceptionBroadphaseSystem and ThreatEvaluationAdapterSystem are intentionally
+            // not registered here. LOS + threat evaluation run inside
+            // AutonomousPerceptionModule on its private scoped bus.
             // DamageSystem removed: the distributed pipeline is used instead.
             // HitResolutionSystem emits DetonationNotification; DamageAssessmentModule
             // (MuscleGround) picks it up, calculates damage, and broadcasts EntityHitDamage
