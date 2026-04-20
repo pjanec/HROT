@@ -72,11 +72,13 @@ namespace Fdp.Toolkit.Physics.Systems
 
                 if (PhysicsConstants.IsBulletRay(hit.RayId))
                 {
+                    int bulletIndex = (int)(hit.RayId & 0x7FFF_FFFF_FFFF_FFFFL);
+
                     // Bullet hit â†’ emit HitEvent (Combat toolkit will consume in Phase 5).
                     World.Bus.Publish(new HitEvent
                     {
                         HitEntity   = hit.HitEntity,
-                        BulletIndex = (int)(hit.RayId & 0x7FFF_FFFF_FFFF_FFFFL),
+                        BulletIndex = bulletIndex,
                         HitT        = hit.T,
                     });
 
@@ -96,6 +98,14 @@ namespace Fdp.Toolkit.Physics.Systems
                         HitY    = hitPos.Y,
                         HitZ    = hitPos.Z,
                     });
+
+                    // Always consume the bullet on first impact so repeated ray hits do not
+                    // re-emit detonation/damage every frame when DamageSystem is not present.
+                    var bulletEntity = World.GetEntityByIndex(bulletIndex);
+                    if (World.IsAlive(bulletEntity))
+                    {
+                        World.DestroyEntity(bulletEntity);
+                    }
                 }
                 else
                 {

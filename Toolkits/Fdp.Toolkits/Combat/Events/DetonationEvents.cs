@@ -30,5 +30,8 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>Total computed HP loss (POC: flat damage from <c>BallisticProjectile.Damage</c>).</summary>
         public float TotalDamage;
+
+        /// <summary>True when this event originated from network ingress.</summary>
+        public bool IsRemote;
     }
 }
