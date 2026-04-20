@@ -77,6 +77,7 @@ namespace Hrot.Network.NED.SimHost
             {
                 HitEntity   = hitEntity,
                 TotalDamage = msg.TotalDamage,
+                IsRemote    = true,
             });
         }
 

@@ -87,6 +87,7 @@ namespace Hrot.Network.NED.SimHost
                 HitX    = msg.HitX,
                 HitY    = msg.HitY,
                 HitZ    = msg.HitZ,
+                IsRemote = true,
             });
         }
 

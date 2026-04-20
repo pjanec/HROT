@@ -83,6 +83,7 @@ namespace Hrot.Network.NED.SimHost
                 Shooter     = shooter,
                 Target      = target,
                 WeaponIndex = request.WeaponIndex,
+                IsRemote    = true,
             });
         }
 

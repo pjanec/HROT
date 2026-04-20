@@ -75,6 +75,7 @@ namespace Hrot.Network.NED.IG
                 Shooter     = shooter,
                 Target      = target,
                 WeaponIndex = msg.WeaponIndex,
+                IsRemote    = true,
             });
         }
 

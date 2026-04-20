@@ -77,6 +77,8 @@ namespace Hrot.Network.NED.SimHost
 
             foreach (ref readonly var evt in events)
             {
+                if (evt.IsRemote) continue;
+
                 // Authority check: only publish for locally-owned shooter entities.
                 if (!view.HasAuthority(evt.Shooter))
                     continue;

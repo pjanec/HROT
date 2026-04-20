@@ -58,6 +58,8 @@ namespace Hrot.Network.NED.SimHost
 
             foreach (ref readonly var evt in events)
             {
+                if (evt.IsRemote) continue;
+
                 if (!_entityMap.TryGetNetworkId(evt.HitEntity, out long netId)) continue;
                 _writer.Write(new EntityHitDamage
                 {
