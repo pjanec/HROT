@@ -669,6 +669,9 @@ public class IgApplication : IDisposable
         _world.RegisterComponent<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
         _world.RegisterComponent<Fdp.Modules.Geographic.Components.GroundClampingState>();
 
+        _entityFilterFactory = new HrotEntityFilterFactory(_world);
+
+
         // SimCombatDef, TkbCompositionDef, VisualData, lifecycle events, and
         // FireInteractionEvent are all handled by HrotSharedComponentRegistry above.
         _userConfig     = new MapUserConfig();
