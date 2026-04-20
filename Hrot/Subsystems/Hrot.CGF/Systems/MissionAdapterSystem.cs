@@ -9,27 +9,25 @@ using Fdp.Toolkit.Behavior.Events;
 namespace Hrot.CGF.Systems
 {
     /// <summary>
-    /// Legacy adapter that keeps <see cref="DoctrineState"/> aligned with the current
-    /// <see cref="MissionPlanQueue"/> phase.
-    ///
-    /// <para>
-    /// When the active phase changes, this system performs two actions:
-    /// <list type="number">
-    ///   <item>
-    ///     <b>Immediate blackboard update:</b> calls <see cref="DoctrineDefinition.ParseParams"/>
-    ///     directly so that <see cref="BrainBlackboard"/> contains the correct JSON-parsed
-    ///     parameters on the very same frame — independently of how many
-    ///     <c>Bus.SwapBuffers()</c> calls the host application performs per tick.
-    ///   </item>
-    ///   <item>
-    ///     <b>Event publication:</b> publishes an <see cref="AssignDoctrineEvent"/> so that
-    ///     <see cref="Fdp.Toolkit.Behavior.Systems.DoctrineIngressSystem"/> can reset the
-    ///     <see cref="BrainBTreeState"/> execution pointer and set
-    ///     <c>DoctrineState.BrainTier</c> when the event is consumed on the next frame.
-    ///   </item>
-    /// </list>
-    /// </para>
+    /// Bridges high-level, managed mission plans into the cognitive ECS tier by detecting phase transitions 
+    /// and publishing <see cref="AssignDoctrineEvent"/>s containing the behavior JSON parameters.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Architecture (DRY Pipeline):</b> This system intentionally does <i>not</i> mutate <see cref="DoctrineState"/> 
+    /// or <see cref="BrainBlackboard"/> directly. Instead, it acts purely as a change-detector and dispatcher. 
+    /// When a phase change is detected, it extracts the <c>BehaviorParams</c> JSON and publishes an 
+    /// <see cref="AssignDoctrineEvent"/>. This delegates all execution to <see cref="DoctrineIngressSystem"/>, 
+    /// making it the single source of truth for doctrine transitions and atomic blackboard parsing. 
+    /// This eliminates legacy "double-apply" bugs that previously wiped out behavior memory (e.g., <c>RoundsFired</c>).
+    /// </para>
+    /// <para>
+    /// <b>Re-commits & State Caching:</b> The system actively caches the exhaustion of a mission plan 
+    /// (<c>queue.CurrentPhase >= queue.PhaseCount</c>). This ensures that if the exact same mission 
+    /// is re-committed and restarted from Phase 0, the adapter correctly detects the phase reset, 
+    /// re-publishes the event, and forces the BTree parameters to cleanly re-initialize.
+    /// </para>
+    /// </remarks>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     public class MissionAdapterSystem : ComponentSystem
     {
@@ -56,28 +54,30 @@ namespace Hrot.CGF.Systems
 
                 if (!World.HasComponent<Hrot.CGF.Components.MissionAdapterState>(entity))
                     World.AddComponent(entity, new Hrot.CGF.Components.MissionAdapterState { LastPhase = byte.MaxValue });
-                    
+
                 ref var adapterState = ref World.GetComponentRW<Hrot.CGF.Components.MissionAdapterState>(entity);
-                
                 var activePlan = World.GetComponent<ActiveMissionPlan>(entity);
-                
-                // Nothing to do if we are past the end of the queue
+
+                // Cache exhaustion so re-committing the same mission from phase 0 is correctly detected
                 if (queue.CurrentPhase >= queue.PhaseCount)
+                {
+                    adapterState.LastPhase = queue.CurrentPhase;
                     continue;
+                }
 
                 Span<MissionPhase> phases = queue.Phases;
                 var phase = phases[queue.CurrentPhase];
 
                 string jsonParams = "{}";
-                
                 if (activePlan?.Plan?.Tasks != null && queue.CurrentPhase < activePlan.Plan.Tasks.Count)
                 {
                     var task = activePlan.Plan.Tasks[queue.CurrentPhase];
                     jsonParams = task.BehaviorParams ?? "{}";
                 }
-                
+
                 uint currentDefHash = (uint)(jsonParams.GetHashCode() ^ phase.DoctrineId);
 
+                // Skip if nothing changed
                 if (adapterState.LastPhase == queue.CurrentPhase && adapterState.LastPlanVersion == currentDefHash)
                     continue;
 
@@ -88,51 +88,10 @@ namespace Hrot.CGF.Systems
                 if (_doctrineRegistry.TryGetDefinition(phase.DoctrineId, out var def))
                     defName = def.Name;
 
-                // ── Direct blackboard update ───────────────────────────────────────────────
-                // Parse the JSON params directly into BrainBlackboard so BTreeTickSystem
-                // has the correct data on the SAME frame — without depending on the number
-                // of Bus.SwapBuffers() calls the host performs between simulation steps.
-                // (DoctrineIngressSystem will still reset BrainBTreeState.State when the
-                // AssignDoctrineEvent is consumed on the next frame, which is fine.)
-                bool bbOk = false;
-                if (def?.ParseParams != null && World.HasComponent<BrainBlackboard>(entity))
-                {
-                    ref var bb = ref World.GetComponentRW<BrainBlackboard>(entity);
-                    fixed (byte* ptr = bb.Memory)
-                    {
-                        try { def.ParseParams(jsonParams, ptr); bbOk = true; }
-                        catch { /* suppress malformed JSON — entity stays on previous params */ }
-                    }
-                }
-                else if (def?.ParseParams == null)
-                {
-                    bbOk = true; // No params required — doctrine can be applied as-is.
-                }
-
-                // ── Direct DoctrineState update ───────────────────────────────────────────
-                // Apply the doctrine transition synchronously so BTreeTickSystem can begin
-                // execution on the NEXT simulation tick without waiting for AssignDoctrineEvent
-                // to survive through the Bus.SwapBuffers() calls that the test harness (and
-                // production runners) perform between lifecycle and simulation phases.
-                // DoctrineIngressSystem still receives the AssignDoctrineEvent published below
-                // and will re-apply the same values (idempotent for activeDoctrineHash/BrainTier;
-                // InstanceId will be incremented again, which is harmless).
-                if (bbOk && def != null)
-                {
-                    doctrine.ActiveDoctrineHash = phase.DoctrineId;
-                    unchecked { doctrine.InstanceId++; }
-                    doctrine.BrainTier = def.BrainTier;
-
-                    if (World.HasComponent<BrainBTreeState>(entity))
-                    {
-                        ref var btState = ref World.GetComponentRW<BrainBTreeState>(entity);
-                        btState.State = default;
-                    }
-                }
-
-                // Also publish AssignDoctrineEvent so DoctrineIngressSystem can re-apply
-                // the transition on the next tick (production pipeline compatibility).
-                World.Bus.PublishManaged(new AssignDoctrineEvent 
+                // Embrace DRY! Remove ALL direct ECS mutation blocks.
+                // No writing to BrainBlackboard. No updating DoctrineState. 
+                // Just publish the managed event and let DoctrineIngressSystem be the single owner!
+                World.Bus.PublishManaged(new AssignDoctrineEvent
                 {
                     Entity = entity,
                     DoctrineName = defName,

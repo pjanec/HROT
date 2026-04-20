@@ -544,6 +544,13 @@ namespace Hrot.CGF.Brains
 
             ref var channel = ref ctx.World.GetComponentRW<Fdp.Toolkit.Behavior.Components.WeaponChannel>(ctx.Self);
 
+            // Sync DoctrineInstanceId so ChannelArbitrationSystem doesn't clear the channel every frame
+            if (ctx.World.HasComponent<DoctrineState>(ctx.Self))
+            {
+                var doctrine = ctx.World.GetComponent<DoctrineState>(ctx.Self);
+                channel.DoctrineInstanceId = doctrine.InstanceId;
+            }
+
             // Propagate executor success (target died mid-fire session).
             if (channel.Status == Fbt.NodeStatus.Success
                 && channel.ActiveAction == Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire)
@@ -567,15 +574,25 @@ namespace Hrot.CGF.Brains
 
                 unchecked { channel.ActionInstanceId++; }
                 channel.ActiveAction = Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire;
+            }
 
-                // Write incremented RoundsFired back into blackboard memory.
-                fixed (byte* src = blackboard.Memory)
-                    *(int*)(src + 16) = p.RoundsFired + 1;
+            // Only increment RoundsFired exactly when the weapon is ready to shoot this tick
+            if (ctx.World.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(ctx.Self))
+            {
+                var weapon = ctx.World.GetComponent<Fdp.Toolkit.Combat.Components.WeaponState>(ctx.Self);
+                if (weapon.CooldownSecondsRemaining <= 0f)
+                {
+                    fixed (byte* src = blackboard.Memory)
+                    {
+                        FireAtTargetParams* paramsPtr = (FireAtTargetParams*)src;
+                        paramsPtr->RoundsFired = p.RoundsFired + 1;
+                    }
+                }
             }
 
             return NodeStatus.Running;
         }
-
+        
         private const string FireAtTargetJson = """
             {
               "TreeName": "FireAtTarget",
