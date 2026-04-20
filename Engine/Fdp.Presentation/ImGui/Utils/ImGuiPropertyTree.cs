@@ -127,7 +127,35 @@ public static class ImGuiPropertyTree
             // ── Recurse into children ──
             if (opened && value != null)
             {
-                if (IsCollectionType(effectiveType))
+                bool isExtractedCollection = false;
+                if (member is FieldInfo field)
+                {
+                    var fixedAttr = field.GetCustomAttribute<System.Runtime.CompilerServices.FixedBufferAttribute>();
+                    if (fixedAttr != null)
+                    {
+                        value = ExtractBuffer(value, fixedAttr.ElementType, fixedAttr.Length, field.Name);
+                        effectiveType = value.GetType();
+                        isExtractedCollection = true;
+                    }
+                    else
+                    {
+                        var inlineAttr = effectiveType.GetCustomAttribute<System.Runtime.CompilerServices.InlineArrayAttribute>();
+                        if (inlineAttr != null)
+                        {
+                            var elementField = effectiveType
+                                .GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                                .FirstOrDefault();
+                            if (elementField != null)
+                            {
+                                value = ExtractBuffer(value, elementField.FieldType, inlineAttr.Length, field.Name);
+                                effectiveType = value.GetType();
+                                isExtractedCollection = true;
+                            }
+                        }
+                    }
+                }
+
+                if (isExtractedCollection || IsCollectionType(effectiveType))
                     RenderCollectionRows(value, depth + 1);
                 else
                     RenderRows(value, effectiveType, contextType, depth + 1);
@@ -238,6 +266,58 @@ public static class ImGuiPropertyTree
         var u = Nullable.GetUnderlyingType(t);
         if (u != null && IsLeafType(u)) return true;
         return false;
+    }
+
+    private static object ExtractBuffer(object bufferStruct, Type elementType, int length, string fieldName)
+    {
+        var list = new List<object?>();
+        int structSize = System.Runtime.InteropServices.Marshal.SizeOf(bufferStruct.GetType());
+        IntPtr ptr = System.Runtime.InteropServices.Marshal.AllocHGlobal(structSize);
+
+        try
+        {
+            System.Runtime.InteropServices.Marshal.StructureToPtr(bufferStruct, ptr, false);
+            int elementSize = EntityJsonDumper.GetSizeOf(elementType);
+            for (int i = 0; i < length; i++)
+            {
+                IntPtr elementPtr = IntPtr.Add(ptr, i * elementSize);
+                object? elementValue = EntityJsonDumper.ReadPointer(elementPtr, elementType);
+                if (fieldName == "EntityIds" && TryGetPackedEntityValue(elementValue, out ulong packedEntityValue))
+                {
+                    elementValue = new Fdp.Core.Entity(packedEntityValue);
+                }
+                list.Add(elementValue);
+            }
+        }
+        finally
+        {
+            System.Runtime.InteropServices.Marshal.DestroyStructure(ptr, bufferStruct.GetType());
+            System.Runtime.InteropServices.Marshal.FreeHGlobal(ptr);
+        }
+
+        return list;
+    }
+
+    private static bool TryGetPackedEntityValue(object? value, out ulong packedValue)
+    {
+        packedValue = 0;
+        switch (value)
+        {
+            case ulong u64:
+                packedValue = u64;
+                return true;
+            case long i64:
+                packedValue = unchecked((ulong)i64);
+                return true;
+            case uint u32:
+                packedValue = u32;
+                return true;
+            case int i32:
+                packedValue = unchecked((ulong)i32);
+                return true;
+            default:
+                return false;
+        }
     }
 
     private static bool IsCollectionType(Type t)

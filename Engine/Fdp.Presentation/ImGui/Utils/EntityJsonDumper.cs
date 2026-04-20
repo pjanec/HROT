@@ -148,7 +148,7 @@ public static class EntityJsonDumper
         return dict;
     }
     
-    private static object? ReadPointer(IntPtr ptr, Type type)
+    internal static object? ReadPointer(IntPtr ptr, Type type)
     {
         if (type == typeof(byte)) return Marshal.ReadByte(ptr);
         if (type == typeof(sbyte)) return (sbyte)Marshal.ReadByte(ptr);
@@ -165,7 +165,7 @@ public static class EntityJsonDumper
         try { return Marshal.PtrToStructure(ptr, type); } catch { return null; }
     }
     
-    private static int GetSizeOf(Type type)
+    internal static int GetSizeOf(Type type)
     {
         if (type == typeof(byte) || type == typeof(sbyte) || type == typeof(bool)) return 1;
         if (type == typeof(short) || type == typeof(ushort)) return 2;
