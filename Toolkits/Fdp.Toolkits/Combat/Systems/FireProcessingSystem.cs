@@ -56,15 +56,6 @@ namespace Fdp.Toolkit.Combat.Systems
                 var shooter = evt.Shooter;
                 var target  = evt.Target;
 
-                // TD-6 authority gate: skip if a remote node owns the shooter.
-                // When no NetworkAuthority component is present, treat as authoritative
-                // (single-node / AllInOne / unit-test scenario).
-                if (World.HasComponent<NetworkAuthority>(shooter))
-                {
-                    ref readonly var auth = ref World.GetComponentRO<NetworkAuthority>(shooter);
-                    if (!auth.HasAuthority) continue;
-                }
-
                 // Skip if either entity is no longer alive.
                 if (!World.IsAlive(shooter)) continue;
                 if (!World.IsAlive(target))  continue;
