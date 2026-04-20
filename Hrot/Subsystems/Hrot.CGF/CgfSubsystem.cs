@@ -17,6 +17,7 @@ using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Vis2D.Tools;
 using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Physics;
 using Hrot.CGF.Brains;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
@@ -77,6 +78,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private DoctrineRegistry?  _doctrineRegistry;
     private SystemGroup?       _simGroup;
     private Hrot.Core.Network.INetworkFactory? _networkFactory;
+    private PhysicsToolkitModule? _physicsModule;
 
     // ── Visualization ─────────────────────────────────────────────────────────
     private MapCanvas?                 _canvas;
@@ -202,6 +204,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ── Register base infrastructure modules ───────────────────────────────
         foreach (var m in _context.BaseModules)
             _context.Kernel.RegisterModule(m);
+
+        // Allocate RaycastBatchData so Action_QueryRaycast can enqueue/query requests on CGF.
+        _physicsModule = new PhysicsToolkitModule();
+        _physicsModule.Initialize(_context.World);
 
         // ── Create replication module via factory (Brain role) ─────────────────
         // Replaces: EntityStatesIngressPack + ActuatorIntentsEgressPack + GhostCleanupModule
@@ -563,6 +569,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _simGroup?.Dispose();
         _simGroup = null;
         _context?.Kernel.Dispose();
+        _physicsModule?.Dispose();
+        _physicsModule = null;
 
         // Guard the participant disposal.
         if (_networkFactory?.Participant == null)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using CarKinem.Spatial;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -9,6 +10,7 @@ using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Math;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Services;
@@ -421,14 +423,14 @@ namespace Hrot.Network.NED.SimHost
 
     /// <summary>
     /// Ingress translator. Receives <c>RaycastRequestBatch</c> from the Brain node,
-    /// reconstructs absolute Cartesian positions from relative ENU offsets, and populates
-    /// the local <c>RaycastBatchData</c> singleton on the Perception Solver.
-    /// Observer and Target ECS handles are set to Null (Cognitive Anonymity constraint:
-    /// the solver is a stateless geometry evaluator; it correlates by RayId only).
+    /// resolves rays immediately against local colliders, and publishes
+    /// <c>RaycastResponseBatch</c> back to the requesting brain node.
+    /// This avoids touching the shared <c>RaycastBatchData</c> singleton used by ballistics.
     /// </summary>
     public sealed class RaycastBatchSolverIngressTranslator : IDescriptorTranslator
     {
         private readonly DdsReader<RaycastRequestBatch>? _reader;
+        private readonly DdsWriter<RaycastResponseBatch>? _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly IGeographicTransform _geoTransform;
 
@@ -443,13 +445,15 @@ namespace Hrot.Network.NED.SimHost
             _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
             _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
             _reader       = participant != null ? new DdsReader<RaycastRequestBatch>(participant, TopicName) : null;
+            _writer       = participant != null ? new DdsWriter<RaycastResponseBatch>(participant, "RaycastResponseBatch") : null;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
-            if (_reader is null) return;
+            if (_reader is null || _writer is null) return;
             if (view is not EntityRepository repo) return;
-            if (!repo.HasSingleton<RaycastBatchData>()) return;
+            if (!repo.HasSingleton<SpatialGridData>()) return;
+            Span<(Entity entity, Vector2 pos)> candidates = stackalloc (Entity, Vector2)[PhysicsConstants.MaxBroadphaseCandidates];
 
             using var loan = _reader.Take();
             foreach (var sample in loan)
@@ -457,8 +461,6 @@ namespace Hrot.Network.NED.SimHost
                 if (!sample.IsValid) continue;
                 var data = sample.Data;
                 if (data.Requests == null || data.Requests.Count == 0) continue;
-
-                ref var batch = ref repo.GetSingleton<RaycastBatchData>();
 
                 // Spatial precision reconstruction: convert geodetic anchor to absolute Cartesian.
                 var originCartesian = _geoTransform.ToCartesian(
@@ -470,34 +472,62 @@ namespace Hrot.Network.NED.SimHost
                     (float)originCartesian.Y,
                     (float)originCartesian.Z);
 
+                var grid = repo.GetSingleton<SpatialGridData>().Grid;
+                var responseHits = new List<DdsRaycastHit>(data.Requests.Count);
+
                 foreach (var ddsReq in data.Requests)
                 {
-                    if (batch.Count >= PhysicsConstants.RaycastBatchCapacity) break;
-
-                    // Firewall: resolve IgnoreEntityId to local ECS handle.
-                    Entity ignoreEntity = Entity.Null;
-                    if (ddsReq.IgnoreEntityId != 0)
-                        _entityMap.TryGetEntity(ddsReq.IgnoreEntityId, out ignoreEntity);
-
                     var start = anchor + new Vector3(ddsReq.Start.East, ddsReq.Start.North, ddsReq.Start.Up);
-                    var end   = anchor + new Vector3(ddsReq.End.East,   ddsReq.End.North,   ddsReq.End.Up);
+                    var end = anchor + new Vector3(ddsReq.End.East, ddsReq.End.North, ddsReq.End.Up);
 
-                    batch.Requests[batch.Count] = new RaycastRequest
+                    var start2D = new Vector2(start.X, start.Y);
+                    var end2D = new Vector2(end.X, end.Y);
+                    var midpoint = (start2D + end2D) * 0.5f;
+                    float queryRadius = Vector2.Distance(start2D, end2D) * 0.5f + PhysicsConstants.QueryExpansionRadius;
+
+                    int candidateCount = grid.QueryNeighbors(midpoint, queryRadius, candidates);
+
+                    float bestT = float.MaxValue;
+                    long hitNetId = 0;
+                    bool anyHit = false;
+                    long ignoreNetId = ddsReq.IgnoreEntityId;
+
+                    for (int i = 0; i < candidateCount; i++)
                     {
-                        RayId        = ddsReq.RayId,
-                        Start        = start,
-                        End          = end,
-                        LayerMask    = ddsReq.LayerMask,
-                        IgnoreEntity = ignoreEntity,
-                        // Cognitive anonymity: solver does not run BTree or TargetMemory.
-                        Observer     = Entity.Null,
-                        Target       = Entity.Null,
-                        // Stamp the originating Brain node ID for demultiplexing on egress.
-                        SourceNodeId = data.SourceNodeId,
-                    };
+                        Entity candidate = candidates[i].entity;
+                        if (!repo.IsAlive(candidate) || !repo.HasComponent<PhysicsCollider>(candidate)) continue;
 
-                    batch.Count++;
+                        if (ignoreNetId != 0 &&
+                            _entityMap.TryGetNetworkId(candidate, out long candidateNetId) &&
+                            candidateNetId == ignoreNetId)
+                            continue;
+
+                        var collider = repo.GetComponentRO<PhysicsCollider>(candidate);
+                        if ((ddsReq.LayerMask & collider.CollisionLayer) == 0) continue;
+
+                        if (Intersection2D.RaycastCircle(start2D, end2D, candidates[i].pos, collider.Radius, out float t) && t < bestT)
+                        {
+                            bestT = t;
+                            anyHit = true;
+                            _entityMap.TryGetNetworkId(candidate, out hitNetId);
+                        }
+                    }
+
+                    responseHits.Add(new DdsRaycastHit
+                    {
+                        RayId = ddsReq.RayId,
+                        HasHit = anyHit,
+                        HitEntityId = hitNetId,
+                        HitT = anyHit ? bestT : 0f,
+                    });
                 }
+
+                _writer.Write(new RaycastResponseBatch
+                {
+                    TargetNodeId = data.SourceNodeId,
+                    BatchCorrelationId = data.BatchCorrelationId,
+                    Hits = responseHits,
+                });
             }
         }
 

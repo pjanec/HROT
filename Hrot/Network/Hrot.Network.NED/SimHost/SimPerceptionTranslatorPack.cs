@@ -30,7 +30,6 @@ namespace Hrot.Network.NED.SimHost
             yield return new SensorConfigIngressTranslator(participant, entityMap);
             yield return new RaycastBatchSolverIngressTranslator(participant, entityMap, geoTransform);
             yield return new SensorTrackStateEgressTranslator(participant, entityMap);
-            yield return new RaycastBatchSolverEgressTranslator(participant, entityMap);
         }
     }
 }
