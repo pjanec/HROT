@@ -29,6 +29,7 @@ namespace Hrot.SimHost
         {
             world.RegisterComponent<PerceptionReceptor>();
             world.RegisterComponent<TargetMemory>();
+            world.RegisterComponent<SensorContactList>();
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<EntityInfo>();
             // Health is registered in HrotSharedComponentRegistry (shared across all nodes).

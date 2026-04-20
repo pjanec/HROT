@@ -5,6 +5,7 @@ using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
+using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
@@ -181,11 +182,13 @@ namespace Hrot.Network.NED.SimHost
 
     /// <summary>
     /// Ingress translator. Receives discrete <c>SensorTrackState</c> events from the Perception Solver
-    /// and maintains the local <c>TargetMemory</c> on Brain-side observer entities.
+    /// and maintains the local <c>ActiveSensorTracks</c> cognitive buffer on Brain-side observer entities.
     /// <list type="bullet">
-    ///   <item>State = 1 (Acquired): adds the target to TargetMemory via <see cref="TargetMemory.AddOrUpdateTarget"/>.</item>
+    ///   <item>State = 1 (Acquired): adds or updates the target in <see cref="ActiveSensorTracks"/>.</item>
     ///   <item>State = 0 (Lost): compact-removes the target slot (swap-with-last, decrement Count).</item>
     /// </list>
+    /// The <see cref="Fdp.Toolkit.Perception.Systems.ThreatEvaluationSystem"/> on the CGF node
+    /// continuously boosts and decays <c>TargetMemory</c> based on this buffer every frame.
     /// Enforces entity-pointer safety: raw network IDs are resolved to generational ECS handles before storage.
     /// </summary>
     public sealed class SensorTrackStateIngressTranslator : IDescriptorTranslator
@@ -216,50 +219,63 @@ namespace Hrot.Network.NED.SimHost
 
                 // Resolve observer network ID to local ECS handle.
                 if (!_entityMap.TryGetEntity(data.ObserverEntityId, out var observer)) continue;
-                if (!view.IsAlive(observer) || !view.HasComponent<TargetMemory>(observer)) continue;
+                if (!view.IsAlive(observer)) continue;
 
                 // Resolve target network ID to local ECS handle.
                 if (!_entityMap.TryGetEntity(data.TargetEntityId, out var targetEntity)) continue;
 
-                // Read-Modify-Write: value-copy to stack to avoid violating SoD contract.
-                ref readonly var memRO = ref view.GetComponentRO<TargetMemory>(observer);
-                TargetMemory mem = memRO;
-
                 long localTargetId = (long)targetEntity.PackedValue;
+
+                // Bootstrap or read existing ActiveSensorTracks.
+                bool hasComponent = view.HasComponent<ActiveSensorTracks>(observer);
+                ActiveSensorTracks tracks = hasComponent
+                    ? view.GetComponentRO<ActiveSensorTracks>(observer)
+                    : new ActiveSensorTracks();
 
                 if (data.State == 1) // Acquired
                 {
-                    TargetMemory.AddOrUpdateTarget(
-                        ref mem,
-                        entityId:   localTargetId,
-                        posX:       data.PositionX,
-                        posY:       data.PositionY,
-                        scoreBoost: 1.0f,
-                        tick:       data.Tick,
-                        modality:   SensorModality.Visual);
+                    // Update position if already tracked, or add a new slot.
+                    bool found = false;
+                    for (int i = 0; i < tracks.Count; i++)
+                    {
+                        if (tracks.EntityIds[i] == localTargetId)
+                        {
+                            tracks.PositionsX[i] = data.PositionX;
+                            tracks.PositionsY[i] = data.PositionY;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found && tracks.Count < PerceptionConstants.MaxTrackedTargets)
+                    {
+                        tracks.EntityIds[tracks.Count]  = localTargetId;
+                        tracks.PositionsX[tracks.Count] = data.PositionX;
+                        tracks.PositionsY[tracks.Count] = data.PositionY;
+                        tracks.Count++;
+                    }
                 }
                 else // Lost (State == 0)
                 {
                     // Compact-remove: swap the target slot with the last entry, then shrink Count.
-                    for (int i = 0; i < mem.Count; i++)
+                    for (int i = 0; i < tracks.Count; i++)
                     {
-                        if (mem.EntityIds[i] != localTargetId) continue;
-                        int last = mem.Count - 1;
+                        if (tracks.EntityIds[i] != localTargetId) continue;
+                        int last = tracks.Count - 1;
                         if (i < last)
                         {
-                            mem.EntityIds[i]    = mem.EntityIds[last];
-                            mem.PositionsX[i]   = mem.PositionsX[last];
-                            mem.PositionsY[i]   = mem.PositionsY[last];
-                            mem.ThreatScores[i] = mem.ThreatScores[last];
-                            mem.LastSeenTick[i] = mem.LastSeenTick[last];
-                            mem.Modalities[i]   = mem.Modalities[last];
+                            tracks.EntityIds[i]  = tracks.EntityIds[last];
+                            tracks.PositionsX[i] = tracks.PositionsX[last];
+                            tracks.PositionsY[i] = tracks.PositionsY[last];
                         }
-                        mem.Count--;
+                        tracks.Count--;
                         break;
                     }
                 }
 
-                cmd.SetComponent(observer, mem);
+                if (hasComponent)
+                    cmd.SetComponent(observer, tracks);
+                else
+                    cmd.AddComponent(observer, tracks);
             }
         }
 
@@ -491,9 +507,10 @@ namespace Hrot.Network.NED.SimHost
     }
 
     /// <summary>
-    /// Egress translator. Monitors <c>TargetMemory</c> on the Perception Solver each tick and
-    /// emits discrete <c>SensorTrackState</c> samples to Brain nodes only when a target is
-    /// first acquired or finally lost.  The previous-tick target set for each observer is
+    /// Egress translator. Monitors <c>SensorContactList</c> on the Perception Solver each tick and
+    /// emits discrete <c>SensorTrackState</c> samples to Brain nodes only when a target transitions
+    /// to <see cref="SensorContactState.Acquired"/> or falls back to
+    /// <see cref="SensorContactState.Lost"/>.  The previous-tick acquired set for each observer is
     /// maintained in <see cref="_previousTargets"/>.
     /// Uses Reliable / TransientLocal QoS -- one sample per contact event,
     /// never a continuous per-tick flood.
@@ -503,7 +520,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly DdsWriter<SensorTrackState>? _writer;
         private readonly NetworkEntityMap _entityMap;
 
-        // Per observer (keyed by observer network ID): set of target network IDs currently tracked.
+        // Per observer (keyed by observer network ID): set of target network IDs currently acquired.
         private readonly Dictionary<long, HashSet<long>> _previousTargets = new();
 
         // Scratch set reused each tick to detect stale observer entries without allocation.
@@ -524,8 +541,9 @@ namespace Hrot.Network.NED.SimHost
         {
             if (_writer is null) return;
 
+            // Read the physical sensor contact lists instead of cognitive TargetMemory.
             var query = view.Query()
-                .With<TargetMemory>()
+                .With<SensorContactList>()
                 .With<NetworkIdentity>()
                 .Build();
 
@@ -534,7 +552,7 @@ namespace Hrot.Network.NED.SimHost
             foreach (var entity in query)
             {
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-                ref readonly var mem   = ref view.GetComponentRO<TargetMemory>(entity);
+                ref readonly var list  = ref view.GetComponentRO<SensorContactList>(entity);
 
                 long observerId = netId.Value;
                 _seenThisTick.Add(observerId);
@@ -545,37 +563,36 @@ namespace Hrot.Network.NED.SimHost
                     _previousTargets[observerId] = previous;
                 }
 
-                // Build current target set (resolved to network IDs).
-                var current = new HashSet<long>(mem.Count);
-                for (int i = 0; i < mem.Count; i++)
+                // Build current set of actively Acquired targets (network IDs).
+                var current = new HashSet<long>(list.Count);
+                for (int i = 0; i < list.Count; i++)
                 {
-                    var localTarget = new Entity((ulong)mem.EntityIds[i]);
+                    if (list.State[i] != (byte)SensorContactState.Acquired) continue;
+                    var localTarget = new Entity((ulong)list.EntityIds[i]);
                     if (_entityMap.TryGetNetworkId(localTarget, out long targetNetId))
                         current.Add(targetNetId);
                 }
 
                 // Emit Acquired events for newly tracked targets.
-                foreach (long targetId in current)
+                foreach (long targetNetId in current)
                 {
-                    if (previous.Contains(targetId)) continue;
+                    if (previous.Contains(targetNetId)) continue;
 
-                    // Retrieve last-known position for this target from TargetMemory.
+                    // Resolve physical position for the Acquired packet.
                     float posX = 0f, posY = 0f;
-                    for (int i = 0; i < mem.Count; i++)
+                    if (_entityMap.TryGetEntity(targetNetId, out var localTarget) &&
+                        view.IsAlive(localTarget) &&
+                        view.HasComponent<SimTransform>(localTarget))
                     {
-                        var localTarget = new Entity((ulong)mem.EntityIds[i]);
-                        if (_entityMap.TryGetNetworkId(localTarget, out long tnetId) && tnetId == targetId)
-                        {
-                            posX = mem.PositionsX[i];
-                            posY = mem.PositionsY[i];
-                            break;
-                        }
+                        ref readonly var targetTf = ref view.GetComponentRO<SimTransform>(localTarget);
+                        posX = targetTf.Position.X;
+                        posY = targetTf.Position.Y;
                     }
 
                     _writer.Write(new SensorTrackState
                     {
                         ObserverEntityId = observerId,
-                        TargetEntityId   = targetId,
+                        TargetEntityId   = targetNetId,
                         State            = 1, // Acquired
                         PositionX        = posX,
                         PositionY        = posY,
@@ -583,15 +600,16 @@ namespace Hrot.Network.NED.SimHost
                     });
                 }
 
-                // Emit Lost events for targets no longer in TargetMemory.
-                foreach (long targetId in previous)
+                // Emit Lost events for targets that dropped out of Acquired state.
+                foreach (long targetNetId in previous)
                 {
-                    if (current.Contains(targetId)) continue;
+                    if (current.Contains(targetNetId)) continue;
 
+                    // Spatial data is irrelevant for a Lost packet.
                     _writer.Write(new SensorTrackState
                     {
                         ObserverEntityId = observerId,
-                        TargetEntityId   = targetId,
+                        TargetEntityId   = targetNetId,
                         State            = 0, // Lost
                         PositionX        = 0f,
                         PositionY        = 0f,
@@ -603,7 +621,7 @@ namespace Hrot.Network.NED.SimHost
                 _previousTargets[observerId] = current;
             }
 
-            // Remove state for observers that have left the query (entity destroyed or TargetMemory removed).
+            // Remove state for observers that have left the query (entity destroyed or SensorContactList removed).
             var staleKeys = new List<long>();
             foreach (var key in _previousTargets.Keys)
             {

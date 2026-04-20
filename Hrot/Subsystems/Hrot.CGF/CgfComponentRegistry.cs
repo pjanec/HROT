@@ -68,6 +68,7 @@ public static class CgfComponentRegistry
         // implemented (currently a stub in PerceptionTranslators.cs).
         world.RegisterComponent<PerceptionReceptor>();
         world.RegisterComponent<TargetMemory>();
+        world.RegisterComponent<ActiveSensorTracks>();
 
         // ── Tier 2: Kinematic (Muscle-tier physics) ───────────────────────────
         world.RegisterComponent<VehicleState>();

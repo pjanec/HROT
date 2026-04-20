@@ -408,9 +408,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context?.SlaveTranslator?.Tick();
         _context?.ClusterSlave.Tick();
 
-#pragma warning disable CS0618 // legacy Update(float) used intentionally in CgfSubsystem
-        _context?.Kernel.Update(deltaTime);
-#pragma warning restore CS0618
+        // Use the no-args kernel update so the SlaveSyncController measures the real
+        // wall-clock delta between frames.  The legacy Update(float) path would receive
+        // dt=0 from the SubsystemOrchestrator in headless mode, zeroing out every
+        // DeltaTime-dependent system (e.g. ThreatEvaluationSystem boost/decay).
+        _context?.Kernel.Update();
         if (!_headless && _context != null)
         {
             _fdpFrameCount++;

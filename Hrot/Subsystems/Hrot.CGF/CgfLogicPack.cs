@@ -135,8 +135,10 @@ namespace Hrot.CGF
             // DamageAssessedEvent; HealthApplicationSystem mutates Health and strips
             // ActorCapabilities so HsmDamageBridgeSystem (in CognitiveRuntimeModule) can
             // detect the capability change and inject MobilityLost into the HSM.
-            simGroup.AddSystem(new HealthApplicationSystem());
-            _cognitiveRuntimeModule.RegisterSystems(simGroup);
+            simGroup.AddSystem(new HealthApplicationSystem());            // Cognitive threat evaluation: decays TargetMemory scores and boosts them from
+            // ActiveSensorTracks (written by SensorTrackStateIngressTranslator).
+            // Must run before CognitiveRuntimeModule so B-Trees see freshly scored targets.
+            simGroup.AddSystem(new CgfThreatEvaluationSystem());            _cognitiveRuntimeModule.RegisterSystems(simGroup);
             _actionDispatchModule.RegisterSystems(simGroup);
             // Route context: writes per-waypoint ExtensionJson danger level to BrainBlackboard.
             simGroup.AddSystem(new RouteContextSystem());

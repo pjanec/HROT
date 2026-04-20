@@ -69,6 +69,9 @@ public static class SimHostAuxiliaryTranslatorPack
             translators.Add(new WeaponFireIntentEgressTranslator(participant, entityMap));
             // Brain (authority node): receives EntityHitDamage → applies health changes.
             translators.Add(new EntityHitDamageIngressTranslator(participant, entityMap));
+            // Brain (cognitive node): receives SensorTrackState(Acquired/Lost) from the
+            // Perception Solver and maintains ActiveSensorTracks for ThreatEvaluationSystem.
+            translators.Add(new SensorTrackStateIngressTranslator(participant, entityMap));
         }
 
         // ── Combat egress — Muscle / AllInOne emits notifications and receives requests ──
