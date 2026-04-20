@@ -3,7 +3,6 @@ using System.IO;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Core.FlightRecorder;
-using Fdp.Interfaces;
 
 namespace Fdp.Network.Cyclone.Providers
 {

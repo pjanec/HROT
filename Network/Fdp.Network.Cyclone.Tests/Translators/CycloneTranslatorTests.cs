@@ -8,7 +8,6 @@ using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Network.Cyclone.Topics;
-using Fdp.Interfaces;
 
 namespace Fdp.Network.Cyclone.Tests.Translators
 {

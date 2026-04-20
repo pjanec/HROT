@@ -6,7 +6,6 @@ using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.Lifecycle.Systems;
-using Fdp.Interfaces;
 
 namespace Fdp.Toolkit.Lifecycle
 {

@@ -4,7 +4,6 @@ using Xunit;
 using Fdp.Examples.NetworkDemo;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
-using Fdp.Toolkit.Replication.Components;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Integration
 {

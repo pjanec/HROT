@@ -6,7 +6,6 @@ using Fdp.Network.Cyclone.Translators;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.Interfaces;
 
 namespace Fdp.Examples.NetworkDemo.Translators
 {

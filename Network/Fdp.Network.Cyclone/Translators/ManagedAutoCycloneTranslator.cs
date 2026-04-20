@@ -11,7 +11,6 @@ using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Components; 
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Network.Cyclone.Abstractions;
-using Fdp.Interfaces;
 
 namespace Fdp.Network.Cyclone.Translators
 {

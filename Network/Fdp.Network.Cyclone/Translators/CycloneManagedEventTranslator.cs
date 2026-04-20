@@ -6,7 +6,6 @@ using Fdp.Interfaces; // Or Fdp.Interfaces for IEventBus if it moved
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Network.Cyclone.Abstractions;
-using Fdp.Interfaces;
 
 namespace Fdp.Network.Cyclone.Translators
 {

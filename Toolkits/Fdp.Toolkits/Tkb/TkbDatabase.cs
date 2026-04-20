@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.Tkb
 
         public bool TryGetByType(long tkbType, out TkbTemplate template)
         {
-            return _byType.TryGetValue(tkbType, out template);
+            return _byType.TryGetValue(tkbType, out template!);
         }
         
         public TkbTemplate GetByName(string name)
@@ -51,7 +51,7 @@ namespace Fdp.Toolkit.Tkb
 
         public bool TryGetByName(string name, out TkbTemplate template)
         {
-            return _byName.TryGetValue(name, out template);
+            return _byName.TryGetValue(name, out template!);
         }
         
         public IEnumerable<TkbTemplate> GetAll()

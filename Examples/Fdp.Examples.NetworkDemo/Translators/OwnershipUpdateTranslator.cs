@@ -12,7 +12,6 @@ using Fdp.Network.Cyclone.Services;
 using Fdp.Network.Cyclone;
 using Fdp.Network.Cyclone.Abstractions;
 using CycloneDDS.Runtime;
-using Fdp.Interfaces;
 
 namespace Fdp.Examples.NetworkDemo.Translators
 {

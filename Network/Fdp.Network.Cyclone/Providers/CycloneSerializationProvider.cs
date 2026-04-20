@@ -3,7 +3,6 @@ using System.Runtime.CompilerServices; // For Unsafe
 using System.Runtime.InteropServices;
 using Fdp.Interfaces;
 using Fdp.Core;
-using Fdp.Interfaces;
 
 namespace Fdp.Network.Cyclone.Providers
 {

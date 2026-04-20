@@ -11,7 +11,6 @@ using Fdp.Toolkit.Replication.Extensions;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Network.Cyclone.Abstractions;
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
-using Fdp.Interfaces;
 
 namespace Fdp.Network.Cyclone.Translators
 {
