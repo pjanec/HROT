@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Perception.Modules
     ///
     /// <para><b>System registration:</b>
     /// All four systems—<see cref="LocalGridBuilderSystem"/>, <see cref="VisionBroadphaseSystem"/>,
-    /// <see cref="LosRequestBatchingSystem"/>, and <see cref="ThreatEvaluationSystem"/>—are
+    /// <see cref="LosRequestBatchingSystem"/>, and <see cref="SensorTrackDebounceSystem"/>—are
     /// registered via <see cref="RegisterSystems"/>. All four implement <see cref="IEcsModuleSystem"/>
     /// and run on the background thread inside <see cref="Tick"/>.</para>
     ///
@@ -36,8 +36,9 @@ namespace Fdp.Toolkit.Perception.Modules
     /// <c>ReadEvents&lt;T&gt;</c> reads from it.  Between pipeline stages the module calls
     /// <c>_scopedBus.SwapBuffers()</c> — a private operation that never touches the live-world
     /// event state, eliminating the global bus-corruption risk described in BATCH-05.
-    /// Only the final ECB component mutations (TargetMemory updates) reach the real command
-    /// buffer and are applied by the kernel's harvest loop.</para>
+    /// <see cref="SensorTrackDebounceSystem"/> reads <see cref="TargetVisibleEvent"/> from the
+    /// scoped bus and writes <see cref="Components.SensorContactList"/> to the real ECB.
+    /// No cognitive AI (threat-score) data is written on the Muscle node.</para>
     ///
     /// <para><b>Physics-accurate LOS:</b> Pass a <paramref name="colliderRadiusReader"/> delegate
     /// to enable accurate segment-circle occlusion checks in production LOS mode.  Use:
@@ -64,10 +65,10 @@ namespace Fdp.Toolkit.Perception.Modules
 
         // ── Perception systems ─────────────────────────────────────────────────────
 
-        private readonly LocalGridBuilderSystem   _localGridBuilder;
-        private readonly VisionBroadphaseSystem   _visionBroadphase;
-        private readonly LosRequestBatchingSystem _losRequestBatching;
-        private readonly ThreatEvaluationSystem   _threatEvaluation;
+        private readonly LocalGridBuilderSystem    _localGridBuilder;
+        private readonly VisionBroadphaseSystem    _visionBroadphase;
+        private readonly LosRequestBatchingSystem  _losRequestBatching;
+        private readonly SensorTrackDebounceSystem _sensorTrackDebounce;
 
         /// <summary>
         /// Initialises the module and allocates the module-private spatial grid.
@@ -92,12 +93,12 @@ namespace Fdp.Toolkit.Perception.Modules
             _scopedBus.Register<LosCheckRequestEvent>();
             _scopedBus.Register<TargetVisibleEvent>();
 
-            _localGridBuilder   = new LocalGridBuilderSystem(_localGrid);
-            _visionBroadphase   = new VisionBroadphaseSystem(_localGrid);
-            _losRequestBatching = new LosRequestBatchingSystem(
+            _localGridBuilder    = new LocalGridBuilderSystem(_localGrid);
+            _visionBroadphase    = new VisionBroadphaseSystem(_localGrid);
+            _losRequestBatching  = new LosRequestBatchingSystem(
                 mockMode: false,
                 colliderRadiusReader: colliderRadiusReader);
-            _threatEvaluation   = new ThreatEvaluationSystem();
+            _sensorTrackDebounce = new SensorTrackDebounceSystem();
         }
 
         /// <summary>
@@ -123,7 +124,7 @@ namespace Fdp.Toolkit.Perception.Modules
         ///   <item>Scoped bus swap makes LOS requests readable.</item>
         ///   <item>LosRequestBatching reads LOS requests, emits <see cref="TargetVisibleEvent"/>s → scoped bus.</item>
         ///   <item>Scoped bus swap makes visible-target events readable.</item>
-        ///   <item>ThreatEvaluation reads visible events, writes TargetMemory → real ECB.</item>
+        ///   <item>SensorTrackDebounce reads visible events (scoped), writes SensorContactList → real ECB.</item>
         /// </list>
         /// </remarks>
         public void Tick(ISimulationView view, float dt)
@@ -141,8 +142,8 @@ namespace Fdp.Toolkit.Perception.Modules
             _losRequestBatching.Execute(scopedView, dt);
             _scopedBus.SwapBuffers(); // TargetVisibleEvents now in scoped read buffer.
 
-            // Stage 4: Threat evaluation reads visible events (scoped), writes TargetMemory → real ECB.
-            _threatEvaluation.Execute(scopedView, dt);
+            // Stage 4: Sensor track debounce reads visible events (scoped), writes SensorContactList → real ECB.
+            _sensorTrackDebounce.Execute(scopedView, dt);
         }
 
         /// <summary>Disposes the module-private <see cref="SpatialHashGrid"/> and scoped bus.</summary>

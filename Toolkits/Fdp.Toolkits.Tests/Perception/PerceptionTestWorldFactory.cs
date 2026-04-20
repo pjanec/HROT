@@ -22,6 +22,8 @@ namespace Fdp.Toolkit.Perception.Tests
             world.RegisterComponent<EntityInfo>();
             world.RegisterComponent<PerceptionReceptor>();
             world.RegisterComponent<TargetMemory>();
+            world.RegisterComponent<SensorContactList>();
+            world.RegisterComponent<ActiveSensorTracks>();
 
             // Events exchanged within the Perception pipeline.
             world.RegisterEvent<AudioStimulusEvent>();

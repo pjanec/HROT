@@ -1,30 +1,30 @@
-using System.Numerics;
-using Fdp.Toolkit.Perception.Components;
-using Fdp.Toolkit.Perception.Events;
+﻿using Fdp.Toolkit.Perception.Components;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Perception.Systems
 {
     /// <summary>
-    /// Async threat evaluation — runs inside <see cref="PerceptionModule"/> on the
-    /// background thread via the Snapshot-on-Demand (SoD) pattern.
+    /// Brain-tier threat evaluation -- runs on the CGF node inside
+    /// <c>CgfThreatEvaluationSystem</c> (via <c>CgfLogicPack</c>).
+    ///
     /// <para>
     /// Each frame this system does two things:
     /// <list type="number">
     ///   <item>
     ///     <b>Decay:</b> Multiplies every existing threat score in every
-    ///     <see cref="TargetMemory"/> by <c>1 − dt × ThreatScoreDecayPerSecond</c>,
-    ///     keeping threat awareness up to date even if the target is temporarily out of sight.
+    ///     <see cref="TargetMemory"/> by <c>1 - dt x ThreatScoreDecayPerSecond</c>,
+    ///     providing smooth temporal forgetting.
     ///   </item>
     ///   <item>
-    ///     <b>Boost:</b> Consumes <see cref="TargetVisibleEvent"/>s and calls
-    ///     <see cref="TargetMemory.AddOrUpdateTarget"/> with a score boost of 50 for each
-    ///     confirmed visible target.
+    ///     <b>Boost:</b> For entities that also carry an <see cref="ActiveSensorTracks"/>
+    ///     cognitive buffer (written by <c>SensorTrackStateIngressTranslator</c>),
+    ///     calls <see cref="TargetMemory.AddOrUpdateTarget"/> for each acquired track,
+    ///     applying a continuous <c>50 x deltaTime</c> score boost per second.
     ///   </item>
     /// </list>
     /// All mutations go through <c>view.GetCommandBuffer().SetComponent&lt;TargetMemory&gt;</c>
-    /// — never direct world writes.
+    /// -- never direct world writes.
     /// </para>
     /// <para>
     /// <b>Read-modify-write contract:</b>
@@ -38,16 +38,13 @@ namespace Fdp.Toolkit.Perception.Systems
     /// </summary>
     public class ThreatEvaluationSystem : IEcsModuleSystem
     {
-        // Boost applied when a target is confirmed visible by LosRequestBatchingSystem.
-        private const float VisibleTargetScoreBoost = 50f;
-
         /// <inheritdoc/>
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
             var ecb  = view.GetCommandBuffer();
             uint tick = view.Tick;
 
-            // ── Step 1: Decay all existing threat scores ───────────────────────────
+            // Iterate all entities that have TargetMemory: apply decay and optional boost.
             var memQuery = view.Query().With<TargetMemory>().Build();
             foreach (var entity in memQuery)
             {
@@ -56,6 +53,7 @@ namespace Fdp.Toolkit.Perception.Systems
                 // Local copy so we can mutate without violating the snapshot contract.
                 TargetMemory mem = memRO;
 
+                // Decay all existing threat scores.
                 float decayFactor = 1f - (deltaTime * PerceptionConstants.ThreatScoreDecayPerSecond);
                 if (decayFactor < 0f) decayFactor = 0f;
 
@@ -70,64 +68,32 @@ namespace Fdp.Toolkit.Perception.Systems
                     }
                 }
 
+                // Boost from ActiveSensorTracks (Brain cognitive buffer written by
+                // SensorTrackStateIngressTranslator on the CGF node).
+                if (view.HasComponent<ActiveSensorTracks>(entity))
+                {
+                    ref readonly var tracksRO = ref view.GetComponentRO<ActiveSensorTracks>(entity);
+                    if (tracksRO.Count > 0)
+                    {
+                        // Continuous boost: 50 threat-score units per second per active track.
+                        float continuousBoost = 50f * deltaTime;
+                        for (int i = 0; i < tracksRO.Count; i++)
+                        {
+                            TargetMemory.AddOrUpdateTarget(
+                                ref mem,
+                                entityId:   tracksRO.EntityIds[i],
+                                posX:       tracksRO.PositionsX[i],
+                                posY:       tracksRO.PositionsY[i],
+                                scoreBoost: continuousBoost,
+                                tick:       tick,
+                                modality:   SensorModality.Visual);
+                        }
+                        changed = true;
+                    }
+                }
+
                 if (changed)
                     ecb.SetComponent(entity, mem);
-            }
-
-            // ── Step 2: Boost scores from confirmed visible events ─────────────────
-            var visibleEvents = view.ReadEvents<TargetVisibleEvent>();
-            foreach (ref readonly var evt in visibleEvents)
-            {
-                // Generational guard — entity may have been destroyed between LOS submission and now.
-                // Using full Entity handles (Observer/Target) means a recycled index cannot silently
-                // match a different entity; generation mismatch causes IsAlive to return false.
-                if (!view.IsAlive(evt.Observer) || !view.IsAlive(evt.Target))
-                    continue;
-
-                if (!view.HasComponent<TargetMemory>(evt.Observer))
-                    continue;
-
-                ref readonly var memRO = ref view.GetComponentRO<TargetMemory>(evt.Observer);
-                TargetMemory mem = memRO;
-
-                // Resolve target position directly — no loop needed with full Entity handle.
-                ref readonly var tgtTf = ref view.GetComponentRO<SimTransform>(evt.Target);
-
-                // entityId uses the full packed handle (Index + Generation) so that a recycled
-                // entity slot never matches an existing TargetMemory entry for the original entity.
-                TargetMemory.AddOrUpdateTarget(
-                    ref mem,
-                    entityId:   (long)evt.Target.PackedValue,
-                    posX:       tgtTf.Position.X,
-                    posY:       tgtTf.Position.Y,
-                    scoreBoost: VisibleTargetScoreBoost,
-                    tick:       tick);
-
-                ecb.SetComponent(evt.Observer, mem);
-            }
-
-            // ── Step 3: Boost scores from confirmed heard events ──────────────────
-            var heardEvents = view.ReadEvents<TargetHeardEvent>();
-            foreach (ref readonly var evt in heardEvents)
-            {
-                if (!view.IsAlive(evt.Listener))
-                    continue;
-
-                if (!view.HasComponent<TargetMemory>(evt.Listener))
-                    continue;
-
-                ref readonly var memRO = ref view.GetComponentRO<TargetMemory>(evt.Listener);
-                TargetMemory mem = memRO;
-
-                TargetMemory.AddOrUpdateTarget(
-                    ref mem,
-                    entityId:   evt.SourceEntityIndex,
-                    posX:       evt.Origin.X,
-                    posY:       evt.Origin.Y,
-                    scoreBoost: 20f,
-                    tick:       tick);
-
-                ecb.SetComponent(evt.Listener, mem);
             }
         }
     }

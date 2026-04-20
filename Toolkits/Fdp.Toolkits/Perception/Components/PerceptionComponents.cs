@@ -188,4 +188,93 @@ namespace Fdp.Toolkit.Perception.Components
             }
         }
     }
+
+    // ── SensorContactState ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Hysteresis state of a single physical sensor contact on the Muscle (SimHost) node.
+    /// Transitions: Pending → Acquired (first confirmed sighting) → Lost (occlusion timeout).
+    /// </summary>
+    public enum SensorContactState : byte
+    {
+        /// <summary>Contact recorded but not yet confirmed as acquired.</summary>
+        Pending  = 0,
+        /// <summary>Contact actively visible within the debounce window.</summary>
+        Acquired = 1,
+        /// <summary>Contact has exceeded the occlusion threshold and is declared lost.</summary>
+        Lost     = 2,
+    }
+
+    // ── SensorContactList ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Muscle-tier raw physical track list. Holds up to <see cref="PerceptionConstants.MaxTrackedTargets"/>
+    /// sensor contacts with their last-seen tick and hysteresis state.
+    /// No cognitive data (no threat scores, no decay curves).
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(PerceptionApplicationComponentIds.SensorContactList)]
+    public unsafe struct SensorContactList
+    {
+        /// <summary>Number of valid contact entries (0 to <see cref="PerceptionConstants.MaxTrackedTargets"/>).</summary>
+        public int Count;
+
+        /// <summary>Local ECS entity packed values of tracked contacts.</summary>
+        public fixed long EntityIds[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>Simulation tick when each contact was last seen.</summary>
+        public fixed uint LastSeenTick[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>Hysteresis state of each contact slot.</summary>
+        public fixed byte State[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>
+        /// Updates the last-seen tick for an existing contact, or adds a new
+        /// <see cref="SensorContactState.Pending"/> slot if the entity is not yet tracked.
+        /// Does nothing if the list is full and the entity is not already tracked.
+        /// </summary>
+        public static void UpdateSighting(ref SensorContactList list, long entityId, uint tick)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list.EntityIds[i] == entityId)
+                {
+                    list.LastSeenTick[i] = tick;
+                    return;
+                }
+            }
+
+            if (list.Count < PerceptionConstants.MaxTrackedTargets)
+            {
+                int idx = list.Count++;
+                list.EntityIds[idx]    = entityId;
+                list.LastSeenTick[idx] = tick;
+                list.State[idx]        = (byte)SensorContactState.Pending;
+            }
+        }
+    }
+
+    // ── ActiveSensorTracks ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Brain-tier cognitive buffer. Holds the set of targets currently confirmed as
+    /// <see cref="SensorContactState.Acquired"/> by the Muscle-side sensor pipeline.
+    /// Written by <c>SensorTrackStateIngressTranslator</c>; read by <c>ThreatEvaluationSystem</c>.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(PerceptionApplicationComponentIds.ActiveSensorTracks)]
+    public unsafe struct ActiveSensorTracks
+    {
+        /// <summary>Number of currently acquired tracks (0 to <see cref="PerceptionConstants.MaxTrackedTargets"/>).</summary>
+        public int Count;
+
+        /// <summary>Local ECS entity packed values of acquired targets.</summary>
+        public fixed long EntityIds[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>Last-known X position (ground plane) for each acquired target.</summary>
+        public fixed float PositionsX[PerceptionConstants.MaxTrackedTargets];
+
+        /// <summary>Last-known Y position (ground plane) for each acquired target.</summary>
+        public fixed float PositionsY[PerceptionConstants.MaxTrackedTargets];
+    }
 }
