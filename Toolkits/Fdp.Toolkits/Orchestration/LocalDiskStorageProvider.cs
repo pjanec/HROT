@@ -16,7 +16,7 @@ namespace Fdp.Toolkit.Orchestration
     /// </summary>
     public sealed class LocalDiskStorageProvider : IScenarioStorageProvider
     {
-        private const string DefaultLocalTempRoot = @"C:\FDP_Temp";
+        private const string DefaultLocalTempRoot = OrchestrationConstants.DefaultStagingDirectory;
         private readonly string _localTempRoot;
 
         /// <param name="localTempRoot">
