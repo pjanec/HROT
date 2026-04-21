@@ -9,7 +9,6 @@ using Fdp.Core.Collections;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Navigation;
-using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Physics.Components;
 
 namespace Hrot.SimHost;
@@ -74,10 +73,6 @@ public static class SimHostComponentRegistry
 
         // ── Mission control CQRS events (PACK-P001) ───────────────────────────
         world.RegisterEvent<Hrot.Common.Events.MissionControlAckEvent>();
-
-        // ── Perception toolkit receptor components (MOD1-P6T1) ──────────────────
-        world.RegisterComponent<VisualReceptor>();
-        world.RegisterComponent<RadarReceptor>();
 
         // ── Navigation batch singleton (MOD1-P6T3) ───────────────────────────
         world.SetSingleton(new PathfindingBatchData

@@ -48,7 +48,6 @@ namespace Hrot.Network.NED.SimHost
             if (_writer is null) return;
 
             var query = view.Query()
-                .With<VisualReceptor>()
                 .With<PerceptionReceptor>()
                 .With<NetworkIdentity>()
                 .Build();
@@ -62,18 +61,17 @@ namespace Hrot.Network.NED.SimHost
                 if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
                     continue;
 
-                ref readonly var visual  = ref view.GetComponentRO<VisualReceptor>(entity);
                 ref readonly var perc    = ref view.GetComponentRO<PerceptionReceptor>(entity);
                 ref readonly var netId   = ref view.GetComponentRO<NetworkIdentity>(entity);
 
                 // Convert precomputed cosine of half-angle back to full FOV degrees for the wire schema.
-                float halfFovRad = MathF.Acos(Math.Clamp(visual.FovCos, -1f, 1f));
+                float halfFovRad = MathF.Acos(Math.Clamp(perc.FieldOfViewCos, -1f, 1f));
                 float fovDegrees = halfFovRad * 2f * (180f / MathF.PI);
 
                 _writer.Write(new SensorConfig
                 {
                     EntityId     = netId.Value,
-                    VisionRange  = visual.VisionRange,
+                    VisionRange  = perc.VisionRange,
                     HearingRange = perc.HearingRange,
                     FovDegrees   = fovDegrees,
                 });
@@ -365,7 +363,7 @@ namespace Hrot.Network.NED.SimHost
 
     /// <summary>
     /// Ingress translator. Receives <c>SensorConfig</c> from the Brain node and applies it
-    /// to the local <c>PerceptionReceptor</c> and <c>VisualReceptor</c> components on the
+    /// to the local <c>PerceptionReceptor</c> component on the
     /// Perception Solver.  Performs the FovDegrees -> FovCos conversion at the network boundary
     /// so the spatial-hash solver never executes trigonometry on the hot path.
     /// </summary>
@@ -408,11 +406,6 @@ namespace Hrot.Network.NED.SimHost
                     FieldOfViewCos = fovCos,
                 });
 
-                cmd.SetComponent(entity, new VisualReceptor
-                {
-                    VisionRange = data.VisionRange,
-                    FovCos      = fovCos,
-                });
             }
         }
 
