@@ -39,6 +39,8 @@ namespace Fdp.Toolkit.Time.Translators
 
         public string TopicName         => TopicNameValue;
         public long   DescriptorOrdinal => OrdinalValue;
+        public long   ReceivedSampleCount { get; private set; }
+        public long   SentSampleCount { get; private set; }
 
         /// <summary>Creates the translator.</summary>
         /// <param name="participant">
@@ -78,6 +80,7 @@ namespace Fdp.Toolkit.Time.Translators
                     TargetSimTime = intent.TargetSimTime,
                     TimeScale     = 0,
                 });
+                SentSampleCount++;
             }
         }
 
@@ -96,6 +99,7 @@ namespace Fdp.Toolkit.Time.Translators
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
 
                 _eventBus.PublishManaged(new FrameStepCompletedEvent
                 {

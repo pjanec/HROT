@@ -41,6 +41,8 @@ namespace Fdp.Toolkit.Time.Translators
 
         public string TopicName         => TopicNameValue;
         public long   DescriptorOrdinal => OrdinalValue;
+        public long   ReceivedSampleCount { get; private set; }
+        public long   SentSampleCount { get; private set; }
 
         /// <summary>Creates the translator.</summary>
         /// <param name="participant">DDS domain participant. Pass <see langword="null"/> for unit tests.</param>
@@ -84,6 +86,7 @@ namespace Fdp.Toolkit.Time.Translators
                 var outgoing = request;
                 outgoing.ClientSendTicks = _getTick();
                 _requestWriter.Write(outgoing);
+                SentSampleCount++;
             }
         }
 
@@ -100,6 +103,7 @@ namespace Fdp.Toolkit.Time.Translators
             foreach (var sample in samples)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 var response = sample.Data;
                 if (response.ClientNodeId != _localNodeId) continue;
 

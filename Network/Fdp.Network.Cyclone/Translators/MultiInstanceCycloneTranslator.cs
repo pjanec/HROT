@@ -28,6 +28,8 @@ namespace Fdp.Network.Cyclone.Translators
 
         public string TopicName { get; }
         public long DescriptorOrdinal { get; }
+        public long ReceivedSampleCount { get; protected set; }
+        public long SentSampleCount { get; protected set; }
 
         public MultiInstanceCycloneTranslator(
             DdsParticipant participant, 
@@ -56,6 +58,7 @@ namespace Fdp.Network.Cyclone.Translators
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 ProcessSample(sample.Data, cmd, view);
             }
         }
@@ -143,6 +146,7 @@ namespace Fdp.Network.Cyclone.Translators
                 MultiInstanceLayout<T>.WriteInstanceId(&copy, instIdValue);
 
                 _writer.Write(copy);
+                SentSampleCount++;
             }
         }
 

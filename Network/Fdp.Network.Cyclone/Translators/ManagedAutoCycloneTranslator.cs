@@ -41,6 +41,7 @@ namespace Fdp.Network.Cyclone.Translators
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
 
                 // 1. Reference Copy (Cheap)
                 // CycloneDDS deserialized this into a new object on the heap
@@ -85,6 +86,7 @@ namespace Fdp.Network.Cyclone.Translators
 
                 // 5. Write (Serialization happens here)
                 _writer.Write(component);
+                SentSampleCount++;
             }
         }
 
@@ -105,6 +107,8 @@ namespace Fdp.Network.Cyclone.Translators
         
         public long DescriptorOrdinal { get; }
         public string TopicName { get; }
+        public long ReceivedSampleCount { get; protected set; }
+        public long SentSampleCount { get; protected set; }
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 

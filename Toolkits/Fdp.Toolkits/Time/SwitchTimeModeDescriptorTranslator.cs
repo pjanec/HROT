@@ -47,6 +47,8 @@ namespace Fdp.Toolkit.Time
 
         public string TopicName         => TopicNameValue;
         public long   DescriptorOrdinal => OrdinalValue;
+        public long   ReceivedSampleCount { get; private set; }
+        public long   SentSampleCount { get; private set; }
 
         /// <summary>
         /// Creates the translator.
@@ -100,6 +102,7 @@ namespace Fdp.Toolkit.Time
                 }
 
                 _writer.Write(SwitchTimeModeWireDto.ToWire(evt));
+                SentSampleCount++;
             }
         }
 
@@ -118,6 +121,7 @@ namespace Fdp.Toolkit.Time
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 _lastIngressed = sample.Data;
                 _eventBus.Publish(sample.Data.ToEvent());
             }

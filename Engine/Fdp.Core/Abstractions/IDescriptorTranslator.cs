@@ -21,6 +21,18 @@ namespace Fdp.Interfaces
         string TopicName { get; }
 
         /// <summary>
+        /// Number of valid ingress samples consumed by this translator.
+        /// Egress-only translators should return 0.
+        /// </summary>
+        long ReceivedSampleCount => 0;
+
+        /// <summary>
+        /// Number of samples published by this translator.
+        /// Ingress-only translators should return 0.
+        /// </summary>
+        long SentSampleCount => 0;
+
+        /// <summary>
         /// The ECS component type IDs that this translator reads or writes authority-gated data for.
         ///
         /// <para>

@@ -25,6 +25,8 @@ namespace Fdp.Network.Cyclone.Translators
 
         public string TopicName { get; }
         public long DescriptorOrdinal { get; } // Usually not used for events, but required by interface
+        public long ReceivedSampleCount { get; protected set; }
+        public long SentSampleCount { get; protected set; }
 
         protected CycloneNativeEventTranslator(
             DdsParticipant participant, 
@@ -50,6 +52,7 @@ namespace Fdp.Network.Cyclone.Translators
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
 
                 // Decode directly from DDS sample to ECS struct
                 if (TryDecode(sample.Data, out TEcs ecsEvent))
@@ -74,6 +77,7 @@ namespace Fdp.Network.Cyclone.Translators
                 if (TryEncode(evt, out TDds ddsEvent))
                 {
                     Writer.Write(ddsEvent);
+                    SentSampleCount++;
                 }
             }
         }

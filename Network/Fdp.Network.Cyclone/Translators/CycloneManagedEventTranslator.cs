@@ -23,6 +23,8 @@ namespace Fdp.Network.Cyclone.Translators
 
         public string TopicName { get; }
         public long DescriptorOrdinal { get; } 
+        public long ReceivedSampleCount { get; protected set; }
+        public long SentSampleCount { get; protected set; }
 
         protected CycloneManagedEventTranslator(
              DdsParticipant participant, 
@@ -46,6 +48,7 @@ namespace Fdp.Network.Cyclone.Translators
              {
                  if(sample.IsValid)
                  {
+                     ReceivedSampleCount++;
                      if(TryDecode(sample.Data, out TEcs output))
                      {
                          EventBus.PublishManaged(output);
@@ -63,6 +66,7 @@ namespace Fdp.Network.Cyclone.Translators
                   if(TryEncode(evt, out TDds dds)) 
                   {
                       Writer.Write(dds);
+                      SentSampleCount++;
                   }
              }
         }

@@ -35,6 +35,8 @@ namespace Fdp.Toolkit.Time.Translators
 
         public string TopicName         => TopicNameValue;
         public long   DescriptorOrdinal => OrdinalValue;
+        public long   ReceivedSampleCount { get; private set; }
+        public long   SentSampleCount { get; private set; }
 
         /// <summary>Creates the translator.</summary>
         /// <param name="participant">DDS domain participant. Pass <see langword="null"/> for unit tests.</param>
@@ -68,6 +70,7 @@ namespace Fdp.Toolkit.Time.Translators
             foreach (var sample in samples)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 var request = sample.Data;
 
                 long masterReceiveTicks = _getTick();
@@ -84,6 +87,7 @@ namespace Fdp.Toolkit.Time.Translators
                 response.MasterTransmitTicks = masterTransmitTicks;
 
                 _responseWriter.Write(response);
+                SentSampleCount++;
 
                 Fdp.Core.Logging.FdpLog<MasterTimeSyncTranslator>.Trace(
                     "[TC3][Master] SyncResponse sent. Node={0}, RTT_approx={1} ticks",

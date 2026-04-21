@@ -115,6 +115,7 @@ namespace Fdp.Network.Cyclone.Modules
     public class CycloneNetworkIngressSystem : IEcsModuleSystem
     {
         private readonly Fdp.Interfaces.IDescriptorTranslator[] _translators;
+        public IReadOnlyList<IDescriptorTranslator> Translators => _translators;
         
         public CycloneNetworkIngressSystem(Fdp.Interfaces.IDescriptorTranslator[] translators)
         {

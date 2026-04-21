@@ -26,6 +26,8 @@ namespace Fdp.Network.Cyclone.Translators
 
         public string TopicName { get; }
         public long DescriptorOrdinal { get; }
+        public long ReceivedSampleCount { get; protected set; }
+        public long SentSampleCount { get; protected set; }
 
         protected CycloneTranslator(
             DdsParticipant? participant, 
@@ -87,6 +89,7 @@ namespace Fdp.Network.Cyclone.Translators
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 
                 // Delegate to specific decode logic
                 Decode(sample.Data, cmd, view);
@@ -127,6 +130,7 @@ namespace Fdp.Network.Cyclone.Translators
         protected virtual void Publish(in TDds sample)
         {
             Writer.Write(sample);
+            SentSampleCount++;
         }
     }
 }

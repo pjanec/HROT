@@ -42,7 +42,7 @@ public sealed class ArchitectureDiagnosticsPanel
         ImGuiApi.TableSetupColumn("Target Hz");
         ImGuiApi.TableSetupColumn("Lifecycle");
         ImGuiApi.TableSetupColumn("Circuit");
-        ImGuiApi.TableSetupColumn("Runs");
+        ImGuiApi.TableSetupColumn("RX / TX / Runs");
         ImGuiApi.TableSetupColumn("Failures");
         ImGuiApi.TableHeadersRow();
 
@@ -208,7 +208,17 @@ public sealed class ArchitectureDiagnosticsPanel
                 4 => asc ? translatorRows.OrderBy(r => r.Profile.LastMs).ToList() : translatorRows.OrderByDescending(r => r.Profile.LastMs).ToList(),
                 5 => asc ? translatorRows.OrderBy(r => r.Profile.AverageMs).ToList() : translatorRows.OrderByDescending(r => r.Profile.AverageMs).ToList(),
                 6 => asc ? translatorRows.OrderBy(r => r.Profile.MaxMs).ToList() : translatorRows.OrderByDescending(r => r.Profile.MaxMs).ToList(),
-                7 => asc ? translatorRows.OrderBy(r => r.Profile.ExecutionCount).ToList() : translatorRows.OrderByDescending(r => r.Profile.ExecutionCount).ToList(),
+                7 => asc
+                    ? translatorRows.OrderBy(r => r.Direction == "Ingress"
+                        ? r.Translator.ReceivedSampleCount
+                        : r.Direction == "Egress"
+                            ? r.Translator.SentSampleCount
+                            : r.Profile.ExecutionCount).ToList()
+                    : translatorRows.OrderByDescending(r => r.Direction == "Ingress"
+                        ? r.Translator.ReceivedSampleCount
+                        : r.Direction == "Egress"
+                            ? r.Translator.SentSampleCount
+                            : r.Profile.ExecutionCount).ToList(),
                 _ => translatorRows.OrderBy(r => r.Translator.TopicName, System.StringComparer.OrdinalIgnoreCase).ToList()
             };
         }
@@ -223,7 +233,13 @@ public sealed class ArchitectureDiagnosticsPanel
             ImGuiApi.TableSetColumnIndex(4); ImGuiApi.TextUnformatted($"{row.Profile.LastMs:F3}");
             ImGuiApi.TableSetColumnIndex(5); ImGuiApi.TextUnformatted($"{row.Profile.AverageMs:F3}");
             ImGuiApi.TableSetColumnIndex(6); ImGuiApi.TextUnformatted($"{row.Profile.MaxMs:F3}");
-            ImGuiApi.TableSetColumnIndex(7); ImGuiApi.TextUnformatted(row.Profile.ExecutionCount.ToString());
+            ImGuiApi.TableSetColumnIndex(7);
+            if (row.Direction == "Ingress")
+                ImGuiApi.TextColored(new Vector4(0.4f, 1f, 0.4f, 1f), row.Translator.ReceivedSampleCount.ToString());
+            else if (row.Direction == "Egress")
+                ImGuiApi.TextColored(new Vector4(0.4f, 0.8f, 1f, 1f), row.Translator.SentSampleCount.ToString());
+            else
+                ImGuiApi.TextUnformatted(row.Profile.ExecutionCount.ToString());
         }
 
         ImGuiApi.EndTable();
