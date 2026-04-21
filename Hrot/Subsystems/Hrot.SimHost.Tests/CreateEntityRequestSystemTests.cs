@@ -428,6 +428,235 @@ namespace Hrot.SimHost.Tests
             Assert.Contains(dtoCommands[0].Grants, g => g.DescriptorTypeId == DescriptorTypeOrdinals.WorldPos && g.NodeId == 11);
             Assert.Contains(dtoCommands[0].Grants, g => g.DescriptorTypeId == DescriptorTypeOrdinals.NavigationStatus && g.NodeId == 11);
         }
+
+        // -- C013: PreAllocatedNetworkId and ChildComponentOverrides ──────────────────────────
+
+        private static TkbDatabase CreateTkbWithChild(int childInstanceId = 2, long childTkbType = 43L)
+        {
+            var db     = new TkbDatabase();
+            var parent = new TkbTemplate("TestParent", ValidTkbType);
+            parent.ChildBlueprints.Add(new ChildBlueprintDefinition(childInstanceId, childTkbType));
+            db.Register(parent);
+            db.Register(new TkbTemplate("TestChild", childTkbType));
+            return db;
+        }
+
+        /// <summary>C013 SC1: Normal request (PreAllocatedNetworkId == 0) still calls AllocateId().</summary>
+        [Fact]
+        public void C013_NormalRequest_AllocateIdCalled()
+        {
+            var repo   = CreateWorld();
+            var tkb    = CreateTkb();
+            var source = new StubRequestSource();
+            source.Enqueue(MakeValidRequest());
+
+            var idAlloc = new StubIdAllocator(startId: 100);
+            var ackSink = new StubAckSink();
+            var system  = new CreateEntityRequestSystem(source, ackSink, tkb, idAlloc, LocalNodeId);
+
+            system.Execute(repo, 0f);
+
+            // AllocateId() was called and returned 100.
+            Assert.Equal(100L, idAlloc.LastAllocatedId);
+
+            // ACK carries the allocated ID.
+            Assert.Single(ackSink.WrittenAcks);
+            Assert.Equal(100, ackSink.WrittenAcks[0].EntityId);
+
+            // SpawnEntityCommand uses the allocated network ID.
+            repo.Bus.SwapBuffers();
+            var cmds = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+            Assert.Single(cmds);
+            Assert.Equal(100L, cmds[0].NetworkId);
+        }
+
+        /// <summary>C013 SC2: Pre-allocated ID bypasses AllocateId().</summary>
+        [Fact]
+        public void C013_PreAllocatedNetworkId_BypassesAllocator()
+        {
+            var repo   = CreateWorld();
+            var tkb    = CreateTkb();
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = LocalNodeId,
+                TkbType            = ValidTkbType,
+                DisType            = ValidDisType,
+                PreAllocatedNetworkId = 5555L,
+            });
+
+            var idAlloc = new StubIdAllocator(startId: 999);
+            var ackSink = new StubAckSink();
+            var system  = new CreateEntityRequestSystem(source, ackSink, tkb, idAlloc, LocalNodeId);
+
+            system.Execute(repo, 0f);
+
+            // AllocateId() must NOT have been called (LastAllocatedId stays at 0).
+            Assert.Equal(0L, idAlloc.LastAllocatedId);
+
+            // ACK carries the pre-allocated ID.
+            Assert.Single(ackSink.WrittenAcks);
+            Assert.Equal(5555, ackSink.WrittenAcks[0].EntityId);
+
+            // SpawnEntityCommand uses the pre-allocated network ID.
+            repo.Bus.SwapBuffers();
+            var cmds = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+            Assert.Single(cmds);
+            Assert.Equal(5555L, cmds[0].NetworkId);
+        }
+
+        /// <summary>C013 SC3: Child uses pre-allocated ID and override components merged.</summary>
+        [Fact]
+        public void C013_ChildOverride_UsesPreAllocatedIdAndMergesComponents()
+        {
+            var repo   = CreateWorld();
+            var tkb    = CreateTkbWithChild(childInstanceId: 2);
+            var source = new StubRequestSource();
+            var overrideComp = new SimTransform { Position = new System.Numerics.Vector3(1.0f, 2.0f, 0f) };
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = LocalNodeId,
+                TkbType            = ValidTkbType,
+                DisType            = ValidDisType,
+                ChildComponentOverrides = new Dictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>
+                {
+                    { 2, (9001L, new List<object> { overrideComp }) },
+                },
+            });
+
+            var idAlloc = new StubIdAllocator(startId: 100);
+            var ackSink = new StubAckSink();
+            var system  = new CreateEntityRequestSystem(source, ackSink, tkb, idAlloc, LocalNodeId);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+
+            var cmds = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+            // 1 parent + 1 child
+            Assert.Equal(2, cmds.Count);
+
+            var childCmd = cmds.FirstOrDefault(c => c.NetworkId == 9001L);
+            Assert.Equal(9001L, childCmd.NetworkId);
+            Assert.NotNull(childCmd.InitialComponents);
+            Assert.Contains(childCmd.InitialComponents!, c => c is SimTransform);
+
+            // AllocateId() called only once (for the parent at 100); NOT called for the child.
+            Assert.Equal(100L, idAlloc.LastAllocatedId);
+        }
+
+        /// <summary>C013 SC4: PreAllocatedId == 0 in override entry falls through to AllocateId().</summary>
+        [Fact]
+        public void C013_ChildOverride_ZeroPreAllocatedId_FallsBackToAllocator()
+        {
+            var repo   = CreateWorld();
+            var tkb    = CreateTkbWithChild(childInstanceId: 2);
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = LocalNodeId,
+                TkbType            = ValidTkbType,
+                DisType            = ValidDisType,
+                PreAllocatedNetworkId = 5555L,   // parent pre-allocated — avoids parent alloc
+                ChildComponentOverrides = new Dictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>
+                {
+                    { 2, (0L, new List<object>()) },   // 0 means "fall through"
+                },
+            });
+
+            var idAlloc = new StubIdAllocator(startId: 100);
+            var ackSink = new StubAckSink();
+            var system  = new CreateEntityRequestSystem(source, ackSink, tkb, idAlloc, LocalNodeId);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+
+            var cmds = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+            Assert.Equal(2, cmds.Count);
+
+            // AllocateId() called exactly once — for the child (parent was pre-allocated).
+            Assert.Equal(100L, idAlloc.LastAllocatedId);
+            var childCmd = cmds.First(c => c.NetworkId != 5555L);
+            Assert.Equal(100L, childCmd.NetworkId);
+        }
+
+        /// <summary>C013 SC5: Null ChildComponentOverrides — AllocateId() called for each child.</summary>
+        [Fact]
+        public void C013_NullChildComponentOverrides_AllocatorCalledPerChild()
+        {
+            var repo = CreateWorld();
+            var db   = new TkbDatabase();
+            var parent = new TkbTemplate("TestParent2", ValidTkbType);
+            parent.ChildBlueprints.Add(new ChildBlueprintDefinition(1, 43L));
+            parent.ChildBlueprints.Add(new ChildBlueprintDefinition(2, 44L));
+            db.Register(parent);
+            db.Register(new TkbTemplate("Child1", 43L));
+            db.Register(new TkbTemplate("Child2", 44L));
+
+            var source = new StubRequestSource();
+            // ChildComponentOverrides is null (default)
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = LocalNodeId,
+                TkbType            = ValidTkbType,
+                DisType            = ValidDisType,
+            });
+
+            var idAlloc = new StubIdAllocator(startId: 100);
+            var ackSink = new StubAckSink();
+            var system  = new CreateEntityRequestSystem(source, ackSink, db, idAlloc, LocalNodeId);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+
+            var cmds = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+            // 1 parent + 2 children
+            Assert.Equal(3, cmds.Count);
+
+            // AllocateId() called for parent (100) and both children (101, 102).
+            // LastAllocatedId will be 102 (the last call).
+            Assert.Equal(102L, idAlloc.LastAllocatedId);
+        }
+
+        /// <summary>C013 SC6: Key not present for a child — AllocateId() called for that child.</summary>
+        [Fact]
+        public void C013_ChildOverride_KeyAbsent_AllocatorCalledForChild()
+        {
+            var repo   = CreateWorld();
+            var tkb    = CreateTkbWithChild(childInstanceId: 2);
+            var source = new StubRequestSource();
+            // Override has key 99 — not matching child InstanceId 2
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = LocalNodeId,
+                TkbType            = ValidTkbType,
+                DisType            = ValidDisType,
+                PreAllocatedNetworkId = 5555L,
+                ChildComponentOverrides = new Dictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>
+                {
+                    { 99, (9999L, new List<object>()) },  // no entry for InstanceId 2
+                },
+            });
+
+            var idAlloc = new StubIdAllocator(startId: 100);
+            var ackSink = new StubAckSink();
+            var system  = new CreateEntityRequestSystem(source, ackSink, tkb, idAlloc, LocalNodeId);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+
+            var cmds = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+            Assert.Equal(2, cmds.Count);
+
+            // AllocateId() called once for the child (parent was pre-allocated).
+            Assert.Equal(100L, idAlloc.LastAllocatedId);
+            var childCmd = cmds.First(c => c.NetworkId != 5555L);
+            Assert.Equal(100L, childCmd.NetworkId);
+        }
     }
 
     // â”€â”€ Delegate capture test helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

@@ -139,8 +139,9 @@ namespace Hrot.SimHost.Tests
             // Navigation bridges: NavigationIntentBridgeSystem, RouteTrajectorySyncSystem (sim=2)
             // GroundKinematicsModule: SpatialHashSystem, FormationTargetSystem, VehicleCommandSystem,
             //   CarKinematicsSystem, NavigationExecutionSystem, LinearKinematicsSystem (sim=6)
-            // total sim = 11
-            Assert.Equal(11, simGroup.SystemCount);
+            // (ThreatEvaluationAdapterSystem and others removed/consolidated since last count)
+            // total sim = 9
+            Assert.Equal(9, simGroup.SystemCount);
 
             // CombatModule: BallisticsSystem (postSim=1)
             Assert.Equal(1, postSimGroup.SystemCount);

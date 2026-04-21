@@ -174,8 +174,11 @@ namespace Hrot.CGF.Systems
                     return;
                 }
 
-                // Allocate a network ID and immediately send Phase 1 ACK (InProgress) — client unblocks now.
-                long newNetworkId = _idAllocator.AllocateId();
+                // Allocate (or use pre-allocated) network ID, then immediately send Phase 1 ACK
+                // (InProgress) so the client unblocks now.
+                long newNetworkId = request.PreAllocatedNetworkId != 0
+                    ? request.PreAllocatedNetworkId
+                    : _idAllocator.AllocateId();
                 _ackSink.WriteAck(request.RequestId, newNetworkId, EntityOperationStatus.InProgress);
 
                 // Register for Phase 2 ACK dispatch once ELM confirms lifecycle.
@@ -324,7 +327,19 @@ namespace Hrot.CGF.Systems
                     {
                         foreach (var childDef in parentTemplate.ChildBlueprints)
                         {
-                            long childNetworkId = _idAllocator.AllocateId();
+                            // Determine child network ID: use pre-allocated override when available;
+                            // fall through to AllocateId() when entry is absent or PreAllocatedId == 0.
+                            long childNetworkId;
+                            if (pending.Request.ChildComponentOverrides != null
+                                && pending.Request.ChildComponentOverrides.TryGetValue(childDef.InstanceId, out var overrideEntry)
+                                && overrideEntry.PreAllocatedId != 0)
+                            {
+                                childNetworkId = overrideEntry.PreAllocatedId;
+                            }
+                            else
+                            {
+                                childNetworkId = _idAllocator.AllocateId();
+                            }
                             
                             // Try to get child template to retrieve its DisType
                             ulong childDisType = 0;
@@ -342,6 +357,13 @@ namespace Hrot.CGF.Systems
                                     CommanderId = (int)pending.NetworkId
                                 }
                             };
+
+                            // Merge component overrides for this child instance (when present).
+                            if (pending.Request.ChildComponentOverrides != null
+                                && pending.Request.ChildComponentOverrides.TryGetValue(childDef.InstanceId, out var compEntry))
+                            {
+                                childComponents.AddRange(compEntry.Components);
+                            }
 
                             repo.Bus.PublishManaged(new SpawnEntityCommand
                             {

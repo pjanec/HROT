@@ -51,6 +51,24 @@ public sealed class EntityCreationRequest
     /// <c>RoutePlan</c> from <c>dtMapRoute</c>.
     /// </summary>
     public List<object>? InitialComponents { get; init; }
+
+    /// <summary>
+    /// When non-zero, <see cref="Hrot.CGF.Systems.CreateEntityRequestSystem"/> uses
+    /// this value directly as the entity's network ID and skips
+    /// <c>INetworkIdAllocator.AllocateId()</c>.  Set by
+    /// <c>StagingEntityExtractor</c> during scenario load.
+    /// </summary>
+    public long PreAllocatedNetworkId { get; init; } = 0;
+
+    /// <summary>
+    /// Optional per-child component overrides keyed by
+    /// <see cref="Fdp.Interfaces.ChildBlueprintDefinition.InstanceId"/>.
+    /// Each entry supplies a pre-allocated network ID for the child and a list
+    /// of additional ECS components to merge into its initial component set.
+    /// When <c>null</c>, all children use the normal <c>AllocateId()</c> path.
+    /// </summary>
+    public IReadOnlyDictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>?
+        ChildComponentOverrides { get; init; } = null;
 }
 
 /// <summary>

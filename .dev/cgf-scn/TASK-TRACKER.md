@@ -9,9 +9,9 @@
 **Goal:** Extend the entity creation ingestion pathway in CGF to accept
 both live DDS requests and in-memory scenario-sourced requests.
 
-- [ ] **TASK-C001** ScenarioEntityCreationRequestSource [details](./TASK-DETAIL.md#task-c001--scenarioentitycreationrequestsource)
-- [ ] **TASK-C002** CompositeEntityCreationRequestSource [details](./TASK-DETAIL.md#task-c002--compositeentitycreationrequestsource)
-- [ ] **TASK-C003** Wire composite source into CgfLogicPack [details](./TASK-DETAIL.md#task-c003--wire-composite-source-into-cgflogicpack)
+- [x] **TASK-C001** ScenarioEntityCreationRequestSource [details](./TASK-DETAIL.md#task-c001--scenarioentitycreationrequestsource)
+- [x] **TASK-C002** CompositeEntityCreationRequestSource [details](./TASK-DETAIL.md#task-c002--compositeentitycreationrequestsource)
+- [x] **TASK-C003** Wire composite source into CgfLogicPack [details](./TASK-DETAIL.md#task-c003--wire-composite-source-into-cgflogicpack)
 
 ---
 

@@ -110,8 +110,9 @@ namespace Hrot.SimHost.Tests
             // ActionDispatchModule: LocomotionDispatcherSystem, WeaponDispatcherSystem,
             //   InteractionDispatcherSystem (3)
             // HealthApplicationSystem (1), RouteContextSystem (1)
-            // total = 14
-            Assert.Equal(14, simGroup.SystemCount);
+            // CreateEntityRequestSystem (1) added in BATCH-01
+            // total = 15
+            Assert.Equal(15, simGroup.SystemCount);
 
             simGroup.Dispose();
         }

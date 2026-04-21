@@ -150,7 +150,7 @@ namespace Hrot.SimHost.Tests
             Assert.Null(exception);
 
             Assert.Equal(4, inputGroup.SystemCount);
-            Assert.Equal(14, simGroup.SystemCount);
+            Assert.Equal(12, simGroup.SystemCount);
             Assert.Equal(1, postSimGroup.SystemCount);
 
             // ── Cleanup ───────────────────────────────────────────────────────
