@@ -6,6 +6,18 @@ using Fdp.Interfaces;
 namespace Fdp.Interfaces
 {
     /// <summary>
+    /// Indicates which network phases a translator participates in.
+    /// </summary>
+    [System.Flags]
+    public enum TranslatorDirection : byte
+    {
+        None          = 0,
+        Ingress       = 1 << 0,
+        Egress        = 1 << 1,
+        Bidirectional = Ingress | Egress,
+    }
+
+    /// <summary>
     /// Translates between network descriptors and ECS components.
     /// </summary>
     public interface IDescriptorTranslator
@@ -31,6 +43,12 @@ namespace Fdp.Interfaces
         /// Ingress-only translators should return 0.
         /// </summary>
         long SentSampleCount { get; }
+
+        /// <summary>
+        /// Declares which network phases this translator participates in.
+        /// Must be explicitly implemented by every translator — no default is provided.
+        /// </summary>
+        TranslatorDirection Direction { get; }
 
         /// <summary>
         /// The ECS component type IDs that this translator reads or writes authority-gated data for.

@@ -19,6 +19,8 @@ namespace Fdp.Network.Cyclone.Tests.Translators
     {
         public bool HandleIngressCalled = false;
 
+        public override TranslatorDirection Direction => TranslatorDirection.Bidirectional;
+
         public MockTranslator(DdsParticipant p, NetworkEntityMap map) 
             : base(p, "mock_topic", 123, map)
         {

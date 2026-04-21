@@ -49,6 +49,7 @@ namespace Fdp.Toolkit.Time
         public long   DescriptorOrdinal => OrdinalValue;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Bidirectional;
 
         /// <summary>
         /// Creates the translator.

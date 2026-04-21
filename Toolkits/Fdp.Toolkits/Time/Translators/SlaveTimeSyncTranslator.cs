@@ -43,6 +43,7 @@ namespace Fdp.Toolkit.Time.Translators
         public long   DescriptorOrdinal => OrdinalValue;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Bidirectional;
 
         /// <summary>Creates the translator.</summary>
         /// <param name="participant">DDS domain participant. Pass <see langword="null"/> for unit tests.</param>

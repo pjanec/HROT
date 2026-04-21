@@ -14,6 +14,8 @@ namespace Fdp.Examples.NetworkDemo.Translators
 {
     public class WeaponStateTranslator : CycloneTranslator<WeaponStateTopic, WeaponStateTopic>
     {
+        public override TranslatorDirection Direction => TranslatorDirection.Bidirectional;
+
         public WeaponStateTranslator(DdsParticipant p, NetworkEntityMap map) 
             : base(p, "SST_WeaponState", ordinal: 6, map)
         {

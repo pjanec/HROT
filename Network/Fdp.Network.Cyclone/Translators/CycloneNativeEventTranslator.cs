@@ -27,6 +27,7 @@ namespace Fdp.Network.Cyclone.Translators
         public long DescriptorOrdinal { get; } // Usually not used for events, but required by interface
         public long ReceivedSampleCount { get; protected set; }
         public long SentSampleCount { get; protected set; }
+        public abstract TranslatorDirection Direction { get; }
 
         protected CycloneNativeEventTranslator(
             DdsParticipant participant, 

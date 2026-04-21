@@ -25,6 +25,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
         public long DescriptorOrdinal => -1; 
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Bidirectional;
         
         public OwnershipUpdateTranslator(NodeIdMapper nodeMapper, DdsParticipant participant)
         {

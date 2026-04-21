@@ -171,7 +171,7 @@ public sealed class ArchitectureDiagnosticsPanel
 
     private static unsafe void DrawTranslatorsTable(ModuleHostKernel kernel)
     {
-        if (!ImGuiApi.BeginTable("ArchDiagTranslatorsTable", 8, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.Sortable))
+        if (!ImGuiApi.BeginTable("ArchDiagTranslatorsTable", 9, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.Sortable))
             return;
 
         ImGuiApi.TableSetupColumn("System");
@@ -181,6 +181,7 @@ public sealed class ArchitectureDiagnosticsPanel
         ImGuiApi.TableSetupColumn("Last (ms)");
         ImGuiApi.TableSetupColumn("Avg (ms)");
         ImGuiApi.TableSetupColumn("Max (ms)");
+        ImGuiApi.TableSetupColumn("Total (ms)");
         ImGuiApi.TableSetupColumn("Runs");
         ImGuiApi.TableHeadersRow();
 
@@ -208,7 +209,8 @@ public sealed class ArchitectureDiagnosticsPanel
                 4 => asc ? translatorRows.OrderBy(r => r.Profile.LastMs).ToList() : translatorRows.OrderByDescending(r => r.Profile.LastMs).ToList(),
                 5 => asc ? translatorRows.OrderBy(r => r.Profile.AverageMs).ToList() : translatorRows.OrderByDescending(r => r.Profile.AverageMs).ToList(),
                 6 => asc ? translatorRows.OrderBy(r => r.Profile.MaxMs).ToList() : translatorRows.OrderByDescending(r => r.Profile.MaxMs).ToList(),
-                7 => asc
+                7 => asc ? translatorRows.OrderBy(r => r.Profile.TotalMs).ToList() : translatorRows.OrderByDescending(r => r.Profile.TotalMs).ToList(),
+                8 => asc
                     ? translatorRows.OrderBy(r => r.Direction == "Ingress"
                         ? r.Translator.ReceivedSampleCount
                         : r.Direction == "Egress"
@@ -233,7 +235,8 @@ public sealed class ArchitectureDiagnosticsPanel
             ImGuiApi.TableSetColumnIndex(4); ImGuiApi.TextUnformatted($"{row.Profile.LastMs:F3}");
             ImGuiApi.TableSetColumnIndex(5); ImGuiApi.TextUnformatted($"{row.Profile.AverageMs:F3}");
             ImGuiApi.TableSetColumnIndex(6); ImGuiApi.TextUnformatted($"{row.Profile.MaxMs:F3}");
-            ImGuiApi.TableSetColumnIndex(7);
+            ImGuiApi.TableSetColumnIndex(7); ImGuiApi.TextUnformatted($"{row.Profile.TotalMs:F3}");
+            ImGuiApi.TableSetColumnIndex(8);
             if (row.Direction == "Ingress")
                 ImGuiApi.TextColored(new Vector4(0.4f, 1f, 0.4f, 1f), row.Translator.ReceivedSampleCount.ToString());
             else if (row.Direction == "Egress")
@@ -257,6 +260,8 @@ public sealed class ArchitectureDiagnosticsPanel
                 continue;
 
             var direction = GetDirectionLabel(system.GetType().Name);
+            if (direction == "Cleanup")
+                continue;
             foreach (var translator in translators)
             {
                 var profile = TryGetTranslatorProfile(system, translator)

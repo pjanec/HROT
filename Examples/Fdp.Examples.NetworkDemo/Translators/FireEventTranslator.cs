@@ -17,6 +17,8 @@ namespace Fdp.Examples.NetworkDemo.Translators
     {
         public new long DescriptorOrdinal => 300;
 
+        public override TranslatorDirection Direction => TranslatorDirection.Bidirectional;
+
         public FireEventTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
             : base(participant, "FDP.Evt_FireInteraction", entityMap)
         {

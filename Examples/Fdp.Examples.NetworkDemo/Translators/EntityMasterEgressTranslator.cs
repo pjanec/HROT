@@ -33,6 +33,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
         public long DescriptorOrdinal => DemoDescriptors.Master;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityMasterEgressTranslator(
             DdsParticipant participant,

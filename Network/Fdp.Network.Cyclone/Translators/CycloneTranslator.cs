@@ -28,6 +28,7 @@ namespace Fdp.Network.Cyclone.Translators
         public long DescriptorOrdinal { get; }
         public long ReceivedSampleCount { get; protected set; }
         public long SentSampleCount { get; protected set; }
+        public abstract TranslatorDirection Direction { get; }
 
         protected CycloneTranslator(
             DdsParticipant? participant, 

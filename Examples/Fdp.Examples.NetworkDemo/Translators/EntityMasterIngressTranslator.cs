@@ -31,6 +31,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
         public long DescriptorOrdinal => -10L;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public EntityMasterIngressTranslator(
             DdsParticipant participant,

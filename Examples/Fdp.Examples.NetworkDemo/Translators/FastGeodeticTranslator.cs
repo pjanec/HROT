@@ -18,6 +18,8 @@ namespace Fdp.Examples.NetworkDemo.Translators
     {
         private readonly IGeographicTransform _geoTransform;
 
+        public override TranslatorDirection Direction => TranslatorDirection.Bidirectional;
+
         public FastGeodeticTranslator(
             DdsParticipant participant, 
             IGeographicTransform geoTransform,

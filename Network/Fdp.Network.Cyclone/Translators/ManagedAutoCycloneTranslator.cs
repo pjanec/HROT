@@ -109,6 +109,7 @@ namespace Fdp.Network.Cyclone.Translators
         public string TopicName { get; }
         public long ReceivedSampleCount { get; protected set; }
         public long SentSampleCount { get; protected set; }
+        public TranslatorDirection Direction => TranslatorDirection.Bidirectional;
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 

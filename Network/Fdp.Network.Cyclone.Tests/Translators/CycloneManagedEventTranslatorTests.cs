@@ -20,6 +20,8 @@ namespace Fdp.Network.Cyclone.Tests.Translators
 
     public class MockEventTranslator : CycloneManagedEventTranslator<TestManagedEvent, EntityMasterTopic>
     {
+         public override TranslatorDirection Direction => TranslatorDirection.Bidirectional;
+
          public MockEventTranslator(DdsParticipant p, NetworkEntityMap map, IEventBus bus) : base(p, "mock_managed_topic", map, bus) {}
 
          protected override bool TryDecode(in EntityMasterTopic input, out TestManagedEvent output) 
