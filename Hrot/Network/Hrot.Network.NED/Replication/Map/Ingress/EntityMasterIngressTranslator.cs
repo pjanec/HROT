@@ -31,7 +31,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     {
         // --- Named constants (§CODE-STANDARDS §1 — no magic numbers) ---
         private const string DdsTopicName = "EntityMaster";
-        private const long OrdinalValue = -2; // distinct from the FDP SST_EntityMaster ordinal (-1)
+        private const long OrdinalValue = (long)EDescriptorType.dtEntityMaster;
 
         private readonly DdsReader<EntityMaster> _reader;
         private readonly NetworkEntityMap _entityMap;

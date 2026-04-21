@@ -20,7 +20,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     public class MapEntitySymbolIngressTranslator : IDescriptorTranslator
     {
         private const string DdsTopicName = "MapEntitySymbol";
-        private const long OrdinalValue = 40;
+        private const long OrdinalValue = (long)EDescriptorType.dtMapEntitySymbol;
 
         private readonly DdsReader<MapEntitySymbol>? _reader;
         private readonly NetworkEntityMap _entityMap;

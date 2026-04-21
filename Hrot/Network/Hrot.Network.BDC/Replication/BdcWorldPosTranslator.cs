@@ -32,7 +32,7 @@ namespace Hrot.BDC.Replication
 
         public string TopicName => "BDC_WorldPos";
         // BDC WorldPos ordinal
-        public long DescriptorOrdinal => 1002;
+        public long DescriptorOrdinal => (long)BdcDescriptorType.WorldPos;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Bidirectional;

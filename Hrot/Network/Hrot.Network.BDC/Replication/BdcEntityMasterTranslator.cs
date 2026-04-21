@@ -31,7 +31,7 @@ namespace Hrot.BDC.Replication
 
         public string TopicName => "BDC_EntityMaster";
         // BDC ordinal space starts at 1000 to avoid collisions with NED
-        public long DescriptorOrdinal => 1000;
+        public long DescriptorOrdinal => (long)BdcDescriptorType.EntityMaster;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Bidirectional;

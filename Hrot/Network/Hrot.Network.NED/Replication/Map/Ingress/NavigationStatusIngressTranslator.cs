@@ -29,7 +29,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly long _localNodeId;
 
         public string TopicName      => "NavigationStatus";
-        public long   DescriptorOrdinal => 53;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationStatus;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;

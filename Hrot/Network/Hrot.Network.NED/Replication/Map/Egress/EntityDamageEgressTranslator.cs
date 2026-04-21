@@ -31,7 +31,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public class EntityDamageEgressTranslator : IDescriptorTranslator
     {
         private const string DdsTopicName = "EntityDamage";
-        private const long OrdinalValue   = 30;
+        private const long OrdinalValue   = (long)EDescriptorType.dtEntityDamage;
 
         private readonly DdsWriter<EntityDamage> _writer;
         private readonly NetworkEntityMap        _entityMap;

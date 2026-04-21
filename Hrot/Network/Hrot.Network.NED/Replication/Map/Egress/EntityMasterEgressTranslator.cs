@@ -23,7 +23,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly HashSet<long> _publishedNetIds = new();
 
         public string TopicName => "EntityMaster";
-        public long DescriptorOrdinal => 0;
+        public long DescriptorOrdinal => (long)EDescriptorType.dtEntityMaster;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;

@@ -30,7 +30,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly DoctrineRegistry? _doctrineRegistry;
 
         public string TopicName => "EntityMission";
-        public long DescriptorOrdinal => 51;
+        public long DescriptorOrdinal => (long)EDescriptorType.dtEntityMission;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;

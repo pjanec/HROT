@@ -17,10 +17,10 @@
 
 **Goal:** Replace all magic integer literals in DescriptorOrdinal properties with named constants.
 
-- [ ] **MPM-P2-T01** Extend EDescriptorType enum with missing NED entries [details](./TASK-DETAIL.md#mpm-p2-t01---extend-edescriptortype-enum)
-- [ ] **MPM-P2-T02** Fix NED translator magic ordinals (EntityMission, EntityMaster, MapEntitySymbol, others) [details](./TASK-DETAIL.md#mpm-p2-t02---fix-ned-translator-magic-ordinals)
-- [ ] **MPM-P2-T03** Create TimeDescriptorType enum and update five time translators [details](./TASK-DETAIL.md#mpm-p2-t03---create-timedescriptortype-enum-and-update-time-translators)
-- [ ] **MPM-P2-T04** Create BdcDescriptorType enum and update two BDC translators [details](./TASK-DETAIL.md#mpm-p2-t04---create-bdcdescriptortype-enum-and-update-bdc-translators)
+- [x] **MPM-P2-T01** Extend EDescriptorType enum with missing NED entries [details](./TASK-DETAIL.md#mpm-p2-t01---extend-edescriptortype-enum)
+- [x] **MPM-P2-T02** Fix NED translator magic ordinals (EntityMission, EntityMaster, MapEntitySymbol, others) [details](./TASK-DETAIL.md#mpm-p2-t02---fix-ned-translator-magic-ordinals)
+- [x] **MPM-P2-T03** Create TimeDescriptorType enum and update five time translators [details](./TASK-DETAIL.md#mpm-p2-t03---create-timedescriptortype-enum-and-update-time-translators)
+- [x] **MPM-P2-T04** Create BdcDescriptorType enum and update two BDC translators [details](./TASK-DETAIL.md#mpm-p2-t04---create-bdcdescriptortype-enum-and-update-bdc-translators)
 
 
 ## Phase 3: Network Interface Segregation

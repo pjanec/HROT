@@ -32,7 +32,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly long _localNodeId;
 
         public string TopicName      => "NavigationIntent";
-        public long   DescriptorOrdinal => 52;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationIntent;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;

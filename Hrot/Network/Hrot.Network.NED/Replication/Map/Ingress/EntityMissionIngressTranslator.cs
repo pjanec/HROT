@@ -33,7 +33,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly GhostCreationSystem _ghostCreationSystem;
 
         public string TopicName => "EntityMission";
-        public long DescriptorOrdinal => 50;
+        public long DescriptorOrdinal => (long)EDescriptorType.dtEntityMission;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
