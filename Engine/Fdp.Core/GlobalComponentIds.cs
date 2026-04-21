@@ -239,11 +239,7 @@ namespace Fdp.Core
         /// <summary><c>TargetMemory</c> — fixed-size threat table for perceived targets (FDP.Toolkit.Perception).</summary>
         public const byte TargetMemory            = 73;
 
-        /// <summary><c>VisualReceptor</c> — optical sensor configuration: vision range and FOV cosine (FDP.Toolkit.Perception).</summary>
-        public const byte VisualReceptor          = 74;
 
-        /// <summary><c>RadarReceptor</c> — active radar configuration: max range, power, target mask (FDP.Toolkit.Perception).</summary>
-        public const byte RadarReceptor           = 75;
 
         /// <summary><c>PathfindingBatchData</c> — zero-allocation singleton for batched pathfinding requests/results (FDP.Toolkit.Navigation).</summary>
         public const byte PathfindingBatchData    = 76;
