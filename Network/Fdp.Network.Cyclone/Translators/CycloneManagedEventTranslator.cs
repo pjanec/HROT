@@ -1,18 +1,16 @@
 ﻿using System;
-using System.Runtime.InteropServices;
 using CycloneDDS.Runtime;
 using Fdp.Core; // For IEventBus probably
 using Fdp.Interfaces; // Or Fdp.Interfaces for IEventBus if it moved
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
-using Fdp.Network.Cyclone.Abstractions;
 
 namespace Fdp.Network.Cyclone.Translators
 {
     /// <summary>
     /// Base class for MANAGED event translators (classes).
     /// </summary>
-    public abstract class CycloneManagedEventTranslator<TEcs, TDds> : IDescriptorTranslator, INetworkReplayTarget
+    public abstract class CycloneManagedEventTranslator<TEcs, TDds> : IDescriptorTranslator
         where TEcs : class
         where TDds : struct
     {
@@ -70,18 +68,6 @@ namespace Fdp.Network.Cyclone.Translators
                       SentSampleCount++;
                   }
              }
-        }
-
-        public void InjectReplayData(ReadOnlySpan<byte> rawData, IEntityCommandBuffer cmd, ISimulationView view)
-        {
-            var samples = MemoryMarshal.Cast<byte, TDds>(rawData);
-            foreach (ref readonly var sample in samples)
-            {
-                if (TryDecode(sample, out TEcs output))
-                {
-                    EventBus.PublishManaged(output);
-                }
-            }
         }
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }

@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Runtime.InteropServices; // For MemoryMarshal
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
-using Fdp.Network.Cyclone.Abstractions;
 using Fdp.Interfaces;
 
 namespace Fdp.Network.Cyclone.Translators
@@ -15,7 +13,7 @@ namespace Fdp.Network.Cyclone.Translators
     /// </summary>
     /// <typeparam name="TEcs">Internal ECS event (unmanaged struct)</typeparam>
     /// <typeparam name="TDds">DDS network event (struct)</typeparam>
-    public abstract class CycloneNativeEventTranslator<TEcs, TDds> : IDescriptorTranslator, INetworkReplayTarget
+    public abstract class CycloneNativeEventTranslator<TEcs, TDds> : IDescriptorTranslator
         where TEcs : unmanaged // <--- Supports Structs
         where TDds : struct
     {
@@ -35,9 +33,6 @@ namespace Fdp.Network.Cyclone.Translators
             NetworkEntityMap entityMap)
         {
             TopicName = topicName;
-            // Arbitrary ordinal or hash, events are usually looked up by Type, 
-            // but ReplaySystem needs an ordinal to find the translator.
-            DescriptorOrdinal = topicName.GetHashCode(); 
             
             EntityMap = entityMap;
             Reader = new DdsReader<TDds>(participant);
@@ -79,24 +74,6 @@ namespace Fdp.Network.Cyclone.Translators
                 {
                     Writer.Write(ddsEvent);
                     SentSampleCount++;
-                }
-            }
-        }
-
-        // =================================================================
-        // REPLAY INJECTION (Zero Alloc)
-        // =================================================================
-        public void InjectReplayData(ReadOnlySpan<byte> rawData, IEntityCommandBuffer cmd, ISimulationView view)
-        {
-            // Replay injection logic
-            // 1. Cast bytes to DDS Structs
-            var samples = MemoryMarshal.Cast<byte, TDds>(rawData);
-
-            foreach (ref readonly var sample in samples)
-            {
-                if (TryDecode(sample, out TEcs ecsEvent))
-                {
-                    cmd.PublishEvent(ecsEvent);
                 }
             }
         }

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Runtime.InteropServices;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -9,7 +8,6 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Replication.Extensions;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.Network.Cyclone.Abstractions;
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 
 namespace Fdp.Network.Cyclone.Translators
@@ -18,7 +16,7 @@ namespace Fdp.Network.Cyclone.Translators
     /// Translator for multi-instance descriptors (EntityId + InstanceId).
     /// Routes samples to child entities based on InstanceId.
     /// </summary>
-    public unsafe class MultiInstanceCycloneTranslator<T> : IDescriptorTranslator, INetworkReplayTarget
+    public unsafe class MultiInstanceCycloneTranslator<T> : IDescriptorTranslator
         where T : unmanaged
     {
         private readonly DdsReader<T> _reader;
@@ -61,15 +59,6 @@ namespace Fdp.Network.Cyclone.Translators
                 if (!sample.IsValid) continue;
                 ReceivedSampleCount++;
                 ProcessSample(sample.Data, cmd, view);
-            }
-        }
-
-        public void InjectReplayData(ReadOnlySpan<byte> rawData, IEntityCommandBuffer cmd, ISimulationView view)
-        {
-            var samples = MemoryMarshal.Cast<byte, T>(rawData);
-            foreach (ref readonly var sample in samples)
-            {
-                ProcessSample(sample, cmd, view);
             }
         }
 

@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Runtime.InteropServices; // Required for MemoryMarshal
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Utilities;
-using Fdp.Network.Cyclone.Abstractions;
 
 namespace Fdp.Network.Cyclone.Translators
 {
@@ -16,7 +14,7 @@ namespace Fdp.Network.Cyclone.Translators
     /// </summary>
     /// <typeparam name="TDds">DDS topic struct type</typeparam>
     /// <typeparam name="TView">DDS view type (ref struct from code generator)</typeparam>
-    public abstract unsafe class CycloneTranslator<TDds, TView> : IDescriptorTranslator, INetworkReplayTarget
+    public abstract unsafe class CycloneTranslator<TDds, TView> : IDescriptorTranslator
         where TDds : unmanaged 
         where TView : struct
     {
@@ -94,20 +92,6 @@ namespace Fdp.Network.Cyclone.Translators
                 
                 // Delegate to specific decode logic
                 Decode(sample.Data, cmd, view);
-            }
-        }
-
-        public void InjectReplayData(ReadOnlySpan<byte> rawData, IEntityCommandBuffer cmd, ISimulationView view)
-        {
-            // 1. Zero-Copy Cast: Bytes -> Structs
-            // This is safe because TDds is unmanaged
-            var samples = MemoryMarshal.Cast<byte, TDds>(rawData);
-
-            // 2. Iterate and Decode
-            foreach (ref readonly var sample in samples)
-            {
-                // We reuse the EXACT same decoding logic as the live network
-                Decode(sample, cmd, view);
             }
         }
 
