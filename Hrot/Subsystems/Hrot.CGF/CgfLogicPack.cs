@@ -15,6 +15,7 @@ using Fdp.Toolkit.Replication.Services;
 using Hrot.CGF.Systems;
 using Hrot.CGF.Systems.Routing;
 using Hrot.Common.Systems;
+using Hrot.Core.Network;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.CGF
@@ -57,6 +58,10 @@ namespace Hrot.CGF
         private readonly MissionControlExecutionSystem _missionExecutionSystem;
         private readonly MissionAdapterSystem   _missionAdapterSystem;
 
+        // ── Shared scenario source (constructed once by CgfApplication / CgfSubsystem) ─
+        // Held here for future hand-off to load handlers (Phases 3-4).
+        internal ScenarioEntityCreationRequestSource ScenarioSource { get; }
+
         // ── Constructor ───────────────────────────────────────────────────────
 
         /// <summary>
@@ -71,17 +76,26 @@ namespace Hrot.CGF
         /// Network entity map forwarded to <see cref="ActionDispatchModule"/> via
         /// <see cref="JoinFormationExecutor"/>.
         /// </param>
+        /// <param name="scenarioSource">
+        /// In-memory entity creation request source shared by CGF load handlers (Phases 3-4)
+        /// and multiplexed alongside the live NED source by <c>CgfSubsystem</c>.
+        /// Must not be null.
+        /// </param>
         /// <param name="vehicleApi">
         /// Optional high-level vehicle command façade forwarded to
         /// <see cref="JoinFormationExecutor"/>.  <c>null</c> while the executor is a stub.
         /// </param>
         public CgfLogicPack(
-            DoctrineRegistry  doctrineRegistry,
-            NetworkEntityMap  entityMap,
-            VehicleAPI?       vehicleApi = null)
+            DoctrineRegistry                     doctrineRegistry,
+            NetworkEntityMap                     entityMap,
+            ScenarioEntityCreationRequestSource  scenarioSource,
+            VehicleAPI?                          vehicleApi = null)
         {
             if (doctrineRegistry == null) throw new ArgumentNullException(nameof(doctrineRegistry));
             if (entityMap        == null) throw new ArgumentNullException(nameof(entityMap));
+            if (scenarioSource   == null) throw new ArgumentNullException(nameof(scenarioSource));
+
+            ScenarioSource = scenarioSource;
 
             _missionControlModule   = new MissionControlModule(doctrineRegistry);
             _cognitiveRuntimeModule = new CognitiveRuntimeModule(doctrineRegistry);

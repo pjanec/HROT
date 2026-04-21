@@ -6,6 +6,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.CGF;
 using Hrot.Common;
+using Hrot.Core.Network;
 using Hrot.Common.Infrastructure;
 using Hrot.Map.Common;
 using Hrot.Network.Infrastructure;
@@ -83,7 +84,8 @@ public static class Program
         {
             // Brain role: cognitive decision-making (BTree/HSM, MissionControl,
             // ActionDispatch). Never runs kinematics or reads SimTransform directly.
-            var cgfPack = new CgfLogicPack(doctrineRegistry, context.EntityMap);
+            var cgfPack = new CgfLogicPack(doctrineRegistry, context.EntityMap,
+                new ScenarioEntityCreationRequestSource());
             context.Kernel.RegisterModule(cgfPack);
         }
 

@@ -322,7 +322,8 @@ namespace Hrot.Editor
 
             // ── 4. Module registration (offline — no translator packs) ────────
             var simHostCorePack  = new SimHostCoreLogicPack(entityMap);
-            var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, entityMap);
+            var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, entityMap,
+                new ScenarioEntityCreationRequestSource());
             var orchPack         = new OrchestrationLogicPack(clusterSlave);
             var scenarioMod      = new ScenarioEditorModule(fileService);
 

@@ -5,6 +5,7 @@ using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Time.Controllers;
 using Hrot.CGF;
+using Hrot.Core.Network;
 using Hrot.Editor;
 using Hrot.Orchestrator;
 using Hrot.ScenarioEditor;
@@ -40,7 +41,7 @@ public class OfflineKernelBootTests : IDisposable
         var fileService      = EditorBootstrap.CreateFileService();
 
         _kernel.RegisterModule(new SimHostCoreLogicPack(entityMap));
-        _kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, entityMap));
+        _kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, entityMap, new ScenarioEntityCreationRequestSource()));
         _kernel.RegisterModule(new OrchestrationLogicPack(clusterSlave));
         _kernel.RegisterModule(new ScenarioEditorModule(fileService));
 

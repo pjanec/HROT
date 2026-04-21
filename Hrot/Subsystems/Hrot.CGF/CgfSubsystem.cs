@@ -80,6 +80,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private Hrot.Core.Network.INetworkFactory? _networkFactory;
     private PhysicsToolkitModule? _physicsModule;
 
+    // ── Scenario entity creation source (shared with load handlers in Phases 3-4) ──
+    private ScenarioEntityCreationRequestSource? _scenarioSource;
+
+    /// <summary>
+    /// Exposes the scenario entity creation request source for load handlers (Phases 3-4).
+    /// Available after <see cref="Initialize"/> has been called.
+    /// </summary>
+    internal ScenarioEntityCreationRequestSource? ScenarioEntityCreationSource => _scenarioSource;
+
     // ── Visualization ─────────────────────────────────────────────────────────
     private MapCanvas?                 _canvas;
     private DefaultSelectionState?     _selectionState;
@@ -235,8 +244,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // DeferredTakeOwnership. SimHost nodes keep isDefaultProcessor=false.
         // Protocol-specific sources and sinks are obtained via the factory (Rule 3).
 
+        // Create the scenario source once; shared with load handlers in Phases 3-4
+        // via CgfLogicPack.ScenarioSource.
+        _scenarioSource = new ScenarioEntityCreationRequestSource();
+
         // ── Register CGF simulation logic (Brain-specific) ─────────────────────
-        var cgfLogicPack = new CgfLogicPack(doctrineRegistry, _entityMap);
+        var cgfLogicPack = new CgfLogicPack(doctrineRegistry, _entityMap, _scenarioSource);
         _context.Kernel.RegisterModule(cgfLogicPack);
 
         // Execute the Brain systems every frame via a SystemGroup.
@@ -259,8 +272,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
             var finalizationSystem = new EntityRequestFinalizationSystem(adapters.AckSink, _entityMap!);
 
+            // Multiplex the live NED source and the in-memory scenario source so
+            // CreateEntityRequestSystem processes both identically.
+            var compositeRequestSource = new CompositeEntityCreationRequestSource(
+                new IEntityCreationRequestSource[] { adapters.RequestSource, _scenarioSource });
+
             var requestSystem = new CreateEntityRequestSystem(
-                requestSource:        adapters.RequestSource,
+                requestSource:        compositeRequestSource,
                 ackSink:              adapters.AckSink,
                 tkbDb:                tkbDb,
                 idAllocator:          idAllocator,

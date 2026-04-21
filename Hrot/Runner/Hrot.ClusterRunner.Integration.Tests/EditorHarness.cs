@@ -11,6 +11,7 @@ using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Tkb;
 using Hrot.CGF;
+using Hrot.Core.Network;
 using Hrot.Editor;
 using Hrot.Editor.Modules;
 using Hrot.Map.Common;
@@ -108,7 +109,7 @@ public sealed class EditorHarness : IDisposable
 
         // ── Module registration (offline — no translator packs) ───────────────
         var simHostCorePack  = new SimHostCoreLogicPack(EntityMap);
-        var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, EntityMap);
+        var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, EntityMap, new ScenarioEntityCreationRequestSource());
         var scenarioMod      = new ScenarioEditorModule(fileService);
         var simHostMod       = new SimHostModule(spawnSys);
 
