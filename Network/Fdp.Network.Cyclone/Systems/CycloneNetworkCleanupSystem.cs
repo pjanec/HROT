@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Scheduling;
 using Fdp.Interfaces;
 using Fdp.Network.Cyclone.Topics;
 using Fdp.Core.Logging;
@@ -15,12 +17,24 @@ namespace Fdp.Network.Cyclone.Systems
     {
         private readonly Fdp.Interfaces.IDescriptorTranslator[] _translators;
         private readonly Dictionary<long, Entity> _trackedEntities = new();
+        private readonly Dictionary<IDescriptorTranslator, SystemProfileData> _translatorProfileData = new();
+
+        public IReadOnlyList<IDescriptorTranslator> Translators => _translators;
         
         public CycloneNetworkCleanupSystem(IEnumerable<Fdp.Interfaces.IDescriptorTranslator> translators)
         {
             _translators = translators?.ToArray()
                 ?? throw new ArgumentNullException(nameof(translators));
+
+            foreach (var translator in _translators)
+            {
+                var translatorName = $"{translator.TopicName} [{translator.DescriptorOrdinal}]";
+                _translatorProfileData[translator] = new SystemProfileData(translatorName);
+            }
         }
+
+        public SystemProfileData? GetTranslatorProfileData(IDescriptorTranslator translator)
+            => _translatorProfileData.TryGetValue(translator, out var data) ? data : null;
 
         public void Execute(ISimulationView view, float dt)
         {
@@ -68,6 +82,7 @@ namespace Fdp.Network.Cyclone.Systems
 
                     foreach (var translator in _translators)
                     {
+                        var sw = Stopwatch.StartNew();
                         try
                         {
                             translator.Dispose(netId);
@@ -79,6 +94,14 @@ namespace Fdp.Network.Cyclone.Systems
                                 translator.GetType().Name,
                                 netId,
                                 ex.Message);
+                        }
+                        finally
+                        {
+                            sw.Stop();
+                            if (_translatorProfileData.TryGetValue(translator, out var profile))
+                            {
+                                profile.RecordExecution(sw.Elapsed.TotalMilliseconds);
+                            }
                         }
                     }
 

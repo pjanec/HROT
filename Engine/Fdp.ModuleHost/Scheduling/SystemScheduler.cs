@@ -234,6 +234,23 @@ namespace Fdp.ModuleHost.Scheduling
         }
         
         /// <summary>
+        /// Get all registered systems in execution order.
+        /// If execution orders have not been built yet, returns currently registered systems by phase.
+        /// </summary>
+        public IEnumerable<IEcsModuleSystem> GetAllSystems()
+        {
+            var source = _sortedSystems.Count > 0 ? _sortedSystems : _systemsByPhase;
+
+            foreach (var phaseList in source.Values)
+            {
+                foreach (var system in phaseList)
+                {
+                    yield return system;
+                }
+            }
+        }
+
+        /// <summary>
         /// Get profiling data for a specific system.
         /// </summary>
         public SystemProfileData? GetProfileData(IEcsModuleSystem system)

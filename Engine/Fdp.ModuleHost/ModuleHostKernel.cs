@@ -26,6 +26,19 @@ namespace Fdp.ModuleHost
         public int FailureCount;
     }
 
+    public struct ModuleDiagnostics
+    {
+        public string ModuleName;
+        public string ModuleTypeName;
+        public RunMode RunMode;
+        public DataStrategy DataStrategy;
+        public int TargetFrequencyHz;
+        public ModuleLifecycleState LifecycleState;
+        public CircuitState CircuitState;
+        public int ExecutionCount;
+        public int FailureCount;
+    }
+
     /// <summary>
     /// Central orchestrator for module execution.
     /// Manages module registration, provider assignment, and execution pipeline.
@@ -882,6 +895,38 @@ namespace Fdp.ModuleHost
                 entry.ExecutionCount = 0;
             }
             return stats;
+        }
+
+        /// <summary>
+        /// Returns a diagnostics snapshot for all currently active modules.
+        /// This method does not reset counters.
+        /// </summary>
+        public IReadOnlyList<ModuleDiagnostics> GetModuleDiagnostics()
+        {
+            var diagnostics = new List<ModuleDiagnostics>();
+            var topology = _initialized ? _activeTopology : null;
+            var source = topology != null ? (IEnumerable<ModuleEntry>)topology.Modules : _modules;
+
+            foreach (var entry in source)
+            {
+                var policy = entry.Module.Policy;
+                var targetHz = policy.TargetFrequencyHz == 0 ? 60 : policy.TargetFrequencyHz;
+
+                diagnostics.Add(new ModuleDiagnostics
+                {
+                    ModuleName = entry.Module.Name,
+                    ModuleTypeName = entry.Module.GetType().Name,
+                    RunMode = policy.Mode,
+                    DataStrategy = policy.Strategy,
+                    TargetFrequencyHz = targetHz,
+                    LifecycleState = entry.LifecycleState,
+                    CircuitState = entry.CircuitBreaker?.State ?? CircuitState.Closed,
+                    ExecutionCount = entry.ExecutionCount,
+                    FailureCount = entry.CircuitBreaker?.FailureCount ?? 0
+                });
+            }
+
+            return diagnostics.AsReadOnly();
         }
         
         private bool ShouldRunThisFrame(ModuleEntry entry)

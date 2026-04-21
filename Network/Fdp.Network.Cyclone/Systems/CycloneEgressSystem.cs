@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Scheduling;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Interfaces; // For Interfaces
 
@@ -17,11 +20,23 @@ namespace Fdp.Network.Cyclone.Systems
     public class CycloneEgressSystem : IEcsModuleSystem
     {
         private readonly IDescriptorTranslator[] _translators;
+        private readonly Dictionary<IDescriptorTranslator, SystemProfileData> _translatorProfileData = new();
+
+        public IReadOnlyList<IDescriptorTranslator> Translators => _translators;
         
         public CycloneEgressSystem(IDescriptorTranslator[] translators)
         {
             _translators = translators ?? throw new ArgumentNullException(nameof(translators));
+
+            foreach (var translator in _translators)
+            {
+                var translatorName = $"{translator.TopicName} [{translator.DescriptorOrdinal}]";
+                _translatorProfileData[translator] = new SystemProfileData(translatorName);
+            }
         }
+
+        public SystemProfileData? GetTranslatorProfileData(IDescriptorTranslator translator)
+            => _translatorProfileData.TryGetValue(translator, out var data) ? data : null;
         
         public void Execute(ISimulationView view, float deltaTime)
         {
@@ -33,8 +48,16 @@ namespace Fdp.Network.Cyclone.Systems
             // Normal periodic publishing
             for (int i = 0; i < _translators.Length; i++)
             {
+                var translator = _translators[i];
+                var sw = Stopwatch.StartNew();
                // FDP.Kernel.Logging.FdpLog<CycloneEgressSystem>.Info("Scanning {0}: {1}", i, _translators[i].DescriptorOrdinal);
-                _translators[i].ScanAndPublish(view);
+                translator.ScanAndPublish(view);
+                sw.Stop();
+
+                if (_translatorProfileData.TryGetValue(translator, out var profile))
+                {
+                    profile.RecordExecution(sw.Elapsed.TotalMilliseconds);
+                }
             }
         }
         
