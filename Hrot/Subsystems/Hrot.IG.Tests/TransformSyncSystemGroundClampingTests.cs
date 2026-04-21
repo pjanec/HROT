@@ -1,5 +1,5 @@
 using System.Numerics;
-using Fdp.Examples.NetworkDemo.Systems;
+using Fdp.Examples.Common.Systems;
 using Fdp.Core;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Toolkit.Replication.Components;

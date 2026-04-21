@@ -133,13 +133,11 @@ namespace Hrot.SimHost.Tests
             // PersonalRouteAuthoringSystem (input=1) → inputGroup total = 4
             Assert.Equal(4, inputGroup.SystemCount);
 
-            // CombatModule: PerceptionBroadphaseSystem, ThreatEvaluationAdapterSystem (sim=2)
-            // (FactionSyncAdapterSystem was removed)
+            // CombatModule: no systems in simGroup (sim=0)
             // DamageAssessmentModule: DamageCalculationSystem (sim=1)
             // Navigation bridges: NavigationIntentBridgeSystem, RouteTrajectorySyncSystem (sim=2)
             // GroundKinematicsModule: SpatialHashSystem, FormationTargetSystem, VehicleCommandSystem,
             //   CarKinematicsSystem, NavigationExecutionSystem, LinearKinematicsSystem (sim=6)
-            // (ThreatEvaluationAdapterSystem and others removed/consolidated since last count)
             // total sim = 9
             Assert.Equal(9, simGroup.SystemCount);
 

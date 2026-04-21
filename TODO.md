@@ -1,8 +1,10 @@
 [BUG] DescriptorOrdinal property of network translator is often set to a magic number. Must be changed to EDescriptorType enumeration.
-
-
-
-
+[BUG] get rid of INetworkReplayTarget
+[BUG] delete AutoCycloneTranslator. It violates the separation of concerns by tightly coupling the internal ECS component memory
+layout directly to the DDS network wire representation. Used by FDP network demo. Let's remove the FDP network demo completely.
+[BUG] delete ManagedAutoCycloneTranslator. Same story as AutoCycloneTranslator.
+[TODO] delete both `PerceptionBroadphaseSystem.cs` and `ThreatEvaluationAdapterSystem.cs`. They are entirely dead code. The comments in **`CombatModule.cs`** explicitly state that they are intentionally not registered because their logic was migrated to the **`AutonomousPerceptionModule`**. 
+[TODO] standardize the direct execution of modules. See .dev\module-phase-manual\design-talk.md 
 
 
 ----------- IOS/IG MAP related stuff -----------------

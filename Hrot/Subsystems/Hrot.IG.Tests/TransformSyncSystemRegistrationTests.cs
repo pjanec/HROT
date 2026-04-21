@@ -1,7 +1,6 @@
 using System;
 using System.Numerics;
-using Fdp.Examples.NetworkDemo.Components;
-using Fdp.Examples.NetworkDemo.Systems;
+using Fdp.Examples.Common.Systems;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;

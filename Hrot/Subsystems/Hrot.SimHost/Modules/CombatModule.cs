@@ -1,4 +1,3 @@
-using Hrot.SimHost.Systems;
 using Fdp.Core;
 using Fdp.Toolkit.Combat.Systems;
 using Fdp.Toolkit.Physics.Systems;
@@ -12,8 +11,7 @@ namespace Hrot.SimHost.Modules
     /// <para><b>Systems registered (in execution order):</b></para>
     /// <list type="number">
     ///   <item><b>Input phase</b> — <see cref="FireProcessingSystem"/>, <see cref="RaycastSolverSystem"/>, <see cref="HitResolutionSystem"/></item>
-    ///   <item><b>Simulation phase</b> — <see cref="PerceptionBroadphaseSystem"/>, <see cref="LosRequestBatchingSystem"/>,
-    ///     <see cref="ThreatEvaluationAdapterSystem"/>, <see cref="DamageSystem"/></item>
+    ///   <item><b>Simulation phase</b> — <see cref="LosRequestBatchingSystem"/>, <see cref="DamageSystem"/></item>
     ///   <item><b>Post-sim phase</b> — <see cref="BallisticsSystem"/></item>
     /// </list>
     ///
@@ -22,12 +20,6 @@ namespace Hrot.SimHost.Modules
     /// to <see cref="Fdp.Toolkit.Behavior.Modules.CognitiveRuntimeModule"/> (PACK-M001)
     /// so it runs on the Brain tier where <see cref="Fdp.Toolkit.Behavior.Components.BrainHsm128"/>
     /// components reside.
-    /// </para>
-    ///
-    /// <para>
-    /// Currently lives in <c>Hrot.SimHost</c> (rather than an FDP toolkit) because
-    /// <see cref="PerceptionBroadphaseSystem"/> and <see cref="ThreatEvaluationAdapterSystem"/>
-    /// carry Hrot-domain dependencies.
     /// </para>
     /// </summary>
     public sealed class CombatModule
@@ -54,9 +46,6 @@ namespace Hrot.SimHost.Modules
             inputGroup.AddSystem(new HitResolutionSystem());
 
             // ── Simulation phase ──────────────────────────────────────────────
-            // PerceptionBroadphaseSystem and ThreatEvaluationAdapterSystem are intentionally
-            // not registered here. LOS + threat evaluation run inside
-            // AutonomousPerceptionModule on its private scoped bus.
             // DamageSystem removed: the distributed pipeline is used instead.
             // HitResolutionSystem emits DetonationNotification; DamageAssessmentModule
             // (MuscleGround) picks it up, calculates damage, and broadcasts EntityHitDamage
