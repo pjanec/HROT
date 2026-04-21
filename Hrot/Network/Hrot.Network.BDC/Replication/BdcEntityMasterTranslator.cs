@@ -32,6 +32,8 @@ namespace Hrot.BDC.Replication
         public string TopicName => "BDC_EntityMaster";
         // BDC ordinal space starts at 1000 to avoid collisions with NED
         public long DescriptorOrdinal => 1000;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         private static readonly IReadOnlyList<int> _targetIds =
             new int[] { GlobalComponentIds.NetworkIdentity, GlobalComponentIds.TkbIdentity };
@@ -81,6 +83,7 @@ namespace Hrot.BDC.Replication
                     Diskind  = 1, // Platform
                 });
 
+                SentSampleCount++;
                 _publishedNetIds.Add(netId.Value);
                 FdpLog<BdcEntityMasterTranslator>.Debug(
                     "[BDC Node-{0}] Egress: BDC_EntityMaster EntityId={1}", _localNodeId, netId.Value);
@@ -106,6 +109,7 @@ namespace Hrot.BDC.Replication
                 if (!sample.IsValid)
                     continue;
 
+                ReceivedSampleCount++;
                 var master = sample.Data;
                 ProcessSample(in master, cmd, view);
             }

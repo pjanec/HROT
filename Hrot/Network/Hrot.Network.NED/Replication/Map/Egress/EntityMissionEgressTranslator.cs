@@ -31,6 +31,8 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public string TopicName => "EntityMission";
         public long DescriptorOrdinal => 51;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public EntityMissionEgressTranslator(
             DdsParticipant   participant,
@@ -86,6 +88,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     Plan     = BuildDdsPlan(in queue, activePlan)
                 });
 
+                SentSampleCount++;
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
             }
         }

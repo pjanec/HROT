@@ -38,6 +38,8 @@ namespace Hrot.Network.NED.SimHost
 
         public string TopicName       => DdsTopicName;
         public long   DescriptorOrdinal => 81;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         /// <summary>Production constructor — creates a live DDS writer.</summary>
         public WeaponFireNotificationEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
@@ -91,6 +93,7 @@ namespace Hrot.Network.NED.SimHost
                     TargetEntityId  = targetNetId,
                     WeaponIndex     = evt.WeaponIndex,
                 });
+                SentSampleCount++;
             }
         }
 

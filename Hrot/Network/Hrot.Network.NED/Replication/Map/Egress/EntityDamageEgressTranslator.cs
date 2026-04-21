@@ -52,6 +52,8 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public string TopicName       => DdsTopicName;
         public long   DescriptorOrdinal => OrdinalValue;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public EntityDamageEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
         {
@@ -104,6 +106,8 @@ namespace Hrot.Map.Common.Replication.Egress
                     EntityId = (int)netId.Value,
                     Damage   = damage,
                 });
+
+                SentSampleCount++;
             }
         }
 

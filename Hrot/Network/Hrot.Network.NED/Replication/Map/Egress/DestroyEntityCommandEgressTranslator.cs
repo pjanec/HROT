@@ -34,6 +34,8 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         /// <summary>Production constructor: creates a live DDS writer.</summary>
         public DestroyEntityCommandEgressTranslator(
@@ -76,6 +78,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 };
 
                 _writer.Write(request);
+                SentSampleCount++;
 
                 FdpLog<DestroyEntityCommandEgressTranslator>.Debug(
                     "[Node-{0}] DestroyEntityCommand \u2192 DeleteEntityRequest NetID={1} reason={2}",

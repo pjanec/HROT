@@ -31,6 +31,8 @@ namespace Hrot.Network.NED.SimHost
 
         public string TopicName       => DdsTopicName;
         public long   DescriptorOrdinal => 83;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         /// <summary>Production constructor â€” creates a live DDS writer.</summary>
         public DamageAssessedEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
@@ -66,6 +68,7 @@ namespace Hrot.Network.NED.SimHost
                     HitEntityId = netId,
                     TotalDamage = evt.TotalDamage,
                 });
+                SentSampleCount++;
             }
         }
 

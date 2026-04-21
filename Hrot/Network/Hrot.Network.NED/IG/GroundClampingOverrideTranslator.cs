@@ -41,6 +41,8 @@ namespace Hrot.Network.NED.IG
 
         public long   DescriptorOrdinal => 66;
         public string TopicName         => "GroundClampingOverride";
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public GroundClampingOverrideTranslator(
             DdsParticipant participant,
@@ -59,6 +61,7 @@ namespace Hrot.Network.NED.IG
             {
                 if (!sample.IsValid) continue;
 
+                ReceivedSampleCount++;
                 long entityId = sample.Data.EntityId;
                 if (!_entityMap.TryGetEntity(entityId, out var entity)) continue;
 

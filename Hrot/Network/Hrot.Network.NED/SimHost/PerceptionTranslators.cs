@@ -35,6 +35,8 @@ namespace Hrot.Network.NED.SimHost
 
         public long   DescriptorOrdinal => 60;
         public string TopicName         => "SensorConfig";
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public SensorConfigEgressTranslator(
             DdsParticipant?      participant,
@@ -76,6 +78,7 @@ namespace Hrot.Network.NED.SimHost
                     HearingRange = perc.HearingRange,
                     FovDegrees   = fovDegrees,
                 });
+                SentSampleCount++;
 
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
             }
@@ -107,6 +110,8 @@ namespace Hrot.Network.NED.SimHost
 
         public long   DescriptorOrdinal => 61;
         public string TopicName         => "RaycastRequestBatch";
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public RaycastBatchEgressTranslator(
             DdsParticipant?      participant,
@@ -171,6 +176,7 @@ namespace Hrot.Network.NED.SimHost
                 BatchOrigin        = batchOrigin,
                 Requests           = ddsRequests,
             });
+            SentSampleCount++;
 
             // Brain does not run HitResolutionSystem; clear queue after publishing.
             batch.Count = 0;
@@ -199,6 +205,8 @@ namespace Hrot.Network.NED.SimHost
 
         public long   DescriptorOrdinal => 62;
         public string TopicName         => "SensorTrackState";
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public SensorTrackStateIngressTranslator(
             DdsParticipant?  participant,
@@ -216,6 +224,7 @@ namespace Hrot.Network.NED.SimHost
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 var data = sample.Data;
 
                 // Resolve observer network ID to local ECS handle.
@@ -298,6 +307,8 @@ namespace Hrot.Network.NED.SimHost
 
         public long   DescriptorOrdinal => 63;
         public string TopicName         => "RaycastResponseBatch";
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public RaycastBatchIngressTranslator(
             DdsParticipant?  participant,
@@ -319,6 +330,7 @@ namespace Hrot.Network.NED.SimHost
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 var data = sample.Data;
 
                 // Network routing firewall: only process responses addressed to this node or broadcast (0).
@@ -376,6 +388,8 @@ namespace Hrot.Network.NED.SimHost
 
         public long   DescriptorOrdinal => 60;
         public string TopicName         => "SensorConfig";
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public SensorConfigIngressTranslator(
             DdsParticipant?     participant,
@@ -395,6 +409,7 @@ namespace Hrot.Network.NED.SimHost
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 var data = sample.Data;
 
                 if (!_entityMap.TryGetEntity(data.EntityId, out var entity))
@@ -438,6 +453,8 @@ namespace Hrot.Network.NED.SimHost
 
         public long   DescriptorOrdinal => 61;
         public string TopicName         => "RaycastRequestBatch";
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public RaycastBatchSolverIngressTranslator(
             DdsParticipant?      participant,
@@ -461,6 +478,7 @@ namespace Hrot.Network.NED.SimHost
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 var data = sample.Data;
                 if (data.Requests == null || data.Requests.Count == 0) continue;
 
@@ -530,6 +548,7 @@ namespace Hrot.Network.NED.SimHost
                     BatchCorrelationId = data.BatchCorrelationId,
                     Hits = responseHits,
                 });
+                SentSampleCount++;
             }
         }
 
@@ -560,6 +579,8 @@ namespace Hrot.Network.NED.SimHost
 
         public long   DescriptorOrdinal => 62;
         public string TopicName         => "SensorTrackState";
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public SensorTrackStateEgressTranslator(
             DdsParticipant?  participant,
@@ -630,6 +651,7 @@ namespace Hrot.Network.NED.SimHost
                         PositionY        = posY,
                         Tick             = view.Tick,
                     });
+                    SentSampleCount++;
                 }
 
                 // Emit Lost events for targets that dropped out of Acquired state.
@@ -647,6 +669,7 @@ namespace Hrot.Network.NED.SimHost
                         PositionY        = 0f,
                         Tick             = view.Tick,
                     });
+                    SentSampleCount++;
                 }
 
                 // Update tracking state for this observer.
@@ -689,6 +712,8 @@ namespace Hrot.Network.NED.SimHost
 
         public long   DescriptorOrdinal => 63;
         public string TopicName         => "RaycastResponseBatch";
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public RaycastBatchSolverEgressTranslator(
             DdsParticipant?  participant,
@@ -747,6 +772,7 @@ namespace Hrot.Network.NED.SimHost
                     BatchCorrelationId = ++_batchCorrelationId,
                     Hits               = kvp.Value,
                 });
+                SentSampleCount++;
             }
 
             // Terminal sink: Solver does not run HitResolutionSystem; flush the queue.

@@ -34,6 +34,8 @@ namespace Hrot.Network.Translators
 
         public string TopicName         => "DeferredTakeOwnership";
         public long   DescriptorOrdinal => (long)EDescriptorType.dtDeferredTakeOwnership;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public DeferredTakeOwnershipEgressTranslator(DdsParticipant? participant, long localNodeId)
         {
@@ -63,6 +65,7 @@ namespace Hrot.Network.Translators
                     EntityId = cmd.NetworkId,
                     Grants   = wireGrants,
                 });
+                SentSampleCount++;
 
                 FdpLog<DeferredTakeOwnershipEgressTranslator>.Debug(
                     "[Node-{0}] DeferredTakeOwnership egress: EntityId={1} Grants={2}",

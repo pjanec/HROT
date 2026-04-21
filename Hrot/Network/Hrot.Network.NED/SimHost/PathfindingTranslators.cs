@@ -30,6 +30,8 @@ namespace Hrot.Network.NED.SimHost
 
         public long   DescriptorOrdinal => 64;
         public string TopicName         => "PathRequestBatch";
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public PathRequestBrainEgressTranslator(
             DdsParticipant?      participant,
@@ -85,6 +87,7 @@ namespace Hrot.Network.NED.SimHost
                 BatchOrigin  = batchOrigin,
                 Requests     = ddsRequests,
             });
+            SentSampleCount++;
 
             // Brain does not run PathfindingSolverSystem; clear queue after publishing.
             batch.Count = 0;
@@ -110,6 +113,8 @@ namespace Hrot.Network.NED.SimHost
 
         public long   DescriptorOrdinal => 65;
         public string TopicName         => "PathResponseBatch";
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public PathResponseBrainIngressTranslator(
             DdsParticipant?      participant,
@@ -134,6 +139,7 @@ namespace Hrot.Network.NED.SimHost
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 var data = sample.Data;
 
                 // Network routing firewall: only accept responses addressed to this node or broadcast.
@@ -207,6 +213,8 @@ namespace Hrot.Network.NED.SimHost
 
         public long   DescriptorOrdinal => 64;
         public string TopicName         => "PathRequestBatch";
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public PathRequestSolverIngressTranslator(
             DdsParticipant?      participant,
@@ -227,6 +235,7 @@ namespace Hrot.Network.NED.SimHost
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 var data = sample.Data;
                 if (data.Requests == null || data.Requests.Count == 0) continue;
 
@@ -284,6 +293,8 @@ namespace Hrot.Network.NED.SimHost
 
         public long   DescriptorOrdinal => 65;
         public string TopicName         => "PathResponseBatch";
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public PathResponseSolverEgressTranslator(
             DdsParticipant?      participant,
@@ -372,6 +383,7 @@ namespace Hrot.Network.NED.SimHost
                     BatchOrigin  = origin,
                     Results      = kvp.Value,
                 });
+                SentSampleCount++;
             }
 
             // Terminal sink: flush the queue after publishing.

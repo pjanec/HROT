@@ -44,6 +44,8 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         /// <summary>Production constructor: creates a live DDS writer.</summary>
         public SpawnEntityCommandEgressTranslator(
@@ -78,6 +80,7 @@ namespace Hrot.Map.Common.Replication.Egress
             {
                 var request = BuildCreateEntityRequest(spawnCmd);
                 _writer.Write(request);
+                SentSampleCount++;
                 FdpLog<SpawnEntityCommandEgressTranslator>.Debug(
                     "[Node-{0}] SpawnCmd \u2192 CreateEntityRequest req={1} tkbType={2}",
                     _localNodeId, request.RequestId, spawnCmd.TkbType);

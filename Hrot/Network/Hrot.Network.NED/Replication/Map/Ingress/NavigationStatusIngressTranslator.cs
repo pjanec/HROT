@@ -30,6 +30,8 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public string TopicName      => "NavigationStatus";
         public long   DescriptorOrdinal => 53;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public NavigationStatusIngressTranslator(
             DdsParticipant   dds,
@@ -53,6 +55,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (!sample.IsValid)
                     continue;
 
+                ReceivedSampleCount++;
                 var msg = sample.Data;
 
                 if (!_entityMap.TryGetEntity(msg.EntityId, out var entity))

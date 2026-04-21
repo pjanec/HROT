@@ -28,6 +28,8 @@ namespace Hrot.Network.NED.SimHost
 
         public string TopicName         => DdsTopicName;
         public long   DescriptorOrdinal => 91;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         /// <summary>Production constructor â€” creates a live DDS writer.</summary>
         public MissionControlAckEgressTranslator(DdsParticipant participant)
@@ -57,6 +59,7 @@ namespace Hrot.Network.NED.SimHost
                     ErrorMessage = MapErrorMessage(evt.ErrorCode),
                     NewVersion   = evt.NewVersion,
                 });
+                SentSampleCount++;
             }
         }
 

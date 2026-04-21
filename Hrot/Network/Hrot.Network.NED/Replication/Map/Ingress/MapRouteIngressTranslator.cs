@@ -55,6 +55,8 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
 
     public string TopicName => DdsTopicName;
     public long DescriptorOrdinal => OrdinalValue;
+    public long ReceivedSampleCount { get; private set; }
+    public long SentSampleCount { get; private set; }
 
     public MapRouteIngressTranslator(
         DdsParticipant? participant,
@@ -94,6 +96,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
         {
             if (!sample.IsValid) continue;
             if (sample.Info.InstanceState != DdsInstanceState.Alive) continue;
+            ReceivedSampleCount++;
             var sampleData = sample.Data;
             ProcessSample(in sampleData, cmd, view);
         }

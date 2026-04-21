@@ -30,6 +30,8 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public string TopicName      => "NavigationStatus";
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationStatus;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         // NavigationStatus ECS component ID = NavigationContractsComponentIds.NavigationStatus = 68
         private static readonly IReadOnlyList<int> _targetIds = new int[] { Fdp.Toolkit.Navigation.NavigationContractsComponentIds.NavigationStatus };
@@ -106,6 +108,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     ProgressS = status.ProgressS,
                 });
 
+                SentSampleCount++;
                 _lastPublished[entity] = (status.IntentId, status.Result);
 
                 FdpLog<NavigationStatusEgressTranslator>.Debug(

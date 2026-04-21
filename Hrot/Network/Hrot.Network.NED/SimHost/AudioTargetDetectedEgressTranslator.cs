@@ -23,6 +23,8 @@ namespace Hrot.Network.NED.SimHost
 
         public string TopicName         => DdsTopicName;
         public long   DescriptorOrdinal => 84;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         /// <summary>Production constructor â€” creates a live DDS writer.</summary>
         public AudioTargetDetectedEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
@@ -58,6 +60,7 @@ namespace Hrot.Network.NED.SimHost
                     OriginY           = evt.Origin.Y,
                     OriginZ           = evt.Origin.Z,
                 });
+                SentSampleCount++;
             }
         }
 

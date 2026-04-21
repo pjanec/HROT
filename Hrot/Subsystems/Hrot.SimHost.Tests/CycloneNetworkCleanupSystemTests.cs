@@ -49,6 +49,8 @@ namespace Hrot.SimHost.Tests
         {
             public long DescriptorOrdinal => 0;
             public string TopicName => "mock";
+            public long ReceivedSampleCount { get; private set; }
+            public long SentSampleCount { get; private set; }
             public List<long> DisposedIds { get; } = new();
             public bool ThrowOnDispose { get; set; }
 

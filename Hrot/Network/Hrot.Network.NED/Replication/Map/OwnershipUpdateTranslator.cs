@@ -46,6 +46,8 @@ namespace Hrot.Map.Common.Replication
 
         public string TopicName         => DdsTopicName;
         public long   DescriptorOrdinal => (long)EDescriptorType.dtOwnershipUpdate;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         // Event-driven â€” no component ownership mapping needed.
         public IReadOnlyList<int> TargetComponentIds => System.Array.Empty<int>();
@@ -86,6 +88,7 @@ namespace Hrot.Map.Common.Replication
                     OriginNodeId = evt.OriginNodeId != 0 ? evt.OriginNodeId : _localNodeId,
                 });
 
+                SentSampleCount++;
                 FdpLog<OwnershipUpdateTranslator>.Debug(
                     "[Node-{0}] OwnershipUpdate egress: EntityId={1} TypeId={2} NewOwner={3}",
                     _localNodeId, evt.NetworkId.Value, typeId, evt.NewOwnerNodeId);
@@ -106,6 +109,7 @@ namespace Hrot.Map.Common.Replication
             {
                 if (!sample.IsValid) continue;
 
+                ReceivedSampleCount++;
                 var msg = sample.Data;
 
                 // Drop DDS loopback of our own claim to prevent local echo storms.

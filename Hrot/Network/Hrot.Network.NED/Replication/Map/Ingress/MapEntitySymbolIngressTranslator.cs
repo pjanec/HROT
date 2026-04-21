@@ -30,6 +30,8 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public MapEntitySymbolIngressTranslator(
             DdsParticipant? participant,
@@ -57,6 +59,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (sample.Info.InstanceState != DdsInstanceState.Alive)
                     continue;
 
+                ReceivedSampleCount++;
                 ProcessSample(sample.Data, cmd, view as EntityRepository);
             }
         }

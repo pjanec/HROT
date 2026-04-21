@@ -29,6 +29,8 @@ namespace Hrot.Network.NED.SimHost
 
         public string TopicName       => DdsTopicName;
         public long   DescriptorOrdinal => 83;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         /// <summary>
         /// Production constructor â€” creates a live DDS reader.
@@ -57,6 +59,7 @@ namespace Hrot.Network.NED.SimHost
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 var data = sample.Data;
                 ProcessSample(in data, cmd, view);
             }

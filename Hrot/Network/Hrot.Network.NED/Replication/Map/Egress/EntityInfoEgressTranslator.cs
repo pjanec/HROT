@@ -37,6 +37,8 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public EntityInfoEgressTranslator(
             DdsParticipant participant,
@@ -91,6 +93,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     CommanderId     = data.CommanderId,
                 });
 
+                SentSampleCount++;
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
 
                 FdpLog<EntityInfoEgressTranslator>.Debug(

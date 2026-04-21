@@ -28,6 +28,8 @@ namespace Hrot.Network.NED.IG
 
         public string TopicName       => DdsTopicName;
         public long   DescriptorOrdinal => 82;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         /// <summary>
         /// Production constructor -- creates a live DDS reader.
@@ -55,6 +57,7 @@ namespace Hrot.Network.NED.IG
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 var data = sample.Data;
                 ProcessSample(in data, cmd);
             }

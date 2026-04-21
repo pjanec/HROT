@@ -21,6 +21,8 @@ namespace Hrot.Network.NED.IG
 
         public long DescriptorOrdinal => 50;
         public string TopicName => "EntityMission";
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public IgMissionIngressTranslator(
             DdsParticipant participant,
@@ -44,6 +46,7 @@ namespace Hrot.Network.NED.IG
                 if (sample.IsValid)
                 {
                     entityId = sample.Data.EntityId;
+                    ReceivedSampleCount++;
                 }
                 else
                 {

@@ -34,6 +34,8 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public string TopicName => "EntityMission";
         public long DescriptorOrdinal => 50;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public EntityMissionIngressTranslator(
             DdsParticipant participant,
@@ -61,6 +63,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (sample.IsValid)
                 {
                     entityId = sample.Data.EntityId;
+                    ReceivedSampleCount++;
                 }
                 else
                 {

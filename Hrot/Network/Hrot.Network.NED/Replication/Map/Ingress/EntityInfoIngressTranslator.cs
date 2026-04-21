@@ -37,6 +37,8 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public EntityInfoIngressTranslator(
             DdsParticipant? participant,
@@ -67,6 +69,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (sample.Info.InstanceState != CycloneDDS.Runtime.DdsInstanceState.Alive)
                     continue;
 
+                ReceivedSampleCount++;
                 var info = sample.Data;
                 long netId = info.EntityId;
                 var repo = view as EntityRepository;

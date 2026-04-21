@@ -24,6 +24,8 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public string TopicName => "EntityMaster";
         public long DescriptorOrdinal => 0;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         // Targets: NetworkIdentity (50) + TkbIdentity (65)
         private static readonly IReadOnlyList<int> _targetIds =
@@ -100,6 +102,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     Flags = 0
                 });
 
+                SentSampleCount++;
                 _publishedNetIds.Add(netId.Value);
                 FdpLog<EntityMasterEgressTranslator>.Debug(
                     "[Node-{0}] Egress: Writing EntityMaster for NetID={1}", _localNodeId, netId.Value);

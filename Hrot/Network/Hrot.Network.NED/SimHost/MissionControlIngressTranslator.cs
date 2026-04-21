@@ -40,6 +40,8 @@ namespace Hrot.Network.NED.SimHost
 
         public string TopicName         => DdsTopicName;
         public long   DescriptorOrdinal => 90;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         /// <summary>Production constructor â€” creates a live DDS reader.</summary>
         public MissionControlIngressTranslator(DdsParticipant participant)
@@ -69,6 +71,7 @@ namespace Hrot.Network.NED.SimHost
             {
                 if (!sample.IsValid) continue;
 
+                ReceivedSampleCount++;
                 var req = sample.Data;
                 repo.Bus.PublishManaged(new MissionControlIntent
                 {

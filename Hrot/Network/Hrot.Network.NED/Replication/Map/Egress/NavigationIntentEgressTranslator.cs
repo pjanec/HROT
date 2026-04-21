@@ -40,6 +40,8 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public string TopicName      => "NavigationIntent";
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationIntent;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         // NavigationIntent ECS component ID = NavigationContractsComponentIds.NavigationIntent = 67
         private static readonly IReadOnlyList<int> _targetIds = new int[] { Fdp.Toolkit.Navigation.NavigationContractsComponentIds.NavigationIntent };
@@ -139,6 +141,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     ArrivalRadius    = intent.ArrivalRadius
                 });
 
+                SentSampleCount++;
                 // Record the published IntentId so the same command is not resent next frame.
                 _lastPublishedIntentId[entity] = intent.IntentId;
 

@@ -34,6 +34,8 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         // Targets: EditablePolyline (117)
         private static readonly IReadOnlyList<int> _targetIds =
@@ -118,6 +120,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     StyleOverrideJson = styleJson // FIX: Inject the preserved style
                 });
 
+                SentSampleCount++;
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
 
                 if (_tracedNetIds.Add(netId.Value))

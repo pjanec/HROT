@@ -43,6 +43,8 @@ namespace Hrot.Network.Translators
 
         public string TopicName         => DdsTopicName;
         public long   DescriptorOrdinal => (long)EDescriptorType.dtDeferredTakeOwnership;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public DeferredTakeOwnershipIngressTranslator(
             DdsParticipant?      participant,
@@ -66,6 +68,7 @@ namespace Hrot.Network.Translators
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 ProcessSample(sample.Data, cmd, view);
             }
         }

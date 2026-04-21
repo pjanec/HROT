@@ -33,6 +33,8 @@ namespace Hrot.BDC.Replication
         public string TopicName => "BDC_WorldPos";
         // BDC WorldPos ordinal
         public long DescriptorOrdinal => 1002;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         private static readonly IReadOnlyList<int> _targetIds =
             new int[] { GlobalComponentIds.SimTransform };
@@ -96,6 +98,8 @@ namespace Hrot.BDC.Replication
                         Length    = 0,
                     },
                 });
+
+                SentSampleCount++;
             }
         }
 
@@ -112,6 +116,7 @@ namespace Hrot.BDC.Replication
                 if (!sample.IsValid)
                     continue;
 
+                ReceivedSampleCount++;
                 var msg = sample.Data;
 
                 if (!_entityMap.TryGetEntity(msg.EntityId, out var entity))

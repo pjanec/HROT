@@ -447,7 +447,7 @@ namespace Hrot.SimHost
             if (ddsParticipant != null && nodeFactory != null)
             {
                 nodeFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(_kernel);
-                nodeFactory.CreateSimHostPerceptionTranslators(_context!.GhostCreationSystem).RegisterOn(_kernel);
+                nodeFactory.CreateSimHostPerceptionTranslators(ghostCreationSystem).RegisterOn(_kernel);
                 nodeFactory.CreateSimHostPathfindingTranslators(_simCorePack!.TrajectoryPool).RegisterOn(_kernel);
             }
 

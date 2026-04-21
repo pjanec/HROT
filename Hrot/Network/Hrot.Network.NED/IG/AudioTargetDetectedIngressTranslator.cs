@@ -23,6 +23,8 @@ namespace Hrot.Network.NED.IG
 
         public string TopicName         => DdsTopicName;
         public long   DescriptorOrdinal => 84;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public AudioTargetDetectedIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
@@ -39,6 +41,7 @@ namespace Hrot.Network.NED.IG
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                ReceivedSampleCount++;
                 var data = sample.Data;
                 if (!_entityMap.TryGetEntity(data.ListenerEntityId, out var listenerEntity)) continue;
                 cmd.PublishEvent(new TargetHeardEvent
@@ -60,3 +63,4 @@ namespace Hrot.Network.NED.IG
         public void Dispose(long networkEntityId) { }
     }
 }
+
