@@ -7,6 +7,7 @@ using Hrot.SimHost.Configuration;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Utilities;
 using Hrot.Common.Infrastructure;
+using Hrot.Common.Scenario;
 using CarKinem.Commands;
 using CarKinem.Formation;
 using CarKinem.Road;
@@ -338,7 +339,7 @@ namespace Hrot.SimHost
             // fixed-size buffers or InlineArrays embedding Entity cross-references.
             // The auto-serialiser produces empty/truncated JSON for those fields, zeroing
             // entity handles on every round-trip.
-            var scenarioSerializer = new ScenarioSerializerBuilder("Hrot.SimHost")
+            var scenarioSerializer = new ScenarioSerializerBuilder(HrotSubsystemTypes.Scenario)
                 .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
                 .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
                 .RegisterTranslator(new Hrot.SimHost.Serializers.WeaponChannelTranslator())

@@ -17,12 +17,15 @@ using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Vis2D.Tools;
 using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Physics;
+using Fdp.Toolkit.Scenario;
 using Hrot.CGF.Brains;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
+using Hrot.Common.Scenario;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Presentation.Windows;
@@ -354,8 +357,23 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 simGroup:              null,
                 lifecycleGroup:        null,
                 bypassLifecycleToggle: null,
-                storageDirectory:      @"C:\FDP_Temp"));
+                storageDirectory:      OrchestrationConstants.DefaultStagingDirectory));
         }
+
+        // FIX: Restore the CGF-authoritative scenario and episode load handlers dropped during
+        // the EAM-M003 migration from CgfApplication to CgfSubsystem.
+        var scenarioSerializer = new ScenarioSerializerBuilder(HrotSubsystemTypes.Scenario).Build();
+        var storageProvider    = new LocalDiskStorageProvider(OrchestrationConstants.DefaultStagingDirectory);
+        var scenarioLoader     = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
+        var extractor          = new Hrot.CGF.Orchestration.StagingEntityExtractor();
+        var cgfIdAllocator     = new SequentialIdAllocator();
+        var behaviorRemapper   = CgfDoctrineSetup.CreateBehaviorRemapper();
+
+        newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfScenarioLoadHandler(
+            scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, behaviorRemapper));
+
+        newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
+            scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));
 
         _context = _context with
         {

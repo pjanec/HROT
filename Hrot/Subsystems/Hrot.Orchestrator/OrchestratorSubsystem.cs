@@ -5,6 +5,7 @@ using System.Numerics;
 using Hrot.Orchestrator;
 using Hrot.Common;
 using Fdp.Core;
+using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Runner;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Time.Controllers;
@@ -90,6 +91,10 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // ── Single unified event bus (HEXAG2-S001) ────────────────────────────────
         _bus          = new FdpEventBus();
         _clusterMaster = new ClusterMaster(_bus, _config);
+        // FIX: Wire the storage gateway so the cluster master can scan local/NAS scenarios
+        // and publish AssetInventoryUpdateEvent to populate the UI combo box.
+        var storageGateway = new StorageGatewayModule();
+        _clusterMaster.SetStorageGateway(storageGateway, OrchestrationConstants.DefaultStagingDirectory);
         _translator    = _networkFactory?.CreateOrchestratorTranslators(_bus, config.NodeId)
                          ?? new NullOrchestrationTranslator();
         _idAllocatorServerHandle = _networkFactory?.CreateIdAllocatorServer()

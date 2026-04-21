@@ -96,7 +96,7 @@ namespace Hrot.CGF
         /// </param>
         public CgfApplication(int domainId = 0, int nodeId = DefaultNodeId,
             DdsParticipant? participant = null,
-            ScenarioSerializer? scenarioSerializer = null, string localTempRoot = @"C:\FDP_Temp",
+            ScenarioSerializer? scenarioSerializer = null, string localTempRoot = OrchestrationConstants.DefaultStagingDirectory,
             INetworkFactory? networkFactory = null)
         {
             _nodeId      = nodeId;

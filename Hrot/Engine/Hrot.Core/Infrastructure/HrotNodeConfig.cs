@@ -1,4 +1,5 @@
 using CycloneDDS.Runtime;
+using Fdp.Toolkit.Orchestration;
 
 namespace Hrot.Common.Infrastructure;
 
@@ -21,7 +22,7 @@ public sealed class HrotNodeConfig
     /// Root directory for scenario staging and checkpoint storage.
     /// Defaults to <c>C:\FDP_Temp</c>.
     /// </summary>
-    public string LocalTempRoot { get; set; } = @"C:\FDP_Temp";
+    public string LocalTempRoot { get; set; } = OrchestrationConstants.DefaultStagingDirectory;
 
     /// <summary>
     /// When <c>true</c>, all DDS-related initialization steps are skipped

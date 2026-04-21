@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Fdp.Toolkit.Orchestration;
 
 namespace Hrot.SimHost
 {
@@ -89,7 +90,7 @@ namespace Hrot.SimHost
         /// the correct volume (e.g. Linux deployments, non-<c>C:</c> drives).
         /// </para>
         /// </summary>
-        public string LocalTempRoot { get; init; } = @"C:\FDP_Temp";
+        public string LocalTempRoot { get; init; } = OrchestrationConstants.DefaultStagingDirectory;
 
         // ── Serialisation ─────────────────────────────────────────────────────
 

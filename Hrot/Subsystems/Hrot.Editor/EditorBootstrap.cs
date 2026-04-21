@@ -1,4 +1,6 @@
+using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Scenario;
+using Hrot.Common.Scenario;
 using Hrot.ScenarioEditor.Services;
 
 namespace Hrot.Editor;
@@ -14,7 +16,7 @@ public static class EditorBootstrap
     /// Root directory used for scenario files.
     /// Scenarios are stored as <c>{ScenariosRoot}\{scenarioName}\scenario.json</c>.
     /// </summary>
-    public static string ScenariosRoot { get; } = @"C:\FDP_Temp";
+    public static string ScenariosRoot { get; } = OrchestrationConstants.DefaultStagingDirectory;
 
     /// <summary>
     /// Builds a <see cref="ScenarioFileService"/> with an auto-serializer
@@ -22,7 +24,7 @@ public static class EditorBootstrap
     /// </summary>
     public static ScenarioFileService CreateFileService()
     {
-        var serializer = new ScenarioSerializerBuilder("Hrot.Scenario")
+        var serializer = new ScenarioSerializerBuilder(HrotSubsystemTypes.Scenario)
             // No custom translators yet; FdpAutoSerializer handles all registered component types.
             .Build();
 

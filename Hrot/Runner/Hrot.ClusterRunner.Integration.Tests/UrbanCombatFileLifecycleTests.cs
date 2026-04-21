@@ -178,21 +178,21 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
         // match the production SimHost serializer, ensuring entity cross-references in
         // TargetMemory (insurgent/APC targets) and PassengerBuffer (embarked soldiers)
         // survive the JSON round-trip as GUID-tracked handles.
-        var serializer = new ScenarioSerializerBuilder("Hrot.SimHost")
+        var serializer = new ScenarioSerializerBuilder("Hrot.Scenario")
             .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
             .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
             .RegisterTranslator(new Hrot.SimHost.Serializers.WeaponChannelTranslator())
             .Build();
-        var fdpDom     = serializer.Serialize(extractRepo, new ScenarioHeader("Hrot.SimHost"));
+        var fdpDom     = serializer.Serialize(extractRepo, new ScenarioHeader("Hrot.Scenario"));
 
-        // Wrap in the application-layer DTO.  SubsystemType must match "Hrot.SimHost" so
+        // Wrap in the application-layer DTO.  SubsystemType must match "Hrot.Scenario" so
         // that HrotScenarioLoader (which uses the SimHost serializer's SubsystemType) can
         // select this file during the cluster load.
         var envelope = new HrotScenarioEnvelopeDto
         {
             Header = new ScenarioHeaderDto
             {
-                SubsystemType = "Hrot.SimHost",
+                SubsystemType = "Hrot.Scenario",
                 SchemaVersion = "1.0",
             },
             Zones    = null,
