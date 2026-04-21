@@ -29,6 +29,8 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly GhostCreationSystem _ghostCreationSystem;
         private readonly long _localNodeId;
 
+        public override TranslatorDirection Direction => TranslatorDirection.Ingress;
+
         public GeoSpatialIngressTranslator(
             DdsParticipant? participant,
             NetworkEntityMap entityMap,

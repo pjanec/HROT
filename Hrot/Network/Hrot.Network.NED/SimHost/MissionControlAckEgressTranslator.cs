@@ -30,6 +30,7 @@ namespace Hrot.Network.NED.SimHost
         public long   DescriptorOrdinal => 91;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         /// <summary>Production constructor â€” creates a live DDS writer.</summary>
         public MissionControlAckEgressTranslator(DdsParticipant participant)

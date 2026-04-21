@@ -37,6 +37,7 @@ namespace Hrot.Network.NED.SimHost
         public string TopicName         => "SensorConfig";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public SensorConfigEgressTranslator(
             DdsParticipant?      participant,
@@ -112,6 +113,7 @@ namespace Hrot.Network.NED.SimHost
         public string TopicName         => "RaycastRequestBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public RaycastBatchEgressTranslator(
             DdsParticipant?      participant,
@@ -207,6 +209,7 @@ namespace Hrot.Network.NED.SimHost
         public string TopicName         => "SensorTrackState";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public SensorTrackStateIngressTranslator(
             DdsParticipant?  participant,
@@ -309,6 +312,7 @@ namespace Hrot.Network.NED.SimHost
         public string TopicName         => "RaycastResponseBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public RaycastBatchIngressTranslator(
             DdsParticipant?  participant,
@@ -390,6 +394,7 @@ namespace Hrot.Network.NED.SimHost
         public string TopicName         => "SensorConfig";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public SensorConfigIngressTranslator(
             DdsParticipant?     participant,
@@ -455,6 +460,7 @@ namespace Hrot.Network.NED.SimHost
         public string TopicName         => "RaycastRequestBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public RaycastBatchSolverIngressTranslator(
             DdsParticipant?      participant,
@@ -581,6 +587,7 @@ namespace Hrot.Network.NED.SimHost
         public string TopicName         => "SensorTrackState";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public SensorTrackStateEgressTranslator(
             DdsParticipant?  participant,
@@ -714,6 +721,7 @@ namespace Hrot.Network.NED.SimHost
         public string TopicName         => "RaycastResponseBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public RaycastBatchSolverEgressTranslator(
             DdsParticipant?  participant,

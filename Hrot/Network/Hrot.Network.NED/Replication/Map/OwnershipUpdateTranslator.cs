@@ -48,6 +48,7 @@ namespace Hrot.Map.Common.Replication
         public long   DescriptorOrdinal => (long)EDescriptorType.dtOwnershipUpdate;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Bidirectional;
 
         // Event-driven â€” no component ownership mapping needed.
         public IReadOnlyList<int> TargetComponentIds => System.Array.Empty<int>();

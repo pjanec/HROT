@@ -1,4 +1,6 @@
-[BUG] When switching perspective between IG and SimHost, map pan/zoom is transferred to the new perspective. But not such with CGF perspective.
+[BUG] DescriptorOrdinal property of network translator is often set to a magic number. Must be changed to EDescriptorType enumeration.
+
+
 
 
 

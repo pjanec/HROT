@@ -21,10 +21,12 @@ namespace Hrot.Map.Common.Replication.Ingress
     public class EntityDamageIngressTranslator : CycloneTranslator<EntityDamage, EntityDamage>
     {
         private const string DdsTopicName = "EntityDamage";
-        private const long OrdinalValue = 30;
+        private const long OrdinalValue = (long)EDescriptorType.dtEntityDamage;
 
         private readonly GhostCreationSystem _ghostCreationSystem;
         private readonly long _localNodeId;
+
+        public override TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public EntityDamageIngressTranslator(
             DdsParticipant? participant,

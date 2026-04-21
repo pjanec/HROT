@@ -23,6 +23,7 @@ namespace Hrot.Network.NED.IG
         public string TopicName => "EntityMission";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public IgMissionIngressTranslator(
             DdsParticipant participant,

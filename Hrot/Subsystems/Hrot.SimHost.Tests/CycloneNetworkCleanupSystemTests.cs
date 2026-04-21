@@ -51,6 +51,7 @@ namespace Hrot.SimHost.Tests
             public string TopicName => "mock";
             public long ReceivedSampleCount { get; private set; }
             public long SentSampleCount { get; private set; }
+            public TranslatorDirection Direction => TranslatorDirection.Bidirectional;
             public List<long> DisposedIds { get; } = new();
             public bool ThrowOnDispose { get; set; }
 

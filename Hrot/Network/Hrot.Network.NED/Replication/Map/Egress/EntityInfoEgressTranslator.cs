@@ -29,7 +29,7 @@ namespace Hrot.Map.Common.Replication.Egress
 	public class EntityInfoEgressTranslator : IDescriptorTranslator
     {
         private const string DdsTopicName = "EntityInfo";
-        private const long OrdinalValue = 21;
+        private const long OrdinalValue = (long)EDescriptorType.dtEntityInfo;
 
         private readonly DdsWriter<Hrot.NED.Descriptors.EntityInfo> _writer;
         private readonly NetworkEntityMap _entityMap;
@@ -39,6 +39,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityInfoEgressTranslator(
             DdsParticipant participant,

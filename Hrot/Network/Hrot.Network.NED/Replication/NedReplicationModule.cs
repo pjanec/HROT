@@ -231,12 +231,17 @@ public sealed class NedReplicationModule : INedReplicationModule
         // and added at the end on Brain (egress after cognitive pack).
         var ingressTranslators = new List<FdpIDescriptorTranslator>(allTranslators.Count + 1);
         if (_dtoIngress != null) ingressTranslators.Add(_dtoIngress);
-        ingressTranslators.AddRange(allTranslators);
+        foreach (var t in allTranslators)
+        {
+            if ((t.Direction & TranslatorDirection.Ingress) != 0)
+                ingressTranslators.Add(t);
+        }
 
         var egressTranslators = new List<FdpIDescriptorTranslator>(allTranslators.Count + 1);
         foreach (var t in allTranslators)
         {
-            egressTranslators.Add(t);
+            if ((t.Direction & TranslatorDirection.Egress) != 0)
+                egressTranslators.Add(t);
         }
         if (_dtoEgress != null) egressTranslators.Add(_dtoEgress);
 
@@ -250,8 +255,10 @@ public sealed class NedReplicationModule : INedReplicationModule
         {
             bool pureIg = _roleHasIG && !_roleHasMuscle && !_roleHasBrain;
             if (!pureIg)
+            {
                 registry.RegisterSystem(new CycloneNetworkIngressSystem(ingressTranslators.ToArray()));
-            registry.RegisterSystem(new CycloneEgressSystem(egressTranslators.ToArray()));
+                registry.RegisterSystem(new CycloneEgressSystem(egressTranslators.ToArray()));
+            }
         }
 
         // ── ImageGenerator: inline EntityStatesIngressPack + ghost lifecycle ──

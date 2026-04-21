@@ -32,6 +32,7 @@ namespace Hrot.Network.NED.SimHost
         public string TopicName         => "PathRequestBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public PathRequestBrainEgressTranslator(
             DdsParticipant?      participant,
@@ -115,6 +116,7 @@ namespace Hrot.Network.NED.SimHost
         public string TopicName         => "PathResponseBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public PathResponseBrainIngressTranslator(
             DdsParticipant?      participant,
@@ -215,6 +217,7 @@ namespace Hrot.Network.NED.SimHost
         public string TopicName         => "PathRequestBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public PathRequestSolverIngressTranslator(
             DdsParticipant?      participant,
@@ -295,6 +298,7 @@ namespace Hrot.Network.NED.SimHost
         public string TopicName         => "PathResponseBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public PathResponseSolverEgressTranslator(
             DdsParticipant?      participant,

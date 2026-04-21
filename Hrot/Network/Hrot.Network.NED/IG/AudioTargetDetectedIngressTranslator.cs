@@ -25,6 +25,7 @@ namespace Hrot.Network.NED.IG
         public long   DescriptorOrdinal => 84;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public AudioTargetDetectedIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {

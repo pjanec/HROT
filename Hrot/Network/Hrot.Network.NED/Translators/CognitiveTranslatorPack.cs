@@ -58,7 +58,6 @@ namespace Hrot.Network.Translators
             yield return new EntityMissionEgressTranslator(participant, entityMap, doctrineRegistry);
             if (doctrineRegistry != null)
                 yield return new EntityMissionIngressTranslator(participant, entityMap, doctrineRegistry, ghostCreationSystem);
-            yield return new GeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId);
             yield return new NavigationStatusIngressTranslator(participant, entityMap, localNodeId);
         }
     }

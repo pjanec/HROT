@@ -26,6 +26,8 @@ namespace Hrot.Network.NED.IG
         private readonly GhostCreationSystem _ghostCreationSystem;
         private readonly long _localNodeId;
 
+        public override TranslatorDirection Direction => TranslatorDirection.Ingress;
+
         public ContextActionsUpdateTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,

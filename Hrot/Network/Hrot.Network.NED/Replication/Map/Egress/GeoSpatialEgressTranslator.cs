@@ -43,6 +43,8 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public IReadOnlyList<int> TargetComponentIds => _targetIds;
 
+        public override TranslatorDirection Direction => TranslatorDirection.Egress;
+
         public GeoSpatialEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,

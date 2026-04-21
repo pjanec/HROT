@@ -1,6 +1,7 @@
 using Hrot.NED.Messages;
 using CycloneDDS.Runtime;
 using Fdp.Core;
+using Fdp.Interfaces;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Network.Cyclone.Translators;
 
@@ -27,6 +28,8 @@ namespace Hrot.Map.Common.Replication
         : CycloneNativeEventTranslator<EcsFireInteractionEvent, DdsFireInteractionEvent>
     {
         private const string DdsTopicName = "FireInteractionEvent";
+
+        public override TranslatorDirection Direction => TranslatorDirection.Bidirectional;
 
         public FireInteractionEventTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
             : base(participant, DdsTopicName, entityMap)

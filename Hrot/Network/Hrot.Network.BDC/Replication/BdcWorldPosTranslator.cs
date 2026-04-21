@@ -35,6 +35,7 @@ namespace Hrot.BDC.Replication
         public long DescriptorOrdinal => 1002;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Bidirectional;
 
         private static readonly IReadOnlyList<int> _targetIds =
             new int[] { GlobalComponentIds.SimTransform };

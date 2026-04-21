@@ -30,6 +30,7 @@ namespace Hrot.Network.NED.IG
         public long   DescriptorOrdinal => 82;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         /// <summary>
         /// Production constructor -- creates a live DDS reader.

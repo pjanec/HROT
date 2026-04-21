@@ -36,6 +36,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         // Targets: EditablePolyline (117)
         private static readonly IReadOnlyList<int> _targetIds =

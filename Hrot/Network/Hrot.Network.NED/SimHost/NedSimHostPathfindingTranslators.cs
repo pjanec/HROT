@@ -39,8 +39,15 @@ internal sealed class NedSimHostPathfindingTranslators : ISimHostPathfindingTran
     public void RegisterOn(ModuleHostKernel kernel)
     {
         if (_translators.Count == 0) return;
-        kernel.RegisterGlobalSystem(new CycloneNetworkIngressSystem(_translators.ToArray()));
-        kernel.RegisterGlobalSystem(new CycloneEgressSystem(_translators.ToArray()));
+        var ingress = new System.Collections.Generic.List<IDescriptorTranslator>(_translators.Count);
+        var egress  = new System.Collections.Generic.List<IDescriptorTranslator>(_translators.Count);
+        foreach (var t in _translators)
+        {
+            if ((t.Direction & TranslatorDirection.Ingress) != 0) ingress.Add(t);
+            if ((t.Direction & TranslatorDirection.Egress)  != 0) egress.Add(t);
+        }
+        kernel.RegisterGlobalSystem(new CycloneNetworkIngressSystem(ingress.ToArray()));
+        kernel.RegisterGlobalSystem(new CycloneEgressSystem(egress.ToArray()));
         kernel.RegisterGlobalSystem(new CycloneNetworkCleanupSystem(_translators));
     }
 

@@ -27,7 +27,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 	public class EntityInfoIngressTranslator : IDescriptorTranslator
     {
         private const string DdsTopicName = "EntityInfo";
-        private const long OrdinalValue = 20;
+        private const long OrdinalValue = (long)EDescriptorType.dtEntityInfo; 
 
         private readonly DdsReader<Hrot.NED.Descriptors.EntityInfo>? _reader;
         private readonly NetworkEntityMap _entityMap;
@@ -39,6 +39,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public EntityInfoIngressTranslator(
             DdsParticipant? participant,

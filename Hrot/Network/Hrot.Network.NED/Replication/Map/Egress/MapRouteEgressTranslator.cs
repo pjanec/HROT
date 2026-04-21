@@ -46,6 +46,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
     public long DescriptorOrdinal => OrdinalValue;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
+    public TranslatorDirection Direction => TranslatorDirection.Egress;
 
     // Targets: RoutePlan (HrotComponentIds.RoutePlan = 168)
     private static readonly IReadOnlyList<int> _targetIds = new[] { (int)Hrot.Map.Definitions.HrotComponentIds.RoutePlan };

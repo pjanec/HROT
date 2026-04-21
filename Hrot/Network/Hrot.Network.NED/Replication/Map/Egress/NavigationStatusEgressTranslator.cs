@@ -32,6 +32,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationStatus;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         // NavigationStatus ECS component ID = NavigationContractsComponentIds.NavigationStatus = 68
         private static readonly IReadOnlyList<int> _targetIds = new int[] { Fdp.Toolkit.Navigation.NavigationContractsComponentIds.NavigationStatus };

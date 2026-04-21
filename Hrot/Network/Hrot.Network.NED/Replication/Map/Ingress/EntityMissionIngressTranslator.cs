@@ -36,6 +36,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         public long DescriptorOrdinal => 50;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public EntityMissionIngressTranslator(
             DdsParticipant participant,

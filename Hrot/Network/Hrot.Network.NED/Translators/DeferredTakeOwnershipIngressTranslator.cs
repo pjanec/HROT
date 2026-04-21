@@ -45,6 +45,7 @@ namespace Hrot.Network.Translators
         public long   DescriptorOrdinal => (long)EDescriptorType.dtDeferredTakeOwnership;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public DeferredTakeOwnershipIngressTranslator(
             DdsParticipant?      participant,

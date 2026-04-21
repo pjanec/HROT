@@ -57,6 +57,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
     public long DescriptorOrdinal => OrdinalValue;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
+    public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
     public MapRouteIngressTranslator(
         DdsParticipant? participant,

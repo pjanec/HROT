@@ -43,6 +43,7 @@ namespace Hrot.Network.NED.IG
         public string TopicName         => "GroundClampingOverride";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public GroundClampingOverrideTranslator(
             DdsParticipant participant,
