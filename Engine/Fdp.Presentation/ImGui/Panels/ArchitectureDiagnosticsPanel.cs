@@ -118,7 +118,7 @@ public sealed class ArchitectureDiagnosticsPanel
         ImGuiApi.TableSetupColumn("Last (ms)");
         ImGuiApi.TableSetupColumn("Avg (ms)");
         ImGuiApi.TableSetupColumn("Max (ms)");
-        ImGuiApi.TableSetupColumn("Runs");
+        ImGuiApi.TableSetupColumn("Total (ms)");
         ImGuiApi.TableSetupColumn("Errors");
         ImGuiApi.TableHeadersRow();
 
@@ -141,7 +141,7 @@ public sealed class ArchitectureDiagnosticsPanel
                 2 => asc ? allProfileData.OrderBy(p => p.Profile.LastMs).ToList() : allProfileData.OrderByDescending(p => p.Profile.LastMs).ToList(),
                 3 => asc ? allProfileData.OrderBy(p => p.Profile.AverageMs).ToList() : allProfileData.OrderByDescending(p => p.Profile.AverageMs).ToList(),
                 4 => asc ? allProfileData.OrderBy(p => p.Profile.MaxMs).ToList() : allProfileData.OrderByDescending(p => p.Profile.MaxMs).ToList(),
-                5 => asc ? allProfileData.OrderBy(p => p.Profile.ExecutionCount).ToList() : allProfileData.OrderByDescending(p => p.Profile.ExecutionCount).ToList(),
+                5 => asc ? allProfileData.OrderBy(p => p.Profile.TotalMs).ToList() : allProfileData.OrderByDescending(p => p.Profile.TotalMs).ToList(),
                 6 => asc ? allProfileData.OrderBy(p => p.Profile.ErrorCount).ToList() : allProfileData.OrderByDescending(p => p.Profile.ErrorCount).ToList(),
                 _ => allProfileData.OrderBy(p => p.Profile.SystemName, System.StringComparer.OrdinalIgnoreCase).ToList()
             };
@@ -162,7 +162,7 @@ public sealed class ArchitectureDiagnosticsPanel
             ImGuiApi.TableSetColumnIndex(2); ImGuiApi.TextColored(timeColor, $"{entry.Profile.LastMs:F3}");
             ImGuiApi.TableSetColumnIndex(3); ImGuiApi.TextUnformatted($"{entry.Profile.AverageMs:F3}");
             ImGuiApi.TableSetColumnIndex(4); ImGuiApi.TextUnformatted($"{entry.Profile.MaxMs:F3}");
-            ImGuiApi.TableSetColumnIndex(5); ImGuiApi.TextUnformatted(entry.Profile.ExecutionCount.ToString());
+            ImGuiApi.TableSetColumnIndex(5); ImGuiApi.TextUnformatted($"{entry.Profile.TotalMs:F3}");
             ImGuiApi.TableSetColumnIndex(6); ImGuiApi.TextUnformatted(entry.Profile.ErrorCount.ToString());
         }
 

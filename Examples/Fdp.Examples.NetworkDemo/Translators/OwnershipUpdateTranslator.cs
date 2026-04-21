@@ -23,6 +23,8 @@ namespace Fdp.Examples.NetworkDemo.Translators
 
         public string TopicName => "OwnershipUpdate";
         public long DescriptorOrdinal => -1; 
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
         
         public OwnershipUpdateTranslator(NodeIdMapper nodeMapper, DdsParticipant participant)
         {
@@ -65,6 +67,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
                 };
                 
                 _writer.Write(topicMsg);
+                SentSampleCount++;
             }
         }
 
@@ -77,6 +80,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
             {
                 if (sample.Info.InstanceState == CycloneDDS.Runtime.DdsInstanceState.Alive) // Fully qualified
                 {
+                    ReceivedSampleCount++;
                     var topicMsg = sample.Data;
                     
                     int internalOwnerId = _nodeMapper.GetOrRegisterInternalId(new TopicMsgs.NetworkAppId { AppDomainId = 0, AppInstanceId = topicMsg.NewOwner });

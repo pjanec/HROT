@@ -31,6 +31,8 @@ namespace Fdp.Examples.NetworkDemo.Translators
 
         public string TopicName => "SST_EntityMaster";
         public long DescriptorOrdinal => DemoDescriptors.Master;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public EntityMasterEgressTranslator(
             DdsParticipant participant,
@@ -101,6 +103,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
                     Flags       = 0
                 });
 
+                SentSampleCount++;
                 _publishedNetIds.Add(netId.Value);
 
                 FdpLog<EntityMasterEgressTranslator>.Debug(

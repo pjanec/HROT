@@ -29,6 +29,8 @@ namespace Fdp.Examples.NetworkDemo.Translators
         // descriptor-ordinal book-keeping.
         public string TopicName => "SST_EntityMaster";
         public long DescriptorOrdinal => -10L;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
         public EntityMasterIngressTranslator(
             DdsParticipant participant,
@@ -84,6 +86,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
                 if (!sample.IsValid)
                     continue;
 
+                ReceivedSampleCount++;
                 ProcessSample(sample.Data, cmd, repo);
             }
         }
