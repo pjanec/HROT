@@ -329,6 +329,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // Auxiliary translators (time-sync, combat, mission-control) via the injected factory.
         // Mirrors SimHostApp.cs pattern: nodeFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(kernel)
         nodeFactory?.CreateSimHostAuxiliaryTranslators()?.RegisterOn(_context.Kernel);
+        nodeFactory?.CreateSimHostPerceptionTranslators()?.RegisterOn(_context.Kernel);
+        nodeFactory?.CreateSimHostPathfindingTranslators()?.RegisterOn(_context.Kernel);
 
         // ── Wire ClusterSlave with EcsRecordReplayController (CGF-Point-4) ────────
         // Replace HrotNodeBuilder's bare ClusterSlave with a NodeBootstrapper-produced
