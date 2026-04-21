@@ -214,6 +214,12 @@ namespace Hrot.SimHost
                 vis.FdpEventBrowser,
                 SimHostWindowColor.TitleBar));
 
+            windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
+                "simhost_architecture_diagnostics", "SimHost Architecture Diagnostics", "SimHost",
+                new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(),
+                () => _app?.Kernel,
+                SimHostWindowColor.TitleBar));
+
             vis.SetPanelsWindowManaged();
         }
 

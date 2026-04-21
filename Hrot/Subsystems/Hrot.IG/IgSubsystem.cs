@@ -117,6 +117,11 @@ namespace Hrot.IG
                 "ig_fdp_events", "IG Event Browser", "IG",
                 _app.FdpEventBrowser,
                 IgWindowColor.TitleBar));
+            windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
+                "ig_architecture_diagnostics", "IG Architecture Diagnostics", "IG",
+                new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(),
+                () => _app.Kernel,
+                IgWindowColor.TitleBar));
             // Signal IgApplication that these panels must not be double-rendered.
             _app.SetPanelsWindowManaged();
         }

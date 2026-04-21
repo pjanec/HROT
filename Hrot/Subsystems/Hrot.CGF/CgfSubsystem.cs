@@ -562,6 +562,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             "cgf_fdp_events", "CGF Event Browser", "CGF",
             _fdpEventBrowser,
             TitleBarColor));
+
+        windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
+            "cgf_architecture_diagnostics", "CGF Architecture Diagnostics", "CGF",
+            new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(),
+            () => _context?.Kernel,
+            TitleBarColor));
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────

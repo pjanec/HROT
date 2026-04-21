@@ -421,6 +421,8 @@ public class IgApplication : IDisposable
     public FdpRepositoryAdapter? GetFdpRepoAdapter() => _fdpRepoAdapter;
     /// <summary>The FDP inspector state (selection tracking).</summary>
     public FdpInspectorState     FdpInspectorState    => _fdpInspectorState;
+    /// <summary>The module host kernel used by this IG instance.</summary>
+    public ModuleHostKernel Kernel => _kernel;
 
 
 

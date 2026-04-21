@@ -774,6 +774,15 @@ namespace Hrot.Editor
                 "editor_fdp_events", "Editor Event Browser", "Editor",
                 _fdpEventBrowser,
                 EditorWindowColor.TitleBar));
+
+            if (_kernel != null)
+            {
+                windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
+                    "editor_architecture_diagnostics", "Editor Architecture Diagnostics", "Editor",
+                    new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(),
+                    () => _kernel,
+                    EditorWindowColor.TitleBar));
+            }
         }
 
         /// <inheritdoc/>
