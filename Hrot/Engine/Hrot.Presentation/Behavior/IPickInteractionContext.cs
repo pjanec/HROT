@@ -1,3 +1,5 @@
+using Fdp.Toolkit.Behavior.Params;
+
 namespace Hrot.Presentation.Behavior
 {
     /// <summary>
@@ -16,6 +18,22 @@ namespace Hrot.Presentation.Behavior
         /// <param name="taskIndex">Zero-based mission task index.</param>
         /// <param name="propertyName">Property name in the DTO (e.g., "TargetNetworkId").</param>
         bool IsPickPendingFor(int taskIndex, string propertyName);
+
+        /// <summary>
+        /// Consumes a resolved entity pick targeting the specified task field.
+        /// Returns <c>true</c> and sets <paramref name="entityId"/> when a pick result
+        /// is available for the given context; returns <c>false</c> otherwise.
+        /// Consuming the result clears the buffered pick state.
+        /// </summary>
+        bool TryConsumeEntityPick(int taskIndex, string propertyName, out long entityId);
+
+        /// <summary>
+        /// Consumes a resolved world-location pick targeting the specified task field.
+        /// Returns <c>true</c> and sets <paramref name="location"/> when a pick result
+        /// is available for the given context; returns <c>false</c> otherwise.
+        /// Consuming the result clears the buffered pick state.
+        /// </summary>
+        bool TryConsumeLocationPick(int taskIndex, string propertyName, out PickableGeoPoint location);
 
         /// <summary>
         /// Requests an entity pick for the given task field.

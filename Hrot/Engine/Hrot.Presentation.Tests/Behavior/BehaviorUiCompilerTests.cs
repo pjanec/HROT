@@ -12,6 +12,10 @@ namespace Hrot.Presentation.Tests.Behavior
         private sealed class NullPickContext : IPickInteractionContext
         {
             public bool IsPickPendingFor(int taskIndex, string propertyName) => false;
+            public bool TryConsumeEntityPick(int taskIndex, string propertyName, out long entityId)
+            { entityId = 0; return false; }
+            public bool TryConsumeLocationPick(int taskIndex, string propertyName, out PickableGeoPoint location)
+            { location = default; return false; }
             public void RequestEntityPick(int taskIndex, string propertyName, string[]? filterPresets) { }
             public void RequestLocationPick(int taskIndex, string propertyName) { }
         }
@@ -43,10 +47,13 @@ namespace Hrot.Presentation.Tests.Behavior
             var d2 = BehaviorUiCompiler.Compile<CompilerProbeDto>();
             var d3 = BehaviorUiCompiler.Compile<CompilerProbeDto>();
 
-            // Compiled exactly once; all three calls return the same cached instance.
-            Assert.Equal(before + 1, BehaviorUiCompiler.CompileCallCount);
-            Assert.True(ReferenceEquals(d1, d2));
-            Assert.True(ReferenceEquals(d1, d3));
+            // Count must have increased by at least 1 (compilation happened).
+            // It may exceed before+1 if other test classes compiled unrelated types in
+            // parallel; the reference-equality assertions below confirm per-type caching.
+            Assert.True(BehaviorUiCompiler.CompileCallCount >= before + 1,
+                "CompileCallCount should increase by at least 1 for the first Compile<CompilerProbeDto>");
+            Assert.True(ReferenceEquals(d1, d2), "d2 must return cached delegate from d1");
+            Assert.True(ReferenceEquals(d1, d3), "d3 must return cached delegate from d1");
         }
 
         // ── C009 SC3: TestHook_ApplyChange verifies JSON round-trip ──────────
@@ -117,6 +124,35 @@ namespace Hrot.Presentation.Tests.Behavior
         private class CompilerProbeDto
         {
             public float Value { get; set; }
+        }
+
+        // ── PickableGeoPoint compilation test ─────────────────────────────────
+
+        /// <summary>
+        /// Compile&lt;MoveToLocationParamsJsonDto&gt; succeeds after the PickableLocation
+        /// facade was introduced, producing a non-null cached delegate.
+        /// </summary>
+        [Fact]
+        public void C009_Compile_MoveToLocationDto_WithPickableGeoPoint_Succeeds()
+        {
+            var drawDelegate = BehaviorUiCompiler.Compile<MoveToLocationParamsJsonDto>();
+            Assert.NotNull(drawDelegate);
+        }
+
+        /// <summary>
+        /// Invoking the MoveToLocation compiled delegate without an ImGui context (test env)
+        /// returns the same JSON reference — no allocation.
+        /// </summary>
+        [Fact]
+        public void C009_MoveToLocationDelegate_NoImGuiContext_ReturnsSameReference()
+        {
+            var drawDelegate = BehaviorUiCompiler.Compile<MoveToLocationParamsJsonDto>();
+            const string json = "{\"targetLat\":52.5,\"targetLon\":13.4,\"speed\":5.0,\"arrivalRadius\":10.0}";
+            var context      = new NullPickContext();
+
+            string result = drawDelegate(json, 0, context);
+
+            Assert.Same(json, result);
         }
     }
 }

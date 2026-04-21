@@ -263,31 +263,53 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context.Kernel.RegisterModule(new CgfSimGroupModule(_simGroup));
 
         var adapters = nodeFactory?.CreateCgfEntityLifecycleAdapters();
+
+        var tkbDb       = _context.TkbDb!;
+        var idAllocator = _context.IdAllocator!;
+        var elm         = (EntityLifecycleModule)_context.BaseModules
+                              .First(m => m is EntityLifecycleModule);
+
+        // 1. Composite request source: always include the scenario source; add the live
+        //    NED adapter source only when network is available.
+        var requestSources = new System.Collections.Generic.List<IEntityCreationRequestSource>
+        {
+            _scenarioSource!
+        };
+        if (adapters != null)
+            requestSources.Add(adapters.RequestSource);
+        var compositeRequestSource = new CompositeEntityCreationRequestSource(requestSources);
+
+        // 2. ACK sink: real NED sink when connected; null-object for offline / headless runs.
+        IEntityAckSink ackSink = adapters?.AckSink ?? new NullEntityAckSink();
+
+        var finalizationSystem = new EntityRequestFinalizationSystem(ackSink, _entityMap!);
+
+        // 3. Register the core genesis pipeline unconditionally (online and offline).
+        var requestSystem = new CreateEntityRequestSystem(
+            requestSource:        compositeRequestSource,
+            ackSink:              ackSink,
+            tkbDb:                tkbDb,
+            idAllocator:          idAllocator,
+            localNodeId:          _context.NodeId,
+            jsonAttributeCompiler: adapters?.JsonCompiler,
+            finalizationSystem:   finalizationSystem,
+            isDefaultProcessor:   true,
+            ownershipStrategy:    adapters?.OwnershipStrategy);
+
+        var spawnSystem = new NetworkSpawningSystem(
+            tkbDb,
+            elm,
+            _entityMap!,
+            idAllocator,
+            _context.NodeId);
+
+        _context.Kernel.RegisterGlobalSystem(spawnSystem);
+        _context.Kernel.RegisterGlobalSystem(requestSystem);
+        _context.Kernel.RegisterGlobalSystem(finalizationSystem);
+
+        // 4. Network-dependent deletion routing: only when a live adapter exists.
         if (adapters != null)
         {
-            var tkbDb       = _context.TkbDb!;
-            var idAllocator = _context.IdAllocator!;
-            var elm         = (EntityLifecycleModule)_context.BaseModules
-                                  .First(m => m is EntityLifecycleModule);
-
-            var finalizationSystem = new EntityRequestFinalizationSystem(adapters.AckSink, _entityMap!);
-
-            // Multiplex the live NED source and the in-memory scenario source so
-            // CreateEntityRequestSystem processes both identically.
-            var compositeRequestSource = new CompositeEntityCreationRequestSource(
-                new IEntityCreationRequestSource[] { adapters.RequestSource, _scenarioSource });
-
-            var requestSystem = new CreateEntityRequestSystem(
-                requestSource:        compositeRequestSource,
-                ackSink:              adapters.AckSink,
-                tkbDb:                tkbDb,
-                idAllocator:          idAllocator,
-                localNodeId:          _context.NodeId,
-                jsonAttributeCompiler: adapters.JsonCompiler,
-                finalizationSystem:   finalizationSystem,
-                isDefaultProcessor:   true,
-                ownershipStrategy:    adapters.OwnershipStrategy);
-
             var deleteSystem = new DeleteEntityRequestSystem(
                 adapters.DeleteSource,
                 adapters.AckSink,
@@ -295,17 +317,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 finalizationSystem,
                 _context.NodeId);
 
-            var spawnSystem = new NetworkSpawningSystem(
-                tkbDb,
-                elm,
-                _entityMap!,
-                idAllocator,
-                _context.NodeId);
-
-            _context.Kernel.RegisterGlobalSystem(spawnSystem);
-            _context.Kernel.RegisterGlobalSystem(requestSystem);
             _context.Kernel.RegisterGlobalSystem(deleteSystem);
-            _context.Kernel.RegisterGlobalSystem(finalizationSystem);
 
             // Store polling action for heartbeat updates in Update().
             _cgfNetworkPolling = adapters.PollNetwork;

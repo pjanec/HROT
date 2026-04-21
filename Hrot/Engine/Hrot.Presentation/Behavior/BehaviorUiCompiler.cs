@@ -6,6 +6,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json;
 using Fdp.Toolkit.Behavior.Attributes;
+using Fdp.Toolkit.Behavior.Params;
 using ImGuiNET;
 
 namespace Hrot.Presentation.Behavior
@@ -149,13 +150,23 @@ namespace Hrot.Presentation.Behavior
 
                 if (pickEntity != null)
                 {
-                    // Entity pick: show current value label + "Pick" button.
-                    // Value update occurs asynchronously via PollPickCompletion; delegate returns false.
+                    // Entity pick: consume any resolved async result first, then show UI.
                     var filterPresets = pickEntity.FilterPresets;
                     var getter        = BuildLongGetter<TDto>(prop);
+                    var setter        = BuildSetter<TDto, long>(prop);
 
                     renderers.Add((dto, taskIdx, ctx) =>
                     {
+                        bool changed = false;
+
+                        // 1. Consume any asynchronously resolved pick targeting this field.
+                        if (ctx.TryConsumeEntityPick(taskIdx, propName, out long pickedId))
+                        {
+                            setter(dto, pickedId);
+                            changed = true;
+                        }
+
+                        // 2. Render standard UI.
                         long val = getter(dto);
                         ImGui.Text($"{propName}: {val}");
                         ImGui.SameLine();
@@ -163,57 +174,41 @@ namespace Hrot.Presentation.Behavior
                             ImGui.Text("[Picking...]");
                         else if (ImGui.SmallButton($"Pick##{propName}_{taskIdx}"))
                             ctx.RequestEntityPick(taskIdx, propName, filterPresets);
-                        return false;
+                        return changed;
                     });
                 }
-                else if (pickLocation != null && prop.PropertyType == typeof(double))
+                else if (pickLocation != null && prop.PropertyType == typeof(PickableGeoPoint))
                 {
-                    // World location pick + direct input for double coordinate fields.
-                    var getter = BuildGetter<TDto, double>(prop);
-                    var setter = BuildSetter<TDto, double>(prop);
+                    // World location pick via composite GeoPoint facade property.
+                    // A single "Pick" button drives both lat and lon from one async operation.
+                    var getter = BuildGetter<TDto, PickableGeoPoint>(prop);
+                    var setter = BuildSetter<TDto, PickableGeoPoint>(prop);
 
                     renderers.Add((dto, taskIdx, ctx) =>
                     {
-                        double val = getter(dto);
-                        if (ctx.IsPickPendingFor(taskIdx, propName))
-                        {
-                            ImGui.Text($"{propName}: {val:F6} [Picking...]");
-                            return false;
-                        }
-                        if (ImGui.Button($"Pick##{propName}_{taskIdx}"))
-                            ctx.RequestLocationPick(taskIdx, propName);
-                        ImGui.SameLine();
-                        if (ImGui.InputDouble($"{propName}##{propName}_{taskIdx}", ref val))
-                        {
-                            setter(dto, val);
-                            return true;
-                        }
-                        return false;
-                    });
-                }
-                else if (pickLocation != null && prop.PropertyType == typeof(float))
-                {
-                    // World location pick + direct input for float coordinate fields.
-                    var getter = BuildGetter<TDto, float>(prop);
-                    var setter = BuildSetter<TDto, float>(prop);
+                        bool changed = false;
 
-                    renderers.Add((dto, taskIdx, ctx) =>
-                    {
-                        float val = getter(dto);
+                        // 1. Consume any asynchronously resolved location pick.
+                        if (ctx.TryConsumeLocationPick(taskIdx, propName, out var pickedLoc))
+                        {
+                            setter(dto, pickedLoc);
+                            changed = true;
+                        }
+
+                        // 2. Render UI.
+                        var val = getter(dto);
                         if (ctx.IsPickPendingFor(taskIdx, propName))
                         {
-                            ImGui.Text($"{propName}: {val:F4} [Picking...]");
-                            return false;
+                            ImGui.Text($"{propName}: {val.Latitude:F4}, {val.Longitude:F4} [Picking...]");
                         }
-                        if (ImGui.Button($"Pick##{propName}_{taskIdx}"))
-                            ctx.RequestLocationPick(taskIdx, propName);
-                        ImGui.SameLine();
-                        if (ImGui.InputFloat($"{propName}##{propName}_{taskIdx}", ref val))
+                        else
                         {
-                            setter(dto, val);
-                            return true;
+                            if (ImGui.Button($"Pick##{propName}_{taskIdx}"))
+                                ctx.RequestLocationPick(taskIdx, propName);
+                            ImGui.SameLine();
+                            ImGui.Text($"{val.Latitude:F4}, {val.Longitude:F4}");
                         }
-                        return false;
+                        return changed;
                     });
                 }
                 else if (prop.PropertyType == typeof(float))

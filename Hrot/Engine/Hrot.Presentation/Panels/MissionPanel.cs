@@ -51,16 +51,18 @@ public sealed class MissionPanel : IPickInteractionContext
     /// <summary>Task index that the current pending pick is targeting.</summary>
     private int _pendingPickTaskIndex = -1;
 
+    /// <summary>Resolved location result buffered until a compiled delegate consumes it.</summary>
+    private GeoPoint? _resolvedLocationPick;
+
+    /// <summary>Resolved entity result buffered until a compiled delegate consumes it.</summary>
+    private long? _resolvedEntityPick;
+
     // ── Trigger types ─────────────────────────────────────────────────────────
 
     private static readonly string[] _triggerTypes =
     {
         "DoctrineFinished", "TimerElapsed", "ReachedDestination", "HealthCritical", "UnderAttack"
     };
-
-    private const string BehaviorNameMoveToLocation = "MoveToLocation";
-    private const string BehaviorNameFollowRoute    = "FollowRoute";
-    private const string BehaviorNameFireAtTarget   = "FireAtTarget";
 
     /// <summary>Returns the default params string for the given trigger type.</summary>
     public static string GetDefaultTriggerParams(string triggerType) => triggerType switch
@@ -660,6 +662,9 @@ public sealed class MissionPanel : IPickInteractionContext
     /// <summary>Internal test hook: manually drives the commit-completion polling cycle.</summary>
     internal void TestHook_PollCommitCompletion() => PollCommitCompletion();
 
+    /// <summary>Internal test hook: manually drives the pick-completion polling cycle.</summary>
+    internal void TestHook_PollPickCompletion() => PollPickCompletion();
+
     /// <summary>Internal test hook: clears the draft plan and dismisses the conflict alert.</summary>
     public void TestHook_ClearDraftAndDismissConflict()
     {
@@ -732,6 +737,45 @@ public sealed class MissionPanel : IPickInteractionContext
         && _pendingPickPropertyName == propertyName
         && (IsLocationPickPending || IsEntityPickPending);
 
+    bool IPickInteractionContext.TryConsumeEntityPick(int taskIndex, string propertyName, out long entityId)
+    {
+        if (_resolvedEntityPick.HasValue
+            && _pendingPickTaskIndex == taskIndex
+            && _pendingPickPropertyName == propertyName)
+        {
+            entityId = _resolvedEntityPick.Value;
+            _resolvedEntityPick      = null;
+            _pendingPickTaskIndex    = -1;
+            _pendingPickPropertyName = null;
+            FdpLog<MissionPanel>.Info(
+                "[Node-{0}] EntityPick consumed: task={1} entityId={2}",
+                _localNodeId, taskIndex, entityId);
+            return true;
+        }
+        entityId = 0;
+        return false;
+    }
+
+    bool IPickInteractionContext.TryConsumeLocationPick(int taskIndex, string propertyName, out PickableGeoPoint location)
+    {
+        if (_resolvedLocationPick.HasValue
+            && _pendingPickTaskIndex == taskIndex
+            && _pendingPickPropertyName == propertyName)
+        {
+            var gp = _resolvedLocationPick.Value;
+            location = new PickableGeoPoint(gp.Latitude, gp.Longitude);
+            _resolvedLocationPick    = null;
+            _pendingPickTaskIndex    = -1;
+            _pendingPickPropertyName = null;
+            FdpLog<MissionPanel>.Info(
+                "[Node-{0}] LocationPick consumed: task={1} lat={2:F4} lon={3:F4}",
+                _localNodeId, taskIndex, gp.Latitude, gp.Longitude);
+            return true;
+        }
+        location = default;
+        return false;
+    }
+
     void IPickInteractionContext.RequestEntityPick(int taskIndex, string propertyName, string[]? filterPresets)
     {
         _pendingPickPropertyName = propertyName;
@@ -752,78 +796,20 @@ public sealed class MissionPanel : IPickInteractionContext
     {
         if (_pendingLocationPick?.IsCompleted == true)
         {
-            int idx  = _pendingPickTaskIndex;
             var task = _pendingLocationPick;
+            _pendingLocationPick = null;
 
-            _pendingLocationPick     = null;
-            _pendingPickTaskIndex    = -1;
-            _pendingPickPropertyName = null;
-
-            if (!task.IsFaulted && !task.IsCanceled && idx >= 0)
-            {
-                var pos = task.Result;
-                var dto = new MoveToLocationParamsJsonDto
-                {
-                    TargetLat     = pos.Latitude,
-                    TargetLon     = pos.Longitude,
-                    Speed         = PanelConstants.MoveToLocationDefaultSpeed,
-                    ArrivalRadius = PanelConstants.MoveToLocationDefaultArrivalRadius,
-                };
-                string json = JsonSerializer.Serialize(dto, _jsonOptions);
-                HandleEditBehaviorParams(idx, json);
-                FdpLog<MissionPanel>.Info(
-                    "[Node-{0}] LocationPick resolved: task={1} lat={2:F4} lon={3:F4}",
-                    _localNodeId, idx, pos.Latitude, pos.Longitude);
-            }
+            if (!task.IsFaulted && !task.IsCanceled)
+                _resolvedLocationPick = task.Result;
         }
 
         if (_pendingEntityPick?.IsCompleted == true)
         {
-            int idx  = _pendingPickTaskIndex;
             var task = _pendingEntityPick;
+            _pendingEntityPick = null;
 
-            _pendingEntityPick       = null;
-            _pendingPickTaskIndex    = -1;
-            _pendingPickPropertyName = null;
-
-            if (!task.IsFaulted && !task.IsCanceled && idx >= 0)
-            {
-                int entityId = task.Result;
-
-                string behaviorId = (_draftPlan?.Tasks != null && idx < _draftPlan.Tasks.Count)
-                    ? (_draftPlan.Tasks[idx].BehaviorId ?? string.Empty)
-                    : string.Empty;
-                string existing = (_draftPlan?.Tasks != null && idx < _draftPlan.Tasks.Count)
-                    ? (_draftPlan.Tasks[idx].BehaviorParams ?? string.Empty)
-                    : string.Empty;
-
-                string json;
-                if (behaviorId == BehaviorNameFireAtTarget)
-                {
-                    // Preserve existing MaxRounds / CooldownSeconds; update only TargetNetworkId.
-                    var dto = (string.IsNullOrEmpty(existing)
-                        ? null
-                        : JsonSerializer.Deserialize<FireAtTargetParamsJsonDto>(existing, _jsonOptions))
-                        ?? new FireAtTargetParamsJsonDto();
-                    dto.TargetNetworkId = (long)entityId;
-                    json = JsonSerializer.Serialize(dto, _jsonOptions);
-                }
-                else
-                {
-                    // FollowRoute (or any other entity-pick behavior): update RouteEntityId.
-                    var dto = (string.IsNullOrEmpty(existing)
-                        ? null
-                        : JsonSerializer.Deserialize<FollowRouteParamsJsonDto>(existing, _jsonOptions))
-                        ?? new FollowRouteParamsJsonDto();
-                    dto.RouteEntityId = (long)entityId;
-                    json = JsonSerializer.Serialize(dto, _jsonOptions);
-                }
-
-                HandleEditBehaviorParams(idx, json);
-                FdpLog<MissionPanel>.Info(
-                    "[Node-{0}] EntityPick resolved: task={1} entityId={2} behavior={3}",
-                    _localNodeId, idx, entityId, behaviorId);
-            }
+            if (!task.IsFaulted && !task.IsCanceled)
+                _resolvedEntityPick = (long)task.Result;
         }
     }
 }
