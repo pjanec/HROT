@@ -62,6 +62,13 @@ namespace Fdp.Toolkit.Scenario
         public string SubsystemType => _subsystemType;
 
         /// <summary>
+        /// The translators registered with this serializer.
+        /// Consumed by <c>StagingEntityExtractor</c> to build the translator-component
+        /// exclusion mask at extraction time.
+        /// </summary>
+        public IReadOnlyList<IEntityScenarioTranslator> Translators => _translators;
+
+        /// <summary>
         /// Parses <paramref name="jsonText"/> and deserializes entities into <paramref name="repo"/>.
         /// Convenience overload that avoids exposing <see cref="JsonObject"/> to callers that
         /// do not otherwise depend on <c>System.Text.Json</c>.
