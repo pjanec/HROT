@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Time
     public sealed class SwitchTimeModeDescriptorTranslator : IDescriptorTranslator
     {
         private const string TopicNameValue = "SwitchTimeModeEvent";
-        private const long   OrdinalValue   = 201;
+        private const long   OrdinalValue   = (long)TimeDescriptorType.SwitchTimeModeEvent;
 
         private readonly DdsReader<SwitchTimeModeWireDto>? _reader;
         private readonly DdsWriter<SwitchTimeModeWireDto>? _writer;

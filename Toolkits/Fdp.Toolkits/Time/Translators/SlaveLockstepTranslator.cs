@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Time.Translators
     public sealed class SlaveLockstepTranslator : IDescriptorTranslator
     {
         private const string TopicNameValue = "FrameOrder";
-        private const long   OrdinalValue   = 203;
+        private const long   OrdinalValue   = (long)TimeDescriptorType.SlaveFrameOrder;
 
         private readonly DdsReader<FrameOrderDescriptor>? _orderReader;
         private readonly DdsWriter<FrameAckDescriptor>?   _ackWriter;

@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Time.Translators
     public sealed class SlaveTimeSyncTranslator : IDescriptorTranslator
     {
         private const string TopicNameValue = "TimeSyncResponse";
-        private const long   OrdinalValue   = 206L;
+        private const long   OrdinalValue   = (long)TimeDescriptorType.TimeSyncResponse;
 
         private readonly DdsWriter<TimeSyncRequest>?  _requestWriter;
         private readonly DdsReader<TimeSyncResponse>? _responseReader;
