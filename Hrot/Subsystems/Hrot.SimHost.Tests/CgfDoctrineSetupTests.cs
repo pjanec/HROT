@@ -50,17 +50,17 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("\"routeEntityId\":1888", result);
         }
 
-        // ── C011 SC3: CreateBehaviorUiRegistry has all three behaviors ────────
+        // ── C011 SC3: BehaviorUiSetup.CreateRegistry has all three behaviors ──
 
         /// <summary>
-        /// C011 SC3: <see cref="CgfDoctrineSetup.CreateBehaviorUiRegistry"/> returns
+        /// C011 SC3: <see cref="BehaviorUiSetup.CreateRegistry"/> returns
         /// a registry that has draw delegates registered for FireAtTarget, FollowRoute,
         /// and MoveToLocation.
         /// </summary>
         [Fact]
         public void C011_CreateBehaviorUiRegistry_HasAllThreeBehaviors()
         {
-            BehaviorUiRegistry registry = CgfDoctrineSetup.CreateBehaviorUiRegistry();
+            BehaviorUiRegistry registry = BehaviorUiSetup.CreateRegistry();
 
             Assert.True(registry.TryGet("FireAtTarget",   out _), "FireAtTarget should be registered");
             Assert.True(registry.TryGet("FollowRoute",    out _), "FollowRoute should be registered");

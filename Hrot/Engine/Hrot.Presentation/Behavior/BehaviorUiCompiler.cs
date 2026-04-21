@@ -120,7 +120,7 @@ namespace Hrot.Presentation.Behavior
                 if (ImGui.GetCurrentContext() == IntPtr.Zero)
                     return json;
 
-                var dto = JsonSerializer.Deserialize<TDto>(json, _jsonOptions);
+                var dto = string.IsNullOrEmpty(json) ? new TDto() :  JsonSerializer.Deserialize<TDto>(json, _jsonOptions);
                 if (dto == null)
                     return json;
 

@@ -3,7 +3,6 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.CGF.Brains;
-using Hrot.Presentation.Behavior;
 
 namespace Hrot.CGF.Configuration
 {
@@ -93,18 +92,5 @@ namespace Hrot.CGF.Configuration
             return remapper;
         }
 
-        /// <summary>
-        /// Creates a <see cref="BehaviorUiRegistry"/> pre-registered with all CGF
-        /// behavior param DTO types so the mission editor panel can render each
-        /// behavior's parameters generically.
-        /// </summary>
-        public static BehaviorUiRegistry CreateBehaviorUiRegistry()
-        {
-            var registry = new BehaviorUiRegistry();
-            registry.Register<FireAtTargetParamsJsonDto>("FireAtTarget");
-            registry.Register<FollowRouteParamsJsonDto>("FollowRoute");
-            registry.Register<MoveToLocationParamsJsonDto>("MoveToLocation");
-            return registry;
-        }
     }
 }
