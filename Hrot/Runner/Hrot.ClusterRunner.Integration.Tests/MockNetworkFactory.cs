@@ -41,7 +41,7 @@ internal class MockNetworkFactory : INetworkFactory
     public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? trajectoryPool = null) => new NullSimHostPathfindingTranslators();
 
     /// <inheritdoc/>
-    public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators() => new NullSimHostPerceptionTranslators();
+    public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators(GhostCreationSystem? ghostCreationSystem = null) => new NullSimHostPerceptionTranslators();
 
     /// <inheritdoc/>
     public System.Collections.Generic.IReadOnlyList<Fdp.Core.ComponentSystem> CreateSimHostAttributeUpdateSystems()

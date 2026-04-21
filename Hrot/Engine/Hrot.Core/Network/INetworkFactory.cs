@@ -6,6 +6,7 @@ using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.DER;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.NetworkSpawning;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
@@ -47,7 +48,7 @@ public interface INetworkFactory
     ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(TrajectoryPoolManager? trajectoryPool = null);
 
     /// <summary>Creates the perception network translators for the given node role.</summary>
-    ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators();
+    ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators(GhostCreationSystem? ghostCreationSystem = null);
 
     /// <summary>
     /// Creates the DDS-backed ECS systems for processing attribute/descriptor update requests.

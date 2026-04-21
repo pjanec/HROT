@@ -14,6 +14,7 @@ using Fdp.Toolkit.Physics.Math;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Replication.Utilities;
 using Fdp.ModuleHost.Abstractions;
 using Hrot.NED.Common;
@@ -371,15 +372,18 @@ namespace Hrot.Network.NED.SimHost
     {
         private readonly DdsReader<SensorConfig>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        private readonly GhostCreationSystem _ghostCreationSystem;
 
         public long   DescriptorOrdinal => 60;
         public string TopicName         => "SensorConfig";
 
         public SensorConfigIngressTranslator(
-            DdsParticipant?  participant,
-            NetworkEntityMap entityMap)
+            DdsParticipant?     participant,
+            NetworkEntityMap    entityMap,
+            GhostCreationSystem ghostCreationSystem)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
             _reader    = participant != null ? new DdsReader<SensorConfig>(participant, TopicName) : null;
         }
 
@@ -393,7 +397,12 @@ namespace Hrot.Network.NED.SimHost
                 if (!sample.IsValid) continue;
                 var data = sample.Data;
 
-                if (!_entityMap.TryGetEntity(data.EntityId, out var entity)) continue;
+                if (!_entityMap.TryGetEntity(data.EntityId, out var entity))
+                {
+                    var repo = view as EntityRepository;
+                    if (repo == null) continue;
+                    entity = _ghostCreationSystem.CreateGhost(repo, data.EntityId, view.Tick);
+                }
 
                 // ACL transformation: precompute FovCos once at the network boundary.
                 float halfFovRad = data.FovDegrees * 0.5f * (MathF.PI / 180f);

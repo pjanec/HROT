@@ -2,6 +2,7 @@ using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.NetworkSpawning;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Common;
 using Hrot.Core.Network;
@@ -70,7 +71,7 @@ namespace Hrot.BDC.Factory
             => new BdcNullSimHostPathfindingTranslators();
 
         /// <inheritdoc/>
-        public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators()
+        public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators(GhostCreationSystem? ghostCreationSystem = null)
             => new BdcNullSimHostPerceptionTranslators();
 
         /// <inheritdoc/>

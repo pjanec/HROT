@@ -9,6 +9,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.DER;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning;
+using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Replication.Patching;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
@@ -153,10 +154,10 @@ public sealed class NedNetworkFactory : INetworkFactory
     }
 
     /// <inheritdoc/>
-    public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators()
+    public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators(GhostCreationSystem? ghostCreationSystem = null)
     {
         if (_participant == null) return new NullSimHostPerceptionTranslators();
-        return new NedSimHostPerceptionTranslators(_participant, _entityMap, _geoTransform, _role, _localNodeId);
+        return new NedSimHostPerceptionTranslators(_participant, _entityMap, _geoTransform, _role, _localNodeId, ghostCreationSystem);
     }
 
     /// <inheritdoc/>
