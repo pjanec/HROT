@@ -21,9 +21,9 @@ both live DDS requests and in-memory scenario-sourced requests.
 objects from a scenario/episode JSON, including network ID remapping and
 component filtering.
 
-- [ ] **TASK-C013** EntityCreationRequest DTO extension + CreateEntityRequestSystem genesis gateway [details](./TASK-DETAIL.md#task-c013--entitycreationrequest-extension-and-createentityrequestsystem-genesis-gateway)
-- [ ] **TASK-C004** StagingEntityExtractor [details](./TASK-DETAIL.md#task-c004--stagingentityextractor)
-- [ ] **TASK-C005** Behavior param remapping infrastructure [details](./TASK-DETAIL.md#task-c005--behavior-param-remapping-infrastructure)
+- [x] **TASK-C013** EntityCreationRequest DTO extension + CreateEntityRequestSystem genesis gateway [details](./TASK-DETAIL.md#task-c013--entitycreationrequest-extension-and-createentityrequestsystem-genesis-gateway)
+- [x] **TASK-C004** StagingEntityExtractor [details](./TASK-DETAIL.md#task-c004--stagingentityextractor)
+- [x] **TASK-C005** Behavior param remapping infrastructure [details](./TASK-DETAIL.md#task-c005--behavior-param-remapping-infrastructure)
 
 ---
 

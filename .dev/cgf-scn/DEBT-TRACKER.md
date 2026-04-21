@@ -6,7 +6,8 @@ P1 issues are addressed immediately in a corrective task at the start of the nex
 | ID | Source | Priority | Description | Target Batch | Status |
 |----|--------|----------|-------------|--------------|--------|
 | D-001 | BATCH-01 review | P3 | `CgfLogicPack` constructor accepts concrete `ScenarioEntityCreationRequestSource` instead of `IEntityCreationRequestSource`; unnecessarily tight coupling | BATCH-03+ | Open |
-| D-002 | BATCH-01 review | P2 | 3 stale system-count assertions in `Hrot.SimHost.Tests` (`CgfLogicPack_EmptyWorld`, `SimHostCoreLogicPack_EmptyWorld`, `SimulationLogicModule_EmptyWorld`) — hardcoded expected counts no longer match | BATCH-02 | Open |
+| D-002 | BATCH-01 review | P2 | 3 stale system-count assertions in `Hrot.SimHost.Tests` | BATCH-02 | ✅ Resolved |
+| D-003 | BATCH-02 review | P3 | `BehaviorParamRemapperCompiler` silently skips read-only `[RemapNetworkId]` properties; should warn at compile time | BATCH-04+ | Open |
 
 ---
 
