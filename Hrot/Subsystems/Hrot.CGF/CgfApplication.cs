@@ -155,21 +155,26 @@ namespace Hrot.CGF
                 bypassLifecycleToggle: null,
                 storageDirectory:      localTempRoot));
 
-            // CGF1-S0307: wire scenario load handler when a serializer is provided.
-            // Registered AFTER ReferenceReplayLoadHandler so the replay branch is
-            // checked first; ReferenceScenarioLoadHandler claims cold PrepareLive.
+            // CGF1-S0307 / BATCH-04 TASK-C006,C007: wire CGF-authoritative scenario/episode
+            // handlers.  Registered AFTER ReferenceReplayLoadHandler so the replay branch
+            // is checked first; CgfScenarioLoadHandler claims cold PrepareLive.
             if (scenarioSerializer != null)
             {
                 var scenarioLoader = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
+                var cgfIdAllocator = new SequentialIdAllocator();
+                var extractor      = new Hrot.CGF.Orchestration.StagingEntityExtractor();
 
-                // CGF header-peek-only path: world=null because CGF has no ECS repo.
+                // CGF-authoritative: extracts entities via StagingEntityExtractor and
+                // enqueues EntityCreationRequests into the shared source.
                 _clusterSlave.RegisterHandler(
-                    new ReferenceScenarioLoadHandler(scenarioSerializer, scenarioLoader, world: null));
+                    new Hrot.CGF.Orchestration.Handlers.CgfScenarioLoadHandler(
+                        scenarioSerializer, scenarioLoader, extractor, _scenarioEntityCreationSource, cgfIdAllocator));
 
-                // CGF1-S0308: wire episode handler; CGF is header-peek only (world=null).
+                // CGF-authoritative episode handler: enqueues episode entities on start,
+                // publishes DestroyEntityCommand events on stop (TASK-C007).
                 _clusterSlave.RegisterHandler(
-                    new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader,
-                        world: null));
+                    new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
+                        scenarioSerializer, scenarioLoader, extractor, _scenarioEntityCreationSource, cgfIdAllocator, _world));
             }
 
             // Wire ReferenceLiveLoadHandler AFTER the scenario handler so it only

@@ -189,7 +189,7 @@ namespace Hrot.SimHost
                     new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(scenarioSerializer, scenarioLoader, zoneService, world));
 
                 clusterSlave.RegisterHandler(
-                    new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world));
+                    new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world: null));
             }
 
             // Wire ReferenceLiveLoadHandler AFTER the scenario handler so it only claims

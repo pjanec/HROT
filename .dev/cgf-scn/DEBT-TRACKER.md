@@ -8,6 +8,7 @@ P1 issues are addressed immediately in a corrective task at the start of the nex
 | D-001 | BATCH-01 review | P3 | `CgfLogicPack` constructor accepts concrete `ScenarioEntityCreationRequestSource` instead of `IEntityCreationRequestSource`; unnecessarily tight coupling | BATCH-03+ | Open |
 | D-002 | BATCH-01 review | P2 | 3 stale system-count assertions in `Hrot.SimHost.Tests` | BATCH-02 | ✅ Resolved |
 | D-003 | BATCH-02 review | P3 | `BehaviorParamRemapperCompiler` silently skips read-only `[RemapNetworkId]` properties; should warn at compile time | BATCH-04+ | Open |
+| D-004 | BATCH-03 review | P3 | `StagingEntityExtractor.RegisterAllGlobalTypesInRepo` uses broad `catch (Exception)` silently; should emit a debug-level log per type-registration failure | BATCH-05+ | Open |
 
 ---
 
