@@ -18,16 +18,22 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.NotNull(prop.GetCustomAttribute<RemapNetworkIdAttribute>());
         }
 
-        /// <summary>C008 SC2: MoveToLocation lat/lon have MapPickableWorldLocationAttribute; no property has RemapNetworkIdAttribute.</summary>
+        /// <summary>C008 SC2: MoveToLocation has composite PickableLocation with MapPickableWorldLocationAttribute;
+        /// scalar TargetLat/TargetLon are plain properties without the pick attribute; no property has RemapNetworkIdAttribute.</summary>
         [Fact]
-        public void C008_MoveToLocation_LatLon_HaveWorldLocationAttr_NoRemapAttr()
+        public void C008_MoveToLocation_PickableLocation_HasWorldLocationAttr_NoRemapAttr()
         {
+            var pickProp = typeof(MoveToLocationParamsJsonDto).GetProperty("PickableLocation");
+            Assert.NotNull(pickProp);
+            Assert.NotNull(pickProp!.GetCustomAttribute<MapPickableWorldLocationAttribute>());
+
+            // Scalar primitives must NOT carry the pick attribute (two-button problem fixed).
             var latProp = typeof(MoveToLocationParamsJsonDto).GetProperty("TargetLat");
             var lonProp = typeof(MoveToLocationParamsJsonDto).GetProperty("TargetLon");
             Assert.NotNull(latProp);
             Assert.NotNull(lonProp);
-            Assert.NotNull(latProp!.GetCustomAttribute<MapPickableWorldLocationAttribute>());
-            Assert.NotNull(lonProp!.GetCustomAttribute<MapPickableWorldLocationAttribute>());
+            Assert.Null(latProp!.GetCustomAttribute<MapPickableWorldLocationAttribute>());
+            Assert.Null(lonProp!.GetCustomAttribute<MapPickableWorldLocationAttribute>());
 
             var allProps = typeof(MoveToLocationParamsJsonDto)
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance);
