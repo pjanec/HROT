@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Fdp.Toolkit.Behavior.Attributes;
 
 namespace Fdp.Toolkit.Behavior.Params
 {
@@ -12,12 +13,14 @@ namespace Fdp.Toolkit.Behavior.Params
     /// </summary>
     public class MoveToLocationParamsJsonDto
     {
-        /// <summary>Target latitude in degrees.</summary>
+        /// <summary>Target latitude in degrees. Can be picked on the map.</summary>
         [JsonPropertyName("targetLat")]
+        [MapPickableWorldLocation]
         public double TargetLat { get; set; }
 
-        /// <summary>Target longitude in degrees.</summary>
+        /// <summary>Target longitude in degrees. Can be picked on the map.</summary>
         [JsonPropertyName("targetLon")]
+        [MapPickableWorldLocation]
         public double TargetLon { get; set; }
 
         /// <summary>Travel speed in meters per second.</summary>

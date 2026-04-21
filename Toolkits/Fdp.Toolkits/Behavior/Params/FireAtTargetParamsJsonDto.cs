@@ -12,6 +12,7 @@ namespace Fdp.Toolkit.Behavior.Params
         /// <summary>Network ID of the target entity. Remapped during scenario load.</summary>
         [JsonPropertyName("targetNetworkId")]
         [RemapNetworkId]
+        [MapPickableEntity]
         public long TargetNetworkId { get; set; }
 
         /// <summary>Maximum number of rounds to fire.</summary>

@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Behavior.Params
         /// </summary>
         [JsonPropertyName("routeEntityId")]
         [RemapNetworkId]
+        [MapPickableEntity("road_graphs")]
         public long RouteEntityId { get; set; }
     }
 }
