@@ -20,6 +20,7 @@ using Fdp.ModuleHost;
 using Fdp.ModuleHost.Time;
 using Hrot.Map.Common;
 using Fdp.ModuleHost.Abstractions;
+using Hrot.CGF.Configuration;
 
 namespace Hrot.CGF
 {
@@ -163,18 +164,20 @@ namespace Hrot.CGF
                 var scenarioLoader = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
                 var cgfIdAllocator = new SequentialIdAllocator();
                 var extractor      = new Hrot.CGF.Orchestration.StagingEntityExtractor();
+                // D005: create the remapper once and share it between both load handlers.
+                var behaviorRemapper = CgfDoctrineSetup.CreateBehaviorRemapper();
 
                 // CGF-authoritative: extracts entities via StagingEntityExtractor and
                 // enqueues EntityCreationRequests into the shared source.
                 _clusterSlave.RegisterHandler(
                     new Hrot.CGF.Orchestration.Handlers.CgfScenarioLoadHandler(
-                        scenarioSerializer, scenarioLoader, extractor, _scenarioEntityCreationSource, cgfIdAllocator));
+                        scenarioSerializer, scenarioLoader, extractor, _scenarioEntityCreationSource, cgfIdAllocator, behaviorRemapper));
 
                 // CGF-authoritative episode handler: enqueues episode entities on start,
                 // publishes DestroyEntityCommand events on stop (TASK-C007).
                 _clusterSlave.RegisterHandler(
                     new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
-                        scenarioSerializer, scenarioLoader, extractor, _scenarioEntityCreationSource, cgfIdAllocator, _world));
+                        scenarioSerializer, scenarioLoader, extractor, _scenarioEntityCreationSource, cgfIdAllocator, _world, behaviorRemapper));
             }
 
             // Wire ReferenceLiveLoadHandler AFTER the scenario handler so it only

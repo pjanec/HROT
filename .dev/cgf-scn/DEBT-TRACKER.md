@@ -9,6 +9,7 @@ P1 issues are addressed immediately in a corrective task at the start of the nex
 | D-002 | BATCH-01 review | P2 | 3 stale system-count assertions in `Hrot.SimHost.Tests` | BATCH-02 | ✅ Resolved |
 | D-003 | BATCH-02 review | P3 | `BehaviorParamRemapperCompiler` silently skips read-only `[RemapNetworkId]` properties; should warn at compile time | BATCH-04+ | Open |
 | D-004 | BATCH-03 review | P3 | `StagingEntityExtractor.RegisterAllGlobalTypesInRepo` uses broad `catch (Exception)` silently; should emit a debug-level log per type-registration failure | BATCH-05+ | Open |
+| D-005 | BATCH-04 review | P3 | `CgfApplication` constructs `StagingEntityExtractor` without injecting `ScenarioBehaviorRemapper`; must be wired after TASK-C011 adds the remapper to the composition root | BATCH-05 | ✅ Resolved |
 
 ---
 

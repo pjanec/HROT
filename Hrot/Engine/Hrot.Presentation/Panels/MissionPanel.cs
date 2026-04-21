@@ -4,6 +4,8 @@ using ImGuiNET;
 using System.Text.Json;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
+using Hrot.Presentation.Behavior;
+using Fdp.Toolkit.Behavior.Params;
 
 namespace Hrot.UI.Common.Panels;
 
@@ -19,7 +21,7 @@ namespace Hrot.UI.Common.Panels;
 /// <c>Handle*</c> methods that accept the service interfaces directly; tests can
 /// call these without an ImGui render frame.</para>
 /// </summary>
-public sealed class MissionPanel
+public sealed class MissionPanel : IPickInteractionContext
 {
     // ── State ─────────────────────────────────────────────────────────────────
 
@@ -71,9 +73,24 @@ public sealed class MissionPanel
     // ── Construction ─────────────────────────────────────────────────────────
 
     private readonly long _localNodeId;
+    private readonly BehaviorUiRegistry _behaviorUiRegistry;
+
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+
+    // Transient per-frame service reference set at start of DrawContent.
+    private IMapPickService? _framePickService;
+    // Tracks which DTO property name is awaiting the current pick operation.
+    private string? _pendingPickPropertyName;
 
     /// <summary>Creates a new mission panel.</summary>
-    public MissionPanel(long localNodeId = 0) => _localNodeId = localNodeId;
+    public MissionPanel(long localNodeId = 0, BehaviorUiRegistry? behaviorUiRegistry = null)
+    {
+        _localNodeId        = localNodeId;
+        _behaviorUiRegistry = behaviorUiRegistry ?? new BehaviorUiRegistry();
+    }
 
     // ── Public state accessors ────────────────────────────────────────────────
 
@@ -357,22 +374,7 @@ public sealed class MissionPanel
     /// <summary>True when an async entity pick is in flight for any task.</summary>
     public bool IsEntityPickPending => _pendingEntityPick is { IsCompleted: false };
 
-    // ── JSON helpers for MoveToLocation / FollowRoute params ─────────────────
-
-    /// <summary>
-    /// Builds the canonical <c>MoveToLocation</c> behavior-params JSON.
-    /// </summary>
-    internal static string BuildMoveToLocationParams(double lat, double lon)
-        => string.Create(System.Globalization.CultureInfo.InvariantCulture,
-            $"{{\"targetLat\":{lat:F6},\"targetLon\":{lon:F6}" +
-            $",\"speed\":{PanelConstants.MoveToLocationDefaultSpeed}" +
-            $",\"arrivalRadius\":{PanelConstants.MoveToLocationDefaultArrivalRadius}}}");
-
-    /// <summary>
-    /// Builds the canonical <c>FollowRoute</c> behavior-params JSON.
-    /// </summary>
-    internal static string BuildFollowRouteParams(int routeEntityId)
-        => $"{{\"routeEntityId\":{routeEntityId}}}";
+    // ── JSON helpers (kept for external compatibility) ────────────────────────
 
     /// <summary>
     /// Builds the canonical <c>FireAtTarget</c> behavior-params JSON.
@@ -406,50 +408,6 @@ public sealed class MissionPanel
         return false;
     }
 
-    /// <summary>
-    /// Tries to parse lat/lon from a <c>MoveToLocation</c> params JSON string.
-    /// </summary>
-    internal static bool TryParseMoveToLocationParams(string json, out double lat, out double lon)
-    {
-        lat = lon = 0;
-        if (string.IsNullOrWhiteSpace(json)) return false;
-        try
-        {
-            using var doc  = JsonDocument.Parse(json);
-            var       root = doc.RootElement;
-            if (root.TryGetProperty("targetLat", out var latEl)
-             && root.TryGetProperty("targetLon", out var lonEl))
-            {
-                lat = latEl.GetDouble();
-                lon = lonEl.GetDouble();
-                return true;
-            }
-        }
-        catch { /* malformed */ }
-        return false;
-    }
-
-    /// <summary>
-    /// Tries to parse the route entity ID from a <c>FollowRoute</c> params JSON string.
-    /// </summary>
-    internal static bool TryParseFollowRouteParams(string json, out int routeEntityId)
-    {
-        routeEntityId = 0;
-        if (string.IsNullOrWhiteSpace(json)) return false;
-        try
-        {
-            using var doc  = JsonDocument.Parse(json);
-            var       root = doc.RootElement;
-            if (root.TryGetProperty("routeEntityId", out var idEl))
-            {
-                routeEntityId = idEl.GetInt32();
-                return true;
-            }
-        }
-        catch { /* malformed */ }
-        return false;
-    }
-
     // ── Draw ──────────────────────────────────────────────────────────────────
 
     /// <summary>Renders the panel via ImGui. Called once per frame from the application shell.</summary>
@@ -468,6 +426,9 @@ public sealed class MissionPanel
     /// </summary>
     public void DrawContent(IMissionEditorService service, IMapPickService pick)
     {
+        // Store service reference so IPickInteractionContext methods can call HandlePickEntity/Location.
+        _framePickService = pick;
+
         // Refresh behavior list before any ImGui calls so tests can verify without a render ctx.
         var behaviors = service.GetAvailableBehaviors(_selectedEntityId);
 
@@ -517,33 +478,15 @@ public sealed class MissionPanel
 
                 string paramsBuffer = task.BehaviorParams ?? string.Empty;
 
-                if (task.BehaviorId == BehaviorNameMoveToLocation)
+                if (_behaviorUiRegistry.TryGet(task.BehaviorId ?? string.Empty, out var drawDelegate))
                 {
-                    DrawMoveToLocationParams(i, paramsBuffer, pick);
-                }
-                else if (task.BehaviorId == BehaviorNameFollowRoute)
-                {
-                    DrawFollowRouteParams(i, paramsBuffer, pick);
-                }
-                else if (task.BehaviorId == BehaviorNameFireAtTarget)
-                {
-                    DrawFireAtTargetParams(i, paramsBuffer, pick);
+                    var newJson = drawDelegate!(paramsBuffer, i, this);
+                    if (!ReferenceEquals(newJson, paramsBuffer))
+                        HandleEditBehaviorParams(i, newJson);
                 }
                 else
                 {
-                    var paramsSize = new System.Numerics.Vector2(
-                        ImGui.GetContentRegionAvail().X,
-                        ImGui.GetTextLineHeightWithSpacing() * PanelConstants.MissionBehaviorParamsEditorLines);
-
-                    ImGui.Text("Params:");
-                    if (ImGui.InputTextMultiline(
-                            $"##Params{i}",
-                            ref paramsBuffer,
-                            PanelConstants.MissionBehaviorParamsMaxLength,
-                            paramsSize))
-                    {
-                        HandleEditBehaviorParams(i, paramsBuffer);
-                    }
+                    DrawRawJsonEditor(i, ref paramsBuffer);
                 }
 
                 if (task.Triggers != null && task.Triggers.Count > 0)
@@ -763,83 +706,44 @@ public sealed class MissionPanel
         return clone;
     }
 
-    // ── Behavior-specific parameter editors ───────────────────────────────────
+    // ── Generic raw-JSON fallback editor ──────────────────────────────────────
 
-    private void DrawFireAtTargetParams(int taskIndex, string currentParams, IMapPickService pick)
+    private void DrawRawJsonEditor(int taskIndex, ref string paramsBuffer)
     {
-        bool pickingThis = IsEntityPickPending && _pendingPickTaskIndex == taskIndex;
-
-        if (TryParseFireAtTargetParams(currentParams, out long targetId, out _, out _))
-            ImGui.Text($"Target NetID: {targetId}");
-        else
-            ImGui.TextDisabled("No target set");
-
-        if (pickingThis)
-        {
-            ImGui.SameLine();
-            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0f, 1f), "[Picking Entity...]");
-        }
-        else
-        {
-            ImGui.SameLine();
-            if (ImGui.SmallButton($"Pick Target##{taskIndex}"))
-                HandlePickEntity(taskIndex, pick, filterPresets: null);
-        }
-
         var paramsSize = new System.Numerics.Vector2(
             ImGui.GetContentRegionAvail().X,
             ImGui.GetTextLineHeightWithSpacing() * PanelConstants.MissionBehaviorParamsEditorLines);
 
-        string buffer = currentParams;
-        if (ImGui.InputTextMultiline($"##Params{taskIndex}", ref buffer,
-                PanelConstants.MissionBehaviorParamsMaxLength, paramsSize))
+        ImGui.Text("Params:");
+        if (ImGui.InputTextMultiline(
+                $"##Params{taskIndex}",
+                ref paramsBuffer,
+                PanelConstants.MissionBehaviorParamsMaxLength,
+                paramsSize))
         {
-            HandleEditBehaviorParams(taskIndex, buffer);
+            HandleEditBehaviorParams(taskIndex, paramsBuffer);
         }
     }
 
-    private void DrawMoveToLocationParams(int taskIndex, string currentParams, IMapPickService pick)
+    // ── IPickInteractionContext implementation ─────────────────────────────────
+
+    bool IPickInteractionContext.IsPickPendingFor(int taskIndex, string propertyName) =>
+        _pendingPickTaskIndex == taskIndex
+        && _pendingPickPropertyName == propertyName
+        && (IsLocationPickPending || IsEntityPickPending);
+
+    void IPickInteractionContext.RequestEntityPick(int taskIndex, string propertyName, string[]? filterPresets)
     {
-        bool pickingThis = IsLocationPickPending && _pendingPickTaskIndex == taskIndex;
-
-        if (TryParseMoveToLocationParams(currentParams, out double lat, out double lon))
-            ImGui.Text($"Target: {lat:F4}°N, {lon:F4}°E");
-        else
-            ImGui.TextDisabled("No target set");
-
-        if (pickingThis)
-        {
-            ImGui.SameLine();
-            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0f, 1f), "[Picking…]");
-        }
-        else
-        {
-            ImGui.SameLine();
-            if (ImGui.SmallButton($"Pick Location##{taskIndex}"))
-                HandlePickLocation(taskIndex, pick);
-        }
+        _pendingPickPropertyName = propertyName;
+        if (_framePickService != null)
+            HandlePickEntity(taskIndex, _framePickService, filterPresets);
     }
 
-    private void DrawFollowRouteParams(int taskIndex, string currentParams, IMapPickService pick)
+    void IPickInteractionContext.RequestLocationPick(int taskIndex, string propertyName)
     {
-        bool pickingThis = IsEntityPickPending && _pendingPickTaskIndex == taskIndex;
-
-        if (TryParseFollowRouteParams(currentParams, out int routeId))
-            ImGui.Text($"Route entity: {routeId}");
-        else
-            ImGui.TextDisabled("No route set");
-
-        if (pickingThis)
-        {
-            ImGui.SameLine();
-            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0f, 1f), "[Picking…]");
-        }
-        else
-        {
-            ImGui.SameLine();
-            if (ImGui.SmallButton($"Pick Route##{taskIndex}"))
-                HandlePickEntity(taskIndex, pick, new[] { PanelConstants.FilterPresetRoadGraphs });
-        }
+        _pendingPickPropertyName = propertyName;
+        if (_framePickService != null)
+            HandlePickLocation(taskIndex, _framePickService);
     }
 
     // ── Pick completion polling ────────────────────────────────────────────────
@@ -851,13 +755,21 @@ public sealed class MissionPanel
             int idx  = _pendingPickTaskIndex;
             var task = _pendingLocationPick;
 
-            _pendingLocationPick  = null;
-            _pendingPickTaskIndex = -1;
+            _pendingLocationPick     = null;
+            _pendingPickTaskIndex    = -1;
+            _pendingPickPropertyName = null;
 
             if (!task.IsFaulted && !task.IsCanceled && idx >= 0)
             {
-                var pos   = task.Result;
-                string json = BuildMoveToLocationParams(pos.Latitude, pos.Longitude);
+                var pos = task.Result;
+                var dto = new MoveToLocationParamsJsonDto
+                {
+                    TargetLat     = pos.Latitude,
+                    TargetLon     = pos.Longitude,
+                    Speed         = PanelConstants.MoveToLocationDefaultSpeed,
+                    ArrivalRadius = PanelConstants.MoveToLocationDefaultArrivalRadius,
+                };
+                string json = JsonSerializer.Serialize(dto, _jsonOptions);
                 HandleEditBehaviorParams(idx, json);
                 FdpLog<MissionPanel>.Info(
                     "[Node-{0}] LocationPick resolved: task={1} lat={2:F4} lon={3:F4}",
@@ -870,31 +782,41 @@ public sealed class MissionPanel
             int idx  = _pendingPickTaskIndex;
             var task = _pendingEntityPick;
 
-            _pendingEntityPick    = null;
-            _pendingPickTaskIndex = -1;
+            _pendingEntityPick       = null;
+            _pendingPickTaskIndex    = -1;
+            _pendingPickPropertyName = null;
 
             if (!task.IsFaulted && !task.IsCanceled && idx >= 0)
             {
                 int entityId = task.Result;
 
-                // Build params JSON appropriate for the behavior being edited.
-                string json;
                 string behaviorId = (_draftPlan?.Tasks != null && idx < _draftPlan.Tasks.Count)
                     ? (_draftPlan.Tasks[idx].BehaviorId ?? string.Empty)
                     : string.Empty;
+                string existing = (_draftPlan?.Tasks != null && idx < _draftPlan.Tasks.Count)
+                    ? (_draftPlan.Tasks[idx].BehaviorParams ?? string.Empty)
+                    : string.Empty;
 
+                string json;
                 if (behaviorId == BehaviorNameFireAtTarget)
                 {
                     // Preserve existing MaxRounds / CooldownSeconds; update only TargetNetworkId.
-                    string existing = (_draftPlan?.Tasks != null && idx < _draftPlan.Tasks.Count)
-                        ? (_draftPlan.Tasks[idx].BehaviorParams ?? string.Empty)
-                        : string.Empty;
-                    TryParseFireAtTargetParams(existing, out _, out int maxRounds, out float cooldownSeconds);
-                    json = BuildFireAtTargetParams((long)entityId, maxRounds, cooldownSeconds);
+                    var dto = (string.IsNullOrEmpty(existing)
+                        ? null
+                        : JsonSerializer.Deserialize<FireAtTargetParamsJsonDto>(existing, _jsonOptions))
+                        ?? new FireAtTargetParamsJsonDto();
+                    dto.TargetNetworkId = (long)entityId;
+                    json = JsonSerializer.Serialize(dto, _jsonOptions);
                 }
                 else
                 {
-                    json = BuildFollowRouteParams(entityId);
+                    // FollowRoute (or any other entity-pick behavior): update RouteEntityId.
+                    var dto = (string.IsNullOrEmpty(existing)
+                        ? null
+                        : JsonSerializer.Deserialize<FollowRouteParamsJsonDto>(existing, _jsonOptions))
+                        ?? new FollowRouteParamsJsonDto();
+                    dto.RouteEntityId = (long)entityId;
+                    json = JsonSerializer.Serialize(dto, _jsonOptions);
                 }
 
                 HandleEditBehaviorParams(idx, json);

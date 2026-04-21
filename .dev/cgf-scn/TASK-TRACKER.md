@@ -32,7 +32,7 @@ component filtering.
 **Goal:** Replace the CGF's header-peek-only scenario handler with one that
 injects entities through the genesis pipeline.
 
-- [ ] **TASK-C006** CgfScenarioLoadHandler [details](./TASK-DETAIL.md#task-c006--cgfscenarioloadhandler)
+- [x] **TASK-C006** CgfScenarioLoadHandler [details](./TASK-DETAIL.md#task-c006--cgfscenarioloadhandler)
 
 ---
 
@@ -41,7 +41,7 @@ injects entities through the genesis pipeline.
 **Goal:** Fix the architectural defects in episode injection by replacing the
 CGF's `ReferenceEpisodeLoadHandler` with a staging-pipeline-based handler.
 
-- [ ] **TASK-C007** CgfEpisodeLoadHandler [details](./TASK-DETAIL.md#task-c007--cgfepisodeloadhandler)
+- [x] **TASK-C007** CgfEpisodeLoadHandler [details](./TASK-DETAIL.md#task-c007--cgfepisodeloadhandler)
 
 ---
 
@@ -50,10 +50,10 @@ CGF's `ReferenceEpisodeLoadHandler` with a staging-pipeline-based handler.
 **Goal:** Replace hardcoded doctrine param UI in `MissionPanel` with a
 generic, DTO-attribute-driven rendering mechanism.
 
-- [ ] **TASK-C008** Presentation attributes (MapPickable*) [details](./TASK-DETAIL.md#task-c008--presentation-attributes)
-- [ ] **TASK-C009** BehaviorUiCompiler [details](./TASK-DETAIL.md#task-c009--behavioruicompiler)
-- [ ] **TASK-C010** MissionPanel integration [details](./TASK-DETAIL.md#task-c010--missionpanel-integration)
-- [ ] **TASK-C011** Composition root registration [details](./TASK-DETAIL.md#task-c011--composition-root-registration)
+- [x] **TASK-C008** Presentation attributes (MapPickable*) [details](./TASK-DETAIL.md#task-c008--presentation-attributes)
+- [x] **TASK-C009** BehaviorUiCompiler [details](./TASK-DETAIL.md#task-c009--behavioruicompiler)
+- [x] **TASK-C010** MissionPanel integration [details](./TASK-DETAIL.md#task-c010--missionpanel-integration)
+- [x] **TASK-C011** Composition root registration [details](./TASK-DETAIL.md#task-c011--composition-root-registration)
 
 ---
 
@@ -62,4 +62,4 @@ generic, DTO-attribute-driven rendering mechanism.
 **Goal:** Prevent split-brain entity duplication when CGF episode genesis is
 active.  Must ship in the same release as TASK-C007.
 
-- [ ] **TASK-C012** Demote SimHost episode handler to world:null [details](./TASK-DETAIL.md#task-c012--simhost-episode-handler-passive-demotion)
+- [x] **TASK-C012** Demote SimHost episode handler to world:null [details](./TASK-DETAIL.md#task-c012--simhost-episode-handler-passive-demotion)

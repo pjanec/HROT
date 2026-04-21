@@ -1,7 +1,9 @@
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.CGF.Brains;
+using Hrot.Presentation.Behavior;
 
 namespace Hrot.CGF.Configuration
 {
@@ -76,6 +78,33 @@ namespace Hrot.CGF.Configuration
                     BrainTier = BehaviorConstants.BrainTierBTree,
                     BTreeInterpreter = CgfNodes.BuildWanderMilitaryInterpreter()
                 });
+        }
+
+        /// <summary>
+        /// Creates a <see cref="ScenarioBehaviorRemapper"/> pre-registered with all
+        /// CGF behavior param DTO types that carry <c>[RemapNetworkId]</c> properties.
+        /// Used by load handlers to rewrite network IDs after two-pass ID allocation.
+        /// </summary>
+        public static ScenarioBehaviorRemapper CreateBehaviorRemapper()
+        {
+            var remapper = new ScenarioBehaviorRemapper();
+            remapper.Register<FireAtTargetParamsJsonDto>("FireAtTarget");
+            remapper.Register<FollowRouteParamsJsonDto>("FollowRoute");
+            return remapper;
+        }
+
+        /// <summary>
+        /// Creates a <see cref="BehaviorUiRegistry"/> pre-registered with all CGF
+        /// behavior param DTO types so the mission editor panel can render each
+        /// behavior's parameters generically.
+        /// </summary>
+        public static BehaviorUiRegistry CreateBehaviorUiRegistry()
+        {
+            var registry = new BehaviorUiRegistry();
+            registry.Register<FireAtTargetParamsJsonDto>("FireAtTarget");
+            registry.Register<FollowRouteParamsJsonDto>("FollowRoute");
+            registry.Register<MoveToLocationParamsJsonDto>("MoveToLocation");
+            return registry;
         }
     }
 }
