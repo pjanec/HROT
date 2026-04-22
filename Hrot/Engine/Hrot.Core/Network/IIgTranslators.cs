@@ -16,7 +16,7 @@ public interface IIgTranslators
     /// Creates all IG DDS ingress translators for the given session.
     /// Returns an empty list in headless mode or when NED is not available.
     /// </summary>
-    IReadOnlyList<IDescriptorTranslator> GetTranslators(
+    IReadOnlyList<INetworkTranslator> GetTranslators(
         DdsParticipant participant,
         NetworkEntityMap entityMap,
         FdpEventBus bus,
@@ -28,12 +28,12 @@ public interface IIgTranslators
 /// <summary>No-op stub for <see cref="IIgTranslators"/> (headless/offline mode).</summary>
 public sealed class NullIgTranslators : IIgTranslators
 {
-    public IReadOnlyList<IDescriptorTranslator> GetTranslators(
+    public IReadOnlyList<INetworkTranslator> GetTranslators(
         DdsParticipant participant,
         NetworkEntityMap entityMap,
         FdpEventBus bus,
         GhostCreationSystem? ghostCreationSystem,
         long localNodeId,
         bool headless)
-        => System.Array.Empty<IDescriptorTranslator>();
+        => System.Array.Empty<INetworkTranslator>();
 }

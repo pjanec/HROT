@@ -15,7 +15,7 @@ namespace Hrot.Network.NED.IG;
 /// </summary>
 public sealed class NedIgTranslators : IIgTranslators
 {
-    public IReadOnlyList<IDescriptorTranslator> GetTranslators(
+    public IReadOnlyList<INetworkTranslator> GetTranslators(
         DdsParticipant participant,
         NetworkEntityMap entityMap,
         FdpEventBus bus,
@@ -23,7 +23,7 @@ public sealed class NedIgTranslators : IIgTranslators
         long localNodeId,
         bool headless)
     {
-        var translators = new List<IDescriptorTranslator>();
+        var translators = new List<INetworkTranslator>();
 
         if (ghostCreationSystem != null)
         {

@@ -27,10 +27,10 @@
 
 **Goal:** Separate INetworkTranslator (base) from IDescriptorTranslator (persistent state); give event translators a clean INetworkEventTranslator contract.
 
-- [ ] **MPM-P3-T01** Create INetworkTranslator base interface [details](./TASK-DETAIL.md#mpm-p3-t01---create-inetworktranslator-base-interface)
-- [ ] **MPM-P3-T02** Refactor IDescriptorTranslator to extend INetworkTranslator [details](./TASK-DETAIL.md#mpm-p3-t02---refactor-idescriptortranslator-to-extend-inetworktranslator)
-- [ ] **MPM-P3-T03** Create INetworkEventTranslator and update event translator base classes [details](./TASK-DETAIL.md#mpm-p3-t03---create-inetworkeventtranslator-and-update-event-translator-base-classes)
-- [ ] **MPM-P3-T04** Update ingress/egress systems and remove GetDirectionLabel hack from ArchitectureDiagnosticsPanel [details](./TASK-DETAIL.md#mpm-p3-t04---update-ingressegress-systems-and-diagnostic-panel)
+- [x] **MPM-P3-T01** Create INetworkTranslator base interface [details](./TASK-DETAIL.md#mpm-p3-t01---create-inetworktranslator-base-interface)
+- [x] **MPM-P3-T02** Refactor IDescriptorTranslator to extend INetworkTranslator [details](./TASK-DETAIL.md#mpm-p3-t02---refactor-idescriptortranslator-to-extend-inetworktranslator)
+- [x] **MPM-P3-T03** Create INetworkEventTranslator and update event translator base classes [details](./TASK-DETAIL.md#mpm-p3-t03---create-inetworkeventtranslator-and-update-event-translator-base-classes)
+- [x] **MPM-P3-T04** Update ingress/egress systems and remove GetDirectionLabel hack from ArchitectureDiagnosticsPanel [details](./TASK-DETAIL.md#mpm-p3-t04---update-ingressegress-systems-and-diagnostic-panel)
 
 
 ## Phase 4: SystemPhase.Manual

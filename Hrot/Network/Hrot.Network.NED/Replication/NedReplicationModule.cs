@@ -74,7 +74,7 @@ public sealed class NedReplicationModule : INedReplicationModule
     private readonly EntityLifecycleModule? _lifecycleModule;
 
     // ── Translator lists ───────────────────────────────────────────────────────
-    private readonly IEnumerable<FdpIDescriptorTranslator> _sharedTranslators;
+    private readonly IEnumerable<INetworkTranslator> _sharedTranslators;
     private readonly IEnumerable<FdpIDescriptorTranslator>? _kinematicTranslators;
     private readonly IEnumerable<FdpIDescriptorTranslator>? _cognitiveTranslators;
 
@@ -205,7 +205,7 @@ public sealed class NedReplicationModule : INedReplicationModule
         else
         {
             // Headless / test mode — no DDS translators
-            _sharedTranslators    = System.Array.Empty<FdpIDescriptorTranslator>();
+            _sharedTranslators    = System.Array.Empty<INetworkTranslator>();
             _kinematicTranslators = null;
             _cognitiveTranslators = null;
         }
@@ -221,7 +221,7 @@ public sealed class NedReplicationModule : INedReplicationModule
         registry.RegisterSystem(GhostCreationSystem);
 
         // ── Translator routing systems ───────────────────────────────────────
-        var allTranslators = new List<FdpIDescriptorTranslator>(_sharedTranslators);
+        var allTranslators = new List<INetworkTranslator>(_sharedTranslators);
         if (_roleHasMuscle && _kinematicTranslators != null)
             allTranslators.AddRange(_kinematicTranslators);
         if (_roleHasBrain && _cognitiveTranslators != null)
@@ -229,7 +229,7 @@ public sealed class NedReplicationModule : INedReplicationModule
 
         // DeferredTakeOwnership translators are inserted FIRST on Muscle (ingress before EntityMaster)
         // and added at the end on Brain (egress after cognitive pack).
-        var ingressTranslators = new List<FdpIDescriptorTranslator>(allTranslators.Count + 1);
+        var ingressTranslators = new List<INetworkTranslator>(allTranslators.Count + 1);
         if (_dtoIngress != null) ingressTranslators.Add(_dtoIngress);
         foreach (var t in allTranslators)
         {
@@ -237,7 +237,7 @@ public sealed class NedReplicationModule : INedReplicationModule
                 ingressTranslators.Add(t);
         }
 
-        var egressTranslators = new List<FdpIDescriptorTranslator>(allTranslators.Count + 1);
+        var egressTranslators = new List<INetworkTranslator>(allTranslators.Count + 1);
         foreach (var t in allTranslators)
         {
             if ((t.Direction & TranslatorDirection.Egress) != 0)
@@ -333,7 +333,7 @@ public sealed class NedReplicationModule : INedReplicationModule
             registry.RegisterSystem(new DeferredTakeoverSystem(_entityMap, _localNodeId, _descriptorOwnershipMap, _tkbDb));
 
         // ── Cleanup systems (all roles) ──────────────────────────────────────
-        var allCleanupTranslators = new List<FdpIDescriptorTranslator>(allTranslators);
+        var allCleanupTranslators = new List<FdpIDescriptorTranslator>(allTranslators.OfType<FdpIDescriptorTranslator>());
         if (_dtoIngress != null) allCleanupTranslators.Add(_dtoIngress);
         if (_dtoEgress  != null) allCleanupTranslators.Add(_dtoEgress);
         registry.RegisterSystem(new CycloneNetworkCleanupSystem(allCleanupTranslators));
@@ -344,7 +344,7 @@ public sealed class NedReplicationModule : INedReplicationModule
 
     private void PopulateDescriptorOwnershipMap()
     {
-        foreach (var t in _sharedTranslators)
+        foreach (var t in _sharedTranslators.OfType<FdpIDescriptorTranslator>())
             _descriptorOwnershipMap.RegisterFromTranslator(t.DescriptorOrdinal, t.TargetComponentIds);
         if (_kinematicTranslators != null)
             foreach (var t in _kinematicTranslators)

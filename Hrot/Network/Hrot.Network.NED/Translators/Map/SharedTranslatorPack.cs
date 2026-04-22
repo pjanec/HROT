@@ -57,7 +57,7 @@ namespace Hrot.Map.Common.Translators
         ///   <see cref="GeoSpatialIngressTranslator"/>, <see cref="MapVisualOverlayEgressTranslator"/>,
         ///   and <see cref="MapVisualOverlayIngressTranslator"/> for coordinate conversions.
         /// </param>
-        public static IEnumerable<IDescriptorTranslator> Create(
+        public static IEnumerable<INetworkTranslator> Create(
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
             long                 localNodeId,

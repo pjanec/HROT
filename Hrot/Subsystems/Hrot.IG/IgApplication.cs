@@ -761,7 +761,7 @@ public class IgApplication : IDisposable
 
         DdsParticipant? participant = null;
 
-        List<Fdp.Interfaces.IDescriptorTranslator>? customTranslators = null;
+        List<Fdp.Interfaces.INetworkTranslator>? customTranslators = null;
 
         _networkEnabled = false;
 
@@ -781,7 +781,7 @@ public class IgApplication : IDisposable
                 if (participant == null)
                 {
                     // No participant available (non-headless but no context) -- skip DDS setup.
-                    customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>();
+                    customTranslators = new List<Fdp.Interfaces.INetworkTranslator>();
                 }
                 else
                 {
@@ -798,7 +798,7 @@ public class IgApplication : IDisposable
                 // EntityStatesIngressPack (EntityMaster, GeoSpatial, EntityInfo, EntityDamage,
                 // MapVisualOverlay, MapRoute) is now handled by NedReplicationModule.
                 // Only non-pack translators remain in customTranslators.
-                customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>();
+                customTranslators = new List<Fdp.Interfaces.INetworkTranslator>();
 
                 // CGF1-A.1: Bridge SwitchTimeModeEvent for distributed time-mode switching.
                 // Must use _context.EventBus (the same bus as SlaveSyncController),
@@ -954,7 +954,7 @@ public class IgApplication : IDisposable
         {
             _kernel.RegisterGlobalSystem(new CycloneNetworkIngressSystem(customTranslators.ToArray()));
             _kernel.RegisterGlobalSystem(new CycloneEgressSystem(customTranslators.ToArray()));
-            _kernel.RegisterGlobalSystem(new CycloneNetworkCleanupSystem(customTranslators));
+            _kernel.RegisterGlobalSystem(new CycloneNetworkCleanupSystem(customTranslators.OfType<Fdp.Interfaces.IDescriptorTranslator>()));
         }
 
 
