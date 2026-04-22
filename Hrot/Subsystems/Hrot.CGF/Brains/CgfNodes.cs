@@ -234,9 +234,9 @@ namespace Hrot.CGF.Brains
         /// <summary>Arrival radius for each wander waypoint (metres).</summary>
         private const float WanderArrivalRadius = 20f;
 
-        private const string WanderMilitaryJson = """
+        private static readonly string WanderMilitaryJson = $$"""
             {
-              "TreeName": "WanderMilitary",
+              "TreeName": "{{Hrot.Map.Definitions.Doctrine.WanderMilitaryParamsJsonDto.BehaviorId}}",
               "Root": {
                 "Type": "Action",
                 "Action": "Action_Wander"
@@ -328,9 +328,9 @@ namespace Hrot.CGF.Brains
 
         // ── Doctrine-specific interpreter builders ─────────────────────────────
 
-        private const string MoveToLocationJson = """
+        private static readonly string MoveToLocationJson = $$"""
             {
-              "TreeName": "MoveToLocation",
+              "TreeName": "{{Hrot.Map.Definitions.Doctrine.MoveToLocationParamsJsonDto.BehaviorId}}",
               "Root": {
                 "Type": "Action",
                 "Action": "Action_WriteMoveToChannel"
@@ -352,9 +352,9 @@ namespace Hrot.CGF.Brains
             return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
         }
 
-        private const string FollowRouteJson = """
+        private static readonly string FollowRouteJson = $$"""
             {
-              "TreeName": "FollowRoute",
+              "TreeName": "{{Hrot.Map.Definitions.Doctrine.FollowRouteParamsJsonDto.BehaviorId}}",
               "Root": {
                 "Type": "Action",
                 "Action": "Action_WriteFollowRouteChannel"
@@ -373,9 +373,9 @@ namespace Hrot.CGF.Brains
             return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
         }
 
-        private const string JoinFormationJson = """
+        private static readonly string JoinFormationJson = $$"""
             {
-              "TreeName": "JoinFormation",
+              "TreeName": "{{Hrot.Map.Definitions.Doctrine.JoinFormationParamsJsonDto.BehaviorId}}",
               "Root": {
                 "Type": "Action",
                 "Action": "Action_WriteJoinFormationChannel"
@@ -593,9 +593,9 @@ namespace Hrot.CGF.Brains
             return NodeStatus.Running;
         }
         
-        private const string FireAtTargetJson = """
+        private static readonly string FireAtTargetJson = $$"""
             {
-              "TreeName": "FireAtTarget",
+              "TreeName": "{{Hrot.Map.Definitions.Doctrine.FireAtTargetParamsJsonDto.BehaviorId}}",
               "Root": {
                 "Type": "Sequence",
                 "Children": [

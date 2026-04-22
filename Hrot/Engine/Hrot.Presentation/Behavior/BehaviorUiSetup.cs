@@ -1,4 +1,4 @@
-using Fdp.Toolkit.Behavior.Params;
+using Fdp.Toolkit.Behavior;
 
 namespace Hrot.Presentation.Behavior
 {
@@ -21,9 +21,7 @@ namespace Hrot.Presentation.Behavior
         public static BehaviorUiRegistry CreateRegistry()
         {
             var registry = new BehaviorUiRegistry();
-            registry.Register<FireAtTargetParamsJsonDto>("FireAtTarget");
-            registry.Register<FollowRouteParamsJsonDto>("FollowRoute");
-            registry.Register<MoveToLocationParamsJsonDto>("MoveToLocation");
+            DoctrineSchemaDiscovery.AutoRegister(registry, new ScenarioBehaviorRemapper());
             return registry;
         }
     }

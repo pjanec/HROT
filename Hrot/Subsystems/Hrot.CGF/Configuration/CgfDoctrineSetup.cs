@@ -1,8 +1,9 @@
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Behavior;
-using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.CGF.Brains;
+using Hrot.Map.Definitions.Doctrine;
+using Hrot.Presentation.Behavior;
 
 namespace Hrot.CGF.Configuration
 {
@@ -27,7 +28,7 @@ namespace Hrot.CGF.Configuration
 
             unsafe
             {
-                registry.Register(CgfDoctrineIds.MoveTo_BT, "MoveToLocation",
+                registry.Register(CgfDoctrineIds.MoveTo_BT, MoveToLocationParamsJsonDto.BehaviorId,
                     new DoctrineDefinition
                     {
                         Name = "MoveToLocation",
@@ -36,7 +37,7 @@ namespace Hrot.CGF.Configuration
                         BTreeInterpreter = CgfNodes.BuildMoveToLocationInterpreter()
                     });
 
-                registry.Register(CgfDoctrineIds.FollowRoute_BT, "FollowRoute",
+                registry.Register(CgfDoctrineIds.FollowRoute_BT, FollowRouteParamsJsonDto.BehaviorId,
                     new DoctrineDefinition
                     {
                         Name = "FollowRoute",
@@ -45,7 +46,7 @@ namespace Hrot.CGF.Configuration
                         BTreeInterpreter = CgfNodes.BuildFollowRouteInterpreter()
                     });
 
-                registry.Register(CgfDoctrineIds.FireAtTarget_BT, "FireAtTarget",
+                registry.Register(CgfDoctrineIds.FireAtTarget_BT, FireAtTargetParamsJsonDto.BehaviorId,
                     new DoctrineDefinition
                     {
                         Name = "FireAtTarget",
@@ -55,7 +56,7 @@ namespace Hrot.CGF.Configuration
                     });
             }
 
-            registry.Register(CgfDoctrineIds.JoinFormation_BT, "JoinFormation",
+            registry.Register(CgfDoctrineIds.JoinFormation_BT, JoinFormationParamsJsonDto.BehaviorId,
                 new DoctrineDefinition
                 {
                     Name = "JoinFormation",
@@ -63,14 +64,14 @@ namespace Hrot.CGF.Configuration
                     BTreeInterpreter = CgfNodes.BuildJoinFormationInterpreter()
                 });
 
-            registry.Register(CgfDoctrineIds.Idle_HSM, "Idle",
+            registry.Register(CgfDoctrineIds.Idle_HSM, IdleParamsJsonDto.BehaviorId,
                 new DoctrineDefinition
                 {
                     Name = "Idle",
                     BrainTier = BehaviorConstants.BrainTierHsm
                 });
 
-            registry.Register(CgfDoctrineIds.WanderMilitary_BT, "WanderMilitary",
+            registry.Register(CgfDoctrineIds.WanderMilitary_BT, WanderMilitaryParamsJsonDto.BehaviorId,
                 new DoctrineDefinition
                 {
                     Name = "WanderMilitary",
@@ -87,8 +88,7 @@ namespace Hrot.CGF.Configuration
         public static ScenarioBehaviorRemapper CreateBehaviorRemapper()
         {
             var remapper = new ScenarioBehaviorRemapper();
-            remapper.Register<FireAtTargetParamsJsonDto>("FireAtTarget");
-            remapper.Register<FollowRouteParamsJsonDto>("FollowRoute");
+            DoctrineSchemaDiscovery.AutoRegister(new BehaviorUiRegistry(), remapper);
             return remapper;
         }
 
