@@ -13,6 +13,7 @@ using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Perception.Modules;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Scenario;
@@ -322,12 +323,17 @@ namespace Hrot.Editor
 
             // ── 4. Module registration (offline — no translator packs) ────────
             var simHostCorePack  = new SimHostCoreLogicPack(entityMap);
+            var perceptionMod    = new AutonomousPerceptionModule(
+                colliderRadiusReader: (view, e) => view.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e)
+                    ? view.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius
+                    : 0f);
             var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, entityMap,
                 new ScenarioEntityCreationRequestSource());
             var orchPack         = new OrchestrationLogicPack(clusterSlave);
             var scenarioMod      = new ScenarioEditorModule(fileService);
 
             _kernel.RegisterModule(simHostCorePack);
+            _kernel.RegisterModule(perceptionMod);
             _kernel.RegisterModule(cgfLogicPackInst);
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
@@ -340,7 +346,7 @@ namespace Hrot.Editor
             _kernel.RegisterModule(new SimHostModule(spawnSys));
 
             // ── 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ──
-            var logicPacks = new List<IEcsModule> { simHostCorePack, cgfLogicPackInst };
+            var logicPacks = new List<IEcsModule> { simHostCorePack, perceptionMod, cgfLogicPackInst };
 
             // ── 4d. MapLayerAssignmentSystem — must be registered BEFORE Initialize() ──
             // Stamps MapDisplayComponent.LayerMask on each entity so EntityRenderLayer
