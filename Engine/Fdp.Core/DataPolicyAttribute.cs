@@ -35,14 +35,15 @@ namespace Fdp.Core
         // ━━━ Persistence (Disk/Network) ━━━
         
         /// <summary>
-        /// Exclude from Flight Recorder (.fdp replay files).
-        /// Use for debug-only data that shouldn't be in recordings.
+        /// Exclude from Flight Recorder and Binary Checkpoints. Use for debug-only data
+        /// or metrics that should not pollute binary state snapshots.
         /// </summary>
         NoRecord = 1 << 2,
         
         /// <summary>
-        /// Exclude from Save Game / Checkpoints.
-        /// Use for runtime-only data that doesn't persist across sessions.
+        /// Exclude from Scenario JSON serialization. Use for runtime execution state
+        /// (e.g., BTree pointers, active weapon channels) that should be preserved in
+        /// binary checkpoints but omitted from declarative authoring templates.
         /// </summary>
         NoSave = 1 << 3,
         
