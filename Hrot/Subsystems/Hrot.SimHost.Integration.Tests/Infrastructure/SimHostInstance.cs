@@ -142,6 +142,12 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         public void RegisterSystem<T>(T system) where T : IEcsModuleSystem
             => _systems.Add(system);
 
+        public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem
+        {
+            _systems.Add(system);
+            return system;
+        }
+
         public void ExecuteAll(ISimulationView view, float dt)
         {
             foreach (var s in _systems)

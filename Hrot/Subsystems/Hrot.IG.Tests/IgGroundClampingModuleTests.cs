@@ -25,6 +25,7 @@ public sealed class IgGroundClampingModuleTests
         public IReadOnlyList<IEcsModuleSystem> RegisteredSystems => _systems;
 
         public void RegisterSystem<T>(T system) where T : IEcsModuleSystem => _systems.Add(system);
+        public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem { _systems.Add(system); return system; }
     }
 
     // ── Stub ITerrainProvider ─────────────────────────────────────────────────

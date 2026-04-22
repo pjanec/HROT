@@ -37,11 +37,11 @@
 
 **Goal:** First-class diagnostic visibility for modules using the direct-execution pattern.
 
-- [ ] **MPM-P4-T01** Add SystemPhase.Manual = 255 to enum and guard ExecutePhase [details](./TASK-DETAIL.md#mpm-p4-t01---add-systemphasemanual-to-enum)
-- [ ] **MPM-P4-T02** Add RegisterManualSystem to ISystemRegistry and implement ProfiledManualSystemWrapper in SystemScheduler [details](./TASK-DETAIL.md#mpm-p4-t02---add-registermanualsystem-to-isystemregistry-and-implement-in-systemscheduler)
-- [ ] **MPM-P4-T03** Update CapturingSystemRegistry in ModuleHostKernel [details](./TASK-DETAIL.md#mpm-p4-t03---update-capturingsystemregistry-in-modulehostkernel)
-- [ ] **MPM-P4-T04** Tag four perception systems with [UpdateInPhase(SystemPhase.Manual)] [details](./TASK-DETAIL.md#mpm-p4-t04---tag-perception-systems-with-updateinphasesystephasemanual)
-- [ ] **MPM-P4-T05** Refactor AutonomousPerceptionModule to use RegisterManualSystem [details](./TASK-DETAIL.md#mpm-p4-t05---refactor-autonomousperceptionmodule)
+- [x] **MPM-P4-T01** Add SystemPhase.Manual = 255 to enum and guard ExecutePhase [details](./TASK-DETAIL.md#mpm-p4-t01---add-systemphasemanual-to-enum)
+- [x] **MPM-P4-T02** Add RegisterManualSystem to ISystemRegistry and implement ProfiledManualSystemWrapper in SystemScheduler [details](./TASK-DETAIL.md#mpm-p4-t02---add-registermanualsystem-to-isystemregistry-and-implement-in-systemscheduler)
+- [x] **MPM-P4-T03** Update CapturingSystemRegistry in ModuleHostKernel [details](./TASK-DETAIL.md#mpm-p4-t03---update-capturingsystemregistry-in-modulehostkernel)
+- [x] **MPM-P4-T04** Tag four perception systems with [UpdateInPhase(SystemPhase.Manual)] [details](./TASK-DETAIL.md#mpm-p4-t04---tag-perception-systems-with-updateinphasesystephasemanual)
+- [x] **MPM-P4-T05** Refactor AutonomousPerceptionModule to use RegisterManualSystem [details](./TASK-DETAIL.md#mpm-p4-t05---refactor-autonomousperceptionmodule)
 
 
 ## Phase 5: Doctrine Auto-Registration

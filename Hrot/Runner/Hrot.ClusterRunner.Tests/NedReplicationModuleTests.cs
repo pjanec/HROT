@@ -34,6 +34,7 @@ public sealed class NedReplicationModuleTests
 
         public void RegisterSystem<T>(T system) where T : IEcsModuleSystem
             => RegisteredTypes.Add(system!.GetType());
+        public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem { RegisteredTypes.Add(system!.GetType()); return system; }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

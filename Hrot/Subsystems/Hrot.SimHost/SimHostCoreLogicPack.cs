@@ -110,16 +110,16 @@ namespace Hrot.SimHost
         // ── IEcsModule ────────────────────────────────────────────────────────
 
         /// <summary>
-        /// No-op — the contained sub-modules use <see cref="ComponentSystem"/>-based
-        /// <see cref="SystemGroup"/> registration and cannot be registered via
-        /// <see cref="ISystemRegistry"/>.
-        /// Call <see cref="RegisterSystems(SystemGroup,SystemGroup,SystemGroup)"/> to
-        /// wire them into the application's system groups.
-        ///
-        /// <para>The <see cref="AutonomousPerceptionModule"/> is driven via
-        /// <see cref="Tick"/> and does not need any group registration.</para>
+        /// Registers the <see cref="AutonomousPerceptionModule"/> systems via
+        /// <see cref="ISystemRegistry.RegisterManualSystem{T}"/>.
+        /// All four perception systems are tagged <c>[UpdateInPhase(SystemPhase.Manual)]</c>
+        /// and will not be auto-executed by the kernel; they run only when
+        /// <see cref="Tick"/> calls them directly.
         /// </summary>
-        public void RegisterSystems(ISystemRegistry registry) { }
+        public void RegisterSystems(ISystemRegistry registry)
+        {
+            _perceptionModule.RegisterSystems(registry);
+        }
 
         /// <summary>
         /// Drives <see cref="AutonomousPerceptionModule"/> which executes its internal
@@ -144,6 +144,11 @@ namespace Hrot.SimHost
             if (simGroup     == null) throw new ArgumentNullException(nameof(simGroup));
             if (postSimGroup == null) throw new ArgumentNullException(nameof(postSimGroup));
 
+            // Initialize perception systems with a pass-through registry so Tick() works
+            // when only this overload is called (e.g. SimHostApp, integration tests).
+            // Systems are tagged [UpdateInPhase(SystemPhase.Manual)] and never auto-scheduled.
+            RegisterSystems(new DirectSystemRegistry());
+
             // Combat (Input + Sim + PostSim).
             _combatModule.RegisterSystems(inputGroup, simGroup, postSimGroup, _entityMap);
 
@@ -157,6 +162,15 @@ namespace Hrot.SimHost
 
             // Ground kinematics (Sim).
             _groundKinematicsModule.RegisterSystems(simGroup);
+        }
+
+        // Pass-through ISystemRegistry used by RegisterSystems(SystemGroup,...) to initialize
+        // the perception module's systems when no kernel scheduler is available.
+        // Returns each system as-is without wrapping (no profiling).
+        private sealed class DirectSystemRegistry : ISystemRegistry
+        {
+            public void RegisterSystem<T>(T system) where T : IEcsModuleSystem { }
+            public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem => system;
         }
     }
 }
