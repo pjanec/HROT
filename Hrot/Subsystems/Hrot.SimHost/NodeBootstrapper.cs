@@ -121,7 +121,8 @@ namespace Hrot.SimHost
             CheckpointIOWorker? checkpointWorker = null,
             Fdp.Core.SimulationSystemGroup? simGroup = null,
             Fdp.ModuleHost.Scheduling.NetworkLifecycleSystemGroup? lifecycleGroup = null,
-            Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null)
+            Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null,
+            Fdp.Core.EventAccumulator? eventAccumulator = null)
         {
             if (participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
@@ -163,7 +164,7 @@ namespace Hrot.SimHost
             // Wire ReferenceCheckpointHandler when a checkpoint worker is provided (CGF1-S0303).
             if (checkpointWorker != null)
                 clusterSlave.RegisterHandler(new ReferenceCheckpointHandler(
-                    checkpointWorker, world));
+                    checkpointWorker, world, eventAccumulator ?? new Fdp.Core.EventAccumulator()));
 
             // Wire ReferencePreviewHandler for LoadingPreview / UnloadingPreview (CGF1-S0309).
             clusterSlave.RegisterHandler(new ReferencePreviewHandler(world));

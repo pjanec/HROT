@@ -53,7 +53,7 @@ cross-entity references.
 
 **Goal:** Persist in-flight FDP events into binary checkpoint files for complete state restoration.
 
-- [ ] **TASK-S501** Add PopulateCurrentStreams to FdpEventBus [details](./TASK-DETAIL.md#task-s501-add-populatecurrentstreams-to-fdpeventbus)
-- [ ] **TASK-S502** Update RecorderSystem.WriteEvents with Buffer-Selection Flag [details](./TASK-DETAIL.md#task-s502-update-recordersystemwriteevents-with-buffer-selection-flag)
-- [ ] **TASK-S503** Wire EventAccumulator into ReferenceCheckpointHandler [details](./TASK-DETAIL.md#task-s503-wire-eventaccumulator-into-referencecheckpointhandler)
-- [ ] **TASK-S504** Patch CheckpointIOWorker to Pass Event Bus [details](./TASK-DETAIL.md#task-s504-patch-checkpointioworker-to-pass-event-bus)
+- [x] **TASK-S501** Add PopulateCurrentStreams to FdpEventBus [details](./TASK-DETAIL.md#task-s501-add-populatecurrentstreams-to-fdpeventbus)
+- [x] **TASK-S502** Update RecorderSystem.WriteEvents with Buffer-Selection Flag [details](./TASK-DETAIL.md#task-s502-update-recordersystemwriteevents-with-buffer-selection-flag)
+- [x] **TASK-S503** Wire EventAccumulator into ReferenceCheckpointHandler [details](./TASK-DETAIL.md#task-s503-wire-eventaccumulator-into-referencecheckpointhandler)
+- [x] **TASK-S504** Patch CheckpointIOWorker to Pass Event Bus [details](./TASK-DETAIL.md#task-s504-patch-checkpointioworker-to-pass-event-bus)

@@ -88,4 +88,7 @@ public sealed record HrotNodeContext
     /// code that does not need NED-specific members.
     /// </summary>
     public IReplicationModule? Replication => NedReplication;
+
+    /// <summary>Event accumulator for checkpoint event preservation (CGF-SCN-2 S503).</summary>
+    public required EventAccumulator EventAccumulator { get; init; }
 }

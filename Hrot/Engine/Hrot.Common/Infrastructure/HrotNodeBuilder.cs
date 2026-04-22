@@ -194,10 +194,11 @@ public sealed class HrotNodeBuilder
         // Step 10 — Return context
         return new HrotNodeContext
         {
-            World           = world,
-            Kernel          = kernel,
-            Participant     = participant,
-            EventBus        = eventBus,
+            World            = world,
+            Kernel           = kernel,
+            EventAccumulator = eventAccumulator,
+            Participant      = participant,
+            EventBus         = eventBus,
             EntityMap       = entityMap,
             ClusterSlave    = clusterSlave,
             SlaveTranslator = slaveTranslator,

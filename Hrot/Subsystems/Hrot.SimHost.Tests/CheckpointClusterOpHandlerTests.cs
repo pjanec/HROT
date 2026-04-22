@@ -53,7 +53,7 @@ namespace Hrot.SimHost.Tests
             };
 
         private ReferenceCheckpointHandler CreateHandler(CheckpointIOWorker worker) =>
-            new ReferenceCheckpointHandler(worker, _liveRepo);
+            new ReferenceCheckpointHandler(worker, _liveRepo, new EventAccumulator());
 
         // ── CGF1-S0303: TwoOverlappingCheckpoints_ACKsAreBothDeferred ─────────
 
@@ -149,7 +149,7 @@ namespace Hrot.SimHost.Tests
         {
             using var worker  = new CheckpointIOWorker(_storageDir, _nodeId);
             // Construct handler with null liveRepo so there is no fallback.
-            var handler = new ReferenceCheckpointHandler(worker, liveRepo: null);
+            var handler = new ReferenceCheckpointHandler(worker, liveRepo: null, new EventAccumulator());
 
             var id  = Guid.NewGuid();
             var cmd = MakeSnapshotCmd(id);

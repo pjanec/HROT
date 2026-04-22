@@ -376,7 +376,8 @@ namespace Hrot.SimHost
                 checkpointWorker: _checkpointWorker,
                 simGroup: simulationSystemGroup,
                 lifecycleGroup: networkLifecycleGroup,
-                ghostCreationSystem: ghostCreationSystem);
+                ghostCreationSystem: ghostCreationSystem,
+                eventAccumulator: _context.EventAccumulator);
             _slaveTranslator = bootstrapper.SlaveTranslator;
 
             _kernelGroup = new SystemGroup();
