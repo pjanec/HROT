@@ -301,7 +301,6 @@ namespace Hrot.Editor
             var scenarioSerializer = new ScenarioSerializerBuilder("Hrot.Scenario")
                 .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
                 .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
-                .RegisterTranslator(new Hrot.SimHost.Serializers.WeaponChannelTranslator())
                 .Build();
 
             // Inject bus and zoneService so file ops trigger WorldResetEvent and persist zone data.

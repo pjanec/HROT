@@ -181,7 +181,6 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
         var serializer = new ScenarioSerializerBuilder("Hrot.Scenario")
             .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
             .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
-            .RegisterTranslator(new Hrot.SimHost.Serializers.WeaponChannelTranslator())
             .Build();
         var fdpDom     = serializer.Serialize(extractRepo, new ScenarioHeader("Hrot.Scenario"));
 

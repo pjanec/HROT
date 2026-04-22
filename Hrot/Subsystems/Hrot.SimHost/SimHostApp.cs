@@ -343,7 +343,6 @@ namespace Hrot.SimHost
             var scenarioSerializer = new ScenarioSerializerBuilder(HrotSubsystemTypes.Scenario)
                 .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
                 .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
-                .RegisterTranslator(new Hrot.SimHost.Serializers.WeaponChannelTranslator())
                 .Build();
 
             // CheckpointIOWorker: starts its background I/O thread here; owned by SimHostApp
