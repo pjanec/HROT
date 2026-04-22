@@ -249,6 +249,7 @@ namespace Fdp.Toolkit.Replay.Tests
         {
             public System.Collections.Generic.List<IEcsModuleSystem> Systems { get; } = new();
             public void RegisterSystem<T>(T system) where T : IEcsModuleSystem => Systems.Add(system);
+            public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem { Systems.Add(system); return system; }
         }
     }
 }

@@ -26,6 +26,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// then writes via <c>ecb.SetComponent</c> (or <c>ecb.AddComponent</c> on first encounter).
     /// </para>
     /// </summary>
+    [UpdateInPhase(SystemPhase.Manual)]
     public class SensorTrackDebounceSystem : IEcsModuleSystem
     {
         // 20 ticks at 10 Hz perception rate = 2 seconds of occlusion tolerance.

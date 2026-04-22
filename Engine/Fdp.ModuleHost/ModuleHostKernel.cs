@@ -1824,6 +1824,12 @@ namespace Fdp.ModuleHost
                 Captured.Add(system);
                 _scheduler.RegisterSystem(system);
             }
+
+            public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem
+            {
+                Captured.Add(system);
+                return _scheduler.RegisterManualSystem(system);
+            }
         }
     }
 }

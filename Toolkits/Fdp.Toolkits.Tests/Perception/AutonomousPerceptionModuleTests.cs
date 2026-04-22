@@ -13,21 +13,27 @@ namespace Fdp.Toolkit.Perception.Tests
 {
     public class AutonomousPerceptionModuleTests
     {
+        // Minimal registry that returns every system as-is (no scheduler, no profiling).
+        private sealed class CapturingSystemRegistry : ISystemRegistry
+        {
+            public void RegisterSystem<T>(T system) where T : IEcsModuleSystem { }
+            public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem => system;
+        }
+
         [Fact]
-        public void AutonomousPerceptionModule_RegisterSystems_DoesNotRegisterSystems()
+        public void AutonomousPerceptionModule_RegisterSystems_UsesRegisterManualSystem()
         {
             // Arrange
-            // AutonomousPerceptionModule uses the direct-execution Tick() pattern (same as
-            // PerceptionModule): all four systems are called inside Tick() rather than
-            // delegated to the kernel system scheduler. RegisterSystems() must be empty so
-            // the kernel does NOT try to schedule them via [UpdateInPhase].
+            // All four perception systems are registered via RegisterManualSystem (not RegisterSystem).
+            // The [UpdateInPhase(SystemPhase.Manual)] tag ensures the kernel auto-scheduler skips them;
+            // they only run when Tick() calls Execute() directly on each field.
             using var module = new AutonomousPerceptionModule();
             var mockRegistry = new Mock<ISystemRegistry>();
 
             // Act
             module.RegisterSystems(mockRegistry.Object);
 
-            // Assert — zero registrations (systems run directly via Tick, not via scheduler).
+            // Assert — RegisterSystem was never called; all systems registered via RegisterManualSystem.
             mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<LocalGridBuilderSystem>()),   Times.Never);
             mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<VisionBroadphaseSystem>()),   Times.Never);
             mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<LosRequestBatchingSystem>()), Times.Never);
@@ -75,6 +81,8 @@ namespace Fdp.Toolkit.Perception.Tests
             world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
 
             using var module = new AutonomousPerceptionModule();
+            // RegisterSystems must be called before Tick so system fields are non-null.
+            module.RegisterSystems(new CapturingSystemRegistry());
 
             // Act: run one perception tick synchronously.
             ISimulationView view = world;

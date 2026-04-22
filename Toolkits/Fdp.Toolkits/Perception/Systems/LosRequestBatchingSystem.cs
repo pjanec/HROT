@@ -31,6 +31,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// <see cref="TargetVisibleEvent"/> for every incoming <see cref="LosCheckRequestEvent"/>.
     /// </para>
     /// </summary>
+    [UpdateInPhase(SystemPhase.Manual)]
     public sealed class LosRequestBatchingSystem : IEcsModuleSystem
     {
         /// <summary>

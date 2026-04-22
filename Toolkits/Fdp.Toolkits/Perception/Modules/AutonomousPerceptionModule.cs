@@ -65,10 +65,13 @@ namespace Fdp.Toolkit.Perception.Modules
 
         // ── Perception systems ─────────────────────────────────────────────────────
 
-        private readonly LocalGridBuilderSystem    _localGridBuilder;
-        private readonly VisionBroadphaseSystem    _visionBroadphase;
-        private readonly LosRequestBatchingSystem  _losRequestBatching;
-        private readonly SensorTrackDebounceSystem _sensorTrackDebounce;
+        private IEcsModuleSystem _localGridBuilder    = null!;
+        private IEcsModuleSystem _visionBroadphase    = null!;
+        private IEcsModuleSystem _losRequestBatching  = null!;
+        private IEcsModuleSystem _sensorTrackDebounce = null!;
+
+        // Stored so the systems can be instantiated lazily in RegisterSystems.
+        private readonly Func<ISimulationView, Entity, float>? _colliderRadiusReader;
 
         /// <summary>
         /// Initialises the module and allocates the module-private spatial grid.
@@ -93,12 +96,7 @@ namespace Fdp.Toolkit.Perception.Modules
             _scopedBus.Register<LosCheckRequestEvent>();
             _scopedBus.Register<TargetVisibleEvent>();
 
-            _localGridBuilder    = new LocalGridBuilderSystem(_localGrid);
-            _visionBroadphase    = new VisionBroadphaseSystem(_localGrid);
-            _losRequestBatching  = new LosRequestBatchingSystem(
-                mockMode: false,
-                colliderRadiusReader: colliderRadiusReader);
-            _sensorTrackDebounce = new SensorTrackDebounceSystem();
+            _colliderRadiusReader = colliderRadiusReader;
         }
 
         /// <summary>
@@ -106,9 +104,12 @@ namespace Fdp.Toolkit.Perception.Modules
         /// </summary>
         public void RegisterSystems(ISystemRegistry registry)
         {
-            // All four systems are executed directly inside Tick() using the SlowBackground
-            // direct-execution pattern (same as PerceptionModule).  No kernel-level
-            // system-scheduler registration is required or supported.
+            _localGridBuilder    = registry.RegisterManualSystem(new LocalGridBuilderSystem(_localGrid));
+            _visionBroadphase    = registry.RegisterManualSystem(new VisionBroadphaseSystem(_localGrid));
+            _losRequestBatching  = registry.RegisterManualSystem(new LosRequestBatchingSystem(
+                mockMode: false,
+                colliderRadiusReader: _colliderRadiusReader));
+            _sensorTrackDebounce = registry.RegisterManualSystem(new SensorTrackDebounceSystem());
         }
 
         /// <inheritdoc/>

@@ -40,6 +40,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// Using <c>Vector3.UnitY</c> would point north regardless of yaw â€” a BATCH-01 regression.
     /// </para>
     /// </summary>
+    [UpdateInPhase(SystemPhase.Manual)]
     public class VisionBroadphaseSystem : IEcsModuleSystem
     {
         private const int MaxCandidatesPerObserver = 256;

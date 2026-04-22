@@ -70,6 +70,8 @@ namespace Fdp.ModuleHost.Scheduling
         /// </summary>
         public void ExecutePhase(SystemPhase phase, ISimulationView view, float deltaTime)
         {
+            if (phase == SystemPhase.Manual) return;
+
             if (!_sortedSystems.TryGetValue(phase, out var systems))
                 return;
             
@@ -328,6 +330,43 @@ namespace Fdp.ModuleHost.Scheduling
             }
             
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Registers a system in the Manual phase for diagnostics tracking.
+        /// Returns a profiled wrapper that records execution time on each call.
+        /// </summary>
+        public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem
+        {
+            RegisterSystem(system);
+            return new ProfiledManualSystemWrapper(system, this);
+        }
+
+        private sealed class ProfiledManualSystemWrapper : IEcsModuleSystem
+        {
+            private readonly IEcsModuleSystem _inner;
+            private readonly SystemScheduler _scheduler;
+
+            public ProfiledManualSystemWrapper(IEcsModuleSystem inner, SystemScheduler scheduler)
+            {
+                _inner     = inner;
+                _scheduler = scheduler;
+            }
+
+            public void Execute(ISimulationView view, float deltaTime)
+            {
+                var profile = _scheduler.GetProfileData(_inner);
+                var sw = Stopwatch.StartNew();
+                try
+                {
+                    _inner.Execute(view, deltaTime);
+                }
+                finally
+                {
+                    sw.Stop();
+                    profile?.RecordExecution(sw.Elapsed.TotalMilliseconds);
+                }
+            }
         }
     }
     

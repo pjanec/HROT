@@ -32,6 +32,13 @@ namespace Fdp.ModuleHost.Abstractions
         /// <summary>
         /// Export phase: Network send, recording (Main Thread).
         /// </summary>
-        Export = 40
+        Export = 40,
+
+        /// <summary>
+        /// Explicitly excluded from the kernel's automatic phase execution.
+        /// Systems in this phase are registered for diagnostics and profiling
+        /// but must be manually ticked by their owning module.
+        /// </summary>
+        Manual = 255
     }
 }

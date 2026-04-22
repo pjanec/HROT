@@ -58,6 +58,7 @@ namespace Fdp.Toolkit.Perception.Systems
     /// Memory cost: one <see cref="Vector2"/> per live entity in <c>_prevPositions</c>.
     /// </para>
     /// </summary>
+    [UpdateInPhase(SystemPhase.Manual)]
     public class LocalGridBuilderSystem : IEcsModuleSystem
     {
         // Value-copy of the PerceptionModule's grid struct.
