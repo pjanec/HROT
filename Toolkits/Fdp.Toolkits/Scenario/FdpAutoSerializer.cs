@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
@@ -92,6 +94,20 @@ namespace Fdp.Toolkit.Scenario
             {
                 var type = ComponentTypeRegistry.GetType(typeId);
                 if (type == null || !type.IsValueType || type.IsEnum) continue;
+
+                // Safety: fixed-buffer and InlineArray fields must not use Entity as element type.
+                foreach (var (_, elemType, _) in GetFixedBufferFields(type))
+                {
+                    if (elemType == typeof(Entity))
+                        throw new InvalidOperationException(
+                            $"Component '{type.Name}' has a fixed-buffer field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.");
+                }
+                foreach (var (_, elemType, _) in GetInlineArrayFields(type))
+                {
+                    if (elemType == typeof(Entity))
+                        throw new InvalidOperationException(
+                            $"Component '{type.Name}' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.");
+                }
 
                 var entry = TryBuildEntry(type, typeId);
                 if (entry != null)
@@ -249,16 +265,38 @@ namespace Fdp.Toolkit.Scenario
             typeof(JsonObject).GetConstructor(new[] { typeof(JsonNodeOptions?) })
             ?? typeof(JsonObject).GetConstructors()[0];
 
+        private static readonly MethodInfo _readFixedBufferGeneric =
+            typeof(FdpAutoSerializer)
+                .GetMethod(nameof(ReadFixedBuffer), BindingFlags.NonPublic | BindingFlags.Static)!
+                .GetGenericMethodDefinition();
+
+        private static readonly MethodInfo _readInlineArrayGeneric =
+            typeof(FdpAutoSerializer)
+                .GetMethod(nameof(ReadInlineArray), BindingFlags.NonPublic | BindingFlags.Static)!
+                .GetGenericMethodDefinition();
+
+        private static readonly MethodInfo _fillFixedBufferGeneric =
+            typeof(FdpAutoSerializer)
+                .GetMethod(nameof(FillFixedBuffer), BindingFlags.NonPublic | BindingFlags.Static)!
+                .GetGenericMethodDefinition();
+
+        private static readonly MethodInfo _fillInlineArrayGeneric =
+            typeof(FdpAutoSerializer)
+                .GetMethod(nameof(FillInlineArray), BindingFlags.NonPublic | BindingFlags.Static)!
+                .GetGenericMethodDefinition();
+
         // ── Entry builder ────────────────────────────────────────────────────────
 
         private static AutoSerializeEntry? TryBuildEntry(Type componentType, int typeId)
         {
             // Only public instance fields that are not annotated with [ScenarioIgnore].
-            var fields = GetSerializableFields(componentType);
-            if (fields.Length == 0) return null;
+            var fields        = GetSerializableFields(componentType);
+            var fixedFields   = GetFixedBufferFields(componentType);
+            var inlineFields  = GetInlineArrayFields(componentType);
+            if (fields.Length == 0 && fixedFields.Length == 0 && inlineFields.Length == 0) return null;
 
-            var extractDelegate = BuildExtract(componentType, fields);
-            var injectDelegate  = BuildInject(componentType, fields);
+            var extractDelegate = BuildExtract(componentType, fields, fixedFields, inlineFields);
+            var injectDelegate  = BuildInject(componentType, fields, fixedFields, inlineFields);
 
             return new AutoSerializeEntry
             {
@@ -275,8 +313,50 @@ namespace Fdp.Toolkit.Scenario
             foreach (var f in all)
             {
                 if (f.GetCustomAttribute<ScenarioIgnoreAttribute>() != null) continue;
-                // Only serializable leaf types: primitives, string, Entity, other value types.
+                // Skip fixed-buffer fields — handled separately by GetFixedBufferFields.
+                if (f.GetCustomAttribute<FixedBufferAttribute>() != null) continue;
+                // Skip InlineArray fields — handled separately by GetInlineArrayFields.
+                if (f.FieldType.GetCustomAttribute<InlineArrayAttribute>() != null) continue;
                 result.Add(f);
+            }
+            return result.ToArray();
+        }
+
+        /// <summary>
+        /// Returns fixed-buffer fields of <paramref name="type"/> together with their element
+        /// type and element count, as declared by <see cref="FixedBufferAttribute"/>.
+        /// </summary>
+        private static (FieldInfo field, Type elemType, int length)[] GetFixedBufferFields(Type type)
+        {
+            var result = new List<(FieldInfo, Type, int)>();
+            foreach (var f in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (f.GetCustomAttribute<ScenarioIgnoreAttribute>() != null) continue;
+                var attr = f.GetCustomAttribute<FixedBufferAttribute>();
+                if (attr == null) continue;
+                result.Add((f, attr.ElementType, attr.Length));
+            }
+            return result.ToArray();
+        }
+
+        /// <summary>
+        /// Returns fields whose declared type carries <see cref="InlineArrayAttribute"/>,
+        /// together with the element type (first field of the inline-array struct) and capacity.
+        /// </summary>
+        private static (FieldInfo field, Type elemType, int length)[] GetInlineArrayFields(Type type)
+        {
+            var result = new List<(FieldInfo, Type, int)>();
+            foreach (var f in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (f.GetCustomAttribute<ScenarioIgnoreAttribute>() != null) continue;
+                var attr = f.FieldType.GetCustomAttribute<InlineArrayAttribute>();
+                if (attr == null) continue;
+                // The element type is the (only) field of the InlineArray struct.
+                var elemField = f.FieldType.GetFields(
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                    .FirstOrDefault();
+                if (elemField == null) continue;
+                result.Add((f, elemField.FieldType, attr.Length));
             }
             return result.ToArray();
         }
@@ -291,7 +371,9 @@ namespace Fdp.Toolkit.Scenario
         /// </para>
         /// </summary>
         private static Func<EntityRepository, Entity, IGuidResolver, JsonObject?> BuildExtract(
-            Type componentType, FieldInfo[] fields)
+            Type componentType, FieldInfo[] fields,
+            (FieldInfo field, Type elemType, int length)[] fixedBufferFields,
+            (FieldInfo field, Type elemType, int length)[] inlineArrayFields)
         {
             var repoParam     = Expression.Parameter(typeof(EntityRepository), "repo");
             var entityParam   = Expression.Parameter(typeof(Entity), "entity");
@@ -347,6 +429,29 @@ namespace Fdp.Toolkit.Scenario
                         Expression.Constant(field.Name), asJsonNode));
             }
 
+            // Fixed-buffer fields: serialize as JsonArray via ReadFixedBuffer<TFixed, TElem>.
+            foreach (var (fbField, elemType, length) in fixedBufferFields)
+            {
+                var fixedFieldAccess = Expression.Field(compVar, fbField);
+                // ReadFixedBuffer<TFixed, TElem>(comp.FixedField, length)
+                var readMethod = _readFixedBufferGeneric.MakeGenericMethod(fbField.FieldType, elemType);
+                var arrExpr    = Expression.Call(null, readMethod, fixedFieldAccess, Expression.Constant(length));
+                bodyStatements.Add(
+                    Expression.Call(jsonVar, _jsonObjectAddMethod,
+                        Expression.Constant(fbField.Name), Expression.Convert(arrExpr, typeof(JsonNode))));
+            }
+
+            // InlineArray fields: serialize as JsonArray via ReadInlineArray<TInline, TElem>.
+            foreach (var (iaField, elemType, length) in inlineArrayFields)
+            {
+                var inlineFieldAccess = Expression.Field(compVar, iaField);
+                var readMethod = _readInlineArrayGeneric.MakeGenericMethod(iaField.FieldType, elemType);
+                var arrExpr    = Expression.Call(null, readMethod, inlineFieldAccess, Expression.Constant(length));
+                bodyStatements.Add(
+                    Expression.Call(jsonVar, _jsonObjectAddMethod,
+                        Expression.Constant(iaField.Name), Expression.Convert(arrExpr, typeof(JsonNode))));
+            }
+
             bodyStatements.Add(jsonVar); // return json
 
             var ifFound = Expression.Block(
@@ -368,7 +473,9 @@ namespace Fdp.Toolkit.Scenario
         /// <c>(EntityRepository repo, Entity entity, JsonNode? node, IGuidResolver resolver) → void</c>
         /// </summary>
         private static Action<EntityRepository, Entity, JsonNode?, IGuidResolver> BuildInject(
-            Type componentType, FieldInfo[] fields)
+            Type componentType, FieldInfo[] fields,
+            (FieldInfo field, Type elemType, int length)[] fixedBufferFields,
+            (FieldInfo field, Type elemType, int length)[] inlineArrayFields)
         {
             var repoParam     = Expression.Parameter(typeof(EntityRepository), "repo");
             var entityParam   = Expression.Parameter(typeof(Entity), "entity");
@@ -380,7 +487,69 @@ namespace Fdp.Toolkit.Scenario
             var assignJsonObj = Expression.Assign(
                 jsonObjVar, Expression.Convert(nodeParam, typeof(JsonObject)));
 
-            var memberBindings = new List<MemberBinding>(fields.Length);
+            bool hasSpecialFields = fixedBufferFields.Length > 0 || inlineArrayFields.Length > 0;
+
+            if (hasSpecialFields)
+            {
+                // When there are fixed-buffer or InlineArray fields we need a mutable
+                // handle on the struct so the runtime helpers can write into it.
+                // We use a Holder<TComp> (a tiny class) so the helpers receive a
+                // reference type they can mutate freely without unsafe expression-tree
+                // ref-parameter passing.
+                Type holderType = typeof(Holder<>).MakeGenericType(componentType);
+                FieldInfo holderValueField = holderType.GetField("Value")!;
+
+                var holderVar = Expression.Variable(holderType, "holder");
+                var newHolder = Expression.Assign(holderVar, Expression.New(holderType));
+
+                var memberBindings = new List<MemberBinding>(fields.Length);
+                foreach (var field in fields)
+                {
+                    var itemAccess = Expression.Property(
+                        jsonObjVar, _jsonObjectIndexer, Expression.Constant(field.Name));
+                    Expression fieldValue = BuildInjectFieldValue(field.FieldType, itemAccess, resolverParam);
+                    memberBindings.Add(Expression.Bind(field, fieldValue));
+                }
+                var newExpr      = Expression.MemberInit(Expression.New(componentType), memberBindings);
+                var assignValue  = Expression.Assign(Expression.Field(holderVar, holderValueField), newExpr);
+
+                var fillCalls = new List<Expression>();
+                foreach (var (fbField, elemType, length) in fixedBufferFields)
+                {
+                    nint offset = Marshal.OffsetOf(componentType, fbField.Name);
+                    var itemAccess = Expression.Property(
+                        jsonObjVar, _jsonObjectIndexer, Expression.Constant(fbField.Name));
+                    var arrExpr = Expression.Convert(itemAccess, typeof(JsonArray));
+                    var fillMethod = _fillFixedBufferGeneric.MakeGenericMethod(componentType, elemType);
+                    fillCalls.Add(Expression.Call(null, fillMethod,
+                        holderVar, Expression.Constant(offset), Expression.Constant(length), arrExpr));
+                }
+                foreach (var (iaField, elemType, length) in inlineArrayFields)
+                {
+                    nint offset = Marshal.OffsetOf(componentType, iaField.Name);
+                    var itemAccess = Expression.Property(
+                        jsonObjVar, _jsonObjectIndexer, Expression.Constant(iaField.Name));
+                    var arrExpr = Expression.Convert(itemAccess, typeof(JsonArray));
+                    var fillMethod = _fillInlineArrayGeneric.MakeGenericMethod(componentType, elemType);
+                    fillCalls.Add(Expression.Call(null, fillMethod,
+                        holderVar, Expression.Constant(offset), Expression.Constant(length), arrExpr));
+                }
+
+                var setMethod = _setComponentGeneric.MakeGenericMethod(componentType);
+                var setCall   = Expression.Call(repoParam, setMethod, entityParam,
+                    Expression.Field(holderVar, holderValueField));
+
+                var allStatements = new List<Expression> { assignJsonObj, newHolder, assignValue };
+                allStatements.AddRange(fillCalls);
+                allStatements.Add(setCall);
+
+                var body = Expression.Block(new[] { jsonObjVar, holderVar }, allStatements);
+                return Expression.Lambda<Action<EntityRepository, Entity, JsonNode?, IGuidResolver>>(
+                    body, repoParam, entityParam, nodeParam, resolverParam).Compile();
+            }
+            else
+            {
+                var memberBindings = new List<MemberBinding>(fields.Length);
 
             foreach (var field in fields)
             {
@@ -427,6 +596,21 @@ namespace Fdp.Toolkit.Scenario
 
             return Expression.Lambda<Action<EntityRepository, Entity, JsonNode?, IGuidResolver>>(
                 body, repoParam, entityParam, nodeParam, resolverParam).Compile();
+            } // end else (no special fields)
+        }
+
+        /// <summary>
+        /// Builds the expression that deserializes a single field value from a JsonNode.
+        /// Centralised to avoid duplication between the with-Holder and without-Holder inject paths.
+        /// </summary>
+        private static Expression BuildInjectFieldValue(Type fieldType, Expression itemAccess, Expression resolverParam)
+        {
+            if (fieldType == typeof(Entity))
+            {
+                var getStr = Expression.Call(itemAccess, _jsonNodeGetValueGeneric.MakeGenericMethod(typeof(string)));
+                return Expression.Call(resolverParam, _resolveStringMethod, getStr);
+            }
+            return Expression.Call(null, _deserializeNodeGeneric.MakeGenericMethod(fieldType), itemAccess);
         }
 
         // ── Component value copy helper ───────────────────────────────────────────
@@ -442,6 +626,94 @@ namespace Fdp.Toolkit.Scenario
         {
             repo.TryGetComponent<T>(entity, out T value);
             return value;
+        }
+
+        // ── Fixed-buffer and InlineArray runtime helpers ──────────────────────────
+
+        /// <summary>
+        /// Mutable container used by the inject path for types that have fixed-buffer
+        /// or [InlineArray] fields. Wrapping the struct in a class gives the runtime
+        /// helpers a stable addressable location to write into, without needing
+        /// <c>ref</c> parameters in expression trees (which are not supported).
+        /// </summary>
+        private sealed class Holder<T> where T : struct { public T Value; }
+
+        /// <summary>
+        /// Reads <paramref name="length"/> elements of type <typeparamref name="TElem"/>
+        /// from a fixed-buffer field value <paramref name="buf"/> and returns them as a
+        /// <see cref="JsonArray"/>.
+        /// </summary>
+        /// <typeparam name="TFixed">The compiler-generated fixed-buffer struct type.</typeparam>
+        /// <typeparam name="TElem">The element type of the fixed buffer.</typeparam>
+        private static unsafe JsonArray ReadFixedBuffer<TFixed, TElem>(TFixed buf, int length)
+            where TFixed : unmanaged
+            where TElem  : unmanaged
+        {
+            ref TElem first = ref Unsafe.As<TFixed, TElem>(ref buf);
+            var arr = new JsonArray();
+            for (int i = 0; i < length; i++)
+                arr.Add(SerializeFieldToNode(Unsafe.Add(ref first, i)));
+            return arr;
+        }
+
+        /// <summary>
+        /// Reads <paramref name="length"/> elements of type <typeparamref name="TElem"/>
+        /// from an [InlineArray] value <paramref name="inline"/> and returns them as a
+        /// <see cref="JsonArray"/>.
+        /// </summary>
+        /// <typeparam name="TInline">The [InlineArray] struct type.</typeparam>
+        /// <typeparam name="TElem">The element type of the inline array.</typeparam>
+        private static unsafe JsonArray ReadInlineArray<TInline, TElem>(TInline inline, int length)
+            where TInline : unmanaged
+            where TElem   : unmanaged
+        {
+            ref TElem first = ref Unsafe.As<TInline, TElem>(ref inline);
+            var arr = new JsonArray();
+            for (int i = 0; i < length; i++)
+                arr.Add(SerializeFieldToNode(Unsafe.Add(ref first, i)));
+            return arr;
+        }
+
+        /// <summary>
+        /// Writes elements from <paramref name="arr"/> into the fixed-buffer field of
+        /// <c>holder.Value</c> at byte offset <paramref name="fieldByteOffset"/>.
+        /// </summary>
+        private static unsafe void FillFixedBuffer<TComp, TElem>(
+            Holder<TComp> holder, nint fieldByteOffset, int length, JsonArray? arr)
+            where TComp : struct
+            where TElem : unmanaged
+        {
+            if (arr == null) return;
+            ref TElem first = ref Unsafe.As<TComp, TElem>(
+                ref Unsafe.AddByteOffset(ref holder.Value, fieldByteOffset));
+            int count = Math.Min(length, arr.Count);
+            for (int i = 0; i < count; i++)
+            {
+                var node = arr[i];
+                if (node != null)
+                    Unsafe.Add(ref first, i) = node.Deserialize<TElem>(_fieldAwareOptions)!;
+            }
+        }
+
+        /// <summary>
+        /// Writes elements from <paramref name="arr"/> into the [InlineArray] field of
+        /// <c>holder.Value</c> at byte offset <paramref name="fieldByteOffset"/>.
+        /// </summary>
+        private static unsafe void FillInlineArray<TComp, TElem>(
+            Holder<TComp> holder, nint fieldByteOffset, int length, JsonArray? arr)
+            where TComp : struct
+            where TElem : unmanaged
+        {
+            if (arr == null) return;
+            ref TElem first = ref Unsafe.As<TComp, TElem>(
+                ref Unsafe.AddByteOffset(ref holder.Value, fieldByteOffset));
+            int count = Math.Min(length, arr.Count);
+            for (int i = 0; i < count; i++)
+            {
+                var node = arr[i];
+                if (node != null)
+                    Unsafe.Add(ref first, i) = node.Deserialize<TElem>(_fieldAwareOptions)!;
+            }
         }
     }
 }

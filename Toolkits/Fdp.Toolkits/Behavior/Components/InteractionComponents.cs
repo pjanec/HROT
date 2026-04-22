@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Core;
+using Fdp.Toolkit.Scenario;
 
 namespace Fdp.Toolkit.Behavior.Components
 {
@@ -15,6 +16,8 @@ namespace Fdp.Toolkit.Behavior.Components
         public const int Capacity = 8;
 
         /// <summary>Inline array of <see cref="Entity"/> handles for passengers.</summary>
+        /// <remarks>Handled by <c>PassengerBufferTranslator</c>; excluded from FdpAutoSerializer.</remarks>
+        [ScenarioIgnore]
         public PassengerSlots Passengers;
 
         /// <summary>Number of passengers currently aboard (0–<see cref="Capacity"/>).</summary>
