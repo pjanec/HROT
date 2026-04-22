@@ -48,9 +48,9 @@
 
 **Goal:** Eliminate all doctrine behavior-ID magic strings; make the parameter DTO the Single Source of Truth.
 
-- [ ] **MPM-P5-T01** Create DoctrineCategory enum and DoctrineContractAttribute in Hrot.Core [details](./TASK-DETAIL.md#mpm-p5-t01---create-doctrinecategory-and-doctrinecontractattribute)
-- [ ] **MPM-P5-T02** Decorate existing parameter DTOs and create empty marker DTOs [details](./TASK-DETAIL.md#mpm-p5-t02---decorate-dtos-and-create-empty-marker-dtos)
-- [ ] **MPM-P5-T03** Create DoctrineSchemaDiscovery auto-registration utility [details](./TASK-DETAIL.md#mpm-p5-t03---create-doctrineschemariscovery)
+- [x] **MPM-P5-T01** Create DoctrineCategory enum and DoctrineContractAttribute in Hrot.Core [details](./TASK-DETAIL.md#mpm-p5-t01---create-doctrinecategory-and-doctrinecontractattribute)
+- [x] **MPM-P5-T02** Decorate existing parameter DTOs and create empty marker DTOs [details](./TASK-DETAIL.md#mpm-p5-t02---decorate-dtos-and-create-empty-marker-dtos)
+- [x] **MPM-P5-T03** Create DoctrineSchemaDiscovery auto-registration utility [details](./TASK-DETAIL.md#mpm-p5-t03---create-doctrineschemariscovery)
 - [ ] **MPM-P5-T04** Replace BehaviorUiSetup and CgfDoctrineSetup manual registrations [details](./TASK-DETAIL.md#mpm-p5-t04---replace-behavioruisetup-and-cgfdoctrinesetup-manual-registrations)
 - [ ] **MPM-P5-T05** Rebuild DoctrineCatalog using reflection [details](./TASK-DETAIL.md#mpm-p5-t05---rebuild-doctrinecatalog-using-reflection)
 - [ ] **MPM-P5-T06** Update CgfNodes.cs AI tree JSON to use DTO BehaviorId constants [details](./TASK-DETAIL.md#mpm-p5-t06---update-cgfnodescs-to-use-dto-behaviorid-constants)
