@@ -164,7 +164,7 @@ namespace Hrot.Common.Systems
                         }) ?? new List<DomainMissionTask>()
                     };
                     repo.SetComponent(entity, queue);
-                    repo.SetComponent(entity, new ActiveMissionPlan
+                    repo.SetManagedComponent(entity, new ActiveMissionPlan
                     {
                         Plan = domainPlan
                     });
@@ -210,7 +210,7 @@ namespace Hrot.Common.Systems
                         PhaseElapsedSeconds = 0f
                     };
                     repo.SetComponent(entity, abortQueue);
-                    repo.RemoveComponent<ActiveMissionPlan>(entity);
+                    repo.SetManagedComponent<ActiveMissionPlan>(entity, null!);
                     SmartEgressUtil.MarkDirty(repo, entity, EntityMissionDescriptorOrdinal);
 
                     _taskOrder[intent.TargetEntityId] = new List<Guid>();
@@ -264,6 +264,7 @@ namespace Hrot.Common.Systems
                     tasks.Count, MissionPlanQueue.MaxPhases);
             }
 
+            Span<MissionPhase> phases = queue.Phases;
             for (int i = 0; i < count; i++)
             {
                 var task = tasks[i];
@@ -282,7 +283,7 @@ namespace Hrot.Common.Systems
                 int doctrineId = ResolveDoctrineId(task.BehaviorId);
                 var (trigger, param) = ResolveTrigger(task.Triggers);
 
-                queue.Phases[i] = new MissionPhase
+                phases[i] = new MissionPhase
                 {
                     DoctrineId = doctrineId,
                     Trigger = trigger,

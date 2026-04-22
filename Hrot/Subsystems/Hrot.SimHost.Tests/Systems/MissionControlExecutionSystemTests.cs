@@ -260,4 +260,135 @@ public class MissionControlExecutionSystemTests
         Assert.NotNull(ack);
         Assert.Equal(0, ack!.Value.ErrorCode);
     }
+
+    // ── SC-S301: ActiveMissionPlan stored and removed via managed component API ─
+
+    /// <summary>
+    /// S301-SC1/SC2/SC3: After CMD_REPLACE_MISSION, <see cref="ActiveMissionPlan"/>
+    /// must be retrievable via <c>HasManagedComponent</c> and <c>GetManagedComponent</c>.
+    /// After CMD_ABORT_ALL it must be absent.
+    /// </summary>
+    [Fact]
+    public void ReplaceMission_SetsManagedComponent_AbortAll_ClearsIt()
+    {
+        var entityMap = new NetworkEntityMap();
+        using var repo = CreateWorld();
+        var entity = repo.CreateEntity();
+        entityMap.Register(1L, entity);
+
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+        system.Create(repo);
+
+        var taskA = Guid.NewGuid();
+        var taskB = Guid.NewGuid();
+
+        // ── Replace mission ──────────────────────────────────────────────────────
+        system.TestHook_ProcessIntent(repo, new MissionControlIntent
+        {
+            RequestId      = Guid.NewGuid(),
+            TargetEntityId = 1L,
+            BaseVersion    = 0,
+            Payload = new MissionCommandPayload
+            {
+                CommandType     = eMissionCommandType.CMD_REPLACE_MISSION,
+                FullMissionData = MakePlan(taskA, taskB)
+            }
+        });
+
+        // SC1: HasManagedComponent returns true.
+        Assert.True(repo.HasManagedComponent<ActiveMissionPlan>(entity),
+            "ActiveMissionPlan must be stored via SetManagedComponent after CMD_REPLACE_MISSION");
+
+        // SC2: GetManagedComponentRO is not null and Tasks count matches.
+        var plan = ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(entity);
+        Assert.NotNull(plan);
+        Assert.NotNull(plan!.Plan);
+        Assert.Equal(2, plan.Plan.Tasks.Count);
+
+        // ── Abort all ────────────────────────────────────────────────────────────
+        system.TestHook_ProcessIntent(repo, new MissionControlIntent
+        {
+            RequestId      = Guid.NewGuid(),
+            TargetEntityId = 1L,
+            BaseVersion    = 1,
+            Payload        = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_ABORT_ALL }
+        });
+
+        // SC3: HasManagedComponent returns false after CMD_ABORT_ALL.
+        Assert.False(repo.HasManagedComponent<ActiveMissionPlan>(entity),
+            "ActiveMissionPlan must be cleared after CMD_ABORT_ALL");
+    }
+
+    // ── SC-S302: TryBuildQueue — Span mutation produces correct PhaseCount ──────
+
+    /// <summary>
+    /// S302-SC1/SC2: Processing a 3-task plan produces a <see cref="MissionPlanQueue"/>
+    /// with <c>PhaseCount == 3</c> and each phase bearing the expected doctrine ID.
+    /// </summary>
+    [Fact]
+    public void ReplaceMission_3TaskPlan_PhaseCountAndDoctrineIdCorrect()
+    {
+        var entityMap = new NetworkEntityMap();
+        using var repo = CreateWorld();
+        var entity = repo.CreateEntity();
+        entityMap.Register(1L, entity);
+
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+        system.Create(repo);
+
+        var taskA = Guid.NewGuid();
+        var taskB = Guid.NewGuid();
+        var taskC = Guid.NewGuid();
+
+        system.TestHook_ProcessIntent(repo, new MissionControlIntent
+        {
+            RequestId      = Guid.NewGuid(),
+            TargetEntityId = 1L,
+            BaseVersion    = 0,
+            Payload = new MissionCommandPayload
+            {
+                CommandType     = eMissionCommandType.CMD_REPLACE_MISSION,
+                FullMissionData = MakePlan(taskA, taskB, taskC)
+            }
+        });
+
+        // SC1: PhaseCount == 3.
+        var queue = repo.GetComponent<MissionPlanQueue>(entity);
+        Assert.Equal(3, queue.PhaseCount);
+
+        // SC2: Each phase has the MoveToLocation doctrine ID (101).
+        Span<MissionPhase> phases = queue.Phases;
+        for (int i = 0; i < 3; i++)
+            Assert.Equal(101, phases[i].DoctrineId);
+    }
+
+    /// <summary>
+    /// S302-SC3: A plan with zero tasks produces <c>PhaseCount == 0</c>.
+    /// </summary>
+    [Fact]
+    public void ReplaceMission_EmptyPlan_PhaseCountIsZero()
+    {
+        var entityMap = new NetworkEntityMap();
+        using var repo = CreateWorld();
+        var entity = repo.CreateEntity();
+        entityMap.Register(1L, entity);
+
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+        system.Create(repo);
+
+        system.TestHook_ProcessIntent(repo, new MissionControlIntent
+        {
+            RequestId      = Guid.NewGuid(),
+            TargetEntityId = 1L,
+            BaseVersion    = 0,
+            Payload = new MissionCommandPayload
+            {
+                CommandType     = eMissionCommandType.CMD_REPLACE_MISSION,
+                FullMissionData = new MissionPlan { Tasks = new List<MissionTask>() }
+            }
+        });
+
+        var queue = repo.GetComponent<MissionPlanQueue>(entity);
+        Assert.Equal(0, queue.PhaseCount);
+    }
 }
