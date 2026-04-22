@@ -32,7 +32,8 @@ namespace Hrot.IG.Systems;
 /// All colour and duration constants from <see cref="VisualEffectStateConstants"/>
 /// (§CODE-STANDARDS §1).
 /// </summary>
-[UpdateInPhase(SystemPhase.Simulation)]
+[UpdateInPhase(SystemPhase.PostSimulation)]
+[UpdateBefore(typeof(VisualEffectCleanupSystem))]
 public class EventToEffectSystem : IEcsModuleSystem
 {
     /// <inheritdoc/>

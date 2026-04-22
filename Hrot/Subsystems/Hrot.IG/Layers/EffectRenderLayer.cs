@@ -48,6 +48,9 @@ public sealed class EffectRenderLayer : IMapLayer
     /// <inheritdoc/>
     public void Draw(RenderContext ctx)
     {
+        // Safe zoom fallback to prevent divide-by-zero
+        float zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;
+
         foreach (var entity in _query)
         {
             ref readonly var tf     = ref _world.GetComponentRO<SimTransform>(entity);
@@ -55,23 +58,27 @@ public sealed class EffectRenderLayer : IMapLayer
 
             byte alpha  = (byte)(effect.ColorA * effect.Alpha);
             var  color  = new Color(effect.ColorR, effect.ColorG, effect.ColorB, alpha);
+            
+            // USE RAW WORLD COORDINATES
             var  worldPos = new Vector2(tf.Position.X, tf.Position.Y);
-            var  screenPos = Raylib.GetWorldToScreen2D(worldPos, ctx.Camera);
 
             if (effect.Type == EffectType.Explosion)
             {
-                float radius = effect.Scale * ctx.Zoom;
-                Raylib.DrawCircleV(screenPos, radius, color);
+                // Scale is already in world units. Do not multiply by zoom inside BeginMode2D.
+                float radius = effect.Scale; 
+                Raylib.DrawCircleV(worldPos, radius, color);
             }
-            else if (effect.Type == EffectType.Tracer
+            else if (effect.Type == EffectType.Tracer 
                   && _world.HasComponent<TracerTarget>(entity))
             {
                 ref readonly var tracer = ref _world.GetComponentRO<TracerTarget>(entity);
-                var targetScreenPos = Raylib.GetWorldToScreen2D(
-                    new Vector2(tracer.EndX, tracer.EndY), ctx.Camera);
+                var targetWorldPos = new Vector2(tracer.EndX, tracer.EndY);
 
-                Raylib.DrawLineEx(screenPos, targetScreenPos,
-                    VisualEffectStateConstants.EffectLineWidthPx, color);
+                // Convert pixel line thickness to world-space thickness so it stays 
+                // consistent visually regardless of zoom level
+                float thickness = VisualEffectStateConstants.EffectLineWidthPx / zoom;
+
+                Raylib.DrawLineEx(worldPos, targetWorldPos, thickness, color);
             }
         }
     }

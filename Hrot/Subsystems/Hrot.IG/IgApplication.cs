@@ -125,6 +125,7 @@ using StandardInteractionTool = Hrot.ScenarioEditor.Tools.StandardInteractionToo
 using Raylib_cs;
 
 using rlImGui_cs;
+using Hrot.IG.Layers;
 
 
 
@@ -722,6 +723,8 @@ public class IgApplication : IDisposable
             .Register("GeoPosition.Longitude", AttributeIds.GeoLon,      AttributeValueKind.Float64)
             .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,      AttributeValueKind.Float64)
             .Build();
+
+        _canvas.AddLayer(new EffectRenderLayer(_world));
 
     }
 
