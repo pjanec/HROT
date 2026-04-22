@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Fdp.ModuleHost.Time;
 using Fdp.Toolkit.Runner;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
@@ -13,6 +14,7 @@ using Hrot.Map.Common.Components;
 using Hrot.Map.Definitions.Tkb;
 using Fdp.Toolkit.Replication;
 using Fdp.Core;
+using Hrot.UI.Common.Facades;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
@@ -636,6 +638,101 @@ public sealed class EditorSubsystemBootTests
         }
 
         Assert.True(found, "Entity with RoutePlan should be in the world (BUG12)");
+
+        subsystem.Shutdown();
+    }
+
+    // -- T-ES28: TimeController starts in Deterministic mode after Initialize (S310) --
+
+    [Fact]
+    public void TimeController_AfterInit_IsInDeterministicMode()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+
+        // SwitchToDeterministic() sets a Future Barrier (LookaheadWallTicks ~200 ms real time).
+        // Pump Update() until the barrier is crossed and mode transitions to Stepping.
+        var deadline = DateTime.UtcNow.AddSeconds(3);
+        while (DateTime.UtcNow < deadline &&
+               subsystem.TimeController.GetMode() != TimeMode.Deterministic)
+        {
+            subsystem.Kernel.Update();
+        }
+
+        Assert.Equal(TimeMode.Deterministic, subsystem.TimeController.GetMode());
+
+        subsystem.Shutdown();
+    }
+
+    // -- T-ES29: Kernel.Update() without prior Step() does not throw (S309) ----------
+
+    [Fact]
+    public void KernelUpdate_WithoutStep_DoesNotThrow()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+
+        var ex = Record.Exception(() => subsystem.Kernel.Update());
+
+        Assert.Null(ex);
+
+        subsystem.Shutdown();
+    }
+
+    // -- T-ES30: EnterPreviewMode switches time mode to Continuous (S311) ------------
+
+    [Fact]
+    public void EnterPreviewMode_SwitchesTimeModeToContinuous()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+
+        // Ensure we are in Deterministic before entering preview.
+        var deadline = DateTime.UtcNow.AddSeconds(3);
+        while (DateTime.UtcNow < deadline &&
+               subsystem.TimeController.GetMode() != TimeMode.Deterministic)
+        {
+            subsystem.Kernel.Update();
+        }
+
+        IPreviewController ctrl = subsystem.PreviewController;
+        ctrl.EnterPreviewMode();
+
+        Assert.Equal(TimeMode.Continuous, subsystem.TimeController.GetMode());
+
+        ctrl.ExitPreviewMode();
+        subsystem.Shutdown();
+    }
+
+    // -- T-ES31: ExitPreviewMode switches time mode back to Deterministic (S311) -----
+
+    [Fact]
+    public void ExitPreviewMode_SwitchesTimeModeToDeterministic()
+    {
+        var subsystem = new EditorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+
+        // Ensure we are in Deterministic before entering preview.
+        var deadline = DateTime.UtcNow.AddSeconds(3);
+        while (DateTime.UtcNow < deadline &&
+               subsystem.TimeController.GetMode() != TimeMode.Deterministic)
+        {
+            subsystem.Kernel.Update();
+        }
+
+        IPreviewController ctrl = subsystem.PreviewController;
+        ctrl.EnterPreviewMode();
+        ctrl.ExitPreviewMode();
+
+        // SwitchToDeterministic again needs barrier crossing.
+        deadline = DateTime.UtcNow.AddSeconds(3);
+        while (DateTime.UtcNow < deadline &&
+               subsystem.TimeController.GetMode() != TimeMode.Deterministic)
+        {
+            subsystem.Kernel.Update();
+        }
+
+        Assert.Equal(TimeMode.Deterministic, subsystem.TimeController.GetMode());
 
         subsystem.Shutdown();
     }

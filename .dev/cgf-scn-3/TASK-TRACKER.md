@@ -30,10 +30,10 @@
 
 **Goal:** Fix the broken module registration in EditorSubsystem/EditorHarness and replace SteppingTimeController with MasterSyncController for correct authoring/preview time modes.
 
-- [ ] **TASK-S309** EditorSubsystem system group wiring [details](./TASK-DETAIL.md#task-s309--editorsubsystem-system-group-wiring)
-- [ ] **TASK-S310** EditorSubsystem MasterSyncController replacement [details](./TASK-DETAIL.md#task-s310--editorsubsystem-mastersyncontroller-replacement)
-- [ ] **TASK-S311** EditorPreviewController time mode wiring [details](./TASK-DETAIL.md#task-s311--editorpreviewcontroller-time-mode-wiring)
-- [ ] **TASK-S312** EditorHarness fix [details](./TASK-DETAIL.md#task-s312--editorharness-fix)
+- [x] **TASK-S309** EditorSubsystem system group wiring [details](./TASK-DETAIL.md#task-s309--editorsubsystem-system-group-wiring)
+- [x] **TASK-S310** EditorSubsystem MasterSyncController replacement [details](./TASK-DETAIL.md#task-s310--editorsubsystem-mastersyncontroller-replacement)
+- [x] **TASK-S311** EditorPreviewController time mode wiring [details](./TASK-DETAIL.md#task-s311--editorpreviewcontroller-time-mode-wiring)
+- [x] **TASK-S312** EditorHarness fix [details](./TASK-DETAIL.md#task-s312--editorharness-fix)
 
 ---
 
@@ -41,4 +41,4 @@
 
 **Goal:** Fix silent network-ID corruption in multi-part entity loads during distributed scenario launch.
 
-- [ ] **TASK-S313** StagingEntityExtractor child entity remapping [details](./TASK-DETAIL.md#task-s313--stagingentityextractor-child-entity-remapping)
+- [x] **TASK-S313** StagingEntityExtractor child entity remapping [details](./TASK-DETAIL.md#task-s313--stagingentityextractor-child-entity-remapping)

@@ -279,87 +279,8 @@ namespace Hrot.CGF.Orchestration
                 {
                     var comps = rd.components;
 
-                    // Remap BehaviorParams network IDs in-place on any ActiveMissionPlan
-                    // component (intentional mutation — staging repo is transient).
-                    if (behaviorRemapper != null)
-                    {
-                        foreach (var comp in comps)
-                        {
-                            if (comp is ActiveMissionPlan plan)
-                            {
-                                foreach (var task in plan.Plan.Tasks)
-                                {
-                                    task.BehaviorParams =
-                                        behaviorRemapper.RemapJson(
-                                            task.BehaviorId,
-                                            task.BehaviorParams,
-                                            oldToNewMap)
-                                        ?? task.BehaviorParams;
-                                }
-                            }
-                        }
-                    }
-
-                    // Remap cross-entity Network IDs embedded in Intent DTO managed components.
-                    // Intent DTOs are written by scenario translators during Inject; the network IDs
-                    // they contain refer to the old staging allocations and must be patched to the
-                    // new IDs allocated in Pass 1 before the requests are dispatched.
-                    for (int ci = 0; ci < comps.Count; ci++)
-                    {
-                        if (comps[ci] is InitialPassengersIntent pIntent)
-                        {
-                            var remapped = new InitialPassengersIntent();
-                            foreach (var id in pIntent.PassengerNetworkIds)
-                                remapped.PassengerNetworkIds.Add(
-                                    oldToNewMap.TryGetValue(id, out long newPsId) ? newPsId : id);
-                            comps[ci] = remapped;
-                        }
-                        else if (comps[ci] is InitialVehicleIntent vIntent)
-                        {
-                            comps[ci] = new InitialVehicleIntent
-                            {
-                                VehicleNetworkId = oldToNewMap.TryGetValue(
-                                    vIntent.VehicleNetworkId, out long newVId) ? newVId : vIntent.VehicleNetworkId,
-                            };
-                        }
-                        else if (comps[ci] is InitialHierarchyIntent hIntent)
-                        {
-                            comps[ci] = new InitialHierarchyIntent
-                            {
-                                ParentNetworkId      = oldToNewMap.TryGetValue(
-                                    hIntent.ParentNetworkId,      out long newParId) ? newParId : hIntent.ParentNetworkId,
-                                FirstChildNetworkId  = oldToNewMap.TryGetValue(
-                                    hIntent.FirstChildNetworkId,  out long newFcId)  ? newFcId  : hIntent.FirstChildNetworkId,
-                                NextSiblingNetworkId = oldToNewMap.TryGetValue(
-                                    hIntent.NextSiblingNetworkId, out long newNsId)  ? newNsId  : hIntent.NextSiblingNetworkId,
-                            };
-                        }
-                        else if (comps[ci] is InitialRouteIntent rIntent)
-                        {
-                            comps[ci] = new InitialRouteIntent
-                            {
-                                RouteNetworkId = oldToNewMap.TryGetValue(
-                                    rIntent.RouteNetworkId, out long newRId) ? newRId : rIntent.RouteNetworkId,
-                            };
-                        }
-                        else if (comps[ci] is InitialTargetsIntent tIntent)
-                        {
-                            var remappedIntent = new InitialTargetsIntent();
-                            foreach (var entry in tIntent.Entries)
-                            {
-                                remappedIntent.Entries.Add(new TargetEntry
-                                {
-                                    NetworkId    = oldToNewMap.TryGetValue(entry.NetworkId, out long newTId) ? newTId : entry.NetworkId,
-                                    PosX         = entry.PosX,
-                                    PosY         = entry.PosY,
-                                    Score        = entry.Score,
-                                    LastSeenTick = entry.LastSeenTick,
-                                    Modality     = entry.Modality,
-                                });
-                            }
-                            comps[ci] = remappedIntent;
-                        }
-                    }
+                    // Remap BehaviorParams and cross-entity network IDs in-place.
+                    RemapComponentNetworkIds(comps, oldToNewMap, behaviorRemapper);
 
                     // Append EpisodeTag last when an episode ID is provided.
                     if (episodeId.HasValue)
@@ -373,7 +294,10 @@ namespace Hrot.CGF.Orchestration
                     {
                         var overrideDict = new Dictionary<int, (long, IReadOnlyList<object>)>(harvested.Count);
                         foreach (var kvp in harvested)
+                        {
+                            RemapComponentNetworkIds(kvp.Value.components, oldToNewMap, behaviorRemapper);
                             overrideDict[kvp.Key] = (kvp.Value.preAllocId, kvp.Value.components);
+                        }
                         childOverrides = overrideDict;
                     }
 
@@ -399,6 +323,100 @@ namespace Hrot.CGF.Orchestration
         }
 
         // ── Private helpers ───────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Remaps network IDs embedded inside <paramref name="comps"/> in-place.
+        /// Patches <see cref="ActiveMissionPlan"/> BehaviorParams via
+        /// <paramref name="behaviorRemapper"/> (when non-null) and remaps cross-entity
+        /// network IDs in Intent DTO managed components.
+        /// </summary>
+        private static void RemapComponentNetworkIds(
+            List<object> comps,
+            Dictionary<long, long> oldToNewMap,
+            ScenarioBehaviorRemapper? behaviorRemapper)
+        {
+            // Remap BehaviorParams network IDs in-place on any ActiveMissionPlan
+            // component (intentional mutation — staging repo is transient).
+            if (behaviorRemapper != null)
+            {
+                foreach (var comp in comps)
+                {
+                    if (comp is ActiveMissionPlan plan)
+                    {
+                        foreach (var task in plan.Plan.Tasks)
+                        {
+                            task.BehaviorParams =
+                                behaviorRemapper.RemapJson(
+                                    task.BehaviorId,
+                                    task.BehaviorParams,
+                                    oldToNewMap)
+                                ?? task.BehaviorParams;
+                        }
+                    }
+                }
+            }
+
+            // Remap cross-entity Network IDs embedded in Intent DTO managed components.
+            // Intent DTOs are written by scenario translators during Inject; the network IDs
+            // they contain refer to the old staging allocations and must be patched to the
+            // new IDs allocated in Pass 1 before the requests are dispatched.
+            for (int ci = 0; ci < comps.Count; ci++)
+            {
+                if (comps[ci] is InitialPassengersIntent pIntent)
+                {
+                    var remapped = new InitialPassengersIntent();
+                    foreach (var id in pIntent.PassengerNetworkIds)
+                        remapped.PassengerNetworkIds.Add(
+                            oldToNewMap.TryGetValue(id, out long newPsId) ? newPsId : id);
+                    comps[ci] = remapped;
+                }
+                else if (comps[ci] is InitialVehicleIntent vIntent)
+                {
+                    comps[ci] = new InitialVehicleIntent
+                    {
+                        VehicleNetworkId = oldToNewMap.TryGetValue(
+                            vIntent.VehicleNetworkId, out long newVId) ? newVId : vIntent.VehicleNetworkId,
+                    };
+                }
+                else if (comps[ci] is InitialHierarchyIntent hIntent)
+                {
+                    comps[ci] = new InitialHierarchyIntent
+                    {
+                        ParentNetworkId      = oldToNewMap.TryGetValue(
+                            hIntent.ParentNetworkId,      out long newParId) ? newParId : hIntent.ParentNetworkId,
+                        FirstChildNetworkId  = oldToNewMap.TryGetValue(
+                            hIntent.FirstChildNetworkId,  out long newFcId)  ? newFcId  : hIntent.FirstChildNetworkId,
+                        NextSiblingNetworkId = oldToNewMap.TryGetValue(
+                            hIntent.NextSiblingNetworkId, out long newNsId)  ? newNsId  : hIntent.NextSiblingNetworkId,
+                    };
+                }
+                else if (comps[ci] is InitialRouteIntent rIntent)
+                {
+                    comps[ci] = new InitialRouteIntent
+                    {
+                        RouteNetworkId = oldToNewMap.TryGetValue(
+                            rIntent.RouteNetworkId, out long newRId) ? newRId : rIntent.RouteNetworkId,
+                    };
+                }
+                else if (comps[ci] is InitialTargetsIntent tIntent)
+                {
+                    var remappedIntent = new InitialTargetsIntent();
+                    foreach (var entry in tIntent.Entries)
+                    {
+                        remappedIntent.Entries.Add(new TargetEntry
+                        {
+                            NetworkId    = oldToNewMap.TryGetValue(entry.NetworkId, out long newTId) ? newTId : entry.NetworkId,
+                            PosX         = entry.PosX,
+                            PosY         = entry.PosY,
+                            Score        = entry.Score,
+                            LastSeenTick = entry.LastSeenTick,
+                            Modality     = entry.Modality,
+                        });
+                    }
+                    comps[ci] = remappedIntent;
+                }
+            }
+        }
 
         /// <summary>
         /// Extracts all non-excluded components for the entity at <paramref name="entityIndex"/>

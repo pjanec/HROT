@@ -591,5 +591,55 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, intent.PassengerNetworkIds.Count);
             Assert.Equal(unknownPassengerId, intent.PassengerNetworkIds[0]);
         }
+
+        // ── Test 15: Child entity InitialPassengersIntent NetworkId remapped (S313) ─
+
+        [Fact]
+        public void Extract_ChildEntity_InitialPassengersIntent_NetworkIdIsRemapped()
+        {
+            const long rootOldId      = 1000L;
+            const long childOldId     = 1001L;
+            const long passengerOldId = 2000L;
+            const int  instanceId     = 1;
+
+            // Root entity — no SimTransform so stub translator does NOT fire for it.
+            var root = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(root, new NetworkIdentity { Value = rootOldId });
+
+            // Child entity — has SimTransform so stub translator fires for it.
+            var child = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(child, new NetworkIdentity { Value = childOldId });
+            _goldRepo.SetComponent(child, new SimTransform());
+            _goldRepo.SetComponent(child,
+                new PartMetadata { ParentEntity = root, InstanceId = instanceId });
+
+            // Passenger entity — provides the old network ID to remap.
+            var passenger = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(passenger, new NetworkIdentity { Value = passengerOldId });
+
+            // Allocator: root->3000, child->3001, passenger->3002 (increments each call).
+            var allocator = new StubIdAllocator(3000);
+
+            var serializer = BuildSerializer(new StubPassengersIntentTranslator(passengerOldId));
+            var json = SerializeGoldRepo(_goldRepo, serializer);
+
+            var requests = new StagingEntityExtractor()
+                .Extract(serializer, json, allocator);
+
+            // Root and passenger are both root-level requests (neither has PartMetadata);
+            // only the root entity has a child override entry.
+            Assert.Equal(2, requests.Count);
+            var req = requests.Single(r => r.ChildComponentOverrides != null);
+            Assert.NotNull(req.ChildComponentOverrides);
+
+            var overrideEntry = req.ChildComponentOverrides![instanceId];
+            var intent = overrideEntry.Components
+                .OfType<InitialPassengersIntent>()
+                .Single();
+
+            // passengerOldId 2000 must have been remapped to 3002.
+            Assert.Equal(1, intent.PassengerNetworkIds.Count);
+            Assert.Equal(3002L, intent.PassengerNetworkIds[0]);
+        }
     }
 }

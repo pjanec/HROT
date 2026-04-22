@@ -12,6 +12,7 @@ using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Tkb;
 using Hrot.CGF;
+using Hrot.Common.Infrastructure;
 using Hrot.Core.Network;
 using Hrot.Editor;
 using Hrot.Editor.Modules;
@@ -41,7 +42,7 @@ public sealed class EditorHarness : IDisposable
 {
     private const int PumpSleepMs = 5;
 
-    private SteppingTimeController? _stepping;
+    private MasterSyncController? _timeController;
     private readonly SequentialIdAllocator _idAllocator;
     private ScenarioFileService _fileService = null!;
     private ZoneManagerService  _zoneService = null!;
@@ -65,6 +66,28 @@ public sealed class EditorHarness : IDisposable
         public void Dispose() { }
     }
 
+    private sealed class SimGroupModule : IEcsModule
+    {
+        private readonly SystemGroup _group;
+        public string Name => "HarnessSimGroup";
+        public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
+        public SimGroupModule(SystemGroup group) => _group = group;
+        public void RegisterSystems(ISystemRegistry registry) { }
+        public void Tick(ISimulationView view, float dt) => _group.Run();
+        public System.Collections.Generic.IEnumerable<Type>? GetRequiredComponents() => null;
+    }
+
+    private sealed class PostSimGroupModule : IEcsModule
+    {
+        private readonly SystemGroup _group;
+        public string Name => "HarnessPostSimGroup";
+        public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
+        public PostSimGroupModule(SystemGroup group) => _group = group;
+        public void RegisterSystems(ISystemRegistry registry) { }
+        public void Tick(ISimulationView view, float dt) => _group.Run();
+        public System.Collections.Generic.IEnumerable<Type>? GetRequiredComponents() => null;
+    }
+
     // ── Constructor ───────────────────────────────────────────────────────────
 
     public EditorHarness()
@@ -85,10 +108,11 @@ public sealed class EditorHarness : IDisposable
         var accumulator = new EventAccumulator();
         Kernel = new ModuleHostKernel(Repo, accumulator);
 
-        // Stepping time controller — offline, no DDS sync.
-        var stepping = new SteppingTimeController(new GlobalTime { TimeScale = 1.0f });
-        _stepping = stepping;
-        Kernel.SetTimeController(stepping);
+        // MasterSyncController in Deterministic mode — no DDS sync, starts paused.
+        var timeConfig  = new TimeControllerConfig { Role = TimeRole.Standalone };
+        _timeController = (MasterSyncController)TimeControllerFactory.Create(Bus, timeConfig);
+        Kernel.SetTimeController(_timeController);
+        _timeController.SwitchToDeterministic(new HashSet<int>());
 
         EntityMap = new NetworkEntityMap();
 
@@ -114,12 +138,25 @@ public sealed class EditorHarness : IDisposable
         var scenarioMod      = new ScenarioEditorModule(fileService);
         var simHostMod       = new SimHostModule(spawnSys);
 
-        Kernel.RegisterModule(simHostCorePack);
         Kernel.RegisterModule(new AutonomousPerceptionModule());
-        Kernel.RegisterModule(cgfLogicPackInst);
         Kernel.RegisterModule(scenarioMod);
         Kernel.RegisterModule(elm);
         Kernel.RegisterModule(simHostMod);
+
+        // ── Multi-phase system group wiring for SimHostCorePack and CgfLogicPack ──
+        var inputGroup   = new SystemGroup();
+        inputGroup.Create(Repo);
+        var simGroup = new SystemGroup();
+        simGroup.Create(Repo);
+        var postSimGroup = new SystemGroup();
+        postSimGroup.Create(Repo);
+
+        simHostCorePack.RegisterSystems(inputGroup, simGroup, postSimGroup);
+        cgfLogicPackInst.RegisterSystems(inputGroup, simGroup);
+
+        Kernel.RegisterGlobalSystem(new CgfInputGroupAdapter(inputGroup));
+        Kernel.RegisterModule(new SimGroupModule(simGroup));
+        Kernel.RegisterModule(new PostSimGroupModule(postSimGroup));
 
         // Register editor-specific ECS systems (cargo, perception, zone authoring).
         Kernel.RegisterModule(new EditorSystemsModule(Repo, zoneService));
@@ -151,7 +188,7 @@ public sealed class EditorHarness : IDisposable
     {
         for (int i = 0; i < frames; i++)
         {
-            _stepping?.Step(PumpSleepMs / 1000f);
+            _timeController?.Step(PumpSleepMs / 1000f);
             Kernel.Update();
         }
     }
@@ -167,7 +204,7 @@ public sealed class EditorHarness : IDisposable
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (DateTime.UtcNow < deadline)
         {
-            _stepping?.Step(PumpSleepMs / 1000f);
+            _timeController?.Step(PumpSleepMs / 1000f);
             Kernel.Update();
             if (condition()) return true;
         }

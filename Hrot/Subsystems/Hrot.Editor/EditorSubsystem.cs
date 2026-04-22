@@ -53,6 +53,7 @@ using Hrot.SimHost.Modules;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
 using Hrot.Core.Network;
+using Hrot.Common.Infrastructure;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 // Disambiguate IMapCameraProvider: Hrot.SimHost.Modules also defines this interface.
@@ -102,7 +103,7 @@ namespace Hrot.Editor
 
         private EntityRepository?       _world;
         private ModuleHostKernel?       _kernel;
-        private SteppingTimeController? _stepping;
+        private MasterSyncController?   _timeController;
         private IEditorLogic?           _editorLogic;
         private MapCanvas?              _canvas;
         private MapCamera?              _camera;
@@ -184,24 +185,56 @@ namespace Hrot.Editor
         private sealed class EditorPreviewController : IPreviewController
         {
             private readonly PreviewClusterOpHandler _handler;
+            private readonly MasterSyncController    _timeController;
             private bool _inPreview;
 
-            internal EditorPreviewController(EntityRepository world)
-                => _handler = new PreviewClusterOpHandler(world);
+            internal EditorPreviewController(EntityRepository world, MasterSyncController timeController)
+            {
+                _handler        = new PreviewClusterOpHandler(world);
+                _timeController = timeController;
+            }
 
             public bool IsInPreviewMode => _inPreview;
 
             public void EnterPreviewMode()
             {
                 _handler.TriggerLoadingPreview();
+                _timeController.SwitchToContinuous();
                 _inPreview = true;
             }
 
             public void ExitPreviewMode()
             {
                 _handler.TriggerUnloadingPreview();
+                _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
                 _inPreview = false;
             }
+        }
+
+        // ── Nested helper: wraps a SystemGroup as an IEcsModule (Simulation phase) ───
+
+        private sealed class SimGroupModule : IEcsModule
+        {
+            private readonly SystemGroup _group;
+            public string Name => "EditorSimGroup";
+            public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
+            public SimGroupModule(SystemGroup group) => _group = group;
+            public void RegisterSystems(ISystemRegistry registry) { }
+            public void Tick(ISimulationView view, float dt) => _group.Run();
+            public System.Collections.Generic.IEnumerable<Type>? GetRequiredComponents() => null;
+        }
+
+        // ── Nested helper: wraps a SystemGroup as an IEcsModule (PostSim phase) ─────
+
+        private sealed class PostSimGroupModule : IEcsModule
+        {
+            private readonly SystemGroup _group;
+            public string Name => "EditorPostSimGroup";
+            public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
+            public PostSimGroupModule(SystemGroup group) => _group = group;
+            public void RegisterSystems(ISystemRegistry registry) { }
+            public void Tick(ISimulationView view, float dt) => _group.Run();
+            public System.Collections.Generic.IEnumerable<Type>? GetRequiredComponents() => null;
         }
 
         // ── Nested helper: offline sequential ID allocator ────────────────────
@@ -227,6 +260,14 @@ namespace Hrot.Editor
         /// <summary>Internal test hook: direct access to the editor logic facade.</summary>
         internal IEditorLogic EditorLogic =>
             _editorLogic ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
+
+        /// <summary>Internal test hook: direct access to the time controller.</summary>
+        internal MasterSyncController TimeController =>
+            _timeController ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
+
+        /// <summary>Internal test hook: direct access to the preview controller.</summary>
+        internal IPreviewController PreviewController =>
+            _previewController ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
         /// <inheritdoc/>
         public MapCameraView? GetCameraView() => _camera?.GetCameraView();
@@ -280,9 +321,12 @@ namespace Hrot.Editor
             _world.RegisterComponent<VisualEffectState>();
             _world.RegisterComponent<TracerTarget>();
 
-            // ── 2. Time controller (stepping — no DDS sync partner) ──────────
-            _stepping = new SteppingTimeController(new GlobalTime { TimeScale = 1.0f });
-            _kernel.SetTimeController(_stepping);
+            // ── 2. Time controller (MasterSyncController in Deterministic/frozen mode) ──
+            var timeConfig = new TimeControllerConfig { Role = TimeRole.Standalone };
+            _timeController = (MasterSyncController)TimeControllerFactory.Create(_world.Bus, timeConfig);
+            _kernel.SetTimeController(_timeController);
+            // Start in Deterministic mode so authoring starts paused (dt == 0 every frame).
+            _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
 
             // ── 3. Shared services ────────────────────────────────────────────
             var geoTransform     = HrotEnvironment.CreateGeoTransform();
@@ -332,11 +376,26 @@ namespace Hrot.Editor
             var orchPack         = new OrchestrationLogicPack(clusterSlave);
             var scenarioMod      = new ScenarioEditorModule(fileService);
 
-            _kernel.RegisterModule(simHostCorePack);
             _kernel.RegisterModule(perceptionMod);
-            _kernel.RegisterModule(cgfLogicPackInst);
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
+
+            // ── 4a. Multi-phase system group wiring for SimHostCorePack and CgfLogicPack ──
+            // These packs expose a no-op IEcsModule.RegisterSystems(ISystemRegistry) and
+            // require their typed RegisterSystems(...) overloads to populate phase groups.
+            var inputGroup   = new SystemGroup();
+            inputGroup.Create(_world);
+            var simGroup = new SystemGroup();
+            simGroup.Create(_world);
+            var postSimGroup = new SystemGroup();
+            postSimGroup.Create(_world);
+
+            simHostCorePack.RegisterSystems(inputGroup, simGroup, postSimGroup);
+            cgfLogicPackInst.RegisterSystems(inputGroup, simGroup);
+
+            _kernel.RegisterGlobalSystem(new CgfInputGroupAdapter(inputGroup));
+            _kernel.RegisterModule(new SimGroupModule(simGroup));
+            _kernel.RegisterModule(new PostSimGroupModule(postSimGroup));
 
             // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.
             _kernel.RegisterModule(new EditorSystemsModule(_world));
@@ -385,7 +444,7 @@ namespace Hrot.Editor
             }
 
             // ── 8. Preview controller (works headless too — no canvas dep) ────
-            _previewController = new EditorPreviewController(_world);
+            _previewController = new EditorPreviewController(_world, _timeController!);
 
             // ── 9. Mission service (no canvas dependency) ─────────────────────
             _missionService = new EditorMissionService(_world.Bus, _world, doctrineRegistry);
@@ -534,8 +593,6 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Update(float deltaTime)
         {
-            _stepping?.Step(deltaTime);
-
             // Process input pipeline BEFORE kernel update so authored tools
             // (CreationTool, ObstaclePlacementTool, etc.) receive mouse events this frame.
             _canvas?.Update(deltaTime);
@@ -825,7 +882,7 @@ namespace Hrot.Editor
             _world?.Dispose();
             _world = null;
             _editorLogic = null;
-            _stepping = null;
+            _timeController = null;
             _canvas = null;
             _camera = null;
             _spawnAdapter     = null;
