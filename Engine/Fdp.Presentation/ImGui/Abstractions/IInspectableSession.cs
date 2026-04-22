@@ -10,7 +10,9 @@ namespace Fdp.Presentation.Abstractions
         int EntityCount { get; }
         
         IEnumerable<Entity> GetEntities();
-        
+
+        bool IsAlive(Entity e);
+
         bool HasComponent(Entity e, Type componentType);
         object? GetComponent(Entity e, Type componentType);
         void SetComponent(Entity e, Type componentType, object componentData);

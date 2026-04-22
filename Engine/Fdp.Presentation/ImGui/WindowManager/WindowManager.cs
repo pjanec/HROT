@@ -164,7 +164,10 @@ public class WindowManager
     {
         var sb = new StringBuilder();
         foreach (var (id, win) in _windows)
+        {
+            if (win.IsVolatile) continue;
             sb.AppendLine($"{id}={win.IsOpen},{win.IsPinned}");
+        }
         return sb.ToString();
     }
 
@@ -213,9 +216,11 @@ public class WindowManager
         var state = new WindowManagerSettings(
             CurrentPerspective,
             new Dictionary<string, WindowState>(
-                _windows.Select(kv => KeyValuePair.Create(
-                    kv.Key,
-                    new WindowState(kv.Value.IsOpen, kv.Value.IsPinned)))));
+                _windows
+                    .Where(kv => !kv.Value.IsVolatile)
+                    .Select(kv => KeyValuePair.Create(
+                        kv.Key,
+                        new WindowState(kv.Value.IsOpen, kv.Value.IsPinned)))));
         var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(filePath, json);
     }
@@ -311,8 +316,15 @@ public class WindowManager
                 Gui.CloseCurrentPopup();
         }
 
-        foreach (var win in _windows.Values)
+        // Iterate a copy to allow safe removal of closed volatile windows.
+        foreach (var win in _windows.Values.ToList())
         {
+            if (win.IsVolatile && !win.IsOpen)
+            {
+                _windows.Remove(win.Id);
+                continue;
+            }
+
             win.Render(CurrentPerspective, _atlas);
         }
 
@@ -376,7 +388,7 @@ public class WindowManager
 
         // ── PerspectiveBound windows grouped by OwningPerspective (alphabetical sort) ──
         var perspectiveGroups = _windows.Values
-            .Where(w => w.Scope == WindowScope.PerspectiveBound)
+            .Where(w => w.Scope == WindowScope.PerspectiveBound && w.ShowInMenu)
             .GroupBy(w => w.OwningPerspective)
             .OrderBy(g => g.Key);
 
@@ -390,7 +402,8 @@ public class WindowManager
 
             foreach (var win in group)
             {
-                RenderWindowToggleMenuItem(win);
+                if (win.ShowInMenu)
+                    RenderWindowToggleMenuItem(win);
             }
 
             Gui.EndMenu();
@@ -398,7 +411,7 @@ public class WindowManager
 
         // ── Global windows ─────────────────────────────────────────────────────
         var globalWindows = _windows.Values
-            .Where(w => w.Scope == WindowScope.Global)
+            .Where(w => w.Scope == WindowScope.Global && w.ShowInMenu)
             .ToList();
 
         if (globalWindows.Count > 0 && Gui.BeginMenu("Global"))
@@ -429,30 +442,53 @@ public class WindowManager
     }
 
     /// <summary>
-    /// Renders perspective radio buttons inside the menu bar.
+    /// Renders perspective buttons inside the menu bar.
     /// Only distinct <see cref="WindowScope.PerspectiveBound"/> perspectives are shown,
-    /// sorted alphabetically. Consecutive radio buttons share the same line via <c>SameLine</c>.
+    /// sorted alphabetically. Consecutive buttons share the same line via <c>SameLine</c>.
     /// </summary>
     private void RenderPerspectiveSwitcher()
     {
-        var perspectives = _windows.Values
+        var perspectiveGroups = _windows.Values
             .Where(w => w.Scope == WindowScope.PerspectiveBound)
-            .Select(w => w.OwningPerspective)
-            .Distinct()
-            .OrderBy(p => p)
+            .GroupBy(w => w.OwningPerspective)
+            .OrderBy(g => g.Key)
             .ToList();
 
-        for (int i = 0; i < perspectives.Count; i++)
+        for (int i = 0; i < perspectiveGroups.Count; i++)
         {
-            var p = perspectives[i];
+            var group = perspectiveGroups[i];
+            string p = group.Key;
             bool isActive = p == CurrentPerspective;
+            System.Numerics.Vector4? baseColor = group.FirstOrDefault(w => w.TitleBarColor.HasValue)?.TitleBarColor;
+            int popCount = 0;
 
-            if (Gui.RadioButton(p, isActive))
+            if (baseColor.HasValue)
+            {
+                var c = baseColor.Value;
+                var cActive = new System.Numerics.Vector4(
+                    System.MathF.Min(c.X * 1.35f, 1f),
+                    System.MathF.Min(c.Y * 1.35f, 1f),
+                    System.MathF.Min(c.Z * 1.35f, 1f),
+                    c.W);
+                var buttonColor = isActive ? cActive : c;
+
+                Gui.PushStyleColor(ImGuiNET.ImGuiCol.Button, buttonColor);
+                Gui.PushStyleColor(ImGuiNET.ImGuiCol.ButtonHovered, cActive);
+                Gui.PushStyleColor(ImGuiNET.ImGuiCol.ButtonActive, cActive);
+                popCount = 3;
+            }
+            string label = isActive ? $"[{p}]" : $" {p} ";
+            if (Gui.Button(label))
             {
                 SwitchPerspective(p);
             }
 
-            if (i < perspectives.Count - 1)
+            if (popCount > 0)
+            {
+                Gui.PopStyleColor(popCount);
+            }
+
+            if (i < perspectiveGroups.Count - 1)
             {
                 Gui.SameLine();
             }
@@ -468,7 +504,7 @@ public class WindowManager
 
         if (Gui.BeginMenu("Debug"))
         {
-            foreach (var win in _windows.Values.Where(w => w.Scope == WindowScope.Global))
+            foreach (var win in _windows.Values.Where(w => w.Scope == WindowScope.Global && w.ShowInMenu))
             {
                 bool isOpen = win.IsOpen;
                 if (Gui.MenuItem(win.Title, "", ref isOpen))

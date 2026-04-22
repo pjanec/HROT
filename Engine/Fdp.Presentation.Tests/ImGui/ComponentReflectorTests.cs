@@ -72,6 +72,7 @@ public class ComponentReflectorTests
         public int  EntityCount => 1;
 
         public IEnumerable<Entity> GetEntities() => Array.Empty<Entity>();
+        public bool IsAlive(Entity e) => true;
         public IEnumerable<Type>   GetAllComponentTypes() => new[] { _type };
         public bool   HasComponent(Entity e, Type t)  => t == _type;
         public object? GetComponent(Entity e, Type t) => t == _type ? _data : null;

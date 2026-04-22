@@ -76,6 +76,21 @@ public abstract class ManagedWindow
     /// </summary>
     public Vector4? TitleBarColor { get; set; }
 
+    /// <summary>
+    /// When <c>true</c>, the <see cref="WindowManager"/> automatically unregisters this
+    /// window the frame after <see cref="IsOpen"/> becomes <c>false</c>.
+    /// Use this for dynamically spawned windows (e.g. single-entity watch windows) that
+    /// must not persist between open/close cycles.
+    /// </summary>
+    public bool IsVolatile { get; protected set; } = false;
+
+    /// <summary>
+    /// When <c>true</c> (the default), this window is listed as a toggle item in the
+    /// global "Windows" menu. Set to <c>false</c> for volatile windows that are spawned
+    /// on demand and should not appear in the persistent menu.
+    /// </summary>
+    public bool ShowInMenu { get; protected set; } = true;
+
     // ── Internal test-support properties ──────────────────────────────────────
 
     /// <summary>

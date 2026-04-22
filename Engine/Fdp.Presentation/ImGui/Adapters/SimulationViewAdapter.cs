@@ -39,8 +39,10 @@ namespace Fdp.Presentation.Adapters
 
         public bool IsReadOnly => true;
         // ISimulationView doesn't typically expose EntityCount or iteration, returning 0/empty.
-        public int EntityCount => 0; 
+        public int EntityCount => 0;
         public IEnumerable<Entity> GetEntities() => Enumerable.Empty<Entity>();
+
+        public bool IsAlive(Entity e) => _view.IsAlive(e);
 
         public bool HasComponent(Entity e, Type t)
         {

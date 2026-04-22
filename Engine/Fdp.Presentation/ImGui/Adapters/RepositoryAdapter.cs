@@ -20,6 +20,8 @@ namespace Fdp.Presentation.Adapters
 
         public int EntityCount => _repo.EntityCount;
 
+        public bool IsAlive(Entity e) => _repo.IsAlive(e);
+
         public IEnumerable<Entity> GetEntities()
         {
             // Iterate all active entities and materialize to avoid iterator state machine issues with ref structs
