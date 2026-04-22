@@ -120,13 +120,25 @@ namespace Hrot.IG
             {
                 builder.AddItem("Inspect...", () =>
                 {
+                    var session = _app.GetFdpRepoAdapter();
+                    long? netId = null;
+                    if (session != null && session.HasComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))
+                    {
+                        var comp = session.GetComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity));
+                        if (comp is Fdp.Toolkit.Replication.Components.NetworkIdentity ni)
+                            netId = ni.Value;
+                    }
+
+                    string title = netId.HasValue
+                        ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
+                        : $"Watch Entity [{entity.Index}, v{entity.Generation}]";
                     var id = $"ig_watch_{entity.Index}_{entity.Generation}_{Guid.NewGuid()}";
                     windowManager.RegisterWindow(new FdpEntityWatchWindow(
                         id,
-                        $"Watch Entity {entity.Index} v{entity.Generation}",
+                        title,
                         "IG",
                         new EntityWatchPanel(entity),
-                        () => _app.GetFdpRepoAdapter(),
+                        () => session,
                         TitleBarColor));
                 });
             }));

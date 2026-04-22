@@ -780,13 +780,25 @@ namespace Hrot.Editor
             {
                 builder.AddItem("Inspect...", () =>
                 {
+                    var session = _fdpRepoAdapter;
+                    long? netId = null;
+                    if (session != null && session.HasComponent(entity, typeof(NetworkIdentity)))
+                    {
+                        var comp = session.GetComponent(entity, typeof(NetworkIdentity));
+                        if (comp is NetworkIdentity ni)
+                            netId = ni.Value;
+                    }
+
+                    string title = netId.HasValue
+                        ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
+                        : $"Watch Entity [{entity.Index}, v{entity.Generation}]";
                     var id = $"editor_watch_{entity.Index}_{entity.Generation}_{Guid.NewGuid()}";
                     windowManager.RegisterWindow(new FdpEntityWatchWindow(
                         id,
-                        $"Watch Entity {entity.Index} v{entity.Generation}",
+                        title,
                         "Editor",
                         new EntityWatchPanel(entity),
-                        () => _fdpRepoAdapter,
+                        () => session,
                         TitleBarColor));
                 });
             }));

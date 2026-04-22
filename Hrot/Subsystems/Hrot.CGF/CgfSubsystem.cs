@@ -557,13 +557,25 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         {
             builder.AddItem("Inspect...", () =>
             {
+                var session = _fdpRepoAdapter;
+                long? netId = null;
+                if (session != null && session.HasComponent(entity, typeof(NetworkIdentity)))
+                {
+                    var comp = session.GetComponent(entity, typeof(NetworkIdentity));
+                    if (comp is NetworkIdentity ni)
+                        netId = ni.Value;
+                }
+
+                string title = netId.HasValue
+                    ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
+                    : $"Watch Entity [{entity.Index}, v{entity.Generation}]";
                 var id = $"cgf_watch_{entity.Index}_{entity.Generation}_{System.Guid.NewGuid()}";
                 windowManager.RegisterWindow(new FdpEntityWatchWindow(
                     id,
-                    $"Watch Entity {entity.Index} v{entity.Generation}",
+                    title,
                     "CGF",
                     new Fdp.Presentation.Panels.EntityWatchPanel(entity),
-                    () => _fdpRepoAdapter,
+                    () => session,
                     TitleBarColor));
             });
         }));
