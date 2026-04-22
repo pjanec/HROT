@@ -159,6 +159,10 @@ public class StyleResolutionSystem : IEcsModuleSystem
             labelText = string.Empty;
 
         float damage = ResolvedStyleConstants.DamageMin;
+        if (view.HasComponent<IgHealthState>(entity))
+        {
+            damage = view.GetComponentRO<IgHealthState>(entity).Damage;
+        }
 
         // ── Assemble output ───────────────────────────────────────────────────
         var style = ResolvedStyle.CreateDefault();

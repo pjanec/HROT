@@ -23,7 +23,7 @@ namespace Hrot.ScenarioEditor.Adapters;
 ///   <item>Symbol textures are loaded lazily from <see cref="NedVisualizerAdapterConstants.AssetBasePath"/>;
 ///         missing files fall back to a tinted circle.</item>
 ///   <item>Labels are suppressed at <see cref="Components.CullingStateConstants.LodIconOnly"/>.</item>
-///   <item>Damage bar is drawn when <see cref="ResolvedStyle.DamageLevel"/> > 0.</item>
+///   <item>Health bar is always drawn from <see cref="ResolvedStyle.DamageLevel"/>.</item>
 ///   <item>Selection ring is drawn when <paramref name="isSelected"/> is <c>true</c>.</item>
 /// </list>
 ///
@@ -168,13 +168,11 @@ public class NedVisualizerAdapter : IVisualizerAdapter
         }
 
         // â”€â”€ Damage bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if (damage > 0f)
-        {
-            var barPos = new Vector2(
-                position.X - NedVisualizerAdapterConstants.DamageBarHalfWidth,
-                position.Y - NedVisualizerAdapterConstants.DamageBarOffsetY);
-            DrawDamageBar(barPos, damage);
-        }
+        float health = 100f - damage;
+        var barPos = new Vector2(
+            position.X - NedVisualizerAdapterConstants.DamageBarHalfWidth,
+            position.Y - NedVisualizerAdapterConstants.DamageBarOffsetY);
+        DrawHealthBar(barPos, health);
 
         // â”€â”€ Selection ring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (isSelected)
@@ -216,23 +214,25 @@ public class NedVisualizerAdapter : IVisualizerAdapter
             NedVisualizerAdapterConstants.FallbackCircleRadiusPx,
             tint);
 
-    private static void DrawDamageBar(Vector2 pos, float damage)
+    private static void DrawHealthBar(Vector2 pos, float health)
     {
-        int width  = NedVisualizerAdapterConstants.DamageBarWidth;
-        int height = NedVisualizerAdapterConstants.DamageBarHeight;
+        float width  = NedVisualizerAdapterConstants.DamageBarWidth;
+        float height = NedVisualizerAdapterConstants.DamageBarHeight;
 
-        Color fill = damage < NedVisualizerAdapterConstants.DamageGreenThreshold
+        health = Math.Clamp(health, 0f, 100f);
+
+        Color fill = health >= 66f
             ? Color.Green
-            : damage < NedVisualizerAdapterConstants.DamageYellowThreshold
+            : health >= 33f
                 ? Color.Yellow
                 : Color.Red;
 
-        Raylib.DrawRectangle(
-            (int)pos.X, (int)pos.Y,
-            (int)(width * damage / 100f), height,
-            fill);
+        Raylib.DrawRectangleV(pos, new Vector2(width, height), new Color(30, 30, 30, 200));
 
-        Raylib.DrawRectangleLines((int)pos.X, (int)pos.Y, width, height, Color.White);
+        float fillWidth = width * (health / 100f);
+        Raylib.DrawRectangleV(pos, new Vector2(fillWidth, height), fill);
+
+        Raylib.DrawRectangleLinesEx(new Rectangle(pos.X, pos.Y, width, height), 1.0f, Color.White);
     }
 
     /// <summary>

@@ -43,7 +43,7 @@ public static class NedVisualizerAdapterConstants
     public const int DamageBarWidth = 30;
 
     /// <summary>Height of the damage bar in pixels.</summary>
-    public const int DamageBarHeight = 4;
+    public const int DamageBarHeight = 6;
 
     /// <summary>
     /// Vertical offset above the icon centre at which the top edge of the
