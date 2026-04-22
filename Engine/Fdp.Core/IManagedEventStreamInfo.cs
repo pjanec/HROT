@@ -11,6 +11,7 @@ namespace Fdp.Core
         int TypeId { get; }
         Type EventType { get; }
         IList PendingEvents { get; }
+        IList CurrentEvents { get; }
     }
 
     /// <summary>
@@ -21,5 +22,6 @@ namespace Fdp.Core
         public int TypeId { get; set; }
         public Type EventType { get; set; } = null!;
         public IList PendingEvents { get; set; } = null!;
+        public IList CurrentEvents { get; set; } = Array.Empty<object>();
     }
 }

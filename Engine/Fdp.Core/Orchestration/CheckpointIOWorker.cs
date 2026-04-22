@@ -189,7 +189,8 @@ namespace Fdp.Core.Orchestration
             using (var ms = new MemoryStream(_rawBuffer))
             using (var bw = new BinaryWriter(ms))
             {
-                _recorderSystem.RecordKeyframe(snapshot, bw, DateTimeOffset.UtcNow.Ticks);
+                _recorderSystem.RecordKeyframe(snapshot, bw, DateTimeOffset.UtcNow.Ticks,
+                    snapshot.Bus, serializeReadBuffer: true);
                 bw.Flush();
                 rawBytes = (int)ms.Position;
             }

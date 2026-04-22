@@ -16,17 +16,21 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     {
         private readonly CheckpointIOWorker          _worker;
         private readonly EntityRepository?           _liveRepo;
+        private readonly EventAccumulator            _eventAccumulator;
 
         private readonly Dictionary<Guid, ExecuteNodeOpIntent> _pendingPrepares = new();
 
         /// <param name="worker">Background I/O worker that owns the LZ4+disk pipeline.</param>
         /// <param name="liveRepo">Live <see cref="EntityRepository"/> to snapshot.</param>
+        /// <param name="eventAccumulator">Accumulator that flushes event history into each checkpoint snapshot.</param>
         public ReferenceCheckpointHandler(
             CheckpointIOWorker        worker,
-            EntityRepository?         liveRepo)
+            EntityRepository?         liveRepo,
+            EventAccumulator          eventAccumulator)
         {
-            _worker    = worker ?? throw new ArgumentNullException(nameof(worker));
-            _liveRepo  = liveRepo;
+            _worker           = worker           ?? throw new ArgumentNullException(nameof(worker));
+            _liveRepo         = liveRepo;
+            _eventAccumulator = eventAccumulator ?? throw new ArgumentNullException(nameof(eventAccumulator));
         }
 
         /// <inheritdoc />
@@ -64,6 +68,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 
             var snap = new EntityRepository();
             snap.SyncFrom(source);
+            _eventAccumulator.FlushToReplica(snap.Bus, source.GlobalVersion - 1);
             _worker.Enqueue(snap, intent.TransactionId);
 
             FdpLog<ReferenceCheckpointHandler>.Info(

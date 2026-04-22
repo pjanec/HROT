@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Core.Orchestration;
+using K4os.Compression.LZ4;
 using Xunit;
 
 namespace Fdp.Tests
@@ -138,6 +139,56 @@ namespace Fdp.Tests
             _ = worker.TakeCompletedResults(); // drain
             var second = worker.TakeCompletedResults();
             Assert.Empty(second);
+        }
+
+        // ── S504-T1: Checkpoint file contains event from current bus buffer ───
+
+        /// <summary>
+        /// Verifies that when a snapshot's event bus current buffer holds an event,
+        /// the written checkpoint file encodes at least one unmanaged event stream
+        /// (unmanagedStreamCount &gt;= 1 in the decompressed payload).
+        /// </summary>
+        [Fact]
+        public async Task Enqueue_RepoWithCurrentBufferEvent_CheckpointContainsEventStream()
+        {
+            using var worker = new CheckpointIOWorker(_storageDir, nodeId: 50);
+            var reqId = Guid.NewGuid();
+
+            var snap = MakeRepo((1f, 2f, 3f));
+
+            // Inject a synthetic event directly into the current (read) bus buffer.
+            // typeId 30001 and elementSize 4 are arbitrary test values.
+            snap.Bus.InjectIntoCurrentBySize(30001, 4, new byte[] { 0x01, 0x02, 0x03, 0x04 });
+
+            worker.Enqueue(snap, reqId);
+            await worker.DrainAsync();
+
+            // Read file: [magic:4][rawSize:4][compressedSize:4][LZ4 payload]
+            var filePath = Path.Combine(_storageDir, $"{reqId}_node_50.fdp");
+            byte[] fileBytes = File.ReadAllBytes(filePath);
+
+            // Parse header
+            int rawSize        = BitConverter.ToInt32(fileBytes, 4);
+            int compressedSize = BitConverter.ToInt32(fileBytes, 8);
+            const int HeaderBytes = 12;
+
+            // Decompress payload
+            byte[] raw = new byte[rawSize];
+            int decoded = LZ4Codec.Decode(fileBytes, HeaderBytes, compressedSize, raw, 0, rawSize);
+            Assert.Equal(rawSize, decoded);
+
+            // Parse RecordKeyframe binary layout:
+            //   8  GlobalVersion (ulong)
+            //   1  FrameType (byte)
+            //   8  WallClockTicks (long)
+            //   4  DestroyCount (int)
+            //  --- WriteEvents ---
+            //   4  unmanagedStreamCount (int)  <-- offset 21
+            const int UnmanagedCountOffset = 8 + 1 + 8 + 4;
+            int unmanagedStreamCount = BitConverter.ToInt32(raw, UnmanagedCountOffset);
+
+            Assert.True(unmanagedStreamCount >= 1,
+                $"Expected at least 1 unmanaged stream; got {unmanagedStreamCount}");
         }
     }
 }

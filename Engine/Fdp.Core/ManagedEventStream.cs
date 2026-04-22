@@ -63,6 +63,10 @@ namespace Fdp.Core
         // WARNING: Not thread-safe if concurrent writes occur. Assumes recording happens in safe phase.
         public System.Collections.IList PendingEvents => _back;
 
+        // Zero-Alloc access to current (read) events.
+        // WARNING: Not thread-safe if concurrent reads occur. Assumes recording happens in safe phase.
+        public System.Collections.IList CurrentEvents => _front;
+
         /// <summary>
         /// Writes an event to the stream.
         /// Thread-safe via locking.

@@ -53,7 +53,7 @@ namespace Fdp.Core.FlightRecorder
         /// <param name="wallClockTicks">UTC wall-clock ticks at time of capture (DateTime.UtcNow.Ticks)</param>
         /// <param name="eventBus">Optional event bus for event recording</param>
         public void RecordDeltaFrame(EntityRepository repo, uint prevTick, BinaryWriter writer,
-            long wallClockTicks, FdpEventBus? eventBus = null)
+            long wallClockTicks, FdpEventBus? eventBus = null, bool serializeReadBuffer = false)
         {
             // ---------------------------------------------------------
             // 1. WRITE FRAME METADATA
@@ -79,7 +79,7 @@ namespace Fdp.Core.FlightRecorder
             // ---------------------------------------------------------
             // Note: eventBus parameter is optional for backward compatibility
             // When null, this section writes 0 streams (no events)
-            WriteEvents(writer, eventBus); // TODO: Pass actual eventBus when available
+            WriteEvents(writer, eventBus, serializeReadBuffer);
             
             // ---------------------------------------------------------
             // 4. RECORD SINGLETONS
@@ -302,7 +302,7 @@ namespace Fdp.Core.FlightRecorder
         /// <param name="wallClockTicks">UTC wall-clock ticks at time of capture (DateTime.UtcNow.Ticks)</param>
         /// <param name="eventBus">Optional event bus for event recording</param>
         public void RecordKeyframe(EntityRepository repo, BinaryWriter writer,
-            long wallClockTicks, FdpEventBus? eventBus = null)
+            long wallClockTicks, FdpEventBus? eventBus = null, bool serializeReadBuffer = false)
         {
             // Write frame metadata
             writer.Write((ulong)repo.GlobalVersion); // Current Tick - Explicit Cast!
@@ -313,7 +313,7 @@ namespace Fdp.Core.FlightRecorder
             writer.Write(0); // DestroyCount = 0
             
             // Write events (same as delta frames)
-            WriteEvents(writer, eventBus);
+            WriteEvents(writer, eventBus, serializeReadBuffer);
             
             // Record Singletons (force all dirty)
             RecordSingletons(repo, writer, 0);
@@ -638,7 +638,7 @@ namespace Fdp.Core.FlightRecorder
             return shouldRecord;
         }
 
-        private void WriteEvents(BinaryWriter writer, FdpEventBus? eventBus)
+        private void WriteEvents(BinaryWriter writer, FdpEventBus? eventBus, bool serializeReadBuffer = false)
         {
             if (eventBus == null)
             {
@@ -648,8 +648,11 @@ namespace Fdp.Core.FlightRecorder
                 return;
             }
 
-            // Get all streams with pending events (Zero-Alloc using population)
-            eventBus.PopulatePendingStreams(_cachedNativeStreams);
+            // Get all streams with events (Zero-Alloc using population)
+            if (serializeReadBuffer)
+                eventBus.PopulateCurrentStreams(_cachedNativeStreams);
+            else
+                eventBus.PopulatePendingStreams(_cachedNativeStreams);
             
             // Filter Unmanaged
             int validCount = 0;
@@ -668,7 +671,9 @@ namespace Fdp.Core.FlightRecorder
                 writer.Write(stream.EventTypeId);
                 writer.Write(stream.ElementSize);  // CRITICAL: Store element size for replay!
 
-                ReadOnlySpan<byte> eventBytes = stream.GetPendingBytes();
+                ReadOnlySpan<byte> eventBytes = serializeReadBuffer
+                    ? stream.GetRawBytes()
+                    : stream.GetPendingBytes();
                 int count = eventBytes.Length / stream.ElementSize;
                 
                 writer.Write(count);  // Event count
@@ -677,7 +682,10 @@ namespace Fdp.Core.FlightRecorder
             
             // ========== MANAGED EVENTS ==========
             // Write managed events with type name for auto-recreation
-            eventBus.PopulatePendingManagedStreams(_cachedManagedStreams);
+            if (serializeReadBuffer)
+                eventBus.PopulateCurrentManagedStreams(_cachedManagedStreams);
+            else
+                eventBus.PopulatePendingManagedStreams(_cachedManagedStreams);
             
             // Filter Managed
             int validManagedCount = 0;
@@ -710,8 +718,9 @@ namespace Fdp.Core.FlightRecorder
                 long payloadStartPos = writer.BaseStream.Position;
 
                 // 4. Write Data (TypeName + Count + Events)
+                var events = serializeReadBuffer ? streamInfo.CurrentEvents : streamInfo.PendingEvents;
                 writer.Write(streamInfo.EventType.AssemblyQualifiedName!);
-                writer.Write(streamInfo.PendingEvents.Count);
+                writer.Write(events.Count);
                 
                 // Get serializer for this type (cached reflection)
                 var serializerMethod = typeof(FdpAutoSerializer)
@@ -721,7 +730,7 @@ namespace Fdp.Core.FlightRecorder
                 var args = new object[2];
                 args[1] = writer;
 
-                foreach (var evt in streamInfo.PendingEvents)
+                foreach (var evt in events)
                 {
                     // FdpAutoSerializer.Serialize<T>(evt, writer);
                     args[0] = evt;

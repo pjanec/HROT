@@ -436,6 +436,42 @@ namespace Fdp.Core
                 }
             }
         }
+
+        /// <summary>
+        /// Populates the provided list with active native event streams that have Current events.
+        /// Current = read buffer (populated after SwapBuffers).
+        /// Zero-allocation if list capacity is sufficient.
+        /// </summary>
+        public void PopulateCurrentStreams(List<INativeEventStream> target)
+        {
+            target.Clear();
+            foreach (var kvp in _nativeStreams)
+            {
+                var stream = kvp.Value;
+                if (stream.GetRawBytes().Length > 0)
+                {
+                    target.Add(stream);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Populates the provided list with active managed event streams that have Current events.
+        /// Current = front buffer (populated after SwapBuffers).
+        /// Zero-allocation if list capacity is sufficient.
+        /// </summary>
+        public void PopulateCurrentManagedStreams(List<IManagedEventStreamInfo> target)
+        {
+            target.Clear();
+            foreach (var kvp in _managedStreams)
+            {
+                var streamObj = kvp.Value;
+                if (streamObj is IManagedEventStreamInfo info && info.CurrentEvents.Count > 0)
+                {
+                    target.Add(info);
+                }
+            }
+        }
         
         /// <summary>
         /// Injects managed events into the current buffer.
