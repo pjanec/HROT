@@ -13,6 +13,7 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Tkb;
 using Hrot.CGF;
 using Hrot.CGF.Systems;
+using Hrot.Common.Systems;
 using Hrot.Core.Network;
 using Xunit;
 
@@ -109,8 +110,7 @@ namespace Hrot.SimHost.Tests
             //   BTreeTickSystem, HsmTickSystem<BrainHsm128>, HsmTickSystem<BrainHsm64> (5)
             // ActionDispatchModule: LocomotionDispatcherSystem, WeaponDispatcherSystem,
             //   InteractionDispatcherSystem (3)
-            // HealthApplicationSystem (1), RouteContextSystem (1)
-            // CreateEntityRequestSystem (1) added in BATCH-01
+            // HealthApplicationSystem (1), CgfThreatEvaluationSystem (1), RouteContextSystem (1)
             // total = 15
             Assert.Equal(15, simGroup.SystemCount);
 
@@ -265,6 +265,113 @@ namespace Hrot.SimHost.Tests
 
             var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
             Assert.Equal(2, commands.Count);
+        }
+
+        // ── S306: Two-group overload routes systems correctly ─────────────────
+
+        /// <summary>
+        /// S306-SC1/SC2/SC3: The two-group overload places <see cref="MissionControlExecutionSystem"/>
+        /// and <see cref="DoctrineIngressSystem"/> in the Input group, and all remaining
+        /// systems in the Simulation group.
+        /// </summary>
+        [Fact]
+        public void CgfLogicPack_TwoGroupOverload_RoutesSystemsCorrectly()
+        {
+            using var world      = CreateEmptyWorld();
+            var doctrineRegistry = new DoctrineRegistry();
+            var entityMap        = new NetworkEntityMap();
+            var scenarioSource   = new ScenarioEntityCreationRequestSource();
+
+            var pack       = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource);
+            var inputGroup = new SystemGroup();
+            var simGroup2  = new SystemGroup();
+            inputGroup.Create(world);
+            simGroup2.Create(world);
+
+            pack.RegisterSystems(inputGroup, simGroup2);
+
+            var inputSystems = inputGroup.GetSystems();
+            var simSystems   = simGroup2.GetSystems();
+
+            // SC1: MissionControlExecutionSystem is in inputGroup.
+            Assert.Contains(inputSystems, s => s is MissionControlExecutionSystem);
+            // SC2: DoctrineIngressSystem is in inputGroup.
+            Assert.Contains(inputSystems, s => s is DoctrineIngressSystem);
+            // SC3: MissionDirectorSystem is in simGroup.
+            Assert.Contains(simSystems, s => s is MissionDirectorSystem);
+            // MissionAdapterSystem stays in simGroup.
+            Assert.Contains(simSystems, s => s is MissionAdapterSystem);
+
+            // inputGroup: MissionControlExecutionSystem + DoctrineIngressSystem = 2
+            Assert.Equal(2, inputGroup.SystemCount);
+            // simGroup: total 15 - 2 = 13
+            Assert.Equal(13, simGroup2.SystemCount);
+
+            inputGroup.Dispose();
+            simGroup2.Dispose();
+        }
+
+        /// <summary>
+        /// S306-SC4: The existing single-group overload still adds all 15 systems to the same
+        /// group (no regression).
+        /// </summary>
+        [Fact]
+        public void CgfLogicPack_SingleGroupOverload_StillAddsAllSystemsToOneGroup()
+        {
+            using var world      = CreateEmptyWorld();
+            var doctrineRegistry = new DoctrineRegistry();
+            var entityMap        = new NetworkEntityMap();
+            var scenarioSource   = new ScenarioEntityCreationRequestSource();
+
+            var pack     = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource);
+            var simGroup = new SystemGroup();
+            simGroup.Create(world);
+
+            pack.RegisterSystems(simGroup);
+
+            Assert.Equal(15, simGroup.SystemCount);
+
+            simGroup.Dispose();
+        }
+
+        /// <summary>
+        /// S306-SC5: Passing null to either parameter of the two-group overload throws
+        /// <see cref="ArgumentNullException"/>.
+        /// </summary>
+        [Fact]
+        public void CgfLogicPack_TwoGroupOverload_NullInputGroup_Throws()
+        {
+            using var world = CreateEmptyWorld();
+            var pack = new CgfLogicPack(new DoctrineRegistry(), new NetworkEntityMap(),
+                new ScenarioEntityCreationRequestSource());
+            var simGroup = new SystemGroup();
+            simGroup.Create(world);
+
+            var ex = Assert.Throws<ArgumentNullException>(() =>
+                pack.RegisterSystems(null!, simGroup));
+            Assert.Equal("inputGroup", ex.ParamName);
+
+            simGroup.Dispose();
+        }
+
+        /// <summary>
+        /// S306-SC5: Passing null simGroup to the two-group overload throws
+        /// <see cref="ArgumentNullException"/>.
+        /// </summary>
+        [Fact]
+        public void CgfLogicPack_TwoGroupOverload_NullSimGroup_Throws()
+        {
+            using var world = CreateEmptyWorld();
+            var pack = new CgfLogicPack(new DoctrineRegistry(), new NetworkEntityMap(),
+                new ScenarioEntityCreationRequestSource());
+            var inputGroup = new SystemGroup();
+            inputGroup.Create(world);
+
+            var ex = Assert.Throws<ArgumentNullException>(() =>
+                pack.RegisterSystems(inputGroup, null!));
+            Assert.Equal("simGroup", ex.ParamName);
+
+            inputGroup.Dispose();
         }
     }
 }

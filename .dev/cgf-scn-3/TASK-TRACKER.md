@@ -8,10 +8,10 @@
 
 **Goal:** Fix the four immediate implementation bugs that cause mission data loss and scenario pollution.
 
-- [ ] **TASK-S301** Fix SetManagedComponent/RemoveManagedComponent for ActiveMissionPlan [details](./TASK-DETAIL.md#task-s301--fix-setmanagedcomponent--removemanagedcomponent-for-activemissionplan)
-- [ ] **TASK-S302** Fix InlineArray Span mutation in TryBuildQueue [details](./TASK-DETAIL.md#task-s302--fix-inlinearray-span-mutation-in-trybuildqueue)
-- [ ] **TASK-S303** Add DataPolicy.NoSave to BrainBlackboard [details](./TASK-DETAIL.md#task-s303--add-datapolicynosave-to-brainblackboard)
-- [ ] **TASK-S304** Fix SteppingTimeController.GetMode() [details](./TASK-DETAIL.md#task-s304--fix-steppingtimecontrollergetmode)
+- [x] **TASK-S301** Fix SetManagedComponent/RemoveManagedComponent for ActiveMissionPlan [details](./TASK-DETAIL.md#task-s301--fix-setmanagedcomponent--removemanagedcomponent-for-activemissionplan)
+- [x] **TASK-S302** Fix InlineArray Span mutation in TryBuildQueue [details](./TASK-DETAIL.md#task-s302--fix-inlinearray-span-mutation-in-trybuildqueue)
+- [x] **TASK-S303** Add DataPolicy.NoSave to BrainBlackboard [details](./TASK-DETAIL.md#task-s303--add-datapolicynosave-to-brainblackboard)
+- [x] **TASK-S304** Fix SteppingTimeController.GetMode() [details](./TASK-DETAIL.md#task-s304--fix-steppingtimecontrollergetmode)
 
 ---
 
@@ -19,10 +19,10 @@
 
 **Goal:** Split CgfLogicPack and its sub-modules into explicit Input/Simulation phase groups for correct distributed and editor behavior.
 
-- [ ] **TASK-S305** MissionControlModule two-group registration overload [details](./TASK-DETAIL.md#task-s305--missioncontrolmodule-two-group-registration-overload)
-- [ ] **TASK-S306** CgfLogicPack two-group registration overload [details](./TASK-DETAIL.md#task-s306--cgflogicpack-two-group-registration-overload)
-- [ ] **TASK-S307** CgfInputGroupAdapter in Hrot.Common [details](./TASK-DETAIL.md#task-s307--cgfinputgroupadapter-in-hrotcommon)
-- [ ] **TASK-S308** CgfSubsystem registration update [details](./TASK-DETAIL.md#task-s308--cgfsubsystem-registration-update)
+- [x] **TASK-S305** MissionControlModule two-group registration overload [details](./TASK-DETAIL.md#task-s305--missioncontrolmodule-two-group-registration-overload)
+- [x] **TASK-S306** CgfLogicPack two-group registration overload [details](./TASK-DETAIL.md#task-s306--cgflogicpack-two-group-registration-overload)
+- [x] **TASK-S307** CgfInputGroupAdapter in Hrot.Common [details](./TASK-DETAIL.md#task-s307--cgfinputgroupadapter-in-hrotcommon)
+- [x] **TASK-S308** CgfSubsystem registration update [details](./TASK-DETAIL.md#task-s308--cgfsubsystem-registration-update)
 
 ---
 

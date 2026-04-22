@@ -157,5 +157,31 @@ namespace Hrot.CGF
             // Route context: writes per-waypoint ExtensionJson danger level to BrainBlackboard.
             simGroup.AddSystem(new RouteContextSystem());
         }
+
+        /// <summary>
+        /// Registers Brain-tier systems split across an Input-phase group and a
+        /// Simulation-phase group.
+        /// <list type="bullet">
+        ///   <item><see cref="MissionControlExecutionSystem"/> and
+        ///   <see cref="DoctrineIngressSystem"/> go to <paramref name="inputGroup"/>.</item>
+        ///   <item>All remaining systems go to <paramref name="simGroup"/>.</item>
+        /// </list>
+        /// </summary>
+        /// <param name="inputGroup">Input-phase system group.</param>
+        /// <param name="simGroup">Simulation-phase system group.</param>
+        public void RegisterSystems(SystemGroup inputGroup, SystemGroup simGroup)
+        {
+            if (inputGroup == null) throw new ArgumentNullException(nameof(inputGroup));
+            if (simGroup   == null) throw new ArgumentNullException(nameof(simGroup));
+
+            inputGroup.AddSystem(_missionExecutionSystem);
+            simGroup.AddSystem(_missionAdapterSystem);
+            _missionControlModule.RegisterSystems(inputGroup, simGroup);
+            simGroup.AddSystem(new HealthApplicationSystem());
+            simGroup.AddSystem(new CgfThreatEvaluationSystem());
+            _cognitiveRuntimeModule.RegisterSystems(simGroup);
+            _actionDispatchModule.RegisterSystems(simGroup);
+            simGroup.AddSystem(new RouteContextSystem());
+        }
     }
 }

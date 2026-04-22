@@ -80,6 +80,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private bool               _headless;
     private DoctrineRegistry?  _doctrineRegistry;
     private SystemGroup?       _simGroup;
+    private SystemGroup?       _inputGroup;
     private Hrot.Core.Network.INetworkFactory? _networkFactory;
     private PhysicsToolkitModule? _physicsModule;
 
@@ -255,14 +256,21 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var cgfLogicPack = new CgfLogicPack(doctrineRegistry, _entityMap, _scenarioSource);
         _context.Kernel.RegisterModule(cgfLogicPack);
 
-        // Execute the Brain systems every frame via a SystemGroup.
-        // It ticks CGF Brain logic (BTree / mission / locomotion dispatch)
+        // Execute the Brain systems every frame via two SystemGroups: one for
+        // Input-phase systems and one for Simulation-phase systems.
+        var inputGroup = new SystemGroup();
+        inputGroup.Create(_context.World);
+        _inputGroup = inputGroup;
+
         var simGroup = new SystemGroup();
         simGroup.Create(_context.World);
         _simGroup = simGroup;
-        cgfLogicPack.RegisterSystems(simGroup);
-        // Register the group as a synchronous module, placing it dynamically 
-        // inside the kernel's Simulation dispatch phase.
+
+        cgfLogicPack.RegisterSystems(inputGroup, simGroup);
+
+        // Register the Input-phase group via the shared adapter (SystemPhase.Input).
+        _context.Kernel.RegisterGlobalSystem(new CgfInputGroupAdapter(_inputGroup));
+        // Register the Simulation-phase group as a synchronous module.
         _context.Kernel.RegisterModule(new CgfSimGroupModule(_simGroup));
 
         var adapters = nodeFactory?.CreateCgfEntityLifecycleAdapters();
@@ -654,6 +662,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     public void Shutdown()
     {
         _cgfNetworkPolling = null;
+        _inputGroup?.Dispose();
+        _inputGroup = null;
         _simGroup?.Dispose();
         _simGroup = null;
         _context?.Kernel.Dispose();
