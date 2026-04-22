@@ -4,7 +4,9 @@ using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Scenario;
+using Hrot.Common.Serializers;
 
 namespace Hrot.SimHost.Serializers
 {
@@ -75,30 +77,33 @@ namespace Hrot.SimHost.Serializers
             if (raw is not JsonObject obj) return;
             if (obj["Entries"] is not JsonArray entries) return;
 
-            var mem = new TargetMemory();
-            TargetMemory* ptr = &mem;
-            int count = 0;
+            var intent = new InitialTargetsIntent();
 
             foreach (var item in entries)
             {
-                if (count >= PerceptionConstants.MaxTrackedTargets) break;
+                if (intent.Entries.Count >= PerceptionConstants.MaxTrackedTargets) break;
                 if (item is not JsonObject entry) continue;
 
                 var guidStr = entry["Entity"]?.GetValue<string>();
                 if (string.IsNullOrEmpty(guidStr)) continue;
 
                 Entity resolved = resolver.Resolve(guidStr);
-                ptr->EntityIds[count]    = (long)resolved.PackedValue;
-                ptr->PositionsX[count]   = entry["PosX"]?.GetValue<float>()  ?? 0f;
-                ptr->PositionsY[count]   = entry["PosY"]?.GetValue<float>()  ?? 0f;
-                ptr->ThreatScores[count] = entry["Score"]?.GetValue<float>() ?? 0f;
-                ptr->LastSeenTick[count] = (uint)(entry["Tick"]?.GetValue<long>() ?? 0L);
-                ptr->Modalities[count]   = (byte)(entry["Modality"]?.GetValue<int>() ?? 0);
-                count++;
+                if (resolved.IsNull || !repo.IsAlive(resolved)) continue;
+                if (!repo.HasComponent<NetworkIdentity>(resolved)) continue;
+                long networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
+
+                intent.Entries.Add(new TargetEntry
+                {
+                    NetworkId    = networkId,
+                    PosX         = entry["PosX"]?.GetValue<float>()  ?? 0f,
+                    PosY         = entry["PosY"]?.GetValue<float>()  ?? 0f,
+                    Score        = entry["Score"]?.GetValue<float>() ?? 0f,
+                    LastSeenTick = (uint)(entry["Tick"]?.GetValue<long>()    ?? 0L),
+                    Modality     = (byte)(entry["Modality"]?.GetValue<int>() ?? 0),
+                });
             }
 
-            mem.Count = count;
-            repo.SetComponent(entity, mem);
+            repo.SetManagedComponent(entity, intent);
         }
 
         public IEnumerable<string> GetOutputDomKeys() => Array.Empty<string>();

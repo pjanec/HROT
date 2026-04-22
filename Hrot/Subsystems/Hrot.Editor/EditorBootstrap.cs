@@ -35,6 +35,9 @@ public static class EditorBootstrap
             .RegisterTranslator(new Hrot.SimHost.Serializers.MissionPlanTranslator(doctrineRegistry))
             .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
             .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
+            .RegisterTranslator(new Hrot.SimHost.Serializers.VisHierarchyNodeTranslator())
+            .RegisterTranslator(new Hrot.SimHost.Serializers.IsEmbarkedTagTranslator())
+            .RegisterTranslator(new Hrot.SimHost.Serializers.PersonalRouteRefTranslator())
             .Build();
 
         return new ScenarioFileService(serializer);

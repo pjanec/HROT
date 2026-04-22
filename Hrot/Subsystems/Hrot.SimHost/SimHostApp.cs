@@ -344,6 +344,9 @@ namespace Hrot.SimHost
                 .RegisterTranslator(new Hrot.SimHost.Serializers.MissionPlanTranslator(doctrineRegistry))
                 .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
                 .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
+                .RegisterTranslator(new Hrot.SimHost.Serializers.VisHierarchyNodeTranslator())
+                .RegisterTranslator(new Hrot.SimHost.Serializers.IsEmbarkedTagTranslator())
+                .RegisterTranslator(new Hrot.SimHost.Serializers.PersonalRouteRefTranslator())
                 .Build();
 
             // CheckpointIOWorker: starts its background I/O thread here; owned by SimHostApp
@@ -385,6 +388,7 @@ namespace Hrot.SimHost
                     _kernelGroup.AddSystem(sys);
             }
             _simCorePack!.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);
+            _kernelGroup.AddSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));
 
             // Seed GlobalTime singleton.
             _world.SetSingletonUnmanaged(new GlobalTime

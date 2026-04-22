@@ -60,6 +60,13 @@ public static class SimHostComponentRegistry
         world.RegisterComponent<PersonalRouteRef>();
         world.RegisterComponent<RouteTrajectoryCache>();
 
+        // ── Genesis Intent DTOs (transient managed; resolved by GenesisMaterializationSystem) ─
+        world.RegisterManagedComponent<Hrot.Common.Serializers.InitialPassengersIntent>();
+        world.RegisterManagedComponent<Hrot.Common.Serializers.InitialVehicleIntent>();
+        world.RegisterManagedComponent<Hrot.Common.Serializers.InitialHierarchyIntent>();
+        world.RegisterManagedComponent<Hrot.Common.Serializers.InitialRouteIntent>();
+        world.RegisterManagedComponent<Hrot.Common.Serializers.InitialTargetsIntent>();
+
         // ── CarKinem command events ───────────────────────────────────────────
         world.RegisterEvent<CmdSpawnVehicle>();
         world.RegisterEvent<CmdCreateFormation>();

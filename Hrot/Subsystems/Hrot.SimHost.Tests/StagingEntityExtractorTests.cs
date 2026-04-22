@@ -12,6 +12,7 @@ using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Scenario;
 using Hrot.CGF.Orchestration;
+using Hrot.Common.Serializers;
 
 namespace Hrot.SimHost.Tests
 {
@@ -126,6 +127,7 @@ namespace Hrot.SimHost.Tests
             _goldRepo.RegisterComponent<WeaponState>();
             _goldRepo.RegisterComponent<ActiveMissionPlan>();
             _goldRepo.RegisterComponent<EpisodeTag>();
+            _goldRepo.RegisterManagedComponent<InitialPassengersIntent>();
         }
 
         public void Dispose() => _goldRepo.Dispose();
@@ -475,6 +477,119 @@ namespace Hrot.SimHost.Tests
             var req = Assert.Single(requests);
             Assert.NotNull(req.ChildComponentOverrides);
             Assert.Equal(2001L, req.ChildComponentOverrides![instanceId].PreAllocatedId);
+        }
+
+        // ── Stub translator for Intent DTO remapping tests ────────────────────────
+
+        /// <summary>
+        /// Writes a fixed passenger NetworkId to the scenario DOM during Extract;
+        /// reads it back and injects <see cref="InitialPassengersIntent"/> during Inject.
+        /// </summary>
+        private sealed class StubPassengersIntentTranslator : IEntityScenarioTranslator
+        {
+            private const string DomKey = "_stubPassengers";
+            private readonly long _passengerNetId;
+
+            public StubPassengersIntentTranslator(long passengerNetId)
+                => _passengerNetId = passengerNetId;
+
+            public BitMask256 GetConsumedComponentsMask() => new BitMask256();
+
+            public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
+
+            // Only fires for entities that have SimTransform (our "vehicle" marker).
+            public bool CanTranslate(EntityRepository repo, Entity entity)
+            {
+                int typeId = GlobalComponentIds.SimTransform;
+                return repo.GetHeader(entity.Index).ComponentMask.IsSet(typeId);
+            }
+
+            public Dictionary<string, object> Extract(
+                EntityRepository repo, Entity entity, IGuidResolver guidResolver)
+                => new Dictionary<string, object>
+                {
+                    [DomKey] = new JsonObject { ["PassengerId"] = _passengerNetId }
+                };
+
+            public void Inject(
+                EntityRepository repo, Entity entity,
+                Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
+            {
+                if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
+                var id = ((JsonObject)raw)["PassengerId"]!.GetValue<long>();
+                var intent = new InitialPassengersIntent();
+                intent.PassengerNetworkIds.Add(id);
+                repo.SetManagedComponent(entity, intent);
+            }
+        }
+
+        // ── Test 13: InitialPassengersIntent NetworkIds remapped via oldToNewMap ──────
+
+        [Fact]
+        public void Extract_InitialPassengersIntent_RemapsPassengerNetworkIdsViaOldToNewMap()
+        {
+            const long vehicleOldId   = 1001L;
+            const long passengerOldId = 2001L;
+
+            // Vehicle entity triggers the stub translator.
+            var vehicle = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(vehicle, new SimTransform());
+            _goldRepo.SetComponent(vehicle, new NetworkIdentity { Value = vehicleOldId });
+
+            // Passenger entity — its old ID must appear in the Intent DTO.
+            var passenger = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(passenger, new NetworkIdentity { Value = passengerOldId });
+
+            // Allocator: vehicle → 3001, passenger → 3002.
+            var allocator = new StubIdAllocator(3001);
+
+            var serializer = BuildSerializer(new StubPassengersIntentTranslator(passengerOldId));
+            var json = SerializeGoldRepo(_goldRepo, serializer);
+
+            var requests = new StagingEntityExtractor()
+                .Extract(serializer, json, allocator);
+
+            // There are 2 entities but passenger has no SimTransform, so only vehicle is a
+            // root request carrying the Intent DTO.
+            var vehicleReq = requests.Single(r => r.PreAllocatedNetworkId == 3001L);
+
+            var intent = vehicleReq.InitialComponents!
+                .OfType<InitialPassengersIntent>()
+                .Single();
+
+            // Passenger old ID 2001 must have been remapped to 3002.
+            Assert.Equal(1, intent.PassengerNetworkIds.Count);
+            Assert.Equal(3002L, intent.PassengerNetworkIds[0]);
+        }
+
+        // ── Test 14: Unknown passenger NetworkId preserved as-is ──────────────────────
+
+        [Fact]
+        public void Extract_InitialPassengersIntent_PreservesUnknownNetworkId()
+        {
+            const long vehicleOldId      = 1001L;
+            const long unknownPassengerId = 9999L; // no entity with this NetworkIdentity exists
+
+            var vehicle = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(vehicle, new SimTransform());
+            _goldRepo.SetComponent(vehicle, new NetworkIdentity { Value = vehicleOldId });
+
+            var allocator = new StubIdAllocator(3001); // vehicle → 3001 only
+
+            var serializer = BuildSerializer(new StubPassengersIntentTranslator(unknownPassengerId));
+            var json = SerializeGoldRepo(_goldRepo, serializer);
+
+            var requests = new StagingEntityExtractor()
+                .Extract(serializer, json, allocator);
+
+            var req = Assert.Single(requests);
+            var intent = req.InitialComponents!
+                .OfType<InitialPassengersIntent>()
+                .Single();
+
+            // Unknown ID 9999 has no mapping — it must be preserved unchanged.
+            Assert.Equal(1, intent.PassengerNetworkIds.Count);
+            Assert.Equal(unknownPassengerId, intent.PassengerNetworkIds[0]);
         }
     }
 }

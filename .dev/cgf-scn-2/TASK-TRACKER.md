@@ -40,12 +40,12 @@ in scenario JSON.
 **Goal:** Prevent dangling-pointer bugs during distributed genesis for components with
 cross-entity references.
 
-- [ ] **TASK-S401** Define Intent DTO Components [details](./TASK-DETAIL.md#task-s401-define-intent-dto-components)
-- [ ] **TASK-S402** Translators for VisHierarchyNode, IsEmbarkedTag, PersonalRouteRef [details](./TASK-DETAIL.md#task-s402-translators-for-vishierarchynode-isembarkedtag-personalrouteref)
-- [ ] **TASK-S403** Update PassengerBufferTranslator to Emit Intent [details](./TASK-DETAIL.md#task-s403-update-passengerbuffertranslator-to-emit-intent)
-- [ ] **TASK-S404** Implement GenesisMaterializationSystem [details](./TASK-DETAIL.md#task-s404-implement-genesismaterializationsystem)
-- [ ] **TASK-S405** Patch StagingEntityExtractor for Intent NetworkId Remapping [details](./TASK-DETAIL.md#task-s405-patch-stagingentityextractor-for-intent-networkid-remapping)
-- [ ] **TASK-S406** Refactor TargetMemoryTranslator to Emit Intent [details](./TASK-DETAIL.md#task-s406-refactor-targetmemorytranslator-to-emit-initialtargetsintent)
+- [x] **TASK-S401** Define Intent DTO Components [details](./TASK-DETAIL.md#task-s401-define-intent-dto-components)
+- [x] **TASK-S402** Translators for VisHierarchyNode, IsEmbarkedTag, PersonalRouteRef [details](./TASK-DETAIL.md#task-s402-translators-for-vishierarchynode-isembarkedtag-personalrouteref)
+- [x] **TASK-S403** Update PassengerBufferTranslator to Emit Intent [details](./TASK-DETAIL.md#task-s403-update-passengerbuffertranslator-to-emit-intent)
+- [x] **TASK-S404** Implement GenesisMaterializationSystem [details](./TASK-DETAIL.md#task-s404-implement-genesismaterializationsystem)
+- [x] **TASK-S405** Patch StagingEntityExtractor for Intent NetworkId Remapping [details](./TASK-DETAIL.md#task-s405-patch-stagingentityextractor-for-intent-networkid-remapping)
+- [x] **TASK-S406** Refactor TargetMemoryTranslator to Emit Intent [details](./TASK-DETAIL.md#task-s406-refactor-targetmemorytranslator-to-emit-initialtargetsintent)
 
 ---
 

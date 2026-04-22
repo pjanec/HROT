@@ -366,6 +366,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // the EAM-M003 migration from CgfApplication to CgfSubsystem.
         var scenarioSerializer = new ScenarioSerializerBuilder(HrotSubsystemTypes.Scenario)
             .RegisterTranslator(new Hrot.SimHost.Serializers.MissionPlanTranslator(doctrineRegistry))
+            .RegisterTranslator(new Hrot.SimHost.Serializers.VisHierarchyNodeTranslator())
+            .RegisterTranslator(new Hrot.SimHost.Serializers.IsEmbarkedTagTranslator())
+            .RegisterTranslator(new Hrot.SimHost.Serializers.PersonalRouteRefTranslator())
             .Build();
         var storageProvider    = new LocalDiskStorageProvider(OrchestrationConstants.DefaultStagingDirectory);
         var scenarioLoader     = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);

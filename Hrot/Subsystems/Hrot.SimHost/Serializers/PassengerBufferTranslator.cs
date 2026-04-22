@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Scenario;
+using Hrot.Common.Serializers;
 
 namespace Hrot.SimHost.Serializers
 {
@@ -70,28 +72,30 @@ namespace Hrot.SimHost.Serializers
             int count      = obj["Count"]?.GetValue<int>() ?? 0;
             var passengers = obj["Passengers"] as JsonArray;
 
-            var buffer = new PassengerBuffer { Count = count };
-            int filled = 0;
+            var intent = new InitialPassengersIntent();
 
             if (passengers != null)
             {
+                int filled = 0;
                 foreach (var item in passengers)
                 {
                     if (filled >= count || filled >= PassengerBuffer.Capacity) break;
 
                     var guidStr = item?.GetValue<string>();
-                    if (string.IsNullOrEmpty(guidStr))
-                    {
-                        filled++;
-                        continue;
-                    }
-
-                    buffer.Passengers[filled] = resolver.Resolve(guidStr);
                     filled++;
+
+                    if (string.IsNullOrEmpty(guidStr)) continue;
+
+                    Entity resolved = resolver.Resolve(guidStr);
+                    if (resolved.IsNull || !repo.IsAlive(resolved)) continue;
+                    if (!repo.HasComponent<NetworkIdentity>(resolved)) continue;
+
+                    long networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
+                    intent.PassengerNetworkIds.Add(networkId);
                 }
             }
 
-            repo.SetComponent(entity, buffer);
+            repo.SetManagedComponent(entity, intent);
         }
 
         public IEnumerable<string> GetOutputDomKeys() => Array.Empty<string>();

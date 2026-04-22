@@ -7,6 +7,8 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Scenario;
+using Hrot.CGF.Orchestration;
+using Hrot.Common.Serializers;
 using Hrot.Core.Network;
 
 namespace Hrot.CGF.Orchestration
@@ -295,6 +297,67 @@ namespace Hrot.CGF.Orchestration
                                         ?? task.BehaviorParams;
                                 }
                             }
+                        }
+                    }
+
+                    // Remap cross-entity Network IDs embedded in Intent DTO managed components.
+                    // Intent DTOs are written by scenario translators during Inject; the network IDs
+                    // they contain refer to the old staging allocations and must be patched to the
+                    // new IDs allocated in Pass 1 before the requests are dispatched.
+                    for (int ci = 0; ci < comps.Count; ci++)
+                    {
+                        if (comps[ci] is InitialPassengersIntent pIntent)
+                        {
+                            var remapped = new InitialPassengersIntent();
+                            foreach (var id in pIntent.PassengerNetworkIds)
+                                remapped.PassengerNetworkIds.Add(
+                                    oldToNewMap.TryGetValue(id, out long newPsId) ? newPsId : id);
+                            comps[ci] = remapped;
+                        }
+                        else if (comps[ci] is InitialVehicleIntent vIntent)
+                        {
+                            comps[ci] = new InitialVehicleIntent
+                            {
+                                VehicleNetworkId = oldToNewMap.TryGetValue(
+                                    vIntent.VehicleNetworkId, out long newVId) ? newVId : vIntent.VehicleNetworkId,
+                            };
+                        }
+                        else if (comps[ci] is InitialHierarchyIntent hIntent)
+                        {
+                            comps[ci] = new InitialHierarchyIntent
+                            {
+                                ParentNetworkId      = oldToNewMap.TryGetValue(
+                                    hIntent.ParentNetworkId,      out long newParId) ? newParId : hIntent.ParentNetworkId,
+                                FirstChildNetworkId  = oldToNewMap.TryGetValue(
+                                    hIntent.FirstChildNetworkId,  out long newFcId)  ? newFcId  : hIntent.FirstChildNetworkId,
+                                NextSiblingNetworkId = oldToNewMap.TryGetValue(
+                                    hIntent.NextSiblingNetworkId, out long newNsId)  ? newNsId  : hIntent.NextSiblingNetworkId,
+                            };
+                        }
+                        else if (comps[ci] is InitialRouteIntent rIntent)
+                        {
+                            comps[ci] = new InitialRouteIntent
+                            {
+                                RouteNetworkId = oldToNewMap.TryGetValue(
+                                    rIntent.RouteNetworkId, out long newRId) ? newRId : rIntent.RouteNetworkId,
+                            };
+                        }
+                        else if (comps[ci] is InitialTargetsIntent tIntent)
+                        {
+                            var remappedIntent = new InitialTargetsIntent();
+                            foreach (var entry in tIntent.Entries)
+                            {
+                                remappedIntent.Entries.Add(new TargetEntry
+                                {
+                                    NetworkId    = oldToNewMap.TryGetValue(entry.NetworkId, out long newTId) ? newTId : entry.NetworkId,
+                                    PosX         = entry.PosX,
+                                    PosY         = entry.PosY,
+                                    Score        = entry.Score,
+                                    LastSeenTick = entry.LastSeenTick,
+                                    Modality     = entry.Modality,
+                                });
+                            }
+                            comps[ci] = remappedIntent;
                         }
                     }
 

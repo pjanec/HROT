@@ -48,13 +48,33 @@ namespace Hrot.Map.Definitions
         public const byte RouteTrajectoryCache = 170;
 
 
-        // IDs 163 are reserved (see note below). 172–199 reserved for future use.
+        // IDs 163 are reserved (see note below).
         // NOTE: InFormationTag (formerly 163) has been moved to FDP.Toolkit.Navigation
         //       (GlobalComponentIds.InFormationTag = 70) as part of CT-MOD1-I executor migration.
 
-        // ── Zone authoring components (PACK3 / A011) ────────────────────────────
+        // ── Zone authoring components (PACK3 / A011) ────────────────────────
 
         /// <summary><c>ZoneMembership</c> — managed component recording the zone name for an obstacle entity created by <c>SpawnZoneObstacleCommand</c>.</summary>
         public const byte ZoneMembership = 171;
+
+
+        // ── Genesis Intent DTO components (cgf-scn-2 / Phase 4) ──────────────
+        // Transient managed components written by scenario translators on Inject.
+        // Resolved to structural components by GenesisMaterializationSystem.
+
+        /// <summary><c>InitialPassengersIntent</c> — stores passenger Network IDs at scenario load; resolved to <c>PassengerBuffer</c>.</summary>
+        public const byte InitialPassengersIntent = 177;
+
+        /// <summary><c>InitialVehicleIntent</c> — stores vehicle Network ID at scenario load; resolved to <c>IsEmbarkedTag</c>.</summary>
+        public const byte InitialVehicleIntent    = 178;
+
+        /// <summary><c>InitialHierarchyIntent</c> — stores parent/first-child/next-sibling Network IDs; resolved to <c>VisHierarchyNode</c>.</summary>
+        public const byte InitialHierarchyIntent  = 179;
+
+        /// <summary><c>InitialRouteIntent</c> — stores personal-route Network ID; resolved to <c>PersonalRouteRef</c>.</summary>
+        public const byte InitialRouteIntent      = 180;
+
+        /// <summary><c>InitialTargetsIntent</c> — stores target-memory Network IDs + sensor data; resolved to <c>TargetMemory</c>.</summary>
+        public const byte InitialTargetsIntent    = 181;
     }
 }
