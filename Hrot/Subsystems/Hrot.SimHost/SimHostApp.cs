@@ -435,6 +435,10 @@ namespace Hrot.SimHost
                 spawnSystem: spawningSystem);
             _kernel.RegisterModule(simHostMod);
 
+            // Register the core logic pack so the kernel's ISystemRegistry processes
+            // IEcsModule.RegisterSystems and wraps perception systems via RegisterManualSystem.
+            _kernel.RegisterModule(_simCorePack!);
+
             // ── 10. Register replication module (bundles all translator packs) ──
             // Packs included: SharedTranslatorPack (EntityMaster, EntityInfo, EntityDamage, FireInteraction),
             //                 KinematicTranslatorPack (GeoSpatial, MapVisualOverlay, MapRoute, NavStatus, NavIntent),

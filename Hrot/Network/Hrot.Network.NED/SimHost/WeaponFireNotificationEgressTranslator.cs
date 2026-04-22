@@ -1,4 +1,5 @@
 using System;
+using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.Map.Common.Dds;
 using CycloneDDS.Runtime;
@@ -37,7 +38,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly NetworkEntityMap _entityMap;
 
         public string TopicName       => DdsTopicName;
-        public long   DescriptorOrdinal => 81;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtWeaponFire;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;

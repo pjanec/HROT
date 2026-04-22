@@ -2,6 +2,7 @@ using System;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Hrot.Map.Common.Dds;
+using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.Common.Events;
 using CycloneDDS.Runtime;
@@ -27,7 +28,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly IDdsWriter<MissionControlAck>? _writer;
 
         public string TopicName         => DdsTopicName;
-        public long   DescriptorOrdinal => 91;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtMissionControlAck;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;

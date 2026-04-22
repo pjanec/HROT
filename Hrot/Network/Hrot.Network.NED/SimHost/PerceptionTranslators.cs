@@ -33,7 +33,7 @@ namespace Hrot.Network.NED.SimHost
     {
         private readonly DdsWriter<SensorConfig>? _writer;
 
-        public long   DescriptorOrdinal => 60;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtSensorConfig;
         public string TopicName         => "SensorConfig";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -109,7 +109,7 @@ namespace Hrot.Network.NED.SimHost
 
         private uint _batchCorrelationId;
 
-        public long   DescriptorOrdinal => 61;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastRequestBatch;
         public string TopicName         => "RaycastRequestBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -205,7 +205,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly DdsReader<SensorTrackState>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public long   DescriptorOrdinal => 62;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtSensorTrackState;
         public string TopicName         => "SensorTrackState";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -308,7 +308,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly NetworkEntityMap _entityMap;
         private readonly int _localNodeId;
 
-        public long   DescriptorOrdinal => 63;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastResponseBatch;
         public string TopicName         => "RaycastResponseBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -390,7 +390,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly NetworkEntityMap _entityMap;
         private readonly GhostCreationSystem _ghostCreationSystem;
 
-        public long   DescriptorOrdinal => 60;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtSensorConfig;
         public string TopicName         => "SensorConfig";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -456,7 +456,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly NetworkEntityMap _entityMap;
         private readonly IGeographicTransform _geoTransform;
 
-        public long   DescriptorOrdinal => 61;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastRequestBatch;
         public string TopicName         => "RaycastRequestBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -583,7 +583,7 @@ namespace Hrot.Network.NED.SimHost
         // Scratch set reused each tick to detect stale observer entries without allocation.
         private readonly HashSet<long> _seenThisTick = new();
 
-        public long   DescriptorOrdinal => 62;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtSensorTrackState;
         public string TopicName         => "SensorTrackState";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -717,7 +717,7 @@ namespace Hrot.Network.NED.SimHost
 
         private uint _batchCorrelationId;
 
-        public long   DescriptorOrdinal => 63;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastResponseBatch;
         public string TopicName         => "RaycastResponseBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }

@@ -39,7 +39,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly DdsReader<MissionControlRequest>? _reader;
 
         public string TopicName         => DdsTopicName;
-        public long   DescriptorOrdinal => 90;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtMissionControlRequest;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;

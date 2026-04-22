@@ -39,7 +39,7 @@ namespace Hrot.Network.NED.IG
         private readonly DdsReader<GroundClampingOverride> _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public long   DescriptorOrdinal => 66;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtGroundClampingOverride;
         public string TopicName         => "GroundClampingOverride";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }

@@ -28,7 +28,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly IGeographicTransform _geoTransform;
         private readonly int _localNodeId;
 
-        public long   DescriptorOrdinal => 64;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtPathRequestBatch;
         public string TopicName         => "PathRequestBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -112,7 +112,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly TrajectoryPoolManager _trajectoryPool;
         private readonly int _localNodeId;
 
-        public long   DescriptorOrdinal => 65;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtPathResponseBatch;
         public string TopicName         => "PathResponseBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -213,7 +213,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly DdsReader<PathRequestBatch>? _reader;
         private readonly IGeographicTransform _geoTransform;
 
-        public long   DescriptorOrdinal => 64;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtPathRequestBatch;
         public string TopicName         => "PathRequestBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -294,7 +294,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly IGeographicTransform _geoTransform;
         private readonly TrajectoryPoolManager _trajectoryPool;
 
-        public long   DescriptorOrdinal => 65;
+        public long   DescriptorOrdinal => (long)EDescriptorType.dtPathResponseBatch;
         public string TopicName         => "PathResponseBatch";
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
