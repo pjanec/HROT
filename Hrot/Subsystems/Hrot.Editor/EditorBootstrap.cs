@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Scenario;
 using Hrot.Common.Scenario;
@@ -24,8 +25,16 @@ public static class EditorBootstrap
     /// </summary>
     public static ScenarioFileService CreateFileService()
     {
+        // A minimal doctrine registry is created here so MissionPlanTranslator can
+        // resolve BehaviorId -> DoctrineId on Inject. The editor uses a full registry
+        // via EditorSubsystem; this factory creates an empty one consistent with the
+        // SimHostApp Muscle-tier pattern (doctrines live on the Brain/CGF node).
+        var doctrineRegistry = new DoctrineRegistry();
+
         var serializer = new ScenarioSerializerBuilder(HrotSubsystemTypes.Scenario)
-            // No custom translators yet; FdpAutoSerializer handles all registered component types.
+            .RegisterTranslator(new Hrot.SimHost.Serializers.MissionPlanTranslator(doctrineRegistry))
+            .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
+            .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
             .Build();
 
         return new ScenarioFileService(serializer);

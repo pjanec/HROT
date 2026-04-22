@@ -341,6 +341,7 @@ namespace Hrot.SimHost
             // The auto-serialiser produces empty/truncated JSON for those fields, zeroing
             // entity handles on every round-trip.
             var scenarioSerializer = new ScenarioSerializerBuilder(HrotSubsystemTypes.Scenario)
+                .RegisterTranslator(new Hrot.SimHost.Serializers.MissionPlanTranslator(doctrineRegistry))
                 .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
                 .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
                 .Build();
