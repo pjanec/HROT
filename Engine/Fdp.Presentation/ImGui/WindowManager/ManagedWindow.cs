@@ -179,7 +179,12 @@ public abstract class ManagedWindow
             Gui.PushStyleColor(ImGuiCol.TitleBg,          c);
             Gui.PushStyleColor(ImGuiCol.TitleBgActive,    cActive);
             Gui.PushStyleColor(ImGuiCol.TitleBgCollapsed, cCollapsed);
-            colorsPushed = 3;
+            Gui.PushStyleColor(ImGuiCol.Tab,                c);
+            Gui.PushStyleColor(ImGuiCol.TabHovered,         cActive);
+            Gui.PushStyleColor(ImGuiCol.TabSelected,        cActive);
+            Gui.PushStyleColor(ImGuiCol.TabDimmed,          cCollapsed);
+            Gui.PushStyleColor(ImGuiCol.TabDimmedSelected,  c);
+            colorsPushed = 8;
         }
 
         // Step 6 — begin the window. Pass ref _isOpen so ImGui's built-in close button
