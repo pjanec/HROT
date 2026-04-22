@@ -18,6 +18,7 @@ public class EntityWatchPanel
 {
     private readonly Entity _targetEntity;
     private readonly ComponentReflector _reflector = new();
+    private static readonly Vector4 ExConViolet = new Vector4(0.32f, 0.08f, 0.48f, 1f);
 
     public EntityWatchPanel(Entity targetEntity)
     {
@@ -35,7 +36,20 @@ public class EntityWatchPanel
             return;
         }
 
-        ImGuiApi.Text($"ID: {_targetEntity.Index} | Gen: {_targetEntity.Generation}");
+        long? netId = null;
+        if (session.HasComponent(_targetEntity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))
+        {
+            var comp = session.GetComponent(_targetEntity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity));
+            if (comp is Fdp.Toolkit.Replication.Components.NetworkIdentity ni)
+                netId = ni.Value;
+        }
+
+        ImGuiApi.TextUnformatted($"[{_targetEntity.Index}, v{_targetEntity.Generation}]");
+        if (netId.HasValue)
+        {
+            ImGuiApi.SameLine();
+            ImGuiApi.TextColored(ExConViolet, $"({netId.Value})");
+        }
 
         ImGuiApi.SameLine();
         if (ImGuiApi.Button("Copy JSON"))

@@ -15,6 +15,18 @@ public class EntityInspectorPanel
 {
     private string _searchFilter = "";
     private readonly ComponentReflector _reflector = new();
+    private static readonly Vector4 ExConViolet = new Vector4(0.7f, 0.45f, 0.8f, 1f);
+
+    private static long? GetNetworkId(IInspectableSession session, Entity entity)
+    {
+        if (session.HasComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))
+        {
+            var comp = session.GetComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity));
+            if (comp is Fdp.Toolkit.Replication.Components.NetworkIdentity ni)
+                return ni.Value;
+        }
+        return null;
+    }
 
     // ── Chain-to-map toggle (Task 46) ─────────────────────────────────────────
 
@@ -169,25 +181,51 @@ public class EntityInspectorPanel
         foreach (var entity in entities)
         {
             count++;
-            string label = $"Entity {entity.Index} (v{entity.Generation})";
             bool isSelected = context.SelectedEntity == entity;
-            
-            if (ImGuiApi.Selectable(label, isSelected))
+            long? netId = GetNetworkId(session, entity);
+            string baseLabel = $"[{entity.Index}, v{entity.Generation}]";
+
+            var style = ImGuiApi.GetStyle();
+            var drawList = ImGuiApi.GetWindowDrawList();
+    
+            // 1. Capture the position BEFORE drawing the selectable
+            Vector2 screenPos = ImGuiApi.GetCursorScreenPos();
+
+            // 2. Draw the Selectable
+            if (ImGuiApi.Selectable($"##sel_{entity.Index}_{entity.Generation}", isSelected))
             {
                 context.SelectedEntity = entity;
-                if (ChainToMap)
-                    OnEntitySelected?.Invoke(entity);
+                if (ChainToMap) OnEntitySelected?.Invoke(entity);
             }
 
-            // Right-click context menu (Task 47).
+            // Context Menu logic (Restored)
             if (_contextMenuHandlers.Count > 0 && ImGuiApi.IsItemHovered() &&
                 ImGuiApi.IsMouseClicked(ImGuiMouseButton.Right))
             {
                 _contextMenuEntity = entity;
                 ImGuiApi.OpenPopup("##EntityCtxMenu");
             }
+
+            // 3. DRAWING WITH MANUAL NUDGE
+            // If it's still too low, we subtract pixels from Y. 
+            // Let's try pulling it up by 2 or 3 pixels.
+            float verticalNudge = 4.0f; 
+            Vector2 textPos = new Vector2(
+                screenPos.X + style.FramePadding.X, 
+                screenPos.Y + style.FramePadding.Y - verticalNudge 
+            );
+
+            drawList.AddText(textPos, ImGuiApi.GetColorU32(ImGuiCol.Text), baseLabel);
+
+            if (netId.HasValue)
+            {
+                float labelWidth = ImGuiApi.CalcTextSize(baseLabel).X;
+                Vector2 netIdPos = new Vector2(textPos.X + labelWidth + style.ItemSpacing.X, textPos.Y);
+                drawList.AddText(netIdPos, ImGuiApi.ColorConvertFloat4ToU32(ExConViolet), $"({netId.Value})");
+            }
         }
-        
+
+
         bool hasFilter = !string.IsNullOrWhiteSpace(_searchFilter);
         
         if (count == 0)
@@ -226,8 +264,14 @@ public class EntityInspectorPanel
         else
         {
             Entity e = context.SelectedEntity.Value;
+            long? netId = GetNetworkId(session, e);
 
-            ImGuiApi.Text($"ID: {e.Index} | Gen: {e.Generation}");
+            ImGuiApi.TextUnformatted($"[{e.Index}, v{e.Generation}]");
+            if (netId.HasValue)
+            {
+                ImGuiApi.SameLine();
+                ImGuiApi.TextColored(ExConViolet, $"({netId.Value})");
+            }
 
             if (session.IsReadOnly)
                 ImGuiApi.TextColored(new Vector4(1, 1, 0, 1), "[READ-ONLY]");
