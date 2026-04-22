@@ -6,7 +6,6 @@ using Fdp.Core;
 using Fdp.Toolkit.CarKinem.Modules;
 using Fdp.Toolkit.Combat.Modules;
 using Fdp.Toolkit.Navigation.Systems;
-using Fdp.Toolkit.Perception.Modules;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems.Routing;
@@ -25,13 +24,9 @@ namespace Hrot.SimHost
     ///   <item><see cref="DamageAssessmentModule"/> — detonation → damage-assessed event</item>
     ///   <item>Navigation bridge systems — NavigationIntent → NavState, route sync, authoring, context</item>
     ///   <item><see cref="GroundKinematicsModule"/> — spatial hash, formation, vehicle physics, nav execution</item>
-    ///   <item><see cref="AutonomousPerceptionModule"/> — LOS / threat evaluation (slow background)</item>
     /// </list>
     ///
-    /// <para><b>Registration pattern:</b> <see cref="IEcsModule.RegisterSystems(ISystemRegistry)"/>
-    /// forwards to <see cref="AutonomousPerceptionModule.RegisterSystems"/> so the kernel wraps
-    /// the perception systems via <see cref="ISystemRegistry.RegisterManualSystem{T}"/> and exposes
-    /// them in the diagnostic UI.  The four non-perception sub-modules use the
+    /// <para><b>Registration pattern:</b> the contained sub-modules use the
     /// <see cref="RegisterSystems(SystemGroup,SystemGroup,SystemGroup)"/> overload and are added
     /// directly to the supplied <see cref="SystemGroup"/> instances.</para>
     ///
@@ -50,7 +45,6 @@ namespace Hrot.SimHost
         private readonly CombatModule                _combatModule;
         private readonly DamageAssessmentModule      _damageAssessmentModule;
         private readonly GroundKinematicsModule      _groundKinematicsModule;
-        private readonly AutonomousPerceptionModule  _perceptionModule;
         private readonly NetworkEntityMap            _entityMap;
 
         // ── Public accessors (mirroring SimulationLogicModule) ────────────────
@@ -65,7 +59,7 @@ namespace Hrot.SimHost
 
         /// <summary>
         /// Creates the Muscle-tier logic pack with the dependencies required by
-        /// the four contained sub-modules.
+        /// the contained sub-modules.
         /// </summary>
         /// <param name="entityMap">
         /// Shared network entity map injected into <see cref="CombatModule"/>
@@ -84,17 +78,11 @@ namespace Hrot.SimHost
         /// Optional formation-template manager.  A new manager (with default templates)
         /// is lazily allocated by <see cref="GroundKinematicsModule"/> when <c>null</c>.
         /// </param>
-        /// <param name="colliderRadiusReader">
-        /// Optional delegate forwarded to <see cref="AutonomousPerceptionModule"/> for
-        /// physics-accurate LOS segment-circle occlusion checks.  Pass <c>null</c> to
-        /// treat all occluders as point entities.
-        /// </param>
         public SimHostCoreLogicPack(
             NetworkEntityMap                           entityMap,
             RoadNetworkBlob                            roadNetwork              = default,
             TrajectoryPoolManager?                     trajectoryPool           = null,
-            FormationTemplateManager?                  formationTemplateManager = null,
-            Func<ISimulationView, Entity, float>?      colliderRadiusReader     = null)
+            FormationTemplateManager?                  formationTemplateManager = null)
         {
             _entityMap              = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _combatModule           = new CombatModule();
@@ -103,29 +91,19 @@ namespace Hrot.SimHost
                 roadNetwork,
                 trajectoryPool,
                 formationTemplateManager);
-            _perceptionModule       = new AutonomousPerceptionModule(colliderRadiusReader);
         }
 
         // ── IEcsModule ────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Registers the <see cref="AutonomousPerceptionModule"/> systems via
-        /// <see cref="ISystemRegistry.RegisterManualSystem{T}"/>.
-        /// All four perception systems are tagged <c>[UpdateInPhase(SystemPhase.Manual)]</c>
-        /// and will not be auto-executed by the kernel; they run only when
-        /// <see cref="Tick"/> calls them directly.
+        /// No systems are registered through <see cref="ISystemRegistry"/> in this pack.
         /// </summary>
-        public void RegisterSystems(ISystemRegistry registry)
-        {
-            _perceptionModule.RegisterSystems(registry);
-        }
+        public void RegisterSystems(ISystemRegistry registry) { }
 
         /// <summary>
-        /// Drives <see cref="AutonomousPerceptionModule"/> which executes its internal
-        /// perception pipeline via Pattern 2 (direct <c>Tick</c> execution).
+        /// No per-frame work is executed directly in this pack.
         /// </summary>
-        public void Tick(ISimulationView view, float deltaTime)
-            => _perceptionModule.Tick(view, deltaTime);
+        public void Tick(ISimulationView view, float deltaTime) { }
 
         // ── SystemGroup-based registration ────────────────────────────────────
 

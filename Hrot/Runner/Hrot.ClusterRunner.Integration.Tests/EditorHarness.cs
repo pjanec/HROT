@@ -6,6 +6,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Perception.Modules;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Time.Controllers;
@@ -114,6 +115,7 @@ public sealed class EditorHarness : IDisposable
         var simHostMod       = new SimHostModule(spawnSys);
 
         Kernel.RegisterModule(simHostCorePack);
+        Kernel.RegisterModule(new AutonomousPerceptionModule());
         Kernel.RegisterModule(cgfLogicPackInst);
         Kernel.RegisterModule(scenarioMod);
         Kernel.RegisterModule(elm);

@@ -31,6 +31,7 @@ using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Perception.Modules;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
@@ -435,9 +436,12 @@ namespace Hrot.SimHost
                 spawnSystem: spawningSystem);
             _kernel.RegisterModule(simHostMod);
 
-            // Register the core logic pack so the kernel's ISystemRegistry processes
-            // IEcsModule.RegisterSystems and wraps perception systems via RegisterManualSystem.
+            // Register the core simulation logic pack.
             _kernel.RegisterModule(_simCorePack!);
+            _kernel.RegisterModule(new AutonomousPerceptionModule(
+                colliderRadiusReader: (view, e) => view.HasComponent<PhysicsCollider>(e)
+                    ? view.GetComponentRO<PhysicsCollider>(e).Radius
+                    : 0f));
 
             // ── 10. Register replication module (bundles all translator packs) ──
             // Packs included: SharedTranslatorPack (EntityMaster, EntityInfo, EntityDamage, FireInteraction),
@@ -488,8 +492,6 @@ namespace Hrot.SimHost
             _clusterSlave?.Tick();
             _vis?.Update(dt);
             _kernelGroup?.Run();   // process incoming requests first (sets dirty flags)
-            // Drive the AutonomousPerceptionModule which uses direct-execution pattern (Pattern 2).
-            _simCorePack?.Tick(_world!, dt);
             _kernel?.Update();     // then run egress scan (picks up dirty -> publishes immediately)
             // Bridge SwitchTimeModeEvent and FrameOrder/FrameAck for distributed time control.
             // Placed after kernel.Update() so ScanAndPublish picks up FrameStepCompletedEvent
