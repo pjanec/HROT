@@ -1,8 +1,11 @@
 using Hrot.IG;
+using Fdp.Presentation.Panels;
+using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Runner;
 using Fdp.Toolkit.Vis2D.Components;
 using Hrot.IG.Windows;
 using Hrot.Presentation.Windows;
+using System;
 
 namespace Hrot.IG
 {
@@ -113,6 +116,20 @@ namespace Hrot.IG
                 () => _app.GetFdpRepoAdapter(),
                 () => _app.FdpInspectorState,
                 IgWindowColor.TitleBar));
+            _app.FdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
+            {
+                builder.AddItem("Inspect...", () =>
+                {
+                    var id = $"ig_watch_{entity.Index}_{entity.Generation}_{Guid.NewGuid()}";
+                    windowManager.RegisterWindow(new FdpEntityWatchWindow(
+                        id,
+                        $"Watch Entity {entity.Index} v{entity.Generation}",
+                        "IG",
+                        new EntityWatchPanel(entity),
+                        () => _app.GetFdpRepoAdapter(),
+                        TitleBarColor));
+                });
+            }));
             windowManager.RegisterWindow(new FdpEventBrowserWindow(
                 "ig_fdp_events", "IG Event Browser", "IG",
                 _app.FdpEventBrowser,

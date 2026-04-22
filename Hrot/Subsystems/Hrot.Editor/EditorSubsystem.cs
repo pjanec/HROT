@@ -9,6 +9,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Adapters;
 using Fdp.Presentation.Panels;
+using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.NetworkSpawning.Systems;
@@ -775,6 +776,20 @@ namespace Hrot.Editor
                 () => _fdpRepoAdapter,
                 () => _fdpInspectorState,
                 EditorWindowColor.TitleBar));
+            _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
+            {
+                builder.AddItem("Inspect...", () =>
+                {
+                    var id = $"editor_watch_{entity.Index}_{entity.Generation}_{Guid.NewGuid()}";
+                    windowManager.RegisterWindow(new FdpEntityWatchWindow(
+                        id,
+                        $"Watch Entity {entity.Index} v{entity.Generation}",
+                        "Editor",
+                        new EntityWatchPanel(entity),
+                        () => _fdpRepoAdapter,
+                        TitleBarColor));
+                });
+            }));
 
             windowManager.RegisterWindow(new FdpEventBrowserWindow(
                 "editor_fdp_events", "Editor Event Browser", "Editor",

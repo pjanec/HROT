@@ -114,7 +114,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     public string Name => "CGF";
 
     /// <inheritdoc/>
-    public System.Numerics.Vector4 TitleBarColor => new(0.08f, 0.22f, 0.38f, 1f);
+    public System.Numerics.Vector4 TitleBarColor => new(0.57f, 0.47f, 0.04f, 1f);
 
     /// <summary>Creates CgfSubsystem without a network factory (legacy / headless path).</summary>
     public CgfSubsystem() { }
@@ -552,6 +552,21 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
     {
         if (_headless) return;
+
+        _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
+        {
+            builder.AddItem("Inspect...", () =>
+            {
+                var id = $"cgf_watch_{entity.Index}_{entity.Generation}_{System.Guid.NewGuid()}";
+                windowManager.RegisterWindow(new FdpEntityWatchWindow(
+                    id,
+                    $"Watch Entity {entity.Index} v{entity.Generation}",
+                    "CGF",
+                    new Fdp.Presentation.Panels.EntityWatchPanel(entity),
+                    () => _fdpRepoAdapter,
+                    TitleBarColor));
+            });
+        }));
 
         windowManager.RegisterWindow(new FdpEntityInspectorWindow(
             "cgf_fdp_inspector", "CGF Entity Inspector", "CGF",

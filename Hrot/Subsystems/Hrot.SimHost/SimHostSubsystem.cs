@@ -4,6 +4,8 @@ using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.SimHost;
 using Hrot.SimHost.Utilities;
+using Fdp.Presentation.Panels;
+using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Components;
@@ -208,6 +210,20 @@ namespace Hrot.SimHost
                 () => vis.GetFdpRepoAdapter(),
                 () => vis.FdpInspectorState,
                 SimHostWindowColor.TitleBar));
+            vis.FdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
+            {
+                builder.AddItem("Inspect...", () =>
+                {
+                    var id = $"simhost_watch_{entity.Index}_{entity.Generation}_{Guid.NewGuid()}";
+                    windowManager.RegisterWindow(new FdpEntityWatchWindow(
+                        id,
+                        $"Watch Entity {entity.Index} v{entity.Generation}",
+                        "SimHost",
+                        new EntityWatchPanel(entity),
+                        () => vis.GetFdpRepoAdapter(),
+                        TitleBarColor));
+                });
+            }));
 
             windowManager.RegisterWindow(new FdpEventBrowserWindow(
                 "simhost_fdp_events", "SimHost Event Browser", "SimHost",
