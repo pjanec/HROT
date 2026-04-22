@@ -95,7 +95,7 @@ namespace Fdp.Toolkit.Time.Controllers
 
         public TimeMode GetMode()
         {
-            return TimeMode.Continuous; // Or add TimeMode.Stepping? treating as continuous mode compatible
+            return TimeMode.Deterministic;
         }
         
         public GlobalTime GetCurrentState()

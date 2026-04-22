@@ -1,3 +1,4 @@
+using System;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Systems;
 
@@ -31,6 +32,19 @@ namespace Fdp.Toolkit.Behavior.Modules
         {
             group.AddSystem(new DoctrineIngressSystem(_registry));
             group.AddSystem(new MissionDirectorSystem());
+        }
+
+        /// <summary>
+        /// Registers <see cref="DoctrineIngressSystem"/> into <paramref name="inputGroup"/>
+        /// and <see cref="MissionDirectorSystem"/> into <paramref name="simGroup"/>.
+        /// </summary>
+        public void RegisterSystems(SystemGroup inputGroup, SystemGroup simGroup)
+        {
+            if (inputGroup == null) throw new ArgumentNullException(nameof(inputGroup));
+            if (simGroup   == null) throw new ArgumentNullException(nameof(simGroup));
+
+            inputGroup.AddSystem(new DoctrineIngressSystem(_registry));
+            simGroup.AddSystem(new MissionDirectorSystem());
         }
     }
 }

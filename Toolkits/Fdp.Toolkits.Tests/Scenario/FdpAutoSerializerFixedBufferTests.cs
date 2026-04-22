@@ -171,37 +171,37 @@ namespace Fdp.Toolkit.Scenario.Tests
             _repo.RegisterComponent<MissionPlanQueue>();
         }
 
-        // ── S301-SC4: BrainBlackboard round-trip ─────────────────────────────────
+        // ── S303-SC1: BrainBlackboard excluded from DOM (DataPolicy.NoSave) ─────
 
         /// <summary>
-        /// S301-SC4: BrainBlackboard (128-byte fixed buffer) round-trips byte-for-byte.
+        /// S303-SC1: <see cref="BrainBlackboard"/> is marked <c>[DataPolicy(DataPolicy.NoSave)]</c>
+        /// and must therefore be absent from the serialized DOM.
+        /// A co-present saveable component must still appear.
         /// </summary>
         [Fact]
-        public unsafe void RoundTrip_BrainBlackboard_ByteForByteIdentity()
+        public unsafe void BrainBlackboard_DataPolicyNoSave_ExcludedFromDom()
         {
             var entity = _repo.CreateEntity();
-            var bb     = new BrainBlackboard();
+
+            var bb = new BrainBlackboard();
             for (int i = 0; i < BehaviorConstants.BrainBlackboardByteSize; i++)
                 bb.Memory[i] = (byte)(i & 0xFF);
             _repo.SetComponent(entity, bb);
 
+            var fixedComp = new FixedByteComp();
+            fixedComp.Data[0] = 0xAB;
+            _repo.SetComponent(entity, fixedComp);
+
             var serializer = BuildSerializer();
             var dom        = serializer.Serialize(_repo, new ScenarioHeader(SubsystemType));
 
-            var freshRepo = new EntityRepository();
-            freshRepo.RegisterComponent<FixedByteComp>();
-            freshRepo.RegisterComponent<FixedLongComp>();
-            freshRepo.RegisterComponent<InlineFloatComp>();
-            freshRepo.RegisterComponent<BrainBlackboard>();
-            freshRepo.RegisterComponent<MissionPlanQueue>();
-            serializer.Deserialize(freshRepo, dom);
+            var entitiesNode = (JsonObject)dom["Entities"]!;
+            var entityNode   = (JsonObject)entitiesNode.First().Value!;
 
-            Entity freshEntity = GetSingleEntity(freshRepo);
-            var restored = freshRepo.GetComponent<BrainBlackboard>(freshEntity);
-            for (int i = 0; i < BehaviorConstants.BrainBlackboardByteSize; i++)
-                Assert.Equal((byte)(i & 0xFF), restored.Memory[i]);
-
-            freshRepo.Dispose();
+            Assert.False(entityNode.ContainsKey("BrainBlackboard"),
+                "BrainBlackboard must be excluded from the DOM (DataPolicy.NoSave).");
+            Assert.True(entityNode.ContainsKey("FixedByteComp"),
+                "Saveable co-present component must still appear in the DOM.");
         }
 
         // ── S302-SC1: InlineArray of float — extract produces JsonArray ───────────

@@ -130,5 +130,18 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Equal(101, time1.FrameNumber);
             Assert.Equal(0.1f, time1.DeltaTime, precision: 5);
         }
+
+        // ── S304-SC1: SteppingTimeController.GetMode() returns Deterministic ─────
+
+        /// <summary>
+        /// S304-SC1: <see cref="SteppingTimeController.GetMode"/> must return
+        /// <see cref="TimeMode.Deterministic"/>.
+        /// </summary>
+        [Fact]
+        public void SteppingController_GetMode_ReturnsDeterministic()
+        {
+            var controller = new SteppingTimeController(new GlobalTime());
+            Assert.Equal(TimeMode.Deterministic, controller.GetMode());
+        }
     }
 }

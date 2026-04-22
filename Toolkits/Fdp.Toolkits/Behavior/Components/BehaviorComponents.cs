@@ -51,6 +51,7 @@ namespace Fdp.Toolkit.Behavior.Components
 
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.BrainBlackboard)]
+    [DataPolicy(DataPolicy.NoSave)]
     public unsafe struct BrainBlackboard
     {
         public fixed byte Memory[BehaviorConstants.BrainBlackboardByteSize];
