@@ -524,7 +524,7 @@ namespace Hrot.Editor
                 };
 
                 _spawnerPanel     = new SpawnerPanel(tkbCatalog);
-                _missionPanel     = new MissionPanel();
+                _missionPanel     = new MissionPanel(0, Hrot.Presentation.Behavior.BehaviorUiSetup.CreateRegistry());
                 _configPanel      = new ConfigPanel();
                 _sharedOrbatPanel = new SharedOrbatPanel();
                 _previewPanel     = new PreviewPanel();
