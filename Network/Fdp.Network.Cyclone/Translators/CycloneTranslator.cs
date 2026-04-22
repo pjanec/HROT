@@ -14,7 +14,7 @@ namespace Fdp.Network.Cyclone.Translators
     /// </summary>
     /// <typeparam name="TDds">DDS topic struct type</typeparam>
     /// <typeparam name="TView">DDS view type (ref struct from code generator)</typeparam>
-    public abstract unsafe class CycloneTranslator<TDds, TView> : IDescriptorTranslator
+    public abstract unsafe class CycloneTranslator<TDds, TView> : CycloneBaseTranslator, IDescriptorTranslator
         where TDds : unmanaged 
         where TView : struct
     {
@@ -22,19 +22,15 @@ namespace Fdp.Network.Cyclone.Translators
         protected readonly DdsWriter<TDds> Writer;
         protected readonly NetworkEntityMap EntityMap;
 
-        public string TopicName { get; }
         public long DescriptorOrdinal { get; }
-        public long ReceivedSampleCount { get; protected set; }
-        public long SentSampleCount { get; protected set; }
-        public abstract TranslatorDirection Direction { get; }
 
         protected CycloneTranslator(
             DdsParticipant? participant, 
             string topicName, 
             long ordinal,
             NetworkEntityMap entityMap)
+            : base(topicName)
         {
-            TopicName = topicName ?? throw new ArgumentNullException(nameof(topicName));
             DescriptorOrdinal = ordinal;
             EntityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
 
@@ -79,7 +75,7 @@ namespace Fdp.Network.Cyclone.Translators
         /// <summary>
         /// Ingress: Poll DDS and decode samples into ECS commands.
         /// </summary>
-        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        public override void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (Reader is null) return; // test mode — no DDS participant supplied
 
@@ -98,7 +94,7 @@ namespace Fdp.Network.Cyclone.Translators
         /// <summary>
         /// Egress: Scan ECS and publish samples to DDS.
         /// </summary>
-        public abstract void ScanAndPublish(ISimulationView view);
+        public abstract override void ScanAndPublish(ISimulationView view);
 
         /// <summary>
         /// Decode single DDS sample into ECS command(s).

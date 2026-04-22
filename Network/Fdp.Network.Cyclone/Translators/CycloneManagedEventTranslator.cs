@@ -10,7 +10,7 @@ namespace Fdp.Network.Cyclone.Translators
     /// <summary>
     /// Base class for MANAGED event translators (classes).
     /// </summary>
-    public abstract class CycloneManagedEventTranslator<TEcs, TDds> : IDescriptorTranslator
+    public abstract class CycloneManagedEventTranslator<TEcs, TDds> : CycloneBaseTranslator, INetworkEventTranslator
         where TEcs : class
         where TDds : struct
     {
@@ -19,28 +19,20 @@ namespace Fdp.Network.Cyclone.Translators
         protected readonly NetworkEntityMap EntityMap;
         protected readonly IEventBus EventBus;
 
-        public string TopicName { get; }
-        public long DescriptorOrdinal { get; } 
-        public long ReceivedSampleCount { get; protected set; }
-        public long SentSampleCount { get; protected set; }
-        public abstract TranslatorDirection Direction { get; }
-
         protected CycloneManagedEventTranslator(
              DdsParticipant participant, 
              string topicName, 
              NetworkEntityMap entityMap,
              IEventBus eventBus)
+             : base(topicName)
         {
-             TopicName = topicName;
-             DescriptorOrdinal = topicName.GetHashCode();
-
              EntityMap = entityMap;
              EventBus = eventBus;
              Reader = new DdsReader<TDds>(participant);
              Writer = new DdsWriter<TDds>(participant);
         }
 
-        public virtual void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        public override void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
              using var loan = Reader.Take();
              foreach(var sample in loan)
@@ -57,7 +49,7 @@ namespace Fdp.Network.Cyclone.Translators
         }
 
 
-        public void ScanAndPublish(ISimulationView view)
+        public override void ScanAndPublish(ISimulationView view)
         {
              var events = view.ReadManagedEvents<TEcs>();
              foreach(var evt in events)
@@ -69,9 +61,6 @@ namespace Fdp.Network.Cyclone.Translators
                   }
              }
         }
-
-        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
 
         protected abstract bool TryDecode(in TDds input, out TEcs output);
         protected abstract bool TryEncode(TEcs input, out TDds output);

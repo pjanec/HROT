@@ -204,8 +204,8 @@ public sealed class ArchitectureDiagnosticsPanel
                     ? translatorRows.OrderBy(r => r.Translator.TopicName, System.StringComparer.OrdinalIgnoreCase).ToList()
                     : translatorRows.OrderByDescending(r => r.Translator.TopicName, System.StringComparer.OrdinalIgnoreCase).ToList(),
                 3 => asc
-                    ? translatorRows.OrderBy(r => r.Translator.DescriptorOrdinal).ToList()
-                    : translatorRows.OrderByDescending(r => r.Translator.DescriptorOrdinal).ToList(),
+                    ? translatorRows.OrderBy(r => (r.Translator as IDescriptorTranslator)?.DescriptorOrdinal ?? 0L).ToList()
+                    : translatorRows.OrderByDescending(r => (r.Translator as IDescriptorTranslator)?.DescriptorOrdinal ?? 0L).ToList(),
                 4 => asc ? translatorRows.OrderBy(r => r.Profile.LastMs).ToList() : translatorRows.OrderByDescending(r => r.Profile.LastMs).ToList(),
                 5 => asc ? translatorRows.OrderBy(r => r.Profile.AverageMs).ToList() : translatorRows.OrderByDescending(r => r.Profile.AverageMs).ToList(),
                 6 => asc ? translatorRows.OrderBy(r => r.Profile.MaxMs).ToList() : translatorRows.OrderByDescending(r => r.Profile.MaxMs).ToList(),
@@ -231,7 +231,7 @@ public sealed class ArchitectureDiagnosticsPanel
             ImGuiApi.TableSetColumnIndex(0); ImGuiApi.TextUnformatted(row.SystemName);
             ImGuiApi.TableSetColumnIndex(1); ImGuiApi.TextUnformatted(row.Direction);
             ImGuiApi.TableSetColumnIndex(2); ImGuiApi.TextUnformatted(row.Translator.TopicName);
-            ImGuiApi.TableSetColumnIndex(3); ImGuiApi.TextUnformatted(row.Translator.DescriptorOrdinal.ToString());
+            ImGuiApi.TableSetColumnIndex(3); ImGuiApi.TextUnformatted(((row.Translator as IDescriptorTranslator)?.DescriptorOrdinal ?? 0L).ToString());
             ImGuiApi.TableSetColumnIndex(4); ImGuiApi.TextUnformatted($"{row.Profile.LastMs:F3}");
             ImGuiApi.TableSetColumnIndex(5); ImGuiApi.TextUnformatted($"{row.Profile.AverageMs:F3}");
             ImGuiApi.TableSetColumnIndex(6); ImGuiApi.TextUnformatted($"{row.Profile.MaxMs:F3}");
@@ -256,35 +256,23 @@ public sealed class ArchitectureDiagnosticsPanel
             if (translatorsProperty == null)
                 continue;
 
-            if (translatorsProperty.GetValue(system) is not IEnumerable<IDescriptorTranslator> translators)
+            if (translatorsProperty.GetValue(system) is not IEnumerable<INetworkTranslator> translators)
                 continue;
 
-            var direction = GetDirectionLabel(system.GetType().Name);
-            if (direction == "Cleanup")
+            if (system.GetType().Name.Contains("Cleanup"))
                 continue;
             foreach (var translator in translators)
             {
                 var profile = TryGetTranslatorProfile(system, translator)
-                    ?? new SystemProfileData($"{translator.TopicName} [{translator.DescriptorOrdinal}]");
-                yield return new TranslatorRow(system.GetType().Name, direction, translator, profile);
+                    ?? new SystemProfileData($"{translator.TopicName} [{(translator as IDescriptorTranslator)?.DescriptorOrdinal}]");
+                yield return new TranslatorRow(system.GetType().Name, translator.Direction.ToString(), translator, profile);
             }
         }
     }
 
-    private static string GetDirectionLabel(string systemName)
+    private static SystemProfileData? TryGetTranslatorProfile(object system, INetworkTranslator translator)
     {
-        if (systemName.Contains("Ingress"))
-            return "Ingress";
-        if (systemName.Contains("Egress"))
-            return "Egress";
-        if (systemName.Contains("Cleanup"))
-            return "Cleanup";
-        return "N/A";
-    }
-
-    private static SystemProfileData? TryGetTranslatorProfile(object system, IDescriptorTranslator translator)
-    {
-        var method = system.GetType().GetMethod("GetTranslatorProfileData", new[] { typeof(IDescriptorTranslator) });
+        var method = system.GetType().GetMethod("GetTranslatorProfileData", new[] { typeof(INetworkTranslator) });
         if (method == null)
             return null;
 
@@ -294,6 +282,6 @@ public sealed class ArchitectureDiagnosticsPanel
     private readonly record struct TranslatorRow(
         string SystemName,
         string Direction,
-        IDescriptorTranslator Translator,
+        INetworkTranslator Translator,
         SystemProfileData Profile);
 }

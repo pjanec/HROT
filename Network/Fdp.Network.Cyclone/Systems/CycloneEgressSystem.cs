@@ -7,9 +7,6 @@ using Fdp.ModuleHost.Scheduling;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Interfaces; // For Interfaces
 
-using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
-// IDataWriter alias removed
-
 namespace Fdp.Network.Cyclone.Systems
 {
     /// <summary>
@@ -19,23 +16,23 @@ namespace Fdp.Network.Cyclone.Systems
     [UpdateInPhase(SystemPhase.Export)]
     public class CycloneEgressSystem : IEcsModuleSystem
     {
-        private readonly IDescriptorTranslator[] _translators;
-        private readonly Dictionary<IDescriptorTranslator, SystemProfileData> _translatorProfileData = new();
+        private readonly INetworkTranslator[] _translators;
+        private readonly Dictionary<INetworkTranslator, SystemProfileData> _translatorProfileData = new();
 
-        public IReadOnlyList<IDescriptorTranslator> Translators => _translators;
+        public IReadOnlyList<INetworkTranslator> Translators => _translators;
         
-        public CycloneEgressSystem(IDescriptorTranslator[] translators)
+        public CycloneEgressSystem(INetworkTranslator[] translators)
         {
             _translators = translators ?? throw new ArgumentNullException(nameof(translators));
 
             foreach (var translator in _translators)
             {
-                var translatorName = $"{translator.TopicName} [{translator.DescriptorOrdinal}]";
+                var translatorName = translator.TopicName;
                 _translatorProfileData[translator] = new SystemProfileData(translatorName);
             }
         }
 
-        public SystemProfileData? GetTranslatorProfileData(IDescriptorTranslator translator)
+        public SystemProfileData? GetTranslatorProfileData(INetworkTranslator translator)
             => _translatorProfileData.TryGetValue(translator, out var data) ? data : null;
         
         public void Execute(ISimulationView view, float deltaTime)

@@ -14,6 +14,7 @@ using Fdp.Toolkit.Replication.Services;
 
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
+using INetworkTranslator = Fdp.Interfaces.INetworkTranslator;
 using INetworkTopology = Fdp.Toolkit.Replication.INetworkTopology;
 using NetworkGatewaySystem = Fdp.Toolkit.Replication.Systems.NetworkGatewaySystem;
 using Fdp.Toolkit.NetworkSpawning;
@@ -114,10 +115,10 @@ namespace Fdp.Network.Cyclone.Modules
     [UpdateInPhase(SystemPhase.Input)]
     public class CycloneNetworkIngressSystem : IEcsModuleSystem
     {
-        private readonly Fdp.Interfaces.IDescriptorTranslator[] _translators;
-        public IReadOnlyList<IDescriptorTranslator> Translators => _translators;
+        private readonly Fdp.Interfaces.INetworkTranslator[] _translators;
+        public IReadOnlyList<INetworkTranslator> Translators => _translators;
         
-        public CycloneNetworkIngressSystem(Fdp.Interfaces.IDescriptorTranslator[] translators)
+        public CycloneNetworkIngressSystem(Fdp.Interfaces.INetworkTranslator[] translators)
         {
              _translators = translators;
         }

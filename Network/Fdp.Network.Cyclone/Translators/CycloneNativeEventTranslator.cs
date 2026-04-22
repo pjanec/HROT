@@ -13,7 +13,7 @@ namespace Fdp.Network.Cyclone.Translators
     /// </summary>
     /// <typeparam name="TEcs">Internal ECS event (unmanaged struct)</typeparam>
     /// <typeparam name="TDds">DDS network event (struct)</typeparam>
-    public abstract class CycloneNativeEventTranslator<TEcs, TDds> : IDescriptorTranslator
+    public abstract class CycloneNativeEventTranslator<TEcs, TDds> : CycloneBaseTranslator, INetworkEventTranslator
         where TEcs : unmanaged // <--- Supports Structs
         where TDds : struct
     {
@@ -21,19 +21,12 @@ namespace Fdp.Network.Cyclone.Translators
         protected readonly DdsWriter<TDds> Writer;
         protected readonly NetworkEntityMap EntityMap;
 
-        public string TopicName { get; }
-        public long DescriptorOrdinal { get; } // Usually not used for events, but required by interface
-        public long ReceivedSampleCount { get; protected set; }
-        public long SentSampleCount { get; protected set; }
-        public abstract TranslatorDirection Direction { get; }
-
         protected CycloneNativeEventTranslator(
             DdsParticipant participant, 
             string topicName, 
             NetworkEntityMap entityMap)
+            : base(topicName)
         {
-            TopicName = topicName;
-            
             EntityMap = entityMap;
             Reader = new DdsReader<TDds>(participant);
             Writer = new DdsWriter<TDds>(participant);
@@ -42,7 +35,7 @@ namespace Fdp.Network.Cyclone.Translators
         // =================================================================
         // INGRESS: Network -> ECS (Zero Alloc)
         // =================================================================
-        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        public override void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             using var loan = Reader.Take();
             foreach (var sample in loan)
@@ -63,7 +56,7 @@ namespace Fdp.Network.Cyclone.Translators
         // =================================================================
         // EGRESS: ECS -> Network (Zero Alloc)
         // =================================================================
-        public void ScanAndPublish(ISimulationView view)
+        public override void ScanAndPublish(ISimulationView view)
         {
             // Get Span of events (Zero Copy)
             var events = view.ReadEvents<TEcs>();
@@ -81,9 +74,5 @@ namespace Fdp.Network.Cyclone.Translators
         // Logic to implement in specific classes
         protected abstract bool TryDecode(in TDds input, out TEcs output);
         protected abstract bool TryEncode(in TEcs input, out TDds output);
-
-        // Events don't need ApplyToEntity or Dispose
-        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
     }
 }

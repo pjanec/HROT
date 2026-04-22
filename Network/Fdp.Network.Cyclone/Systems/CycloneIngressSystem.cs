@@ -18,29 +18,29 @@ namespace Fdp.Network.Cyclone.Systems
     public class CycloneIngressSystem : IEcsModuleSystem
     {
         private readonly DdsParticipant _participant;
-        private readonly IDescriptorTranslator[] _translators;
+        private readonly INetworkTranslator[] _translators;
         private readonly NetworkEntityMap _entityMap;
-        private readonly Dictionary<IDescriptorTranslator, SystemProfileData> _translatorProfileData = new();
+        private readonly Dictionary<INetworkTranslator, SystemProfileData> _translatorProfileData = new();
 
-        public IReadOnlyList<IDescriptorTranslator> Translators => _translators;
+        public IReadOnlyList<INetworkTranslator> Translators => _translators;
         
         public CycloneIngressSystem(
             DdsParticipant participant, 
-            IEnumerable<IDescriptorTranslator> translators,
+            IEnumerable<INetworkTranslator> translators,
             NetworkEntityMap entityMap)
         {
             _participant = participant;
-            _translators = new List<IDescriptorTranslator>(translators).ToArray();
+            _translators = new List<INetworkTranslator>(translators).ToArray();
             _entityMap = entityMap;
 
             foreach (var translator in _translators)
             {
-                var translatorName = $"{translator.TopicName} [{translator.DescriptorOrdinal}]";
+                var translatorName = translator.TopicName;
                 _translatorProfileData[translator] = new SystemProfileData(translatorName);
             }
         }
         
-        public SystemProfileData? GetTranslatorProfileData(IDescriptorTranslator translator)
+        public SystemProfileData? GetTranslatorProfileData(INetworkTranslator translator)
             => _translatorProfileData.TryGetValue(translator, out var data) ? data : null;
 
         public void Execute(ISimulationView view, float deltaTime)

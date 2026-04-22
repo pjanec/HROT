@@ -20,35 +20,12 @@ namespace Fdp.Interfaces
     /// <summary>
     /// Translates between network descriptors and ECS components.
     /// </summary>
-    public interface IDescriptorTranslator
+    public interface IDescriptorTranslator : INetworkTranslator
     {
         /// <summary>
         /// Unique identifier for this descriptor type.
         /// </summary>
         long DescriptorOrdinal { get; }
-        
-        /// <summary>
-        /// DDS topic name.
-        /// </summary>
-        string TopicName { get; }
-
-        /// <summary>
-        /// Number of valid ingress samples consumed by this translator.
-        /// Egress-only translators should return 0.
-        /// </summary>
-        long ReceivedSampleCount { get; }
-
-        /// <summary>
-        /// Number of samples published by this translator.
-        /// Ingress-only translators should return 0.
-        /// </summary>
-        long SentSampleCount { get; }
-
-        /// <summary>
-        /// Declares which network phases this translator participates in.
-        /// Must be explicitly implemented by every translator — no default is provided.
-        /// </summary>
-        TranslatorDirection Direction { get; }
 
         /// <summary>
         /// The ECS component type IDs that this translator reads or writes authority-gated data for.
@@ -67,17 +44,7 @@ namespace Fdp.Interfaces
         /// </para>
         /// </summary>
         IReadOnlyList<int> TargetComponentIds => System.Array.Empty<int>();
-        
-        /// <summary>
-        /// Processes incoming network data and updates ECS entities.
-        /// </summary>
-        void PollIngress(IEntityCommandBuffer cmd, ISimulationView view);
-        
-        /// <summary>
-        /// Scans ECS entities and publishes updates to the network.
-        /// </summary>
-        void ScanAndPublish(ISimulationView view);
-        
+
         /// <summary>
         /// Applies descriptor data to an entity (used during ghost promotion).
         /// </summary>
