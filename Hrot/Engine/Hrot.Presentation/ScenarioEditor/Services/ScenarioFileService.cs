@@ -8,6 +8,8 @@ using Hrot.Map.Common;
 using Hrot.Map.Common.Scenario;
 using Hrot.Map.Common.Services;
 using Hrot.ScenarioEditor.Events;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Hrot.ScenarioEditor.Services;
 
@@ -91,8 +93,20 @@ public sealed class ScenarioFileService
             Entities = fdpDom["Entities"]?.AsObject() ?? fdpDom["entities"]?.AsObject(),
         };
 
-        var json = JsonSerializer.Serialize(envelope, HrotSerializerOptions.HrotJsonOptions);
-        File.WriteAllText(filePath, json);
+        var minifiedOptions = new System.Text.Json.JsonSerializerOptions(HrotSerializerOptions.HrotJsonOptions)
+        {
+            WriteIndented = false,
+        };
+        var minifiedJson = System.Text.Json.JsonSerializer.Serialize(envelope, minifiedOptions);
+        var rootToken    = JToken.Parse(minifiedJson);
+
+        using var streamWriter = new StreamWriter(filePath);
+        using var jsonWriter = new JsonTextWriter(streamWriter)
+        {
+            Formatting = Formatting.Indented,
+        };
+
+        WriteFormattedToken(rootToken, jsonWriter);
     }
 
     /// <summary>
@@ -173,5 +187,57 @@ public sealed class ScenarioFileService
             throw new InvalidOperationException(
                 $"[ScenarioFileService] Unrecognized SubsystemType '{subsystemType}'. " +
                 $"Accepted: {string.Join(", ", AcceptedSubsystemTypes)}.");
+    }
+
+    private static void WriteFormattedToken(JToken token, JsonTextWriter writer)
+    {
+        if (token is JObject obj)
+        {
+            writer.WriteStartObject();
+            foreach (var prop in obj.Properties())
+            {
+                writer.WritePropertyName(prop.Name);
+                WriteFormattedToken(prop.Value, writer);
+            }
+            writer.WriteEndObject();
+            return;
+        }
+
+        if (token is JArray array)
+        {
+            if (IsPureNumericArray(array))
+            {
+                var elements = new string[array.Count];
+                for (int i = 0; i < array.Count; i++)
+                    elements[i] = array[i]!.ToString(Formatting.None);
+                writer.WriteRawValue($"[{string.Join(", ", elements)}]");
+                return;
+            }
+
+            writer.WriteStartArray();
+            foreach (var item in array)
+                WriteFormattedToken(item, writer);
+            writer.WriteEndArray();
+            return;
+        }
+
+        token.WriteTo(writer);
+    }
+
+    private static bool IsPureNumericArray(JArray array)
+    {
+        if (array.Count == 0)
+            return false;
+
+        foreach (var item in array)
+        {
+            if (item == null)
+                return false;
+
+            if (item.Type != JTokenType.Integer && item.Type != JTokenType.Float)
+                return false;
+        }
+
+        return true;
     }
 }
