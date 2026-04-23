@@ -217,10 +217,19 @@ namespace Fdp.Toolkit.Scenario
         /// JsonSerializerOptions that includes public fields in addition to properties.
         /// Required for System.Numerics types (Vector3, Quaternion) which use public fields
         /// rather than properties — the default System.Text.Json options skip fields entirely.
+        /// Custom array converters are registered here so that Vector2/Vector3/Quaternion-typed
+        /// fields are written as compact single-line arrays (e.g. <c>[x, y, z]</c>) across
+        /// the entire scenario without modifying any component definitions.
         /// </summary>
         private static readonly JsonSerializerOptions _fieldAwareOptions = new JsonSerializerOptions
         {
             IncludeFields = true,
+            Converters    =
+            {
+                new Vector3ArrayConverter(),
+                new QuaternionArrayConverter(),
+                new Vector2ArrayConverter(),
+            },
         };
 
         /// <summary>
