@@ -1,5 +1,6 @@
 using System;
 using Fdp.Presentation.Renderers;
+using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Behavior.Components;
 using ImGuiNET;
 
@@ -20,10 +21,10 @@ public sealed class MissionPlanQueueRenderer : IImGuiRenderer
 
         // Start a nested table mirroring the exact flags used by ImGuiPropertyTree
         if (ImGui.BeginTable("MissionPlanQueueTable", 2, 
-            ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingFixedFit))
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingFixedFit))
         {
-            ImGui.TableSetupColumn("Property", ImGuiTableColumnFlags.WidthFixed, 180f);
-            ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn( "Property", ImGuiTableColumnFlags.WidthFixed, ImGuiPropertyTree.NameColWidth );
+            ImGui.TableSetupColumn( "Value", ImGuiTableColumnFlags.WidthStretch );
 
             DrawLeafRow("CurrentPhase", q.CurrentPhase.ToString());
             DrawLeafRow("PhaseCount", q.PhaseCount.ToString());

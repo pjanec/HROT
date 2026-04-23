@@ -46,6 +46,10 @@ namespace Hrot.SimHost.Tests
             // Key used in the scenario DOM for the serialised plan JSON string.
             private const string DomKey = "activeMissionPlan";
 
+            // MissionPlan components store safe Network IDs, not volatile ECS Entity handles.
+            // They must survive extraction so the genesis pipeline can remap and apply them.
+            public bool IsExtractionSafe => true;
+
             public BitMask256 GetConsumedComponentsMask() => new BitMask256();
 
             public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }

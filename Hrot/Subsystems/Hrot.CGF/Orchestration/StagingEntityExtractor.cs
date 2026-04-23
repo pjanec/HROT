@@ -169,7 +169,14 @@ namespace Hrot.CGF.Orchestration
             // become dangling once the staging repo is disposed (Decision 10).
             var exclusionMask = s_staticExclusionMask; // struct copy (32 bytes)
             foreach (var translator in serializer.Translators)
+            {
+                // some components store safe Network IDs, not volatile ECS Entity handles.
+                // They must survive extraction so the genesis pipeline can remap and apply them.
+                if (translator.IsExtractionSafe)
+                    continue;
+        
                 exclusionMask.BitwiseOr(translator.GetConsumedComponentsMask());
+            }
 
             // Additional child-extraction mask: also excludes PartMetadata itself
             // (its ParentEntity field is a volatile ECS handle valid only within

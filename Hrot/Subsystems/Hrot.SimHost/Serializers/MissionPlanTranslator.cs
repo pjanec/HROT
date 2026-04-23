@@ -31,6 +31,10 @@ namespace Hrot.SimHost.Serializers
 
         private readonly DoctrineRegistry _registry;
 
+        // MissionPlan components store safe Network IDs, not volatile ECS Entity handles.
+        // They must survive extraction so the genesis pipeline can remap and apply them.
+        public bool IsExtractionSafe => true;
+
         public MissionPlanTranslator(DoctrineRegistry registry)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
