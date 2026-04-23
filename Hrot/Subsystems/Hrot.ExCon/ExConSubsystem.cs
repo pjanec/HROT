@@ -68,8 +68,29 @@ namespace Hrot.ExCon
         private int              _nodeIdOverride;
         private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
 
-        // ── CMC-S016: Unified event bus (HEXAG2-S001b) ─────────────────────────────
+        // control bus
         private FdpEventBus?                          _bus;
+
+
+        /// <summary>
+        /// Dedicated, read-only event bus for the ExCon UI observation layer.
+        /// 
+        /// This isolated bus is strictly necessary to prevent an infinite DDS echo loop (network storm). 
+        /// ExCon acts as a promiscuous listener to populate its UI, but also actively sends commands. 
+        /// If the UI observation layer and the active command layer share the main <c>_bus</c>:
+        /// 
+        /// 1. <c>OrchestrationObserverTranslator</c> reads <c>NodeOpStatus</c> from DDS and publishes 
+        ///    <c>NodeOpCompletedEvent</c> to the shared bus to update the UI.
+        /// 2. <c>NodeOpSlaveTranslator</c> listens to that same bus, sees the <c>NodeOpCompletedEvent</c>, 
+        ///    assumes ExCon just finished a local operation, and blindly writes a new <c>NodeOpStatus</c> back to DDS.
+        /// 3. DDS loopback immediately feeds that new status back to the observer, creating an exponential storm 
+        ///    that starves the CPU via <c>DrainPendingLogs()</c> and hangs the application.
+        /// 
+        /// By quarantining <c>OrchestratorObserverTranslator</c> and <c>ClusterUiCache</c> on this <c>_observerBus</c>, 
+        /// the UI can safely monitor all cluster traffic without cross-contaminating the active command bus.
+        /// </summary>
+        private FdpEventBus? _observerBus;
+
         // ── HEXAG2-S012: factory-managed slave orchestration handles ──────────
         private ISlaveOrchestrationTranslator?        _slaveTranslator;
         private IOrchestrationObserver?               _observer;
@@ -144,10 +165,11 @@ namespace Hrot.ExCon
             // ── ClusterSlave (CGF1-S0104 / CMC-S016 BATCH-06) ────────────────────────
             var iosNodeId  = config.NodeId != 0 ? config.NodeId : 500;
 
-            // CMC-S016: single unified bus; ClusterSlave and translators are created unconditionally
-            // (no DDS needed). DDS translators are wired via factory when available (HEXAG2-S012).
+            // we pass _bus to the active command layer ...
             _bus = new FdpEventBus();
             _clusterSlave = new Fdp.Toolkit.Orchestration.ClusterSlave(iosNodeId, SubsystemName, _bus);
+
+            _observerBus = new FdpEventBus();
 
             // ── TC2-P3-T1: Slave time sync pipeline ──────────────────────────────
             // SlaveSyncController is always created (no DDS needed).
@@ -228,12 +250,12 @@ namespace Hrot.ExCon
             }
 
             // ── Cluster control wiring (S0507 / PACK-C002) ────────────────────────────
-            _uiCache     = new ClusterUiCache(_bus, _slaveSyncController);
+            _uiCache     = new ClusterUiCache(_observerBus, _slaveSyncController);
             _clusterPanel = new ClusterScenarioPanel(_bus, _uiCache);
             // HEXAG2-S012: factory-based slave orchestration handles.
             _slaveTranslator = nodeFactory?.CreateSlaveOrchestratorTranslators(_bus!, iosNodeId)
                                ?? new NullSlaveOrchestrationTranslator();
-            _observer        = nodeFactory?.CreateOrchestrationObserver(_bus!)
+            _observer        = nodeFactory?.CreateOrchestrationObserver(_observerBus!)
                                ?? new NullOrchestrationObserver();
 
             var logic = new ExConLogic(
@@ -305,6 +327,8 @@ namespace Hrot.ExCon
             // Phase 2: Single frame boundary swap — exactly one SwapBuffers per frame.
             // Preserves phase discipline: all ingress/ScanAndPublish complete before swap.
             _bus?.SwapBuffers();
+
+            _observerBus?.SwapBuffers();
 
             // CMC-S016: orchestration + observer + egress processing after swap so translators
             // read events published in Phase 1 and observe cluster state changes.
