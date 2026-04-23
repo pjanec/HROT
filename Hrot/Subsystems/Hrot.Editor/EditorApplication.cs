@@ -99,8 +99,20 @@ public sealed class EditorApplication : IEditorLogic
     public void LoadScenarioByName(string scenarioName)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
-        var path = Path.Combine(EditorBootstrap.ScenariosRoot, scenarioName, "scenario.json");
-        _fileService.LoadScenario(_world, path);
+
+        // 1. Safely wipe the existing state (fires WorldResetEvent and SoftClears the repo)
+        //    so the new scenario starts on a blank slate.
+        NewScenario();
+
+        // 2. Dispatch a cluster transition intent to route the load through the orchestrator.
+        //    This triggers HrotEditLoadHandler -> StagingEntityExtractor -> NetworkSpawningSystem
+        _bus.PublishManaged(new Fdp.Toolkit.Orchestration.TransitionStateIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit,
+            ScenarioId    = scenarioName
+        });
+
         _loadedScenarioName = scenarioName;
     }
 

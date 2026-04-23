@@ -24,6 +24,8 @@ using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Layers;
 using Hrot.CGF;
+using Hrot.CGF.Orchestration;
+using Hrot.CGF.Systems;
 using Hrot.Editor.Windows;
 using Hrot.Orchestrator.Panels;
 using Hrot.Presentation.Windows;
@@ -356,15 +358,17 @@ namespace Hrot.Editor
             // Register Urban Combat entity blueprints (TKB types 1001–2003) so the
             // ScenarioSerializer can resolve MilitaryApc, InfantrySoldier, and Insurgent.
             UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb);
-            var elm         = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
-            var idAllocator = new SequentialIdAllocator();
-            var spawnSys    = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: 0);
+            var elm               = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
+            var idAllocator       = new SequentialIdAllocator();
+            var spawnSys          = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: 0);
+            var scenarioLoadSource = new ScenarioEntityCreationRequestSource();
+            var extractor          = new StagingEntityExtractor();
 
             // ── 3c. Offline scenario load handler ─────────────────────────────
-            var storageProvider    = new LocalDiskStorageProvider(EditorBootstrap.ScenariosRoot);
-            var scenarioLoader     = new HrotScenarioLoader(storageProvider, "Hrot.Scenario");
+            var storageProvider = new LocalDiskStorageProvider(EditorBootstrap.ScenariosRoot);
+            var scenarioLoader  = new HrotScenarioLoader(storageProvider, "Hrot.Scenario");
             clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
-                scenarioSerializer, scenarioLoader, zoneService, _world));
+                scenarioSerializer, scenarioLoader, zoneService, extractor, scenarioLoadSource, idAllocator, _world));
 
             // ── 4. Module registration (offline — no translator packs) ────────
             var simHostCorePack  = new SimHostCoreLogicPack(entityMap);
@@ -401,9 +405,20 @@ namespace Hrot.Editor
             // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.
             _kernel.RegisterModule(new EditorSystemsModule(_world));
 
-            // ── 4c. ELM + offline spawning module ────────────────────────────
+            // ── 4c. ELM + offline spawning module + scenario genesis pipeline ──────────────────
+            // CreateEntityRequestSystem drains scenarioLoadSource each Input tick and emits
+            // SpawnEntityCommand events for NetworkSpawningSystem (BeforeSync tick), which
+            // sets AuthorityMask = ComponentMask for locally owned entities.
+            var requestSystem = new CreateEntityRequestSystem(
+                requestSource:      scenarioLoadSource,
+                ackSink:            new NullEntityAckSink(),
+                tkbDb:              tkbDb,
+                idAllocator:        idAllocator,
+                localNodeId:        0,
+                isDefaultProcessor: true);
             _kernel.RegisterModule(elm);
             _kernel.RegisterModule(new SimHostModule(spawnSys));
+            _kernel.RegisterGlobalSystem(requestSystem);
 
             // ── 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ──
             var logicPacks = new List<IEcsModule> { simHostCorePack, perceptionMod, cgfLogicPackInst };

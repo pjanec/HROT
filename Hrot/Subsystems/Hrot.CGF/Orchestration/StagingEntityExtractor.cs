@@ -35,7 +35,7 @@ namespace Hrot.CGF.Orchestration
     /// extraction, even on exception.
     /// </para>
     /// </summary>
-    public sealed class StagingEntityExtractor
+    public sealed class StagingEntityExtractor : IScenarioEntityExtractor
     {
         // ── Static exclusion mask ──────────────────────────────────────────────────
         // Built once at class init using GlobalComponentIds named constants.
@@ -127,6 +127,15 @@ namespace Hrot.CGF.Orchestration
         /// Used by unit tests to verify disposal behaviour; not for production use.
         /// </summary>
         internal Action? StagingRepositoryDisposedCallback { get; set; }
+
+        // ── IScenarioEntityExtractor ───────────────────────────────────────────────
+
+        /// <inheritdoc cref="IScenarioEntityExtractor.Extract"/>
+        IReadOnlyList<EntityCreationRequest> IScenarioEntityExtractor.Extract(
+            ScenarioSerializer serializer,
+            string json,
+            INetworkIdAllocator idAllocator)
+            => Extract(serializer, json, idAllocator);
 
         // ── Extraction ────────────────────────────────────────────────────────────
 
