@@ -340,44 +340,30 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         nodeFactory?.CreateSimHostPerceptionTranslators()?.RegisterOn(_context.Kernel);
         nodeFactory?.CreateSimHostPathfindingTranslators()?.RegisterOn(_context.Kernel);
 
+
         // ── Wire ClusterSlave with EcsRecordReplayController (CGF-Point-4) ────────
-        // Replace HrotNodeBuilder's bare ClusterSlave with a NodeBootstrapper-produced
-        // ClusterSlave that has the real EcsRecordReplayController installed for the
-        // Brain role. NodeBootstrapper won't register ReferenceReplayLoadHandler when
-        // simGroup is null (no SimulationSystemGroup), so we register it manually after.
-        var bootstrapper = new NodeBootstrapper(_networkFactory);
-        var newClusterSlave = bootstrapper.BuildOrchestration(
-            NodeRole.Brain,
-            _context.Kernel,
-            _context.World,
-            _context.NodeId,
-            shellParticipant,
-            "CGF",
-            _context.EventBus);
+        // Create a fresh ClusterSlave manually to strictly control handler registration order.
+        var newClusterSlave = new ClusterSlave(_context.NodeId, "CGF", _context.EventBus);
 
-        // Manually register ReferenceReplayLoadHandler with the real controller so that
-        // CGF participates in replay cluster operations (CgfHandlerRegistrationTests).
-        // Inserted BEFORE the handlers already added by NodeBootstrapper (which ends with
-        // ReferenceLiveLoadHandler) by registering it immediately after BuildOrchestration.
-        // Since this produces a fresh ClusterSlave the handler list is ordered correctly.
-        if (bootstrapper.RecordReplayController != null)
-        {
-            newClusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
-                bootstrapper.RecordReplayController,
-                simGroup:              null,
-                lifecycleGroup:        null,
-                bypassLifecycleToggle: null,
-                storageDirectory:      OrchestrationConstants.DefaultStagingDirectory));
-        }
+        var rrController = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
+            _context.Kernel, _context.NodeId, _context.World);
 
-        // FIX: Restore the CGF-authoritative scenario and episode load handlers dropped during
-        // the EAM-M003 migration from CgfApplication to CgfSubsystem.
-        var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(doctrineRegistry);
-        var storageProvider    = new LocalDiskStorageProvider(OrchestrationConstants.DefaultStagingDirectory);
+        var storageProvider = new LocalDiskStorageProvider(OrchestrationConstants.DefaultStagingDirectory);
+
+        // 1. Replay handler (must be first to gate Live-from-Replay branch)
+        newClusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
+            rrController, 
+            simGroup: null, 
+            lifecycleGroup: null, 
+            bypassLifecycleToggle: null, 
+            storageDirectory: OrchestrationConstants.DefaultStagingDirectory));
+
+        // 2. CGF-Authoritative Scenario and Episode Load Handlers (must be BEFORE ReferenceLiveLoadHandler)
+        var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(_doctrineRegistry!);
         var scenarioLoader     = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
-        var extractor          = new Hrot.CGF.Orchestration.StagingEntityExtractor();
         var cgfIdAllocator     = new SequentialIdAllocator();
         var behaviorRemapper   = CgfDoctrineSetup.CreateBehaviorRemapper();
+        var extractor          = new Hrot.CGF.Orchestration.StagingEntityExtractor();
 
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfScenarioLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));
@@ -385,11 +371,25 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));
 
+        // 3. Fallback Live Load Handler (claims PrepareLive ONLY if scenario handlers didn't)
+        newClusterSlave.RegisterHandler(new ReferenceLiveLoadHandler(
+            checkpointWorker: null, 
+            controller: rrController, 
+            storageDirectory: OrchestrationConstants.DefaultStagingDirectory));
+
+        // 4. Utility handlers
+        newClusterSlave.RegisterHandler(new ReferencePreviewHandler(_context.World));
+        newClusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
+        newClusterSlave.RegisterHandler(new ReferenceArchiveHandler(
+            OrchestrationConstants.DefaultStagingDirectory, _context.NodeId));
+
         _context = _context with
         {
-            ClusterSlave   = newClusterSlave,
-            SlaveTranslator = bootstrapper.SlaveTranslator,
+            ClusterSlave = newClusterSlave
+            // Note: SlaveTranslator is already correctly populated by HrotNodeBuilder earlier
         };
+
+
 
         // ── Initialize ─────────────────────────────────────────────────────────
         _context.Kernel.Initialize();

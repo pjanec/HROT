@@ -13,6 +13,7 @@ namespace Hrot.Map.Common.Components;
 /// </para>
 /// </summary>
 [ComponentId(HrotComponentIds.RouteTrajectoryCache)]
+[DataPolicy(DataPolicy.NoSave)]
 public struct RouteTrajectoryCache
 {
     /// <summary>

@@ -17,6 +17,7 @@ namespace Hrot.IG.Components;
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 [ComponentId(GlobalComponentIds.CullingState)]
+[DataPolicy(DataPolicy.NoSave)]
 public struct CullingState
 {
     /// <summary>

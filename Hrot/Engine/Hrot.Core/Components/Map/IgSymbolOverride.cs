@@ -16,6 +16,7 @@ namespace Hrot.IG.Components;
 /// (see IG-DEBT-008).
 /// </summary>
 [ComponentId(HrotComponentIds.IgSymbolOverride)]
+[DataPolicy(DataPolicy.NoSave)]
 public class IgSymbolOverride
 {
     // ── Known StyleSetId tokens ───────────────────────────────────────────────

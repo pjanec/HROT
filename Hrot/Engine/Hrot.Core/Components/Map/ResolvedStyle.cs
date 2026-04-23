@@ -21,6 +21,7 @@ namespace Hrot.IG.Components;
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 [ComponentId(GlobalComponentIds.ResolvedStyle)]
+[DataPolicy(DataPolicy.NoSave)]
 public unsafe struct ResolvedStyle
 {
     // ── Fixed-buffer string fields ────────────────────────────────────────────

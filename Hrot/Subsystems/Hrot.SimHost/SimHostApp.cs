@@ -364,8 +364,8 @@ namespace Hrot.SimHost
                 participant: ddsParticipant,
                 subsystemName: "SimHost",
                 eventBus: _eventBus,
-                scenarioSerializer: scenarioSerializer,
-                localTempRoot: nodeConfig.LocalTempRoot,
+                scenarioSerializer: null, // simhost does not load/save scenarios (cgf does)
+				localTempRoot: nodeConfig.LocalTempRoot,
                 checkpointWorker: _checkpointWorker,
                 simGroup: simulationSystemGroup,
                 lifecycleGroup: networkLifecycleGroup,

@@ -7,6 +7,7 @@ namespace Hrot.IG.Components;
 /// ECS value component caching damage level for IG rendering.
 /// </summary>
 [ComponentId(HrotComponentIds.IgHealthState)]
+[DataPolicy(DataPolicy.NoSave)]
 public struct IgHealthState
 {
     /// <summary>0 = healthy, 100 = fully destroyed.</summary>

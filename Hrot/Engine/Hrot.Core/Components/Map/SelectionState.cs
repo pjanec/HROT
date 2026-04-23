@@ -31,6 +31,7 @@ namespace Hrot.IG.Components;
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 [ComponentId(GlobalComponentIds.SelectionState)]
+[DataPolicy(DataPolicy.NoSave)]
 public struct SelectionState
 {
     /// <summary>

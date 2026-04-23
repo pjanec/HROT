@@ -5,6 +5,9 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Vis2D.Components;
+using Hrot.Common.Serializers;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
@@ -89,12 +92,11 @@ public static class CgfComponentRegistry
         // MapVisualOverlayIngressTranslator writes EditablePolyline + MapOverlayStyle.
         world.RegisterManagedComponent<EditablePolyline>();
         world.RegisterComponent<MapOverlayStyle>();
+        world.RegisterComponent<MapDisplayComponent>();
         // MapRouteIngressTranslator writes RoutePlan, PersonalRouteRef, RouteTrajectoryCache.
         world.RegisterManagedComponent<RoutePlan>();
         world.RegisterComponent<PersonalRouteRef>();
         world.RegisterComponent<RouteTrajectoryCache>();
-        // EntityMissionIngressTranslator and mission feedback write ActiveMissionPlan.
-        world.RegisterManagedComponent<ActiveMissionPlan>();
 
         // MissionAdapterSystem uses MissionAdapterState to track phase-change transitions.
         world.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
@@ -104,5 +106,14 @@ public static class CgfComponentRegistry
         // the stream must exist before Playback runs, so we pre-register it here.
         world.RegisterEvent<DamageAssessedEvent>();
         world.RegisterEvent<WeaponFireIntent>();
+
+
+
+        world.RegisterComponent<PhysicsCollider>();
+        world.RegisterManagedComponent<ZoneMembership>();
+        // EntityMissionIngressTranslator and mission feedback write ActiveMissionPlan.
+        world.RegisterManagedComponent<ActiveMissionPlan>();
+        world.RegisterComponent<InitialTargetsIntent>();
+
     }
 }
