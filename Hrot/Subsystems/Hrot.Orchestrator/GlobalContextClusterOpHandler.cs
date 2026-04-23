@@ -243,9 +243,22 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
         var filePath = Path.Combine(LocalTempRoot, scenarioId, "Orchestrator.json");
         if (!File.Exists(filePath))
         {
-            throw new InvalidOperationException(
-                $"[Orchestrator] CommitLoad: Orchestrator.json not found at '{filePath}'. " +
-                "Ensure PrefetchScenario completed before the LoadingLive/LoadingEdit transition.");
+            // graceful fallback for Editor scenarios
+            FdpLog<GlobalContextClusterOpHandler>.Info(
+                "[Orchestrator] CommitLoad: Orchestrator.json not found at '{0}'. Assuming fresh Editor scenario.", filePath);
+
+            LoadedStartWallTicks = 0;
+            LoadedScenarioTimeSeconds = 0;
+            LoadedSceneId = string.Empty;
+            LoadedScenarioId = scenarioId;
+
+            // Seed the time controller with 0 so the scenario starts at the beginning
+            OnContextLoaded?.Invoke(0, 0.0);
+            return;
+
+            //throw new InvalidOperationException(
+            //    $"[Orchestrator] CommitLoad: Orchestrator.json not found at '{filePath}'. " +
+            //    "Ensure PrefetchScenario completed before the LoadingLive/LoadingEdit transition.");
         }
 
         try

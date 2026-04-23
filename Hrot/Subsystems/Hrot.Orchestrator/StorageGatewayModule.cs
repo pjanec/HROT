@@ -243,10 +243,13 @@ public sealed class StorageGatewayModule
         int success = 0, failure = 0;
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies };
 
+		// eliminate duplicate destination paths (if multiple nodes share the same staging directory) to avoid redundant copies
+		var distinctTargets = targets.DistinctBy(t => t.DestinationPath).ToList();
+
         // For each (file, target) pair: push the file to the target node's staging dir.
         var pairs = new List<(string sourceFile, NodeDistributionTarget target)>(files.Length * targets.Count);
         foreach (var file in files)
-            foreach (var target in targets)
+            foreach (var target in distinctTargets)
                 pairs.Add((file, target));
 
         await Task.Run(() =>
@@ -257,6 +260,14 @@ public sealed class StorageGatewayModule
                 try
                 {
                     var destPath = Path.Combine(tgt.DestinationPath, Path.GetFileName(srcFile));
+
+                    // Skip if source and destination are the exact same file
+                    if (string.Equals(srcFile, destPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Interlocked.Increment(ref success);
+                        return;
+                    }
+
                     var destDir  = Path.GetDirectoryName(destPath);
                     if (!string.IsNullOrEmpty(destDir))
                         Directory.CreateDirectory(destDir);
