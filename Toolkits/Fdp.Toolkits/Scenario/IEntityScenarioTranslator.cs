@@ -24,6 +24,13 @@ namespace Fdp.Toolkit.Scenario
         /// </summary>
         BitMask256 GetConsumedComponentsMask();
 
+
+        /// <summary>
+        /// When true, the components consumed by this translator do not contain volatile 
+        /// ECS entity handles and are safe to be extracted directly from the staging repository.
+        /// </summary>
+        bool IsExtractionSafe => false;
+
         /// <summary>
         /// Returns <see langword="true"/> when this translator can handle the given entity.
         /// Checked before <see cref="Extract"/> is called.

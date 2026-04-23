@@ -32,7 +32,7 @@ namespace Fdp.Presentation.Utils;
 public static class ImGuiPropertyTree
 {
     private const int   MaxDepth     = 8;
-    private const float NameColWidth = 180f;
+    public const float NameColWidth = 180f;
 
     // Process-wide member cache keyed by Type.
     private static readonly Dictionary<Type, MemberInfo[]> _memberCache = new();
@@ -66,9 +66,9 @@ public static class ImGuiPropertyTree
             ImGuiTableFlags.SizingFixedFit))
             return;
 
-        ImGuiApi.TableSetupColumn("Property", ImGuiTableColumnFlags.WidthFixed, NameColWidth);
-        ImGuiApi.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
-        ImGuiApi.TableHeadersRow();
+        ImGuiApi.TableSetupColumn( "Property", ImGuiTableColumnFlags.WidthFixed, NameColWidth );
+        ImGuiApi.TableSetupColumn( "Value", ImGuiTableColumnFlags.WidthStretch );
+        //ImGuiApi.TableHeadersRow();
 
         RenderRows(obj, obj.GetType(), contextType, 0);
 
