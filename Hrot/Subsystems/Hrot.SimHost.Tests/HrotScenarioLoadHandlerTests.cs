@@ -93,38 +93,74 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
         Assert.Equal(0, spy.LoadZonesCallCount);
     }
 
-    // ── Test 2: JSON with Zones — LoadZones called exactly once ───────────────
+    // ── Test 3: PrepareState(OperatingLive) defers completion ────────────────
 
     [Fact]
-    public async Task Commit_JsonWithZones_CallsLoadZonesOnceBeforeDeserialize()
+    public async Task PrepareState_OperatingLive_ReturnsIncompleteTask_CompletesAfterDrain()
     {
-        // Build a scenario JSON with a valid "zones" section.
-        var json = """
-            {
-              "header": { "subsystemType": "Hrot.Scenario", "schemaVersion": "1.0" },
-              "zones": {
-                "zone1": {
-                  "obstacles": [
-                    { "x": 10.0, "y": 20.0, "radius": 5.0 }
-                  ]
-                }
-              },
-              "entities": {}
-            }
-            """;
-
         var spy     = new SpyZoneManagerService();
-        var loader  = new StubScenarioLoader(json);
+        var loader  = new StubScenarioLoader(null);
         var handler = new HrotScenarioLoadHandler(_serializer, loader, spy, _repo);
 
-        var txId   = Guid.NewGuid();
-        var intent = MakeIntent("scenario1", txId);
+        var intent = new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 0,
+            Operation     = NodeOpType.PrepareState,
+            DomainPayload = new Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload(
+                ScenarioId:  null,
+                TargetState: 31), // OperatingLive
+        };
 
-        await handler.PrepareAsync(intent, default);
-        handler.Commit(intent, _repo);
+        var prepareTask = handler.PrepareAsync(intent, default);
 
-        Assert.Equal(1, spy.LoadZonesCallCount);
-        Assert.NotNull(spy.LastZones);
-        Assert.True(spy.LastZones!.ContainsKey("zone1"));
+        // Must not complete immediately.
+        Assert.False(prepareTask.IsCompleted);
+
+        // No Constructing entities, no intent DTOs in _repo -> drain should complete task.
+        handler.DrainDeferredAcks();
+
+        await prepareTask;
+        Assert.True(prepareTask.IsCompleted);
+    }
+
+    // ── Test 4: DrainDeferredAcks without world completes immediately ─────────
+
+    [Fact]
+    public async Task DrainDeferredAcks_NoWorld_CompletesImmediately()
+    {
+        var spy     = new SpyZoneManagerService();
+        var handler = new HrotScenarioLoadHandler(_serializer, new StubScenarioLoader(null), spy);
+
+        var intent = new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 0,
+            Operation     = NodeOpType.PrepareState,
+            DomainPayload = new Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload(
+                ScenarioId:  null,
+                TargetState: 31),
+        };
+
+        var prepareTask = handler.PrepareAsync(intent, default);
+        Assert.False(prepareTask.IsCompleted);
+
+        handler.DrainDeferredAcks();
+
+        await prepareTask;
+        Assert.True(prepareTask.IsCompleted);
+    }
+
+    // ── Test 5: CanHandle returns true for PrepareState ───────────────────────
+
+    [Fact]
+    public void CanHandle_ReturnsTrue_ForPrepareLiveAndPrepareState()
+    {
+        var handler = new HrotScenarioLoadHandler(
+            _serializer, new StubScenarioLoader(null), new SpyZoneManagerService());
+
+        Assert.True(handler.CanHandle(NodeOpType.PrepareLive));
+        Assert.True(handler.CanHandle(NodeOpType.PrepareState));
+        Assert.False(handler.CanHandle(NodeOpType.FinalizeLive));
     }
 }

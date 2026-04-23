@@ -21,10 +21,17 @@ namespace Hrot.ScenarioEditor.Handlers;
 /// once and that same DOM is passed both to DTO deserialisation and to
 /// <see cref="ScenarioSerializer.Deserialize(EntityRepository, JsonObject)"/>.
 /// </para>
+/// <para>
+/// Implements <see cref="ITickableClusterStateHandler"/> to intercept the
+/// <c>PrepareState(OperatingEdit)</c> transition and hold the cluster in
+/// <c>LoadingEdit</c> until all ECS entities created during scenario
+/// deserialisation have left the <c>Constructing</c> lifecycle phase.
+/// </para>
 /// </summary>
-public sealed class HrotEditLoadHandler : IClusterStateHandler
+public sealed class HrotEditLoadHandler : ITickableClusterStateHandler
 {
-    private const int LoadingEditState = 10;
+    private const int LoadingEditState  = 10;
+    private const int OperatingEditState = 11;
 
     private readonly ScenarioSerializer _serializer;
     private readonly IScenarioLoader _scenarioLoader;
@@ -34,6 +41,7 @@ public sealed class HrotEditLoadHandler : IClusterStateHandler
     private string? _pendingJson;
     private Guid? _pendingTransactionId;
     private bool _pendingIsNew;
+    private System.Threading.Tasks.TaskCompletionSource<object?>? _operatingEditTcs;
 
     public HrotEditLoadHandler(
         ScenarioSerializer serializer,
@@ -64,6 +72,16 @@ public sealed class HrotEditLoadHandler : IClusterStateHandler
 
         if (intent.DomainPayload is not EditLoadHandlerPayload payload)
             return System.Threading.Tasks.Task.FromResult<object?>(null);
+
+        // Intercept PrepareState targeting OperatingEdit: hold the cluster in
+        // LoadingEdit until DrainDeferredAcks confirms all ECS entities have
+        // left the Constructing lifecycle phase.
+        if (payload.TargetState == OperatingEditState)
+        {
+            _operatingEditTcs = new System.Threading.Tasks.TaskCompletionSource<object?>(
+                System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);
+            return _operatingEditTcs.Task;
+        }
 
         if (payload.TargetState != LoadingEditState)
             return System.Threading.Tasks.Task.FromResult<object?>(null);
@@ -126,6 +144,33 @@ public sealed class HrotEditLoadHandler : IClusterStateHandler
         _pendingJson = null;
         _pendingTransactionId = null;
         _pendingIsNew = false;
+        _operatingEditTcs?.TrySetCanceled();
+        _operatingEditTcs = null;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Called from the main ECS thread each frame.  Waits until all ECS entities
+    /// created during scenario deserialisation have left the <c>Constructing</c>
+    /// lifecycle phase, then signals the deferred <c>PrepareState(OperatingEdit)</c>
+    /// task so the cluster may commit the state transition.
+    /// </remarks>
+    public void DrainDeferredAcks()
+    {
+        if (_operatingEditTcs == null) return;
+
+        if (_world != null)
+        {
+            // Wait until no entity is still in the Constructing lifecycle phase.
+            // (Hrot.Presentation does not reference Hrot.Common, so we cannot check
+            // individual Intent DTO types here; a clean Constructing check is sufficient
+            // because the Editor does not run GenesisMaterializationSystem.)
+            foreach (var _ in _world.Query().WithLifecycle(EntityLifecycle.Constructing).Build())
+                return;
+        }
+
+        _operatingEditTcs.TrySetResult(null);
+        _operatingEditTcs = null;
     }
 
     // ── Single-parse core ─────────────────────────────────────────────────────

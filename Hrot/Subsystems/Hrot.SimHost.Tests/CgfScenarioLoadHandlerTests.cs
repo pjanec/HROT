@@ -140,19 +140,106 @@ namespace Hrot.SimHost.Tests
         // ── Test 4: CanHandle ─────────────────────────────────────────────────
 
         /// <summary>
-        /// <see cref="CgfScenarioLoadHandler.CanHandle"/> returns <c>true</c> only for
-        /// <see cref="NodeOpType.PrepareLive"/> and <c>false</c> for all other operation types.
+        /// <see cref="CgfScenarioLoadHandler.CanHandle"/> returns <c>true</c> for
+        /// <see cref="NodeOpType.PrepareLive"/> and <see cref="NodeOpType.PrepareState"/>,
+        /// and <c>false</c> for all other operation types.
         /// </summary>
         [Fact]
-        public void CanHandle_ReturnsTrue_OnlyForPrepareLive()
+        public void CanHandle_ReturnsTrue_ForPrepareLiveAndPrepareState()
         {
             var source  = new ScenarioEntityCreationRequestSource();
             var handler = MakeHandler(null, source, out _);
 
             Assert.True(handler.CanHandle(NodeOpType.PrepareLive));
+            Assert.True(handler.CanHandle(NodeOpType.PrepareState));
             Assert.False(handler.CanHandle(NodeOpType.StartEpisode));
             Assert.False(handler.CanHandle(NodeOpType.StopEpisode));
             Assert.False(handler.CanHandle(NodeOpType.FinalizeLive));
+        }
+
+        // ── Test 5: PrepareState(OperatingLive) defers completion ─────────────
+
+        /// <summary>
+        /// <see cref="CgfScenarioLoadHandler.PrepareAsync"/> targeting
+        /// <c>OperatingLive</c> (31) must return an incomplete <see cref="Task"/>;
+        /// it completes only after <see cref="CgfScenarioLoadHandler.DrainDeferredAcks"/>
+        /// detects that both the queue and the world are clean.
+        /// </summary>
+        [Fact]
+        public async Task PrepareState_OperatingLive_ReturnsIncompleteTask_CompletesAfterDrain()
+        {
+            var source  = new ScenarioEntityCreationRequestSource();
+            using var world = new EntityRepository();
+            var handler = new CgfScenarioLoadHandler(
+                new ScenarioSerializerBuilder(SubsystemType).Build(),
+                new LambdaScenarioLoader(_ => null),
+                new StagingEntityExtractor(),
+                source,
+                new StubIdAllocator(100),
+                world);
+
+            var intent = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = NodeOpType.PrepareState,
+                DomainPayload = new EditLoadHandlerPayload(
+                    ScenarioId:  null,
+                    TargetState: 31), // OperatingLive
+            };
+
+            var prepareTask = handler.PrepareAsync(intent, CancellationToken.None);
+
+            // Must not be complete immediately.
+            Assert.False(prepareTask.IsCompleted);
+
+            // DrainDeferredAcks: source is empty, no Constructing entities in world.
+            handler.DrainDeferredAcks();
+
+            await prepareTask;
+            Assert.True(prepareTask.IsCompleted);
+        }
+
+        // ── Test 6: DrainDeferredAcks does not complete while source is non-empty ─
+
+        /// <summary>
+        /// While there are still pending <see cref="EntityCreationRequest"/> entries in the
+        /// source, <see cref="CgfScenarioLoadHandler.DrainDeferredAcks"/> must not complete
+        /// the deferred task.
+        /// </summary>
+        [Fact]
+        public async Task DrainDeferredAcks_SourceNotEmpty_DoesNotCompleteTask()
+        {
+            var source  = new ScenarioEntityCreationRequestSource();
+
+            // Enqueue a dummy request to make the source non-empty.
+            source.Enqueue(new EntityCreationRequest { RequestId = Guid.NewGuid() });
+
+            using var world = new EntityRepository();
+            var handler = new CgfScenarioLoadHandler(
+                new ScenarioSerializerBuilder(SubsystemType).Build(),
+                new LambdaScenarioLoader(_ => null),
+                new StagingEntityExtractor(),
+                source,
+                new StubIdAllocator(100),
+                world);
+
+            var intent = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = NodeOpType.PrepareState,
+                DomainPayload = new EditLoadHandlerPayload(
+                    ScenarioId:  null,
+                    TargetState: 31),
+            };
+
+            var prepareTask = handler.PrepareAsync(intent, CancellationToken.None);
+            handler.DrainDeferredAcks(); // source still has a request
+
+            // Must still be pending.
+            await Task.Delay(10);
+            Assert.False(prepareTask.IsCompleted);
         }
 
         // ── Private stub ──────────────────────────────────────────────────────

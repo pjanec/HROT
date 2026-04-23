@@ -171,7 +171,7 @@ namespace Hrot.CGF
                 // enqueues EntityCreationRequests into the shared source.
                 _clusterSlave.RegisterHandler(
                     new Hrot.CGF.Orchestration.Handlers.CgfScenarioLoadHandler(
-                        scenarioSerializer, scenarioLoader, extractor, _scenarioEntityCreationSource, cgfIdAllocator, behaviorRemapper));
+                        scenarioSerializer, scenarioLoader, extractor, _scenarioEntityCreationSource, cgfIdAllocator, _world, behaviorRemapper));
 
                 // CGF-authoritative episode handler: enqueues episode entities on start,
                 // publishes DestroyEntityCommand events on stop (TASK-C007).

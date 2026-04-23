@@ -40,6 +40,12 @@ public sealed class ScenarioEntityCreationRequestSource : IEntityCreationRequest
         _queue.Enqueue(request);
     }
 
+    /// <summary>
+    /// Returns <see langword="true"/> when no requests are pending in the queue.
+    /// Thread-safe.
+    /// </summary>
+    public bool IsEmpty => _queue.IsEmpty;
+
     /// <inheritdoc/>
     public void ProcessRequests(Action<EntityCreationRequest> handler)
     {

@@ -385,7 +385,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var behaviorRemapper   = CgfDoctrineSetup.CreateBehaviorRemapper();
 
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfScenarioLoadHandler(
-            scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, behaviorRemapper));
+            scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));
 
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));
