@@ -1,4 +1,5 @@
 using Fdp.Core;
+using System.Text.Json.Serialization;
 
 namespace Hrot.IG.Components;
 
@@ -10,8 +11,8 @@ namespace Hrot.IG.Components;
 /// from <see cref="Default"/> when no override is provided.
 ///
 /// <para>Stored as a blittable unmanaged struct so that it can live in
-/// contiguous ECS archetype storage.  Colour channels are stored as plain
-/// <c>byte</c> fields to avoid a dependency on <c>Raylib_cs</c> in the
+/// contiguous ECS archetype storage.  Colour channels are stored in compact
+/// <c>Color32</c> fields to avoid a dependency on <c>Raylib_cs</c> in the
 /// <c>Hrot.Map.Common</c> shared project; callers in <c>Hrot.IG</c>
 /// convert to <c>Raylib_cs.Color</c> when needed.</para>
 ///
@@ -23,25 +24,67 @@ public struct MapOverlayStyle
 {
     // ── Fill colour ───────────────────────────────────────────────────────────
 
-    /// <summary>Red channel of the polygon fill colour (0–255).</summary>
-    public byte FillR;
+    /// <summary>Fill colour as RGBA bytes.</summary>
+    public Color32 FillColor;
+    [JsonIgnore]
+    public byte FillR
+    {
+        readonly get => FillColor.R;
+        set => FillColor.R = value;
+    }
     /// <summary>Green channel of the polygon fill colour (0–255).</summary>
-    public byte FillG;
+    [JsonIgnore]
+    public byte FillG
+    {
+        readonly get => FillColor.G;
+        set => FillColor.G = value;
+    }
     /// <summary>Blue channel of the polygon fill colour (0–255).</summary>
-    public byte FillB;
+    [JsonIgnore]
+    public byte FillB
+    {
+        readonly get => FillColor.B;
+        set => FillColor.B = value;
+    }
     /// <summary>Alpha channel of the polygon fill colour (0–255).</summary>
-    public byte FillA;
+    [JsonIgnore]
+    public byte FillA
+    {
+        readonly get => FillColor.A;
+        set => FillColor.A = value;
+    }
 
     // ── Border colour ─────────────────────────────────────────────────────────
 
-    /// <summary>Red channel of the polygon border colour (0–255).</summary>
-    public byte BorderR;
+    /// <summary>Border colour as RGBA bytes.</summary>
+    public Color32 BorderColor;
+    [JsonIgnore]
+    public byte BorderR
+    {
+        readonly get => BorderColor.R;
+        set => BorderColor.R = value;
+    }
     /// <summary>Green channel of the polygon border colour (0–255).</summary>
-    public byte BorderG;
+    [JsonIgnore]
+    public byte BorderG
+    {
+        readonly get => BorderColor.G;
+        set => BorderColor.G = value;
+    }
     /// <summary>Blue channel of the polygon border colour (0–255).</summary>
-    public byte BorderB;
+    [JsonIgnore]
+    public byte BorderB
+    {
+        readonly get => BorderColor.B;
+        set => BorderColor.B = value;
+    }
     /// <summary>Alpha channel of the polygon border colour (0–255).</summary>
-    public byte BorderA;
+    [JsonIgnore]
+    public byte BorderA
+    {
+        readonly get => BorderColor.A;
+        set => BorderColor.A = value;
+    }
 
     // ── Geometry parameters ───────────────────────────────────────────────────
 
@@ -64,8 +107,8 @@ public struct MapOverlayStyle
     public static MapOverlayStyle Default() =>
         new MapOverlayStyle
         {
-            FillR         = 255, FillG   = 0,   FillB   = 0,   FillA   = 80,
-            BorderR       = 255, BorderG = 255,  BorderB = 255, BorderA = 255,
+            FillColor     = new Color32(255, 0, 0, 80),
+            BorderColor   = new Color32(255, 255, 255, 255),
             LineThickness = 2.0f,
             IsClosed      = true,
         };

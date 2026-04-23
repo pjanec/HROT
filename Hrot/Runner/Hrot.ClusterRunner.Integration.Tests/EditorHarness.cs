@@ -103,6 +103,7 @@ public sealed class EditorHarness : IDisposable
         //  DisembarkEntityCommand, TargetMemory, SeedTargetCommand, PhysicsCollider, etc.).
         CognitiveComponentRegistry.RegisterAll(Repo);
         CombatComponentRegistry.RegisterAll(Repo);
+        CgfComponentRegistry.RegisterAll(Repo);
         Repo.RegisterManagedComponent<ZoneMembership>();
 
         var accumulator = new EventAccumulator();

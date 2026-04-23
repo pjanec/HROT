@@ -309,6 +309,7 @@ namespace Hrot.Editor
             // against the current ComponentTypeRegistry, so all types must be registered
             // first — otherwise the serializer schema is empty and Save/Load is a no-op.
             SimHostComponentRegistry.RegisterAll(_world);
+            CgfComponentRegistry.RegisterAll(_world);
             _world.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
             // MapDisplayComponent is used by MapLayerAssignmentSystem to tag entities
             // with the layer bitmask read by EntityRenderLayer for visibility culling.

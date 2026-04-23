@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json.Serialization;
 using Fdp.Core;
 
 namespace Hrot.IG.Components;
@@ -30,14 +31,7 @@ public unsafe struct ResolvedStyle
 
     // ── Tint color (RGBA) ─────────────────────────────────────────────────────
 
-    /// <summary>Red channel of the entity tint colour.</summary>
-    public byte TintR;
-    /// <summary>Green channel of the entity tint colour.</summary>
-    public byte TintG;
-    /// <summary>Blue channel of the entity tint colour.</summary>
-    public byte TintB;
-    /// <summary>Alpha channel of the entity tint colour (255 = fully opaque).</summary>
-    public byte TintA;
+    public Color32 Tint;
 
     // ── Affiliation ───────────────────────────────────────────────────────────
 
@@ -71,10 +65,11 @@ public unsafe struct ResolvedStyle
     public static ResolvedStyle CreateDefault()
     {
         var s = new ResolvedStyle();
-        s.TintR       = ResolvedStyleConstants.UnknownTintR;
-        s.TintG       = ResolvedStyleConstants.UnknownTintG;
-        s.TintB       = ResolvedStyleConstants.UnknownTintB;
-        s.TintA       = ResolvedStyleConstants.UnknownTintA;
+        s.Tint        = new Color32(
+            ResolvedStyleConstants.UnknownTintR,
+            ResolvedStyleConstants.UnknownTintG,
+            ResolvedStyleConstants.UnknownTintB,
+            ResolvedStyleConstants.UnknownTintA);
         s.Affiliation = ForceId.Neutral;
         s.DamageLevel = ResolvedStyleConstants.DamageMin;
         s.ShowTrail   = false;
@@ -141,5 +136,33 @@ public unsafe struct ResolvedStyle
         while (len < capacity && buf[len] != 0)
             len++;
         return len == 0 ? string.Empty : Encoding.UTF8.GetString(new ReadOnlySpan<byte>(buf, len));
+    }
+
+    [JsonIgnore]
+    public byte TintR
+    {
+        readonly get => Tint.R;
+        set => Tint.R = value;
+    }
+
+    [JsonIgnore]
+    public byte TintG
+    {
+        readonly get => Tint.G;
+        set => Tint.G = value;
+    }
+
+    [JsonIgnore]
+    public byte TintB
+    {
+        readonly get => Tint.B;
+        set => Tint.B = value;
+    }
+
+    [JsonIgnore]
+    public byte TintA
+    {
+        readonly get => Tint.A;
+        set => Tint.A = value;
     }
 }
