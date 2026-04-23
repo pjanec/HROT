@@ -178,10 +178,8 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
         // match the production SimHost serializer, ensuring entity cross-references in
         // TargetMemory (insurgent/APC targets) and PassengerBuffer (embarked soldiers)
         // survive the JSON round-trip as GUID-tracked handles.
-        var serializer = new ScenarioSerializerBuilder("Hrot.Scenario")
-            .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
-            .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
-            .Build();
+        var doctrineRegistry = new Fdp.Toolkit.Behavior.DoctrineRegistry();
+        var serializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(doctrineRegistry);
         var fdpDom     = serializer.Serialize(extractRepo, new ScenarioHeader("Hrot.Scenario"));
 
         // Wrap in the application-layer DTO.  SubsystemType must match "Hrot.Scenario" so

@@ -372,12 +372,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // FIX: Restore the CGF-authoritative scenario and episode load handlers dropped during
         // the EAM-M003 migration from CgfApplication to CgfSubsystem.
-        var scenarioSerializer = new ScenarioSerializerBuilder(HrotSubsystemTypes.Scenario)
-            .RegisterTranslator(new Hrot.SimHost.Serializers.MissionPlanTranslator(doctrineRegistry))
-            .RegisterTranslator(new Hrot.SimHost.Serializers.VisHierarchyNodeTranslator())
-            .RegisterTranslator(new Hrot.SimHost.Serializers.IsEmbarkedTagTranslator())
-            .RegisterTranslator(new Hrot.SimHost.Serializers.PersonalRouteRefTranslator())
-            .Build();
+        var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(doctrineRegistry);
         var storageProvider    = new LocalDiskStorageProvider(OrchestrationConstants.DefaultStagingDirectory);
         var scenarioLoader     = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
         var extractor          = new Hrot.CGF.Orchestration.StagingEntityExtractor();

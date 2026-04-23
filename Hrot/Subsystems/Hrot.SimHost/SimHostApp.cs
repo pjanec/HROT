@@ -340,14 +340,7 @@ namespace Hrot.SimHost
             // fixed-size buffers or InlineArrays embedding Entity cross-references.
             // The auto-serialiser produces empty/truncated JSON for those fields, zeroing
             // entity handles on every round-trip.
-            var scenarioSerializer = new ScenarioSerializerBuilder(HrotSubsystemTypes.Scenario)
-                .RegisterTranslator(new Hrot.SimHost.Serializers.MissionPlanTranslator(doctrineRegistry))
-                .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
-                .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
-                .RegisterTranslator(new Hrot.SimHost.Serializers.VisHierarchyNodeTranslator())
-                .RegisterTranslator(new Hrot.SimHost.Serializers.IsEmbarkedTagTranslator())
-                .RegisterTranslator(new Hrot.SimHost.Serializers.PersonalRouteRefTranslator())
-                .Build();
+            var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(doctrineRegistry);
 
             // CheckpointIOWorker: starts its background I/O thread here; owned by SimHostApp
             // and disposed in Shutdown().

@@ -31,14 +31,7 @@ public static class EditorBootstrap
         // SimHostApp Muscle-tier pattern (doctrines live on the Brain/CGF node).
         var doctrineRegistry = new DoctrineRegistry();
 
-        var serializer = new ScenarioSerializerBuilder(HrotSubsystemTypes.Scenario)
-            .RegisterTranslator(new Hrot.SimHost.Serializers.MissionPlanTranslator(doctrineRegistry))
-            .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
-            .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
-            .RegisterTranslator(new Hrot.SimHost.Serializers.VisHierarchyNodeTranslator())
-            .RegisterTranslator(new Hrot.SimHost.Serializers.IsEmbarkedTagTranslator())
-            .RegisterTranslator(new Hrot.SimHost.Serializers.PersonalRouteRefTranslator())
-            .Build();
+        var serializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(doctrineRegistry);
 
         return new ScenarioFileService(serializer);
     }

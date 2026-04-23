@@ -345,10 +345,7 @@ namespace Hrot.Editor
 
             // Build the serializer with custom translators AFTER component registration
             // so FdpAutoSerializer compiles extraction delegates for all registered types.
-            var scenarioSerializer = new ScenarioSerializerBuilder("Hrot.Scenario")
-                .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
-                .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
-                .Build();
+            var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(doctrineRegistry);
 
             // Inject bus and zoneService so file ops trigger WorldResetEvent and persist zone data.
             var fileService = new ScenarioFileService(scenarioSerializer, _world.Bus, zoneService);
