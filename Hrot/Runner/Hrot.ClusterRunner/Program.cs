@@ -91,26 +91,6 @@ class Program
 
         Console.WriteLine($"[Runner] Starting – mode={string.Join(",", config.RequestedSubsystems)}, domain={config.DomainId}, headless={config.Headless}");
 
-        // ── Build network factory (used to inject into subsystems that accept it) ─────
-        var entityMap    = new NetworkEntityMap();
-        var geoTransform = HrotEnvironment.CreateGeoTransform();
-        var eventBus     = new FdpEventBus();
-        int factoryNodeId = ResolveAppNodeId("Runner", config.NodeId);
-        // Create the DDS participant exactly once here (composition root).
-        // All subsystems that need a participant will receive it via INetworkFactory.Participant.
-        // The participant is always created regardless of headless mode; headless mode only
-        // suppresses the rendering window, not the network stack.
-        var participant = HrotEnvironment.CreateParticipant(config.DomainId);
-        // Configure sender tracking immediately after creation, before any DDS writer is created.
-        participant?.EnableSenderTracking(new SenderIdentityConfig
-        {
-            AppDomainId   = config.DomainId,
-            AppInstanceId = config.NodeId
-        });
-        INetworkFactory networkFactory = string.Equals(config.NetworkProtocol, "bdc", StringComparison.OrdinalIgnoreCase)
-            ? (INetworkFactory)new BdcNetworkFactory(participant, entityMap, geoTransform, eventBus, (long)factoryNodeId, NodeRole.None)
-            : new NedNetworkFactory(participant, entityMap, geoTransform, eventBus, factoryNodeId, NodeRole.None);
-
         // ── CI mode: headless deterministic scenario run ──────────────────
         if (config.RequestedSubsystems.Contains("ci"))
         {
@@ -151,7 +131,33 @@ class Program
         // Discover all non-abstract ISubsystem implementations (runner-internal
         // ones are excluded; see ScanForSubsystems).
         var discovered = ScanForSubsystems()
-            .Select(t => TryCreateSubsystem(t, networkFactory))
+            .Select(type => 
+            {
+                // 1. Create isolated memory spaces per subsystem
+                var entityMap    = new NetworkEntityMap();
+                var geoTransform = HrotEnvironment.CreateGeoTransform();
+                var eventBus     = new FdpEventBus();
+        
+                // 2. Extract a rough name for NodeId resolution (e.g., "SimHostSubsystem" -> "SimHost")
+                string subName = type.Name.Replace("Subsystem", "");
+                int subNodeId = ResolveAppNodeId(subName, config.NodeId);
+
+                // 3. Create an isolated DDS Participant with a unique Instance ID
+                var participant = HrotEnvironment.CreateParticipant(config.DomainId);
+                participant?.EnableSenderTracking(new SenderIdentityConfig
+                {
+                    AppDomainId   = config.DomainId,
+                    AppInstanceId = subNodeId
+                });
+
+                // 4. Create the dedicated Network Factory
+                INetworkFactory networkFactory = string.Equals(config.NetworkProtocol, "bdc", StringComparison.OrdinalIgnoreCase)
+                    ? (INetworkFactory)new BdcNetworkFactory(participant, entityMap, geoTransform, eventBus, (long)subNodeId, NodeRole.None)
+                    : new NedNetworkFactory(participant, entityMap, geoTransform, eventBus, subNodeId, NodeRole.None);
+
+                // 5. Inject the isolated factory into the subsystem
+                return TryCreateSubsystem(type, networkFactory);
+            })
             .Where(s => s != null)
             .ToDictionary(s => s!.Name, s => s!, StringComparer.OrdinalIgnoreCase);
 
@@ -342,13 +348,12 @@ class Program
     /// </summary>
     private static int ResolveAppNodeId(string subsystemName, int baseNodeId)
     {
-        if (baseNodeId == 0) return 0;
-        int offset = subsystemName switch
+        int offset = subsystemName.ToUpper() switch
         {
-            "SimHost"      => 1,
+            "SIMHOST"      => 1,
             "IG"           => 100,
-            "ExCon"        => 200,
-            "Orchestrator" => 300,
+            "EXCON"        => 200,
+            "ORCHESTRATOR" => 300,
             "CGF"          => 400,
             "CI"           => 500,
             _              => 600,
