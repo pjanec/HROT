@@ -164,25 +164,15 @@ public sealed class HrotNodeBuilder
                 skipRoutingWait: true);
         }
 
-        // Step 8 — ClusterSlave + NodeOpSlaveTranslator (inline)
-        var clusterSlave             = new ClusterSlave(_config.NodeId, _subsystemName, eventBus);
-        NodeOpSlaveTranslator? slaveTranslator = null;
-        if (participant != null)
+        // Step 8 — ClusterSlave + SlaveTranslator
+        var clusterSlave = new ClusterSlave(_config.NodeId, _subsystemName, eventBus);
+        
+        Hrot.Core.Network.ISlaveOrchestrationTranslator? slaveTranslator = null;
+        if (participant != null && _networkFactory != null)
         {
-            slaveTranslator = new NodeOpSlaveTranslator(
-                commandReader:   new DdsReader<NodeOpCommand>(participant),
-                statusWriter:    new DdsWriter<NodeOpStatus>(participant),
-                heartbeatWriter: new DdsWriter<NodeHeartbeat>(participant),
-                bus:             eventBus,
-                nodeId:          _config.NodeId);
+            var nodeFactory = _networkFactory.ConfigureForNode(participant, _config.NodeId, Hrot.Common.NodeRole.None);
+            slaveTranslator = nodeFactory.CreateSlaveOrchestratorTranslators(eventBus, _config.NodeId);
         }
-
-        var storageProvider = new LocalDiskStorageProvider(_config.LocalTempRoot ?? @"C:\FDP_Temp");
-        var localTempRoot   = _config.LocalTempRoot ?? @"C:\FDP_Temp";
-        clusterSlave.RegisterHandler(new ReferencePreviewHandler(world));
-        clusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
-        clusterSlave.RegisterHandler(new ReferenceArchiveHandler(localTempRoot, _config.NodeId));
-        clusterSlave.RegisterHandler(new ReferenceLiveLoadHandler(null, null, localTempRoot));
 
         // Step 9 — Infrastructure EcsModules
         var tkbDb       = HrotEnvironment.CreateTkb();

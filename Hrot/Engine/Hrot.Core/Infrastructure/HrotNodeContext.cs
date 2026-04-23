@@ -43,7 +43,7 @@ public sealed record HrotNodeContext
     /// DDS <-> bus bridge for <c>NodeOpCommand</c> / <c>NodeOpStatus</c> / <c>NodeHeartbeat</c>.
     /// <c>null</c> when no DDS participant was provided.
     /// </summary>
-    public IOrchestrationTranslator? SlaveTranslator { get; init; }
+    public Hrot.Core.Network.ISlaveOrchestrationTranslator? SlaveTranslator { get; init; }
 
     /// <summary>
     /// Infrastructure <see cref="IEcsModule"/> instances (e.g. <c>EntityLifecycleModule</c>,

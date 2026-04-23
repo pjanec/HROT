@@ -388,7 +388,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context = _context with
         {
             ClusterSlave   = newClusterSlave,
-            SlaveTranslator = bootstrapper.SlaveTranslator as Hrot.Common.Infrastructure.IOrchestrationTranslator,
+            SlaveTranslator = bootstrapper.SlaveTranslator,
         };
 
         // ── Initialize ─────────────────────────────────────────────────────────
