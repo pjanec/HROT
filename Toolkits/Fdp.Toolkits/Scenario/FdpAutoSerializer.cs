@@ -229,6 +229,7 @@ namespace Fdp.Toolkit.Scenario
                 new Vector3ArrayConverter(),
                 new QuaternionArrayConverter(),
                 new Vector2ArrayConverter(),
+                new Vector4ArrayConverter(),
             },
         };
 

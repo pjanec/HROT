@@ -82,4 +82,31 @@ namespace Fdp.Toolkit.Scenario
             writer.WriteRawValue($"[{x}, {y}, {z}, {w}]");
         }
     }
+
+    /// <summary>
+    /// Serializes/deserializes <see cref="Vector4"/> as a compact single-line JSON array
+    /// <c>[x, y, z, w]</c> rather than the default verbose object form.
+    /// </summary>
+    internal sealed class Vector4ArrayConverter : JsonConverter<Vector4>
+    {
+        public override Vector4 Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            reader.Read(); float x = reader.GetSingle();
+            reader.Read(); float y = reader.GetSingle();
+            reader.Read(); float z = reader.GetSingle();
+            reader.Read(); float w = reader.GetSingle();
+            reader.Read(); // EndArray
+            return new Vector4(x, y, z, w);
+        }
+
+        public override void Write(Utf8JsonWriter writer, Vector4 value, JsonSerializerOptions options)
+        {
+            string x = value.X.ToString("G9", CultureInfo.InvariantCulture);
+            string y = value.Y.ToString("G9", CultureInfo.InvariantCulture);
+            string z = value.Z.ToString("G9", CultureInfo.InvariantCulture);
+            string w = value.W.ToString("G9", CultureInfo.InvariantCulture);
+            writer.WriteRawValue($"[{x}, {y}, {z}, {w}]");
+        }
+    }
+
 }

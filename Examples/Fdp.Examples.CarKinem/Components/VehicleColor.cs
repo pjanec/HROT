@@ -1,10 +1,13 @@
 using Fdp.Core;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Runtime.InteropServices;
 
 namespace Fdp.Examples.CarKinem.Components
 {
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(255)]
+    [JsonConverter(typeof(VehicleColorArrayConverter))]
     public struct VehicleColor
     {
         public byte R;
@@ -28,5 +31,23 @@ namespace Fdp.Examples.CarKinem.Components
         public static readonly VehicleColor Magenta = new VehicleColor(255, 0, 255); // Leader
         public static readonly VehicleColor GreenYellow = new VehicleColor(173, 255, 47); // Standard
         public static readonly VehicleColor Gray = new VehicleColor(200, 200, 200);
+    }
+
+    public sealed class VehicleColorArrayConverter : JsonConverter<VehicleColor>
+    {
+        public override VehicleColor Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            reader.Read(); byte r = reader.GetByte();
+            reader.Read(); byte g = reader.GetByte();
+            reader.Read(); byte b = reader.GetByte();
+            reader.Read(); byte a = reader.GetByte();
+            reader.Read(); // EndArray
+            return new VehicleColor(r, g, b, a);
+        }
+
+        public override void Write(Utf8JsonWriter writer, VehicleColor value, JsonSerializerOptions options)
+        {
+            writer.WriteRawValue($"[{value.R}, {value.G}, {value.B}, {value.A}]");
+        }
     }
 }
