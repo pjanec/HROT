@@ -139,6 +139,7 @@ namespace Fdp.Toolkit.Navigation
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(NavigationContractsComponentIds.NavigationStatus)]
+    [DataPolicy(DataPolicy.NoSave)]
     public struct NavigationStatus
     {
         /// <summary>

@@ -22,6 +22,7 @@ namespace CarKinem.Core
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.FrustrationTicks)]
+    [DataPolicy(DataPolicy.NoSave)]
     public struct FrustrationTicks
     {
         /// <summary>
