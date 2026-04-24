@@ -213,16 +213,20 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         }
 
         // public instance properties with getter — skip indexers and compiler-generated
-        foreach (var pi in parentType.GetProperties(flags))
+        if (!buffer.IsNative)
         {
-            if (pi.GetMethod == null) continue;
-            if (pi.GetIndexParameters().Length > 0) continue;
-            if (pi.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false)) continue;
-            if (pi.Name == "EqualityContract") continue; // record internal
+            foreach (var pi in parentType.GetProperties(flags))
+            {
+                if (pi.GetMethod == null) continue;
+                if (!pi.CanWrite || pi.GetSetMethod(nonPublic: false) == null) continue;
+                if (pi.GetIndexParameters().Length > 0) continue;
+                if (pi.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false)) continue;
+                if (pi.Name == "EqualityContract") continue; // record internal
 
-            result.Add(BuildNode(buffer, $"{parentPath}.{pi.Name}", pi.Name, pi.PropertyType,
-                0, null, pi, idAlloc, visited, providers, fieldEditors, context,
-                parentBinding: parentBinding));
+                result.Add(BuildNode(buffer, $"{parentPath}.{pi.Name}", pi.Name, pi.PropertyType,
+                    0, null, pi, idAlloc, visited, providers, fieldEditors, context,
+                    parentBinding: parentBinding));
+            }
         }
 
         return result;
