@@ -92,9 +92,10 @@ namespace Hrot.Map.Definitions.Tkb
 
             template.AddComponent(new VisualData
             {
-                SymbolCode = visualDef.SymbolCode ?? string.Empty,
-                ModelPath = visualDef.ModelPath ?? string.Empty,
-                ColorHex = visualDef.ColorHex ?? string.Empty
+                SymbolCode   = visualDef.SymbolCode ?? string.Empty,
+                ModelPath    = visualDef.ModelPath ?? string.Empty,
+                ColorHex     = visualDef.ColorHex ?? string.Empty,
+                MapShapeName = visualDef.MapShapeName ?? string.Empty,
             });
             return this;
         }

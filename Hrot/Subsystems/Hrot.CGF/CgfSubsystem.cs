@@ -402,7 +402,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _canvas.Camera.Offset = new Vector2(1280 / 2f, 720 / 2f);
 
             _selectionState    = new DefaultSelectionState();
-            _visualizerAdapter = new CgfDebugVisualizerAdapter(_doctrineRegistry);
+            _visualizerAdapter = new CgfDebugVisualizerAdapter(
+                new Fdp.Toolkit.Vis2D.Shapes.DefaultEntityShapeLibrary(),
+                _doctrineRegistry);
             _fdpRepoAdapter    = new FdpRepositoryAdapter(_context.World);
 
             var renderLayer = new EntityRenderLayer(

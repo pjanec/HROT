@@ -24,5 +24,12 @@ namespace Hrot.Map.Definitions.Tkb
         /// Base color in hex format (#RRGGBB or #RRGGBBAA).
         /// </summary>
         public FixedString32 ColorHex;
+
+        /// <summary>
+        /// Optional explicit name of the 2-D map shape to render from the
+        /// entity shape library.  When empty, the renderer selects a shape
+        /// automatically based on <c>DISEntityType</c>.
+        /// </summary>
+        public FixedString32 MapShapeName;
     }
 }

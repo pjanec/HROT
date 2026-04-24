@@ -34,5 +34,11 @@ namespace Hrot.Map.Definitions.Tkb
         /// Layer name for rendering ("units_ground", "units_air", etc.).
         /// </summary>
         public string LayerName { get; set; } = "units_ground";
+
+        /// <summary>
+        /// Optional explicit name of the 2-D map shape in the entity shape library.
+        /// Leave null to let the renderer auto-select based on DIS Entity Type.
+        /// </summary>
+        public string? MapShapeName { get; set; }
     }
 }

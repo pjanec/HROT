@@ -1,12 +1,16 @@
+using System;
 using System.Numerics;
 using System.Text;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Fdp.Core;
-using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Vis2D.Adapters;
+using Fdp.Toolkit.Vis2D.Shapes;
+using Hrot.Map.Definitions.Tkb;
 using Raylib_cs;
 
 namespace Hrot.CGF;
@@ -14,9 +18,10 @@ namespace Hrot.CGF;
 /// <summary>
 /// Visualizer adapter for the CGF (Brain) perspective.
 ///
-/// <para>Renders each entity as a colour-coded circle with a compact doctrine label,
-/// and provides a rich brain-state hover tooltip for rapid diagnostics without
-/// opening the entity inspector.</para>
+/// <para>Renders each entity as a colour-coded oriented silhouette (shape driven
+/// by <see cref="DefaultEntityShapeLibrary"/> and the entity's DIS type) with a
+/// compact doctrine label, and provides a rich brain-state hover tooltip for
+/// rapid diagnostics without opening the entity inspector.</para>
 ///
 /// <para>Colour coding:
 /// <list type="bullet">
@@ -25,45 +30,46 @@ namespace Hrot.CGF;
 ///   <item><b>Teal</b>   — HSM doctrine active (Brain tier 1).</item>
 ///   <item><b>Amber</b>  — Traffic doctrine active (Brain tier 0).</item>
 ///   <item><b>Yellow</b> — selected by user.</item>
-///   <item><b>Orange</b> — hovered by mouse.</item>
 /// </list>
 /// </para>
 ///
 /// <para>Position is read from <see cref="NetworkTransform"/> (written by
 /// <c>GeoSpatialIngressTranslator</c> when the Muscle publishes WorldPos back to the Brain)
 /// with a fallback to <see cref="SimTransform"/> for locally-owned entities that have not
-/// yet delegated authority.</para>
+/// yet delegated authority.  Rotation follows the same priority.</para>
 /// </summary>
-public sealed class CgfDebugVisualizerAdapter : IVisualizerAdapter
+public sealed class CgfDebugVisualizerAdapter : PerspectiveEntityVisualizerBase
 {
     // ── Rendering constants ───────────────────────────────────────────────────
-    private const int   CircleRadius  = 8;
     private const float HitRadiusWorld = 10f;
-    private const int   LabelFontSize = 8;
-    private const int   LabelOffsetX  = 12;
+    private const int   LabelFontSize  = 8;
+    private const int   LabelOffsetX   = 7;
 
     // ── Colours ───────────────────────────────────────────────────────────────
-    private static readonly Color ColIdle     = new(120, 120, 120, 255); // gray
-    private static readonly Color ColBTree    = new(0,   120, 220, 255); // blue
-    private static readonly Color ColHsm      = new(0,   180, 120, 255); // teal
-    private static readonly Color ColTraffic  = new(200, 140,  30, 255); // amber
-    private static readonly Color ColSelected = Color.Yellow;
-    private static readonly Color ColHovered  = Color.Orange;
-    private static readonly Color ColOutline  = new(200, 200, 200, 180);
+    private static readonly Color ColIdle    = new(120, 120, 120, 255); // gray
+    private static readonly Color ColBTree   = new(0,   120, 220, 255); // blue
+    private static readonly Color ColHsm     = new(0,   180, 120, 255); // teal
+    private static readonly Color ColTraffic = new(200, 140,  30, 255); // amber
 
     // ── CGF brain registry for doctrine name resolution ───────────────────────
     private readonly DoctrineRegistry? _doctrineRegistry;
 
+    // ── Construction ──────────────────────────────────────────────────────────
+
+    /// <param name="shapeLibrary">Shared entity shape library (injected by the composition root).</param>
     /// <param name="doctrineRegistry">
     /// Optional registry; when provided, doctrine hashes are resolved to human-readable
     /// names in the hover label and the compact map annotation.
     /// </param>
-    public CgfDebugVisualizerAdapter(DoctrineRegistry? doctrineRegistry = null)
+    public CgfDebugVisualizerAdapter(
+        IEntityShapeLibrary shapeLibrary,
+        DoctrineRegistry? doctrineRegistry = null)
+        : base(shapeLibrary)
     {
         _doctrineRegistry = doctrineRegistry;
     }
 
-    // ── IVisualizerAdapter ────────────────────────────────────────────────────
+    // ── Position: prefer NetworkTransform ────────────────────────────────────
 
     /// <inheritdoc/>
     /// <remarks>
@@ -71,17 +77,16 @@ public sealed class CgfDebugVisualizerAdapter : IVisualizerAdapter
     /// publishes WorldPos via the shared <c>GeoSpatialIngressTranslator</c>).
     /// Falls back to <see cref="SimTransform"/> for any entity that holds its own
     /// position locally.  Returns <c>null</c> when neither component is present
-    /// or when <see cref="NetworkTransform"/> has not yet received data (its
-    /// <c>LastRotation</c> remains the zero quaternion before any packet arrives).
+    /// or when <see cref="NetworkTransform"/> has not yet received data.
     /// </remarks>
-    public Vector2? GetPosition(ISimulationView view, Entity entity)
+    public override Vector2? GetPosition(ISimulationView view, Entity entity)
     {
         if (view.HasComponent<NetworkTransform>(entity))
         {
             ref readonly var nt = ref view.GetComponentRO<NetworkTransform>(entity);
-            // LastRotation remains default(Quaternion) until the first DDS packet
-            // is received; use it as an indicator that real data has arrived.
-            if (nt.LastRotation != default(System.Numerics.Quaternion))
+            // LastRotation remains default(Quaternion) until the first DDS packet arrives;
+            // use it as an indicator that real data has arrived.
+            if (nt.LastRotation != default(Quaternion))
                 return new Vector2(nt.LastPosition.X, nt.LastPosition.Y);
         }
 
@@ -94,12 +99,74 @@ public sealed class CgfDebugVisualizerAdapter : IVisualizerAdapter
         return null;
     }
 
+    // ── Rotation: prefer NetworkTransform ────────────────────────────────────
+
     /// <inheritdoc/>
-    public float GetHitRadius(ISimulationView view, Entity entity) => HitRadiusWorld;
+    /// <remarks>
+    /// Uses <see cref="NetworkTransform.LastRotation"/> if available (updated by the
+    /// <c>GeoSpatialIngressTranslator</c> when the Muscle publishes WorldPos), otherwise
+    /// falls back to <see cref="SimTransform.Rotation"/>.
+    /// </remarks>
+    protected override bool TryGetRotation(ISimulationView view, Entity entity, out Quaternion rotation)
+    {
+        if (view.HasComponent<NetworkTransform>(entity))
+        {
+            ref readonly var nt = ref view.GetComponentRO<NetworkTransform>(entity);
+            if (nt.LastRotation != default(Quaternion))
+            {
+                rotation = nt.LastRotation;
+                return true;
+            }
+        }
+
+        return base.TryGetRotation(view, entity, out rotation);
+    }
+
+    // ── Domain-specific implementations ──────────────────────────────────────
+
+    /// <inheritdoc/>
+    protected override Color ResolveColor(ISimulationView view, Entity entity)
+    {
+        if (!view.HasComponent<DoctrineState>(entity)) return ColIdle;
+        ref readonly var ds = ref view.GetComponentRO<DoctrineState>(entity);
+        if (ds.ActiveDoctrineHash == 0) return ColIdle;
+
+        return ds.BrainTier switch
+        {
+            0 => ColTraffic,
+            1 => ColHsm,
+            _ => ColBTree,
+        };
+    }
+
+    /// <inheritdoc/>
+    protected override EntityShapeCondition ResolveCondition(ISimulationView view, Entity entity)
+    {
+        var condition = EntityShapeCondition.None;
+
+        if (view.HasComponent<ActorCapabilityState>(entity))
+        {
+            ref readonly var caps = ref view.GetComponentRO<ActorCapabilityState>(entity);
+            if (!caps.Capabilities.HasFlag(ActorCapabilities.CanMove))
+                condition |= EntityShapeCondition.Immobile;
+            if (!caps.Capabilities.HasFlag(ActorCapabilities.CanShoot))
+                condition |= EntityShapeCondition.Damaged;
+        }
+
+        return condition;
+    }
+
+    /// <inheritdoc/>
+    protected override string? ResolveShapeName(ISimulationView view, Entity entity)
+    {
+        if (!view.HasComponent<VisualData>(entity)) return null;
+        string name = view.GetComponentRO<VisualData>(entity).MapShapeName.ToString();
+        return name.Length > 0 ? name : null;
+    }
 
     /// <inheritdoc/>
     /// <remarks>Called inside Raylib <c>BeginMode2D</c>.</remarks>
-    public void Render(
+    public override void Render(
         ISimulationView view,
         Entity          entity,
         Vector2         position,
@@ -107,21 +174,16 @@ public sealed class CgfDebugVisualizerAdapter : IVisualizerAdapter
         bool            isSelected,
         bool            isHovered)
     {
-        Color fill = ResolveColor(view, entity, isSelected, isHovered);
+        // Delegate shape geometry to base class.
+        base.Render(view, entity, position, ctx, isSelected, isHovered);
 
-        Raylib.DrawCircleV(position, CircleRadius, fill);
-        Raylib.DrawCircleLinesV(position, CircleRadius, ColOutline);
-
-        if (isSelected)
-            Raylib.DrawCircleLinesV(position, CircleRadius + 4f, ColSelected);
-
-        // Compact label: doctrine name (or net-id if no doctrine) to the right of the symbol.
+        // Compact doctrine label to the right of the symbol.
         string label = ResolveShortLabel(view, entity);
         if (label.Length > 0)
         {
             Raylib.DrawText(
                 label,
-                (int)(position.X + CircleRadius + LabelOffsetX),
+                (int)(position.X + LabelOffsetX),
                 (int)(position.Y - LabelFontSize / 2),
                 LabelFontSize,
                 Color.White);
@@ -135,7 +197,7 @@ public sealed class CgfDebugVisualizerAdapter : IVisualizerAdapter
     /// locomotion channel, weapon channel, perceived targets, mission plan phase,
     /// and any lost capabilities.
     /// </remarks>
-    public string? GetHoverLabel(ISimulationView view, Entity entity)
+    public override string? GetHoverLabel(ISimulationView view, Entity entity)
     {
         var sb = new StringBuilder();
 
@@ -211,26 +273,6 @@ public sealed class CgfDebugVisualizerAdapter : IVisualizerAdapter
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
-
-    private Color ResolveColor(ISimulationView view, Entity entity, bool isSelected, bool isHovered)
-    {
-        if (isSelected) return ColSelected;
-        if (isHovered)  return ColHovered;
-
-        if (!view.HasComponent<DoctrineState>(entity))
-            return ColIdle;
-
-        ref readonly var ds = ref view.GetComponentRO<DoctrineState>(entity);
-        if (ds.ActiveDoctrineHash == 0)
-            return ColIdle;
-
-        return ds.BrainTier switch
-        {
-            0 => ColTraffic,
-            1 => ColHsm,
-            _ => ColBTree,
-        };
-    }
 
     private string ResolveShortLabel(ISimulationView view, Entity entity)
     {

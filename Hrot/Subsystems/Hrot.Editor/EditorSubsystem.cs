@@ -493,9 +493,10 @@ namespace Hrot.Editor
                     .WithLifecycle(EntityLifecycle.All)
                     .Build();
 
-                // Entity render layer — uses NedVisualizerAdapter for production-grade
-                // MIL-STD-2525 symbology and affiliation colours in the offline editor.
-                var visualizerAdapter = new Hrot.ScenarioEditor.Adapters.NedVisualizerAdapter(localNodeId: 0);
+                // Entity render layer — uses EditorPerspectiveVisualizer for force-coloured
+                // oriented shape silhouettes driven by DefaultEntityShapeLibrary.
+                var visualizerAdapter = new Hrot.Editor.Adapters.EditorPerspectiveVisualizer(
+                    new Fdp.Toolkit.Vis2D.Shapes.DefaultEntityShapeLibrary());
                 var renderLayer = new EntityRenderLayer(
                     "Entities", layerBitIndex: -1,
                     _world, entityQuery, visualizerAdapter, _selectionState)

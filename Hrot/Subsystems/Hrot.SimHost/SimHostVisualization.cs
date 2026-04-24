@@ -192,7 +192,8 @@ namespace Hrot.SimHost
 
             _map.AddLayer(new SimHostRoadLayer(road));
 
-            _visualizer = new SimHostVehicleVisualizer();
+            _visualizer = new SimHostVehicleVisualizer(
+                new Fdp.Toolkit.Vis2D.Shapes.DefaultEntityShapeLibrary());
             _map.AddLayer(new EntityRenderLayer(
                 "Vehicles", 0, repo, _vehicleQuery, _visualizer, _inspector));
 
