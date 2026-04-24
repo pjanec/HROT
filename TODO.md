@@ -1,7 +1,3 @@
-[BUG] component editor for ActorcapabilityState.Capabilities offer just individual values of CanShoot, CanMove etc.
-But in fact these are flags that can be combined. The StructEdit should support flags. And Imgui should render
-a checkbox list instead of plain enum-combo.
-
 
 ----------- IOS/IG MAP related stuff -----------------
 
