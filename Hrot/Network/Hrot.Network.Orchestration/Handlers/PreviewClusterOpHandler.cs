@@ -136,7 +136,7 @@ namespace Hrot.Common.Orchestration.Handlers
             }
 
             var snap = new EntityRepository();
-            snap.SyncFrom(_liveRepo);
+            snap.SyncFrom(_liveRepo, includeTransient: true);
             _snap = snap;
 
             FdpLog<PreviewClusterOpHandler>.Info(
@@ -162,7 +162,7 @@ namespace Hrot.Common.Orchestration.Handlers
                 return;
             }
 
-            _liveRepo.SyncFrom(_snap);
+            _liveRepo.SyncFrom(_snap, includeTransient: true);
             _snap.Dispose();
             _snap = null;
 

@@ -15,6 +15,7 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Perception.Modules;
+using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Scenario;
@@ -106,6 +107,7 @@ namespace Hrot.Editor
         private EntityRepository?       _world;
         private ModuleHostKernel?       _kernel;
         private MasterSyncController?   _timeController;
+        private PhysicsToolkitModule?   _physicsModule;
         private IEditorLogic?           _editorLogic;
         private MapCanvas?              _canvas;
         private MapCamera?              _camera;
@@ -305,6 +307,8 @@ namespace Hrot.Editor
             _world = new EntityRepository();
             var accumulator = new EventAccumulator();
             _kernel = new ModuleHostKernel(_world, accumulator);
+            _physicsModule = new PhysicsToolkitModule();
+            _physicsModule.Initialize(_world);
 
             // ── 1b. Register all components BEFORE building serializers ───────
             // FdpAutoSerializer compiles property-extraction delegates at Build() time
@@ -396,8 +400,8 @@ namespace Hrot.Editor
             cgfLogicPackInst.RegisterSystems(inputGroup, simGroup);
 
             _kernel.RegisterGlobalSystem(new CgfInputGroupAdapter(inputGroup));
-            _kernel.RegisterModule(new SimGroupModule(simGroup));
-            _kernel.RegisterModule(new PostSimGroupModule(postSimGroup));
+            _kernel.RegisterModule(new SimulationGroupModule(simGroup));
+            _kernel.RegisterGlobalSystem(new PostSimulationGroupAdapter(postSimGroup));
 
             // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.
             _kernel.RegisterModule(new EditorSystemsModule(_world));
@@ -893,6 +897,8 @@ namespace Hrot.Editor
         {
             _kernel?.Dispose();
             _kernel = null;
+            _physicsModule?.Dispose();
+            _physicsModule = null;
             _world?.Dispose();
             _world = null;
             _editorLogic = null;

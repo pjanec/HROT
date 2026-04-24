@@ -7,7 +7,10 @@ using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Perception.Modules;
+using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Replication.Services;
+using Hrot.Common.Orchestration.Handlers;
+using Hrot.UI.Common.Facades;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Tkb;
@@ -47,6 +50,8 @@ public sealed class EditorHarness : IDisposable
     private ScenarioFileService _fileService = null!;
     private ZoneManagerService  _zoneService = null!;
     private IReadOnlyList<IEcsModule> _logicPacks = null!;
+    private PhysicsToolkitModule? _physicsModule;
+    private PreviewClusterOpHandler? _previewHandler;
 
     public EntityRepository  Repo      { get; }
     public FdpEventBus        Bus       { get; }
@@ -55,6 +60,7 @@ public sealed class EditorHarness : IDisposable
     public IEditorLogic       Editor    { get; private set; } = null!;
     public ScenarioFileService FileService  => _fileService;
     public ZoneManagerService  ZoneService  => _zoneService;
+    public IPreviewController  Preview   { get; private set; } = null!;
 
     // ── Nested test stub ─────────────────────────────────────────────────────
 
@@ -88,6 +94,41 @@ public sealed class EditorHarness : IDisposable
         public System.Collections.Generic.IEnumerable<Type>? GetRequiredComponents() => null;
     }
 
+    /// <summary>
+    /// Lightweight <see cref="IPreviewController"/> used by tests that need to
+    /// enter / exit the dry-run preview session without a full subsystem stack.
+    /// </summary>
+    private sealed class EditorPreviewController : IPreviewController
+    {
+        private readonly PreviewClusterOpHandler _handler;
+        private readonly MasterSyncController    _timeController;
+        private bool _inPreview;
+
+        internal EditorPreviewController(
+            MasterSyncController     timeController,
+            PreviewClusterOpHandler  handler)
+        {
+            _handler        = handler;
+            _timeController = timeController;
+        }
+
+        public bool IsInPreviewMode => _inPreview;
+
+        public void EnterPreviewMode()
+        {
+            _handler.TriggerLoadingPreview();
+            _timeController.SwitchToContinuous();
+            _inPreview = true;
+        }
+
+        public void ExitPreviewMode()
+        {
+            _handler.TriggerUnloadingPreview();
+            _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
+            _inPreview = false;
+        }
+    }
+
     // ── Constructor ───────────────────────────────────────────────────────────
 
     public EditorHarness()
@@ -108,6 +149,9 @@ public sealed class EditorHarness : IDisposable
 
         var accumulator = new EventAccumulator();
         Kernel = new ModuleHostKernel(Repo, accumulator);
+        _physicsModule = new PhysicsToolkitModule();
+        _physicsModule.Initialize(Repo);
+        _previewHandler = new PreviewClusterOpHandler(Repo);
 
         // MasterSyncController in Deterministic mode — no DDS sync, starts paused.
         var timeConfig  = new TimeControllerConfig { Role = TimeRole.Standalone };
@@ -156,8 +200,8 @@ public sealed class EditorHarness : IDisposable
         cgfLogicPackInst.RegisterSystems(inputGroup, simGroup);
 
         Kernel.RegisterGlobalSystem(new CgfInputGroupAdapter(inputGroup));
-        Kernel.RegisterModule(new SimGroupModule(simGroup));
-        Kernel.RegisterModule(new PostSimGroupModule(postSimGroup));
+        Kernel.RegisterModule(new SimulationGroupModule(simGroup));
+        Kernel.RegisterGlobalSystem(new PostSimulationGroupAdapter(postSimGroup));
 
         // Register editor-specific ECS systems (cargo, perception, zone authoring).
         Kernel.RegisterModule(new EditorSystemsModule(Repo, zoneService));
@@ -168,6 +212,7 @@ public sealed class EditorHarness : IDisposable
         var logicPacks = new List<IEcsModule> { simHostCorePack, cgfLogicPackInst, simHostMod };
         _logicPacks = logicPacks;
         Editor = new EditorApplication(fileService, Bus, Repo, Kernel, logicPacks);
+        Preview = new EditorPreviewController(_timeController!, _previewHandler!);
     }
 
     // ── Feature-switch helper ─────────────────────────────────────────────────
@@ -218,6 +263,8 @@ public sealed class EditorHarness : IDisposable
     public void Dispose()
     {
         Kernel.Dispose();
+        _physicsModule?.Dispose();
+        _physicsModule = null;
         Repo.Dispose();
         _idAllocator.Dispose();
     }
