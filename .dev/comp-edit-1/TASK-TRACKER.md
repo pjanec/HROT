@@ -40,5 +40,5 @@ editor from the application's map and entity-selection services.
 **Goal:** Connect the double-click trigger in ComponentReflector to the new editor window,
 and expose the Reflector on both inspector panels so host subsystems can inject dependencies.
 
-- [ ] **TASK-CE09** ComponentReflector Double-Click Integration [details](./TASK-DETAIL.md#task-ce09-componentreflector-double-click-integration)
-- [ ] **TASK-CE10** Host Wiring (EntityInspectorPanel + EntityWatchPanel) [details](./TASK-DETAIL.md#task-ce10-host-wiring-entityinspectorpanel--entitywatchpanel)
+- [x] **TASK-CE09** ComponentReflector Double-Click Integration [details](./TASK-DETAIL.md#task-ce09-componentreflector-double-click-integration)
+- [x] **TASK-CE10** Host Wiring (EntityInspectorPanel + EntityWatchPanel) [details](./TASK-DETAIL.md#task-ce10-host-wiring-entityinspectorpanel--entitywatchpanel)
