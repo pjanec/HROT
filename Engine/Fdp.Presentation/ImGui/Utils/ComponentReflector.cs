@@ -6,10 +6,14 @@ using System.Runtime.InteropServices;
 using System.Linq;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
+using Fdp.Presentation.Editing;
 using Fdp.Presentation.Renderers;
 using ImGuiNET;
+using StructEdit.Core;
+using StructEdit.Reflection;
 
 using ImGuiApi = ImGuiNET.ImGui;
+using WM = Fdp.Presentation.WindowManager.WindowManager;
 
 namespace Fdp.Presentation.Utils;
 
@@ -26,13 +30,45 @@ namespace Fdp.Presentation.Utils;
 /// read-only tree). A registered <see cref="IImGuiRenderer.RenderValue"/> returning
 /// <c>true</c> replaces the tree entirely.</para>
 /// </summary>
-internal class ComponentReflector
+public class ComponentReflector
 {
     /// <summary>Set to <c>true</c> this frame to force-expand all component headers.</summary>
     public bool ForceExpandAll   { get; set; }
 
     /// <summary>Set to <c>true</c> this frame to force-collapse all component headers.</summary>
     public bool ForceCollapseAll { get; set; }
+
+    // ── Edit-window injection properties (CE09) ───────────────────────────────
+
+    /// <summary>Window manager used to register or focus the component editor window.</summary>
+    public WM? EditWindowManager { get; set; }
+
+    /// <summary>Delegate that returns the current inspectable session (or null when dead).</summary>
+    public Func<IInspectableSession?>? EditSessionGetter { get; set; }
+
+    /// <summary>Optional picker context for map/entity picking inside the editor.</summary>
+    public IComponentPickerContext? EditPickerContext { get; set; }
+
+    /// <summary>Perspective name passed to <see cref="ComponentEditWindow"/> on creation.</summary>
+    public string EditOwningPerspective { get; set; } = string.Empty;
+
+    // ── Edit service (created once; stateless) ────────────────────────────────
+    private readonly IComponentEditService _editService;
+
+    /// <summary>Default constructor — builds a default edit service.</summary>
+    public ComponentReflector()
+    {
+        _editService = new ComponentEditServiceBuilder().Build();
+    }
+
+    /// <summary>
+    /// Test constructor — accepts a pre-built <see cref="IComponentEditService"/> so tests
+    /// can inject a fake without going through ImGui.
+    /// </summary>
+    internal ComponentReflector(IComponentEditService editService)
+    {
+        _editService = editService;
+    }
 
     // ── Byte-cache change detection (BD1-P6T1) ────────────────────────────────
     /// <summary>Entity whose component bytes are currently cached.</summary>
@@ -157,6 +193,12 @@ internal class ComponentReflector
             if (popColors > 0)
                 ImGuiApi.PopStyleColor(popColors);
 
+            // Level 2 double-click: must appear immediately after CollapsingHeader/PopStyleColor
+            // so IsItemHovered() still refers to the header item.
+            bool headerDoubleClicked = ImGuiApi.IsItemHovered()
+                && ImGuiApi.IsMouseDoubleClicked(ImGuiMouseButton.Left);
+
+            string? doubleClickedPath = null;
             if (open && data != null)
             {
                 ImGuiApi.Indent();
@@ -165,16 +207,54 @@ internal class ComponentReflector
                 bool handled = renderer != null && renderer.RenderValue(data);
 
                 if (!handled)
-                    ImGuiPropertyTree.Render(data, contextType: type);
+                    ImGuiPropertyTree.Render(data, contextType: type, out doubleClickedPath);
 
                 ImGuiApi.Unindent();
             }
 
             ImGuiApi.PopID();
+
+            TryOpenEditWindow(session, e, type, data, headerDoubleClicked, doubleClickedPath);
         }
 
         ForceExpandAll   = false;
         ForceCollapseAll = false;
+    }
+
+    // ── Edit-window open logic (extracted for testability) ─────────────────────────
+
+    /// <summary>
+    /// Opens or focuses the component editor window for <paramref name="e"/> + <paramref name="type"/>.
+    /// Called by <see cref="DrawComponents"/> after every component loop iteration.
+    /// Also callable directly by tests to simulate a double-click without needing ImGui mouse state.
+    /// </summary>
+    internal void TryOpenEditWindow(
+        IInspectableSession session, Entity e, Type type, object? data,
+        bool headerDoubleClicked, string? doubleClickedPath)
+    {
+        if (session.IsReadOnly
+            || EditWindowManager == null
+            || EditSessionGetter == null
+            || data == null
+            || (doubleClickedPath == null && !headerDoubleClicked))
+            return;
+
+        string winId = $"cedit_{e.Index}_{e.Generation}_{type.FullName}";
+        if (EditWindowManager.TryGetWindow(winId, out _))
+        {
+            EditWindowManager.FocusWindow(winId);
+        }
+        else
+        {
+            EditScope scope = doubleClickedPath != null
+                ? EditScope.ForField(EditPath.Parse(doubleClickedPath))
+                : EditScope.WholeComponent;
+            var editSession = _editService.Open(data, type, scope);
+            string title = $"Edit {type.Name} [{e.Index}]";
+            EditWindowManager.RegisterWindow(new ComponentEditWindow(
+                winId, title, EditOwningPerspective, editSession,
+                e, type, EditSessionGetter!, EditPickerContext));
+        }
     }
 
     private static string BuildHeaderLabel(Type type, object? data)

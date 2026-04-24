@@ -17,6 +17,13 @@ public class EntityInspectorPanel
     private readonly ComponentReflector _reflector = new();
     private static readonly Vector4 ExConViolet = new Vector4(0.7f, 0.45f, 0.8f, 1f);
 
+    /// <summary>
+    /// The <see cref="ComponentReflector"/> used to draw component details.
+    /// Expose to allow host subsystems to wire up the component editor
+    /// (e.g. <c>panel.Reflector.EditWindowManager = ...</c>).
+    /// </summary>
+    public ComponentReflector Reflector => _reflector;
+
     private static long? GetNetworkId(IInspectableSession session, Entity entity)
     {
         if (session.HasComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))

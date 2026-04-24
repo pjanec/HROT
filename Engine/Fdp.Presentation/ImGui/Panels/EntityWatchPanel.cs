@@ -20,6 +20,13 @@ public class EntityWatchPanel
     private readonly ComponentReflector _reflector = new();
     private static readonly Vector4 ExConViolet = new Vector4(0.32f, 0.08f, 0.48f, 1f);
 
+    /// <summary>
+    /// The <see cref="ComponentReflector"/> used to draw component details.
+    /// Expose to allow host subsystems to wire up the component editor
+    /// (e.g. <c>panel.Reflector.EditWindowManager = ...</c>).
+    /// </summary>
+    public ComponentReflector Reflector => _reflector;
+
     public EntityWatchPanel(Entity targetEntity)
     {
         _targetEntity = targetEntity;

@@ -49,6 +49,24 @@ public static class ImGuiPropertyTree
     /// </param>
     public static void Render(object? obj, Type? contextType = null)
     {
+        Render(obj, contextType, out _);
+    }
+
+    /// <summary>
+    /// Renders <paramref name="obj"/> as a fully-framed property tree table and reports
+    /// which field (if any) was double-clicked during this render.
+    /// </summary>
+    /// <param name="obj">The object to render. <c>null</c> shows a placeholder.</param>
+    /// <param name="contextType">
+    /// Optional ECS component / outer type used for context-specific renderer lookup.
+    /// </param>
+    /// <param name="doubleClickedPath">
+    /// Set to the JSON path of the double-clicked row (e.g. <c>"$.Position.X"</c>);
+    /// <c>null</c> when no row was double-clicked during this render.
+    /// </param>
+    public static void Render(object? obj, Type? contextType, out string? doubleClickedPath)
+    {
+        doubleClickedPath = null;
         if (obj == null)
         {
             ImGuiApi.TextDisabled("(null)");
@@ -70,14 +88,18 @@ public static class ImGuiPropertyTree
         ImGuiApi.TableSetupColumn( "Value", ImGuiTableColumnFlags.WidthStretch );
         //ImGuiApi.TableHeadersRow();
 
-        RenderRows(obj, obj.GetType(), contextType, 0);
+        string? dcPath = null;
+        RenderRows(obj, obj.GetType(), contextType, 0, "$", ref dcPath);
 
         ImGuiApi.EndTable();
+
+        doubleClickedPath = dcPath;
     }
 
     // ── Row rendering ─────────────────────────────────────────────────────────
 
-    private static void RenderRows(object obj, Type type, Type? contextType, int depth)
+    private static void RenderRows(object obj, Type type, Type? contextType, int depth,
+        string jsonPath, ref string? doubleClickedPath)
     {
         if (depth >= MaxDepth) return;
 
@@ -88,6 +110,7 @@ public static class ImGuiPropertyTree
             var member    = members[i];
             string name   = member.Name;
             Type   mType  = GetMemberType(member);
+            string memberPath = jsonPath + "." + name;
             object? value;
 
             try   { value = GetValue(member, obj); }
@@ -119,6 +142,12 @@ public static class ImGuiPropertyTree
                     ImGuiTreeNodeFlags.SpanAvailWidth);
                 opened = false;
             }
+
+            // Double-click detection: only the first hit per Render call wins.
+            if (doubleClickedPath == null
+                && ImGuiApi.IsItemHovered()
+                && ImGuiApi.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+                doubleClickedPath = memberPath;
 
             // ── Value column ───────────────────────────────────────────
             ImGuiApi.TableSetColumnIndex(1);
@@ -156,9 +185,9 @@ public static class ImGuiPropertyTree
                 }
 
                 if (isExtractedCollection || IsCollectionType(effectiveType))
-                    RenderCollectionRows(value, depth + 1);
+                    RenderCollectionRows(value, depth + 1, memberPath, ref doubleClickedPath);
                 else
-                    RenderRows(value, effectiveType, contextType, depth + 1);
+                    RenderRows(value, effectiveType, contextType, depth + 1, memberPath, ref doubleClickedPath);
 
                 ImGuiApi.TreePop();
             }
@@ -201,13 +230,15 @@ public static class ImGuiPropertyTree
         }
     }
 
-    private static void RenderCollectionRows(object collection, int depth)
+    private static void RenderCollectionRows(object collection, int depth,
+        string jsonPath, ref string? doubleClickedPath)
     {
         if (depth >= MaxDepth) return;
 
         int idx = 0;
         foreach (var item in (IEnumerable)collection)
         {
+            string elementPath = jsonPath + "[" + idx + "]";
             bool foldable = item != null && IsFoldable(item.GetType(), item);
 
             ImGuiApi.TableNextRow();
@@ -230,6 +261,12 @@ public static class ImGuiPropertyTree
                 opened = false;
             }
 
+            // Double-click detection: only the first hit per Render call wins.
+            if (doubleClickedPath == null
+                && ImGuiApi.IsItemHovered()
+                && ImGuiApi.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+                doubleClickedPath = elementPath;
+
             ImGuiApi.TableSetColumnIndex(1);
             if (item == null)
                 ImGuiApi.TextDisabled("null");
@@ -238,7 +275,7 @@ public static class ImGuiPropertyTree
 
             if (opened && item != null)
             {
-                RenderRows(item, item.GetType(), null, depth + 1);
+                RenderRows(item, item.GetType(), null, depth + 1, elementPath, ref doubleClickedPath);
                 ImGuiApi.TreePop();
             }
 
