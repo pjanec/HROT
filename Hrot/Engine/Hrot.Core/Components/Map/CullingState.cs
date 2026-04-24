@@ -27,6 +27,7 @@ public struct CullingState
     /// <c>false</c> causes <see cref="Hrot.IG.Adapters.NedVisualizerAdapter.GetPosition"/>
     /// to return <c>null</c>, skipping icon, label, damage-bar, and selection-ring draw calls.
     /// </summary>
+    [MarshalAs(UnmanagedType.I1)]
     public bool IsVisible;
 
     /// <summary>

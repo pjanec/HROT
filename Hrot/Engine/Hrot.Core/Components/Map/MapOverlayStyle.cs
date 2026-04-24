@@ -1,4 +1,5 @@
 using Fdp.Core;
+using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 
 namespace Hrot.IG.Components;
@@ -96,6 +97,7 @@ public struct MapOverlayStyle
     /// forming a closed polygon.  When <c>false</c> the shape is drawn as
     /// an open polyline.
     /// </summary>
+    [MarshalAs(UnmanagedType.I1)]
     public bool IsClosed;
 
     // ── Factory helpers ──────────────────────────────────────────────────────

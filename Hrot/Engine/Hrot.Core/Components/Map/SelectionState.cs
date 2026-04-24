@@ -38,6 +38,7 @@ public struct SelectionState
     /// <c>true</c> when the entity is part of the current operator selection.
     /// Cleared to <c>false</c> by a new click without Shift/Ctrl modifiers.
     /// </summary>
+    [MarshalAs(UnmanagedType.I1)]
     public bool IsSelected;
 
     /// <summary>
@@ -46,5 +47,6 @@ public struct SelectionState
     /// Drives the green fill / green outline ring colour in
     /// <see cref="Hrot.IG.Systems.SelectionRenderSystem"/>.
     /// </summary>
+    [MarshalAs(UnmanagedType.I1)]
     public bool IsPrimarySelection;
 }

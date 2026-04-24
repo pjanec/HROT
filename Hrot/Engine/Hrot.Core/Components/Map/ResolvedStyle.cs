@@ -52,9 +52,11 @@ public unsafe struct ResolvedStyle
     // ── Display flags ─────────────────────────────────────────────────────────
 
     /// <summary>When <c>true</c> the history-trail renderer draws this entity's movement trail.</summary>
+    [MarshalAs(UnmanagedType.I1)]
     public bool ShowTrail;
 
     /// <summary>When <c>true</c> the FOV-sector renderer draws sensor cone overlays.</summary>
+    [MarshalAs(UnmanagedType.I1)]
     public bool ShowSensors;
 
     // ── Factory ───────────────────────────────────────────────────────────────
