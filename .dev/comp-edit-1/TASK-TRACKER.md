@@ -20,8 +20,8 @@ element nodes, and surface domain-specific attributes through metadata.
 **Goal:** Define the attribute markers and picker-context interface that decouple the component
 editor from the application's map and entity-selection services.
 
-- [ ] **TASK-CE04** Picker Attributes [details](./TASK-DETAIL.md#task-ce04-picker-attributes)
-- [ ] **TASK-CE05** IComponentPickerContext [details](./TASK-DETAIL.md#task-ce05-icomponentpickercontext)
+- [x] **TASK-CE04** Picker Attributes [details](./TASK-DETAIL.md#task-ce04-picker-attributes)
+- [x] **TASK-CE05** IComponentPickerContext [details](./TASK-DETAIL.md#task-ce05-icomponentpickercontext)
 
 ---
 
@@ -29,7 +29,7 @@ editor from the application's map and entity-selection services.
 
 **Goal:** Implement the floating editor window and its ImGui renderer inside Fdp.Presentation.
 
-- [ ] **TASK-CE06** Add StructEdit Project References [details](./TASK-DETAIL.md#task-ce06-add-structedit-project-references)
+- [x] **TASK-CE06** Add StructEdit Project References [details](./TASK-DETAIL.md#task-ce06-add-structedit-project-references)
 - [ ] **TASK-CE07** ComponentEditDrawer [details](./TASK-DETAIL.md#task-ce07-componenteditdrawer)
 - [ ] **TASK-CE08** ComponentEditWindow [details](./TASK-DETAIL.md#task-ce08-componenteditwindow)
 
