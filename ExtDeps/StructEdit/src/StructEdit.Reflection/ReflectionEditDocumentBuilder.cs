@@ -79,10 +79,12 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         // Check for custom field editor before the default switch
         if (!isFixedBuffer && fieldEditors.TryGetValue(nodeType, out var customFieldEditor))
         {
-            var leafBinding = CreateLeafBinding(buffer, nativeOffset, fi, pi, nodeType);
+            var leafBinding = explicitBinding ?? CreateLeafBinding(buffer, nativeOffset, fi, pi, nodeType, parentBinding);
+            if (leafBinding == null)
+                return new EditNode(new EditNodeId(idAlloc.Next()), name, jsonPath, EditNodeKind.Unsupported, nodeType);
             var customMetadata = ReadMetadata(fi, pi);
             var nodeId = new EditNodeId(idAlloc.Next());
-            return customFieldEditor.CreateNode(nodeId, name, jsonPath, leafBinding!, customMetadata);
+            return customFieldEditor.CreateNode(nodeId, name, jsonPath, leafBinding, customMetadata);
         }
 
         switch (kind)
@@ -92,9 +94,12 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
             case EditNodeKind.Record:
                 // When building an element node (explicitBinding provided), pass the element
                 // binding as parentBinding so leaf fields inside are backed by NestedMemberBinding.
+                IValueBinding? childParentBinding = explicitBinding;
+                if (childParentBinding == null && (fi != null || pi != null))
+                    childParentBinding = CreateLeafBinding(buffer, nativeOffset, fi, pi, nodeType, parentBinding);
                 children = BuildChildren(buffer, jsonPath, nodeType, nativeOffset, idAlloc, visited,
                     providers, fieldEditors, context,
-                    parentBinding: explicitBinding);
+                    parentBinding: childParentBinding);
                 break;
 
             case EditNodeKind.InlineArray:
@@ -301,10 +306,9 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
     {
         if (fi == null && pi == null) return null;
 
-        // When building leaf fields inside a managed array element (parentBinding set and
-        // nativeOffset is the sentinel -1), use NestedMemberBinding so that struct mutations
-        // are written back through the element binding (copy-on-box correctness).
-        if (!buffer.IsNative && parentBinding != null && nativeOffset < 0)
+        // When building managed nested members, use NestedMemberBinding so that struct
+        // mutations are written back through the parent binding (copy-on-box correctness).
+        if (!buffer.IsNative && parentBinding != null)
         {
             MemberInfo member = fi ?? (MemberInfo)pi!;
             return new NestedMemberBinding(member, parentBinding);
@@ -317,6 +321,11 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         }
 
         MemberInfo leafMember = fi ?? (MemberInfo)pi!;
+        if (!buffer.IsNative && leafMember.DeclaringType != buffer.ComponentType && parentBinding == null)
+        {
+            throw new InvalidOperationException(
+                $"STRUCTEDIT HIERARCHY ERROR: Attempting to bind nested member '{leafMember.Name}' on declaring type '{leafMember.DeclaringType?.Name}', but the root component is '{buffer.ComponentType.Name}' and no parent binding was provided. The document builder MUST flow the current node's binding down to its children during recursive traversal.");
+        }
         if (buffer.IsNative && leafMember.DeclaringType != buffer.ComponentType)
         {
             return null;
