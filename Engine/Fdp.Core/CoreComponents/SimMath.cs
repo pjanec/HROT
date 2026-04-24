@@ -25,6 +25,29 @@ namespace Fdp.Core
         public static Quaternion FromYaw(float yawRad) => FromYawPitchRoll(yawRad, 0f, 0f);
 
         /// <summary>
+        /// Extracts Euler angles in degrees (yaw, pitch, roll) from a quaternion.
+        /// Output order is (yawDeg, pitchDeg, rollDeg).
+        /// </summary>
+        public static (float yawDeg, float pitchDeg, float rollDeg) ToYawPitchRollDeg(Quaternion q)
+        {
+            float sinrCosp = 2f * (q.W * q.X + q.Y * q.Z);
+            float cosrCosp = 1f - 2f * (q.X * q.X + q.Y * q.Y);
+            float roll = MathF.Atan2(sinrCosp, cosrCosp);
+
+            float sinp = 2f * (q.W * q.Y - q.Z * q.X);
+            float pitch = MathF.Abs(sinp) >= 1f
+                ? MathF.CopySign(MathF.PI / 2f, sinp)
+                : MathF.Asin(sinp);
+
+            float sinyCosp = 2f * (q.W * q.Z + q.X * q.Y);
+            float cosyCosp = 1f - 2f * (q.Y * q.Y + q.Z * q.Z);
+            float yaw = MathF.Atan2(sinyCosp, cosyCosp);
+
+            const float Rad2Deg = 180f / MathF.PI;
+            return (yaw * Rad2Deg, pitch * Rad2Deg, roll * Rad2Deg);
+        }
+
+        /// <summary>
         /// Extracts the yaw angle (rotation around Z) from a rotation quaternion, in radians.
         /// Returns the angle in [-π, +π].
         /// </summary>

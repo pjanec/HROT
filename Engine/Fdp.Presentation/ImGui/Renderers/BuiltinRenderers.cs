@@ -68,40 +68,18 @@ public sealed class QuaternionRenderer : IImGuiRenderer
     public string? GetSummary(object value)
     {
         var q = (Quaternion)value;
-        var (y, p, r) = ToEulerDeg(q);
+        var (y, p, r) = SimMath.ToYawPitchRollDeg(q);
         return $"Y:{y:F1}° P:{p:F1}° R:{r:F1}°";
     }
 
     public bool RenderValue(object value)
     {
         var q = (Quaternion)value;
-        var (yaw, pitch, roll) = ToEulerDeg(q);
+        var (yaw, pitch, roll) = SimMath.ToYawPitchRollDeg(q);
         ImGuiApi.Text($"Y:{yaw:F1}° P:{pitch:F1}° R:{roll:F1}°");
         if (ImGuiApi.IsItemHovered())
             ImGuiApi.SetTooltip($"Raw XYZW: ({q.X:F5}, {q.Y:F5}, {q.Z:F5}, {q.W:F5})");
         return true;
-    }
-
-    private static (float yaw, float pitch, float roll) ToEulerDeg(Quaternion q)
-    {
-        // Roll (X axis rotation)
-        float sinr_cosp = 2f * (q.W * q.X + q.Y * q.Z);
-        float cosr_cosp = 1f - 2f * (q.X * q.X + q.Y * q.Y);
-        float roll = MathF.Atan2(sinr_cosp, cosr_cosp);
-
-        // Pitch (Y axis rotation)
-        float sinp = 2f * (q.W * q.Y - q.Z * q.X);
-        float pitch = MathF.Abs(sinp) >= 1f
-            ? MathF.CopySign(MathF.PI / 2f, sinp)
-            : MathF.Asin(sinp);
-
-        // Yaw (Z axis rotation)
-        float siny_cosp = 2f * (q.W * q.Z + q.X * q.Y);
-        float cosy_cosp = 1f - 2f * (q.Y * q.Y + q.Z * q.Z);
-        float yaw = MathF.Atan2(siny_cosp, cosy_cosp);
-
-        const float Rad2Deg = 180f / MathF.PI;
-        return (yaw * Rad2Deg, pitch * Rad2Deg, roll * Rad2Deg);
     }
 }
 

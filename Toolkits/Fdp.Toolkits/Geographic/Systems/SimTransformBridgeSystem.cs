@@ -22,11 +22,8 @@ namespace Fdp.Modules.Geographic.Systems
         /// </summary>
         public static float RotationToHeadingDeg(Quaternion rotation)
         {
-            Vector3 fwd3D = Vector3.Transform(Vector3.UnitX, rotation);
-            Vector2 fwd2D = new Vector2(fwd3D.X, fwd3D.Y);
-            if (fwd2D.LengthSquared() < 1e-6f) return 0f;
-            float mathYaw = MathF.Atan2(fwd2D.Y, fwd2D.X);
-            return (90f - mathYaw * (180f / MathF.PI) + 360f) % 360f;
+            var (yawDeg, _, _) = SimMath.ToYawPitchRollDeg(rotation);
+            return (90f - yawDeg + 360f) % 360f;
         }
 
         /// <summary>
@@ -41,12 +38,9 @@ namespace Fdp.Modules.Geographic.Systems
                                                    out float pitchDeg,
                                                    out float rollDeg)
         {
-            Vector3 forward = Vector3.Transform(Vector3.UnitX, rotation);
-            Vector3 up      = Vector3.Transform(Vector3.UnitZ, rotation);
-            Vector3 left    = Vector3.Transform(Vector3.UnitY, rotation);
-
-            pitchDeg = MathF.Asin(Math.Clamp(forward.Z, -1f, 1f)) * (180f / MathF.PI);
-            rollDeg  = MathF.Atan2(left.Z, up.Z) * (180f / MathF.PI);
+            var (_, p, r) = SimMath.ToYawPitchRollDeg(rotation);
+            pitchDeg = p;
+            rollDeg = r;
         }
 
         /// <summary>
