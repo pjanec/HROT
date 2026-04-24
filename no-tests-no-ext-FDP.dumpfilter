@@ -22,6 +22,7 @@
 - **/*.fdp
 - FDP/Kernel/Fdp.Kernel.Examples 
 - FDP/ExtDeps
++ FDP/ExtDeps/StructEdit
 - scripts
 - TestResults
 - *.txt
