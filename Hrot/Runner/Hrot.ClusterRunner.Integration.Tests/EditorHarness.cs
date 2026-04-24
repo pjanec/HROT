@@ -191,16 +191,19 @@ public sealed class EditorHarness : IDisposable
         // ── Multi-phase system group wiring for SimHostCorePack and CgfLogicPack ──
         var inputGroup   = new SystemGroup();
         inputGroup.Create(Repo);
-        var simGroup = new SystemGroup();
-        simGroup.Create(Repo);
+        var cgfSimGroup = new SystemGroup();
+        cgfSimGroup.Create(Repo);
+        var muscleSimGroup = new SystemGroup();
+        muscleSimGroup.Create(Repo);
         var postSimGroup = new SystemGroup();
         postSimGroup.Create(Repo);
 
-        simHostCorePack.RegisterSystems(inputGroup, simGroup, postSimGroup);
-        cgfLogicPackInst.RegisterSystems(inputGroup, simGroup);
+        cgfLogicPackInst.RegisterSystems(inputGroup, cgfSimGroup);
+        simHostCorePack.RegisterSystems(inputGroup, muscleSimGroup, postSimGroup);
 
         Kernel.RegisterGlobalSystem(new CgfInputGroupAdapter(inputGroup));
-        Kernel.RegisterModule(new SimulationGroupModule(simGroup));
+        Kernel.RegisterModule(new SimulationGroupModule(cgfSimGroup, "BrainSimGroup"));
+        Kernel.RegisterModule(new SimulationGroupModule(muscleSimGroup, "MuscleSimGroup"));
         Kernel.RegisterGlobalSystem(new PostSimulationGroupAdapter(postSimGroup));
 
         // Register editor-specific ECS systems (cargo, perception, zone authoring).

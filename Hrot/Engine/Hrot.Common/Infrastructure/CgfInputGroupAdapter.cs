@@ -25,7 +25,7 @@ namespace Hrot.Common.Infrastructure
             public LegacyComponentSystemAdapter(ComponentSystem inner)
             {
                 _inner = inner ?? throw new ArgumentNullException(nameof(inner));
-                ProfileName = inner.GetType().Name;
+                ProfileName = FormatProfileName(inner.GetType());
             }
 
             public void Execute(ISimulationView view, float deltaTime) => _inner.Run();
@@ -49,5 +49,24 @@ namespace Hrot.Common.Infrastructure
 
         /// <inheritdoc/>
         public IReadOnlyList<IEcsModuleSystem> GetSystems() => _systems;
+
+        private static string FormatProfileName(Type type)
+        {
+            if (!type.IsGenericType)
+            {
+                return type.Name;
+            }
+
+            var cleanName = type.Name;
+            var tickIndex = cleanName.IndexOf('`');
+            if (tickIndex >= 0)
+            {
+                cleanName = cleanName.Substring(0, tickIndex);
+            }
+
+            var genericArgs = type.GetGenericArguments()
+                .Select(FormatProfileName);
+            return $"{cleanName}<{string.Join(", ", genericArgs)}>";
+        }
     }
 }

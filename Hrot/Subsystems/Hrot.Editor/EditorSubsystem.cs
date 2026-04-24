@@ -392,16 +392,19 @@ namespace Hrot.Editor
             // require their typed RegisterSystems(...) overloads to populate phase groups.
             var inputGroup   = new SystemGroup();
             inputGroup.Create(_world);
-            var simGroup = new SystemGroup();
-            simGroup.Create(_world);
+            var cgfSimGroup = new SystemGroup();
+            cgfSimGroup.Create(_world);
+            var muscleSimGroup = new SystemGroup();
+            muscleSimGroup.Create(_world);
             var postSimGroup = new SystemGroup();
             postSimGroup.Create(_world);
 
-            simHostCorePack.RegisterSystems(inputGroup, simGroup, postSimGroup);
-            cgfLogicPackInst.RegisterSystems(inputGroup, simGroup);
+            cgfLogicPackInst.RegisterSystems(inputGroup, cgfSimGroup);
+            simHostCorePack.RegisterSystems(inputGroup, muscleSimGroup, postSimGroup);
 
             _kernel.RegisterGlobalSystem(new CgfInputGroupAdapter(inputGroup));
-            _kernel.RegisterModule(new SimulationGroupModule(simGroup));
+            _kernel.RegisterModule(new SimulationGroupModule(cgfSimGroup, "BrainSimGroup"));
+            _kernel.RegisterModule(new SimulationGroupModule(muscleSimGroup, "MuscleSimGroup"));
             _kernel.RegisterGlobalSystem(new PostSimulationGroupAdapter(postSimGroup));
 
             // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.

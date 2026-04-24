@@ -16,7 +16,7 @@ namespace Hrot.Common.Infrastructure
             public LegacyComponentSystemAdapter(ComponentSystem inner)
             {
                 _inner = inner ?? throw new ArgumentNullException(nameof(inner));
-                ProfileName = inner.GetType().Name;
+                ProfileName = FormatProfileName(inner.GetType());
             }
 
             public void Execute(ISimulationView view, float deltaTime) => _inner.Run();
@@ -38,6 +38,25 @@ namespace Hrot.Common.Infrastructure
         public void Execute(ISimulationView view, float deltaTime) { }
 
         public IReadOnlyList<IEcsModuleSystem> GetSystems() => _systems;
+
+        private static string FormatProfileName(Type type)
+        {
+            if (!type.IsGenericType)
+            {
+                return type.Name;
+            }
+
+            var cleanName = type.Name;
+            var tickIndex = cleanName.IndexOf('`');
+            if (tickIndex >= 0)
+            {
+                cleanName = cleanName.Substring(0, tickIndex);
+            }
+
+            var genericArgs = type.GetGenericArguments()
+                .Select(FormatProfileName);
+            return $"{cleanName}<{string.Join(", ", genericArgs)}>";
+        }
     }
 
     /// <summary>
@@ -64,8 +83,14 @@ namespace Hrot.Common.Infrastructure
         private sealed class SimLegacySystemAdapter : IEcsModuleSystem, IProfiledSystem
         {
             private readonly ComponentSystem _inner;
-            public string ProfileName => _inner.GetType().Name;
-            public SimLegacySystemAdapter(ComponentSystem inner) => _inner = inner;
+            public string ProfileName { get; }
+
+            public SimLegacySystemAdapter(ComponentSystem inner)
+            {
+                _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+                ProfileName = FormatProfileName(inner.GetType());
+            }
+
             public void Execute(ISimulationView view, float deltaTime) => _inner.Run();
         }
 
@@ -73,14 +98,15 @@ namespace Hrot.Common.Infrastructure
         private readonly List<IEcsModuleSystem> _profiledSystems = new();
 
         /// <inheritdoc/>
-        public string Name => "SimulationGroup";
+        public string Name { get; }
 
         /// <inheritdoc/>
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
 
-        public SimulationGroupModule(SystemGroup legacyGroup)
+        public SimulationGroupModule(SystemGroup legacyGroup, string name = "SimulationGroup")
         {
             _legacyGroup = legacyGroup ?? throw new ArgumentNullException(nameof(legacyGroup));
+            Name = name ?? throw new ArgumentNullException(nameof(name));
         }
 
         /// <inheritdoc/>
@@ -109,6 +135,25 @@ namespace Hrot.Common.Infrastructure
 
         /// <inheritdoc/>
         public IEnumerable<Type>? GetRequiredComponents() => null;
+
+        private static string FormatProfileName(Type type)
+        {
+            if (!type.IsGenericType)
+            {
+                return type.Name;
+            }
+
+            var cleanName = type.Name;
+            var tickIndex = cleanName.IndexOf('`');
+            if (tickIndex >= 0)
+            {
+                cleanName = cleanName.Substring(0, tickIndex);
+            }
+
+            var genericArgs = type.GetGenericArguments()
+                .Select(FormatProfileName);
+            return $"{cleanName}<{string.Join(", ", genericArgs)}>";
+        }
     }
 
     [UpdateInPhase(SystemPhase.PostSimulation)]
