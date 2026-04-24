@@ -14,6 +14,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Core\StructEdit.Core.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />
   </ItemGroup>
 
   <!-- Visual/UI NuGet packages (union of all three merged projects) -->
