@@ -84,7 +84,9 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                 return new EditNode(new EditNodeId(idAlloc.Next()), name, jsonPath, EditNodeKind.Unsupported, nodeType);
             var customMetadata = ReadMetadata(fi, pi);
             var nodeId = new EditNodeId(idAlloc.Next());
-            return customFieldEditor.CreateNode(nodeId, name, jsonPath, leafBinding, customMetadata);
+            var customNode = customFieldEditor.CreateNode(nodeId, name, jsonPath, leafBinding, customMetadata);
+            if (customNode != null)
+                return customNode;
         }
 
         switch (kind)

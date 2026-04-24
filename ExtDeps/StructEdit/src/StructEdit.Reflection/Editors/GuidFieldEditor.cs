@@ -13,7 +13,7 @@ public sealed class GuidFieldEditor : ICustomFieldEditor
     public Type TargetType => typeof(Guid);
 
     /// <inheritdoc/>
-    public EditNode CreateNode(
+    public EditNode? CreateNode(
         EditNodeId id,
         string name,
         string jsonPath,

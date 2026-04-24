@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using ImGuiNET;
 using StructEdit.Core;
@@ -16,11 +17,16 @@ internal sealed class ComponentEditDrawer
 {
     private readonly IEditSession _session;
     private readonly IComponentPickerContext? _pickerCtx;
+    private readonly IReadOnlyDictionary<Type, IImGuiFieldDrawer> _customDrawers;
 
-    internal ComponentEditDrawer(IEditSession session, IComponentPickerContext? pickerCtx)
+    internal ComponentEditDrawer(
+        IEditSession session,
+        IComponentPickerContext? pickerCtx,
+        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null)
     {
         _session   = session;
         _pickerCtx = pickerCtx;
+        _customDrawers = customDrawers ?? new Dictionary<Type, IImGuiFieldDrawer>();
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -64,6 +70,7 @@ internal sealed class ComponentEditDrawer
             case EditNodeKind.Boolean:
             case EditNodeKind.String:
             case EditNodeKind.Enum:
+            case EditNodeKind.Custom:
                 DrawLeafNode(node, parentContainer, elementIndex);
                 break;
 
@@ -224,8 +231,11 @@ internal sealed class ComponentEditDrawer
 
     // ── Primitive input controls ──────────────────────────────────────────────
 
-    private static bool DrawPrimitiveInput(Type type, ref object value, EditNodeMetadata meta)
+    private bool DrawPrimitiveInput(Type type, ref object value, EditNodeMetadata meta)
     {
+        if (_customDrawers.TryGetValue(type, out var customDrawer))
+            return customDrawer.DrawInput(ref value, meta);
+
         if (type == typeof(float))
         {
             float v = value is float f ? f : 0f;

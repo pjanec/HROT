@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
@@ -32,14 +33,15 @@ internal sealed class ComponentEditWindow : ManagedWindow
         Entity targetEntity,
         Type componentType,
         Func<IInspectableSession?> sessionGetter,
-        IComponentPickerContext? pickerCtx = null)
+        IComponentPickerContext? pickerCtx = null,
+        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null)
         : base(id, title, owningPerspective, WindowScope.PerspectiveBound)
     {
         _session       = session;
         _targetEntity  = targetEntity;
         _componentType = componentType;
         _sessionGetter = sessionGetter;
-        _drawer        = new ComponentEditDrawer(session, pickerCtx);
+        _drawer        = new ComponentEditDrawer(session, pickerCtx, customDrawers);
 
         IsVolatile = true;
         ShowInMenu = false;

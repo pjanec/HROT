@@ -54,6 +54,7 @@ public class ComponentReflector
 
     // ── Edit service (created once; stateless) ────────────────────────────────
     private readonly IComponentEditService _editService;
+    private readonly Dictionary<Type, IImGuiFieldDrawer> _fieldDrawers = new();
 
     /// <summary>Default constructor — builds a default edit service.</summary>
     public ComponentReflector()
@@ -61,7 +62,10 @@ public class ComponentReflector
         _editService = new ComponentEditServiceBuilder()
             .RegisterFieldEditor<FixedString32>(new FixedString32FieldEditor())
             .RegisterFieldEditor<FixedString64>(new FixedString64FieldEditor())
+            .RegisterFieldEditor<Quaternion>(new QuaternionEulerFieldEditor())
             .Build();
+
+        _fieldDrawers[typeof(Quaternion)] = new QuaternionEulerFieldDrawer();
     }
 
     /// <summary>
@@ -256,7 +260,7 @@ public class ComponentReflector
             string title = $"Edit {type.Name} [{e.Index}]";
             EditWindowManager.RegisterWindow(new ComponentEditWindow(
                 winId, title, EditOwningPerspective, editSession,
-                e, type, EditSessionGetter!, EditPickerContext));
+                e, type, EditSessionGetter!, EditPickerContext, _fieldDrawers));
         }
     }
 

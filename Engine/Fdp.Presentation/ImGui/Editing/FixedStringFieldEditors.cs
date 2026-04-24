@@ -9,7 +9,7 @@ public sealed class FixedString32FieldEditor : ICustomFieldEditor
 {
     public Type TargetType => typeof(FixedString32);
 
-    public EditNode CreateNode(
+    public EditNode? CreateNode(
         EditNodeId id,
         string name,
         string jsonPath,
@@ -61,7 +61,7 @@ public sealed class FixedString64FieldEditor : ICustomFieldEditor
 {
     public Type TargetType => typeof(FixedString64);
 
-    public EditNode CreateNode(
+    public EditNode? CreateNode(
         EditNodeId id,
         string name,
         string jsonPath,

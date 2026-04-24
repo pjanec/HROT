@@ -12,8 +12,9 @@ public interface ICustomFieldEditor
     /// <summary>
     /// Creates and returns a replacement <see cref="EditNode"/> for the field described
     /// by the supplied parameters.
+    /// Return <see langword="null"/> to fall back to the default reflection-based builder.
     /// </summary>
-    EditNode CreateNode(
+    EditNode? CreateNode(
         EditNodeId id,
         string name,
         string jsonPath,

@@ -13,7 +13,7 @@ public sealed class DateTimeFieldEditor : ICustomFieldEditor
     public Type TargetType => typeof(DateTime);
 
     /// <inheritdoc/>
-    public EditNode CreateNode(
+    public EditNode? CreateNode(
         EditNodeId id,
         string name,
         string jsonPath,
