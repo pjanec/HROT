@@ -58,7 +58,10 @@ public class ComponentReflector
     /// <summary>Default constructor — builds a default edit service.</summary>
     public ComponentReflector()
     {
-        _editService = new ComponentEditServiceBuilder().Build();
+        _editService = new ComponentEditServiceBuilder()
+            .RegisterFieldEditor<FixedString32>(new FixedString32FieldEditor())
+            .RegisterFieldEditor<FixedString64>(new FixedString64FieldEditor())
+            .Build();
     }
 
     /// <summary>

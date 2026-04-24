@@ -316,6 +316,12 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
             return new NativeFieldBinding((NativeStructEditBuffer)buffer, nativeOffset, fieldSize, valueType);
         }
 
+        MemberInfo leafMember = fi ?? (MemberInfo)pi!;
+        if (buffer.IsNative && leafMember.DeclaringType != buffer.ComponentType)
+        {
+            return null;
+        }
+
         var owner = buffer.Box();
         if (fi != null) return new ManagedFieldBinding(fi, owner, buffer.MarkDirty);
         if (pi != null) return new ManagedPropertyBinding(pi, owner, buffer.MarkDirty);
