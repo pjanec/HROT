@@ -58,8 +58,8 @@ namespace Hrot.ExCon
         // Subsystem name used for ClusterSlave registration (avoidance of magic strings).
         private const string SubsystemName = "ExCon";
 
-        /// <summary>MapId of the IG this ExCon issues tool-activation commands to (300 = default IG instance).</summary>
-        private const int TargetMapId = 300;
+        /// <summary>MapId of the IG this ExCon issues tool-activation commands to (0 = broadcast).</summary>
+        private const int TargetMapId = 0;
 
         private ExConMock?         _mock;
         private bool             _headless;
