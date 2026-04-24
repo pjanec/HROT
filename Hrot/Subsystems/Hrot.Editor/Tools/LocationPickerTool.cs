@@ -28,6 +28,14 @@ namespace Hrot.Editor.Tools
         private MapCanvas? _canvas;
         private readonly IGeographicTransform _geoTransform;
 
+
+        private Vector2 _mouseWorldPos;
+
+        private const float CrosshairHalfSize  = 14f;
+        private const float CrosshairThickness = 1.5f;
+        private const float CrosshairGapRadius = 5f;
+
+
         /// <param name="geoTransform">Used to convert flat-map Cartesian X/Y to WGS-84 lat/lon.</param>
         public LocationPickerTool(IGeographicTransform geoTransform)
         {
@@ -44,7 +52,28 @@ namespace Hrot.Editor.Tools
         public void Update(float dt) { }
 
         /// <inheritdoc/>
-        public void Draw(RenderContext ctx) { }
+        public void Draw(RenderContext ctx)
+        {
+            // Apply camera zoom to keep the crosshair screen-size consistent
+            float zoom  = ctx.Zoom > 0 ? ctx.Zoom : 1f;
+            float size  = CrosshairHalfSize  / zoom;
+            float thick = CrosshairThickness / zoom;
+            float gap   = CrosshairGapRadius / zoom;
+
+            Color color = Color.SkyBlue;
+            var   pos   = _mouseWorldPos;
+
+            // Horizontal arms
+            Raylib.DrawLineEx(new Vector2(pos.X - size, pos.Y), new Vector2(pos.X - gap, pos.Y), thick, color);
+            Raylib.DrawLineEx(new Vector2(pos.X + gap,  pos.Y), new Vector2(pos.X + size, pos.Y), thick, color);
+
+            // Vertical arms
+            Raylib.DrawLineEx(new Vector2(pos.X, pos.Y - size), new Vector2(pos.X, pos.Y - gap), thick, color);
+            Raylib.DrawLineEx(new Vector2(pos.X, pos.Y + gap),  new Vector2(pos.X, pos.Y + size), thick, color);
+
+            // Centre circle
+            Raylib.DrawCircleLinesV(pos, gap, color);
+        }
 
         /// <inheritdoc/>
         public bool HandleClick(Vector2 worldPos, MouseButton button)
@@ -71,7 +100,11 @@ namespace Hrot.Editor.Tools
         public bool HandleDrag(Vector2 worldPos, Vector2 delta) => false;
 
         /// <inheritdoc/>
-        public bool HandleHover(Vector2 worldPos) => false;
+        public bool HandleHover(Vector2 worldPos)
+        {
+            _mouseWorldPos = worldPos;
+            return false;
+        }
 
         /// <inheritdoc/>
         public bool HandleKeyPressed(KeyboardKey key)
