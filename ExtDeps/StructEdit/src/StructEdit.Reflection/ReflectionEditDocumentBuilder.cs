@@ -58,7 +58,9 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         HashSet<Type> visited,
         IReadOnlyList<IBufferViewProvider> providers,
         IReadOnlyDictionary<Type, ICustomFieldEditor> fieldEditors,
-        EditContext? context)
+        EditContext? context,
+        IValueBinding? explicitBinding = null,
+        IValueBinding? parentBinding = null)
     {
         bool isFixedBuffer = fi?.GetCustomAttribute<FixedBufferAttribute>() != null;
         var kind = isFixedBuffer ? EditNodeKind.FixedBuffer : DetermineKind(nodeType);
@@ -88,7 +90,11 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
             case EditNodeKind.Struct:
             case EditNodeKind.Class:
             case EditNodeKind.Record:
-                children = BuildChildren(buffer, jsonPath, nodeType, nativeOffset, idAlloc, visited, providers, fieldEditors, context);
+                // When building an element node (explicitBinding provided), pass the element
+                // binding as parentBinding so leaf fields inside are backed by NestedMemberBinding.
+                children = BuildChildren(buffer, jsonPath, nodeType, nativeOffset, idAlloc, visited,
+                    providers, fieldEditors, context,
+                    parentBinding: explicitBinding);
                 break;
 
             case EditNodeKind.InlineArray:
@@ -96,7 +102,12 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                 var attr = nodeType.GetCustomAttribute<InlineArrayAttribute>()!;
                 var elemType = GetInlineArrayElementType(nodeType);
                 if (buffer.IsNative && TryGetSizeOf(elemType, out int elemSize))
-                    binding = new InlineArrayBinding((NativeStructEditBuffer)buffer, nativeOffset, elemType, elemSize, attr.Length);
+                {
+                    var cb = new InlineArrayBinding((NativeStructEditBuffer)buffer, nativeOffset, elemType, elemSize, attr.Length);
+                    binding = cb;
+                    children = BuildArrayElements(buffer, jsonPath, cb, elemType, idAlloc,
+                        visited, providers, fieldEditors, context);
+                }
                 break;
             }
 
@@ -128,26 +139,39 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                                 return provider.CreateView(request).Node;
                         }
                     }
+
+                    children = BuildArrayElements(buffer, jsonPath, fixedBinding, fixedBinding.ElementType, idAlloc,
+                        visited, providers, fieldEditors, context);
                 }
                 break;
             }
 
             case EditNodeKind.DynamicArray:
             {
-                var parentBinding = CreateLeafBinding(buffer, nativeOffset, fi, pi, nodeType);
-                if (parentBinding != null)
+                var fieldBinding = CreateLeafBinding(buffer, nativeOffset, fi, pi, nodeType);
+                if (fieldBinding != null)
                 {
-                    var container = parentBinding.GetBoxed();
+                    var container = fieldBinding.GetBoxed();
                     if (container != null)
-                        binding = new DynamicArrayBinding(container, parentBinding, GetArrayElementType(nodeType));
+                    {
+                        var elemType = GetArrayElementType(nodeType);
+                        var cb = new DynamicArrayBinding(container, fieldBinding, elemType);
+                        binding = cb;
+                        children = BuildArrayElements(buffer, jsonPath, cb, elemType, idAlloc,
+                            visited, providers, fieldEditors, context);
+                    }
                 }
                 break;
             }
 
             default:
-                binding = CreateLeafBinding(buffer, nativeOffset, fi, pi, nodeType);
+                binding = CreateLeafBinding(buffer, nativeOffset, fi, pi, nodeType, parentBinding);
                 break;
         }
+
+        // For element nodes (explicitBinding provided), use it as the binding when not already set.
+        if (binding == null && explicitBinding != null)
+            binding = explicitBinding;
 
         var metadata = ReadMetadata(fi, pi);
         return new EditNode(new EditNodeId(idAlloc.Next()), name, jsonPath, kind, nodeType, binding, children, metadata);
@@ -162,7 +186,8 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         HashSet<Type> visited,
         IReadOnlyList<IBufferViewProvider> providers,
         IReadOnlyDictionary<Type, ICustomFieldEditor> fieldEditors,
-        EditContext? context)
+        EditContext? context,
+        IValueBinding? parentBinding = null)
     {
         var result = new List<EditNode>();
         var flags = BindingFlags.Public | BindingFlags.Instance;
@@ -178,7 +203,8 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                 childOffset += (int)(nint)Marshal.OffsetOf(parentType, fi.Name);
 
             result.Add(BuildNode(buffer, $"{parentPath}.{fi.Name}", fi.Name, fi.FieldType,
-                childOffset, fi, null, idAlloc, visited, providers, fieldEditors, context));
+                childOffset, fi, null, idAlloc, visited, providers, fieldEditors, context,
+                parentBinding: parentBinding));
         }
 
         // public instance properties with getter — skip indexers and compiler-generated
@@ -190,9 +216,47 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
             if (pi.Name == "EqualityContract") continue; // record internal
 
             result.Add(BuildNode(buffer, $"{parentPath}.{pi.Name}", pi.Name, pi.PropertyType,
-                0, null, pi, idAlloc, visited, providers, fieldEditors, context));
+                0, null, pi, idAlloc, visited, providers, fieldEditors, context,
+                parentBinding: parentBinding));
         }
 
+        return result;
+    }
+
+    // ── array element node generation ─────────────────────────────────────
+
+    /// <summary>
+    /// Generates one child <see cref="EditNode"/> per element of <paramref name="cb"/>.
+    /// Each element binding is retrieved via <see cref="IContainerBinding.GetElementBinding"/>
+    /// and passed as <c>explicitBinding</c> to <see cref="BuildNode"/>. For struct/class
+    /// element types, <see cref="BuildNode"/> will call <see cref="BuildChildren"/> with
+    /// the element binding as <c>parentBinding</c> so that leaf fields inside the element
+    /// are backed by <see cref="StructEdit.Core.Bindings.NestedMemberBinding"/>.
+    /// </summary>
+    private static List<EditNode> BuildArrayElements(
+        IEditBuffer buffer,
+        string parentPath,
+        IContainerBinding cb,
+        Type elemType,
+        IdAllocator idAlloc,
+        HashSet<Type> visited,
+        IReadOnlyList<IBufferViewProvider> providers,
+        IReadOnlyDictionary<Type, ICustomFieldEditor> fieldEditors,
+        EditContext? context)
+    {
+        int count = cb.Count;
+        var result = new List<EditNode>(count);
+        for (int i = 0; i < count; i++)
+        {
+            var elemBinding = cb.GetElementBinding(i);
+            var elemPath = $"{parentPath}[{i}]";
+            var elemName = $"[{i}]";
+            result.Add(BuildNode(buffer, elemPath, elemName, elemType,
+                nativeOffset: -1, fi: null, pi: null,
+                idAlloc, visited, providers, fieldEditors, context,
+                explicitBinding: elemBinding,
+                parentBinding: null));
+        }
         return result;
     }
 
@@ -233,9 +297,18 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
     // ── binding factory ────────────────────────────────────────────────────
 
     private static IValueBinding? CreateLeafBinding(IEditBuffer buffer, int nativeOffset,
-        FieldInfo? fi, PropertyInfo? pi, Type valueType)
+        FieldInfo? fi, PropertyInfo? pi, Type valueType, IValueBinding? parentBinding = null)
     {
         if (fi == null && pi == null) return null;
+
+        // When building leaf fields inside a managed array element (parentBinding set and
+        // nativeOffset is the sentinel -1), use NestedMemberBinding so that struct mutations
+        // are written back through the element binding (copy-on-box correctness).
+        if (!buffer.IsNative && parentBinding != null && nativeOffset < 0)
+        {
+            MemberInfo member = fi ?? (MemberInfo)pi!;
+            return new NestedMemberBinding(member, parentBinding);
+        }
 
         if (buffer.IsNative && fi != null)
         {
@@ -286,16 +359,39 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         var ih    = GetAttr<InlineArrayHintAttribute>();
         var fh    = GetAttr<FixedBufferHintAttribute>();
 
-        if (range == null && unit == null && dn == null && ih == null && fh == null)
+        // Collect all custom (non-StructEdit) attributes
+        var allAttrs = provider.GetCustomAttributes(false);
+        List<Attribute>? customAttrs = null;
+        foreach (var obj in allAttrs)
+        {
+            if (obj is EditRangeAttribute
+                || obj is EditUnitAttribute
+                || obj is EditDisplayNameAttribute
+                || obj is InlineArrayHintAttribute
+                || obj is FixedBufferHintAttribute
+                || obj is EditReadOnlyAttribute)
+                continue;
+            if (obj is Attribute attr)
+            {
+                customAttrs ??= new List<Attribute>();
+                customAttrs.Add(attr);
+            }
+        }
+
+        if (range == null && unit == null && dn == null && ih == null && fh == null
+            && customAttrs == null)
             return EditNodeMetadata.Empty;
 
         return new EditNodeMetadata
         {
-            Min         = range?.Min,
-            Max         = range?.Max,
-            Unit        = unit?.Unit,
-            DisplayName = dn?.Name,
-            FixedLength = ih?.Length ?? fh?.Length,
+            Min            = range?.Min,
+            Max            = range?.Max,
+            Unit           = unit?.Unit,
+            DisplayName    = dn?.Name,
+            FixedLength    = ih?.Length ?? fh?.Length,
+            CustomAttributes = customAttrs != null
+                ? customAttrs
+                : Array.Empty<Attribute>(),
         };
     }
 

@@ -20,5 +20,11 @@ public sealed record EditNodeMetadata
     /// <summary>Display name from [EditDisplayName].</summary>
     public string? DisplayName { get; init; }
 
+    /// <summary>
+    /// All attributes present on the field or property that are not part of the known
+    /// StructEdit attribute set. Defaults to <see cref="Array.Empty{T}"/> (no allocation).
+    /// </summary>
+    public IReadOnlyList<Attribute> CustomAttributes { get; init; } = Array.Empty<Attribute>();
+
     public static EditNodeMetadata Empty { get; } = new EditNodeMetadata();
 }
