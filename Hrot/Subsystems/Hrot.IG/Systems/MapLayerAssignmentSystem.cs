@@ -54,21 +54,33 @@ public class MapLayerAssignmentSystem : IEcsModuleSystem
     public MapLayerAssignmentSystem(IReadOnlyList<MapLayerDefinition>? layers = null)
         => _layers = layers ?? MapLayerRegistry.All;
 
+    private long _lastCompletionTimestamp = 0;
+
     // ── IEcsModuleSystem ─────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
     {
-        // Idle between scans once the previous pass finished.
+
         if (_iteratorState.IsComplete)
         {
-            _timeSinceComplete += deltaTime;
-            if (_timeSinceComplete < RescanIntervalSeconds)
-                return;
+            long currentTick = System.Diagnostics.Stopwatch.GetTimestamp();
 
-            // Time for a new pass.  Reset the idle timer; IteratorState auto-restarts
-            // on the next QueryTimeSliced call after IsComplete == true.
-            _timeSinceComplete = 0f;
+            // Mark the timestamp the exact moment we finish a pass
+            if (_lastCompletionTimestamp == 0)
+            {
+                _lastCompletionTimestamp = currentTick;
+            }
+
+            // Calculate real-world elapsed seconds
+            double elapsedSeconds = (currentTick - _lastCompletionTimestamp) / (double)System.Diagnostics.Stopwatch.Frequency;
+
+            if (elapsedSeconds < RescanIntervalSeconds)
+                return; // Still waiting...
+
+            // Time is up. Reset the state to begin the next full pass.
+            _iteratorState.Reset();
+            _lastCompletionTimestamp = 0;
         }
 
         var repo  = (EntityRepository)view;
