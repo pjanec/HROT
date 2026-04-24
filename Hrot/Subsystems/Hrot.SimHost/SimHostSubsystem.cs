@@ -15,6 +15,7 @@ using System.Threading;
 using Fdp.Toolkit.Runner;
 using Hrot.SimHost.Windows;
 using Hrot.Presentation.Windows;
+using Hrot.Presentation.Facades;
 
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 
@@ -210,6 +211,14 @@ namespace Hrot.SimHost
                 () => vis.GetFdpRepoAdapter(),
                 () => vis.FdpInspectorState,
                 SimHostWindowColor.TitleBar));
+
+            // Wire component-editor reflector on the inspector panel.
+            var simhostPickBridge = vis.GetMapPickBridge();
+            vis.FdpEntityInspector.Reflector.EditWindowManager     = windowManager;
+            vis.FdpEntityInspector.Reflector.EditSessionGetter     = () => vis.GetFdpRepoAdapter();
+            vis.FdpEntityInspector.Reflector.EditOwningPerspective = "SimHost";
+            vis.FdpEntityInspector.Reflector.EditPickerContext     = simhostPickBridge;
+
             vis.FdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
             {
                 builder.AddItem("Inspect...", () =>
@@ -227,11 +236,16 @@ namespace Hrot.SimHost
                         ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
                         : $"Watch Entity [{entity.Index}, v{entity.Generation}]";
                     var id = $"simhost_watch_{entity.Index}_{entity.Generation}_{Guid.NewGuid()}";
+                    var watchPanel = new EntityWatchPanel(entity);
+                    watchPanel.Reflector.EditWindowManager     = windowManager;
+                    watchPanel.Reflector.EditSessionGetter     = () => session;
+                    watchPanel.Reflector.EditOwningPerspective = "SimHost";
+                    watchPanel.Reflector.EditPickerContext     = simhostPickBridge;
                     windowManager.RegisterWindow(new FdpEntityWatchWindow(
                         id,
                         title,
                         "SimHost",
-                        new EntityWatchPanel(entity),
+                        watchPanel,
                         () => session,
                         TitleBarColor));
                 });

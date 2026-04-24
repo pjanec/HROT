@@ -53,6 +53,7 @@ using Hrot.ScenarioEditor.Adapters;
 using Hrot.ScenarioEditor.Tools;
 using Hrot.SimHost;
 using Hrot.SimHost.Modules;
+using Hrot.Presentation.Facades;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
 using Hrot.Core.Network;
@@ -850,6 +851,16 @@ namespace Hrot.Editor
                 () => _fdpRepoAdapter,
                 () => _fdpInspectorState,
                 EditorWindowColor.TitleBar));
+
+            // Wire component-editor reflector on the inspector panel.
+            MapPickServiceBridge? editorPickBridge = _mapPickAdapter != null && _world != null
+                ? new MapPickServiceBridge(_mapPickAdapter, _world)
+                : null;
+            _fdpEntityInspector.Reflector.EditWindowManager     = windowManager;
+            _fdpEntityInspector.Reflector.EditSessionGetter     = () => _fdpRepoAdapter;
+            _fdpEntityInspector.Reflector.EditOwningPerspective = "Editor";
+            _fdpEntityInspector.Reflector.EditPickerContext     = editorPickBridge;
+
             _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
             {
                 builder.AddItem("Inspect...", () =>
@@ -867,11 +878,16 @@ namespace Hrot.Editor
                         ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
                         : $"Watch Entity [{entity.Index}, v{entity.Generation}]";
                     var id = $"editor_watch_{entity.Index}_{entity.Generation}_{Guid.NewGuid()}";
+                    var watchPanel = new EntityWatchPanel(entity);
+                    watchPanel.Reflector.EditWindowManager     = windowManager;
+                    watchPanel.Reflector.EditSessionGetter     = () => session;
+                    watchPanel.Reflector.EditOwningPerspective = "Editor";
+                    watchPanel.Reflector.EditPickerContext     = editorPickBridge;
                     windowManager.RegisterWindow(new FdpEntityWatchWindow(
                         id,
                         title,
                         "Editor",
-                        new EntityWatchPanel(entity),
+                        watchPanel,
                         () => session,
                         TitleBarColor));
                 });

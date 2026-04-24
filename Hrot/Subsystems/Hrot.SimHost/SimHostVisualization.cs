@@ -17,6 +17,8 @@ using FdpInspectorState = Fdp.Presentation.Abstractions.InspectorState;
 using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Vis2D.Tools;
+using Hrot.Presentation.Facades;
+using Hrot.UI.Common.Facades;
 using CarKinem.Commands;
 using CarKinem.Core;
 using CarKinem.Trajectory;
@@ -70,6 +72,7 @@ namespace Hrot.SimHost
         private FdpRepositoryAdapter?   _fdpRepoAdapter;
         private FdpInspectorState       _fdpInspectorState  = new();
         private uint                    _fdpFrameCount;
+        private MapPickServiceBridge?   _mapPickBridge;
 
         /// <summary>When set, the Window Manager renders these panels; DrawUI skips them.</summary>
         private bool _panelsWindowManaged;
@@ -103,6 +106,8 @@ namespace Hrot.SimHost
         public FdpRepositoryAdapter?     GetFdpRepoAdapter() => _fdpRepoAdapter;
         /// <summary>The FDP inspector state.</summary>
         public FdpInspectorState         FdpInspectorState  => _fdpInspectorState;
+        /// <summary>Map-pick bridge for component-editor map picking (available after Initialize).</summary>
+        public MapPickServiceBridge?     GetMapPickBridge()  => _mapPickBridge;
 
         /// <summary>
         /// Signals that panels have been registered with a Window Manager.
@@ -257,6 +262,8 @@ namespace Hrot.SimHost
             };
 
             _map.SwitchTool(_interactionTool);
+
+            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_map, repo), repo);
 
             // Seed a small initial scenario so the window isn't empty
             //_scenario.SpawnFastOne();

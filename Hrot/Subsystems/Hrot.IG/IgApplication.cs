@@ -126,6 +126,8 @@ using Raylib_cs;
 
 using rlImGui_cs;
 using Hrot.IG.Layers;
+using Hrot.Presentation.Facades;
+using Hrot.UI.Common.Facades;
 
 
 
@@ -383,8 +385,8 @@ public class IgApplication : IDisposable
 
     private uint                    _fdpFrameCount;
 
-    /// <summary>
-    /// When <c>true</c>, the IG panels are registered as ManagedWindows with the
+    // Map-pick bridge for component-editor map picking (created lazily after canvas init).
+    private MapPickServiceBridge?   _mapPickBridge;
     /// application Window Manager and <see cref="DrawUI"/> skips calling their
     /// individual <c>Draw()</c> methods to avoid duplicate rendering.
     /// Set this via <see cref="SetPanelsWindowManaged"/> from
@@ -424,6 +426,17 @@ public class IgApplication : IDisposable
     public FdpInspectorState     FdpInspectorState    => _fdpInspectorState;
     /// <summary>The module host kernel used by this IG instance.</summary>
     public ModuleHostKernel Kernel => _kernel;
+    /// <summary>
+    /// Map-pick bridge for component-editor map picking.
+    /// Created lazily on first call after <see cref="InitializeEmbedded"/> sets up the canvas.
+    /// Returns <see langword="null"/> before the canvas is available.
+    /// </summary>
+    public MapPickServiceBridge? GetMapPickBridge()
+    {
+        if (_mapPickBridge == null && _canvas != null)
+            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_canvas, _world), _world);
+        return _mapPickBridge;
+    }
 
 
 

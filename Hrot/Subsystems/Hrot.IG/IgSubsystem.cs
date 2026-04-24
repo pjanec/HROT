@@ -5,6 +5,7 @@ using Fdp.Toolkit.Runner;
 using Fdp.Toolkit.Vis2D.Components;
 using Hrot.IG.Windows;
 using Hrot.Presentation.Windows;
+using Hrot.Presentation.Facades;
 using System;
 
 namespace Hrot.IG
@@ -116,6 +117,14 @@ namespace Hrot.IG
                 () => _app.GetFdpRepoAdapter(),
                 () => _app.FdpInspectorState,
                 IgWindowColor.TitleBar));
+
+            // Wire component-editor reflector on the inspector panel.
+            var igPickBridge = _app.GetMapPickBridge();
+            _app.FdpEntityInspector.Reflector.EditWindowManager     = windowManager;
+            _app.FdpEntityInspector.Reflector.EditSessionGetter     = () => _app.GetFdpRepoAdapter();
+            _app.FdpEntityInspector.Reflector.EditOwningPerspective = "IG";
+            _app.FdpEntityInspector.Reflector.EditPickerContext     = igPickBridge;
+
             _app.FdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
             {
                 builder.AddItem("Inspect...", () =>
@@ -133,11 +142,16 @@ namespace Hrot.IG
                         ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
                         : $"Watch Entity [{entity.Index}, v{entity.Generation}]";
                     var id = $"ig_watch_{entity.Index}_{entity.Generation}_{Guid.NewGuid()}";
+                    var watchPanel = new EntityWatchPanel(entity);
+                    watchPanel.Reflector.EditWindowManager     = windowManager;
+                    watchPanel.Reflector.EditSessionGetter     = () => session;
+                    watchPanel.Reflector.EditOwningPerspective = "IG";
+                    watchPanel.Reflector.EditPickerContext     = igPickBridge;
                     windowManager.RegisterWindow(new FdpEntityWatchWindow(
                         id,
                         title,
                         "IG",
-                        new EntityWatchPanel(entity),
+                        watchPanel,
                         () => session,
                         TitleBarColor));
                 });

@@ -29,6 +29,8 @@ using Hrot.Common.Scenario;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Presentation.Windows;
+using Hrot.Presentation.Facades;
+using Hrot.UI.Common.Facades;
 using Hrot.SimHost;
 using ImGuiNET;
 using Raylib_cs;
@@ -563,6 +565,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     {
         if (_headless) return;
 
+        // Create a map-pick bridge so component fields tagged [MapPickable] can be edited.
+        CanvasMapPickAdapter? cgfCanvasAdapter = _canvas != null && _context?.World != null
+            ? new CanvasMapPickAdapter(_canvas, _context.World)
+            : null;
+        MapPickServiceBridge? cgfPickBridge = cgfCanvasAdapter != null
+            ? new MapPickServiceBridge(cgfCanvasAdapter, _context!.World)
+            : null;
+
         _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
         {
             builder.AddItem("Inspect...", () =>
@@ -580,11 +590,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
                     : $"Watch Entity [{entity.Index}, v{entity.Generation}]";
                 var id = $"cgf_watch_{entity.Index}_{entity.Generation}_{System.Guid.NewGuid()}";
+                var watchPanel = new Fdp.Presentation.Panels.EntityWatchPanel(entity);
+                watchPanel.Reflector.EditWindowManager     = windowManager;
+                watchPanel.Reflector.EditSessionGetter     = () => session;
+                watchPanel.Reflector.EditOwningPerspective = "CGF";
+                watchPanel.Reflector.EditPickerContext     = cgfPickBridge;
                 windowManager.RegisterWindow(new FdpEntityWatchWindow(
                     id,
                     title,
                     "CGF",
-                    new Fdp.Presentation.Panels.EntityWatchPanel(entity),
+                    watchPanel,
                     () => session,
                     TitleBarColor));
             });
@@ -596,6 +611,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             () => _fdpRepoAdapter,
             () => _fdpInspectorState,
             TitleBarColor));
+
+        // Wire component-editor reflector on the inspector panel.
+        _fdpEntityInspector.Reflector.EditWindowManager     = windowManager;
+        _fdpEntityInspector.Reflector.EditSessionGetter     = () => _fdpRepoAdapter;
+        _fdpEntityInspector.Reflector.EditOwningPerspective = "CGF";
+        _fdpEntityInspector.Reflector.EditPickerContext     = cgfPickBridge;
 
         windowManager.RegisterWindow(new FdpEventBrowserWindow(
             "cgf_fdp_events", "CGF Event Browser", "CGF",
