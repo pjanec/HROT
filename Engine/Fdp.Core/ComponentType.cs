@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Fdp.Core
 {
@@ -144,6 +145,12 @@ namespace Fdp.Core
                         $"Add [ComponentId(GlobalComponentIds.YourComponent)] to '{type.FullName}' " +
                         $"and register the constant in GlobalComponentIds.cs.");
                 }
+
+                if (type.IsValueType && !type.IsEnum)
+                {
+                    ValidateUnmanagedLayout(type);
+                }
+
                 _typeToId[type] = id;
                 _idToType[id] = type;
                 _isSnapshotable[id] = true;  // Default: snapshotable
@@ -396,6 +403,33 @@ namespace Fdp.Core
             lock (_lock)
             {
                 return _idToType.Keys.ToArray();
+            }
+        }
+
+        private static void ValidateUnmanagedLayout(Type type)
+        {
+            var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+            foreach (var field in fields)
+            {
+                if (field.FieldType != typeof(bool))
+                    continue;
+
+                var marshalAs = field.GetCustomAttribute<MarshalAsAttribute>();
+                if (marshalAs != null && marshalAs.Value == UnmanagedType.I1)
+                    continue;
+
+                // CRITICAL ECS MEMORY ALIGNMENT:
+                // By default, the .NET interop marshaller assumes a C# bool is a 4-byte Win32 BOOL, 
+                // whereas the CLR's internal managed memory model (Unsafe.SizeOf<T>) treats it as 1 byte.
+                // If this attribute is omitted, tools that dynamically evaluate physical layout using 
+                // Marshal.OffsetOf()—such as the zero-allocation StructEdit memory slicer or the 
+                // ComponentLayoutHasher for the Flight Recorder—will calculate incorrect byte offsets 
+                // for all subsequent fields. This layout rupture leads to instant ArgumentOutOfRangeExceptions 
+                // in the UI and silent memory corruption in binary serialization schemas. 
+                // Enforcing UnmanagedType.I1 guarantees the interop layout and managed layout are mathematically identical.
+                throw new InvalidOperationException(
+                    $"CRITICAL ECS LAYOUT ERROR: The unmanaged component '{type.FullName}' contains a boolean field '{field.Name}' without an explicit 1-byte layout contract. You must decorate this field with [MarshalAs(UnmanagedType.I1)] to prevent memory alignment corruption in the Flight Recorder and StructEdit buffers.");
             }
         }
     }
