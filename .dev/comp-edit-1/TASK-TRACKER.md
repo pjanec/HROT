@@ -30,8 +30,8 @@ editor from the application's map and entity-selection services.
 **Goal:** Implement the floating editor window and its ImGui renderer inside Fdp.Presentation.
 
 - [x] **TASK-CE06** Add StructEdit Project References [details](./TASK-DETAIL.md#task-ce06-add-structedit-project-references)
-- [ ] **TASK-CE07** ComponentEditDrawer [details](./TASK-DETAIL.md#task-ce07-componenteditdrawer)
-- [ ] **TASK-CE08** ComponentEditWindow [details](./TASK-DETAIL.md#task-ce08-componenteditwindow)
+- [x] **TASK-CE07** ComponentEditDrawer [details](./TASK-DETAIL.md#task-ce07-componenteditdrawer)
+- [x] **TASK-CE08** ComponentEditWindow [details](./TASK-DETAIL.md#task-ce08-componenteditwindow)
 
 ---
 
