@@ -9,9 +9,9 @@
 **Goal:** Extend the StructEdit library to generate a complete EditDocument tree including array
 element nodes, and surface domain-specific attributes through metadata.
 
-- [ ] **TASK-CE01** NestedMemberBinding [details](./TASK-DETAIL.md#task-ce01-nestedmemberbinding)
-- [ ] **TASK-CE02** EditNodeMetadata.CustomAttributes [details](./TASK-DETAIL.md#task-ce02-editnodemetadatacustomattributes)
-- [ ] **TASK-CE03** Array Element Node Generation [details](./TASK-DETAIL.md#task-ce03-array-element-node-generation)
+- [x] **TASK-CE01** NestedMemberBinding [details](./TASK-DETAIL.md#task-ce01-nestedmemberbinding)
+- [x] **TASK-CE02** EditNodeMetadata.CustomAttributes [details](./TASK-DETAIL.md#task-ce02-editnodemetadatacustomattributes)
+- [x] **TASK-CE03** Array Element Node Generation [details](./TASK-DETAIL.md#task-ce03-array-element-node-generation)
 
 ---
 
