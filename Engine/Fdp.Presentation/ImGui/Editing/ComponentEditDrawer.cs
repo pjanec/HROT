@@ -320,22 +320,55 @@ internal sealed class ComponentEditDrawer
 
         if (type.IsEnum)
         {
+            bool isFlags = Attribute.IsDefined(type, typeof(FlagsAttribute));
             string[] names  = Enum.GetNames(type);
             Array    values = Enum.GetValues(type);
 
-            int current = 0;
-            for (int i = 0; i < values.Length; i++)
+            if (isFlags)
             {
-                if (Equals(values.GetValue(i), value))
+                ulong currentMask = Convert.ToUInt64(value ?? Activator.CreateInstance(type)!);
+                bool changed = false;
+
+                for (int i = 0; i < values.Length; i++)
                 {
-                    current = i;
-                    break;
+                    ulong flagValue = Convert.ToUInt64(values.GetValue(i)!);
+                    if (flagValue == 0) continue;
+
+                    bool hasFlag = (currentMask & flagValue) == flagValue;
+                    if (ImGuiApi.Checkbox($"{names[i]}##v_{i}", ref hasFlag))
+                    {
+                        if (hasFlag)
+                            currentMask |= flagValue;
+                        else
+                            currentMask &= ~flagValue;
+
+                        changed = true;
+                    }
                 }
+
+                if (changed)
+                {
+                    value = Enum.ToObject(type, currentMask);
+                    return true;
+                }
+                return false;
             }
 
-            bool ok = ImGuiApi.Combo("##v", ref current, names, names.Length);
-            if (ok) value = values.GetValue(current)!;
-            return ok;
+            {
+                int current = 0;
+                for (int i = 0; i < values.Length; i++)
+                {
+                    if (Equals(values.GetValue(i), value))
+                    {
+                        current = i;
+                        break;
+                    }
+                }
+
+                bool ok = ImGuiApi.Combo("##v", ref current, names, names.Length);
+                if (ok) value = values.GetValue(current)!;
+                return ok;
+            }
         }
 
         // Unsupported type — show read-only text.
