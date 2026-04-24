@@ -36,7 +36,7 @@ namespace Fdp.ModuleHost.Scheduling
             
             _systemsByPhase[phase].Add(system);
             _systemPhases[system] = phase;
-            _profileData[system] = new SystemProfileData(system.GetType().Name);
+            _profileData[system] = new SystemProfileData(GetSystemProfileName(system));
         }
         
         /// <summary>
@@ -119,7 +119,9 @@ namespace Fdp.ModuleHost.Scheduling
             {
                 // Ensure nested systems are profiled
                 if (!_profileData.ContainsKey(system))
-                    _profileData[system] = new SystemProfileData(system.GetType().Name);
+                    _profileData[system] = new SystemProfileData(GetSystemProfileName(system));
+                if (!_systemPhases.ContainsKey(system) && _systemPhases.TryGetValue(group, out var groupPhase))
+                    _systemPhases[system] = groupPhase;
                 
                 ExecuteSystem(system, view, deltaTime);
             }
@@ -140,6 +142,14 @@ namespace Fdp.ModuleHost.Scheduling
             }
             
             return attr.Phase;
+        }
+
+        private static string GetSystemProfileName(IEcsModuleSystem system)
+        {
+            if (system is IProfiledSystem profiled)
+                return profiled.ProfileName;
+
+            return system.GetType().Name;
         }
         
         private DependencyGraph BuildDependencyGraph(List<IEcsModuleSystem> systems)
@@ -278,12 +288,21 @@ namespace Fdp.ModuleHost.Scheduling
         public Dictionary<SystemPhase, List<SystemProfileData>> GetAllProfileData()
         {
             var result = new Dictionary<SystemPhase, List<SystemProfileData>>();
-            
-            foreach (var (phase, systems) in _sortedSystems)
+
+            foreach (var (system, profile) in _profileData)
             {
-                result[phase] = systems.Select(s => _profileData[s]).ToList();
+                if (!_systemPhases.TryGetValue(system, out var phase))
+                    continue;
+
+                if (!result.TryGetValue(phase, out var list))
+                {
+                    list = new List<SystemProfileData>();
+                    result[phase] = list;
+                }
+
+                list.Add(profile);
             }
-            
+
             return result;
         }
         
