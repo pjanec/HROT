@@ -111,7 +111,8 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                     var cb = new InlineArrayBinding((NativeStructEditBuffer)buffer, nativeOffset, elemType, elemSize, attr.Length);
                     binding = cb;
                     children = BuildArrayElements(buffer, jsonPath, cb, elemType, idAlloc,
-                        visited, providers, fieldEditors, context);
+                        visited, providers, fieldEditors, context,
+                        containerNativeOffset: nativeOffset, elementSize: elemSize);
                 }
                 break;
             }
@@ -146,7 +147,8 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                     }
 
                     children = BuildArrayElements(buffer, jsonPath, fixedBinding, fixedBinding.ElementType, idAlloc,
-                        visited, providers, fieldEditors, context);
+                        visited, providers, fieldEditors, context,
+                        containerNativeOffset: nativeOffset, elementSize: elemSize);
                 }
                 break;
             }
@@ -163,7 +165,8 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                         var cb = new DynamicArrayBinding(container, fieldBinding, elemType);
                         binding = cb;
                         children = BuildArrayElements(buffer, jsonPath, cb, elemType, idAlloc,
-                            visited, providers, fieldEditors, context);
+                            visited, providers, fieldEditors, context,
+                            containerNativeOffset: -1, elementSize: 0);
                     }
                 }
                 break;
@@ -251,7 +254,9 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         HashSet<Type> visited,
         IReadOnlyList<IBufferViewProvider> providers,
         IReadOnlyDictionary<Type, ICustomFieldEditor> fieldEditors,
-        EditContext? context)
+        EditContext? context,
+        int containerNativeOffset = -1,
+        int elementSize = 0)
     {
         int count = cb.Count;
         var result = new List<EditNode>(count);
@@ -260,8 +265,11 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
             var elemBinding = cb.GetElementBinding(i);
             var elemPath = $"{parentPath}[{i}]";
             var elemName = $"[{i}]";
+            int elemNativeOffset = containerNativeOffset >= 0
+                ? containerNativeOffset + (i * elementSize)
+                : -1;
             result.Add(BuildNode(buffer, elemPath, elemName, elemType,
-                nativeOffset: -1, fi: null, pi: null,
+                nativeOffset: elemNativeOffset, fi: null, pi: null,
                 idAlloc, visited, providers, fieldEditors, context,
                 explicitBinding: elemBinding,
                 parentBinding: null));
