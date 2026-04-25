@@ -38,7 +38,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var world    = TestWorldFactory.Create();
             var registry = new DoctrineRegistry();
             var sys      = new BTreeTickSystem(registry);
-            sys.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new DoctrineState
@@ -52,12 +51,11 @@ namespace Fdp.Toolkit.Behavior.Tests
             var stateBefore = world.GetComponent<BrainBTreeState>(e);
 
             // Act + Assert — must not throw, state must be unchanged.
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             var stateAfter = world.GetComponent<BrainBTreeState>(e);
             Assert.Equal(stateBefore.State.RunningNodeIndex, stateAfter.State.RunningNodeIndex);
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -90,7 +88,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
 
             var sys = new BTreeTickSystem(registry);
-            sys.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new DoctrineState
@@ -102,12 +99,11 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BrainBlackboard());
 
             // Act.
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             // Assert — tree was never ticked because BrainTier != BrainTierBTree.
             Assert.Equal(0, tickCount);
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -142,7 +138,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
 
             var sys = new BTreeTickSystem(registry);
-            sys.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new DoctrineState
@@ -155,14 +150,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new LocomotionChannel()); // BTree node writes here
 
             // Act.
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             // Assert — BTree node wrote the expected action into the channel.
             var channel = world.GetComponent<LocomotionChannel>(e);
             Assert.Equal(1, channel.ActiveAction);      // BTree wrote the action
             Assert.Equal(1u, channel.ActionInstanceId); // instance was stamped
 
-            sys.Dispose();
+
             world.Dispose();
         }
 
@@ -185,7 +180,6 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BTreeInterpreter = interpreter,
             });
             var sys = new BTreeTickSystem(registry);
-            sys.Create(world);
             return (registry, sys);
         }
 
@@ -201,7 +195,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BrainBTreeState());
             world.AddComponent(e, new BrainBlackboard());
 
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             // Events published by the system land in the write buffer; swap to read them.
             world.Bus.SwapBuffers();
@@ -218,7 +212,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.NotNull(found);
             Assert.Equal(NodeStatus.Success, found!.Value.Result);
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -234,7 +227,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BrainBTreeState());
             world.AddComponent(e, new BrainBlackboard());
 
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             world.Bus.SwapBuffers();
             var events = world.Bus.Read<DoctrineFinishedEvent>();
@@ -246,7 +239,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.NotNull(found);
             Assert.Equal(NodeStatus.Failure, found!.Value.Result);
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -262,7 +254,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BrainBTreeState());
             world.AddComponent(e, new BrainBlackboard());
 
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             world.Bus.SwapBuffers();
             var events = world.Bus.Read<DoctrineFinishedEvent>();
@@ -273,7 +265,6 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             Assert.False(anyForEntity);
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -292,14 +283,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BrainBlackboard());
 
             // Frame 1: expect event.
-            sys.Run();
+            sys.Execute(world, 0.016f);
             world.Bus.SwapBuffers();
             int frame1Count = 0;
             foreach (var evt in world.Bus.Read<DoctrineFinishedEvent>())
                 if (evt.Entity.Index == e.Index) frame1Count++;
 
             // Frame 2: same InstanceId — must NOT re-publish.
-            sys.Run();
+            sys.Execute(world, 0.016f);
             world.Bus.SwapBuffers();
             int frame2Count = 0;
             foreach (var evt in world.Bus.Read<DoctrineFinishedEvent>())
@@ -308,7 +299,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(1, frame1Count);
             Assert.Equal(0, frame2Count);
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -322,7 +312,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var dispatcher = new LocomotionDispatcherSystem();
             var spy        = new WritingSpyExecutor<LocomotionChannel>(); // writes Status = Running
             dispatcher.RegisterExecutor(1, spy);
-            dispatcher.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = 1, BrainTier = BehaviorConstants.BrainTierBTree, InstanceId = 1 });
@@ -335,7 +324,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
 
-            dispatcher.Run();
+            dispatcher.Execute(world, 0.016f);
 
             // No DoctrineFinishedEvent should appear on the bus.
             world.Bus.SwapBuffers();
@@ -345,7 +334,6 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             Assert.False(anyEvent);
 
-            dispatcher.Dispose();
             world.Dispose();
         }
 
@@ -369,17 +357,16 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BrainBlackboard());
 
             // Frame 1: entity processed, entry added to deduplication dictionary.
-            sys.Run();
+            sys.Execute(world, 0.016f);
             Assert.Equal(1, sys.TrackedEntityCount);
 
             // Destroy the entity — no longer in query.
             world.DestroyEntity(e);
 
             // Frame 2: entity absent from query → entry pruned from dictionary.
-            sys.Run();
+            sys.Execute(world, 0.016f);
             Assert.Equal(0, sys.TrackedEntityCount);
 
-            sys.Dispose();
             world.Dispose();
         }
     }

@@ -17,7 +17,6 @@ namespace CarKinem.Tests.Commands
             repo.RegisterEvent<CmdCreateFormation>();
             
             var system = new VehicleCommandSystem();
-            system.Create(repo);
             
             var leaderEntity = repo.CreateEntity();
             
@@ -36,7 +35,7 @@ namespace CarKinem.Tests.Commands
             });
             
             repo.Bus.SwapBuffers();
-            system.Run();
+            system.Execute(repo, 0.016f);
             
             // Verify roster
             Assert.True(repo.HasComponent<FormationRoster>(leaderEntity));
@@ -60,7 +59,6 @@ namespace CarKinem.Tests.Commands
             repo.RegisterEvent<CmdJoinFormation>();
             
             var system = new VehicleCommandSystem();
-            system.Create(repo);
             
             var leaderEntity = repo.CreateEntity();
             repo.AddComponent(leaderEntity, new VehicleState());
@@ -79,7 +77,7 @@ namespace CarKinem.Tests.Commands
             });
             
             repo.Bus.SwapBuffers();
-            system.Run();
+            system.Execute(repo, 0.016f);
             
             // Join formation
             repo.Bus.Publish(new CmdJoinFormation
@@ -90,7 +88,7 @@ namespace CarKinem.Tests.Commands
             });
             
             repo.Bus.SwapBuffers();
-            system.Run();
+            system.Execute(repo, 0.016f);
             
             // Verify follower
             Assert.True(repo.HasComponent<FormationMember>(followerEntity));

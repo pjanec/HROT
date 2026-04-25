@@ -24,12 +24,10 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             _world = TestWorldFactory.Create();
             _sys   = new HsmDamageBridgeSystem();
-            _sys.Create(_world);
         }
 
         public void Dispose()
         {
-            _sys.Dispose();
             _world.Dispose();
         }
 
@@ -70,7 +68,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e = CreateHsm128Entity(ActorCapabilities.CanMove | ActorCapabilities.CanShoot);
 
             // Tick 1: capabilities unchanged — no event should be enqueued.
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
             var brainAfterTick1 = _world.GetComponent<BrainHsm128>(e);
             Assert.Equal(0, GetQueueCount128(brainAfterTick1));
 
@@ -79,7 +77,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             caps.Capabilities &= ~ActorCapabilities.CanMove;
 
             // Tick 2: bridge detects the CanMove transition → must inject MobilityLost.
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
             var brainAfterTick2 = _world.GetComponent<BrainHsm128>(e);
             Assert.Equal(1, GetQueueCount128(brainAfterTick2));
 
@@ -107,7 +105,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // Entity starts without CanMove set; PreviousCapabilities also has no CanMove.
             var e = CreateHsm128Entity(ActorCapabilities.CanShoot); // CanMove NOT set
 
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var brain = _world.GetComponent<BrainHsm128>(e);
             Assert.Equal(0, GetQueueCount128(brain));
@@ -126,14 +124,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e = CreateHsm128Entity(ActorCapabilities.CanMove | ActorCapabilities.CanShoot);
 
             // Tick 1: both set — no event.
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             // Clear only CanShoot; CanMove stays.
             ref var caps = ref _world.GetComponentRW<ActorCapabilityState>(e);
             caps.Capabilities &= ~ActorCapabilities.CanShoot;
 
             // Tick 2: only CanShoot changed — no MobilityLost.
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var brain = _world.GetComponent<BrainHsm128>(e);
             Assert.Equal(0, GetQueueCount128(brain));
@@ -152,13 +150,13 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e = CreateHsm128Entity(initial);
 
             // Tick 1: no changes.
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
             var prev1 = _world.GetComponent<PreviousCapabilities>(e);
             var curr1 = _world.GetComponent<ActorCapabilityState>(e);
             Assert.Equal(curr1.Capabilities, prev1.Capabilities);
 
             // Tick 2: still no changes.
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
             var prev2 = _world.GetComponent<PreviousCapabilities>(e);
             var curr2 = _world.GetComponent<ActorCapabilityState>(e);
             Assert.Equal(curr2.Capabilities, prev2.Capabilities);

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fbt;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
@@ -21,9 +22,9 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// does not re-publish; the event is suppressed until the doctrine's
     /// <see cref="DoctrineState.InstanceId"/> changes (i.e. a new doctrine is assigned).
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateAfter(typeof(ChannelArbitrationSystem))]
-    public class BTreeTickSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    // [UpdateAfter(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in CognitiveRuntimeModule.
+    public class BTreeTickSystem : IEcsModuleSystem
     {
         private readonly DoctrineRegistry _registry;
 
@@ -50,9 +51,14 @@ namespace Fdp.Toolkit.Behavior.Systems
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            var q = World.Query()
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(BTreeTickSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            var q = repo.Query()
                 .With<DoctrineState>()
                 .With<BrainBTreeState>()
                 .With<BrainBlackboard>()
@@ -64,7 +70,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             {
                 _seenThisFrame.Add(entity.Index);
 
-                var doctrine = World.GetComponent<DoctrineState>(entity);
+                var doctrine = repo.GetComponent<DoctrineState>(entity);
 
                 // Only process BTree-tier entities.
                 if (doctrine.BrainTier != BehaviorConstants.BrainTierBTree)
@@ -81,15 +87,15 @@ namespace Fdp.Toolkit.Behavior.Systems
                     continue;
                 }
 
-                ref var btState    = ref World.GetComponentRW<BrainBTreeState>(entity);
-                ref var blackboard = ref World.GetComponentRW<BrainBlackboard>(entity);
+                ref var btState    = ref repo.GetComponentRW<BrainBTreeState>(entity);
+                ref var blackboard = ref repo.GetComponentRW<BrainBlackboard>(entity);
 
-                // Stack-allocate context — zero heap allocation.
+                // Stack-allocate context -- zero heap allocation.
                 var context = new BTreeContext
                 {
                     Self        = entity,
-                    World       = World,
-                    _deltaTime  = DeltaTime,
+                    World       = repo,
+                    _deltaTime  = deltaTime,
                     _floatParams = Array.Empty<float>(),
                     _intParams   = Array.Empty<int>(),
                 };
@@ -104,7 +110,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     if (!_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint prevInstanceId)
                         || prevInstanceId != doctrine.InstanceId)
                     {
-                        World.Bus.Publish(new DoctrineFinishedEvent
+                        repo.Bus.Publish(new DoctrineFinishedEvent
                         {
                             Entity = entity,
                             Result = rootResult

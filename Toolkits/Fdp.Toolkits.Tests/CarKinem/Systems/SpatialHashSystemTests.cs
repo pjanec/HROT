@@ -37,7 +37,6 @@ namespace CarKinem.Tests.Systems
             repo.RegisterComponent<PhysicsCollider>();
 
             var sys = new SpatialHashSystem();
-            sys.Create(repo);
 
             // Entity WITH collider — must be indexed.
             var collidable = repo.CreateEntity();
@@ -58,7 +57,7 @@ namespace CarKinem.Tests.Systems
             // Deliberately NOT adding PhysicsCollider.
 
             // Act
-            sys.Run();
+            sys.Execute(repo, 0.016f);
 
             // Assert: grid singleton exists.
             Assert.True(repo.HasSingleton<SpatialGridData>(),
@@ -76,7 +75,6 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(collidable, results[0].foundEntity);
 
             // Cleanup
-            sys.Dispose();
             repo.Dispose();
         }
     }

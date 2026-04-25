@@ -10,6 +10,7 @@ using CarKinem.Road;
 using CarKinem.Spatial;
 using CarKinem.Trajectory;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 
 namespace CarKinem.Systems
 {
@@ -17,16 +18,18 @@ namespace CarKinem.Systems
     /// Main vehicle physics system.
     /// Runs in parallel for all vehicles.
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateAfter(typeof(SpatialHashSystem))]
-    [UpdateAfter(typeof(FormationTargetSystem))]
-    public class CarKinematicsSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.PostSimulation)]
+    // [UpdateAfter(typeof(SpatialHashSystem))] -- ordering maintained by array position in GroundKinematicsModule.
+    // [UpdateAfter(typeof(FormationTargetSystem))] -- ordering maintained by array position in GroundKinematicsModule.
+    public class CarKinematicsSystem : IEcsModuleSystem
     {
         private readonly TrajectoryPoolManager _trajectoryPool;
         
         public CarKinematicsSystem(TrajectoryPoolManager trajectoryPool)
         {
             _trajectoryPool = trajectoryPool;
+            if (EnablePerformanceLogging)
+                _perfStopwatch = new System.Diagnostics.Stopwatch();
         }
 
         private System.Diagnostics.Stopwatch? _perfStopwatch;
@@ -40,33 +43,31 @@ namespace CarKinem.Systems
         /// </summary>
         public bool ForceSerial { get; set; } = false;
 
-        protected override void OnCreate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            base.OnCreate();
-            if (EnablePerformanceLogging)
-                _perfStopwatch = new System.Diagnostics.Stopwatch();
-        }
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(CarKinematicsSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-        protected override void OnUpdate()
-        {
             _perfStopwatch?.Restart();
 
-            float dt = DeltaTime;
+            float dt = deltaTime;
 
             // Read road network from ZoneEnvironmentData singleton (empty blob when no zone loaded).
-            // Never return early on absence — non-road vehicle physics must always run.
-            var roadNetwork = World.HasSingleton<ZoneEnvironmentData>()
-                ? World.GetSingleton<ZoneEnvironmentData>().RoadNetwork
-                : default; // empty blob — safe for non-road scenarios
+            // Never return early on absence -- non-road vehicle physics must always run.
+            var roadNetwork = repo.HasSingleton<ZoneEnvironmentData>()
+                ? repo.GetSingleton<ZoneEnvironmentData>().RoadNetwork
+                : default; // empty blob -- safe for non-road scenarios
             
             // Read spatial grid from singleton (Data-Oriented dependency)
-            if (!World.HasSingleton<SpatialGridData>()) return;
+            if (!repo.HasSingleton<SpatialGridData>()) return;
             
-            var gridData = World.GetSingleton<SpatialGridData>();
+            var gridData = repo.GetSingleton<SpatialGridData>();
             var spatialGrid = gridData.Grid;
             
-            // Get all vehicles (owned only — skip ghost entities to enforce split-authority)
-            var query = World.Query()
+            // Get all vehicles (owned only -- skip ghost entities to enforce split-authority)
+            var query = repo.Query()
                 .With<VehicleState>()
                 .With<SimTransform>()
                 .WithOwned<SimTransform>()
@@ -83,7 +84,7 @@ namespace CarKinem.Systems
                 // Zero-allocation standard iteration
                 foreach (var entity in query)
                 {
-                    UpdateVehicle(entity, dt, spatialGrid, roadNetwork);
+                    UpdateVehicle(repo, entity, dt, spatialGrid, roadNetwork);
                 }
             }
             else
@@ -91,7 +92,7 @@ namespace CarKinem.Systems
                 // Kernel optimized parallel execution
                 query.ForEachParallel(entity =>
                 {
-                    UpdateVehicle(entity, dt, spatialGrid, roadNetwork);
+                    UpdateVehicle(repo, entity, dt, spatialGrid, roadNetwork);
                 });
             }
 
@@ -113,14 +114,14 @@ namespace CarKinem.Systems
         }
         
         // THREAD-SAFE: Method operates on unique entity and uses read-only shared data
-        private void UpdateVehicle(Entity entity, float dt, SpatialHashGrid spatialGrid,
+        private void UpdateVehicle(EntityRepository repo, Entity entity, float dt, SpatialHashGrid spatialGrid,
             RoadNetworkBlob roadNetwork)
         {
-            var state = World.GetComponent<VehicleState>(entity);
-            var tf = World.GetComponent<SimTransform>(entity);
-            var vel = World.GetComponent<SimVelocity>(entity);
-            var @params = World.GetComponent<VehicleParams>(entity);
-            var nav = World.GetComponent<NavState>(entity);
+            var state = repo.GetComponent<VehicleState>(entity);
+            var tf = repo.GetComponent<SimTransform>(entity);
+            var vel = repo.GetComponent<SimVelocity>(entity);
+            var @params = repo.GetComponent<VehicleParams>(entity);
+            var nav = repo.GetComponent<NavState>(entity);
             
             // Input conversion (bridge from SimTransform to 2D locals)
             Vector2 pos2D = new Vector2(tf.Position.X, tf.Position.Y);
@@ -148,7 +149,7 @@ namespace CarKinem.Systems
                     break;
                     
                 case KinematicsMode.Formation:
-                    (targetPos, targetHeading, targetSpeed) = GetFormationTarget(entity);
+                    (targetPos, targetHeading, targetSpeed) = GetFormationTarget(repo, entity);
 
                     // Drive towards the slot if not reached
                     // This prevents "parallel driving" where vehicle maintains offset but never closes the gap
@@ -197,7 +198,7 @@ namespace CarKinem.Systems
             // Apply collision avoidance
             Vector2 avoidanceVelocity = ApplyCollisionAvoidance(
                 desiredVelocity, pos2D, fwd2D * state.Speed, 
-                spatialGrid, @params);
+                spatialGrid, @params, repo);
             
             // Pure Pursuit steering
             float steerAngle = PurePursuitController.CalculateSteering(
@@ -254,10 +255,10 @@ namespace CarKinem.Systems
             vel.Angular = new Vector3(0, 0, (state.Speed / @params.WheelBase) * MathF.Tan(steerAngle)); // Yaw rate around Z
 
             // Write back state
-            World.SetComponent(entity, state);
-            World.SetComponent(entity, nav);
-            World.SetComponent(entity, tf);
-            World.SetComponent(entity, vel);
+            repo.SetComponent(entity, state);
+            repo.SetComponent(entity, nav);
+            repo.SetComponent(entity, tf);
+            repo.SetComponent(entity, vel);
         }
         
         private (Vector2 pos, Vector2 heading, float speed) SampleCustomTrajectory(ref NavState nav)
@@ -283,23 +284,23 @@ namespace CarKinem.Systems
             return (pos, tangent, speed);
         }
         
-        private (Vector2 pos, Vector2 heading, float speed) GetFormationTarget(Entity entity)
+        private (Vector2 pos, Vector2 heading, float speed) GetFormationTarget(EntityRepository repo, Entity entity)
         {
-            if (!World.HasComponent<FormationTarget>(entity))
+            if (!repo.HasComponent<FormationTarget>(entity))
             {
-                var tf = World.GetComponent<SimTransform>(entity);
+                var tf = repo.GetComponent<SimTransform>(entity);
                 var pos2D = new Vector2(tf.Position.X, tf.Position.Y);
                 var fwd3D = Vector3.Transform(Vector3.UnitX, tf.Rotation);
                 return (pos2D, new Vector2(fwd3D.X, fwd3D.Y), 0f);
             }
             
-            var target = World.GetComponent<FormationTarget>(entity);
+            var target = repo.GetComponent<FormationTarget>(entity);
             return (target.TargetPosition, target.TargetHeading, target.TargetSpeed);
         }
         
         // THREAD-SAFE: Read-only access to neighbors, writes only to local stack vars
         private Vector2 ApplyCollisionAvoidance(Vector2 preferredVel, Vector2 selfPos, 
-            Vector2 selfVel, SpatialHashGrid spatialGrid, VehicleParams @params)
+            Vector2 selfVel, SpatialHashGrid spatialGrid, VehicleParams @params, EntityRepository repo)
         {
             // Query neighbors within avoidance radius
             Span<(Entity, Vector2)> neighbors = stackalloc (Entity, Vector2)[32];
@@ -316,12 +317,12 @@ namespace CarKinem.Systems
                 
                 // neighborEntity is a full Entity handle (Index + Generation) — no reconstruction needed.
                 // Check if entity is valid and has SimVelocity (universal)
-                if (!neighborEntity.IsNull && World.HasComponent<SimVelocity>(neighborEntity))
+                if (!neighborEntity.IsNull && repo.HasComponent<SimVelocity>(neighborEntity))
                 {
-                    var neighborVel3D = World.GetComponent<SimVelocity>(neighborEntity).Linear;
+                    var neighborVel3D = repo.GetComponent<SimVelocity>(neighborEntity).Linear;
                     neighborData[i] = (pos, new Vector2(neighborVel3D.X, neighborVel3D.Y));
                 }
-                else if (!neighborEntity.IsNull && World.HasComponent<VehicleState>(neighborEntity))
+                else if (!neighborEntity.IsNull && repo.HasComponent<VehicleState>(neighborEntity))
                 {
                     // Fallback for legacy (should not happen after migration) but keeping logic just in case
                     // But VehicleState no longer has Forward/Speed combined vector easily available?

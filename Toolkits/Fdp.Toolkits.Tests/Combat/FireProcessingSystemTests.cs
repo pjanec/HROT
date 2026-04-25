@@ -35,12 +35,10 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.RegisterEvent<WeaponFireNotification>();
 
             _sys = new FireProcessingSystem();
-            _sys.Create(_world);
         }
 
         public void Dispose()
         {
-            _sys.Dispose();
             _world.Dispose();
         }
 
@@ -97,7 +95,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var target     = SpawnTarget(new Vector3(20f, 20f, 0f));
 
             PublishIntent(shooter, target);
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var q = _world.Query().With<BallisticProjectile>().Build();
             int bulletCount = 0;
@@ -128,7 +126,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var target  = SpawnTarget(new Vector3(10f, 0f, 0f));
 
             PublishIntent(shooter, target);
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             // Notifications are published to the write buffer; swap to expose them.
             _world.Bus.SwapBuffers();
@@ -156,7 +154,7 @@ namespace Fdp.Toolkit.Combat.Tests
             PublishIntent(shooter, target);
             _world.DestroyEntity(shooter);
 
-            var ex = Record.Exception(() => _sys.Run());
+            var ex = Record.Exception(() => _sys.Execute(_world, 0.016f));
             Assert.Null(ex);
 
             var q = _world.Query().With<BallisticProjectile>().Build();
@@ -176,7 +174,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             PublishIntent(shooter, target);
             _world.DestroyEntity(target);
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var q = _world.Query().With<BallisticProjectile>().Build();
             int bulletCount = 0;
@@ -198,7 +196,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var target  = SpawnTarget(new Vector3(10f, 0f, 0f));
 
             PublishIntent(shooter, target);
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var q = _world.Query().With<SimVelocity>().With<BallisticProjectile>().Build();
             foreach (var e in q)
@@ -235,7 +233,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var targetEntity  = SpawnTarget(new Vector3(10f, 0f, 0f));
 
             PublishIntent(shooterEntity, targetEntity);
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
             _world.Bus.SwapBuffers();
 
             var notifications = _world.Bus.Read<WeaponFireNotification>();
@@ -275,7 +273,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var target  = SpawnTarget(new Vector3(10f, 0f, 0f));
 
             PublishIntent(shooter, target);
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var q = _world.Query().With<PhysicsCollider>().With<BallisticProjectile>().Build();
             foreach (var e in q)
@@ -301,7 +299,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var target  = SpawnTarget(new Vector3(10f, 0f, 0f));
 
             PublishIntent(shooter, target);
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var q = _world.Query().With<BallisticProjectile>().Build();
             int bulletCount = 0;
@@ -329,7 +327,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var target = SpawnTarget(new Vector3(10f, 0f, 0f));
 
             PublishIntent(entity, target);
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var q = _world.Query().With<BallisticProjectile>().Build();
             int bulletCount = 0;

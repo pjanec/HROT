@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Physics.Systems;
 using Fdp.ModuleHost.Abstractions;
@@ -12,9 +13,10 @@ namespace Fdp.Toolkit.Physics.Modules
     /// <para><b>Execution model:</b> <see cref="ExecutionPolicy.Synchronous"/> — both systems
     /// run on the main simulation thread in the <c>InputSystemGroup</c>.</para>
     ///
-    /// <para><b>Registration:</b> Because both systems extend <see cref="ComponentSystem"/>
-    /// (not <see cref="IEcsModuleSystem"/>), they must be registered into a <see cref="SystemGroup"/>
-    /// via <see cref="RegisterSystems(SystemGroup)"/>.  The <see cref="IEcsModule"/> overload
+    /// <para><b>Registration:</b> Exposes <see cref="InputSystems"/> — an
+    /// <c>IReadOnlyList&lt;IEcsModuleSystem&gt;</c> containing <see cref="RaycastSolverSystem"/>
+    /// and <see cref="HitResolutionSystem"/> — for wiring into a <see cref="SystemGroup"/> or
+    /// the modern kernel.  The <see cref="IEcsModule"/> overload
     /// <see cref="RegisterSystems(ISystemRegistry)"/> is a no-op and is provided only for
     /// API compliance.</para>
     /// </summary>
@@ -29,25 +31,18 @@ namespace Fdp.Toolkit.Physics.Modules
         private readonly RaycastSolverSystem  _raycastSolver  = new();
         private readonly HitResolutionSystem  _hitResolution  = new();
 
-        /// <summary>
-        /// Registers <see cref="RaycastSolverSystem"/> and <see cref="HitResolutionSystem"/>
-        /// into the supplied <see cref="SystemGroup"/>.
-        /// </summary>
-        /// <param name="inputGroup">
-        /// The input-phase system group (both systems carry
-        /// <c>[UpdateInGroup(typeof(InputSystemGroup))]</c>).
-        /// </param>
-        public void RegisterSystems(SystemGroup inputGroup)
+        /// <summary>Systems that run in the Input phase.</summary>
+        public IReadOnlyList<IEcsModuleSystem> InputSystems { get; }
+
+        public PhysicsQueryModule()
         {
-            inputGroup.AddSystem(_raycastSolver);
-            inputGroup.AddSystem(_hitResolution);
+            InputSystems = new IEcsModuleSystem[] { _raycastSolver, _hitResolution };
         }
 
         /// <inheritdoc/>
         /// <remarks>
-        /// No-op — both systems are <see cref="ComponentSystem"/> subclasses and cannot be
-        /// registered via <see cref="ISystemRegistry"/>.  Use
-        /// <see cref="RegisterSystems(SystemGroup)"/> instead.
+        /// No-op — use <see cref="InputSystems"/> to wire the systems into a
+        /// <see cref="SystemGroup"/> or the modern kernel.
         /// </remarks>
         public void RegisterSystems(ISystemRegistry registry) { }
 

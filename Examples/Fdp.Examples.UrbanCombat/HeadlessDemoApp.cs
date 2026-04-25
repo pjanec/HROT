@@ -7,6 +7,7 @@ using Fdp.Examples.UrbanCombat.Setup;
 using Fdp.Examples.UrbanCombat.Systems;
 using Fdp.Interfaces;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Tkb;
 using Fbt;
 using Fbt.Runtime;
@@ -25,6 +26,7 @@ using Fdp.Toolkit.Perception.Systems;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Systems;
 using Fdp.Toolkit.CarKinem.Systems;
+using System.Collections.Generic;
 
 namespace Fdp.Examples.UrbanCombat
 {
@@ -118,6 +120,11 @@ namespace Fdp.Examples.UrbanCombat
         private SimulationSystemGroup?      _simGroup;
         private PostSimulationSystemGroup?  _postSimGroup;
         private ExportSystemGroup?          _exportGroup;
+
+        // IEcsModuleSystem instances for converted systems (not added to SystemGroups).
+        private List<IEcsModuleSystem> _inputModuleSystems   = new();
+        private List<IEcsModuleSystem> _simModuleSystems     = new();
+        private List<IEcsModuleSystem> _postSimModuleSystems = new();
 
         // Physics module — retained for lifetime so native arrays stay valid;
         // Dispose() frees the persistent NativeArrays after the world is torn down.
@@ -214,8 +221,11 @@ namespace Fdp.Examples.UrbanCombat
                 World.Bus.SwapBuffers();
 
                 _inputGroup!.Run();
+                foreach (var sys in _inputModuleSystems) sys.Execute(World, Dt);
                 _simGroup!.Run();
+                foreach (var sys in _simModuleSystems) sys.Execute(World, Dt);
                 _postSimGroup!.Run();
+                foreach (var sys in _postSimModuleSystems) sys.Execute(World, Dt);
                 _exportGroup!.Run();
 
                 World.Tick();
@@ -318,43 +328,44 @@ namespace Fdp.Examples.UrbanCombat
             // ── Input group ─────────────────────────────────────────────────────────
             _inputGroup = new InputSystemGroup();
             _inputGroup.Create(World);
-            _inputGroup.AddSystem(new DoctrineIngressSystem(_doctrineRegistry));
-            _inputGroup.AddSystem(new FireProcessingSystem());
-            _inputGroup.AddSystem(new RaycastSolverSystem());
-            _inputGroup.AddSystem(new HitResolutionSystem());
+            // These systems are now IEcsModuleSystem and executed via _inputModuleSystems.
+            _inputModuleSystems.Add(new DoctrineIngressSystem(_doctrineRegistry));
+            _inputModuleSystems.Add(new FireProcessingSystem());
+            _inputModuleSystems.Add(new RaycastSolverSystem());
+            _inputModuleSystems.Add(new HitResolutionSystem());
 
             // ── Simulation group ────────────────────────────────────────────────────
             _simGroup = new SimulationSystemGroup();
             _simGroup.Create(World);
-            _simGroup.AddSystem(new MissionDirectorSystem());
+            _simModuleSystems.Add(new MissionDirectorSystem());
             _simGroup.AddSystem(new TrafficBrainSystem());
-            _simGroup.AddSystem(new ChannelArbitrationSystem());
-            _simGroup.AddSystem(new BTreeTickSystem(_doctrineRegistry));
-            _simGroup.AddSystem(new HsmTickSystem<BrainHsm128>(_doctrineRegistry));
+            _simModuleSystems.Add(new ChannelArbitrationSystem());
+            _simModuleSystems.Add(new BTreeTickSystem(_doctrineRegistry));
+            _simModuleSystems.Add(new HsmTickSystem<BrainHsm128>(_doctrineRegistry));
             _simGroup.AddSystem(new DamageSystem());
-            _simGroup.AddSystem(new HsmDamageBridgeSystem());
+            _simModuleSystems.Add(new HsmDamageBridgeSystem());
             _simGroup.AddSystem(new AudioPerceptionSystem());
 
             var weaponSys = new WeaponDispatcherSystem();
             weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor());
-            _simGroup.AddSystem(weaponSys);
+            _simModuleSystems.Add(weaponSys);
 
             var interactSys = new InteractionDispatcherSystem();
             interactSys.RegisterExecutor(3, new EjectPassengersExecutor());
-            _simGroup.AddSystem(interactSys);
+            _simModuleSystems.Add(interactSys);
 
-            _simGroup.AddSystem(new LocomotionDispatcherSystem());
+            _simModuleSystems.Add(new LocomotionDispatcherSystem());
 
             // SpatialHashSystem and CarKinematicsSystem are both [UpdateInGroup(SimulationSystemGroup)].
             // CarKinematicsSystem is [UpdateAfter(SpatialHashSystem)] — topological sort handles order.
-            _simGroup.AddSystem(new SpatialHashSystem());
-            _simGroup.AddSystem(new CarKinematicsSystem(_trajectoryPool));
+            _simModuleSystems.Add(new SpatialHashSystem());
+            _simModuleSystems.Add(new CarKinematicsSystem(_trajectoryPool));
 
             // ── PostSimulation group ─────────────────────────────────────────────────
             _postSimGroup = new PostSimulationSystemGroup();
             _postSimGroup.Create(World);
-            _postSimGroup.AddSystem(new LinearKinematicsSystem());
-            _postSimGroup.AddSystem(new BallisticsSystem());
+            _postSimModuleSystems.Add(new LinearKinematicsSystem());
+            _postSimModuleSystems.Add(new BallisticsSystem());
 
             // ── Export group ─────────────────────────────────────────────────────────
             _exportGroup = new ExportSystemGroup();

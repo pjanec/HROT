@@ -21,7 +21,6 @@ namespace CarKinem.Tests.Commands
             repo.RegisterEvent<CmdSpawnVehicle>();
             
             var system = new VehicleCommandSystem();
-            system.Create(repo);
             
             // Pre-allocate entity
             var entity = repo.CreateEntity();
@@ -40,7 +39,7 @@ namespace CarKinem.Tests.Commands
             
             // Process command
             repo.Bus.SwapBuffers();
-            system.Run();
+            system.Execute(repo, 0.016f);
             
             // Verify components
             Assert.True(repo.HasComponent<VehicleState>(entity));
@@ -73,7 +72,6 @@ namespace CarKinem.Tests.Commands
             repo.RegisterEvent<CmdSpawnVehicle>();
             
             var system = new VehicleCommandSystem();
-            system.Create(repo);
             
             // Create and destroy entity
             var entity = repo.CreateEntity();
@@ -89,7 +87,7 @@ namespace CarKinem.Tests.Commands
             });
             
             repo.Bus.SwapBuffers();
-            system.Run();
+            system.Execute(repo, 0.016f);
             
             // Should not crash, command ignored
             Assert.False(repo.IsAlive(entity));

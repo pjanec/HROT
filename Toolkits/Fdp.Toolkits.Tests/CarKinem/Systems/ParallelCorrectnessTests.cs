@@ -35,9 +35,6 @@ namespace CarKinem.Tests.Systems
             var spatialSystem = new SpatialHashSystem();
             var kinematicsSystem = new CarKinematicsSystem(trajectoryPool);
             
-            spatialSystem.Create(repo);
-            kinematicsSystem.Create(repo);
-            
             int count = 100;
             var entities = new Entity[count];
             
@@ -59,8 +56,8 @@ namespace CarKinem.Tests.Systems
             }
             
             // Run
-            spatialSystem.Run();
-            kinematicsSystem.Run();
+            spatialSystem.Execute(repo, 0.016f);
+            kinematicsSystem.Execute(repo, 0.016f);
             
             // Verify
             for (int i = 0; i < count; i++)
@@ -71,8 +68,6 @@ namespace CarKinem.Tests.Systems
                 Assert.Equal(i * 5f, tf.Position.X, precision: 2);
             }
             
-            spatialSystem.Dispose();
-            kinematicsSystem.Dispose();
             roadNetwork.Dispose();
             trajectoryPool.Dispose();
             repo.Dispose();

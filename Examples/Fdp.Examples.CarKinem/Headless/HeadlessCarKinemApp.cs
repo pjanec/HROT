@@ -70,12 +70,6 @@ namespace Fdp.Examples.CarKinem.Headless
             _commandSystem = new VehicleCommandSystem();
             _kinematicsSystem = new CarKinematicsSystem(_trajectoryPool);
             
-            // Initialize Systems
-            _spatialSystem.Create(Repository);
-            _formationSystem.Create(Repository);
-            _commandSystem.Create(Repository);
-            _kinematicsSystem.Create(Repository);
-            
             // Time Setup
             var timeConfig = new TimeControllerConfig { Role = TimeRole.Standalone };
             ContinuousTime = TimeControllerFactory.Create(Repository.Bus, timeConfig);
@@ -151,10 +145,11 @@ namespace Fdp.Examples.CarKinem.Headless
                  // Normal Logic
                  Kernel.Update();
                  
-                 _spatialSystem.Run();
-                 _formationSystem.Run();
-                 _commandSystem.Run();
-                 _kinematicsSystem.Run();
+                 var dt = Repository.GetSingleton<GlobalTime>().DeltaTime;
+                 _spatialSystem.Execute(Repository, dt);
+                 _formationSystem.Execute(Repository, dt);
+                 _commandSystem.Execute(Repository, dt);
+                 _kinematicsSystem.Execute(Repository, dt);
                  
                  _scenarioManager.Update();
                  
@@ -223,8 +218,6 @@ namespace Fdp.Examples.CarKinem.Headless
             StopPlayback();
             Kernel?.Dispose();
             Repository?.Dispose();
-            _spatialSystem?.Dispose();
-            _kinematicsSystem?.Dispose();
             
             // Dispose road
             if (_roadNetwork.Nodes.IsCreated) _roadNetwork.Dispose();

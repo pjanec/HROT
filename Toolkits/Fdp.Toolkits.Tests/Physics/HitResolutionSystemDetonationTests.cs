@@ -33,12 +33,10 @@ namespace Fdp.Toolkit.Physics.Tests
 
             // PACK-P003: no-arg constructor — no NetworkEntityMap needed.
             _sys = new HitResolutionSystem();
-            _sys.Create(_world);
         }
 
         public void Dispose()
         {
-            _sys.Dispose();
             PhysicsTestWorldFactory.DisposeBatch(_world);
         }
 
@@ -80,7 +78,7 @@ namespace Fdp.Toolkit.Physics.Tests
             batch.Count = 1;
 
             // Act
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
             _world.Bus.SwapBuffers();
 
             // Assert — HitEvent still published
@@ -134,7 +132,7 @@ namespace Fdp.Toolkit.Physics.Tests
             };
             batch.Count = 1;
 
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
             _world.Bus.SwapBuffers();
 
             var detonations = _world.Bus.Read<DetonationNotification>();
@@ -174,7 +172,7 @@ namespace Fdp.Toolkit.Physics.Tests
 
             var ex = Record.Exception(() =>
             {
-                _sys.Run();
+                _sys.Execute(_world, 0.016f);
                 _world.Bus.SwapBuffers();
             });
             Assert.Null(ex);

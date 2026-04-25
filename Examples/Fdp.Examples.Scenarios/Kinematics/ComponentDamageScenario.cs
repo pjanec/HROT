@@ -104,11 +104,6 @@ namespace Fdp.Examples.Scenarios.Kinematics
             var hsmBridge        = new HsmDamageBridgeSystem();
             var locoKillOnDamage = new LocomotionClearOnMobilityKillSystem();
 
-            damageCalc.Create(world);
-            healthApply.Create(world);
-            hsmBridge.Create(world);
-            locoKillOnDamage.Create(world);
-
             kernel.RegisterModule(new DirectSystemsModule(
                 "ComponentDamageModule",
                 damageCalc, healthApply, hsmBridge, locoKillOnDamage));
@@ -264,14 +259,14 @@ namespace Fdp.Examples.Scenarios.Kinematics
 
         private sealed class DirectSystemsModule : IEcsModule
         {
-            private readonly ComponentSystem[] _systems;
+            private readonly IEcsModuleSystem[] _systems;
 
             public string Name { get; }
-            public ExecutionPolicy Policy     => ExecutionPolicy.Synchronous();
+            public ExecutionPolicy Policy              => ExecutionPolicy.Synchronous();
             public IReadOnlyList<Type>? WatchComponents => null;
             public IReadOnlyList<Type>? WatchEvents     => null;
 
-            public DirectSystemsModule(string name, params ComponentSystem[] systems)
+            public DirectSystemsModule(string name, params IEcsModuleSystem[] systems)
             {
                 Name     = name;
                 _systems = systems;
@@ -282,7 +277,7 @@ namespace Fdp.Examples.Scenarios.Kinematics
             public void Tick(ISimulationView view, float deltaTime)
             {
                 foreach (var sys in _systems)
-                    sys.Run();
+                    sys.Execute(view, deltaTime);
             }
 
             public IReadOnlyList<Type>? GetRequiredComponents() => null;
@@ -296,23 +291,25 @@ namespace Fdp.Examples.Scenarios.Kinematics
         /// to a MobilityLost event without requiring a full HSM state-machine definition.
         /// Must run after <see cref="HsmDamageBridgeSystem"/>.
         /// </summary>
-        [UpdateInGroup(typeof(SimulationSystemGroup))]
-        [UpdateAfter(typeof(HsmDamageBridgeSystem))]
-        private sealed class LocomotionClearOnMobilityKillSystem : ComponentSystem
+        private sealed class LocomotionClearOnMobilityKillSystem : IEcsModuleSystem
         {
-            protected override void OnUpdate()
+            public void Execute(ISimulationView view, float deltaTime)
             {
-                var q = World.Query()
+                if (view is not EntityRepository repo)
+                    throw new InvalidOperationException(
+                        $"{nameof(LocomotionClearOnMobilityKillSystem)} requires direct EntityRepository access.");
+
+                var q = repo.Query()
                     .With<ActorCapabilityState>()
                     .With<LocomotionChannel>()
                     .Build();
 
                 foreach (var entity in q)
                 {
-                    var caps = World.GetComponent<ActorCapabilityState>(entity);
+                    var caps = repo.GetComponent<ActorCapabilityState>(entity);
                     if ((caps.Capabilities & ActorCapabilities.CanMove) != 0) continue;
 
-                    ref var loco = ref World.GetComponentRW<LocomotionChannel>(entity);
+                    ref var loco = ref repo.GetComponentRW<LocomotionChannel>(entity);
                     loco.ActiveAction = 0;
                     loco.Status       = NodeStatus.Failure;
                 }

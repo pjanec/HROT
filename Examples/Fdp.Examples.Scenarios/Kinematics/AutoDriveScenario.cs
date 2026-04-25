@@ -94,9 +94,6 @@ namespace Fdp.Examples.Scenarios.Kinematics
                 ForceSerial = true   // deterministic: no parallel partitioning in CI
             };
 
-            spatialHash.Create(world);
-            kinematics.Create(world);
-
             kernel.RegisterModule(new DirectSystemsModule("AutoDriveModule", spatialHash, kinematics));
 
             // ── Entity spawning ───────────────────────────────────────────────
@@ -246,14 +243,14 @@ namespace Fdp.Examples.Scenarios.Kinematics
         /// </summary>
         private sealed class DirectSystemsModule : IEcsModule
         {
-            private readonly ComponentSystem[] _systems;
+            private readonly IEcsModuleSystem[] _systems;
 
             public string Name { get; }
             public ExecutionPolicy Policy     => ExecutionPolicy.Synchronous();
             public IReadOnlyList<Type>? WatchComponents => null;
             public IReadOnlyList<Type>? WatchEvents     => null;
 
-            public DirectSystemsModule(string name, params ComponentSystem[] systems)
+            public DirectSystemsModule(string name, params IEcsModuleSystem[] systems)
             {
                 Name     = name;
                 _systems = systems;
@@ -263,10 +260,8 @@ namespace Fdp.Examples.Scenarios.Kinematics
 
             public void Tick(ISimulationView view, float deltaTime)
             {
-                // Systems were Create()'d with the live EntityRepository; Run() uses
-                // the same stored World reference — view is the same object (Direct strategy).
                 foreach (var sys in _systems)
-                    sys.Run();
+                    sys.Execute(view, deltaTime);
             }
 
             public IReadOnlyList<Type>? GetRequiredComponents() => null;

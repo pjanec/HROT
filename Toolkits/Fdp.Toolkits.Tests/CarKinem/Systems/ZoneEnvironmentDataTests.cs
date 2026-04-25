@@ -68,9 +68,6 @@ namespace CarKinem.Tests.Systems
             var spatialSystem = new SpatialHashSystem();
             var kinematics    = new CarKinematicsSystem(trajectoryPool);
 
-            spatialSystem.Create(repo);
-            kinematics.Create(repo);
-
             var entity     = AddMovingVehicle(repo);
             var before     = repo.GetComponent<SimTransform>(entity).Position;
 
@@ -80,8 +77,8 @@ namespace CarKinem.Tests.Systems
 
             var ex = Record.Exception(() =>
             {
-                spatialSystem.Run();
-                kinematics.Run();
+                spatialSystem.Execute(repo, 0.016f);
+                kinematics.Execute(repo, 0.016f);
             });
 
             Assert.Null(ex);
@@ -92,8 +89,6 @@ namespace CarKinem.Tests.Systems
                 $"Vehicle should move without ZoneEnvironmentData. before={before}, after={after}");
 
             // Cleanup
-            spatialSystem.Dispose();
-            kinematics.Dispose();
             repo.Dispose();
             trajectoryPool.Dispose();
         }
@@ -108,9 +103,6 @@ namespace CarKinem.Tests.Systems
             var trajectoryPool = new TrajectoryPoolManager();
             var spatialSystem = new SpatialHashSystem();
             var kinematics    = new CarKinematicsSystem(trajectoryPool);
-
-            spatialSystem.Create(repo);
-            kinematics.Create(repo);
 
             // Inject ZoneEnvironmentData singleton (simulates what ZoneManagerService will do)
             repo.SetSingleton(new ZoneEnvironmentData { RoadNetwork = roadNetwork });
@@ -149,15 +141,13 @@ namespace CarKinem.Tests.Systems
 
             var ex = Record.Exception(() =>
             {
-                spatialSystem.Run();
-                kinematics.Run();
+                spatialSystem.Execute(repo, 0.016f);
+                kinematics.Execute(repo, 0.016f);
             });
 
             Assert.Null(ex);
 
             // Cleanup
-            spatialSystem.Dispose();
-            kinematics.Dispose();
             roadNetwork.Dispose();
             repo.Dispose();
             trajectoryPool.Dispose();

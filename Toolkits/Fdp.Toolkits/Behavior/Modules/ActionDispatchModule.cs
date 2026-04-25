@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Executors;
 using Fdp.Toolkit.Behavior.Systems;
@@ -49,6 +49,9 @@ namespace Fdp.Toolkit.Behavior.Modules
         private readonly (ushort ActionId, IActionExecutor<WeaponChannel>        Executor)[] _weaponExecutors;
         private readonly (ushort ActionId, IActionExecutor<InteractionChannel>   Executor)[] _interactionExecutors;
 
+        /// <summary>Systems that run in the Simulation phase.</summary>
+        public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
+
         /// <summary>
         /// Initialises the module with a set of locomotion, weapon, and interaction executor registrations.
         /// </summary>
@@ -73,35 +76,27 @@ namespace Fdp.Toolkit.Behavior.Modules
             _locoExecutors        = locoExecutors         ?? throw new ArgumentNullException(nameof(locoExecutors));
             _weaponExecutors      = weaponExecutors       ?? Array.Empty<(ushort, IActionExecutor<WeaponChannel>)>();
             _interactionExecutors = interactionExecutors  ?? Array.Empty<(ushort, IActionExecutor<InteractionChannel>)>();
-        }
 
-        /// <summary>
-        /// Registers the locomotion, weapon, and interaction dispatcher systems — with all injected
-        /// executors wired in — into the provided group.
-        /// </summary>
-        /// <param name="group">The simulation-phase <see cref="SystemGroup"/> to add into.</param>
-        public void RegisterSystems(SystemGroup group)
-        {
-            if (group == null) throw new ArgumentNullException(nameof(group));
-
-            // ── Locomotion dispatcher ─────────────────────────────────────────
+            // Build and wire dispatcher systems during construction so that SimulationSystems
+            // is ready immediately after the module is created.
             var locoDispatcher = new LocomotionDispatcherSystem();
             foreach (var (id, exec) in _locoExecutors)
                 locoDispatcher.RegisterExecutor(id, exec);
 
-            // ── Weapon dispatcher ─────────────────────────────────────────────
             var weaponDispatcher = new WeaponDispatcherSystem();
             foreach (var (id, exec) in _weaponExecutors)
                 weaponDispatcher.RegisterExecutor(id, exec);
 
-            // ── Interaction dispatcher ────────────────────────────────────────
             var interactionDispatcher = new InteractionDispatcherSystem();
             foreach (var (id, exec) in _interactionExecutors)
                 interactionDispatcher.RegisterExecutor(id, exec);
 
-            group.AddSystem(locoDispatcher);
-            group.AddSystem(weaponDispatcher);
-            group.AddSystem(interactionDispatcher);
+            SimulationSystems = new IEcsModuleSystem[]
+            {
+                locoDispatcher,
+                weaponDispatcher,
+                interactionDispatcher,
+            };
         }
     }
 }

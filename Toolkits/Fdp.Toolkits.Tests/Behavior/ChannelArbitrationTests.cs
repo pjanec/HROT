@@ -15,7 +15,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var world = TestWorldFactory.Create();
             
             var sys = new ChannelArbitrationSystem();
-            sys.Create(world);
             
             var e = world.CreateEntity();
             // Doctrine at version 2 (preempted version 1)
@@ -27,7 +26,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 Status = NodeStatus.Running
             });
             
-            sys.Run();
+            sys.Execute(world, 0.016f);
             
             var channel = world.GetComponent<LocomotionChannel>(e);
             Assert.Equal(0, channel.ActiveAction);
@@ -36,7 +35,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(NodeStatus.Running, channel.Status);  // unchanged
             Assert.Equal(1u, channel.DoctrineInstanceId);      // unchanged (selective-clear, not full reset)
             
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -46,7 +44,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var world = TestWorldFactory.Create();
             
             var sys = new ChannelArbitrationSystem();
-            sys.Create(world);
             
             var e = world.CreateEntity();
             world.AddComponent(e, new DoctrineState { InstanceId = 2 });
@@ -56,13 +53,12 @@ namespace Fdp.Toolkit.Behavior.Tests
                 Status = NodeStatus.Running
             });
             
-            sys.Run();
+            sys.Execute(world, 0.016f);
             
             var channel = world.GetComponent<LocomotionChannel>(e);
             Assert.Equal(1, channel.ActiveAction);
             Assert.Equal(NodeStatus.Running, channel.Status);
             
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -72,7 +68,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var world = TestWorldFactory.Create();
             
             var sys = new ChannelArbitrationSystem();
-            sys.Create(world);
             
             var e = world.CreateEntity();
             world.AddComponent(e, new DoctrineState { InstanceId = 2 });
@@ -82,13 +77,12 @@ namespace Fdp.Toolkit.Behavior.Tests
                 Status = NodeStatus.Success // Old status
             });
             
-            sys.Run();
+            sys.Execute(world, 0.016f);
             
             var channel = world.GetComponent<LocomotionChannel>(e);
             Assert.Equal(0, channel.ActiveAction);
             Assert.Equal(NodeStatus.Success, channel.Status);
             
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -108,9 +102,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var spy         = new WritingSpyExecutor<LocomotionChannel>();
             dispatcher.RegisterExecutor(1, spy);
 
-            arbitration.Create(world);
-            dispatcher.Create(world);
-
             var e = world.CreateEntity();
             // Doctrine at version 2; channel still thinks version 1 is current.
             world.AddComponent(e, new DoctrineState { InstanceId = 2 });
@@ -125,16 +116,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
 
             // Correct order: arbitration clears stale channel BEFORE dispatcher runs.
-            arbitration.Run();
-            dispatcher.Run();
+            arbitration.Execute(world, 0.016f);
+            dispatcher.Execute(world, 0.016f);
 
             // Arbitration cleared ActiveAction → dispatcher found nothing to dispatch.
             Assert.Equal(0, spy.OnEnterCallCount); // no ghost OnEnter
             var channel = world.GetComponent<LocomotionChannel>(e);
             Assert.Equal(0, channel.ActiveAction); // confirmed cleared
 
-            arbitration.Dispose();
-            dispatcher.Dispose();
             world.Dispose();
         }
 
@@ -148,7 +137,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             // and fires OnExit for the preempted action.
             var world = TestWorldFactory.Create();
             var sys   = new ChannelArbitrationSystem();
-            sys.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new DoctrineState { InstanceId = 1 });
@@ -160,14 +148,13 @@ namespace Fdp.Toolkit.Behavior.Tests
                 DispatchedInstanceId = 7,
             });
 
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             var ch = world.GetComponent<LocomotionChannel>(e);
             Assert.Equal(0,  ch.ActiveAction);          // cleared
             Assert.Equal(8u, ch.ActionInstanceId);      // incremented: 7 → 8
             Assert.Equal(7u, ch.DispatchedInstanceId);  // unchanged — dispatcher will fire OnExit
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -176,7 +163,6 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var world = TestWorldFactory.Create();
             var sys   = new ChannelArbitrationSystem();
-            sys.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new DoctrineState { InstanceId = 3 });
@@ -187,13 +173,12 @@ namespace Fdp.Toolkit.Behavior.Tests
                 ActionInstanceId   = 1,
             });
 
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             var ch = world.GetComponent<LocomotionChannel>(e);
             Assert.Equal(2, ch.ActiveAction);   // unchanged
             Assert.Equal(1u, ch.ActionInstanceId); // unchanged
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -202,7 +187,6 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var world = TestWorldFactory.Create();
             var sys   = new ChannelArbitrationSystem();
-            sys.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new DoctrineState { InstanceId = 1 });
@@ -214,14 +198,13 @@ namespace Fdp.Toolkit.Behavior.Tests
                 DispatchedInstanceId = 7,
             });
 
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             var ch = world.GetComponent<WeaponChannel>(e);
             Assert.Equal(0,  ch.ActiveAction);
             Assert.Equal(8u, ch.ActionInstanceId);      // incremented
             Assert.Equal(7u, ch.DispatchedInstanceId);  // unchanged
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -230,7 +213,6 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var world = TestWorldFactory.Create();
             var sys   = new ChannelArbitrationSystem();
-            sys.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new DoctrineState { InstanceId = 1 });
@@ -242,14 +224,13 @@ namespace Fdp.Toolkit.Behavior.Tests
                 DispatchedInstanceId = 7,
             });
 
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             var ch = world.GetComponent<InteractionChannel>(e);
             Assert.Equal(0,  ch.ActiveAction);
             Assert.Equal(8u, ch.ActionInstanceId);      // incremented
             Assert.Equal(7u, ch.DispatchedInstanceId);  // unchanged
 
-            sys.Dispose();
             world.Dispose();
         }
     }

@@ -4,6 +4,7 @@ using CarKinem.Commands;
 using CarKinem.Core;
 using CarKinem.Formation;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 
 namespace CarKinem.Systems
 {
@@ -11,35 +12,39 @@ namespace CarKinem.Systems
     /// Processes vehicle command events.
     /// Runs early to update NavState before physics.
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateBefore(typeof(CarKinematicsSystem))]
-    public class VehicleCommandSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    public class VehicleCommandSystem : IEcsModuleSystem
     {
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            ProcessSpawnCommands();
-            ProcessCreateFormationCommands();
-            ProcessJoinFormationCommands();
-            ProcessLeaveFormationCommands();
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(VehicleCommandSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            ProcessSpawnCommands(repo);
+            ProcessCreateFormationCommands(repo);
+            ProcessJoinFormationCommands(repo);
+            ProcessLeaveFormationCommands(repo);
         }
         
-        private void ProcessSpawnCommands()
+        private void ProcessSpawnCommands(EntityRepository repo)
         {
-            var events = World.Bus.Read<CmdSpawnVehicle>();
+            var events = repo.Bus.Read<CmdSpawnVehicle>();
             
             foreach (var cmd in events)
             {
                 var entity = cmd.Entity;
                 
                 // Verify entity was pre-allocated and is alive
-                if (!World.IsAlive(entity))
+                if (!repo.IsAlive(entity))
                 {
                     // Console.WriteLine($"WARNING: CmdSpawnVehicle references dead entity {entity}");
                     continue;
                 }
                 
                 // Add VehicleState (stripped)
-                World.AddComponent(entity, new VehicleState
+                repo.AddComponent(entity, new VehicleState
                 {
                     Speed = 0f,
                     SteerAngle = 0f,
@@ -50,12 +55,12 @@ namespace CarKinem.Systems
                 // Add SimTransform and SimVelocity
                 // Note: Z=0 by default for 2D->3D bridge
                 float yaw = MathF.Atan2(cmd.Heading.Y, cmd.Heading.X);
-                World.AddComponent(entity, new SimTransform
+                repo.AddComponent(entity, new SimTransform
                 {
                     Position = new Vector3(cmd.Position.X, cmd.Position.Y, 0),
                     Rotation = SimMath.FromYaw(yaw)
                 });
-                World.AddComponent(entity, new SimVelocity
+                repo.AddComponent(entity, new SimVelocity
                 {
                     Linear = Vector3.Zero,
                     Angular = Vector3.Zero
@@ -64,10 +69,10 @@ namespace CarKinem.Systems
                 // Add VehicleParams component (use preset)
                 var preset = VehiclePresets.GetPreset(cmd.Class);
                 preset.Class = cmd.Class;  // Set class field
-                World.AddComponent(entity, preset);
+                repo.AddComponent(entity, preset);
                 
                 // Add NavState component (idle)
-                World.AddComponent(entity, new NavState
+                repo.AddComponent(entity, new NavState
                 {
                     Mode = KinematicsMode.None,
                     RoadPhase = RoadGraphPhase.Approaching,
@@ -86,15 +91,15 @@ namespace CarKinem.Systems
             }
         }
 
-        private void ProcessCreateFormationCommands()
+        private void ProcessCreateFormationCommands(EntityRepository repo)
         {
-            var events = World.Bus.Read<CmdCreateFormation>();
+            var events = repo.Bus.Read<CmdCreateFormation>();
             
             foreach (var cmd in events)
             {
                 var leaderEntity = cmd.LeaderEntity;
                 
-                if (!World.IsAlive(leaderEntity))
+                if (!repo.IsAlive(leaderEntity))
                 {
                     // Console.WriteLine($"WARNING: CmdCreateFormation references dead leader {leaderEntity}");
                     continue;
@@ -103,16 +108,16 @@ namespace CarKinem.Systems
                 // Create/update FormationRoster component on leader
                 FormationRoster roster;
                 
-                if (World.HasComponent<FormationRoster>(leaderEntity))
+                if (repo.HasComponent<FormationRoster>(leaderEntity))
                 {
                     // Update existing roster
-                    roster = World.GetComponent<FormationRoster>(leaderEntity);
+                    roster = repo.GetComponent<FormationRoster>(leaderEntity);
                 }
                 else
                 {
                     // Create new roster
                     roster = new FormationRoster();
-                    World.AddComponent(leaderEntity, roster);
+                    repo.AddComponent(leaderEntity, roster);
                 }
                 
                 // Configure roster
@@ -122,75 +127,75 @@ namespace CarKinem.Systems
                 roster.SetMember(0, leaderEntity);  // Leader is always slot 0
                 roster.SetSlotIndex(0, 0);
                 
-                World.SetComponent(leaderEntity, roster);
+                repo.SetComponent(leaderEntity, roster);
             }
         }
 
-        private void ProcessJoinFormationCommands()
+        private void ProcessJoinFormationCommands(EntityRepository repo)
         {
-            var events = World.Bus.Read<CmdJoinFormation>();
+            var events = repo.Bus.Read<CmdJoinFormation>();
             
             foreach (var cmd in events)
             {
                 var followerEntity = cmd.Entity;
                 var leaderEntity = cmd.LeaderEntity;
                 
-                if (!World.IsAlive(followerEntity) || !World.IsAlive(leaderEntity))
+                if (!repo.IsAlive(followerEntity) || !repo.IsAlive(leaderEntity))
                     continue;
                 
                 // Verify leader has a formation
-                if (!World.HasComponent<FormationRoster>(leaderEntity))
+                if (!repo.HasComponent<FormationRoster>(leaderEntity))
                 {
                     // Console.WriteLine($"WARNING: CmdJoinFormation: Leader {leaderEntity} has no FormationRoster");
                     continue;
                 }
                 
                 // Add FormationMember component if not exists
-                if (!World.HasComponent<FormationMember>(followerEntity))
+                if (!repo.HasComponent<FormationMember>(followerEntity))
                 {
-                    World.AddComponent(followerEntity, new FormationMember());
+                    repo.AddComponent(followerEntity, new FormationMember());
                 }
                 
-                var member = World.GetComponent<FormationMember>(followerEntity);
+                var member = repo.GetComponent<FormationMember>(followerEntity);
                 member.LeaderEntityId = leaderEntity.Index;  // Store leader index
                 member.SlotIndex = (ushort)cmd.SlotIndex;
                 member.State = FormationMemberState.Rejoining;
                 member.IsInFormation = 1;
-                World.SetComponent(followerEntity, member);
+                repo.SetComponent(followerEntity, member);
                 
                 // Add follower to leader's roster
-                var roster = World.GetComponent<FormationRoster>(leaderEntity);
+                var roster = repo.GetComponent<FormationRoster>(leaderEntity);
                 if (roster.Count < 16)  // Max 16 members
                 {
                     roster.SetMember(roster.Count, followerEntity);
                     roster.SetSlotIndex(roster.Count, (ushort)cmd.SlotIndex);
                     roster.Count++;
-                    World.SetComponent(leaderEntity, roster);
+                    repo.SetComponent(leaderEntity, roster);
                 }
                 
                 // Set follower navigation mode to Formation
-                var nav = World.GetComponent<NavState>(followerEntity);
+                var nav = repo.GetComponent<NavState>(followerEntity);
                 nav.Mode = KinematicsMode.Formation;
                 nav.HasArrived = 0;
-                World.SetComponent(followerEntity, nav);
+                repo.SetComponent(followerEntity, nav);
             }
         }
         
-        private void ProcessLeaveFormationCommands()
+        private void ProcessLeaveFormationCommands(EntityRepository repo)
         {
-            var events = World.Bus.Read<CmdLeaveFormation>();
+            var events = repo.Bus.Read<CmdLeaveFormation>();
             
             foreach (var cmd in events)
             {
                 var entity = cmd.Entity;
                 
-                if (!World.IsAlive(entity))
+                if (!repo.IsAlive(entity))
                     continue;
                 
-                var nav = World.GetComponent<NavState>(entity);
+                var nav = repo.GetComponent<NavState>(entity);
                 nav.Mode = KinematicsMode.None;
                 
-                World.SetComponent(entity, nav);
+                repo.SetComponent(entity, nav);
             }
         }
     }

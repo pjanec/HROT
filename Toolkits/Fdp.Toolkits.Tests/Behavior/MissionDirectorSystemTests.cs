@@ -32,18 +32,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<BrainBlackboard>();
 
             _sys = new MissionDirectorSystem();
-            _sys.Create(_world);
 
             // DoctrineIngressSystem owns DoctrineState writes; required for CORRECTIVE-2
             // tests that verify AssignDoctrineHashEvent delegation.
             _ingressSys = new DoctrineIngressSystem(new DoctrineRegistry());
-            _ingressSys.Create(_world);
         }
 
         public void Dispose()
         {
-            _ingressSys.Dispose();
-            _sys.Dispose();
             _world.Dispose();
         }
 
@@ -67,7 +63,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         private void FlushDoctrineEvents()
         {
             _world.Bus.SwapBuffers();
-            _ingressSys.Run();
+            _ingressSys.Execute(_world, Dt60Hz);
         }
 
         /// <summary>
@@ -116,7 +112,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var entity = CreateTimerEntity(DocA, DocB, phase0Duration: 0.5f);
 
             // Run 31 ticks: 31 × (1/60) ≈ 0.517 s ≥ 0.5 s → phase should advance.
-            for (int i = 0; i < 31; i++) _sys.Run();
+            for (int i = 0; i < 31; i++) _sys.Execute(_world, Dt60Hz);
 
             // Flush AssignDoctrineHashEvent so DoctrineIngressSystem applies the new hash.
             FlushDoctrineEvents();
@@ -143,7 +139,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var entity = CreateTimerEntity(DocA, DocB, phase0Duration: 0.5f);
 
             // Run 10 ticks: 10 × (1/60) ≈ 0.167 s < 0.5 s → no advance.
-            for (int i = 0; i < 10; i++) _sys.Run();
+            for (int i = 0; i < 10; i++) _sys.Execute(_world, Dt60Hz);
 
             ref var queue   = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             var     doctrine = _world.GetComponent<DoctrineState>(entity);
@@ -191,7 +187,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.AddComponent(entity, new NavState { HasArrived = 1 });
 
             // First tick — no DoctrineFinishedEvent; phase must stay at 0.
-            _sys.Run();
+            _sys.Execute(_world, Dt60Hz);
 
             ref var q1 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             Assert.Equal(0, q1.CurrentPhase);
@@ -200,7 +196,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             PublishDoctrineFinished(entity);
 
             // Second tick — event arrived; phase must advance.
-            _sys.Run();
+            _sys.Execute(_world, Dt60Hz);
 
             // Flush AssignDoctrineHashEvent so DoctrineIngressSystem applies the new hash.
             FlushDoctrineEvents();
@@ -249,17 +245,17 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
 
             // Tick 1 — Phase 0 fires, advances to Phase 1.
-            _sys.Run();
+            _sys.Execute(_world, 1.0f);
             ref var q1 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             Assert.Equal(1, q1.CurrentPhase);
 
             // Tick 2 — Phase 1 fires, advances CurrentPhase to 2 (== PhaseCount → mission complete).
-            _sys.Run();
+            _sys.Execute(_world, 1.0f);
             ref var q2 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             Assert.Equal(2, q2.CurrentPhase);
 
             // Tick 3 — CurrentPhase (2) >= PhaseCount (2): system must skip silently, no crash.
-            var exception = Record.Exception(() => _sys.Run());
+            var exception = Record.Exception(() => _sys.Execute(_world, 1.0f));
             Assert.Null(exception);
 
             ref var q3 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
@@ -301,7 +297,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // 5 / 100 = 0.05 ≤ 0.10  →  trigger must fire.
             _world.AddComponent(entity, new Health { Current = 5f, Max = 100f });
 
-            _sys.Run();
+            _sys.Execute(_world, Dt60Hz);
             // Flush AssignDoctrineHashEvent so DoctrineIngressSystem applies the new hash.
             FlushDoctrineEvents();
             ref var q  = ref _world.GetComponentRW<MissionPlanQueue>(entity);
@@ -346,7 +342,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // 50 / 100 = 0.50 > 0.10  →  trigger must NOT fire.
             _world.AddComponent(entity, new Health { Current = 50f, Max = 100f });
 
-            _sys.Run();
+            _sys.Execute(_world, Dt60Hz);
 
             ref var q  = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             var doctrine = _world.GetComponent<DoctrineState>(entity);
@@ -389,7 +385,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var entity = CreateDoctrineFinishedEntity(DocA);
 
             PublishDoctrineFinished(entity);
-            _sys.Run();
+            _sys.Execute(_world, Dt60Hz);
 
             var q = _world.GetComponent<MissionPlanQueue>(entity);
             Assert.Equal(1, q.CurrentPhase); // advanced past the only phase
@@ -417,7 +413,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
 
             PublishDoctrineFinished(entity);
-            _sys.Run();
+            _sys.Execute(_world, Dt60Hz);
 
             // Phase advance: still in plan, so no ClearDoctrineEvent.
             _world.Bus.SwapBuffers();
@@ -427,7 +423,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.False(clearPublished);
 
             // Flush AssignDoctrineHashEvent so DoctrineIngressSystem applies DocB.
-            _ingressSys.Run();
+            _ingressSys.Execute(_world, Dt60Hz);
 
             var doctrine = _world.GetComponent<DoctrineState>(entity);
             Assert.Equal(DocB, doctrine.ActiveDoctrineHash);
@@ -444,7 +440,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Publish event for entityB — should NOT trigger phase advance on entityA.
             PublishDoctrineFinished(entityB);
-            _sys.Run();
+            _sys.Execute(_world, Dt60Hz);
 
             var q = _world.GetComponent<MissionPlanQueue>(entityA);
             Assert.Equal(0, q.CurrentPhase); // no advance
@@ -458,7 +454,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var entity = CreateDoctrineFinishedEntity(DocA);
 
             PublishDoctrineFinished(entity);
-            _sys.Run();
+            _sys.Execute(_world, Dt60Hz);
 
             // ClearDoctrineEvent goes to write buffer; swap to read it.
             _world.Bus.SwapBuffers();
@@ -482,25 +478,22 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var registry   = new DoctrineRegistry();
             var ingressSys = new DoctrineIngressSystem(registry);
-            ingressSys.Create(_world);
 
             var entity = CreateDoctrineFinishedEntity(DocA);
             _world.AddComponent(entity, new BrainBlackboard());
 
             // Frame 1: MissionDirector consumes DoctrineFinishedEvent → publishes ClearDoctrineEvent.
             PublishDoctrineFinished(entity);
-            _sys.Run();
+            _sys.Execute(_world, Dt60Hz);
 
             // Swap: ClearDoctrineEvent now in read buffer for DoctrineIngressSystem.
             _world.Bus.SwapBuffers();
 
             // Frame 2: DoctrineIngressSystem consumes ClearDoctrineEvent → sets hash to None.
-            ingressSys.Run();
+            ingressSys.Execute(_world, 0.016f);
 
             var doctrine = _world.GetComponent<DoctrineState>(entity);
             Assert.Equal(DoctrineIds.None, doctrine.ActiveDoctrineHash);
-
-            ingressSys.Dispose();
         }
 
         // ── BUG2-A001: HealthCritical reads Health directly ───────────────────
@@ -538,7 +531,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // 20 / 100 = 0.20 ≤ 0.25 → trigger must fire with Health component only (no HealthData).
             _world.AddComponent(entity, new Health { Current = 20f, Max = 100f });
 
-            _sys.Run();
+            _sys.Execute(_world, Dt60Hz);
             FlushDoctrineEvents();
 
             ref var q = ref _world.GetComponentRW<MissionPlanQueue>(entity);
@@ -581,13 +574,13 @@ namespace Fdp.Toolkit.Behavior.Tests
             // No NavState component — Brain-only entity.
 
             // First tick: no DoctrineFinishedEvent — phase must NOT advance.
-            _sys.Run();
+            _sys.Execute(_world, Dt60Hz);
             ref var q0 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             Assert.Equal(0, q0.CurrentPhase);
 
             // Publish DoctrineFinishedEvent and run — phase must advance.
             PublishDoctrineFinished(entity);
-            _sys.Run();
+            _sys.Execute(_world, Dt60Hz);
             FlushDoctrineEvents();
 
             ref var q1      = ref _world.GetComponentRW<MissionPlanQueue>(entity);
@@ -633,7 +626,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.AddComponent(entity, new NavState { HasArrived = 1 });
 
             // Run one tick: no DoctrineFinishedEvent, so the trigger must NOT fire.
-            _sys.Run();
+            _sys.Execute(_world, Dt60Hz);
 
             ref var q       = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             var     doctrine = _world.GetComponent<DoctrineState>(entity);

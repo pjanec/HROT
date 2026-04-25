@@ -35,9 +35,6 @@ namespace CarKinem.Tests.Systems
             var spatialSystem = new SpatialHashSystem();
             var kinematicsSystem = new CarKinematicsSystem(trajectoryPool);
             
-            spatialSystem.Create(repo);
-            kinematicsSystem.Create(repo);
-            
             // Create vehicle
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new VehicleState
@@ -79,8 +76,8 @@ namespace CarKinem.Tests.Systems
             Vector3 initialPos = repo.GetComponent<SimTransform>(entity).Position;
             
             // Update systems
-            spatialSystem.Run();
-            kinematicsSystem.Run();
+            spatialSystem.Execute(repo, 0.016f);
+            kinematicsSystem.Execute(repo, 0.016f);
             
             // Verify singleton exists
             Assert.True(repo.HasSingleton<SpatialGridData>());
@@ -94,8 +91,6 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(0.16f, finalPos.Y, precision: 2);
             
             // Cleanup
-            spatialSystem.Dispose();
-            kinematicsSystem.Dispose();
             roadNetwork.Dispose();
             trajectoryPool.Dispose();
             repo.Dispose();
@@ -119,9 +114,6 @@ namespace CarKinem.Tests.Systems
             var trajectoryPool = new TrajectoryPoolManager();
             var spatialSystem = new SpatialHashSystem();
             var kinematicsSystem = new CarKinematicsSystem(trajectoryPool);
-            
-            spatialSystem.Create(repo);
-            kinematicsSystem.Create(repo);
 
             // Create Entity A moving East at (0,0) with Speed 5.
             // East -> Yaw=-PI/2? Or X-Forward?
@@ -157,16 +149,14 @@ namespace CarKinem.Tests.Systems
             Vector3 before = repo.GetComponent<SimTransform>(entA).Position;
 
             // Run update
-            spatialSystem.Run();
-            kinematicsSystem.Run(); // A should steer or decelerate/avoid
+            spatialSystem.Execute(repo, 0.1f);
+            kinematicsSystem.Execute(repo, 0.1f); // A should steer or decelerate/avoid
 
             Vector3 after = repo.GetComponent<SimTransform>(entA).Position;
 
             Assert.True(Vector3.Distance(before, after) > 0.01f,
                 $"Vehicle did not move. before={before}, after={after}");
 
-            spatialSystem.Dispose();
-            kinematicsSystem.Dispose();
             roadNetwork.Dispose();
             trajectoryPool.Dispose();
             repo.Dispose();
@@ -193,9 +183,6 @@ namespace CarKinem.Tests.Systems
 
             var spatialSystem = new SpatialHashSystem();
             var kinematicsSystem = new CarKinematicsSystem(trajectoryPool);
-            
-            spatialSystem.Create(repo);
-            kinematicsSystem.Create(repo);
 
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new VehicleState { Speed = 10f });
@@ -214,8 +201,8 @@ namespace CarKinem.Tests.Systems
             });
 
             // Update
-            spatialSystem.Run(); // Build grid
-            kinematicsSystem.Run();
+            spatialSystem.Execute(repo, 0.1f); // Build grid
+            kinematicsSystem.Execute(repo, 0.1f);
 
             // Check ProgressS increased
             var nav = repo.GetComponent<NavState>(entity);
@@ -223,8 +210,6 @@ namespace CarKinem.Tests.Systems
             Assert.True(nav.ProgressS > 0.5f, "Progress should advance");
 
             // Cleanup
-            spatialSystem.Dispose();
-            kinematicsSystem.Dispose();
             roadNetwork.Dispose();
             trajectoryPool.Dispose();
             repo.Dispose();

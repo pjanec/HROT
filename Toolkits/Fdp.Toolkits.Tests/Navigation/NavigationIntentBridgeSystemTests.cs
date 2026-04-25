@@ -30,7 +30,6 @@ namespace Fdp.Toolkit.Navigation.Tests
         {
             var repo = CreateWorld();
             var system = new NavigationIntentBridgeSystem();
-            system.Create(repo);
 
             var entity = repo.CreateEntity();
             var dest = new Vector2(100f, 200f);
@@ -45,7 +44,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             repo.AddComponent(entity, new NavState());
 
             repo.Bus.SwapBuffers();
-            system.Run();
+            system.Execute(repo, 0.016f);
 
             var nav = repo.GetComponent<NavState>(entity);
             Assert.Equal(KinematicsMode.Direct, nav.Mode);
@@ -65,7 +64,6 @@ namespace Fdp.Toolkit.Navigation.Tests
         {
             var repo = CreateWorld();
             var system = new NavigationIntentBridgeSystem();
-            system.Create(repo);
 
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NavigationIntent
@@ -77,7 +75,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             repo.AddComponent(entity, new NavState { ProgressS = 0.8f });
 
             repo.Bus.SwapBuffers();
-            system.Run();
+            system.Execute(repo, 0.016f);
 
             var nav = repo.GetComponent<NavState>(entity);
             Assert.Equal(KinematicsMode.CustomTrajectory, nav.Mode);
@@ -95,14 +93,13 @@ namespace Fdp.Toolkit.Navigation.Tests
         {
             var repo = CreateWorld();
             var system = new NavigationIntentBridgeSystem();
-            system.Create(repo);
 
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NavigationIntent { Mode = NavigationMode.None });
             repo.AddComponent(entity, new NavState { Mode = KinematicsMode.Direct, TargetSpeed = 99f });
 
             repo.Bus.SwapBuffers();
-            system.Run();
+            system.Execute(repo, 0.016f);
 
             var nav = repo.GetComponent<NavState>(entity);
             Assert.Equal(KinematicsMode.Direct, nav.Mode);

@@ -26,12 +26,10 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.RegisterEvent<DamageAssessedEvent>();
 
             _sys = new HealthApplicationSystem();
-            _sys.Create(_world);
         }
 
         public void Dispose()
         {
-            _sys.Dispose();
             _world.Dispose();
         }
 
@@ -77,7 +75,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var entity = SpawnTarget(currentHealth: 100f);
 
             PublishEvent(hitEntity: entity, totalDamage: 30f);
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var health = _world.GetComponent<Health>(entity);
             Assert.Equal(70f, health.Current);
@@ -94,7 +92,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var entity = SpawnTarget(currentHealth: 10f);
 
             PublishEvent(hitEntity: entity, totalDamage: 50f);
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var health = _world.GetComponent<Health>(entity);
             Assert.Equal(0f, health.Current);
@@ -113,7 +111,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var entity = SpawnTarget(currentHealth: 10f, addCapabilities: true);
 
             PublishEvent(hitEntity: entity, totalDamage: 50f);
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var caps = _world.GetComponent<ActorCapabilityState>(entity);
             Assert.False(caps.Capabilities.HasFlag(ActorCapabilities.CanMove));
@@ -131,7 +129,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var entity = SpawnTarget(currentHealth: 100f, authoritative: false);
 
             PublishEvent(hitEntity: entity, totalDamage: 30f);
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var health = _world.GetComponent<Health>(entity);
             Assert.Equal(100f, health.Current);
@@ -159,7 +157,7 @@ namespace Fdp.Toolkit.Combat.Tests
             // Non-lethal hit: 100 damage out of 500 max.
             _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 100f });
             _world.Bus.SwapBuffers();
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var health = _world.GetComponent<Health>(entity);
             Assert.Equal(400f, health.Current);  // HP reduced
@@ -191,7 +189,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 500f });
             _world.Bus.SwapBuffers();
 
-            var ex = Record.Exception(() => _sys.Run());
+            var ex = Record.Exception(() => _sys.Execute(_world, 0.016f));
             Assert.Null(ex);
 
             var health = _world.GetComponent<Health>(entity);
@@ -217,7 +215,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 50f });
             _world.Bus.SwapBuffers();
 
-            var ex = Record.Exception(() => _sys.Run());
+            var ex = Record.Exception(() => _sys.Execute(_world, 0.016f));
             Assert.Null(ex);
 
             var health = _world.GetComponent<Health>(entity);

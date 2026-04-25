@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fhsm.Kernel;
 using Fhsm.Kernel.Data;
 using Fdp.Toolkit.Behavior.Components;
@@ -34,23 +36,28 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// ticks so the event is available in the same frame.
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateBefore(typeof(HsmTickSystem<BrainHsm128>))]
-    [UpdateBefore(typeof(HsmTickSystem<BrainHsm64>))]
-    public class HsmDamageBridgeSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    // [UpdateBefore(typeof(HsmTickSystem<BrainHsm128>))] -- ordering maintained by array position in CognitiveRuntimeModule.
+    // [UpdateBefore(typeof(HsmTickSystem<BrainHsm64>))] -- ordering maintained by array position in CognitiveRuntimeModule.
+    public class HsmDamageBridgeSystem : IEcsModuleSystem
     {
         // Reused across frames to avoid per-frame allocation on the (rare) init path.
         private readonly List<(Entity entity, ActorCapabilities caps)> _toInit =
             new List<(Entity, ActorCapabilities)>();
 
-        protected override unsafe void OnUpdate()
+        public unsafe void Execute(ISimulationView view, float deltaTime)
         {
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(HsmDamageBridgeSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
             var mobilityLostEvent = new HsmEvent { EventId = BehaviorConstants.EventId_MobilityLost };
 
             // ── BrainHsm128 ──────────────────────────────────────────────────
 
             // Pass A-128: initialise PreviousCapabilities for brand-new entities.
-            var qNew128 = World.Query()
+            var qNew128 = repo.Query()
                 .With<ActorCapabilityState>()
                 .With<BrainHsm128>()
                 .Without<PreviousCapabilities>()
@@ -58,16 +65,16 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             foreach (var entity in qNew128)
             {
-                var curr = World.GetComponent<ActorCapabilityState>(entity);
+                var curr = repo.GetComponent<ActorCapabilityState>(entity);
                 _toInit.Add((entity, curr.Capabilities));
             }
 
             foreach (var (e, caps) in _toInit)
-                World.AddComponent(e, new PreviousCapabilities { Capabilities = caps });
+                repo.AddComponent(e, new PreviousCapabilities { Capabilities = caps });
             _toInit.Clear();
 
             // Pass B-128: detect CanMove transitions and enqueue event.
-            var q128 = World.Query()
+            var q128 = repo.Query()
                 .With<ActorCapabilityState>()
                 .With<PreviousCapabilities>()
                 .With<BrainHsm128>()
@@ -75,15 +82,15 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             foreach (var entity in q128)
             {
-                var curr = World.GetComponent<ActorCapabilityState>(entity);
-                ref var prev = ref World.GetComponentRW<PreviousCapabilities>(entity);
+                var curr = repo.GetComponent<ActorCapabilityState>(entity);
+                ref var prev = ref repo.GetComponentRW<PreviousCapabilities>(entity);
 
                 bool wasAbleToMove = (prev.Capabilities & ActorCapabilities.CanMove) != 0;
                 bool canMoveNow    = (curr.Capabilities & ActorCapabilities.CanMove) != 0;
 
                 if (wasAbleToMove && !canMoveNow)
                 {
-                    ref var brain = ref World.GetComponentRW<BrainHsm128>(entity);
+                    ref var brain = ref repo.GetComponentRW<BrainHsm128>(entity);
                     fixed (HsmInstance128* ptr = &brain.State)
                     {
                         HsmEventQueue.TryEnqueue(ptr, in mobilityLostEvent);
@@ -96,7 +103,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             // ── BrainHsm64 ───────────────────────────────────────────────────
 
             // Pass A-64: initialise PreviousCapabilities for brand-new entities.
-            var qNew64 = World.Query()
+            var qNew64 = repo.Query()
                 .With<ActorCapabilityState>()
                 .With<BrainHsm64>()
                 .Without<PreviousCapabilities>()
@@ -104,16 +111,16 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             foreach (var entity in qNew64)
             {
-                var curr = World.GetComponent<ActorCapabilityState>(entity);
+                var curr = repo.GetComponent<ActorCapabilityState>(entity);
                 _toInit.Add((entity, curr.Capabilities));
             }
 
             foreach (var (e, caps) in _toInit)
-                World.AddComponent(e, new PreviousCapabilities { Capabilities = caps });
+                repo.AddComponent(e, new PreviousCapabilities { Capabilities = caps });
             _toInit.Clear();
 
             // Pass B-64: detect CanMove transitions and enqueue event.
-            var q64 = World.Query()
+            var q64 = repo.Query()
                 .With<ActorCapabilityState>()
                 .With<PreviousCapabilities>()
                 .With<BrainHsm64>()
@@ -121,15 +128,15 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             foreach (var entity in q64)
             {
-                var curr = World.GetComponent<ActorCapabilityState>(entity);
-                ref var prev = ref World.GetComponentRW<PreviousCapabilities>(entity);
+                var curr = repo.GetComponent<ActorCapabilityState>(entity);
+                ref var prev = ref repo.GetComponentRW<PreviousCapabilities>(entity);
 
                 bool wasAbleToMove = (prev.Capabilities & ActorCapabilities.CanMove) != 0;
                 bool canMoveNow    = (curr.Capabilities & ActorCapabilities.CanMove) != 0;
 
                 if (wasAbleToMove && !canMoveNow)
                 {
-                    ref var brain = ref World.GetComponentRW<BrainHsm64>(entity);
+                    ref var brain = ref repo.GetComponentRW<BrainHsm64>(entity);
                     fixed (HsmInstance64* ptr = &brain.State)
                     {
                         HsmEventQueue.TryEnqueue(ptr, in mobilityLostEvent);

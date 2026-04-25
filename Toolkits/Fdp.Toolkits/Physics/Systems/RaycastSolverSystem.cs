@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Threading.Tasks;
 using CarKinem.Spatial;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Math;
 
@@ -35,20 +36,25 @@ namespace Fdp.Toolkit.Physics.Systems
     /// See BATCH-08 report Q2 for the full analysis.
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(InputSystemGroup))]
-    public class RaycastSolverSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Input)]
+    public class RaycastSolverSystem : IEcsModuleSystem
     {
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            if (!World.HasSingleton<RaycastBatchData>()) return;
-            ref var batch = ref World.GetSingleton<RaycastBatchData>();
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(RaycastSolverSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            if (!repo.HasSingleton<RaycastBatchData>()) return;
+            ref var batch = ref repo.GetSingleton<RaycastBatchData>();
             if (batch.Count == 0) return;
 
-            if (!World.HasSingleton<SpatialGridData>()) return;
+            if (!repo.HasSingleton<SpatialGridData>()) return;
             // Value-copy of the SpatialGridData struct — carries native pointers to grid arrays.
             // Reading grid data from multiple threads is safe: the grid is written only by
             // SpatialHashSystem which runs in a different group (SimulationSystemGroup).
-            var gridData = World.GetSingleton<SpatialGridData>();
+            var gridData = repo.GetSingleton<SpatialGridData>();
             var grid     = gridData.Grid;
 
             // Cap to array size — prevents IndexOutOfRangeException if upstream overflows the batch.
@@ -98,7 +104,7 @@ namespace Fdp.Toolkit.Physics.Systems
 
                     // Generational validity check (guards against stale grid entries from
                     // entities destroyed earlier this frame before SpatialHashSystem rebuilt).
-                    if (!World.IsAlive(candidate)) continue;
+                    if (!repo.IsAlive(candidate)) continue;
 
                     // Self-exclusion: skip the ignore entity (e.g. the shooter).
                     // Full generational check: both Index AND Generation must match, so a
@@ -106,14 +112,14 @@ namespace Fdp.Toolkit.Physics.Systems
                     // is true (Generation == 0), making the struct-zero-default safe.
                     if (!req.IgnoreEntity.IsNull && candidate == req.IgnoreEntity) continue;
 
-                    if (!World.HasComponent<PhysicsCollider>(candidate)) continue;
+                    if (!repo.HasComponent<PhysicsCollider>(candidate)) continue;
 
-                    var collider = World.GetComponent<PhysicsCollider>(candidate);
+                    var collider = repo.GetComponent<PhysicsCollider>(candidate);
 
                     // Layer-mask check (bitmask AND must be non-zero to hit).
                     if ((req.LayerMask & collider.CollisionLayer) == 0) continue;
 
-                    var tf  = World.GetComponent<SimTransform>(candidate);
+                    var tf  = repo.GetComponent<SimTransform>(candidate);
                     var c2D = new Vector2(tf.Position.X, tf.Position.Y);
 
                     if (Intersection2D.RaycastCircle(start2D, end2D, c2D, collider.Radius, out float t))

@@ -1,5 +1,6 @@
 using System;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Replication.Components;
@@ -25,16 +26,21 @@ namespace Fdp.Toolkit.Combat.Systems
     /// <c>MunitionDetonationIngressTranslator</c> in the same tick are available.
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    public class DamageCalculationSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    public class DamageCalculationSystem : IEcsModuleSystem
     {
         public DamageCalculationSystem()
         {
         }
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            var events = World.Bus.Read<DetonationNotification>();
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(DamageCalculationSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            var events = repo.Bus.Read<DetonationNotification>();
             if (events.Length == 0) return;
 
             for (int i = 0; i < events.Length; i++)
@@ -45,17 +51,17 @@ namespace Fdp.Toolkit.Combat.Systems
                 // PACK-P003: evt.Target is already a local ECS Entity handle.
                 // Skip if the entity is not alive on this node.
                 var targetEntity = evt.Target;
-                if (!World.IsAlive(targetEntity)) continue;
+                if (!repo.IsAlive(targetEntity)) continue;
 
                 // No entity-ownership gate here: DamageCalculationSystem runs exclusively
                 // on the Muscle node. The fact that a DetonationNotification was emitted
                 // (by HitResolutionSystem or MunitionDetonationIngressTranslator) is
-                // sufficient — the Muscle is the designated damage-calculation authority for
+                // sufficient -- the Muscle is the designated damage-calculation authority for
                 // all detonations it observes, regardless of which node owns the entity in
                 // the CQRS ownership map.
 
                 // POC: flat damage value; armor/penetration curves are deferred.
-                World.Bus.Publish(new DamageAssessedEvent
+                repo.Bus.Publish(new DamageAssessedEvent
                 {
                     HitEntity   = targetEntity,
                     TotalDamage = CombatConstants.DefaultBulletDamage,

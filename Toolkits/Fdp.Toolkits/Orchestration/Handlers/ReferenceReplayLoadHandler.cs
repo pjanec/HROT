@@ -28,7 +28,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     ///     ID allocator above the replay's ID space.
     ///   </item>
     ///   <item>
-    ///     <b>Commit:</b> Disables <see cref="SimulationSystemGroup"/>,
+    ///     <b>Commit:</b> Disables <see cref="TogglableInputGroup"/>,
+    ///     <see cref="TogglableSimulationGroup"/>, <see cref="TogglablePostSimulationGroup"/>,
     ///     <see cref="NetworkLifecycleSystemGroup"/>, and invokes
     ///     <c>bypassLifecycleToggle(true)</c> to prevent ghost-creation during playback.
     ///   </item>
@@ -42,7 +43,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     ///     <b>PrepareAsync:</b> Calls <see cref="IRecordReplayController.TeardownReplayAsync"/>.
     ///   </item>
     ///   <item>
-    ///     <b>Commit:</b> Re-enables both system groups and toggles bypass off.
+    ///     <b>Commit:</b> Re-enables all system groups and toggles bypass off.
     ///   </item>
     /// </list>
     /// </para>
@@ -66,15 +67,27 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     public sealed class ReferenceReplayLoadHandler : IClusterStateHandler
     {
         private readonly IRecordReplayController      _controller;
-        private readonly SimulationSystemGroup?       _simGroup;
+        private readonly TogglableInputGroup?         _inputGroup;
+        private readonly TogglableSimulationGroup?    _simGroup;
+        private readonly TogglablePostSimulationGroup? _postSimGroup;
         private readonly NetworkLifecycleSystemGroup? _lifecycleGroup;
         private readonly Action<bool>?                _bypassLifecycleToggle;
         private readonly string                       _storageDirectory;
 
         /// <param name="controller">Record/replay lifecycle controller.</param>
+        /// <param name="inputGroup">
+        /// <see cref="TogglableInputGroup"/> whose <c>Enabled</c> flag is cleared during
+        /// replay to prevent live operator commands and network ingress from corrupting
+        /// historical ECS state.
+        /// </param>
         /// <param name="simGroup">
-        /// <see cref="SimulationSystemGroup"/> whose <c>Enabled</c> flag is cleared during
+        /// <see cref="TogglableSimulationGroup"/> whose <c>Enabled</c> flag is cleared during
         /// replay to prevent simulation logic from running on top of recorded data.
+        /// </param>
+        /// <param name="postSimGroup">
+        /// <see cref="TogglablePostSimulationGroup"/> whose <c>Enabled</c> flag is cleared
+        /// during replay to prevent physics integration from overwriting restored historical
+        /// <c>SimTransform</c> positions.
         /// </param>
         /// <param name="lifecycleGroup">
         /// <see cref="NetworkLifecycleSystemGroup"/> whose <c>Enabled</c> flag is cleared
@@ -89,14 +102,18 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// Root directory where exercise recording files are staged.
         /// </param>
         public ReferenceReplayLoadHandler(
-            IRecordReplayController      controller,
-            SimulationSystemGroup?       simGroup,
-            NetworkLifecycleSystemGroup? lifecycleGroup,
-            Action<bool>?                bypassLifecycleToggle,
-            string                       storageDirectory)
+            IRecordReplayController       controller,
+            TogglableInputGroup?          inputGroup,
+            TogglableSimulationGroup?     simGroup,
+            TogglablePostSimulationGroup? postSimGroup,
+            NetworkLifecycleSystemGroup?  lifecycleGroup,
+            Action<bool>?                 bypassLifecycleToggle,
+            string                        storageDirectory)
         {
             _controller            = controller       ?? throw new ArgumentNullException(nameof(controller));
+            _inputGroup            = inputGroup;
             _simGroup              = simGroup;
+            _postSimGroup          = postSimGroup;
             _lifecycleGroup        = lifecycleGroup;
             _bypassLifecycleToggle = bypassLifecycleToggle;
             _storageDirectory      = storageDirectory ?? throw new ArgumentNullException(nameof(storageDirectory));
@@ -189,7 +206,9 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 
         private void SetSystemsEnabled(bool enabled)
         {
+            if (_inputGroup     != null) _inputGroup.Enabled     = enabled;
             if (_simGroup       != null) _simGroup.Enabled       = enabled;
+            if (_postSimGroup   != null) _postSimGroup.Enabled   = enabled;
             if (_lifecycleGroup != null) _lifecycleGroup.Enabled = enabled;
         }
 

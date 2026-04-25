@@ -1,8 +1,9 @@
+using System.Collections.Generic;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Systems;
 using CarKinem.Trajectory;
-using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.CarKinem.Systems;
 
 namespace Fdp.Toolkit.CarKinem.Modules
@@ -55,6 +56,12 @@ namespace Fdp.Toolkit.CarKinem.Modules
         ///   Formation layout templates for <see cref="FormationTargetSystem"/>.
         ///   A new manager (with default templates) is created lazily when <c>null</c>.
         /// </param>
+        /// <summary>Systems that run in the Simulation phase.</summary>
+        public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
+
+        /// <summary>Systems that run in the PostSimulation phase.</summary>
+        public IReadOnlyList<IEcsModuleSystem> PostSimulationSystems { get; }
+
         public GroundKinematicsModule(
             RoadNetworkBlob roadNetwork = default,
             TrajectoryPoolManager? trajectoryPool = null,
@@ -63,6 +70,20 @@ namespace Fdp.Toolkit.CarKinem.Modules
             _roadNetwork        = roadNetwork;
             _trajectoryPool     = trajectoryPool;     // null = lazy-allocate on first use
             _formationTemplates = formationTemplates; // null = lazy-allocate on first use
+
+            // Accessing TrajectoryPool and FormationTemplates here triggers lazy allocation.
+            SimulationSystems = new IEcsModuleSystem[]
+            {
+                new SpatialHashSystem(),
+                new FormationTargetSystem(FormationTemplates, TrajectoryPool),
+                new VehicleCommandSystem(),
+                new NavigationExecutionSystem(),
+            };
+            PostSimulationSystems = new IEcsModuleSystem[]
+            {
+                new CarKinematicsSystem(TrajectoryPool),
+                new LinearKinematicsSystem(),
+            };
         }
 
         /// <summary>Shared trajectory pool (lazy-allocated on first access when not provided at construction).</summary>
@@ -70,24 +91,5 @@ namespace Fdp.Toolkit.CarKinem.Modules
 
         /// <summary>Shared formation-template manager (lazy-allocated on first access when not provided at construction).</summary>
         public FormationTemplateManager FormationTemplates => _formationTemplates ??= new FormationTemplateManager();
-
-        /// <summary>
-        /// Registers the ground kinematics systems into the provided simulation group.
-        /// Accessing this method triggers lazy allocation of <see cref="TrajectoryPool"/> and
-        /// <see cref="FormationTemplates"/> if they were not supplied at construction time.
-        /// </summary>
-        public void RegisterSystems(SystemGroup group)
-        {
-            group.AddSystem(new SpatialHashSystem());
-            group.AddSystem(new FormationTargetSystem(FormationTemplates, TrajectoryPool));
-            group.AddSystem(new VehicleCommandSystem());
-            group.AddSystem(new CarKinematicsSystem(TrajectoryPool));
-            group.AddSystem(new NavigationExecutionSystem());
-            // LinearKinematicsSystem was previously registered directly in SimulationLogicModule
-            // because FDP.Toolkit.Physics→CarKinem made it circular.
-            // Now that the system lives in FDP.Toolkit.CarKinem.Systems, it can be
-            // owned here natively (CT-MOD1-F).
-            group.AddSystem(new LinearKinematicsSystem());
-        }
     }
 }

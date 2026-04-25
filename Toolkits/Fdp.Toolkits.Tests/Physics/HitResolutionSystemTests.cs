@@ -27,12 +27,10 @@ namespace Fdp.Toolkit.Physics.Tests
         {
             _world = PhysicsTestWorldFactory.Create();
             _sys   = new HitResolutionSystem();
-            _sys.Create(_world);
         }
 
         public void Dispose()
         {
-            _sys.Dispose();
             PhysicsTestWorldFactory.DisposeBatch(_world);
         }
 
@@ -64,7 +62,7 @@ namespace Fdp.Toolkit.Physics.Tests
             batch.Count = 1;
 
             // Act
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
             _world.Bus.SwapBuffers();
 
             // Assert
@@ -99,7 +97,7 @@ namespace Fdp.Toolkit.Physics.Tests
             batch.Count = 1;
 
             // Act
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
             _world.Bus.SwapBuffers();
 
             // Assert
@@ -126,7 +124,7 @@ namespace Fdp.Toolkit.Physics.Tests
             batch.Count   = 3;
 
             // Act
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             // Assert: count reset regardless of how many hits were processed.
             Assert.Equal(0, _world.GetSingleton<RaycastBatchData>().Count);

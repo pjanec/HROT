@@ -28,12 +28,10 @@ namespace Fdp.Toolkit.CarKinem.Tests
             _world.RegisterComponent<VehicleState>();
 
             _sys = new LinearKinematicsSystem();
-            _sys.Create(_world);
         }
 
         public void Dispose()
         {
-            _sys.Dispose();
             _world.Dispose();
         }
 
@@ -57,7 +55,7 @@ namespace Fdp.Toolkit.CarKinem.Tests
             _world.AddComponent(e, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
             _world.AddComponent(e, new SimVelocity  { Linear = new Vector3(10f, 0f, 0f) });
 
-            _sys.Run();
+            _sys.Execute(_world, 1.0f);
 
             var tf = _world.GetComponent<SimTransform>(e);
             Assert.Equal(new Vector3(10f, 0f, 0f), tf.Position);
@@ -79,7 +77,7 @@ namespace Fdp.Toolkit.CarKinem.Tests
             _world.AddComponent(e, new SimVelocity  { Linear = new Vector3(10f, 0f, 0f) });
             _world.AddComponent(e, new VehicleState { Speed = 10f });   // excluded by .Without<VehicleState>()
 
-            _sys.Run();
+            _sys.Execute(_world, 1.0f);
 
             var tf = _world.GetComponent<SimTransform>(e);
             Assert.Equal(Vector3.Zero, tf.Position);
@@ -101,7 +99,7 @@ namespace Fdp.Toolkit.CarKinem.Tests
             _world.AddComponent(e, new SimTransform { Position = startPos, Rotation = Quaternion.Identity });
             // No SimVelocity — entity is static.
 
-            _sys.Run();
+            _sys.Execute(_world, 1.0f);
 
             var tf = _world.GetComponent<SimTransform>(e);
             Assert.Equal(startPos, tf.Position);
@@ -125,7 +123,7 @@ namespace Fdp.Toolkit.CarKinem.Tests
             _world.AddComponent(eB, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
             _world.AddComponent(eB, new SimVelocity  { Linear = new Vector3(0f, 2f, 0f) });
 
-            _sys.Run();
+            _sys.Execute(_world, 1.0f);
 
             var tfA = _world.GetComponent<SimTransform>(eA);
             var tfB = _world.GetComponent<SimTransform>(eB);
@@ -149,7 +147,7 @@ namespace Fdp.Toolkit.CarKinem.Tests
             _world.AddComponent(e, new SimTransform { Position = startPos, Rotation = Quaternion.Identity });
             _world.AddComponent(e, new SimVelocity  { Linear = Vector3.Zero });
 
-            _sys.Run();
+            _sys.Execute(_world, 1.0f);
 
             var tf = _world.GetComponent<SimTransform>(e);
             Assert.Equal(startPos, tf.Position);

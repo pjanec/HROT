@@ -1,4 +1,5 @@
-using Fdp.Core;
+using System.Collections.Generic;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Systems;
 
@@ -23,22 +24,20 @@ namespace Fdp.Toolkit.Behavior.Modules
     {
         private readonly DoctrineRegistry _registry;
 
+        /// <summary>Systems that run in the Simulation phase.</summary>
+        public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
+
         public CognitiveRuntimeModule(DoctrineRegistry registry)
         {
             _registry = registry;
-        }
-
-        /// <summary>
-        /// Registers the channel arbitration, HSM damage bridge, BTree tick, and HSM tick systems
-        /// into the provided group.
-        /// </summary>
-        public void RegisterSystems(SystemGroup group)
-        {
-            group.AddSystem(new ChannelArbitrationSystem());
-            group.AddSystem(new HsmDamageBridgeSystem());   // PACK-M001: before HSM ticks
-            group.AddSystem(new BTreeTickSystem(_registry));
-            group.AddSystem(new HsmTickSystem<BrainHsm128>(_registry));
-            group.AddSystem(new HsmTickSystem<BrainHsm64>(_registry));
+            SimulationSystems = new IEcsModuleSystem[]
+            {
+                new ChannelArbitrationSystem(),
+                new HsmDamageBridgeSystem(),           // PACK-M001: before HSM ticks
+                new BTreeTickSystem(_registry),
+                new HsmTickSystem<BrainHsm128>(_registry),
+                new HsmTickSystem<BrainHsm64>(_registry),
+            };
         }
     }
 }

@@ -27,7 +27,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var world    = TestWorldFactory.Create();
             var registry = new DoctrineRegistry();
             var sys      = new DoctrineIngressSystem(registry);
-            sys.Create(world);
             return (world, sys, registry);
         }
 
@@ -64,7 +63,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
             world.Bus.SwapBuffers();
 
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             // Verify: BrainBlackboard.Memory[0..3] == 50.0f.
             ref var blackboard = ref world.GetComponentRW<BrainBlackboard>(e);
@@ -72,7 +71,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var fb    = *(FleeBlackboard*)bbPtr->Memory;
             Assert.Equal(50.0f, fb.SafeDistance);
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -98,19 +96,18 @@ namespace Fdp.Toolkit.Behavior.Tests
             // --- Assignment 1 ---
             world.Bus.PublishManaged(new AssignDoctrineEvent { Entity = e, DoctrineName = doctrineName, JsonParams = "" });
             world.Bus.SwapBuffers();
-            sys.Run();
+            sys.Execute(world, 0.016f);
             uint instanceId1 = world.GetComponent<DoctrineState>(e).InstanceId;
 
             // --- Assignment 2 ---
             world.Bus.PublishManaged(new AssignDoctrineEvent { Entity = e, DoctrineName = doctrineName, JsonParams = "" });
             world.Bus.SwapBuffers();
-            sys.Run();
+            sys.Execute(world, 0.016f);
             uint instanceId2 = world.GetComponent<DoctrineState>(e).InstanceId;
 
             Assert.True(instanceId1 > 0);             // was incremented from 0
             Assert.True(instanceId2 > instanceId1);   // strictly increasing each assignment
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -140,12 +137,11 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             world.Bus.PublishManaged(new AssignDoctrineEvent { Entity = e, DoctrineName = doctrineName, JsonParams = "" });
             world.Bus.SwapBuffers();
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             var btState = world.GetComponent<BrainBTreeState>(e);
             Assert.Equal(0, btState.State.RunningNodeIndex); // reset to start
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -169,8 +165,6 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var ingressSys     = new DoctrineIngressSystem(registry);
             var arbitrationSys = new ChannelArbitrationSystem();
-            ingressSys.Create(world);
-            arbitrationSys.Create(world);
 
             var e = world.CreateEntity();
             // Setup: channel and doctrine both at version 1 (valid/matching).
@@ -190,20 +184,18 @@ namespace Fdp.Toolkit.Behavior.Tests
                 JsonParams   = "",
             });
             world.Bus.SwapBuffers();
-            ingressSys.Run();
+            ingressSys.Execute(world, 0.016f);
 
             uint newInstanceId = world.GetComponent<DoctrineState>(e).InstanceId;
             Assert.True(newInstanceId > 1); // ingress incremented it
 
             // Step 2: arbitration sees DoctrineInstanceId(1) != InstanceId(2) → clears channel.
-            arbitrationSys.Run();
+            arbitrationSys.Execute(world, 0.016f);
 
             var channel = world.GetComponent<LocomotionChannel>(e);
             Assert.Equal(0, channel.ActiveAction);          // preemption chain complete
             Assert.Equal(1u, channel.DoctrineInstanceId);   // selective-clear preserves DoctrineInstanceId (only ActiveAction zeroed)
 
-            ingressSys.Dispose();
-            arbitrationSys.Dispose();
             world.Dispose();
         }
 
@@ -242,7 +234,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Bus.SwapBuffers();
 
             // Must not throw.
-            var exception = Record.Exception(() => sys.Run());
+            var exception = Record.Exception(() => sys.Execute(world, 0.016f));
             Assert.Null(exception);
 
             // DEBT-035 fix: ParseParams now runs BEFORE DoctrineState is written.
@@ -250,7 +242,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var state = world.GetComponent<DoctrineState>(e);
             Assert.Equal(5u, state.InstanceId);
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -301,7 +292,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 JsonParams   = "{}",
             });
             world.Bus.SwapBuffers();
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             var state = world.GetComponent<DoctrineState>(e);
             // ActiveDoctrineHash must still point to OldId — NOT switched to NewId.
@@ -309,7 +300,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             // InstanceId must NOT have been bumped.
             Assert.Equal(0u, state.InstanceId);
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -334,7 +324,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             world.Bus.Publish(new ClearDoctrineEvent { Entity = e });
             world.Bus.SwapBuffers();
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             var doctrine = world.GetComponent<DoctrineState>(e);
             Assert.Equal(DoctrineIds.None, doctrine.ActiveDoctrineHash);  // cleared
@@ -344,7 +334,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var btState = world.GetComponent<BrainBTreeState>(e);
             Assert.Equal(0, btState.State.RunningNodeIndex);              // execution pointer reset
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -360,10 +349,9 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Bus.Publish(new ClearDoctrineEvent { Entity = e });
             world.Bus.SwapBuffers();
 
-            var exception = Record.Exception(() => sys.Run());
+            var exception = Record.Exception(() => sys.Execute(world, 0.016f));
             Assert.Null(exception);
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -381,7 +369,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // Only clear entity A.
             world.Bus.Publish(new ClearDoctrineEvent { Entity = entityA });
             world.Bus.SwapBuffers();
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             var docA = world.GetComponent<DoctrineState>(entityA);
             var docB = world.GetComponent<DoctrineState>(entityB);
@@ -389,7 +377,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(DoctrineIds.None, docA.ActiveDoctrineHash); // cleared
             Assert.Equal(1001,            docB.ActiveDoctrineHash);  // untouched
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -418,7 +405,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Bus.PublishManaged(new AssignDoctrineEvent { Entity = entityA, DoctrineName = doctrineName, JsonParams = "" });
             world.Bus.Publish(new ClearDoctrineEvent  { Entity = entityB });
             world.Bus.SwapBuffers();
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             var docA = world.GetComponent<DoctrineState>(entityA);
             var docB = world.GetComponent<DoctrineState>(entityB);
@@ -426,7 +413,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(PatrolId,        docA.ActiveDoctrineHash); // assigned
             Assert.Equal(DoctrineIds.None, docB.ActiveDoctrineHash); // cleared
 
-            sys.Dispose();
             world.Dispose();
         }
     }

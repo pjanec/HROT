@@ -131,18 +131,6 @@ public class CarKinemApp : FdpApplication
         _kernel.SetTimeController(_activeTimeController); 
         _kernel.Initialize();
         
-        // Create Systems in Repo
-        _spatialSystem.Create(_repository);
-        _formationSystem.Create(_repository);
-        _commandSystem.Create(_repository);
-        _kinematicsSystem.Create(_repository);
-        
-        // Add to list for profiler
-        _systems.Add(_spatialSystem);
-        _systems.Add(_formationSystem);
-        _systems.Add(_commandSystem);
-        _systems.Add(_kinematicsSystem);
-
         // Scenario Manager
         _scenarioManager = new ScenarioManager(_repository, _roadNetwork, _trajectoryPool, _formationTemplates);
         _scenarioManager.SpawnFastOne(); // Initial Spawn
@@ -418,8 +406,8 @@ public class CarKinemApp : FdpApplication
         // (Unless in Replay Mode, where we might want to disable them)
         if (_playback == null)
         {
-            _commandSystem.Run();
-            _formationSystem.Run();
+            _commandSystem.Execute(_repository, dt);
+            _formationSystem.Execute(_repository, dt);
         }
 
         // C. Conditional Physics/Stepping Logic
@@ -458,10 +446,10 @@ public class CarKinemApp : FdpApplication
         if (shouldStep)
         {
             // Run Systems that integrate/modify physics state
-            _spatialSystem.Run();
-            // _formationSystem.Run(); // Moved strictly to always run (Logic)
-            // _commandSystem.Run();   // Moved strictly to always run (Logic)
-            _kinematicsSystem.Run();
+            _spatialSystem.Execute(_repository, dt);
+            // _formationSystem.Execute(_repository, dt); // Moved strictly to always run (Logic)
+            // _commandSystem.Execute(_repository, dt);   // Moved strictly to always run (Logic)
+            _kinematicsSystem.Execute(_repository, dt);
             
             _scenarioManager.Update();
             
@@ -542,8 +530,6 @@ public class CarKinemApp : FdpApplication
         _recorder?.Dispose();
         _playback?.Dispose();
         
-        _spatialSystem?.Dispose();
-        _kinematicsSystem?.Dispose();
         _roadNetwork.Dispose();
         _trajectoryPool?.Dispose();
         _formationTemplates?.Dispose();

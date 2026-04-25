@@ -1,6 +1,8 @@
+using System;
 using System.Numerics;
 using CarKinem.Core;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Navigation;
 
 using NavMode   = Fdp.Toolkit.Navigation.NavigationMode;
@@ -43,9 +45,9 @@ namespace CarKinem.Systems
     /// space as <see cref="NavigationIntent.FinalDestination"/>.
     /// </para>
     /// </remarks>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateAfter(typeof(CarKinematicsSystem))]
-    public class NavigationExecutionSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    // [UpdateAfter(typeof(CarKinematicsSystem))] -- ordering maintained by array position in GroundKinematicsModule.
+    public class NavigationExecutionSystem : IEcsModuleSystem
     {
         // ── Constants ──────────────────────────────────────────────────────────────────────────
 
@@ -64,9 +66,14 @@ namespace CarKinem.Systems
 
         // ── OnUpdate ───────────────────────────────────────────────────────────────────────────
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            var query = World.Query()
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(NavigationExecutionSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            var query = repo.Query()
                 .With<NavigationIntent>()
                 .With<NavigationStatus>()
                 .With<FrustrationTicks>()
@@ -76,24 +83,24 @@ namespace CarKinem.Systems
 
             foreach (var entity in query)
             {
-                var intent = World.GetComponent<NavigationIntent>(entity);
+                var intent = repo.GetComponent<NavigationIntent>(entity);
 
                 // ── Skip inactive intents ──────────────────────────────────────────────────────
                 if (intent.Mode == NavMode.None)
                     continue;
 
-                var status      = World.GetComponent<NavigationStatus>(entity);
-                var frustration = World.GetComponent<FrustrationTicks>(entity);
-                var tf          = World.GetComponent<SimTransform>(entity);
-                var vel         = World.GetComponent<SimVelocity>(entity);
+                var status      = repo.GetComponent<NavigationStatus>(entity);
+                var frustration = repo.GetComponent<FrustrationTicks>(entity);
+                var tf          = repo.GetComponent<SimTransform>(entity);
+                var vel         = repo.GetComponent<SimVelocity>(entity);
 
                 // ── Mirror ProgressS from NavState (PACK-N002) ───────────────────────────────
                 // Cache NavState.ProgressS once per entity tick so Brain-only nodes can read
                 // route progress via the NavigationStatus CQRS feedback channel without querying
                 // NavState directly (CQRS boundary — DESIGN.md §1.B).
                 float progressAtThisTick = 0f;
-                if (World.HasComponent<NavState>(entity))
-                    progressAtThisTick = World.GetComponent<NavState>(entity).ProgressS;
+                if (repo.HasComponent<NavState>(entity))
+                    progressAtThisTick = repo.GetComponent<NavState>(entity).ProgressS;
                 status.ProgressS = progressAtThisTick;
 
                 // ── New command detection: reset status and frustration counter ────────────────
@@ -111,9 +118,9 @@ namespace CarKinem.Systems
                         Result    = NavResult.InProgress,
                         ProgressS = progressAtThisTick,
                     };
-                    World.SetComponent(entity, status);
+                    repo.SetComponent(entity, status);
                     frustration.Ticks = 0;
-                    World.SetComponent(entity, frustration);
+                    repo.SetComponent(entity, frustration);
                 }
 
                 // ── Arrival check ─────────────────────────────────────────────────────────────────
@@ -121,9 +128,9 @@ namespace CarKinem.Systems
                 // RoadGraph and FollowRoute: delegate to NavState.HasArrived (set by CarKinematicsSystem).
                 bool arrived;
                 if ((intent.Mode == NavMode.RoadGraph || intent.Mode == NavMode.FollowRoute)
-                    && World.HasComponent<NavState>(entity))
+                    && repo.HasComponent<NavState>(entity))
                 {
-                    var nav = World.GetComponent<NavState>(entity);
+                    var nav = repo.GetComponent<NavState>(entity);
                     arrived = nav.HasArrived != 0;
                 }
                 else
@@ -136,9 +143,9 @@ namespace CarKinem.Systems
                 if (arrived)
                 {
                     status.Result = NavResult.Arrived;
-                    World.SetComponent(entity, status);
+                    repo.SetComponent(entity, status);
                     frustration.Ticks = 0;
-                    World.SetComponent(entity, frustration);
+                    repo.SetComponent(entity, frustration);
                     continue;
                 }
 
@@ -148,12 +155,12 @@ namespace CarKinem.Systems
                 if (speed < FrustrationSpeedThreshold)
                 {
                     frustration.Ticks++;
-                    World.SetComponent(entity, frustration);
+                    repo.SetComponent(entity, frustration);
 
                     if (frustration.Ticks > FrustrationTickLimit)
                     {
                         status.Result = NavResult.FailedBlocked;
-                        World.SetComponent(entity, status);
+                        repo.SetComponent(entity, status);
                         continue;
                     }
                 }
@@ -163,7 +170,7 @@ namespace CarKinem.Systems
                     if (frustration.Ticks != 0)
                     {
                         frustration.Ticks = 0;
-                        World.SetComponent(entity, frustration);
+                        repo.SetComponent(entity, frustration);
                     }
                 }
 
@@ -172,7 +179,7 @@ namespace CarKinem.Systems
                 // InProgress path (no continue above was taken).
                 if (status.Result != NavResult.InProgress)
                     status.Result = NavResult.InProgress;
-                World.SetComponent(entity, status);
+                repo.SetComponent(entity, status);
             }
         }
     }

@@ -65,8 +65,7 @@ namespace Fdp.Toolkit.Physics.Tests
             batch.Count       = 1;
 
             var sys = new RaycastSolverSystem();
-            sys.Create(_world);
-            sys.Run();
+            sys.Execute(_world, 0.016f);
         }
 
         // ── Test 1 ────────────────────────────────────────────────────────────────

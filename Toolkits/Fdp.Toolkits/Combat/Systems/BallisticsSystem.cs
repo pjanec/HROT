@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
@@ -38,51 +39,46 @@ namespace Fdp.Toolkit.Combat.Systems
     ///      defined in a referenceable assembly (Phase 0). Attribute will be added once the class
     ///      is introduced. Ordering is maintained by the host application's registration order. -->
     /// </summary>
-    [UpdateInGroup(typeof(PostSimulationSystemGroup))]
-    // [UpdateAfter(typeof(LinearKinematicsSystem))] — CT-MOD1-F: LinearKinematicsSystem moved
-    //   to FDP.Toolkit.CarKinem.Systems. FDP.Toolkit.Combat does not reference CarKinem,
-    //   so the ordering attribute is omitted and maintained by registration order in
-    //   SimulationLogicModule (GroundKinematicsModule.RegisterSystems then postSimGroup).
-    // When all three SystemGroup parameters in CombatModule.RegisterSystems point to the same
-    // flat _kernelGroup (SimHostApp cluster mode), SortSystems (Kahn's FIFO) would otherwise
-    // place HitResolutionSystem after BallisticsSystem — causing RaycastSolverSystem to always
-    // see Count=0 (cleared by the previous frame's HitResolution). The [UpdateAfter] below
-    // anchors Ballistics after HitResolution so the pipeline is:
-    //   RaycastSolverSystem → HitResolutionSystem → BallisticsSystem (fills batch for next frame).
-    [UpdateAfter(typeof(HitResolutionSystem))]
-    public class BallisticsSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.PostSimulation)]
+    // [UpdateAfter(typeof(HitResolutionSystem))] — ordering maintained by array position in CombatModule.
+    public class BallisticsSystem : IEcsModuleSystem
     {
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(BallisticsSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
             // Guard: if the RaycastBatchData singleton has not been initialised by
             // PhysicsToolkitModule, skip silently — bullets will not be tested this frame.
-            if (!World.HasSingleton<RaycastBatchData>()) return;
+            if (!repo.HasSingleton<RaycastBatchData>()) return;
 
-            uint currentTick = World.HasSingleton<GlobalTime>()
-                ? (uint)World.GetSingleton<GlobalTime>().FrameNumber
+            uint currentTick = repo.HasSingleton<GlobalTime>()
+                ? (uint)repo.GetSingleton<GlobalTime>().FrameNumber
                 : 0u;
 
-            ref var batch = ref World.GetSingleton<RaycastBatchData>();
+            ref var batch = ref repo.GetSingleton<RaycastBatchData>();
 
-            var query = World.Query()
+            var query = repo.Query()
                 .With<BallisticProjectile>()
                 .With<SimTransform>()
                 .Build();
 
             foreach (var entity in query)
             {
-                ref var proj = ref World.GetComponentRW<BallisticProjectile>(entity);
+                ref var proj = ref repo.GetComponentRW<BallisticProjectile>(entity);
 
                 // ── 1. Lifetime check ────────────────────────────────────────────
                 // Unsigned subtraction handles tick-counter wrap correctly.
                 if (currentTick - proj.SpawnTick >= CombatConstants.BulletLifetimeTicks)
                 {
-                    World.DestroyEntity(entity);
+                    repo.DestroyEntity(entity);
                     continue;   // do NOT submit a raycast for a just-destroyed bullet
                 }
 
                 // ── 2. Submit swept-segment raycast ──────────────────────────────
-                var tf = World.GetComponent<SimTransform>(entity);
+                var tf = repo.GetComponent<SimTransform>(entity);
 
                 // Capacity guard: silently drop if the batch is already full.
                 if (batch.Count < PhysicsConstants.RaycastBatchCapacity)

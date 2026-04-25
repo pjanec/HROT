@@ -81,7 +81,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
 
             var sys = new HsmTickSystem<BrainHsm128>(registry);
-            sys.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new DoctrineState
@@ -106,13 +105,12 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, brain);
 
             // Act.
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             // Assert — HSM transitioned from State 0 to State 1.
             var result = world.GetComponent<BrainHsm128>(e);
             Assert.Equal(1, result.State.ActiveLeafIds[0]); // StateB.Id == 1
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -157,8 +155,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             // queries the component it owns and never touches the other type.
             var sys128 = new HsmTickSystem<BrainHsm128>(new DoctrineRegistry());
             var sys64  = new HsmTickSystem<BrainHsm64>(new DoctrineRegistry());
-            sys128.Create(world);
-            sys64.Create(world);
 
             // Entity A — only BrainHsm64.
             var entityA = world.CreateEntity();
@@ -177,22 +173,20 @@ namespace Fdp.Toolkit.Behavior.Tests
             // NO BrainHsm64 on entityB.
 
             // Act — run the 128 system first, then the 64 system.
-            sys128.Run();
+            sys128.Execute(world, 0.016f);
 
             // sys128 processed only entityB (has BrainHsm128).
             // entityA's BrainHsm64 must be unchanged.
             var aAfter128 = world.GetComponent<BrainHsm64>(entityA);
             Assert.Equal(InstancePhase.Idle, aAfter128.State.Header.Phase);
 
-            sys64.Run();
+            sys64.Execute(world, 0.016f);
 
             // sys64 processed only entityA (has BrainHsm64).
             // entityB's BrainHsm128 must be unchanged.
             var bAfter64 = world.GetComponent<BrainHsm128>(entityB);
             Assert.Equal(InstancePhase.Idle, bAfter64.State.Header.Phase);
 
-            sys128.Dispose();
-            sys64.Dispose();
             world.Dispose();
         }
     }

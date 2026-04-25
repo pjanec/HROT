@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Physics.Components;
@@ -37,16 +38,21 @@ namespace Fdp.Toolkit.Combat.Systems
     /// If the shooter entity is no longer alive the event is skipped.
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(InputSystemGroup))]
-    public class FireProcessingSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Input)]
+    public class FireProcessingSystem : IEcsModuleSystem
     {
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            var events = World.Bus.Read<WeaponFireIntent>();
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(FireProcessingSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            var events = repo.Bus.Read<WeaponFireIntent>();
             if (events.Length == 0) return;
 
-            uint currentTick = World.HasSingleton<GlobalTime>()
-                ? (uint)World.GetSingleton<GlobalTime>().FrameNumber
+            uint currentTick = repo.HasSingleton<GlobalTime>()
+                ? (uint)repo.GetSingleton<GlobalTime>().FrameNumber
                 : 0u;
 
             for (int i = 0; i < events.Length; i++)
@@ -57,13 +63,13 @@ namespace Fdp.Toolkit.Combat.Systems
                 var target  = evt.Target;
 
                 // Skip if either entity is no longer alive.
-                if (!World.IsAlive(shooter)) continue;
-                if (!World.IsAlive(target))  continue;
+                if (!repo.IsAlive(shooter)) continue;
+                if (!repo.IsAlive(target))  continue;
 
                 // Read muzzle velocity from the shooter's WeaponState.
-                var weapon      = World.GetComponent<WeaponState>(shooter);
-                var shooterPos  = World.GetComponent<SimTransform>(shooter).Position;
-                var targetPos   = World.GetComponent<SimTransform>(target).Position;
+                var weapon      = repo.GetComponent<WeaponState>(shooter);
+                var shooterPos  = repo.GetComponent<SimTransform>(shooter).Position;
+                var targetPos   = repo.GetComponent<SimTransform>(target).Position;
 
                 // Compute normalised direction from shooter toward target.
                 var delta     = targetPos - shooterPos;
@@ -73,24 +79,24 @@ namespace Fdp.Toolkit.Combat.Systems
                 var velocity  = direction * weapon.MuzzleVelocity;
 
                 // 1. Spawn the bullet entity.
-                var bullet = World.CreateEntity();
+                var bullet = repo.CreateEntity();
 
                 // 2. Spatial transform — position at the shot origin.
-                World.AddComponent(bullet, new SimTransform
+                repo.AddComponent(bullet, new SimTransform
                 {
                     Position = shooterPos,
                     Rotation = Quaternion.Identity,
                 });
 
                 // 3. Kinematics — velocity inherited from muzzle velocity; no angular spin.
-                World.AddComponent(bullet, new SimVelocity
+                repo.AddComponent(bullet, new SimVelocity
                 {
                     Linear  = velocity,
                     Angular = Vector3.Zero,
                 });
 
                 // 4. Ballistic tag — used by BallisticsSystem and DamageSystem.
-                World.AddComponent(bullet, new BallisticProjectile
+                repo.AddComponent(bullet, new BallisticProjectile
                 {
                     Shooter          = shooter,
                     PreviousPosition = shooterPos,
@@ -99,7 +105,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 });
 
                 // 5. Physics collider — small sphere for broadphase candidate selection.
-                World.AddComponent(bullet, new PhysicsCollider
+                repo.AddComponent(bullet, new PhysicsCollider
                 {
                     Radius         = CombatConstants.BulletColliderRadius,
                     CollisionLayer = CombatConstants.BulletCollisionLayer,
@@ -108,7 +114,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 // 6. Notify egress translator (muzzle flash for IG).
                 //    Entity handles are passed; WeaponFireNotificationEgressTranslator resolves
                 //    them to network IDs on the egress boundary.
-                World.Bus.Publish(new WeaponFireNotification
+                repo.Bus.Publish(new WeaponFireNotification
                 {
                     Shooter     = shooter,
                     Target      = target,

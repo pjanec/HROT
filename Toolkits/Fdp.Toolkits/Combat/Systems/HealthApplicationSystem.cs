@@ -1,5 +1,6 @@
 using System;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Events;
@@ -29,16 +30,21 @@ namespace Fdp.Toolkit.Combat.Systems
     /// <b>Execution phase:</b> <see cref="SimulationSystemGroup"/>.
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    public class HealthApplicationSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    public class HealthApplicationSystem : IEcsModuleSystem
     {
         public HealthApplicationSystem()
         {
         }
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            var events = World.Bus.Read<DamageAssessedEvent>();
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(HealthApplicationSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            var events = repo.Bus.Read<DamageAssessedEvent>();
             if (events.Length == 0) return;
 
             for (int i = 0; i < events.Length; i++)
@@ -48,36 +54,36 @@ namespace Fdp.Toolkit.Combat.Systems
                 var targetEntity = evt.HitEntity;
 
                 // Skip if entity is no longer alive.
-                if (!World.IsAlive(targetEntity))
+                if (!repo.IsAlive(targetEntity))
                     continue;
 
                 // Authority gate: only the owning node applies health changes.
-                if (World.HasComponent<NetworkAuthority>(targetEntity))
+                if (repo.HasComponent<NetworkAuthority>(targetEntity))
                 {
-                    ref readonly var auth = ref World.GetComponentRO<NetworkAuthority>(targetEntity);
+                    ref readonly var auth = ref repo.GetComponentRO<NetworkAuthority>(targetEntity);
                     if (!auth.HasAuthority) continue;
                 }
 
                 // Require a Health component to be present.
-                if (!World.HasComponent<Health>(targetEntity))
+                if (!repo.HasComponent<Health>(targetEntity))
                     continue;
 
                 // Apply damage with a floor of 0.
-                ref var health = ref World.GetComponentRW<Health>(targetEntity);
+                ref var health = ref repo.GetComponentRW<Health>(targetEntity);
                 health.Current = MathF.Max(0f, health.Current - evt.TotalDamage);
 
                 // At zero HP: strip mobility and shoot capabilities.
-                if (health.Current <= 0f && World.HasComponent<ActorCapabilityState>(targetEntity))
+                if (health.Current <= 0f && repo.HasComponent<ActorCapabilityState>(targetEntity))
                 {
-                    ref var caps = ref World.GetComponentRW<ActorCapabilityState>(targetEntity);
+                    ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(targetEntity);
                     caps.Capabilities &= ~(ActorCapabilities.CanMove | ActorCapabilities.CanShoot);
                 }
                 // Non-lethal hit (HP below max but above 0): strip only CanMove (PACK-M002).
                 // This replaces the cross-domain ApcMobilityTriggerSystem so Brain-tier
                 // HsmDamageBridgeSystem can detect the capability change and inject MobilityLost.
-                else if (health.Current < health.Max && World.HasComponent<ActorCapabilityState>(targetEntity))
+                else if (health.Current < health.Max && repo.HasComponent<ActorCapabilityState>(targetEntity))
                 {
-                    ref var caps = ref World.GetComponentRW<ActorCapabilityState>(targetEntity);
+                    ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(targetEntity);
                     caps.Capabilities &= ~ActorCapabilities.CanMove;
                 }
             }

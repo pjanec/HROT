@@ -1,5 +1,6 @@
 using System;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fhsm.Kernel;
 using Fdp.Toolkit.Behavior.Components;
 
@@ -39,9 +40,9 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// <see cref="HsmKernel.Update{TInstance,TContext}"/> can identify the tier from
     /// <c>sizeof(T)</c>.
     /// </typeparam>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateAfter(typeof(ChannelArbitrationSystem))]
-    public class HsmTickSystem<T> : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    // [UpdateAfter(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in CognitiveRuntimeModule.
+    public class HsmTickSystem<T> : IEcsModuleSystem
         where T : unmanaged
     {
         private readonly DoctrineRegistry _registry;
@@ -51,9 +52,14 @@ namespace Fdp.Toolkit.Behavior.Systems
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            var q = World.Query()
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(HsmTickSystem<T>)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            var q = repo.Query()
                 .With<DoctrineState>()
                 .With<T>()
                 .Build();
@@ -63,7 +69,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             foreach (var entity in q)
             {
-                var doctrine = World.GetComponent<DoctrineState>(entity);
+                var doctrine = repo.GetComponent<DoctrineState>(entity);
 
                 // Only process HSM-tier entities.
                 if (doctrine.BrainTier != BehaviorConstants.BrainTierHsm)
@@ -74,19 +80,19 @@ namespace Fdp.Toolkit.Behavior.Systems
                     || def.HsmDefinition == null)
                     continue;
 
-                ref var component = ref World.GetComponentRW<T>(entity);
+                ref var component = ref repo.GetComponentRW<T>(entity);
 
                 // DEBT-007 full resolution: WorldHandle carries the GCHandle IntPtr so that
                 // action delegates can recover the EntityRepository via GCHandle.FromIntPtr.
-                // IntPtr is an unmanaged value type — satisfies 'where TContext : unmanaged'.
+                // IntPtr is an unmanaged value type -- satisfies 'where TContext : unmanaged'.
                 var bridge = new HsmKernelBridge
                 {
                     Self        = entity,
-                    WorldHandle = World.UnmanagedHandle,  // one property read per entity per tick
+                    WorldHandle = repo.UnmanagedHandle,  // one property read per entity per tick
                 };
 
                 // sizeof(T) determines the tier (64 / 128 / 256) inside HsmKernelCore.
-                HsmKernel.Update(def.HsmDefinition, ref component, bridge, DeltaTime);
+                HsmKernel.Update(def.HsmDefinition, ref component, bridge, deltaTime);
             }
         }
     }

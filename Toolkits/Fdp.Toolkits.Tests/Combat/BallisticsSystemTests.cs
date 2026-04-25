@@ -44,13 +44,10 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.SetSingleton(new GlobalTime { FrameNumber = 0, TimeScale = 1f });
 
             _sys = new BallisticsSystem();
-            _sys.Create(_world);
         }
 
         public void Dispose()
         {
-            _sys.Dispose();
-
             // Free the persistent native arrays allocated in the constructor.
             if (_world.HasSingleton<RaycastBatchData>())
             {
@@ -102,7 +99,7 @@ namespace Fdp.Toolkit.Combat.Tests
             SpawnBullet(new Vector3(5f, 0f, 0f),  spawnTick: 0);
             SpawnBullet(new Vector3(10f, 0f, 0f), spawnTick: 0);
 
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             ref var batch = ref _world.GetSingleton<RaycastBatchData>();
             Assert.Equal(2, batch.Count);
@@ -121,7 +118,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var currentPos = new Vector3(5f, 0f, 0f);
             var bullet = SpawnBullet(currentPos, spawnTick: 0, previousPosition: Vector3.Zero);
 
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var proj = _world.GetComponent<BallisticProjectile>(bullet);
             Assert.Equal(currentPos, proj.PreviousPosition);
@@ -140,7 +137,7 @@ namespace Fdp.Toolkit.Combat.Tests
             SetCurrentTick(121);
             var bullet = SpawnBullet(new Vector3(1f, 0f, 0f), spawnTick: 0);
 
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             Assert.False(_world.IsAlive(bullet), "Bullet entity should have been destroyed after lifetime expired.");
         }
@@ -157,7 +154,7 @@ namespace Fdp.Toolkit.Combat.Tests
             SetCurrentTick(121);
             SpawnBullet(new Vector3(1f, 0f, 0f), spawnTick: 0);
 
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             ref var batch = ref _world.GetSingleton<RaycastBatchData>();
             Assert.Equal(0, batch.Count);
@@ -179,7 +176,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             var bullet = SpawnBullet(new Vector3(5f, 0f, 0f), spawnTick: 0, shooter: shooter);
 
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             ref var batch = ref _world.GetSingleton<RaycastBatchData>();
             Assert.Equal(1, batch.Count);
@@ -205,7 +202,7 @@ namespace Fdp.Toolkit.Combat.Tests
             // Spawn one bullet — system should detect batch is full and skip writing.
             SpawnBullet(new Vector3(5f, 0f, 0f), spawnTick: 0);
 
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             ref var batchAfter = ref _world.GetSingleton<RaycastBatchData>();
             Assert.Equal(PhysicsConstants.RaycastBatchCapacity, batchAfter.Count);

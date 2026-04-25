@@ -341,8 +341,6 @@ namespace Fdp.Examples.Scenarios.Network
             {
                 ForceSerial = true   // deterministic: no parallel partitioning in CI
             };
-            muscleSpatialHash.Create(_muscleWorld);
-            muscleKinematics.Create(_muscleWorld);
 
             var muscleAccumulator = new EventAccumulator();
             _muscleKernel = new ModuleHostKernel(_muscleWorld, muscleAccumulator);
@@ -696,14 +694,14 @@ namespace Fdp.Examples.Scenarios.Network
         /// </summary>
         private sealed class MuscleDirectSystemsModule : IEcsModule
         {
-            private readonly ComponentSystem[] _systems;
+            private readonly IEcsModuleSystem[] _systems;
 
             public string Name => "MuscleGroundKinem";
             public ExecutionPolicy Policy     => ExecutionPolicy.Synchronous();
             public IReadOnlyList<Type>? WatchComponents => null;
             public IReadOnlyList<Type>? WatchEvents     => null;
 
-            public MuscleDirectSystemsModule(params ComponentSystem[] systems)
+            public MuscleDirectSystemsModule(params IEcsModuleSystem[] systems)
             {
                 _systems = systems;
             }
@@ -713,7 +711,7 @@ namespace Fdp.Examples.Scenarios.Network
             public void Tick(ISimulationView view, float deltaTime)
             {
                 foreach (var sys in _systems)
-                    sys.Run();
+                    sys.Execute(view, deltaTime);
             }
 
             public IReadOnlyList<Type>? GetRequiredComponents() => null;

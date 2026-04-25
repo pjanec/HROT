@@ -219,8 +219,6 @@ namespace Fdp.Examples.Scenarios.Replay
             {
                 ForceSerial = true   // deterministic: single-threaded partition-free
             };
-            spatialHash.Create(liveWorld);
-            kinematics.Create(liveWorld);
             liveKernel.RegisterModule(new LiveKinematicsModule(spatialHash, kinematics));
 
             // RecorderTickSystem (PostSimulation) captures each frame automatically.
@@ -328,8 +326,8 @@ namespace Fdp.Examples.Scenarios.Replay
 
             public void Tick(ISimulationView view, float deltaTime)
             {
-                _spatial.Run();
-                _kinematics.Run();
+                _spatial.Execute(view, deltaTime);
+                _kinematics.Execute(view, deltaTime);
             }
 
             public IReadOnlyList<Type>? GetRequiredComponents() => null;

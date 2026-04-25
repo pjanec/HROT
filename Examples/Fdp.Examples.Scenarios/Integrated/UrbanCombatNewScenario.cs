@@ -315,8 +315,8 @@ namespace Fdp.Examples.Scenarios.Integrated
 
             // 7. Build and register the system module.
             _trajectoryPool = new TrajectoryPoolManager();
-            var systems = BuildSystems(world);
-            kernel.RegisterModule(new UrbanCombatModule("UrbanCombatModule", systems));
+            var (modSystems, legacySystems) = BuildSystems(world);
+            kernel.RegisterModule(new UrbanCombatModule("UrbanCombatModule", modSystems, legacySystems));
 
             // 8. Spawn all 14 entities.
             SpawnAll(world);
@@ -802,7 +802,7 @@ namespace Fdp.Examples.Scenarios.Integrated
 
         // ── Private helpers — system pipeline ────────────────────────────────
 
-        private ComponentSystem[] BuildSystems(EntityRepository world)
+        private (IEcsModuleSystem[] modSystems, ComponentSystem[] legacySystems) BuildSystems(EntityRepository world)
         {
             var weaponSys = new WeaponDispatcherSystem();
             weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor());
@@ -810,37 +810,41 @@ namespace Fdp.Examples.Scenarios.Integrated
             var interactSys = new InteractionDispatcherSystem();
             interactSys.RegisterExecutor(BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor());
 
-            var systems = new ComponentSystem[]
+            var modSystems = new IEcsModuleSystem[]
             {
-                // ── Input equivalent ──
+                // -- Input equivalent --
                 new DoctrineIngressSystem(_doctrineRegistry),
                 new FireProcessingSystem(),
                 new RaycastSolverSystem(),
                 new HitResolutionSystem(),
 
-                // ── Simulation ────────
+                // -- Simulation --------
                 new MissionDirectorSystem(),
                 new ChannelArbitrationSystem(),
                 new BTreeTickSystem(_doctrineRegistry),
                 new HsmTickSystem<BrainHsm128>(_doctrineRegistry),
-                new DamageSystem(),
                 new HsmDamageBridgeSystem(),
-                new AudioPerceptionSystem(),
                 weaponSys,
                 interactSys,
                 new LocomotionDispatcherSystem(),
 
-                // ── PostSim equivalent ──
+                // -- PostSim equivalent --
                 new SpatialHashSystem(),
                 new CarKinematicsSystem(_trajectoryPool!),
                 new LinearKinematicsSystem(),
                 new BallisticsSystem(),
             };
 
-            foreach (var sys in systems)
+            var legacySystems = new ComponentSystem[]
+            {
+                new DamageSystem(),
+                new AudioPerceptionSystem(),
+            };
+
+            foreach (var sys in legacySystems)
                 sys.Create(world);
 
-            return systems;
+            return (modSystems, legacySystems);
         }
 
         // ── Private helpers — entity spawning ────────────────────────────────
@@ -1024,24 +1028,28 @@ namespace Fdp.Examples.Scenarios.Integrated
         /// </summary>
         private sealed class UrbanCombatModule : IEcsModule
         {
-            private readonly ComponentSystem[] _systems;
+            private readonly IEcsModuleSystem[] _modSystems;
+            private readonly ComponentSystem[]  _legacySystems;
 
             public string Name { get; }
             public ExecutionPolicy Policy         => ExecutionPolicy.Synchronous();
             public IReadOnlyList<Type>? WatchComponents => null;
             public IReadOnlyList<Type>? WatchEvents     => null;
 
-            public UrbanCombatModule(string name, ComponentSystem[] systems)
+            public UrbanCombatModule(string name, IEcsModuleSystem[] modSystems, ComponentSystem[] legacySystems)
             {
-                Name     = name;
-                _systems = systems;
+                Name          = name;
+                _modSystems   = modSystems;
+                _legacySystems = legacySystems;
             }
 
             public void RegisterSystems(ISystemRegistry registry) { }
 
             public void Tick(ISimulationView view, float deltaTime)
             {
-                foreach (var sys in _systems)
+                foreach (var sys in _modSystems)
+                    sys.Execute(view, deltaTime);
+                foreach (var sys in _legacySystems)
                     sys.Run();
             }
 

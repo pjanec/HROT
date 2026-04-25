@@ -115,10 +115,6 @@ namespace Fdp.Examples.Scenarios.Cognitive
             _missionDirector   = new MissionDirectorSystem();
             _channelArbitration = new ChannelArbitrationSystem();
 
-            _doctrineIngress.Create(world);
-            _missionDirector.Create(world);
-            _channelArbitration.Create(world);
-
             // ── Entity spawning ────────────────────────────────────────────────
             _commander = SpawnCommander(world);
         }
@@ -158,15 +154,15 @@ namespace Fdp.Examples.Scenarios.Cognitive
             // 1. Swap so any events published in the previous kernel cycle are readable.
             world.Bus.SwapBuffers();
             // 2. DoctrineIngress: apply any pending AssignDoctrineHashEvent from prev tick.
-            _doctrineIngress!.Run();
+            _doctrineIngress!.Execute(world, 0.016f);
             // 3. MissionDirector: evaluate phase triggers; publishes AssignDoctrineHashEvent.
-            _missionDirector!.Run();
+            _missionDirector!.Execute(world, 0.016f);
             // 4. Swap so MissionDirector's events are now in the read buffer.
             world.Bus.SwapBuffers();
             // 5. DoctrineIngress again: apply doctrine changes from this tick's MissionDirector.
-            _doctrineIngress!.Run();
+            _doctrineIngress!.Execute(world, 0.016f);
             // 6. ChannelArbitration: clear channels whose DoctrineInstanceId lags behind InstanceId.
-            _channelArbitration!.Run();
+            _channelArbitration!.Execute(world, 0.016f);
 
             // ── Phase 3 assertions (tick 11) ──────────────────────────────────
             if (tick == 11 && !_passedPhase3)

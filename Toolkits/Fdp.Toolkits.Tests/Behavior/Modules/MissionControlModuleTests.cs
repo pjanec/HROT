@@ -15,21 +15,14 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
         public void MissionControlModule_RegistersSystems()
         {
             // Arrange
-            using var world = TestWorldFactory.Create();
             var registry = new DoctrineRegistry();
             var module   = new MissionControlModule(registry);
 
-            var group = new SystemGroup();
-            group.Create(world);
-
-            // Act
-            module.RegisterSystems(group);
-
             // Assert
-            var systems = group.GetSystems();
-            Assert.Equal(2, systems.Count);
-            Assert.Contains(systems, s => s is DoctrineIngressSystem);
-            Assert.Contains(systems, s => s is MissionDirectorSystem);
+            Assert.Single(module.InputSystems);
+            Assert.Single(module.SimulationSystems);
+            Assert.IsType<DoctrineIngressSystem>(module.InputSystems[0]);
+            Assert.IsType<MissionDirectorSystem>(module.SimulationSystems[0]);
         }
     }
 }

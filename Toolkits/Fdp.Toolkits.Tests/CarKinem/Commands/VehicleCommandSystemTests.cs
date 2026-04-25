@@ -21,7 +21,6 @@ namespace CarKinem.Tests.Commands
             repo.RegisterEvent<CmdJoinFormation>();
             
             var system = new VehicleCommandSystem();
-            system.Create(repo);
             
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NavState());
@@ -38,7 +37,7 @@ namespace CarKinem.Tests.Commands
             ((EntityCommandBuffer)cb).Playback(repo);
             repo.Bus.SwapBuffers();
             
-            system.Run();
+            system.Execute(repo, 0.016f);
             
             var nav = repo.GetComponent<NavState>(entity);
             Assert.Equal(KinematicsMode.Formation, nav.Mode);
@@ -60,7 +59,6 @@ namespace CarKinem.Tests.Commands
             repo.RegisterEvent<CmdLeaveFormation>();
             
             var system = new VehicleCommandSystem();
-            system.Create(repo);
             
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NavState { Mode = KinematicsMode.Formation });
@@ -73,7 +71,7 @@ namespace CarKinem.Tests.Commands
             ((EntityCommandBuffer)cb).Playback(repo);
             repo.Bus.SwapBuffers();
             
-            system.Run();
+            system.Execute(repo, 0.016f);
             
             var nav = repo.GetComponent<NavState>(entity);
             Assert.Equal(KinematicsMode.None, nav.Mode);
@@ -89,7 +87,6 @@ namespace CarKinem.Tests.Commands
             repo.RegisterEvent<CmdLeaveFormation>();
             
             var system = new VehicleCommandSystem();
-            system.Create(repo);
             
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NavState { Mode = KinematicsMode.Formation });
@@ -110,7 +107,7 @@ namespace CarKinem.Tests.Commands
             ((EntityCommandBuffer)cb).Playback(repo);
             repo.Bus.SwapBuffers();
             
-            system.Run();
+            system.Execute(repo, 0.016f);
             
             // Ideally should not crash and do nothing.
             // Functionally hard to verify "nothing happened" to a dead entity.

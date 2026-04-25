@@ -18,30 +18,18 @@ namespace CarKinem.Tests.Modules
         [Fact]
         public void GroundKinematicsModule_RegistersAllKinematicSystems()
         {
-            // Arrange — minimal world; OnCreate for these systems does not require
-            // component registrations (SpatialHashSystem creates its grid lazily,
-            // CarKinematicsSystem OnCreate only initialises a stopwatch).
-            var repo   = new EntityRepository();
+            // Arrange
             var module = new GroundKinematicsModule();
 
-            var group = new SystemGroup();
-            group.Create(repo);
-
-            // Act
-            module.RegisterSystems(group);
-
-            // Assert — 6 systems expected (LinearKinematicsSystem was added in CT-MOD1-F)
-            var systems = group.GetSystems();
-            Assert.Equal(6, systems.Count);
-            Assert.Contains(systems, s => s is SpatialHashSystem);
-            Assert.Contains(systems, s => s is FormationTargetSystem);
-            Assert.Contains(systems, s => s is VehicleCommandSystem);
-            Assert.Contains(systems, s => s is CarKinematicsSystem);
-            Assert.Contains(systems, s => s is NavigationExecutionSystem);
-            Assert.Contains(systems, s => s is LinearKinematicsSystem);
-
-            group.Dispose();
-            repo.Dispose();
+            // Assert — 4 simulation + 2 post-simulation systems
+            Assert.Equal(4, module.SimulationSystems.Count);
+            Assert.Equal(2, module.PostSimulationSystems.Count);
+            Assert.IsType<SpatialHashSystem>(module.SimulationSystems[0]);
+            Assert.IsType<FormationTargetSystem>(module.SimulationSystems[1]);
+            Assert.IsType<VehicleCommandSystem>(module.SimulationSystems[2]);
+            Assert.IsType<NavigationExecutionSystem>(module.SimulationSystems[3]);
+            Assert.IsType<CarKinematicsSystem>(module.PostSimulationSystems[0]);
+            Assert.IsType<LinearKinematicsSystem>(module.PostSimulationSystems[1]);
         }
 
         [Fact]

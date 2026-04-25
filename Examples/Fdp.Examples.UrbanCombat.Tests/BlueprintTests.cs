@@ -300,8 +300,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
             const int docId = 9901;
             var registry = BuildHsmRegistry(blob, docId);
 
-            using var sys = new HsmTickSystem<BrainHsm128>(registry);
-            sys.Create(world);
+            var sys = new HsmTickSystem<BrainHsm128>(registry);
 
             var e = CreateApcEntity(world, docId);
 
@@ -312,7 +311,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
             // No event — Reserved1 stays 0 (default)
             world.AddComponent(e, brain);
 
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             var result = world.GetComponent<BrainHsm128>(e);
             Assert.Equal(ApcHsmSetup.CruisingStateIndex, result.State.ActiveLeafIds[0]);
@@ -331,8 +330,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
             const int docId = 9902;
             var registry = BuildHsmRegistry(blob, docId);
 
-            using var sys = new HsmTickSystem<BrainHsm128>(registry);
-            sys.Create(world);
+            var sys = new HsmTickSystem<BrainHsm128>(registry);
 
             var e = CreateApcEntity(world, docId);
 
@@ -343,7 +341,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
             brain.State.Reserved1        = BehaviorConstants.EventId_MobilityLost; // inject
             world.AddComponent(e, brain);
 
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             var result = world.GetComponent<BrainHsm128>(e);
             Assert.Equal(ApcHsmSetup.DisabledStateIndex, result.State.ActiveLeafIds[0]);

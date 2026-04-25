@@ -25,12 +25,10 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.RegisterEvent<DamageAssessedEvent>();
 
             _sys = new DamageCalculationSystem();
-            _sys.Create(_world);
         }
 
         public void Dispose()
         {
-            _sys.Dispose();
             _world.Dispose();
         }
 
@@ -70,7 +68,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var target = SpawnTarget(authoritative: true);
             PublishDetonation(target: target);
 
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             _world.Bus.SwapBuffers();
             var events = _world.Bus.Read<DamageAssessedEvent>();
@@ -95,7 +93,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var target2 = SpawnTarget(authoritative: false);
             PublishDetonation(target: target2);
 
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             _world.Bus.SwapBuffers();
             var events = _world.Bus.Read<DamageAssessedEvent>();
@@ -118,7 +116,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(entity, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
 
             PublishDetonation(target: entity);
-            _sys.Run();
+            _sys.Execute(_world, 0.016f);
 
             var health = _world.GetComponent<Fdp.Toolkit.Combat.Components.Health>(entity);
             Assert.Equal(100f, health.Current);
@@ -138,7 +136,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.DestroyEntity(deadEntity);
             PublishDetonation(target: deadEntity);
 
-            var ex = Record.Exception(() => _sys.Run());
+            var ex = Record.Exception(() => _sys.Execute(_world, 0.016f));
             Assert.Null(ex);
 
             _world.Bus.SwapBuffers();

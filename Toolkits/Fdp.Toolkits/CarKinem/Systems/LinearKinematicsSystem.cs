@@ -1,6 +1,8 @@
+using System;
 using CarKinem.Core;
 using CarKinem.Systems;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.CarKinem.Systems
 {
@@ -37,26 +39,31 @@ namespace Fdp.Toolkit.CarKinem.Systems
     /// <c>[UpdateAfter(typeof(SpatialHashSystem))]</c>.
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    public class LinearKinematicsSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.PostSimulation)]
+    public class LinearKinematicsSystem : IEcsModuleSystem
     {
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            float dt = DeltaTime;
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(LinearKinematicsSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            var query = World.Query()
+            float dt = deltaTime;
+
+            var query = repo.Query()
                 .With<SimTransform>()
                 .With<SimVelocity>()
                 .Without<VehicleState>()
                 .Build();
 
             // Parallel position integration: tf.Position += vel.Linear * dt.
-            // Angular integration (tf.Rotation += ω·dt) is intentionally omitted:
+            // Angular integration (tf.Rotation += omega*dt) is intentionally omitted:
             // bullets travel straight and rotation tracking is deferred to a later phase.
             query.ForEachParallel(entity =>
             {
-                ref var tf              = ref World.GetComponentRW<SimTransform>(entity);
-                ref readonly var vel    = ref World.GetComponentRO<SimVelocity>(entity);
+                ref var tf              = ref repo.GetComponentRW<SimTransform>(entity);
+                ref readonly var vel    = ref repo.GetComponentRO<SimVelocity>(entity);
                 tf.Position            += vel.Linear * dt;
             });
         }

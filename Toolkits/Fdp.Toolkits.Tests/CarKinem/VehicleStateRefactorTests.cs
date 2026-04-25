@@ -40,8 +40,6 @@ namespace Fdp.Toolkit.CarKinem.Tests
             var sys = new CarKinematicsSystem(trajectoryPool);
             
             var spatialSys = new SpatialHashSystem();
-            spatialSys.Create(repo);
-            sys.Create(repo);
 
             var e = repo.CreateEntity();
             
@@ -59,8 +57,8 @@ namespace Fdp.Toolkit.CarKinem.Tests
             });
             
             // Run
-            spatialSys.Run();
-            sys.Run();
+            spatialSys.Execute(repo, 0.016f);
+            sys.Execute(repo, 0.016f);
             
             var tf = repo.GetComponent<SimTransform>(e);
             
@@ -69,8 +67,6 @@ namespace Fdp.Toolkit.CarKinem.Tests
             Assert.NotEqual(Vector3.Zero, tf.Position); 
             Assert.True(tf.Position.Y > 0);
             
-            spatialSys.Dispose();
-            sys.Dispose();
             roadNetwork.Dispose();
             trajectoryPool.Dispose();
             repo.Dispose();

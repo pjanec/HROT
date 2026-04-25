@@ -136,7 +136,7 @@ namespace Fdp.Examples.Scenarios.Physics
             // the distance traversed in the previous tick.
             // HitResolutionSystem publishes HitEvent to the write bus; DamageSystem consumes
             // the event one tick later after kernel.Update()'s SwapBuffers makes it readable.
-            var systems = new ComponentSystem[]
+            var modSystems = new IEcsModuleSystem[]
             {
                 new FireProcessingSystem(),
                 new SpatialHashSystem(),
@@ -144,13 +144,17 @@ namespace Fdp.Examples.Scenarios.Physics
                 new LinearKinematicsSystem(),
                 new RaycastSolverSystem(),
                 new HitResolutionSystem(),
+            };
+
+            var legacySystems = new ComponentSystem[]
+            {
                 new DamageSystem(),
             };
 
-            foreach (var sys in systems)
+            foreach (var sys in legacySystems)
                 sys.Create(world);
 
-            kernel.RegisterModule(new BallisticsModule("BallisticsAndHitModule", world, systems));
+            kernel.RegisterModule(new BallisticsModule("BallisticsAndHitModule", world, modSystems, legacySystems));
 
             // ── Entity spawning ────────────────────────────────────────────────
             _shooter = SpawnShooter(world);
@@ -302,7 +306,8 @@ namespace Fdp.Examples.Scenarios.Physics
         /// </summary>
         private sealed class BallisticsModule : IEcsModule, IDisposable
         {
-            private readonly ComponentSystem[]   _systems;
+            private readonly IEcsModuleSystem[] _modSystems;
+            private readonly ComponentSystem[]  _legacySystems;
             private readonly EntityRepository    _world;
             private bool _disposed;
 
@@ -311,18 +316,21 @@ namespace Fdp.Examples.Scenarios.Physics
             public IReadOnlyList<Type>? WatchComponents => null;
             public IReadOnlyList<Type>? WatchEvents     => null;
 
-            public BallisticsModule(string name, EntityRepository world, ComponentSystem[] systems)
+            public BallisticsModule(string name, EntityRepository world, IEcsModuleSystem[] modSystems, ComponentSystem[] legacySystems)
             {
-                Name     = name;
-                _world   = world;
-                _systems = systems;
+                Name           = name;
+                _world         = world;
+                _modSystems    = modSystems;
+                _legacySystems = legacySystems;
             }
 
             public void RegisterSystems(ISystemRegistry registry) { }
 
             public void Tick(ISimulationView view, float deltaTime)
             {
-                foreach (var sys in _systems)
+                foreach (var sys in _modSystems)
+                    sys.Execute(view, deltaTime);
+                foreach (var sys in _legacySystems)
                     sys.Run();
             }
 
@@ -333,7 +341,7 @@ namespace Fdp.Examples.Scenarios.Physics
                 if (_disposed) return;
                 _disposed = true;
 
-                foreach (var sys in _systems)
+                foreach (var sys in _legacySystems)
                     sys.Dispose();
 
                 // Free the NativeArrays that PhysicsToolkitModule transferred to the world.

@@ -26,7 +26,6 @@ namespace CarKinem.Tests.Formation
             var trajectoryPool = new TrajectoryPoolManager();
 
 			var system = new FormationTargetSystem(templateManager, trajectoryPool);
-            system.Create(repo);
 
             // Create Leader at (100, 100), Forward East (1, 0) -> Yaw 0
             var leader = repo.CreateEntity();
@@ -61,7 +60,7 @@ namespace CarKinem.Tests.Formation
             
             repo.AddComponent(rosterEntity, roster);
 
-            system.Run();
+            system.Execute(repo, 0.016f);
 
             // Check follower target
             Assert.True(repo.HasComponent<FormationTarget>(follower));
@@ -95,14 +94,13 @@ namespace CarKinem.Tests.Formation
             tfFollower.Position = closerPos;
             repo.SetComponent(follower, tfFollower);
             
-            system.Run();
+            system.Execute(repo, 0.016f);
             
             // Check state
             var member = repo.GetComponent<FormationMember>(follower);
             // Should be joined/InSlot
             Assert.Equal(FormationMemberState.InSlot, member.State);
 
-            system.Dispose();
             templateManager.Dispose();
             repo.Dispose();
         }
@@ -128,7 +126,6 @@ namespace CarKinem.Tests.Formation
             var trajectoryPool = new TrajectoryPoolManager();
 
             var system = new FormationTargetSystem(templateManager, trajectoryPool);
-            system.Create(repo);
 
             // 1. Create Leader at (0,0) with Identity rotation (Forward = X+)
             var leader = repo.CreateEntity();
@@ -157,7 +154,7 @@ namespace CarKinem.Tests.Formation
             repo.AddComponent(leader, roster);
 
             // 4. Run System
-            system.Run();
+            system.Execute(repo, 0.016f);
 
             // 5. Verify FormationTarget on Follower
             // With Identity rotation, forward is X (1,0).
@@ -166,7 +163,6 @@ namespace CarKinem.Tests.Formation
             Assert.True(MathF.Abs(target.TargetHeading.X - 1f) < 0.001f, $"Expected X ~ 1, got {target.TargetHeading.X}");
             Assert.True(MathF.Abs(target.TargetHeading.Y - 0f) < 0.001f, $"Expected Y ~ 0, got {target.TargetHeading.Y}");
             
-            system.Dispose();
             templateManager.Dispose();
             repo.Dispose();
         }

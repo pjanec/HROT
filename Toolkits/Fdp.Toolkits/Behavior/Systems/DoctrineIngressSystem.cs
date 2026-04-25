@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 
@@ -28,8 +29,8 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// when parsing succeeds, keeping the operation atomic from the ECS perspective.
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(InputSystemGroup))]
-    public class DoctrineIngressSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Input)]
+    public class DoctrineIngressSystem : IEcsModuleSystem
     {
         private readonly DoctrineRegistry _registry;
 
@@ -38,9 +39,14 @@ namespace Fdp.Toolkit.Behavior.Systems
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
 
-        protected override unsafe void OnUpdate()
+        public unsafe void Execute(ISimulationView view, float deltaTime)
         {
-            var events = World.Bus.ReadManaged<AssignDoctrineEvent>();
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(DoctrineIngressSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            var events = repo.Bus.ReadManaged<AssignDoctrineEvent>();
 
             // Shadow buffer allocated once per OnUpdate call (outside the loop) to avoid
             // CA2014 stack-overflow risk. BrainBlackboardByteSize is a compile-time constant.
@@ -49,7 +55,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             foreach (var evt in events)
             {
                 if (evt == null) continue;
-                if (!World.HasComponent<DoctrineState>(evt.Entity)) continue;
+                if (!repo.HasComponent<DoctrineState>(evt.Entity)) continue;
 
                 // DEBT-006: use stable int ID from registry — no GetHashCode().
                 if (!_registry.TryGetId(evt.DoctrineName, out int doctrineId)) continue;
@@ -61,7 +67,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // This ensures a ParseParams failure leaves the entity 100% on the old doctrine.
                 if (def.ParseParams != null)
                 {
-                    if (!World.HasComponent<BrainBlackboard>(evt.Entity))
+                    if (!repo.HasComponent<BrainBlackboard>(evt.Entity))
                     {
                         // Doctrine requires params but entity has no blackboard — skip.
                         continue;
@@ -69,7 +75,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                     // Reuse the pre-allocated shadow buffer (cleared per iteration below).
 
-                    ref readonly var bbRO = ref World.GetComponentRO<BrainBlackboard>(evt.Entity);
+                    ref readonly var bbRO = ref repo.GetComponentRO<BrainBlackboard>(evt.Entity);
                     fixed (byte* src = &bbRO.Memory[0], dst = shadow)
                     {
                         Buffer.MemoryCopy(src, dst, BehaviorConstants.BrainBlackboardByteSize,
@@ -96,7 +102,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     if (!parseOk) continue; // ParseParams failed — entity stays on old doctrine entirely.
 
                     // Parse succeeded: commit shadow back to the live blackboard.
-                    ref var bbW = ref World.GetComponentRW<BrainBlackboard>(evt.Entity);
+                    ref var bbW = ref repo.GetComponentRW<BrainBlackboard>(evt.Entity);
                     fixed (byte* src = shadow, dst = &bbW.Memory[0])
                     {
                         Buffer.MemoryCopy(src, dst, BehaviorConstants.BrainBlackboardByteSize,
@@ -107,16 +113,16 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // ParseParams succeeded (or was not required). Commit doctrine transition.
 
                 // 1. Update DoctrineState.
-                ref var doctrine = ref World.GetComponentRW<DoctrineState>(evt.Entity);
+                ref var doctrine = ref repo.GetComponentRW<DoctrineState>(evt.Entity);
                 doctrine.ActiveDoctrineHash = doctrineId;
                 // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
                 unchecked { doctrine.InstanceId++; }
                 doctrine.BrainTier = def.BrainTier;
 
                 // 2. Reset BTree execution pointer so the new doctrine starts from the root.
-                if (World.HasComponent<BrainBTreeState>(evt.Entity))
+                if (repo.HasComponent<BrainBTreeState>(evt.Entity))
                 {
-                    ref var btState = ref World.GetComponentRW<BrainBTreeState>(evt.Entity);
+                    ref var btState = ref repo.GetComponentRW<BrainBTreeState>(evt.Entity);
                     btState.State = default;
                 }
             }
@@ -125,30 +131,30 @@ namespace Fdp.Toolkit.Behavior.Systems
             // Forcibly resets the active doctrine to DoctrineIds.None (brain-death).
             // Published top-down by MissionDirectorSystem (plan exhausted) and
             // MissionControlRequestSystem (CMD_ABORT_ALL).
-            var clearEvents = World.Bus.Read<ClearDoctrineEvent>();
+            var clearEvents = repo.Bus.Read<ClearDoctrineEvent>();
             foreach (var evt in clearEvents)
             {
-                if (!World.HasComponent<DoctrineState>(evt.Entity)) continue;
+                if (!repo.HasComponent<DoctrineState>(evt.Entity)) continue;
 
-                ref var doctrine = ref World.GetComponentRW<DoctrineState>(evt.Entity);
+                ref var doctrine = ref repo.GetComponentRW<DoctrineState>(evt.Entity);
                 doctrine.ActiveDoctrineHash = DoctrineIds.None;
                 unchecked { doctrine.InstanceId++; }
                 doctrine.BrainTier = 0;
 
-                if (World.HasComponent<BrainBTreeState>(evt.Entity))
-                    World.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
+                if (repo.HasComponent<BrainBTreeState>(evt.Entity))
+                    repo.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
             }
 
             // ── AssignDoctrineHashEvent handler ──────────────────────────────────────────
             // Activates a doctrine by integer hash — published by MissionDirectorSystem
             // during phase transitions where only the hash (not the name) is known.
             // Increments InstanceId so ChannelArbitrationSystem preempts stale channels.
-            var hashEvents = World.Bus.Read<AssignDoctrineHashEvent>();
+            var hashEvents = repo.Bus.Read<AssignDoctrineHashEvent>();
             foreach (var evt in hashEvents)
             {
-                if (!World.HasComponent<DoctrineState>(evt.Entity)) continue;
+                if (!repo.HasComponent<DoctrineState>(evt.Entity)) continue;
 
-                ref var doctrine = ref World.GetComponentRW<DoctrineState>(evt.Entity);
+                ref var doctrine = ref repo.GetComponentRW<DoctrineState>(evt.Entity);
                 doctrine.ActiveDoctrineHash = evt.DoctrineHash;
                 unchecked { doctrine.InstanceId++; }
 
@@ -160,8 +166,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                 }
 
                 // Reset BTree execution pointer so the new phase starts from the root.
-                if (World.HasComponent<BrainBTreeState>(evt.Entity))
-                    World.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
+                if (repo.HasComponent<BrainBTreeState>(evt.Entity))
+                    repo.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
             }
         }
     }

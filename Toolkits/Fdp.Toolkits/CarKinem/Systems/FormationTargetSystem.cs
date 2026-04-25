@@ -4,6 +4,7 @@ using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Trajectory;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 
 namespace CarKinem.Systems
 {
@@ -11,9 +12,8 @@ namespace CarKinem.Systems
     /// Calculates formation slot targets for members.
     /// Runs before CarKinematicsSystem.
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateBefore(typeof(CarKinematicsSystem))]
-    public class FormationTargetSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    public class FormationTargetSystem : IEcsModuleSystem
     {
         private readonly FormationTemplateManager _templateManager;
         private readonly TrajectoryPoolManager _trajectoryPool;
@@ -23,20 +23,25 @@ namespace CarKinem.Systems
             _templateManager = templateManager;
             _trajectoryPool = trajectoryPool;
         }
-        
-        protected override void OnUpdate()
+
+        public void Execute(ISimulationView view, float deltaTime)
         {
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(FormationTargetSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
             // Query all formations
-            var formationQuery = World.Query().With<FormationRoster>().Build();
+            var formationQuery = repo.Query().With<FormationRoster>().Build();
             
             foreach (var formationEntity in formationQuery)
             {
-                var roster = World.GetComponent<FormationRoster>(formationEntity);
-                UpdateFormation(ref roster);
+                var roster = repo.GetComponent<FormationRoster>(formationEntity);
+                UpdateFormation(repo, ref roster);
             }
         }
         
-        private void UpdateFormation(ref FormationRoster roster)
+        private void UpdateFormation(EntityRepository repo, ref FormationRoster roster)
         {
             if (roster.Count == 0)
                 return;
@@ -44,11 +49,11 @@ namespace CarKinem.Systems
             // Get leader entity
             Entity leaderEntity = roster.GetMember(0);
             
-            if (!World.IsAlive(leaderEntity))
+            if (!repo.IsAlive(leaderEntity))
                 return;
             
-            var leaderState = World.GetComponent<VehicleState>(leaderEntity);
-            var leaderTf = World.GetComponent<SimTransform>(leaderEntity);
+            var leaderState = repo.GetComponent<VehicleState>(leaderEntity);
+            var leaderTf = repo.GetComponent<SimTransform>(leaderEntity);
             var template = _templateManager.GetTemplate(roster.Type);
             
             // Default Formation Orientation (Rigid fallback)
@@ -62,9 +67,9 @@ namespace CarKinem.Systems
             CustomTrajectory trajectory = default;
             float leaderS = 0f;
 
-            if (World.HasComponent<NavState>(leaderEntity))
+            if (repo.HasComponent<NavState>(leaderEntity))
             {
-                var nav = World.GetComponent<NavState>(leaderEntity);
+                var nav = repo.GetComponent<NavState>(leaderEntity);
                 if (nav.Mode == KinematicsMode.CustomTrajectory && nav.TrajectoryId > 0)
                 {
                      if (_trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out trajectory))
@@ -86,7 +91,7 @@ namespace CarKinem.Systems
             {
                 Entity memberEntity = roster.GetMember(i);
                 
-                if (!World.IsAlive(memberEntity))
+                if (!repo.IsAlive(memberEntity))
                     continue;
                 
                 int slotIndex = roster.GetSlotIndex(i);
@@ -146,22 +151,22 @@ namespace CarKinem.Systems
                 }
                 
                 // Get/create FormationTarget component
-                if (!World.HasComponent<FormationTarget>(memberEntity))
+                if (!repo.HasComponent<FormationTarget>(memberEntity))
                 {
-                    World.AddComponent(memberEntity, new FormationTarget());
+                    repo.AddComponent(memberEntity, new FormationTarget());
                 }
                 
-                var target = World.GetComponent<FormationTarget>(memberEntity);
+                var target = repo.GetComponent<FormationTarget>(memberEntity);
                 target.TargetPosition = slotPos;
                 target.TargetHeading = slotHeading; 
                 target.TargetSpeed = leaderState.Speed;
-                World.SetComponent(memberEntity, target);
+                repo.SetComponent(memberEntity, target);
                 
                 // Update member state based on distance to slot
-                if (World.HasComponent<FormationMember>(memberEntity))
+                if (repo.HasComponent<FormationMember>(memberEntity))
                 {
-                    var member = World.GetComponent<FormationMember>(memberEntity);
-                        var memberTf = World.GetComponent<SimTransform>(memberEntity);
+                    var member = repo.GetComponent<FormationMember>(memberEntity);
+                        var memberTf = repo.GetComponent<SimTransform>(memberEntity);
                         
                         float distToSlot = Vector2.Distance(new Vector2(memberTf.Position.X, memberTf.Position.Y), slotPos);
                         
@@ -182,7 +187,7 @@ namespace CarKinem.Systems
                         member.State = FormationMemberState.Broken;
                     }
                     
-                    World.SetComponent(memberEntity, member);
+                    repo.SetComponent(memberEntity, member);
                 }
             }
         }

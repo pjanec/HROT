@@ -6,6 +6,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Perception.Components;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Behavior.Systems
 {
@@ -58,9 +59,9 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </list>
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateBefore(typeof(ChannelArbitrationSystem))]
-    public class MissionDirectorSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    // [UpdateBefore(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in MissionControlModule.
+    public class MissionDirectorSystem : IEcsModuleSystem
     {
         /// <summary>
         /// Entities for which a <see cref="DoctrineFinishedEvent"/> arrived this frame,
@@ -68,29 +69,34 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         private readonly HashSet<int> _doctrineFinishedThisFrame = new();
 
-        protected override unsafe void OnUpdate()
+        public unsafe void Execute(ISimulationView view, float deltaTime)
         {
-            float dt = DeltaTime;
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(MissionDirectorSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            // ── Build DoctrineFinished lookup for this frame ───────────────────────────
+            float dt = deltaTime;
+
+            // -- Build DoctrineFinished lookup for this frame --
             // Consume all DoctrineFinishedEvents once, cache the entity indices, then
             // look them up in O(1) during the entity query loop below.
             _doctrineFinishedThisFrame.Clear();
-            var doctrineFinishedEvents = World.Bus.Read<DoctrineFinishedEvent>();
+            var doctrineFinishedEvents = repo.Bus.Read<DoctrineFinishedEvent>();
             foreach (var finishedEvt in doctrineFinishedEvents)
             {
                 _doctrineFinishedThisFrame.Add(finishedEvt.Entity.Index);
             }
 
-            var query = World.Query()
+            var query = repo.Query()
                 .With<MissionPlanQueue>()
                 .With<DoctrineState>()
                 .Build();
 
             foreach (var entity in query)
             {
-                ref var queue = ref World.GetComponentRW<MissionPlanQueue>(entity);
-                var doctrine  = World.GetComponent<DoctrineState>(entity);
+                ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
+                var doctrine  = repo.GetComponent<DoctrineState>(entity);
 
                 // Mission complete — nothing left to do.
                 if (queue.CurrentPhase >= queue.PhaseCount) continue;
@@ -105,7 +111,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // DoctrineState has a single owner.
                 if (doctrine.ActiveDoctrineHash != phase.DoctrineId)
                 {
-                    World.Bus.Publish(new AssignDoctrineHashEvent
+                    repo.Bus.Publish(new AssignDoctrineHashEvent
                     {
                         Entity      = entity,
                         DoctrineHash = phase.DoctrineId,
@@ -137,9 +143,9 @@ namespace Fdp.Toolkit.Behavior.Systems
                         break;
 
                     case MissionTrigger.UnderAttack:
-                        if (World.HasComponent<TargetMemory>(entity))
+                        if (repo.HasComponent<TargetMemory>(entity))
                         {
-                            ref readonly var mem = ref World.GetComponentRO<TargetMemory>(entity);
+                            ref readonly var mem = ref repo.GetComponentRO<TargetMemory>(entity);
                             for (int i = 0; i < mem.Count; i++)
                             {
                                 if (mem.ThreatScores[i] > 0f)
@@ -154,9 +160,9 @@ namespace Fdp.Toolkit.Behavior.Systems
                     case MissionTrigger.HealthCritical:
                         // BUG2-A001: Read Health directly from FDP.Toolkit.Combat.Contracts.
                         // HealthData mirror (DEBT-033) is no longer needed.
-                        if (World.HasComponent<Health>(entity))
+                        if (repo.HasComponent<Health>(entity))
                         {
-                            var h = World.GetComponent<Health>(entity);
+                            var h = repo.GetComponent<Health>(entity);
                             float fraction = h.Max > 0f ? h.Current / h.Max : 0f;
                             if (fraction <= phase.TriggerParam)
                                 triggered = true;
@@ -182,7 +188,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     {
                         // Use the NEW phase index — `phase` still refers to the old slot.
                         // Delegate the write to DoctrineIngressSystem via the event bus.
-                        World.Bus.Publish(new AssignDoctrineHashEvent
+                        repo.Bus.Publish(new AssignDoctrineHashEvent
                         {
                             Entity       = entity,
                             DoctrineHash = phases[queue.CurrentPhase].DoctrineId,
@@ -193,7 +199,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                         // Plan exhausted — delegate doctrine teardown via the event bus
                         // so DoctrineIngressSystem (the sole owner of DoctrineState writes)
                         // performs the brain-death reset. Do NOT mutate DoctrineState here.
-                        World.Bus.Publish(new ClearDoctrineEvent { Entity = entity });
+                        repo.Bus.Publish(new ClearDoctrineEvent { Entity = entity });
                     }
                 }
             }

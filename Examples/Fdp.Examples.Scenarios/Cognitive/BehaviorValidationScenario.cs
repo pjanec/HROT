@@ -148,16 +148,13 @@ namespace Fdp.Examples.Scenarios.Cognitive
                 });
 
             // ── Systems (CognitiveRuntimeModule — no physics, no combat executors) ──
-            var systems = new ComponentSystem[]
+            var systems = new IEcsModuleSystem[]
             {
                 new ChannelArbitrationSystem(),
                 new BTreeTickSystem(registry),
                 new HsmTickSystem<BrainHsm128>(registry),
                 new HsmTickSystem<BrainHsm64>(registry),
             };
-
-            foreach (var sys in systems)
-                sys.Create(world);
 
             kernel.RegisterModule(new DirectSystemsModule("CognitiveModule", systems));
 
@@ -363,14 +360,14 @@ namespace Fdp.Examples.Scenarios.Cognitive
 
         private sealed class DirectSystemsModule : IEcsModule
         {
-            private readonly ComponentSystem[] _systems;
+            private readonly IEcsModuleSystem[] _systems;
 
             public string Name { get; }
             public ExecutionPolicy Policy              => ExecutionPolicy.Synchronous();
             public IReadOnlyList<Type>? WatchComponents => null;
             public IReadOnlyList<Type>? WatchEvents     => null;
 
-            public DirectSystemsModule(string name, ComponentSystem[] systems)
+            public DirectSystemsModule(string name, IEcsModuleSystem[] systems)
             {
                 Name     = name;
                 _systems = systems;
@@ -381,7 +378,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
             public void Tick(ISimulationView view, float deltaTime)
             {
                 foreach (var sys in _systems)
-                    sys.Run();
+                    sys.Execute(view, deltaTime);
             }
 
             public IReadOnlyList<Type>? GetRequiredComponents() => null;

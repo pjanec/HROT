@@ -45,9 +45,6 @@ namespace Fdp.ModuleHost.Benchmarks
             _spatialSystem = new SpatialHashSystem();
             _kinematicsSystem = new CarKinematicsSystem(_trajectoryPool);
             
-            _spatialSystem.Create(_repo);
-            _kinematicsSystem.Create(_repo);
-            
             // Spawn vehicles in grid pattern
             var random = new Random(42);
             for (int i = 0; i < VehicleCount; i++)
@@ -104,15 +101,13 @@ namespace Fdp.ModuleHost.Benchmarks
         [Benchmark]
         public void UpdateKinematics()
         {
-            _spatialSystem.Run();
-            _kinematicsSystem.Run();
+            _spatialSystem.Execute(_repo, 1f / 60f);
+            _kinematicsSystem.Execute(_repo, 1f / 60f);
         }
         
         [GlobalCleanup]
         public void Cleanup()
         {
-            _spatialSystem.Dispose();
-            _kinematicsSystem.Dispose();
             _roadNetwork.Dispose();
             _trajectoryPool.Dispose();
             _repo.Dispose();

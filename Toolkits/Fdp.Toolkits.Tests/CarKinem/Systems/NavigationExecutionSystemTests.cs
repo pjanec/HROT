@@ -80,7 +80,6 @@ namespace CarKinem.Tests.Systems
         {
             using var repo = CreateWorld();
             var system = new NavigationExecutionSystem();
-            system.Create(repo);
 
             // Entity is placed 3 m from target; radius is 5 m → within threshold.
             var entity = AddNavigatingEntity(repo,
@@ -89,12 +88,10 @@ namespace CarKinem.Tests.Systems
                 arrivalRadius: 5f,
                 velocityX:    0f);
 
-            system.Run();
+            system.Execute(repo, 0.016f);
 
             var status = repo.GetComponent<NavigationStatus>(entity);
             Assert.Equal(NavResult.Arrived, status.Result);
-
-            system.Dispose();
         }
 
         // ── Test 2: Frustration / stuck ───────────────────────────────────────────────────────────
@@ -110,7 +107,6 @@ namespace CarKinem.Tests.Systems
         {
             using var repo = CreateWorld();
             var system = new NavigationExecutionSystem();
-            system.Create(repo);
 
             // Entity at origin; destination far away; speed = 0 → stuck every tick.
             var entity = AddNavigatingEntity(repo,
@@ -123,15 +119,13 @@ namespace CarKinem.Tests.Systems
             NavigationResult? lastResult = null;
             for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 1; i++)
             {
-                system.Run();
+                system.Execute(repo, 0.016f);
                 lastResult = repo.GetComponent<NavigationStatus>(entity).Result;
                 if (lastResult == NavResult.FailedBlocked)
                     break;
             }
 
             Assert.Equal(NavResult.FailedBlocked, lastResult);
-
-            system.Dispose();
         }
 
         // ── Test 3: Intent ID mismatch resets status ──────────────────────────────────────────────
@@ -146,7 +140,6 @@ namespace CarKinem.Tests.Systems
         {
             using var repo = CreateWorld();
             var system = new NavigationExecutionSystem();
-            system.Create(repo);
 
             // Entity at origin far from destination.
             var entity = AddNavigatingEntity(repo,
@@ -165,13 +158,11 @@ namespace CarKinem.Tests.Systems
             var beforeStatus = repo.GetComponent<NavigationStatus>(entity);
             Assert.Equal(3u, beforeStatus.IntentId);
 
-            system.Run();
+            system.Execute(repo, 0.016f);
 
             var status = repo.GetComponent<NavigationStatus>(entity);
             Assert.Equal(7u, status.IntentId);
             Assert.Equal(NavResult.InProgress, status.Result);
-
-            system.Dispose();
         }
 
         // ── Test 4: Inactive intent is skipped ────────────────────────────────────────────────────
@@ -185,7 +176,6 @@ namespace CarKinem.Tests.Systems
         {
             using var repo = CreateWorld();
             var system = new NavigationExecutionSystem();
-            system.Create(repo);
 
             var entity = AddNavigatingEntity(repo,
                 position:     Vector2.Zero,
@@ -197,13 +187,11 @@ namespace CarKinem.Tests.Systems
             intent.Mode = NavMode.None;
             repo.SetComponent(entity, intent);
 
-            system.Run();
+            system.Execute(repo, 0.016f);
 
             var status = repo.GetComponent<NavigationStatus>(entity);
             // Status should remain InProgress (unchanged).
             Assert.Equal(NavResult.InProgress, status.Result);
-
-            system.Dispose();
         }
 
         // ── Test 5: FrustrationTicks component increments (CT-MOD1-A) ────────────────────────────
@@ -219,7 +207,6 @@ namespace CarKinem.Tests.Systems
         {
             using var repo = CreateWorld();
             var system = new NavigationExecutionSystem();
-            system.Create(repo);
 
             var entity = AddNavigatingEntity(repo,
                 position:     Vector2.Zero,
@@ -228,9 +215,9 @@ namespace CarKinem.Tests.Systems
                 velocityX:    0f);  // stuck — speed = 0
 
             // Run 3 ticks.
-            system.Run();
-            system.Run();
-            system.Run();
+            system.Execute(repo, 0.016f);
+            system.Execute(repo, 0.016f);
+            system.Execute(repo, 0.016f);
 
             var ticks = repo.GetComponent<FrustrationTicks>(entity).Ticks;
             Assert.Equal(3, ticks);
@@ -240,8 +227,6 @@ namespace CarKinem.Tests.Systems
                 "_frustrationTicks",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             Assert.Null(dictField);
-
-            system.Dispose();
         }
 
         // ── PACK-N002: ProgressS mirroring from NavState ──────────────────────
@@ -296,16 +281,13 @@ namespace CarKinem.Tests.Systems
         {
             using var repo = CreateWorldWithNavState();
             var system = new NavigationExecutionSystem();
-            system.Create(repo);
 
             var entity = AddNavigatingEntityWithNavState(repo, navStateProgressS: 0.73f, statusProgressS: 0f);
 
-            system.Run();
+            system.Execute(repo, 0.016f);
 
             var status = repo.GetComponent<NavigationStatus>(entity);
             Assert.Equal(0.73f, status.ProgressS, precision: 4);
-
-            system.Dispose();
         }
 
         /// <summary>
@@ -317,17 +299,14 @@ namespace CarKinem.Tests.Systems
         {
             using var repo = CreateWorldWithNavState();
             var system = new NavigationExecutionSystem();
-            system.Create(repo);
 
             // Pre-seed a non-zero ProgressS on status to verify it gets overwritten with 0.
             var entity = AddNavigatingEntityWithNavState(repo, navStateProgressS: 0f, statusProgressS: 0.5f);
 
-            system.Run();
+            system.Execute(repo, 0.016f);
 
             var status = repo.GetComponent<NavigationStatus>(entity);
             Assert.Equal(0f, status.ProgressS, precision: 4);
-
-            system.Dispose();
         }
 
         /// <summary>
@@ -340,20 +319,17 @@ namespace CarKinem.Tests.Systems
         {
             using var repo = CreateWorldWithNavState();
             var system = new NavigationExecutionSystem();
-            system.Create(repo);
 
             const uint expectedIntentId = 7u;
             var entity = AddNavigatingEntityWithNavState(
                 repo, navStateProgressS: 0.3f, intentId: expectedIntentId);
 
-            system.Run();
+            system.Execute(repo, 0.016f);
 
             var status = repo.GetComponent<NavigationStatus>(entity);
             Assert.Equal(expectedIntentId, status.IntentId);
             Assert.Equal(NavResult.InProgress, status.Result);
             Assert.Equal(0.3f, status.ProgressS, precision: 4);
-
-            system.Dispose();
         }
     }
 }

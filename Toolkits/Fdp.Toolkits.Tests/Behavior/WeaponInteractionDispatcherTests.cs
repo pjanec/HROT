@@ -15,7 +15,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys = new WeaponDispatcherSystem();
             var spy = new SpyExecutor<WeaponChannel>();
             sys.RegisterExecutor(1, spy);
-            sys.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new WeaponChannel
@@ -28,13 +27,12 @@ namespace Fdp.Toolkit.Behavior.Tests
             // CanShoot not set.
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.None });
 
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             var channel = world.GetComponent<WeaponChannel>(e);
             Assert.Equal(NodeStatus.Failure, channel.Status);
             Assert.Equal(0, spy.ExecuteCallCount);
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -45,7 +43,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys = new InteractionDispatcherSystem();
             var spy = new SpyExecutor<InteractionChannel>();
             sys.RegisterExecutor(1, spy);
-            sys.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new InteractionChannel
@@ -57,12 +54,11 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanInteract });
 
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             Assert.Equal(1, spy.OnEnterCallCount);
             Assert.Equal(1, spy.ExecuteCallCount);
 
-            sys.Dispose();
             world.Dispose();
         }
     }

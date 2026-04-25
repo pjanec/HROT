@@ -1,4 +1,6 @@
+using System;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fbt;
 
@@ -10,23 +12,28 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// Checks <see cref="ActorCapabilities.CanMove"/> before dispatching.
     /// Fires OnEnter/OnExit lifecycle calls when <see cref="LocomotionChannel.ActionInstanceId"/> changes.
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateAfter(typeof(ChannelArbitrationSystem))]
+    [UpdateInPhase(SystemPhase.Simulation)]
+    // [UpdateAfter(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in ActionDispatchModule.
     public class LocomotionDispatcherSystem : DispatcherSystemBase<LocomotionChannel>
     {
-        protected override void OnUpdate()
+        public override void Execute(ISimulationView view, float deltaTime)
         {
-            var q = World.Query()
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(LocomotionDispatcherSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            var q = repo.Query()
                 .With<LocomotionChannel>()
                 .With<ActorCapabilityState>()
                 .Build();
 
             foreach (var entity in q)
             {
-                ref var channel = ref World.GetComponentRW<LocomotionChannel>(entity);
-                var caps = World.GetComponent<ActorCapabilityState>(entity);
+                ref var channel = ref repo.GetComponentRW<LocomotionChannel>(entity);
+                var caps = repo.GetComponent<ActorCapabilityState>(entity);
 
-                // Capability check: no locomotion → fail the channel immediately.
+                // Capability check: no locomotion -- fail the channel immediately.
                 // Guard applies unconditionally (not only when Running) to prevent a
                 // first-activation bypass where Status is Inactive before OnEnter sets Running.
                 if (!caps.Capabilities.HasFlag(ActorCapabilities.CanMove))
@@ -44,8 +51,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                     // Note: at the time OnExit is called, channel.ActiveAction and channel.ActionInstanceId
                     // still hold the OUTGOING action's values. DispatchedInstanceId is updated after this call.
                     // This allows OnExit to identify what it is cleaning up.
-                    _executors[oldAction]?.OnExit(entity, ref channel, World);
-                    _executors[channel.ActiveAction]?.OnEnter(entity, ref channel, World);
+                    _executors[oldAction]?.OnExit(entity, ref channel, repo);
+                    _executors[channel.ActiveAction]?.OnEnter(entity, ref channel, repo);
 
                     channel.DispatchedInstanceId = channel.ActionInstanceId;
                     _previousAction[entity.Index] = channel.ActiveAction;
@@ -64,18 +71,18 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // Execute: drive the current action each tick.
                 if (channel.ActiveAction != 0 && channel.Status == NodeStatus.Running)
                 {
-                    _executors[channel.ActiveAction]?.Execute(entity, ref channel, World, DeltaTime);
+                    _executors[channel.ActiveAction]?.Execute(entity, ref channel, repo, deltaTime);
 
                     // Guard: if Execute() destroyed the entity (e.g. lethal damage applied
                     // by the executor itself), call OnExit to avoid state leaks.
                     // Note: there is still a one-frame gap where OnExit is not called when
-                    // the entity is destroyed by a DIFFERENT system — the entity won't appear
+                    // the entity is destroyed by a DIFFERENT system -- the entity won't appear
                     // in this query on the next tick (DEBT-024 partial mitigation).
-                    if (!World.IsAlive(entity))
+                    if (!repo.IsAlive(entity))
                     {
                         if (channel.ActiveAction != 0)
-                            _executors[channel.ActiveAction]?.OnExit(entity, ref channel, World);
-                        // Cannot write back — entity is dead.
+                            _executors[channel.ActiveAction]?.OnExit(entity, ref channel, repo);
+                        // Cannot write back -- entity is dead.
                         continue;
                     }
                 }

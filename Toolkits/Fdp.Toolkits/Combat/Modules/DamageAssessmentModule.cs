@@ -1,4 +1,5 @@
-using Fdp.Core;
+using System.Collections.Generic;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Systems;
 
 namespace Fdp.Toolkit.Combat.Modules
@@ -23,13 +24,8 @@ namespace Fdp.Toolkit.Combat.Modules
     /// </summary>
     public sealed class DamageAssessmentModule
     {
-        /// <summary>
-        /// Registers damage-assessment systems into the provided system groups.
-        /// </summary>
-        /// <param name="simGroup">Simulation-phase group — receives <see cref="DamageCalculationSystem"/>.</param>
-        public void RegisterSystems(SystemGroup simGroup)
-        {
-            simGroup.AddSystem(new DamageCalculationSystem());
-        }
+        /// <summary>Systems that run in the Simulation phase.</summary>
+        public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; } =
+            new IEcsModuleSystem[] { new DamageCalculationSystem() };
     }
 }

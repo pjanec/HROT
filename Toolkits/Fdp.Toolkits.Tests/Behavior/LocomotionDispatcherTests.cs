@@ -16,7 +16,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys = new LocomotionDispatcherSystem();
             var spy = new WritingSpyExecutor<LocomotionChannel>();
             sys.RegisterExecutor(1, spy);
-            sys.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new LocomotionChannel
@@ -29,7 +28,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
 
             // First tick: lifecycle fires (OnEnter) then Execute.
-            sys.Run();
+            sys.Execute(world, 0.016f);
             Assert.Equal(1, spy.OnEnterCallCount);
             Assert.Equal(1, spy.ExecuteCallCount);
 
@@ -38,11 +37,10 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(ch1.ActionInstanceId, ch1.DispatchedInstanceId); // prevents repeat OnEnter
 
             // Second tick: no second OnEnter, Execute again.
-            sys.Run();
+            sys.Execute(world, 0.016f);
             Assert.Equal(1, spy.OnEnterCallCount);
             Assert.Equal(2, spy.ExecuteCallCount);
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -55,7 +53,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var spy2 = new SpyExecutor<LocomotionChannel>();
             sys.RegisterExecutor(1, spy1);
             sys.RegisterExecutor(2, spy2);
-            sys.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new LocomotionChannel
@@ -68,7 +65,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
 
             // Tick 1: enters action 1.
-            sys.Run();
+            sys.Execute(world, 0.016f);
             Assert.Equal(1, spy1.OnEnterCallCount);
             Assert.Equal(0, spy1.OnExitCallCount);
 
@@ -78,11 +75,10 @@ namespace Fdp.Toolkit.Behavior.Tests
             ch.ActionInstanceId = 2;
 
             // Tick 2: exits action 1, enters action 2.
-            sys.Run();
+            sys.Execute(world, 0.016f);
             Assert.Equal(1, spy1.OnExitCallCount);
             Assert.Equal(1, spy2.OnEnterCallCount);
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -93,7 +89,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys = new LocomotionDispatcherSystem();
             var spy = new SpyExecutor<LocomotionChannel>();
             sys.RegisterExecutor(1, spy);
-            sys.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new LocomotionChannel
@@ -105,14 +100,13 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.None });
 
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             var channel = world.GetComponent<LocomotionChannel>(e);
             Assert.Equal(NodeStatus.Failure, channel.Status);
             Assert.Equal(0, spy.ExecuteCallCount);
             Assert.Equal(0, spy.OnEnterCallCount);
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -122,7 +116,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var world = TestWorldFactory.Create();
             var sys = new LocomotionDispatcherSystem();
             // No executor registered for action 1.
-            sys.Create(world);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new LocomotionChannel
@@ -135,13 +128,12 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
 
             // Must not throw.
-            sys.Run();
+            sys.Execute(world, 0.016f);
 
             // Lifecycle bookkeeping still ran even without a registered executor.
             var channel = world.GetComponent<LocomotionChannel>(e);
             Assert.Equal(channel.ActionInstanceId, channel.DispatchedInstanceId); // updated even without executor
 
-            sys.Dispose();
             world.Dispose();
         }
 
@@ -161,7 +153,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             // whether OnExit was subsequently called by the dispatcher guard.
             var spy = new SelfDestroyingExecutor();
             sys.RegisterExecutor(1, spy);
-            sys.Create(world);
 
             var e = world.CreateEntity();
             // Set ActionInstanceId == DispatchedInstanceId so the lifecycle block
@@ -180,12 +171,11 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Act: Execute() destroys the entity; the post-Execute guard should
             // call OnExit and not throw.
-            var exception = Record.Exception(() => sys.Run());
+            var exception = Record.Exception(() => sys.Execute(world, 0.016f));
             Assert.Null(exception);
             Assert.Equal(1, spy.ExecuteCallCount);
             Assert.Equal(1, spy.OnExitCallCount); // guard called OnExit
 
-            sys.Dispose();
             world.Dispose();
         }
     }

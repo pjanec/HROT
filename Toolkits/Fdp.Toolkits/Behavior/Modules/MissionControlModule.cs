@@ -1,6 +1,6 @@
-using System;
-using Fdp.Core;
+using System.Collections.Generic;
 using Fdp.Toolkit.Behavior.Systems;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Behavior.Modules
 {
@@ -20,31 +20,23 @@ namespace Fdp.Toolkit.Behavior.Modules
     {
         private readonly DoctrineRegistry _registry;
 
+        /// <summary>Systems that run in the Input phase.</summary>
+        public IReadOnlyList<IEcsModuleSystem> InputSystems { get; }
+
+        /// <summary>Systems that run in the Simulation phase.</summary>
+        public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
+
         public MissionControlModule(DoctrineRegistry registry)
         {
             _registry = registry;
-        }
-
-        /// <summary>
-        /// Registers the doctrine ingress and mission director systems into the provided group.
-        /// </summary>
-        public void RegisterSystems(SystemGroup group)
-        {
-            group.AddSystem(new DoctrineIngressSystem(_registry));
-            group.AddSystem(new MissionDirectorSystem());
-        }
-
-        /// <summary>
-        /// Registers <see cref="DoctrineIngressSystem"/> into <paramref name="inputGroup"/>
-        /// and <see cref="MissionDirectorSystem"/> into <paramref name="simGroup"/>.
-        /// </summary>
-        public void RegisterSystems(SystemGroup inputGroup, SystemGroup simGroup)
-        {
-            if (inputGroup == null) throw new ArgumentNullException(nameof(inputGroup));
-            if (simGroup   == null) throw new ArgumentNullException(nameof(simGroup));
-
-            inputGroup.AddSystem(new DoctrineIngressSystem(_registry));
-            simGroup.AddSystem(new MissionDirectorSystem());
+            InputSystems = new IEcsModuleSystem[]
+            {
+                new DoctrineIngressSystem(_registry),
+            };
+            SimulationSystems = new IEcsModuleSystem[]
+            {
+                new MissionDirectorSystem(),
+            };
         }
     }
 }

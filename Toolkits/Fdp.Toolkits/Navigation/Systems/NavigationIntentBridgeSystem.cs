@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using CarKinem.Core;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Navigation.Systems
 {
@@ -32,8 +34,8 @@ namespace Fdp.Toolkit.Navigation.Systems
     /// </list>
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    public class NavigationIntentBridgeSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    public class NavigationIntentBridgeSystem : IEcsModuleSystem
     {
         // FIX: Cache by the full Entity struct (Index + Generation) to prevent
         // false-positives when entity indices are recycled by the free-list.
@@ -41,9 +43,12 @@ namespace Fdp.Toolkit.Navigation.Systems
     
         private uint _lastScanTick;
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            if (World is not EntityRepository repo) return;
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(NavigationIntentBridgeSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
             var query = repo.Query()
                 .With<NavigationIntent>()
@@ -67,9 +72,8 @@ namespace Fdp.Toolkit.Navigation.Systems
                 switch (intent.Mode)
                 {
                     case NavigationMode.None:
-                        nav.Mode = KinematicsMode.None;
-                        nav.TargetSpeed = 0f;
-                        break;
+                        // No active intent — retain current NavState unchanged.
+                        continue;
 
                     case NavigationMode.DirectPoint:
                         nav.Mode             = KinematicsMode.Direct;
