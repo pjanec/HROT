@@ -77,7 +77,7 @@ namespace Hrot.SimHost.Tests
         {
             var entityMap     = new NetworkEntityMap();
             var ghostSys      = new GhostCreationSystem(entityMap);
-            var simGroup      = new SimulationSystemGroup();
+            var simGroup      = new TogglableSimulationGroup("test");
             var lifecycleGrp  = new NetworkLifecycleSystemGroup(ghostSys);
 
             var bootstrapper = new NodeBootstrapper();
@@ -173,7 +173,7 @@ namespace Hrot.SimHost.Tests
             var eventBus       = new FdpEventBus();
             var entityMap      = new NetworkEntityMap();
             var ghostSys       = new GhostCreationSystem(entityMap);
-            var simGroup       = new SimulationSystemGroup();
+            var simGroup       = new TogglableSimulationGroup("test");
             var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
 
             using var slave = new ClusterSlave(eventBus);
@@ -181,7 +181,11 @@ namespace Hrot.SimHost.Tests
             // ReferenceReplayLoadHandler first (CanHandle(PrepareLive) is true while replay is active),
             // ReferenceLiveLoadHandler second (cold PrepareLive fallback).
             slave.RegisterHandler(new ReferenceReplayLoadHandler(
-                controller, simGroup, lifecycleGroup,
+                controller,
+                inputGroup:    null,
+                simGroup:      simGroup,
+                postSimGroup:  null,
+                lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
                 storageDirectory: _tempDir));
             slave.RegisterHandler(new ReferenceLiveLoadHandler(

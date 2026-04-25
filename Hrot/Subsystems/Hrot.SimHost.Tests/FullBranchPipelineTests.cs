@@ -140,7 +140,7 @@ namespace Hrot.SimHost.Tests
             var frame50Positions   = ReadSimTransformPositions(_world);
 
             // ══ Phase 3: execute the Live-from-Replay branch ═════════════════════════
-            var simGroup       = new SimulationSystemGroup();
+            var simGroup       = new TogglableSimulationGroup("test");
             var entityMap      = new NetworkEntityMap();
             var ghostSys       = new GhostCreationSystem(entityMap);
             var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
@@ -154,7 +154,11 @@ namespace Hrot.SimHost.Tests
                 DomainPayload = branchedExerciseId,
             };
             var handler = new ReferenceReplayLoadHandler(
-                controller, simGroup, lifecycleGroup,
+                controller,
+                inputGroup:    null,
+                simGroup:      simGroup,
+                postSimGroup:  null,
+                lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
                 storageDirectory: _tempDir);
 

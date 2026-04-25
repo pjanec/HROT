@@ -193,7 +193,9 @@ namespace Hrot.ExCon
             // PrepareLive only when replay active — Live-from-Replay branch gate).
             _clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
                 iosRrController,
+                inputGroup:            null,
                 simGroup:              null,
+                postSimGroup:          null,
                 lifecycleGroup:        null,
                 bypassLifecycleToggle: null,
                 storageDirectory:      @"C:\FDP_Temp"));

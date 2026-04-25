@@ -355,10 +355,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // 1. Replay handler (must be first to gate Live-from-Replay branch)
         newClusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
             rrController, 
-            simGroup: null, 
-            lifecycleGroup: null, 
+            inputGroup:            null,
+            simGroup:              null, 
+            postSimGroup:          null,
+            lifecycleGroup:        null, 
             bypassLifecycleToggle: null, 
-            storageDirectory: OrchestrationConstants.DefaultStagingDirectory));
+            storageDirectory:      OrchestrationConstants.DefaultStagingDirectory));
 
         // 2. CGF-Authoritative Scenario and Episode Load Handlers (must be BEFORE ReferenceLiveLoadHandler)
         var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(_doctrineRegistry!);

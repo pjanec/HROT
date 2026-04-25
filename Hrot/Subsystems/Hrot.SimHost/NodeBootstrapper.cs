@@ -93,9 +93,9 @@ namespace Hrot.SimHost
         /// <c>FinalizeLive</c> awaits checkpoint drain before unloading (CGF1-S0303 A.1).
         /// </param>
         /// <param name="simGroup">
-        /// Optional <see cref="Fdp.Core.SimulationSystemGroup"/>.  When provided together
-        /// with <paramref name="lifecycleGroup"/> and <paramref name="ghostCreationSystem"/>,
-        /// a <see cref="ReplayLoadClusterOpHandler"/> is registered and these objects are disabled /
+        /// Optional <see cref="Fdp.ModuleHost.Scheduling.TogglableSimulationGroup"/>.  When provided (or together
+        /// with <paramref name="inputGroup"/>, <paramref name="postSimGroup"/>, or <paramref name="lifecycleGroup"/>),
+        /// a <see cref="ReferenceReplayLoadHandler"/> is registered and these objects are disabled /
         /// re-enabled during <c>PrepareReplay</c> / <c>FinalizeReplay</c> transitions
         /// (CGF1-S0304).
         /// </param>
@@ -119,8 +119,10 @@ namespace Hrot.SimHost
             Fdp.Toolkit.Scenario.ScenarioSerializer? scenarioSerializer = null,
             string localTempRoot = @"C:\FDP_Temp",
             CheckpointIOWorker? checkpointWorker = null,
-            Fdp.Core.SimulationSystemGroup? simGroup = null,
-            Fdp.ModuleHost.Scheduling.NetworkLifecycleSystemGroup? lifecycleGroup = null,
+            Fdp.ModuleHost.Scheduling.TogglableSimulationGroup?    simGroup = null,
+            Fdp.ModuleHost.Scheduling.TogglableInputGroup?          inputGroup = null,
+            Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup? postSimGroup = null,
+            Fdp.ModuleHost.Scheduling.NetworkLifecycleSystemGroup?  lifecycleGroup = null,
             Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null,
             Fdp.Core.EventAccumulator? eventAccumulator = null)
         {
@@ -150,14 +152,14 @@ namespace Hrot.SimHost
 
             // Wire ReferenceReplayLoadHandler BEFORE ReferenceLiveLoadHandler so the
             // dispatch loop considers the Live-from-Replay branch first (CGF1-S0305).
-            if (controller != null && simGroup != null && lifecycleGroup != null)
+            if (controller != null && (inputGroup != null || simGroup != null || postSimGroup != null || lifecycleGroup != null))
             {
                 Action<bool>? bypassToggle = ghostCreationSystem != null
                     ? bypass => ghostCreationSystem.BypassLifecycle = bypass
                     : (Action<bool>?)null;
 
                 clusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
-                    controller, simGroup, lifecycleGroup, bypassToggle,
+                    controller, inputGroup, simGroup, postSimGroup, lifecycleGroup, bypassToggle,
                     localTempRoot));
             }
 

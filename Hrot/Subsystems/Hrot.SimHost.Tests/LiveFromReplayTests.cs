@@ -160,13 +160,17 @@ namespace Hrot.SimHost.Tests
             await controller.PrepareReplayAsync(exerciseId, _tempDir);
 
             // ── Step 3: issue PrepareLive (Live-from-Replay branch) ───────────
-            var simGroup       = new SimulationSystemGroup();
+            var simGroup       = new TogglableSimulationGroup("test");
             var entityMap      = new NetworkEntityMap();
             var ghostSys       = new GhostCreationSystem(entityMap);
             var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
 
             var handler      = new ReferenceReplayLoadHandler(
-                controller, simGroup, lifecycleGroup,
+                controller,
+                inputGroup:    null,
+                simGroup:      simGroup,
+                postSimGroup:  null,
+                lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
                 storageDirectory: _tempDir);
 
@@ -196,7 +200,7 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// After <see cref="ReferenceReplayLoadHandler.Commit"/> handles a
         /// <c>PrepareLive</c> (operationId=9) command (the Live-from-Replay branch),
-        /// <see cref="SimulationSystemGroup.Enabled"/> must be <c>true</c> and
+        /// <see cref="TogglableSimulationGroup.Enabled"/> must be <c>true</c> and
         /// <see cref="GhostCreationSystem.BypassLifecycle"/> must be <c>false</c>.
         /// </summary>
         [Fact(Timeout = 20_000)]
@@ -226,13 +230,17 @@ namespace Hrot.SimHost.Tests
             // ── Step 2: put system into replay state (sets groups disabled) ───
             await controller.PrepareReplayAsync(exerciseId, _tempDir);
 
-            var simGroup       = new SimulationSystemGroup();
+            var simGroup       = new TogglableSimulationGroup("test");
             var entityMap      = new NetworkEntityMap();
             var ghostSys       = new GhostCreationSystem(entityMap);
             var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
 
             var handler = new ReferenceReplayLoadHandler(
-                controller, simGroup, lifecycleGroup,
+                controller,
+                inputGroup:    null,
+                simGroup:      simGroup,
+                postSimGroup:  null,
+                lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
                 storageDirectory: _tempDir);
 
@@ -245,7 +253,7 @@ namespace Hrot.SimHost.Tests
                 DomainPayload = exerciseId,
             };
             handler.Commit(prepCmd, repo: null);
-            Assert.False(simGroup.Enabled, "SimulationSystemGroup must be disabled during replay.");
+            Assert.False(simGroup.Enabled, "TogglableSimulationGroup must be disabled during replay.");
 
             // ── Step 3: issue PrepareLive (Live-from-Replay branch) ──────────────────────────
             var branchedExerciseId = Guid.NewGuid();
@@ -264,7 +272,7 @@ namespace Hrot.SimHost.Tests
 
             // ── Step 4: assertions ────────────────────────────────────────────
             Assert.True(simGroup.Enabled,
-                "SimulationSystemGroup.Enabled must be true after Live-from-Replay branch Commit.");
+                "TogglableSimulationGroup.Enabled must be true after Live-from-Replay branch Commit.");
             Assert.True(lifecycleGroup.Enabled,
                 "NetworkLifecycleSystemGroup.Enabled must be true after Live-from-Replay branch Commit.");
             Assert.False(ghostSys.BypassLifecycle,

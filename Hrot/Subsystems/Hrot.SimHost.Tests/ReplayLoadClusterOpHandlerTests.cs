@@ -55,7 +55,7 @@ namespace Hrot.SimHost.Tests
         ///   <item>Calls <c>PrepareAsync(PrepareReplay)</c> on the handler, triggering
         ///   <see cref="EcsRecordReplayController.PrepareReplayAsync"/>.</item>
         ///   <item>Calls <c>Commit(PrepareReplay)</c> on the handler.</item>
-        ///   <item>Asserts <see cref="SimulationSystemGroup.Enabled"/> is <c>false</c>.</item>
+        ///   <item>Asserts <see cref="TogglableSimulationGroup.Enabled"/> is <c>false</c>.</item>
         ///   <item>Asserts <see cref="GhostCreationSystem.BypassLifecycle"/> is <c>true</c>.</item>
         /// </list>
         /// </summary>
@@ -93,14 +93,16 @@ namespace Hrot.SimHost.Tests
             await controller.FinalizeRecordingAsync();
 
             // ── Step 2: build the handler. ──
-            var simGroup         = new SimulationSystemGroup();
+            var simGroup         = new TogglableSimulationGroup("test");
             var entityMap        = new NetworkEntityMap();
             var ghostSys         = new GhostCreationSystem(entityMap);
             var lifecycleGroup   = new NetworkLifecycleSystemGroup(ghostSys);
 
             var handler = new ReferenceReplayLoadHandler(
                 controller,
-                simGroup,
+                inputGroup:    null,
+                simGroup:      simGroup,
+                postSimGroup:  null,
                 lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
                 storageDirectory: _tempDir);
@@ -124,7 +126,7 @@ namespace Hrot.SimHost.Tests
 
             // ── Step 5: assertions. ──
             Assert.False(simGroup.Enabled,
-                "SimulationSystemGroup.Enabled must be false during RunningReplay.");
+                "TogglableSimulationGroup.Enabled must be false during RunningReplay.");
             Assert.False(lifecycleGroup.Enabled,
                 "NetworkLifecycleSystemGroup.Enabled must be false during RunningReplay.");
             Assert.True(ghostSys.BypassLifecycle,
@@ -151,13 +153,17 @@ namespace Hrot.SimHost.Tests
             await controller.FinalizeRecordingAsync();
 
             // ── Step 2: build handler and run PrepareReplay → Commit. ──
-            var simGroup       = new SimulationSystemGroup();
+            var simGroup       = new TogglableSimulationGroup("test");
             var entityMap      = new NetworkEntityMap();
             var ghostSys       = new GhostCreationSystem(entityMap);
             var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
 
             var handler = new ReferenceReplayLoadHandler(
-                controller, simGroup, lifecycleGroup,
+                controller,
+                inputGroup:    null,
+                simGroup:      simGroup,
+                postSimGroup:  null,
+                lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
                 storageDirectory: _tempDir);
 
@@ -190,7 +196,7 @@ namespace Hrot.SimHost.Tests
 
             // ── Step 4: assertions. ──
             Assert.True(simGroup.Enabled,
-                "SimulationSystemGroup.Enabled must be re-enabled after FinalizeReplay.");
+                "TogglableSimulationGroup.Enabled must be re-enabled after FinalizeReplay.");
             Assert.True(lifecycleGroup.Enabled,
                 "NetworkLifecycleSystemGroup.Enabled must be re-enabled after FinalizeReplay.");
             Assert.False(ghostSys.BypassLifecycle,

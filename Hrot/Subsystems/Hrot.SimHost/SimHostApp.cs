@@ -355,7 +355,6 @@ namespace Hrot.SimHost
             // The same instances are used for both orchestration replay control and the
             // replication module itself, ensuring a single source of truth.
             var ghostCreationSystem   = replicationModule.GhostCreationSystem;
-            var simulationSystemGroup = new SimulationSystemGroup();
             var networkLifecycleGroup = replicationModule.NetworkLifecycleGroup;
 
             var bootstrapper = new NodeBootstrapper(_networkFactory);
@@ -367,7 +366,7 @@ namespace Hrot.SimHost
                 scenarioSerializer: null, // simhost does not load/save scenarios (cgf does)
 				localTempRoot: nodeConfig.LocalTempRoot,
                 checkpointWorker: _checkpointWorker,
-                simGroup: simulationSystemGroup,
+                simGroup: null,
                 lifecycleGroup: networkLifecycleGroup,
                 ghostCreationSystem: ghostCreationSystem,
                 eventAccumulator: _context.EventAccumulator);

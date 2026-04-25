@@ -151,7 +151,9 @@ namespace Hrot.CGF
             // session is currently active (Live-from-Replay branch, CGF1-S0305).
             _clusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
                 rrController,
+                inputGroup:            null,
                 simGroup:              null,
+                postSimGroup:          null,
                 lifecycleGroup:        null,
                 bypassLifecycleToggle: null,
                 storageDirectory:      localTempRoot));

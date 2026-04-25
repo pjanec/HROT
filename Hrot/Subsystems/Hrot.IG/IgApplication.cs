@@ -891,7 +891,9 @@ public class IgApplication : IDisposable
                 // unconditional; PrepareLive only when replay active).
                 _clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
                     igRrController,
+                    inputGroup:            null,
                     simGroup:              null,
+                    postSimGroup:          null,
                     lifecycleGroup:        null,
                     bypassLifecycleToggle: null,
                     storageDirectory:      @"C:\FDP_Temp"));
