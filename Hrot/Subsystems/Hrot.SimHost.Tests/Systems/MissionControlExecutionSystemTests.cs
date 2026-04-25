@@ -14,11 +14,11 @@ namespace Hrot.SimHost.Tests.Systems;
 
 /// <summary>
 /// Unit tests for <see cref="MissionControlExecutionSystem"/>.
-/// These tests exercise the pure-ECS execution logic in isolation — no DDS.
+/// These tests exercise the pure-ECS execution logic in isolation â€” no DDS.
 /// </summary>
 public class MissionControlExecutionSystemTests
 {
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static EntityRepository CreateWorld()
     {
@@ -72,7 +72,7 @@ public class MissionControlExecutionSystemTests
         return null;
     }
 
-    // ── SC-1: Successful mission replace publishes ACK with ErrorCode == 0 ────
+    // â”€â”€ SC-1: Successful mission replace publishes ACK with ErrorCode == 0 â”€â”€â”€â”€
 
     /// <summary>
     /// SC-1: Construct system without DDS; create entity; publish
@@ -88,7 +88,6 @@ public class MissionControlExecutionSystemTests
         entityMap.Register(1L, entity);
 
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
-        system.Create(repo);
 
         var taskA = Guid.NewGuid();
         var requestId = Guid.NewGuid();
@@ -118,10 +117,10 @@ public class MissionControlExecutionSystemTests
         Assert.True(ack.Value.NewVersion > 0);
     }
 
-    // ── SC-2: Wrong BaseVersion emits version-conflict NACK ────────────────────
+    // â”€â”€ SC-2: Wrong BaseVersion emits version-conflict NACK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
-    /// SC-2: Submit two missions; second uses wrong BaseVersion — must emit
+    /// SC-2: Submit two missions; second uses wrong BaseVersion â€” must emit
     /// a <see cref="MissionControlAckEvent"/> with a non-zero ErrorCode and
     /// NOT mutate the <see cref="MissionPlanQueue"/>.
     /// </summary>
@@ -134,7 +133,6 @@ public class MissionControlExecutionSystemTests
         entityMap.Register(1L, entity);
 
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
-        system.Create(repo);
 
         // First mission succeeds (BaseVersion 0).
         var taskA = Guid.NewGuid();
@@ -179,17 +177,16 @@ public class MissionControlExecutionSystemTests
         Assert.NotEqual(0, ack!.Value.ErrorCode);
     }
 
-    // ── SC-3: Unknown entity queues for retry, eventually NACKs ────────────────
+    // â”€â”€ SC-3: Unknown entity queues for retry, eventually NACKs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void ProcessIntent_UnknownEntity_EnqueuesForRetryThenNacks()
     {
         var entityMap = new NetworkEntityMap();
         using var repo = CreateWorld();
-        // Do NOT register entity — simulate unknown entity.
+        // Do NOT register entity â€” simulate unknown entity.
 
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
-        system.Create(repo);
 
         var requestId = Guid.NewGuid();
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
@@ -218,7 +215,7 @@ public class MissionControlExecutionSystemTests
         Assert.NotEqual(0, ack!.Value.ErrorCode);
     }
 
-    // ── SC-4: Entity found on retry publishes success ─────────────────────────
+    // â”€â”€ SC-4: Entity found on retry publishes success â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void ProcessIntent_EntityAppearsOnRetry_PublishesSuccessAck()
@@ -228,7 +225,6 @@ public class MissionControlExecutionSystemTests
         // Entity NOT yet registered.
 
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
-        system.Create(repo);
 
         var taskA = Guid.NewGuid();
         var requestId = Guid.NewGuid();
@@ -261,7 +257,7 @@ public class MissionControlExecutionSystemTests
         Assert.Equal(0, ack!.Value.ErrorCode);
     }
 
-    // ── SC-S301: ActiveMissionPlan stored and removed via managed component API ─
+    // â”€â”€ SC-S301: ActiveMissionPlan stored and removed via managed component API â”€
 
     /// <summary>
     /// S301-SC1/SC2/SC3: After CMD_REPLACE_MISSION, <see cref="ActiveMissionPlan"/>
@@ -277,12 +273,11 @@ public class MissionControlExecutionSystemTests
         entityMap.Register(1L, entity);
 
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
-        system.Create(repo);
 
         var taskA = Guid.NewGuid();
         var taskB = Guid.NewGuid();
 
-        // ── Replace mission ──────────────────────────────────────────────────────
+        // â”€â”€ Replace mission â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {
             RequestId      = Guid.NewGuid(),
@@ -305,7 +300,7 @@ public class MissionControlExecutionSystemTests
         Assert.NotNull(plan!.Plan);
         Assert.Equal(2, plan.Plan.Tasks.Count);
 
-        // ── Abort all ────────────────────────────────────────────────────────────
+        // â”€â”€ Abort all â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {
             RequestId      = Guid.NewGuid(),
@@ -319,7 +314,7 @@ public class MissionControlExecutionSystemTests
             "ActiveMissionPlan must be cleared after CMD_ABORT_ALL");
     }
 
-    // ── SC-S302: TryBuildQueue — Span mutation produces correct PhaseCount ──────
+    // â”€â”€ SC-S302: TryBuildQueue â€” Span mutation produces correct PhaseCount â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// S302-SC1/SC2: Processing a 3-task plan produces a <see cref="MissionPlanQueue"/>
@@ -334,7 +329,6 @@ public class MissionControlExecutionSystemTests
         entityMap.Register(1L, entity);
 
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
-        system.Create(repo);
 
         var taskA = Guid.NewGuid();
         var taskB = Guid.NewGuid();
@@ -374,7 +368,6 @@ public class MissionControlExecutionSystemTests
         entityMap.Register(1L, entity);
 
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
-        system.Create(repo);
 
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {

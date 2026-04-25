@@ -10,6 +10,7 @@ using Fdp.Toolkit.Replication.Services;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems.Routing;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost;
 
 namespace Hrot.SimHost
 {
@@ -121,11 +122,12 @@ namespace Hrot.SimHost
             if (simGroup     == null) throw new ArgumentNullException(nameof(simGroup));
             if (postSimGroup == null) throw new ArgumentNullException(nameof(postSimGroup));
 
-            // Combat (Input + Sim + PostSim).
-            _combatModule.RegisterSystems(inputGroup, simGroup, postSimGroup, _entityMap);
+            // Combat (Input + PostSim).
+            foreach (var s in _combatModule.InputSystems) inputGroup.AddSystem(s);
+            foreach (var s in _combatModule.PostSimulationSystems) postSimGroup.AddSystem(s);
 
             // DamageAssessment (Sim).
-            _damageAssessmentModule.RegisterSystems(simGroup);
+            foreach (var s in _damageAssessmentModule.SimulationSystems) simGroup.AddSystem(s);
 
             // Navigation bridge systems (collocated with GroundKinematics, same as SimulationLogicModule).
             simGroup.AddSystem(new NavigationIntentBridgeSystem());
@@ -133,7 +135,8 @@ namespace Hrot.SimHost
             inputGroup.AddSystem(new PersonalRouteAuthoringSystem());
 
             // Ground kinematics (Sim).
-            _groundKinematicsModule.RegisterSystems(simGroup);
+            foreach (var s in _groundKinematicsModule.SimulationSystems) simGroup.AddSystem(s);
+            foreach (var s in _groundKinematicsModule.PostSimulationSystems) simGroup.AddSystem(s);
         }
     }
 }

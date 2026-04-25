@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using CarKinem.Formation;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Modules;
 using Fdp.Toolkit.Behavior.Systems;
@@ -138,16 +139,16 @@ namespace Hrot.SimHost.Tests
             var systems = simGroup.GetSystems();
 
             // MissionControlModule systems
-            Assert.Contains(systems, s => s is DoctrineIngressSystem);
-            Assert.Contains(systems, s => s is MissionDirectorSystem);
+            Assert.Contains(systems, s => s.IsOrWraps<DoctrineIngressSystem>());
+            Assert.Contains(systems, s => s.IsOrWraps<MissionDirectorSystem>());
 
             // CognitiveRuntimeModule systems
-            Assert.Contains(systems, s => s is ChannelArbitrationSystem);
-            Assert.Contains(systems, s => s is BTreeTickSystem);
+            Assert.Contains(systems, s => s.IsOrWraps<ChannelArbitrationSystem>());
+            Assert.Contains(systems, s => s.IsOrWraps<BTreeTickSystem>());
 
             // ActionDispatchModule systems
-            Assert.Contains(systems, s => s is LocomotionDispatcherSystem);
-            Assert.Contains(systems, s => s is WeaponDispatcherSystem);
+            Assert.Contains(systems, s => s.IsOrWraps<LocomotionDispatcherSystem>());
+            Assert.Contains(systems, s => s.IsOrWraps<WeaponDispatcherSystem>());
 
             simGroup.Dispose();
         }
@@ -267,7 +268,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, commands.Count);
         }
 
-        // ── S306: Two-group overload routes systems correctly ─────────────────
+        // â”€â”€ S306: Two-group overload routes systems correctly â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// S306-SC1/SC2/SC3: The two-group overload places <see cref="MissionControlExecutionSystem"/>
@@ -294,13 +295,13 @@ namespace Hrot.SimHost.Tests
             var simSystems   = simGroup2.GetSystems();
 
             // SC1: MissionControlExecutionSystem is in inputGroup.
-            Assert.Contains(inputSystems, s => s is MissionControlExecutionSystem);
+            Assert.Contains(inputSystems, s => s.IsOrWraps<MissionControlExecutionSystem>());
             // SC2: DoctrineIngressSystem is in inputGroup.
-            Assert.Contains(inputSystems, s => s is DoctrineIngressSystem);
+            Assert.Contains(inputSystems, s => s.IsOrWraps<DoctrineIngressSystem>());
             // SC3: MissionDirectorSystem is in simGroup.
-            Assert.Contains(simSystems, s => s is MissionDirectorSystem);
+            Assert.Contains(simSystems, s => s.IsOrWraps<MissionDirectorSystem>());
             // MissionAdapterSystem stays in simGroup.
-            Assert.Contains(simSystems, s => s is MissionAdapterSystem);
+            Assert.Contains(simSystems, s => s.IsOrWraps<MissionAdapterSystem>());
 
             // inputGroup: MissionControlExecutionSystem + DoctrineIngressSystem = 2
             Assert.Equal(2, inputGroup.SystemCount);

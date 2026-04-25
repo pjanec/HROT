@@ -15,7 +15,7 @@ using Xunit;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// Unit tests for <see cref="GenesisMaterializationSystem"/> — TASK-S404.
+    /// Unit tests for <see cref="GenesisMaterializationSystem"/> â€” TASK-S404.
     /// </summary>
     public sealed class GenesisMaterializationSystemTests : IDisposable
     {
@@ -43,11 +43,10 @@ namespace Hrot.SimHost.Tests
         private GenesisMaterializationSystem CreateAndStartSystem()
         {
             var sys = new GenesisMaterializationSystem(_entityMap);
-            sys.Create(_repo);
             return sys;
         }
 
-        // ── Helper: create an entity with NetworkIdentity and register in map ──
+        // â”€â”€ Helper: create an entity with NetworkIdentity and register in map â”€â”€
 
         private Entity CreateNetworkedEntity(long netId)
         {
@@ -57,7 +56,7 @@ namespace Hrot.SimHost.Tests
             return e;
         }
 
-        // ── Test 1: Passengers deferred until referenced entity alive ──────────
+        // â”€â”€ Test 1: Passengers deferred until referenced entity alive â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         public void Passengers_DeferredWhenReferencedEntityNotInMap()
@@ -69,14 +68,14 @@ namespace Hrot.SimHost.Tests
             _repo.SetManagedComponent(vehicle, intent);
 
             var sys = CreateAndStartSystem();
-            sys.Run();
+            sys.Execute(_repo, 0.016f);
 
-            // Not yet resolved — intent must remain
+            // Not yet resolved â€” intent must remain
             Assert.True(_repo.HasManagedComponent<InitialPassengersIntent>(vehicle));
             Assert.False(_repo.HasComponent<PassengerBuffer>(vehicle));
         }
 
-        // ── Test 2: Passengers materialized once referenced entity appears ──────
+        // â”€â”€ Test 2: Passengers materialized once referenced entity appears â”€â”€â”€â”€â”€â”€
 
         [Fact]
         public void Passengers_MaterializedOnceEntityAppearsInMap()
@@ -89,7 +88,7 @@ namespace Hrot.SimHost.Tests
             _repo.SetManagedComponent(vehicle, intent);
 
             var sys = CreateAndStartSystem();
-            sys.Run();
+            sys.Execute(_repo, 0.016f);
 
             Assert.False(_repo.HasManagedComponent<InitialPassengersIntent>(vehicle));
             Assert.True(_repo.HasComponent<PassengerBuffer>(vehicle));
@@ -98,7 +97,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(passenger, buf.Passengers[0]);
         }
 
-        // ── Test 3: IsEmbarkedTag written from InitialVehicleIntent ───────────
+        // â”€â”€ Test 3: IsEmbarkedTag written from InitialVehicleIntent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         public void Vehicle_MaterializesIsEmbarkedTagOnceVehicleInMap()
@@ -109,14 +108,14 @@ namespace Hrot.SimHost.Tests
             _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = 77L });
 
             var sys = CreateAndStartSystem();
-            sys.Run();
+            sys.Execute(_repo, 0.016f);
 
             Assert.False(_repo.HasManagedComponent<InitialVehicleIntent>(soldier));
             Assert.True(_repo.HasComponent<IsEmbarkedTag>(soldier));
             Assert.Equal(vehicle, _repo.GetComponent<IsEmbarkedTag>(soldier).VehicleEntity);
         }
 
-        // ── Test 4: VisHierarchyNode written from InitialHierarchyIntent ───────
+        // â”€â”€ Test 4: VisHierarchyNode written from InitialHierarchyIntent â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         public void Hierarchy_MaterializesVisHierarchyNodeOnceAllEntitiesInMap()
@@ -133,7 +132,7 @@ namespace Hrot.SimHost.Tests
             });
 
             var sys = CreateAndStartSystem();
-            sys.Run();
+            sys.Execute(_repo, 0.016f);
 
             Assert.False(_repo.HasManagedComponent<InitialHierarchyIntent>(entity));
             Assert.True(_repo.HasComponent<VisHierarchyNode>(entity));
@@ -143,7 +142,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Entity.Null, node.NextSibling);
         }
 
-        // ── Test 5: PersonalRouteRef written from InitialRouteIntent ──────────
+        // â”€â”€ Test 5: PersonalRouteRef written from InitialRouteIntent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         public void Route_MaterializesPersonalRouteRefOnceRouteInMap()
@@ -154,14 +153,14 @@ namespace Hrot.SimHost.Tests
             _repo.SetManagedComponent(vehicle, new InitialRouteIntent { RouteNetworkId = 55L });
 
             var sys = CreateAndStartSystem();
-            sys.Run();
+            sys.Execute(_repo, 0.016f);
 
             Assert.False(_repo.HasManagedComponent<InitialRouteIntent>(vehicle));
             Assert.True(_repo.HasComponent<PersonalRouteRef>(vehicle));
             Assert.Equal(route, _repo.GetComponent<PersonalRouteRef>(vehicle).RouteEntity);
         }
 
-        // ── Test 6: TargetMemory partial materialization ───────────────────────
+        // â”€â”€ Test 6: TargetMemory partial materialization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         public void Targets_PartialMaterialization_UnresolvedEntriesDropped_IntentAlwaysRemoved()
@@ -177,7 +176,7 @@ namespace Hrot.SimHost.Tests
             _repo.SetManagedComponent(entity, intent);
 
             var sys = CreateAndStartSystem();
-            sys.Run();
+            sys.Execute(_repo, 0.016f);
 
             // Intent always removed after first tick
             Assert.False(_repo.HasManagedComponent<InitialTargetsIntent>(entity));

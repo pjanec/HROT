@@ -17,6 +17,7 @@ using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Systems;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.SimHost.Systems;
+using Fdp.ModuleHost;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -26,7 +27,7 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public class SimHostCoreLogicPackTests
     {
-        // ── World factory ─────────────────────────────────────────────────────
+        // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ World factory Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
 
         private static EntityRepository CreateEmptyWorld()
         {
@@ -89,7 +90,7 @@ namespace Hrot.SimHost.Tests
             }
         }
 
-        // ── Tests ─────────────────────────────────────────────────────────────
+        // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ Tests Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
 
         /// <summary>
         /// All four sub-module system sets register without error, and a single-frame
@@ -98,7 +99,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void SimHostCoreLogicPack_EmptyWorld_AllSystemsRegisterAndRunWithoutException()
         {
-            // ── Arrange ───────────────────────────────────────────────────────
+            // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ Arrange Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
             using var world = CreateEmptyWorld();
             var entityMap        = new NetworkEntityMap();
             var roadNetwork      = new RoadNetworkBuilder().Build(10f, 10, 10);
@@ -118,7 +119,7 @@ namespace Hrot.SimHost.Tests
 
             pack.RegisterSystems(inputGroup, simGroup, postSimGroup);
 
-            // ── Act + Assert ──────────────────────────────────────────────────
+            // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ Act + Assert Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
             var ex = Record.Exception(() =>
             {
                 inputGroup.Run();
@@ -130,7 +131,7 @@ namespace Hrot.SimHost.Tests
 
             // Verify system counts match expected numbers from sub-module implementations:
             // CombatModule: FireProcessingSystem, RaycastSolverSystem, HitResolutionSystem (input=3)
-            // PersonalRouteAuthoringSystem (input=1) → inputGroup total = 4
+            // PersonalRouteAuthoringSystem (input=1) Ă˘â€ â€™ inputGroup total = 4
             Assert.Equal(4, inputGroup.SystemCount);
 
             // CombatModule: no systems in simGroup (sim=0)
@@ -144,7 +145,7 @@ namespace Hrot.SimHost.Tests
             // CombatModule: BallisticsSystem (postSim=1)
             Assert.Equal(1, postSimGroup.SystemCount);
 
-            // ── Cleanup ───────────────────────────────────────────────────────
+            // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ Cleanup Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
             inputGroup.Dispose();
             simGroup.Dispose();
             postSimGroup.Dispose();
@@ -178,20 +179,20 @@ namespace Hrot.SimHost.Tests
             var simSystems     = simGroup.GetSystems();
             var postSimSystems = postSimGroup.GetSystems();
 
-            Assert.Contains(inputSystems,   s => s is FireProcessingSystem);
-            Assert.Contains(inputSystems,   s => s is RaycastSolverSystem);
-            Assert.Contains(inputSystems,   s => s is HitResolutionSystem);
-            Assert.Contains(postSimSystems, s => s is BallisticsSystem);
+            Assert.Contains(inputSystems,   s => s.IsOrWraps<FireProcessingSystem>());
+            Assert.Contains(inputSystems,   s => s.IsOrWraps<RaycastSolverSystem>());
+            Assert.Contains(inputSystems,   s => s.IsOrWraps<HitResolutionSystem>());
+            Assert.Contains(postSimSystems, s => s.IsOrWraps<BallisticsSystem>());
 
             // DamageAssessmentModule systems
-            Assert.Contains(simSystems, s => s is DamageCalculationSystem);
+            Assert.Contains(simSystems, s => s.IsOrWraps<DamageCalculationSystem>());
 
             // GroundKinematicsModule systems
-            Assert.Contains(simSystems, s => s is SpatialHashSystem);
-            Assert.Contains(simSystems, s => s is CarKinematicsSystem);
-            Assert.Contains(simSystems, s => s is LinearKinematicsSystem);
+            Assert.Contains(simSystems, s => s.IsOrWraps<SpatialHashSystem>());
+            Assert.Contains(simSystems, s => s.IsOrWraps<CarKinematicsSystem>());
+            Assert.Contains(simSystems, s => s.IsOrWraps<LinearKinematicsSystem>());
 
-            // AutonomousPerceptionModule: does not add systems to groups — runs via Tick().
+            // AutonomousPerceptionModule: does not add systems to groups Ă˘â‚¬â€ť runs via Tick().
             // Verify the module's Name property is correct (indirectly via RegisterSystems no-op).
             Assert.Equal("SimHostCoreLogicPack", pack.Name);
 

@@ -8,6 +8,7 @@ using Hrot.SimHost;
 using CarKinem.Road;
 using CycloneDDS.Runtime;
 using Fdp.Core;
+using Fdp.ModuleHost;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Services;

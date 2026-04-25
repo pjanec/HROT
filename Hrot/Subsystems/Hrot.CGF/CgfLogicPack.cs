@@ -16,6 +16,7 @@ using Hrot.CGF.Systems;
 using Hrot.CGF.Systems.Routing;
 using Hrot.Common.Systems;
 using Hrot.Core.Network;
+using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.CGF
@@ -32,11 +33,12 @@ namespace Hrot.CGF
     ///   <item><see cref="ActionDispatchModule"/> — locomotion + weapon dispatchers</item>
     /// </list>
     ///
-    /// <para><b>Registration pattern:</b> Because all three contained modules extend
-    /// <see cref="ComponentSystem"/> (not <see cref="IEcsModuleSystem"/>), their
-    /// systems must be wired into a simulation-phase <see cref="SystemGroup"/> via
-    /// <see cref="RegisterSystems(SystemGroup)"/>. The
-    /// <see cref="IEcsModule.RegisterSystems(ISystemRegistry)"/> overload is a no-op
+    /// <para><b>Registration pattern:</b> The contained modules expose phase-typed
+    /// <c>IReadOnlyList&lt;IEcsModuleSystem&gt;</c> array properties (<c>InputSystems</c>,
+    /// <c>SimulationSystems</c>). Their systems are wired into <see cref="SystemGroup"/>s
+    /// via <see cref="RegisterSystems(SystemGroup)"/> or the split
+    /// <see cref="RegisterSystems(SystemGroup, SystemGroup)"/> overload.
+    /// The <see cref="IEcsModule.RegisterSystems(ISystemRegistry)"/> overload is a no-op
     /// and is provided for API compliance only.</para>
     ///
     /// <para><b>Execution order:</b> matches the production order used by
@@ -117,11 +119,10 @@ namespace Hrot.CGF
         // ── IEcsModule ────────────────────────────────────────────────────────
 
         /// <summary>
-        /// No-op — the contained sub-modules use <see cref="ComponentSystem"/>-based
-        /// <see cref="SystemGroup"/> registration and cannot be registered via
-        /// <see cref="ISystemRegistry"/>.
-        /// Call <see cref="RegisterSystems(SystemGroup)"/> to wire them into the
-        /// application's simulation-phase system group.
+        /// No-op — the contained sub-modules expose phase-typed array properties and are
+        /// wired into <see cref="SystemGroup"/>s via the typed <c>RegisterSystems</c> overloads.
+        /// Call <see cref="RegisterSystems(SystemGroup)"/> or
+        /// <see cref="RegisterSystems(SystemGroup, SystemGroup)"/> instead.
         /// </summary>
         public void RegisterSystems(ISystemRegistry registry) { }
 
@@ -144,7 +145,8 @@ namespace Hrot.CGF
             simGroup.AddSystem(_missionExecutionSystem);
             // Adapter bridges MissionPlanQueue phase changes into active DoctrineState.
             simGroup.AddSystem(_missionAdapterSystem);
-            _missionControlModule.RegisterSystems(simGroup);
+            foreach (var s in _missionControlModule.InputSystems) simGroup.AddSystem(s);
+            foreach (var s in _missionControlModule.SimulationSystems) simGroup.AddSystem(s);
             // Brain applies authoritative damage: EntityHitDamageIngressTranslator delivers
             // DamageAssessedEvent; HealthApplicationSystem mutates Health and strips
             // ActorCapabilities so HsmDamageBridgeSystem (in CognitiveRuntimeModule) can
@@ -152,8 +154,8 @@ namespace Hrot.CGF
             simGroup.AddSystem(new HealthApplicationSystem());            // Cognitive threat evaluation: decays TargetMemory scores and boosts them from
             // ActiveSensorTracks (written by SensorTrackStateIngressTranslator).
             // Must run before CognitiveRuntimeModule so B-Trees see freshly scored targets.
-            simGroup.AddSystem(new CgfThreatEvaluationSystem());            _cognitiveRuntimeModule.RegisterSystems(simGroup);
-            _actionDispatchModule.RegisterSystems(simGroup);
+            simGroup.AddSystem(new CgfThreatEvaluationSystem());            foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simGroup.AddSystem(s);
+            foreach (var s in _actionDispatchModule.SimulationSystems) simGroup.AddSystem(s);
             // Route context: writes per-waypoint ExtensionJson danger level to BrainBlackboard.
             simGroup.AddSystem(new RouteContextSystem());
         }
@@ -176,11 +178,12 @@ namespace Hrot.CGF
 
             inputGroup.AddSystem(_missionExecutionSystem);
             simGroup.AddSystem(_missionAdapterSystem);
-            _missionControlModule.RegisterSystems(inputGroup, simGroup);
+            foreach (var s in _missionControlModule.InputSystems) inputGroup.AddSystem(s);
+            foreach (var s in _missionControlModule.SimulationSystems) simGroup.AddSystem(s);
             simGroup.AddSystem(new HealthApplicationSystem());
             simGroup.AddSystem(new CgfThreatEvaluationSystem());
-            _cognitiveRuntimeModule.RegisterSystems(simGroup);
-            _actionDispatchModule.RegisterSystems(simGroup);
+            foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simGroup.AddSystem(s);
+            foreach (var s in _actionDispatchModule.SimulationSystems) simGroup.AddSystem(s);
             simGroup.AddSystem(new RouteContextSystem());
         }
     }

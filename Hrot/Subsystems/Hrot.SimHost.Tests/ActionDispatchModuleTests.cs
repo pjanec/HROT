@@ -39,24 +39,13 @@ namespace Hrot.SimHost.Tests
         public void ActionDispatchModule_RegistersLocoAndWeaponDispatchers()
         {
             // Arrange
-            var repo   = new EntityRepository();
             var module = CreateDefaultModule();
 
-            var group = new SystemGroup();
-            group.Create(repo);
-
-            // Act
-            module.RegisterSystems(group);
-
             // Assert — exactly 3 systems: LocomotionDispatcher + WeaponDispatcher + InteractionDispatcher
-            var systems = group.GetSystems();
-            Assert.Equal(3, systems.Count);
-            Assert.Contains(systems, s => s is LocomotionDispatcherSystem);
-            Assert.Contains(systems, s => s is WeaponDispatcherSystem);
-            Assert.Contains(systems, s => s is InteractionDispatcherSystem);
-
-            group.Dispose();
-            repo.Dispose();
+            Assert.Equal(3, module.SimulationSystems.Count);
+            Assert.Contains(module.SimulationSystems, s => s is LocomotionDispatcherSystem);
+            Assert.Contains(module.SimulationSystems, s => s is WeaponDispatcherSystem);
+            Assert.Contains(module.SimulationSystems, s => s is InteractionDispatcherSystem);
         }
 
         [Fact]
@@ -64,19 +53,11 @@ namespace Hrot.SimHost.Tests
         {
             // Modules with no executors (e.g. headless test stubs) must still compile
             // and register both dispatcher systems.
-            var repo   = new EntityRepository();
             var module = new ActionDispatchModule(
                 locoExecutors:   System.Array.Empty<(ushort, IActionExecutor<LocomotionChannel>)>(),
                 weaponExecutors: System.Array.Empty<(ushort, IActionExecutor<WeaponChannel>)>());
 
-            var group = new SystemGroup();
-            group.Create(repo);
-            module.RegisterSystems(group);
-
-            Assert.Equal(3, group.GetSystems().Count);
-
-            group.Dispose();
-            repo.Dispose();
+            Assert.Equal(3, module.SimulationSystems.Count);
         }
     }
 }

@@ -1,7 +1,7 @@
-using Fdp.Core;
+using System.Collections.Generic;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Systems;
 using Fdp.Toolkit.Physics.Systems;
-using Fdp.Toolkit.Replication.Services;
 
 namespace Hrot.SimHost.Modules
 {
@@ -11,7 +11,6 @@ namespace Hrot.SimHost.Modules
     /// <para><b>Systems registered (in execution order):</b></para>
     /// <list type="number">
     ///   <item><b>Input phase</b> — <see cref="FireProcessingSystem"/>, <see cref="RaycastSolverSystem"/>, <see cref="HitResolutionSystem"/></item>
-    ///   <item><b>Simulation phase</b> — <see cref="LosRequestBatchingSystem"/>, <see cref="DamageSystem"/></item>
     ///   <item><b>Post-sim phase</b> — <see cref="BallisticsSystem"/></item>
     /// </list>
     ///
@@ -24,37 +23,24 @@ namespace Hrot.SimHost.Modules
     /// </summary>
     public sealed class CombatModule
     {
-        /// <summary>
-        /// Registers combat, perception, and physics systems into the provided groups.
-        /// </summary>
-        /// <param name="inputGroup">Input-phase group — receives fire processing and raycast resolution.</param>
-        /// <param name="simGroup">Simulation-phase group — receives perception broadphase, damage, and HSM bridge.</param>
-        /// <param name="postSimGroup">Post-simulation group — receives ballistics integration.</param>
-        /// <param name="entityMap">
-        /// Shared <see cref="NetworkEntityMap"/> injected into <see cref="FireProcessingSystem"/>
-        /// for resolving <c>WeaponFireIntent</c> network IDs to local ECS entities (BS1-T007).
-        /// </param>
-        public void RegisterSystems(
-            SystemGroup inputGroup,
-            SystemGroup simGroup,
-            SystemGroup postSimGroup,
-            NetworkEntityMap entityMap)
+        /// <summary>Systems that run in the Input phase.</summary>
+        public IReadOnlyList<IEcsModuleSystem> InputSystems { get; }
+
+        /// <summary>Systems that run in the PostSimulation phase.</summary>
+        public IReadOnlyList<IEcsModuleSystem> PostSimulationSystems { get; }
+
+        public CombatModule()
         {
-            // ── Input phase ───────────────────────────────────────────────────
-            inputGroup.AddSystem(new FireProcessingSystem());
-            inputGroup.AddSystem(new RaycastSolverSystem());
-            inputGroup.AddSystem(new HitResolutionSystem());
-
-            // ── Simulation phase ──────────────────────────────────────────────
-            // DamageSystem removed: the distributed pipeline is used instead.
-            // HitResolutionSystem emits DetonationNotification; DamageAssessmentModule
-            // (MuscleGround) picks it up, calculates damage, and broadcasts EntityHitDamage
-            // over DDS. Brain receives it via EntityHitDamageIngressTranslator and applies
-            // it in HealthApplicationSystem (registered in CgfLogicPack).
-            // HsmDamageBridgeSystem relocated to CognitiveRuntimeModule (PACK-M001).
-
-            // ── Post-simulation ───────────────────────────────────────────────
-            postSimGroup.AddSystem(new BallisticsSystem());
+            InputSystems = new IEcsModuleSystem[]
+            {
+                new FireProcessingSystem(),
+                new RaycastSolverSystem(),
+                new HitResolutionSystem(),
+            };
+            PostSimulationSystems = new IEcsModuleSystem[]
+            {
+                new BallisticsSystem(),
+            };
         }
     }
 }

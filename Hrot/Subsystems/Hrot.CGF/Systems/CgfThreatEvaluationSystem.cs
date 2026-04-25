@@ -1,3 +1,4 @@
+using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Perception.Systems;
@@ -6,7 +7,7 @@ namespace Hrot.CGF.Systems
 {
     /// <summary>
     /// Brain-tier adapter that drives <see cref="ThreatEvaluationSystem"/> on the CGF node.
-    /// Runs as a synchronous <see cref="ComponentSystem"/> in the simulation phase, immediately
+    /// Runs as a synchronous <see cref="IEcsModuleSystem"/> in the simulation phase, immediately
     /// before <c>CognitiveRuntimeModule</c>, so B-Trees always evaluate against freshly
     /// decayed and boosted threat scores.
     ///
@@ -16,15 +17,14 @@ namespace Hrot.CGF.Systems
     /// continuous score decay each frame.
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    public sealed class CgfThreatEvaluationSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    public sealed class CgfThreatEvaluationSystem : IEcsModuleSystem
     {
         private readonly ThreatEvaluationSystem _threatEvaluation = new ThreatEvaluationSystem();
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            var view = (ISimulationView)World;
-            _threatEvaluation.Execute(view, DeltaTime);
+            _threatEvaluation.Execute(view, deltaTime);
         }
     }
 }

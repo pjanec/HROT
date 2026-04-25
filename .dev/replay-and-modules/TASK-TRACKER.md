@@ -2,21 +2,21 @@
 
 ## Phase 1 — Togglable Group Foundation
 
-- [ ] T-RMF-01  Create `TogglableSimulationGroup` in `Fdp.ModuleHost.Scheduling` (implements `ISystemGroup`)
-- [ ] T-RMF-02  Create `TogglableInputGroup` in `Fdp.ModuleHost.Scheduling` (implements `ISystemGroup`)
-- [ ] T-RMF-03  Create `TogglablePostSimulationGroup` in `Fdp.ModuleHost.Scheduling` (implements `ISystemGroup`)
-- [ ] T-RMF-04  Update `ReferenceReplayLoadHandler` — add all three new togglable group types, remove legacy `SimulationSystemGroup`
-- [ ] T-RMF-05  Update `NodeBootstrapper.BuildOrchestration` — add `TogglableInputGroup`, `TogglableSimulationGroup`, `TogglablePostSimulationGroup` parameters
+- [x] T-RMF-01  Create `TogglableSimulationGroup` in `Fdp.ModuleHost.Scheduling` (implements `ISystemGroup`)
+- [x] T-RMF-02  Create `TogglableInputGroup` in `Fdp.ModuleHost.Scheduling` (implements `ISystemGroup`)
+- [x] T-RMF-03  Create `TogglablePostSimulationGroup` in `Fdp.ModuleHost.Scheduling` (implements `ISystemGroup`)
+- [x] T-RMF-04  Update `ReferenceReplayLoadHandler` — add all three new togglable group types, remove legacy `SimulationSystemGroup`
+- [x] T-RMF-05  Update `NodeBootstrapper.BuildOrchestration` — add `TogglableInputGroup`, `TogglableSimulationGroup`, `TogglablePostSimulationGroup` parameters
 
 ## Phase 2 — System Migration (ComponentSystem to IEcsModuleSystem)
 
-- [ ] T-RMF-06  Convert `CombatModule` systems (FireProcessingSystem, RaycastSolverSystem, HitResolutionSystem, BallisticsSystem) — expose phase arrays
-- [ ] T-RMF-07  Convert `GroundKinematicsModule` systems (SpatialHashSystem, CarKinematicsSystem, LinearKinematicsSystem, NavigationExecutionSystem, FormationTargetSystem, VehicleCommandSystem) — expose phase arrays
-- [ ] T-RMF-08  Convert navigation bridge systems (PersonalRouteAuthoringSystem, NavigationIntentBridgeSystem, RouteTrajectorySyncSystem)
-- [ ] T-RMF-09  Convert `MissionControlModule` systems (DoctrineIngressSystem, MissionDirectorSystem, others)
-- [ ] T-RMF-10  Convert `CognitiveRuntimeModule` and `ActionDispatchModule` systems
-- [ ] T-RMF-11  Convert standalone CGF systems and `DamageAssessmentModule`
-- [ ] T-RMF-12  Convert `GenesisMaterializationSystem` — throw `InvalidOperationException` if view is not `EntityRepository`
+- [x] T-RMF-06  Convert `CombatModule` systems (FireProcessingSystem, RaycastSolverSystem, HitResolutionSystem, BallisticsSystem) — expose phase arrays
+- [x] T-RMF-07  Convert `GroundKinematicsModule` systems (SpatialHashSystem, CarKinematicsSystem, LinearKinematicsSystem, NavigationExecutionSystem, FormationTargetSystem, VehicleCommandSystem) — expose phase arrays
+- [x] T-RMF-08  Convert navigation bridge systems (PersonalRouteAuthoringSystem, NavigationIntentBridgeSystem, RouteTrajectorySyncSystem)
+- [x] T-RMF-09  Convert `MissionControlModule` systems (DoctrineIngressSystem, MissionDirectorSystem, others)
+- [x] T-RMF-10  Convert `CognitiveRuntimeModule` and `ActionDispatchModule` systems
+- [x] T-RMF-11  Convert standalone CGF systems and `DamageAssessmentModule`
+- [x] T-RMF-12  Convert `GenesisMaterializationSystem` -- throw `InvalidOperationException` if view is not `EntityRepository`
 
 ## Phase 3 — Composition Roots and Application Wiring
 

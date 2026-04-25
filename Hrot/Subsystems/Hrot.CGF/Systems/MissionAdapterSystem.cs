@@ -1,9 +1,9 @@
 using System;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Replication.Services;
-using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Events;
 
 namespace Hrot.CGF.Systems
@@ -28,8 +28,8 @@ namespace Hrot.CGF.Systems
     /// re-publishes the event, and forces the BTree parameters to cleanly re-initialize.
     /// </para>
     /// </remarks>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    public class MissionAdapterSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    public class MissionAdapterSystem : IEcsModuleSystem
     {
         private readonly DoctrineRegistry _doctrineRegistry;
         private readonly NetworkEntityMap _entityMap;
@@ -40,23 +40,28 @@ namespace Hrot.CGF.Systems
             _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
         }
 
-        protected override unsafe void OnUpdate()
+        public unsafe void Execute(ISimulationView view, float deltaTime)
         {
-            var query = World.Query()
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(MissionAdapterSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            var query = repo.Query()
                 .With<MissionPlanQueue>()
                 .With<DoctrineState>()
                 .Build();
 
             foreach (var entity in query)
             {
-                ref var queue = ref World.GetComponentRW<MissionPlanQueue>(entity);
-                ref var doctrine = ref World.GetComponentRW<DoctrineState>(entity);
+                ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
+                ref var doctrine = ref repo.GetComponentRW<DoctrineState>(entity);
 
-                if (!World.HasComponent<Hrot.CGF.Components.MissionAdapterState>(entity))
-                    World.AddComponent(entity, new Hrot.CGF.Components.MissionAdapterState { LastPhase = byte.MaxValue });
+                if (!repo.HasComponent<Hrot.CGF.Components.MissionAdapterState>(entity))
+                    repo.AddComponent(entity, new Hrot.CGF.Components.MissionAdapterState { LastPhase = byte.MaxValue });
 
-                ref var adapterState = ref World.GetComponentRW<Hrot.CGF.Components.MissionAdapterState>(entity);
-                var activePlan = World.GetComponent<ActiveMissionPlan>(entity);
+                ref var adapterState = ref repo.GetComponentRW<Hrot.CGF.Components.MissionAdapterState>(entity);
+                var activePlan = repo.GetComponent<ActiveMissionPlan>(entity);
 
                 // Cache exhaustion so re-committing the same mission from phase 0 is correctly detected
                 if (queue.CurrentPhase >= queue.PhaseCount)
@@ -91,7 +96,7 @@ namespace Hrot.CGF.Systems
                 // Embrace DRY! Remove ALL direct ECS mutation blocks.
                 // No writing to BrainBlackboard. No updating DoctrineState. 
                 // Just publish the managed event and let DoctrineIngressSystem be the single owner!
-                World.Bus.PublishManaged(new AssignDoctrineEvent
+                repo.Bus.PublishManaged(new AssignDoctrineEvent
                 {
                     Entity = entity,
                     DoctrineName = defName,

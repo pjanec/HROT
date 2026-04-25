@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.Map.Common.Components;
@@ -40,7 +41,7 @@ namespace Hrot.SimHost.Systems.Routing;
 /// </list>
 /// </summary>
 [UpdateInPhase(SystemPhase.Input)]
-public sealed class PersonalRouteAuthoringSystem : ComponentSystem
+public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
 {
     /// <summary>
     /// Pending follow-trajectory commands deferred by one frame so that
@@ -50,11 +51,14 @@ public sealed class PersonalRouteAuthoringSystem : ComponentSystem
     private readonly List<(Entity vehicle, Entity routeEntity)> _pendingFollowCommands = new();
 
     /// <inheritdoc/>
-    protected override void OnUpdate()
+    public void Execute(ISimulationView view, float deltaTime)
     {
-        var view = (ISimulationView)World;
+        if (view is not EntityRepository repo)
+            throw new InvalidOperationException(
+                $"{nameof(PersonalRouteAuthoringSystem)} requires direct EntityRepository access " +
+                $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-        // ── 1. Dispatch deferred NavigationIntent (FollowRoute) from the previous frame ─────
+        // -- 1. Dispatch deferred NavigationIntent (FollowRoute) from the previous frame --
         if (_pendingFollowCommands.Count > 0)
         {
             foreach (var (vehicle, routeEntity) in _pendingFollowCommands)
@@ -62,29 +66,29 @@ public sealed class PersonalRouteAuthoringSystem : ComponentSystem
                 if (!view.IsAlive(vehicle) || !view.IsAlive(routeEntity))
                     continue;
 
-                if (!World.HasComponent<RouteTrajectoryCache>(routeEntity))
+                if (!view.HasComponent<RouteTrajectoryCache>(routeEntity))
                     continue;
 
                 ref readonly var cache = ref view.GetComponentRO<RouteTrajectoryCache>(routeEntity);
                 if (cache.TrajectoryId > 0)
                 {
-                    NavigationIntent intent = World.HasComponent<NavigationIntent>(vehicle)
-                        ? World.GetComponent<NavigationIntent>(vehicle)
+                    NavigationIntent intent = repo.HasComponent<NavigationIntent>(vehicle)
+                        ? repo.GetComponent<NavigationIntent>(vehicle)
                         : new NavigationIntent();
                     intent.IntentId++;
                     intent.Mode = NavigationMode.FollowRoute;
                     intent.TrajectoryId = cache.TrajectoryId;
-                    if (World.HasComponent<NavigationIntent>(vehicle))
-                        World.SetComponent(vehicle, intent);
+                    if (repo.HasComponent<NavigationIntent>(vehicle))
+                        repo.SetComponent(vehicle, intent);
                     else
-                        World.AddComponent(vehicle, intent);
+                        repo.AddComponent(vehicle, intent);
                 }
             }
             _pendingFollowCommands.Clear();
         }
 
-        // ── 2. Process CmdAppendPersonalWaypoint events ───────────────────────────
-        var events = World.Bus.Read<CmdAppendPersonalWaypoint>();
+        // -- 2. Process CmdAppendPersonalWaypoint events --
+        var events = repo.Bus.Read<CmdAppendPersonalWaypoint>();
         if (events.Length == 0) return;
 
         foreach (var evt in events)
@@ -119,7 +123,7 @@ public sealed class PersonalRouteAuthoringSystem : ComponentSystem
                 // ── Case A: No personal route — spawn new child route entity ─────
                 // Use direct World mutations (not ECB) so the real entity handle
                 // can be embedded in PersonalRouteRef immediately.
-                var vehiclePos = World.HasComponent<SimTransform>(vehicleEntity)
+                var vehiclePos = repo.HasComponent<SimTransform>(vehicleEntity)
                     ? view.GetComponentRO<SimTransform>(vehicleEntity).Position
                     : Vector3.Zero;
 
@@ -130,13 +134,13 @@ public sealed class PersonalRouteAuthoringSystem : ComponentSystem
                     wps.Add(new RouteWaypoint { Position = clickedPos, TargetSpeed = 0f });
                 });
 
-                var childEntity = World.CreateEntity();
-                World.SetManagedComponent(childEntity, newPlan);
-                World.AddComponent(childEntity, new PartMetadata { ParentEntity = vehicleEntity });
-                World.AddComponent(childEntity, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Route });
-                World.AddComponent(childEntity, new SimTransform { Position = vehiclePos });
+                var childEntity = repo.CreateEntity();
+                repo.SetManagedComponent(childEntity, newPlan);
+                repo.AddComponent(childEntity, new PartMetadata { ParentEntity = vehicleEntity });
+                repo.AddComponent(childEntity, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Route });
+                repo.AddComponent(childEntity, new SimTransform { Position = vehiclePos });
 
-                World.AddComponent(vehicleEntity, new PersonalRouteRef { RouteEntity = childEntity });
+                repo.AddComponent(vehicleEntity, new PersonalRouteRef { RouteEntity = childEntity });
 
                 _pendingFollowCommands.Add((vehicleEntity, childEntity));
             }

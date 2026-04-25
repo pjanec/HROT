@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Core.Logging;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
@@ -43,7 +44,8 @@ namespace Hrot.Common.Systems
     /// <see cref="MaxEntityWaitFrames"/> frames before being rejected.
     /// </para>
     /// </summary>
-    public class MissionControlExecutionSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Input)]
+    public class MissionControlExecutionSystem : IEcsModuleSystem
     {
         private const string EntityNotFoundMessage = "ERR_ENTITY_NOT_FOUND";
         private const string VersionConflictMessage = "ERR_VERSION_CONFLICT";
@@ -76,9 +78,14 @@ namespace Hrot.Common.Systems
             _doctrineRegistry = doctrineRegistry ?? throw new ArgumentNullException(nameof(doctrineRegistry));
         }
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            // ── 1. Retry intents whose entity wasn't mapped yet ───────────────
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(MissionControlExecutionSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            // -- 1. Retry intents whose entity wasn't mapped yet --────────────
             int retryCount = _retryQueue.Count;
             for (int i = 0; i < retryCount; i++)
             {
@@ -89,7 +96,7 @@ namespace Hrot.Common.Systems
                     FdpLog<MissionControlExecutionSystem>.Debug(
                         "[MissionControl] Retry succeeded for entity {0} (request {1}).",
                         intent.TargetEntityId, intent.RequestId);
-                    ProcessIntent(World, intent);
+                    ProcessIntent(repo, intent);
                 }
                 else if (framesLeft > 0)
                 {
@@ -100,15 +107,15 @@ namespace Hrot.Common.Systems
                     FdpLog<MissionControlExecutionSystem>.Warn(
                         "[MissionControl] Entity {0} not found after {1} retry frames; rejecting request {2}.",
                         intent.TargetEntityId, MaxEntityWaitFrames, intent.RequestId);
-                    PublishAck(intent.RequestId, NedStatusCode.EntityNotFound, newVersion: 0);
+                    PublishAck(repo, intent.RequestId, NedStatusCode.EntityNotFound, newVersion: 0);
                 }
             }
 
             // ── 2. Process newly-arrived intents ─────────────────────────────
-            var intents = World.Bus.ReadManaged<MissionControlIntent>();
+            var intents = repo.Bus.ReadManaged<MissionControlIntent>();
             foreach (var intent in intents)
             {
-                ProcessIntent(World, intent);
+                ProcessIntent(repo, intent);
             }
         }
 
@@ -133,14 +140,14 @@ namespace Hrot.Common.Systems
                 {
                     if (intent.BaseVersion > 0 && intent.BaseVersion != currentVersion)
                     {
-                        PublishAck(intent.RequestId, NedStatusCode.VersionConflict, newVersion: 0);
+                        PublishAck(repo, intent.RequestId, NedStatusCode.VersionConflict, newVersion: 0);
                         return;
                     }
 
                     var plan = intent.Payload.FullMissionData;
                     if (plan == null)
                     {
-                        PublishAck(intent.RequestId, NedStatusCode.NotSupported, newVersion: 0);
+                        PublishAck(repo, intent.RequestId, NedStatusCode.NotSupported, newVersion: 0);
                         return;
                     }
                     plan.Tasks ??= new List<MissionTask>();
@@ -174,7 +181,7 @@ namespace Hrot.Common.Systems
                     currentVersion++;
                     _missionVersions[intent.TargetEntityId] = currentVersion;
 
-                    PublishAck(intent.RequestId, NedStatusCode.Success, newVersion: currentVersion);
+                    PublishAck(repo, intent.RequestId, NedStatusCode.Success, newVersion: currentVersion);
                     return;
                 }
 
@@ -197,7 +204,7 @@ namespace Hrot.Common.Systems
                     currentVersion++;
                     _missionVersions[intent.TargetEntityId] = currentVersion;
 
-                    PublishAck(intent.RequestId, NedStatusCode.Success, newVersion: currentVersion);
+                    PublishAck(repo, intent.RequestId, NedStatusCode.Success, newVersion: currentVersion);
                     return;
                 }
 
@@ -215,24 +222,24 @@ namespace Hrot.Common.Systems
 
                     _taskOrder[intent.TargetEntityId] = new List<Guid>();
 
-                    World.Bus.Publish(new ClearDoctrineEvent { Entity = entity });
+                    repo.Bus.Publish(new ClearDoctrineEvent { Entity = entity });
 
                     currentVersion++;
                     _missionVersions[intent.TargetEntityId] = currentVersion;
 
-                    PublishAck(intent.RequestId, NedStatusCode.Success, newVersion: currentVersion);
+                    PublishAck(repo, intent.RequestId, NedStatusCode.Success, newVersion: currentVersion);
                     return;
                 }
 
                 default:
-                    PublishAck(intent.RequestId, NedStatusCode.NotSupported, newVersion: 0);
+                    PublishAck(repo, intent.RequestId, NedStatusCode.NotSupported, newVersion: 0);
                     return;
             }
         }
 
-        private void PublishAck(Guid requestId, NedStatusCode errorCode, long newVersion)
+        private void PublishAck(EntityRepository repo, Guid requestId, NedStatusCode errorCode, long newVersion)
         {
-            World.Bus.Publish(new MissionControlAckEvent
+            repo.Bus.Publish(new MissionControlAckEvent
             {
                 RequestId = requestId,
                 ErrorCode = (int)errorCode,
@@ -341,7 +348,7 @@ namespace Hrot.Common.Systems
                 }
                 else
                 {
-                    PublishAck(intent.RequestId, NedStatusCode.EntityNotFound, newVersion: 0);
+                    PublishAck(repo, intent.RequestId, NedStatusCode.EntityNotFound, newVersion: 0);
                 }
             }
         }

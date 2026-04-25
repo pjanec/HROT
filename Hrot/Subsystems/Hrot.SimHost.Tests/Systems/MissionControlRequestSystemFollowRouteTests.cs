@@ -18,12 +18,12 @@ namespace Hrot.SimHost.Tests.Systems;
 
 /// <summary>
 /// Unit tests for the FollowRoute network-ID translation in
-/// <see cref="MissionControlExecutionSystem"/> — OC1-S001.
+/// <see cref="MissionControlExecutionSystem"/> â€” OC1-S001.
 /// These tests use the internal test constructor to avoid DDS setup.
 /// </summary>
 public class MissionControlRequestSystemFollowRouteTests
 {
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static EntityRepository CreateWorld()
     {
@@ -95,7 +95,7 @@ public class MissionControlRequestSystemFollowRouteTests
     }
 
     /// <summary>
-    /// OC1-S001 Scenario 1 — route entity found with compiled trajectory:
+    /// OC1-S001 Scenario 1 â€” route entity found with compiled trajectory:
     /// BehaviorParams must be rewritten to contain trajectoryId instead of routeEntityId.
     /// </summary>
     [Fact]
@@ -105,7 +105,6 @@ public class MissionControlRequestSystemFollowRouteTests
         var entityMap  = new NetworkEntityMap();
         var registry   = CreateDoctrineRegistry();
         var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, registry);
-        system.Create(repo);
 
         var (vehicle, _) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 5);
 
@@ -126,7 +125,7 @@ public class MissionControlRequestSystemFollowRouteTests
     }
 
     /// <summary>
-    /// OC1-S001 Scenario 2 — route entity not found: request must be placed in the retry queue.
+    /// OC1-S001 Scenario 2 â€” route entity not found: request must be placed in the retry queue.
     /// </summary>
     [Fact]
     public void FollowRoute_RouteEntityNotFound_EnqueuesForRetry()
@@ -135,7 +134,6 @@ public class MissionControlRequestSystemFollowRouteTests
         var entityMap  = new NetworkEntityMap();
         var registry   = CreateDoctrineRegistry();
         var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, registry);
-        system.Create(repo);
 
         // Register only the vehicle; no route entity.
         var vehicle = repo.CreateEntity();
@@ -150,7 +148,7 @@ public class MissionControlRequestSystemFollowRouteTests
     }
 
     /// <summary>
-    /// OC1-S001 Scenario 3 — route entity present but TrajectoryId == 0: retry.
+    /// OC1-S001 Scenario 3 â€” route entity present but TrajectoryId == 0: retry.
     /// </summary>
     [Fact]
     public void FollowRoute_TrajectoryIdZero_EnqueuesForRetry()
@@ -159,7 +157,6 @@ public class MissionControlRequestSystemFollowRouteTests
         var entityMap  = new NetworkEntityMap();
         var registry   = CreateDoctrineRegistry();
         var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, registry);
-        system.Create(repo);
 
         var (_, routeEntity) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 0);
 
@@ -170,7 +167,7 @@ public class MissionControlRequestSystemFollowRouteTests
     }
 
     /// <summary>
-    /// OC1-S001 Scenario 4 — route compiles between retries: mission committed on second cycle.
+    /// OC1-S001 Scenario 4 â€” route compiles between retries: mission committed on second cycle.
     /// </summary>
     [Fact]
     public void FollowRoute_RouteCompilesOnRetry_CommitsOnSecondCycle()
@@ -179,16 +176,15 @@ public class MissionControlRequestSystemFollowRouteTests
         var entityMap  = new NetworkEntityMap();
         var registry   = CreateDoctrineRegistry();
         var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, registry);
-        system.Create(repo);
 
         var (vehicle, routeEntity) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 0);
 
-        // First cycle — should retry.
+        // First cycle â€” should retry.
         var request = MakeFollowRouteRequest(targetEntityId: 1L, routeEntityId: 99L, speed: 5.0, loop: false);
         system.TestHook_ProcessIntent(repo, request);
         Assert.True(system.TestHook_RetryQueueCount > 0);
 
-        // Route compiles — update TrajectoryId.
+        // Route compiles â€” update TrajectoryId.
         repo.SetComponent(routeEntity, new RouteTrajectoryCache { TrajectoryId = 7, CompiledVersion = 1 });
 
         // Second cycle (drain retry queue).
@@ -202,7 +198,7 @@ public class MissionControlRequestSystemFollowRouteTests
     }
 
     /// <summary>
-    /// OC1-S001 Scenario 5 — non-FollowRoute task: BehaviorParams left unchanged, no ECS query.
+    /// OC1-S001 Scenario 5 â€” non-FollowRoute task: BehaviorParams left unchanged, no ECS query.
     /// </summary>
     [Fact]
     public void NonFollowRouteTask_BehaviorParamsUnchanged()
@@ -215,7 +211,6 @@ public class MissionControlRequestSystemFollowRouteTests
             new DoctrineDefinition { Name = "Wander", BrainTier = BehaviorConstants.BrainTierBTree });
 
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, registry);
-        system.Create(repo);
 
         var vehicle = repo.CreateEntity();
         repo.AddComponent(vehicle, new MissionPlanQueue());
@@ -257,7 +252,7 @@ public class MissionControlRequestSystemFollowRouteTests
     }
 
     /// <summary>
-    /// OC1-S001 Scenario 6 — ParseFollowRouteParams roundtrip:
+    /// OC1-S001 Scenario 6 â€” ParseFollowRouteParams roundtrip:
     /// Verifies <see cref="MissionControlRequestSystem.TryTranslateFollowRouteBehaviorParams"/>
     /// produces JSON consumable by the existing <c>ParseFollowRouteParams</c> logic.
     /// </summary>

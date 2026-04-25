@@ -22,6 +22,7 @@ using Fdp.Toolkit.Navigation.Systems;
 using Fdp.Toolkit.Perception.Systems;
 using Fdp.Toolkit.Physics.Systems;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.ModuleHost;
 
 namespace Hrot.SimHost.Modules
 {
@@ -190,19 +191,30 @@ namespace Hrot.SimHost.Modules
             if (postSimGroup == null) throw new ArgumentNullException(nameof(postSimGroup));
 
             // Combat (present for all sim roles).
-            _combatModule?.RegisterSystems(inputGroup, simGroup, postSimGroup, _entityMap);
+            if (_combatModule != null)
+            {
+                foreach (var s in _combatModule.InputSystems) inputGroup.AddSystem(s);
+                foreach (var s in _combatModule.PostSimulationSystems) postSimGroup.AddSystem(s);
+            }
 
             // Brain tier: doctrine + cognitive (omitted on MuscleGround / IG / leaf nodes).
             if (_missionExecutionSystem != null)
                 simGroup.AddSystem(_missionExecutionSystem);
-            _missionControlModule?.RegisterSystems(simGroup);
-            _cognitiveRuntimeModule?.RegisterSystems(simGroup);
+            if (_missionControlModule != null)
+            {
+                foreach (var s in _missionControlModule.InputSystems) simGroup.AddSystem(s);
+                foreach (var s in _missionControlModule.SimulationSystems) simGroup.AddSystem(s);
+            }
+            if (_cognitiveRuntimeModule != null)
+                foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simGroup.AddSystem(s);
 
             // Action dispatch (present for Brain, MuscleGround, AllInOne).
-            _actionDispatchModule?.RegisterSystems(simGroup);
+            if (_actionDispatchModule != null)
+                foreach (var s in _actionDispatchModule.SimulationSystems) simGroup.AddSystem(s);
 
             // DamageAssessment (Muscle and AllInOne): consumes DetonationNotification → DamageAssessedEvent.
-            _damageAssessmentModule?.RegisterSystems(simGroup);
+            if (_damageAssessmentModule != null)
+                foreach (var s in _damageAssessmentModule.SimulationSystems) simGroup.AddSystem(s);
 
             // NavigationIntentBridgeSystem: translates NavigationIntent → NavState for
             // CarKinematicsSystem. Only added when ground kinematics are present.
@@ -213,10 +225,11 @@ namespace Hrot.SimHost.Modules
                 simGroup.AddSystem(new RouteTrajectorySyncSystem(_groundKinematicsModule.TrajectoryPool!));
                 // Personal route authoring: processes CmdAppendPersonalWaypoint events.
                 inputGroup.AddSystem(new PersonalRouteAuthoringSystem());
-            }
 
-            // Ground kinematics (MuscleGround / AllInOne).
-            _groundKinematicsModule?.RegisterSystems(simGroup);
+                // Ground kinematics (MuscleGround / AllInOne).
+                foreach (var s in _groundKinematicsModule.SimulationSystems) simGroup.AddSystem(s);
+                foreach (var s in _groundKinematicsModule.PostSimulationSystems) simGroup.AddSystem(s);
+            }
         }
     }
 }

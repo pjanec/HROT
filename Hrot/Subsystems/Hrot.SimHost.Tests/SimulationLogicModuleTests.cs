@@ -16,6 +16,7 @@ using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.CarKinem.Systems;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.ModuleHost;
 
 namespace Hrot.SimHost.Tests
 {
@@ -24,18 +25,18 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public class SimulationLogicModuleTests
     {
-        // ── World factory ─────────────────────────────────────────────────────
+        // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ World factory Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
 
         /// <summary>
         /// Creates an empty <see cref="EntityRepository"/> with every component type
         /// required by the systems registered in <see cref="SimulationLogicModule"/>.
-        /// No entities are added — the test exercises topology / ordering only.
+        /// No entities are added Ă˘â‚¬â€ť the test exercises topology / ordering only.
         /// </summary>
         private static EntityRepository CreateEmptyWorld()
         {
             var world = new EntityRepository();
 
-            // ── Behavior toolkit components ───────────────────────────────────
+            // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ Behavior toolkit components Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
             world.RegisterComponent<DoctrineState>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
@@ -62,7 +63,7 @@ namespace Hrot.SimHost.Tests
             world.RegisterComponent<Health>();
             world.RegisterComponent<BallisticProjectile>();
 
-            // ── Core simulation components (Fdp.Core + CarKinem) ────────────
+            // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ Core simulation components (Fdp.Core + CarKinem) Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
             world.RegisterComponent<VehicleState>();
@@ -70,12 +71,12 @@ namespace Hrot.SimHost.Tests
             world.RegisterComponent<NavState>();
             world.RegisterComponent<FormationRoster>();
 
-            // ── Navigation CQRS components (BATCH-01 + CT-MOD1-A) ─────────────
+            // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ Navigation CQRS components (BATCH-01 + CT-MOD1-A) Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
             world.RegisterComponent<NavigationIntent>();
             world.RegisterComponent<NavigationStatus>();
             world.RegisterComponent<FrustrationTicks>();
 
-            // GlobalTime singleton — ComponentSystem.DeltaTime reads this.
+            // GlobalTime singleton Ă˘â‚¬â€ť ComponentSystem.DeltaTime reads this.
             world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
 
             var physicsModule = new PhysicsToolkitModule();
@@ -94,7 +95,7 @@ namespace Hrot.SimHost.Tests
             }
         }
 
-        // ── Tests ─────────────────────────────────────────────────────────────
+        // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ Tests Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
 
         /// <summary>
         /// Instantiates <see cref="SimulationLogicModule"/> with minimal dummy parameters,
@@ -109,13 +110,13 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void SimulationLogicModule_EmptyWorld_AllSystemsRegisterAndUpdateWithoutException()
         {
-            // ── Arrange ───────────────────────────────────────────────────────
+            // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ Arrange Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
             using var world = CreateEmptyWorld();
 
             var doctrineRegistry = new DoctrineRegistry();
             var entityMap        = new NetworkEntityMap();
 
-            // Minimal CarKinem dependencies — empty road network and fresh pool.
+            // Minimal CarKinem dependencies Ă˘â‚¬â€ť empty road network and fresh pool.
             var roadNetwork     = new RoadNetworkBuilder().Build(10f, 10, 10);
             var trajectoryPool  = new TrajectoryPoolManager();
 
@@ -136,7 +137,7 @@ namespace Hrot.SimHost.Tests
 
             module.RegisterSystems(inputGroup, simGroup, postSimGroup);
 
-            // ── Act + Assert ──────────────────────────────────────────────────
+            // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ Act + Assert Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
             // Calling Run() triggers SortSystems() which validates the dependency
             // graph (throws InvalidOperationException on cyclic dependencies),
             // then executes OnUpdate() for each system on the empty world.
@@ -153,7 +154,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(12, simGroup.SystemCount);
             Assert.Equal(1, postSimGroup.SystemCount);
 
-            // ── Cleanup ───────────────────────────────────────────────────────
+            // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ Cleanup Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
             inputGroup.Dispose();
             simGroup.Dispose();
             postSimGroup.Dispose();
@@ -180,7 +181,7 @@ namespace Hrot.SimHost.Tests
             module.RegisterSystems(inputGroup, simGroup, postSimGroup);
 
             var systems = simGroup.GetSystems();
-            Assert.Contains(systems, s => s is LinearKinematicsSystem);
+            Assert.Contains(systems, s => s.IsOrWraps<LinearKinematicsSystem>());
 
             inputGroup.Dispose();
             simGroup.Dispose();
@@ -241,7 +242,7 @@ namespace Hrot.SimHost.Tests
         }
     }
 
-    // ── Role-conditional sub-module tests (DB-MOD1-08) ────────────────────────
+    // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ Role-conditional sub-module tests (DB-MOD1-08) Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
 
     /// <summary>
     /// Verifies that <see cref="SimulationLogicModule"/> only creates the sub-modules
@@ -311,10 +312,10 @@ namespace Hrot.SimHost.Tests
             module.RegisterSystems(inputGroup, simGroup, postSimGroup);
 
             // Brain role must not include LinearKinematicsSystem (in GroundKinematicsModule).
-            Assert.DoesNotContain(simGroup.GetSystems(), s => s is LinearKinematicsSystem);
+            Assert.DoesNotContain(simGroup.GetSystems(), s => s.IsOrWraps<LinearKinematicsSystem>());
 
             // Brain role must not register NavigationIntentBridgeSystem (needs GroundKinematics).
-            Assert.DoesNotContain(simGroup.GetSystems(), s => s is NavigationIntentBridgeSystem);
+            Assert.DoesNotContain(simGroup.GetSystems(), s => s.IsOrWraps<NavigationIntentBridgeSystem>());
 
             // Brain role must not expose a TrajectoryPool or FormationTemplates.
             Assert.Null(module.TrajectoryPool);
@@ -341,10 +342,10 @@ namespace Hrot.SimHost.Tests
             module.RegisterSystems(inputGroup, simGroup, postSimGroup);
 
             // MuscleGround must include LinearKinematicsSystem (ground movement).
-            Assert.Contains(simGroup.GetSystems(), s => s is LinearKinematicsSystem);
+            Assert.Contains(simGroup.GetSystems(), s => s.IsOrWraps<LinearKinematicsSystem>());
 
             // MuscleGround must include NavigationIntentBridgeSystem.
-            Assert.Contains(simGroup.GetSystems(), s => s is NavigationIntentBridgeSystem);
+            Assert.Contains(simGroup.GetSystems(), s => s.IsOrWraps<NavigationIntentBridgeSystem>());
 
             // TrajectoryPool and FormationTemplates are available on MuscleGround.
             Assert.NotNull(module.TrajectoryPool);
@@ -383,7 +384,7 @@ namespace Hrot.SimHost.Tests
             DisposeRaycastBatchData(world);
         }
 
-        // ── BUG2-R001: RoadNetwork property stores what was passed ───────────
+        // Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬ BUG2-R001: RoadNetwork property stores what was passed Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬Ă˘â€ťâ‚¬
 
         /// <summary>
         /// When a non-default <see cref="RoadNetworkBlob"/> is passed to the constructor,
@@ -403,7 +404,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// When no road network is passed (<c>default</c>), the property returns
-        /// that exact default value — not always a freshly-constructed default.
+        /// that exact default value Ă˘â‚¬â€ť not always a freshly-constructed default.
         /// This guards against an implementation that always returns <c>default</c>
         /// regardless of what was passed.
         /// </summary>

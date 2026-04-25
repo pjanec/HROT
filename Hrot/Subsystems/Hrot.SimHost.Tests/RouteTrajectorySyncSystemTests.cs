@@ -10,7 +10,7 @@ using Xunit;
 namespace Hrot.SimHost.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="RouteTrajectorySyncSystem"/> — ROUTES1-T006.
+/// Unit tests for <see cref="RouteTrajectorySyncSystem"/> â€” ROUTES1-T006.
 /// </summary>
 public class RouteTrajectorySyncSystemTests : IDisposable
 {
@@ -22,12 +22,11 @@ public class RouteTrajectorySyncSystemTests : IDisposable
     {
         _repo = CreateWorld();
         _system = new RouteTrajectorySyncSystem(_pool);
-        _system.Create(_repo);
-    }
+            }
 
     public void Dispose() => _pool.Dispose();
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static EntityRepository CreateWorld()
     {
@@ -56,7 +55,7 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         return entity;
     }
 
-    // ── Tests ─────────────────────────────────────────────────────────────────
+    // â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void FirstTick_RouteWith4Waypoints_RegistersTrajectoryAndPopulatesCache()
@@ -64,7 +63,7 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         var plan = MakePlan(4);
         var entity = CreateRouteEntity(plan);
 
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
 
         Assert.True(_repo.HasComponent<RouteTrajectoryCache>(entity));
         var cache = _repo.GetComponent<RouteTrajectoryCache>(entity);
@@ -79,7 +78,7 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         var plan = MakePlan(4);
         var entity = CreateRouteEntity(plan);
 
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
 
         var cache = _repo.GetComponent<RouteTrajectoryCache>(entity);
         Assert.Equal(plan.Version, cache.CompiledVersion);
@@ -91,10 +90,10 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         var plan = MakePlan(3);
         var entity = CreateRouteEntity(plan);
 
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
         var firstId = _repo.GetComponent<RouteTrajectoryCache>(entity).TrajectoryId;
 
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
         var secondId = _repo.GetComponent<RouteTrajectoryCache>(entity).TrajectoryId;
 
         Assert.Equal(firstId, secondId);
@@ -106,13 +105,13 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         var plan = MakePlan(3);
         var entity = CreateRouteEntity(plan);
 
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
         var firstId = _repo.GetComponent<RouteTrajectoryCache>(entity).TrajectoryId;
 
         // Mutate: adds a waypoint and bumps version.
         plan.Mutate(wps => wps.Add(new RouteWaypoint { Position = new Vector3(100f, 0f, 100f), TargetSpeed = 5f }));
 
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
         var newCache = _repo.GetComponent<RouteTrajectoryCache>(entity);
 
         Assert.NotEqual(firstId, newCache.TrajectoryId);
@@ -130,14 +129,14 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         var plan = MakePlan(2);
         var entity = CreateRouteEntity(plan);
 
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
         var cachedId = _repo.GetComponent<RouteTrajectoryCache>(entity).TrajectoryId;
         Assert.True(_pool.TryGetTrajectory(cachedId, out _));
 
         _repo.DestroyEntity(entity);
 
         // Second tick: system detects entity gone and frees pool entry.
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
 
         Assert.False(_pool.TryGetTrajectory(cachedId, out _),
             "Pool entry must be freed when route entity is destroyed.");
@@ -149,7 +148,7 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         var plan = new RoutePlan { IsLoop = false };
         var entity = CreateRouteEntity(plan);
 
-        var ex = Record.Exception(() => _system.Run());
+        var ex = Record.Exception(() => _system.Execute(_repo, 0.016f));
         Assert.Null(ex);
 
         var cache = _repo.GetComponent<RouteTrajectoryCache>(entity);
@@ -163,7 +162,7 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         plan.Mutate(wps => wps.Add(new RouteWaypoint { Position = Vector3.Zero, TargetSpeed = 5f }));
         var entity = CreateRouteEntity(plan);
 
-        var ex = Record.Exception(() => _system.Run());
+        var ex = Record.Exception(() => _system.Execute(_repo, 0.016f));
         Assert.Null(ex);
 
         var cache = _repo.GetComponent<RouteTrajectoryCache>(entity);

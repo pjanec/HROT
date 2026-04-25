@@ -27,7 +27,7 @@ namespace Hrot.SimHost.Systems.Routing;
 /// </para>
 /// </summary>
 [UpdateInPhase(SystemPhase.BeforeSync)]
-public sealed class RouteTrajectorySyncSystem : ComponentSystem
+public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
 {
     private readonly TrajectoryPoolManager _pool;
 
@@ -54,15 +54,18 @@ public sealed class RouteTrajectorySyncSystem : ComponentSystem
     }
 
     /// <inheritdoc/>
-    protected override void OnUpdate()
+    public void Execute(ISimulationView view, float deltaTime)
     {
-        var view = (ISimulationView)World;
+        if (view is not EntityRepository repo)
+            throw new InvalidOperationException(
+                $"{nameof(RouteTrajectorySyncSystem)} requires direct EntityRepository access " +
+                $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-        // ── 1. Sync all living route entities ────────────────────────────────
+        // -- 1. Sync all living route entities --
 
         var currentEntities = new HashSet<Entity>();
 
-        var query = World.Query()
+        var query = repo.Query()
             .WithManaged<RoutePlan>()
             .Build();
 
@@ -72,9 +75,9 @@ public sealed class RouteTrajectorySyncSystem : ComponentSystem
 
             var routePlan = view.GetManagedComponentRO<RoutePlan>(entity);
 
-            bool hasCache = World.HasComponent<RouteTrajectoryCache>(entity);
+            bool hasCache = repo.HasComponent<RouteTrajectoryCache>(entity);
             var  cache    = hasCache
-                ? World.GetComponent<RouteTrajectoryCache>(entity)
+                ? repo.GetComponent<RouteTrajectoryCache>(entity)
                 : default;
 
             // Skip if already compiled at this version.
@@ -109,15 +112,15 @@ public sealed class RouteTrajectorySyncSystem : ComponentSystem
             cache.CompiledVersion  = routePlan.Version;
 
             if (hasCache)
-                World.SetComponent(entity, cache);
+                repo.SetComponent(entity, cache);
             else
-                World.AddComponent(entity, cache);
+                repo.AddComponent(entity, cache);
 
             // Track so we can free the pool entry on entity destruction.
             _knownTrajectories[entity] = newId;
         }
 
-        // ── 2. Free trajectories for entities that were destroyed ─────────────
+        // -- 2. Free trajectories for entities that were destroyed --
 
         List<Entity>? toRemove = null;
 

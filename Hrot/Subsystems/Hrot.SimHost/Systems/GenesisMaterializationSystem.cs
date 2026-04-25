@@ -1,3 +1,4 @@
+using System;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
@@ -23,7 +24,8 @@ namespace Hrot.SimHost.Systems
     /// For <see cref="InitialTargetsIntent"/> partial materialisation is accepted and the
     /// intent is always removed after the first tick regardless.</para>
     /// </summary>
-    public sealed class GenesisMaterializationSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    public sealed class GenesisMaterializationSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap _entityMap;
 
@@ -32,18 +34,22 @@ namespace Hrot.SimHost.Systems
             _entityMap = entityMap;
         }
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            var view = (ISimulationView)World;
+            if (view is not EntityRepository repo)
+                throw new InvalidOperationException(
+                    $"{nameof(GenesisMaterializationSystem)} requires direct EntityRepository access " +
+                    $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
             var cmd = new EntityCommandBuffer();
             try
             {
-                MaterializePassengers(view, cmd);
-                MaterializeVehicle(view, cmd);
-                MaterializeHierarchy(view, cmd);
-                MaterializeRoute(view, cmd);
-                MaterializeTargets(view, cmd);
-                cmd.Playback(World);
+                MaterializePassengers(view, cmd, repo);
+                MaterializeVehicle(view, cmd, repo);
+                MaterializeHierarchy(view, cmd, repo);
+                MaterializeRoute(view, cmd, repo);
+                MaterializeTargets(view, cmd, repo);
+                cmd.Playback(repo);
             }
             finally
             {
@@ -53,7 +59,7 @@ namespace Hrot.SimHost.Systems
 
         // ── Materialization helpers ────────────────────────────────────────────
 
-        private void MaterializePassengers(ISimulationView view, EntityCommandBuffer cmd)
+        private void MaterializePassengers(ISimulationView view, EntityCommandBuffer cmd, EntityRepository repo)
         {
             foreach (var entity in view.Query().WithManaged<InitialPassengersIntent>().Build())
             {
@@ -62,7 +68,7 @@ namespace Hrot.SimHost.Systems
                 bool allResolved = true;
                 foreach (var netId in intent.PassengerNetworkIds)
                 {
-                    if (!_entityMap.TryGetEntity(netId, out var passenger) || !World.IsAlive(passenger))
+                    if (!_entityMap.TryGetEntity(netId, out var passenger) || !view.IsAlive(passenger))
                     {
                         allResolved = false;
                         break;
@@ -74,24 +80,24 @@ namespace Hrot.SimHost.Systems
                     }
                 }
                 if (!allResolved) continue;
-                World.SetComponent(entity, buffer);
+                repo.SetComponent(entity, buffer);
                 cmd.RemoveManagedComponent<InitialPassengersIntent>(entity);
             }
         }
 
-        private void MaterializeVehicle(ISimulationView view, EntityCommandBuffer cmd)
+        private void MaterializeVehicle(ISimulationView view, EntityCommandBuffer cmd, EntityRepository repo)
         {
             foreach (var entity in view.Query().WithManaged<InitialVehicleIntent>().Build())
             {
                 var intent = view.GetManagedComponentRO<InitialVehicleIntent>(entity);
-                if (!_entityMap.TryGetEntity(intent.VehicleNetworkId, out var vehicle) || !World.IsAlive(vehicle))
+                if (!_entityMap.TryGetEntity(intent.VehicleNetworkId, out var vehicle) || !view.IsAlive(vehicle))
                     continue;
-                World.SetComponent(entity, new IsEmbarkedTag { VehicleEntity = vehicle });
+                repo.SetComponent(entity, new IsEmbarkedTag { VehicleEntity = vehicle });
                 cmd.RemoveManagedComponent<InitialVehicleIntent>(entity);
             }
         }
 
-        private void MaterializeHierarchy(ISimulationView view, EntityCommandBuffer cmd)
+        private void MaterializeHierarchy(ISimulationView view, EntityCommandBuffer cmd, EntityRepository repo)
         {
             foreach (var entity in view.Query().WithManaged<InitialHierarchyIntent>().Build())
             {
@@ -103,21 +109,21 @@ namespace Hrot.SimHost.Systems
 
                 if (intent.ParentNetworkId != 0)
                 {
-                    if (!_entityMap.TryGetEntity(intent.ParentNetworkId, out parent) || !World.IsAlive(parent))
+                    if (!_entityMap.TryGetEntity(intent.ParentNetworkId, out parent) || !view.IsAlive(parent))
                         continue;
                 }
                 if (intent.FirstChildNetworkId != 0)
                 {
-                    if (!_entityMap.TryGetEntity(intent.FirstChildNetworkId, out firstChild) || !World.IsAlive(firstChild))
+                    if (!_entityMap.TryGetEntity(intent.FirstChildNetworkId, out firstChild) || !view.IsAlive(firstChild))
                         continue;
                 }
                 if (intent.NextSiblingNetworkId != 0)
                 {
-                    if (!_entityMap.TryGetEntity(intent.NextSiblingNetworkId, out nextSibling) || !World.IsAlive(nextSibling))
+                    if (!_entityMap.TryGetEntity(intent.NextSiblingNetworkId, out nextSibling) || !view.IsAlive(nextSibling))
                         continue;
                 }
 
-                World.SetComponent(entity, new VisHierarchyNode
+                repo.SetComponent(entity, new VisHierarchyNode
                 {
                     Parent      = parent,
                     FirstChild  = firstChild,
@@ -127,19 +133,19 @@ namespace Hrot.SimHost.Systems
             }
         }
 
-        private void MaterializeRoute(ISimulationView view, EntityCommandBuffer cmd)
+        private void MaterializeRoute(ISimulationView view, EntityCommandBuffer cmd, EntityRepository repo)
         {
             foreach (var entity in view.Query().WithManaged<InitialRouteIntent>().Build())
             {
                 var intent = view.GetManagedComponentRO<InitialRouteIntent>(entity);
-                if (!_entityMap.TryGetEntity(intent.RouteNetworkId, out var route) || !World.IsAlive(route))
+                if (!_entityMap.TryGetEntity(intent.RouteNetworkId, out var route) || !view.IsAlive(route))
                     continue;
-                World.SetComponent(entity, new PersonalRouteRef { RouteEntity = route });
+                repo.SetComponent(entity, new PersonalRouteRef { RouteEntity = route });
                 cmd.RemoveManagedComponent<InitialRouteIntent>(entity);
             }
         }
 
-        private unsafe void MaterializeTargets(ISimulationView view, EntityCommandBuffer cmd)
+        private unsafe void MaterializeTargets(ISimulationView view, EntityCommandBuffer cmd, EntityRepository repo)
         {
             foreach (var entity in view.Query().WithManaged<InitialTargetsIntent>().Build())
             {
@@ -150,7 +156,7 @@ namespace Hrot.SimHost.Systems
                 foreach (var entry in intent.Entries)
                 {
                     if (count >= PerceptionConstants.MaxTrackedTargets) break;
-                    if (!_entityMap.TryGetEntity(entry.NetworkId, out var target) || !World.IsAlive(target))
+                    if (!_entityMap.TryGetEntity(entry.NetworkId, out var target) || !view.IsAlive(target))
                         continue;
                     ptr->EntityIds[count]    = (long)target.PackedValue;
                     ptr->PositionsX[count]   = entry.PosX;
@@ -161,7 +167,7 @@ namespace Hrot.SimHost.Systems
                     count++;
                 }
                 mem.Count = count;
-                World.SetComponent(entity, mem);
+                repo.SetComponent(entity, mem);
                 // Always remove intent after first tick (partial materialisation is acceptable).
                 cmd.RemoveManagedComponent<InitialTargetsIntent>(entity);
             }

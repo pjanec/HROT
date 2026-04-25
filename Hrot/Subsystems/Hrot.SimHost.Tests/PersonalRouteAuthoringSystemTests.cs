@@ -25,7 +25,6 @@ public class PersonalRouteAuthoringSystemTests
     {
         _repo = CreateWorld();
         _system = new PersonalRouteAuthoringSystem();
-        _system.Create(_repo);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -63,7 +62,7 @@ public class PersonalRouteAuthoringSystemTests
     private void Tick()
     {
         _repo.Bus.SwapBuffers();
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
     }
 
     private Entity? FindChildRouteEntity(Entity vehicle)

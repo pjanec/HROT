@@ -33,7 +33,7 @@ namespace Hrot.CGF.Systems.Routing;
 /// </para>
 /// </summary>
 [UpdateInPhase(SystemPhase.Simulation)]
-public sealed class RouteContextSystem : ComponentSystem
+public sealed class RouteContextSystem : IEcsModuleSystem
 {
     // ── Configuration ─────────────────────────────────────────────────────────
 
@@ -42,12 +42,12 @@ public sealed class RouteContextSystem : ComponentSystem
 
     private float _elapsed;
 
-    // ── Query cache (CT-3) ────────────────────────────────────────────────────
+    // -- Query cache (CT-3) --
 
-    // Queries are built once in OnCreate() and reused every tick to avoid
+    // Queries are built lazily on first Execute() call and reused every tick to avoid
     // per-frame heap allocations.
-    private EntityQuery _vehicleQuery = null!;
-    private EntityQuery _routeQuery   = null!;
+    private EntityQuery? _vehicleQuery;
+    private EntityQuery? _routeQuery;
 
     // ── ISimulationView cache ─────────────────────────────────────────────────
 
@@ -59,29 +59,29 @@ public sealed class RouteContextSystem : ComponentSystem
     // ── ComponentSystem ───────────────────────────────────────────────────────
 
     /// <inheritdoc/>
-    protected override void OnCreate()
+    public void Execute(ISimulationView view, float deltaTime)
     {
-        _vehicleQuery = World.Query()
+        if (view is not EntityRepository repo)
+            throw new InvalidOperationException(
+                $"{nameof(RouteContextSystem)} requires direct EntityRepository access " +
+                $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+        // Build queries lazily on first call.
+        _vehicleQuery ??= repo.Query()
             .With<NavigationIntent>()
             .With<NavigationStatus>()
             .With<BrainBlackboard>()
             .Build();
 
-        _routeQuery = World.Query()
+        _routeQuery ??= repo.Query()
             .With<RouteTrajectoryCache>()
             .WithManaged<RoutePlan>()
             .Build();
-    }
 
-    /// <inheritdoc/>
-    protected override void OnUpdate()
-    {
-        _elapsed += DeltaTime;
+        _elapsed += deltaTime;
         if (_elapsed < TickIntervalSeconds)
             return;
         _elapsed = 0f;
-
-        var view = (ISimulationView)World;
 
         // ── Query vehicles following a custom trajectory with a blackboard ────
         foreach (var vehicleEntity in _vehicleQuery)
@@ -133,7 +133,7 @@ public sealed class RouteContextSystem : ComponentSystem
                 continue;
 
             // Parse the JSON and apply recognised keys to the blackboard.
-            ApplyExtensionJson(vehicleEntity, extensionJson, view);
+            ApplyExtensionJson(vehicleEntity, extensionJson, repo);
         }
     }
 
@@ -175,14 +175,14 @@ public sealed class RouteContextSystem : ComponentSystem
     /// Parses <paramref name="extensionJson"/> and writes recognised key values
     /// into the vehicle's <see cref="BrainBlackboard"/>.
     /// </summary>
-    private unsafe void ApplyExtensionJson(Entity vehicleEntity, string extensionJson, ISimulationView view)
+    private unsafe void ApplyExtensionJson(Entity vehicleEntity, string extensionJson, EntityRepository repo)
     {
         try
         {
             using var doc  = JsonDocument.Parse(extensionJson, JsonDocOpts);
             var       root = doc.RootElement;
 
-            ref var blackboard = ref World.GetComponentRW<BrainBlackboard>(vehicleEntity);
+            ref var blackboard = ref repo.GetComponentRW<BrainBlackboard>(vehicleEntity);
 
             if (root.TryGetProperty("dangerLevel", out var dangerEl)
              && dangerEl.TryGetInt32(out int dangerValue))

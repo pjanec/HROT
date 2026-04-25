@@ -10,18 +10,18 @@ using Fdp.ModuleHost.Abstractions;
 namespace Hrot.SimHost.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="RouteContextSystem"/> — ROUTES1-T014 / PACK-N004.
+/// Unit tests for <see cref="RouteContextSystem"/> -- ROUTES1-T014 / PACK-N004.
 ///
 /// The system is a pure Brain-tier system: it queries <see cref="NavigationIntent"/>,
 /// <see cref="NavigationStatus"/>, and <see cref="BrainBlackboard"/>. It does NOT
 /// query <see cref="CarKinem.Core.NavState"/> (Muscle-tier) after the PACK-N004 refactor.
 ///
 /// <see cref="RouteContextSystem.TickIntervalSeconds"/> is set to 0 so the throttle
-/// is bypassed on every call to <c>Run()</c>.
+/// is bypassed on every call to <c>Execute()</c>.
 /// </summary>
 public class RouteContextSystemTests
 {
-    // ── Infrastructure ────────────────────────────────────────────────────────
+    // -- Infrastructure -------------------------------------------------------
 
     private readonly EntityRepository    _repo;
     private readonly RouteContextSystem  _system;
@@ -30,10 +30,9 @@ public class RouteContextSystemTests
     {
         _repo   = CreateWorld();
         _system = new RouteContextSystem { TickIntervalSeconds = 0f };
-        _system.Create(_repo);
     }
 
-    // ── World factory ─────────────────────────────────────────────────────────
+    // -- World factory --------------------------------------------------------
 
     private static EntityRepository CreateWorld()
     {
@@ -47,7 +46,7 @@ public class RouteContextSystemTests
         return repo;
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // -- Helpers --------------------------------------------------------------
 
     /// <summary>
     /// Creates a vehicle entity with <see cref="NavigationIntent"/> (FollowRoute),
@@ -94,9 +93,9 @@ public class RouteContextSystemTests
         return vehicle;
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =========================================================================
     // Danger level write
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =========================================================================
 
     /// <summary>
     /// When the vehicle's personal route waypoint has <c>"dangerLevel":42</c> in
@@ -108,7 +107,7 @@ public class RouteContextSystemTests
     {
         var vehicle = CreateVehicle(personalRouteJson: @"{""dangerLevel"":42}");
 
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
         Assert.Equal(42, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
@@ -122,29 +121,29 @@ public class RouteContextSystemTests
     {
         var vehicle = CreateVehicle(personalRouteJson: @"{""dangerLevel"":255}");
 
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
         Assert.Equal(255, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
     }
 
     /// <summary>
-    /// <c>"dangerLevel"</c> value −10 must be clamped to 0.
+    /// <c>"dangerLevel"</c> value less than 0 must be clamped to 0.
     /// </summary>
     [Fact]
     public unsafe void OnUpdate_NegativeDangerLevel_ClampedToZero()
     {
         var vehicle = CreateVehicle(personalRouteJson: @"{""dangerLevel"":-10}");
 
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
         Assert.Equal(0, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =========================================================================
     // Malformed JSON
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =========================================================================
 
     /// <summary>
     /// Malformed <see cref="RouteWaypoint.ExtensionJson"/> must not throw; the
@@ -155,16 +154,16 @@ public class RouteContextSystemTests
     {
         var vehicle = CreateVehicle(personalRouteJson: "{ not valid json !!!");
 
-        var ex = Record.Exception(() => _system.Run());
+        var ex = Record.Exception(() => _system.Execute(_repo, 0.016f));
 
         Assert.Null(ex);
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
         Assert.Equal(0, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =========================================================================
     // Throttle interval
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =========================================================================
 
     /// <summary>
     /// When <see cref="RouteContextSystem.TickIntervalSeconds"/> is greater than the
@@ -177,26 +176,26 @@ public class RouteContextSystemTests
 
         _system.TickIntervalSeconds = 1f;
 
-        _system.Run(); // DeltaTime=0 → _elapsed=0 → 0 < 1.0 → skip
+        _system.Execute(_repo, 0f); // deltaTime=0 => _elapsed=0 => 0 < 1.0 => skip
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
         Assert.Equal(0, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =========================================================================
     // Empty world safety
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =========================================================================
 
     [Fact]
     public void OnUpdate_EmptyWorld_DoesNotThrow()
     {
-        var ex = Record.Exception(() => _system.Run());
+        var ex = Record.Exception(() => _system.Execute(_repo, 0.016f));
         Assert.Null(ex);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =========================================================================
     // Cached query correctness (CT-3, ROUTES1-BATCH-04)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =========================================================================
 
     /// <summary>
     /// When a vehicle uses the shared-route fallback path (no PersonalRouteRef,
@@ -236,7 +235,7 @@ public class RouteContextSystemTests
         _repo.AddComponent(vehicle, new NavigationStatus { ProgressS = 1f, IntentId = 1u });
         _repo.AddComponent(vehicle, new BrainBlackboard());
 
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
         Assert.Equal(7, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
@@ -247,20 +246,20 @@ public class RouteContextSystemTests
     {
         var vehicle = CreateVehicle(personalRouteJson: @"{""dangerLevel"":55}");
 
-        _system.Run();
-        _system.Run();
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
+        _system.Execute(_repo, 0.016f);
+        _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
         Assert.Equal(55, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // PACK-N004: Brain-tier only — NavigationIntent + NavigationStatus
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =========================================================================
+    // PACK-N004: Brain-tier only -- NavigationIntent + NavigationStatus
+    // =========================================================================
 
     /// <summary>
-    /// PACK-N004 SC-1: Positive path — entity with NavigationIntent (FollowRoute),
+    /// PACK-N004 SC-1: Positive path -- entity with NavigationIntent (FollowRoute),
     /// NavigationStatus.ProgressS, and a RoutePlan with ExtensionJson encoding a
     /// known danger level must have the blackboard written correctly.
     /// </summary>
@@ -300,14 +299,14 @@ public class RouteContextSystemTests
         _repo.AddComponent(vehicle, new NavigationStatus { ProgressS = 1f, IntentId = 1u });
         _repo.AddComponent(vehicle, new BrainBlackboard());
 
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
         Assert.Equal(expectedDanger, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
     }
 
     /// <summary>
-    /// PACK-N004 SC-2: No NavState component is required — the system must tick and
+    /// PACK-N004 SC-2: No NavState component is required -- the system must tick and
     /// write the blackboard with only NavigationIntent + NavigationStatus present.
     /// </summary>
     [Fact]
@@ -319,9 +318,9 @@ public class RouteContextSystemTests
 
         // Assert the entity has no NavState component AND the system still works.
         Assert.False(_repo.HasComponent<CarKinem.Core.NavState>(vehicle),
-            "NavState must not be present — world does not register it (Brain-tier test).");
+            "NavState must not be present -- world does not register it (Brain-tier test).");
 
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
         Assert.Equal(33, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
@@ -337,7 +336,7 @@ public class RouteContextSystemTests
         var vehicle = _repo.CreateEntity();
         _repo.AddComponent(vehicle, new NavigationIntent
         {
-            Mode         = NavigationMode.None,   // inactive — system should skip
+            Mode         = NavigationMode.None,   // inactive -- system should skip
             TrajectoryId = 1,
             IntentId     = 1u,
         });
@@ -359,11 +358,9 @@ public class RouteContextSystemTests
         });
         _repo.SetManagedComponent(routeEntity, plan);
 
-        _system.Run();
+        _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
         Assert.Equal(0, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
     }
 }
-
-
