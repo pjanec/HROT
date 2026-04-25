@@ -1,5 +1,6 @@
-using Hrot.ClusterRunner.Testing;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+using Hrot.ClusterRunner.Testing;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
@@ -15,23 +16,24 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// <c>world.RegisterComponent&lt;MovingTestTag&gt;()</c> before the first simulation
 /// tick so the query builder finds the component table.</para>
 /// </summary>
-internal sealed class MovingEntitySystem : ComponentSystem
+internal sealed class MovingEntitySystem : IEcsModuleSystem
 {
     private EntityQuery? _query;
 
-    protected override void OnUpdate()
+    public void Execute(ISimulationView view, float deltaTime)
     {
+        var repo = (EntityRepository)view;
+
         // Lazily build the query on the first execution so that MovingTestTag is
         // guaranteed to be registered (the test fixture registers it right after
         // SubsystemOrchestrator.Initialize() and before the first tick).
-        _query ??= World.Query().With<MovingTestTag>().With<SimTransform>().Build();
+        _query ??= repo.Query().With<MovingTestTag>().With<SimTransform>().Build();
 
-        float dt = DeltaTime;
         foreach (var entity in _query)
         {
-            float velocityX = World.GetComponent<MovingTestTag>(entity).VelocityX;
-            ref var tf = ref World.GetComponentRW<SimTransform>(entity);
-            tf.Position.X += velocityX * dt;
+            float velocityX = repo.GetComponent<MovingTestTag>(entity).VelocityX;
+            ref var tf = ref repo.GetComponentRW<SimTransform>(entity);
+            tf.Position.X += velocityX * deltaTime;
         }
     }
 }

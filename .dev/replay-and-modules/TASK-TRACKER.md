@@ -20,13 +20,13 @@
 
 ## Phase 3 — Composition Roots and Application Wiring
 
-- [ ] T-RMF-13  Rework `SimHostCoreLogicPack` — expose `BuildInputSystems()`, `BuildSimulationSystems()`, `BuildPostSimulationSystems()` arrays; delete legacy overloads
-- [ ] T-RMF-14  Rework `CgfLogicPack` — expose `InputSystems` and `SimulationSystems` array properties (same pattern as T-RMF-13)
-- [ ] T-RMF-15  Update `SimHostApp` — remove `_kernelGroup`, wire all three togglable groups, fix empty-simGroup bug
-- [ ] T-RMF-16  Update `CgfSubsystem` — remove `CgfSimGroupModule`, wire togglable groups, fix `simGroup: null` bug
-- [ ] T-RMF-17  Update `CgfApplication` — same as T-RMF-16
-- [ ] T-RMF-18  Update `EditorSubsystem` and `EditorSystemsModule` — remove all adapter usage, use `ISystemRegistry` directly
-- [ ] T-RMF-19  Update test harnesses — `EditorHarness` and `SimHostInstance` (remove `SystemGroup` usage)
+- [x] T-RMF-13  Rework `SimHostCoreLogicPack` — expose `BuildInputSystems()`, `BuildSimulationSystems()`, `BuildPostSimulationSystems()` arrays; delete legacy overloads
+- [x] T-RMF-14  Rework `CgfLogicPack` — expose `InputSystems` and `SimulationSystems` array properties (same pattern as T-RMF-13)
+- [x] T-RMF-15  Update `SimHostApp` — remove `_kernelGroup`, wire all three togglable groups, fix empty-simGroup bug
+- [x] T-RMF-16  Update `CgfSubsystem` — remove `CgfSimGroupModule`, wire togglable groups, fix `simGroup: null` bug
+- [x] T-RMF-17  Update `CgfApplication` — same as T-RMF-16
+- [x] T-RMF-18  Update `EditorSubsystem` and `EditorSystemsModule` — remove all adapter usage, use `ISystemRegistry` directly
+- [x] T-RMF-19  Update test harnesses — `EditorHarness` and `SimHostInstance` (remove `SystemGroup` usage)
 
 ## Phase 4 — Deep Replay Architecture Fixes
 

@@ -1,8 +1,8 @@
 using System;
+using System.Collections.Generic;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
-using Fdp.Core;
 using Fdp.Toolkit.CarKinem.Modules;
 using Fdp.Toolkit.Combat.Modules;
 using Fdp.Toolkit.Navigation.Systems;
@@ -27,9 +27,11 @@ namespace Hrot.SimHost
     ///   <item><see cref="GroundKinematicsModule"/> — spatial hash, formation, vehicle physics, nav execution</item>
     /// </list>
     ///
-    /// <para><b>Registration pattern:</b> the contained sub-modules use the
-    /// <see cref="RegisterSystems(SystemGroup,SystemGroup,SystemGroup)"/> overload and are added
-    /// directly to the supplied <see cref="SystemGroup"/> instances.</para>
+    /// <para><b>Registration pattern:</b> the contained sub-modules expose phase-typed
+    /// <c>IReadOnlyList&lt;IEcsModuleSystem&gt;</c> array properties (<c>InputSystems</c>,
+    /// <c>SimulationSystems</c>, <c>PostSimulationSystems</c>).  Wrap those lists in
+    /// <c>TogglableInputGroup</c>, <c>TogglableSimulationGroup</c>, and
+    /// <c>TogglablePostSimulationGroup</c> at the composition root.</para>
     ///
     /// <para><b>Execution order:</b> matches the production order used by
     /// <see cref="SimulationLogicModule"/> for the <c>MuscleGround</c> role.</para>
@@ -48,6 +50,11 @@ namespace Hrot.SimHost
         private readonly GroundKinematicsModule      _groundKinematicsModule;
         private readonly NetworkEntityMap            _entityMap;
 
+        // ── Navigation bridge systems ─────────────────────────────────────────
+        private readonly NavigationIntentBridgeSystem _navIntentBridge;
+        private readonly RouteTrajectorySyncSystem    _routeTrajSync;
+        private readonly PersonalRouteAuthoringSystem _personalRouteAuthoring;
+
         // ── Public accessors (mirroring SimulationLogicModule) ────────────────
 
         /// <summary>Shared trajectory pool (forwarded from GroundKinematicsModule).</summary>
@@ -55,6 +62,15 @@ namespace Hrot.SimHost
 
         /// <summary>Shared formation-template manager (forwarded from GroundKinematicsModule).</summary>
         public FormationTemplateManager FormationTemplates => _groundKinematicsModule.FormationTemplates;
+
+        /// <summary>Systems to wrap in TogglableInputGroup.</summary>
+        public IReadOnlyList<IEcsModuleSystem> InputSystems { get; }
+
+        /// <summary>Systems to wrap in TogglableSimulationGroup.</summary>
+        public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
+
+        /// <summary>Systems to wrap in TogglablePostSimulationGroup.</summary>
+        public IReadOnlyList<IEcsModuleSystem> PostSimulationSystems { get; }
 
         // ── Constructor ───────────────────────────────────────────────────────
 
@@ -92,6 +108,31 @@ namespace Hrot.SimHost
                 roadNetwork,
                 trajectoryPool,
                 formationTemplateManager);
+
+            // Navigation bridge systems
+            _navIntentBridge        = new NavigationIntentBridgeSystem();
+            _routeTrajSync          = new RouteTrajectorySyncSystem(_groundKinematicsModule.TrajectoryPool);
+            _personalRouteAuthoring = new PersonalRouteAuthoringSystem();
+
+            // Phase arrays
+            var inputList   = new List<IEcsModuleSystem>();
+            var simList     = new List<IEcsModuleSystem>();
+            var postSimList = new List<IEcsModuleSystem>();
+
+            foreach (var s in _combatModule.InputSystems)  inputList.Add(s);
+            inputList.Add(_personalRouteAuthoring);
+
+            foreach (var s in _damageAssessmentModule.SimulationSystems) simList.Add(s);
+            simList.Add(_navIntentBridge);
+            simList.Add(_routeTrajSync);
+            foreach (var s in _groundKinematicsModule.SimulationSystems) simList.Add(s);
+
+            foreach (var s in _combatModule.PostSimulationSystems)             postSimList.Add(s);
+            foreach (var s in _groundKinematicsModule.PostSimulationSystems)   postSimList.Add(s);
+
+            InputSystems          = inputList;
+            SimulationSystems     = simList;
+            PostSimulationSystems = postSimList;
         }
 
         // ── IEcsModule ────────────────────────────────────────────────────────
@@ -105,38 +146,5 @@ namespace Hrot.SimHost
         /// No per-frame work is executed directly in this pack.
         /// </summary>
         public void Tick(ISimulationView view, float deltaTime) { }
-
-        // ── SystemGroup-based registration ────────────────────────────────────
-
-        /// <summary>
-        /// Registers the Muscle-tier systems into the supplied system groups in the
-        /// same execution order used by <see cref="SimulationLogicModule"/> for the
-        /// <c>MuscleGround</c> role.
-        /// </summary>
-        /// <param name="inputGroup">Input-phase group (fire processing, raycast, route authoring).</param>
-        /// <param name="simGroup">Simulation-phase group (damage, navigation, kinematics).</param>
-        /// <param name="postSimGroup">Post-simulation group (ballistics).</param>
-        public void RegisterSystems(SystemGroup inputGroup, SystemGroup simGroup, SystemGroup postSimGroup)
-        {
-            if (inputGroup   == null) throw new ArgumentNullException(nameof(inputGroup));
-            if (simGroup     == null) throw new ArgumentNullException(nameof(simGroup));
-            if (postSimGroup == null) throw new ArgumentNullException(nameof(postSimGroup));
-
-            // Combat (Input + PostSim).
-            foreach (var s in _combatModule.InputSystems) inputGroup.AddSystem(s);
-            foreach (var s in _combatModule.PostSimulationSystems) postSimGroup.AddSystem(s);
-
-            // DamageAssessment (Sim).
-            foreach (var s in _damageAssessmentModule.SimulationSystems) simGroup.AddSystem(s);
-
-            // Navigation bridge systems (collocated with GroundKinematics, same as SimulationLogicModule).
-            simGroup.AddSystem(new NavigationIntentBridgeSystem());
-            simGroup.AddSystem(new RouteTrajectorySyncSystem(_groundKinematicsModule.TrajectoryPool));
-            inputGroup.AddSystem(new PersonalRouteAuthoringSystem());
-
-            // Ground kinematics (Sim).
-            foreach (var s in _groundKinematicsModule.SimulationSystems) simGroup.AddSystem(s);
-            foreach (var s in _groundKinematicsModule.PostSimulationSystems) simGroup.AddSystem(s);
-        }
     }
 }

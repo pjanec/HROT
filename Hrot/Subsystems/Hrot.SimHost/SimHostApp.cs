@@ -43,6 +43,7 @@ using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Scenario;
 using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication;
 using Fdp.ModuleHost.Scheduling;
 using Fdp.Core.Orchestration;
@@ -85,7 +86,9 @@ namespace Hrot.SimHost
         // ── Kernel infrastructure ─────────────────────────────────────────────
         private EntityRepository?    _world;
         private ModuleHostKernel?    _kernel;
-        private SystemGroup?         _kernelGroup;
+        private TogglableInputGroup?          _toggleInput;
+        private TogglableSimulationGroup?     _toggleSim;
+        private TogglablePostSimulationGroup? _togglePostSim;
         private INetworkIdAllocator? _idAllocator;
         private FdpEventBus?         _eventBus;        // Swaps kernel to SlaveSyncController when a SwitchTimeModeEvent(Deterministic) arrives.
         // (SlaveTimeModeListener has been removed; SlaveSyncController handles mode transitions internally.)
@@ -332,6 +335,37 @@ namespace Hrot.SimHost
                 entityMap,
                 roadNetwork);
 
+            // Build system lists from the logic pack and wrap in togglable phase groups.
+            // Must happen before BuildOrchestration so _toggleSim is non-null for the call.
+            var allInputSystems   = new System.Collections.Generic.List<IEcsModuleSystem>();
+            var allSimSystems     = new System.Collections.Generic.List<IEcsModuleSystem>();
+            var allPostSimSystems = new System.Collections.Generic.List<IEcsModuleSystem>();
+
+            // Add DDS attribute/descriptor update systems from factory (NED-specific, NOP in offline mode).
+            // ComponentSystem-based factory systems are wrapped via CgfInputGroupAdapter (Input phase).
+            if (nodeFactory != null)
+            {
+                var factoryGroup = new SystemGroup();
+                factoryGroup.Create(_world);
+                foreach (var sys in nodeFactory.CreateSimHostAttributeUpdateSystems())
+                    factoryGroup.AddSystem(sys);
+                _kernel.RegisterGlobalSystem(new CgfInputGroupAdapter(factoryGroup));
+            }
+            foreach (var s in _simCorePack.InputSystems)          allInputSystems.Add(s);
+            foreach (var s in _simCorePack.SimulationSystems)     allSimSystems.Add(s);
+            foreach (var s in _simCorePack.PostSimulationSystems) allPostSimSystems.Add(s);
+
+            _toggleInput   = new TogglableInputGroup("SimHostInput",          allInputSystems);
+            _toggleSim     = new TogglableSimulationGroup("SimHostSimulation", allSimSystems);
+            _togglePostSim = new TogglablePostSimulationGroup("SimHostPostSim", allPostSimSystems);
+
+            _kernel.RegisterGlobalSystem(_toggleInput);
+            _kernel.RegisterModule(new SimHostSimulationModule(_toggleSim));
+            _kernel.RegisterGlobalSystem(_togglePostSim);
+
+            // GenesisMaterializationSystem -- Input phase, registered after the togglable groups
+            _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));
+
             // ── 8. ClusterSlave (CGF1-S0104) ────────────────────────────────────
             // Build ScenarioSerializer for production scenario load/save (CGF1-S0307 / CGF1-S0302).
             // Must be built after RegisterSimComponents so the auto-serializer compiles
@@ -366,22 +400,11 @@ namespace Hrot.SimHost
                 scenarioSerializer: null, // simhost does not load/save scenarios (cgf does)
 				localTempRoot: nodeConfig.LocalTempRoot,
                 checkpointWorker: _checkpointWorker,
-                simGroup: null,
+                simGroup: _toggleSim,
                 lifecycleGroup: networkLifecycleGroup,
                 ghostCreationSystem: ghostCreationSystem,
                 eventAccumulator: _context.EventAccumulator);
             _slaveTranslator = bootstrapper.SlaveTranslator;
-
-            _kernelGroup = new SystemGroup();
-            _kernelGroup.Create(_world);
-            // Add DDS attribute/descriptor update systems from factory (NED-specific, NOP in offline mode).
-            if (nodeFactory != null)
-            {
-                foreach (var sys in nodeFactory.CreateSimHostAttributeUpdateSystems())
-                    _kernelGroup.AddSystem(sys);
-            }
-            _simCorePack!.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);
-            _kernelGroup.AddSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));
 
             // Seed GlobalTime singleton.
             _world.SetSingletonUnmanaged(new GlobalTime
@@ -488,7 +511,6 @@ namespace Hrot.SimHost
             _slaveTranslator?.Tick();
             _clusterSlave?.Tick();
             _vis?.Update(dt);
-            _kernelGroup?.Run();   // process incoming requests first (sets dirty flags)
             _kernel?.Update();     // then run egress scan (picks up dirty -> publishes immediately)
             // Bridge SwitchTimeModeEvent and FrameOrder/FrameAck for distributed time control.
             // Placed after kernel.Update() so ScanAndPublish picks up FrameStepCompletedEvent
@@ -565,7 +587,6 @@ namespace Hrot.SimHost
             _vis?.Dispose();
             _vis = null;
             _idAllocator?.Dispose();
-            _kernelGroup?.Dispose();
             _kernel?.Dispose();
 
             Logger.Info($"[Node-{localNodeId}] Shutdown complete.");
@@ -746,16 +767,16 @@ namespace Hrot.SimHost
             _nodeIdOverride != 0 ? _nodeIdOverride : SimHostNetworkConstants.LocalNodeId;
 
         /// <summary>
-        /// TestHook: appends an additional ECS system to the kernel system group.
+        /// TestHook: registers an additional ECS system on the kernel.
         /// Must be called after <see cref="InitializeEmbedded"/> and before the first
         /// <see cref="Tick"/> so that the system participates from the first frame.
         /// Intended only for in-process integration/E2E tests.
         /// </summary>
-        public void TestHook_AddSystem(ComponentSystem system)
+        public void TestHook_AddSystem(IEcsModuleSystem system)
         {
-            if (_kernelGroup == null)
+            if (!_initialized)
                 throw new InvalidOperationException("SimHostApp is not initialized.");
-            _kernelGroup.AddSystem(system);
+            _kernel!.RegisterGlobalSystem(system);
         }
 
         // ── Component registration ────────────────────────────────────────────
@@ -794,6 +815,18 @@ namespace Hrot.SimHost
                 FdpLog<SimHostApp>.Warn("[Node-{0}] Failed to load road network: {1}", localNodeId, ex.Message);
                 return new RoadNetworkBlob();
             }
+        }
+
+        // IEcsModule wrapper that routes TogglableSimulationGroup into the Simulation phase slot.
+        // RegisterGlobalSystem rejects SystemPhase.Simulation; it must be registered via RegisterModule.
+        private sealed class SimHostSimulationModule : IEcsModule
+        {
+            private readonly TogglableSimulationGroup _group;
+            public string Name => "SimHostSimulation";
+            public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
+            public SimHostSimulationModule(TogglableSimulationGroup group) => _group = group;
+            public void RegisterSystems(ISystemRegistry registry) { }
+            public void Tick(ISimulationView view, float deltaTime) => _group.Execute(view, deltaTime);
         }
     }
 

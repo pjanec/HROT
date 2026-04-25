@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using CarKinem.Formation;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -97,25 +97,18 @@ namespace Hrot.SimHost.Tests
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
             var pack    = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource);
-            var simGroup = new SystemGroup();
-            simGroup.Create(world);
-
-            pack.RegisterSystems(simGroup);
-
-            var ex = Record.Exception(() => simGroup.Run());
+            var view = (ISimulationView)world;
+            var ex = Record.Exception(() =>
+            {
+                foreach (var s in pack.InputSystems)      s.Execute(view, 0.016f);
+                foreach (var s in pack.SimulationSystems) s.Execute(view, 0.016f);
+            });
             Assert.Null(ex);
 
-            // MissionControlExecutionSystem (1), MissionAdapterSystem (1)
-            // MissionControlModule: DoctrineIngressSystem, MissionDirectorSystem (2)
-            // CognitiveRuntimeModule: ChannelArbitrationSystem, HsmDamageBridgeSystem,
-            //   BTreeTickSystem, HsmTickSystem<BrainHsm128>, HsmTickSystem<BrainHsm64> (5)
-            // ActionDispatchModule: LocomotionDispatcherSystem, WeaponDispatcherSystem,
-            //   InteractionDispatcherSystem (3)
-            // HealthApplicationSystem (1), CgfThreatEvaluationSystem (1), RouteContextSystem (1)
-            // total = 15
-            Assert.Equal(15, simGroup.SystemCount);
-
-            simGroup.Dispose();
+            // InputSystems: MissionControlExecutionSystem (1), DoctrineIngressSystem (1) = 2
+            // SimulationSystems: remaining 13 systems (total 15)
+            Assert.Equal(2,  pack.InputSystems.Count);
+            Assert.Equal(13, pack.SimulationSystems.Count);
         }
 
         /// <summary>
@@ -131,26 +124,17 @@ namespace Hrot.SimHost.Tests
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
             var pack     = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource);
-            var simGroup = new SystemGroup();
-            simGroup.Create(world);
-
-            pack.RegisterSystems(simGroup);
-
-            var systems = simGroup.GetSystems();
-
-            // MissionControlModule systems
-            Assert.Contains(systems, s => s.IsOrWraps<DoctrineIngressSystem>());
-            Assert.Contains(systems, s => s.IsOrWraps<MissionDirectorSystem>());
+            // MissionControlModule systems in InputSystems + SimulationSystems
+            Assert.Contains(pack.InputSystems,      s => s is DoctrineIngressSystem);
+            Assert.Contains(pack.SimulationSystems, s => s is MissionDirectorSystem);
 
             // CognitiveRuntimeModule systems
-            Assert.Contains(systems, s => s.IsOrWraps<ChannelArbitrationSystem>());
-            Assert.Contains(systems, s => s.IsOrWraps<BTreeTickSystem>());
+            Assert.Contains(pack.SimulationSystems, s => s is ChannelArbitrationSystem);
+            Assert.Contains(pack.SimulationSystems, s => s is BTreeTickSystem);
 
             // ActionDispatchModule systems
-            Assert.Contains(systems, s => s.IsOrWraps<LocomotionDispatcherSystem>());
-            Assert.Contains(systems, s => s.IsOrWraps<WeaponDispatcherSystem>());
-
-            simGroup.Dispose();
+            Assert.Contains(pack.SimulationSystems, s => s is LocomotionDispatcherSystem);
+            Assert.Contains(pack.SimulationSystems, s => s is WeaponDispatcherSystem);
         }
 
         /// <summary>
@@ -284,32 +268,19 @@ namespace Hrot.SimHost.Tests
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
             var pack       = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource);
-            var inputGroup = new SystemGroup();
-            var simGroup2  = new SystemGroup();
-            inputGroup.Create(world);
-            simGroup2.Create(world);
+            // SC1: MissionControlExecutionSystem is in InputSystems.
+            Assert.Contains(pack.InputSystems, s => s is MissionControlExecutionSystem);
+            // SC2: DoctrineIngressSystem is in InputSystems.
+            Assert.Contains(pack.InputSystems, s => s is DoctrineIngressSystem);
+            // SC3: MissionDirectorSystem is in SimulationSystems.
+            Assert.Contains(pack.SimulationSystems, s => s is MissionDirectorSystem);
+            // MissionAdapterSystem stays in SimulationSystems.
+            Assert.Contains(pack.SimulationSystems, s => s is MissionAdapterSystem);
 
-            pack.RegisterSystems(inputGroup, simGroup2);
-
-            var inputSystems = inputGroup.GetSystems();
-            var simSystems   = simGroup2.GetSystems();
-
-            // SC1: MissionControlExecutionSystem is in inputGroup.
-            Assert.Contains(inputSystems, s => s.IsOrWraps<MissionControlExecutionSystem>());
-            // SC2: DoctrineIngressSystem is in inputGroup.
-            Assert.Contains(inputSystems, s => s.IsOrWraps<DoctrineIngressSystem>());
-            // SC3: MissionDirectorSystem is in simGroup.
-            Assert.Contains(simSystems, s => s.IsOrWraps<MissionDirectorSystem>());
-            // MissionAdapterSystem stays in simGroup.
-            Assert.Contains(simSystems, s => s.IsOrWraps<MissionAdapterSystem>());
-
-            // inputGroup: MissionControlExecutionSystem + DoctrineIngressSystem = 2
-            Assert.Equal(2, inputGroup.SystemCount);
-            // simGroup: total 15 - 2 = 13
-            Assert.Equal(13, simGroup2.SystemCount);
-
-            inputGroup.Dispose();
-            simGroup2.Dispose();
+            // InputSystems: MissionControlExecutionSystem + DoctrineIngressSystem = 2
+            Assert.Equal(2,  pack.InputSystems.Count);
+            // SimulationSystems: total 15 - 2 = 13
+            Assert.Equal(13, pack.SimulationSystems.Count);
         }
 
         /// <summary>
@@ -325,54 +296,8 @@ namespace Hrot.SimHost.Tests
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
             var pack     = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource);
-            var simGroup = new SystemGroup();
-            simGroup.Create(world);
-
-            pack.RegisterSystems(simGroup);
-
-            Assert.Equal(15, simGroup.SystemCount);
-
-            simGroup.Dispose();
-        }
-
-        /// <summary>
-        /// S306-SC5: Passing null to either parameter of the two-group overload throws
-        /// <see cref="ArgumentNullException"/>.
-        /// </summary>
-        [Fact]
-        public void CgfLogicPack_TwoGroupOverload_NullInputGroup_Throws()
-        {
-            using var world = CreateEmptyWorld();
-            var pack = new CgfLogicPack(new DoctrineRegistry(), new NetworkEntityMap(),
-                new ScenarioEntityCreationRequestSource());
-            var simGroup = new SystemGroup();
-            simGroup.Create(world);
-
-            var ex = Assert.Throws<ArgumentNullException>(() =>
-                pack.RegisterSystems(null!, simGroup));
-            Assert.Equal("inputGroup", ex.ParamName);
-
-            simGroup.Dispose();
-        }
-
-        /// <summary>
-        /// S306-SC5: Passing null simGroup to the two-group overload throws
-        /// <see cref="ArgumentNullException"/>.
-        /// </summary>
-        [Fact]
-        public void CgfLogicPack_TwoGroupOverload_NullSimGroup_Throws()
-        {
-            using var world = CreateEmptyWorld();
-            var pack = new CgfLogicPack(new DoctrineRegistry(), new NetworkEntityMap(),
-                new ScenarioEntityCreationRequestSource());
-            var inputGroup = new SystemGroup();
-            inputGroup.Create(world);
-
-            var ex = Assert.Throws<ArgumentNullException>(() =>
-                pack.RegisterSystems(inputGroup, null!));
-            Assert.Equal("simGroup", ex.ParamName);
-
-            inputGroup.Dispose();
+            // Total systems across both phases equals 15 (split: 2 input + 13 sim).
+            Assert.Equal(15, pack.InputSystems.Count + pack.SimulationSystems.Count);
         }
     }
 }

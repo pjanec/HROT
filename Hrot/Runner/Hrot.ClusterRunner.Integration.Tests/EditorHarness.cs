@@ -15,7 +15,6 @@ using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Tkb;
 using Hrot.CGF;
-using Hrot.Common.Infrastructure;
 using Hrot.Core.Network;
 using Hrot.Editor;
 using Hrot.Editor.Modules;
@@ -70,28 +69,6 @@ public sealed class EditorHarness : IDisposable
         public long AllocateId()            => _next++;
         public void Reset(long startId = 0) => _next = startId;
         public void Dispose() { }
-    }
-
-    private sealed class SimGroupModule : IEcsModule
-    {
-        private readonly SystemGroup _group;
-        public string Name => "HarnessSimGroup";
-        public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
-        public SimGroupModule(SystemGroup group) => _group = group;
-        public void RegisterSystems(ISystemRegistry registry) { }
-        public void Tick(ISimulationView view, float dt) => _group.Run();
-        public System.Collections.Generic.IEnumerable<Type>? GetRequiredComponents() => null;
-    }
-
-    private sealed class PostSimGroupModule : IEcsModule
-    {
-        private readonly SystemGroup _group;
-        public string Name => "HarnessPostSimGroup";
-        public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
-        public PostSimGroupModule(SystemGroup group) => _group = group;
-        public void RegisterSystems(ISystemRegistry registry) { }
-        public void Tick(ISimulationView view, float dt) => _group.Run();
-        public System.Collections.Generic.IEnumerable<Type>? GetRequiredComponents() => null;
     }
 
     /// <summary>
@@ -188,23 +165,15 @@ public sealed class EditorHarness : IDisposable
         Kernel.RegisterModule(elm);
         Kernel.RegisterModule(simHostMod);
 
-        // ── Multi-phase system group wiring for SimHostCorePack and CgfLogicPack ──
-        var inputGroup   = new SystemGroup();
-        inputGroup.Create(Repo);
-        var cgfSimGroup = new SystemGroup();
-        cgfSimGroup.Create(Repo);
-        var muscleSimGroup = new SystemGroup();
-        muscleSimGroup.Create(Repo);
-        var postSimGroup = new SystemGroup();
-        postSimGroup.Create(Repo);
+        // ── Multi-phase system registration for SimHostCorePack and CgfLogicPack ──
+        // CGF Brain systems -- register directly (no toggling needed in the editor harness)
+        foreach (var sys in cgfLogicPackInst.InputSystems)      Kernel.RegisterGlobalSystem(sys);
+        foreach (var sys in cgfLogicPackInst.SimulationSystems) Kernel.RegisterGlobalSystem(sys);
 
-        cgfLogicPackInst.RegisterSystems(inputGroup, cgfSimGroup);
-        simHostCorePack.RegisterSystems(inputGroup, muscleSimGroup, postSimGroup);
-
-        Kernel.RegisterGlobalSystem(new CgfInputGroupAdapter(inputGroup));
-        Kernel.RegisterModule(new SimulationGroupModule(cgfSimGroup, "BrainSimGroup"));
-        Kernel.RegisterModule(new SimulationGroupModule(muscleSimGroup, "MuscleSimGroup"));
-        Kernel.RegisterGlobalSystem(new PostSimulationGroupAdapter(postSimGroup));
+        // Muscle systems -- register directly
+        foreach (var sys in simHostCorePack.InputSystems)          Kernel.RegisterGlobalSystem(sys);
+        foreach (var sys in simHostCorePack.SimulationSystems)     Kernel.RegisterGlobalSystem(sys);
+        foreach (var sys in simHostCorePack.PostSimulationSystems) Kernel.RegisterGlobalSystem(sys);
 
         // Register editor-specific ECS systems (cargo, perception, zone authoring).
         Kernel.RegisterModule(new EditorSystemsModule(Repo, zoneService));

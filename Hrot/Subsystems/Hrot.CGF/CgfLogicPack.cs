@@ -1,7 +1,7 @@
 using System;
+using System.Collections.Generic;
 using CarKinem.Commands;
 using CarKinem.Formation;
-using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Executors;
@@ -35,9 +35,8 @@ namespace Hrot.CGF
     ///
     /// <para><b>Registration pattern:</b> The contained modules expose phase-typed
     /// <c>IReadOnlyList&lt;IEcsModuleSystem&gt;</c> array properties (<c>InputSystems</c>,
-    /// <c>SimulationSystems</c>). Their systems are wired into <see cref="SystemGroup"/>s
-    /// via <see cref="RegisterSystems(SystemGroup)"/> or the split
-    /// <see cref="RegisterSystems(SystemGroup, SystemGroup)"/> overload.
+    /// <c>SimulationSystems</c>).  Wrap those lists in <c>TogglableInputGroup</c> and
+    /// <c>TogglableSimulationGroup</c> at the composition root.
     /// The <see cref="IEcsModule.RegisterSystems(ISystemRegistry)"/> overload is a no-op
     /// and is provided for API compliance only.</para>
     ///
@@ -60,9 +59,20 @@ namespace Hrot.CGF
         private readonly MissionControlExecutionSystem _missionExecutionSystem;
         private readonly MissionAdapterSystem   _missionAdapterSystem;
 
+        // ── Standalone systems (moved from RegisterSystems overloads) ──────────
+        private readonly HealthApplicationSystem      _healthApplicationSystem;
+        private readonly CgfThreatEvaluationSystem    _cgfThreatEvaluationSystem;
+        private readonly RouteContextSystem           _routeContextSystem;
+
         // ── Shared scenario source (constructed once by CgfApplication / CgfSubsystem) ─
         // Held here for future hand-off to load handlers (Phases 3-4).
         internal ScenarioEntityCreationRequestSource ScenarioSource { get; }
+
+        /// <summary>Systems to wrap in TogglableInputGroup.</summary>
+        public IReadOnlyList<IEcsModuleSystem> InputSystems { get; }
+
+        /// <summary>Systems to wrap in TogglableSimulationGroup.</summary>
+        public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
 
         // ── Constructor ───────────────────────────────────────────────────────
 
@@ -114,77 +124,37 @@ namespace Hrot.CGF
                 {
                     (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor()),
                 });
+
+            _healthApplicationSystem   = new HealthApplicationSystem();
+            _cgfThreatEvaluationSystem = new CgfThreatEvaluationSystem();
+            _routeContextSystem        = new RouteContextSystem();
+
+            var inputList = new List<IEcsModuleSystem>();
+            var simList   = new List<IEcsModuleSystem>();
+
+            inputList.Add(_missionExecutionSystem);
+            foreach (var s in _missionControlModule.InputSystems) inputList.Add(s);
+
+            simList.Add(_missionAdapterSystem);
+            foreach (var s in _missionControlModule.SimulationSystems) simList.Add(s);
+            simList.Add(_healthApplicationSystem);
+            simList.Add(_cgfThreatEvaluationSystem);
+            foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
+            foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);
+            simList.Add(_routeContextSystem);
+
+            InputSystems      = inputList;
+            SimulationSystems = simList;
         }
 
-        // ── IEcsModule ────────────────────────────────────────────────────────
-
         /// <summary>
-        /// No-op — the contained sub-modules expose phase-typed array properties and are
-        /// wired into <see cref="SystemGroup"/>s via the typed <c>RegisterSystems</c> overloads.
-        /// Call <see cref="RegisterSystems(SystemGroup)"/> or
-        /// <see cref="RegisterSystems(SystemGroup, SystemGroup)"/> instead.
+        /// No-op — the contained sub-modules expose phase-typed array properties
+        /// (<c>InputSystems</c>, <c>SimulationSystems</c>).  Wrap those lists in
+        /// <c>TogglableInputGroup</c> and <c>TogglableSimulationGroup</c> at the composition root.
         /// </summary>
         public void RegisterSystems(ISystemRegistry registry) { }
 
         /// <summary>Empty — all logic is handled by registered systems.</summary>
         public void Tick(ISimulationView view, float deltaTime) { }
-
-        // ── SystemGroup-based registration ────────────────────────────────────
-
-        /// <summary>
-        /// Registers the Brain-tier systems into the supplied simulation-phase group
-        /// in the same execution order used by <c>SimulationLogicModule</c> for the
-        /// <c>Brain</c> role: Mission → Cognitive → ActionDispatch.
-        /// </summary>
-        /// <param name="simGroup">Simulation-phase system group.</param>
-        public void RegisterSystems(SystemGroup simGroup)
-        {
-            if (simGroup == null) throw new ArgumentNullException(nameof(simGroup));
-
-            // Mission intent execution must run before mission/cognitive runtime systems.
-            simGroup.AddSystem(_missionExecutionSystem);
-            // Adapter bridges MissionPlanQueue phase changes into active DoctrineState.
-            simGroup.AddSystem(_missionAdapterSystem);
-            foreach (var s in _missionControlModule.InputSystems) simGroup.AddSystem(s);
-            foreach (var s in _missionControlModule.SimulationSystems) simGroup.AddSystem(s);
-            // Brain applies authoritative damage: EntityHitDamageIngressTranslator delivers
-            // DamageAssessedEvent; HealthApplicationSystem mutates Health and strips
-            // ActorCapabilities so HsmDamageBridgeSystem (in CognitiveRuntimeModule) can
-            // detect the capability change and inject MobilityLost into the HSM.
-            simGroup.AddSystem(new HealthApplicationSystem());            // Cognitive threat evaluation: decays TargetMemory scores and boosts them from
-            // ActiveSensorTracks (written by SensorTrackStateIngressTranslator).
-            // Must run before CognitiveRuntimeModule so B-Trees see freshly scored targets.
-            simGroup.AddSystem(new CgfThreatEvaluationSystem());            foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simGroup.AddSystem(s);
-            foreach (var s in _actionDispatchModule.SimulationSystems) simGroup.AddSystem(s);
-            // Route context: writes per-waypoint ExtensionJson danger level to BrainBlackboard.
-            simGroup.AddSystem(new RouteContextSystem());
-        }
-
-        /// <summary>
-        /// Registers Brain-tier systems split across an Input-phase group and a
-        /// Simulation-phase group.
-        /// <list type="bullet">
-        ///   <item><see cref="MissionControlExecutionSystem"/> and
-        ///   <see cref="DoctrineIngressSystem"/> go to <paramref name="inputGroup"/>.</item>
-        ///   <item>All remaining systems go to <paramref name="simGroup"/>.</item>
-        /// </list>
-        /// </summary>
-        /// <param name="inputGroup">Input-phase system group.</param>
-        /// <param name="simGroup">Simulation-phase system group.</param>
-        public void RegisterSystems(SystemGroup inputGroup, SystemGroup simGroup)
-        {
-            if (inputGroup == null) throw new ArgumentNullException(nameof(inputGroup));
-            if (simGroup   == null) throw new ArgumentNullException(nameof(simGroup));
-
-            inputGroup.AddSystem(_missionExecutionSystem);
-            simGroup.AddSystem(_missionAdapterSystem);
-            foreach (var s in _missionControlModule.InputSystems) inputGroup.AddSystem(s);
-            foreach (var s in _missionControlModule.SimulationSystems) simGroup.AddSystem(s);
-            simGroup.AddSystem(new HealthApplicationSystem());
-            simGroup.AddSystem(new CgfThreatEvaluationSystem());
-            foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simGroup.AddSystem(s);
-            foreach (var s in _actionDispatchModule.SimulationSystems) simGroup.AddSystem(s);
-            simGroup.AddSystem(new RouteContextSystem());
-        }
     }
 }

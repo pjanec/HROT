@@ -57,7 +57,6 @@ using Hrot.Presentation.Facades;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
 using Hrot.Core.Network;
-using Hrot.Common.Infrastructure;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 // Disambiguate IMapCameraProvider: Hrot.SimHost.Modules also defines this interface.
@@ -216,32 +215,6 @@ namespace Hrot.Editor
             }
         }
 
-        // ── Nested helper: wraps a SystemGroup as an IEcsModule (Simulation phase) ───
-
-        private sealed class SimGroupModule : IEcsModule
-        {
-            private readonly SystemGroup _group;
-            public string Name => "EditorSimGroup";
-            public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
-            public SimGroupModule(SystemGroup group) => _group = group;
-            public void RegisterSystems(ISystemRegistry registry) { }
-            public void Tick(ISimulationView view, float dt) => _group.Run();
-            public System.Collections.Generic.IEnumerable<Type>? GetRequiredComponents() => null;
-        }
-
-        // ── Nested helper: wraps a SystemGroup as an IEcsModule (PostSim phase) ─────
-
-        private sealed class PostSimGroupModule : IEcsModule
-        {
-            private readonly SystemGroup _group;
-            public string Name => "EditorPostSimGroup";
-            public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
-            public PostSimGroupModule(SystemGroup group) => _group = group;
-            public void RegisterSystems(ISystemRegistry registry) { }
-            public void Tick(ISimulationView view, float dt) => _group.Run();
-            public System.Collections.Generic.IEnumerable<Type>? GetRequiredComponents() => null;
-        }
-
         // ── Nested helper: offline sequential ID allocator ────────────────────
 
         private sealed class SequentialIdAllocator : INetworkIdAllocator
@@ -387,25 +360,15 @@ namespace Hrot.Editor
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
 
-            // ── 4a. Multi-phase system group wiring for SimHostCorePack and CgfLogicPack ──
-            // These packs expose a no-op IEcsModule.RegisterSystems(ISystemRegistry) and
-            // require their typed RegisterSystems(...) overloads to populate phase groups.
-            var inputGroup   = new SystemGroup();
-            inputGroup.Create(_world);
-            var cgfSimGroup = new SystemGroup();
-            cgfSimGroup.Create(_world);
-            var muscleSimGroup = new SystemGroup();
-            muscleSimGroup.Create(_world);
-            var postSimGroup = new SystemGroup();
-            postSimGroup.Create(_world);
+            // ── 4a. Multi-phase system registration for SimHostCorePack and CgfLogicPack ──
+            // CGF Brain systems -- register directly (no toggling needed in the editor)
+            foreach (var sys in cgfLogicPackInst.InputSystems)      _kernel.RegisterGlobalSystem(sys);
+            foreach (var sys in cgfLogicPackInst.SimulationSystems) _kernel.RegisterGlobalSystem(sys);
 
-            cgfLogicPackInst.RegisterSystems(inputGroup, cgfSimGroup);
-            simHostCorePack.RegisterSystems(inputGroup, muscleSimGroup, postSimGroup);
-
-            _kernel.RegisterGlobalSystem(new CgfInputGroupAdapter(inputGroup));
-            _kernel.RegisterModule(new SimulationGroupModule(cgfSimGroup, "BrainSimGroup"));
-            _kernel.RegisterModule(new SimulationGroupModule(muscleSimGroup, "MuscleSimGroup"));
-            _kernel.RegisterGlobalSystem(new PostSimulationGroupAdapter(postSimGroup));
+            // Muscle systems -- register directly
+            foreach (var sys in simHostCorePack.InputSystems)          _kernel.RegisterGlobalSystem(sys);
+            foreach (var sys in simHostCorePack.SimulationSystems)     _kernel.RegisterGlobalSystem(sys);
+            foreach (var sys in simHostCorePack.PostSimulationSystems) _kernel.RegisterGlobalSystem(sys);
 
             // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.
             _kernel.RegisterModule(new EditorSystemsModule(_world));

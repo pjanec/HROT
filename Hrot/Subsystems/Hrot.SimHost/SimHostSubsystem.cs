@@ -149,10 +149,10 @@ namespace Hrot.SimHost
             => App.TestHook_GetChildEntities(parentEntity);
 
         /// <summary>
-        /// TestHook: appends a custom ECS system to the kernel group after initialization.
+        /// TestHook: registers a custom ECS system on the kernel after initialization.
         /// For use by in-process E2E test fixtures only.
         /// </summary>
-        internal void TestHook_AddSystem(Fdp.Core.ComponentSystem system)
+        internal void TestHook_AddSystem(Fdp.ModuleHost.Abstractions.IEcsModuleSystem system)
             => App.TestHook_AddSystem(system);
 
         // ── ISubsystem ────────────────────────────────────────────────────────

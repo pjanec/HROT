@@ -17,6 +17,7 @@ using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.ModuleHost;
+using Fdp.ModuleHost.Scheduling;
 using Fdp.ModuleHost.Time;
 using Hrot.Map.Common;
 using Fdp.ModuleHost.Abstractions;
@@ -97,7 +98,8 @@ namespace Hrot.CGF
         public CgfApplication(int domainId = 0, int nodeId = DefaultNodeId,
             DdsParticipant? participant = null,
             ScenarioSerializer? scenarioSerializer = null, string localTempRoot = OrchestrationConstants.DefaultStagingDirectory,
-            INetworkFactory? networkFactory = null)
+            INetworkFactory? networkFactory = null,
+            CgfLogicPack? logicPack = null)
         {
             _nodeId      = nodeId;
             // Accept participant from composition root (Rule 3, modular-2 DESIGN.md).
@@ -122,6 +124,17 @@ namespace Hrot.CGF
             _kernel.SetTimeController(new SlaveSyncController(_eventBus, nodeId));
             // Note: _kernel.Initialize() is deferred until first Tick()
             // so callers can call Install() between construction and first tick.
+
+            // When a logicPack is provided, build togglable groups and register them.
+            TogglableInputGroup?      replayInputGroup = null;
+            TogglableSimulationGroup? replaySimGroup   = null;
+            if (logicPack != null)
+            {
+                replayInputGroup = new TogglableInputGroup("CgfInput",           logicPack.InputSystems);
+                replaySimGroup   = new TogglableSimulationGroup("CgfSimulation", logicPack.SimulationSystems);
+                _kernel.RegisterGlobalSystem(replayInputGroup);
+                _kernel.RegisterGlobalSystem(replaySimGroup);
+            }
 
             _clusterSlave   = new Fdp.Toolkit.Orchestration.ClusterSlave(nodeId, SubsystemName, _eventBus);
 
@@ -151,8 +164,8 @@ namespace Hrot.CGF
             // session is currently active (Live-from-Replay branch, CGF1-S0305).
             _clusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
                 rrController,
-                inputGroup:            null,
-                simGroup:              null,
+                inputGroup:            replayInputGroup,
+                simGroup:              replaySimGroup,
                 postSimGroup:          null,
                 lifecycleGroup:        null,
                 bypassLifecycleToggle: null,

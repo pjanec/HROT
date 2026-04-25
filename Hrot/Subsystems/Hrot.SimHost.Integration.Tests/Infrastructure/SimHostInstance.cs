@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
@@ -8,6 +8,7 @@ using NedMissionTask = Hrot.NED.Descriptors.MissionTask;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Fdp.Toolkit.Perception.Components;
+using Hrot.CGF;
 using Hrot.CGF.Brains;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
@@ -40,6 +41,7 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Tkb;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Scenario;
 
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 using Fdp.Toolkit.NetworkSpawning;
@@ -211,10 +213,10 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         private readonly SystemList                     _elmSystems  = new();
         private readonly SystemList                     _geoSystems  = new();
 
-        // â”€â”€ Systems: ComponentSystem-based (executed via SystemGroup) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        private readonly SystemGroup _inputGroup;
-        private readonly SystemGroup _simGroup;
-        private readonly SystemGroup _postSimGroup;
+        // â"€â"€ Simulation system lists (executed manually via IEcsModuleSystem.Execute) â"€â"€â"€â"€â"€â"€â"€
+        private readonly IReadOnlyList<IEcsModuleSystem> _inputSystems;
+        private readonly IReadOnlyList<IEcsModuleSystem> _simSystems;
+        private readonly IReadOnlyList<IEcsModuleSystem> _postSimSystems;
 
         // â”€â”€ Performance metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private bool               _metricsEnabled;
@@ -262,29 +264,33 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             // 5. Geographic systems â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             new GeographicModule(_wgs84).RegisterSystems(_geoSystems);
 
-            // 6. Simulation-logic SystemGroup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // 6. Simulation-logic system lists ------------------------------------
             var roadNetwork    = new RoadNetworkBuilder().Build(10f, 100, 100);
             var trajectoryPool = new TrajectoryPoolManager();
 
-            _inputGroup = new SystemGroup();
-            _inputGroup.Create(_world);
-            _simGroup = new SystemGroup();
-            _simGroup.Create(_world);
-            _postSimGroup = new SystemGroup();
-            _postSimGroup.Create(_world);
+            // Use dedicated packs instead of SimulationLogicModule to get IEcsModuleSystem lists.
+            var musclePack = new SimHostCoreLogicPack(_entityMap, roadNetwork, trajectoryPool);
+            var brainPack  = new CgfLogicPack(_doctrineRegistry, _entityMap,
+                new ScenarioEntityCreationRequestSource());
 
-            var simLogicModule = new SimulationLogicModule(
-                _doctrineRegistry,
-                _entityMap,
-                vehicleAPI:              null,
-                roadNetwork:             roadNetwork,
-                trajectoryPool:          trajectoryPool,
-                formationTemplateManager: null,
-                role: NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception);
-            simLogicModule.RegisterSystems(_inputGroup, _simGroup, _postSimGroup);
+            var inputList   = new List<IEcsModuleSystem>();
+            var simList     = new List<IEcsModuleSystem>();
+            var postSimList = new List<IEcsModuleSystem>();
+
+            foreach (var s in brainPack.InputSystems)       inputList.Add(s);
+            foreach (var s in musclePack.InputSystems)      inputList.Add(s);
+
+            foreach (var s in brainPack.SimulationSystems)  simList.Add(s);
+            foreach (var s in musclePack.SimulationSystems) simList.Add(s);
             // MissionAdapterSystem bridges ActiveMissionPlan BehaviorParams into BrainBlackboard,
             // enabling end-to-end mission execution tests without a live CGF node.
-            _simGroup.AddSystem(new MissionAdapterSystem(_doctrineRegistry, _entityMap));
+            simList.Add(new MissionAdapterSystem(_doctrineRegistry, _entityMap));
+
+            foreach (var s in musclePack.PostSimulationSystems) postSimList.Add(s);
+
+            _inputSystems   = inputList;
+            _simSystems     = simList;
+            _postSimSystems = postSimList;
 
             var physicsModule = new PhysicsToolkitModule();
             physicsModule.Initialize(_world);
@@ -564,9 +570,6 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 if (batch.Requests.IsCreated) batch.Requests.Dispose();
                 if (batch.Hits.IsCreated) batch.Hits.Dispose();
             }
-            _postSimGroup.Dispose();
-            _inputGroup.Dispose();
-            _simGroup.Dispose();
             _world.Dispose();
         }
 
@@ -606,9 +609,9 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             // Matches SimHostApp.OnUpdate() order: simulation runs first on the
             // previous tick's read buffer so DoctrineIngressSystem and other input
             // systems correctly see events published in the prior tick.
-            _inputGroup.Run();
-            _simGroup.Run();
-            _postSimGroup.Run();
+            foreach (var s in _inputSystems)   s.Execute(view, dt);
+            foreach (var s in _simSystems)     s.Execute(view, dt);
+            foreach (var s in _postSimSystems) s.Execute(view, dt);
 
             // â”€â”€ Phase 2: Geographic systems â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             _geoSystems.ExecuteAll(view, dt);

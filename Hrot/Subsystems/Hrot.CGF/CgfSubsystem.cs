@@ -2,6 +2,7 @@ using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Scheduling;
 using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Lifecycle;
@@ -50,30 +51,6 @@ namespace Hrot.CGF;
 /// </summary>
 public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProvider, IWindowRegistrar
 {
-    /// <summary>
-    /// Encapsulates the legacy CGF SystemGroup into a formal synchronous module.
-    /// Executes during the kernel's Simulation dispatch phase on the main thread.
-    /// </summary>
-    private sealed class CgfSimGroupModule : IEcsModule
-    {
-        private readonly SystemGroup _group;
-
-        public string Name => "CgfBrainLogic";
-        public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
-
-        public CgfSimGroupModule(SystemGroup group) => _group = group;
-
-        public void RegisterSystems(ISystemRegistry registry) { }
-
-        public void Tick(ISimulationView view, float dt)
-        {
-            _group.Run();
-        }
-
-        public IEnumerable<Type>? GetRequiredComponents() => null;
-    }
-
-
     private HrotNodeContext?  _context;
     private NetworkEntityMap? _entityMap;
     private Action?           _cgfNetworkPolling;
@@ -81,8 +58,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     // ── Headless + doctrine registry ──────────────────────────────────────────
     private bool               _headless;
     private DoctrineRegistry?  _doctrineRegistry;
-    private SystemGroup?       _simGroup;
-    private SystemGroup?       _inputGroup;
+    private TogglableInputGroup?      _toggleInput;
+    private TogglableSimulationGroup? _toggleSim;
     private Hrot.Core.Network.INetworkFactory? _networkFactory;
     private PhysicsToolkitModule? _physicsModule;
 
@@ -258,22 +235,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var cgfLogicPack = new CgfLogicPack(doctrineRegistry, _entityMap, _scenarioSource);
         _context.Kernel.RegisterModule(cgfLogicPack);
 
-        // Execute the Brain systems every frame via two SystemGroups: one for
-        // Input-phase systems and one for Simulation-phase systems.
-        var inputGroup = new SystemGroup();
-        inputGroup.Create(_context.World);
-        _inputGroup = inputGroup;
+        // Execute the Brain systems every frame via two togglable phase groups.
+        _toggleInput = new TogglableInputGroup("CgfInput",           cgfLogicPack.InputSystems);
+        _toggleSim   = new TogglableSimulationGroup("CgfSimulation", cgfLogicPack.SimulationSystems);
 
-        var simGroup = new SystemGroup();
-        simGroup.Create(_context.World);
-        _simGroup = simGroup;
-
-        cgfLogicPack.RegisterSystems(inputGroup, simGroup);
-
-        // Register the Input-phase group via the shared adapter (SystemPhase.Input).
-        _context.Kernel.RegisterGlobalSystem(new CgfInputGroupAdapter(_inputGroup));
-        // Register the Simulation-phase group as a synchronous module.
-        _context.Kernel.RegisterModule(new CgfSimGroupModule(_simGroup));
+        _context.Kernel.RegisterGlobalSystem(_toggleInput);
+        _context.Kernel.RegisterModule(new CgfSimulationModule(_toggleSim));
 
         var adapters = nodeFactory?.CreateCgfEntityLifecycleAdapters();
 
@@ -355,8 +322,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // 1. Replay handler (must be first to gate Live-from-Replay branch)
         newClusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
             rrController, 
-            inputGroup:            null,
-            simGroup:              null, 
+            inputGroup:            _toggleInput,
+            simGroup:              _toggleSim, 
             postSimGroup:          null,
             lifecycleGroup:        null, 
             bypassLifecycleToggle: null, 
@@ -682,10 +649,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     public void Shutdown()
     {
         _cgfNetworkPolling = null;
-        _inputGroup?.Dispose();
-        _inputGroup = null;
-        _simGroup?.Dispose();
-        _simGroup = null;
+        _toggleInput = null;
+        _toggleSim = null;
         _context?.Kernel.Dispose();
         _physicsModule?.Dispose();
         _physicsModule = null;
@@ -699,6 +664,17 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context = null;
     }
 
+    // IEcsModule wrapper that routes TogglableSimulationGroup into the Simulation phase slot.
+    // RegisterGlobalSystem rejects SystemPhase.Simulation; it must be registered via RegisterModule.
+    private sealed class CgfSimulationModule : IEcsModule
+    {
+        private readonly TogglableSimulationGroup _group;
+        public string Name => "CgfSimulation";
+        public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
+        public CgfSimulationModule(TogglableSimulationGroup group) => _group = group;
+        public void RegisterSystems(ISystemRegistry registry) { }
+        public void Tick(ISimulationView view, float deltaTime) => _group.Execute(view, deltaTime);
+    }
 }
 
 

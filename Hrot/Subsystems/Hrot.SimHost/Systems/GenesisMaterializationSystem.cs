@@ -24,7 +24,7 @@ namespace Hrot.SimHost.Systems
     /// For <see cref="InitialTargetsIntent"/> partial materialisation is accepted and the
     /// intent is always removed after the first tick regardless.</para>
     /// </summary>
-    [UpdateInPhase(SystemPhase.Simulation)]
+    [UpdateInPhase(SystemPhase.Input)]
     public sealed class GenesisMaterializationSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap _entityMap;
