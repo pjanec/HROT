@@ -56,13 +56,13 @@ public sealed class CgfRecordingIntegrationTests
             .ConfigureAwait(false);
 
         bool reached = harness.PumpUntil(
-            () => (int)harness.OrchestratorSvc.TestHook_ClusterMaster!.CurrentSystemState == targetStateId,
+            () => (int)harness.OrchestratorSvc.TestHook_ClusterMaster!.CurrentClusterState == targetStateId,
             timeoutFrames);
 
         if (!reached)
             throw new InvalidOperationException(
                 $"Cluster did not reach state {targetStateId} within {timeoutFrames} frames. " +
-                $"Current: {(int)harness.OrchestratorSvc.TestHook_ClusterMaster!.CurrentSystemState}.");
+                $"Current: {(int)harness.OrchestratorSvc.TestHook_ClusterMaster!.CurrentClusterState}.");
     }
 
     /// <summary>
@@ -126,7 +126,7 @@ public sealed class CgfRecordingIntegrationTests
         // Pump replay frames to confirm the cluster stays stable in OperatingReplay.
         harness.PumpFrames(50);
 
-        Assert.Equal((int)ClusterState.OperatingReplay, (int)master.CurrentSystemState);
+        Assert.Equal((int)ClusterState.OperatingReplay, (int)master.CurrentClusterState);
     }
 
     /// <summary>
@@ -159,12 +159,12 @@ public sealed class CgfRecordingIntegrationTests
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.ReplaySeek,
-            PayloadJson   = $"{{\"TargetWallTicks\":{long.MaxValue}}}",
+            PayloadJson   = JsonSerializer.Serialize(new { TargetWallTicks = long.MaxValue }),
         }).ConfigureAwait(false);
 
         // Pump frames after the seek; the cluster must remain in OperatingReplay.
         harness.PumpFrames(50);
 
-        Assert.Equal((int)ClusterState.OperatingReplay, (int)master.CurrentSystemState);
+        Assert.Equal((int)ClusterState.OperatingReplay, (int)master.CurrentClusterState);
     }
 }

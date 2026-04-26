@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 using CycloneDDS.Runtime;
 using Hrot.Core.Network;
 using Hrot.NED.Descriptors.Orchestration;
@@ -52,7 +53,7 @@ public sealed class NedTimeControlGateway : ITimeControlGateway
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.SetTimeScale,
-            PayloadJson   = $"{{\"scale\":{scale.ToString(System.Globalization.CultureInfo.InvariantCulture)}}}",
+            PayloadJson   = JsonSerializer.Serialize(scale),
         });
 
     public void Dispose() => _writer.Dispose();

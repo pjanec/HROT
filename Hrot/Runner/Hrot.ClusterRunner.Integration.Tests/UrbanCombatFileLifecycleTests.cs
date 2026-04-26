@@ -121,12 +121,12 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
         // Pump until the cluster master reaches OperatingLive (31).
         bool reachedLive = PumpBothUntil(
             harness, cgf,
-            () => (int)clusterMaster.CurrentSystemState == 31,
+            () => (int)clusterMaster.CurrentClusterState == 31,
             timeoutMs: 15_000);
 
         Assert.True(reachedLive,
             $"Cluster should reach OperatingLive (31) within 15 s. " +
-            $"Current state: {(int)clusterMaster.CurrentSystemState}.");
+            $"Current state: {(int)clusterMaster.CurrentClusterState}.");
 
         // â”€â”€ 4. Validate UC narrative latches â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         var validator = new UrbanCombatValidator();

@@ -77,6 +77,9 @@ public sealed class ClusterMaster : IDisposable
 
     private PendingPrefetchOp? _pendingPrefetch;
 
+    // ── Node-response aggregators (OCP/SRP: domain aggregation outside generic 2PC) ──
+    private readonly Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, INodeResponseAggregator> _aggregators = new();
+
     // ── Active archive operation cancellations (CGF1-S0505) ──────────────
     /// <summary>
     /// Tracks <see cref="CancellationTokenSource"/> instances for in-progress
@@ -186,7 +189,7 @@ public sealed class ClusterMaster : IDisposable
     /// <para><b>Limitation:</b> Until proper two-phase commit ACKs land in
     /// <c>CGF1-S0202+</c> the value is optimistic and may diverge from cluster
     /// reality if a transaction is aborted mid-flight.  The field will be replaced
-    /// with authoritative tracking (last written <see cref="SystemStateTopic.CurrentState"/>
+    /// with authoritative tracking (last written <see cref="ClusterStateTopic.CurrentState"/>
     /// or aggregated <c>NodeOpStatus</c> confirmation) in a later stage.</para>
     /// </summary>
     private ClusterState _currentDsmState = ClusterState.Idle;
@@ -239,7 +242,7 @@ public sealed class ClusterMaster : IDisposable
     /// Current cluster Cluster state (optimistic — advances on accepted transitions).
     /// Exposed for UI panels (CGF1-S0106) and time-mode consumers.
     /// </summary>
-    public ClusterState CurrentSystemState => _currentDsmState;
+    public ClusterState CurrentClusterState => _currentDsmState;
 
     /// <summary>
     /// <c>true</c> when a distributed transaction is currently in flight.
@@ -1064,14 +1067,43 @@ public sealed class ClusterMaster : IDisposable
     // ── Egress helpers (CMC-S009) ─────────────────────────────────────────
 
     /// <summary>Publishes an operation status to the bus.</summary>
-    private void PublishOpStatus(Guid requestId, OrchestrationStatusCode statusCode)
+    private void PublishOpStatus(Guid requestId, OrchestrationStatusCode statusCode, object? resultPayload = null)
     {
         _eventBus.PublishManaged(new ClusterOpCompletedEvent
         {
             RequestId     = requestId,
             StatusCode    = statusCode,
-            ResultPayload = null,
+            ResultPayload = resultPayload,
         });
+    }
+
+    /// <summary>
+    /// Registers a domain-specific <see cref="INodeResponseAggregator"/> that is invoked
+    /// when all node ACKs for a <see cref="Fdp.Toolkit.Orchestration.ClusterOpType.TransitionState"/>
+    /// round have arrived, attaching its result to
+    /// <see cref="ClusterOpCompletedEvent.ResultPayload"/>.
+    /// </summary>
+    public void RegisterAggregator(INodeResponseAggregator aggregator)
+    {
+        if (aggregator == null) throw new ArgumentNullException(nameof(aggregator));
+        _aggregators[aggregator.TargetOp] = aggregator;
+    }
+
+    /// <summary>
+    /// Runs all registered aggregators against the in-flight transaction's
+    /// <see cref="DistributedTransaction.NodeResponses"/> and returns the first
+    /// non-null result, or <c>null</c> if no aggregator produces a result.
+    /// </summary>
+    private object? TryAggregate(Guid txId)
+    {
+        if (_inflightTransitionTx == null || _inflightTransitionTx.TransactionId != txId)
+            return null;
+        foreach (var agg in _aggregators.Values)
+        {
+            var result = agg.Aggregate(_inflightTransitionTx.NodeResponses);
+            if (result != null) return result;
+        }
+        return null;
     }
 
     /// <summary>Publishes a cluster state transition to the bus.</summary>
@@ -1082,7 +1114,7 @@ public sealed class ClusterMaster : IDisposable
             NewStateId    = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
             SubsystemName = "Cluster",
         });
-        _eventBus.PublishManaged(new SystemStateUpdateEvent
+        _eventBus.PublishManaged(new ClusterStateUpdateEvent
         {
             CurrentState = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
         });
@@ -1178,6 +1210,22 @@ public sealed class ClusterMaster : IDisposable
     {
         foreach (var ev in _eventBus.ReadManaged<NodeOpCompletedEvent>())
         {
+            // S0501: Record per-node responses for the active transition transaction.
+            // Must run before any continue so it captures ACKs from all handler paths.
+            if (_inflightTransitionTx != null && _inflightTransitionTx.TransactionId == ev.TransactionId)
+            {
+                string payloadStr = ev.ResultPayload is null ? string.Empty
+                    : ev.ResultPayload is string s ? s
+                    : JsonSerializer.Serialize(ev.ResultPayload);
+
+                if (!_inflightTransitionTx.NodeResponses.TryGetValue(ev.NodeId, out var opDict))
+                {
+                    opDict = new Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>();
+                    _inflightTransitionTx.NodeResponses[ev.NodeId] = opDict;
+                }
+                opDict[ev.Operation] = payloadStr;
+            }
+
             // CGF1-S0305: Branch-transition ACK.
             if (_pendingBranchTasks.TryGetValue(ev.TransactionId, out var branchTask))
             {
@@ -1205,8 +1253,10 @@ public sealed class ClusterMaster : IDisposable
                 if (tracker.Received >= tracker.Expected)
                 {
                     _pendingBusTransitionAcks.Remove(ev.TransactionId);
+                    var aggregated = tracker.HasFailure ? null : TryAggregate(ev.TransactionId);
                     PublishOpStatus(tracker.RequestId,
-                        tracker.HasFailure ? tracker.FailureCode : OrchestrationStatusCode.Success);
+                        tracker.HasFailure ? tracker.FailureCode : OrchestrationStatusCode.Success,
+                        aggregated);
 
                 // Broadcast the new cluster state across the bus so UI panels update
                 PublishClusterState(_currentDsmState);                }
@@ -1238,21 +1288,6 @@ public sealed class ClusterMaster : IDisposable
                         episodeTask.EpisodeId);
                 }
                 continue;
-            }
-
-            // S0501: Record per-node responses for the active transition transaction.
-            if (_inflightTransitionTx != null && _inflightTransitionTx.TransactionId == ev.TransactionId)
-            {
-                string payloadStr = ev.ResultPayload is null ? string.Empty
-                    : ev.ResultPayload is string s ? s
-                    : JsonSerializer.Serialize(ev.ResultPayload);
-
-                if (!_inflightTransitionTx.NodeResponses.TryGetValue(ev.NodeId, out var opDict))
-                {
-                    opDict = new Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>();
-                    _inflightTransitionTx.NodeResponses[ev.NodeId] = opDict;
-                }
-                opDict[ev.Operation] = payloadStr;
             }
 
             // SerializeLocal ACK handling.

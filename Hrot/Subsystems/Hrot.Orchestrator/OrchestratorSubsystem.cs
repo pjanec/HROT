@@ -27,6 +27,7 @@ namespace Hrot.Orchestrator;
 public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
 {
     private ClusterMaster? _clusterMaster;
+    private ReplayProcessManager? _replayProcessManager;
     private ClusterConfiguration _config = ClusterConfiguration.Default;
     private ClusterUiCache?        _uiCache;
     private ClusterScenarioPanel?  _scenarioPanel;
@@ -113,6 +114,10 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _uiCache       = new ClusterUiCache(_bus, _masterSync);
         _scenarioPanel = new ClusterScenarioPanel(_bus!, _uiCache);
 
+        // Wire the replay process manager and register its aggregator with the cluster master.
+        _replayProcessManager = new ReplayProcessManager(_bus, _masterSync);
+        _clusterMaster.RegisterAggregator(_replayProcessManager.CreateAggregator());
+
         // CGF1-S0307: Create the global-context handler, subscribe to OnContextLoaded so the
         // MasterSyncController is seeded with the scenario's saved timeline on every load, and
         // register it with ClusterMaster so CommitState fan-outs trigger the local load path.
@@ -162,8 +167,10 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
 
         // Phase 3: Core logic — MasterSyncController drains bus intents (HEXAG2-S011),
         // then ClusterMaster ticks to process fan-out ops and 2PC tracking.
+        // Then ReplayProcessManager auto-pauses the clock when replay ends.
         _masterSync?.Update();
         _clusterMaster?.Tick();
+        _replayProcessManager?.Tick();
 
         // CGF1-A.1: Consume PendingTimeMode and drive MasterSyncController.
         var pendingMode = _clusterMaster?.PendingTimeMode;
@@ -218,6 +225,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _timeTranslators?.Dispose();
         _timeTranslators = null;
         _bus = null;
+        _replayProcessManager = null;
         _clusterMaster?.Dispose();
         _clusterMaster = null;
         _masterSync?.Dispose();

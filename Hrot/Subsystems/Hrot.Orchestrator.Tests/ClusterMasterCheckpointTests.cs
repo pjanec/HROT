@@ -72,7 +72,7 @@ public sealed class ClusterMasterCheckpointTests
             bus.SwapBuffers();
             master.Tick();
 
-            if (master.CurrentSystemState == ClusterState.OperatingLive) break;
+            if (master.CurrentClusterState == ClusterState.OperatingLive) break;
         }
 
         return (master, bus, NId);

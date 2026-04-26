@@ -251,7 +251,7 @@ public sealed class ClusterScenarioPanel
     // ── Adapter properties: use _master when present, else fall back to _uiCache ─
     private bool         IsBootstrapped    => _master?.BootstrapComplete     ?? _uiCache.IsBootstrapped;
     private bool         HasFlight         => _master?.HasInFlightTransaction ?? _uiCache.HasInFlightTransaction;
-    private ClusterState EffectiveState    => _master?.CurrentSystemState     ?? _uiCache.CurrentState;
+    private ClusterState EffectiveState    => _master?.CurrentClusterState     ?? _uiCache.CurrentState;
     private DistributedTransaction? EffectiveActiveTx
         => _master?.ActiveTransaction ?? _uiCache.ActiveTransaction;
     private IReadOnlyList<DistributedTransaction> EffectiveTxHistory

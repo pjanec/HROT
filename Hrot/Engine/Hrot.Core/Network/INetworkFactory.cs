@@ -179,7 +179,7 @@ public interface INetworkFactory
     ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus bus, int nodeId);
 
     /// <summary>
-    /// Creates the cluster observer translator (SystemStateTopic, AssetInventoryTopic ingress).
+    /// Creates the cluster observer translator (ClusterStateTopic, AssetInventoryTopic ingress).
     /// Returns a no-op translator when there is no DDS participant.
     /// </summary>
     IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus bus);

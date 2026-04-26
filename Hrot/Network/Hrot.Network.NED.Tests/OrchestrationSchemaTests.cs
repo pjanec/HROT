@@ -19,7 +19,7 @@ namespace Hrot.DDS.DataModel.Tests
                 t.Name.EndsWith("View", StringComparison.Ordinal) ||
                 t.Name.EndsWith("KeyHolder", StringComparison.Ordinal);
 
-            var orchestrationAssembly = typeof(SystemStateTopic).Assembly;
+            var orchestrationAssembly = typeof(ClusterStateTopic).Assembly;
             var topicStructs = orchestrationAssembly.GetTypes()
                 .Where(t => t.IsValueType && !t.IsEnum && t.IsPublic
                     && !IsCodeGenType(t)
@@ -70,9 +70,9 @@ namespace Hrot.DDS.DataModel.Tests
         }
 
         [Fact]
-        public void SystemStateTopicQosIsDurableTransientLocal()
+        public void ClusterStateTopicQosIsDurableTransientLocal()
         {
-            var qos = typeof(SystemStateTopic).GetCustomAttribute<DdsQosAttribute>();
+            var qos = typeof(ClusterStateTopic).GetCustomAttribute<DdsQosAttribute>();
             Assert.NotNull(qos);
             Assert.Equal(DdsDurability.TransientLocal, qos!.Durability);
             Assert.Equal(1, qos.HistoryDepth);

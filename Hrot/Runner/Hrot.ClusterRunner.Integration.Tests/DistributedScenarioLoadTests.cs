@@ -102,11 +102,11 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         // Pump until the cluster master reaches OperatingLive (state 31).
         // 4000 frames * 5 ms sleep = 20 s; well within the 90 s fact timeout.
         bool reachedLive = harness.PumpUntil(
-            () => (int)master.CurrentSystemState == 31,
+            () => (int)master.CurrentClusterState == 31,
             timeoutFrames: 4000);
 
         Assert.True(reachedLive,
-            $"Cluster must reach OperatingLive (31). Current: {(int)master.CurrentSystemState}.");
+            $"Cluster must reach OperatingLive (31). Current: {(int)master.CurrentClusterState}.");
 
         // Extra frames to let entity creation requests propagate through the genesis pipeline
         // after the cluster state transition is committed.

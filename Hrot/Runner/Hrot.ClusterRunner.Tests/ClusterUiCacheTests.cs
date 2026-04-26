@@ -47,13 +47,13 @@ public sealed class ClusterUiCacheTests : IDisposable
     }
 
     /// <summary>
-    /// CGF1-S0506 SC2: Publishing a SystemStateUpdateEvent must be reflected in
+    /// CGF1-S0506 SC2: Publishing a ClusterStateUpdateEvent must be reflected in
     /// <c>CurrentState</c> and <c>IsBootstrapped</c> after <c>Update()</c>.
     /// </summary>
     [Fact(Timeout = 10_000)]
-    public void ClusterUiCache_ReflectsSystemStateTopic()
+    public void ClusterUiCache_ReflectsClusterStateTopic()
     {
-        _bus.PublishManaged(new SystemStateUpdateEvent { CurrentState = FdpClusterState.LoadingLive });
+        _bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = FdpClusterState.LoadingLive });
 
         Tick();
 
@@ -213,10 +213,12 @@ public sealed class ClusterUiCacheTests : IDisposable
     // ── ReplayDuration aggregation tests ──────────────────────────────────────
 
     /// <summary>
-    /// When a single node responds to <c>PrepareReplay</c> with a
-    /// <see cref="ReplayPrepareResult"/> and the cluster-level completion event arrives,
+    /// When <see cref="ClusterOpCompletedEvent"/> arrives with a
+    /// <see cref="ReplayPrepareResult"/> <c>ResultPayload</c>,
     /// <see cref="ClusterUiCache.ReplayDuration"/> must reflect the reported duration
     /// rather than the default 3600 s.
+    /// Aggregation is performed by <c>ReplayConsensusAggregator</c> in ClusterMaster;
+    /// ClusterUiCache only reads the already-aggregated value from the event.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ClusterUiCache_ReplayDuration_UpdatedFromSingleNodeResponse()
@@ -234,23 +236,13 @@ public sealed class ClusterUiCacheTests : IDisposable
         });
         Tick();
 
-        // Step 2: node 1 ACKs with ReplayPrepareResult carrying the duration.
-        _bus.PublishManaged(new NodeOpCompletedEvent
-        {
-            TransactionId = txId,
-            Operation     = FdpNodeOpType.PrepareReplay,
-            NodeId        = 1,
-            StatusCode    = OrchestrationStatusCode.Success,
-            IsParticipating = true,
-            ResultPayload = new ReplayPrepareResult(MaxNetworkId: 0L, DurationSeconds: expectedDuration),
-        });
-        Tick();
-
-        // Step 3: cluster-level completion (RequestId matches txId via the direct-match path).
+        // Step 2: cluster-level completion carries the aggregated ReplayPrepareResult
+        // (produced by ReplayConsensusAggregator in ClusterMaster).
         _bus.PublishManaged(new ClusterOpCompletedEvent
         {
-            RequestId  = txId,
-            StatusCode = OrchestrationStatusCode.Success,
+            RequestId     = txId,
+            StatusCode    = OrchestrationStatusCode.Success,
+            ResultPayload = new ReplayPrepareResult(MaxNetworkId: 0L, DurationSeconds: expectedDuration),
         });
         Tick();
 
@@ -258,8 +250,12 @@ public sealed class ClusterUiCacheTests : IDisposable
     }
 
     /// <summary>
-    /// When two nodes respond to <c>PrepareReplay</c> with different durations,
-    /// <see cref="ClusterUiCache.ReplayDuration"/> must be the maximum of the two.
+    /// <see cref="ClusterUiCache.ReplayDuration"/> must be updated when
+    /// <see cref="ClusterOpCompletedEvent.ResultPayload"/> carries a
+    /// <see cref="ReplayPrepareResult"/>.
+    /// The aggregation of per-node durations is performed by <c>ReplayConsensusAggregator</c>
+    /// in ClusterMaster; this test verifies that ClusterUiCache correctly reads the
+    /// pre-aggregated result from the cluster-level completion event.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ClusterUiCache_ReplayDuration_TakesMaxFromTwoNodeResponses()
@@ -275,32 +271,13 @@ public sealed class ClusterUiCacheTests : IDisposable
         });
         Tick();
 
-        // Node 1: shorter recording.
-        _bus.PublishManaged(new NodeOpCompletedEvent
-        {
-            TransactionId   = txId,
-            Operation       = FdpNodeOpType.PrepareReplay,
-            NodeId          = 1,
-            StatusCode      = OrchestrationStatusCode.Success,
-            IsParticipating = true,
-            ResultPayload   = new ReplayPrepareResult(MaxNetworkId: 0L, DurationSeconds: 90f),
-        });
-        // Node 2: longer recording.
-        _bus.PublishManaged(new NodeOpCompletedEvent
-        {
-            TransactionId   = txId,
-            Operation       = FdpNodeOpType.PrepareReplay,
-            NodeId          = 2,
-            StatusCode      = OrchestrationStatusCode.Success,
-            IsParticipating = true,
-            ResultPayload   = new ReplayPrepareResult(MaxNetworkId: 0L, DurationSeconds: 180f),
-        });
-        Tick();
-
+        // Cluster-level completion carries the aggregated max (180 s) pre-computed by
+        // ReplayConsensusAggregator — ClusterUiCache just reads ResultPayload.
         _bus.PublishManaged(new ClusterOpCompletedEvent
         {
-            RequestId  = txId,
-            StatusCode = OrchestrationStatusCode.Success,
+            RequestId     = txId,
+            StatusCode    = OrchestrationStatusCode.Success,
+            ResultPayload = new ReplayPrepareResult(MaxNetworkId: 0L, DurationSeconds: 180f),
         });
         Tick();
 

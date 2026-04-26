@@ -26,7 +26,7 @@ namespace Hrot.Common.Orchestration;
 /// </summary>
 public sealed class OrchestrationObserverTranslator : IDisposable
 {
-    private readonly DdsReader<SystemStateTopic>      _stateReader;
+    private readonly DdsReader<ClusterStateTopic>      _stateReader;
     private readonly DdsReader<AssetInventoryTopic>   _inventoryReader;
     private readonly DdsReader<NodeHeartbeat>         _heartbeatReader;
     private readonly DdsReader<SwitchTimeModeWireDto> _timeModeReader;
@@ -42,7 +42,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
     public OrchestrationObserverTranslator(DdsParticipant participant, FdpEventBus bus)
     {
         _bus                = bus ?? throw new ArgumentNullException(nameof(bus));
-        _stateReader        = new DdsReader<SystemStateTopic>(participant);
+        _stateReader        = new DdsReader<ClusterStateTopic>(participant);
         _inventoryReader    = new DdsReader<AssetInventoryTopic>(participant);
         _heartbeatReader    = new DdsReader<NodeHeartbeat>(participant);
         _timeModeReader     = new DdsReader<SwitchTimeModeWireDto>(participant);
@@ -57,11 +57,11 @@ public sealed class OrchestrationObserverTranslator : IDisposable
     /// </summary>
     public void Tick()
     {
-        // SystemStateTopic → SystemStateUpdateEvent
+        // ClusterStateTopic → ClusterStateUpdateEvent
         using (var l = _stateReader.Take())
             foreach (var s in l)
                 if (s.IsValid)
-                    _bus.PublishManaged(new SystemStateUpdateEvent
+                    _bus.PublishManaged(new ClusterStateUpdateEvent
                     {
                         CurrentState = (FdpClusterState)(int)s.Data.CurrentState,
                     });

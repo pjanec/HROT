@@ -112,9 +112,9 @@ public sealed class NodeOpMasterTranslator
 
         return domainPayload switch
         {
-            CommitStatePayload      csp => csp.TargetStateId.ToString(),
-            ReplaySeekPayload       rsp => rsp.TargetWallTicks.ToString(),
-            AbortTransactionPayload atp => atp.TargetTransactionId.ToString(),
+            CommitStatePayload      csp => JsonSerializer.Serialize(csp, _jsonOptions),
+            ReplaySeekPayload       rsp => JsonSerializer.Serialize(rsp, _jsonOptions),
+            AbortTransactionPayload atp => JsonSerializer.Serialize(atp, _jsonOptions),
 
             EditLoadHandlerPayload p => JsonSerializer.Serialize(
                 new NodeTransitionPayloadDto(
@@ -186,7 +186,7 @@ public sealed class NodeOpMasterTranslator
                 }
             }
             default:
-                return resultJson;
+                return null;
         }
     }
 }

@@ -25,7 +25,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
     private readonly DdsWriter<ClusterOpStatus>                        _sysOpStatusWriter;
     private readonly DdsReader<NodeOpStatus>                           _nodeOpStatusReader;
     private readonly DdsWriter<AssetInventoryTopic>                    _inventoryWriter;
-    private readonly DdsWriter<SystemStateTopic>                       _stateWriter;
+    private readonly DdsWriter<ClusterStateTopic>                       _stateWriter;
     // Per-node command writers, created on demand and cached.
     private readonly Dictionary<int, DdsWriter<NodeOpCommand>>         _commandWriters = new();
     private readonly DdsParticipant                                    _participant;
@@ -40,7 +40,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _sysOpStatusWriter   = new DdsWriter<ClusterOpStatus>(_participant);
         _nodeOpStatusReader  = new DdsReader<NodeOpStatus>(_participant);
         _inventoryWriter     = new DdsWriter<AssetInventoryTopic>(_participant);
-        _stateWriter         = new DdsWriter<SystemStateTopic>(_participant);
+        _stateWriter         = new DdsWriter<ClusterStateTopic>(_participant);
         _clusterOpTranslator = new Hrot.Network.Orchestration.ClusterOpMasterTranslator(
             _sysOpRequestReader, _sysOpStatusWriter, _bus, null, _inventoryWriter, _stateWriter);
         _nodeOpTranslator    = new Hrot.Network.Orchestration.NodeOpMasterTranslator(

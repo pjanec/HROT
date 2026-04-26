@@ -187,24 +187,32 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
 
             case NedNodeOpType.CommitState:
             {
-                // CommitState carries the new state ID as a raw int string.
-                if (hasPayload && int.TryParse(payloadJson!.Trim(), out var stateId))
-                    return new CommitStatePayload(stateId);
-                return null;
+                if (!hasPayload) return null;
+                try
+                {
+                    return JsonSerializer.Deserialize<CommitStatePayload>(payloadJson!, DefaultOptions);
+                }
+                catch { return null; }
             }
 
             case NedNodeOpType.NodeReplaySeek:
             {
-                if (hasPayload && long.TryParse(payloadJson!.Trim(), out var ticks))
-                    return new ReplaySeekPayload(ticks);
-                return null;
+                if (!hasPayload) return null;
+                try
+                {
+                    return JsonSerializer.Deserialize<ReplaySeekPayload>(payloadJson!, DefaultOptions);
+                }
+                catch { return null; }
             }
 
             case NedNodeOpType.AbortTransaction:
             {
-                if (hasPayload && Guid.TryParse(payloadJson!.Trim(), out var txId))
-                    return new AbortTransactionPayload(txId);
-                return null;
+                if (!hasPayload) return null;
+                try
+                {
+                    return JsonSerializer.Deserialize<AbortTransactionPayload>(payloadJson!, DefaultOptions);
+                }
+                catch { return null; }
             }
 
             default:

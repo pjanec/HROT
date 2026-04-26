@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
@@ -142,7 +143,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             {
                 TransactionId = exerciseId,
                 Operation     = NodeOpType.SerializeLocal,
-                PayloadJson   = $"{{\"ExerciseId\":\"{exerciseId:N}\"}}",
+                PayloadJson   = JsonSerializer.Serialize(new { ExerciseId = exerciseId.ToString("N") }),
             };
 
             saveHandler.PrepareAsync(saveCmd, CancellationToken.None).Wait();
@@ -162,8 +163,11 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             {
                 TransactionId = Guid.NewGuid(),
                 Operation     = NodeOpType.CommitState,
-                PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingLive}," +
-                                $"\"ScenarioId\":\"{exerciseId:N}\"}}",
+                PayloadJson   = JsonSerializer.Serialize(new
+                {
+                    TargetState = (int)ClusterState.LoadingLive,
+                    ScenarioId  = exerciseId.ToString("N"),
+                }),
             };
 
             loadHandler.PrepareAsync(loadCmd, CancellationToken.None).Wait();
@@ -206,7 +210,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             {
                 TransactionId = exerciseId,
                 Operation     = NodeOpType.SerializeLocal,
-                PayloadJson   = $"{{\"ExerciseId\":\"{exerciseId:N}\"}}",
+                PayloadJson   = JsonSerializer.Serialize(new { ExerciseId = exerciseId.ToString("N") }),
             };
             saveHandler.PrepareAsync(saveCmd, CancellationToken.None).Wait();
             saveHandler.Commit(saveCmd, null);
@@ -231,8 +235,11 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             {
                 TransactionId = Guid.NewGuid(),
                 Operation     = NodeOpType.CommitState,
-                PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingLive}," +
-                                $"\"ScenarioId\":\"{exerciseId:N}\"}}",
+                PayloadJson   = JsonSerializer.Serialize(new
+                {
+                    TargetState = (int)ClusterState.LoadingLive,
+                    ScenarioId  = exerciseId.ToString("N"),
+                }),
             };
             loadHandler.Commit(loadCmd, null);
 
@@ -268,7 +275,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             TransactionId = Guid.NewGuid(),
             Operation     = NodeOpType.CommitState,
             // No ScenarioId — blank-world path; CommitLoad exits early.
-            PayloadJson   = ((int)ClusterState.LoadingLive).ToString(),
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = (int)ClusterState.LoadingLive }),
         };
         loadHandler.Commit(loadCmd, null);
 

@@ -29,11 +29,11 @@ public sealed class ClusterMasterBootstrapTests
         var bus = new FdpEventBus();
         using var exercise = new ClusterMaster(bus);
 
-        // Constructor calls PublishStandby() (empty mandatory) → SystemStateUpdateEvent in write buffer.
+        // Constructor calls PublishStandby() (empty mandatory) → ClusterStateUpdateEvent in write buffer.
         bus.SwapBuffers();
-        var received = bus.ReadManaged<SystemStateUpdateEvent>().ToList();
+        var received = bus.ReadManaged<ClusterStateUpdateEvent>().ToList();
 
-        Assert.True(received.Count > 0, "No SystemStateUpdateEvent published at startup.");
+        Assert.True(received.Count > 0, "No ClusterStateUpdateEvent published at startup.");
         Assert.Single(received);
         Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.Idle, received[0].CurrentState);
     }
@@ -145,7 +145,7 @@ public sealed class ClusterMasterBootstrapTests
         Assert.True(exercise.BootstrapComplete, "Bootstrap should have cleared after SimHost Standby heartbeat.");
 
         // Drain any already-published events (e.g. bootstrap Standby publish).
-        bus.ReadManaged<SystemStateUpdateEvent>().ToList();
+        bus.ReadManaged<ClusterStateUpdateEvent>().ToList();
 
         // Now stop heartbeats: wait long enough for timeout (0.1 s) then tick.
         Thread.Sleep(200);
@@ -156,7 +156,7 @@ public sealed class ClusterMasterBootstrapTests
         {
             exercise.Tick();
             bus.SwapBuffers();
-            foreach (var ev in bus.ReadManaged<SystemStateUpdateEvent>())
+            foreach (var ev in bus.ReadManaged<ClusterStateUpdateEvent>())
             {
                 if (ev.CurrentState == Fdp.Toolkit.Orchestration.ClusterState.Degraded)
                 {

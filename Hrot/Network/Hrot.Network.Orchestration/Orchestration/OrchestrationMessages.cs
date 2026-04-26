@@ -67,10 +67,10 @@ namespace Hrot.NED.Descriptors.Orchestration
         PrefetchFiles = 25,
     }
 
-    [DdsTopic("SystemState")]
+    [DdsTopic("ClusterState")]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
-    public partial struct SystemStateTopic
+    public partial struct ClusterStateTopic
     {
         public ClusterState CurrentState;
         public Guid ExerciseId;
