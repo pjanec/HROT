@@ -953,6 +953,42 @@ namespace Fdp.ModuleHost
 
             return diagnostics.AsReadOnly();
         }
+
+        /// <summary>
+        /// Recursively searches registered global systems and active modules
+        /// to determine which module owns a specific system instance.
+        /// </summary>
+        public string GetModuleNameForSystem(IEcsModuleSystem targetSystem)
+        {
+            if (SearchSystemList(_registeredGlobalSystems, targetSystem))
+                return "Global";
+
+            var topology = _initialized ? _activeTopology : null;
+            if (topology != null)
+            {
+                foreach (var entry in topology.Modules)
+                {
+                    if (entry.RegisteredSystems != null && SearchSystemList(entry.RegisteredSystems, targetSystem))
+                        return entry.Module.Name;
+                }
+            }
+
+            return "Unknown";
+        }
+
+        private static bool SearchSystemList(IEnumerable<IEcsModuleSystem> list, IEcsModuleSystem target)
+        {
+            foreach (var system in list)
+            {
+                if (system == target)
+                    return true;
+
+                if (system is ISystemGroup group && SearchSystemList(group.GetSystems(), target))
+                    return true;
+            }
+
+            return false;
+        }
         
         private bool ShouldRunThisFrame(ModuleEntry entry)
         {

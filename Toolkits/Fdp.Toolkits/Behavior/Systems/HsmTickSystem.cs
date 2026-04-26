@@ -42,10 +42,12 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </typeparam>
     [UpdateInPhase(SystemPhase.Simulation)]
     // [UpdateAfter(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in CognitiveRuntimeModule.
-    public class HsmTickSystem<T> : IEcsModuleSystem
+    public class HsmTickSystem<T> : IEcsModuleSystem, IProfiledSystem 
         where T : unmanaged
     {
         private readonly DoctrineRegistry _registry;
+
+        public string ProfileName => $"HsmTickSystem<{typeof(T).Name}>";
 
         public HsmTickSystem(DoctrineRegistry registry)
         {

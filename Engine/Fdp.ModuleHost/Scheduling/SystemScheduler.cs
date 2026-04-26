@@ -290,11 +290,11 @@ namespace Fdp.ModuleHost.Scheduling
         }
         
         /// <summary>
-        /// Get all profiling data grouped by phase.
+        /// Get all profiling data grouped by phase, alongside the original system instance.
         /// </summary>
-        public Dictionary<SystemPhase, List<SystemProfileData>> GetAllProfileData()
+        public Dictionary<SystemPhase, List<(IEcsModuleSystem System, SystemProfileData Profile)>> GetAllProfileData()
         {
-            var result = new Dictionary<SystemPhase, List<SystemProfileData>>();
+            var result = new Dictionary<SystemPhase, List<(IEcsModuleSystem System, SystemProfileData Profile)>>();
 
             foreach (var (system, profile) in _profileData)
             {
@@ -303,11 +303,11 @@ namespace Fdp.ModuleHost.Scheduling
 
                 if (!result.TryGetValue(phase, out var list))
                 {
-                    list = new List<SystemProfileData>();
+                    list = new List<(IEcsModuleSystem System, SystemProfileData Profile)>();
                     result[phase] = list;
                 }
 
-                list.Add(profile);
+                list.Add((system, profile));
             }
 
             return result;
