@@ -81,7 +81,7 @@ namespace Fdp.ModuleHost.Scheduling
             }
         }
         
-        private void ExecuteSystem(IEcsModuleSystem system, ISimulationView view, float deltaTime)
+        internal void ExecuteSystem(IEcsModuleSystem system, ISimulationView view, float deltaTime)
         {
             var profile = _profileData[system];
             var sw = Stopwatch.StartNew();
@@ -114,7 +114,14 @@ namespace Fdp.ModuleHost.Scheduling
         {
             var groupProfile = _profileData[group];
             var groupSw = Stopwatch.StartNew();
-            
+
+            if (!group.Enabled)
+            {
+                groupSw.Stop();
+                groupProfile.RecordExecution(groupSw.Elapsed.TotalMilliseconds);
+                return;
+            }
+
             foreach (var system in group.GetSystems())
             {
                 // Ensure nested systems are profiled

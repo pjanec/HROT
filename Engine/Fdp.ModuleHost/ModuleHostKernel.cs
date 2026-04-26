@@ -663,6 +663,12 @@ namespace Fdp.ModuleHost
                         // Synchronous run (main thread)
                         try
                         {
+                            // Auto-execute and profile the module's registered systems
+                            if (entry.RegisteredSystems != null)
+                            {
+                                foreach (var sys in entry.RegisteredSystems)
+                                    topology.Scheduler.ExecuteSystem(sys, view, moduleDelta);
+                            }
                             entry.Module.Tick(view, moduleDelta);
                             System.Threading.Interlocked.Increment(ref entry.ExecutionCount);
                             
@@ -688,7 +694,7 @@ namespace Fdp.ModuleHost
                     else
                     {
                         // Safe Execution (Async/FrameSynced)
-                        entry.CurrentTask = ExecuteModuleSafe(entry, view, moduleDelta);
+                        entry.CurrentTask = ExecuteModuleSafe(entry, view, moduleDelta, topology);
                     }
                     
                     entry.FramesSinceLastRun = 0;
@@ -735,7 +741,7 @@ namespace Fdp.ModuleHost
         /// Safely executes a module with timeout and exception handling.
         /// Integrates with circuit breaker for resilience.
         /// </summary>
-        private async Task ExecuteModuleSafe(ModuleEntry entry, ISimulationView view, float dt)
+        private async Task ExecuteModuleSafe(ModuleEntry entry, ISimulationView view, float dt, KernelExecutionTopology topology)
         {
             // 1. Check Circuit Breaker
             if (entry.CircuitBreaker != null && !entry.CircuitBreaker.CanRun())
@@ -768,6 +774,12 @@ namespace Fdp.ModuleHost
             {
                 try
                 {
+                    // Auto-execute and profile the module's registered systems
+                    if (entry.RegisteredSystems != null)
+                    {
+                        foreach (var sys in entry.RegisteredSystems)
+                            topology.Scheduler.ExecuteSystem(sys, view, dt);
+                    }
                     entry.Module.Tick(view, dt);
                     System.Threading.Interlocked.Increment(ref entry.ExecutionCount);
                     return null; // Success
