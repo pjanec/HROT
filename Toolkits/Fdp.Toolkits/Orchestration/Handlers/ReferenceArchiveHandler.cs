@@ -55,7 +55,8 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
         var exerciseId = intent.DomainPayload is ArchiveHandlerPayload p ? p.ExerciseId : null;
         if (exerciseId is null) return Task.FromResult<object?>(null);
 
-        var file = Path.Combine(_localTempRoot, exerciseId, $"node_{_nodeId}.fdp");
+        var fileName = OrchestrationConstants.GetNodeRecordingFileName(_nodeId);
+        var file = Path.Combine(_localTempRoot, exerciseId, fileName);
         if (!File.Exists(file))
         {
             FdpLog<ReferenceArchiveHandler>.Warn($"[ReferenceArchiveHandler] No local .fdp at {file}; cannot report manifest.");
@@ -66,7 +67,7 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
         {
             new FileManifestResult(
                 SourceUnc:    file,
-                RelativeDest: Path.Combine(exerciseId, $"node_{_nodeId}.fdp")),
+                RelativeDest: Path.Combine(exerciseId, fileName)),
         };
 
         return Task.FromResult<object?>(manifest);
@@ -80,7 +81,8 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
     {
         var exerciseId = intent.DomainPayload is ArchiveHandlerPayload p ? p.ExerciseId : null;
         if (exerciseId is null) return;
-        var file = Path.Combine(_localTempRoot, exerciseId, $"node_{_nodeId}.fdp");
+        var fileName = OrchestrationConstants.GetNodeRecordingFileName(_nodeId);
+        var file = Path.Combine(_localTempRoot, exerciseId, fileName);
         try { if (File.Exists(file)) File.Delete(file); }
         catch (Exception ex)
         {

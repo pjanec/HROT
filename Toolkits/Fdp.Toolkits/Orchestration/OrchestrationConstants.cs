@@ -9,5 +9,8 @@ namespace Fdp.Toolkit.Orchestration
         /// Default root directory for scenario staging, checkpoints, and archives.
         /// </summary>
         public const string DefaultStagingDirectory = @"C:\FDP_Temp";
+
+        public static string GetNodeRecordingFileName(int nodeId)
+            => $"node_{nodeId}.fdp";
     }
 }
