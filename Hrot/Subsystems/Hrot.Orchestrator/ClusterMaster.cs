@@ -830,7 +830,7 @@ public sealed class ClusterMaster : IDisposable
                              tStep.TargetState == ClusterState.LoadingEdit))
                         {
                             var localPayload = !string.IsNullOrEmpty(intent.ScenarioId)
-                                ? $"{{\"TargetState\":{(int)tStep.TargetState},\"ScenarioId\":\"{intent.ScenarioId}\"}}"
+                                ? JsonSerializer.Serialize(new { TargetState = (int)tStep.TargetState, ScenarioId = intent.ScenarioId })
                                 : ((int)tStep.TargetState).ToString();
                             _globalContextHandler.Commit(
                                 ClusterNodeOpBuilder.LocalContextCmd(NodeOpType.CommitState, tx.TransactionId, localPayload), null);
@@ -939,7 +939,7 @@ public sealed class ClusterMaster : IDisposable
 
                 if (_globalContextHandler != null)
                 {
-                    var localExercisePayload = intent.ExerciseId != null ? $"{{\"ExerciseId\":\"{intent.ExerciseId}\"}}" : string.Empty;
+                    var localExercisePayload = intent.ExerciseId != null ? JsonSerializer.Serialize(new { ExerciseId = intent.ExerciseId }) : string.Empty;
                     var localCmd = ClusterNodeOpBuilder.LocalContextCmd(NodeOpType.SerializeLocal, txId, localExercisePayload);
                     _ = _globalContextHandler.PrepareAsync(localCmd, System.Threading.CancellationToken.None)
                         .ContinueWith(t =>
@@ -1243,25 +1243,16 @@ public sealed class ClusterMaster : IDisposable
             // S0501: Record per-node responses for the active transition transaction.
             if (_inflightTransitionTx != null && _inflightTransitionTx.TransactionId == ev.TransactionId)
             {
-                if (ev.ResultPayload != null)
+                string payloadStr = ev.ResultPayload is null ? string.Empty
+                    : ev.ResultPayload is string s ? s
+                    : JsonSerializer.Serialize(ev.ResultPayload);
+
+                if (!_inflightTransitionTx.NodeResponses.TryGetValue(ev.NodeId, out var opDict))
                 {
-                    // Correctly serialize to JSON. Do NOT use .ToString() on record structs.
-                    string payloadStr = ev.ResultPayload is string s 
-                        ? s 
-                        : JsonSerializer.Serialize(ev.ResultPayload);
-            
-                    // Only overwrite if we actually have data. This prevents empty 
-                    // CommitState ACKs from erasing our PrepareReplay duration data.
-                    if (!string.IsNullOrWhiteSpace(payloadStr))
-                    {
-                        _inflightTransitionTx.NodeResponses[ev.NodeId] = payloadStr;
-                    }
+                    opDict = new Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>();
+                    _inflightTransitionTx.NodeResponses[ev.NodeId] = opDict;
                 }
-                else if (!_inflightTransitionTx.NodeResponses.ContainsKey(ev.NodeId))
-                {
-                    // Initialize with empty string only if no previous step populated data
-                    _inflightTransitionTx.NodeResponses[ev.NodeId] = string.Empty;
-                }
+                opDict[ev.Operation] = payloadStr;
             }
 
             // SerializeLocal ACK handling.
@@ -1448,7 +1439,7 @@ public sealed class ClusterMaster : IDisposable
             targets.Add(new NodeDistributionTarget
             {
                 NodeId          = kv.Key,
-                DestinationPath = Path.Combine(@"C:\FDP_Temp", scenarioId),
+                DestinationPath = Path.Combine(OrchestrationConstants.DefaultStagingDirectory, scenarioId),
             });
         }
         return targets;
@@ -1466,7 +1457,7 @@ public sealed class ClusterMaster : IDisposable
             targets.Add(new NodeDistributionTarget
             {
                 NodeId          = kv.Key,
-                DestinationPath = Path.Combine(@"C:\FDP_Temp", exerciseId, $"node_{kv.Key}.fdp"),
+                DestinationPath = Path.Combine(OrchestrationConstants.DefaultStagingDirectory, exerciseId, $"node_{kv.Key}.fdp"),
             });
         }
         return targets;

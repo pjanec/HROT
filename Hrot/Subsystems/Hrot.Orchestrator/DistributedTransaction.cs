@@ -23,8 +23,8 @@ public sealed class DistributedTransaction
     /// <summary>The ClusterOpRequest JSON payload that initiated this transaction (CGF1-S0501).</summary>
     public string PayloadJson { get; set; } = string.Empty;
 
-    /// <summary>Per-node ResultJson from each node's final NodeOpStatus ACK, keyed by node ID (CGF1-S0501).</summary>
-    public Dictionary<int, string> NodeResponses { get; } = new();
+    /// <summary>Per-node ResultJson from each node's ACK for each operation, keyed by node ID then operation type (CGF1-S0501).</summary>
+    public Dictionary<int, Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>> NodeResponses { get; } = new();
 
     /// <summary>Per-node ACK latency in milliseconds, keyed by node ID. Populated on commit.</summary>
     public Dictionary<int, float> NodeAckLatencyMs { get; } = new();

@@ -1,5 +1,8 @@
+using Fdp.Toolkit.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
 using Xunit;
+using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
+using NodeOpType   = Fdp.Toolkit.Orchestration.NodeOpType;
 
 namespace Hrot.Orchestrator.Tests;
 
@@ -23,11 +26,11 @@ public sealed class DistributedTransactionTests
     public void NodeResponses_AcceptsEntries()
     {
         var tx = new DistributedTransaction();
-        tx.NodeResponses[1] = "{\"Status\":\"ok\"}";
-        tx.NodeResponses[2] = "{\"Status\":\"error\"}";
+        tx.NodeResponses[1] = new Dictionary<NodeOpType, string> { [NodeOpType.PrepareReplay] = "{\"Status\":\"ok\"}" };
+        tx.NodeResponses[2] = new Dictionary<NodeOpType, string> { [NodeOpType.CommitState]  = "{\"Status\":\"error\"}" };
 
         Assert.Equal(2, tx.NodeResponses.Count);
-        Assert.Equal("{\"Status\":\"ok\"}", tx.NodeResponses[1]);
+        Assert.Equal("{\"Status\":\"ok\"}", tx.NodeResponses[1][NodeOpType.PrepareReplay]);
     }
 
     [Fact]

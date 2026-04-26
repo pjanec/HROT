@@ -63,7 +63,10 @@ internal static class ClusterOpRequestAdapter
                     throw new InvalidOperationException(
                         "[ClusterOpRequestAdapter] TransitionState JSON missing required 'TargetState'.");
 
-                targetState = (FdpClusterState)tsProp.GetInt32();
+                if (tsProp.ValueKind == JsonValueKind.String)
+                    Enum.TryParse<FdpClusterState>(tsProp.GetString(), out targetState);
+                else
+                    targetState = (FdpClusterState)tsProp.GetInt32();
 
                 if (doc.RootElement.TryGetProperty("TargetWallTicks", out var twProp))
                     targetWallTicks = twProp.GetInt64();
@@ -114,27 +117,30 @@ internal static class ClusterOpRequestAdapter
         string? mode;
         Guid    episodeId  = Guid.Empty;
         string? scenarioId = null;
+        bool    isStart    = false;
 
         using (doc)
         {
             mode       = doc.RootElement.TryGetProperty("Mode",      out var mp) ? mp.GetString()   : null;
             scenarioId = doc.RootElement.TryGetProperty("ScenarioId", out var sp) ? sp.GetString()  : null;
 
+            // Accept IsStart bool (from DTOs) or Mode string (legacy format).
+            if (doc.RootElement.TryGetProperty("IsStart", out var isp))
+                isStart = isp.GetBoolean();
+            else if (mode != null)
+                isStart = string.Equals(mode, "Start", StringComparison.OrdinalIgnoreCase);
+
             if (doc.RootElement.TryGetProperty("EpisodeId", out var ep))
                 Guid.TryParse(ep.GetString(), out episodeId);
         }
 
-        if (string.IsNullOrWhiteSpace(mode))
-            throw new InvalidOperationException(
-                "[ClusterOpRequestAdapter] ManageEpisode payload missing 'Mode'.");
         if (episodeId == Guid.Empty)
             throw new InvalidOperationException(
                 "[ClusterOpRequestAdapter] ManageEpisode payload missing or invalid 'EpisodeId'.");
 
-        bool isStart = string.Equals(mode, "Start", StringComparison.OrdinalIgnoreCase);
         if (isStart && string.IsNullOrWhiteSpace(scenarioId))
             throw new InvalidOperationException(
-                "[ClusterOpRequestAdapter] ManageEpisode Mode:Start missing 'ScenarioId'.");
+                "[ClusterOpRequestAdapter] ManageEpisode Start missing 'ScenarioId'.");
 
         return new ManageEpisodeIntent
         {
@@ -177,8 +183,19 @@ internal static class ClusterOpRequestAdapter
     public static SeekReplayIntent ToSeekReplayIntent(ClusterOpRequest req)
     {
         long ticks = 0;
-        if (!string.IsNullOrWhiteSpace(req.PayloadJson) && long.TryParse(req.PayloadJson, out var t))
-            ticks = t;
+        if (!string.IsNullOrWhiteSpace(req.PayloadJson))
+        {
+            if (!long.TryParse(req.PayloadJson, out ticks))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(req.PayloadJson);
+                    if (doc.RootElement.TryGetProperty("TargetWallTicks", out var p))
+                        ticks = p.GetInt64();
+                }
+                catch { }
+            }
+        }
 
         return new SeekReplayIntent { RequestId = req.RequestId, TargetWallTicks = ticks };
     }

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text.Json;
 using Hrot.NED.Descriptors.Orchestration;
+using Hrot.Network.Orchestration;
 using Hrot.Orchestrator;
 using Fdp.Core;
 using Fdp.Toolkit.Time.Domain;
@@ -94,6 +95,7 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.SaveScenario,
+                    ExerciseId = ExtractStringField(req.PayloadJson, "ScenarioId"),
                 });
                 break;
 
@@ -102,7 +104,7 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Export,
-                    ExerciseId = string.IsNullOrWhiteSpace(req.PayloadJson) ? null : req.PayloadJson,
+                    ExerciseId = ExtractStringField(req.PayloadJson, "ExerciseId"),
                 });
                 break;
 
@@ -111,7 +113,7 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Import,
-                    ExerciseId = string.IsNullOrWhiteSpace(req.PayloadJson) ? null : req.PayloadJson,
+                    ExerciseId = ExtractStringField(req.PayloadJson, "ExerciseId"),
                 });
                 break;
 
@@ -170,6 +172,18 @@ public sealed class ClusterScenarioPanel
         return 0;
     }
 
+    private static string? ExtractStringField(string? json, string key)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty(key, out var el)) return el.GetString();
+        }
+        catch { }
+        return null;
+    }
+
     private static TransitionStateIntent ParseTransitionStateIntent(ClusterOpRequest req)
     {
         if (int.TryParse(req.PayloadJson, out var rawInt))
@@ -179,14 +193,21 @@ public sealed class ClusterScenarioPanel
         {
             using var doc = JsonDocument.Parse(req.PayloadJson);
             var root = doc.RootElement;
-            int targetInt = root.TryGetProperty("TargetState", out var tsp) ? tsp.GetInt32() : 0;
+            FdpClusterState targetState = default;
+            if (root.TryGetProperty("TargetState", out var tsp))
+            {
+                if (tsp.ValueKind == JsonValueKind.String)
+                    Enum.TryParse<FdpClusterState>(tsp.GetString(), out targetState);
+                else
+                    targetState = (FdpClusterState)tsp.GetInt32();
+            }
             string? scenarioId = root.TryGetProperty("ScenarioId",  out var sp)  ? sp.GetString()  : null;
             string? exerciseId = root.TryGetProperty("ExerciseId",  out var ep)  ? ep.GetString()  : null;
             string? timeMode   = root.TryGetProperty("TimeMode",    out var tm)  ? tm.GetString()  : null;
             return new TransitionStateIntent
             {
                 TransactionId = req.RequestId,
-                TargetState   = (FdpClusterState)targetInt,
+                TargetState   = targetState,
                 ScenarioId    = scenarioId,
                 ExerciseId    = exerciseId,
                 TimeMode      = timeMode,
@@ -297,7 +318,7 @@ public sealed class ClusterScenarioPanel
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.ReplaySeek,
-            PayloadJson   = $"{{\"TargetWallTicks\":{wallTicks}}}",
+            PayloadJson   = JsonSerializer.Serialize(new SeekReplayPayloadDto(TargetWallTicks: wallTicks), OrchestrationJsonOptions.Default),
         });
     }
 
@@ -528,7 +549,7 @@ public sealed class ClusterScenarioPanel
                 }
 
                 ImGui.TableNextColumn();
-                ImGui.Text(tx.NodeResponses.Count == 0 ? "-" : tx.NodeResponses.Count.ToString());
+                ImGui.Text(tx.NodeResponses.Count == 0 ? "-" : tx.NodeResponses.Values.Sum(d => d.Count).ToString());
 
                 ImGui.TableNextColumn();
                 string payloadSnippet = tx.PayloadJson.Length > 25
@@ -544,19 +565,22 @@ public sealed class ClusterScenarioPanel
 
                 if (open)
                 {
-                    foreach (var nr in tx.NodeResponses)
+                    foreach (var nodeEntry in tx.NodeResponses)
                     {
-                        ImGui.TableNextRow();
-                        ImGui.TableNextColumn();
-                        ImGui.TreeNodeEx($"-> Node {nr.Key}",
-                            ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen |
-                            ImGuiTreeNodeFlags.SpanFullWidth);
-                        ImGui.TableNextColumn(); ImGui.Text("-");
-                        ImGui.TableNextColumn(); ImGui.Text("-");
-                        ImGui.TableNextColumn(); ImGui.Text("-");
-                        ImGui.TableNextColumn();
-                        string nodeSnippet = nr.Value.Length > 25 ? nr.Value[..25] + "..." : nr.Value;
-                        ImGui.Text(nodeSnippet);
+                        foreach (var opEntry in nodeEntry.Value)
+                        {
+                            ImGui.TableNextRow();
+                            ImGui.TableNextColumn();
+                            ImGui.TreeNodeEx($"-> Node {nodeEntry.Key} [{opEntry.Key}]",
+                                ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen |
+                                ImGuiTreeNodeFlags.SpanFullWidth);
+                            ImGui.TableNextColumn(); ImGui.Text("-");
+                            ImGui.TableNextColumn(); ImGui.Text("-");
+                            ImGui.TableNextColumn(); ImGui.Text("-");
+                            ImGui.TableNextColumn();
+                            string nodeSnippet = opEntry.Value.Length > 25 ? opEntry.Value[..25] + "..." : opEntry.Value;
+                            ImGui.Text(nodeSnippet);
+                        }
                     }
                     ImGui.TreePop();
                 }
@@ -617,7 +641,9 @@ public sealed class ClusterScenarioPanel
                         {
                             RequestId     = Guid.NewGuid(),
                             OperationType = ClusterOpType.TransitionState,
-                            PayloadJson   = $"{{\"TargetState\":{(int)target}, \"ExerciseId\":\"{Guid.NewGuid()}\"}}",
+                            PayloadJson   = JsonSerializer.Serialize(
+                                new TransitionPayloadDto(TargetState: target, ScenarioId: null, ExerciseId: Guid.NewGuid().ToString(), TimeMode: null),
+                                OrchestrationJsonOptions.Default),
                         });
                     ImGui.SameLine();
                 }
@@ -676,7 +702,7 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.SaveScenario,
-                    PayloadJson   = $"{{\"ScenarioId\":\"{_saveScenarioId}\"}}",
+                    PayloadJson   = JsonSerializer.Serialize(new { ScenarioId = _saveScenarioId }),
                 });
 
             ImGui.Spacing();
@@ -692,8 +718,9 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.TransitionState,
-                    PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.OperatingEdit}," +
-                                    $"\"ScenarioId\":\"{scenId}\"}}",
+                    PayloadJson   = JsonSerializer.Serialize(
+                        new TransitionPayloadDto(TargetState: ClusterState.OperatingEdit, ScenarioId: scenId, ExerciseId: null, TimeMode: null),
+                        OrchestrationJsonOptions.Default),
                 });
             }
             ImGui.SameLine();
@@ -704,8 +731,9 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.TransitionState,
-                    PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.OperatingLive}," +
-                                    $"\"ScenarioId\":\"{scenId}\",\"ExerciseId\":\"{Guid.NewGuid()}\"}}",
+                    PayloadJson   = JsonSerializer.Serialize(
+                        new TransitionPayloadDto(TargetState: ClusterState.OperatingLive, ScenarioId: scenId, ExerciseId: Guid.NewGuid().ToString(), TimeMode: null),
+                        OrchestrationJsonOptions.Default),
                 });
             }
 
@@ -736,8 +764,9 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.TransitionState,
-                    PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.OperatingReplay}," +
-                                    $"\"ExerciseId\":\"{exerciseId}\"}}",
+                    PayloadJson   = JsonSerializer.Serialize(
+                        new TransitionPayloadDto(TargetState: ClusterState.OperatingReplay, ScenarioId: null, ExerciseId: exerciseId, TimeMode: null),
+                        OrchestrationJsonOptions.Default),
                 });
             }
 
@@ -790,7 +819,9 @@ public sealed class ClusterScenarioPanel
                         {
                             RequestId     = Guid.NewGuid(),
                             OperationType = ClusterOpType.ManageEpisode,
-                            PayloadJson   = $"{{\"Mode\":\"Stop\",\"EpisodeId\":\"{episodeId}\"}}",
+                            PayloadJson   = JsonSerializer.Serialize(
+                                new ManageEpisodePayloadDto(IsStart: false, EpisodeId: episodeId, ScenarioId: null),
+                                OrchestrationJsonOptions.Default),
                         });
                 }
             }
@@ -806,14 +837,13 @@ public sealed class ClusterScenarioPanel
             if (ImGui.Button("Inject Episode##OrcInjectBtn") && _selectedEpisodeIdx >= 0)
             {
                 string scenId     = _uiCache.AvailableScenarios[_selectedEpisodeIdx];
-                string newEpisodeId = Guid.NewGuid().ToString();
                 SendRequest(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.ManageEpisode,
-                    PayloadJson   = $"{{\"Mode\":\"Start\"," +
-                                    $"\"EpisodeId\":\"{newEpisodeId}\"," +
-                                    $"\"ScenarioId\":\"{scenId}\"}}",
+                    PayloadJson   = JsonSerializer.Serialize(
+                        new ManageEpisodePayloadDto(IsStart: true, EpisodeId: Guid.NewGuid(), ScenarioId: scenId),
+                        OrchestrationJsonOptions.Default),
                 });
             }
 
@@ -850,7 +880,7 @@ public sealed class ClusterScenarioPanel
             {
                 RequestId     = requestId,
                 OperationType = ClusterOpType.ExportArchive,
-                PayloadJson   = $"{{\"ExerciseId\":\"{exerciselName}\"}}",
+                PayloadJson   = JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: exerciselName), OrchestrationJsonOptions.Default),
             });
         }
         if (disableAll || _selectedUnarchivedIdx < 0 || _activeArchiveOpId != Guid.Empty)
@@ -878,7 +908,7 @@ public sealed class ClusterScenarioPanel
             {
                 RequestId     = requestId,
                 OperationType = ClusterOpType.ImportArchive,
-                PayloadJson   = $"{{\"ExerciseId\":\"{exerciseName}\"}}",
+                PayloadJson   = JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: exerciseName), OrchestrationJsonOptions.Default),
             });
         }
         if (disableAll || _selectedArchiveIdx < 0 || _activeArchiveOpId != Guid.Empty)

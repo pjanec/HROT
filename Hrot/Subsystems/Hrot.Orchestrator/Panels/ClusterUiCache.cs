@@ -228,7 +228,14 @@ public sealed class ClusterUiCache : IDisposable
         foreach (var ev in _bus.ReadManaged<NodeOpCompletedEvent>())
         {
             if (_inFlight.TryGetValue(ev.TransactionId, out var tx))
-                tx.NodeResponses[ev.NodeId] = SerializePayload(ev.ResultPayload);
+            {
+                if (!tx.NodeResponses.TryGetValue(ev.NodeId, out var opDict))
+                {
+                    opDict = new Dictionary<FdpNodeOpType, string>();
+                    tx.NodeResponses[ev.NodeId] = opDict;
+                }
+                opDict[ev.Operation] = SerializePayload(ev.ResultPayload);
+            }
         }
     }
 
@@ -247,7 +254,7 @@ public sealed class ClusterUiCache : IDisposable
                 matchedTx.Completed = success;
                 matchedTx.IsAborted = !success;
                 if (success)
-                    AggregateReplayDuration(matchedTx.NodeResponses.Values);
+                    AggregateReplayDuration(matchedTx.NodeResponses.Values.SelectMany(d => d.Values));
             }
             else if (_inFlight.Count > 0)
             {
@@ -256,7 +263,7 @@ public sealed class ClusterUiCache : IDisposable
                 if (success)
                 {
                     foreach (var tx in _inFlight.Values)
-                        AggregateReplayDuration(tx.NodeResponses.Values);
+                        AggregateReplayDuration(tx.NodeResponses.Values.SelectMany(d => d.Values));
                 }
                 foreach (var tx in _inFlight.Values)
                 {

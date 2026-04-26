@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Time.Domain;
 using Hrot.NED.Descriptors.Orchestration;
+using Hrot.Network.Orchestration;
 using NedClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using FdpClusterState  = Fdp.Toolkit.Orchestration.ClusterState;
 
@@ -112,7 +113,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
             {
                 RequestId     = intent.RequestId,
                 OperationType = opType,
-                PayloadJson   = intent.ExerciseId ?? string.Empty,
+                PayloadJson   = JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: intent.ExerciseId), OrchestrationJsonOptions.Default),
             });
         }
 
@@ -129,7 +130,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
             {
                 RequestId     = intent.RequestId,
                 OperationType = NedClusterOpType.ReplaySeek,
-                PayloadJson   = $"{{\"TargetWallTicks\":{intent.TargetWallTicks}}}",
+                PayloadJson   = JsonSerializer.Serialize(new SeekReplayPayloadDto(TargetWallTicks: intent.TargetWallTicks), OrchestrationJsonOptions.Default),
             });
 
         foreach (var intent in _bus.ReadManaged<CancelOperationIntent>())
@@ -148,21 +149,16 @@ public sealed class ClusterOpEgressTranslator : IDisposable
 
     private static string SerializeTransitionPayload(TransitionStateIntent intent)
     {
-        var sb = new System.Text.StringBuilder();
-        sb.Append($"{{\"TargetState\":{(int)intent.TargetState}");
-        if (intent.ScenarioId != null) sb.Append($",\"ScenarioId\":\"{intent.ScenarioId}\"");
-        if (intent.ExerciseId != null) sb.Append($",\"ExerciseId\":\"{intent.ExerciseId}\"");
-        if (intent.TimeMode   != null) sb.Append($",\"TimeMode\":\"{intent.TimeMode}\"");
-        sb.Append('}');
-        return sb.ToString();
+        var nedState = (Hrot.NED.Descriptors.Orchestration.ClusterState)(int)intent.TargetState;
+        return JsonSerializer.Serialize(
+            new TransitionPayloadDto(TargetState: nedState, ScenarioId: intent.ScenarioId, ExerciseId: intent.ExerciseId, TimeMode: intent.TimeMode),
+            OrchestrationJsonOptions.Default);
     }
 
     private static string SerializeManageEpisodePayload(ManageEpisodeIntent intent)
     {
-        var sb = new System.Text.StringBuilder();
-        sb.Append($"{{\"IsStart\":{(intent.IsStart ? "true" : "false")},\"EpisodeId\":\"{intent.EpisodeId}\"");
-        if (intent.ScenarioId != null) sb.Append($",\"ScenarioId\":\"{intent.ScenarioId}\"");
-        sb.Append('}');
-        return sb.ToString();
+        return JsonSerializer.Serialize(
+            new ManageEpisodePayloadDto(IsStart: intent.IsStart, EpisodeId: intent.EpisodeId, ScenarioId: intent.ScenarioId),
+            OrchestrationJsonOptions.Default);
     }
 }

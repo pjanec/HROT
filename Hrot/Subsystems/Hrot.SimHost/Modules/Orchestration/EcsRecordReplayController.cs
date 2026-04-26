@@ -97,7 +97,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// </summary>
         public async Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory)
         {
-            var filePath = $"{storageDirectory}/{exerciseId}/node_{_nodeId}.fdp";
+            var filePath = GetRecordingFilePath(exerciseId, storageDirectory);
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
             var config = new RecordingConfiguration
             {
@@ -148,7 +148,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// </summary>
         public async Task StartEpisodeRecordingAsync(Guid episodeId, string storageDirectory)
         {
-            var filePath = $"{storageDirectory}/episodes/{episodeId}_node{_nodeId}.fdp";
+            var filePath = GetEpisodeRecordingFilePath(episodeId, storageDirectory);
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
             var config = new RecordingConfiguration
             {
@@ -180,7 +180,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// </summary>
         public async Task PrepareReplayAsync(Guid exerciseId, string storageDirectory)
         {
-            var filePath = $"{storageDirectory}/{exerciseId}/node_{_nodeId}.fdp";
+            var filePath = GetRecordingFilePath(exerciseId, storageDirectory);
             _activeReplayModule = new ReplayModule(filePath, _repo, _afterSeek);
             await _kernel.InstallModuleAsync(_activeReplayModule);
         }
@@ -198,6 +198,12 @@ namespace Hrot.SimHost.Modules.Orchestration
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────
+
+        private string GetRecordingFilePath(Guid exerciseId, string storageDirectory) =>
+            Path.Combine(storageDirectory, exerciseId.ToString(), $"node_{_nodeId}.fdp");
+
+        private string GetEpisodeRecordingFilePath(Guid episodeId, string storageDirectory) =>
+            Path.Combine(storageDirectory, "episodes", $"{episodeId}_node{_nodeId}.fdp");
 
         /// <summary>
         /// Builds an entity filter predicate that accepts only entities whose
