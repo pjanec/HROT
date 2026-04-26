@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text.Json;
@@ -255,7 +254,6 @@ public sealed class ClusterScenarioPanel
     // ── Seek debounce (S0503) ─────────────────────────────────────────────
     private float _seekDebounceTimer = 0f;
     private bool  _seekPending       = false;
-    private float _replayDuration    = 3600f;
 
     // ── Archive Management state (S0505) ──────────────────────────────────
     private int  _selectedArchiveIdx     = -1;
@@ -301,22 +299,6 @@ public sealed class ClusterScenarioPanel
             OperationType = ClusterOpType.ReplaySeek,
             PayloadJson   = $"{{\"TargetWallTicks\":{wallTicks}}}",
         });
-    }
-
-    /// <summary>
-    /// Reads the replay duration in seconds from the exercise's meta.json.
-    /// Returns 3600 if the file is absent or malformed.
-    /// </summary>
-    internal static float GetReplayDuration(string metaJsonContent)
-    {
-        try
-        {
-            using var doc = System.Text.Json.JsonDocument.Parse(metaJsonContent);
-            if (doc.RootElement.TryGetProperty("TotalFrames", out var el))
-                return el.GetInt32() / 60f;
-        }
-        catch { }
-        return 3600f;
     }
 
     /// <summary>
@@ -750,11 +732,6 @@ public sealed class ClusterScenarioPanel
             {
                 string exerciseId = _uiCache.AvailableExercises[_selectedExerciseIdx];
 
-                // Read replay duration from meta.json if available
-                string metaPath = Path.Combine(@"C:\FDP_Temp", exerciseId, "recording.meta.json");
-                if (File.Exists(metaPath))
-                    _replayDuration = GetReplayDuration(File.ReadAllText(metaPath));
-
                 SendRequest(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
@@ -775,7 +752,7 @@ public sealed class ClusterScenarioPanel
                 ImGui.Text("Seek (s):");
                 ImGui.SameLine();
                 ImGui.SetNextItemWidth(300f);
-                if (ImGui.SliderFloat("##OrcSeek", ref _seekSliderValue, 0f, _replayDuration))
+                if (ImGui.SliderFloat("##OrcSeek", ref _seekSliderValue, 0f, _uiCache.ReplayDuration))
                 {
                     _seekPending       = true;
                     _seekDebounceTimer = 0.5f;

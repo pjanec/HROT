@@ -210,6 +210,103 @@ public sealed class ClusterUiCacheTests : IDisposable
         Assert.Equal(ClusterState.LoadingLive, _uiCache.TxHistory[0].TargetDsmState);
     }
 
+    // ── ReplayDuration aggregation tests ──────────────────────────────────────
+
+    /// <summary>
+    /// When a single node responds to <c>PrepareReplay</c> with a
+    /// <see cref="ReplayPrepareResult"/> and the cluster-level completion event arrives,
+    /// <see cref="ClusterUiCache.ReplayDuration"/> must reflect the reported duration
+    /// rather than the default 3600 s.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ClusterUiCache_ReplayDuration_UpdatedFromSingleNodeResponse()
+    {
+        const float expectedDuration = 120f;
+        var txId = Guid.NewGuid();
+
+        // Step 1: sow in-flight transaction for PrepareReplay.
+        _bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TransactionId = txId,
+            TargetNodeId  = 1,
+            Operation     = FdpNodeOpType.PrepareReplay,
+            DomainPayload = null,
+        });
+        Tick();
+
+        // Step 2: node 1 ACKs with ReplayPrepareResult carrying the duration.
+        _bus.PublishManaged(new NodeOpCompletedEvent
+        {
+            TransactionId = txId,
+            Operation     = FdpNodeOpType.PrepareReplay,
+            NodeId        = 1,
+            StatusCode    = OrchestrationStatusCode.Success,
+            IsParticipating = true,
+            ResultPayload = new ReplayPrepareResult(MaxNetworkId: 0L, DurationSeconds: expectedDuration),
+        });
+        Tick();
+
+        // Step 3: cluster-level completion (RequestId matches txId via the direct-match path).
+        _bus.PublishManaged(new ClusterOpCompletedEvent
+        {
+            RequestId  = txId,
+            StatusCode = OrchestrationStatusCode.Success,
+        });
+        Tick();
+
+        Assert.Equal(expectedDuration, _uiCache.ReplayDuration);
+    }
+
+    /// <summary>
+    /// When two nodes respond to <c>PrepareReplay</c> with different durations,
+    /// <see cref="ClusterUiCache.ReplayDuration"/> must be the maximum of the two.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ClusterUiCache_ReplayDuration_TakesMaxFromTwoNodeResponses()
+    {
+        var txId = Guid.NewGuid();
+
+        _bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TransactionId = txId,
+            TargetNodeId  = 1,
+            Operation     = FdpNodeOpType.PrepareReplay,
+            DomainPayload = null,
+        });
+        Tick();
+
+        // Node 1: shorter recording.
+        _bus.PublishManaged(new NodeOpCompletedEvent
+        {
+            TransactionId   = txId,
+            Operation       = FdpNodeOpType.PrepareReplay,
+            NodeId          = 1,
+            StatusCode      = OrchestrationStatusCode.Success,
+            IsParticipating = true,
+            ResultPayload   = new ReplayPrepareResult(MaxNetworkId: 0L, DurationSeconds: 90f),
+        });
+        // Node 2: longer recording.
+        _bus.PublishManaged(new NodeOpCompletedEvent
+        {
+            TransactionId   = txId,
+            Operation       = FdpNodeOpType.PrepareReplay,
+            NodeId          = 2,
+            StatusCode      = OrchestrationStatusCode.Success,
+            IsParticipating = true,
+            ResultPayload   = new ReplayPrepareResult(MaxNetworkId: 0L, DurationSeconds: 180f),
+        });
+        Tick();
+
+        _bus.PublishManaged(new ClusterOpCompletedEvent
+        {
+            RequestId  = txId,
+            StatusCode = OrchestrationStatusCode.Success,
+        });
+        Tick();
+
+        Assert.Equal(180f, _uiCache.ReplayDuration);
+    }
+
     // ── TC2-P2-T1: ITimeController injection tests ────────────────────────
 
     /// <summary>

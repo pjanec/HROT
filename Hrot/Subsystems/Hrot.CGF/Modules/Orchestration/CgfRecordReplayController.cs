@@ -103,5 +103,9 @@ namespace Hrot.CGF.Modules.Orchestration
         /// <inheritdoc />
         /// <remarks>Always returns 0 — CGF has no ECS network entity map.</remarks>
         public long ActiveMaxNetworkId => 0;
+
+        /// <inheritdoc />
+        /// <remarks>Always returns 0 — CGF does not hold a replay file.</remarks>
+        public float ActiveReplayDurationSeconds => 0f;
     }
 }

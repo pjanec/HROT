@@ -172,6 +172,19 @@ public sealed class NodeOpMasterTranslator
                     return resultJson;
                 }
             }
+            case FdpNodeOpType.PrepareReplay:
+            {
+                try
+                {
+                    return JsonSerializer.Deserialize<ReplayPrepareResult>(
+                        resultJson!,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                }
+                catch
+                {
+                    return resultJson;
+                }
+            }
             default:
                 return resultJson;
         }

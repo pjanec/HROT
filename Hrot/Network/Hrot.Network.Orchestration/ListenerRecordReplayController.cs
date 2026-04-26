@@ -86,5 +86,9 @@ namespace Hrot.Common.Orchestration
         /// <inheritdoc />
         /// <remarks>Always 0 — listener nodes have no ECS entity map.</remarks>
         public long ActiveMaxNetworkId => 0;
+
+        /// <inheritdoc />
+        /// <remarks>Always 0 — listener nodes do not hold a replay file.</remarks>
+        public float ActiveReplayDurationSeconds => 0f;
     }
 }

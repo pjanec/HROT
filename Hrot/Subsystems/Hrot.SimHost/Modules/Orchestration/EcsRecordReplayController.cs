@@ -60,6 +60,19 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// <inheritdoc />
         public long ActiveMaxNetworkId => _activeReplayModule?.MaxNetworkId ?? 0;
 
+        /// <inheritdoc />
+        public float ActiveReplayDurationSeconds
+        {
+            get
+            {
+                if (_activeReplayModule == null) return 0f;
+                var duration = _activeReplayModule.Duration;
+                if (duration > TimeSpan.Zero)
+                    return (float)duration.TotalSeconds;
+                return _activeReplayModule.TotalFrames / 60f;
+            }
+        }
+
         /// <param name="kernel">Kernel that manages module topology.</param>
         /// <param name="nodeId">Local node identifier embedded in recording file names.</param>
         /// <param name="repo">

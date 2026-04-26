@@ -30,6 +30,12 @@ public sealed class ClusterUiCache : IDisposable
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
     };
 
+    // Used when deserializing ReplayPrepareResult from per-node NodeResponses JSON.
+    private static readonly JsonSerializerOptions ReplayResultDeserializeOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+
     // ── Published state ────────────────────────────────────────────────────────
     public ClusterState    CurrentState           { get; private set; }
     public bool        IsBootstrapped         { get; private set; }
@@ -50,6 +56,14 @@ public sealed class ClusterUiCache : IDisposable
 
     public IReadOnlyDictionary<int, NodeHeartbeat> ActiveNodes => _activeNodes;
     public IReadOnlyList<DistributedTransaction>   TxHistory   => _txHistory;
+
+    /// <summary>
+    /// Duration in seconds of the currently loaded replay, aggregated as the maximum
+    /// value reported by all participating nodes in their <c>PrepareReplay</c> response.
+    /// Defaults to 3600 until a successful <c>LoadingReplay</c> transition reports a
+    /// real duration via <see cref="Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult"/>.
+    /// </summary>
+    public float ReplayDuration { get; private set; } = 3600f;
 
     /// <summary>
     /// Cluster states reachable from <see cref="CurrentState"/> in a single planning step.
@@ -214,7 +228,7 @@ public sealed class ClusterUiCache : IDisposable
         foreach (var ev in _bus.ReadManaged<NodeOpCompletedEvent>())
         {
             if (_inFlight.TryGetValue(ev.TransactionId, out var tx))
-                tx.NodeResponses[ev.NodeId] = ev.ResultPayload?.ToString() ?? string.Empty;
+                tx.NodeResponses[ev.NodeId] = SerializePayload(ev.ResultPayload);
         }
     }
 
@@ -232,11 +246,18 @@ public sealed class ClusterUiCache : IDisposable
             {
                 matchedTx.Completed = success;
                 matchedTx.IsAborted = !success;
+                if (success)
+                    AggregateReplayDuration(matchedTx.NodeResponses.Values);
             }
             else if (_inFlight.Count > 0)
             {
                 // Fallback: a terminal ClusterOpCompletedEvent means the operation is done —
-                // close all in-flight transactions.
+                // close all in-flight transactions. Aggregate duration before clearing.
+                if (success)
+                {
+                    foreach (var tx in _inFlight.Values)
+                        AggregateReplayDuration(tx.NodeResponses.Values);
+                }
                 foreach (var tx in _inFlight.Values)
                 {
                     tx.Completed = success;
@@ -246,6 +267,30 @@ public sealed class ClusterUiCache : IDisposable
             }
             HasInFlightTransaction = _inFlight.Count > 0;
         }
+    }
+
+    /// <summary>
+    /// Scans per-node JSON response strings, deserialises each into
+    /// <see cref="ReplayPrepareResult"/>, and updates <see cref="ReplayDuration"/>
+    /// to the maximum <c>DurationSeconds</c> found across all nodes.
+    /// Non-<c>PrepareReplay</c> ACKs (empty or differently-shaped JSON) are silently skipped.
+    /// </summary>
+    private void AggregateReplayDuration(IEnumerable<string> nodeResponses)
+    {
+        float maxDuration = 0f;
+        foreach (var json in nodeResponses)
+        {
+            if (string.IsNullOrWhiteSpace(json)) continue;
+            try
+            {
+                var result = JsonSerializer.Deserialize<ReplayPrepareResult>(
+                    json, ReplayResultDeserializeOptions);
+                maxDuration = Math.Max(maxDuration, result.DurationSeconds);
+            }
+            catch { /* not a ReplayPrepareResult — skip */ }
+        }
+        if (maxDuration > 0f)
+            ReplayDuration = maxDuration;
     }
 
     private static string SerializePayload(object? payload)

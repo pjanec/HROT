@@ -1242,7 +1242,27 @@ public sealed class ClusterMaster : IDisposable
 
             // S0501: Record per-node responses for the active transition transaction.
             if (_inflightTransitionTx != null && _inflightTransitionTx.TransactionId == ev.TransactionId)
-                _inflightTransitionTx.NodeResponses[ev.NodeId] = ev.ResultPayload?.ToString() ?? string.Empty;
+            {
+                if (ev.ResultPayload != null)
+                {
+                    // Correctly serialize to JSON. Do NOT use .ToString() on record structs.
+                    string payloadStr = ev.ResultPayload is string s 
+                        ? s 
+                        : JsonSerializer.Serialize(ev.ResultPayload);
+            
+                    // Only overwrite if we actually have data. This prevents empty 
+                    // CommitState ACKs from erasing our PrepareReplay duration data.
+                    if (!string.IsNullOrWhiteSpace(payloadStr))
+                    {
+                        _inflightTransitionTx.NodeResponses[ev.NodeId] = payloadStr;
+                    }
+                }
+                else if (!_inflightTransitionTx.NodeResponses.ContainsKey(ev.NodeId))
+                {
+                    // Initialize with empty string only if no previous step populated data
+                    _inflightTransitionTx.NodeResponses[ev.NodeId] = string.Empty;
+                }
+            }
 
             // SerializeLocal ACK handling.
             if (ev.Operation == Fdp.Toolkit.Orchestration.NodeOpType.SerializeLocal &&

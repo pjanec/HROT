@@ -436,6 +436,84 @@ namespace Hrot.SimHost.Tests
                 "GhostCreationSystem.BypassLifecycle must be reset after PrepareLive branch.");
         }
 
+        // ── PrepareReplay returns ReplayPrepareResult ─────────────────────────────
+
+        /// <summary>
+        /// Verifies that <see cref="ReferenceReplayLoadHandler.PrepareAsync"/> for
+        /// <c>PrepareReplay</c> returns a <see cref="ReplayPrepareResult"/> (not a raw long)
+        /// with a positive <c>DurationSeconds</c> derived from the recording, and that
+        /// <c>JsonSerializer</c> round-trips both fields without loss.
+        /// </summary>
+        [Fact(Timeout = 20_000)]
+        public async Task PrepareReplay_ReturnsReplayPrepareResult_WithDurationSeconds()
+        {
+            // ── Step 1: create a recording with a small number of frames. ──
+            var exerciseId = Guid.NewGuid();
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+
+            using var cts      = new CancellationTokenSource();
+            var       loopTask = RunKernelLoop(_kernel, cts.Token);
+
+            _world.SetSingletonUnmanaged(new GlobalTime
+            {
+                DeltaTime      = 0.016f,
+                TimeScale      = 1.0f,
+                TotalWallTicks = 10_000L,
+            });
+
+            await controller.PrepareRecordingAsync(exerciseId, _tempDir);
+
+            for (int i = 0; i < 5; i++)
+            {
+                _world.SetSingletonUnmanaged(new GlobalTime
+                {
+                    DeltaTime      = 0.016f,
+                    TimeScale      = 1.0f,
+                    TotalWallTicks = 10_000L + i * 16L,
+                });
+                await Task.Delay(20);
+            }
+
+            await controller.FinalizeRecordingAsync();
+
+            // ── Step 2: build handler and dispatch PrepareReplay. ──
+            var handler = new ReferenceReplayLoadHandler(
+                controller,
+                inputGroup:    null,
+                simGroup:      null,
+                postSimGroup:  null,
+                lifecycleGroup: null,
+                bypassLifecycleToggle: null,
+                storageDirectory: _tempDir);
+
+            var cmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay,
+                DomainPayload = exerciseId,
+            };
+
+            var result = await handler.PrepareAsync(cmd, CancellationToken.None);
+
+            cts.Cancel();
+            await loopTask;
+
+        // ── Step 3: assert result type and round-trip serialisation via JsonSerializer. ──
+            Assert.IsType<ReplayPrepareResult>(result);
+            var rpr = (ReplayPrepareResult)result!;
+
+            Assert.True(rpr.DurationSeconds > 0f,
+                "DurationSeconds must be > 0 for a recording with at least one frame.");
+
+            // Verify JsonSerializer round-trip: Serialize -> Deserialize must recover identical values.
+            var json = System.Text.Json.JsonSerializer.Serialize(rpr);
+            var deserialized = System.Text.Json.JsonSerializer.Deserialize<ReplayPrepareResult>(json);
+            Assert.Equal(rpr.MaxNetworkId, deserialized.MaxNetworkId);
+            Assert.True(deserialized.DurationSeconds > 0f,
+                "DurationSeconds must survive a JsonSerializer round-trip.");
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────────────
 
         private static Task RunKernelLoop(ModuleHostKernel kernel, CancellationToken ct) =>
