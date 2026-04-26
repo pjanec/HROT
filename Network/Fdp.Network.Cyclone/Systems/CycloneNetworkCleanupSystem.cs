@@ -36,12 +36,6 @@ namespace Fdp.Network.Cyclone.Systems
         public SystemProfileData? GetTranslatorProfileData(IDescriptorTranslator translator)
             => _translatorProfileData.TryGetValue(translator, out var data) ? data : null;
 
-        /// <summary>
-        /// Discards all tracked entity state. Called after a replay seek so the system
-        /// does not emit stale DISPOSE packets for pre-seek ghost entities.
-        /// </summary>
-        public void ResetTracking() => _trackedEntities.Clear();
-
         public void Execute(ISimulationView view, float dt)
         {
             // 1. Scan for new entities to track (all lifecycle states — entities may be in
