@@ -42,6 +42,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         private readonly ModuleHostKernel _kernel;
         private readonly int              _nodeId;
         private readonly EntityRepository _repo;
+        private readonly Action?          _afterSeek;
 
         private RecordingModule?                        _activeRecordingModule;
         private ReplayModule?                           _activeReplayModule;
@@ -65,11 +66,12 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// Live <see cref="EntityRepository"/> — passed to <see cref="ReplayModule"/> for
         /// off-main-thread seeks.
         /// </param>
-        public EcsRecordReplayController(ModuleHostKernel kernel, int nodeId, EntityRepository repo)
+        public EcsRecordReplayController(ModuleHostKernel kernel, int nodeId, EntityRepository repo, Action? afterSeek = null)
         {
-            _kernel = kernel ?? throw new ArgumentNullException(nameof(kernel));
-            _repo   = repo   ?? throw new ArgumentNullException(nameof(repo));
-            _nodeId = nodeId;
+            _kernel    = kernel ?? throw new ArgumentNullException(nameof(kernel));
+            _repo      = repo   ?? throw new ArgumentNullException(nameof(repo));
+            _nodeId    = nodeId;
+            _afterSeek = afterSeek;
         }
 
         // ── Global recording ─────────────────────────────────────────────────────
@@ -166,7 +168,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         public async Task PrepareReplayAsync(Guid exerciseId, string storageDirectory)
         {
             var filePath = $"{storageDirectory}/{exerciseId}/node_{_nodeId}.fdp";
-            _activeReplayModule = new ReplayModule(filePath, _repo);
+            _activeReplayModule = new ReplayModule(filePath, _repo, _afterSeek);
             await _kernel.InstallModuleAsync(_activeReplayModule);
         }
 

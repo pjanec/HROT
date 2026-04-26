@@ -124,7 +124,8 @@ namespace Hrot.SimHost
             Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup? postSimGroup = null,
             Fdp.ModuleHost.Scheduling.NetworkLifecycleSystemGroup?  lifecycleGroup = null,
             Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null,
-            Fdp.Core.EventAccumulator? eventAccumulator = null)
+            Fdp.Core.EventAccumulator? eventAccumulator = null,
+            Action? afterSeek = null)
         {
             if (participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
@@ -147,7 +148,8 @@ namespace Hrot.SimHost
             // replay transitions can ACK back to ClusterMaster and not time out.
             EcsRecordReplayController? controller = null;
             if (role.HasFlag(NodeRole.Brain) || role.HasFlag(NodeRole.MuscleGround))
-                controller = new EcsRecordReplayController(kernel, nodeId, world);
+                controller = new EcsRecordReplayController(kernel, nodeId, world,
+                    afterSeek: afterSeek);
             RecordReplayController = controller;
 
             // Wire ReferenceReplayLoadHandler BEFORE ReferenceLiveLoadHandler so the
@@ -160,7 +162,9 @@ namespace Hrot.SimHost
 
                 clusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
                     controller, inputGroup, simGroup, postSimGroup, lifecycleGroup, bypassToggle,
-                    localTempRoot));
+                    localTempRoot,
+                    suspendGlobalTimePush: kernel.SuspendGlobalTimePush,
+                    resumeGlobalTimePush:  kernel.ResumeGlobalTimePush));
             }
 
             // Wire ReferenceCheckpointHandler when a checkpoint worker is provided (CGF1-S0303).

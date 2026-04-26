@@ -10,4 +10,10 @@ public interface INedReplicationModule : IReplicationModule
     // IReplicationModule provides: GhostCreationSystem, DriveFromNetwork, NetworkLifecycleGroup
     // IEcsModule provides: string Name, ExecutionPolicy Policy,
     //                      RegisterSystems(ISystemRegistry), Tick(ISimulationView, float)
+
+    /// <summary>
+    /// Optional callback to invoke after a replay seek to flush stale network-cleanup tracking.
+    /// Returns null when no network cleanup system is wired (e.g. headless tests).
+    /// </summary>
+    Action? AfterSeekCallback { get; }
 }

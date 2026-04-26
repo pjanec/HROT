@@ -30,10 +30,10 @@
 
 ## Phase 4 — Deep Replay Architecture Fixes
 
-- [ ] T-RMF-20  Move `GhostDestructionSystem` + `DeferredTakeoverSystem` inside `NetworkLifecycleSystemGroup` (or new `NetworkIngressSystemGroup`) so they are disabled during replay
-- [ ] T-RMF-21  Fix `GlobalTime` tug-of-war — expose `SuspendGlobalTimePush()` / `ResumeGlobalTimePush()` on kernel; call from `ReferenceReplayLoadHandler`
-- [ ] T-RMF-22  Fix `SmartEgressSystem` 10-second seek lag — force-dirty all active entities after `SeekToFrame` in `PlaybackTickSystem`
-- [ ] T-RMF-23  Fix `CycloneNetworkCleanupSystem` scrub flood on seek — expose `ResetTracking()` and call it from `PlaybackTickSystem` after seek
+- [x] T-RMF-20  Move `GhostDestructionSystem` + `DeferredTakeoverSystem` inside `NetworkLifecycleSystemGroup` (or new `NetworkIngressSystemGroup`) so they are disabled during replay
+- [x] T-RMF-21  Fix `GlobalTime` tug-of-war — expose `SuspendGlobalTimePush()` / `ResumeGlobalTimePush()` on kernel; call from `ReferenceReplayLoadHandler`
+- [x] T-RMF-22  Fix `SmartEgressSystem` 10-second seek lag — force-dirty all active entities after `SeekToFrame` in `PlaybackTickSystem`
+- [x] T-RMF-23  Fix `CycloneNetworkCleanupSystem` scrub flood on seek — expose `ResetTracking()` and call it from `PlaybackTickSystem` after seek
 
 ## Phase 5 — Legacy Removal
 

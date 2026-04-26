@@ -390,6 +390,7 @@ namespace Hrot.SimHost
             // replication module itself, ensuring a single source of truth.
             var ghostCreationSystem   = replicationModule.GhostCreationSystem;
             var networkLifecycleGroup = replicationModule.NetworkLifecycleGroup;
+            var nedModule = replicationModule as Hrot.Common.Abstractions.INedReplicationModule;
 
             var bootstrapper = new NodeBootstrapper(_networkFactory);
             _clusterSlave = bootstrapper.BuildOrchestration(
@@ -403,7 +404,8 @@ namespace Hrot.SimHost
                 simGroup: _toggleSim,
                 lifecycleGroup: networkLifecycleGroup,
                 ghostCreationSystem: ghostCreationSystem,
-                eventAccumulator: _context.EventAccumulator);
+                eventAccumulator: _context.EventAccumulator,
+                afterSeek: nedModule?.AfterSeekCallback);
             _slaveTranslator = bootstrapper.SlaveTranslator;
 
             // Seed GlobalTime singleton.

@@ -314,8 +314,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // Create a fresh ClusterSlave manually to strictly control handler registration order.
         var newClusterSlave = new ClusterSlave(_context.NodeId, "CGF", _context.EventBus);
 
+        var nedModuleForAfterSeek = replicationModule as Hrot.Common.Abstractions.INedReplicationModule;
+        Action? afterSeekAction = nedModuleForAfterSeek?.AfterSeekCallback;
+
         var rrController = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
-            _context.Kernel, _context.NodeId, _context.World);
+            _context.Kernel, _context.NodeId, _context.World, afterSeek: afterSeekAction);
 
         var storageProvider = new LocalDiskStorageProvider(OrchestrationConstants.DefaultStagingDirectory);
 
@@ -327,7 +330,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             postSimGroup:          null,
             lifecycleGroup:        null, 
             bypassLifecycleToggle: null, 
-            storageDirectory:      OrchestrationConstants.DefaultStagingDirectory));
+            storageDirectory:      OrchestrationConstants.DefaultStagingDirectory,
+            suspendGlobalTimePush: _context.Kernel.SuspendGlobalTimePush,
+            resumeGlobalTimePush:  _context.Kernel.ResumeGlobalTimePush));
 
         // 2. CGF-Authoritative Scenario and Episode Load Handlers (must be BEFORE ReferenceLiveLoadHandler)
         var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(_doctrineRegistry!);

@@ -88,6 +88,8 @@ public sealed class NedReplicationModule : INedReplicationModule
     private readonly DeferredTakeOwnershipEgressTranslator?  _dtoEgress;
     private readonly DeferredTakeOwnershipIngressTranslator? _dtoIngress;
 
+    private CycloneNetworkCleanupSystem? _cleanupSystem;
+
     /// <summary>
     /// Ghost-creation system creates replica entities from incoming DDS samples.
     /// Exposed so Phase 4 can wire it into <c>ReplayLoadClusterOpHandler</c>.
@@ -100,6 +102,12 @@ public sealed class NedReplicationModule : INedReplicationModule
     /// to <c>false</c> during replay playback to prevent ghost promotions.
     /// </summary>
     public NetworkLifecycleSystemGroup NetworkLifecycleGroup { get; }
+
+    /// <summary>Exposes the <see cref="CycloneNetworkCleanupSystem"/> for composition-root afterSeek wiring.</summary>
+    public CycloneNetworkCleanupSystem? CleanupSystem => _cleanupSystem;
+
+    /// <inheritdoc/>
+    public Action? AfterSeekCallback => _cleanupSystem != null ? () => _cleanupSystem.ResetTracking() : null;
 
     /// <summary>
     /// Whether dead-reckoning is configured to run on all remote entities (<c>true</c>)
@@ -175,7 +183,13 @@ public sealed class NedReplicationModule : INedReplicationModule
 
         // Ghost creation — shared by all ingress translators + replay handler
         GhostCreationSystem = new GhostCreationSystem(entityMap);
-        NetworkLifecycleGroup = new NetworkLifecycleSystemGroup(GhostCreationSystem);
+
+        var lifecycleInnerSystems = new List<IEcsModuleSystem> { GhostCreationSystem };
+        if (_roleHasBrain && !_roleHasMuscle && !_roleHasIG)
+            lifecycleInnerSystems.Add(new GhostDestructionSystem(_entityMap));
+        if (_roleHasMuscle)
+            lifecycleInnerSystems.Add(new DeferredTakeoverSystem(_entityMap, _localNodeId, _descriptorOwnershipMap, _tkbDb));
+        NetworkLifecycleGroup = new NetworkLifecycleSystemGroup(lifecycleInnerSystems.ToArray());
 
         // Build translator sets — deferred until RegisterSystems to allow null-participant
         // headless contexts to construct the module without creating DDS writers/readers.
@@ -308,8 +322,6 @@ public sealed class NedReplicationModule : INedReplicationModule
         // consume the DestroyEntityCommand first and bypass TearDown, skipping EntityMaster
         // DISPOSE publication to DDS (and thus the IG ghost would never be removed).
         bool pureBrainRole = _roleHasBrain && !_roleHasMuscle && !_roleHasIG;
-        if (pureBrainRole)
-            registry.RegisterSystem(new GhostDestructionSystem(_entityMap));
 
         // ── OwnershipIngressSystem (pure-Brain only) ─────────────────────────
         // When running split-authority (Brain + Muscle), the Muscle's DeferredTakeoverSystem
@@ -329,14 +341,13 @@ public sealed class NedReplicationModule : INedReplicationModule
 		// transition from Ghost → Constructing before DeferredTakeoverSystem claims authority.
 		if( _roleHasMuscle && _tkbDb != null && _lifecycleModule != null)
             registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule));
-        if (_roleHasMuscle)
-            registry.RegisterSystem(new DeferredTakeoverSystem(_entityMap, _localNodeId, _descriptorOwnershipMap, _tkbDb));
 
         // ── Cleanup systems (all roles) ──────────────────────────────────────
         var allCleanupTranslators = new List<FdpIDescriptorTranslator>(allTranslators.OfType<FdpIDescriptorTranslator>());
         if (_dtoIngress != null) allCleanupTranslators.Add(_dtoIngress);
         if (_dtoEgress  != null) allCleanupTranslators.Add(_dtoEgress);
-        registry.RegisterSystem(new CycloneNetworkCleanupSystem(allCleanupTranslators));
+        _cleanupSystem = new CycloneNetworkCleanupSystem(allCleanupTranslators);
+        registry.RegisterSystem(_cleanupSystem);
         registry.RegisterSystem(new DisposalMonitoringSystem(_entityMap));
     }
 

@@ -169,7 +169,9 @@ namespace Hrot.CGF
                 postSimGroup:          null,
                 lifecycleGroup:        null,
                 bypassLifecycleToggle: null,
-                storageDirectory:      localTempRoot));
+                storageDirectory:      localTempRoot,
+                suspendGlobalTimePush: _kernel.SuspendGlobalTimePush,
+                resumeGlobalTimePush:  _kernel.ResumeGlobalTimePush));
 
             // CGF1-S0307 / BATCH-04 TASK-C006,C007: wire CGF-authoritative scenario/episode
             // handlers.  Registered AFTER ReferenceReplayLoadHandler so the replay branch
