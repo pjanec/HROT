@@ -11,6 +11,7 @@ using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Core;
 using Fdp.Toolkit.Time.Domain;
+using Fdp.Toolkit.Time.Controllers;
 using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType    = Hrot.NED.Descriptors.Orchestration.NodeOpType;
@@ -117,6 +118,12 @@ public sealed class ClusterMaster : IDisposable
     private ReplayMasterModule? _replayMasterModule;
 
     /// <summary>
+    /// Optional master sync controller used to snap the master clock after a seek
+    /// completes.  Set via <see cref="SetMasterSync"/>.
+    /// </summary>
+    private MasterSyncController? _masterSync;
+
+    /// <summary>
     /// Tracks in-progress Live-from-Replay branch fan-outs keyed by the
     /// <see cref="NodeOpCommand.TransactionId"/> broadcast to nodes.  Each entry
     /// holds the number of outstanding ACKs; when <c>RemainingAcks</c> reaches zero
@@ -169,6 +176,7 @@ public sealed class ClusterMaster : IDisposable
         public int  Received;
         public bool HasFailure;
         public OrchestrationStatusCode  FailureCode;
+        public ReplaySeekResult? SeekResult;
     }
 
     private readonly Dictionary<Guid, BusTransitionAckTracker> _pendingBusTransitionAcks = new();
@@ -1199,6 +1207,15 @@ public sealed class ClusterMaster : IDisposable
     }
 
     /// <summary>
+    /// Wires the <see cref="MasterSyncController"/> used by <see cref="ConsumeNodeOpStatuses"/>
+    /// to snap the master clock after a seek completes.
+    /// </summary>
+    public void SetMasterSync(MasterSyncController sync)
+    {
+        _masterSync = sync ?? throw new ArgumentNullException(nameof(sync));
+    }
+
+    /// <summary>
     /// Sends a <see cref="NodeOpType.SerializeLocal"/> command to each node in
     /// <paramref name="nodeIds"/> and registers a pending task that waits for all
     /// <c>NodeOpStatus(Success)</c> ACKs before invoking
@@ -1266,10 +1283,24 @@ public sealed class ClusterMaster : IDisposable
                     tracker.HasFailure  = true;
                     tracker.FailureCode = ev.StatusCode;
                 }
+                if (tracker.SeekResult == null &&
+                    ev.ResultPayload is ReplaySeekResult sr &&
+                    sr.RestoredTime.TotalWallTicks != 0)
+                {
+                    tracker.SeekResult = sr;
+                }
                 tracker.Received++;
                 if (tracker.Received >= tracker.Expected)
                 {
                     _pendingBusTransitionAcks.Remove(ev.TransactionId);
+                    if (tracker.SeekResult.HasValue)
+                    {
+                        var sr2 = tracker.SeekResult.Value;
+                        _masterSync?.SnapAndPause(
+                            sr2.RestoredTime.TotalWallTicks,
+                            sr2.RestoredTime.TotalTime,
+                            new HashSet<int>(_roster.ActiveNodes.Keys));
+                    }
                     var aggregated = tracker.HasFailure ? null : TryAggregate(ev.TransactionId);
                     PublishOpStatus(tracker.RequestId,
                         tracker.HasFailure ? tracker.FailureCode : OrchestrationStatusCode.Success,

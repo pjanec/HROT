@@ -220,11 +220,20 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// <summary>
         /// Off-main-thread wall-clock seek.  Delegates to
         /// <see cref="ReplayModule.SeekToWallClockTicksAsync"/> when a replay module is
-        /// active; returns <c>Task.CompletedTask</c> otherwise.
+        /// active; returns <c>default(GlobalTime)</c> with a warning otherwise.
         /// </summary>
-        public Task SeekToTimeAsync(long targetWallClockTicks) =>
-            _activeReplayModule?.SeekToWallClockTicksAsync(targetWallClockTicks)
-                ?? Task.CompletedTask;
+        public async Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks)
+        {
+            if (_activeReplayModule == null)
+            {
+                FdpLog<EcsRecordReplayController>.Warn(
+                    "[EcsRecordReplayController] SeekToTimeAsync called with no active replay module.");
+                return default;
+            }
+            await _activeReplayModule.SeekToWallClockTicksAsync(targetWallClockTicks)
+                .ConfigureAwait(false);
+            return _kernel.GetTimeController().GetCurrentState();
+        }
 
         /// <summary>
         /// No-op in this ECS implementation: frame advancement is driven automatically

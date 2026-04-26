@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Fdp.Core;
+using Fdp.ModuleHost.Time;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Time.Domain;
 using Hrot.NED.Descriptors.Orchestration;
 using ClusterOpType  = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
@@ -169,5 +172,171 @@ public sealed class ClusterMasterSeekTests
         var slaveIds = slaveUpdates[0].SlaveNodeIds;
         Assert.Contains(1, slaveIds);
         Assert.DoesNotContain(2, slaveIds);
+    }
+
+    // ── RT-015: SnapAndPause wired into ConsumeNodeOpStatuses ────────────────
+
+    private static MasterSyncController CreateMasterSync(FdpEventBus bus, long initialTicks = 0)
+    {
+        long ticks = initialTicks;
+        return new MasterSyncController(bus, new HashSet<int>(), tickSource: () => ticks);
+    }
+
+    /// <summary>
+    /// Gets the txId of the NodeReplaySeek fan-out intent published during a seek.
+    /// After calling Tick, swaps bus buffers and reads the intent.
+    /// </summary>
+    private static Guid GetSeekTxId(FdpEventBus bus, ClusterMaster master)
+    {
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        return intents.First(i => i.Operation == FdpNodeOpType.NodeReplaySeek).TransactionId;
+    }
+
+    /// <summary>
+    /// T15a/T15b — After all nodes ACK with a non-default ReplaySeekResult, SnapAndPause
+    /// is called: master clock snaps to RestoredTime and enters Deterministic mode.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ReplaySeek_OnAllNodesAck_WithSeekResult_CallsSnapAndPause()
+    {
+        var masterBus  = new FdpEventBus();
+        var masterSync = CreateMasterSync(masterBus);
+        // Drain the initial baseline published by the constructor.
+        masterBus.SwapBuffers();
+        masterBus.Read<Fdp.Toolkit.Time.Messages.SwitchTimeModeEvent>();
+
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        master.SetMasterSync(masterSync);
+
+        RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
+
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.ReplaySeek,
+            PayloadJson   = "{\"TargetWallTicks\":50000}",
+        });
+
+        Guid txId = GetSeekTxId(bus, master);
+
+        // ACK from node 1 with a real ReplaySeekResult.
+        bus.PublishManaged(new NodeOpCompletedEvent
+        {
+            TransactionId   = txId,
+            Operation       = FdpNodeOpType.NodeReplaySeek,
+            NodeId          = 1,
+            StatusCode      = OrchestrationStatusCode.Success,
+            IsParticipating = true,
+            ResultPayload   = new ReplaySeekResult(new GlobalTime
+            {
+                TotalWallTicks = 9999L,
+                TotalTime      = 5.0,
+            }),
+        });
+        bus.SwapBuffers();
+        master.Tick();
+
+        // T15a: master clock was snapped to the seek result wall ticks.
+        Assert.Equal(9999L, masterSync.GetCurrentState().TotalWallTicks);
+        // T15b: master clock is now in Deterministic mode.
+        Assert.Equal(TimeMode.Deterministic, masterSync.GetMode());
+    }
+
+    /// <summary>
+    /// T15d — When ACK carries default(GlobalTime) (TotalWallTicks == 0), SnapAndPause
+    /// must NOT be called; master clock must remain unchanged.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ReplaySeek_OnAllNodesAck_WithDefaultResult_DoesNotCallSnapAndPause()
+    {
+        var masterBus  = new FdpEventBus();
+        var masterSync = CreateMasterSync(masterBus);
+        masterBus.SwapBuffers();
+        masterBus.Read<Fdp.Toolkit.Time.Messages.SwitchTimeModeEvent>();
+
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        master.SetMasterSync(masterSync);
+
+        RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
+
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.ReplaySeek,
+            PayloadJson   = "{\"TargetWallTicks\":50000}",
+        });
+
+        Guid txId = GetSeekTxId(bus, master);
+
+        long wallTicksBefore = masterSync.GetCurrentState().TotalWallTicks;
+
+        bus.PublishManaged(new NodeOpCompletedEvent
+        {
+            TransactionId   = txId,
+            Operation       = FdpNodeOpType.NodeReplaySeek,
+            NodeId          = 1,
+            StatusCode      = OrchestrationStatusCode.Success,
+            IsParticipating = true,
+            ResultPayload   = new ReplaySeekResult(default(GlobalTime)),
+        });
+        bus.SwapBuffers();
+        master.Tick();
+
+        // Master wall ticks must be unchanged (SnapAndPause not called).
+        Assert.Equal(wallTicksBefore, masterSync.GetCurrentState().TotalWallTicks);
+    }
+
+    /// <summary>
+    /// T15c — A non-seek transition (e.g. TakeCheckpoint) must not call SnapAndPause.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ReplaySeek_NonSeekTransition_DoesNotCallSnapAndPause()
+    {
+        var masterBus  = new FdpEventBus();
+        var masterSync = CreateMasterSync(masterBus);
+        masterBus.SwapBuffers();
+        masterBus.Read<Fdp.Toolkit.Time.Messages.SwitchTimeModeEvent>();
+
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        master.SetMasterSync(masterSync);
+
+        RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
+
+        // Issue a TakeCheckpoint (not a seek).
+        var requestId = Guid.NewGuid();
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId     = requestId,
+            OperationType = ClusterOpType.TakeCheckpoint,
+        });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        Assert.True(intents.Count > 0, "Expected TakeSnapshot fan-out intent.");
+        var txId = intents[0].TransactionId;
+
+        long wallTicksBefore = masterSync.GetCurrentState().TotalWallTicks;
+
+        bus.PublishManaged(new NodeOpCompletedEvent
+        {
+            TransactionId   = txId,
+            Operation       = intents[0].Operation,
+            NodeId          = 1,
+            StatusCode      = OrchestrationStatusCode.Success,
+            IsParticipating = true,
+            ResultPayload   = null,
+        });
+        bus.SwapBuffers();
+        master.Tick();
+
+        // Master wall ticks must be unchanged (SnapAndPause not called).
+        Assert.Equal(wallTicksBefore, masterSync.GetCurrentState().TotalWallTicks);
     }
 }

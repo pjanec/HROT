@@ -71,12 +71,12 @@ namespace Hrot.CGF.Modules.Orchestration
 
         /// <inheritdoc />
         /// <remarks>No-op in Phase 3 skeleton.</remarks>
-        public Task SeekToTimeAsync(long targetWallClockTicks)
+        public Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks)
         {
             FdpLog<CgfRecordReplayController>.Info(
                 "[CgfRecordReplayController] SeekToTime called (ticks={0}). " +
                 "Phase 3 skeleton: no-op.", targetWallClockTicks);
-            return Task.CompletedTask;
+            return Task.FromResult(default(GlobalTime));
         }
 
         /// <inheritdoc />

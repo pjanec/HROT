@@ -31,9 +31,9 @@ barrier arrives that has already elapsed, enabling zero-latency replay seek alig
 **Goal:** `ClusterMaster` treats `NodeReplaySeek` as a proper tracked 2PC operation;
 server-side pause is injected before seek fan-out.
 
-- [ ] **RT-007** Remove premature `PublishOpStatus` from `ReplaySeek` case [details](./TASK-DETAIL.md#task-rt-007-remove-premature-publishopstatus-from-replaysee-case)
-- [ ] **RT-008** Refactor `ProcessSeekReplayIntent` with `BusTransitionAckTracker` [details](./TASK-DETAIL.md#task-rt-008-refactor-processseekereplayintent-with-bustransitionacktracker)
-- [ ] **RT-009** Server-side pause precondition in `ProcessSeekReplayIntent` [details](./TASK-DETAIL.md#task-rt-009-server-side-pause-precondition-in-processseekereplayintent)
+- [x] **RT-007** Remove premature `PublishOpStatus` from `ReplaySeek` case [details](./TASK-DETAIL.md#task-rt-007-remove-premature-publishopstatus-from-replaysee-case)
+- [x] **RT-008** Refactor `ProcessSeekReplayIntent` with `BusTransitionAckTracker` [details](./TASK-DETAIL.md#task-rt-008-refactor-processseekereplayintent-with-bustransitionacktracker)
+- [x] **RT-009** Server-side pause precondition in `ProcessSeekReplayIntent` [details](./TASK-DETAIL.md#task-rt-009-server-side-pause-precondition-in-processseekereplayintent)
 
 ---
 
@@ -56,7 +56,7 @@ clock and broadcasts an atomic pause to all nodes at the end of every seek.
 **Goal:** Seek operations appear as `OperatingReplay -> OperatingReplay` in the 2PC
 history panel instead of the misleading `Idle -> Idle`.
 
-- [ ] **RT-016** Default `SourceDsmState`/`TargetDsmState` to `CurrentState` [details](./TASK-DETAIL.md#task-rt-016-default-sourcedsmsatetargetdsmstate-to-currentstate)
+- [x] **RT-016** Default `SourceDsmState`/`TargetDsmState` to `CurrentState` [details](./TASK-DETAIL.md#task-rt-016-default-sourcedsmsatetargetdsmstate-to-currentstate)
 
 ---
 

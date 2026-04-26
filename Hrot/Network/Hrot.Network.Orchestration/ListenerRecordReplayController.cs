@@ -60,12 +60,12 @@ namespace Hrot.Common.Orchestration
         }
 
         /// <inheritdoc />
-        public Task SeekToTimeAsync(long targetWallClockTicks)
+        public Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks)
         {
             FdpLog<ListenerRecordReplayController>.Info(
                 "[{0}] SeekToTime — listener node, no-op (ticks={1}).",
                 _nodeName, targetWallClockTicks);
-            return Task.CompletedTask;
+            return Task.FromResult(default(GlobalTime));
         }
 
         /// <inheritdoc />
