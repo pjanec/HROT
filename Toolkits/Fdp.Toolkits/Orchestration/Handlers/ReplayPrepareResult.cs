@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace Fdp.Toolkit.Orchestration.Handlers
 {
     /// <summary>
@@ -12,18 +10,12 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// </para>
     ///
     /// <para>
-    /// <see cref="ToString"/> returns a JSON string so that the value is stored in a
-    /// parseable format when serialized via <c>ResultPayload?.ToString()</c> inside
-    /// <c>ClusterUiCache.Process2PcNetworkTraffic</c> and forwarded over DDS.
+    /// Serialised to/from JSON by <c>System.Text.Json.JsonSerializer</c> via
+    /// <c>NodeOpSlaveTranslator.SerializeResultPayload</c> (egress) and
+    /// <c>NodeOpMasterTranslator.DeserializeResultPayload</c> /
+    /// <c>ClusterUiCache.AggregateReplayDuration</c> (ingress).
+    /// Do NOT add a custom <c>ToString()</c> override — use the serializer directly.
     /// </para>
     /// </summary>
-    public record struct ReplayPrepareResult(long MaxNetworkId, float DurationSeconds)
-    {
-        /// <summary>
-        /// Returns a JSON representation, e.g. <c>{"MaxNetworkId":42,"DurationSeconds":300.5}</c>.
-        /// </summary>
-        public override string ToString() =>
-            "{\"MaxNetworkId\":" + MaxNetworkId +
-            ",\"DurationSeconds\":" + DurationSeconds.ToString(CultureInfo.InvariantCulture) + "}";
-    }
+    public record struct ReplayPrepareResult(long MaxNetworkId, float DurationSeconds);
 }
