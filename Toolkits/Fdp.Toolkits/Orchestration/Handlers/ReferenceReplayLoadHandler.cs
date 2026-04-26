@@ -146,13 +146,14 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 await _controller.PrepareReplayAsync(exerciseId, _storageDirectory)
                     .ConfigureAwait(false);
 
-                var maxNetworkId = _controller.ActiveMaxNetworkId;
+                var maxNetworkId    = _controller.ActiveMaxNetworkId;
+                var durationSeconds = _controller.ActiveReplayDurationSeconds;
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
-                    "[ReferenceReplayLoadHandler] PrepareReplay complete (exerciseId={0}, MaxNetworkId={1}).",
-                    exerciseId, maxNetworkId);
+                    "[ReferenceReplayLoadHandler] PrepareReplay complete (exerciseId={0}, MaxNetworkId={1}, Duration={2}s).",
+                    exerciseId, maxNetworkId, durationSeconds);
 
-                return (object?)maxNetworkId;
+                return new ReplayPrepareResult(maxNetworkId, durationSeconds);
             }
             else if (intent.Operation == NodeOpType.FinalizeReplay)
             {

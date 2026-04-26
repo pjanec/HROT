@@ -75,6 +75,16 @@ namespace Fdp.Core.Orchestration
         bool IsReplayActive { get; }
 
         /// <summary>
+        /// Returns the wall-clock duration in seconds of the active replay recording,
+        /// or <c>0</c> when no replay is active.  Derived from
+        /// <see cref="Fdp.Core.FlightRecorder.Metadata.RecordingMetadata.Duration"/> when
+        /// available, with a <c>TotalFrames / 60</c> fallback for legacy recordings.
+        /// Published as part of <c>ReplayPrepareResult</c> so the orchestrator can set the
+        /// seek-slider range after a successful <c>LoadingReplay</c> transition.
+        /// </summary>
+        float ActiveReplayDurationSeconds { get; }
+
+        /// <summary>
         /// Returns the highest network entity ID encountered in the active recording,
         /// or <c>0</c> when no replay is active.  Published to the orchestrator via
         /// <c>ResultJson</c> so the ID allocator can be reset above the replay's ID

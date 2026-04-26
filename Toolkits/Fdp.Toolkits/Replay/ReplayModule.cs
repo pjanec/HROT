@@ -125,6 +125,14 @@ namespace Fdp.Toolkit.Replay
         public int TotalFrames => _playback?.TotalFrames ?? 0;
 
         /// <summary>
+        /// Wall-clock duration of the recording, as stored in
+        /// <see cref="Fdp.Core.FlightRecorder.Metadata.RecordingMetadata.Duration"/>.
+        /// Returns <see cref="TimeSpan.Zero"/> if <see cref="RegisterSystems"/> has not been
+        /// called yet or if the recording pre-dates duration support.
+        /// </summary>
+        public TimeSpan Duration => _playback?.Metadata.Duration ?? TimeSpan.Zero;
+
+        /// <summary>
         /// The maximum network entity ID present in the recording, as reported by
         /// the recording session's <c>AsyncRecorder</c>.
         /// Returns <c>0</c> if the recording pre-dates <c>MaxNetworkId</c> support,
