@@ -82,7 +82,7 @@ namespace Fdp.Toolkit.Orchestration
 
     /// <summary>
     /// Published by <c>ClusterMaster</c> when the global cluster state transitions.
-    /// Consumed by translators to write the DDS <c>SystemStateTopic</c> topic.
+    /// Consumed by translators to write the DDS <c>ClusterStateTopic</c> topic.
     /// </summary>
     [EventId(9015)]
     [DataPolicy(DataPolicy.NoRecord)]
@@ -101,7 +101,7 @@ namespace Fdp.Toolkit.Orchestration
     /// </summary>
     [EventId(9016)]
     [DataPolicy(DataPolicy.NoRecord)]
-    public struct SystemStateUpdateEvent
+    public struct ClusterStateUpdateEvent
     {
         /// <summary>New cluster state.</summary>
         public ClusterState CurrentState;
