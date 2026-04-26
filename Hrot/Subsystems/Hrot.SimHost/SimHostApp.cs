@@ -342,14 +342,10 @@ namespace Hrot.SimHost
             var allPostSimSystems = new System.Collections.Generic.List<IEcsModuleSystem>();
 
             // Add DDS attribute/descriptor update systems from factory (NED-specific, NOP in offline mode).
-            // ComponentSystem-based factory systems are wrapped via CgfInputGroupAdapter (Input phase).
             if (nodeFactory != null)
             {
-                var factoryGroup = new SystemGroup();
-                factoryGroup.Create(_world);
                 foreach (var sys in nodeFactory.CreateSimHostAttributeUpdateSystems())
-                    factoryGroup.AddSystem(sys);
-                _kernel.RegisterGlobalSystem(new CgfInputGroupAdapter(factoryGroup));
+                    allInputSystems.Add(sys);
             }
             foreach (var s in _simCorePack.InputSystems)          allInputSystems.Add(s);
             foreach (var s in _simCorePack.SimulationSystems)     allSimSystems.Add(s);

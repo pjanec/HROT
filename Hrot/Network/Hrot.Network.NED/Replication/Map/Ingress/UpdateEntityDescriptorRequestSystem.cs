@@ -37,7 +37,8 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// <para>An <see cref="UpdateEntityDescriptorAck"/> is written for every
     /// processed sample regardless of outcome so the sender can correlate replies.</para>
     /// </summary>
-    public sealed class UpdateEntityDescriptorRequestSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Input)]
+    public sealed class UpdateEntityDescriptorRequestSystem : IEcsModuleSystem, IDisposable
     {
         private const long GeoSpatialOrdinal        = (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos;
         private const long MapVisualOverlayOrdinal   = (long)Hrot.NED.Descriptors.EDescriptorType.dtMapVisualOverlay;
@@ -85,17 +86,17 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         // â”€â”€ ComponentSystem lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
             using var loan = _reader.Take();
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
-                ProcessRequest(sample.Data);
+                ProcessRequest(sample.Data, view);
             }
         }
 
-        protected override void OnDestroy()
+        public void Dispose()
         {
             _reader.Dispose();
             _ownedAckWriter?.Dispose();
@@ -103,7 +104,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         // â”€â”€ Request handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        private void ProcessRequest(UpdateEntityDescriptorRequest req)
+        private void ProcessRequest(UpdateEntityDescriptorRequest req, ISimulationView view)
         {
             // 1. Resolve entity from network ID.
             if (!_entityMap.TryGetEntity(req.EntityId, out var entity))
@@ -117,11 +118,11 @@ namespace Hrot.Map.Common.Replication.Ingress
             switch (req.DescriptorType)
             {
                 case EDescriptorType.dtWorldPos:
-                    ProcessGeoSpatialUpdate(req, entity);
+                    ProcessGeoSpatialUpdate(req, entity, view);
                     break;
 
                 case EDescriptorType.dtMapVisualOverlay:
-                    ProcessMapVisualOverlayUpdate(req, entity);
+                    ProcessMapVisualOverlayUpdate(req, entity, view);
                     break;
 
                 default:
@@ -132,12 +133,11 @@ namespace Hrot.Map.Common.Replication.Ingress
             }
         }
 
-        private void ProcessGeoSpatialUpdate(UpdateEntityDescriptorRequest req, Entity entity)
+        private void ProcessGeoSpatialUpdate(UpdateEntityDescriptorRequest req, Entity entity, ISimulationView view)
         {
             // 2. Authority guard â€” only apply if this node owns the GeoSpatial descriptor.
             // FIXME: Check native ECS component authority instead of the descriptor key
             //        if (!repo.HasAuthority<SimTransform>(entity))
-            var view = (ISimulationView)World;
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
             if (!view.HasAuthority(entity, packedKey))
             {
@@ -159,7 +159,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 ? view.GetComponentRO<SimTransform>(entity).Rotation
                 : Quaternion.Identity;
 
-            World.SetComponent(entity, new SimTransform
+            ((EntityRepository)view).SetComponent(entity, new SimTransform
             {
                 Position = cartesian,
                 Rotation = currentRot,
@@ -183,9 +183,8 @@ namespace Hrot.Map.Common.Replication.Ingress
             });
         }
 
-        private void ProcessMapVisualOverlayUpdate(UpdateEntityDescriptorRequest req, Entity entity)
+        private void ProcessMapVisualOverlayUpdate(UpdateEntityDescriptorRequest req, Entity entity, ISimulationView view)
         {
-            var view = (ISimulationView)World;
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
 
             if (!view.HasAuthority(entity, packedKey))
@@ -216,15 +215,15 @@ namespace Hrot.Map.Common.Replication.Ingress
                 }
             }
 
-            World.SetManagedComponent(entity, polyline);
+            ((EntityRepository)view).SetManagedComponent(entity, polyline);
 
             // Also refresh style if provided in the overlay.
             if (!string.IsNullOrEmpty(overlay.StyleOverrideJson))
             {
-                World.SetComponent(entity, MapOverlayStyle.FromJson(overlay.StyleOverrideJson));
+                ((EntityRepository)view).SetComponent(entity, MapOverlayStyle.FromJson(overlay.StyleOverrideJson));
             }
 
-            SmartEgressUtil.MarkDirty(World, entity, MapVisualOverlayOrdinal);
+            SmartEgressUtil.MarkDirty((EntityRepository)view, entity, MapVisualOverlayOrdinal);
 
             FdpLog<UpdateEntityDescriptorRequestSystem>.Info(
                 "[UpdDescReq] Applied MapVisualOverlay update for NetID {0} pts={1}.",

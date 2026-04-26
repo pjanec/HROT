@@ -176,7 +176,7 @@ public sealed class EditorHarness : IDisposable
         foreach (var sys in simHostCorePack.PostSimulationSystems) Kernel.RegisterGlobalSystem(sys);
 
         // Register editor-specific ECS systems (cargo, perception, zone authoring).
-        Kernel.RegisterModule(new EditorSystemsModule(Repo, zoneService));
+        Kernel.RegisterModule(new EditorSystemsModule(zoneService));
 
         Kernel.Initialize();
 

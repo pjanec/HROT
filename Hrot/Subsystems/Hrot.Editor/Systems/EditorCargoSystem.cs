@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 
@@ -10,58 +11,61 @@ namespace Hrot.Editor.Systems;
 /// to reflect cargo state changes requested via <see cref="EmbarkEntityCommand"/>
 /// and <see cref="DisembarkEntityCommand"/>.
 /// </summary>
-public sealed class EditorCargoSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    public sealed class EditorCargoSystem : IEcsModuleSystem
 {
     /// <inheritdoc/>
-    protected override void OnUpdate()
+    public void Execute(ISimulationView view, float deltaTime)
     {
-        ProcessEmbark();
-        ProcessDisembark();
+        ProcessEmbark(view);
+        ProcessDisembark(view);
     }
 
-    private void ProcessEmbark()
+    private void ProcessEmbark(ISimulationView view)
     {
-        var cmds = World.Bus.Read<EmbarkEntityCommand>();
+        var repo = (EntityRepository)view;
+        var cmds = view.ReadEvents<EmbarkEntityCommand>();
         for (int i = 0; i < cmds.Length; i++)
         {
             ref readonly var cmd = ref cmds[i];
 
-            if (!World.IsAlive(cmd.Passenger) || !World.IsAlive(cmd.Vehicle)) continue;
-            if (!World.HasComponent<PassengerBuffer>(cmd.Vehicle)) continue;
+            if (!view.IsAlive(cmd.Passenger) || !view.IsAlive(cmd.Vehicle)) continue;
+            if (!view.HasComponent<PassengerBuffer>(cmd.Vehicle)) continue;
 
-            ref var buffer = ref World.GetComponentRW<PassengerBuffer>(cmd.Vehicle);
+            ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(cmd.Vehicle);
             if (buffer.Count >= PassengerBuffer.Capacity) continue;
 
             buffer.Passengers[buffer.Count++] = cmd.Passenger;
 
             // Strip movement and combat capability while embarked.
-            if (World.HasComponent<ActorCapabilityState>(cmd.Passenger))
+            if (view.HasComponent<ActorCapabilityState>(cmd.Passenger))
             {
-                ref var caps = ref World.GetComponentRW<ActorCapabilityState>(cmd.Passenger);
+                ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(cmd.Passenger);
                 caps.Capabilities &= ~(ActorCapabilities.CanMove | ActorCapabilities.CanShoot);
             }
 
-            World.AddComponent(cmd.Passenger, new IsEmbarkedTag { VehicleEntity = cmd.Vehicle });
+            repo.AddComponent(cmd.Passenger, new IsEmbarkedTag { VehicleEntity = cmd.Vehicle });
         }
     }
 
-    private void ProcessDisembark()
+    private void ProcessDisembark(ISimulationView view)
     {
-        var cmds = World.Bus.Read<DisembarkEntityCommand>();
+        var repo = (EntityRepository)view;
+        var cmds = view.ReadEvents<DisembarkEntityCommand>();
         for (int i = 0; i < cmds.Length; i++)
         {
             ref readonly var cmd = ref cmds[i];
 
-            if (!World.IsAlive(cmd.Passenger)) continue;
-            if (!World.HasComponent<IsEmbarkedTag>(cmd.Passenger)) continue;
+            if (!view.IsAlive(cmd.Passenger)) continue;
+            if (!view.HasComponent<IsEmbarkedTag>(cmd.Passenger)) continue;
 
-            ref readonly var tag = ref World.GetComponent<IsEmbarkedTag>(cmd.Passenger);
+            ref readonly var tag = ref repo.GetComponent<IsEmbarkedTag>(cmd.Passenger);
             Entity vehicle = tag.VehicleEntity;
 
             // Remove from vehicle's passenger buffer.
-            if (World.IsAlive(vehicle) && World.HasComponent<PassengerBuffer>(vehicle))
+            if (view.IsAlive(vehicle) && view.HasComponent<PassengerBuffer>(vehicle))
             {
-                ref var buffer = ref World.GetComponentRW<PassengerBuffer>(vehicle);
+                ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
                 for (int s = 0; s < buffer.Count; s++)
                 {
                     if (buffer.Passengers[s] == cmd.Passenger)
@@ -75,13 +79,13 @@ public sealed class EditorCargoSystem : ComponentSystem
             }
 
             // Restore movement and combat capability.
-            if (World.HasComponent<ActorCapabilityState>(cmd.Passenger))
+            if (view.HasComponent<ActorCapabilityState>(cmd.Passenger))
             {
-                ref var caps = ref World.GetComponentRW<ActorCapabilityState>(cmd.Passenger);
+                ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(cmd.Passenger);
                 caps.Capabilities |= ActorCapabilities.CanMove | ActorCapabilities.CanShoot;
             }
 
-            World.RemoveComponent<IsEmbarkedTag>(cmd.Passenger);
+            repo.RemoveComponent<IsEmbarkedTag>(cmd.Passenger);
         }
     }
 }

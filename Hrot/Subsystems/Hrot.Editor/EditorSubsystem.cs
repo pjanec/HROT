@@ -371,7 +371,7 @@ namespace Hrot.Editor
             foreach (var sys in simHostCorePack.PostSimulationSystems) _kernel.RegisterGlobalSystem(sys);
 
             // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.
-            _kernel.RegisterModule(new EditorSystemsModule(_world));
+            _kernel.RegisterModule(new EditorSystemsModule());
 
             // ── 4c. ELM + offline spawning module + scenario genesis pipeline ──────────────────
             // CreateEntityRequestSystem drains scenarioLoadSource each Input tick and emits

@@ -1,8 +1,8 @@
 using System;
 using System.Numerics;
+using Fdp.Core;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems;
-using Fdp.Core;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Components;
 using Xunit;
@@ -30,13 +30,6 @@ namespace Hrot.SimHost.Tests
 
         // ── Helper ────────────────────────────────────────────────────────────
 
-        private static SystemGroup CreateGroup(EntityRepository world)
-        {
-            var g = new SystemGroup();
-            g.Create(world);
-            return g;
-        }
-
         // ── SimPresentationModule tests ────────────────────────────────────────
 
         /// <summary>
@@ -49,10 +42,8 @@ namespace Hrot.SimHost.Tests
             _world.SetSingletonManaged(new Hrot.Common.ActivePerspective { Name = "Sim" });
 
             var module = new SimPresentationModule(canvas: null);
-            using var group = CreateGroup(_world);
-            module.RegisterSystems(group);
 
-            group.Run();
+            module.RenderSystem.Execute(_world, 0f);
 
             Assert.Equal(1, module.RenderSystem.DrawCallCount);
         }
@@ -67,10 +58,8 @@ namespace Hrot.SimHost.Tests
             _world.SetSingletonManaged(new Hrot.Common.ActivePerspective { Name = "IG" });
 
             var module = new SimPresentationModule(canvas: null);
-            using var group = CreateGroup(_world);
-            module.RegisterSystems(group);
 
-            group.Run();
+            module.RenderSystem.Execute(_world, 0f);
 
             Assert.Equal(0, module.RenderSystem.DrawCallCount);
         }
@@ -87,13 +76,8 @@ namespace Hrot.SimHost.Tests
             _world.SetSingletonManaged(new Hrot.Common.ActivePerspective { Name = "Sim" });
 
             var simModule = new SimPresentationModule(canvas: null);
-            using var group = CreateGroup(_world);
 
-            simModule.RegisterSystems(group);
-
-            var systems = group.GetSystems();
-            Assert.Single(systems);
-            Assert.Contains(systems, s => s is SimMapRenderSystem);
+            Assert.IsType<SimMapRenderSystem>(simModule.RenderSystem);
         }
 
         /// <summary>

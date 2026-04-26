@@ -200,5 +200,5 @@ public sealed class EditorApplication : IEditorLogic
     /// the kernel <em>before</em> calling <c>kernel.Initialize()</c>.
     /// </summary>
     public EditorSystemsModule CreateEditorSystemsModule()
-        => new EditorSystemsModule(_world);
+        => new EditorSystemsModule();
 }

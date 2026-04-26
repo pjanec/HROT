@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using CarKinem.Trajectory;
 using CycloneDDS.Runtime;
-using Fdp.Interfaces;
 using Fdp.Core;
+using Fdp.Interfaces;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.DER;
 using Fdp.Toolkit.Replication.Systems;
@@ -55,7 +56,7 @@ public interface INetworkFactory
     /// Returns empty list when no participant is available (offline / no-DDS mode).
     /// These systems must be added to the pre-kernel SystemGroup that runs before the main tick.
     /// </summary>
-    IReadOnlyList<ComponentSystem> CreateSimHostAttributeUpdateSystems();
+    IReadOnlyList<IEcsModuleSystem> CreateSimHostAttributeUpdateSystems();
 
     /// <summary>Creates the IG-specific DDS ingress translator provider.</summary>
     IIgTranslators CreateIgTranslators();

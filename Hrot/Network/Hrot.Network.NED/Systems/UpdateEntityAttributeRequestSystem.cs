@@ -49,7 +49,8 @@ namespace Hrot.Map.Common.Systems
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class UpdateEntityAttributeRequestSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Input)]
+    public sealed class UpdateEntityAttributeRequestSystem : IEcsModuleSystem, IDisposable
     {
         private readonly IUpdateEntityAttributeRequestSource _requestSource;
         private readonly IUpdateEntityAttributeAckSink       _ackSink;
@@ -130,16 +131,14 @@ namespace Hrot.Map.Common.Systems
         {
         }
 
-        // ── ComponentSystem lifecycle ──────────────────────────────────────────
+        // ── IEcsModuleSystem lifecycle ──────────────────────────────────────────
 
-        /// <inheritdoc/>
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            _requestSource.ProcessRequests(ProcessRequest);
+            _requestSource.ProcessRequests(req => ProcessRequest(req, (EntityRepository)view));
         }
 
-        /// <inheritdoc/>
-        protected override void OnDestroy()
+        public void Dispose()
         {
             (_requestSource as IDisposable)?.Dispose();
             (_ackSink       as IDisposable)?.Dispose();
@@ -147,7 +146,7 @@ namespace Hrot.Map.Common.Systems
 
         // ── Request handling ───────────────────────────────────────────────────
 
-        private void ProcessRequest(UpdateEntityAttributeRequest req)
+        private void ProcessRequest(UpdateEntityAttributeRequest req, EntityRepository repo)
         {
             // 1. Resolve the entity from the network ID.
             if (!_entityMap.TryGetEntity((long)req.EntityId, out var entity))
@@ -173,7 +172,7 @@ namespace Hrot.Map.Common.Systems
                 // FlushDirtyMarks is a no-op here because the binary installer flushers
                 // drive SmartEgress themselves (BinaryInterpreter.Apply calls FlushDirtyMarks
                 // at the end via IEntityPatchContext contract).
-                var ecsPatchCtx  = EcsPatchContext.Create(World, entity);
+                var ecsPatchCtx  = EcsPatchContext.Create(repo, entity);
                 var binaryCtx    = _binaryInterpreter!.CreateContext(ecsPatchCtx);
                 _binaryInterpreter.Apply(binaryCtx,
                     CollectionsMarshal.AsSpan(req.AttributeRecords));
@@ -209,7 +208,7 @@ namespace Hrot.Map.Common.Systems
             // 4. Build live-ECS patch context — component-level authority guard is wired
             //    into the compiler's Compile() loop via EcsPatchContext.HasAuthority.
             //    TODO ATTR-BATCH-03: investigate pooling EcsPatchContext for high-frequency updates.
-            var context = _jsonCompiler.CreatePatchContext(World, entity);
+            var context = _jsonCompiler.CreatePatchContext(repo, entity);
 
             // 5. Stream the JSON patch through the routing table.
             //    Routes whose component ID is not authorised by this node are silently skipped

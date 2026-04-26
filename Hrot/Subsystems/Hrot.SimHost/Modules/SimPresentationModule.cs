@@ -1,5 +1,5 @@
 using Hrot.SimHost.Systems;
-using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Runner;
@@ -45,9 +45,9 @@ namespace Hrot.SimHost.Modules
 
         /// <summary>
         /// Registers <see cref="SimMapRenderSystem"/> into the provided
-        /// <see cref="PresentationSystemGroup"/> group.
+        /// <see cref="ISystemRegistry"/>.
         /// </summary>
-        public void RegisterSystems(SystemGroup group) =>
-            group.AddSystem(_renderSystem);
+        public void RegisterSystems(ISystemRegistry registry) =>
+            registry.RegisterSystem(_renderSystem);
     }
 }

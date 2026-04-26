@@ -40,18 +40,15 @@ namespace Hrot.SimHost.Tests
             var doctrineReg    = new DoctrineRegistry();
             var compiler       = AttributeCompilerFactory.Build(wgs84);
 
-            var group = new SystemGroup();
-            var repo  = new EntityRepository();
-            group.Create(repo);
+            var systems = new System.Collections.Generic.List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>();
 
             // Register the exact same set that SimHostApp._kernelGroup builds.
-            group.AddSystem(new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, doctrineReg));
-            group.AddSystem(new UpdateEntityDescriptorRequestSystem(participant, entityMap, wgs84));
-            group.AddSystem(new UpdateEntityAttributeRequestSystem(participant, entityMap, wgs84, compiler));
+            systems.Add(new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, doctrineReg));
+            systems.Add(new UpdateEntityDescriptorRequestSystem(participant, entityMap, wgs84));
+            systems.Add(new UpdateEntityAttributeRequestSystem(participant, entityMap, wgs84, compiler));
             // (The duplicate in SimHostApp was the second UpdateEntityDescriptorRequestSystem —
             //  it is intentionally NOT added here to mirror the fixed code.)
 
-            var systems = group.GetSystems();
             var descriptorSystems = systems
                 .Where(s => s is UpdateEntityDescriptorRequestSystem)
                 .ToList();

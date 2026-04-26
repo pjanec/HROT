@@ -44,9 +44,8 @@ public sealed class EditorCargoSystemTests : IDisposable
     private EditorCargoSystem RunSystem()
     {
         var sys = new EditorCargoSystem();
-        sys.Create(_world);
         _world.Bus.SwapBuffers();
-        sys.Run();
+        sys.Execute(_world, 0f);
         return sys;
     }
 
@@ -108,18 +107,16 @@ public sealed class EditorCargoSystemTests : IDisposable
         // Phase 1: Embark.
         _world.Bus.Publish(new EmbarkEntityCommand { Passenger = passenger, Vehicle = vehicle });
         var sys1 = new EditorCargoSystem();
-        sys1.Create(_world);
         _world.Bus.SwapBuffers();
-        sys1.Run();
+        sys1.Execute(_world, 0f);
 
         Assert.True(_world.HasComponent<IsEmbarkedTag>(passenger), "Should be embarked after Phase 1");
 
         // Phase 2: Disembark.
         _world.Bus.Publish(new DisembarkEntityCommand { Passenger = passenger });
         var sys2 = new EditorCargoSystem();
-        sys2.Create(_world);
         _world.Bus.SwapBuffers();
-        sys2.Run();
+        sys2.Execute(_world, 0f);
 
         Assert.False(_world.HasComponent<IsEmbarkedTag>(passenger), "Should NOT be embarked after disembark");
     }
@@ -165,9 +162,8 @@ public sealed unsafe class EditorPerceptionSetupSystemTests : IDisposable
         });
 
         var sys = new EditorPerceptionSetupSystem();
-        sys.Create(_world);
         _world.Bus.SwapBuffers();
-        sys.Run();
+        sys.Execute(_world, 0f);
 
         ref readonly var mem = ref _world.GetComponent<TargetMemory>(perceiver);
         Assert.Equal(1, mem.Count);
@@ -192,10 +188,9 @@ public sealed unsafe class EditorPerceptionSetupSystemTests : IDisposable
         });
 
         var sys = new EditorPerceptionSetupSystem();
-        sys.Create(_world);
         _world.Bus.SwapBuffers();
 
-        var ex = Record.Exception(() => sys.Run());
+        var ex = Record.Exception(() => sys.Execute(_world, 0f));
         Assert.Null(ex);
     }
 }
@@ -263,9 +258,8 @@ public sealed class EditorZoneAuthoringSystemTests : IDisposable
         });
 
         var sys = new EditorZoneAuthoringSystem();
-        sys.Create(_world);
         _world.Bus.SwapBuffers();
-        sys.Run();
+        sys.Execute(_world, 0f);
 
         var query   = _world.Query().With<SimTransform>().Build();
         int count   = 0;
@@ -296,9 +290,8 @@ public sealed class EditorZoneAuthoringSystemTests : IDisposable
         });
 
         var sys = new EditorZoneAuthoringSystem();
-        sys.Create(_world);
         _world.Bus.SwapBuffers();
-        sys.Run();
+        sys.Execute(_world, 0f);
 
         Assert.True(_world.HasSingleton<ZoneEnvironmentData>());
     }

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using CarKinem.Road;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
 using Hrot.Map.Common.Components;
@@ -23,7 +24,8 @@ namespace Hrot.Editor.Systems;
 /// service's active-zone tracking so that <c>ScenarioFileService.SaveScenario</c> persists
 /// the correct zone DTO data.
 /// </summary>
-public sealed class EditorZoneAuthoringSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    public sealed class EditorZoneAuthoringSystem : IEcsModuleSystem
 {
     private readonly ZoneManagerService? _zoneService;
     private readonly Dictionary<string, ZoneDefinitionDto> _dtos = new();
@@ -38,30 +40,31 @@ public sealed class EditorZoneAuthoringSystem : ComponentSystem
     }
 
     /// <inheritdoc/>
-    protected override void OnUpdate()
+    public void Execute(ISimulationView view, float deltaTime)
     {
-        ProcessObstacles();
-        ProcessZoneConfig();
+        ProcessObstacles(view);
+        ProcessZoneConfig(view);
     }
 
-    private void ProcessObstacles()
+    private void ProcessObstacles(ISimulationView view)
     {
-        foreach (var cmd in World.Bus.ReadManaged<SpawnZoneObstacleCommand>())
+        var repo = (EntityRepository)view;
+        foreach (var cmd in view.ReadManagedEvents<SpawnZoneObstacleCommand>())
         {
-            var entity = World.CreateEntity();
+            var entity = repo.CreateEntity();
 
-            World.AddComponent(entity, new SimTransform
+            repo.AddComponent(entity, new SimTransform
             {
                 Position = new Vector3(cmd.Position.X, cmd.Position.Y, 0f),
             });
 
-            World.AddComponent(entity, new PhysicsCollider
+            repo.AddComponent(entity, new PhysicsCollider
             {
                 Radius         = cmd.Radius,
                 CollisionLayer = PhysicsConstants.EntityCollisionLayer,
             });
 
-            World.AddComponent(entity, new ZoneMembership { ZoneName = cmd.ZoneName });
+            repo.AddComponent(entity, new ZoneMembership { ZoneName = cmd.ZoneName });
 
             // Mirror to zone DTO tracking for save pipeline.
             if (_zoneService != null)
@@ -82,14 +85,15 @@ public sealed class EditorZoneAuthoringSystem : ComponentSystem
         }
     }
 
-    private void ProcessZoneConfig()
+    private void ProcessZoneConfig(ISimulationView view)
     {
-        foreach (var cmd in World.Bus.ReadManaged<UpdateZoneConfigCommand>())
+        var repo = (EntityRepository)view;
+        foreach (var cmd in view.ReadManagedEvents<UpdateZoneConfigCommand>())
         {
             if (string.IsNullOrEmpty(cmd.RoadNetworkPath)) continue;
 
             var blob = RoadNetworkLoader.LoadFromJson(cmd.RoadNetworkPath);
-            World.SetSingleton(new ZoneEnvironmentData { RoadNetwork = blob });
+            repo.SetSingleton(new ZoneEnvironmentData { RoadNetwork = blob });
 
             // Mirror to zone DTO tracking for save pipeline.
             if (_zoneService != null)

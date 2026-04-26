@@ -285,7 +285,7 @@ public sealed class HexagonalBoundaryTests
         public ISimHostAuxiliaryTranslators     CreateSimHostAuxiliaryTranslators()                    => _base.CreateSimHostAuxiliaryTranslators();
         public ISimHostPathfindingTranslators   CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? trajectoryPool = null) => _base.CreateSimHostPathfindingTranslators(trajectoryPool);
         public ISimHostPerceptionTranslators    CreateSimHostPerceptionTranslators(Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null) => _base.CreateSimHostPerceptionTranslators(ghostCreationSystem);
-        public IReadOnlyList<Fdp.Core.ComponentSystem> CreateSimHostAttributeUpdateSystems()          => _base.CreateSimHostAttributeUpdateSystems();
+        public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> CreateSimHostAttributeUpdateSystems()          => _base.CreateSimHostAttributeUpdateSystems();
         public IIgTranslators                   CreateIgTranslators()                                  => _base.CreateIgTranslators();
         public IIgNetworkAdapter                CreateIgNetworkAdapter(DdsParticipant? p, long n = 0) => _base.CreateIgNetworkAdapter(p, n);
         public ICgfEntityLifecycleAdapters?     CreateCgfEntityLifecycleAdapters()                    => _base.CreateCgfEntityLifecycleAdapters();
@@ -339,7 +339,7 @@ public sealed class HexagonalBoundaryTests
         public ISimHostAuxiliaryTranslators     CreateSimHostAuxiliaryTranslators()                    => _base.CreateSimHostAuxiliaryTranslators();
         public ISimHostPathfindingTranslators   CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? trajectoryPool = null) => _base.CreateSimHostPathfindingTranslators(trajectoryPool);
         public ISimHostPerceptionTranslators    CreateSimHostPerceptionTranslators(Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null) => _base.CreateSimHostPerceptionTranslators(ghostCreationSystem);
-        public IReadOnlyList<Fdp.Core.ComponentSystem> CreateSimHostAttributeUpdateSystems()          => _base.CreateSimHostAttributeUpdateSystems();
+        public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> CreateSimHostAttributeUpdateSystems()          => _base.CreateSimHostAttributeUpdateSystems();
         public IIgTranslators                   CreateIgTranslators()                                  => _base.CreateIgTranslators();
         public IIgNetworkAdapter                CreateIgNetworkAdapter(DdsParticipant? p, long n = 0) => _base.CreateIgNetworkAdapter(p, n);
         public ICgfEntityLifecycleAdapters?     CreateCgfEntityLifecycleAdapters()                    => _base.CreateCgfEntityLifecycleAdapters();

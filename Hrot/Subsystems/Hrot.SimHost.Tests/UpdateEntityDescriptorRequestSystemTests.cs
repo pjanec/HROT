@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Numerics;
 using System.Threading;
 using Hrot.NED.Descriptors;
@@ -108,7 +108,6 @@ namespace Hrot.SimHost.Tests
             var entityMap  = new NetworkEntityMap();
             var system     = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform());
             var repo       = CreateWorld();
-            system.Create(repo);
 
             using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
             using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
@@ -118,7 +117,7 @@ namespace Hrot.SimHost.Tests
             reqWriter.Write(MakeGeoRequest(entityId: 999));
             Thread.Sleep(30);
 
-            system.Run();
+            system.Execute(repo, 0f);
             Thread.Sleep(10);
 
             // ASSERT: no ACK should be written
@@ -135,7 +134,6 @@ namespace Hrot.SimHost.Tests
             var entityMap = new NetworkEntityMap();
             var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform());
             var repo      = CreateWorld();
-            system.Create(repo);
 
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(EntityId));
@@ -151,7 +149,7 @@ namespace Hrot.SimHost.Tests
             reqWriter.Write(MakeGeoRequest(EntityId));
             Thread.Sleep(30);
 
-            system.Run();
+            system.Execute(repo, 0f);
             Thread.Sleep(10);
 
             Assert.Equal(0, CountAcks(ackReader));
@@ -167,7 +165,6 @@ namespace Hrot.SimHost.Tests
             var entityMap = new NetworkEntityMap();
             var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform());
             var repo      = CreateWorld();
-            system.Create(repo);
 
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(EntityId));
@@ -183,7 +180,7 @@ namespace Hrot.SimHost.Tests
             reqWriter.Write(MakeUnsupportedTypeRequest(EntityId));
             Thread.Sleep(30);
 
-            system.Run();
+            system.Execute(repo, 0f);
             Thread.Sleep(10);
 
             Assert.Equal(0, CountAcks(ackReader));
@@ -199,7 +196,6 @@ namespace Hrot.SimHost.Tests
             var entityMap = new NetworkEntityMap();
             var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform());
             var repo      = CreateWorld();
-            system.Create(repo);
 
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(EntityId));
@@ -216,7 +212,7 @@ namespace Hrot.SimHost.Tests
             reqWriter.Write(req);
             Thread.Sleep(30);
 
-            system.Run();
+            system.Execute(repo, 0f);
             Thread.Sleep(30);
 
             // ASSERT: exactly one Success ACK
@@ -249,7 +245,6 @@ namespace Hrot.SimHost.Tests
             var entityMap = new NetworkEntityMap();
             var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform(), stub);
             var repo      = CreateWorld();
-            system.Create(repo);
 
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(EntityId));
@@ -260,7 +255,7 @@ namespace Hrot.SimHost.Tests
             Thread.Sleep(50);
             reqWriter.Write(MakeGeoRequest(EntityId));
             Thread.Sleep(30);
-            system.Run();
+            system.Execute(repo, 0f);
             Thread.Sleep(10);
 
             Assert.Equal(0, stub.Written.Count);
@@ -277,7 +272,6 @@ namespace Hrot.SimHost.Tests
             var entityMap = new NetworkEntityMap();
             var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform(), stub);
             var repo      = CreateWorld();
-            system.Create(repo);
 
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(EntityId));
@@ -288,7 +282,7 @@ namespace Hrot.SimHost.Tests
             Thread.Sleep(50);
             reqWriter.Write(MakeGeoRequest(EntityId));
             Thread.Sleep(30);
-            system.Run();
+            system.Execute(repo, 0f);
             Thread.Sleep(10);
 
             Assert.Equal(1, stub.Written.Count);

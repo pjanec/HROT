@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Vis2D;
 
 namespace Hrot.SimHost.Systems
@@ -14,8 +15,8 @@ namespace Hrot.SimHost.Systems
     /// triggering Raylib graphics calls.
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(PresentationSystemGroup))]
-    public sealed class SimMapRenderSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Export)]
+    public sealed class SimMapRenderSystem : IEcsModuleSystem
     {
         private readonly MapCanvas? _canvas;
 
@@ -31,12 +32,12 @@ namespace Hrot.SimHost.Systems
             _canvas = canvas;
         }
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
             // Guard: only render when this is the active perspective.
-            if (!World.HasSingletonManaged<Hrot.Common.ActivePerspective>()) return;
+            if (!((EntityRepository)view).HasSingletonManaged<Hrot.Common.ActivePerspective>()) return;
 
-            var perspective = World.GetSingletonManaged<Hrot.Common.ActivePerspective>();
+            var perspective = ((EntityRepository)view).GetSingletonManaged<Hrot.Common.ActivePerspective>();
             if (perspective?.Name != "Sim") return;
 
             DrawCallCount++;

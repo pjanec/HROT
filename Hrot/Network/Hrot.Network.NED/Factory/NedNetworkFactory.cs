@@ -133,11 +133,11 @@ public sealed class NedNetworkFactory : INetworkFactory
     }
 
     /// <inheritdoc/>
-    public IReadOnlyList<Fdp.Core.ComponentSystem> CreateSimHostAttributeUpdateSystems()
+    public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> CreateSimHostAttributeUpdateSystems()
     {
-        if (_participant == null) return System.Array.Empty<Fdp.Core.ComponentSystem>();
+        if (_participant == null) return System.Array.Empty<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>();
         var jsonAttributeCompiler = Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
-        return new Fdp.Core.ComponentSystem[]
+        return new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
         {
             new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(
                 _participant, _entityMap, _geoTransform, jsonAttributeCompiler),

@@ -1,4 +1,3 @@
-using Fdp.Core;
 using Hrot.Editor.Systems;
 using Hrot.Map.Common.Services;
 using Fdp.ModuleHost.Abstractions;
@@ -17,7 +16,7 @@ namespace Hrot.Editor.Modules;
 /// <para><b>Usage:</b> register with the kernel <em>before</em> calling
 /// <c>kernel.Initialize()</c>:</para>
 /// <code>
-/// kernel.RegisterModule(new EditorSystemsModule(world));
+/// kernel.RegisterModule(new EditorSystemsModule());
 /// kernel.Initialize();
 /// </code>
 /// </summary>
@@ -34,30 +33,24 @@ public sealed class EditorSystemsModule : IEcsModule
     public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
 
     /// <summary>
-    /// Creates and initialises the three editor-only ECS systems against
-    /// <paramref name="world"/>.
+    /// Creates the three editor-only ECS systems.
     /// </summary>
-    /// <param name="world">The shared <see cref="EntityRepository"/> used by all systems.</param>
     /// <param name="zoneService">
     /// Optional <see cref="ZoneManagerService"/> used by <see cref="EditorZoneAuthoringSystem"/>
     /// to mirror authored zone data into the save pipeline.
     /// </param>
-    public EditorSystemsModule(EntityRepository world, ZoneManagerService? zoneService = null)
+    public EditorSystemsModule(ZoneManagerService? zoneService = null)
     {
         _cargo      = new EditorCargoSystem();
         _perception = new EditorPerceptionSetupSystem();
         _zone       = new EditorZoneAuthoringSystem(zoneService);
-
-        _cargo.Create(world);
-        _perception.Create(world);
-        _zone.Create(world);
     }
 
     /// <inheritdoc/>
     public void Tick(ISimulationView view, float deltaTime)
     {
-        _cargo.Run();
-        _perception.Run();
-        _zone.Run();
+        _cargo.Execute(view, deltaTime);
+        _perception.Execute(view, deltaTime);
+        _zone.Execute(view, deltaTime);
     }
 }
