@@ -509,7 +509,6 @@ public sealed class ClusterMaster : IDisposable
 
             case ClusterOpType.ReplaySeek:
                 ProcessSeekReplayIntent(ClusterOpRequestAdapter.ToSeekReplayIntent(req));
-                PublishOpStatus(req.RequestId, OrchestrationStatusCode.Success);
                 break;
 
             case ClusterOpType.CancelOperation:
@@ -695,7 +694,6 @@ public sealed class ClusterMaster : IDisposable
         foreach (var intent in _eventBus.ReadManaged<SeekReplayIntent>())
         {
             ProcessSeekReplayIntent(intent);
-            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
         }
     }
 
@@ -1036,10 +1034,29 @@ public sealed class ClusterMaster : IDisposable
 
     private void ProcessSeekReplayIntent(SeekReplayIntent intent)
     {
+        // RT-009: publish pause precondition before every seek fan-out
+        var slaveIds = _roster.ActiveNodes
+            .Where(kv => kv.Value.SubsystemName is "SimHost" or "IG" or "CGF")
+            .Select(kv => kv.Key)
+            .ToHashSet();
+        _eventBus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = slaveIds });
+        _eventBus.PublishManaged(new PauseTimeIntent());
+
+        // RT-008: fan-out with ACK tracker; immediate Success when roster is empty
         var seekNodeIds = new List<int>(_roster.ActiveNodes.Keys);
-        if (seekNodeIds.Count > 0)
-            FanOutNodeOp(NodeOpType.NodeReplaySeek, Guid.NewGuid(),
+        if (seekNodeIds.Count == 0)
+        {
+            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
+            return;
+        }
+        var txId = Guid.NewGuid();
+        FanOutNodeOp(NodeOpType.NodeReplaySeek, txId,
             new ReplaySeekPayload(intent.TargetWallTicks), seekNodeIds);
+        _pendingBusTransitionAcks[txId] = new BusTransitionAckTracker
+        {
+            RequestId = intent.RequestId,
+            Expected  = seekNodeIds.Count,
+        };
     }
 
     private void ProcessCancelOperationIntent(CancelOperationIntent intent)

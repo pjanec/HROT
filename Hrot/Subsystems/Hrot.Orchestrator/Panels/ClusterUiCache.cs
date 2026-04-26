@@ -197,7 +197,7 @@ public sealed class ClusterUiCache : IDisposable
             if (!_inFlight.ContainsKey(txId))
             {
                 // Extract target cluster state from typed payload — no JSON parsing required
-                var targetState = ClusterState.Idle;
+                var targetState = CurrentState;
                 if (intent.DomainPayload is EditLoadHandlerPayload ep)
                     targetState = (ClusterState)ep.TargetState;
                 else if (intent.DomainPayload is CommitStatePayload cp)
@@ -208,6 +208,7 @@ public sealed class ClusterUiCache : IDisposable
                 var tx = new DistributedTransaction
                 {
                     TransactionId  = txId,
+                    SourceDsmState = CurrentState,
                     TargetDsmState = targetState,
                     PayloadJson    = SerializePayload(intent.DomainPayload),
                 };

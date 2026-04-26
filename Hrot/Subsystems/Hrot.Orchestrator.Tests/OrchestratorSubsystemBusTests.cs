@@ -1,9 +1,16 @@
+using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Time;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Toolkit.Runner;
 using Fdp.Toolkit.Time.Messages;
+using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
 using Hrot.Orchestrator.Panels;
+using FdpClusterState = Fdp.Toolkit.Orchestration.ClusterState;
+using FdpNodeOpType   = Fdp.Toolkit.Orchestration.NodeOpType;
+using ClusterState    = Hrot.NED.Descriptors.Orchestration.ClusterState;
 
 namespace Hrot.Orchestrator.Tests;
 
@@ -73,5 +80,44 @@ public sealed class OrchestratorSubsystemBusTests
         {
             subsystem.Shutdown();
         }
+    }
+
+    // ── RT-016: ClusterUiCache default SourceDsmState/TargetDsmState ──────────
+
+    /// <summary>
+    /// T16a: When a NodeReplaySeek ExecuteNodeOpIntent arrives while the cluster is in
+    /// OperatingReplay, the resulting DistributedTransaction must have both
+    /// SourceDsmState and TargetDsmState set to OperatingReplay (not Idle).
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ClusterUiCache_ReplaySeekOp_HasSourceAndTargetEqualToCurrentState()
+    {
+        var bus     = new FdpEventBus();
+        var uiCache = new ClusterUiCache(bus);
+
+        // Set CurrentState to OperatingReplay via ClusterStateUpdateEvent.
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = FdpClusterState.OperatingReplay });
+        bus.SwapBuffers();
+        uiCache.Update();
+
+        Assert.Equal(ClusterState.OperatingReplay, uiCache.CurrentState);
+
+        // Publish a NodeReplaySeek ExecuteNodeOpIntent (no typed payload that overrides state).
+        var txId = Guid.NewGuid();
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TransactionId = txId,
+            TargetNodeId  = 1,
+            Operation     = FdpNodeOpType.NodeReplaySeek,
+            DomainPayload = new ReplaySeekPayload(12345L),
+        });
+        bus.SwapBuffers();
+        uiCache.Update();
+
+        Assert.Equal(1, uiCache.TxHistory.Count);
+        var tx = uiCache.TxHistory[0];
+        Assert.Equal(ClusterState.OperatingReplay, tx.SourceDsmState);
+        Assert.Equal(ClusterState.OperatingReplay, tx.TargetDsmState);
+        uiCache.Dispose();
     }
 }
