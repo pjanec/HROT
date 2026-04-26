@@ -181,7 +181,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         public async Task PrepareReplayAsync(Guid exerciseId, string storageDirectory)
         {
             var filePath = GetRecordingFilePath(exerciseId, storageDirectory);
-            _activeReplayModule = new ReplayModule(filePath, _repo, _afterSeek);
+            _activeReplayModule = new ReplayModule(filePath, _repo, _kernel.GetTimeController(), _afterSeek);
             await _kernel.InstallModuleAsync(_activeReplayModule);
         }
 
