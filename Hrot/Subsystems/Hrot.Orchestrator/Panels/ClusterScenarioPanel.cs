@@ -503,7 +503,7 @@ public sealed class ClusterScenarioPanel
         var history    = EffectiveTxHistory;
         float rowHeight = ImGui.GetTextLineHeightWithSpacing();
         if (ImGui.BeginTable("TxHistory", 5,
-                ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
+                ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable |
                 ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.ScrollY,
                 new Vector2(0, rowHeight * 11.5f)))
         {
@@ -519,7 +519,7 @@ public sealed class ClusterScenarioPanel
             {
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
-                string shortId = tx.TransactionId.ToString()[..8] + "...";
+                string shortId = tx.TransactionId.ToString();
                 bool open = ImGui.TreeNodeEx(shortId, ImGuiTreeNodeFlags.SpanFullWidth);
 
                 if (ImGui.BeginPopupContextItem($"ctx_{tx.TransactionId}"))
@@ -552,10 +552,7 @@ public sealed class ClusterScenarioPanel
                 ImGui.Text(tx.NodeResponses.Count == 0 ? "-" : tx.NodeResponses.Values.Sum(d => d.Count).ToString());
 
                 ImGui.TableNextColumn();
-                string payloadSnippet = tx.PayloadJson.Length > 25
-                    ? tx.PayloadJson[..25] + "..."
-                    : tx.PayloadJson;
-                ImGui.TextUnformatted(payloadSnippet);
+                ImGui.TextWrapped(tx.PayloadJson);
                 if (!string.IsNullOrWhiteSpace(tx.PayloadJson) && ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
@@ -578,8 +575,7 @@ public sealed class ClusterScenarioPanel
                             ImGui.TableNextColumn(); ImGui.Text("-");
                             ImGui.TableNextColumn(); ImGui.Text("-");
                             ImGui.TableNextColumn();
-                            string nodeSnippet = opEntry.Value.Length > 25 ? opEntry.Value[..25] + "..." : opEntry.Value;
-                            ImGui.Text(nodeSnippet);
+                            ImGui.TextWrapped(opEntry.Value);
                         }
                     }
                     ImGui.TreePop();
