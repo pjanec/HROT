@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core;
+using Fdp.Core.Orchestration;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Orchestration;
@@ -19,6 +20,8 @@ namespace Hrot.CGF.Orchestration.Handlers
     /// <para>
     /// On <c>PrepareLive</c>, loads the scenario JSON and extracts
     /// <see cref="EntityCreationRequest"/> objects via <see cref="StagingEntityExtractor"/>.
+    /// Also starts the ECS recording when an exercise ID is present, mirroring the
+    /// SimHost <c>HrotScenarioLoadHandler</c> pattern so <c>node_400.fdp</c> is written.
     /// On <c>Commit</c>, enqueues the requests into the
     /// <see cref="ScenarioEntityCreationRequestSource"/> so they are processed on the next
     /// ECS tick.  On <c>Abort</c>, clears the pending request list.
@@ -40,6 +43,8 @@ namespace Hrot.CGF.Orchestration.Handlers
         private readonly INetworkIdAllocator _idAllocator;
         private readonly EntityRepository? _world;
         private readonly ScenarioBehaviorRemapper? _remapper;
+        private readonly IRecordReplayController? _controller;
+        private readonly string _storageDirectory;
 
         private IReadOnlyList<EntityCreationRequest>? _pendingRequests;
         private Guid? _pendingTransactionId;
@@ -52,7 +57,7 @@ namespace Hrot.CGF.Orchestration.Handlers
             ScenarioEntityCreationRequestSource source,
             INetworkIdAllocator idAllocator,
             ScenarioBehaviorRemapper? remapper = null)
-            : this(serializer, scenarioLoader, extractor, source, idAllocator, world: null, remapper)
+            : this(serializer, scenarioLoader, extractor, source, idAllocator, world: null, remapper: remapper)
         {
         }
 
@@ -63,15 +68,19 @@ namespace Hrot.CGF.Orchestration.Handlers
             ScenarioEntityCreationRequestSource source,
             INetworkIdAllocator idAllocator,
             EntityRepository? world,
-            ScenarioBehaviorRemapper? remapper = null)
+            ScenarioBehaviorRemapper? remapper = null,
+            IRecordReplayController? controller = null,
+            string storageDirectory = @"C:\FDP_Temp")
         {
-            _serializer     = serializer     ?? throw new ArgumentNullException(nameof(serializer));
-            _scenarioLoader = scenarioLoader ?? throw new ArgumentNullException(nameof(scenarioLoader));
-            _extractor      = extractor      ?? throw new ArgumentNullException(nameof(extractor));
-            _source         = source         ?? throw new ArgumentNullException(nameof(source));
-            _idAllocator    = idAllocator    ?? throw new ArgumentNullException(nameof(idAllocator));
-            _world          = world;
-            _remapper       = remapper;
+            _serializer        = serializer     ?? throw new ArgumentNullException(nameof(serializer));
+            _scenarioLoader    = scenarioLoader ?? throw new ArgumentNullException(nameof(scenarioLoader));
+            _extractor         = extractor      ?? throw new ArgumentNullException(nameof(extractor));
+            _source            = source         ?? throw new ArgumentNullException(nameof(source));
+            _idAllocator       = idAllocator    ?? throw new ArgumentNullException(nameof(idAllocator));
+            _world             = world;
+            _remapper          = remapper;
+            _controller        = controller;
+            _storageDirectory  = storageDirectory ?? @"C:\FDP_Temp";
         }
 
         /// <inheritdoc />
@@ -80,7 +89,7 @@ namespace Hrot.CGF.Orchestration.Handlers
             operation == NodeOpType.PrepareState;
 
         /// <inheritdoc />
-        public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
+        public async Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
         {
             // Intercept PrepareState targeting OperatingLive: hold the cluster in LoadingLive
             // until DrainDeferredAcks confirms that genesis is fully resolved.
@@ -90,9 +99,9 @@ namespace Hrot.CGF.Orchestration.Handlers
                     elp.TargetState == (int)ClusterState.OperatingLive)
                 {
                     _operatingLiveTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-                    return _operatingLiveTcs.Task;
+                    return await _operatingLiveTcs.Task.ConfigureAwait(false);
                 }
-                return Task.FromResult<object?>(null);
+                return null;
             }
 
             _pendingRequests      = null;
@@ -102,17 +111,28 @@ namespace Hrot.CGF.Orchestration.Handlers
                 ? payload.ScenarioId
                 : intent.DomainPayload as string;
 
+            // Start recording when an exercise ID is provided.
+            // This mirrors HrotScenarioLoadHandler so that CGF writes node_400.fdp alongside
+            // SimHost's node_1.fdp when transitioning into a live exercise.
+            if (_controller != null)
+            {
+                var exerciseId = ResolveExerciseId(intent.DomainPayload);
+                if (exerciseId != Guid.Empty)
+                    await _controller.PrepareRecordingAsync(exerciseId, _storageDirectory)
+                        .ConfigureAwait(false);
+            }
+
             if (string.IsNullOrWhiteSpace(scenarioId))
-                return Task.FromResult<object?>(null);
+                return null;
 
             var json = _scenarioLoader.TryLoadScenarioJson(scenarioId);
             if (json == null)
-                return Task.FromResult<object?>(null);
+                return null;
 
             _pendingRequests      = _extractor.Extract(_serializer, json, _idAllocator, episodeId: null, behaviorRemapper: _remapper);
             _pendingTransactionId = intent.TransactionId;
 
-            return Task.FromResult<object?>(null);
+            return null;
         }
 
         /// <inheritdoc />
@@ -173,6 +193,24 @@ namespace Hrot.CGF.Orchestration.Handlers
 
             _operatingLiveTcs.TrySetResult(null);
             _operatingLiveTcs = null;
+        }
+
+        // ── Helpers ───────────────────────────────────────────────────────────────
+
+        private static Guid ResolveExerciseId(object? domainPayload) =>
+            domainPayload switch
+            {
+                Guid g => g,
+                EditLoadHandlerPayload p when p.ExerciseId != null =>
+                    Guid.TryParse(p.ExerciseId, out var parsed) ? parsed : GuidFromString(p.ExerciseId),
+                _ => Guid.Empty,
+            };
+
+        private static Guid GuidFromString(string s)
+        {
+            var hashBytes = System.Security.Cryptography.MD5.HashData(
+                System.Text.Encoding.UTF8.GetBytes(s));
+            return new Guid(hashBytes);
         }
     }
 }
