@@ -1202,7 +1202,9 @@ public sealed class ClusterMaster : IDisposable
                     _pendingBusTransitionAcks.Remove(ev.TransactionId);
                     PublishOpStatus(tracker.RequestId,
                         tracker.HasFailure ? tracker.FailureCode : OrchestrationStatusCode.Success);
-                }
+
+                // Broadcast the new cluster state across the bus so UI panels update
+                PublishClusterState(_currentDsmState);                }
                 continue;
             }
 
