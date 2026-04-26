@@ -180,5 +180,22 @@ namespace Fdp.Toolkit.Replication.Utilities
 
             state.DirtyDescriptors.Add(descriptorOrdinal);
         }
+
+        /// <summary>
+        /// After a seek, clears all published-tick records so every descriptor appears
+        /// dirty and will be republished on the next egress frame.
+        /// </summary>
+        public static void ForceMarkAllDirty(EntityRepository repo)
+        {
+            var view = (ISimulationView)repo;
+            var query = view.Query().Build();
+            foreach (var entity in query)
+            {
+                if (!view.HasManagedComponent<EgressPublicationState>(entity))
+                    continue;
+                var state = view.GetManagedComponentRO<EgressPublicationState>(entity);
+                state.LastPublishedTickMap.Clear();
+            }
+        }
     }
 }

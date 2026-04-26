@@ -100,6 +100,7 @@ namespace Fdp.ModuleHost
         // Time Control
         private ITimeController? _timeController;
         private float _initialTimeScale = 1.0f;
+        private volatile bool _globalTimePushSuspended;
         
         // Public Accessor for GlobalTime
         public GlobalTime CurrentTime { get; private set; }
@@ -122,6 +123,15 @@ namespace Fdp.ModuleHost
              // Apply any pending timescale
              _timeController.SetTimeScale(_initialTimeScale);
         }
+
+        /// <summary>
+        /// Prevents <see cref="UpdateInternal"/> from overwriting the ECS world's
+        /// simulation time while replay is active (the playback system owns time during replay).
+        /// </summary>
+        public void SuspendGlobalTimePush() => _globalTimePushSuspended = true;
+
+        /// <summary>Resumes normal simulation-time propagation after replay ends.</summary>
+        public void ResumeGlobalTimePush() => _globalTimePushSuspended = false;
         
         /// <summary>
         /// Phases that are actually executed for global systems by the kernel's Update loop.
@@ -471,8 +481,11 @@ namespace Fdp.ModuleHost
 
             // 1. ADVANCE TIME
             _liveWorld.Tick(); // Increment version
-            _liveWorld.SetSimulationTime((float)globalTime.TotalTime); // Update repository time
-            _liveWorld.SetSingletonUnmanaged(globalTime); // Update GlobalTime singleton for components
+            if (!_globalTimePushSuspended)
+            {
+                _liveWorld.SetSimulationTime((float)globalTime.TotalTime); // Update repository time
+                _liveWorld.SetSingletonUnmanaged(globalTime); // Update GlobalTime singleton for components
+            }
             
             CurrentTime = globalTime;
             _currentFrame = (uint)globalTime.FrameNumber;

@@ -1,6 +1,7 @@
 using Fdp.Core;
 using Fdp.Core.FlightRecorder;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Replication.Utilities;
 
 namespace Fdp.Toolkit.Replay
 {
@@ -34,6 +35,7 @@ namespace Fdp.Toolkit.Replay
         public const int StrategyBThreshold = 3;
 
         private readonly PlaybackController _playback;
+        private readonly Action? _afterSeek;
 
         /// <summary>
         /// Extra frames to advance in the current tick beyond the default of 1.
@@ -42,9 +44,10 @@ namespace Fdp.Toolkit.Replay
         public int ExtraFramesThisTick { get; set; } = 0;
 
         /// <param name="playback">The <see cref="PlaybackController"/> to drive.</param>
-        public PlaybackTickSystem(PlaybackController playback)
+        public PlaybackTickSystem(PlaybackController playback, Action? afterSeek = null)
         {
             _playback = playback;
+            _afterSeek = afterSeek;
         }
 
         /// <inheritdoc/>
@@ -69,6 +72,8 @@ namespace Fdp.Toolkit.Replay
                     _playback.CurrentFrame + framesToAdvance,
                     _playback.TotalFrames - 1);
                 _playback.SeekToFrame(repo, targetFrame);
+                SmartEgressUtil.ForceMarkAllDirty(repo);
+                _afterSeek?.Invoke();
             }
         }
     }

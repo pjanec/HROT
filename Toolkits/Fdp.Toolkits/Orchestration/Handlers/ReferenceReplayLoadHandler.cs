@@ -73,6 +73,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         private readonly NetworkLifecycleSystemGroup? _lifecycleGroup;
         private readonly Action<bool>?                _bypassLifecycleToggle;
         private readonly string                       _storageDirectory;
+        private readonly Action? _suspendGlobalTimePush;
+        private readonly Action? _resumeGlobalTimePush;
 
         /// <param name="controller">Record/replay lifecycle controller.</param>
         /// <param name="inputGroup">
@@ -108,7 +110,9 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             TogglablePostSimulationGroup? postSimGroup,
             NetworkLifecycleSystemGroup?  lifecycleGroup,
             Action<bool>?                 bypassLifecycleToggle,
-            string                        storageDirectory)
+            string                        storageDirectory,
+            Action?                       suspendGlobalTimePush = null,
+            Action?                       resumeGlobalTimePush  = null)
         {
             _controller            = controller       ?? throw new ArgumentNullException(nameof(controller));
             _inputGroup            = inputGroup;
@@ -117,6 +121,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             _lifecycleGroup        = lifecycleGroup;
             _bypassLifecycleToggle = bypassLifecycleToggle;
             _storageDirectory      = storageDirectory ?? throw new ArgumentNullException(nameof(storageDirectory));
+            _suspendGlobalTimePush = suspendGlobalTimePush;
+            _resumeGlobalTimePush  = resumeGlobalTimePush;
         }
 
         /// <inheritdoc />
@@ -176,6 +182,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             if (intent.Operation == NodeOpType.PrepareReplay)
             {
                 SetSystemsEnabled(false);
+                _suspendGlobalTimePush?.Invoke();
                 _bypassLifecycleToggle?.Invoke(true);
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
@@ -184,6 +191,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             else if (intent.Operation == NodeOpType.FinalizeReplay)
             {
                 SetSystemsEnabled(true);
+                _resumeGlobalTimePush?.Invoke();
                 _bypassLifecycleToggle?.Invoke(false);
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
@@ -192,6 +200,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             else if (intent.Operation == NodeOpType.PrepareLive)
             {
                 SetSystemsEnabled(true);
+                _resumeGlobalTimePush?.Invoke();
                 _bypassLifecycleToggle?.Invoke(false);
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
