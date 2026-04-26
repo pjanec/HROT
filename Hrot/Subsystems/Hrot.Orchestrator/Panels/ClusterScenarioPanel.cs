@@ -522,14 +522,14 @@ public sealed class ClusterScenarioPanel
                 if (ImGui.BeginPopupContextItem($"ctx_{tx.TransactionId}"))
                 {
                     string statusStr = tx.IsAborted ? "Aborted" : "OK";
-                    string line = $"{tx.TransactionId} | {tx.SourceDsmState}→{tx.TargetDsmState} | {statusStr} | {tx.PayloadJson}";
+                    string line = $"{tx.TransactionId} | {tx.SourceDsmState}->{tx.TargetDsmState} | {statusStr} | {tx.PayloadJson}";
                     if (ImGui.MenuItem("Copy line to clipboard"))
                         ImGui.SetClipboardText(line);
                     ImGui.EndPopup();
                 }
 
                 ImGui.TableNextColumn();
-                ImGui.Text($"{tx.SourceDsmState} → {tx.TargetDsmState}");
+                ImGui.Text($"{tx.SourceDsmState} -> {tx.TargetDsmState}");
 
                 ImGui.TableNextColumn();
                 if (tx.IsAborted)
@@ -546,7 +546,7 @@ public sealed class ClusterScenarioPanel
                 }
 
                 ImGui.TableNextColumn();
-                ImGui.Text(tx.NodeResponses.Count == 0 ? "—" : tx.NodeResponses.Count.ToString());
+                ImGui.Text(tx.NodeResponses.Count == 0 ? "-" : tx.NodeResponses.Count.ToString());
 
                 ImGui.TableNextColumn();
                 string payloadSnippet = tx.PayloadJson.Length > 25
@@ -566,12 +566,12 @@ public sealed class ClusterScenarioPanel
                     {
                         ImGui.TableNextRow();
                         ImGui.TableNextColumn();
-                        ImGui.TreeNodeEx($"↳ Node {nr.Key}",
+                        ImGui.TreeNodeEx($"-> Node {nr.Key}",
                             ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen |
                             ImGuiTreeNodeFlags.SpanFullWidth);
-                        ImGui.TableNextColumn(); ImGui.Text("—");
-                        ImGui.TableNextColumn(); ImGui.Text("—");
-                        ImGui.TableNextColumn(); ImGui.Text("—");
+                        ImGui.TableNextColumn(); ImGui.Text("-");
+                        ImGui.TableNextColumn(); ImGui.Text("-");
+                        ImGui.TableNextColumn(); ImGui.Text("-");
                         ImGui.TableNextColumn();
                         string nodeSnippet = nr.Value.Length > 25 ? nr.Value[..25] + "..." : nr.Value;
                         ImGui.Text(nodeSnippet);

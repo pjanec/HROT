@@ -169,11 +169,11 @@ public sealed class NodeOpMasterTranslator
                 }
                 catch
                 {
-                    return null;
+                    return resultJson;
                 }
             }
             default:
-                return null;
+                return resultJson;
         }
     }
 }

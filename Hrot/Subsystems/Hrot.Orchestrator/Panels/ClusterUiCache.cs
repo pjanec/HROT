@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
 using Fdp.Core;
@@ -23,6 +24,12 @@ namespace Hrot.Orchestrator.Panels;
 /// </summary>
 public sealed class ClusterUiCache : IDisposable
 {
+    private static readonly JsonSerializerOptions PayloadJsonOptions = new()
+    {
+        IncludeFields = true,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+    };
+
     // ── Published state ────────────────────────────────────────────────────────
     public ClusterState    CurrentState           { get; private set; }
     public bool        IsBootstrapped         { get; private set; }
@@ -194,6 +201,7 @@ public sealed class ClusterUiCache : IDisposable
                 {
                     TransactionId  = txId,
                     TargetDsmState = targetState,
+                    PayloadJson    = SerializePayload(intent.DomainPayload),
                 };
                 _inFlight[txId] = tx;
                 _txHistory.Insert(0, tx);
@@ -237,6 +245,20 @@ public sealed class ClusterUiCache : IDisposable
                 _inFlight.Clear();
             }
             HasInFlightTransaction = _inFlight.Count > 0;
+        }
+    }
+
+    private static string SerializePayload(object? payload)
+    {
+        if (payload == null) return string.Empty;
+        if (payload is string s) return s;
+        try
+        {
+            return JsonSerializer.Serialize(payload, payload.GetType(), PayloadJsonOptions);
+        }
+        catch
+        {
+            return payload.ToString() ?? string.Empty;
         }
     }
 }

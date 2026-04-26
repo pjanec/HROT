@@ -779,6 +779,11 @@ public sealed class ClusterMaster : IDisposable
             CompletedSteps  = totalSteps,
             IsAborted       = false,
             SourceDsmState  = capturedSourceState,
+            PayloadJson     = JsonSerializer.Serialize(intent, new JsonSerializerOptions
+            {
+                IncludeFields = true,
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            }),
         };
         _activeTransaction    = tx;
         _inflightTransitionTx = tx;
@@ -1237,7 +1242,7 @@ public sealed class ClusterMaster : IDisposable
 
             // S0501: Record per-node responses for the active transition transaction.
             if (_inflightTransitionTx != null && _inflightTransitionTx.TransactionId == ev.TransactionId)
-                _inflightTransitionTx.NodeResponses[ev.NodeId] = string.Empty;
+                _inflightTransitionTx.NodeResponses[ev.NodeId] = ev.ResultPayload?.ToString() ?? string.Empty;
 
             // SerializeLocal ACK handling.
             if (ev.Operation == Fdp.Toolkit.Orchestration.NodeOpType.SerializeLocal &&
