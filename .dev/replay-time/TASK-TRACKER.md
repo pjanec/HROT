@@ -9,10 +9,10 @@
 **Goal:** Refactor `PlaybackTickSystem` to use `ITimeController.TotalWallTicks` as the
 sole replay cursor; wire the controller through `ReplayModule` and `EcsRecordReplayController`.
 
-- [ ] **RT-001** Expose `GetTimeController()` on `ModuleHostKernel` [details](./TASK-DETAIL.md#task-rt-001-expose-gettimecontroller-on-modulehostkernel)
-- [ ] **RT-002** `ReplayModule` constructor accepts `ITimeController` [details](./TASK-DETAIL.md#task-rt-002-replaymodule-constructor-accepts-itimecontroller)
-- [ ] **RT-003** Refactor `PlaybackTickSystem` smart cursor [details](./TASK-DETAIL.md#task-rt-003-refactor-playbbackticksystem-to-use-itimecontrollertotalwallclkoticks)
-- [ ] **RT-004** Wire time controller through `EcsRecordReplayController` [details](./TASK-DETAIL.md#task-rt-004-wire-time-controller-through-ecsrecordreplaycontroller)
+- [x] **RT-001** Expose `GetTimeController()` on `ModuleHostKernel` [details](./TASK-DETAIL.md#task-rt-001-expose-gettimecontroller-on-modulehostkernel)
+- [x] **RT-002** `ReplayModule` constructor accepts `ITimeController` [details](./TASK-DETAIL.md#task-rt-002-replaymodule-constructor-accepts-itimecontroller)
+- [x] **RT-003** Refactor `PlaybackTickSystem` smart cursor [details](./TASK-DETAIL.md#task-rt-003-refactor-playbbackticksystem-to-use-itimecontrollertotalwallclkoticks)
+- [x] **RT-004** Wire time controller through `EcsRecordReplayController` [details](./TASK-DETAIL.md#task-rt-004-wire-time-controller-through-ecsrecordreplaycontroller)
 
 ---
 
@@ -21,8 +21,8 @@ sole replay cursor; wire the controller through `ReplayModule` and `EcsRecordRep
 **Goal:** `SlaveSyncController` instantly snaps its clock baseline when a Deterministic
 barrier arrives that has already elapsed, enabling zero-latency replay seek alignment.
 
-- [ ] **RT-005** Extract `ApplyTimeSnap` from `SlaveSyncController.ApplyResume` [details](./TASK-DETAIL.md#task-rt-005-extract-applytimesnap-from-slavesynccontrollerapplyresume)
-- [ ] **RT-006** Instant snap-and-pause in `DrainModeSwitchEvents` [details](./TASK-DETAIL.md#task-rt-006-instant-snap-and-pause-in-drainmodeswitchevents)
+- [x] **RT-005** Extract `ApplyTimeSnap` from `SlaveSyncController.ApplyResume` [details](./TASK-DETAIL.md#task-rt-005-extract-applytimesnap-from-slavesynccontrollerapplyresume)
+- [x] **RT-006** Instant snap-and-pause in `DrainModeSwitchEvents` [details](./TASK-DETAIL.md#task-rt-006-instant-snap-and-pause-in-drainmodeswitchevents)
 
 ---
 
