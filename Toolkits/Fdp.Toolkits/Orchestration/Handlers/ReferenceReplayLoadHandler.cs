@@ -13,8 +13,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     ///
     /// <para>
     /// Handles <c>PrepareReplay (operationId=11)</c>, <c>FinalizeReplay (operationId=12)</c>,
-    /// and the Live-from-Replay <c>PrepareLive (operationId=9)</c> branch
-    /// (CGF1-S0304 / CGF1-S0305).
+    /// <c>NodeReplaySeek (operationId=13)</c>, and the Live-from-Replay
+    /// <c>PrepareLive (operationId=9)</c> branch (CGF1-S0304 / CGF1-S0305).
     /// </para>
     ///
     /// <para>
@@ -134,6 +134,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         public bool CanHandle(NodeOpType operation) =>
             operation == NodeOpType.PrepareReplay ||
             operation == NodeOpType.FinalizeReplay ||
+            operation == NodeOpType.NodeReplaySeek ||
             (operation == NodeOpType.PrepareLive && _controller.IsReplayActive);
 
         /// <inheritdoc />
@@ -159,6 +160,17 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
                     "[ReferenceReplayLoadHandler] TeardownReplay complete.");
+            }
+            else if (intent.Operation == NodeOpType.NodeReplaySeek)
+            {
+                var targetTicks = intent.DomainPayload is ReplaySeekPayload rsp
+                    ? rsp.TargetWallTicks
+                    : long.MaxValue;
+                await _controller.SeekToTimeAsync(targetTicks).ConfigureAwait(false);
+
+                FdpLog<ReferenceReplayLoadHandler>.Info(
+                    "[ReferenceReplayLoadHandler] NodeReplaySeek complete (targetTicks={0}).",
+                    targetTicks);
             }
             else if (intent.Operation == NodeOpType.PrepareLive)
             {
