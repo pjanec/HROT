@@ -188,10 +188,23 @@ public sealed class NedReplicationModule : INedReplicationModule
         GhostCreationSystem = new GhostCreationSystem(entityMap);
 
         var lifecycleInnerSystems = new List<IEcsModuleSystem> { GhostCreationSystem };
+
+
+        // ── Ghost Destruction (Pure-Brain Only) ──
+        // Pure Brains receive remote entities as ghosts and must purge them instantly on DISPOSE.
+        // If this ran on Muscle/AllInOne, it would consume DestroyEntityCommand instantly and
+        // bypass the NetworkSpawningSystem's TearDown phase, preventing EntityMaster DISPOSE 
+        // packets from being sent to the IG (leaving zombie entities).
         if (_roleHasBrain && !_roleHasMuscle && !_roleHasIG)
             lifecycleInnerSystems.Add(new GhostDestructionSystem(_entityMap));
+
+        // ── Deferred Takeover (Muscle / AllInOne Only) ──
+        // Executes the split-authority handover. When a Brain creates an entity and delegates 
+        // physics to the Muscle, this system claims the local ECS authority bits (e.g., SimTransform) 
+        // once the ghost finishes constructing.
         if (_roleHasMuscle)
             lifecycleInnerSystems.Add(new DeferredTakeoverSystem(_entityMap, _localNodeId, _descriptorOwnershipMap, _tkbDb));
+
         NetworkLifecycleGroup = new NetworkLifecycleSystemGroup(lifecycleInnerSystems.ToArray());
 
         // Build translator sets — deferred until RegisterSystems to allow null-participant
