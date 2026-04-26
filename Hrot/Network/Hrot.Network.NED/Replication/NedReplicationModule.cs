@@ -107,7 +107,10 @@ public sealed class NedReplicationModule : INedReplicationModule
     public CycloneNetworkCleanupSystem? CleanupSystem => _cleanupSystem;
 
     /// <inheritdoc/>
-    public Action? AfterSeekCallback => _cleanupSystem != null ? () => _cleanupSystem.ResetTracking() : null;
+    public Action? AfterSeekCallback =>
+        _cleanupSystem != null ? (Action)(() => {
+            //_cleanupSystem.ResetTracking();  
+        }) : null;
 
     /// <summary>
     /// Whether dead-reckoning is configured to run on all remote entities (<c>true</c>)
