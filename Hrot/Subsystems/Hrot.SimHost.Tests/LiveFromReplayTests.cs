@@ -230,16 +230,18 @@ namespace Hrot.SimHost.Tests
             // ── Step 2: put system into replay state (sets groups disabled) ───
             await controller.PrepareReplayAsync(exerciseId, _tempDir);
 
+            var inputGroup     = new TogglableInputGroup("test-input");
             var simGroup       = new TogglableSimulationGroup("test");
+            var postSimGroup   = new TogglablePostSimulationGroup("test-postsim");
             var entityMap      = new NetworkEntityMap();
             var ghostSys       = new GhostCreationSystem(entityMap);
             var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
 
             var handler = new ReferenceReplayLoadHandler(
                 controller,
-                inputGroup:    null,
+                inputGroup:    inputGroup,
                 simGroup:      simGroup,
-                postSimGroup:  null,
+                postSimGroup:  postSimGroup,
                 lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
                 storageDirectory: _tempDir);
@@ -254,6 +256,8 @@ namespace Hrot.SimHost.Tests
             };
             handler.Commit(prepCmd, repo: null);
             Assert.False(simGroup.Enabled, "TogglableSimulationGroup must be disabled during replay.");
+            Assert.False(inputGroup.Enabled, "TogglableInputGroup must be disabled during replay.");
+            Assert.False(postSimGroup.Enabled, "TogglablePostSimulationGroup must be disabled during replay.");
 
             // ── Step 3: issue PrepareLive (Live-from-Replay branch) ──────────────────────────
             var branchedExerciseId = Guid.NewGuid();
@@ -277,6 +281,10 @@ namespace Hrot.SimHost.Tests
                 "NetworkLifecycleSystemGroup.Enabled must be true after Live-from-Replay branch Commit.");
             Assert.False(ghostSys.BypassLifecycle,
                 "GhostCreationSystem.BypassLifecycle must be false after Live-from-Replay branch Commit.");
+            Assert.True(inputGroup.Enabled,
+                "TogglableInputGroup.Enabled must be true after Live-from-Replay branch Commit.");
+            Assert.True(postSimGroup.Enabled,
+                "TogglablePostSimulationGroup.Enabled must be true after Live-from-Replay branch Commit.");
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────

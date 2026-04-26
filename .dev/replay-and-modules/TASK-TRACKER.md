@@ -37,10 +37,10 @@
 
 ## Phase 5 — Legacy Removal
 
-- [ ] T-RMF-24  Delete `ComponentSystem.cs`, `SystemGroup.cs`, `StandardSystemGroups.cs` from `Fdp.Core` — fix all resulting compile errors
-- [ ] T-RMF-25  Delete `CgfInputGroupAdapter.cs`, `LegacySystemGroupAdapters.cs` from `Hrot.Common.Infrastructure` — fix all resulting compile errors
+- [x] T-RMF-24  Delete `ComponentSystem.cs`, `SystemGroup.cs`, `StandardSystemGroups.cs` from `Fdp.Core` — fix all resulting compile errors
+- [x] T-RMF-25  Delete `CgfInputGroupAdapter.cs`, `LegacySystemGroupAdapters.cs` from `Hrot.Common.Infrastructure` — fix all resulting compile errors
 
 ## Phase 6 — Verification and Tests
 
-- [ ] T-RMF-26  Write new replay isolation tests (all four groups: Input, Simulation, PostSimulation, NetworkLifecycle toggled during PrepareReplay/FinalizeReplay/PrepareLive)
-- [ ] T-RMF-27  Update existing replay tests — replace `SimulationSystemGroup` with `TogglableSimulationGroup`, add other new group types
+- [x] T-RMF-26  Write new replay isolation tests (all four groups: Input, Simulation, PostSimulation, NetworkLifecycle toggled during PrepareReplay/FinalizeReplay/PrepareLive)
+- [x] T-RMF-27  Update existing replay tests — replace `SimulationSystemGroup` with `TogglableSimulationGroup`, add other new group types

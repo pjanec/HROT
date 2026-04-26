@@ -93,16 +93,18 @@ namespace Hrot.SimHost.Tests
             await controller.FinalizeRecordingAsync();
 
             // ── Step 2: build the handler. ──
+            var inputGroup       = new TogglableInputGroup("test-input");
             var simGroup         = new TogglableSimulationGroup("test");
+            var postSimGroup     = new TogglablePostSimulationGroup("test-postsim");
             var entityMap        = new NetworkEntityMap();
             var ghostSys         = new GhostCreationSystem(entityMap);
             var lifecycleGroup   = new NetworkLifecycleSystemGroup(ghostSys);
 
             var handler = new ReferenceReplayLoadHandler(
                 controller,
-                inputGroup:    null,
+                inputGroup:    inputGroup,
                 simGroup:      simGroup,
-                postSimGroup:  null,
+                postSimGroup:  postSimGroup,
                 lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
                 storageDirectory: _tempDir);
@@ -131,6 +133,10 @@ namespace Hrot.SimHost.Tests
                 "NetworkLifecycleSystemGroup.Enabled must be false during RunningReplay.");
             Assert.True(ghostSys.BypassLifecycle,
                 "GhostCreationSystem.BypassLifecycle must be true during RunningReplay.");
+            Assert.False(inputGroup.Enabled,
+                "TogglableInputGroup.Enabled must be false during RunningReplay.");
+            Assert.False(postSimGroup.Enabled,
+                "TogglablePostSimulationGroup.Enabled must be false during RunningReplay.");
         }
 
         [Fact(Timeout = 20_000)]
@@ -153,16 +159,18 @@ namespace Hrot.SimHost.Tests
             await controller.FinalizeRecordingAsync();
 
             // ── Step 2: build handler and run PrepareReplay → Commit. ──
+            var inputGroup     = new TogglableInputGroup("test-input");
             var simGroup       = new TogglableSimulationGroup("test");
+            var postSimGroup   = new TogglablePostSimulationGroup("test-postsim");
             var entityMap      = new NetworkEntityMap();
             var ghostSys       = new GhostCreationSystem(entityMap);
             var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
 
             var handler = new ReferenceReplayLoadHandler(
                 controller,
-                inputGroup:    null,
+                inputGroup:    inputGroup,
                 simGroup:      simGroup,
-                postSimGroup:  null,
+                postSimGroup:  postSimGroup,
                 lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
                 storageDirectory: _tempDir);
@@ -179,6 +187,8 @@ namespace Hrot.SimHost.Tests
 
             // Sim group is now disabled.
             Assert.False(simGroup.Enabled);
+            Assert.False(inputGroup.Enabled);
+            Assert.False(postSimGroup.Enabled);
 
             // ── Step 3: dispatch FinalizeReplay → Commit. ──
             var finalizeCmd = new ExecuteNodeOpIntent
@@ -201,6 +211,229 @@ namespace Hrot.SimHost.Tests
                 "NetworkLifecycleSystemGroup.Enabled must be re-enabled after FinalizeReplay.");
             Assert.False(ghostSys.BypassLifecycle,
                 "GhostCreationSystem.BypassLifecycle must be reset to false after FinalizeReplay.");
+            Assert.True(inputGroup.Enabled,
+                "TogglableInputGroup.Enabled must be re-enabled after FinalizeReplay.");
+            Assert.True(postSimGroup.Enabled,
+                "TogglablePostSimulationGroup.Enabled must be re-enabled after FinalizeReplay.");
+        }
+
+        [Fact(Timeout = 20_000)]
+        public async Task PrepareReplay_DisablesAllFourGroups()
+        {
+            // ── Step 1: create a recording ──
+            var exerciseId = Guid.NewGuid();
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+
+            using var cts      = new CancellationTokenSource();
+            var       loopTask = RunKernelLoop(_kernel, cts.Token);
+
+            _world.SetSingletonUnmanaged(new GlobalTime
+            {
+                DeltaTime      = 0.016f,
+                TimeScale      = 1.0f,
+                TotalWallTicks = 10_000L,
+            });
+            await controller.PrepareRecordingAsync(exerciseId, _tempDir);
+            for (int i = 0; i < 5; i++) { await Task.Delay(20); }
+            await controller.FinalizeRecordingAsync();
+
+            // ── Step 2: build handler with all four groups ──
+            var inputGroup     = new TogglableInputGroup("test-input");
+            var simGroup       = new TogglableSimulationGroup("test-sim");
+            var postSimGroup   = new TogglablePostSimulationGroup("test-postsim");
+            var entityMap      = new NetworkEntityMap();
+            var ghostSys       = new GhostCreationSystem(entityMap);
+            var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
+
+            var handler = new ReferenceReplayLoadHandler(
+                controller,
+                inputGroup:    inputGroup,
+                simGroup:      simGroup,
+                postSimGroup:  postSimGroup,
+                lifecycleGroup,
+                bypass => ghostSys.BypassLifecycle = bypass,
+                storageDirectory: _tempDir);
+
+            // ── Step 3: PrepareReplay → Commit ──
+            var cmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay,
+                DomainPayload = exerciseId,
+            };
+            await handler.PrepareAsync(cmd, CancellationToken.None);
+            handler.Commit(cmd, repo: null);
+
+            cts.Cancel();
+            await loopTask;
+
+            // ── Step 4: all four groups must be disabled ──
+            Assert.False(inputGroup.Enabled,
+                "TogglableInputGroup.Enabled must be false during RunningReplay.");
+            Assert.False(simGroup.Enabled,
+                "TogglableSimulationGroup.Enabled must be false during RunningReplay.");
+            Assert.False(postSimGroup.Enabled,
+                "TogglablePostSimulationGroup.Enabled must be false during RunningReplay.");
+            Assert.False(lifecycleGroup.Enabled,
+                "NetworkLifecycleSystemGroup.Enabled must be false during RunningReplay.");
+            Assert.True(ghostSys.BypassLifecycle,
+                "GhostCreationSystem.BypassLifecycle must be true during RunningReplay.");
+        }
+
+        [Fact(Timeout = 20_000)]
+        public async Task FinalizeReplay_ReEnablesAllFourGroups()
+        {
+            // ── Step 1: create a recording ──
+            var exerciseId = Guid.NewGuid();
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+
+            using var cts      = new CancellationTokenSource();
+            var       loopTask = RunKernelLoop(_kernel, cts.Token);
+
+            _world.SetSingletonUnmanaged(new GlobalTime
+            {
+                DeltaTime = 0.016f, TimeScale = 1.0f, TotalWallTicks = 1_000L,
+            });
+            await controller.PrepareRecordingAsync(exerciseId, _tempDir);
+            for (int i = 0; i < 5; i++) { await Task.Delay(20); }
+            await controller.FinalizeRecordingAsync();
+
+            // ── Step 2: build handler with all four groups, run PrepareReplay ──
+            var inputGroup     = new TogglableInputGroup("test-input");
+            var simGroup       = new TogglableSimulationGroup("test-sim");
+            var postSimGroup   = new TogglablePostSimulationGroup("test-postsim");
+            var entityMap      = new NetworkEntityMap();
+            var ghostSys       = new GhostCreationSystem(entityMap);
+            var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
+
+            var handler = new ReferenceReplayLoadHandler(
+                controller,
+                inputGroup:    inputGroup,
+                simGroup:      simGroup,
+                postSimGroup:  postSimGroup,
+                lifecycleGroup,
+                bypass => ghostSys.BypassLifecycle = bypass,
+                storageDirectory: _tempDir);
+
+            var prepareCmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay,
+                DomainPayload = exerciseId,
+            };
+            await handler.PrepareAsync(prepareCmd, CancellationToken.None);
+            handler.Commit(prepareCmd, repo: null);
+
+            // All four groups are disabled.
+            Assert.False(inputGroup.Enabled);
+            Assert.False(simGroup.Enabled);
+            Assert.False(postSimGroup.Enabled);
+            Assert.False(lifecycleGroup.Enabled);
+
+            // ── Step 3: FinalizeReplay → Commit ──
+            var finalizeCmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.FinalizeReplay,
+                DomainPayload = null,
+            };
+            await handler.PrepareAsync(finalizeCmd, CancellationToken.None);
+            handler.Commit(finalizeCmd, repo: null);
+
+            cts.Cancel();
+            await loopTask;
+
+            // ── Step 4: all four groups must be re-enabled ──
+            Assert.True(inputGroup.Enabled,
+                "TogglableInputGroup.Enabled must be re-enabled after FinalizeReplay.");
+            Assert.True(simGroup.Enabled,
+                "TogglableSimulationGroup.Enabled must be re-enabled after FinalizeReplay.");
+            Assert.True(postSimGroup.Enabled,
+                "TogglablePostSimulationGroup.Enabled must be re-enabled after FinalizeReplay.");
+            Assert.True(lifecycleGroup.Enabled,
+                "NetworkLifecycleSystemGroup.Enabled must be re-enabled after FinalizeReplay.");
+            Assert.False(ghostSys.BypassLifecycle,
+                "GhostCreationSystem.BypassLifecycle must be reset to false after FinalizeReplay.");
+        }
+
+        [Fact(Timeout = 20_000)]
+        public async Task PrepareLive_ReEnablesAllFourGroups()
+        {
+            // ── Step 1: create a recording ──
+            var exerciseId = Guid.NewGuid();
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+
+            using var cts      = new CancellationTokenSource();
+            var       loopTask = RunKernelLoop(_kernel, cts.Token);
+
+            _world.SetSingletonUnmanaged(new GlobalTime
+            {
+                DeltaTime = 0.016f, TimeScale = 1.0f, TotalWallTicks = 5_000L,
+            });
+            await controller.PrepareRecordingAsync(exerciseId, _tempDir);
+            for (int i = 0; i < 5; i++) { await Task.Delay(20); }
+            await controller.FinalizeRecordingAsync();
+
+            // ── Step 2: build handler with all four groups, run PrepareReplay ──
+            var inputGroup     = new TogglableInputGroup("test-input");
+            var simGroup       = new TogglableSimulationGroup("test-sim");
+            var postSimGroup   = new TogglablePostSimulationGroup("test-postsim");
+            var entityMap      = new NetworkEntityMap();
+            var ghostSys       = new GhostCreationSystem(entityMap);
+            var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
+
+            var handler = new ReferenceReplayLoadHandler(
+                controller,
+                inputGroup:    inputGroup,
+                simGroup:      simGroup,
+                postSimGroup:  postSimGroup,
+                lifecycleGroup,
+                bypass => ghostSys.BypassLifecycle = bypass,
+                storageDirectory: _tempDir);
+
+            var prepareCmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay,
+                DomainPayload = exerciseId,
+            };
+            await handler.PrepareAsync(prepareCmd, CancellationToken.None);
+            handler.Commit(prepareCmd, repo: null);
+
+            // All four groups are now disabled.
+            Assert.False(inputGroup.Enabled);
+            Assert.False(simGroup.Enabled);
+            Assert.False(postSimGroup.Enabled);
+
+            // ── Step 3: PrepareLive (Live-from-Replay branch) → Commit ──
+            var branchCmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
+                DomainPayload = Guid.NewGuid(),  // new branched exercise ID
+            };
+            await handler.PrepareAsync(branchCmd, CancellationToken.None);
+            handler.Commit(branchCmd, repo: null);
+
+            cts.Cancel();
+            await loopTask;
+
+            // ── Step 4: all four groups must be re-enabled ──
+            Assert.True(inputGroup.Enabled,
+                "TogglableInputGroup.Enabled must be re-enabled after PrepareLive branch.");
+            Assert.True(simGroup.Enabled,
+                "TogglableSimulationGroup.Enabled must be re-enabled after PrepareLive branch.");
+            Assert.True(postSimGroup.Enabled,
+                "TogglablePostSimulationGroup.Enabled must be re-enabled after PrepareLive branch.");
+            Assert.True(lifecycleGroup.Enabled,
+                "NetworkLifecycleSystemGroup.Enabled must be re-enabled after PrepareLive branch.");
+            Assert.False(ghostSys.BypassLifecycle,
+                "GhostCreationSystem.BypassLifecycle must be reset after PrepareLive branch.");
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────

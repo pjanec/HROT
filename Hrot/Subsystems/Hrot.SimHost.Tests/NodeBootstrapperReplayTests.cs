@@ -78,6 +78,8 @@ namespace Hrot.SimHost.Tests
             var entityMap     = new NetworkEntityMap();
             var ghostSys      = new GhostCreationSystem(entityMap);
             var simGroup      = new TogglableSimulationGroup("test");
+            var inputGroup    = new TogglableInputGroup("test-input");
+            var postSimGroup  = new TogglablePostSimulationGroup("test-postsim");
             var lifecycleGrp  = new NetworkLifecycleSystemGroup(ghostSys);
 
             var bootstrapper = new NodeBootstrapper();
@@ -88,6 +90,8 @@ namespace Hrot.SimHost.Tests
                 nodeId:             1,
                 participant:        _participant,
                 simGroup:           simGroup,
+                inputGroup:         inputGroup,
+                postSimGroup:       postSimGroup,
                 lifecycleGroup:     lifecycleGrp,
                 ghostCreationSystem: ghostSys);
 
