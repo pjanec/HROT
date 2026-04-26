@@ -823,8 +823,8 @@ namespace Hrot.SimHost
             public string Name => "SimHostSimulation";
             public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
             public SimHostSimulationModule(TogglableSimulationGroup group) => _group = group;
-            public void RegisterSystems(ISystemRegistry registry) { }
-            public void Tick(ISimulationView view, float deltaTime) => _group.Execute(view, deltaTime);
+            public void RegisterSystems(ISystemRegistry registry) => registry.RegisterSystem(_group);
+            public void Tick(ISimulationView view, float deltaTime) { }
         }
     }
 

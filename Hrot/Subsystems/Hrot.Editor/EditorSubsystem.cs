@@ -363,12 +363,15 @@ namespace Hrot.Editor
             // ── 4a. Multi-phase system registration for SimHostCorePack and CgfLogicPack ──
             // CGF Brain systems -- register directly (no toggling needed in the editor)
             foreach (var sys in cgfLogicPackInst.InputSystems)      _kernel.RegisterGlobalSystem(sys);
-            foreach (var sys in cgfLogicPackInst.SimulationSystems) _kernel.RegisterGlobalSystem(sys);
 
             // Muscle systems -- register directly
             foreach (var sys in simHostCorePack.InputSystems)          _kernel.RegisterGlobalSystem(sys);
-            foreach (var sys in simHostCorePack.SimulationSystems)     _kernel.RegisterGlobalSystem(sys);
             foreach (var sys in simHostCorePack.PostSimulationSystems) _kernel.RegisterGlobalSystem(sys);
+
+            // Simulation-phase systems must go through a module (kernel forbids global registration)
+            _kernel.RegisterModule(new EditorSimulationModule(
+                cgfLogicPackInst.SimulationSystems,
+                simHostCorePack.SimulationSystems));
 
             // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.
             _kernel.RegisterModule(new EditorSystemsModule());
@@ -1023,6 +1026,34 @@ namespace Hrot.Editor
                     }
                 }
             }
+        }
+
+        // IEcsModule wrapper for Simulation-phase systems in the offline Editor.
+        // The kernel forbids registering SystemPhase.Simulation systems as global systems;
+        // they must be routed through a module.
+        private sealed class EditorSimulationModule : IEcsModule
+        {
+            private readonly IEnumerable<IEcsModuleSystem> _cgfSimSystems;
+            private readonly IEnumerable<IEcsModuleSystem> _muscleSimSystems;
+
+            public string Name => "EditorSimulation";
+            public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
+
+            public EditorSimulationModule(
+                IEnumerable<IEcsModuleSystem> cgfSimSystems,
+                IEnumerable<IEcsModuleSystem> muscleSimSystems)
+            {
+                _cgfSimSystems    = cgfSimSystems;
+                _muscleSimSystems = muscleSimSystems;
+            }
+
+            public void RegisterSystems(ISystemRegistry registry)
+            {
+                foreach (var sys in _cgfSimSystems)    registry.RegisterSystem(sys);
+                foreach (var sys in _muscleSimSystems) registry.RegisterSystem(sys);
+            }
+
+            public void Tick(ISimulationView view, float deltaTime) { }
         }
     }
 }

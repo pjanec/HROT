@@ -677,8 +677,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         public string Name => "CgfSimulation";
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
         public CgfSimulationModule(TogglableSimulationGroup group) => _group = group;
-        public void RegisterSystems(ISystemRegistry registry) { }
-        public void Tick(ISimulationView view, float deltaTime) => _group.Execute(view, deltaTime);
+        public void RegisterSystems(ISystemRegistry registry) => registry.RegisterSystem(_group);
+        public void Tick(ISimulationView view, float deltaTime) { }
     }
 }
 
