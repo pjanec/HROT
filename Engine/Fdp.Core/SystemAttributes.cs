@@ -12,11 +12,7 @@ namespace Fdp.Core
         
         public UpdateInGroupAttribute(Type groupType)
         {
-            if (!typeof(SystemGroup).IsAssignableFrom(groupType))
-            {
-                throw new ArgumentException($"Type {groupType.Name} must derive from SystemGroup", nameof(groupType));
-            }
-            GroupType = groupType;
+            GroupType = groupType ?? throw new ArgumentNullException(nameof(groupType));
         }
     }
 

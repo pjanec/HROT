@@ -14,14 +14,14 @@ namespace Fdp.Toolkit.Replication.Tests
         {
             using var repo = new EntityRepository();
             var monitor = new IdAllocationMonitorSystem();
-            monitor.Create(repo);
+            
             
             // Setup Manager
             var manager = new BlockIdManager(10);
             repo.SetSingletonManaged(manager);
             
             // Run system once to attach listeners
-            monitor.Run();
+            monitor.Execute(repo, 0f);
             
             // Trigger Low Water Mark
             try 
@@ -33,7 +33,7 @@ namespace Fdp.Toolkit.Replication.Tests
             }
             
             // Run System
-            monitor.Run();
+            monitor.Execute(repo, 0f);
             
             repo.Bus.SwapBuffers(); 
             
@@ -48,18 +48,18 @@ namespace Fdp.Toolkit.Replication.Tests
         {
             using var repo = new EntityRepository();
             var monitor = new IdAllocationMonitorSystem();
-            monitor.Create(repo);
+            
             
             // Setup Manager
             var manager = new BlockIdManager();
             repo.SetSingletonManaged(manager);
             
             // Run system once to attach listeners
-            monitor.Run();
+            monitor.Execute(repo, 0f);
             
             // 1. Trigger Request to find ClientId
             try { manager.AllocateId(); } catch {}
-            monitor.Run();
+            monitor.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
             var requests = repo.Bus.ReadManaged<IdBlockRequest>();
             var clientId = requests[0].ClientId;
@@ -75,7 +75,7 @@ namespace Fdp.Toolkit.Replication.Tests
             repo.Bus.SwapBuffers(); // Make response visible
             
             // 3. Run System to process response
-            monitor.Run();
+            monitor.Execute(repo, 0f);
             
             // 4. Verify Block Added
             Assert.Equal(50, manager.AvailableCount); 

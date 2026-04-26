@@ -45,7 +45,6 @@ namespace Fdp.Core.Tests
 
             // Setup System
             _validationSystem = new EntityValidationSystem();
-            _validationSystem.InternalCreate(_repo);
             
             // Initialize TimeSystem
             _timeSystem = new TimeSystem(_repo);
@@ -68,12 +67,11 @@ namespace Fdp.Core.Tests
              }
 
              // Use the real system logic!
-             _validationSystem.InternalUpdate();
+             _validationSystem.Execute(_repo, 1.0f);
         }
 
         public void Dispose()
         {
-            _validationSystem.Dispose();
             _repo.Dispose();
             _lifecycleStream.Dispose();
         }

@@ -69,7 +69,7 @@ namespace Fdp.Examples.CarKinem.UI
             return req;
         }
 
-        public void Render(EntityRepository repository, ModuleHostKernel kernel, ScenarioManager scenarioManager, IInspectorContext inspectorCtx, IEnumerable<Fdp.Core.ComponentSystem> systems, PlaybackController? playback = null)
+        public void Render(EntityRepository repository, ModuleHostKernel kernel, ScenarioManager scenarioManager, IInspectorContext inspectorCtx, IEnumerable<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> systems, PlaybackController? playback = null)
         {
             ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiCond.FirstUseEver);
             ImGui.SetNextWindowSize(new Vector2(300, 500), ImGuiCond.FirstUseEver);

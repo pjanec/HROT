@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Perception.Tests
     ///
     /// Test pattern:
     ///   1. Build world via <see cref="PerceptionTestWorldFactory"/>.
-    ///   2. sys.Create(world); setup; world.Bus.SwapBuffers(); sys.Run();
+    ///   2.  setup; world.Bus.SwapBuffers(); sys.Execute(world, 0f);
     ///   3. world.Bus.SwapBuffers() — exposing the system's output events.
     ///   4. Assert bus events / TargetMemory unchanged.
     ///
@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Perception.Tests
             // Arrange
             var world = PerceptionTestWorldFactory.Create();
             var sys   = new AudioPerceptionSystem();
-            sys.Create(world);
+            
 
             // Create a listener entity at the origin with generous ranges.
             var listener = world.CreateEntity();
@@ -72,7 +72,7 @@ namespace Fdp.Toolkit.Perception.Tests
             world.Bus.SwapBuffers();
 
             // Act
-            sys.Run();
+            sys.Execute(world, 0f);
             // Swap again to make the system's output events readable.
             world.Bus.SwapBuffers();
 
@@ -100,7 +100,7 @@ namespace Fdp.Toolkit.Perception.Tests
             // Arrange
             var world = PerceptionTestWorldFactory.Create();
             var sys   = new AudioPerceptionSystem();
-            sys.Create(world);
+            
 
             // Listener at origin with a short hearing range (30 m).
             var listener = world.CreateEntity();
@@ -134,7 +134,7 @@ namespace Fdp.Toolkit.Perception.Tests
             world.Bus.SwapBuffers();
 
             // Act
-            sys.Run();
+            sys.Execute(world, 0f);
             world.Bus.SwapBuffers();
 
             // Assert — HearingRange=30 < dist=50 → no event published.
@@ -153,7 +153,7 @@ namespace Fdp.Toolkit.Perception.Tests
             // Arrange
             var world = PerceptionTestWorldFactory.Create();
             var sys   = new AudioPerceptionSystem();
-            sys.Create(world);
+            
 
             // Listener A at origin (50 m from event — within broadphase AND hearing range).
             var listenerA = world.CreateEntity();
@@ -197,7 +197,7 @@ namespace Fdp.Toolkit.Perception.Tests
             world.Bus.SwapBuffers();
 
             // Act
-            sys.Run();
+            sys.Execute(world, 0f);
             world.Bus.SwapBuffers();
 
             // Assert — exactly one event, for listenerA.

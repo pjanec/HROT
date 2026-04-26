@@ -4,6 +4,7 @@ using CarKinem.Spatial;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Perception.Systems
 {
@@ -21,18 +22,19 @@ namespace Fdp.Toolkit.Perception.Systems
     /// distance to the event origin are updated.
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    public class AudioPerceptionSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    public class AudioPerceptionSystem : IEcsModuleSystem
     {
         // Pre-allocated scratch buffer for spatial query results (stack-allocated per query).
         private const int MaxQueryResults = 256;
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            var events = World.Bus.Read<AudioStimulusEvent>();
+            var events = view.ReadEvents<AudioStimulusEvent>();
             if (events.IsEmpty) return;
 
-            bool hasGrid = World.HasSingleton<SpatialGridData>();
+            var repo = (EntityRepository)view;
+            bool hasGrid = repo.HasSingleton<SpatialGridData>();
 
             // Re-use a stack-allocated buffer for neighbor results.
             Span<(Entity entity, Vector2 pos)> neighbors =
@@ -46,30 +48,31 @@ namespace Fdp.Toolkit.Perception.Systems
                 if (hasGrid)
                 {
                     // Fast path: spatial grid broadphase.
-                    candidateCount = World.GetSingleton<SpatialGridData>().Grid
+                    candidateCount = repo.GetSingleton<SpatialGridData>().Grid
                         .QueryNeighbors(eventPos2D, evt.Intensity, neighbors);
                 }
                 else
                 {
                     // Fallback (test / no SpatialHashSystem registered): query world directly.
-                    candidateCount = QueryFallback(eventPos2D, evt.Intensity, neighbors);
+                    // QueryFallback is internal helper; pass repo
+                    candidateCount = QueryFallback(repo, eventPos2D, evt.Intensity, neighbors);
                 }
 
                 for (int i = 0; i < candidateCount; i++)
                 {
                     // QueryNeighbors returns full Entity handles — no reconstruction needed.
                     Entity listener = neighbors[i].entity;
-                    if (!World.HasComponent<PerceptionReceptor>(listener)) continue;
+                    if (!view.HasComponent<PerceptionReceptor>(listener)) continue;
 
                     // Check the entity's own hearing range (second filter after spatial broadphase).
-                    var receptor = World.GetComponent<PerceptionReceptor>(listener);
-                    var tf       = World.GetComponent<SimTransform>(listener);
+                    var receptor = view.GetComponentRO<PerceptionReceptor>(listener);
+                    var tf       = view.GetComponentRO<SimTransform>(listener);
                     var listenerPos = new Vector2(tf.Position.X, tf.Position.Y);
 
                     float dist = Vector2.Distance(listenerPos, eventPos2D);
                     if (dist > receptor.HearingRange) continue;
 
-                    World.Bus.Publish(new TargetHeardEvent
+                    repo.Bus.Publish(new TargetHeardEvent
                     {
                         Listener          = listener,
                         SourceEntityIndex = evt.SourceEntityIndex,
@@ -84,7 +87,8 @@ namespace Fdp.Toolkit.Perception.Systems
         /// Performs a brute-force linear scan over all entities that have both
         /// <see cref="SimTransform"/> and <see cref="PerceptionReceptor"/>.
         /// </summary>
-        private int QueryFallback(
+        private static int QueryFallback(
+            EntityRepository repo,
             Vector2 eventPos2D,
             float radius,
             Span<(Entity entity, Vector2 pos)> output)
@@ -92,10 +96,10 @@ namespace Fdp.Toolkit.Perception.Systems
             int count   = 0;
             float radSq = radius * radius;
 
-            var query = World.Query().With<SimTransform>().With<PerceptionReceptor>().Build();
+            var query = repo.Query().With<SimTransform>().With<PerceptionReceptor>().Build();
             foreach (var entity in query)
             {
-                var tf  = World.GetComponent<SimTransform>(entity);
+                var tf  = repo.GetComponent<SimTransform>(entity);
                 var pos = new Vector2(tf.Position.X, tf.Position.Y);
                 if (Vector2.DistanceSquared(pos, eventPos2D) <= radSq)
                 {

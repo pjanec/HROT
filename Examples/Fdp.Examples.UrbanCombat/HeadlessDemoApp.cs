@@ -115,16 +115,11 @@ namespace Fdp.Examples.UrbanCombat
         /// </summary>
         public NetworkEntityMap EntityMap => _entityMap;
 
-        // System groups — created in RegisterSystems(), disposed in Dispose().
-        private InputSystemGroup?           _inputGroup;
-        private SimulationSystemGroup?      _simGroup;
-        private PostSimulationSystemGroup?  _postSimGroup;
-        private ExportSystemGroup?          _exportGroup;
-
-        // IEcsModuleSystem instances for converted systems (not added to SystemGroups).
+        // IEcsModuleSystem instances executed in phase order each frame.
         private List<IEcsModuleSystem> _inputModuleSystems   = new();
         private List<IEcsModuleSystem> _simModuleSystems     = new();
         private List<IEcsModuleSystem> _postSimModuleSystems = new();
+        private List<IEcsModuleSystem> _exportModuleSystems  = new();
 
         // Physics module — retained for lifetime so native arrays stay valid;
         // Dispose() frees the persistent NativeArrays after the world is torn down.
@@ -220,13 +215,10 @@ namespace Fdp.Examples.UrbanCombat
                 // Swap double-buffered event streams: write → read, read → empty write.
                 World.Bus.SwapBuffers();
 
-                _inputGroup!.Run();
                 foreach (var sys in _inputModuleSystems) sys.Execute(World, Dt);
-                _simGroup!.Run();
                 foreach (var sys in _simModuleSystems) sys.Execute(World, Dt);
-                _postSimGroup!.Run();
                 foreach (var sys in _postSimModuleSystems) sys.Execute(World, Dt);
-                _exportGroup!.Run();
+                foreach (var sys in _exportModuleSystems) sys.Execute(World, Dt);
 
                 World.Tick();
             }
@@ -325,26 +317,21 @@ namespace Fdp.Examples.UrbanCombat
         {
             _trajectoryPool = new TrajectoryPoolManager();
 
-            // ── Input group ─────────────────────────────────────────────────────────
-            _inputGroup = new InputSystemGroup();
-            _inputGroup.Create(World);
-            // These systems are now IEcsModuleSystem and executed via _inputModuleSystems.
+            // ── Input phase ────────────────────────────────────────────
             _inputModuleSystems.Add(new DoctrineIngressSystem(_doctrineRegistry));
             _inputModuleSystems.Add(new FireProcessingSystem());
             _inputModuleSystems.Add(new RaycastSolverSystem());
             _inputModuleSystems.Add(new HitResolutionSystem());
 
-            // ── Simulation group ────────────────────────────────────────────────────
-            _simGroup = new SimulationSystemGroup();
-            _simGroup.Create(World);
+            // ── Simulation phase ───────────────────────────────────────────
             _simModuleSystems.Add(new MissionDirectorSystem());
-            _simGroup.AddSystem(new TrafficBrainSystem());
+            _simModuleSystems.Add(new TrafficBrainSystem());
             _simModuleSystems.Add(new ChannelArbitrationSystem());
             _simModuleSystems.Add(new BTreeTickSystem(_doctrineRegistry));
             _simModuleSystems.Add(new HsmTickSystem<BrainHsm128>(_doctrineRegistry));
-            _simGroup.AddSystem(new DamageSystem());
+            _simModuleSystems.Add(new DamageSystem());
             _simModuleSystems.Add(new HsmDamageBridgeSystem());
-            _simGroup.AddSystem(new AudioPerceptionSystem());
+            _simModuleSystems.Add(new AudioPerceptionSystem());
 
             var weaponSys = new WeaponDispatcherSystem();
             weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor());
@@ -361,16 +348,12 @@ namespace Fdp.Examples.UrbanCombat
             _simModuleSystems.Add(new SpatialHashSystem());
             _simModuleSystems.Add(new CarKinematicsSystem(_trajectoryPool));
 
-            // ── PostSimulation group ─────────────────────────────────────────────────
-            _postSimGroup = new PostSimulationSystemGroup();
-            _postSimGroup.Create(World);
+            // ── PostSimulation phase ─────────────────────────────────────────
             _postSimModuleSystems.Add(new LinearKinematicsSystem());
             _postSimModuleSystems.Add(new BallisticsSystem());
 
-            // ── Export group ─────────────────────────────────────────────────────────
-            _exportGroup = new ExportSystemGroup();
-            _exportGroup.Create(World);
-            _exportGroup.AddSystem(new TelemetryReporterSystem());
+            // ── Export phase ────────────────────────────────────────────
+            _exportModuleSystems.Add(new TelemetryReporterSystem());
         }
 
         // ── IDisposable ───────────────────────────────────────────────────────────
@@ -379,11 +362,11 @@ namespace Fdp.Examples.UrbanCombat
         {
             if (!_disposed)
             {
-                // Dispose system groups (each group disposes its member systems).
-                _exportGroup?.Dispose();
-                _postSimGroup?.Dispose();
-                _simGroup?.Dispose();
-                _inputGroup?.Dispose();
+                // Dispose systems that implement IDisposable.
+                foreach (var sys in _inputModuleSystems)   (sys as IDisposable)?.Dispose();
+                foreach (var sys in _simModuleSystems)     (sys as IDisposable)?.Dispose();
+                foreach (var sys in _postSimModuleSystems) (sys as IDisposable)?.Dispose();
+                foreach (var sys in _exportModuleSystems)  (sys as IDisposable)?.Dispose();
 
                 // Dispose the trajectory pool.
                 _trajectoryPool?.Dispose();

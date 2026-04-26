@@ -1,5 +1,6 @@
 using System;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
 
 namespace Fdp.Toolkit.Replication.Systems
@@ -13,17 +14,18 @@ namespace Fdp.Toolkit.Replication.Systems
     /// <see cref="GhostStateTracker.FirstSeenFrame"/> was stamped by
     /// <see cref="GhostCreationSystem"/> at ghost creation time.
     /// </summary>
-    public class GhostTimeoutSystem : ComponentSystem
+    public class GhostTimeoutSystem : IEcsModuleSystem
     {
         private const uint MAX_GHOST_AGE = 3600; // 60 seconds at 60Hz
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            if (!World.HasSingletonUnmanaged<GlobalTime>()) return;
-            var globalTime = World.GetSingletonUnmanaged<GlobalTime>();
+            var repo = (EntityRepository)view;
+            if (!repo.HasSingletonUnmanaged<GlobalTime>()) return;
+            var globalTime = repo.GetSingletonUnmanaged<GlobalTime>();
             uint currentFrame = (uint)globalTime.FrameNumber;
 
-            var query = World.Query()
+            var query = repo.Query()
                 .With<GhostStateTracker>()
                 .WithLifecycle(EntityLifecycle.Ghost)
                 .Build();
@@ -32,7 +34,7 @@ namespace Fdp.Toolkit.Replication.Systems
             {
                 foreach (var entity in query)
                 {
-                    var tracker = World.GetComponent<GhostStateTracker>(entity);
+                    var tracker = repo.GetComponent<GhostStateTracker>(entity);
 
                     uint age = currentFrame - tracker.FirstSeenFrame;
                     if (age > MAX_GHOST_AGE)
@@ -41,7 +43,7 @@ namespace Fdp.Toolkit.Replication.Systems
                     }
                 }
 
-                ecb.Playback(World);
+                ecb.Playback(repo);
             }
         }
     }

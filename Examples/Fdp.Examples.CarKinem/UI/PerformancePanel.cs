@@ -20,7 +20,7 @@ namespace Fdp.Examples.CarKinem.UI
     {
         public bool IsOpen = false;
         
-        public void Render(System.Collections.Generic.IEnumerable<Fdp.Core.ComponentSystem> systems)
+        public void Render(System.Collections.Generic.IEnumerable<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> systems)
         {
             if (!IsOpen) return;
             
@@ -37,7 +37,7 @@ namespace Fdp.Examples.CarKinem.UI
                 {
                     ImGui.Text(sys.GetType().Name);
                     ImGui.NextColumn();
-                    ImGui.Text($"{sys.LastUpdateDuration:F4}");
+                    ImGui.Text("N/A");
                     ImGui.NextColumn();
                 }
                 

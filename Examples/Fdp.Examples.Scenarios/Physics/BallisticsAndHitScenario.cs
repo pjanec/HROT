@@ -146,13 +146,10 @@ namespace Fdp.Examples.Scenarios.Physics
                 new HitResolutionSystem(),
             };
 
-            var legacySystems = new ComponentSystem[]
+            var legacySystems = new IEcsModuleSystem[]
             {
                 new DamageSystem(),
             };
-
-            foreach (var sys in legacySystems)
-                sys.Create(world);
 
             kernel.RegisterModule(new BallisticsModule("BallisticsAndHitModule", world, modSystems, legacySystems));
 
@@ -307,7 +304,7 @@ namespace Fdp.Examples.Scenarios.Physics
         private sealed class BallisticsModule : IEcsModule, IDisposable
         {
             private readonly IEcsModuleSystem[] _modSystems;
-            private readonly ComponentSystem[]  _legacySystems;
+            private readonly IEcsModuleSystem[]  _legacySystems;
             private readonly EntityRepository    _world;
             private bool _disposed;
 
@@ -316,7 +313,7 @@ namespace Fdp.Examples.Scenarios.Physics
             public IReadOnlyList<Type>? WatchComponents => null;
             public IReadOnlyList<Type>? WatchEvents     => null;
 
-            public BallisticsModule(string name, EntityRepository world, IEcsModuleSystem[] modSystems, ComponentSystem[] legacySystems)
+            public BallisticsModule(string name, EntityRepository world, IEcsModuleSystem[] modSystems, IEcsModuleSystem[] legacySystems)
             {
                 Name           = name;
                 _world         = world;
@@ -331,7 +328,7 @@ namespace Fdp.Examples.Scenarios.Physics
                 foreach (var sys in _modSystems)
                     sys.Execute(view, deltaTime);
                 foreach (var sys in _legacySystems)
-                    sys.Run();
+                    sys.Execute(view, deltaTime);
             }
 
             public IReadOnlyList<Type>? GetRequiredComponents() => null;
@@ -342,7 +339,7 @@ namespace Fdp.Examples.Scenarios.Physics
                 _disposed = true;
 
                 foreach (var sys in _legacySystems)
-                    sys.Dispose();
+                    (sys as IDisposable)?.Dispose();
 
                 // Free the NativeArrays that PhysicsToolkitModule transferred to the world.
                 if (_world.HasSingleton<RaycastBatchData>())

@@ -6,54 +6,49 @@ namespace Fdp.Core.Systems
     /// Validates 'Constructing' entities and promotes them to 'Active' when ready.
     /// Runs at the end of the frame.
     /// </summary>
-    public class EntityValidationSystem : ComponentSystem
+    public class EntityValidationSystem
     {
-        private EntityQuery _pendingEntities = null!;
+        private EntityQuery? _pendingEntities;
         private int _frameCount;
 
         // Timeout in Seconds
         public const float MaxConstructionTime = 5.0f;
 
-        protected override void OnCreate()
+        public void Execute(EntityRepository repo, float deltaTime)
         {
-            // Find entities that have LifecycleDescriptor but NO IsActiveTag
-            _pendingEntities = World.Query()
+            // Build query on first execution (lazy init)
+            _pendingEntities ??= repo.Query()
                 .With<LifecycleDescriptor>()
-                .Without<IsActiveTag>() 
+                .Without<IsActiveTag>()
                 .WithLifecycle(EntityLifecycle.Constructing)
                 .Build();
-        }
 
-        protected override void OnUpdate()
-        {
             _frameCount++;
-
-            float dt = DeltaTime; // from ComponentSystem
 
             // 1. Validation Logic
             foreach (var entity in _pendingEntities)
             {
-                ref var lifecycle = ref World.GetComponentRW<LifecycleDescriptor>(entity);
-                
+                ref var lifecycle = ref repo.GetComponentRW<LifecycleDescriptor>(entity);
+
                 // Check if all required modules have ACKed
                 if ((lifecycle.RequiredModulesMask & lifecycle.AckedModulesMask) == lifecycle.RequiredModulesMask)
                 {
                     // Transition to Active State
                     lifecycle.State = EntityState.Active;
-                    
+
                     // Add the tag -> This makes the entity visible to Physics/GameLogic next frame
-                    World.AddComponent(entity, new IsActiveTag());
+                    repo.AddComponent(entity, new IsActiveTag());
                 }
                 else
                 {
                     // Update timeout logic (Accumulate DeltaTime)
-                    lifecycle.CreatedTime += dt;
-                    
+                    lifecycle.CreatedTime += deltaTime;
+
                     // 2. Timeout Logic
-                    if (lifecycle.CreatedTime > MaxConstructionTime) 
+                    if (lifecycle.CreatedTime > MaxConstructionTime)
                     {
                          // Zombie detected - Destroy!
-                         World.DestroyEntity(entity);
+                         repo.DestroyEntity(entity);
                     }
                 }
             }

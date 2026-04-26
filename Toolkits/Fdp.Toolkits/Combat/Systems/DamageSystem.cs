@@ -1,5 +1,6 @@
 using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Core to Combat.Contracts
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Replication.Components;
@@ -35,12 +36,13 @@ namespace Fdp.Toolkit.Combat.Systems
     /// guards against the (rare) case where the slot has been recycled for a different entity.
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    public class DamageSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    public class DamageSystem : IEcsModuleSystem
     {
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            var events = World.Bus.Read<HitEvent>();
+            var repo = (EntityRepository)view;
+            var events = view.ReadEvents<HitEvent>();
             if (events.Length == 0) return;
 
             for (int i = 0; i < events.Length; i++)
@@ -50,33 +52,33 @@ namespace Fdp.Toolkit.Combat.Systems
                 // Authority guard (BS1-T003): skip if a remote node owns this entity.
                 // When no NetworkAuthority component is present, treat as authoritative
                 // (single-node / AllInOne / unit-test scenario).
-                if (World.HasComponent<NetworkAuthority>(evt.HitEntity))
+                if (view.HasComponent<NetworkAuthority>(evt.HitEntity))
                 {
-                    ref readonly var auth = ref World.GetComponentRO<NetworkAuthority>(evt.HitEntity);
+                    ref readonly var auth = ref view.GetComponentRO<NetworkAuthority>(evt.HitEntity);
                     if (!auth.HasAuthority) continue;
                 }
 
                 // 1. Skip if the target entity is already dead.
-                if (!World.IsAlive(evt.HitEntity)) continue;
+                if (!view.IsAlive(evt.HitEntity)) continue;
 
                 // 2. Skip if the target has no health component (non-damageable entity).
-                if (!World.HasComponent<Health>(evt.HitEntity)) continue;
+                if (!view.HasComponent<Health>(evt.HitEntity)) continue;
 
                 // 3. Resolve the bullet entity from its raw index (DEBT-027 pattern).
-                var bulletEntity = World.GetEntityByIndex(evt.BulletIndex);
+                var bulletEntity = repo.GetEntityByIndex(evt.BulletIndex);
 
                 // 4. Guard: bullet may have been destroyed before DamageSystem ran.
-                if (!World.IsAlive(bulletEntity)) continue;
+                if (!view.IsAlive(bulletEntity)) continue;
 
                 // Additional guard: confirm the entity at this slot is actually a bullet.
                 // Protects against index recycling (DEBT-027).
-                if (!World.HasComponent<BallisticProjectile>(bulletEntity)) continue;
+                if (!view.HasComponent<BallisticProjectile>(bulletEntity)) continue;
 
                 // 5. Read damage from the bullet.
-                float damage = World.GetComponent<BallisticProjectile>(bulletEntity).Damage;
+                float damage = view.GetComponentRO<BallisticProjectile>(bulletEntity).Damage;
 
                 // 6. Apply damage to the hit entity's health.
-                ref var health = ref World.GetComponentRW<Health>(evt.HitEntity);
+                ref var health = ref repo.GetComponentRW<Health>(evt.HitEntity);
                 health.Current -= damage;
                 if (health.Current < 0f) health.Current = 0f;
 
@@ -86,23 +88,23 @@ namespace Fdp.Toolkit.Combat.Systems
                 {
                     // Strip CanMove + CanShoot so downstream systems (e.g. HsmDamageBridgeSystem)
                     // can detect mobility loss even though the entity is about to be removed.
-                    if (World.HasComponent<ActorCapabilityState>(evt.HitEntity))
+                    if (view.HasComponent<ActorCapabilityState>(evt.HitEntity))
                     {
-                        ref var caps = ref World.GetComponentRW<ActorCapabilityState>(evt.HitEntity);
+                        ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(evt.HitEntity);
                         caps.Capabilities &= ~(ActorCapabilities.CanMove | ActorCapabilities.CanShoot);
                     }
-                    World.DestroyEntity(evt.HitEntity);
+                    repo.DestroyEntity(evt.HitEntity);
                 }
-                else if (World.HasComponent<ActorCapabilityState>(evt.HitEntity))
+                else if (view.HasComponent<ActorCapabilityState>(evt.HitEntity))
                 {
                     // Non-lethal hit: strip CanMove so HsmDamageBridgeSystem can detect
-                    // the mobility-kill transition (set→cleared) and inject MobilityLost.
-                    ref var caps = ref World.GetComponentRW<ActorCapabilityState>(evt.HitEntity);
+                    // the mobility-kill transition (set->cleared) and inject MobilityLost.
+                    ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(evt.HitEntity);
                     caps.Capabilities &= ~ActorCapabilities.CanMove;
                 }
 
                 // 8. Destroy the bullet entity (single-hit — bullet is consumed on impact).
-                World.DestroyEntity(bulletEntity);
+                repo.DestroyEntity(bulletEntity);
             }
         }
     }

@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Vis2D.Systems;
 /// INCLUDES CYCLE DETECTION to prevent infinite loops.
 /// </summary>
 [UpdateInPhase(SystemPhase.BeforeSync)]
-public class HierarchyOrderSystem : ComponentSystem
+public class HierarchyOrderSystem : IEcsModuleSystem, IDisposable
 {
     /// <summary>
     /// Singleton holding the sorted list.
@@ -30,39 +30,40 @@ public class HierarchyOrderSystem : ComponentSystem
     // Cycle detection
     private readonly HashSet<Entity> _visited = new();
 
-    public void MarkDirty() => _isDirty = true;
-
-    protected override void OnCreate()
+    public HierarchyOrderSystem()
     {
         // Initial capacity (resize logic needed in real prod code)
         _buffer = new NativeArray<Entity>(10000, Allocator.Persistent);
     }
 
-    protected override void OnUpdate()
+    public void MarkDirty() => _isDirty = true;
+
+    public void Execute(ISimulationView view, float deltaTime)
     {
+        var repo = (EntityRepository)view;
         if (!_isDirty) return; // OPTIMIZATION: Skip when nothing changed
 
         // 1. Perform Topological Sort (Bottom-Up)
-        var roots = World.Query().With<VisHierarchyNode>().Build();
+        var roots = repo.Query().With<VisHierarchyNode>().Build();
         
         _bufferCount = 0;
         _visited.Clear();
 
         foreach (var entity in roots)
         {
-            var node = World.GetComponentRO<VisHierarchyNode>(entity);
+            var node = view.GetComponentRO<VisHierarchyNode>(entity);
             if (node.Parent == Entity.Null) // Is Root
             {
-                ProcessNode(entity);
+                ProcessNode(entity, view);
             }
         }
 
         // Publish the result
-        World.SetSingleton(new SortedHierarchyData 
+        repo.SetSingleton(new SortedHierarchyData 
         { 
             BottomUpList = _buffer, 
             Count = _bufferCount,
-            TopologyVersion = World.GlobalVersion
+            TopologyVersion = repo.GlobalVersion
         });
 
         _isDirty = false;
@@ -71,7 +72,7 @@ public class HierarchyOrderSystem : ComponentSystem
     /// <summary>
     /// Post-order traversal with CYCLE DETECTION.
     /// </summary>
-    private void ProcessNode(Entity entity)
+    private void ProcessNode(Entity entity, ISimulationView view)
     {
         // SAFETY CHECK: Detect cycles
         if (_visited.Contains(entity))
@@ -84,13 +85,13 @@ public class HierarchyOrderSystem : ComponentSystem
         _visited.Add(entity);
 
         // 1. Process Children First (Post-Order)
-        var node = World.GetComponentRO<VisHierarchyNode>(entity);
+        var node = view.GetComponentRO<VisHierarchyNode>(entity);
         Entity child = node.FirstChild;
         
-        while (World.IsAlive(child))
+        while (view.IsAlive(child))
         {
-            ProcessNode(child); // Recurse
-            var childNode = World.GetComponentRO<VisHierarchyNode>(child);
+            ProcessNode(child, view); // Recurse
+            var childNode = view.GetComponentRO<VisHierarchyNode>(child);
             child = childNode.NextSibling;
         }
 
@@ -104,7 +105,7 @@ public class HierarchyOrderSystem : ComponentSystem
         _visited.Remove(entity);
     }
 
-    protected override void OnDestroy()
+    public void Dispose()
     {
         _buffer.Dispose();
     }

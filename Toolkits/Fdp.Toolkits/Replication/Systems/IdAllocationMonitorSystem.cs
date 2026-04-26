@@ -1,15 +1,17 @@
 using System;
 using System.Diagnostics;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Messages;
 using Fdp.Toolkit.Replication.Services;
 
 namespace Fdp.Toolkit.Replication.Systems
 {
-    public class IdAllocationMonitorSystem : ComponentSystem
+    public class IdAllocationMonitorSystem : IEcsModuleSystem, IDisposable
     {
         private BlockIdManager? _manager;
         private string _clientId = string.Empty;
+        private EntityRepository? _repo;
 
         // Default to a random client ID if not configured.
         private string GetClientId()
@@ -18,23 +20,31 @@ namespace Fdp.Toolkit.Replication.Systems
             return "Node_" + Process.GetCurrentProcess().Id;
         }
 
-        protected override void OnCreate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            _clientId = GetClientId();
-            
-            // Try to resolve manager immediately (if available)
-            if (World.HasSingletonManaged<BlockIdManager>())
-            {
-                _manager = World.GetSingletonManaged<BlockIdManager>();
-            }
-        }
+            var repo = (EntityRepository)view;
 
-        protected override void OnUpdate()
-        {
-            // 1. Maintain connection to Manager
-            if (_manager == null && World.HasSingletonManaged<BlockIdManager>())
+            // Lazy init on first Execute (replaces OnCreate)
+            if (_clientId == string.Empty)
             {
-                _manager = World.GetSingletonManaged<BlockIdManager>();
+                _clientId = GetClientId();
+                _repo = repo;
+
+                // Try to resolve manager immediately (if available)
+                if (repo.HasSingletonManaged<BlockIdManager>())
+                {
+                    _manager = repo.GetSingletonManaged<BlockIdManager>();
+                }
+            }
+            else
+            {
+                _repo = repo;
+            }
+
+            // 1. Maintain connection to Manager
+            if (_manager == null && repo.HasSingletonManaged<BlockIdManager>())
+            {
+                _manager = repo.GetSingletonManaged<BlockIdManager>();
                 if (_manager != null)
                 {
                     _manager.OnLowWaterMark += HandleLowWaterMark;
@@ -42,9 +52,9 @@ namespace Fdp.Toolkit.Replication.Systems
             }
             
             // 2. Consume Network Responses
-            if (World.Bus.HasManagedEvent<IdBlockResponse>())
+            if (repo.Bus.HasManagedEvent<IdBlockResponse>())
             {
-                var responses = World.Bus.ReadManaged<IdBlockResponse>();
+                var responses = view.ReadManagedEvents<IdBlockResponse>();
                 foreach (var resp in responses)
                 {
                     if (resp.ClientId == _clientId)
@@ -58,7 +68,7 @@ namespace Fdp.Toolkit.Replication.Systems
             }
         }
 
-        protected override void OnDestroy()
+        public void Dispose()
         {
             if (_manager != null)
             {
@@ -75,7 +85,7 @@ namespace Fdp.Toolkit.Replication.Systems
                 RequestSize = 100 
             };
             
-            World.Bus.PublishManaged(req);
+            _repo?.Bus.PublishManaged(req);
         }
     }
 }

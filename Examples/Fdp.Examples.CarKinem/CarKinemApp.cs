@@ -69,7 +69,7 @@ public class CarKinemApp : FdpApplication
     private MainUI _legacyUI = null!;
     
     // Systems List for Profiling
-    private List<Fdp.Core.ComponentSystem> _systems = new();
+    private List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> _systems = new();
 
     // App State (Removed local state, using UIState from MainUI)
 

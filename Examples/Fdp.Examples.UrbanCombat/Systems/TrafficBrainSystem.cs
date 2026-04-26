@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Systems;
@@ -22,13 +23,13 @@ namespace Fdp.Examples.UrbanCombat.Systems
     /// with Tier-2 tactical actors driven by BTree or HSM brains.
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateBefore(typeof(ChannelArbitrationSystem))]
-    public class TrafficBrainSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Simulation)]
+    public class TrafficBrainSystem : IEcsModuleSystem
     {
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            var q = World.Query()
+            var repo = (EntityRepository)view;
+            var q = repo.Query()
                 .With<SimTier>()
                 .With<LocomotionChannel>()
                 .With<ActorCapabilityState>()
@@ -36,23 +37,23 @@ namespace Fdp.Examples.UrbanCombat.Systems
 
             foreach (var entity in q)
             {
-                var tier = World.GetComponent<SimTier>(entity);
+                var tier = view.GetComponentRO<SimTier>(entity);
 
                 // Only drive Tier-1 (civilian) entities.
                 if (tier.Value != 1)
                     continue;
 
-                var caps = World.GetComponent<ActorCapabilityState>(entity);
+                var caps = view.GetComponentRO<ActorCapabilityState>(entity);
                 if (!caps.Capabilities.HasFlag(ActorCapabilities.CanMove))
                     continue;
 
-                ref var channel = ref World.GetComponentRW<LocomotionChannel>(entity);
+                ref var channel = ref repo.GetComponentRW<LocomotionChannel>(entity);
 
                 // Check threat awareness if the entity has a TargetMemory component.
                 bool hasThreat = false;
-                if (World.HasComponent<TargetMemory>(entity))
+                if (view.HasComponent<TargetMemory>(entity))
                 {
-                    var tm = World.GetComponent<TargetMemory>(entity);
+                    var tm = view.GetComponentRO<TargetMemory>(entity);
                     hasThreat = tm.Count > 0;
                 }
 
@@ -63,9 +64,9 @@ namespace Fdp.Examples.UrbanCombat.Systems
                 // Stamp DoctrineInstanceId so ChannelArbitrationSystem does not clear
                 // this frame's intent (ChannelArb guards on DoctrineInstanceId mismatch).
                 // Only applied when the entity has a DoctrineState component.
-                if (World.HasComponent<DoctrineState>(entity))
+                if (view.HasComponent<DoctrineState>(entity))
                 {
-                    var doctrine = World.GetComponent<DoctrineState>(entity);
+                    var doctrine = view.GetComponentRO<DoctrineState>(entity);
                     channel.DoctrineInstanceId = doctrine.InstanceId;
                 }
             }

@@ -802,7 +802,7 @@ namespace Fdp.Examples.Scenarios.Integrated
 
         // ── Private helpers — system pipeline ────────────────────────────────
 
-        private (IEcsModuleSystem[] modSystems, ComponentSystem[] legacySystems) BuildSystems(EntityRepository world)
+        private (IEcsModuleSystem[] modSystems, IEcsModuleSystem[] legacySystems) BuildSystems(EntityRepository world)
         {
             var weaponSys = new WeaponDispatcherSystem();
             weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor());
@@ -835,14 +835,11 @@ namespace Fdp.Examples.Scenarios.Integrated
                 new BallisticsSystem(),
             };
 
-            var legacySystems = new ComponentSystem[]
+            var legacySystems = new IEcsModuleSystem[]
             {
                 new DamageSystem(),
                 new AudioPerceptionSystem(),
             };
-
-            foreach (var sys in legacySystems)
-                sys.Create(world);
 
             return (modSystems, legacySystems);
         }
@@ -1029,14 +1026,14 @@ namespace Fdp.Examples.Scenarios.Integrated
         private sealed class UrbanCombatModule : IEcsModule
         {
             private readonly IEcsModuleSystem[] _modSystems;
-            private readonly ComponentSystem[]  _legacySystems;
+            private readonly IEcsModuleSystem[]  _legacySystems;
 
             public string Name { get; }
             public ExecutionPolicy Policy         => ExecutionPolicy.Synchronous();
             public IReadOnlyList<Type>? WatchComponents => null;
             public IReadOnlyList<Type>? WatchEvents     => null;
 
-            public UrbanCombatModule(string name, IEcsModuleSystem[] modSystems, ComponentSystem[] legacySystems)
+            public UrbanCombatModule(string name, IEcsModuleSystem[] modSystems, IEcsModuleSystem[] legacySystems)
             {
                 Name          = name;
                 _modSystems   = modSystems;
@@ -1050,7 +1047,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 foreach (var sys in _modSystems)
                     sys.Execute(view, deltaTime);
                 foreach (var sys in _legacySystems)
-                    sys.Run();
+                    sys.Execute(view, deltaTime);
             }
 
             public IReadOnlyList<Type>? GetRequiredComponents() => null;

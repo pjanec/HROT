@@ -173,9 +173,8 @@ namespace Fdp.Examples.UrbanCombat.Tests
             _app.World.AddComponent(e, new LocomotionChannel());
             _app.World.AddComponent(e, new TargetMemory         { Count = 1 }); // one threat
 
-            using var sys = new TrafficBrainSystem();
-            sys.Create(_app.World);
-            sys.Run();
+            var sys = new TrafficBrainSystem();
+            sys.Execute(_app.World, 0f);
 
             var channel = _app.World.GetComponent<LocomotionChannel>(e);
             Assert.Equal(NavigationConstants.ActionIdFlee, channel.ActiveAction);   // 2
@@ -193,9 +192,8 @@ namespace Fdp.Examples.UrbanCombat.Tests
             _app.World.AddComponent(e, new LocomotionChannel());
             _app.World.AddComponent(e, new TargetMemory         { Count = 0 }); // no threats
 
-            using var sys = new TrafficBrainSystem();
-            sys.Create(_app.World);
-            sys.Run();
+            var sys = new TrafficBrainSystem();
+            sys.Execute(_app.World, 0f);
 
             var channel = _app.World.GetComponent<LocomotionChannel>(e);
             Assert.Equal(NavigationConstants.ActionIdMoveTo, channel.ActiveAction);  // 1
@@ -212,9 +210,8 @@ namespace Fdp.Examples.UrbanCombat.Tests
             _app.World.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             _app.World.AddComponent(e, new LocomotionChannel());                // ActiveAction starts at 0
 
-            using var sys = new TrafficBrainSystem();
-            sys.Create(_app.World);
-            sys.Run();
+            var sys = new TrafficBrainSystem();
+            sys.Execute(_app.World, 0f);
 
             var channel = _app.World.GetComponent<LocomotionChannel>(e);
             Assert.Equal((ushort)0, channel.ActiveAction);   // untouched
