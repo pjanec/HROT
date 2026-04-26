@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core.Logging;
+using Fdp.Toolkit.Orchestration;
 using Hrot.Network.Orchestration;
 
 namespace Hrot.Orchestrator;
@@ -316,7 +317,8 @@ public sealed class StorageGatewayModule
                 {
                     try
                     {
-                        var srcPath = Path.Combine(nasBasePath, exerciseId, $"node_{target.NodeId}.fdp");
+                        var fileName = OrchestrationConstants.GetNodeRecordingFileName(target.NodeId);
+                        var srcPath = Path.Combine(nasBasePath, exerciseId, fileName);
                         var destDir = Path.GetDirectoryName(target.DestinationPath);
                         if (!string.IsNullOrEmpty(destDir))
                             Directory.CreateDirectory(destDir);

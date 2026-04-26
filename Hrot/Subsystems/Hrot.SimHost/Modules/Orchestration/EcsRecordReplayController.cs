@@ -200,7 +200,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         // ── Helpers ───────────────────────────────────────────────────────────────
 
         private string GetRecordingFilePath(Guid exerciseId, string storageDirectory) =>
-            Path.Combine(storageDirectory, exerciseId.ToString(), $"node_{_nodeId}.fdp");
+            Path.Combine(storageDirectory, exerciseId.ToString(), Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeRecordingFileName(_nodeId));
 
         private string GetEpisodeRecordingFilePath(Guid episodeId, string storageDirectory) =>
             Path.Combine(storageDirectory, "episodes", $"{episodeId}_node{_nodeId}.fdp");

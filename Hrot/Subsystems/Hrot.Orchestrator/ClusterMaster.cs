@@ -1457,7 +1457,7 @@ public sealed class ClusterMaster : IDisposable
             targets.Add(new NodeDistributionTarget
             {
                 NodeId          = kv.Key,
-                DestinationPath = Path.Combine(OrchestrationConstants.DefaultStagingDirectory, exerciseId, $"node_{kv.Key}.fdp"),
+                DestinationPath = Path.Combine(OrchestrationConstants.DefaultStagingDirectory, exerciseId, OrchestrationConstants.GetNodeRecordingFileName(kv.Key)),
             });
         }
         return targets;
