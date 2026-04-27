@@ -100,11 +100,30 @@ public sealed class OrchestrationObserverTranslator : IDisposable
         using (var l = _sysOpStatusReader.Take())
             foreach (var s in l)
                 if (s.IsValid)
+                {
+                    object? payload = null;
+                    if (!string.IsNullOrWhiteSpace(s.Data.ResultJson))
+                    {
+                        try
+                        {
+                            // Rehydrate the specific DTO expected by ClusterUiCache
+                            payload = JsonSerializer.Deserialize<Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult>(
+                                s.Data.ResultJson,
+                                new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
+                        }
+                        catch
+                        {
+                            payload = s.Data.ResultJson;
+                        }
+                    }
+
                     _bus.PublishManaged(new ClusterOpCompletedEvent
                     {
                         RequestId  = s.Data.RequestId,
                         StatusCode = (OrchestrationStatusCode)s.Data.StatusCode,
+                        ResultPayload = payload // <-- Assign the deserialized payload here
                     });
+                }
 
         // NodeOpCommand → ExecuteNodeOpIntent (promiscuous — all target nodes)
         using (var l = _nodeOpCmdReader.Take())
