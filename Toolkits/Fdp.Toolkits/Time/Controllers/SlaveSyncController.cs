@@ -29,9 +29,10 @@ namespace Fdp.Toolkit.Time.Controllers
         private SlaveMode _mode = SlaveMode.Continuous;
 
         private long _pendingBarrierWallTicks = -1;
+        private SwitchTimeModeEvent _pendingBarrierEvent; // to retain the payload tied to the barrier for application on barrier hit
 
-        // ── Identity ─────────────────────────────────────────────────────────
-        private readonly int _localNodeId;
+		// ── Identity ─────────────────────────────────────────────────────────
+		private readonly int _localNodeId;
 
         // ── Virtual wall clock baseline (set on resume) ──────────────────────
         private long   _baselineWallTicks;   // SyncedWallTicks when baseline was captured
@@ -184,27 +185,30 @@ namespace Fdp.Toolkit.Time.Controllers
             {
                 if (evt.TargetMode == TimeMode.Deterministic)
                 {
-                    if (_mode != SlaveMode.Stepping)
+                    // Every Deterministic event is an absolute timeline anchor from the Master.
+                    // We unconditionally synchronize to it.
+                    if (SyncedWallTicks >= evt.BarrierWallTicks)
                     {
-                        if (SyncedWallTicks >= evt.BarrierWallTicks)
-                        {
-                            // Barrier has already elapsed -- snap immediately and enter Stepping.
-                            ApplyTimeSnap(evt);
-                            _mode = SlaveMode.Stepping;
-                            _pendingIntents.Clear();
-                            _lastAcceptedStepFrameId = -1L;
-                        }
-                        else
-                        {
-                            _pendingBarrierWallTicks = evt.BarrierWallTicks;
-                            _mode = SlaveMode.BarrierPending;
-                            _pendingIntents.Clear();
-                            _lastAcceptedStepFrameId = -1L;
-                        }
+                        // Barrier has already elapsed (or is 'now') -- snap immediately.
+                        ApplyTimeSnap(evt);
+                        _mode = SlaveMode.Stepping;
+                        _pendingIntents.Clear();
+                        _lastAcceptedStepFrameId = -1L;
+                    }
+                    else
+                    {
+                        // Barrier is in the future. Cleanly defer the state application.
+                        // (This perfectly absorbs minor NTP jitter during SnapAndPause!)
+                        _pendingBarrierWallTicks = evt.BarrierWallTicks;
+                        _pendingBarrierEvent = evt; // Uses the state-retention fix we added earlier
+                        _mode = SlaveMode.BarrierPending;
+                        _pendingIntents.Clear();
+                        _lastAcceptedStepFrameId = -1L;
                     }
                 }
                 else
                 {
+                    // Continuous mode resumes instantaneously.
                     ApplyResume(evt);
                 }
             }
@@ -348,6 +352,8 @@ namespace Fdp.Toolkit.Time.Controllers
             // Check if the synced wall clock has reached the barrier.
             if (_pendingBarrierWallTicks >= 0 && SyncedWallTicks >= _pendingBarrierWallTicks)
             {
+                ApplyTimeSnap(_pendingBarrierEvent);
+
                 Fdp.Core.Logging.FdpLog<SlaveSyncController>.Debug(
                     "[TC3][Slave#{0}] BARRIER HIT. SyncedWallTicks={1}, BarrierWallTicks={2}. Entering Stepping.",
                     _localNodeId, SyncedWallTicks, _pendingBarrierWallTicks);
