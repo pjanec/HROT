@@ -42,12 +42,12 @@ server-side pause is injected before seek fan-out.
 **Goal:** Restored `GlobalTime` flows from node ACKs up to the master, which snaps its
 clock and broadcasts an atomic pause to all nodes at the end of every seek.
 
-- [ ] **RT-010** Define `ReplaySeekResult` payload struct [details](./TASK-DETAIL.md#task-rt-010-define-replayseekresult-payload-struct)
-- [ ] **RT-011** Change `IRecordReplayController.SeekToTimeAsync` return type to `Task<GlobalTime>` [details](./TASK-DETAIL.md#task-rt-011-change-irecordreplaycontrollerseektotimeasync-return-type)
-- [ ] **RT-012** Update all `SeekToTimeAsync` implementations [details](./TASK-DETAIL.md#task-rt-012-update-all-seektotimeasync-implementations)
-- [ ] **RT-013** `ReferenceReplayLoadHandler` returns `ReplaySeekResult` for `NodeReplaySeek` [details](./TASK-DETAIL.md#task-rt-013-referencereplayloadhandler-returns-replayseekresult-for-nodereplayseek)
-- [ ] **RT-014** Add `SnapAndPause` method to `MasterSyncController` [details](./TASK-DETAIL.md#task-rt-014-add-snapandpause-method-to-masterysynccontroller)
-- [ ] **RT-015** Master clock snap in `ConsumeNodeOpStatuses` after seek [details](./TASK-DETAIL.md#task-rt-015-master-clock-snap-in-consumernodeopstatuses-after-seek)
+- [x] **RT-010** Define `ReplaySeekResult` payload struct [details](./TASK-DETAIL.md#task-rt-010-define-replayseekresult-payload-struct)
+- [x] **RT-011** Change `IRecordReplayController.SeekToTimeAsync` return type to `Task<GlobalTime>` [details](./TASK-DETAIL.md#task-rt-011-change-irecordreplaycontrollerseektotimeasync-return-type)
+- [x] **RT-012** Update all `SeekToTimeAsync` implementations [details](./TASK-DETAIL.md#task-rt-012-update-all-seektotimeasync-implementations)
+- [x] **RT-013** `ReferenceReplayLoadHandler` returns `ReplaySeekResult` for `NodeReplaySeek` [details](./TASK-DETAIL.md#task-rt-013-referencereplayloadhandler-returns-replayseekresult-for-nodereplayseek)
+- [x] **RT-014** Add `SnapAndPause` method to `MasterSyncController` [details](./TASK-DETAIL.md#task-rt-014-add-snapandpause-method-to-masterysynccontroller)
+- [x] **RT-015** Master clock snap in `ConsumeNodeOpStatuses` after seek [details](./TASK-DETAIL.md#task-rt-015-master-clock-snap-in-consumernodeopstatuses-after-seek)
 
 ---
 

@@ -133,8 +133,10 @@ public sealed class ClusterMaster : IDisposable
 
     private sealed class BranchTransitionTask
     {
-        public int  RemainingAcks;
-        public Guid RequestId;  // for bus-mode: publish ClusterOpStatus(Success) when branch ACKs complete
+        public int        RemainingAcks;
+        public Guid       RequestId;  // for bus-mode: publish ClusterOpStatus(Success) when branch ACKs complete
+        public bool       TimeExtracted;
+        public GlobalTime HistoricalTime;
     }
 
     // ── Episode 2PC (CGF1-S0308 / BATCH-21 Part A.1) ───────────────────────
@@ -1263,10 +1265,24 @@ public sealed class ClusterMaster : IDisposable
             // CGF1-S0305: Branch-transition ACK.
             if (_pendingBranchTasks.TryGetValue(ev.TransactionId, out var branchTask))
             {
+                if (!branchTask.TimeExtracted &&
+                    ev.ResultPayload is LiveBranchResult lbr &&
+                    lbr.HistoricalTime.TotalWallTicks != 0)
+                {
+                    branchTask.TimeExtracted  = true;
+                    branchTask.HistoricalTime = lbr.HistoricalTime;
+                }
                 branchTask.RemainingAcks--;
                 if (branchTask.RemainingAcks <= 0)
                 {
                     _pendingBranchTasks.Remove(ev.TransactionId);
+                    if (branchTask.TimeExtracted)
+                    {
+                        _masterSync?.SnapAndPause(
+                            branchTask.HistoricalTime.TotalWallTicks,
+                            branchTask.HistoricalTime.TotalTime,
+                            new HashSet<int>(_roster.ActiveNodes.Keys));
+                    }
                     _replayMasterModule?.RestoreTime();
                     PublishOpStatus(branchTask.RequestId, OrchestrationStatusCode.Success);
                     FdpLog<ClusterMaster>.Info(

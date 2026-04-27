@@ -242,6 +242,10 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// </summary>
         public void ProcessPlaybackTick(GlobalTime currentTime) { }
 
+        /// <inheritdoc />
+        public GlobalTime GetCurrentReplayTime() =>
+            _activeReplayModule != null ? _kernel.GetTimeController().GetCurrentState() : default;
+
         // ── IClusterOpHandler (full 2PC dispatch wired in CGF1-S0202) ──────────────────
 
         /// <inheritdoc />

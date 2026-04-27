@@ -107,5 +107,9 @@ namespace Hrot.CGF.Modules.Orchestration
         /// <inheritdoc />
         /// <remarks>Always returns 0 — CGF does not hold a replay file.</remarks>
         public float ActiveReplayDurationSeconds => 0f;
+
+        /// <inheritdoc />
+        /// <remarks>CGF does not replay ECS frame data; always returns default.</remarks>
+        public GlobalTime GetCurrentReplayTime() => default;
     }
 }

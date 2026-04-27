@@ -90,5 +90,9 @@ namespace Hrot.Common.Orchestration
         /// <inheritdoc />
         /// <remarks>Always 0 — listener nodes do not hold a replay file.</remarks>
         public float ActiveReplayDurationSeconds => 0f;
+
+        /// <inheritdoc />
+        /// <remarks>Listener nodes do not replay ECS frame data.</remarks>
+        public GlobalTime GetCurrentReplayTime() => default;
     }
 }
