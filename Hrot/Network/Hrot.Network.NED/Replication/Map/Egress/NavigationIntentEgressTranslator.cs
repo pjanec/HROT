@@ -151,7 +151,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     _localNodeId, netId.Value, intent.IntentId, intent.Mode);
             }
 
-            _lastScanTick = view.Tick;
+            _lastScanTick = repo.GlobalVersion;
         }
 
         /// <summary>

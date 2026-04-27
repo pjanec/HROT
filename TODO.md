@@ -1,3 +1,85 @@
+-------------------------------------------------------------------
+[BUG]
+You have just uncovered a severe memory-misalignment bug in the FDP engine's `DeltaQueryEnumerator` optimization. Your intuition is 100% correct: **the component version is being written perfectly, but `QueryDelta` is looking at the wrong chunk of memory.**
+
+The comment in the engine source code states:
+> *"A single representative entity index (the chunk's first slot) is sufficient because GetVersionForEntity returns the chunk-level version... If a component chunk covers a wider range than this EntityHeader chunk, the check is conservative..."*
+
+**This assumption is mathematically false.** Here is exactly why your `GetVersionForEntity` is returning a tiny, old version ID instead of your current `_lastScanTick`.
+
+### The Root Cause: Chunk Boundary Straddling
+The engine allocates unmanaged memory in 64KB blocks. The capacity of a chunk depends on the size of the struct:
+1. **EntityHeaders** are exactly 96 bytes. `65536 / 96 = 682` entities per chunk.
+2. **NavigationIntent** is smaller (approx 48 bytes). `65536 / 48 = 1365` entities per chunk.
+
+Because the capacities don't match, an `EntityHeader` chunk boundary will inevitably **straddle** the boundary of two Component chunks.
+
+**Example Scenario:**
+*   EntityHeader Chunk 2 covers entities **1364 to 2045**.
+*   For `NavigationIntent`, entity **1364** is the very last slot of Component **Chunk 0**. 
+*   Entities **1365 to 2045** fall into Component **Chunk 1**.
+
+If `MoveToExecutor` writes an intent to entity 1365, the ECS correctly updates the version of **Component Chunk 1** to your current `GlobalVersion`. 
+
+However, `DeltaQueryEnumerator` calculates `chunkStart = 1364` and blindly checks `table.GetVersionForEntity(1364)`. This reads the version of **Component Chunk 0**, which was never modified and still holds a version of `0` (or some very old tick). It evaluates `0 > _lastScanTick`, gets `false`, and silently skips the entire 682-entity block, completely missing your update to entity 1365!
+
+### The Fix
+You need to patch the engine. To fix this without modifying the `IComponentTable` interfaces, you can use a "Step by 64" sampling strategy. 
+
+In FDP, the `MaxComponentSize` is strictly 1024 bytes (Source 36), which means the absolute *smallest* component chunk capacity in the engine is 64 entities (`65536 / 1024`). If we step through the `EntityHeader` chunk in increments of 64, we are mathematically guaranteed to sample every overlapping component chunk without having to iterate all 682 entities.
+
+Open **`Fdp.Core/EntityRepository.DeltaQuery.cs`** and replace the flawed block inside `MoveNext()` with this:
+
+```csharp
+bool chunkChanged = false;
+int chunkStart = chunkIndex * _chunkCapacity;
+int chunkEnd = Math.Min(chunkStart + _chunkCapacity, _maxIndex + 1);
+
+for (int typeId = 0; typeId < tableCache.Length; typeId++)
+{
+    if (!includeMask.IsSet(typeId))
+        continue;
+        
+    var table = tableCache[typeId];
+    if (table != null)
+    {
+        // OPTIMIZATION: Global early-out. If the table hasn't changed at all, skip.
+        if (!table.HasChanges(_sinceVersion)) 
+            continue;
+
+        // FIX: Memory misalignment between EntityHeader chunks and Component chunks.
+        // Because components have different sizes, an EntityHeader chunk can straddle
+        // multiple component chunks. The max component size is 1024 bytes -> minimum 
+        // chunk capacity is 64. Stepping by 64 guarantees we sample every overlapping chunk.
+        for (int eId = chunkStart; eId < chunkEnd; eId += 64)
+        {
+            if (table.GetVersionForEntity(eId) > _sinceVersion)
+            {
+                chunkChanged = true;
+                break;
+            }
+        }
+
+        // Always check the exact last entity to cover the tail boundary
+        if (!chunkChanged && chunkEnd > chunkStart && table.GetVersionForEntity(chunkEnd - 1) > _sinceVersion)
+        {
+            chunkChanged = true;
+        }
+
+        if (chunkChanged) break;
+    }
+}
+```
+
+By making this change:
+1. `table.HasChanges` acts as an ultra-fast global filter so untouched tables cost 0 CPU time.
+2. The `eId += 64` loop correctly discovers Component Chunk 1 at entity 1428, reads the correct, current `GlobalVersion`, and flags `chunkChanged = true`.
+3. The query properly yields your entity, and the egress translator finally broadcasts your `NavigationIntent`!
+
+-------------------------------------------------------------------
+
+
+
 
 ----------- IOS/IG MAP related stuff -----------------
 

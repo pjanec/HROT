@@ -345,7 +345,10 @@ public sealed class NedReplicationModule : INedReplicationModule
         // On the Brain, OwnershipUpdateTranslator.PollIngress re-publishes them onto the local
         // bus, and this system consumes them to drop the Brain's own authority bits.
         if (pureBrainRole)
+        {
             registry.RegisterSystem(new OwnershipIngressSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
+            registry.RegisterSystem(new LocalAuthorityYieldSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
+        }
 
 
 
