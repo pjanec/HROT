@@ -1873,6 +1873,7 @@ namespace Fdp.ModuleHost
         /// registers. Cached instances are reused on subsequent topology rebuilds, preserving
         /// system state (e.g. profiling counters, cached queries) across hot-plug events.
         /// </summary>
+
         private sealed class CapturingSystemRegistry : ISystemRegistry
         {
             private readonly SystemScheduler _scheduler;
@@ -1882,15 +1883,27 @@ namespace Fdp.ModuleHost
 
             public void RegisterSystem<T>(T system) where T : IEcsModuleSystem
             {
-                Captured.Add(system);
+                var attr = (UpdateInPhaseAttribute?)Attribute.GetCustomAttribute(
+                    system.GetType(), typeof(UpdateInPhaseAttribute), inherit: true);
+
+                // Only capture Simulation phase systems for the module dispatch loop.
+                // Global phases (Input, BeforeSync, PostSim, Export) are handled by ExecutePhase.
+                if (attr != null && attr.Phase == SystemPhase.Simulation)
+                {
+                    Captured.Add(system);
+                }
+
                 _scheduler.RegisterSystem(system);
             }
 
             public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem
             {
-                Captured.Add(system);
+                // Do NOT add to Captured! Manual systems are meant to be ticked 
+                // explicitly by the module's own Tick() method.
                 return _scheduler.RegisterManualSystem(system);
             }
         }
+
     }
+
 }
