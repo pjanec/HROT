@@ -316,6 +316,13 @@ namespace Fdp.Toolkit.Time.Controllers
                 _baselineWallTicks = _prevFrameStartTicks; // fallback for legacy/test events
 
             _pendingBarrierWallTicks = -1;
+
+            // Snap the accumulated sim time so that any time-controller consumer
+            // (e.g. PlaybackTickSystem using TotalTime as replay indexing time)
+            // immediately sees the authoritative value rather than the stale
+            // pre-snap accumulator.
+            _totalTime         = _baselineSimTime;
+            _unscaledTotalTime = _baselineUnscaledTime;
         }
 
         // ── Private: continuous-mode update ─────────────────────────────────

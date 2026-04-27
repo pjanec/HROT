@@ -220,15 +220,22 @@ namespace Fdp.Toolkit.Replay.Tests
 
         /// <summary>
         /// Minimal <see cref="ITimeController"/> stub for unit tests.
-        /// Returns a fixed <see cref="GlobalTime"/> with a caller-specified
-        /// <see cref="GlobalTime.TotalWallTicks"/> value.
+        /// Returns a fixed <see cref="GlobalTime"/> with <see cref="GlobalTime.TotalTime"/>
+        /// derived from <paramref name="totalWallTicks"/> via <c>Stopwatch.Frequency</c>.
+        /// <see cref="PlaybackTickSystem"/> computes
+        /// <c>targetTicks = (long)(TotalTime * Stopwatch.Frequency)</c>, so passing
+        /// the frame's <c>WallClockTicks</c> here maps directly to that frame.
         /// </summary>
         private sealed class StubTimeController : ITimeController
         {
             private GlobalTime _state;
 
             public StubTimeController(long totalWallTicks)
-                => _state = new GlobalTime { TotalWallTicks = totalWallTicks };
+                => _state = new GlobalTime
+                {
+                    TotalTime      = totalWallTicks / (double)System.Diagnostics.Stopwatch.Frequency,
+                    TotalWallTicks = totalWallTicks,
+                };
 
             public GlobalTime Update()          => _state;
             public GlobalTime GetCurrentState() => _state;

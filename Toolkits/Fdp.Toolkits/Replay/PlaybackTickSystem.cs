@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using Fdp.Core;
 using Fdp.Core.FlightRecorder;
 using Fdp.ModuleHost.Abstractions;
@@ -22,9 +23,13 @@ namespace Fdp.Toolkit.Replay
     /// <c>NativeChunkTable</c>, then applies ≤ 59 delta frames.
     /// </para>
     /// <para>
-    /// In normal continuous playback, <see cref="ExtraFramesThisTick"/> is 0 and
-    /// Strategy A applies (advance exactly 1 frame per tick).  Fast-forward is
-    /// achieved by setting <see cref="ExtraFramesThisTick"/> = N - 1 before a tick.
+    /// The indexing cursor is derived from the time controller's
+    /// <c>TotalTime</c> (seconds), converted to wall-clock ticks via
+    /// <c>Stopwatch.Frequency</c>.  This makes replay natively speed-controllable
+    /// and pauseable: fast-forward, slow-motion, and pausing are driven purely by
+    /// the time controller's <c>TimeScale</c> — no manual frame-injection is needed.
+    /// During a seek the time controller must be seeded with the target time
+    /// (see <see cref="ReplayModule.SeekToWallClockTicksAsync"/>).
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
@@ -40,16 +45,11 @@ namespace Fdp.Toolkit.Replay
         private readonly ITimeController _timeController;
         private readonly Action? _afterSeek;
 
-        /// <summary>
-        /// Extra frames to advance in the current tick beyond the default of 1.
-        /// Reset to 0 after each Execute call.  Set externally to fast-forward.
-        /// </summary>
-        [Obsolete("Use ITimeController-based pull model.")]
-        public int ExtraFramesThisTick { get; set; } = 0;
-
         /// <param name="playback">The <see cref="PlaybackController"/> to drive.</param>
         /// <param name="timeController">
-        /// Active time controller whose <c>TotalWallTicks</c> drives the pull-model cursor.
+        /// Active time controller whose <c>TotalTime</c> (seconds) drives the pull-model
+        /// cursor.  The value is converted to wall-clock ticks via
+        /// <c>Stopwatch.Frequency</c> before comparison against the recording index.
         /// </param>
         public PlaybackTickSystem(PlaybackController playback, ITimeController timeController, Action? afterSeek = null)
         {
@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Replay
         {
             if (_playback.IsAtEnd) return;
 
-            long targetTicks  = _timeController.GetCurrentState().TotalWallTicks;
+            long targetTicks  = (long)(_timeController.GetCurrentState().TotalTime * Stopwatch.Frequency);
             long currentTicks = _playback.IsAtStart
                 ? long.MinValue
                 : _playback.GetFrameMetadata(_playback.CurrentFrame).WallClockTicks;

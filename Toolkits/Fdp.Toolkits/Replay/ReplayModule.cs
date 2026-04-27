@@ -54,7 +54,10 @@ namespace Fdp.Toolkit.Replay
         /// </param>
         /// <param name="timeController">
         /// Active time controller from the kernel.  <see cref="PlaybackTickSystem"/> reads
-        /// <c>TotalWallTicks</c> from this on every tick to drive the pull-model cursor.
+        /// <c>TotalTime</c> from this on every tick and converts it to wall-clock ticks via
+        /// <c>Stopwatch.Frequency</c> to drive the pull-model cursor.
+        /// The time controller is seeded by the cluster master (via <c>SnapAndPause</c>)
+        /// after each seek, re-anchoring the indexing cursor to the new position.
         /// </param>
         public ReplayModule(string filePath, EntityRepository repo, ITimeController timeController, Action? afterSeek = null)
         {
@@ -81,16 +84,6 @@ namespace Fdp.Toolkit.Replay
         /// <inheritdoc/>
         public void Tick(ISimulationView view, float deltaTime) { /* driven by PlaybackTickSystem */ }
 
-        /// <summary>
-        /// Sets the number of extra frames to advance in the next tick beyond the default
-        /// of 1.  Use for fast-forward (TimeScale &gt; 1).  Resets automatically after
-        /// the next <see cref="PlaybackTickSystem.Execute"/> call.
-        /// </summary>
-        public void SetExtraFramesThisTick(int extraFrames)
-        {
-            if (_tickSystem != null)
-                _tickSystem.ExtraFramesThisTick = extraFrames;
-        }
 
         /// <summary>
         /// Off-main-thread heavy seek.  Delegates to
