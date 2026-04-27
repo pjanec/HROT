@@ -95,6 +95,12 @@ namespace Fdp.Core.Orchestration
         float ActiveReplayDurationSeconds { get; }
 
         /// <summary>
+        /// Returns the starting wall-clock ticks of the active replay recording,
+        /// or <c>0</c> when no replay is active.
+        /// </summary>
+        long ActiveRecordingStartWallTicks { get; }
+
+        /// <summary>
         /// Returns the highest network entity ID encountered in the active recording,
         /// or <c>0</c> when no replay is active.  Published to the orchestrator via
         /// <c>ResultJson</c> so the ID allocator can be reset above the replay's ID

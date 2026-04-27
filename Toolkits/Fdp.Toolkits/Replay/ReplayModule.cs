@@ -144,6 +144,18 @@ namespace Fdp.Toolkit.Replay
         /// </summary>
         public long MaxNetworkId => _playback?.Metadata.MaxNetworkId ?? 0;
 
+        /// <summary>
+        /// Starting wall-clock ticks of the recording timeline.
+        /// Uses frame-0 wall ticks when frames are indexed; falls back to the
+        /// file header timestamp for empty recordings.
+        /// Returns <c>0</c> if <see cref="RegisterSystems"/> has not been called yet.
+        /// </summary>
+        public long RecordingStartWallTicks =>
+            _playback == null ? 0 :
+            _playback.TotalFrames > 0
+                ? _playback.GetFrameMetadata(0).WallClockTicks
+                : _playback.RecordingTimestamp;
+
         /// <summary>ACID-safe dispose: closes the <c>PlaybackController</c> file handles.</summary>
         public void Dispose()
         {

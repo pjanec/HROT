@@ -164,15 +164,28 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             }
             else if (intent.Operation == NodeOpType.NodeReplaySeek)
             {
-                var targetTicks = intent.DomainPayload is ReplaySeekPayload rsp
+                var relativeTicks = intent.DomainPayload is ReplaySeekPayload rsp
                     ? rsp.TargetWallTicks
                     : long.MaxValue;
-                GlobalTime restoredTime = await _controller.SeekToTimeAsync(targetTicks)
+
+                // Shift the relative slider ticks into absolute UTC indexing time
+                long absoluteTargetTicks = _controller.ActiveRecordingStartWallTicks + relativeTicks;
+
+                GlobalTime restoredTime = await _controller.SeekToTimeAsync(absoluteTargetTicks)
                     .ConfigureAwait(false);
+
+                // The restored frame contains the historical TotalTime from the live simulation.
+                // We must convert the actual landed absolute wall ticks back into a relative
+                // 0-based duration (in seconds) so the Orchestrator's UI slider stays in bounds.
+                long actualAbsoluteTicks = restoredTime.TotalWallTicks;
+                double relativeLandedSeconds = (actualAbsoluteTicks - _controller.ActiveRecordingStartWallTicks) / (double)System.Diagnostics.Stopwatch.Frequency;
+
+                // Overwrite the time going back to the Orchestrator
+                restoredTime.TotalTime = Math.Max(0.0, relativeLandedSeconds);
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
                     "[ReferenceReplayLoadHandler] NodeReplaySeek complete (targetTicks={0}, restoredWallTicks={1}).",
-                    targetTicks,
+                    absoluteTargetTicks,
                     restoredTime.TotalWallTicks);
 
                 return new ReplaySeekResult(restoredTime);
