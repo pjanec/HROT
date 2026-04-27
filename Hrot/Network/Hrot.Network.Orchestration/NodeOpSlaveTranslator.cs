@@ -34,6 +34,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     {
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        IncludeFields = true
     };
 
     /// <summary>Initialises a new <see cref="NodeOpSlaveTranslator"/>.</summary>

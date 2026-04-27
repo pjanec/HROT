@@ -164,7 +164,7 @@ public sealed class NodeOpMasterTranslator
                 {
                     var entries = System.Text.Json.JsonSerializer.Deserialize<List<FileManifestEntry>>(
                         resultJson!,
-                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
                     return entries;
                 }
                 catch
@@ -179,7 +179,7 @@ public sealed class NodeOpMasterTranslator
                 {
                     return JsonSerializer.Deserialize<ReplayPrepareResult>(
                         resultJson!,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
                 }
                 catch
                 {
@@ -193,7 +193,7 @@ public sealed class NodeOpMasterTranslator
                 {
                     return JsonSerializer.Deserialize<ReplaySeekResult>(
                         resultJson!,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
                 }
                 catch
                 {

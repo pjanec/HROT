@@ -107,6 +107,10 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // read it and forward it to DDS before slaves start their kernels.
         _masterSync       = new MasterSyncController(
             _bus, new HashSet<int>(), TimeConfig.Default);
+        
+        
+        _clusterMaster.SetMasterSync(_masterSync);
+    
         _bus.SwapBuffers();
         _timeTranslators  = _networkFactory?.CreateMasterTimeTranslators(_bus, config.NodeId)
                             ?? new NullMasterTimeTranslators();
