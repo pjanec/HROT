@@ -65,8 +65,8 @@ history panel instead of the misleading `Idle -> Idle`.
 **Goal:** When the cluster branches from replay to live, the master seeds its clock
 from the historical `GlobalTime` and broadcasts an atomic snap before entering `OperatingLive`.
 
-- [ ] **RT-017** Add `GetCurrentReplayTime()` to `IRecordReplayController` [details](./TASK-DETAIL.md#task-rt-017-add-getcurrentreplaytime-to-irecordreplaycontroller)
-- [ ] **RT-018** Define `LiveBranchResult` payload struct [details](./TASK-DETAIL.md#task-rt-018-define-livebranchresult-payload-struct)
-- [ ] **RT-019** `ReferenceReplayLoadHandler` returns `LiveBranchResult` on `PrepareLive` [details](./TASK-DETAIL.md#task-rt-019-referencereplayloadhandler-returns-livebranchresult-on-preparelive)
-- [ ] **RT-020** Add `TimeExtracted` flag to `BranchTransitionTask` [details](./TASK-DETAIL.md#task-rt-020-add-timeextracted-flag-to-branchtransitiontask)
-- [ ] **RT-021** Master atomic snap on branch completion [details](./TASK-DETAIL.md#task-rt-021-master-atomic-snap-on-branch-completion-in-consumernodeopstatuses)
+- [x] **RT-017** Add `GetCurrentReplayTime()` to `IRecordReplayController` [details](./TASK-DETAIL.md#task-rt-017-add-getcurrentreplaytime-to-irecordreplaycontroller)
+- [x] **RT-018** Define `LiveBranchResult` payload struct [details](./TASK-DETAIL.md#task-rt-018-define-livebranchresult-payload-struct)
+- [x] **RT-019** `ReferenceReplayLoadHandler` returns `LiveBranchResult` on `PrepareLive` [details](./TASK-DETAIL.md#task-rt-019-referencereplayloadhandler-returns-livebranchresult-on-preparelive)
+- [x] **RT-020** Add `TimeExtracted` flag to `BranchTransitionTask` [details](./TASK-DETAIL.md#task-rt-020-add-timeextracted-flag-to-branchtransitiontask)
+- [x] **RT-021** Master atomic snap on branch completion [details](./TASK-DETAIL.md#task-rt-021-master-atomic-snap-on-branch-completion-in-consumernodeopstatuses)
