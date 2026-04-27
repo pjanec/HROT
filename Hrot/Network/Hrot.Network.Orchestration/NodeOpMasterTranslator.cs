@@ -172,6 +172,7 @@ public sealed class NodeOpMasterTranslator
                     return resultJson;
                 }
             }
+
             case FdpNodeOpType.PrepareReplay:
             {
                 try
@@ -185,6 +186,21 @@ public sealed class NodeOpMasterTranslator
                     return resultJson;
                 }
             }
+
+            case FdpNodeOpType.NodeReplaySeek:
+            {
+                try
+                {
+                    return JsonSerializer.Deserialize<ReplaySeekResult>(
+                        resultJson!,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                }
+                catch
+                {
+                    return resultJson;
+                }
+            }
+
             default:
                 return null;
         }

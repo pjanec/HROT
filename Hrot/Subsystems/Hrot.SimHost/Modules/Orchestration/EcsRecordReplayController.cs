@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -232,7 +233,17 @@ namespace Hrot.SimHost.Modules.Orchestration
             }
             await _activeReplayModule.SeekToWallClockTicksAsync(targetWallClockTicks)
                 .ConfigureAwait(false);
-            return _kernel.GetTimeController().GetCurrentState();
+            // Return the seek target time expressed as the indexing time that
+            // ClusterMaster will pass to SnapAndPause.  TotalTime is the inverse
+            // conversion (ticks -> seconds) so the master's MasterSyncController
+            // stores TotalTime = targetWallClockTicks / Freq.  The SwitchTimeModeEvent
+            // then carries SimTimeSnapshot = TotalTime, which ApplyTimeSnap propagates
+            // to all slave time controllers.
+            return new GlobalTime
+            {
+                TotalWallTicks = targetWallClockTicks,
+                TotalTime      = targetWallClockTicks / (double)Stopwatch.Frequency,
+            };
         }
 
         /// <summary>
