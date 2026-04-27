@@ -92,6 +92,9 @@ namespace Hrot.Common.Orchestration
         public float ActiveReplayDurationSeconds => 0f;
 
         /// <inheritdoc />
+        public long ActiveRecordingStartWallTicks => 0;
+
+        /// <inheritdoc />
         /// <remarks>Listener nodes do not replay ECS frame data.</remarks>
         public GlobalTime GetCurrentReplayTime() => default;
     }

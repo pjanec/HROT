@@ -109,6 +109,9 @@ namespace Hrot.CGF.Modules.Orchestration
         public float ActiveReplayDurationSeconds => 0f;
 
         /// <inheritdoc />
+        public long ActiveRecordingStartWallTicks => 0;
+
+        /// <inheritdoc />
         /// <remarks>CGF does not replay ECS frame data; always returns default.</remarks>
         public GlobalTime GetCurrentReplayTime() => default;
     }

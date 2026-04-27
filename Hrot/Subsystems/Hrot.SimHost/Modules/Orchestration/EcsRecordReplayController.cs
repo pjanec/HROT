@@ -62,6 +62,9 @@ namespace Hrot.SimHost.Modules.Orchestration
         public long ActiveMaxNetworkId => _activeReplayModule?.MaxNetworkId ?? 0;
 
         /// <inheritdoc />
+        public long ActiveRecordingStartWallTicks => _activeReplayModule?.RecordingStartWallTicks ?? 0;
+
+        /// <inheritdoc />
         public float ActiveReplayDurationSeconds
         {
             get
