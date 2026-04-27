@@ -1087,10 +1087,10 @@ namespace Fdp.ModuleHost
         /// </summary>
         public ITimeController GetTimeController()
         {
-            if (!_initialized)
+            if (_timeController == null)
                 throw new InvalidOperationException("Time controller not initialized yet");
             
-            return _timeController!;
+            return _timeController;
         }
 
         /// <summary>

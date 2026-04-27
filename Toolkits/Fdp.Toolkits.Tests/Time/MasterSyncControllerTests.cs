@@ -990,5 +990,81 @@ namespace Fdp.Toolkit.Time.Tests
 
             Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
         }
+
+        // ── RT-014: SnapAndPause tests ───────────────────────────────────────
+
+        /// <summary>
+        /// T14a — SnapAndPause sets TotalWallTicks to targetWallTicks.
+        /// </summary>
+        [Fact]
+        public void SnapAndPause_SetsWallTicksAndSimTime()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, tickSource: () => ticks);
+
+            ctrl.SnapAndPause(12345L, 99.5, new HashSet<int>());
+
+            Assert.Equal(12345L, ctrl.GetCurrentState().TotalWallTicks);
+        }
+
+        /// <summary>
+        /// T14b — SnapAndPause switches controller to Deterministic (Stepping) mode.
+        /// </summary>
+        [Fact]
+        public void SnapAndPause_SwitchesToDeterministicMode()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, tickSource: () => ticks);
+
+            ctrl.SnapAndPause(12345L, 99.5, new HashSet<int>());
+
+            Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
+        }
+
+        /// <summary>
+        /// T14c — SnapAndPause publishes exactly one SwitchTimeModeEvent with
+        /// TargetMode=Deterministic and SimTimeSnapshot matching targetSimTime.
+        /// </summary>
+        [Fact]
+        public void SnapAndPause_PublishesOneSwitchTimeModeEvent_WithTargetSimTime()
+        {
+            long ticks = 1000L;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, tickSource: () => ticks);
+
+            // Drain the constructor's initial baseline event.
+            bus.SwapBuffers();
+            bus.Read<SwitchTimeModeEvent>();
+
+            double targetSim = 77.25;
+            ctrl.SnapAndPause(9999L, targetSim, new HashSet<int>());
+
+            bus.SwapBuffers();
+            var events = bus.Read<SwitchTimeModeEvent>().ToArray();
+
+            Assert.Single(events);
+            Assert.Equal(TimeMode.Deterministic, events[0].TargetMode);
+            Assert.Equal(targetSim, events[0].SimTimeSnapshot, 6);
+        }
+
+        /// <summary>
+        /// T14d — After SnapAndPause, calling Update() keeps the controller in Stepping mode.
+        /// </summary>
+        [Fact]
+        public void SnapAndPause_UpdateKeepsControllerInStepping()
+        {
+            long ticks = 0;
+            var bus    = new FdpEventBus();
+            var ctrl   = CreateController(bus, tickSource: () => ticks);
+
+            ctrl.SnapAndPause(500L, 10.0, new HashSet<int>());
+
+            ticks = 100L;
+            ctrl.Update();
+
+            Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
+        }
     }
 }

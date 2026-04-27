@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Core.FlightRecorder;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Time;
 
 namespace Fdp.Toolkit.Replay
 {
@@ -26,6 +27,7 @@ namespace Fdp.Toolkit.Replay
     {
         private readonly string _filePath;
         private readonly EntityRepository _repo;
+        private readonly ITimeController _timeController;
         private readonly Action? _afterSeek;
         private PlaybackController? _playback;
         private PlaybackTickSystem? _tickSystem;
@@ -50,11 +52,16 @@ namespace Fdp.Toolkit.Replay
         /// Live <see cref="EntityRepository"/> that playback data will be blasted into.
         /// Used by <see cref="SeekToFrameAsync"/> which runs off the main thread.
         /// </param>
-        public ReplayModule(string filePath, EntityRepository repo, Action? afterSeek = null)
+        /// <param name="timeController">
+        /// Active time controller from the kernel.  <see cref="PlaybackTickSystem"/> reads
+        /// <c>TotalWallTicks</c> from this on every tick to drive the pull-model cursor.
+        /// </param>
+        public ReplayModule(string filePath, EntityRepository repo, ITimeController timeController, Action? afterSeek = null)
         {
-            _filePath  = filePath ?? throw new ArgumentNullException(nameof(filePath));
-            _repo      = repo     ?? throw new ArgumentNullException(nameof(repo));
-            _afterSeek = afterSeek;
+            _filePath        = filePath        ?? throw new ArgumentNullException(nameof(filePath));
+            _repo            = repo            ?? throw new ArgumentNullException(nameof(repo));
+            _timeController  = timeController  ?? throw new ArgumentNullException(nameof(timeController));
+            _afterSeek       = afterSeek;
         }
 
         /// <inheritdoc/>
@@ -67,7 +74,7 @@ namespace Fdp.Toolkit.Replay
         {
             // PlaybackController ctor validates magic bytes and schema via SchemaValidator.
             _playback   = new PlaybackController(_filePath);
-            _tickSystem = new PlaybackTickSystem(_playback, _afterSeek);
+            _tickSystem = new PlaybackTickSystem(_playback, _timeController, _afterSeek);
             registry.RegisterSystem(_tickSystem);
         }
 

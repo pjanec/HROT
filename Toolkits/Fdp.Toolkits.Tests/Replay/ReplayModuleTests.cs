@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Core.FlightRecorder;
 using Fdp.Toolkit.Replay;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Time;
 using Xunit;
 
 namespace Fdp.Toolkit.Replay.Tests
@@ -37,7 +38,8 @@ namespace Fdp.Toolkit.Replay.Tests
             File.WriteAllBytes(badFilePath, System.Text.Encoding.ASCII.GetBytes("BADFMT\x00\x00\x00\x00"));
 
             using var world  = new EntityRepository();
-            var module = new ReplayModule(badFilePath, world);
+            var stubCtrl = new StubTimeController(0L);
+            var module = new ReplayModule(badFilePath, world, stubCtrl);
 
             var registry = new CapturingSystemRegistry();
 
@@ -45,49 +47,118 @@ namespace Fdp.Toolkit.Replay.Tests
             Assert.Throws<InvalidDataException>(() => module.RegisterSystems(registry));
         }
 
-        // ── P8T4 success condition 3 — Strategy A: small gap (≤ threshold) ────────
+        // ── RT-002: null timeController throws ArgumentNullException ─────────────
+
+        [Fact]
+        public void ReplayModule_NullTimeController_ThrowsArgumentNullException()
+        {
+            var filePath = Path.Combine(_tempDir, "dummy.fdp");
+            File.WriteAllBytes(filePath, new byte[0]);
+            using var world = new EntityRepository();
+
+            Assert.Throws<ArgumentNullException>(
+                () => new ReplayModule(filePath, world, timeController: null!));
+        }
+
+        // ── T3a: no advance when targetTicks equals current frame ticks ──────────
+
+        [Fact]
+        public void PlaybackTickSystem_NoAdvance_WhenTargetTicksEqualsCurrentFrame()
+        {
+            var filePath = CreateSmallRecording(frameCount: 5);
+
+            using var world    = new EntityRepository();
+            using var playback = new PlaybackController(filePath);
+
+            // Advance to frame 0 first.
+            playback.StepForward(world);
+            Assert.Equal(0, playback.CurrentFrame);
+
+            // Set time controller to exactly frame 0's wall ticks.
+            long frame0Ticks = playback.GetFrameMetadata(0).WallClockTicks;
+            var stub = new StubTimeController(frame0Ticks);
+            var sys  = new PlaybackTickSystem(playback, stub);
+
+            ISimulationView view = world;
+            sys.Execute(view, 0.016f);
+
+            // targetTicks == currentTicks -> no advance.
+            Assert.Equal(0, playback.CurrentFrame);
+        }
+
+        // ── T3b (P8T4 success condition 3) — Strategy A: small gap (1 frame) ─────
 
         [Fact]
         public void PlaybackTickSystem_StrategyA_SmallGap_UsesStepForward()
         {
-            // Arrange: record a few frames into a temp file.
             var filePath = CreateSmallRecording(frameCount: 10);
 
             using var world    = new EntityRepository();
             using var playback = new PlaybackController(filePath);
-            var sys = new PlaybackTickSystem(playback);
 
-            // Advance 2 frames (≤ threshold of 3) via ExtraFramesThisTick.
-            sys.ExtraFramesThisTick = 1; // 1 extra + 1 default = 2 total
+            // Start at frame 0.
+            playback.StepForward(world);
+
+            // Set targetTicks to frame 1's wall ticks (1-frame gap <= threshold of 3).
+            long frame1Ticks = playback.GetFrameMetadata(1).WallClockTicks;
+            var stub = new StubTimeController(frame1Ticks);
+            var sys  = new PlaybackTickSystem(playback, stub);
+
             ISimulationView view = world;
             sys.Execute(view, 0.016f);
 
-            // After 2 steps the current frame should be 1 (0-based after starting at -1).
+            // Strategy A: stepped forward exactly once to frame 1.
             Assert.Equal(1, playback.CurrentFrame);
         }
 
-        // ── P8T4 success condition 4 — Strategy B: large gap ─────────────────────
+        // ── T3c (P8T4 success condition 4) — Strategy B: large gap ───────────────
 
         [Fact]
         public void PlaybackTickSystem_StrategyB_LargeGap_UsesSeekToFrame()
         {
-            // Arrange: record enough frames to trigger Strategy B.
             var filePath = CreateSmallRecording(frameCount: 10);
 
             using var world    = new EntityRepository();
             using var playback = new PlaybackController(filePath);
-            var sys = new PlaybackTickSystem(playback);
 
-            // Set a gap larger than StrategyBThreshold (3).
-            sys.ExtraFramesThisTick = PlaybackTickSystem.StrategyBThreshold + 1; // 4 total
+            // Start at frame 0.
+            playback.StepForward(world);
+
+            // Set targetTicks to frame 4's wall ticks (4-frame gap > StrategyBThreshold of 3).
+            long frame4Ticks = playback.GetFrameMetadata(4).WallClockTicks;
+            var stub = new StubTimeController(frame4Ticks);
+            var sys  = new PlaybackTickSystem(playback, stub);
+
             ISimulationView view = world;
             sys.Execute(view, 0.016f);
 
-            // After a seek, the current frame should be at the expected target
-            // (subject to TotalFrames clamp).
-            int expected = Math.Min(PlaybackTickSystem.StrategyBThreshold + 1,
-                                     playback.TotalFrames - 1);
-            Assert.Equal(expected, playback.CurrentFrame);
+            // Strategy B: seeked directly to frame 4.
+            Assert.Equal(4, playback.CurrentFrame);
+        }
+
+        // ── T3d: advance to frame 0 when at start ────────────────────────────────
+
+        [Fact]
+        public void PlaybackTickSystem_StrategyA_AdvancesToFrameZeroFromStart()
+        {
+            var filePath = CreateSmallRecording(frameCount: 5);
+
+            using var world    = new EntityRepository();
+            using var playback = new PlaybackController(filePath);
+
+            // IsAtStart == true (CurrentFrame = -1).
+            Assert.True(playback.IsAtStart);
+
+            // Set targetTicks to exactly frame 0's wall ticks.
+            long frame0Ticks = playback.GetFrameMetadata(0).WallClockTicks;
+            var stub = new StubTimeController(frame0Ticks);
+            var sys  = new PlaybackTickSystem(playback, stub);
+
+            ISimulationView view = world;
+            sys.Execute(view, 0.016f);
+
+            // Execute must step forward to frame 0.
+            Assert.Equal(0, playback.CurrentFrame);
         }
 
         // ── P8T4 success condition 5 — SeekToFrameAsync is off main thread ────────
@@ -98,7 +169,8 @@ namespace Fdp.Toolkit.Replay.Tests
             // Arrange: valid recording.
             var filePath = CreateSmallRecording(frameCount: 4);
             using var world  = new EntityRepository();
-            var module = new ReplayModule(filePath, world);
+            var stubCtrl = new StubTimeController(long.MaxValue);
+            var module = new ReplayModule(filePath, world, stubCtrl);
 
             var registry = new CapturingSystemRegistry();
             module.RegisterSystems(registry);
@@ -107,7 +179,7 @@ namespace Fdp.Toolkit.Replay.Tests
             // (it runs on a background thread).
             var seekTask = module.SeekToFrameAsync(0);
 
-            // Assert: the Task must NOT be completed synchronously — it was genuinely
+            // Assert: the Task must NOT be completed synchronously -- it was genuinely
             // dispatched to a background thread, proving it is off-main-thread.
             Assert.False(seekTask.IsCompleted,
                 "SeekToFrameAsync completed synchronously; it must run on a background thread.");
@@ -128,7 +200,12 @@ namespace Fdp.Toolkit.Replay.Tests
 
             using var recorder = new AsyncRecorder(filePath);
             for (int i = 0; i < frameCount; i++)
-                recorder.CaptureFrame(world, (uint)i, DateTime.UtcNow.Ticks, blocking: true);
+            {
+                // Use a synthetic monotonically-increasing wall clock so each frame has a
+                // distinct and predictable WallClockTicks value.
+                long wallTicks = (i + 1) * 100_000L;
+                recorder.CaptureFrame(world, (uint)i, wallTicks, blocking: true);
+            }
 
             // Dispose writes the file footer and .meta.json.
             return filePath;
@@ -140,5 +217,27 @@ namespace Fdp.Toolkit.Replay.Tests
             public void RegisterSystem<T>(T system) where T : IEcsModuleSystem => Systems.Add(system);
             public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem { Systems.Add(system); return system; }
         }
+
+        /// <summary>
+        /// Minimal <see cref="ITimeController"/> stub for unit tests.
+        /// Returns a fixed <see cref="GlobalTime"/> with a caller-specified
+        /// <see cref="GlobalTime.TotalWallTicks"/> value.
+        /// </summary>
+        private sealed class StubTimeController : ITimeController
+        {
+            private GlobalTime _state;
+
+            public StubTimeController(long totalWallTicks)
+                => _state = new GlobalTime { TotalWallTicks = totalWallTicks };
+
+            public GlobalTime Update()          => _state;
+            public GlobalTime GetCurrentState() => _state;
+            public TimeMode   GetMode()         => TimeMode.Continuous;
+            public void       SetTimeScale(float scale) { }
+            public float      GetTimeScale()    => 1f;
+            public void       SeedState(GlobalTime state) { _state = state; }
+            public void       Dispose()         { }
+        }
     }
 }
+

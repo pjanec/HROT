@@ -104,7 +104,7 @@ namespace Fdp.Examples.Scenarios.Replay
 
             // ── Phase B: register replay on the main kernel ───────────────────
             RegisterComponents(world);
-            kernel.RegisterModule(new ReplayModule(_recFilePath, world));
+            kernel.RegisterModule(new ReplayModule(_recFilePath, world, kernel.GetTimeController()));
 
             // Capture the kernel's module topology for test introspection.
             // ScenarioSubsystem calls Initialize() after Configure() returns, so we must

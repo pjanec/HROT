@@ -1049,5 +1049,145 @@ namespace Fdp.Toolkit.Time.Tests
                 $"got {actual:F4}s. Buggy value would be ≈ {buggedExpected:F4}s.");
         }
 
+        // ── RT-006: Instant snap-and-pause tests (T6a, T6b, T6d) ─────────────────
+
+        /// <summary>
+        /// T6a: When a Deterministic event arrives with BarrierWallTicks already elapsed
+        /// (SyncedWallTicks >= BarrierWallTicks), the slave transitions directly to Stepping
+        /// in the same frame -- no BarrierPending intermediate state.
+        /// </summary>
+        [Fact]
+        public void SlaveSyncController_InstantSnap_EntersStepping_WhenBarrierAlreadyElapsed()
+        {
+            // Arrange: set up a slave where SyncedWallTicks will be >= BarrierWallTicks.
+            long slaveTicks = 500_000_000L;
+            long masterOffset = -400_000_000L; // SyncedWallTicks = slaveTicks + masterOffset = 100_000_000
+            var bus = new FdpEventBus();
+            var ctrl = CreateController(bus, tickSource: () => slaveTicks);
+            bus.SwapBuffers();
+            bus.Read<TimeSyncRequest>();
+
+            // Inject NTP offset so SyncedWallTicks = slaveTicks + masterOffset.
+            bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = masterOffset });
+            bus.SwapBuffers();
+            ctrl.Update(); // applies offset
+            bus.SwapBuffers();
+            bus.Read<TimeSyncRequest>();
+
+            // Barrier in the past: BarrierWallTicks < SyncedWallTicks.
+            long syncedTicks      = ctrl.GetCurrentState().TotalWallTicks;
+            long barrierWallTicks = syncedTicks - 1_000L;
+
+            // Act: publish Deterministic event with elapsed barrier.
+            bus.Publish(new SwitchTimeModeEvent
+            {
+                TargetMode       = TimeMode.Deterministic,
+                BarrierWallTicks = barrierWallTicks,
+                FixedDelta       = 1f / 60f,
+                TimeScale        = 1.0f,
+                SimTimeSnapshot  = 5.0,
+            });
+            bus.SwapBuffers();
+            ctrl.Update();
+
+            // T6a: must be Stepping immediately (no BarrierPending frame).
+            Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
+        }
+
+        /// <summary>
+        /// T6b: After an instant snap, the slave's time baseline reflects the event's
+        /// SimTimeSnapshot and BarrierWallTicks.
+        /// </summary>
+        [Fact]
+        public void SlaveSyncController_InstantSnap_SnapsBaselineToEvent()
+        {
+            long slaveTicks = 500_000_000L;
+            long masterOffset = -400_000_000L; // SyncedWallTicks = 100_000_000
+            var bus = new FdpEventBus();
+            var ctrl = CreateController(bus, tickSource: () => slaveTicks);
+            bus.SwapBuffers();
+            bus.Read<TimeSyncRequest>();
+
+            bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = masterOffset });
+            bus.SwapBuffers();
+            ctrl.Update();
+            bus.SwapBuffers();
+            bus.Read<TimeSyncRequest>();
+
+            long syncedTicks      = ctrl.GetCurrentState().TotalWallTicks;
+            long barrierWallTicks = syncedTicks - 1_000L;
+            double simSnapshot    = 42.5;
+
+            bus.Publish(new SwitchTimeModeEvent
+            {
+                TargetMode       = TimeMode.Deterministic,
+                BarrierWallTicks = barrierWallTicks,
+                FixedDelta       = 1f / 60f,
+                TimeScale        = 1.0f,
+                SimTimeSnapshot  = simSnapshot,
+            });
+            bus.SwapBuffers();
+            ctrl.Update();
+
+            // T6b: mode is Deterministic, confirming snap-and-pause occurred.
+            Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
+
+            // Verify baseline was snapped: resume immediately and check TotalTime starts at simSnapshot.
+            // With SyncedWallTicks near barrierWallTicks, elapsedSec ~ 0 so TotalTime ~ simSnapshot.
+            bus.Publish(new SwitchTimeModeEvent
+            {
+                TargetMode       = TimeMode.Continuous,
+                BarrierWallTicks = barrierWallTicks,
+                SimTimeSnapshot  = simSnapshot,
+                TimeScale        = 1.0f,
+                FixedDelta       = 0f,
+            });
+            bus.SwapBuffers();
+            ctrl.Update(); // ApplyResume -> Continuous
+
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+            // TotalTime must be close to simSnapshot (small wall-clock delta since snap).
+            Assert.True(ctrl.GetCurrentState().TotalTime >= simSnapshot - 0.01,
+                $"TotalTime {ctrl.GetCurrentState().TotalTime} should be >= simSnapshot {simSnapshot}");
+        }
+
+        /// <summary>
+        /// T6d: GetMode() returns Deterministic immediately after the instant snap
+        /// (no additional Update() calls required).
+        /// </summary>
+        [Fact]
+        public void SlaveSyncController_InstantSnap_GetMode_ReturnsDeterministicImmediately()
+        {
+            long slaveTicks = 200_000_000L;
+            long masterOffset = 0L; // SyncedWallTicks == slaveTicks
+            var bus = new FdpEventBus();
+            var ctrl = CreateController(bus, tickSource: () => slaveTicks);
+            bus.SwapBuffers();
+            bus.Read<TimeSyncRequest>();
+
+            bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = masterOffset });
+            bus.SwapBuffers();
+            ctrl.Update();
+            bus.SwapBuffers();
+            bus.Read<TimeSyncRequest>();
+
+            // Barrier at SyncedWallTicks - 1 (already elapsed).
+            long barrierWallTicks = slaveTicks - 1L;
+
+            bus.Publish(new SwitchTimeModeEvent
+            {
+                TargetMode       = TimeMode.Deterministic,
+                BarrierWallTicks = barrierWallTicks,
+                FixedDelta       = 1f / 60f,
+                TimeScale        = 1.0f,
+                SimTimeSnapshot  = 0.0,
+            });
+            bus.SwapBuffers();
+            ctrl.Update(); // single Update() -- must already be Stepping
+
+            // T6d: GetMode() returns Deterministic immediately after the single Update().
+            Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
+        }
+
     }
 }

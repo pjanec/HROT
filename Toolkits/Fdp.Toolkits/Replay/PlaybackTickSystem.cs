@@ -1,6 +1,8 @@
+using System;
 using Fdp.Core;
 using Fdp.Core.FlightRecorder;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Time;
 using Fdp.Toolkit.Replication.Utilities;
 
 namespace Fdp.Toolkit.Replay
@@ -35,19 +37,25 @@ namespace Fdp.Toolkit.Replay
         public const int StrategyBThreshold = 3;
 
         private readonly PlaybackController _playback;
+        private readonly ITimeController _timeController;
         private readonly Action? _afterSeek;
 
         /// <summary>
         /// Extra frames to advance in the current tick beyond the default of 1.
         /// Reset to 0 after each Execute call.  Set externally to fast-forward.
         /// </summary>
+        [Obsolete("Use ITimeController-based pull model.")]
         public int ExtraFramesThisTick { get; set; } = 0;
 
         /// <param name="playback">The <see cref="PlaybackController"/> to drive.</param>
-        public PlaybackTickSystem(PlaybackController playback, Action? afterSeek = null)
+        /// <param name="timeController">
+        /// Active time controller whose <c>TotalWallTicks</c> drives the pull-model cursor.
+        /// </param>
+        public PlaybackTickSystem(PlaybackController playback, ITimeController timeController, Action? afterSeek = null)
         {
-            _playback = playback;
-            _afterSeek = afterSeek;
+            _playback       = playback;
+            _timeController = timeController;
+            _afterSeek      = afterSeek;
         }
 
         /// <inheritdoc/>
@@ -55,25 +63,39 @@ namespace Fdp.Toolkit.Replay
         {
             if (_playback.IsAtEnd) return;
 
-            var repo = (EntityRepository)view;
-            int framesToAdvance = 1 + ExtraFramesThisTick;
-            ExtraFramesThisTick = 0;
+            long targetTicks  = _timeController.GetCurrentState().TotalWallTicks;
+            long currentTicks = _playback.IsAtStart
+                ? long.MinValue
+                : _playback.GetFrameMetadata(_playback.CurrentFrame).WallClockTicks;
 
-            if (framesToAdvance <= StrategyBThreshold)
+            if (targetTicks <= currentTicks) return;
+
+            var repo = (EntityRepository)view;
+
+            // Count consecutive upcoming frames with WallClockTicks <= targetTicks.
+            // Stop as soon as count exceeds StrategyBThreshold (O(threshold) check).
+            int count     = 0;
+            int nextFrame = _playback.CurrentFrame + 1;
+            for (int i = nextFrame; i < _playback.TotalFrames && count <= StrategyBThreshold; i++)
             {
-                // Strategy A: sequential forward steps.
-                for (int i = 0; i < framesToAdvance && !_playback.IsAtEnd; i++)
-                    _playback.StepForward(repo);
+                if (_playback.GetFrameMetadata(i).WallClockTicks <= targetTicks)
+                    count++;
+                else
+                    break;
+            }
+
+            if (count > StrategyBThreshold)
+            {
+                // Strategy B: large gap — seek directly to target wall ticks.
+                _playback.SeekToWallClockTicks(repo, targetTicks);
+                SmartEgressUtil.ForceMarkAllDirty(repo);
+                _afterSeek?.Invoke();
             }
             else
             {
-                // Strategy B: direct keyframe-anchored seek.
-                int targetFrame = System.Math.Min(
-                    _playback.CurrentFrame + framesToAdvance,
-                    _playback.TotalFrames - 1);
-                _playback.SeekToFrame(repo, targetFrame);
-                SmartEgressUtil.ForceMarkAllDirty(repo);
-                _afterSeek?.Invoke();
+                // Strategy A: small gap — step forward frame by frame.
+                for (int i = 0; i < count && !_playback.IsAtEnd; i++)
+                    _playback.StepForward(repo);
             }
         }
     }

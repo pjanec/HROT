@@ -49,7 +49,9 @@ namespace Fdp.Core.Orchestration
         /// Seeks to the specified wall-clock position within the active replay.
         /// </summary>
         /// <param name="targetWallClockTicks">UTC wall-clock ticks (DateTime.UtcNow.Ticks scale).</param>
-        Task SeekToTimeAsync(long targetWallClockTicks);
+        /// <returns>The <see cref="GlobalTime"/> the recording landed on after the seek.
+        /// Listener/CGF implementations that do not record return <see langword="default"/>.</returns>
+        Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks);
 
         /// <summary>
         /// Advances playback by one frame.  Called by the application loop
@@ -73,6 +75,14 @@ namespace Fdp.Core.Orchestration
         /// Live-from-Replay <c>PrepareLive</c> branch (CGF1-S0305).
         /// </summary>
         bool IsReplayActive { get; }
+
+        /// <summary>
+        /// Returns the current replay position as a <see cref="GlobalTime"/> snapshot.
+        /// Must be called BEFORE <see cref="TeardownReplayAsync"/> -- after teardown,
+        /// the replay module is uninstalled and the time singleton reverts.
+        /// Listener and CGF implementations return <c>default(GlobalTime)</c>.
+        /// </summary>
+        GlobalTime GetCurrentReplayTime();
 
         /// <summary>
         /// Returns the wall-clock duration in seconds of the active replay recording,

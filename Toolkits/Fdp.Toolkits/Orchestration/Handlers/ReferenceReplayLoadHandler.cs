@@ -167,23 +167,34 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 var targetTicks = intent.DomainPayload is ReplaySeekPayload rsp
                     ? rsp.TargetWallTicks
                     : long.MaxValue;
-                await _controller.SeekToTimeAsync(targetTicks).ConfigureAwait(false);
+                GlobalTime restoredTime = await _controller.SeekToTimeAsync(targetTicks)
+                    .ConfigureAwait(false);
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
-                    "[ReferenceReplayLoadHandler] NodeReplaySeek complete (targetTicks={0}).",
-                    targetTicks);
+                    "[ReferenceReplayLoadHandler] NodeReplaySeek complete (targetTicks={0}, restoredWallTicks={1}).",
+                    targetTicks,
+                    restoredTime.TotalWallTicks);
+
+                return new ReplaySeekResult(restoredTime);
             }
             else if (intent.Operation == NodeOpType.PrepareLive)
             {
                 // CGF1-S0305: Live-from-Replay branch.
+                // Capture the historical time BEFORE teardown; after TeardownReplayAsync the
+                // replay module is gone and _controller.GetCurrentReplayTime() returns default.
+                GlobalTime historicalTime = _controller.GetCurrentReplayTime();
+
                 var branchedExerciseId = ResolveExerciseId(intent.DomainPayload);
                 await _controller.TeardownReplayAsync().ConfigureAwait(false);
                 await _controller.PrepareRecordingAsync(branchedExerciseId, _storageDirectory)
                     .ConfigureAwait(false);
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
-                    "[ReferenceReplayLoadHandler] Live-from-Replay branch complete (branchedExerciseId={0}).",
-                    branchedExerciseId);
+                    "[ReferenceReplayLoadHandler] Live-from-Replay branch complete (branchedExerciseId={0}, historicalWallTicks={1}).",
+                    branchedExerciseId,
+                    historicalTime.TotalWallTicks);
+
+                return new LiveBranchResult(historicalTime);
             }
 
             return null;

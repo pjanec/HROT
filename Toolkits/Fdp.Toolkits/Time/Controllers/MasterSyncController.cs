@@ -319,6 +319,40 @@ namespace Fdp.Toolkit.Time.Controllers
             });
         }
 
+        /// <summary>
+        /// Atomically snaps the master clock to <paramref name="targetWallTicks"/> /
+        /// <paramref name="targetSimTime"/> and enters Deterministic (lockstep) mode.
+        /// Unlike <see cref="SwitchToDeterministic"/>, no future-barrier window is used --
+        /// the mode switch is instantaneous and the published <see cref="SwitchTimeModeEvent"/>
+        /// carries a <c>BarrierWallTicks</c> already in the past so slaves apply the snap
+        /// immediately via the instant-snap path in <c>SlaveSyncController</c>.
+        /// </summary>
+        /// <param name="targetWallTicks">Wall-clock tick value to snap to.</param>
+        /// <param name="targetSimTime">Simulation time (seconds) to snap to.</param>
+        /// <param name="slaveNodeIds">Slave roster for ACK tracking during subsequent steps.</param>
+        public void SnapAndPause(long targetWallTicks, double targetSimTime, HashSet<int> slaveNodeIds)
+        {
+            _totalWallTicks    = targetWallTicks;
+            _totalTime         = targetSimTime;
+            _mode              = MasterMode.Stepping;
+            _pendingAcks       = new HashSet<int>();
+
+            _expectedSlaves.Clear();
+            if (slaveNodeIds != null)
+                _expectedSlaves.UnionWith(slaveNodeIds);
+
+            _eventBus.Publish(new SwitchTimeModeEvent
+            {
+                TargetMode       = TimeMode.Deterministic,
+                BarrierWallTicks = _getTick(),
+                SimTimeSnapshot  = _totalTime,
+                TimeScale        = _timeScale,
+                FixedDelta       = _config.FixedDeltaSeconds,
+            });
+
+            _lastTickSample = _getTick();
+        }
+
         // ── Private helpers ──────────────────────────────────────────────────
 
         private GlobalTime UpdateContinuous(

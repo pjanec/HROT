@@ -186,10 +186,21 @@ namespace Fdp.Toolkit.Time.Controllers
                 {
                     if (_mode != SlaveMode.Stepping)
                     {
-                        _pendingBarrierWallTicks = evt.BarrierWallTicks;
-                        _mode = SlaveMode.BarrierPending;
-                        _pendingIntents.Clear();
-                        _lastAcceptedStepFrameId = -1L;
+                        if (SyncedWallTicks >= evt.BarrierWallTicks)
+                        {
+                            // Barrier has already elapsed -- snap immediately and enter Stepping.
+                            ApplyTimeSnap(evt);
+                            _mode = SlaveMode.Stepping;
+                            _pendingIntents.Clear();
+                            _lastAcceptedStepFrameId = -1L;
+                        }
+                        else
+                        {
+                            _pendingBarrierWallTicks = evt.BarrierWallTicks;
+                            _mode = SlaveMode.BarrierPending;
+                            _pendingIntents.Clear();
+                            _lastAcceptedStepFrameId = -1L;
+                        }
                     }
                 }
                 else
@@ -250,6 +261,17 @@ namespace Fdp.Toolkit.Time.Controllers
 
         private void ApplyResume(SwitchTimeModeEvent evt)
         {
+            ApplyTimeSnap(evt);
+            _mode = SlaveMode.Continuous;
+        }
+
+        /// <summary>
+        /// Snaps the internal time baseline to the authoritative values carried in
+        /// <paramref name="evt"/>.  Called by both <see cref="ApplyResume"/> (resume path)
+        /// and the instant snap-and-pause path in <see cref="DrainModeSwitchEvents"/>.
+        /// </summary>
+        private void ApplyTimeSnap(SwitchTimeModeEvent evt)
+        {
             // Snap sim time to master's authoritative snapshot.
             // Bug 7 fix: gate on BarrierWallTicks > 0 to detect a proper master-originated event.
             // Real Stopwatch ticks are always > 0, so production events always enter the first branch.
@@ -294,7 +316,6 @@ namespace Fdp.Toolkit.Time.Controllers
                 _baselineWallTicks = _prevFrameStartTicks; // fallback for legacy/test events
 
             _pendingBarrierWallTicks = -1;
-            _mode = SlaveMode.Continuous;
         }
 
         // ── Private: continuous-mode update ─────────────────────────────────
