@@ -663,10 +663,10 @@ namespace Fdp.ModuleHost
                         // Synchronous run (main thread)
                         try
                         {
-                            // Auto-execute and profile the module's registered systems
-                            if (entry.RegisteredSystems != null)
+                            // Auto-execute and profile the module's simulation systems
+                            if (entry.SimulationSystems != null)
                             {
-                                foreach (var sys in entry.RegisteredSystems)
+                                foreach (var sys in entry.SimulationSystems)
                                     topology.Scheduler.ExecuteSystem(sys, view, moduleDelta);
                             }
                             entry.Module.Tick(view, moduleDelta);
@@ -774,10 +774,10 @@ namespace Fdp.ModuleHost
             {
                 try
                 {
-                    // Auto-execute and profile the module's registered systems
-                    if (entry.RegisteredSystems != null)
+                    // Auto-execute and profile the module's simulation systems
+                    if (entry.SimulationSystems != null)
                     {
-                        foreach (var sys in entry.RegisteredSystems)
+                        foreach (var sys in entry.SimulationSystems)
                             topology.Scheduler.ExecuteSystem(sys, view, dt);
                     }
                     entry.Module.Tick(view, dt);
@@ -1568,6 +1568,19 @@ namespace Fdp.ModuleHost
                     // Re-register the same instances (no new objects created)
                     foreach (var sys in entry.RegisteredSystems)
                         scheduler.RegisterSystem(sys);
+
+                    // Backward-compat safety for entries created before SimulationSystems existed.
+                    if (entry.SimulationSystems == null)
+                    {
+                        entry.SimulationSystems = entry.RegisteredSystems
+                            .Where(sys =>
+                            {
+                                var attr = (UpdateInPhaseAttribute?)Attribute.GetCustomAttribute(
+                                    sys.GetType(), typeof(UpdateInPhaseAttribute), inherit: true);
+                                return attr != null && attr.Phase == SystemPhase.Simulation;
+                            })
+                            .ToList();
+                    }
                 }
                 else
                 {
@@ -1575,6 +1588,7 @@ namespace Fdp.ModuleHost
                     var capturing = new CapturingSystemRegistry(scheduler);
                     entry.Module.RegisterSystems(capturing);
                     entry.RegisteredSystems = capturing.Captured;
+                    entry.SimulationSystems = capturing.SimulationCaptured;
                 }
             }
 
@@ -1813,6 +1827,14 @@ namespace Fdp.ModuleHost
             public List<IEcsModuleSystem>? RegisteredSystems { get; set; }
 
             /// <summary>
+            /// Subset of <see cref="RegisteredSystems"/> containing only
+            /// <see cref="SystemPhase.Simulation"/> systems.
+            /// Used by the module dispatch loop to avoid double-executing
+            /// systems that are also driven by global phase execution.
+            /// </summary>
+            public List<IEcsModuleSystem>? SimulationSystems { get; set; }
+
+            /// <summary>
             /// True when this entry owns its provider exclusively and should dispose it
             /// on teardown. False when the provider is shared with other modules.
             /// </summary>
@@ -1878,19 +1900,26 @@ namespace Fdp.ModuleHost
         {
             private readonly SystemScheduler _scheduler;
             public List<IEcsModuleSystem> Captured { get; } = new();
+            public List<IEcsModuleSystem> SimulationCaptured { get; } = new();
 
-            public CapturingSystemRegistry(SystemScheduler scheduler) => _scheduler = scheduler;
+            public CapturingSystemRegistry(SystemScheduler scheduler)
+            {
+                _scheduler = scheduler;
+            }
 
             public void RegisterSystem<T>(T system) where T : IEcsModuleSystem
             {
                 var attr = (UpdateInPhaseAttribute?)Attribute.GetCustomAttribute(
                     system.GetType(), typeof(UpdateInPhaseAttribute), inherit: true);
 
-                // Only capture Simulation phase systems for the module dispatch loop.
-                // Global phases (Input, BeforeSync, PostSim, Export) are handled by ExecutePhase.
+                // Capture all module systems so they are preserved across topology rebuilds
+                // and removed with the module on uninstall.
+                Captured.Add(system);
+
                 if (attr != null && attr.Phase == SystemPhase.Simulation)
                 {
-                    Captured.Add(system);
+                    // Simulation systems are the only ones executed by module dispatch loops.
+                    SimulationCaptured.Add(system);
                 }
 
                 _scheduler.RegisterSystem(system);
@@ -1903,7 +1932,6 @@ namespace Fdp.ModuleHost
                 return _scheduler.RegisterManualSystem(system);
             }
         }
-
     }
 
 }
