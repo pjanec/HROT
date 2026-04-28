@@ -126,6 +126,19 @@ namespace Fdp.Toolkit.Orchestration
     }
 
     /// <summary>
+    /// Published by <c>EpisodeProcessManager</c> after the active episode set changes.
+    /// Consumers (e.g. <c>ClusterUiCache</c>, tests) subscribe to this event instead of
+    /// reading internal state from any process manager.
+    /// </summary>
+    [EventId(9018)]
+    [DataPolicy(DataPolicy.NoRecord)]
+    public struct EpisodeStateChangedEvent
+    {
+        /// <summary>Snapshot of all currently active episode IDs at time of publication.</summary>
+        public HashSet<Guid> ActiveEpisodeIds;
+    }
+
+    /// <summary>
     /// Published by <c>ClusterScenarioPanel</c> (remote/ExCon path) when the operator
     /// triggers a cluster-level command.
     /// Consumed by <c>ClusterOpEgressTranslator</c> which serialises the payload and
@@ -134,7 +147,7 @@ namespace Fdp.Toolkit.Orchestration
     /// <para>Use <c>FdpEventBus.PublishManaged</c> / <c>ConsumeManaged</c> because
     /// <see cref="DomainPayload"/> is a managed reference.</para>
     /// </summary>
-    [EventId(9018)]
+    [EventId(9019)]
     [DataPolicy(DataPolicy.NoRecord)]
     public sealed class ClusterOpIntent
     {
