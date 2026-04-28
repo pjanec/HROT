@@ -7,6 +7,8 @@ ClusterOpRequestAdapter
 GlobalContextClusterOpHandler
 
 
+[REFAC] NodeTransitionPayloadDto is using string TargetState instead of ClusterState enum.
+It must be replaced with enum and all enum <-> string conversion must be left to json serializer/deserializaer
 
 -------------------------------------------------------------------
 [BUG]

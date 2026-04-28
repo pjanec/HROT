@@ -115,7 +115,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingLive},\"ScenarioId\":\"{scenarioId}\"}}",
+            PayloadJson   = $"{{\"TargetState\":\"{ClusterState.LoadingLive}\",\"ScenarioId\":\"{scenarioId}\"}}",
         });
         exercise.Tick();
 
@@ -157,7 +157,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.OperatingLive},\"ScenarioId\":\"{scenarioId}\"}}",
+            PayloadJson   = $"{{\"TargetState\":\"{ClusterState.OperatingLive}\",\"ScenarioId\":\"{scenarioId}\"}}",
         });
         exercise.Tick();
 

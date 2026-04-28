@@ -852,9 +852,12 @@ public sealed class ClusterMaster : IDisposable
                             (tStep.TargetState == ClusterState.LoadingLive ||
                              tStep.TargetState == ClusterState.LoadingEdit))
                         {
-                            var localPayload = !string.IsNullOrEmpty(intent.ScenarioId)
-                                ? JsonSerializer.Serialize(new { TargetState = (int)tStep.TargetState, ScenarioId = intent.ScenarioId })
-                                : ((int)tStep.TargetState).ToString();
+                            var localPayload = JsonSerializer.Serialize(
+                                new NodeTransitionPayloadDto(
+                                    TargetState: tStep.TargetState.ToString(),
+                                    ScenarioId:  intent.ScenarioId,
+                                    ExerciseId:  intent.ExerciseId),
+                                OrchestrationJsonOptions.Default);
                             _globalContextHandler.Commit(
                                 ClusterNodeOpBuilder.LocalContextCmd(NodeOpType.CommitState, tx.TransactionId, localPayload), null);
                         }

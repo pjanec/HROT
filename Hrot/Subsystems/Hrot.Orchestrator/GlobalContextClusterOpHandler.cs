@@ -305,12 +305,8 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
         if (string.IsNullOrWhiteSpace(payloadJson)) return Guid.NewGuid();
         try
         {
-            using var doc = JsonDocument.Parse(payloadJson);
-            if (doc.RootElement.TryGetProperty("ExerciseId", out var prop))
-            {
-                var raw = prop.GetString();
-                if (Guid.TryParse(raw, out var g)) return g;
-            }
+            var dto = JsonSerializer.Deserialize<ArchivePayloadDto>(payloadJson, OrchestrationJsonOptions.Default);
+            if (dto != null && dto.ExerciseId != Guid.Empty) return dto.ExerciseId;
         }
         catch { }
         return Guid.NewGuid();
@@ -321,9 +317,8 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
         if (string.IsNullOrWhiteSpace(payloadJson)) return null;
         try
         {
-            using var doc = JsonDocument.Parse(payloadJson);
-            if (doc.RootElement.TryGetProperty("ScenarioId", out var prop))
-                return prop.GetString();
+            var dto = JsonSerializer.Deserialize<NodeTransitionPayloadDto>(payloadJson, OrchestrationJsonOptions.Default);
+            return dto?.ScenarioId;
         }
         catch { }
         return null;
@@ -335,9 +330,9 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
         if (int.TryParse(payloadJson, out var n)) return (ClusterState)n;
         try
         {
-            using var doc = JsonDocument.Parse(payloadJson);
-            if (doc.RootElement.TryGetProperty("TargetState", out var prop))
-                return (ClusterState)prop.GetInt32();
+            var dto = JsonSerializer.Deserialize<NodeTransitionPayloadDto>(payloadJson, OrchestrationJsonOptions.Default);
+            if (dto?.TargetState != null && Enum.TryParse<ClusterState>(dto.TargetState, out var state))
+                return state;
         }
         catch { }
         return ClusterState.Idle;

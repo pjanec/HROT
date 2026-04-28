@@ -6,6 +6,7 @@ using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
 using Hrot.Common.Infrastructure;
 using Hrot.NED.Descriptors.Orchestration;
+using Hrot.Network.Orchestration;
 using NedClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using NedNodeOpType    = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using FdpNodeOpType    = Fdp.Toolkit.Orchestration.NodeOpType;
@@ -142,20 +143,18 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
             case NedNodeOpType.FinalizeEdit:
             {
                 if (!hasPayload) return null;
-                string? scenarioId    = GetString(payloadJson!, "ScenarioId");
-                Guid   exerciseId     = GetGuid(payloadJson!, "ExerciseId");
-                int     targetStateInt = 0;
-                string? tsStr         = GetString(payloadJson!, "TargetState");
-                if (!string.IsNullOrWhiteSpace(tsStr) &&
-                    Enum.TryParse<NedClusterState>(tsStr, out var cs))
+                var dto = JsonSerializer.Deserialize<NodeTransitionPayloadDto>(payloadJson!, OrchestrationJsonOptions.Default);
+                int targetStateInt = 0;
+                if (!string.IsNullOrWhiteSpace(dto?.TargetState) &&
+                    Enum.TryParse<NedClusterState>(dto.TargetState, out var cs))
                 {
                     targetStateInt = (int)cs;
                 }
                 return new EditLoadHandlerPayload(
-                    ScenarioId:     scenarioId,
-                    IsNewScenario:  false,
-                    TargetState:    targetStateInt,
-                    ExerciseId:     exerciseId);
+                    ScenarioId:    dto?.ScenarioId,
+                    IsNewScenario: false,
+                    TargetState:   targetStateInt,
+                    ExerciseId:    dto?.ExerciseId ?? Guid.Empty);
             }
 
             case NedNodeOpType.StartEpisode:
@@ -163,27 +162,25 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
             case NedNodeOpType.ForgetEpisode:
             {
                 if (!hasPayload) return null;
-                bool   isStart    = GetBool(payloadJson!, "IsStart");
-                Guid   episodeId  = GetGuid(payloadJson!, "EpisodeId");
-                string? scenarioId = GetString(payloadJson!, "ScenarioId");
+                var dto = JsonSerializer.Deserialize<NodeEpisodePayloadDto>(payloadJson!, OrchestrationJsonOptions.Default);
                 return new EpisodeHandlerPayload(
-                    EpisodeId:  episodeId,
-                    ScenarioId: scenarioId,
-                    IsStart:    isStart);
+                    EpisodeId:  dto?.EpisodeId ?? Guid.Empty,
+                    ScenarioId: dto?.ScenarioId,
+                    IsStart:    dto?.IsStart ?? false);
             }
 
             case NedNodeOpType.PrefetchFiles:
             {
                 if (!hasPayload) return null;
-                string? scenarioId = GetString(payloadJson!, "ScenarioId");
-                return new PrefetchHandlerPayload(scenarioId);
+                var dto = JsonSerializer.Deserialize<NodePrefetchPayloadDto>(payloadJson!, OrchestrationJsonOptions.Default);
+                return new PrefetchHandlerPayload(dto?.ScenarioId);
             }
 
             case NedNodeOpType.SerializeLocal:
             {
                 if (!hasPayload) return null;
-                Guid exerciseId = GetGuid(payloadJson!, "ExerciseId");
-                return new ArchiveHandlerPayload(exerciseId);
+                var dto = JsonSerializer.Deserialize<ArchivePayloadDto>(payloadJson!, OrchestrationJsonOptions.Default);
+                return new ArchiveHandlerPayload(dto?.ExerciseId ?? Guid.Empty);
             }
 
             case NedNodeOpType.CommitState:
@@ -222,41 +219,6 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     }
 
     // ── JSON helpers (avoid taking a dependency on Hrot.Orchestrator DTOs) ─
-
-    private static string? GetString(string json, string key)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            return doc.RootElement.TryGetProperty(key, out var el) ? el.GetString() : null;
-        }
-        catch { return null; }
-    }
-
-    private static bool GetBool(string json, string key)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            return doc.RootElement.TryGetProperty(key, out var el) && el.GetBoolean();
-        }
-        catch { return false; }
-    }
-
-    private static Guid GetGuid(string json, string key)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty(key, out var el))
-            {
-                var str = el.GetString();
-                if (str != null && Guid.TryParse(str, out var g)) return g;
-            }
-            return Guid.Empty;
-        }
-        catch { return Guid.Empty; }
-    }
 
     /// <summary>Serialises <paramref name="resultPayload"/> to a JSON string, or empty string if null.</summary>
     private string SerializeResultPayload(object? resultPayload)

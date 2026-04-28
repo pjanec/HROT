@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
+using Hrot.Network.Orchestration;
 using Hrot.Orchestrator;
 using CycloneDDS.Runtime;
 using Fdp.Core;
@@ -105,7 +106,9 @@ namespace Hrot.ClusterRunner.Testing
                 {
                     RequestId     = requestId,
                     OperationType = ClusterOpType.ReplaySeek,
-                    PayloadJson   = $"{{\"TargetWallTicks\":{targetWallTicks.Value}}}",
+                    PayloadJson   = JsonSerializer.Serialize(
+                        new SeekReplayPayloadDto(TargetWallTicks: targetWallTicks.Value),
+                        OrchestrationJsonOptions.Default),
                 };
             }
             else
@@ -122,23 +125,19 @@ namespace Hrot.ClusterRunner.Testing
                         $"sysop: cannot parse TargetState '{targetStateStr}' as ClusterState name or integer.");
                 }
 
-                // Build payload JSON, optionally including ExerciseId and ScenarioId.
-                var payloadDict = new Dictionary<string, object>
-                {
-                    ["TargetState"] = (int)targetState,
-                };
-                if (!string.IsNullOrEmpty(exerciseId))
-                    payloadDict["ExerciseId"] = exerciseId!;
-                if (!string.IsNullOrEmpty(scenarioId))
-                    payloadDict["ScenarioId"] = scenarioId!;
-                if (targetWallTicks.HasValue)
-                    payloadDict["TargetWallTicks"] = targetWallTicks.Value;
+                // Build payload using typed DTO to ensure strict schema compliance.
+                Guid exerciseGuid = exerciseId != null && Guid.TryParse(exerciseId, out var g) ? g : Guid.Empty;
+                var payloadDto = new TransitionPayloadDto(
+                    TargetState: targetState,
+                    ScenarioId:  scenarioId,
+                    ExerciseId:  exerciseGuid,
+                    TimeMode:    null);
 
                 request = new ClusterOpRequest
                 {
                     RequestId     = requestId,
                     OperationType = ClusterOpType.TransitionState,
-                    PayloadJson   = JsonSerializer.Serialize(payloadDict),
+                    PayloadJson   = JsonSerializer.Serialize(payloadDto, OrchestrationJsonOptions.Default),
                 };
             }
 

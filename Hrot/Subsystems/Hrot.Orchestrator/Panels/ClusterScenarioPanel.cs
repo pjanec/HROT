@@ -95,7 +95,7 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.SaveScenario,
-                    ExerciseId = ExtractGuidField(req.PayloadJson, "ScenarioId"),
+                    ExerciseId = ExtractGuidField(req.PayloadJson),
                 });
                 break;
 
@@ -104,7 +104,7 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Export,
-                    ExerciseId = ExtractGuidField(req.PayloadJson, "ExerciseId"),
+                    ExerciseId = ExtractGuidField(req.PayloadJson),
                 });
                 break;
 
@@ -113,7 +113,7 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Import,
-                    ExerciseId = ExtractGuidField(req.PayloadJson, "ExerciseId"),
+                    ExerciseId = ExtractGuidField(req.PayloadJson),
                 });
                 break;
 
@@ -147,12 +147,12 @@ public sealed class ClusterScenarioPanel
             return v;
         try
         {
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-            // Accept {"FixedDelta":N} or just a bare float literal wrapped in JSON
-            if (root.ValueKind == JsonValueKind.Number) return root.GetSingle();
-            if (root.TryGetProperty("FixedDelta",  out var fd)) return fd.GetSingle();
-            if (root.TryGetProperty("TimeScale",   out var ts)) return ts.GetSingle();
+            var dict = JsonSerializer.Deserialize<System.Collections.Generic.Dictionary<string, float>>(json);
+            if (dict != null)
+            {
+                if (dict.TryGetValue("FixedDelta", out var fd)) return fd;
+                if (dict.TryGetValue("TimeScale",  out var ts)) return ts;
+            }
         }
         catch { }
         return defaultValue;
@@ -164,26 +164,20 @@ public sealed class ClusterScenarioPanel
         if (long.TryParse(json, out var v)) return v;
         try
         {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("TargetWallTicks", out var p))
-                return p.GetInt64();
+            var dto = JsonSerializer.Deserialize<SeekReplayPayloadDto>(json, OrchestrationJsonOptions.Default);
+            return dto?.TargetWallTicks ?? 0;
         }
         catch { }
         return 0;
     }
 
-    private static Guid ExtractGuidField(string? json, string key)
+    private static Guid ExtractGuidField(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return Guid.Empty;
         try
         {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty(key, out var el))
-            {
-                if (el.ValueKind == JsonValueKind.String)
-                    return Guid.TryParse(el.GetString(), out var g) ? g : Guid.Empty;
-                return el.GetGuid();
-            }
+            var dto = JsonSerializer.Deserialize<ArchivePayloadDto>(json, OrchestrationJsonOptions.Default);
+            return dto?.ExerciseId ?? Guid.Empty;
         }
         catch { }
         return Guid.Empty;
@@ -191,38 +185,16 @@ public sealed class ClusterScenarioPanel
 
     private static TransitionStateIntent ParseTransitionStateIntent(ClusterOpRequest req)
     {
-        if (int.TryParse(req.PayloadJson, out var rawInt))
-            return new TransitionStateIntent { TransactionId = req.RequestId, TargetState = (FdpClusterState)rawInt };
-
         try
         {
-            using var doc = JsonDocument.Parse(req.PayloadJson);
-            var root = doc.RootElement;
-            FdpClusterState targetState = default;
-            if (root.TryGetProperty("TargetState", out var tsp))
-            {
-                if (tsp.ValueKind == JsonValueKind.String)
-                    Enum.TryParse<FdpClusterState>(tsp.GetString(), out targetState);
-                else
-                    targetState = (FdpClusterState)tsp.GetInt32();
-            }
-            string? scenarioId = root.TryGetProperty("ScenarioId",  out var sp)  ? sp.GetString()  : null;
-            Guid exerciseId = Guid.Empty;
-            if (root.TryGetProperty("ExerciseId", out var ep))
-            {
-                if (ep.ValueKind == JsonValueKind.String)
-                    exerciseId = Guid.TryParse(ep.GetString(), out var parsed) ? parsed : Guid.Empty;
-                else
-                    exerciseId = ep.GetGuid();
-            }
-            string? timeMode   = root.TryGetProperty("TimeMode",    out var tm)  ? tm.GetString()  : null;
+            var dto = JsonSerializer.Deserialize<TransitionPayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default);
             return new TransitionStateIntent
             {
                 TransactionId = req.RequestId,
-                TargetState   = targetState,
-                ScenarioId    = scenarioId,
-                ExerciseId    = exerciseId,
-                TimeMode      = timeMode,
+                TargetState   = dto?.TargetState.HasValue == true ? (FdpClusterState)(int)dto.TargetState.Value : default,
+                ScenarioId    = dto?.ScenarioId,
+                ExerciseId    = dto?.ExerciseId ?? Guid.Empty,
+                TimeMode      = dto?.TimeMode,
             };
         }
         catch { }
@@ -233,27 +205,13 @@ public sealed class ClusterScenarioPanel
     {
         try
         {
-            using var doc = JsonDocument.Parse(req.PayloadJson);
-            var root = doc.RootElement;
-            // Panel uses Mode:"Start"/"Stop"; DTO uses IsStart bool.
-            bool isStart = false;
-            if (root.TryGetProperty("Mode", out var modeProp))
-                isStart = string.Equals(modeProp.GetString(), "Start", StringComparison.OrdinalIgnoreCase);
-            else if (root.TryGetProperty("IsStart", out var isp))
-                isStart = isp.GetBoolean();
-
-            Guid episodeId = Guid.Empty;
-            if (root.TryGetProperty("EpisodeId", out var ep) && Guid.TryParse(ep.GetString(), out var parsed))
-                episodeId = parsed;
-
-            string? scenarioId = root.TryGetProperty("ScenarioId", out var sp) ? sp.GetString() : null;
-
+            var dto = JsonSerializer.Deserialize<ManageEpisodePayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default);
             return new ManageEpisodeIntent
             {
                 TransactionId = req.RequestId,
-                IsStart       = isStart,
-                EpisodeId     = episodeId,
-                ScenarioId    = scenarioId,
+                IsStart       = dto?.IsStart ?? false,
+                EpisodeId     = dto?.EpisodeId ?? Guid.Empty,
+                ScenarioId    = dto?.ScenarioId,
             };
         }
         catch { }
@@ -715,7 +673,9 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.SaveScenario,
-                    PayloadJson   = JsonSerializer.Serialize(new { ScenarioId = _saveScenarioId }),
+                    PayloadJson   = JsonSerializer.Serialize(
+                        new ArchivePayloadDto(ExerciseId: Guid.TryParse(_saveScenarioId, out var g) ? g : Guid.Empty),
+                        OrchestrationJsonOptions.Default),
                 });
 
             ImGui.Spacing();

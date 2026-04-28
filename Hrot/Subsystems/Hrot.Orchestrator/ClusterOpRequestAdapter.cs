@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using Hrot.NED.Descriptors.Orchestration;
+using Hrot.Network.Orchestration;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
 using ClusterState   = Hrot.NED.Descriptors.Orchestration.ClusterState;
@@ -37,61 +38,41 @@ internal static class ClusterOpRequestAdapter
                 "[ClusterOpRequestAdapter] TransitionState payload is empty — " +
                 "a valid target state is required.");
 
-        FdpClusterState targetState = default;
-        long   targetWallTicks = 0;
-        string? scenarioId    = null;
-        Guid exerciseId       = Guid.Empty;
-        string? timeMode      = null;
-
+        // Legacy path: bare integer string (e.g. "30") used by some tests and headless paths.
         if (int.TryParse(req.PayloadJson, out var rawInt))
         {
-            targetState = (FdpClusterState)rawInt;
+            return new TransitionStateIntent
+            {
+                TransactionId = req.RequestId,
+                TargetState   = (FdpClusterState)rawInt,
+            };
         }
-        else
+
+        TransitionPayloadDto dto;
+        try
         {
-            JsonDocument doc;
-            try { doc = JsonDocument.Parse(req.PayloadJson); }
-            catch (JsonException ex)
-            {
-                throw new InvalidOperationException(
-                    $"[ClusterOpRequestAdapter] TransitionState payload is not valid JSON: {ex.Message}", ex);
-            }
-
-            using (doc)
-            {
-                if (!doc.RootElement.TryGetProperty("TargetState", out var tsProp))
-                    throw new InvalidOperationException(
-                        "[ClusterOpRequestAdapter] TransitionState JSON missing required 'TargetState'.");
-
-                if (tsProp.ValueKind == JsonValueKind.String)
-                    Enum.TryParse<FdpClusterState>(tsProp.GetString(), out targetState);
-                else
-                    targetState = (FdpClusterState)tsProp.GetInt32();
-
-                if (doc.RootElement.TryGetProperty("TargetWallTicks", out var twProp))
-                    targetWallTicks = twProp.GetInt64();
-
-                if (doc.RootElement.TryGetProperty("ScenarioId", out var sidProp))
-                    scenarioId = sidProp.GetString();
-
-                if (doc.RootElement.TryGetProperty("ExerciseId", out var eidProp))
-                    exerciseId = eidProp.ValueKind == JsonValueKind.String
-                        ? (Guid.TryParse(eidProp.GetString(), out var parsed) ? parsed : Guid.Empty)
-                        : eidProp.GetGuid();
-
-                if (doc.RootElement.TryGetProperty("TimeMode", out var tmProp))
-                    timeMode = tmProp.GetString();
-            }
+            dto = JsonSerializer.Deserialize<TransitionPayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default)
+                  ?? throw new InvalidOperationException(
+                      "[ClusterOpRequestAdapter] TransitionState payload deserialized to null.");
         }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException(
+                $"[ClusterOpRequestAdapter] TransitionState payload is not valid JSON: {ex.Message}", ex);
+        }
+
+        if (dto.TargetState == null)
+            throw new InvalidOperationException(
+                "[ClusterOpRequestAdapter] TransitionState JSON missing required 'TargetState'.");
 
         return new TransitionStateIntent
         {
-            TransactionId  = req.RequestId,
-            TargetState    = targetState,
-            TargetWallTicks = targetWallTicks,
-            ScenarioId     = scenarioId,
-            ExerciseId     = exerciseId,
-            TimeMode       = timeMode,
+            TransactionId   = req.RequestId,
+            TargetState     = (FdpClusterState)(int)dto.TargetState.Value,
+            TargetWallTicks = 0,
+            ScenarioId      = dto.ScenarioId,
+            ExerciseId      = dto.ExerciseId,
+            TimeMode        = dto.TimeMode,
         };
     }
 
@@ -108,48 +89,34 @@ internal static class ClusterOpRequestAdapter
             throw new InvalidOperationException(
                 "[ClusterOpRequestAdapter] ManageEpisode payload is empty.");
 
-        JsonDocument doc;
-        try { doc = JsonDocument.Parse(req.PayloadJson); }
+        ManageEpisodePayloadDto dto;
+        try
+        {
+            dto = JsonSerializer.Deserialize<ManageEpisodePayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default)
+                  ?? throw new InvalidOperationException(
+                      "[ClusterOpRequestAdapter] ManageEpisode payload deserialized to null.");
+        }
         catch (JsonException ex)
         {
             throw new InvalidOperationException(
                 $"[ClusterOpRequestAdapter] ManageEpisode payload is not valid JSON: {ex.Message}", ex);
         }
 
-        string? mode;
-        Guid    episodeId  = Guid.Empty;
-        string? scenarioId = null;
-        bool    isStart    = false;
-
-        using (doc)
-        {
-            mode       = doc.RootElement.TryGetProperty("Mode",      out var mp) ? mp.GetString()   : null;
-            scenarioId = doc.RootElement.TryGetProperty("ScenarioId", out var sp) ? sp.GetString()  : null;
-
-            // Accept IsStart bool (from DTOs) or Mode string (legacy format).
-            if (doc.RootElement.TryGetProperty("IsStart", out var isp))
-                isStart = isp.GetBoolean();
-            else if (mode != null)
-                isStart = string.Equals(mode, "Start", StringComparison.OrdinalIgnoreCase);
-
-            if (doc.RootElement.TryGetProperty("EpisodeId", out var ep))
-                Guid.TryParse(ep.GetString(), out episodeId);
-        }
-
+        Guid episodeId = dto.EpisodeId ?? Guid.Empty;
         if (episodeId == Guid.Empty)
             throw new InvalidOperationException(
                 "[ClusterOpRequestAdapter] ManageEpisode payload missing or invalid 'EpisodeId'.");
 
-        if (isStart && string.IsNullOrWhiteSpace(scenarioId))
+        if (dto.IsStart && string.IsNullOrWhiteSpace(dto.ScenarioId))
             throw new InvalidOperationException(
                 "[ClusterOpRequestAdapter] ManageEpisode Start missing 'ScenarioId'.");
 
         return new ManageEpisodeIntent
         {
             TransactionId = req.RequestId,
-            IsStart       = isStart,
+            IsStart       = dto.IsStart,
             EpisodeId     = episodeId,
-            ScenarioId    = scenarioId,
+            ScenarioId    = dto.ScenarioId,
         };
     }
 
@@ -159,8 +126,16 @@ internal static class ClusterOpRequestAdapter
     /// </summary>
     public static ExecuteStorageOpIntent ToExecuteStorageOpIntent(ClusterOpRequest req)
     {
-        Guid exerciseId = ExtractGuid(req.PayloadJson, "ExerciseId");
-        string? scenarioId = ExtractString(req.PayloadJson, "ScenarioId");
+        Guid exerciseId = Guid.Empty;
+        if (!string.IsNullOrWhiteSpace(req.PayloadJson))
+        {
+            try
+            {
+                var dto = JsonSerializer.Deserialize<ArchivePayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default);
+                exerciseId = dto?.ExerciseId ?? Guid.Empty;
+            }
+            catch (JsonException) { }
+        }
 
         var opType = req.OperationType switch
         {
@@ -174,9 +149,7 @@ internal static class ClusterOpRequestAdapter
         {
             RequestId  = req.RequestId,
             Operation  = opType,
-            ExerciseId = exerciseId != Guid.Empty
-                ? exerciseId
-                : (Guid.TryParse(scenarioId, out var parsed) ? parsed : Guid.Empty),
+            ExerciseId = exerciseId,
         };
     }
 
@@ -193,9 +166,8 @@ internal static class ClusterOpRequestAdapter
             {
                 try
                 {
-                    using var doc = JsonDocument.Parse(req.PayloadJson);
-                    if (doc.RootElement.TryGetProperty("TargetWallTicks", out var p))
-                        ticks = p.GetInt64();
+                    var dto = JsonSerializer.Deserialize<SeekReplayPayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default);
+                    ticks = dto?.TargetWallTicks ?? 0;
                 }
                 catch { }
             }
@@ -216,34 +188,4 @@ internal static class ClusterOpRequestAdapter
         return new CancelOperationIntent { TargetRequestId = targetId };
     }
 
-    // ── Internal JSON helpers ────────────────────────────────────────────────
-
-    private static string? ExtractString(string? json, string key)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return null;
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
-            if (doc.RootElement.TryGetProperty(key, out var el)) return el.GetString();
-        }
-        catch (JsonException) { }
-        return null;
-    }
-
-    private static Guid ExtractGuid(string? json, string key)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return Guid.Empty;
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.ValueKind != JsonValueKind.Object) return Guid.Empty;
-            if (!doc.RootElement.TryGetProperty(key, out var el)) return Guid.Empty;
-            if (el.ValueKind == JsonValueKind.String)
-                return Guid.TryParse(el.GetString(), out var parsed) ? parsed : Guid.Empty;
-            return el.GetGuid();
-        }
-        catch (JsonException) { }
-        return Guid.Empty;
-    }
 }

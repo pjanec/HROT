@@ -31,6 +31,8 @@ public static class OrchestrationJsonOptions
     {
         Converters = { new StrictStringEnumConverter() },
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNameCaseInsensitive = true,
+        IncludeFields = true,
     };
 }
 

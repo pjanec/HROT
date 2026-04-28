@@ -20,7 +20,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         Degraded = 99,
     }
 
-    public enum ClusterOpType : int
+	// keep in sync with ClusterOpType in orchestration toolkit!
+	public enum ClusterOpType : int
     {
         TransitionState = 1,
         SaveScenario = 2,

@@ -188,7 +188,7 @@ public sealed class ClusterMasterFanOutTests
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingLive}}}",
+            PayloadJson   = $"{{\"TargetState\":\"{ClusterState.LoadingLive}\"}}",
         });
         exercise.Tick();   // drain injected request queue
 
@@ -220,7 +220,7 @@ public sealed class ClusterMasterFanOutTests
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.OperatingReplay}}}",
+            PayloadJson   = $"{{\"TargetState\":\"{ClusterState.OperatingReplay}\"}}",
         });
         bus.SwapBuffers();
         exercise.Tick();

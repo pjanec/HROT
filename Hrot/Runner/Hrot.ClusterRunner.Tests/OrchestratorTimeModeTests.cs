@@ -38,13 +38,12 @@ public class OrchestratorTimeModeTests
 
         // Inject TransitionState → LoadingLive with Deterministic time mode via test hook.
         // HEXAG2-S008: DDS translator path removed in headless mode; UI buttons use HandleClusterOpRequest.
-        // TargetState must be the integer value (30 = LoadingLive); ClusterOpRequestAdapter.ToTransitionStateIntent
-        // uses GetInt32() for JSON object payloads.
+        // TargetState is a string enum value (e.g. "LoadingLive") per StrictStringEnumConverter contract.
         subsystem.TestHook_ClusterMaster!.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = @"{""TargetState"":30,""TimeMode"":""Deterministic""}",
+            PayloadJson   = @"{""TargetState"":""LoadingLive"",""TimeMode"":""Deterministic""}",
         });
 
         // Tick until a SwitchTimeModeEvent with TargetMode=Deterministic appears on the bus.
