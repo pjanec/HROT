@@ -1,23 +1,28 @@
-using System.Reflection;
+using System.Text.Json;
 
 namespace StructEdit.Core.Memory;
 
 /// <summary>
-/// Edit buffer for managed classes and records. Clones the object on construction via MemberwiseClone.
+/// Edit buffer for managed classes and records. Deep clones the object on construction
+/// to isolate nested reference types from the live component instance.
 /// </summary>
 internal sealed class ManagedObjectEditBuffer : IEditBuffer
 {
     private object _clone;
     private bool _isDirty;
 
-    private static readonly MethodInfo _memberwiseClone =
-        typeof(object).GetMethod("MemberwiseClone", BindingFlags.Instance | BindingFlags.NonPublic)!;
+    private static readonly JsonSerializerOptions _cloneOptions = new()
+    {
+        IncludeFields = true
+    };
 
     public ManagedObjectEditBuffer(Type componentType, object obj)
     {
         ComponentType = componentType ?? throw new ArgumentNullException(nameof(componentType));
         if (obj is null) throw new ArgumentNullException(nameof(obj));
-        _clone = _memberwiseClone.Invoke(obj, null)!;
+        string json = JsonSerializer.Serialize(obj, componentType, _cloneOptions);
+        _clone = JsonSerializer.Deserialize(json, componentType, _cloneOptions)
+            ?? throw new InvalidOperationException($"Failed to deep clone component of type {componentType}.");
     }
 
     public Type ComponentType { get; }

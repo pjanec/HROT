@@ -1,20 +1,28 @@
-using System.Reflection;
+using System.Text.Json;
 
 namespace StructEdit.Core.Memory;
 
 /// <summary>
-/// Edit buffer for non-blittable structs. Stores a boxed copy of the struct and modifies
-/// fields through reflection.
+/// Edit buffer for non-blittable structs. Stores a deep-cloned boxed copy of the struct
+/// to isolate managed fields from the live component instance.
 /// </summary>
 internal sealed class BoxedStructEditBuffer : IEditBuffer
 {
     private object _boxed;
     private bool _isDirty;
+    private static readonly JsonSerializerOptions _cloneOptions = new()
+    {
+        IncludeFields = true
+    };
 
     public BoxedStructEditBuffer(Type componentType, object boxedStruct)
     {
         ComponentType = componentType ?? throw new ArgumentNullException(nameof(componentType));
-        _boxed = boxedStruct ?? throw new ArgumentNullException(nameof(boxedStruct));
+        if (boxedStruct is null) throw new ArgumentNullException(nameof(boxedStruct));
+
+        string json = JsonSerializer.Serialize(boxedStruct, componentType, _cloneOptions);
+        _boxed = JsonSerializer.Deserialize(json, componentType, _cloneOptions)
+            ?? throw new InvalidOperationException($"Failed to deep clone component of type {componentType}.");
     }
 
     public Type ComponentType { get; }
