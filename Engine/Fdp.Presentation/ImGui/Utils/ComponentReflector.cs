@@ -63,9 +63,11 @@ public class ComponentReflector
             .RegisterFieldEditor<FixedString32>(new FixedString32FieldEditor())
             .RegisterFieldEditor<FixedString64>(new FixedString64FieldEditor())
             .RegisterFieldEditor<Quaternion>(new QuaternionEulerFieldEditor())
+            .RegisterFieldEditor<Guid>(new StructEdit.Reflection.Editors.GuidFieldEditor())
             .Build();
 
         _fieldDrawers[typeof(Quaternion)] = new QuaternionEulerFieldDrawer();
+        _fieldDrawers[typeof(Guid)] = new GuidFieldDrawer();
     }
 
     /// <summary>

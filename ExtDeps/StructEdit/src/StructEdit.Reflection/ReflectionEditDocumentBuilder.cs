@@ -157,7 +157,7 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
 
             case EditNodeKind.DynamicArray:
             {
-                var fieldBinding = CreateLeafBinding(buffer, nativeOffset, fi, pi, nodeType);
+                var fieldBinding = CreateLeafBinding(buffer, nativeOffset, fi, pi, nodeType, parentBinding); 
                 if (fieldBinding != null)
                 {
                     var container = fieldBinding.GetBoxed();

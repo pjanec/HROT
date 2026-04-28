@@ -71,6 +71,8 @@ internal sealed class ComponentEditDrawer
             case EditNodeKind.String:
             case EditNodeKind.Enum:
             case EditNodeKind.Custom:
+            case EditNodeKind.Guid:
+            case EditNodeKind.DateTime:
                 DrawLeafNode(node, parentContainer, elementIndex);
                 break;
 
