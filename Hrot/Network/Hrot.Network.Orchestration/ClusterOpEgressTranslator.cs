@@ -73,7 +73,9 @@ public sealed class ClusterOpEgressTranslator : IDisposable
             {
                 RequestId     = Guid.NewGuid(),
                 OperationType = NedClusterOpType.StepTime,
-                PayloadJson   = intent.DeltaSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                PayloadJson   = JsonSerializer.Serialize(
+                    new StepTimePayloadDto(FixedDelta: intent.DeltaSeconds),
+                    OrchestrationJsonOptions.Default),
             });
 
         foreach (var intent in _bus.ReadManaged<SetTimeScaleIntent>())
@@ -81,7 +83,9 @@ public sealed class ClusterOpEgressTranslator : IDisposable
             {
                 RequestId     = Guid.NewGuid(),
                 OperationType = NedClusterOpType.SetTimeScale,
-                PayloadJson   = intent.TimeScale.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                PayloadJson   = JsonSerializer.Serialize(
+                    new SetTimeScalePayloadDto(TimeScale: intent.TimeScale),
+                    OrchestrationJsonOptions.Default),
             });
 
         foreach (var intent in _bus.ReadManaged<TransitionStateIntent>())

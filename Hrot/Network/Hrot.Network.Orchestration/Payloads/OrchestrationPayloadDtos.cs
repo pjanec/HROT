@@ -76,6 +76,18 @@ public record SeekReplayPayloadDto(
     long           TargetWallTicks
 );
 
+/// <summary>Payload DTO for <c>ClusterOpType.StepTime</c> DDS requests.</summary>
+public record StepTimePayloadDto(
+    [property: JsonPropertyName("FixedDelta")]
+    float          FixedDelta
+);
+
+/// <summary>Payload DTO for <c>ClusterOpType.SetTimeScale</c> DDS requests.</summary>
+public record SetTimeScalePayloadDto(
+    [property: JsonPropertyName("TimeScale")]
+    float          TimeScale
+);
+
 /// <summary>
 /// Node-level transition payload DTO carried inside <c>NodeOpCommand.PayloadJson</c>
 /// for <c>PrepareState</c>, <c>PrepareLive</c>, <c>PrepareReplay</c>, <c>PrepareEdit</c>,

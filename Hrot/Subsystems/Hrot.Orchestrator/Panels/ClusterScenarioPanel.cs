@@ -64,14 +64,26 @@ public sealed class ClusterScenarioPanel
 
             case FdpClusterOpType.StepTime:
             {
-                float delta = TryParseFloat(req.PayloadJson, 1f / 60f);
+                StepTimePayloadDto? dto = null;
+                if (!string.IsNullOrWhiteSpace(req.PayloadJson))
+                {
+                    try { dto = JsonSerializer.Deserialize<StepTimePayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default); }
+                    catch { }
+                }
+                float delta = dto != null && dto.FixedDelta > 0f ? dto.FixedDelta : 1f / 60f;
                 _bus!.PublishManaged(new StepTimeIntent { DeltaSeconds = delta });
                 break;
             }
 
             case FdpClusterOpType.SetTimeScale:
             {
-                float scale = TryParseFloat(req.PayloadJson, 1f);
+                SetTimeScalePayloadDto? dto = null;
+                if (!string.IsNullOrWhiteSpace(req.PayloadJson))
+                {
+                    try { dto = JsonSerializer.Deserialize<SetTimeScalePayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default); }
+                    catch { }
+                }
+                float scale = dto != null && dto.TimeScale > 0f ? dto.TimeScale : 1f;
                 _bus!.PublishManaged(new SetTimeScaleIntent { TimeScale = scale });
                 break;
             }
@@ -138,25 +150,6 @@ public sealed class ClusterScenarioPanel
     }
 
     // ── Payload parsing helpers (bus path only) ────────────────────────────
-
-    private static float TryParseFloat(string? json, float defaultValue)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return defaultValue;
-        if (float.TryParse(json, System.Globalization.NumberStyles.Float,
-            System.Globalization.CultureInfo.InvariantCulture, out var v))
-            return v;
-        try
-        {
-            var dict = JsonSerializer.Deserialize<System.Collections.Generic.Dictionary<string, float>>(json);
-            if (dict != null)
-            {
-                if (dict.TryGetValue("FixedDelta", out var fd)) return fd;
-                if (dict.TryGetValue("TimeScale",  out var ts)) return ts;
-            }
-        }
-        catch { }
-        return defaultValue;
-    }
 
     private static long TryParseWallTicks(string? json)
     {
@@ -230,7 +223,7 @@ public sealed class ClusterScenarioPanel
     private IReadOnlyList<ClusterState> EffectiveReachable
         => _master?.GetReachableTargets() ?? _uiCache.ReachableTargets;
     private IReadOnlyCollection<Guid> EffectiveEpisodes
-        => _master?.ActiveEpisodes ?? _uiCache.ActiveEpisodes;
+        => _uiCache.ActiveEpisodes;
 
     // ── Scenario section state ────────────────────────────────────────────
     private string _saveScenarioId  = string.Empty;
@@ -440,15 +433,13 @@ public sealed class ClusterScenarioPanel
         ImGui.SameLine();
         if (ImGui.Button("Step##OrcStep"))
         {
-            string stepPayload = string.Format(
-                System.Globalization.CultureInfo.InvariantCulture,
-                "{{\"FixedDelta\":{0:G9}}}",
-                _stepDeltaSeconds);
             SendRequest(new ClusterOpRequest
             {
                 RequestId     = Guid.NewGuid(),
                 OperationType = ClusterOpType.StepTime,
-                PayloadJson   = stepPayload,
+                PayloadJson   = JsonSerializer.Serialize(
+                    new StepTimePayloadDto(FixedDelta: _stepDeltaSeconds),
+                    OrchestrationJsonOptions.Default),
             });
         }
         if (!isPaused) ImGui.EndDisabled();
@@ -460,8 +451,9 @@ public sealed class ClusterScenarioPanel
             {
                 RequestId     = Guid.NewGuid(),
                 OperationType = ClusterOpType.SetTimeScale,
-                PayloadJson   = timeScale.ToString("F2",
-                    System.Globalization.CultureInfo.InvariantCulture),
+                PayloadJson   = JsonSerializer.Serialize(
+                    new SetTimeScalePayloadDto(TimeScale: timeScale),
+                    OrchestrationJsonOptions.Default),
             });
 
         if (disableAll) ImGui.EndDisabled();

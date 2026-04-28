@@ -1,10 +1,7 @@
 using System;
 using System.Linq;
 using Fdp.Core;
-using Fdp.ModuleHost.Time;
 using Fdp.Toolkit.Orchestration;
-using Fdp.Toolkit.Time.Controllers;
-using Fdp.Toolkit.Time.Domain;
 using Hrot.NED.Descriptors.Orchestration;
 using ClusterState   = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType  = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
@@ -14,11 +11,11 @@ using Xunit;
 namespace Hrot.Orchestrator.Tests;
 
 /// <summary>
-/// Tests for RT-021: master clock snap on Live-from-Replay branch completion.
-/// Verifies that <see cref="ClusterMaster"/> calls
-/// <see cref="MasterSyncController.SnapAndPause"/> with the historical time captured
-/// from the first valid <see cref="LiveBranchResult"/> ACK before calling
-/// <see cref="ReplayMasterModule.RestoreTime"/> (CGF1-S0305 Phase 6).
+/// Tests for ClusterMaster 2PC handling of the Live-from-Replay branch transition
+/// after TASK-T001. SnapAndPause / RestoreTime are now owned by
+/// <see cref="LiveBranchProcessManager"/>; see LiveBranchProcessManagerTests (SC2).
+/// This file verifies ClusterMaster correctly tracks ACKs for the standard PrepareLive
+/// fan-out.
 /// </summary>
 [Collection("OrchestratorTests")]
 public sealed class ClusterMasterBranchTests
@@ -30,11 +27,6 @@ public sealed class ClusterMasterBranchTests
         TransactionHistoryCapacity = 10,
     };
 
-    /// <summary>
-    /// Bootstraps a single SimHost node and advances the cluster to
-    /// <see cref="ClusterState.OperatingReplay"/>.
-    /// Returns the node ID used.
-    /// </summary>
     private static int BootstrapToOperatingReplay(FdpEventBus bus, ClusterMaster master)
     {
         const int nodeId = 1;
@@ -63,15 +55,26 @@ public sealed class ClusterMasterBranchTests
         return nodeId;
     }
 
+    // ── T21: standard ACK tracking for PrepareLive after TASK-T001 ───────────
+
     /// <summary>
-    /// Triggers a branch transition (OperatingReplay -> OperatingLive) and returns
-    /// the TransactionId of the fanned-out PrepareLive NodeOpIntent.
+    /// T21 (revised): After TASK-T001, ClusterMaster tracks ACKs for PrepareLive via
+    /// the standard _pendingBusTransitionAcks path. When all ACKs arrive,
+    /// ClusterOpCompletedEvent is published. SnapAndPause is now handled by
+    /// LiveBranchProcessManager (see LiveBranchProcessManagerTests.SC2).
     /// </summary>
-    private static Guid TriggerBranchAndGetTxId(FdpEventBus bus, ClusterMaster master)
+    [Fact(Timeout = 10_000)]
+    public void LiveBranch_StandardAckTracking_PublishesClusterOpCompletedOnAllAcks()
     {
+        var bus    = new FdpEventBus();
+        var master = new ClusterMaster(bus, MandatorySimHostConfig());
+
+        int nodeId = BootstrapToOperatingReplay(bus, master);
+
+        var requestId = Guid.NewGuid();
         master.HandleClusterOpRequest(new ClusterOpRequest
         {
-            RequestId     = Guid.NewGuid(),
+            RequestId     = requestId,
             OperationType = ClusterOpType.TransitionState,
             PayloadJson   = ((int)ClusterState.OperatingLive).ToString(),
         });
@@ -79,104 +82,38 @@ public sealed class ClusterMasterBranchTests
         master.Tick();
         bus.SwapBuffers();
 
-        var intents = bus.ReadManaged<ExecuteNodeOpIntent>()
-            .Where(i => i.Operation == FdpNodeOpType.PrepareLive)
-            .ToList();
-        Assert.True(intents.Any(), "ClusterMaster must fan out a PrepareLive NodeOpIntent.");
-        return intents[0].TransactionId;
-    }
+        var intents = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        Assert.True(intents.Any(i => i.Operation == FdpNodeOpType.PrepareLive),
+            "ClusterMaster must fan out a PrepareLive NodeOpIntent.");
+        var txId = intents.First(i => i.Operation == FdpNodeOpType.PrepareLive).TransactionId;
 
-    // ── T21a/T21b ─────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// T21a: When all nodes ACK a branch transition with a valid <see cref="LiveBranchResult"/>,
-    /// the master clock must be snapped to the historical wall ticks.
-    /// T21b: After the snap, <see cref="MasterSyncController.GetMode"/> returns
-    /// <see cref="TimeMode.Deterministic"/> (paused).
-    /// </summary>
-    [Fact(Timeout = 10_000)]
-    public void LiveBranch_OnAllNodesAck_WithLiveBranchResult_SnapsAndPausesMasterClock()
-    {
-        var bus    = new FdpEventBus();
-        var master = new ClusterMaster(bus, MandatorySimHostConfig());
-
-        float currentScale = 1.0f;
-        var   replayModule = new ReplayMasterModule(s => currentScale = s, () => currentScale);
-        master.SetReplayMasterModule(replayModule);
-
-        var masterSync = new MasterSyncController(bus, tickSource: () => 1L);
-        master.SetMasterSync(masterSync);
-
-        int nodeId = BootstrapToOperatingReplay(bus, master);
-        Guid branchTxId = TriggerBranchAndGetTxId(bus, master);
-
-        var historicalTime = new GlobalTime
+        // ACK all prepare ops (CommitState is handled synchronously and does not produce an ACK).
+        foreach (var intent in intents.Where(i => i.Operation != FdpNodeOpType.CommitState))
         {
-            TotalWallTicks = 7777L,
-            TotalTime      = 3.0,
-        };
-
-        bus.PublishManaged(new NodeOpCompletedEvent
-        {
-            TransactionId   = branchTxId,
-            Operation       = FdpNodeOpType.PrepareLive,
-            NodeId          = nodeId,
-            StatusCode      = OrchestrationStatusCode.Success,
-            IsParticipating = true,
-            ResultPayload   = new LiveBranchResult(historicalTime),
-        });
+            bus.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId   = intent.TransactionId,
+                Operation       = intent.Operation,
+                NodeId          = nodeId,
+                StatusCode      = OrchestrationStatusCode.Success,
+                IsParticipating = true,
+                ResultPayload   = intent.Operation == FdpNodeOpType.PrepareLive
+                    ? (object?)new LiveBranchResult(new Fdp.Core.GlobalTime
+                    {
+                        TotalWallTicks = 7777L,
+                        TotalTime      = 3.0,
+                    })
+                    : null,
+            });
+        }
+        _ = txId; // captured for reference
         bus.SwapBuffers();
         master.Tick();
         bus.SwapBuffers();
 
-        // T21a: master clock wall ticks snapped to historical value
-        Assert.Equal(7777L, masterSync.GetCurrentState().TotalWallTicks);
-
-        // T21b: master is paused (Deterministic) after snap
-        Assert.Equal(TimeMode.Deterministic, masterSync.GetMode());
-    }
-
-    // ── T21d ──────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// T21d: When all nodes ACK a branch transition with a default (zero)
-    /// <see cref="LiveBranchResult"/>, the master clock must NOT be snapped.
-    /// </summary>
-    [Fact(Timeout = 10_000)]
-    public void LiveBranch_OnAllNodesAck_WithDefaultResult_DoesNotSnapMasterClock()
-    {
-        var bus    = new FdpEventBus();
-        var master = new ClusterMaster(bus, MandatorySimHostConfig());
-
-        float currentScale = 1.0f;
-        var   replayModule = new ReplayMasterModule(s => currentScale = s, () => currentScale);
-        master.SetReplayMasterModule(replayModule);
-
-        // Use a controlled tick source so we can read the initial wall ticks
-        long fakeTick = 1000L;
-        var masterSync = new MasterSyncController(bus, tickSource: () => fakeTick);
-        master.SetMasterSync(masterSync);
-
-        long initialWallTicks = masterSync.GetCurrentState().TotalWallTicks;
-
-        int  nodeId     = BootstrapToOperatingReplay(bus, master);
-        Guid branchTxId = TriggerBranchAndGetTxId(bus, master);
-
-        // ACK with default (zero) LiveBranchResult -- should not trigger snap
-        bus.PublishManaged(new NodeOpCompletedEvent
-        {
-            TransactionId   = branchTxId,
-            Operation       = FdpNodeOpType.PrepareLive,
-            NodeId          = nodeId,
-            StatusCode      = OrchestrationStatusCode.Success,
-            IsParticipating = true,
-            ResultPayload   = new LiveBranchResult(default(GlobalTime)),
-        });
-        bus.SwapBuffers();
-        master.Tick();
-        bus.SwapBuffers();
-
-        // T21d: master clock must NOT have been snapped to a historical value
-        Assert.Equal(initialWallTicks, masterSync.GetCurrentState().TotalWallTicks);
+        // Verify ClusterOpCompletedEvent is published after all ACKs.
+        var completed = bus.ReadManaged<ClusterOpCompletedEvent>().ToList();
+        Assert.True(completed.Any(e => !e.StatusCode.IsError()),
+            "ClusterMaster must publish ClusterOpCompletedEvent(Success) after all ACKs arrive.");
     }
 }

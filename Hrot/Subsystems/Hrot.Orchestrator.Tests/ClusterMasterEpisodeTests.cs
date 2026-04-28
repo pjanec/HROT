@@ -14,21 +14,22 @@ namespace Hrot.Orchestrator.Tests;
 
 /// <summary>
 /// Tests for the ManageEpisode 2PC in <see cref="ClusterMaster"/> (BATCH-21 Part A.1 /
-/// CGF1-S0308):
+/// CGF1-S0308, refactored in TASK-S003):
 /// <para>
-/// <see cref="ClusterMaster.ActiveEpisodes"/> must NOT be mutated immediately when
-/// <see cref="ClusterOpType.ManageEpisode"/> is processed — the update is deferred until
-/// node <see cref="NodeOpStatus"/> ACKs are consumed.
+/// Episode state is managed by <see cref="EpisodeProcessManager"/> and communicated via
+/// <see cref="EpisodeStateChangedEvent"/>. Tests assert on bus events rather than any
+/// internal state property.
 /// </para>
 /// </summary>
 [Collection("OrchestratorTests")]
 public sealed class ClusterMasterEpisodeTests
 {
     /// <summary>
-    /// Bootstraps a bus-mode ClusterMaster with one mandatory SimHost node and transitions
-    /// optimistically to OperatingLive so that ManageEpisode requests are accepted.
+    /// Bootstraps a bus-mode ClusterMaster with one mandatory SimHost node, registers
+    /// episode aggregators, and transitions to OperatingLive so ManageEpisode requests
+    /// are accepted. Returns ClusterMaster, EpisodeProcessManager, and the shared bus.
     /// </summary>
-    private static (ClusterMaster master, FdpEventBus bus) BootstrapToOperatingLive(int nodeId = 1)
+    private static (ClusterMaster master, EpisodeProcessManager episodeMgr, FdpEventBus bus) BootstrapToOperatingLive(int nodeId = 1)
     {
         var config = new ClusterConfiguration
         {
@@ -38,16 +39,20 @@ public sealed class ClusterMasterEpisodeTests
         };
         var bus    = new FdpEventBus();
         var master = new ClusterMaster(bus, config);
+        var episodeMgr = new EpisodeProcessManager(bus);
+
+        master.RegisterAggregator(new EpisodeConsensusAggregator(FdpNodeOpType.StartEpisode));
+        master.RegisterAggregator(new EpisodeConsensusAggregator(FdpNodeOpType.StopEpisode));
 
         bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId        = nodeId,
             SubsystemName = "SimHost",
-            LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            LocalStateId  = (int)ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
         bus.SwapBuffers();
-        master.Tick(); // bootstrap latch clears
+        master.Tick();
         bus.SwapBuffers();
 
         // Transition to OperatingLive (optimistic advance — ACKs not required).
@@ -63,22 +68,22 @@ public sealed class ClusterMasterEpisodeTests
         // Drain transition fan-out intents so they don't interfere with episode assertions.
         bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
 
-        return (master, bus);
+        return (master, episodeMgr, bus);
     }
 
     /// <summary>
     /// Verifies the end-to-end 2PC episode flow:
     /// <list type="number">
     ///   <item>After FanOutNodeOp for <see cref="NodeOpType.StartEpisode"/>,
-    ///     <c>ActiveEpisodes</c> is still empty (deferred).</item>
+    ///     no <see cref="EpisodeStateChangedEvent"/> is published yet (deferred).</item>
     ///   <item>After the targeted node ACKs with <c>IsParticipating=true</c>,
-    ///     <c>ActiveEpisodes</c> contains the episode.</item>
+    ///     <see cref="EpisodeStateChangedEvent"/> is published with the episode ID.</item>
     /// </list>
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void StartEpisode_ActiveEpisodesUpdated_AfterNodeAck_NotBefore()
     {
-        var (exercise, bus) = BootstrapToOperatingLive(nodeId: 1);
+        var (exercise, episodeMgr, bus) = BootstrapToOperatingLive(nodeId: 1);
         using var _ = exercise;
 
         // ── Issue a ManageEpisode(Start) request ────────────────────────────
@@ -92,18 +97,23 @@ public sealed class ClusterMasterEpisodeTests
         });
         bus.SwapBuffers();
         exercise.Tick();
-        bus.SwapBuffers();
+        bus.SwapBuffers();  // Move published intents from WRITE to READ buffer
 
-        // ── Assert 1: ActiveEpisodes must be empty before node ACKs arrive ──
-        Assert.Empty(exercise.ActiveEpisodes);
-
-        // ── Capture the StartEpisode intent TransactionId ──────────────────
+        // ── Capture the StartEpisode intent TransactionId ──
         var intents = bus.ReadManaged<ExecuteNodeOpIntent>()
             .Where(i => i.Operation == FdpNodeOpType.StartEpisode)
             .ToList();
         Assert.True(intents.Any(),
             "ClusterMaster must fan out a StartEpisode ExecuteNodeOpIntent after ManageEpisode.");
         var episodeTxId = intents[0].TransactionId;
+
+        bus.SwapBuffers();
+        episodeMgr.Tick();
+        bus.SwapBuffers();
+
+        // ── Assert 1: No EpisodeStateChangedEvent yet (deferred until ACK) ──
+        var stateEvents1 = bus.ReadManaged<EpisodeStateChangedEvent>().ToList();
+        Assert.Empty(stateEvents1);
 
         // ── Node ACKs with IsParticipating=true ────────────────────────────
         bus.PublishManaged(new NodeOpCompletedEvent
@@ -117,9 +127,13 @@ public sealed class ClusterMasterEpisodeTests
         bus.SwapBuffers();
         exercise.Tick();
         bus.SwapBuffers();
+        episodeMgr.Tick();
+        bus.SwapBuffers();
 
-        // ── Assert 2: ActiveEpisodes now contains the episode ─────────────
-        Assert.Contains(episodeId, exercise.ActiveEpisodes);
+        // ── Assert 2: EpisodeStateChangedEvent contains the episode ─────────────
+        var stateEvents2 = bus.ReadManaged<EpisodeStateChangedEvent>().ToList();
+        Assert.True(stateEvents2.Any(e => e.ActiveEpisodeIds.Contains(episodeId)),
+            "EpisodeStateChangedEvent must contain the started episode ID");
     }
 
     /// <summary>
@@ -133,7 +147,7 @@ public sealed class ClusterMasterEpisodeTests
     [Fact(Timeout = 10_000)]
     public void StartEpisode_NonParticipatingAck_CountsTowardCompletion()
     {
-        var (exercise, bus) = BootstrapToOperatingLive(nodeId: 2);
+        var (exercise, episodeMgr, bus) = BootstrapToOperatingLive(nodeId: 2);
         using var _ = exercise;
 
         var episodeId = Guid.NewGuid();
@@ -145,15 +159,21 @@ public sealed class ClusterMasterEpisodeTests
         });
         bus.SwapBuffers();
         exercise.Tick();
-        bus.SwapBuffers();
-
-        Assert.Empty(exercise.ActiveEpisodes); // still deferred
+        bus.SwapBuffers();  // Move published intents from WRITE to READ buffer
 
         var intents = bus.ReadManaged<ExecuteNodeOpIntent>()
             .Where(i => i.Operation == FdpNodeOpType.StartEpisode)
             .ToList();
         Assert.True(intents.Any());
         var episodeTxId = intents[0].TransactionId;
+
+        bus.SwapBuffers();
+        episodeMgr.Tick();
+        bus.SwapBuffers();
+
+        // No EpisodeStateChangedEvent yet.
+        var stateEvents1 = bus.ReadManaged<EpisodeStateChangedEvent>().ToList();
+        Assert.Empty(stateEvents1);
 
         // Node ACKs with IsParticipating=false — should still count as a response.
         bus.PublishManaged(new NodeOpCompletedEvent
@@ -167,22 +187,26 @@ public sealed class ClusterMasterEpisodeTests
         bus.SwapBuffers();
         exercise.Tick();
         bus.SwapBuffers();
+        episodeMgr.Tick();
+        bus.SwapBuffers();
 
-        // Non-participating ACK must not block — episode set still updated.
-        Assert.Contains(episodeId, exercise.ActiveEpisodes);
+        // Non-participating ACK must not block — episode state event is published.
+        var stateEvents2 = bus.ReadManaged<EpisodeStateChangedEvent>().ToList();
+        Assert.True(stateEvents2.Any(e => e.ActiveEpisodeIds.Contains(episodeId)),
+            "EpisodeStateChangedEvent must be published even for non-participating ACK");
     }
 
     /// <summary>
     /// When a node responds to a StartEpisode with an error StatusCode (NAK), the
     /// ManageEpisode 2PC must abort immediately:
-    /// - ActiveEpisodes must NOT be updated.
+    /// - No <see cref="EpisodeStateChangedEvent"/> is published.
     /// - SysOpStatus must be published with StatusCode == Rejected.
     /// (BATCH-22 Part A.1 / DEBT-TRACKER row CGF-1-BATCH-21 review)
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void StartEpisode_NakFromNode_AbortsPendingTask_ActiveEpisodesUnchanged()
     {
-        var (exercise, bus) = BootstrapToOperatingLive(nodeId: 3);
+        var (exercise, episodeMgr, bus) = BootstrapToOperatingLive(nodeId: 3);
         using var _ = exercise;
 
         var episodeId  = Guid.NewGuid();
@@ -195,9 +219,7 @@ public sealed class ClusterMasterEpisodeTests
         });
         bus.SwapBuffers();
         exercise.Tick();
-        bus.SwapBuffers();
-
-        Assert.Empty(exercise.ActiveEpisodes);
+        bus.SwapBuffers();  // Move published intents from WRITE to READ buffer
 
         // Capture the StartEpisode intent TransactionId.
         var intents = bus.ReadManaged<ExecuteNodeOpIntent>()
@@ -205,6 +227,8 @@ public sealed class ClusterMasterEpisodeTests
             .ToList();
         Assert.True(intents.Any(), "ClusterMaster must fan out StartEpisode.");
         var episodeTxId = intents[0].TransactionId;
+
+        bus.SwapBuffers();
 
         // Node NAKs with an error StatusCode.
         bus.PublishManaged(new NodeOpCompletedEvent
@@ -217,16 +241,20 @@ public sealed class ClusterMasterEpisodeTests
         });
         bus.SwapBuffers();
         exercise.Tick();
-        bus.SwapBuffers();
+        bus.SwapBuffers();  // ClusterOpCompletedEvent(Rejected) is now in the read buffer
 
-        // ActiveEpisodes must NOT be updated on NAK.
-        Assert.Empty(exercise.ActiveEpisodes);
-
-        // ClusterOpCompletedEvent with Rejected status must be published.
+        // ClusterOpCompletedEvent with Rejected status must be read here, before the next swap clears the buffer.
         var completed = bus.ReadManaged<ClusterOpCompletedEvent>().ToList();
         Assert.True(
             completed.Any(e => e.RequestId == requestId && e.StatusCode == OrchestrationStatusCode.Rejected),
             "ClusterOpCompletedEvent(Rejected) must be published when a node NAKs ManageEpisode.");
+
+        episodeMgr.Tick();
+        bus.SwapBuffers();
+
+        // No EpisodeStateChangedEvent on NAK.
+        var stateEvents = bus.ReadManaged<EpisodeStateChangedEvent>().ToList();
+        Assert.Empty(stateEvents);
     }
 
     /// <summary>
@@ -238,7 +266,7 @@ public sealed class ClusterMasterEpisodeTests
     [Fact(Timeout = 10_000)]
     public void ManageEpisode_BadPayload_Rejected_NoStartEpisodeFanOut()
     {
-        var (exercise, bus) = BootstrapToOperatingLive(nodeId: 4);
+        var (exercise, episodeMgr, bus) = BootstrapToOperatingLive(nodeId: 4);
         using var _ = exercise;
 
         var requestId = Guid.NewGuid();
@@ -264,8 +292,12 @@ public sealed class ClusterMasterEpisodeTests
             completed.Any(e => e.RequestId == requestId && e.StatusCode == OrchestrationStatusCode.Rejected),
             "ClusterOpCompletedEvent(Rejected) must be published for bad ManageEpisode payload.");
 
-        // ActiveEpisodes must be empty.
-        Assert.Empty(exercise.ActiveEpisodes);
+        episodeMgr.Tick();
+        bus.SwapBuffers();
+
+        // No EpisodeStateChangedEvent for rejected request.
+        var stateEvents = bus.ReadManaged<EpisodeStateChangedEvent>().ToList();
+        Assert.Empty(stateEvents);
     }
 
     /// <summary>
@@ -277,7 +309,7 @@ public sealed class ClusterMasterEpisodeTests
     [Fact(Timeout = 10_000)]
     public void StartEpisode_AllAcks_EmitsSysOpStatusSuccess()
     {
-        var (exercise, bus) = BootstrapToOperatingLive(nodeId: 5);
+        var (exercise, episodeMgr, bus) = BootstrapToOperatingLive(nodeId: 5);
         using var _ = exercise;
 
         var episodeId = Guid.NewGuid();
@@ -290,7 +322,7 @@ public sealed class ClusterMasterEpisodeTests
         });
         bus.SwapBuffers();
         exercise.Tick();
-        bus.SwapBuffers();
+        bus.SwapBuffers();  // Move published intents from WRITE to READ buffer
 
         // Capture StartEpisode TransactionId.
         var intents = bus.ReadManaged<ExecuteNodeOpIntent>()
@@ -298,6 +330,8 @@ public sealed class ClusterMasterEpisodeTests
             .ToList();
         Assert.True(intents.Any());
         var episodeTxId = intents[0].TransactionId;
+
+        bus.SwapBuffers();
 
         // Node ACKs success.
         bus.PublishManaged(new NodeOpCompletedEvent
@@ -310,15 +344,20 @@ public sealed class ClusterMasterEpisodeTests
         });
         bus.SwapBuffers();
         exercise.Tick();
-        bus.SwapBuffers();
+        bus.SwapBuffers();  // ClusterOpCompletedEvent(Success) is now in the read buffer
 
-        // ActiveEpisodes updated.
-        Assert.Contains(episodeId, exercise.ActiveEpisodes);
-
-        // ClusterOpCompletedEvent(Success) must be published.
+        // ClusterOpCompletedEvent(Success) must be read here, before the next swap clears the buffer.
         var completed = bus.ReadManaged<ClusterOpCompletedEvent>().ToList();
         Assert.True(
             completed.Any(e => e.RequestId == requestId && !e.StatusCode.IsError()),
             "ClusterOpCompletedEvent(Success) must be published after all ManageEpisode ACKs arrive.");
+
+        episodeMgr.Tick();
+        bus.SwapBuffers();
+
+        // EpisodeStateChangedEvent with the episode ID.
+        var stateEvents = bus.ReadManaged<EpisodeStateChangedEvent>().ToList();
+        Assert.True(stateEvents.Any(e => e.ActiveEpisodeIds.Contains(episodeId)),
+            "EpisodeStateChangedEvent must contain the started episode");
     }
 }

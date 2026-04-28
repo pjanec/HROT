@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using Fdp.Core;
 using Fdp.ModuleHost.Time;
 using Fdp.Toolkit.Orchestration;
@@ -110,14 +111,15 @@ public sealed class ClusterMasterSeekTests
             $"Events: [{string.Join(", ", completed.Select(e => $"{e.RequestId}:{e.StatusCode}"))}]");
     }
 
-    // ── RT-009: server-side pause precondition ────────────────────────────────
+    // ── RT-009: precondition events now owned by ReplaySeekProcessManager (T002) ─────────
 
     /// <summary>
-    /// T9a: Every ReplaySeek — even with active nodes — must publish
-    /// SlaveNodeSetUpdatedEvent and PauseTimeIntent on the bus before the fan-out.
+    /// T9a: After T002 ClusterMaster must NOT publish SlaveNodeSetUpdatedEvent or
+    /// PauseTimeIntent during seek fan-out -- that responsibility moved to
+    /// ReplaySeekProcessManager.
     /// </summary>
     [Fact(Timeout = 10_000)]
-    public void ReplaySeek_AlwaysPublishes_SlaveNodeSetUpdatedEvent_And_PauseTimeIntent()
+    public void ReplaySeek_DoesNotPublish_SlaveNodeSetUpdatedEvent_Or_PauseTimeIntent()
     {
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
@@ -137,18 +139,16 @@ public sealed class ClusterMasterSeekTests
         var slaveUpdates = bus.ReadManaged<SlaveNodeSetUpdatedEvent>().ToList();
         var pauses       = bus.ReadManaged<PauseTimeIntent>().ToList();
 
-        Assert.True(slaveUpdates.Count > 0,
-            "ClusterMaster must publish SlaveNodeSetUpdatedEvent before seek fan-out.");
-        Assert.True(pauses.Count > 0,
-            "ClusterMaster must publish PauseTimeIntent before seek fan-out.");
+        Assert.Empty(slaveUpdates);
+        Assert.Empty(pauses);
     }
 
     /// <summary>
-    /// T9b: The SlaveNodeSetUpdatedEvent must contain only SimHost/IG/CGF node IDs.
-    /// A non-matching subsystem (e.g. "Editor") must not appear in SlaveNodeIds.
+    /// T9b: ClusterMaster must NOT publish SlaveNodeSetUpdatedEvent at all after T002
+    /// (behavior moved to ReplaySeekProcessManager).
     /// </summary>
     [Fact(Timeout = 10_000)]
-    public void ReplaySeek_SlaveNodeSetUpdatedEvent_ContainsOnlySimHostIgCgfNodes()
+    public void ReplaySeek_ClusterMaster_DoesNotPublish_SlaveNodeSetUpdatedEvent()
     {
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
@@ -167,11 +167,7 @@ public sealed class ClusterMasterSeekTests
 
         bus.SwapBuffers();
         var slaveUpdates = bus.ReadManaged<SlaveNodeSetUpdatedEvent>().ToList();
-        Assert.True(slaveUpdates.Count > 0, "SlaveNodeSetUpdatedEvent must be published.");
-
-        var slaveIds = slaveUpdates[0].SlaveNodeIds;
-        Assert.Contains(1, slaveIds);
-        Assert.DoesNotContain(2, slaveIds);
+        Assert.Empty(slaveUpdates);
     }
 
     // ── RT-015: SnapAndPause wired into ConsumeNodeOpStatuses ────────────────
@@ -196,8 +192,9 @@ public sealed class ClusterMasterSeekTests
     }
 
     /// <summary>
-    /// T15a/T15b — After all nodes ACK with a non-default ReplaySeekResult, SnapAndPause
-    /// is called: master clock snaps to RestoredTime and enters Deterministic mode.
+    /// T15a/T15b -- After all nodes ACK with a non-default ReplaySeekResult,
+    /// ReplaySeekProcessManager calls SnapAndPause: master clock snaps and enters
+    /// Deterministic mode.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ReplaySeek_OnAllNodesAck_WithSeekResult_CallsSnapAndPause()
@@ -210,7 +207,8 @@ public sealed class ClusterMasterSeekTests
 
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
-        master.SetMasterSync(masterSync);
+        master.RegisterAggregator(new ReplaySeekAggregator());
+        var seekManager  = new ReplaySeekProcessManager(bus, masterSync);
 
         RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
 
@@ -223,7 +221,7 @@ public sealed class ClusterMasterSeekTests
 
         Guid txId = GetSeekTxId(bus, master);
 
-        // ACK from node 1 with a real ReplaySeekResult.
+        // ACK from node 1 with a real ReplaySeekResult (typed object -- aggregator serializes it).
         bus.PublishManaged(new NodeOpCompletedEvent
         {
             TransactionId   = txId,
@@ -238,7 +236,9 @@ public sealed class ClusterMasterSeekTests
             }),
         });
         bus.SwapBuffers();
-        master.Tick();
+        master.Tick();   // processes ACK, aggregates via ReplaySeekAggregator, publishes ClusterOpCompletedEvent
+        bus.SwapBuffers();
+        seekManager.Tick(); // reads ClusterOpCompletedEvent, calls SnapAndPause
 
         // T15a: master clock was snapped to the seek result wall ticks.
         Assert.Equal(9999L, masterSync.GetCurrentState().TotalWallTicks);
@@ -247,7 +247,7 @@ public sealed class ClusterMasterSeekTests
     }
 
     /// <summary>
-    /// T15d — When ACK carries default(GlobalTime) (TotalWallTicks == 0), SnapAndPause
+    /// T15d -- When ACK carries default(GlobalTime) (TotalWallTicks == 0), SnapAndPause
     /// must NOT be called; master clock must remain unchanged.
     /// </summary>
     [Fact(Timeout = 10_000)]
@@ -260,7 +260,7 @@ public sealed class ClusterMasterSeekTests
 
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
-        master.SetMasterSync(masterSync);
+        var seekManager  = new ReplaySeekProcessManager(bus, masterSync);
 
         RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
 
@@ -286,13 +286,15 @@ public sealed class ClusterMasterSeekTests
         });
         bus.SwapBuffers();
         master.Tick();
+        bus.SwapBuffers();
+        seekManager.Tick();
 
         // Master wall ticks must be unchanged (SnapAndPause not called).
         Assert.Equal(wallTicksBefore, masterSync.GetCurrentState().TotalWallTicks);
     }
 
     /// <summary>
-    /// T15c — A non-seek transition (e.g. TakeCheckpoint) must not call SnapAndPause.
+    /// T15c -- A non-seek transition (e.g. TakeCheckpoint) must not call SnapAndPause.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ReplaySeek_NonSeekTransition_DoesNotCallSnapAndPause()
@@ -304,7 +306,6 @@ public sealed class ClusterMasterSeekTests
 
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
-        master.SetMasterSync(masterSync);
 
         RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
 

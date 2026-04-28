@@ -240,14 +240,16 @@ public sealed class ClusterOpMasterTranslator
 
             case NedClusterOpType.StepTime:
             {
-                float delta = TryParseFloat(req.PayloadJson, 1f / 60f);
+                StepTimePayloadDto? dto = TryDeserialize<StepTimePayloadDto>(req.PayloadJson);
+                float delta = dto != null && dto.FixedDelta > 0f ? dto.FixedDelta : 1f / 60f;
                 _bus.PublishManaged(new StepTimeIntent { DeltaSeconds = delta });
                 break;
             }
 
             case NedClusterOpType.SetTimeScale:
             {
-                float scale = TryParseFloat(req.PayloadJson, 1f);
+                SetTimeScalePayloadDto? dto = TryDeserialize<SetTimeScalePayloadDto>(req.PayloadJson);
+                float scale = dto != null && dto.TimeScale > 0f ? dto.TimeScale : 1f;
                 _bus.PublishManaged(new SetTimeScaleIntent { TimeScale = scale });
                 break;
             }
@@ -274,19 +276,4 @@ public sealed class ClusterOpMasterTranslator
         catch { return null; }
     }
 
-    /// <summary>
-    /// Parses a plain floating-point value from <paramref name="json"/>.
-    /// Returns <paramref name="defaultVal"/> when the input is absent, malformed, or non-positive.
-    /// Used for StepTime (FixedDelta) and SetTimeScale payloads.
-    /// </summary>
-    private static float TryParseFloat(string? json, float defaultVal)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return defaultVal;
-        if (float.TryParse(json,
-                System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out float value) && value > 0f)
-            return value;
-        return defaultVal;
-    }
 }

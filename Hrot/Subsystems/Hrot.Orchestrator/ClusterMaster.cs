@@ -33,51 +33,53 @@ public sealed class ClusterMaster : IDisposable
     // ── Roster ────────────────────────────────────────────────────────────
     private readonly NodeRoster _roster = new();
 
-    // ── Storage gateway (CGF1-S0301) ──────────────────────────────────────
     /// <summary>
-    /// Optional storage gateway used to collect node snapshots onto the NAS after a
-    /// <c>SerializeLocal</c> round.  Set via <see cref="SetStorageGateway"/>.
+    /// Unified 2PC transaction tracker used for ALL in-flight operations:
+    /// <see cref="NodeOpType.SerializeLocal"/>, <see cref="ClusterOpType.ManageEpisode"/>,
+    /// <see cref="ClusterOpType.TransitionState"/>, <see cref="ClusterOpType.TakeCheckpoint"/>,
+    /// and <see cref="ClusterOpType.ReplaySeek"/>.
+    /// <para>
+    /// The tracker is domain-agnostic: it counts ACKs, collects raw per-node response JSON,
+    /// and calls the registered aggregator pipeline when all expected ACKs arrive.
+    /// Domain-specific context (e.g. episode IDs) is encoded at fan-out time via
+    /// <see cref="SyntheticResponseJson"/> rather than storing it here.
+    /// </para>
     /// </summary>
-    private StorageGatewayModule? _gateway;
-    private string _nasBasePath = string.Empty;
-
-    // ── Asset inventory publisher (CGF1-S0506) ────────────────────────────
-    private DateTime _lastInventoryScan = DateTime.MinValue;
-
-    /// <summary>
-    /// Tracks in-progress <c>SerializeLocal</c> rounds keyed by transaction ID.
-    /// Each entry records the number of outstanding ACKs and the manifests collected
-    /// so far.  When <c>SerializeLocalTask.RemainingAcks</c> reaches zero,
-    /// <see cref="ConsumeNodeOpStatuses"/> fires <see cref="StorageGatewayModule.PullToNasAsync"/>.
-    /// </summary>
-    private readonly Dictionary<Guid, SerializeLocalTask> _pendingSerializeTasks = new();
-
-    private sealed class SerializeLocalTask
+    private sealed class GenericTransactionTracker
     {
-        public int RemainingAcks;
-        public int FailureCount;
-        public readonly List<FileManifestEntry> Manifests = new();
-
-        // Archive export tracking: non-Empty => this is an ExportArchive operation.
-        public Guid ArchiveRequestId = Guid.Empty;
-        public CancellationTokenSource? ArchiveCts;
+        public Guid RequestId;
+        public int  Expected;
+        public int  Received;
+        public bool HasFailure;
+        public OrchestrationStatusCode FailureCode;
+        /// <summary>
+        /// When <c>true</c>, the first node error immediately aborts and rejects the transaction
+        /// (ManageEpisode policy).  When <c>false</c>, all ACKs are collected before publishing
+        /// the final status (TransitionState / SerializeLocal / TakeCheckpoint / ReplaySeek policy).
+        /// </summary>
+        public bool AbortOnFirstFailure;
+        /// <summary>
+        /// When non-null, overrides the raw ACK payload for every node response stored in
+        /// <see cref="NodeResponses"/>.  Used for ManageEpisode where the node's ACK does not
+        /// carry episode context — the episode context is serialized at fan-out time and injected here.
+        /// </summary>
+        public string? SyntheticResponseJson;
+        /// <summary>
+        /// When <c>true</c>, <see cref="ClusterMaster.PublishClusterState"/> is called on
+        /// completion.  Set for all operations that were formerly tracked in
+        /// <c>_pendingBusTransitionAcks</c> (TransitionState, TakeCheckpoint, ReplaySeek).
+        /// </summary>
+        public bool BroadcastClusterStateOnComplete;
+        /// <summary>Per-node response JSON strings fed into the aggregator pipeline.</summary>
+        public readonly Dictionary<int, Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>> NodeResponses = new();
     }
 
-    // ── Pending prefetch state (CGF1-S0302 / A.1) ─────────────────────────
     /// <summary>
-    /// Tracks an in-flight <see cref="StorageGatewayModule.PrefetchScenarioAsync"/> task.
-    /// <c>PrefetchFiles</c> is only fan-out to nodes <em>after</em> the gateway copy
-    /// completes successfully, preventing nodes from running <c>LoadingEdit</c> before
-    /// staging files are physically present on their local SSD.
+    /// Single unified dictionary that tracks all in-flight 2PC rounds keyed by transaction ID.
+    /// Replaces the former bespoke <c>_pendingSerializeTasks</c>,
+    /// <c>_pendingManageEpisodeTasks</c>, and <c>_pendingBusTransitionAcks</c> dictionaries.
     /// </summary>
-    private sealed class PendingPrefetchOp
-    {
-        public Guid                    RequestId;
-        public string                  ScenarioId = string.Empty;
-        public Task<GatewayResult>     GatewayTask = null!;
-    }
-
-    private PendingPrefetchOp? _pendingPrefetch;
+    private readonly Dictionary<Guid, GenericTransactionTracker> _pendingTransactions = new();
 
     // ── Node-response aggregators (OCP/SRP: domain aggregation outside generic 2PC) ──
     private readonly Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, INodeResponseAggregator> _aggregators = new();
@@ -90,9 +92,6 @@ public sealed class ClusterMaster : IDisposable
     /// Cancelled by a <see cref="ClusterOpType.CancelOperation"/> request.
     /// </summary>
     private readonly Dictionary<Guid, CancellationTokenSource> _activeCancellations = new();
-
-    // ── Global context handler (CGF1-S0307) ──────────────────────────────
-    private GlobalContextClusterOpHandler? _globalContextHandler;
 
     // ── Bootstrap latch (CGF1-S0105) ──────────────────────────────────────
     /// <summary>
@@ -111,78 +110,9 @@ public sealed class ClusterMaster : IDisposable
     /// </summary>
     private DistributedTransaction? _inflightTransitionTx;
 
-    // ── Live-from-Replay temporal interlock (CGF1-S0305) ─────────────────
-    /// <summary>
-    /// Optional module that freezes / restores the cluster time scale during
-    /// Live-from-Replay branch transitions.  Set via <see cref="SetReplayMasterModule"/>.
-    /// </summary>
-    private ReplayMasterModule? _replayMasterModule;
+    // ── Seek sync controller (CGF1-S0305 / T002) ────────────────────────────
+    // MasterSyncController removed in TASK-T002: SnapAndPause moved to ReplaySeekProcessManager.
 
-    /// <summary>
-    /// Optional master sync controller used to snap the master clock after a seek
-    /// completes.  Set via <see cref="SetMasterSync"/>.
-    /// </summary>
-    private MasterSyncController? _masterSync;
-
-    /// <summary>
-    /// Tracks in-progress Live-from-Replay branch fan-outs keyed by the
-    /// <see cref="NodeOpCommand.TransactionId"/> broadcast to nodes.  Each entry
-    /// holds the number of outstanding ACKs; when <c>RemainingAcks</c> reaches zero
-    /// <see cref="ConsumeNodeOpStatuses"/> calls <see cref="ReplayMasterModule.RestoreTime"/>.
-    /// </summary>
-    private readonly Dictionary<Guid, BranchTransitionTask> _pendingBranchTasks = new();
-
-    private sealed class BranchTransitionTask
-    {
-        public int        RemainingAcks;
-        public Guid       RequestId;  // for bus-mode: publish ClusterOpStatus(Success) when branch ACKs complete
-        public bool       TimeExtracted;
-        public GlobalTime HistoricalTime;
-    }
-
-    // ── Episode 2PC (CGF1-S0308 / BATCH-21 Part A.1) ───────────────────────
-    /// <summary>
-    /// Tracks an in-progress <see cref="ClusterOpType.ManageEpisode"/> fan-out waiting for
-    /// all targeted nodes to ACK with <see cref="NodeOpStatus"/>.
-    /// <para>
-    /// Policy: every ACK — whether <c>IsParticipating == true</c> or <c>false</c> —
-    /// counts as the node's response.  When <see cref="RemainingNodeIds"/> is empty
-    /// the episode set is updated and the operation is considered complete.
-    /// </para>
-    /// </summary>
-    private sealed class ManageEpisodeTask
-    {
-        public Guid        RequestId;
-        public bool        IsStart;
-        public Guid        EpisodeId;
-        /// <summary>Node IDs that still owe an ACK for this transaction.</summary>
-        public HashSet<int> RemainingNodeIds = new();
-    }
-
-    /// <summary>
-    /// Active ManageEpisode fan-outs keyed by <see cref="NodeOpCommand.TransactionId"/>.
-    /// Entries are removed once all targeted nodes have ACKed (see
-    /// <see cref="ConsumeNodeOpStatuses"/>).
-    /// </summary>
-    private readonly Dictionary<Guid, ManageEpisodeTask> _pendingManageEpisodeTasks = new();
-
-    // ── Bus-mode 2PC ACK tracking (CMC-S016 / BATCH-06) ─────────────────────
-    /// <summary>
-    /// Tracks in-flight <see cref="ClusterOpType.TransitionState"/> 2PC rounds in bus mode.
-    /// Removed once all expected <see cref="NodeOpCompletedEvent"/> ACKs arrive and a
-    /// <see cref="ClusterOpCompletedEvent"/> is published.
-    /// </summary>
-    private sealed class BusTransitionAckTracker
-    {
-        public Guid RequestId;
-        public int  Expected;
-        public int  Received;
-        public bool HasFailure;
-        public OrchestrationStatusCode  FailureCode;
-        public ReplaySeekResult? SeekResult;
-    }
-
-    private readonly Dictionary<Guid, BusTransitionAckTracker> _pendingBusTransitionAcks = new();
 
     // ── Current Cluster state (tracked here so the planner can compute relative paths) ─
     /// <summary>
@@ -228,20 +158,6 @@ public sealed class ClusterMaster : IDisposable
     /// </summary>
     public string? PendingTimeMode { get; private set; }
 
-    // ── Active episodes (CGF1-S0308) ──────────────────────────────────────
-    /// <summary>
-    /// Set of episode IDs currently injected into the running exercise via
-    /// <see cref="ClusterOpType.ManageEpisode"/> Start operations.  Entries are removed
-    /// by corresponding Stop operations.
-    /// </summary>
-    private readonly HashSet<Guid> _activeEpisodes = new();
-
-    /// <summary>
-    /// Read-only view of the currently active episode IDs.
-    /// Updated by <c>ManageEpisode</c> <c>ClusterOpRequest</c> processing.
-    /// </summary>
-    public IReadOnlyCollection<Guid> ActiveEpisodes => _activeEpisodes;
-
     private bool _disposed;
 
     // ── Public surface ────────────────────────────────────────────────────
@@ -269,16 +185,6 @@ public sealed class ClusterMaster : IDisposable
     /// Exposed for the status banner in <c>OrchestratorScenarioPanel</c> (CGF1-S0106).
     /// </summary>
     public DistributedTransaction? ActiveTransaction => _activeTransaction;
-
-    /// <summary>
-    /// Optional storage-gateway reference for scenarios list / NAS operations.
-    /// Exposed so <c>OrchestratorScenarioPanel</c> can call
-    /// <c>ListScenariosAsync()</c> (CGF1-S0106).
-    /// </summary>
-    public StorageGatewayModule? StorageGateway => _gateway;
-
-    /// <summary>NAS base path configured via <see cref="SetStorageGateway"/>. Used for inventory publishing.</summary>
-    public string NasBasePath => _nasBasePath;
 
     /// <summary>
     /// Returns the Cluster states that can be reached from the current cluster state in a
@@ -340,7 +246,6 @@ public sealed class ClusterMaster : IDisposable
         IngestHeartbeats();
         CheckBootstrapLatch();
         DetectAndEjectTimedOutNodes();
-        DrainPendingPrefetch();
         DrainInjectedRequests();
 
         // Bus-based intent drain (CMC-S008).
@@ -352,38 +257,12 @@ public sealed class ClusterMaster : IDisposable
         ProcessCancelOperationIntents();
 
         ConsumeNodeOpStatuses();
-
-        if ((DateTime.UtcNow - _lastInventoryScan).TotalSeconds >= 5.0)
-        {
-            PublishAssetInventory();
-            _lastInventoryScan = DateTime.UtcNow;
-        }
     }
 
     // ── UI / test injection path ──────────────────────────────────────────
 
     private readonly System.Collections.Concurrent.ConcurrentQueue<ClusterOpRequest>
         _injectedRequests = new();
-
-    // ── Asset inventory publisher (CGF1-S0506) ────────────────────────────
-
-    private void PublishAssetInventory()
-    {
-        if (_gateway == null) return;
-
-        var localScenarios    = _gateway.ScanLocalScenarios(_nasBasePath);
-        var localExercises    = _gateway.ScanLocalExercises(_nasBasePath);
-        var archivedExercises = _gateway.ScanNasExercises(_nasBasePath);
-        var unarchived        = localExercises.Except(archivedExercises).ToArray();
-
-        _eventBus.PublishManaged(new AssetInventoryUpdateEvent
-        {
-            LocalScenarios           = localScenarios.ToArray(),
-            LocalExercises           = localExercises.ToArray(),
-            ArchivedExercises        = archivedExercises.ToArray(),
-            UnarchivedLocalExercises = unarchived,
-        });
-    }
 
     /// <summary>
     /// Injects a <see cref="ClusterOpRequest"/> directly into the ClusterMaster processing
@@ -456,13 +335,27 @@ public sealed class ClusterMaster : IDisposable
                     break;
                 case ClusterOpType.StepTime:
                 {
-                    float delta = ParseStepDelta(ClusterOpRequestAdapter.GetPayloadString(req), 1f / 60f);
+                    string payload = ClusterOpRequestAdapter.GetPayloadString(req);
+                    StepTimePayloadDto? dto = null;
+                    if (!string.IsNullOrWhiteSpace(payload))
+                    {
+                        try { dto = JsonSerializer.Deserialize<StepTimePayloadDto>(payload, OrchestrationJsonOptions.Default); }
+                        catch { }
+                    }
+                    float delta = dto != null && dto.FixedDelta > 0f ? dto.FixedDelta : 1f / 60f;
                     _eventBus.PublishManaged(new StepTimeIntent { DeltaSeconds = delta });
                     break;
                 }
                 case ClusterOpType.SetTimeScale:
                 {
-                    float scale = ParseTimeScale(ClusterOpRequestAdapter.GetPayloadString(req), 1f);
+                    string payload = ClusterOpRequestAdapter.GetPayloadString(req);
+                    SetTimeScalePayloadDto? dto = null;
+                    if (!string.IsNullOrWhiteSpace(payload))
+                    {
+                        try { dto = JsonSerializer.Deserialize<SetTimeScalePayloadDto>(payload, OrchestrationJsonOptions.Default); }
+                        catch { }
+                    }
+                    float scale = dto != null && dto.TimeScale > 0f ? dto.TimeScale : 1f;
                     _eventBus.PublishManaged(new SetTimeScaleIntent { TimeScale = scale });
                     break;
                 }
@@ -512,10 +405,11 @@ public sealed class ClusterMaster : IDisposable
                 }
                 var txId = Guid.NewGuid();
                 FanOutNodeOp(NodeOpType.TakeSnapshot, txId, null, nodeIds);
-                _pendingBusTransitionAcks[txId] = new BusTransitionAckTracker
+                _pendingTransactions[txId] = new GenericTransactionTracker
                 {
-                    RequestId = req.RequestId,
-                    Expected  = nodeIds.Count,
+                    RequestId                       = req.RequestId,
+                    Expected                        = nodeIds.Count,
+                    BroadcastClusterStateOnComplete = true,
                 };
                 break;
             }
@@ -694,10 +588,11 @@ public sealed class ClusterMaster : IDisposable
             }
             var ckTxId = Guid.NewGuid();
             FanOutNodeOp(NodeOpType.TakeSnapshot, ckTxId, null, ckNodeIds);
-            _pendingBusTransitionAcks[ckTxId] = new BusTransitionAckTracker
+            _pendingTransactions[ckTxId] = new GenericTransactionTracker
             {
-                RequestId = intent.RequestId,
-                Expected  = ckNodeIds.Count,
+                RequestId                       = intent.RequestId,
+                Expected                        = ckNodeIds.Count,
+                BroadcastClusterStateOnComplete = true,
             };
         }
     }
@@ -745,12 +640,17 @@ public sealed class ClusterMaster : IDisposable
         var capturedSourceState = _currentDsmState;
         _currentDsmState = resolvedTarget;
 
-        // CGF1-S0302: Start async prefetch immediately; PrefetchFiles fan-out is deferred.
+        // CGF1-S0302: Emit prefetch intent; PrefetchFiles fan-out is deferred until staging completes.
         foreach (var step in trajectory)
         {
             if (step is OperationStep { Operation: ClusterOpType.PrefetchScenario } ps)
             {
-                ExecutePrefetchScenario((string?)ps.DomainPayload ?? string.Empty, requestId);
+                _eventBus.PublishManaged(new ExecutePrefetchIntent
+                {
+                    RequestId     = requestId,
+                    ScenarioId    = (string?)ps.DomainPayload ?? string.Empty,
+                    ActiveNodeIds = new List<int>(_roster.ActiveNodes.Keys),
+                });
                 break;
             }
         }
@@ -764,35 +664,7 @@ public sealed class ClusterMaster : IDisposable
         if (resolvedTarget == ClusterState.Idle)
             PendingTimeMode = null;
 
-        // CGF1-S0305: Live-from-Replay temporal interlock.
-        bool isLiveFromReplayBranch = false;
-        if (passesLoadingLive && stateBeforeAdvance == ClusterState.OperatingReplay)
-        {
-            isLiveFromReplayBranch = true;
-            _replayMasterModule?.FreezeTime();
-
-            var branchedExerciseId = intent.ExerciseId != Guid.Empty
-                ? intent.ExerciseId
-                : Guid.NewGuid();
-            var branchTxId    = Guid.NewGuid();
-            var branchNodeIds = new List<int>(_roster.ActiveNodes.Keys);
-
-            if (branchNodeIds.Count > 0)
-            {
-                _pendingBranchTasks[branchTxId] = new BranchTransitionTask { RemainingAcks = branchNodeIds.Count, RequestId = requestId };
-                FanOutNodeOp(NodeOpType.PrepareLive, branchTxId, branchedExerciseId, branchNodeIds);
-                FdpLog<ClusterMaster>.Info(
-                    "[Orchestrator] S0305: Live-from-Replay branch — time frozen, " +
-                    "PrepareLive fan-out (branchedExerciseId={0}, nodes={1}).",
-                    branchedExerciseId, branchNodeIds.Count);
-            }
-            else
-            {
-                _replayMasterModule?.RestoreTime();
-                FdpLog<ClusterMaster>.Warn(
-                    "[Orchestrator] S0305: Live-from-Replay branch with zero active nodes — time restored immediately.");
-            }
-        }
+        // Live-from-Replay FreezeTime is now handled by LiveBranchProcessManager (TASK-T001).
 
         var tx = new DistributedTransaction
         {
@@ -811,10 +683,8 @@ public sealed class ClusterMaster : IDisposable
 
         // S0502: Fan out PrepareXxx + CommitState to all active nodes.
         var activeNodeIds = new List<int>(_roster.ActiveNodes.Keys);
-        if (!isLiveFromReplayBranch)
+        if (activeNodeIds.Count > 0)
         {
-            if (activeNodeIds.Count > 0)
-            {
                 foreach (var step in trajectory)
                 {
                     if (step is TransitionStep tStep)
@@ -843,21 +713,6 @@ public sealed class ClusterMaster : IDisposable
                         FanOutNodeOp(prepareOp,             tx.TransactionId, preparePayload,              activeNodeIds);
                         FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId,
                             new CommitStatePayload((FdpClusterState)(int)tStep.TargetState), activeNodeIds);
-
-                        // CGF1-S0307: Invoke local context handler for load transitions.
-                        if (_globalContextHandler != null &&
-                            (tStep.TargetState == ClusterState.LoadingLive ||
-                             tStep.TargetState == ClusterState.LoadingEdit))
-                        {
-                            var localPayload = JsonSerializer.Serialize(
-                                new NodeTransitionPayloadDto(
-                                    TargetState: tStep.TargetState,
-                                    ScenarioId:  intent.ScenarioId,
-                                    ExerciseId:  intent.ExerciseId),
-                                OrchestrationJsonOptions.Default);
-                            _globalContextHandler.Commit(
-                                ClusterNodeOpBuilder.LocalContextCmd(NodeOpType.CommitState, tx.TransactionId, localPayload), null);
-                        }
                     }
                     else if (step is OperationStep opStep && opStep.Operation == ClusterOpType.ReplaySeek)
                     {
@@ -868,24 +723,22 @@ public sealed class ClusterMaster : IDisposable
                 FdpLog<ClusterMaster>.Info(
                     "[Orchestrator] S0502: TransitionState fan-out complete (transaction={0}, nodes={1}).",
                     tx.TransactionId, activeNodeIds.Count);
-            }
         }
 
-        // ── Bus-mode 2PC ACK tracking (CMC-S016 / BATCH-06) ─────────────────
+        // ── Unified 2PC ACK tracking ──────────────────────────────────────────
         if (_eventBus != null)
         {
             // Count expected ACKs: one per PrepareXxx TransitionStep per active node.
             // CommitState is handled in-slave synchronously and does NOT publish ACK.
-            // For live-from-replay branch, the branch ACKs are tracked via _pendingBranchTasks
-            // using branchTxId; the main tx has no fan-out so expectedAcks = 0.
             int prepSteps    = trajectory.OfType<TransitionStep>().Count();
-            int expectedAcks = isLiveFromReplayBranch ? 0 : (prepSteps * activeNodeIds.Count);
+            int expectedAcks = prepSteps * activeNodeIds.Count;
             if (expectedAcks > 0)
             {
-                _pendingBusTransitionAcks[tx.TransactionId] = new BusTransitionAckTracker
+                _pendingTransactions[tx.TransactionId] = new GenericTransactionTracker
                 {
-                    RequestId = requestId,
-                    Expected  = expectedAcks,
+                    RequestId                    = requestId,
+                    Expected                     = expectedAcks,
+                    BroadcastClusterStateOnComplete = true,
                 };
             }
             else
@@ -915,8 +768,12 @@ public sealed class ClusterMaster : IDisposable
         {
             if (step is OperationStep { Operation: ClusterOpType.PrefetchScenario } prefetch)
             {
-                if (_gateway != null)
-                    ExecutePrefetchScenario((string?)prefetch.DomainPayload ?? string.Empty, requestId);
+                _eventBus.PublishManaged(new ExecutePrefetchIntent
+                {
+                    RequestId     = requestId,
+                    ScenarioId    = (string?)prefetch.DomainPayload ?? string.Empty,
+                    ActiveNodeIds = new List<int>(_roster.ActiveNodes.Keys),
+                });
             }
             else if (step is OperationStep { Operation: ClusterOpType.ManageEpisode })
             {
@@ -929,18 +786,21 @@ public sealed class ClusterMaster : IDisposable
 
                 if (nodeIds.Count > 0)
                 {
-                    _pendingManageEpisodeTasks[txId] = new ManageEpisodeTask
+                    var syntheticJson = System.Text.Json.JsonSerializer.Serialize(
+                        new EpisodeConsensusPayload { EpisodeId = intent.EpisodeId, IsStart = intent.IsStart });
+                    _pendingTransactions[txId] = new GenericTransactionTracker
                     {
-                        RequestId        = requestId,
-                        IsStart          = intent.IsStart,
-                        EpisodeId        = intent.EpisodeId,
-                        RemainingNodeIds = new HashSet<int>(nodeIds),
+                        RequestId             = requestId,
+                        Expected              = nodeIds.Count,
+                        AbortOnFirstFailure   = true,
+                        SyntheticResponseJson = syntheticJson,
                     };
                 }
                 else
                 {
-                    if (intent.IsStart) _activeEpisodes.Add(intent.EpisodeId);
-                    else                _activeEpisodes.Remove(intent.EpisodeId);
+                    // Zero-node roster: publish event directly so EpisodeProcessManager still fires.
+                    PublishOpStatus(requestId, OrchestrationStatusCode.Success,
+                        new EpisodeConsensusPayload { EpisodeId = intent.EpisodeId, IsStart = intent.IsStart });
                 }
 
                 FdpLog<ClusterMaster>.Info(
@@ -960,18 +820,6 @@ public sealed class ClusterMaster : IDisposable
                 var txId    = Guid.NewGuid();
                 FanOutSerializeLocal(txId, nodeIds, new ArchiveHandlerPayload(intent.ExerciseId));
 
-                if (_globalContextHandler != null)
-                {
-                    var localExercisePayload = intent.ExerciseId != Guid.Empty ? JsonSerializer.Serialize(new { ExerciseId = intent.ExerciseId }) : string.Empty;
-                    var localCmd = ClusterNodeOpBuilder.LocalContextCmd(NodeOpType.SerializeLocal, txId, localExercisePayload);
-                    _ = _globalContextHandler.PrepareAsync(localCmd, System.Threading.CancellationToken.None)
-                        .ContinueWith(t =>
-                        {
-                            if (!t.IsFaulted)
-                                _globalContextHandler.Commit(localCmd, null);
-                        }, System.Threading.Tasks.TaskScheduler.Default);
-                }
-
                 FdpLog<ClusterMaster>.Info("[Orchestrator] SaveScenario → SerializeLocal fan-out to {0} node(s).", nodeIds.Count);
                 break;
             }
@@ -989,21 +837,23 @@ public sealed class ClusterMaster : IDisposable
                 _activeCancellations[intent.RequestId] = exportCts;
 
                 var exportNodeIds = new List<int>(_roster.ActiveNodes.Keys);
-                var exportTxId    = Guid.NewGuid();
-                FanOutSerializeLocal(exportTxId, exportNodeIds, new ArchiveHandlerPayload(intent.ExerciseId));
-
-                if (_pendingSerializeTasks.TryGetValue(exportTxId, out var archTask))
-                {
-                    archTask.ArchiveRequestId = intent.RequestId;
-                    archTask.ArchiveCts       = exportCts;
-                }
-                else if (exportNodeIds.Count == 0)
+                if (exportNodeIds.Count == 0)
                 {
                     _activeCancellations.Remove(intent.RequestId);
                     exportCts.Dispose();
                     PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
+                    break;
                 }
 
+                var exportTxId = Guid.NewGuid();
+                // Notify StorageProcessManager of the archive context before the fan-out.
+                _eventBus.PublishManaged(new ExportArchiveBegunEvent
+                {
+                    TransactionId    = exportTxId,
+                    ArchiveRequestId = intent.RequestId,
+                    Cts              = exportCts,
+                });
+                FanOutSerializeLocal(exportTxId, exportNodeIds, new ArchiveHandlerPayload(intent.ExerciseId));
                 PublishOpStatus(intent.RequestId, OrchestrationStatusCode.InProgress);
                 break;
             }
@@ -1017,36 +867,19 @@ public sealed class ClusterMaster : IDisposable
                     return;
                 }
 
-                var importCts       = new CancellationTokenSource();
+                var importCts     = new CancellationTokenSource();
                 _activeCancellations[intent.RequestId] = importCts;
 
-                var importTargets   = BuildNodeDistributionTargetsForExercise(intent.ExerciseId);
-                var importRequestId = intent.RequestId;
+                var importTargets = BuildNodeDistributionTargetsForExercise(intent.ExerciseId);
 
-                if (_gateway != null)
+                // Delegate the NAS prefetch to StorageProcessManager via event bus (SRP).
+                _eventBus.PublishManaged(new ImportArchiveBegunEvent
                 {
-                    _ = _gateway.PrefetchArchiveAsync(intent.ExerciseId.ToString(), importTargets, _nasBasePath, importCts.Token)
-                        .ContinueWith(t =>
-                        {
-                            _activeCancellations.Remove(importRequestId);
-                            if (t.IsCanceled)
-                                PublishOpStatus(importRequestId, OrchestrationStatusCode.Rejected);
-                            else if (t.IsFaulted)
-                            {
-                                FdpLog<ClusterMaster>.Error("[Orchestrator] ImportArchive gateway error: {0}",
-                                    t.Exception?.GetBaseException().Message!);
-                                PublishOpStatus(importRequestId, OrchestrationStatusCode.Rejected);
-                            }
-                            else
-                                PublishOpStatus(importRequestId, OrchestrationStatusCode.Success);
-                        }, System.Threading.Tasks.TaskScheduler.Default);
-                }
-                else
-                {
-                    _activeCancellations.Remove(intent.RequestId);
-                    importCts.Dispose();
-                    PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
-                }
+                    RequestId  = intent.RequestId,
+                    ExerciseId = intent.ExerciseId.ToString(),
+                    Targets    = importTargets,
+                    Cts        = importCts,
+                });
 
                 PublishOpStatus(intent.RequestId, OrchestrationStatusCode.InProgress);
                 break;
@@ -1056,15 +889,8 @@ public sealed class ClusterMaster : IDisposable
 
     private void ProcessSeekReplayIntent(SeekReplayIntent intent)
     {
-        // RT-009: publish pause precondition before every seek fan-out
-        var slaveIds = _roster.ActiveNodes
-            .Where(kv => kv.Value.SubsystemName is "SimHost" or "IG" or "CGF")
-            .Select(kv => kv.Key)
-            .ToHashSet();
-        _eventBus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = slaveIds });
-        _eventBus.PublishManaged(new PauseTimeIntent());
-
-        // RT-008: fan-out with ACK tracker; immediate Success when roster is empty
+        // RT-008: fan-out with ACK tracker; immediate Success when roster is empty.
+        // SlaveNodeSetUpdatedEvent and PauseTimeIntent are published by ReplaySeekProcessManager (TASK-T002).
         var seekNodeIds = new List<int>(_roster.ActiveNodes.Keys);
         if (seekNodeIds.Count == 0)
         {
@@ -1074,10 +900,11 @@ public sealed class ClusterMaster : IDisposable
         var txId = Guid.NewGuid();
         FanOutNodeOp(NodeOpType.NodeReplaySeek, txId,
             new ReplaySeekPayload(intent.TargetWallTicks), seekNodeIds);
-        _pendingBusTransitionAcks[txId] = new BusTransitionAckTracker
+        _pendingTransactions[txId] = new GenericTransactionTracker
         {
-            RequestId = intent.RequestId,
-            Expected  = seekNodeIds.Count,
+            RequestId                       = intent.RequestId,
+            Expected                        = seekNodeIds.Count,
+            BroadcastClusterStateOnComplete = true,
         };
     }
 
@@ -1133,13 +960,17 @@ public sealed class ClusterMaster : IDisposable
     /// <see cref="DistributedTransaction.NodeResponses"/> and returns the first
     /// non-null result, or <c>null</c> if no aggregator produces a result.
     /// </summary>
-    private object? TryAggregate(Guid txId)
+    private object? TryAggregate(Guid txId, IReadOnlyDictionary<int, Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>>? fallbackResponses = null)
     {
-        if (_inflightTransitionTx == null || _inflightTransitionTx.TransactionId != txId)
-            return null;
+        var nodeResponses = (_inflightTransitionTx?.TransactionId == txId)
+            ? (IReadOnlyDictionary<int, Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>>)_inflightTransitionTx!.NodeResponses
+            : fallbackResponses;
+
+        if (nodeResponses == null) return null;
+
         foreach (var agg in _aggregators.Values)
         {
-            var result = agg.Aggregate(_inflightTransitionTx.NodeResponses);
+            var result = agg.Aggregate(nodeResponses);
             if (result != null) return result;
         }
         return null;
@@ -1183,59 +1014,12 @@ public sealed class ClusterMaster : IDisposable
     private void BroadcastNodeOp(NodeOpType operation, Guid transactionId, object? domainPayload)
         => FanOutNodeOp(operation, transactionId, domainPayload, _roster.ActiveNodes.Keys);
 
-    // ── Storage gateway integration (CGF1-S0301) ─────────────────────────
-
-    /// <summary>
-    /// Registers the <see cref="StorageGatewayModule"/> instance used to collect node
-    /// snapshots onto the NAS after every <c>SerializeLocal</c> round.
-    /// Call this once at startup, before any simulation transitions are issued.
-    /// </summary>
-    /// <param name="gateway">The storage gateway instance to use.</param>
-    /// <param name="nasBasePath">
-    /// Root path on the NAS (local or UNC) under which manifest
-    /// <see cref="FileManifestEntry.RelativeDest"/> paths are resolved.
-    /// </param>
-    public void SetStorageGateway(StorageGatewayModule gateway, string nasBasePath)
-    {
-        _gateway     = gateway ?? throw new ArgumentNullException(nameof(gateway));
-        _nasBasePath = nasBasePath ?? throw new ArgumentNullException(nameof(nasBasePath));
-    }
-
-    /// <summary>
-    /// Registers the <see cref="GlobalContextClusterOpHandler"/> that serializes/restores the
-    /// Orchestrator's own global context during scenario save/load operations.
-    /// Call once at startup, before any scenario operations are issued.
-    /// </summary>
-    public void SetGlobalContextHandler(GlobalContextClusterOpHandler handler)
-    {
-        _globalContextHandler = handler ?? throw new ArgumentNullException(nameof(handler));
-    }
-
-    /// <summary>
-    /// Registers the <see cref="ReplayMasterModule"/> used to freeze and restore
-    /// the cluster time scale during Live-from-Replay branch transitions (CGF1-S0305).
-    /// Call once at startup, before any simulation transitions are issued.
-    /// </summary>
-    /// <param name="module">The replay master module instance to register.</param>
-    public void SetReplayMasterModule(ReplayMasterModule module)
-    {
-        _replayMasterModule = module ?? throw new ArgumentNullException(nameof(module));
-    }
-
-    /// <summary>
-    /// Wires the <see cref="MasterSyncController"/> used by <see cref="ConsumeNodeOpStatuses"/>
-    /// to snap the master clock after a seek completes.
-    /// </summary>
-    public void SetMasterSync(MasterSyncController sync)
-    {
-        _masterSync = sync ?? throw new ArgumentNullException(nameof(sync));
-    }
-
     /// <summary>
     /// Sends a <see cref="NodeOpType.SerializeLocal"/> command to each node in
     /// <paramref name="nodeIds"/> and registers a pending task that waits for all
-    /// <c>NodeOpStatus(Success)</c> ACKs before invoking
-    /// <see cref="StorageGatewayModule.PullToNasAsync"/> on the collected manifests.
+    /// <c>NodeOpStatus(Success)</c> ACKs before publishing a <see cref="ClusterOpCompletedEvent"/>
+    /// with aggregated manifest payload. <see cref="StorageProcessManager"/> reacts to this
+    /// event and invokes <see cref="StorageGatewayModule.PullToNasAsync"/>.
     ///
     /// <para>Intended to be called from Phase 3 <c>SysOpType.SaveScenario</c> handling
     /// in <see cref="ProcessClusterOpRequests"/>.  If no <see cref="StorageGatewayModule"/>
@@ -1244,318 +1028,93 @@ public sealed class ClusterMaster : IDisposable
     internal void FanOutSerializeLocal(Guid requestId, IReadOnlyList<int> nodeIds, object? domainPayload = null)
     {
         if (nodeIds.Count == 0) return;
-        _pendingSerializeTasks[requestId] = new SerializeLocalTask { RemainingAcks = nodeIds.Count };
+        _pendingTransactions[requestId] = new GenericTransactionTracker
+        {
+            RequestId = requestId,
+            Expected  = nodeIds.Count,
+        };
         FanOutNodeOp(NodeOpType.SerializeLocal, requestId, domainPayload, nodeIds);
     }
 
     /// <summary>
-    /// Reads all pending <see cref="NodeOpStatus"/> samples.  For each sample that
-    /// matches a tracked <c>SerializeLocal</c> task, deserializes the
-    /// <see cref="FileManifestEntry"/> list from <c>ResultJson</c> and decrements the
-    /// outstanding ACK counter.  When the counter reaches zero the full collected
-    /// manifest is passed to <see cref="StorageGatewayModule.PullToNasAsync"/> if a
-    /// gateway is registered.
+    /// Reads all pending <see cref="NodeOpCompletedEvent"/> samples and routes each ACK
+    /// through the unified <see cref="_pendingTransactions"/> tracker.  When a tracker's
+    /// expected ACK count is satisfied, calls the registered aggregator pipeline and
+    /// publishes <see cref="ClusterOpCompletedEvent"/> with the aggregated payload.
     /// </summary>
     private void ConsumeNodeOpStatuses()
     {
         foreach (var ev in _eventBus.ReadManaged<NodeOpCompletedEvent>())
         {
-            // S0501: Record per-node responses for the active transition transaction.
-            // Must run before any continue so it captures ACKs from all handler paths.
+            // S0501: Mirror ACKs into _inflightTransitionTx.NodeResponses for history.
             if (_inflightTransitionTx != null && _inflightTransitionTx.TransactionId == ev.TransactionId)
             {
-                string payloadStr = ev.ResultPayload is null ? string.Empty
-                    : ev.ResultPayload is string s ? s
+                string mirrorJson = ev.ResultPayload is null ? string.Empty
+                    : ev.ResultPayload is string ms ? ms
                     : JsonSerializer.Serialize(ev.ResultPayload);
-
-                if (!_inflightTransitionTx.NodeResponses.TryGetValue(ev.NodeId, out var opDict))
+                if (!_inflightTransitionTx.NodeResponses.TryGetValue(ev.NodeId, out var txOpDict))
                 {
-                    opDict = new Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>();
-                    _inflightTransitionTx.NodeResponses[ev.NodeId] = opDict;
+                    txOpDict = new Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>();
+                    _inflightTransitionTx.NodeResponses[ev.NodeId] = txOpDict;
                 }
-                opDict[ev.Operation] = payloadStr;
+                txOpDict[ev.Operation] = mirrorJson;
             }
 
-            // CGF1-S0305: Branch-transition ACK.
-            if (_pendingBranchTasks.TryGetValue(ev.TransactionId, out var branchTask))
+            if (!_pendingTransactions.TryGetValue(ev.TransactionId, out var tracker))
+                continue;
+
+            // AbortOnFirstFailure: reject immediately on the first node error (ManageEpisode policy).
+            if (ev.StatusCode.IsError() && tracker.AbortOnFirstFailure)
             {
-                if (!branchTask.TimeExtracted &&
-                    ev.ResultPayload is LiveBranchResult lbr &&
-                    lbr.HistoricalTime.TotalWallTicks != 0)
-                {
-                    branchTask.TimeExtracted  = true;
-                    branchTask.HistoricalTime = lbr.HistoricalTime;
-                }
-                branchTask.RemainingAcks--;
-                if (branchTask.RemainingAcks <= 0)
-                {
-                    _pendingBranchTasks.Remove(ev.TransactionId);
-                    if (branchTask.TimeExtracted)
-                    {
-                        _masterSync?.SnapAndPause(
-                            branchTask.HistoricalTime.TotalWallTicks,
-                            branchTask.HistoricalTime.TotalTime,
-                            new HashSet<int>(_roster.ActiveNodes.Keys));
-                    }
-                    _replayMasterModule?.RestoreTime();
-                    PublishOpStatus(branchTask.RequestId, OrchestrationStatusCode.Success);
-                    FdpLog<ClusterMaster>.Info(
-                        "[Orchestrator] S0305 (bus): All branch ACKs received — time scale restored.");
-                }
+                _pendingTransactions.Remove(ev.TransactionId);
+                FdpLog<ClusterMaster>.Warn(
+                    "[Orchestrator] 2PC transaction {0} aborted: node {1} returned error {2}.",
+                    ev.TransactionId, ev.NodeId, ev.StatusCode);
+                PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Rejected);
                 continue;
             }
 
-            // Transition ACK handling.
-            if (_pendingBusTransitionAcks.TryGetValue(ev.TransactionId, out var tracker))
+            if (ev.StatusCode.IsError())
             {
-                if (ev.StatusCode.IsError())
-                {
-                    tracker.HasFailure  = true;
-                    tracker.FailureCode = ev.StatusCode;
-                }
-                if (tracker.SeekResult == null &&
-                    ev.ResultPayload is ReplaySeekResult sr &&
-                    sr.RestoredTime.TotalWallTicks != 0)
-                {
-                    tracker.SeekResult = sr;
-                }
-                tracker.Received++;
-                if (tracker.Received >= tracker.Expected)
-                {
-                    _pendingBusTransitionAcks.Remove(ev.TransactionId);
-                    if (tracker.SeekResult.HasValue)
-                    {
-                        var sr2 = tracker.SeekResult.Value;
-                        _masterSync?.SnapAndPause(
-                            sr2.RestoredTime.TotalWallTicks,
-                            sr2.RestoredTime.TotalTime,
-                            new HashSet<int>(_roster.ActiveNodes.Keys));
-                    }
-                    var aggregated = tracker.HasFailure ? null : TryAggregate(ev.TransactionId);
-                    PublishOpStatus(tracker.RequestId,
-                        tracker.HasFailure ? tracker.FailureCode : OrchestrationStatusCode.Success,
-                        aggregated);
-
-                // Broadcast the new cluster state across the bus so UI panels update
-                PublishClusterState(_currentDsmState);                }
-                continue;
+                tracker.HasFailure  = true;
+                tracker.FailureCode = ev.StatusCode;
             }
 
-            // ManageEpisode 2PC ACK.
-            if (_pendingManageEpisodeTasks.TryGetValue(ev.TransactionId, out var episodeTask))
+            // Populate NodeResponses: use SyntheticResponseJson when set (episode context),
+            // otherwise use the actual ACK payload.
+            string responseJson = tracker.SyntheticResponseJson
+                ?? (ev.ResultPayload is null ? string.Empty
+                    : ev.ResultPayload is string s ? s
+                    : JsonSerializer.Serialize(ev.ResultPayload, OrchestrationJsonOptions.Default));
+            if (!tracker.NodeResponses.TryGetValue(ev.NodeId, out var opDict))
             {
-                if (ev.StatusCode.IsError())
+                opDict = new Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>();
+                tracker.NodeResponses[ev.NodeId] = opDict;
+            }
+            opDict[ev.Operation] = responseJson;
+
+            tracker.Received++;
+            if (tracker.Received >= tracker.Expected)
+            {
+                _pendingTransactions.Remove(ev.TransactionId);
+
+                if (tracker.HasFailure)
                 {
-                    _pendingManageEpisodeTasks.Remove(ev.TransactionId);
-                    FdpLog<ClusterMaster>.Warn(
-                        "[Orchestrator] ManageEpisode 2PC aborted for episode {0}: node {1} returned error {2}.",
-                        episodeTask.EpisodeId, ev.NodeId, ev.StatusCode);
-                    PublishOpStatus(episodeTask.RequestId, OrchestrationStatusCode.Rejected);
-                    continue;
+                    FdpLog<ClusterMaster>.Error(
+                        "[Orchestrator] 2PC transaction {0} completed with failures (code={1}).",
+                        ev.TransactionId, tracker.FailureCode);
+                    PublishOpStatus(tracker.RequestId, tracker.FailureCode);
+                }
+                else
+                {
+                    var aggregated = TryAggregate(ev.TransactionId, tracker.NodeResponses);
+                    PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Success, aggregated);
                 }
 
-                episodeTask.RemainingNodeIds.Remove(ev.NodeId);
-                if (episodeTask.RemainingNodeIds.Count == 0)
-                {
-                    _pendingManageEpisodeTasks.Remove(ev.TransactionId);
-                    if (episodeTask.IsStart) _activeEpisodes.Add(episodeTask.EpisodeId);
-                    else                     _activeEpisodes.Remove(episodeTask.EpisodeId);
-                    PublishOpStatus(episodeTask.RequestId, OrchestrationStatusCode.Success);
-                    FdpLog<ClusterMaster>.Info(
-                        "[Orchestrator] ManageEpisode 2PC complete for episode {0}: all node ACKs received.",
-                        episodeTask.EpisodeId);
-                }
-                continue;
-            }
-
-            // SerializeLocal ACK handling.
-            if (ev.Operation == Fdp.Toolkit.Orchestration.NodeOpType.SerializeLocal &&
-                _pendingSerializeTasks.TryGetValue(ev.TransactionId, out var serTask))
-            {
-                if (!ev.StatusCode.IsError() && ev.ResultPayload is List<FileManifestEntry> entries)
-                    serTask.Manifests.AddRange(entries);
-                else if (ev.StatusCode.IsError())
-                    serTask.FailureCount++;
-
-                serTask.RemainingAcks--;
-                if (serTask.RemainingAcks <= 0)
-                {
-                    _pendingSerializeTasks.Remove(ev.TransactionId);
-                    HandleSerializeLocalCompletion(serTask);
-                }
+                if (tracker.BroadcastClusterStateOnComplete)
+                    PublishClusterState(_currentDsmState);
             }
         }
-    }
-
-    /// <summary>
-    /// Runs the post-completion logic for a <see cref="SerializeLocalTask"/> once all node ACKs
-    /// have arrived: logs failures, appends the orchestrator's own manifest entry, and either
-    /// triggers the archive export path or the legacy SaveScenario NAS-push path.
-    /// Called from <see cref="ConsumeNodeOpStatuses"/>.
-    /// </summary>
-    private void HandleSerializeLocalCompletion(SerializeLocalTask task)
-    {
-        if (task.FailureCount > 0)
-            FdpLog<ClusterMaster>.Error(
-                "[Orchestrator] SaveScenario completed with {0} node(s) reporting malformed ResultJson — NAS manifest may be incomplete.",
-                task.FailureCount);
-
-        // Append the Orchestrator's own manifest entry if the local handler produced one.
-        if (_globalContextHandler?.CommitManifestEntry != null)
-            task.Manifests.Add(_globalContextHandler.CommitManifestEntry);
-
-        if (task.ArchiveCts != null)
-        {
-            // ─── Archive export path (CGF1-S0505) ─────────────────────────────
-            var archRequestId = task.ArchiveRequestId;
-            var archCts       = task.ArchiveCts;
-            if (_gateway != null && task.Manifests.Count > 0)
-            {
-                _ = _gateway.PullToNasAsync(task.Manifests, _nasBasePath, archCts.Token)
-                    .ContinueWith(pullTask =>
-                    {
-                        _activeCancellations.Remove(archRequestId);
-                        if (pullTask.IsCanceled)
-                            PublishOpStatus(archRequestId, OrchestrationStatusCode.Rejected);
-                        else if (pullTask.IsFaulted)
-                        {
-                            FdpLog<ClusterMaster>.Error("[Orchestrator] ExportArchive gateway error: {0}",
-                                pullTask.Exception?.GetBaseException().Message!);
-                            PublishOpStatus(archRequestId, OrchestrationStatusCode.Rejected);
-                        }
-                        else
-                            PublishOpStatus(archRequestId, OrchestrationStatusCode.Success);
-                    }, System.Threading.Tasks.TaskScheduler.Default);
-            }
-            else
-            {
-                _activeCancellations.Remove(archRequestId);
-                archCts.Dispose();
-                PublishOpStatus(archRequestId, OrchestrationStatusCode.Success);
-            }
-        }
-        else if (_gateway != null && task.Manifests.Count > 0)
-        {
-            // ─── Legacy SaveScenario path ──────────────────────────────────────
-            // Fire-and-forget: the pull is async; ClusterMaster continues ticking.
-            // Phase 3+ will track completion and publish SysOpStatus(Success)/Failure.
-            _ = _gateway.PullToNasAsync(task.Manifests, _nasBasePath)
-                .ContinueWith(pullTask =>
-                {
-                    if (pullTask.IsCompletedSuccessfully)
-                        _ = _gateway.WriteScenarioManifestAsync(task.Manifests, _nasBasePath);
-                }, System.Threading.Tasks.TaskScheduler.Default);
-        }
-    }
-
-    // ── Prefetch execution (CGF1-S0302 / A.1) ─────────────────────────────
-
-    /// <summary>
-    /// Resolves a pending prefetch: if the gateway task has completed, either fans out
-    /// <see cref="NodeOpType.PrefetchFiles"/> on success or publishes
-    /// <see cref="ClusterOpStatus.Failure"/> on fault / policy violation (FailureCount &gt; 0).
-    /// Must be called each <see cref="Tick"/> before <see cref="ProcessClusterOpRequests"/> to
-    /// ensure <c>PrefetchFiles</c> is delivered only after files are physically on-disk.
-    /// </summary>
-    private void DrainPendingPrefetch()
-    {
-        if (_pendingPrefetch == null) return;
-        var op = _pendingPrefetch;
-        if (!op.GatewayTask.IsCompleted) return;
-
-        _pendingPrefetch = null;
-
-        bool hasFault  = op.GatewayTask.IsFaulted || op.GatewayTask.IsCanceled;
-        bool hasFailure = !hasFault && op.GatewayTask.Result.FailureCount > 0;
-
-        if (hasFault || hasFailure)
-        {
-            var reason = hasFault
-                ? op.GatewayTask.Exception?.GetBaseException().Message ?? "task faulted"
-                : $"{op.GatewayTask.Result.FailureCount} file(s) failed to copy";
-            FdpLog<ClusterMaster>.Error(
-                "[Orchestrator] PrefetchScenario for '{0}' failed ({1}) — publishing SysOpStatus.Failure for request {2}.",
-                op.ScenarioId, reason, op.RequestId);
-            PublishOpStatus(op.RequestId, OrchestrationStatusCode.Timeout);
-            return;
-        }
-
-        // Success — now safe to fan-out PrefetchFiles so nodes verify their staging dirs.
-        FdpLog<ClusterMaster>.Info(
-            "[Orchestrator] PrefetchScenario for '{0}' succeeded ({1} file(s)) — fanning out PrefetchFiles to {2} node(s).",
-            op.ScenarioId, op.GatewayTask.Result.SuccessCount, _roster.ActiveNodes.Count);
-        FanOutNodeOp(NodeOpType.PrefetchFiles, Guid.NewGuid(), new PrefetchHandlerPayload(op.ScenarioId), new List<int>(_roster.ActiveNodes.Keys));
-    }
-
-    /// <summary>
-    /// Starts an asynchronous <see cref="StorageGatewayModule.PrefetchScenarioAsync"/>
-    /// task and stores it in <see cref="_pendingPrefetch"/>.  The <see cref="NodeOpType.PrefetchFiles"/>
-    /// fan-out is deferred to <see cref="DrainPendingPrefetch"/> once the copy completes,
-    /// ensuring nodes never receive <c>PrefetchFiles</c> before staging files are present.
-    /// </summary>
-    /// <param name="scenarioId">Logical scenario identifier (sub-directory under NAS root).</param>
-    /// <param name="requestId">Originating <see cref="ClusterOpRequest.RequestId"/>; used to
-    /// surface <see cref="ClusterOpStatus.Failure"/> if the gateway copy fails.</param>
-    /// <remarks>
-    /// When no <see cref="StorageGatewayModule"/> is configured (e.g. in headless tests where
-    /// scenario files are pre-staged locally), the prefetch step is skipped silently; the
-    /// assumption is that the file is already present on the node's local staging directory.
-    /// </remarks>
-    private void ExecutePrefetchScenario(string scenarioId, Guid requestId)
-    {
-        if (_gateway == null)
-        {
-            FdpLog<ClusterMaster>.Info(
-                "[Orchestrator] PrefetchScenario for '{0}' skipped — no StorageGatewayModule configured. " +
-                "Assuming files are pre-staged locally.", scenarioId);
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(_nasBasePath))
-        {
-            FdpLog<ClusterMaster>.Info(
-                "[Orchestrator] PrefetchScenario for '{0}' skipped — no NAS base path configured. " +
-                "Assuming files are pre-staged locally.", scenarioId);
-            return;
-        }
-
-        var targets = BuildNodeDistributionTargets(scenarioId);
-
-        _pendingPrefetch = new PendingPrefetchOp
-        {
-            RequestId  = requestId,
-            ScenarioId = scenarioId,
-            GatewayTask = _gateway.PrefetchScenarioAsync(scenarioId, targets, _nasBasePath),
-        };
-
-        FdpLog<ClusterMaster>.Info(
-            "[Orchestrator] PrefetchScenario started for '{0}' (requestId={1}); PrefetchFiles deferred until copy completes.",
-            scenarioId, requestId);
-    }
-
-    /// <summary>
-    /// Builds a <see cref="NodeDistributionTarget"/> list for all currently active
-    /// roster nodes using the local staging directory convention
-    /// <c>C:\FDP_Temp\&lt;scenarioId&gt;\</c>.
-    ///
-    /// <para><b>Production note:</b> Production environments that span multiple physical
-    /// hosts should replace these local paths with UNC paths of the form
-    /// <c>\\&lt;hostname&gt;\c$\FDP_Temp\&lt;scenarioId&gt;\</c>.  The node hostname
-    /// registry is not available in <see cref="NodeHealthProfile"/> and must be resolved
-    /// via a separate configuration map.</para>
-    /// </summary>
-    private List<NodeDistributionTarget> BuildNodeDistributionTargets(string scenarioId)
-    {
-        var targets = new List<NodeDistributionTarget>();
-        foreach (var kv in _roster.ActiveNodes)
-        {
-            targets.Add(new NodeDistributionTarget
-            {
-                NodeId          = kv.Key,
-                DestinationPath = Path.Combine(OrchestrationConstants.DefaultStagingDirectory, scenarioId),
-            });
-        }
-        return targets;
     }
 
     /// <summary>
@@ -1575,40 +1134,6 @@ public sealed class ClusterMaster : IDisposable
             });
         }
         return targets;
-    }
-
-    // ── Time-control payload parsers ──────────────────────────────────────
-
-    /// <summary>
-    /// Parses a FixedDelta seconds value from a StepTime payload JSON.
-    /// Returns <paramref name="fallback"/> when the payload is absent, malformed, or non-positive.
-    /// </summary>
-    private static float ParseStepDelta(string? payload, float fallback)
-    {
-        if (string.IsNullOrWhiteSpace(payload)) return fallback;
-        try
-        {
-            using var doc = System.Text.Json.JsonDocument.Parse(payload);
-            if (doc.RootElement.TryGetProperty("FixedDelta", out var el))
-            {
-                float v = el.GetSingle();
-                return v > 0f ? v : fallback;
-            }
-        }
-        catch { }
-        return fallback;
-    }
-
-    /// <summary>Parses a plain float time-scale value from a SetTimeScale payload.</summary>
-    private static float ParseTimeScale(string? payload, float fallback)
-    {
-        if (string.IsNullOrWhiteSpace(payload)) return fallback;
-        if (float.TryParse(payload,
-                System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out float s) && s > 0f)
-            return s;
-        return fallback;
     }
 
     private void PublishStandby() => PublishClusterState(ClusterState.Idle);

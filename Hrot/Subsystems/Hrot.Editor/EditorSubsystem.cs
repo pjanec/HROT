@@ -151,9 +151,10 @@ namespace Hrot.Editor
         // ── Offline orchestrator (single-node scenario listing) ───────────────────
 
         private FdpEventBus?           _orchestrationBus;
-        private ClusterMaster?         _clusterMaster;
-        private StorageGatewayModule?  _storageGateway;
-        private ClusterUiCache?        _uiCache;
+        private ClusterMaster?                _clusterMaster;
+        private AssetInventoryProcessManager?  _assetInventoryProcessManager;
+        private StorageGatewayModule?          _storageGateway;
+        private ClusterUiCache?                _uiCache;
 
         // ── Selection state ───────────────────────────────────────────────────────
 
@@ -420,7 +421,10 @@ namespace Hrot.Editor
             var offlineConfig = new ClusterConfiguration { Mandatory = Array.Empty<string>() };
             _clusterMaster  = new ClusterMaster(_orchestrationBus, offlineConfig);
             _storageGateway = new StorageGatewayModule();
-            _clusterMaster.SetStorageGateway(_storageGateway, EditorBootstrap.ScenariosRoot);
+            _assetInventoryProcessManager = new AssetInventoryProcessManager(
+                _orchestrationBus,
+                _storageGateway,
+                EditorBootstrap.ScenariosRoot);
             _uiCache = new ClusterUiCache(_orchestrationBus);
             app.SetAvailableScenariosSource(() => _uiCache?.AvailableScenarios ?? Array.Empty<string>());
 
@@ -608,6 +612,7 @@ namespace Hrot.Editor
             // are readable by ClusterMaster/ClusterUiCache on the orchestration bus.
             _orchestrationBus?.SwapBuffers();
             _clusterMaster?.Tick();
+            _assetInventoryProcessManager?.Tick();
             _uiCache?.Update();
 
             // Drain ActivateEditorToolEvent — published by toolbar / context menu.
@@ -913,6 +918,7 @@ namespace Hrot.Editor
             _interactionTool  = null;
             _clusterMaster?.Dispose();
             _clusterMaster  = null;
+            _assetInventoryProcessManager = null;
             _uiCache?.Dispose();
             _uiCache        = null;
             _storageGateway = null;

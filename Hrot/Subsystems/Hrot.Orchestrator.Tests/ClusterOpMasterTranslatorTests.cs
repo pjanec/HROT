@@ -272,7 +272,8 @@ public sealed class ClusterOpMasterTranslatorTests
         {
             RequestId     = Guid.NewGuid(),
             OperationType = NedClusterOpType.StepTime,
-            PayloadJson   = "0.05",
+            PayloadJson   = System.Text.Json.JsonSerializer.Serialize(
+                new StepTimePayloadDto(FixedDelta: 0.05f), OrchestrationJsonOptions.Default),
         });
         Thread.Sleep(300);
         translator.Tick();
@@ -299,7 +300,8 @@ public sealed class ClusterOpMasterTranslatorTests
         {
             RequestId     = Guid.NewGuid(),
             OperationType = NedClusterOpType.SetTimeScale,
-            PayloadJson   = "2.0",
+            PayloadJson   = System.Text.Json.JsonSerializer.Serialize(
+                new SetTimeScalePayloadDto(TimeScale: 2.0f), OrchestrationJsonOptions.Default),
         });
         Thread.Sleep(300);
         translator.Tick();

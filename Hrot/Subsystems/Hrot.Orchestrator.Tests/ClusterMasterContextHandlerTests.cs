@@ -98,30 +98,27 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         var bus = new FdpEventBus();
         using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        var gateway = new StorageGatewayModule();
-        exercise.SetStorageGateway(gateway, Path.Combine(_tempDir, "nas"));
-
         var handler = new GlobalContextClusterOpHandler(participant, string.Empty);
         handler.LocalTempRoot = _tempDir;
 
         bool eventFired    = false;
         long capturedTicks = 0;
         handler.OnContextLoaded += (ticks, _) => { capturedTicks = ticks; eventFired = true; };
-        exercise.SetGlobalContextHandler(handler);
+        var gcpm = new GlobalContextProcessManager(bus, handler);
 
-        RegisterNode(bus, exercise);
-
-        exercise.HandleClusterOpRequest(new ClusterOpRequest
+        // Publish TransitionStateIntent directly to the bus (production path via ClusterOpMasterTranslator).
+        bus.PublishManaged(new TransitionStateIntent
         {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = $"{{\"TargetState\":\"{ClusterState.LoadingLive}\",\"ScenarioId\":\"{scenarioId}\"}}",
+            TransactionId = Guid.NewGuid(),
+            TargetState   = (Fdp.Toolkit.Orchestration.ClusterState)(int)ClusterState.LoadingLive,
+            ScenarioId    = scenarioId,
         });
-        exercise.Tick();
+        bus.SwapBuffers();
+        gcpm.Tick();
 
         Assert.True(eventFired,
-            "ClusterMaster must invoke the local GlobalContextClusterOpHandler " +
-            "during LoadingLive CommitState, firing OnContextLoaded.");
+            "GlobalContextProcessManager must invoke the local GlobalContextClusterOpHandler " +
+            "when TransitionStateIntent with LoadingLive arrives, firing OnContextLoaded.");
         Assert.Equal(99_000L, capturedTicks);
     }
 
@@ -139,31 +136,27 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         var bus = new FdpEventBus();
         using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        var gateway = new StorageGatewayModule();
-        exercise.SetStorageGateway(gateway, Path.Combine(_tempDir, "nas"));
-
         var handler = new GlobalContextClusterOpHandler(participant, string.Empty);
         handler.LocalTempRoot = _tempDir;
 
         bool eventFired = false;
         handler.OnContextLoaded += (_, _) => eventFired = true;
-        exercise.SetGlobalContextHandler(handler);
-
-        RegisterNode(bus, exercise);
+        var gcpm = new GlobalContextProcessManager(bus, handler);
 
         // Request FINAL state OperatingLive — planner: PrefetchScenario -> LoadingLive -> OperatingLive.
-        // The handler must still be invoked for the LoadingLive step.
-        exercise.HandleClusterOpRequest(new ClusterOpRequest
+        // GlobalContextProcessManager must still commit for the implied LoadingLive step.
+        bus.PublishManaged(new TransitionStateIntent
         {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = $"{{\"TargetState\":\"{ClusterState.OperatingLive}\",\"ScenarioId\":\"{scenarioId}\"}}",
+            TransactionId = Guid.NewGuid(),
+            TargetState   = (Fdp.Toolkit.Orchestration.ClusterState)(int)ClusterState.OperatingLive,
+            ScenarioId    = scenarioId,
         });
-        exercise.Tick();
+        bus.SwapBuffers();
+        gcpm.Tick();
 
         Assert.True(eventFired,
-            "ClusterMaster must invoke the local handler during the LoadingLive step even " +
-            "when OperatingLive is the requested final target.");
+            "GlobalContextProcessManager must invoke the local handler when OperatingLive " +
+            "implies a LoadingLive step.");
     }
 
     /// <summary>
@@ -208,36 +201,37 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
 
         bool eventFired = false;
         handler.OnContextLoaded += (_, _) => eventFired = true;
-        exercise.SetGlobalContextHandler(handler);
+        var gcpm = new GlobalContextProcessManager(bus, handler);
 
-        RegisterNode(bus, exercise);
-
-        // LoadingLive with no ScenarioId — CommitLoad exits early, event NOT fired.
-        exercise.HandleClusterOpRequest(new ClusterOpRequest
+        // LoadingLive with no ScenarioId — CommitLoad skips, event NOT fired.
+        bus.PublishManaged(new TransitionStateIntent
         {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = ((int)ClusterState.LoadingLive).ToString(),
+            TransactionId = Guid.NewGuid(),
+            TargetState   = (Fdp.Toolkit.Orchestration.ClusterState)(int)ClusterState.LoadingLive,
+            ScenarioId    = null,
         });
-        exercise.Tick();
+        bus.SwapBuffers();
+        gcpm.Tick();
         Assert.False(eventFired, "Sanity: event should not fire without ScenarioId.");
 
-        // OperatingLive then UnloadingLive — must not trigger event.
-        exercise.HandleClusterOpRequest(new ClusterOpRequest
+        // OperatingLive without ScenarioId — must not trigger event.
+        bus.PublishManaged(new TransitionStateIntent
         {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = ((int)ClusterState.OperatingLive).ToString(),
+            TransactionId = Guid.NewGuid(),
+            TargetState   = (Fdp.Toolkit.Orchestration.ClusterState)(int)ClusterState.OperatingLive,
+            ScenarioId    = null,
         });
-        exercise.Tick();
+        bus.SwapBuffers();
+        gcpm.Tick();
 
-        exercise.HandleClusterOpRequest(new ClusterOpRequest
+        // UnloadingLive — no load state implied, must not fire.
+        bus.PublishManaged(new TransitionStateIntent
         {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = ((int)ClusterState.UnloadingLive).ToString(),
+            TransactionId = Guid.NewGuid(),
+            TargetState   = (Fdp.Toolkit.Orchestration.ClusterState)(int)ClusterState.UnloadingLive,
         });
-        exercise.Tick();
+        bus.SwapBuffers();
+        gcpm.Tick();
 
         Assert.False(eventFired,
             "OnContextLoaded must not fire for non-load transitions such as UnloadingLive.");

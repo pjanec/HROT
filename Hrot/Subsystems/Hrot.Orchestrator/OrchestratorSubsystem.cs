@@ -27,7 +27,14 @@ namespace Hrot.Orchestrator;
 public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
 {
     private ClusterMaster? _clusterMaster;
+    private LiveBranchProcessManager?   _liveBranchProcessManager;
+    private ReplaySeekProcessManager?   _seekProcessManager;
     private ReplayProcessManager? _replayProcessManager;
+    private StorageProcessManager? _storageProcessManager;
+    private EpisodeProcessManager? _episodeProcessManager;
+    private GlobalContextProcessManager? _globalContextProcessManager;
+    private AssetPrefetchProcessManager? _assetPrefetchProcessManager;
+    private AssetInventoryProcessManager? _assetInventoryProcessManager;
     private ClusterConfiguration _config = ClusterConfiguration.Default;
     private ClusterUiCache?        _uiCache;
     private ClusterScenarioPanel?  _scenarioPanel;
@@ -95,7 +102,6 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // FIX: Wire the storage gateway so the cluster master can scan local/NAS scenarios
         // and publish AssetInventoryUpdateEvent to populate the UI combo box.
         var storageGateway = new StorageGatewayModule();
-        _clusterMaster.SetStorageGateway(storageGateway, OrchestrationConstants.DefaultStagingDirectory);
         _translator    = _networkFactory?.CreateOrchestratorTranslators(_bus, config.NodeId)
                          ?? new NullOrchestrationTranslator();
         _idAllocatorServerHandle = _networkFactory?.CreateIdAllocatorServer()
@@ -109,8 +115,6 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             _bus, new HashSet<int>(), TimeConfig.Default);
         
         
-        _clusterMaster.SetMasterSync(_masterSync);
-    
         _bus.SwapBuffers();
         _timeTranslators  = _networkFactory?.CreateMasterTimeTranslators(_bus, config.NodeId)
                             ?? new NullMasterTimeTranslators();
@@ -118,19 +122,29 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _uiCache       = new ClusterUiCache(_bus, _masterSync);
         _scenarioPanel = new ClusterScenarioPanel(_bus!, _uiCache);
 
+        // TASK-T002: Register ReplaySeekAggregator with ClusterMaster.
+        _clusterMaster.RegisterAggregator(new ReplaySeekAggregator());
+
         // Wire the replay process manager and register its aggregator with the cluster master.
         _replayProcessManager = new ReplayProcessManager(_bus, _masterSync);
         _clusterMaster.RegisterAggregator(_replayProcessManager.CreateAggregator());
 
+        // TASK-S001: Register the storage consensus aggregator.
+        _clusterMaster.RegisterAggregator(new StorageConsensusAggregator());
+
+        // TASK-S003: Register episode consensus aggregators for StartEpisode and StopEpisode.
+        _clusterMaster.RegisterAggregator(new EpisodeConsensusAggregator(Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode));
+        _clusterMaster.RegisterAggregator(new EpisodeConsensusAggregator(Fdp.Toolkit.Orchestration.NodeOpType.StopEpisode));
+
         // CGF1-S0307: Create the global-context handler, subscribe to OnContextLoaded so the
-        // MasterSyncController is seeded with the scenario's saved timeline on every load, and
-        // register it with ClusterMaster so CommitState fan-outs trigger the local load path.
+        // MasterSyncController is seeded with the scenario's saved timeline on every load.
         // In headless mode (_networkFactory?.Participant == null) no DDS writer is available;
-        // skip creation and leave _globalContextHandler null in ClusterMaster.
+        // skip creation and leave _globalContextProcessManager null.
         var participant = _networkFactory?.Participant;
+        GlobalContextClusterOpHandler? contextHandler = null;
         if (participant != null)
         {
-            var contextHandler = new GlobalContextClusterOpHandler(participant, string.Empty);
+            contextHandler = new GlobalContextClusterOpHandler(participant, string.Empty);
             contextHandler.OnContextLoaded += (startTicks, simTimeSeconds) =>
             {
                 if (_masterSync != null)
@@ -147,9 +161,43 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
                         startTicks, simTimeSeconds);
                 }
             };
-            _clusterMaster.SetGlobalContextHandler(contextHandler);
+            _globalContextProcessManager = new GlobalContextProcessManager(_bus!, contextHandler);
         }
 
+        // TASK-S002: Wire the storage process manager (TASK-P001: shim removed).
+        _storageProcessManager = new StorageProcessManager(
+            _bus!,
+            storageGateway,
+            OrchestrationConstants.DefaultStagingDirectory);
+
+        // CGF1-S0506: Wire the asset inventory process manager.
+        // Polls the storage gateway every 5 seconds and publishes AssetInventoryUpdateEvent.
+        _assetInventoryProcessManager = new AssetInventoryProcessManager(
+            _bus!,
+            storageGateway,
+            OrchestrationConstants.DefaultStagingDirectory);
+
+        // TASK-S003: Wire the episode process manager.
+        _episodeProcessManager = new EpisodeProcessManager(_bus);
+
+        // TASK-T001: Wire the live-branch process manager (CGF1-S0305).
+        // Must tick BEFORE ClusterMaster.Tick() so FreezeTime runs before the PrepareLive fan-out.
+        var replayMasterModule = new ReplayMasterModule(
+            scale => _masterSync!.SetTimeScale(scale),
+            () => _masterSync!.GetTimeScale());
+        _liveBranchProcessManager = new LiveBranchProcessManager(_bus, replayMasterModule, _masterSync);
+
+        // TASK-T002: Wire the seek process manager (SnapAndPause + precondition events).
+        // Must tick BEFORE ClusterMaster.Tick() so precondition events arrive before the seek fan-out.
+        _seekProcessManager = new ReplaySeekProcessManager(_bus, _masterSync!);
+
+        // TASK-P002: Wire the asset prefetch process manager.
+        // Must tick BEFORE ClusterMaster.Tick() so ExecutePrefetchIntent is consumed and
+        // PrefetchStagingCompletedEvent is published before ProcessPrefetchStagingCompleted runs.
+        _assetPrefetchProcessManager = new AssetPrefetchProcessManager(
+            _bus!,
+            storageGateway,
+            OrchestrationConstants.DefaultStagingDirectory);
 
         // Drain the read buffer locally so the cache captures the bootstrapped state
         // before the first frame's Phase 2 SwapBuffers wipes it out.
@@ -172,9 +220,18 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // Phase 3: Core logic — MasterSyncController drains bus intents (HEXAG2-S011),
         // then ClusterMaster ticks to process fan-out ops and 2PC tracking.
         // Then ReplayProcessManager auto-pauses the clock when replay ends.
+        // Then StorageProcessManager handles NAS pulls for completed SerializeLocal ops.
+        // Then EpisodeProcessManager updates active episode state and publishes EpisodeStateChangedEvent.
         _masterSync?.Update();
+        _liveBranchProcessManager?.Tick();
+        _seekProcessManager?.Tick();
+        _globalContextProcessManager?.Tick();
+        _assetPrefetchProcessManager?.Tick();
         _clusterMaster?.Tick();
         _replayProcessManager?.Tick();
+        _storageProcessManager?.Tick();
+        _assetInventoryProcessManager?.Tick();
+        _episodeProcessManager?.Tick();
 
         // CGF1-A.1: Consume PendingTimeMode and drive MasterSyncController.
         var pendingMode = _clusterMaster?.PendingTimeMode;
@@ -232,6 +289,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _replayProcessManager = null;
         _clusterMaster?.Dispose();
         _clusterMaster = null;
+        _assetInventoryProcessManager = null;
         _masterSync?.Dispose();
         _masterSync = null;
         _lastProcessedTimeMode = null;

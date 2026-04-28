@@ -67,6 +67,7 @@ public sealed class ClusterMasterArchiveTests
         bus.SwapBuffers();
 
         var exportRequestId = Guid.NewGuid();
+        var exerciseId      = Guid.NewGuid();
 
         // 1. Post ExportArchive — creates CTS in _activeCancellations.
         exercise.HandleClusterOpRequest(new ClusterOpRequest
@@ -171,31 +172,29 @@ public sealed class ClusterMasterArchiveTests
     }
 
     /// <summary>
-    /// PACK-C001 SC3: When a <see cref="StorageGatewayModule"/> is injected and
-    /// <see cref="ClusterMaster.Tick"/> is called, <c>PublishAssetInventory</c> must
-    /// publish an <see cref="AssetInventoryUpdateEvent"/> on the bus.
+    /// PACK-C001 SC3: <see cref="AssetInventoryProcessManager.Tick"/> must publish
+    /// an <see cref="AssetInventoryUpdateEvent"/> on the first call.
     /// Arrays are empty when the base path does not exist on disk (expected for unit tests).
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void PublishAssetInventory_PublishesAssetInventoryUpdateEvent_OnFirstTick()
     {
         var bus = new FdpEventBus();
-        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
         var gateway = new StorageGatewayModule();
-        exercise.SetStorageGateway(gateway, @"C:\DoesNotExist_Test_" + Guid.NewGuid());
+        var manager = new AssetInventoryProcessManager(bus, gateway, @"C:\DoesNotExist_Test_" + Guid.NewGuid());
 
-        // First Tick always triggers PublishAssetInventory (_lastInventoryScan = DateTime.MinValue).
+        // First Tick always triggers the scan (_lastInventoryScan = DateTime.MinValue).
         bus.SwapBuffers();
-        exercise.Tick();
+        manager.Tick();
         bus.SwapBuffers();
 
         var events = bus.ReadManaged<AssetInventoryUpdateEvent>().ToList();
         Assert.True(events.Any(),
-            "ClusterMaster.Tick() must publish AssetInventoryUpdateEvent after SetStorageGateway.");
+            "AssetInventoryProcessManager.Tick() must publish AssetInventoryUpdateEvent on first call.");
 
         var ev = events[0];
-        // Path doesn't exist → all lists should be empty (not null)
+        // Path doesn't exist -> all lists should be empty (not null)
         Assert.NotNull(ev.LocalScenarios);
         Assert.NotNull(ev.LocalExercises);
         Assert.NotNull(ev.ArchivedExercises);

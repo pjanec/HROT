@@ -53,6 +53,10 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         Directory.CreateDirectory(scenarioDir);
         File.WriteAllText(Path.Combine(scenarioDir, "Hrot.SimHost.json"), "{}");
 
+        // Arrange: staging dir for AssetPrefetchProcessManager.
+        var stagingDir = Path.Combine(Path.GetTempPath(), "fdp_pf_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(stagingDir);
+
         var bus = new FdpEventBus();
         var config = new ClusterConfiguration
         {
@@ -63,7 +67,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         using var exercise = new ClusterMaster(bus, config);
 
         var gateway = new StorageGatewayModule();
-        exercise.SetStorageGateway(gateway, _nasDir);
+        var assetPrefetchPM = new AssetPrefetchProcessManager(bus, gateway, _nasDir, stagingDir);
 
         // Register a fake node so FanOutNodeOp has a target to write PrefetchFiles to.
         bus.PublishManaged(new NodeHeartbeatEvent
@@ -82,31 +86,33 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         {
             RequestId     = reqId,
             OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = $"{{\"TargetState\":\"LoadingEdit\",\"ScenarioId\":\"{_scenarioId}\"}}",
+            PayloadJson   = $"{{\"TargetState\":\"{ClusterState.LoadingEdit}\",\"ScenarioId\":\"{_scenarioId}\"}}",
         });
 
-        // Tick once: this starts the async gateway task, but the task is NOT yet
-        // complete → no PrefetchFiles command should have been sent yet.
-        bus.SwapBuffers();
+        // First tick: exercise publishes ExecutePrefetchIntent to WRITE buffer.
+        assetPrefetchPM.Tick();
         exercise.Tick();
         bus.SwapBuffers();
 
-        var immediateIntents = bus.ReadManaged<ExecuteNodeOpIntent>()
-            .Where(i => i.Operation == FdpNodeOpType.PrefetchFiles)
-            .ToList();
+        // Second tick: assetPrefetchPM reads ExecutePrefetchIntent, starts gateway task.
+        assetPrefetchPM.Tick();
+        exercise.Tick();
+        bus.SwapBuffers();
 
-        // For a local copy (tiny file), the task may complete very quickly.
-        // Spin until the prefetch task completes (observed via PrefetchFiles arriving).
+        // Spin until PrefetchFiles fan-out arrives (gateway completes async).
+        bool prefetchFilesReceived = false;
         var deadline = DateTime.UtcNow.AddSeconds(8);
-        bool prefetchFilesReceived = immediateIntents.Count > 0;
         while (!prefetchFilesReceived && DateTime.UtcNow < deadline)
         {
+            assetPrefetchPM.Tick();
             exercise.Tick();
             bus.SwapBuffers();
             prefetchFilesReceived = bus.ReadManaged<ExecuteNodeOpIntent>()
                 .Any(i => i.Operation == FdpNodeOpType.PrefetchFiles);
             Thread.Sleep(10);
         }
+
+        try { Directory.Delete(stagingDir, recursive: true); } catch { }
 
         Assert.True(prefetchFilesReceived,
             "PrefetchFiles command was never received — expected it after gateway copy completed.");
@@ -124,6 +130,10 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         // Arrange: NAS dir exists but the scenarioId sub-dir does NOT.
         const string missingScenarioId = "nonexistent_scenario_xyz";
 
+        // Arrange: staging dir for AssetPrefetchProcessManager.
+        var stagingDir = Path.Combine(Path.GetTempPath(), "fdp_pf_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(stagingDir);
+
         var bus = new FdpEventBus();
         var config = new ClusterConfiguration
         {
@@ -134,14 +144,14 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         using var exercise = new ClusterMaster(bus, config);
 
         var gateway = new StorageGatewayModule();
-        exercise.SetStorageGateway(gateway, _nasDir);
+        var assetPrefetchPM = new AssetPrefetchProcessManager(bus, gateway, _nasDir, stagingDir);
 
         var reqId = Guid.NewGuid();
         exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = reqId,
             OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = $"{{\"TargetState\":\"LoadingEdit\",\"ScenarioId\":\"{missingScenarioId}\"}}",
+            PayloadJson   = $"{{\"TargetState\":\"{ClusterState.LoadingEdit}\",\"ScenarioId\":\"{missingScenarioId}\"}}",
         });
 
         // Spin until the failure status arrives.
@@ -150,7 +160,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         var deadline = DateTime.UtcNow.AddSeconds(8);
         while (DateTime.UtcNow < deadline && !observedFailure)
         {
-            bus.SwapBuffers();
+            assetPrefetchPM.Tick();
             exercise.Tick();
             bus.SwapBuffers();
             Thread.Sleep(15);
@@ -167,6 +177,8 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
                     prefetchFilesReceived = true;
             }
         }
+
+        try { Directory.Delete(stagingDir, recursive: true); } catch { }
 
         Assert.True(observedFailure,
             $"Expected a failure ClusterOpCompletedEvent but none arrived.");
