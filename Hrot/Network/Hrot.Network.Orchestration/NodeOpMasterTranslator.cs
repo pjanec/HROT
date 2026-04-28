@@ -119,7 +119,7 @@ public sealed class NodeOpMasterTranslator
             EditLoadHandlerPayload p => JsonSerializer.Serialize(
                 new NodeTransitionPayloadDto(
                     TargetState: p.TargetState != 0
-                        ? ((Hrot.NED.Descriptors.Orchestration.ClusterState)p.TargetState).ToString()
+                        ? (Hrot.NED.Descriptors.Orchestration.ClusterState?)p.TargetState
                         : null,
                     ScenarioId:  p.ScenarioId,
                     ExerciseId:  p.ExerciseId),

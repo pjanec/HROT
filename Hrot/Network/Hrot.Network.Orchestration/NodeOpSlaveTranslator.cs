@@ -144,16 +144,10 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
             {
                 if (!hasPayload) return null;
                 var dto = JsonSerializer.Deserialize<NodeTransitionPayloadDto>(payloadJson!, OrchestrationJsonOptions.Default);
-                int targetStateInt = 0;
-                if (!string.IsNullOrWhiteSpace(dto?.TargetState) &&
-                    Enum.TryParse<NedClusterState>(dto.TargetState, out var cs))
-                {
-                    targetStateInt = (int)cs;
-                }
                 return new EditLoadHandlerPayload(
                     ScenarioId:    dto?.ScenarioId,
                     IsNewScenario: false,
-                    TargetState:   targetStateInt,
+                    TargetState:   dto?.TargetState.HasValue == true ? (int)dto.TargetState.Value : 0,
                     ExerciseId:    dto?.ExerciseId ?? Guid.Empty);
             }
 

@@ -168,7 +168,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
                 Operation     = NodeOpType.CommitState,
                 PayloadJson   = JsonSerializer.Serialize(
                     new NodeTransitionPayloadDto(
-                        TargetState: ClusterState.LoadingLive.ToString(),
+                        TargetState: ClusterState.LoadingLive,
                         ScenarioId:  exerciseId.ToString("N"),
                         ExerciseId:  Guid.Empty),
                     OrchestrationJsonOptions.Default),
@@ -243,7 +243,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
                 Operation     = NodeOpType.CommitState,
                 PayloadJson   = JsonSerializer.Serialize(
                     new NodeTransitionPayloadDto(
-                        TargetState: ClusterState.LoadingLive.ToString(),
+                        TargetState: ClusterState.LoadingLive,
                         ScenarioId:  exerciseId.ToString("N"),
                         ExerciseId:  Guid.Empty),
                     OrchestrationJsonOptions.Default),
@@ -284,7 +284,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             // No ScenarioId — blank-world path; CommitLoad exits early.
             PayloadJson   = JsonSerializer.Serialize(
                 new NodeTransitionPayloadDto(
-                    TargetState: ClusterState.LoadingLive.ToString(),
+                    TargetState: ClusterState.LoadingLive,
                     ScenarioId:  null,
                     ExerciseId:  Guid.Empty),
                 OrchestrationJsonOptions.Default),

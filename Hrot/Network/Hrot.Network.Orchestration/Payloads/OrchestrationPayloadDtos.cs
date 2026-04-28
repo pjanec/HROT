@@ -80,11 +80,11 @@ public record SeekReplayPayloadDto(
 /// Node-level transition payload DTO carried inside <c>NodeOpCommand.PayloadJson</c>
 /// for <c>PrepareState</c>, <c>PrepareLive</c>, <c>PrepareReplay</c>, <c>PrepareEdit</c>,
 /// and <c>FinalizeEdit</c> operations.
-/// <c>TargetState</c> is stored as a string to avoid silent integer-as-enum parsing.
 /// </summary>
 public record NodeTransitionPayloadDto(
     [property: JsonPropertyName("TargetState")]
-    string?        TargetState,   // ClusterState as string (e.g. "LoadingLive")
+    [property: JsonConverter(typeof(StrictStringEnumConverter))]
+    ClusterState?  TargetState,
 
     [property: JsonPropertyName("ScenarioId")]
     string?        ScenarioId,

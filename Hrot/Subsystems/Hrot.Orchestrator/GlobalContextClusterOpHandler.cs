@@ -331,8 +331,7 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
         try
         {
             var dto = JsonSerializer.Deserialize<NodeTransitionPayloadDto>(payloadJson, OrchestrationJsonOptions.Default);
-            if (dto?.TargetState != null && Enum.TryParse<ClusterState>(dto.TargetState, out var state))
-                return state;
+            if (dto?.TargetState != null) return dto.TargetState.Value;
         }
         catch { }
         return ClusterState.Idle;

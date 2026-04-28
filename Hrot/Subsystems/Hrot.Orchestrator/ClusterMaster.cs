@@ -854,7 +854,7 @@ public sealed class ClusterMaster : IDisposable
                         {
                             var localPayload = JsonSerializer.Serialize(
                                 new NodeTransitionPayloadDto(
-                                    TargetState: tStep.TargetState.ToString(),
+                                    TargetState: tStep.TargetState,
                                     ScenarioId:  intent.ScenarioId,
                                     ExerciseId:  intent.ExerciseId),
                                 OrchestrationJsonOptions.Default);
