@@ -28,6 +28,9 @@ namespace Fdp.Toolkit.Perception
         /// <summary>Event ID for <see cref="Events.SeedTargetCommand"/>.</summary>
         public const int SeedTargetCommandId = 4101;
 
+        /// <summary>Event ID for <see cref="Events.SensorTrackStateEvent"/>.</summary>
+        public const int SensorTrackStateEventId = 4005;
+
         // ── Threat score dynamics ─────────────────────────────────────────────────
 
         /// <summary>

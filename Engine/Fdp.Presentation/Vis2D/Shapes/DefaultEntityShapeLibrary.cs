@@ -109,7 +109,7 @@ public sealed class DefaultEntityShapeLibrary : IEntityShapeLibrary
                 // Filled body rectangle — four corners, always drawn.
                 new PolylineDefinition
                 {
-                    IsFilled  = true,
+                    IsFilled  = false,
                     IsClosed  = true,
                     LocalVertices = new[]
                     {

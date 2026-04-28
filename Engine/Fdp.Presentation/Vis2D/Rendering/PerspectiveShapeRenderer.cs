@@ -74,8 +74,12 @@ public static class PerspectiveShapeRenderer
         Color                         color,
         float                         exaggerationCoefficient = 0.05f,
         float                         visualScaleMultiplier   = 1.0f,
-        Shapes.EntityShapeCondition   currentCondition        = Shapes.EntityShapeCondition.None)
+        Shapes.EntityShapeCondition   currentCondition        = Shapes.EntityShapeCondition.None,
+        float                         zoom                    = 1.0f)
     {
+        // Safe zoom fallback to prevent divide-by-zero
+        float safeZoom = zoom > 0f ? zoom : 1f;
+
         foreach (var element in shape.Elements)
         {
             if (!IsVisible(element, currentCondition))
@@ -85,9 +89,9 @@ public static class PerspectiveShapeRenderer
             if (vCount == 0)
                 continue;
 
-            float thickness = element.LineThickness > 0f
-                ? element.LineThickness
-                : DefaultLineThickness;
+			// keep the line thickness to 1 pixel at all zoom levels by inversely scaling with zoom (which the MapCamera applies to projected coordinates)
+			float baseThickness = element.LineThickness > 0f ? element.LineThickness : DefaultLineThickness;
+            float thickness = baseThickness / safeZoom;
 
             if (vCount <= StackVertexLimit)
             {

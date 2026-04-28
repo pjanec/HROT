@@ -1,3 +1,4 @@
+using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
@@ -18,6 +19,12 @@ namespace Fdp.Toolkit.Perception.Systems
     ///     to <see cref="SensorContactState.Acquired"/> when seen in the current tick,
     ///     and from <see cref="SensorContactState.Acquired"/> to <see cref="SensorContactState.Lost"/>
     ///     when the occlusion age exceeds <see cref="TrackLostThresholdTicks"/>.</item>
+    ///   <item>Publishes a <see cref="SensorTrackStateEvent"/> to the command buffer whenever
+    ///     a contact transitions to <see cref="SensorContactState.Acquired"/> or
+    ///     <see cref="SensorContactState.Lost"/>.  Inside <c>AutonomousPerceptionModule</c>
+    ///     these events land on the module-private scoped bus and are then forwarded to the
+    ///     global world bus so that <see cref="ActiveSensorTracksUpdateSystem"/> and the
+    ///     DDS egress translator can consume them.</item>
     /// </list>
     /// </para>
     ///
@@ -72,6 +79,24 @@ namespace Fdp.Toolkit.Perception.Systems
                         {
                             list.State[i] = (byte)SensorContactState.Acquired;
                             changed = true;
+
+                            var targetEntity = new Entity((ulong)list.EntityIds[i]);
+                            float posX = 0f, posY = 0f;
+                            if (view.IsAlive(targetEntity) &&
+                                view.HasComponent<SimTransform>(targetEntity))
+                            {
+                                ref readonly var tf = ref view.GetComponentRO<SimTransform>(targetEntity);
+                                posX = tf.Position.X;
+                                posY = tf.Position.Y;
+                            }
+                            ecb.PublishEvent(new SensorTrackStateEvent
+                            {
+                                Observer  = entity,
+                                Target    = targetEntity,
+                                State     = SensorTrackStatus.Acquired,
+                                PositionX = posX,
+                                PositionY = posY,
+                            });
                         }
                     }
                     else if (currentState == SensorContactState.Acquired)
@@ -80,6 +105,16 @@ namespace Fdp.Toolkit.Perception.Systems
                         {
                             list.State[i] = (byte)SensorContactState.Lost;
                             changed = true;
+
+                            var targetEntity = new Entity((ulong)list.EntityIds[i]);
+                            ecb.PublishEvent(new SensorTrackStateEvent
+                            {
+                                Observer  = entity,
+                                Target    = targetEntity,
+                                State     = SensorTrackStatus.Lost,
+                                PositionX = 0f,
+                                PositionY = 0f,
+                            });
                         }
                     }
                 }
@@ -101,6 +136,23 @@ namespace Fdp.Toolkit.Perception.Systems
                 list.State[0] = (byte)SensorContactState.Acquired;
 
                 ecb.AddComponent(evt.Observer, list);
+
+                // Emit Acquired event for the bootstrapped contact.
+                float posX = 0f, posY = 0f;
+                if (view.HasComponent<SimTransform>(evt.Target))
+                {
+                    ref readonly var tf = ref view.GetComponentRO<SimTransform>(evt.Target);
+                    posX = tf.Position.X;
+                    posY = tf.Position.Y;
+                }
+                ecb.PublishEvent(new SensorTrackStateEvent
+                {
+                    Observer  = evt.Observer,
+                    Target    = evt.Target,
+                    State     = SensorTrackStatus.Acquired,
+                    PositionX = posX,
+                    PositionY = posY,
+                });
             }
         }
     }

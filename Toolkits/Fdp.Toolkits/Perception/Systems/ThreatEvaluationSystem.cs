@@ -77,13 +77,27 @@ namespace Fdp.Toolkit.Perception.Systems
                     {
                         // Continuous boost: 50 threat-score units per second per active track.
                         float continuousBoost = 50f * deltaTime;
+
                         for (int i = 0; i < tracksRO.Count; i++)
                         {
+                            // Default to the cached entry position
+                            float posX = tracksRO.PositionsX[i];
+                            float posY = tracksRO.PositionsY[i];
+
+                            // If we have a live replica of the target, track its real-time position
+                            var targetEntity = new Entity((ulong)tracksRO.EntityIds[i]);
+                            if (view.IsAlive(targetEntity) && view.HasComponent<SimTransform>(targetEntity))
+                            {
+                                ref readonly var targetTf = ref view.GetComponentRO<SimTransform>(targetEntity);
+                                posX = targetTf.Position.X;
+                                posY = targetTf.Position.Y;
+                            }
+
                             TargetMemory.AddOrUpdateTarget(
                                 ref mem,
                                 entityId:   tracksRO.EntityIds[i],
-                                posX:       tracksRO.PositionsX[i],
-                                posY:       tracksRO.PositionsY[i],
+                                posX:       posX,
+                                posY:       posY,
                                 scoreBoost: continuousBoost,
                                 tick:       tick,
                                 modality:   SensorModality.Visual);

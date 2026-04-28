@@ -194,7 +194,8 @@ public abstract class PerspectiveEntityVisualizerBase : IVisualizerAdapter
             color,
             ExaggerationCoefficient,
             VisualScaleMultiplier,
-            condition);
+            condition,
+            ctx.Zoom);
 
         // ── Selection ring ────────────────────────────────────────────────────
         if (isSelected)

@@ -95,6 +95,7 @@ namespace Fdp.Toolkit.Perception.Modules
             _scopedBus = new FdpEventBus();
             _scopedBus.Register<LosCheckRequestEvent>();
             _scopedBus.Register<TargetVisibleEvent>();
+            _scopedBus.Register<SensorTrackStateEvent>();
 
             _colliderRadiusReader = colliderRadiusReader;
         }
@@ -130,21 +131,34 @@ namespace Fdp.Toolkit.Perception.Modules
         /// </remarks>
         public void Tick(ISimulationView view, float dt)
         {
+            // Skip perception processing when the simulation is frozen (dt == 0 in Editor pause).
+            if (dt <= 0f) return;
+
             var scopedView = new PerceptionScopedView(view, _scopedBus);
 
             // Stage 1: Rebuild local grid from world state (no event bus involvement).
             _localGridBuilder.Execute(scopedView, dt);
 
-            // Stage 2: Vision broadphase emits LosCheckRequestEvents → scoped bus write buffer.
+            // Stage 2: Vision broadphase emits LosCheckRequestEvents -> scoped bus write buffer.
             _visionBroadphase.Execute(scopedView, dt);
             _scopedBus.SwapBuffers(); // LosCheckRequestEvents now in scoped read buffer.
 
-            // Stage 3: LOS batching reads requests (scoped), emits TargetVisibleEvents → scoped bus.
+            // Stage 3: LOS batching reads requests (scoped), emits TargetVisibleEvents -> scoped bus.
             _losRequestBatching.Execute(scopedView, dt);
             _scopedBus.SwapBuffers(); // TargetVisibleEvents now in scoped read buffer.
 
-            // Stage 4: Sensor track debounce reads visible events (scoped), writes SensorContactList → real ECB.
+            // Stage 4: Sensor track debounce reads visible events (scoped), writes SensorContactList -> real ECB,
+            //          and publishes SensorTrackStateEvents -> scoped bus (via PerceptionScopedCommandBuffer).
             _sensorTrackDebounce.Execute(scopedView, dt);
+
+            // Bridge: forward SensorTrackStateEvents from the scoped bus to the global world bus
+            // so that ActiveSensorTracksUpdateSystem and the DDS egress translator can consume them.
+            _scopedBus.SwapBuffers();
+            var globalCmd = view.GetCommandBuffer();
+            foreach (ref readonly var evt in _scopedBus.Read<SensorTrackStateEvent>())
+            {
+                globalCmd.PublishEvent(evt);
+            }
         }
 
         /// <summary>Disposes the module-private <see cref="SpatialHashGrid"/> and scoped bus.</summary>

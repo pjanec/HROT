@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Perception.Tests
             world.RegisterEvent<LosCheckRequestEvent>();
             world.RegisterEvent<TargetVisibleEvent>();
             world.RegisterEvent<TargetHeardEvent>();
+            world.RegisterEvent<SensorTrackStateEvent>();
 
             return world;
         }
