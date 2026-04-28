@@ -5,7 +5,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// <c>TargetState</c> must equal <c>ClusterState.LoadingEdit (10)</c> for the
     /// handler to perform any I/O; other target states are no-ops.
     /// </summary>
-    public record struct EditLoadHandlerPayload(string? ScenarioId, bool IsNewScenario = false, int TargetState = 10, string? ExerciseId = null);
+    public record struct EditLoadHandlerPayload(string? ScenarioId, bool IsNewScenario = false, int TargetState = 10, System.Guid ExerciseId = default);
 
     /// <summary>
     /// Reference implementation of the edit-load Cluster handler.

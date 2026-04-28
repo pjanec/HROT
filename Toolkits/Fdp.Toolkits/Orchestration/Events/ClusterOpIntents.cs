@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>Target wall-clock tick; 0 = not specified.</summary>
         public long TargetWallTicks;
         public string? ScenarioId;
-        public string? ExerciseId;
+        public Guid ExerciseId;
         public string? TimeMode;
     }
 
@@ -77,7 +77,7 @@ namespace Fdp.Toolkit.Orchestration
     {
         public Guid RequestId;
         public StorageOpType Operation;
-        public string? ExerciseId;
+        public Guid ExerciseId;
     }
 
     /// <summary>

@@ -92,6 +92,7 @@ namespace Fdp.Toolkit.Orchestration
         public ClusterState NewStateId;
         /// <summary>"Cluster" — identifies the global cluster state machine.</summary>
         public string SubsystemName;
+        public Guid ExerciseId;
     }
 
     /// <summary>
@@ -105,6 +106,7 @@ namespace Fdp.Toolkit.Orchestration
     {
         /// <summary>New cluster state.</summary>
         public ClusterState CurrentState;
+        public Guid ExerciseId;
     }
 
     /// <summary>

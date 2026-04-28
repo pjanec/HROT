@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers;
 /// <summary>
 /// Payload for <see cref="ReferenceArchiveHandler"/> commands.
 /// </summary>
-public record struct ArchiveHandlerPayload(string? ExerciseId);
+public record struct ArchiveHandlerPayload(Guid ExerciseId);
 
 /// <summary>
 /// Result published by <see cref="ReferenceArchiveHandler"/> after a successful archive.
@@ -52,11 +52,12 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
     /// </remarks>
     public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
     {
-        var exerciseId = intent.DomainPayload is ArchiveHandlerPayload p ? p.ExerciseId : null;
-        if (exerciseId is null) return Task.FromResult<object?>(null);
+        var exerciseId = intent.DomainPayload is ArchiveHandlerPayload p ? p.ExerciseId : Guid.Empty;
+        if (exerciseId == Guid.Empty) return Task.FromResult<object?>(null);
+        var exerciseIdText = exerciseId.ToString();
 
         var fileName = OrchestrationConstants.GetNodeRecordingFileName(_nodeId);
-        var file = Path.Combine(_localTempRoot, exerciseId, fileName);
+        var file = Path.Combine(_localTempRoot, exerciseIdText, fileName);
         if (!File.Exists(file))
         {
             FdpLog<ReferenceArchiveHandler>.Warn($"[ReferenceArchiveHandler] No local .fdp at {file}; cannot report manifest.");
@@ -67,7 +68,7 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
         {
             new FileManifestResult(
                 SourceUnc:    file,
-                RelativeDest: Path.Combine(exerciseId, fileName)),
+                RelativeDest: Path.Combine(exerciseIdText, fileName)),
         };
 
         return Task.FromResult<object?>(manifest);
@@ -79,10 +80,11 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
     /// <inheritdoc />
     public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo)
     {
-        var exerciseId = intent.DomainPayload is ArchiveHandlerPayload p ? p.ExerciseId : null;
-        if (exerciseId is null) return;
+        var exerciseId = intent.DomainPayload is ArchiveHandlerPayload p ? p.ExerciseId : Guid.Empty;
+        if (exerciseId == Guid.Empty) return;
+        var exerciseIdText = exerciseId.ToString();
         var fileName = OrchestrationConstants.GetNodeRecordingFileName(_nodeId);
-        var file = Path.Combine(_localTempRoot, exerciseId, fileName);
+        var file = Path.Combine(_localTempRoot, exerciseIdText, fileName);
         try { if (File.Exists(file)) File.Delete(file); }
         catch (Exception ex)
         {
