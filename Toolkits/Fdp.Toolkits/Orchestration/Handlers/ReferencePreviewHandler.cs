@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     ///
     /// <para>
     /// Handles <c>PrepareState (operationId=1)</c> payloads that target
-    /// <c>LoadingPreview (state=20)</c> or <c>UnloadingPreview (state=22)</c>.
+    /// <c>ClusterState.LoadingPreview</c> or <c>ClusterState.UnloadingPreview</c>.
     /// All other <c>PrepareState</c> targets are passed through as no-ops.
     /// </para>
     ///
@@ -39,11 +39,6 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// </summary>
     public sealed class ReferencePreviewHandler : IClusterStateHandler
     {
-        /// <summary>Integer value of <c>ClusterState.LoadingPreview</c>.</summary>
-        private const int LoadingPreviewState   = 20;
-        /// <summary>Integer value of <c>ClusterState.UnloadingPreview</c>.</summary>
-        private const int UnloadingPreviewState = 22;
-
         private readonly EntityRepository? _liveRepo;
         private EntityRepository? _snap;
 
@@ -72,17 +67,16 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             var target = intent.DomainPayload switch
             {
                 EditLoadHandlerPayload elp => elp.TargetState,
-                int i                      => i,
-                _                          => 0,
+                _                          => (ClusterState)0,
             };
 
             switch (target)
             {
-                case LoadingPreviewState:
+                case ClusterState.LoadingPreview:
                     LoadingPreviewCommit();
                     break;
 
-                case UnloadingPreviewState:
+                case ClusterState.UnloadingPreview:
                     UnloadingPreviewCommit();
                     break;
             }

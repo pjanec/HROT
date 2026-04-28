@@ -147,7 +147,7 @@ public sealed class ClusterSlaveTests
             TransactionId = Guid.NewGuid(),
             TargetNodeId  = 0,
             Operation     = NodeOpType.CommitState,
-            DomainPayload = new CommitStatePayload(nextState),
+            DomainPayload = new CommitStatePayload((ClusterState)nextState),
         });
 
         slave.Tick();
@@ -292,7 +292,7 @@ public sealed class ClusterSlaveTests
             TransactionId = txId,
             TargetNodeId  = 0,
             Operation     = NodeOpType.CommitState,
-            DomainPayload = new CommitStatePayload(targetState),
+            DomainPayload = new CommitStatePayload((ClusterState)targetState),
         });
 
         // SwapBuffers + Tick: PrepareXxx starts async; CommitState should be buffered internally.
@@ -333,7 +333,7 @@ public sealed class ClusterSlaveTests
         {
             TransactionId = txId,
             Operation     = NodeOpType.CommitState,
-            DomainPayload = new CommitStatePayload(stateLoading),
+            DomainPayload = new CommitStatePayload((ClusterState)stateLoading),
         });
         Assert.Equal(stateLoading, slave.LocalStateIdForTest);
 
@@ -342,7 +342,7 @@ public sealed class ClusterSlaveTests
         {
             TransactionId = txId,
             Operation     = NodeOpType.CommitState,
-            DomainPayload = new CommitStatePayload(stateOperating),
+            DomainPayload = new CommitStatePayload((ClusterState)stateOperating),
         });
         Assert.Equal(stateOperating, slave.LocalStateIdForTest);
     }
@@ -371,7 +371,7 @@ public sealed class ClusterSlaveTests
         eventBus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId, TargetNodeId = 0,
-            Operation     = NodeOpType.CommitState, DomainPayload = new CommitStatePayload(targetState),
+            Operation     = NodeOpType.CommitState, DomainPayload = new CommitStatePayload((ClusterState)targetState),
         });
 
         eventBus.SwapBuffers();
@@ -406,15 +406,15 @@ public sealed class ClusterSlaveTests
             TransactionId = txId,
             TargetNodeId  = 1,
             Operation     = NodeOpType.CommitState,
-            DomainPayload = new CommitStatePayload(TargetStateId: 5),
+            DomainPayload = new CommitStatePayload(TargetState: (ClusterState)5),
         });
 
         Assert.Equal(5, slave.LocalStateIdForTest);
     }
 
     /// <summary>
-    /// Two CommitState intents with different TargetStateIds should each be processed once
-    /// (dedup key includes TargetStateId discriminant).
+    /// Two CommitState intents with different TargetState values should each be processed once
+    /// (dedup key includes TargetState discriminant).
     /// </summary>
     [Fact]
     public void ClusterSlave_CommitState_DeduplicatesOnStateId()
@@ -429,14 +429,14 @@ public sealed class ClusterSlaveTests
             TransactionId = txId,
             TargetNodeId  = 1,
             Operation     = NodeOpType.CommitState,
-            DomainPayload = new CommitStatePayload(2),
+            DomainPayload = new CommitStatePayload((ClusterState)2),
         });
         slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
             TargetNodeId  = 1,
             Operation     = NodeOpType.CommitState,
-            DomainPayload = new CommitStatePayload(5),
+            DomainPayload = new CommitStatePayload((ClusterState)5),
         });
 
         // Last CommitState wins

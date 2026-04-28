@@ -5,9 +5,9 @@ namespace Fdp.Toolkit.Orchestration
 {
     /// <summary>
     /// Payload for <see cref="NodeOpType.CommitState"/> intents.
-    /// Replaces the previously boxed <c>int</c> state ID.
+    /// Carries the target <see cref="ClusterState"/> enum value rather than a raw integer.
     /// </summary>
-    public readonly record struct CommitStatePayload(int TargetStateId);
+    public readonly record struct CommitStatePayload(ClusterState TargetState);
 
     /// <summary>
     /// Payload for <see cref="NodeOpType.NodeReplaySeek"/> intents.

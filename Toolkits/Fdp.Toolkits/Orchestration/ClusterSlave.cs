@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.Orchestration
         // and CommitState belonging to the same 2PC transaction are each accepted once,
         // and multiple CommitState intents for different target states in the same
         // multi-step trajectory are NOT collapsed into one (DEBT-007 fix).
-        private readonly System.Collections.Generic.HashSet<(Guid, NodeOpType, int)> _seenTransactionIds = new();
+        private readonly System.Collections.Generic.HashSet<(Guid, NodeOpType, ClusterState)> _seenTransactionIds = new();
 
         // ── Deferred intents (DEBT-007 fix) ──────────────────────────────────
         // When an async prepare is running, any new intents from the bus are buffered
@@ -191,11 +191,11 @@ namespace Fdp.Toolkit.Orchestration
                     if (_pendingPrepare.HasValue)
                     {
                         // Async prepare in progress — buffer unseen intents for next tick.
-                        int sd = intent.DomainPayload switch
+                        ClusterState sd = intent.DomainPayload switch
                         {
-                            CommitStatePayload      csp2 => csp2.TargetStateId,
+                            CommitStatePayload      csp2 => csp2.TargetState,
                             EditLoadHandlerPayload  elp  => elp.TargetState,
-                            _                            => -1,
+                            _                            => (ClusterState)(-1),
                         };
                         if (!_seenTransactionIds.Contains((intent.TransactionId, intent.Operation, sd)))
                             _pendingIntents.Enqueue(intent);
@@ -232,11 +232,11 @@ namespace Fdp.Toolkit.Orchestration
             // CommitState and PrepareState (with EditLoadHandlerPayload) intents for different
             // target states within the same transaction must each be accepted — use the payload
             // target-state int as a discriminant so same-transaction PrepareState ops don't collide.
-            int stateDiscriminant = intent.DomainPayload switch
+            ClusterState stateDiscriminant = intent.DomainPayload switch
             {
-                CommitStatePayload     csp => csp.TargetStateId,
+                CommitStatePayload     csp => csp.TargetState,
                 EditLoadHandlerPayload elp => elp.TargetState,
-                _                         => -1,
+                _                         => (ClusterState)(-1),
             };
 
             var dedupKey = (intent.TransactionId, intent.Operation, stateDiscriminant);
@@ -250,7 +250,7 @@ namespace Fdp.Toolkit.Orchestration
             // CommitState: update local state and raise TkClusterStateChangedEvent.
             if (intent.Operation == NodeOpType.CommitState)
             {
-                int nextStateId = intent.DomainPayload is CommitStatePayload cp ? cp.TargetStateId : _localStateId;
+                int nextStateId = intent.DomainPayload is CommitStatePayload cp ? (int)cp.TargetState : _localStateId;
                 var previousStateId = _localStateId;
                 _localStateId = nextStateId;
                 _eventBus?.Publish(new TkClusterStateChangedEvent

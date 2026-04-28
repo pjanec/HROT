@@ -2,20 +2,17 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 {
     /// <summary>
     /// Payload for <see cref="ReferenceEditLoadHandler"/> commands.
-    /// <c>TargetState</c> must equal <c>ClusterState.LoadingEdit (10)</c> for the
+    /// <c>TargetState</c> must equal <c>ClusterState.LoadingEdit</c> for the
     /// handler to perform any I/O; other target states are no-ops.
     /// </summary>
-    public record struct EditLoadHandlerPayload(string? ScenarioId, bool IsNewScenario = false, ClusterState TargetState = 10, System.Guid ExerciseId = default);
+    public record struct EditLoadHandlerPayload(string? ScenarioId, bool IsNewScenario = false, ClusterState TargetState = ClusterState.LoadingEdit, System.Guid ExerciseId = default);
 
     /// <summary>
     /// Reference implementation of the edit-load Cluster handler.
-    /// Handles <c>PrepareState</c> intents targeting <c>ClusterState.LoadingEdit (state 10)</c>.
+    /// Handles <c>PrepareState</c> intents targeting <c>ClusterState.LoadingEdit</c>.
     /// </summary>
     public sealed class ReferenceEditLoadHandler : IClusterStateHandler
     {
-        /// <summary>Integer value of <c>ClusterState.LoadingEdit</c>.</summary>
-        private const int LoadingEditState = 10;
-
         private readonly Fdp.Toolkit.Scenario.ScenarioSerializer _serializer;
         private readonly IScenarioLoader _scenarioLoader;
         private readonly Fdp.Core.EntityRepository? _world;
@@ -50,7 +47,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             if (intent.DomainPayload is not EditLoadHandlerPayload payload)
                 return System.Threading.Tasks.Task.FromResult<object?>(null);
 
-            if (payload.TargetState != LoadingEditState)
+            if (payload.TargetState != ClusterState.LoadingEdit)
                 return System.Threading.Tasks.Task.FromResult<object?>(null);
 
             var isNew = payload.IsNewScenario;
