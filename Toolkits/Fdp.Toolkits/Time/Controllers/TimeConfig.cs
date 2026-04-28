@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using System;
 
 namespace Fdp.Toolkit.Time.Controllers
 {
@@ -35,7 +35,7 @@ namespace Fdp.Toolkit.Time.Controllers
         /// Estimated average network latency (ticks).
         /// Used to compensate for transmission delay.
         /// </summary>
-        public long AverageLatencyTicks { get; set; } = Stopwatch.Frequency * 2 / 1000; // 2ms default
+        public long AverageLatencyTicks { get; set; } = TimeSpan.TicksPerSecond * 2 / 1000; // 2ms default
         
         /// <summary>
         /// Fixed delta time for deterministic lockstep (seconds).
@@ -50,33 +50,33 @@ namespace Fdp.Toolkit.Time.Controllers
         public double LockstepTimeoutMs { get; set; } = 1000.0;  // 1 second
         
         /// <summary>
-        /// Wall-clock lookahead (Stopwatch ticks) for the Future Barrier protocol.
+        /// Wall-clock lookahead (100-ns UTC ticks) for the Future Barrier protocol.
         /// <para>
         /// <see cref="DistributedTimeCoordinator"/> adds this to the master's current
         /// <see cref="Fdp.Core.GlobalTime.TotalWallTicks"/> when computing
         /// <see cref="Fdp.Toolkit.Time.Messages.SwitchTimeModeEvent.BarrierWallTicks"/>.
         /// All PLL-synchronized slaves will reach that wall-tick value within
         /// approximately one ECS frame of the master, so the default
-        /// of ≈ 200 ms (expressed as Stopwatch ticks) is sufficient for DDS delivery
+        /// of ≈ 200 ms (expressed as 100-ns UTC ticks) is sufficient for DDS delivery
         /// across a LAN even under moderate load.
         /// </para>
         /// Set to a smaller value (e.g. 10–50 ms) in unit tests that use wall-clock sleeps.
         /// </summary>
-        public long LookaheadWallTicks { get; set; } = (long)(0.2 * Stopwatch.Frequency);
+        public long LookaheadWallTicks { get; set; } = (long)(0.2 * TimeSpan.TicksPerSecond);
 
         /// <summary>
         /// Maximum acceptable Round-Trip Time for a <see cref="Messages.TimeSyncResponse"/>.
         /// Responses whose RTT exceeds this value are discarded (spike rejection).
-        /// Default: 200 ms expressed as Stopwatch ticks.
+        /// Default: 200 ms expressed as 100-ns UTC ticks.
         /// </summary>
-        public long MaxRttTicks { get; set; } = (long)(0.2 * Stopwatch.Frequency);
+        public long MaxRttTicks { get; set; } = (long)(0.2 * TimeSpan.TicksPerSecond);
 
         /// <summary>
-        /// How often (in Stopwatch ticks) the slave re-sends a <see cref="Messages.TimeSyncRequest"/>
+        /// How often (in 100-ns UTC ticks) the slave re-sends a <see cref="Messages.TimeSyncRequest"/>
         /// to correct hardware clock skew across long simulation sessions.
         /// Default: 1 second.
         /// </summary>
-        public long SyncRefreshIntervalTicks { get; set; } = Stopwatch.Frequency;
+        public long SyncRefreshIntervalTicks { get; set; } = TimeSpan.TicksPerSecond;
 
         /// <summary>
         /// Weight applied to incremental sync offset updates (range 0.0–1.0).

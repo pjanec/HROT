@@ -76,7 +76,8 @@ namespace Fdp.Toolkit.Replay.Tests
 
             // Set time controller to exactly frame 0's wall ticks.
             long frame0Ticks = playback.GetFrameMetadata(0).WallClockTicks;
-            var stub = new StubTimeController(frame0Ticks);
+            long recordingStart = frame0Ticks;
+            var stub = new StubTimeController(frame0Ticks, recordingStart);
             var sys  = new PlaybackTickSystem(playback, stub);
 
             ISimulationView view = world;
@@ -101,7 +102,8 @@ namespace Fdp.Toolkit.Replay.Tests
 
             // Set targetTicks to frame 1's wall ticks (1-frame gap <= threshold of 3).
             long frame1Ticks = playback.GetFrameMetadata(1).WallClockTicks;
-            var stub = new StubTimeController(frame1Ticks);
+            long recordingStart = playback.GetFrameMetadata(0).WallClockTicks;
+            var stub = new StubTimeController(frame1Ticks, recordingStart);
             var sys  = new PlaybackTickSystem(playback, stub);
 
             ISimulationView view = world;
@@ -126,7 +128,8 @@ namespace Fdp.Toolkit.Replay.Tests
 
             // Set targetTicks to frame 4's wall ticks (4-frame gap > StrategyBThreshold of 3).
             long frame4Ticks = playback.GetFrameMetadata(4).WallClockTicks;
-            var stub = new StubTimeController(frame4Ticks);
+            long recordingStart = playback.GetFrameMetadata(0).WallClockTicks;
+            var stub = new StubTimeController(frame4Ticks, recordingStart);
             var sys  = new PlaybackTickSystem(playback, stub);
 
             ISimulationView view = world;
@@ -151,7 +154,8 @@ namespace Fdp.Toolkit.Replay.Tests
 
             // Set targetTicks to exactly frame 0's wall ticks.
             long frame0Ticks = playback.GetFrameMetadata(0).WallClockTicks;
-            var stub = new StubTimeController(frame0Ticks);
+            long recordingStart = frame0Ticks;
+            var stub = new StubTimeController(frame0Ticks, recordingStart);
             var sys  = new PlaybackTickSystem(playback, stub);
 
             ISimulationView view = world;
@@ -221,19 +225,20 @@ namespace Fdp.Toolkit.Replay.Tests
         /// <summary>
         /// Minimal <see cref="ITimeController"/> stub for unit tests.
         /// Returns a fixed <see cref="GlobalTime"/> with <see cref="GlobalTime.TotalTime"/>
-        /// derived from <paramref name="totalWallTicks"/> via <c>Stopwatch.Frequency</c>.
+        /// computed as <c>(totalWallTicks - recordingStartTicks) / TimeSpan.TicksPerSecond</c>.
         /// <see cref="PlaybackTickSystem"/> computes
-        /// <c>targetTicks = (long)(TotalTime * Stopwatch.Frequency)</c>, so passing
-        /// the frame's <c>WallClockTicks</c> here maps directly to that frame.
+        /// <c>targetTicks = recordingStart + (long)(TotalTime * TimeSpan.TicksPerSecond)</c>,
+        /// so passing the frame's <c>WallClockTicks</c> and the recording start maps directly
+        /// to that frame.
         /// </summary>
         private sealed class StubTimeController : ITimeController
         {
             private GlobalTime _state;
 
-            public StubTimeController(long totalWallTicks)
+            public StubTimeController(long totalWallTicks, long recordingStartTicks = 0)
                 => _state = new GlobalTime
                 {
-                    TotalTime      = totalWallTicks / (double)System.Diagnostics.Stopwatch.Frequency,
+                    TotalTime      = (totalWallTicks - recordingStartTicks) / (double)TimeSpan.TicksPerSecond,
                     TotalWallTicks = totalWallTicks,
                 };
 

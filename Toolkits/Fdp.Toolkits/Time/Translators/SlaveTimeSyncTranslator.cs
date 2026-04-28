@@ -3,6 +3,7 @@ using System.Diagnostics;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
+using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Abstractions;
 
@@ -50,7 +51,7 @@ namespace Fdp.Toolkit.Time.Translators
         /// <param name="eventBus">Event bus shared with <see cref="Controllers.SlaveSyncController"/>.</param>
         /// <param name="localNodeId">This slave's node ID — used to filter incoming responses.</param>
         /// <param name="tickSource">
-        /// Optional tick source override (<c>Stopwatch.GetTimestamp</c> by default).
+        /// Optional tick source override (<c>HighResUtcClock.GetTicks</c> by default).
         /// Inject a controlled counter in unit tests.
         /// </param>
         public SlaveTimeSyncTranslator(
@@ -61,7 +62,7 @@ namespace Fdp.Toolkit.Time.Translators
         {
             _eventBus    = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
             _localNodeId = localNodeId;
-            _getTick     = tickSource ?? Stopwatch.GetTimestamp;
+            _getTick     = tickSource ?? HighResUtcClock.GetTicks;
 
             if (participant is not null)
             {

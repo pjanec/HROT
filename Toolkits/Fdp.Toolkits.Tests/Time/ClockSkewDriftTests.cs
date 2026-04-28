@@ -60,7 +60,7 @@ namespace Fdp.Toolkit.Time.Tests
             // Initial NTP handshake (offset = 0 since both start at 0)
             NtpHandshake(slaveBus, slave, masterTick: masterTicks, slaveTick: slaveTicks);
 
-            long twoMsTicks = (long)(0.002 * Stopwatch.Frequency);
+            long twoMsTicks = (long)(0.002 * TimeSpan.TicksPerSecond);
 
             for (int frame = 0; frame < FrameCount; frame++)
             {

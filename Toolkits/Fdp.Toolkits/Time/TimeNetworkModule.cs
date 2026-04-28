@@ -106,7 +106,7 @@ namespace Fdp.Toolkit.Time
         /// all DDS operations become safe no-ops.
         /// </param>
         /// <param name="tickSource">
-        /// Optional tick source override (<c>Stopwatch.GetTimestamp</c> by default).
+        /// Optional tick source override (<c>HighResUtcClock.GetTicks</c> by default).
         /// Inject a controlled counter in unit tests.
         /// </param>
         public static IDescriptorTranslator CreateMasterTimeSyncTranslator(
@@ -137,7 +137,7 @@ namespace Fdp.Toolkit.Time
         /// samples to those addressed to this specific slave.
         /// </param>
         /// <param name="tickSource">
-        /// Optional tick source override (<c>Stopwatch.GetTimestamp</c> by default).
+        /// Optional tick source override (<c>HighResUtcClock.GetTicks</c> by default).
         /// Inject a controlled counter in unit tests.
         /// </param>
         public static IDescriptorTranslator CreateSlaveTimeSyncTranslator(

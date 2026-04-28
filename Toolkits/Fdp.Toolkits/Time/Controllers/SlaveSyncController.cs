@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Fdp.Core;
+using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Domain;
 using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
@@ -75,7 +76,7 @@ namespace Fdp.Toolkit.Time.Controllers
         /// <param name="localNodeId">This node's ID, embedded in <see cref="FrameStepCompletedEvent"/>.</param>
         /// <param name="config">Time configuration; defaults to <see cref="TimeConfig.Default"/> when null.</param>
         /// <param name="tickSource">
-        /// Optional override for <c>Stopwatch.GetTimestamp()</c>. Inject a controlled counter
+        /// Optional override for <c>HighResUtcClock.GetTicks</c>. Inject a controlled counter
         /// in unit tests to avoid <c>Thread.Sleep</c>.
         /// </param>
         public SlaveSyncController(
@@ -87,7 +88,7 @@ namespace Fdp.Toolkit.Time.Controllers
             _eventBus    = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
             _localNodeId = localNodeId;
             _config      = config ?? TimeConfig.Default;
-            _getTick     = tickSource ?? Stopwatch.GetTimestamp;
+            _getTick     = tickSource ?? HighResUtcClock.GetTicks;
 
             long now              = _getTick();
             _baselineWallTicks    = now;   // SimTime formula baseline at startup: t=0
@@ -235,18 +236,18 @@ namespace Fdp.Toolkit.Time.Controllers
             var offsets = _eventBus.Read<TimeSyncOffsetCalculatedEvent>();
             foreach (var offset in offsets)
             {
-                double rttMs = offset.Rtt * 1000.0 / Stopwatch.Frequency;
+                double rttMs = offset.Rtt * 1000.0 / TimeSpan.TicksPerSecond;
 
                 if (offset.Rtt > _config.MaxRttTicks)
                 {
                     Fdp.Core.Logging.FdpLog<SlaveSyncController>.Debug(
                         "[TC3][Slave#{0}] Discarded sync result: RTT={1:F3}ms exceeds max={2:F3}ms",
-                        _localNodeId, rttMs, _config.MaxRttTicks * 1000.0 / Stopwatch.Frequency);
+                        _localNodeId, rttMs, _config.MaxRttTicks * 1000.0 / TimeSpan.TicksPerSecond);
                     continue;
                 }
 
                 bool hardSnap = _masterWallClockOffset == 0
-                             || Math.Abs(offset.NewOffset - _masterWallClockOffset) > Stopwatch.Frequency;
+                             || Math.Abs(offset.NewOffset - _masterWallClockOffset) > TimeSpan.TicksPerSecond;
 
                 if (hardSnap)
                     _masterWallClockOffset = offset.NewOffset;
@@ -278,7 +279,7 @@ namespace Fdp.Toolkit.Time.Controllers
         {
             // Snap sim time to master's authoritative snapshot.
             // Bug 7 fix: gate on BarrierWallTicks > 0 to detect a proper master-originated event.
-            // Real Stopwatch ticks are always > 0, so production events always enter the first branch.
+            // Real UTC ticks are always > 0, so production events always enter the first branch.
             // Legacy / test events that carry BarrierWallTicks = 0 fall through to the old sentinel
             // logic, keeping backward-compat with unit tests that use SimTimeSnapshot = 0 to mean
             // "no authoritative snapshot" (old default).
@@ -424,7 +425,7 @@ namespace Fdp.Toolkit.Time.Controllers
 
             long   syncedNow    = SyncedWallTicks;
             long   elapsed      = syncedNow - _baselineWallTicks;
-            double elapsedSec   = elapsed / (double)Stopwatch.Frequency;
+            double elapsedSec   = elapsed / (double)TimeSpan.TicksPerSecond;
 
             double prevTotal    = _totalTime;
             _totalTime          = _baselineSimTime + elapsedSec * _timeScale;

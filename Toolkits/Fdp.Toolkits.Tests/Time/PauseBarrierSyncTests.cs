@@ -184,7 +184,7 @@ namespace Fdp.Toolkit.Time.Tests
             NtpHandshake(slave2Bus, slave2, masterTick: masterTicks, slaveTick: slave2Ticks, nodeId: 2);
 
             // Run 5 continuous frames to accumulate some TotalTime
-            long frameTicks = (long)(1.0 / 60 * Stopwatch.Frequency);
+            long frameTicks = (long)(1.0 / 60 * TimeSpan.TicksPerSecond);
             for (int i = 0; i < 5; i++)
             {
                 masterTicks += frameTicks; slave1Ticks += frameTicks; slave2Ticks += frameTicks;

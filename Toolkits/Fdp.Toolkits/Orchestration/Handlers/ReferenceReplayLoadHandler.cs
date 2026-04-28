@@ -178,7 +178,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 // We must convert the actual landed absolute wall ticks back into a relative
                 // 0-based duration (in seconds) so the Orchestrator's UI slider stays in bounds.
                 long actualAbsoluteTicks = restoredTime.TotalWallTicks;
-                double relativeLandedSeconds = (actualAbsoluteTicks - _controller.ActiveRecordingStartWallTicks) / (double)System.Diagnostics.Stopwatch.Frequency;
+                double relativeLandedSeconds = (actualAbsoluteTicks - _controller.ActiveRecordingStartWallTicks) / (double)TimeSpan.TicksPerSecond;
 
                 // Overwrite the time going back to the Orchestrator
                 restoredTime.TotalTime = Math.Max(0.0, relativeLandedSeconds);

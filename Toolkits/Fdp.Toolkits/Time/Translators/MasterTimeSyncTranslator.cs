@@ -3,6 +3,7 @@ using System.Diagnostics;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
+using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Abstractions;
 
@@ -42,12 +43,12 @@ namespace Fdp.Toolkit.Time.Translators
         /// <summary>Creates the translator.</summary>
         /// <param name="participant">DDS domain participant. Pass <see langword="null"/> for unit tests.</param>
         /// <param name="tickSource">
-        /// Optional tick source override (<c>Stopwatch.GetTimestamp</c> by default).
+        /// Optional tick source override (<c>HighResUtcClock.GetTicks</c> by default).
         /// Inject a controlled counter in unit tests.
         /// </param>
         public MasterTimeSyncTranslator(DdsParticipant? participant, Func<long>? tickSource = null)
         {
-            _getTick = tickSource ?? Stopwatch.GetTimestamp;
+            _getTick = tickSource ?? HighResUtcClock.GetTicks;
 
             if (participant is not null)
             {

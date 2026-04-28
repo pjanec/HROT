@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Time.Tests
         // ── Helpers ──────────────────────────────────────────────────────────
 
         private static long TicksFromSeconds(double seconds)
-            => (long)(seconds * Stopwatch.Frequency);
+            => (long)(seconds * TimeSpan.TicksPerSecond);
 
         /// <summary>
         /// Injects a zero-offset TimeSyncOffsetCalculatedEvent so _isTimeSynced = true on the next Update().
@@ -144,7 +144,7 @@ namespace Fdp.Toolkit.Time.Tests
         /// <summary>
         /// TCU-SC001 §2 — After NTP sync establishes a non-zero master offset,
         /// SimTime must equal (<see cref="SlaveSyncController.SyncedWallTicks"/> - initialWallTicks)
-        /// / Stopwatch.Frequency * timeScale — without receiving any TimePulse.
+        /// / TimeSpan.TicksPerSecond * timeScale — without receiving any TimePulse.
         /// FAILS with the old PLL design because that only corrects via TimePulse.
         /// </summary>
         [Fact]
@@ -158,7 +158,7 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Establish a non-zero NTP offset: master is 1 full second of ticks ahead.
             // Inject the pre-computed offset (what the translator would produce for zero-RTT).
-            long masterOffset = Stopwatch.Frequency; // 1 s worth of ticks
+            long masterOffset = TimeSpan.TicksPerSecond; // 1 s worth of ticks
             bus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = masterOffset });
             bus.SwapBuffers();
             ctrl.Update(); // applies offset: _masterWallClockOffset = masterOffset
@@ -166,13 +166,13 @@ namespace Fdp.Toolkit.Time.Tests
             bus.Read<TimeSyncRequest>();
 
             // Advance 1 second of local ticks.
-            ticks += Stopwatch.Frequency;
+            ticks += TimeSpan.TicksPerSecond;
             ctrl.Update();
 
             // New design: _totalTime = 0 + (SyncedWallTicks - 0) / Freq = (ticks + masterOffset) / Freq
             //           = (Freq + Freq) / Freq = 2.0s
             // Old PLL:   _totalTime ≈ 1.0s (just accumulated raw local delta, no correction)
-            double expected = (ticks + masterOffset) / (double)Stopwatch.Frequency;
+            double expected = (ticks + masterOffset) / (double)TimeSpan.TicksPerSecond;
             Assert.Equal(expected, ctrl.GetCurrentState().TotalTime, 3);
         }
 
@@ -686,7 +686,7 @@ namespace Fdp.Toolkit.Time.Tests
             bus.Read<TimeSyncRequest>();
 
             // Advance ticks past SyncRefreshIntervalTicks
-            ticks = Stopwatch.Frequency + 1; // > 1 second
+            ticks = TimeSpan.TicksPerSecond + 1; // > 1 second
 
             ctrl.Update();
             bus.SwapBuffers();
@@ -991,7 +991,7 @@ namespace Fdp.Toolkit.Time.Tests
             // Expected SimTime (new design):
             //   = (slaveTick + masterOffset) / Freq = (0.6 + 0.3) = 0.9 s
             // Old design gives only ≈ 0.6 s (no correction without TimePulse).
-            double expected = (slaveTick + masterOffset) / (double)Stopwatch.Frequency;
+            double expected = (slaveTick + masterOffset) / (double)TimeSpan.TicksPerSecond;
             Assert.Equal(expected, ctrl.GetCurrentState().TotalTime, 3);
         }
 
@@ -1040,8 +1040,8 @@ namespace Fdp.Toolkit.Time.Tests
             bus.SwapBuffers();
             ctrl.Update(); // ApplyResume
 
-            double fixedExpected  = 10.0 + 3.0 * frameTicks / Stopwatch.Frequency; // = 10.048
-            double buggedExpected = 10.0 + 1.0 * frameTicks / Stopwatch.Frequency; // = 10.016
+            double fixedExpected  = 10.0 + 3.0 * frameTicks / TimeSpan.TicksPerSecond; // = 10.048
+            double buggedExpected = 10.0 + 1.0 * frameTicks / TimeSpan.TicksPerSecond; // = 10.016
 
             double actual = ctrl.GetCurrentState().TotalTime;
             Assert.True(Math.Abs(actual - fixedExpected) < 0.001,

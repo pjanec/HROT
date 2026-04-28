@@ -19,7 +19,7 @@ namespace Fdp.Toolkit.Time.Tests
         // ── Helpers ──────────────────────────────────────────────────────────
 
         private static long TicksFromSeconds(double seconds)
-            => (long)(seconds * Stopwatch.Frequency);
+            => (long)(seconds * TimeSpan.TicksPerSecond);
 
         /// <summary>Creates a controller under test with a controllable tick source.</summary>
         private static MasterSyncController CreateController(
@@ -757,7 +757,7 @@ namespace Fdp.Toolkit.Time.Tests
             ctrl.Update();
             Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
 
-            // 10 fast steps — synthetic _totalWallTicks increases by 10 * Stopwatch.Frequency
+            // 10 fast steps — synthetic _totalWallTicks increases by 10 * TimeSpan.TicksPerSecond
             for (int i = 0; i < 10; i++)
                 ctrl.Step(1.0f);
             bus.SwapBuffers();

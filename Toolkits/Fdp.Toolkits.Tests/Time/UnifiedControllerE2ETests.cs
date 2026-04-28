@@ -77,7 +77,7 @@ namespace Fdp.Toolkit.Time.Tests
             // Shared monotonic tick counter advanced by the test harness.
             // All three controllers share the same source so continuous-mode drift is zero.
             long sharedTicks = 0L;
-            long ticksPerFrame = Stopwatch.Frequency / 60; // ~16.7 ms per frame
+            long ticksPerFrame = TimeSpan.TicksPerSecond / 60; // ~16.7 ms per frame
 
             var masterBus = new FdpEventBus();
             var slave1Bus = new FdpEventBus();

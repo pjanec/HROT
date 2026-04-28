@@ -24,10 +24,12 @@ namespace Fdp.Toolkit.Replay
     /// </para>
     /// <para>
     /// The indexing cursor is derived from the time controller's
-    /// <c>TotalTime</c> (seconds), converted to wall-clock ticks via
-    /// <c>Stopwatch.Frequency</c>.  This makes replay natively speed-controllable
-    /// and pauseable: fast-forward, slow-motion, and pausing are driven purely by
-    /// the time controller's <c>TimeScale</c> — no manual frame-injection is needed.
+    /// <c>TotalTime</c> (seconds, relative to recording start), anchored to the
+    /// absolute wall-clock tick of the first recorded frame and converted via
+    /// <c>TimeSpan.TicksPerSecond</c> (100-ns UTC ticks).  This makes replay
+    /// natively speed-controllable and pauseable: fast-forward, slow-motion, and
+    /// pausing are driven purely by the time controller's <c>TimeScale</c> — no
+    /// manual frame-injection is needed.
     /// During a seek the time controller must be seeded with the target time
     /// (see <see cref="ReplayModule.SeekToWallClockTicksAsync"/>).
     /// </para>
@@ -47,9 +49,10 @@ namespace Fdp.Toolkit.Replay
 
         /// <param name="playback">The <see cref="PlaybackController"/> to drive.</param>
         /// <param name="timeController">
-        /// Active time controller whose <c>TotalTime</c> (seconds) drives the pull-model
-        /// cursor.  The value is converted to wall-clock ticks via
-        /// <c>Stopwatch.Frequency</c> before comparison against the recording index.
+        /// Active time controller whose <c>TotalTime</c> (seconds, relative to recording
+        /// start) drives the pull-model cursor.  The value is anchored to the first frame's
+        /// absolute wall-clock tick and converted via <c>TimeSpan.TicksPerSecond</c>
+        /// (100-ns UTC ticks) before comparison against the recording index.
         /// </param>
         public PlaybackTickSystem(PlaybackController playback, ITimeController timeController, Action? afterSeek = null)
         {
@@ -63,7 +66,13 @@ namespace Fdp.Toolkit.Replay
         {
             if (_playback.IsAtEnd) return;
 
-            long targetTicks  = (long)(_timeController.GetCurrentState().TotalTime * Stopwatch.Frequency);
+            // Anchor the relative TotalTime to the absolute wall-clock tick of frame 0.
+            // This produces an absolute target tick in the same 100-ns UTC domain as the
+            // WallClockTicks stored in each frame's metadata.
+            long recordingStart = _playback.TotalFrames > 0
+                ? _playback.GetFrameMetadata(0).WallClockTicks
+                : 0L;
+            long targetTicks  = recordingStart + (long)(_timeController.GetCurrentState().TotalTime * TimeSpan.TicksPerSecond);
             long currentTicks = _playback.IsAtStart
                 ? long.MinValue
                 : _playback.GetFrameMetadata(_playback.CurrentFrame).WallClockTicks;

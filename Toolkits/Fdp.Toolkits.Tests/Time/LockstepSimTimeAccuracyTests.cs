@@ -204,7 +204,7 @@ namespace Fdp.Toolkit.Time.Tests
         {
             long masterTicks = 0L;
             long slaveTicks  = 500_000_000L;
-            long frameTicks  = (long)(1.0 / 60 * Stopwatch.Frequency);
+            long frameTicks  = (long)(1.0 / 60 * TimeSpan.TicksPerSecond);
 
             var cfg       = new TimeConfig { LookaheadWallTicks = 0 };
             var masterBus = new FdpEventBus();

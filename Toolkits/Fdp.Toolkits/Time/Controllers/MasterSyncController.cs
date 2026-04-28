@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Fdp.Core;
+using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Domain;
 using Fdp.Toolkit.Time.Messages;
 using Fdp.ModuleHost.Time;
@@ -39,7 +40,7 @@ namespace Fdp.Toolkit.Time.Controllers
         private readonly TimeConfig  _config;
 
 
-        // ── Tick source (test seam; defaults to Stopwatch.GetTimestamp) ──────
+        // ── Tick source (test seam; defaults to HighResUtcClock.GetTicks) ──────
         private long _lastTickSample;
         private readonly Func<long> _getTick;
 
@@ -50,7 +51,7 @@ namespace Fdp.Toolkit.Time.Controllers
         /// <param name="slaveNodeIds">Node IDs of all slaves participating in lockstep. May be empty.</param>
         /// <param name="config">Time configuration; defaults to <see cref="TimeConfig.Default"/> when null.</param>
         /// <param name="tickSource">
-        /// Optional override for <c>Stopwatch.GetTimestamp()</c>. Inject a controlled counter
+        /// Optional override for <c>HighResUtcClock.GetTicks</c>. Inject a controlled counter
         /// in unit tests to avoid <c>Thread.Sleep</c>.
         /// </param>
         public MasterSyncController(
@@ -65,7 +66,7 @@ namespace Fdp.Toolkit.Time.Controllers
                 ? new HashSet<int>(slaveNodeIds)   // defensive copy
                 : new HashSet<int>();
             _pendingAcks    = new HashSet<int>();  // starts empty; populated after each Step()
-            _getTick        = tickSource ?? Stopwatch.GetTimestamp;
+            _getTick        = tickSource ?? HighResUtcClock.GetTicks;
 
             // Pre-register event types for the types this controller publishes
             _eventBus.Register<SwitchTimeModeEvent>();
@@ -76,8 +77,8 @@ namespace Fdp.Toolkit.Time.Controllers
             _lastTickSample = now;
             _totalWallTicks = now;
             Fdp.Core.Logging.FdpLog<MasterSyncController>.Debug(
-                "[TC3][Master] Initialized. _totalWallTicks={0}, Stopwatch.Frequency={1}",
-                _totalWallTicks, Stopwatch.Frequency);
+                "[TC3][Master] Initialized. _totalWallTicks={0}, TimeSpan.TicksPerSecond={1}",
+                _totalWallTicks, TimeSpan.TicksPerSecond);
 
             // Bug 3 fix: broadcast the initial t=0 baseline so the DDS TransientLocal buffer
             // holds a valid reference for late-joining slaves.  Without this, IG and ExCon
@@ -123,7 +124,7 @@ namespace Fdp.Toolkit.Time.Controllers
             long elapsedTicks  = currentTicks - _lastTickSample;
             _lastTickSample    = currentTicks;
 
-            double elapsedSeconds = (double)elapsedTicks / Stopwatch.Frequency;
+            double elapsedSeconds = (double)elapsedTicks / TimeSpan.TicksPerSecond;
             float  scaledDelta    = (float)(elapsedSeconds * _timeScale);
 
             return _mode switch
@@ -194,7 +195,7 @@ namespace Fdp.Toolkit.Time.Controllers
             float scaledDelta       = fixedDelta * _timeScale;
             _totalTime             += scaledDelta;
             _unscaledTotalTime     += fixedDelta;
-            _totalWallTicks        += (long)(fixedDelta * Stopwatch.Frequency);
+            _totalWallTicks        += (long)(fixedDelta * TimeSpan.TicksPerSecond);
 
             _eventBus.PublishManaged(new AdvanceFrameIntent
             {

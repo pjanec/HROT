@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.Replay
         /// <param name="timeController">
         /// Active time controller from the kernel.  <see cref="PlaybackTickSystem"/> reads
         /// <c>TotalTime</c> from this on every tick and converts it to wall-clock ticks via
-        /// <c>Stopwatch.Frequency</c> to drive the pull-model cursor.
+        /// <c>TimeSpan.TicksPerSecond</c> to drive the pull-model cursor.
         /// The time controller is seeded by the cluster master (via <c>SnapAndPause</c>)
         /// after each seek, re-anchoring the indexing cursor to the new position.
         /// </param>

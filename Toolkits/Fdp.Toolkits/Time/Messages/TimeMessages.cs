@@ -102,7 +102,7 @@ namespace Fdp.Toolkit.Time.Messages
         /// Absolute <see cref="Fdp.Core.GlobalTime.TotalWallTicks"/> at which every node
         /// must perform the mode swap. Derived from the master's virtual wall clock at the
         /// moment of publishing, plus a configurable lookahead
-        /// (≈ 200 ms by default, expressed as Stopwatch ticks).
+        /// (≈ 200 ms by default, expressed as 100-ns UTC ticks).
         /// </summary>
         [Key(1)]
         public long BarrierWallTicks;
@@ -202,9 +202,9 @@ namespace Fdp.Toolkit.Time.Messages
     [EventId(110)]
     public struct TimeSyncOffsetCalculatedEvent
     {
-        /// <summary>Round-trip time in Stopwatch ticks. Controller checks against MaxRttTicks.</summary>
+        /// <summary>Round-trip time in 100-ns UTC ticks. Controller checks against MaxRttTicks.</summary>
         public long Rtt;
-        /// <summary>NTP-computed master-minus-slave clock offset in Stopwatch ticks.</summary>
+        /// <summary>NTP-computed master-minus-slave clock offset in 100-ns UTC ticks.</summary>
         public long NewOffset;
     }
 
@@ -221,7 +221,7 @@ namespace Fdp.Toolkit.Time.Messages
         [Key(0)] [DdsId(0), DdsKey]
         public int ClientNodeId;
 
-        /// <summary>Raw OS tick (<c>Stopwatch.GetTimestamp()</c>) recorded just before publish.</summary>
+        /// <summary>Raw UTC tick (<c>HighResUtcClock.GetTicks</c>) recorded just before publish.</summary>
         [Key(1)] [DdsId(1)]
         public long ClientSendTicks;
     }
