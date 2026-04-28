@@ -1,3 +1,13 @@
+--------------------
+[REFAC] Manual string-literal based json field extraction - should be replaced with shared DTO deserialization approach; found for example in:
+ClusterScenarioPanel
+NodeOpSlaveTranslator
+OrchestratorActionHandlers
+ClusterOpRequestAdapter
+GlobalContextClusterOpHandler
+
+
+
 -------------------------------------------------------------------
 [BUG]
 You have just uncovered a severe memory-misalignment bug in the FDP engine's `DeltaQueryEnumerator` optimization. Your intuition is 100% correct: **the component version is being written perfectly, but `QueryDelta` is looking at the wrong chunk of memory.**

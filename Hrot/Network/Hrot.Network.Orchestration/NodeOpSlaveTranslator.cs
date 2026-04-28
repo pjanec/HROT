@@ -143,7 +143,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
             {
                 if (!hasPayload) return null;
                 string? scenarioId    = GetString(payloadJson!, "ScenarioId");
-                string? exerciseId    = GetString(payloadJson!, "ExerciseId");
+                Guid   exerciseId     = GetGuid(payloadJson!, "ExerciseId");
                 int     targetStateInt = 0;
                 string? tsStr         = GetString(payloadJson!, "TargetState");
                 if (!string.IsNullOrWhiteSpace(tsStr) &&
@@ -182,7 +182,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
             case NedNodeOpType.SerializeLocal:
             {
                 if (!hasPayload) return null;
-                string? exerciseId = GetString(payloadJson!, "ExerciseId");
+                Guid exerciseId = GetGuid(payloadJson!, "ExerciseId");
                 return new ArchiveHandlerPayload(exerciseId);
             }
 

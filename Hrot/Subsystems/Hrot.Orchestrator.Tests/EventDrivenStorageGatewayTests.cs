@@ -17,7 +17,7 @@ public sealed class EventDrivenStorageGatewayTests
 
     private sealed class StubStorageBackend : IArchiveStorageBackend
     {
-        public string?            LastExportedExerciseId;
+        public Guid?              LastExportedExerciseId;
         public bool               SaveScenarioCalled;
         public CancellationToken? LastCancellationToken;
 
@@ -30,7 +30,7 @@ public sealed class EventDrivenStorageGatewayTests
         /// <summary>Releases the blocked operation.</summary>
         public void Unblock() => _blocker?.TrySetResult(true);
 
-        public async Task ExportArchiveAsync(string? exerciseId, CancellationToken ct)
+        public async Task ExportArchiveAsync(Guid exerciseId, CancellationToken ct)
         {
             LastExportedExerciseId = exerciseId;
             LastCancellationToken  = ct;
@@ -42,7 +42,7 @@ public sealed class EventDrivenStorageGatewayTests
             ct.ThrowIfCancellationRequested();
         }
 
-        public Task ImportArchiveAsync(string? exerciseId, CancellationToken ct)
+        public Task ImportArchiveAsync(Guid exerciseId, CancellationToken ct)
         {
             LastCancellationToken = ct;
             return Task.CompletedTask;
@@ -69,7 +69,7 @@ public sealed class EventDrivenStorageGatewayTests
         {
             RequestId  = Guid.NewGuid(),
             Operation  = StorageOpType.Export,
-            ExerciseId = "X",
+            ExerciseId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
         });
         bus.SwapBuffers();
 
@@ -80,7 +80,7 @@ public sealed class EventDrivenStorageGatewayTests
         while (backend.LastExportedExerciseId == null && DateTime.UtcNow < deadline)
             Thread.Sleep(20);
 
-        Assert.Equal("X", backend.LastExportedExerciseId);
+        Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), backend.LastExportedExerciseId);
     }
 
     // ── Test 2: When export completes → StorageOpCompletedEvent on bus ───────
@@ -97,7 +97,7 @@ public sealed class EventDrivenStorageGatewayTests
         {
             RequestId  = reqId,
             Operation  = StorageOpType.Export,
-            ExerciseId = "Y",
+            ExerciseId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
         });
         bus.SwapBuffers();
 
@@ -143,7 +143,7 @@ public sealed class EventDrivenStorageGatewayTests
         {
             RequestId  = reqId,
             Operation  = StorageOpType.Export,
-            ExerciseId = "Z",
+            ExerciseId = Guid.Parse("33333333-3333-3333-3333-333333333333"),
         });
         bus.SwapBuffers();
 

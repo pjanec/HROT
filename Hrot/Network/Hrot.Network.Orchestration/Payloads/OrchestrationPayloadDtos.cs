@@ -44,7 +44,7 @@ public record TransitionPayloadDto(
     string?        ScenarioId,
 
     [property: JsonPropertyName("ExerciseId")]
-    string?        ExerciseId,
+    Guid          ExerciseId,
 
     [property: JsonPropertyName("TimeMode")]
     string?        TimeMode
@@ -65,7 +65,7 @@ public record ManageEpisodePayloadDto(
 /// <summary>Payload DTO for <c>ClusterOpType.ExportArchive</c> / <c>ImportArchive</c> DDS requests.</summary>
 public record ArchivePayloadDto(
     [property: JsonPropertyName("ExerciseId")]
-    string?        ExerciseId
+    Guid          ExerciseId
 );
 
 /// <summary>Payload DTO for <c>ClusterOpType.ReplaySeek</c> DDS requests.</summary>
@@ -88,7 +88,7 @@ public record NodeTransitionPayloadDto(
     string?        ScenarioId,
 
     [property: JsonPropertyName("ExerciseId")]
-    string?        ExerciseId
+    Guid          ExerciseId
 );
 
 /// <summary>Node-level episode payload DTO for <c>StartEpisode</c> / <c>StopEpisode</c>.</summary>

@@ -201,16 +201,8 @@ namespace Hrot.CGF.Orchestration.Handlers
             domainPayload switch
             {
                 Guid g => g,
-                EditLoadHandlerPayload p when p.ExerciseId != null =>
-                    Guid.TryParse(p.ExerciseId, out var parsed) ? parsed : GuidFromString(p.ExerciseId),
+                EditLoadHandlerPayload p => p.ExerciseId,
                 _ => Guid.Empty,
             };
-
-        private static Guid GuidFromString(string s)
-        {
-            var hashBytes = System.Security.Cryptography.MD5.HashData(
-                System.Text.Encoding.UTF8.GetBytes(s));
-            return new Guid(hashBytes);
-        }
     }
 }

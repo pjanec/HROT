@@ -203,6 +203,7 @@ public sealed class ClusterMaster : IDisposable
     /// or aggregated <c>NodeOpStatus</c> confirmation) in a later stage.</para>
     /// </summary>
     private ClusterState _currentDsmState = ClusterState.Idle;
+    private Guid _activeExerciseId;
 
     // ── Transition planner (CGF1-S0201) ─────────────────────────────────────
     private readonly ClusterMasterPlanner _planner = new ClusterMasterPlanner(HrotStateGraph.Build());
@@ -253,6 +254,7 @@ public sealed class ClusterMaster : IDisposable
     /// Exposed for UI panels (CGF1-S0106) and time-mode consumers.
     /// </summary>
     public ClusterState CurrentClusterState => _currentDsmState;
+    public Guid ActiveExerciseId => _activeExerciseId;
 
     /// <summary>
     /// <c>true</c> when a distributed transaction is currently in flight.
@@ -729,6 +731,16 @@ public sealed class ClusterMaster : IDisposable
         {
             if (step is TransitionStep ts) resolvedTarget = ts.TargetState;
         }
+
+        if (intent.ExerciseId != Guid.Empty)
+        {
+            _activeExerciseId = intent.ExerciseId;
+        }
+        else if (resolvedTarget == ClusterState.Idle)
+        {
+            _activeExerciseId = Guid.Empty;
+        }
+
         var capturedSourceState = _currentDsmState;
         _currentDsmState = resolvedTarget;
 
@@ -758,8 +770,8 @@ public sealed class ClusterMaster : IDisposable
             isLiveFromReplayBranch = true;
             _replayMasterModule?.FreezeTime();
 
-            var branchedExerciseId = Guid.TryParse(intent.ExerciseId, out var parsedBranchId)
-                ? parsedBranchId
+            var branchedExerciseId = intent.ExerciseId != Guid.Empty
+                ? intent.ExerciseId
                 : Guid.NewGuid();
             var branchTxId    = Guid.NewGuid();
             var branchNodeIds = new List<int>(_roster.ActiveNodes.Keys);
@@ -950,7 +962,7 @@ public sealed class ClusterMaster : IDisposable
 
                 if (_globalContextHandler != null)
                 {
-                    var localExercisePayload = intent.ExerciseId != null ? JsonSerializer.Serialize(new { ExerciseId = intent.ExerciseId }) : string.Empty;
+                    var localExercisePayload = intent.ExerciseId != Guid.Empty ? JsonSerializer.Serialize(new { ExerciseId = intent.ExerciseId }) : string.Empty;
                     var localCmd = ClusterNodeOpBuilder.LocalContextCmd(NodeOpType.SerializeLocal, txId, localExercisePayload);
                     _ = _globalContextHandler.PrepareAsync(localCmd, System.Threading.CancellationToken.None)
                         .ContinueWith(t =>
@@ -966,7 +978,7 @@ public sealed class ClusterMaster : IDisposable
 
             case StorageOpType.Export:
             {
-                if (string.IsNullOrWhiteSpace(intent.ExerciseId))
+                if (intent.ExerciseId == Guid.Empty)
                 {
                     FdpLog<ClusterMaster>.Warn("[Orchestrator] ExportArchive missing ExerciseId — rejected (requestId={0}).", intent.RequestId);
                     PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
@@ -998,7 +1010,7 @@ public sealed class ClusterMaster : IDisposable
 
             case StorageOpType.Import:
             {
-                if (string.IsNullOrWhiteSpace(intent.ExerciseId))
+                if (intent.ExerciseId == Guid.Empty)
                 {
                     FdpLog<ClusterMaster>.Warn("[Orchestrator] ImportArchive missing ExerciseId — rejected (requestId={0}).", intent.RequestId);
                     PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
@@ -1013,7 +1025,7 @@ public sealed class ClusterMaster : IDisposable
 
                 if (_gateway != null)
                 {
-                    _ = _gateway.PrefetchArchiveAsync(intent.ExerciseId, importTargets, _nasBasePath, importCts.Token)
+                    _ = _gateway.PrefetchArchiveAsync(intent.ExerciseId.ToString(), importTargets, _nasBasePath, importCts.Token)
                         .ContinueWith(t =>
                         {
                             _activeCancellations.Remove(importRequestId);
@@ -1140,10 +1152,12 @@ public sealed class ClusterMaster : IDisposable
         {
             NewStateId    = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
             SubsystemName = "Cluster",
+            ExerciseId    = _activeExerciseId,
         });
         _eventBus.PublishManaged(new ClusterStateUpdateEvent
         {
             CurrentState = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
+            ExerciseId   = _activeExerciseId,
         });
     }
 
@@ -1548,15 +1562,16 @@ public sealed class ClusterMaster : IDisposable
     /// Builds <see cref="NodeDistributionTarget"/> list for archive import: each
     /// node's destination is the per-node <c>.fdp</c> file path under its local temp root.
     /// </summary>
-    private List<NodeDistributionTarget> BuildNodeDistributionTargetsForExercise(string exerciseId)
+    private List<NodeDistributionTarget> BuildNodeDistributionTargetsForExercise(Guid exerciseId)
     {
+        var exerciseIdText = exerciseId.ToString();
         var targets = new List<NodeDistributionTarget>();
         foreach (var kv in _roster.ActiveNodes)
         {
             targets.Add(new NodeDistributionTarget
             {
                 NodeId          = kv.Key,
-                DestinationPath = Path.Combine(OrchestrationConstants.DefaultStagingDirectory, exerciseId, OrchestrationConstants.GetNodeRecordingFileName(kv.Key)),
+                DestinationPath = Path.Combine(OrchestrationConstants.DefaultStagingDirectory, exerciseIdText, OrchestrationConstants.GetNodeRecordingFileName(kv.Key)),
             });
         }
         return targets;

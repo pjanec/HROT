@@ -88,6 +88,7 @@ public sealed class ClusterOpMasterTranslator
                 _clusterStateWriter.Write(new ClusterStateTopic
                 {
                     CurrentState = (NedClusterState)(int)ev.NewStateId,
+                    ExerciseId   = ev.ExerciseId,
                 });
             }
         }
@@ -179,7 +180,7 @@ public sealed class ClusterOpMasterTranslator
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Export,
-                    ExerciseId = archDto?.ExerciseId,
+                    ExerciseId = archDto?.ExerciseId ?? Guid.Empty,
                 });
                 break;
             }
@@ -191,7 +192,7 @@ public sealed class ClusterOpMasterTranslator
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Import,
-                    ExerciseId = impDto?.ExerciseId,
+                    ExerciseId = impDto?.ExerciseId ?? Guid.Empty,
                 });
                 break;
             }
@@ -202,7 +203,7 @@ public sealed class ClusterOpMasterTranslator
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.SaveScenario,
-                    ExerciseId = null,
+                    ExerciseId = Guid.Empty,
                 });
                 break;
             }
@@ -222,7 +223,7 @@ public sealed class ClusterOpMasterTranslator
                 _bus.PublishManaged(new LoadZoneIntent
                 {
                     RequestId = req.RequestId,
-                    ZoneId    = zoneDto?.ExerciseId,
+                    ZoneId    = zoneDto?.ExerciseId.ToString(),
                 });
                 break;
             }

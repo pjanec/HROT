@@ -42,12 +42,12 @@ public sealed class TranslatorDtoTests
     [Fact]
     public void TransitionPayloadDto_SerializesWithNullSuppression()
     {
-        var dto  = new TransitionPayloadDto(ClusterState.LoadingLive, null, null, null);
+        var dto  = new TransitionPayloadDto(ClusterState.LoadingLive, null, Guid.Empty, null);
         var json = JsonSerializer.Serialize(dto, Options);
 
         Assert.Contains("\"TargetState\"", json);
         Assert.DoesNotContain("\"ScenarioId\"", json);
-        Assert.DoesNotContain("\"ExerciseId\"", json);
+        Assert.Contains("\"ExerciseId\"", json);
         Assert.DoesNotContain("\"TimeMode\"", json);
     }
 

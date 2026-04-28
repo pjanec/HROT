@@ -13,10 +13,10 @@ namespace Hrot.Orchestrator;
 public interface IArchiveStorageBackend
 {
     /// <summary>Exports the archive for <paramref name="exerciseId"/> to the NAS.</summary>
-    Task ExportArchiveAsync(string? exerciseId, CancellationToken ct);
+    Task ExportArchiveAsync(Guid exerciseId, CancellationToken ct);
 
     /// <summary>Imports the archive for <paramref name="exerciseId"/> from the NAS.</summary>
-    Task ImportArchiveAsync(string? exerciseId, CancellationToken ct);
+    Task ImportArchiveAsync(Guid exerciseId, CancellationToken ct);
 
     /// <summary>Saves the current scenario state.</summary>
     Task SaveScenarioAsync(CancellationToken ct);

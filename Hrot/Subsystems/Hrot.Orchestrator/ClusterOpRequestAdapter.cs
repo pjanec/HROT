@@ -40,7 +40,7 @@ internal static class ClusterOpRequestAdapter
         FdpClusterState targetState = default;
         long   targetWallTicks = 0;
         string? scenarioId    = null;
-        string? exerciseId    = null;
+        Guid exerciseId       = Guid.Empty;
         string? timeMode      = null;
 
         if (int.TryParse(req.PayloadJson, out var rawInt))
@@ -75,7 +75,9 @@ internal static class ClusterOpRequestAdapter
                     scenarioId = sidProp.GetString();
 
                 if (doc.RootElement.TryGetProperty("ExerciseId", out var eidProp))
-                    exerciseId = eidProp.GetString();
+                    exerciseId = eidProp.ValueKind == JsonValueKind.String
+                        ? (Guid.TryParse(eidProp.GetString(), out var parsed) ? parsed : Guid.Empty)
+                        : eidProp.GetGuid();
 
                 if (doc.RootElement.TryGetProperty("TimeMode", out var tmProp))
                     timeMode = tmProp.GetString();
@@ -157,7 +159,7 @@ internal static class ClusterOpRequestAdapter
     /// </summary>
     public static ExecuteStorageOpIntent ToExecuteStorageOpIntent(ClusterOpRequest req)
     {
-        string? exerciseId = ExtractString(req.PayloadJson, "ExerciseId");
+        Guid exerciseId = ExtractGuid(req.PayloadJson, "ExerciseId");
         string? scenarioId = ExtractString(req.PayloadJson, "ScenarioId");
 
         var opType = req.OperationType switch
@@ -172,7 +174,9 @@ internal static class ClusterOpRequestAdapter
         {
             RequestId  = req.RequestId,
             Operation  = opType,
-            ExerciseId = exerciseId ?? scenarioId,
+            ExerciseId = exerciseId != Guid.Empty
+                ? exerciseId
+                : (Guid.TryParse(scenarioId, out var parsed) ? parsed : Guid.Empty),
         };
     }
 
@@ -225,5 +229,21 @@ internal static class ClusterOpRequestAdapter
         }
         catch (JsonException) { }
         return null;
+    }
+
+    private static Guid ExtractGuid(string? json, string key)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return Guid.Empty;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return Guid.Empty;
+            if (!doc.RootElement.TryGetProperty(key, out var el)) return Guid.Empty;
+            if (el.ValueKind == JsonValueKind.String)
+                return Guid.TryParse(el.GetString(), out var parsed) ? parsed : Guid.Empty;
+            return el.GetGuid();
+        }
+        catch (JsonException) { }
+        return Guid.Empty;
     }
 }

@@ -95,7 +95,7 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.SaveScenario,
-                    ExerciseId = ExtractStringField(req.PayloadJson, "ScenarioId"),
+                    ExerciseId = ExtractGuidField(req.PayloadJson, "ScenarioId"),
                 });
                 break;
 
@@ -104,7 +104,7 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Export,
-                    ExerciseId = ExtractStringField(req.PayloadJson, "ExerciseId"),
+                    ExerciseId = ExtractGuidField(req.PayloadJson, "ExerciseId"),
                 });
                 break;
 
@@ -113,7 +113,7 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Import,
-                    ExerciseId = ExtractStringField(req.PayloadJson, "ExerciseId"),
+                    ExerciseId = ExtractGuidField(req.PayloadJson, "ExerciseId"),
                 });
                 break;
 
@@ -172,16 +172,21 @@ public sealed class ClusterScenarioPanel
         return 0;
     }
 
-    private static string? ExtractStringField(string? json, string key)
+    private static Guid ExtractGuidField(string? json, string key)
     {
-        if (string.IsNullOrWhiteSpace(json)) return null;
+        if (string.IsNullOrWhiteSpace(json)) return Guid.Empty;
         try
         {
             using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty(key, out var el)) return el.GetString();
+            if (doc.RootElement.TryGetProperty(key, out var el))
+            {
+                if (el.ValueKind == JsonValueKind.String)
+                    return Guid.TryParse(el.GetString(), out var g) ? g : Guid.Empty;
+                return el.GetGuid();
+            }
         }
         catch { }
-        return null;
+        return Guid.Empty;
     }
 
     private static TransitionStateIntent ParseTransitionStateIntent(ClusterOpRequest req)
@@ -202,7 +207,14 @@ public sealed class ClusterScenarioPanel
                     targetState = (FdpClusterState)tsp.GetInt32();
             }
             string? scenarioId = root.TryGetProperty("ScenarioId",  out var sp)  ? sp.GetString()  : null;
-            string? exerciseId = root.TryGetProperty("ExerciseId",  out var ep)  ? ep.GetString()  : null;
+            Guid exerciseId = Guid.Empty;
+            if (root.TryGetProperty("ExerciseId", out var ep))
+            {
+                if (ep.ValueKind == JsonValueKind.String)
+                    exerciseId = Guid.TryParse(ep.GetString(), out var parsed) ? parsed : Guid.Empty;
+                else
+                    exerciseId = ep.GetGuid();
+            }
             string? timeMode   = root.TryGetProperty("TimeMode",    out var tm)  ? tm.GetString()  : null;
             return new TransitionStateIntent
             {
@@ -252,6 +264,7 @@ public sealed class ClusterScenarioPanel
     private bool         IsBootstrapped    => _master?.BootstrapComplete     ?? _uiCache.IsBootstrapped;
     private bool         HasFlight         => _master?.HasInFlightTransaction ?? _uiCache.HasInFlightTransaction;
     private ClusterState EffectiveState    => _master?.CurrentClusterState     ?? _uiCache.CurrentState;
+    private Guid         EffectiveExerciseId => _master?.ActiveExerciseId      ?? _uiCache.ActiveExerciseId;
     private DistributedTransaction? EffectiveActiveTx
         => _master?.ActiveTransaction ?? _uiCache.ActiveTransaction;
     private IReadOnlyList<DistributedTransaction> EffectiveTxHistory
@@ -594,8 +607,9 @@ public sealed class ClusterScenarioPanel
         var activeTx     = EffectiveActiveTx;
         var hasInFlight  = HasFlight;
         var currentState = EffectiveState;
+        var currentExerciseId = EffectiveExerciseId;
 
-        if (ImGui.BeginChild("##OrcStatusBanner", new Vector2(-1, 54), ImGuiChildFlags.Borders))
+        if (ImGui.BeginChild("##OrcStatusBanner", new Vector2(-1, 74), ImGuiChildFlags.Borders))
         {
             if (hasInFlight && activeTx != null)
             {
@@ -611,6 +625,9 @@ public sealed class ClusterScenarioPanel
                 ImGui.SameLine(); ImGui.Text("|"); ImGui.SameLine();
                 ImGui.Text(IsBootstrapped ? "idle" : "NOT BOOTSTRAPPED");
             }
+
+            if (currentExerciseId != Guid.Empty)
+                ImGui.Text($"Exercise Id: {currentExerciseId}");
         }
         ImGui.EndChild();
     }
@@ -638,7 +655,7 @@ public sealed class ClusterScenarioPanel
                             RequestId     = Guid.NewGuid(),
                             OperationType = ClusterOpType.TransitionState,
                             PayloadJson   = JsonSerializer.Serialize(
-                                new TransitionPayloadDto(TargetState: target, ScenarioId: null, ExerciseId: Guid.NewGuid().ToString(), TimeMode: null),
+                                new TransitionPayloadDto(TargetState: target, ScenarioId: null, ExerciseId: Guid.NewGuid(), TimeMode: null),
                                 OrchestrationJsonOptions.Default),
                         });
                     ImGui.SameLine();
@@ -715,7 +732,7 @@ public sealed class ClusterScenarioPanel
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.TransitionState,
                     PayloadJson   = JsonSerializer.Serialize(
-                        new TransitionPayloadDto(TargetState: ClusterState.OperatingEdit, ScenarioId: scenId, ExerciseId: null, TimeMode: null),
+                        new TransitionPayloadDto(TargetState: ClusterState.OperatingEdit, ScenarioId: scenId, ExerciseId: Guid.Empty, TimeMode: null),
                         OrchestrationJsonOptions.Default),
                 });
             }
@@ -728,7 +745,7 @@ public sealed class ClusterScenarioPanel
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.TransitionState,
                     PayloadJson   = JsonSerializer.Serialize(
-                        new TransitionPayloadDto(TargetState: ClusterState.OperatingLive, ScenarioId: scenId, ExerciseId: Guid.NewGuid().ToString(), TimeMode: null),
+                        new TransitionPayloadDto(TargetState: ClusterState.OperatingLive, ScenarioId: scenId, ExerciseId: Guid.NewGuid(), TimeMode: null),
                         OrchestrationJsonOptions.Default),
                 });
             }
@@ -761,7 +778,7 @@ public sealed class ClusterScenarioPanel
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.TransitionState,
                     PayloadJson   = JsonSerializer.Serialize(
-                        new TransitionPayloadDto(TargetState: ClusterState.OperatingReplay, ScenarioId: null, ExerciseId: exerciseId, TimeMode: null),
+                        new TransitionPayloadDto(TargetState: ClusterState.OperatingReplay, ScenarioId: null, ExerciseId: Guid.TryParse(exerciseId, out var g) ? g : Guid.Empty, TimeMode: null),
                         OrchestrationJsonOptions.Default),
                 });
             }
@@ -876,7 +893,7 @@ public sealed class ClusterScenarioPanel
             {
                 RequestId     = requestId,
                 OperationType = ClusterOpType.ExportArchive,
-                PayloadJson   = JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: exerciselName), OrchestrationJsonOptions.Default),
+                PayloadJson   = JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: Guid.TryParse(exerciselName, out var g) ? g : Guid.Empty), OrchestrationJsonOptions.Default),
             });
         }
         if (disableAll || _selectedUnarchivedIdx < 0 || _activeArchiveOpId != Guid.Empty)
@@ -904,7 +921,7 @@ public sealed class ClusterScenarioPanel
             {
                 RequestId     = requestId,
                 OperationType = ClusterOpType.ImportArchive,
-                PayloadJson   = JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: exerciseName), OrchestrationJsonOptions.Default),
+                PayloadJson   = JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: Guid.TryParse(exerciseName, out var g) ? g : Guid.Empty), OrchestrationJsonOptions.Default),
             });
         }
         if (disableAll || _selectedArchiveIdx < 0 || _activeArchiveOpId != Guid.Empty)

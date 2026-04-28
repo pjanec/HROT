@@ -64,6 +64,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
                     _bus.PublishManaged(new ClusterStateUpdateEvent
                     {
                         CurrentState = (FdpClusterState)(int)s.Data.CurrentState,
+                        ExerciseId   = s.Data.ExerciseId,
                     });
 
         // AssetInventoryTopic → AssetInventoryUpdateEvent

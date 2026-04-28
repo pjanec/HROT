@@ -32,6 +32,7 @@ public sealed class ClusterUiCache : IDisposable
 
     // ── Published state ────────────────────────────────────────────────────────
     public ClusterState    CurrentState           { get; private set; }
+    public Guid        ActiveExerciseId       { get; private set; }
     public bool        IsBootstrapped         { get; private set; }
     public bool        HasInFlightTransaction  { get; private set; }
 
@@ -127,6 +128,7 @@ public sealed class ClusterUiCache : IDisposable
         {
             var prev = CurrentState;
             CurrentState   = (ClusterState)(int)ev.CurrentState;
+            ActiveExerciseId = ev.ExerciseId;
             IsBootstrapped = CurrentState != ClusterState.Degraded;
             if (CurrentState != prev)
                 ReachableTargets = _planner.GetReachableTargets(CurrentState);

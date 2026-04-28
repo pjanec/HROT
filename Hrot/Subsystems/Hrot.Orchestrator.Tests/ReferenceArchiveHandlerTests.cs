@@ -16,7 +16,7 @@ namespace Hrot.Orchestrator.Tests;
 [Collection("OrchestratorTests")]
 public sealed class ReferenceArchiveHandlerTests
 {
-    private static ExecuteNodeOpIntent MakeCmd(string? exerciseId, Guid? txId = null) =>
+    private static ExecuteNodeOpIntent MakeCmd(Guid exerciseId, Guid? txId = null) =>
         new()
         {
             TransactionId = txId ?? Guid.NewGuid(),
@@ -36,10 +36,11 @@ public sealed class ReferenceArchiveHandlerTests
     public void Commit_ProducesManifestJson_WhenFdpExists()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        const string exerciseId = "test_exercise_01";
+        var exerciseId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
         const int    nodeId  = 5;
+        var exerciseIdText = exerciseId.ToString();
 
-        var exerciseDir  = Path.Combine(tempRoot, exerciseId);
+        var exerciseDir  = Path.Combine(tempRoot, exerciseIdText);
         var fdpFile   = Path.Combine(exerciseDir, $"node_{nodeId}.fdp");
         Directory.CreateDirectory(exerciseDir);
         File.WriteAllText(fdpFile, "fake-fdp-data");
@@ -74,7 +75,7 @@ public sealed class ReferenceArchiveHandlerTests
             Assert.Single(entries!);
             var entry = entries![0];
             Assert.Equal(fdpFile, entry.SourceUnc);
-            Assert.Equal(Path.Combine(exerciseId, $"node_{nodeId}.fdp"), entry.RelativeDest);
+            Assert.Equal(Path.Combine(exerciseIdText, $"node_{nodeId}.fdp"), entry.RelativeDest);
         }
         finally
         {
@@ -92,10 +93,11 @@ public sealed class ReferenceArchiveHandlerTests
     public void Abort_DeletesPartialFdpFile()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        const string exerciseId = "abort_exercise";
+        var exerciseId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
         const int    nodeId  = 3;
+        var exerciseIdText = exerciseId.ToString();
 
-        var exerciseDir = Path.Combine(tempRoot, exerciseId);
+        var exerciseDir = Path.Combine(tempRoot, exerciseIdText);
         var fdpFile  = Path.Combine(exerciseDir, $"node_{nodeId}.fdp");
         Directory.CreateDirectory(exerciseDir);
         File.WriteAllText(fdpFile, "partial-data");
@@ -127,7 +129,7 @@ public sealed class ReferenceArchiveHandlerTests
     public void Commit_SkipsGracefully_WhenNoExerciseId()
     {
         var handler = new ReferenceArchiveHandler(@"C:\FDP_Temp", nodeId: 1);
-        var cmd     = MakeCmd(null); // null exerciseId → handler skips gracefully
+        var cmd     = MakeCmd(Guid.Empty); // null exerciseId → handler skips gracefully
 
         var ex = Record.Exception(() => handler.PrepareAsync(cmd, default).GetAwaiter().GetResult());
 
