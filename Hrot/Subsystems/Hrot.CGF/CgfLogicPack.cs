@@ -11,6 +11,7 @@ using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Combat.Systems;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Navigation.Executors;
+using Fdp.Toolkit.Perception.Systems;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.CGF.Systems;
 using Hrot.CGF.Systems.Routing;
@@ -60,8 +61,7 @@ namespace Hrot.CGF
         private readonly MissionAdapterSystem   _missionAdapterSystem;
 
         // ── Standalone systems (moved from RegisterSystems overloads) ──────────
-        private readonly HealthApplicationSystem      _healthApplicationSystem;
-        private readonly CgfThreatEvaluationSystem    _cgfThreatEvaluationSystem;
+        private readonly HealthApplicationSystem      _healthApplicationSystem;        private readonly ActiveSensorTracksUpdateSystem _activeSensorTracksUpdateSystem;        private readonly CgfThreatEvaluationSystem    _cgfThreatEvaluationSystem;
         private readonly RouteContextSystem           _routeContextSystem;
 
         // ── Shared scenario source (constructed once by CgfApplication / CgfSubsystem) ─
@@ -126,6 +126,7 @@ namespace Hrot.CGF
                 });
 
             _healthApplicationSystem   = new HealthApplicationSystem();
+            _activeSensorTracksUpdateSystem = new ActiveSensorTracksUpdateSystem();
             _cgfThreatEvaluationSystem = new CgfThreatEvaluationSystem();
             _routeContextSystem        = new RouteContextSystem();
 
@@ -138,6 +139,7 @@ namespace Hrot.CGF
             simList.Add(_missionAdapterSystem);
             foreach (var s in _missionControlModule.SimulationSystems) simList.Add(s);
             simList.Add(_healthApplicationSystem);
+            simList.Add(_activeSensorTracksUpdateSystem);
             simList.Add(_cgfThreatEvaluationSystem);
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);

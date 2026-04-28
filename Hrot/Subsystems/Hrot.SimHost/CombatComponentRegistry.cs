@@ -41,6 +41,7 @@ namespace Hrot.SimHost
             world.RegisterEvent<LosCheckRequestEvent>();
             world.RegisterEvent<TargetVisibleEvent>();
             world.RegisterEvent<TargetHeardEvent>();
+            world.RegisterEvent<SensorTrackStateEvent>(); 
 
             // Target seeding command (edit-1/EDIT1-E002)
             world.RegisterEvent<SeedTargetCommand>();

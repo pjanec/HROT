@@ -5,6 +5,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Vis2D.Components;
 using Hrot.Common.Serializers;
@@ -106,7 +107,7 @@ public static class CgfComponentRegistry
         // the stream must exist before Playback runs, so we pre-register it here.
         world.RegisterEvent<DamageAssessedEvent>();
         world.RegisterEvent<WeaponFireIntent>();
-
+        world.RegisterEvent<SensorTrackStateEvent>();
 
 
         world.RegisterComponent<PhysicsCollider>();

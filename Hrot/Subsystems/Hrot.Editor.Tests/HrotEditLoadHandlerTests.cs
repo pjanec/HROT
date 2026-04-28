@@ -77,7 +77,7 @@ public sealed class HrotEditLoadHandlerTests : IDisposable
             _idAllocator,
             world);
 
-    private static ExecuteNodeOpIntent MakePrepareStateIntent(int targetState)
+    private static ExecuteNodeOpIntent MakePrepareStateIntent(ClusterState targetState)
         => new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
@@ -100,7 +100,7 @@ public sealed class HrotEditLoadHandlerTests : IDisposable
     {
         var source  = MakeSource();
         var handler = MakeHandler(source, _repo);
-        var intent  = MakePrepareStateIntent(targetState: 11); // OperatingEdit
+        var intent  = MakePrepareStateIntent(targetState: ClusterState.OperatingEdit); // OperatingEdit
 
         var prepareTask = handler.PrepareAsync(intent, CancellationToken.None);
 
@@ -123,7 +123,7 @@ public sealed class HrotEditLoadHandlerTests : IDisposable
     {
         var source  = MakeSource();
         var handler = MakeHandler(source, _repo);
-        var intent  = MakePrepareStateIntent(targetState: 11);
+        var intent  = MakePrepareStateIntent(targetState: ClusterState.OperatingEdit);
 
         // Create an entity in Constructing lifecycle state.
         var constructingEntity = _repo.CreateEntity();
@@ -147,7 +147,7 @@ public sealed class HrotEditLoadHandlerTests : IDisposable
         // Pass world: null
         var source  = MakeSource();
         var handler = MakeHandler(source, world: null);
-        var intent  = MakePrepareStateIntent(targetState: 11);
+        var intent  = MakePrepareStateIntent(targetState: ClusterState.OperatingEdit);
 
         var prepareTask = handler.PrepareAsync(intent, CancellationToken.None);
         Assert.False(prepareTask.IsCompleted);
@@ -165,7 +165,7 @@ public sealed class HrotEditLoadHandlerTests : IDisposable
     public async Task Abort_CancelsDeferred_OperatingEditTask()
     {
         var handler = MakeHandler(world: _repo);
-        var intent  = MakePrepareStateIntent(targetState: 11);
+        var intent  = MakePrepareStateIntent(targetState: ClusterState.OperatingEdit);
 
         var prepareTask = handler.PrepareAsync(intent, CancellationToken.None);
         Assert.False(prepareTask.IsCompleted);
@@ -184,7 +184,7 @@ public sealed class HrotEditLoadHandlerTests : IDisposable
     public void PrepareState_LoadingEdit_ReturnsCompletedTask()
     {
         var handler     = MakeHandler(world: _repo);
-        var intent      = MakePrepareStateIntent(targetState: 10); // LoadingEdit
+        var intent      = MakePrepareStateIntent(targetState: ClusterState.LoadingEdit); // LoadingEdit
 
         var prepareTask = handler.PrepareAsync(intent, CancellationToken.None);
 
@@ -203,7 +203,7 @@ public sealed class HrotEditLoadHandlerTests : IDisposable
     {
         var source  = MakeSource();
         var handler = MakeHandler(source, _repo);
-        var intent  = MakePrepareStateIntent(targetState: 11);
+        var intent  = MakePrepareStateIntent(targetState: ClusterState.OperatingEdit);
 
         var prepareTask = handler.PrepareAsync(intent, CancellationToken.None);
         Assert.False(prepareTask.IsCompleted);
@@ -225,7 +225,7 @@ public sealed class HrotEditLoadHandlerTests : IDisposable
     {
         var source  = MakeSource();
         var handler = MakeHandler(source, _repo);
-        var intent  = MakePrepareStateIntent(targetState: 11);
+        var intent  = MakePrepareStateIntent(targetState: ClusterState.OperatingEdit);
 
         var prepareTask = handler.PrepareAsync(intent, CancellationToken.None);
         Assert.False(prepareTask.IsCompleted);
@@ -286,5 +286,5 @@ public sealed class HrotEditLoadHandlerTests : IDisposable
     }
 
     // ── Private constant to avoid magic number ────────────────────────────────
-    private const int LoadingEditState = 10;
+    private const ClusterState LoadingEditState = ClusterState.LoadingEdit;
 }

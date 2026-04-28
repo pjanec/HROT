@@ -193,12 +193,14 @@ namespace Hrot.Network.NED.SimHost
     /// Ingress translator. Receives discrete <c>SensorTrackState</c> events from the Perception Solver
     /// and maintains the local <c>ActiveSensorTracks</c> cognitive buffer on Brain-side observer entities.
     /// <list type="bullet">
-    ///   <item>State = 1 (Acquired): adds or updates the target in <see cref="ActiveSensorTracks"/>.</item>
-    ///   <item>State = 0 (Lost): compact-removes the target slot (swap-with-last, decrement Count).</item>
+    ///   <item>State = 1 (Acquired): publishes <see cref="Fdp.Toolkit.Perception.Events.SensorTrackStateEvent"/> with <c>SensorTrackStatus.Acquired</c>.</item>
+    ///   <item>State = 0 (Lost): publishes <see cref="Fdp.Toolkit.Perception.Events.SensorTrackStateEvent"/> with <c>SensorTrackStatus.Lost</c>.</item>
     /// </list>
-    /// The <see cref="Fdp.Toolkit.Perception.Systems.ThreatEvaluationSystem"/> on the CGF node
-    /// continuously boosts and decays <c>TargetMemory</c> based on this buffer every frame.
-    /// Enforces entity-pointer safety: raw network IDs are resolved to generational ECS handles before storage.
+    /// The actual mutation of <c>ActiveSensorTracks</c> is now performed by
+    /// <see cref="Fdp.Toolkit.Perception.Systems.ActiveSensorTracksUpdateSystem"/>, which
+    /// consumes the event from the local bus.  This keeps the translator as a pure
+    /// DDS-to-event-bus bridge with no component-mutation logic.
+    /// Enforces entity-pointer safety: raw network IDs are resolved to generational ECS handles before publishing.
     /// </summary>
     public sealed class SensorTrackStateIngressTranslator : IDescriptorTranslator
     {
@@ -219,7 +221,7 @@ namespace Hrot.Network.NED.SimHost
             _reader    = participant != null ? new DdsReader<SensorTrackState>(participant, TopicName) : null;
         }
 
-        public unsafe void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (_reader is null) return;
 
@@ -237,58 +239,17 @@ namespace Hrot.Network.NED.SimHost
                 // Resolve target network ID to local ECS handle.
                 if (!_entityMap.TryGetEntity(data.TargetEntityId, out var targetEntity)) continue;
 
-                long localTargetId = (long)targetEntity.PackedValue;
-
-                // Bootstrap or read existing ActiveSensorTracks.
-                bool hasComponent = view.HasComponent<ActiveSensorTracks>(observer);
-                ActiveSensorTracks tracks = hasComponent
-                    ? view.GetComponentRO<ActiveSensorTracks>(observer)
-                    : new ActiveSensorTracks();
-
-                if (data.State == 1) // Acquired
+                // Publish the internal event; ActiveSensorTracksUpdateSystem will update the component.
+                cmd.PublishEvent(new Fdp.Toolkit.Perception.Events.SensorTrackStateEvent
                 {
-                    // Update position if already tracked, or add a new slot.
-                    bool found = false;
-                    for (int i = 0; i < tracks.Count; i++)
-                    {
-                        if (tracks.EntityIds[i] == localTargetId)
-                        {
-                            tracks.PositionsX[i] = data.PositionX;
-                            tracks.PositionsY[i] = data.PositionY;
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found && tracks.Count < PerceptionConstants.MaxTrackedTargets)
-                    {
-                        tracks.EntityIds[tracks.Count]  = localTargetId;
-                        tracks.PositionsX[tracks.Count] = data.PositionX;
-                        tracks.PositionsY[tracks.Count] = data.PositionY;
-                        tracks.Count++;
-                    }
-                }
-                else // Lost (State == 0)
-                {
-                    // Compact-remove: swap the target slot with the last entry, then shrink Count.
-                    for (int i = 0; i < tracks.Count; i++)
-                    {
-                        if (tracks.EntityIds[i] != localTargetId) continue;
-                        int last = tracks.Count - 1;
-                        if (i < last)
-                        {
-                            tracks.EntityIds[i]  = tracks.EntityIds[last];
-                            tracks.PositionsX[i] = tracks.PositionsX[last];
-                            tracks.PositionsY[i] = tracks.PositionsY[last];
-                        }
-                        tracks.Count--;
-                        break;
-                    }
-                }
-
-                if (hasComponent)
-                    cmd.SetComponent(observer, tracks);
-                else
-                    cmd.AddComponent(observer, tracks);
+                    Observer  = observer,
+                    Target    = targetEntity,
+                    State     = data.State == 1
+                        ? Fdp.Toolkit.Perception.Events.SensorTrackStatus.Acquired
+                        : Fdp.Toolkit.Perception.Events.SensorTrackStatus.Lost,
+                    PositionX = data.PositionX,
+                    PositionY = data.PositionY,
+                });
             }
         }
 
@@ -564,11 +525,16 @@ namespace Hrot.Network.NED.SimHost
     }
 
     /// <summary>
-    /// Egress translator. Monitors <c>SensorContactList</c> on the Perception Solver each tick and
-    /// emits discrete <c>SensorTrackState</c> samples to Brain nodes only when a target transitions
-    /// to <see cref="SensorContactState.Acquired"/> or falls back to
-    /// <see cref="SensorContactState.Lost"/>.  The previous-tick acquired set for each observer is
-    /// maintained in <see cref="_previousTargets"/>.
+    /// Egress translator. Drains <see cref="Fdp.Toolkit.Perception.Events.SensorTrackStateEvent"/>
+    /// from the global world bus each tick and converts each event to a DDS
+    /// <c>SensorTrackState</c> sample sent to Brain nodes.
+    ///
+    /// <para>
+    /// The translator is a pure event-bus-to-DDS bridge with no change-detection logic.
+    /// State transitions are now detected and published as <see cref="Fdp.Toolkit.Perception.Events.SensorTrackStateEvent"/>
+    /// by <see cref="Fdp.Toolkit.Perception.Systems.SensorTrackDebounceSystem"/>; this
+    /// translator merely serialises them to the wire.
+    /// </para>
     /// Uses Reliable / TransientLocal QoS -- one sample per contact event,
     /// never a continuous per-tick flood.
     /// </summary>
@@ -576,12 +542,6 @@ namespace Hrot.Network.NED.SimHost
     {
         private readonly DdsWriter<SensorTrackState>? _writer;
         private readonly NetworkEntityMap _entityMap;
-
-        // Per observer (keyed by observer network ID): set of target network IDs currently acquired.
-        private readonly Dictionary<long, HashSet<long>> _previousTargets = new();
-
-        // Scratch set reused each tick to detect stale observer entries without allocation.
-        private readonly HashSet<long> _seenThisTick = new();
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtSensorTrackState;
         public string TopicName         => "SensorTrackState";
@@ -597,110 +557,37 @@ namespace Hrot.Network.NED.SimHost
             _writer    = participant != null ? new DdsWriter<SensorTrackState>(participant, TopicName) : null;
         }
 
-        public unsafe void ScanAndPublish(ISimulationView view)
+        public void ScanAndPublish(ISimulationView view)
         {
             if (_writer is null) return;
 
-            // Read the physical sensor contact lists instead of cognitive TargetMemory.
-            var query = view.Query()
-                .With<SensorContactList>()
-                .With<NetworkIdentity>()
-                .Build();
+            var events = view.ReadEvents<Fdp.Toolkit.Perception.Events.SensorTrackStateEvent>();
+            if (events.IsEmpty) return;
 
-            _seenThisTick.Clear();
-
-            foreach (var entity in query)
+            foreach (ref readonly var evt in events)
             {
-                ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-                ref readonly var list  = ref view.GetComponentRO<SensorContactList>(entity);
+                // Map local ECS observer handle to network ID.
+                if (!_entityMap.TryGetNetworkId(evt.Observer, out long observerNetId)) continue;
+                // Map local ECS target handle to network ID.
+                if (!_entityMap.TryGetNetworkId(evt.Target, out long targetNetId)) continue;
 
-                long observerId = netId.Value;
-                _seenThisTick.Add(observerId);
-
-                if (!_previousTargets.TryGetValue(observerId, out var previous))
+                _writer.Write(new SensorTrackState
                 {
-                    previous = new HashSet<long>();
-                    _previousTargets[observerId] = previous;
-                }
-
-                // Build current set of actively Acquired targets (network IDs).
-                var current = new HashSet<long>(list.Count);
-                for (int i = 0; i < list.Count; i++)
-                {
-                    if (list.State[i] != (byte)SensorContactState.Acquired) continue;
-                    var localTarget = new Entity((ulong)list.EntityIds[i]);
-                    if (_entityMap.TryGetNetworkId(localTarget, out long targetNetId))
-                        current.Add(targetNetId);
-                }
-
-                // Emit Acquired events for newly tracked targets.
-                foreach (long targetNetId in current)
-                {
-                    if (previous.Contains(targetNetId)) continue;
-
-                    // Resolve physical position for the Acquired packet.
-                    float posX = 0f, posY = 0f;
-                    if (_entityMap.TryGetEntity(targetNetId, out var localTarget) &&
-                        view.IsAlive(localTarget) &&
-                        view.HasComponent<SimTransform>(localTarget))
-                    {
-                        ref readonly var targetTf = ref view.GetComponentRO<SimTransform>(localTarget);
-                        posX = targetTf.Position.X;
-                        posY = targetTf.Position.Y;
-                    }
-
-                    _writer.Write(new SensorTrackState
-                    {
-                        ObserverEntityId = observerId,
-                        TargetEntityId   = targetNetId,
-                        State            = 1, // Acquired
-                        PositionX        = posX,
-                        PositionY        = posY,
-                        Tick             = view.Tick,
-                    });
-                    SentSampleCount++;
-                }
-
-                // Emit Lost events for targets that dropped out of Acquired state.
-                foreach (long targetNetId in previous)
-                {
-                    if (current.Contains(targetNetId)) continue;
-
-                    // Spatial data is irrelevant for a Lost packet.
-                    _writer.Write(new SensorTrackState
-                    {
-                        ObserverEntityId = observerId,
-                        TargetEntityId   = targetNetId,
-                        State            = 0, // Lost
-                        PositionX        = 0f,
-                        PositionY        = 0f,
-                        Tick             = view.Tick,
-                    });
-                    SentSampleCount++;
-                }
-
-                // Update tracking state for this observer.
-                _previousTargets[observerId] = current;
+                    ObserverEntityId = observerNetId,
+                    TargetEntityId   = targetNetId,
+                    State            = evt.State == Fdp.Toolkit.Perception.Events.SensorTrackStatus.Acquired ? (byte)1 : (byte)0,
+                    PositionX        = evt.PositionX,
+                    PositionY        = evt.PositionY,
+                    Tick             = view.Tick,
+                });
+                SentSampleCount++;
             }
-
-            // Remove state for observers that have left the query (entity destroyed or SensorContactList removed).
-            var staleKeys = new List<long>();
-            foreach (var key in _previousTargets.Keys)
-            {
-                if (!_seenThisTick.Contains(key))
-                    staleKeys.Add(key);
-            }
-            foreach (long staleId in staleKeys)
-                _previousTargets.Remove(staleId);
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId)
-        {
-            _previousTargets.Remove(networkEntityId);
-        }
+        public void Dispose(long networkEntityId) { }
     }
 
     /// <summary>
