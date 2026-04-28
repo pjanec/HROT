@@ -54,6 +54,7 @@ public sealed class EditorHarness : IDisposable
 
     public EntityRepository  Repo      { get; }
     public FdpEventBus        Bus       { get; }
+    public FdpEventBus        OrchBus   { get; }
     public ModuleHostKernel   Kernel    { get; }
     public NetworkEntityMap   EntityMap { get; }
     public IEditorLogic       Editor    { get; private set; } = null!;
@@ -112,6 +113,7 @@ public sealed class EditorHarness : IDisposable
     {
         Repo   = new EntityRepository();
         Bus    = Repo.Bus;
+        OrchBus = new FdpEventBus();
 
         // Register all shared HROT components and events before module setup.
         HrotSharedComponentRegistry.RegisterAll(Repo);
@@ -139,7 +141,7 @@ public sealed class EditorHarness : IDisposable
         EntityMap = new NetworkEntityMap();
 
         var doctrineRegistry = new DoctrineRegistry();
-        var clusterSlave     = new ClusterSlave(0, "EditorHarness");
+        var clusterSlave     = new ClusterSlave(0, "EditorHarness", OrchBus);
         var serializer       = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
         var zoneService      = new ZoneManagerService();
         _zoneService = zoneService;
@@ -186,7 +188,7 @@ public sealed class EditorHarness : IDisposable
         // ── Editor application facade ─────────────────────────────────────────
         var logicPacks = new List<IEcsModule> { simHostCorePack, cgfLogicPackInst, simHostMod };
         _logicPacks = logicPacks;
-        Editor = new EditorApplication(fileService, Bus, Repo, Kernel, logicPacks);
+        Editor = new EditorApplication(fileService, Bus, OrchBus, Repo, Kernel, logicPacks);
         Preview = new EditorPreviewController(_timeController!, _previewHandler!);
     }
 
@@ -199,7 +201,7 @@ public sealed class EditorHarness : IDisposable
     /// </summary>
     public void SetTranslatorPacks(IReadOnlyList<IEcsModule> packs)
     {
-        Editor = new EditorApplication(_fileService, Bus, Repo, Kernel, _logicPacks, translatorPacks: packs);
+        Editor = new EditorApplication(_fileService, Bus, OrchBus, Repo, Kernel, _logicPacks, translatorPacks: packs);
     }
 
     // ── Pump API ──────────────────────────────────────────────────────────────

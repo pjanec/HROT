@@ -1,6 +1,6 @@
 ﻿
 
-in the editor event browser i see lots of NodeHeartbeatEvent insances. It is cirrent that editor shared thesimulation event bus with cluster management stuff like the heartbeats? the distributed cfg/simhost/ig stricly separate these. For example for recording of the simulation we certanly do not want the cluster management events to be recorded togenther with simulation events.
+in the editor event browser i see lots of NodeHeartbeatEvent instances. It is cirrent that editor shared the simulation event bus with cluster management stuff like the heartbeats? the distributed cfg/simhost/ig stricly separate these. For example for recording of the simulation we certanly do not want the cluster management events to be recorded togenther with simulation events.
 
 You have an excellent eye for architectural boundaries, and you are absolutely right to question the mixing of domains on a single bus.
 

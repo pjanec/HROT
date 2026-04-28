@@ -119,6 +119,7 @@ namespace Hrot.Editor.Tests.Adapters
         {
             _repo = new EntityRepository();
             _repo.RegisterComponent<TkbIdentity>();
+            _repo.RegisterComponent<NetworkIdentity>();
             _repo.RegisterManagedComponent<ActiveMissionPlan>();
             _repo.RegisterEvent<MissionControlAckEvent>();
 
@@ -140,6 +141,7 @@ namespace Hrot.Editor.Tests.Adapters
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
+            _repo.AddComponent(entity, new NetworkIdentity { Value = (long)entity.Index });
 
             var service = new EditorMissionService(_bus, _repo, _registry);
             var behaviors = service.GetAvailableBehaviors((long)entity.Index);

@@ -12,8 +12,8 @@ public class FeatureSwitchTests
     {
         var world       = new EntityRepository();
         var fileService = EditorBootstrap.CreateFileService();
-        // Minimal 3-arg constructor — no kernel, no packs (no-op mode)
-        return new EditorApplication(fileService, world.Bus, world);
+        // Minimal 4-arg constructor — no kernel, no packs (no-op mode)
+        return new EditorApplication(fileService, world.Bus, new FdpEventBus(), world);
     }
 
     [Fact]

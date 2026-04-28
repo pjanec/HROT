@@ -38,7 +38,7 @@ namespace Hrot.CGF
         private readonly DdsParticipant? _participant;
         private readonly Fdp.Toolkit.Orchestration.ClusterSlave _clusterSlave;
         private readonly FdpEventBus _eventBus;
-        private FdpEventBus _orchestrationBus => _eventBus;  // CMC-S016: alias, same bus
+        private readonly FdpEventBus _orchestrationBus;  // dedicated Control Plane bus
         private readonly ISlaveOrchestrationTranslator? _slaveTranslator;  // CMC-S016; null when no participant
         private readonly IDescriptorTranslator? _timeModeTranslator;
         private readonly IDescriptorTranslator? _lockstepTranslator;
@@ -109,7 +109,8 @@ namespace Hrot.CGF
             // available for load handler wiring in Phases 3-4.
             _scenarioEntityCreationSource = new ScenarioEntityCreationRequestSource();
             // CGF1-A.2 (BATCH-09 / Phase 3): wire time event bridge and time controller.
-            _eventBus = new FdpEventBus();
+            _eventBus         = new FdpEventBus();
+            _orchestrationBus = new FdpEventBus();  // Control Plane bus (orchestration/cluster management)
             if (_participant != null)
             {
                 _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
@@ -136,7 +137,7 @@ namespace Hrot.CGF
                 _kernel.RegisterGlobalSystem(replaySimGroup);
             }
 
-            _clusterSlave   = new Fdp.Toolkit.Orchestration.ClusterSlave(nodeId, SubsystemName, _eventBus);
+            _clusterSlave   = new Fdp.Toolkit.Orchestration.ClusterSlave(nodeId, SubsystemName, _orchestrationBus);
 
             // CMC-S016: ISlaveOrchestrationTranslator bridges DDS NodeOpCommand <-> _eventBus ExecuteNodeOpIntent
             // and bus NodeHeartbeatEvent/NodeOpCompletedEvent <-> DDS.
@@ -243,8 +244,12 @@ namespace Hrot.CGF
                 _initialized = true;
             }
 
-            _slaveTranslator?.Tick();
-            _clusterSlave.Tick();
+            // ── CONTROL PLANE (Orchestration) ─────────────────────────────────────────
+            _slaveTranslator?.Tick();        // DDS ingress -> _orchestrationBus write buffer
+            _orchestrationBus.SwapBuffers(); // Promote ingress to read buffer
+            _clusterSlave.Tick();            // Consume orchestration commands from read buffer
+
+            // ── DATA PLANE (Simulation) ────────────────────────────────────────────────
             // Bridge SwitchTimeModeEvent: egress coordinator events to DDS, ingress DDS events to bus.
             _timeModeTranslator?.ScanAndPublish(null!);
             _timeModeTranslator?.PollIngress(null!, null!);

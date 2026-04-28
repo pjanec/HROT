@@ -150,6 +150,7 @@ namespace Hrot.Editor
 
         // ── Offline orchestrator (single-node scenario listing) ───────────────────
 
+        private FdpEventBus?           _orchestrationBus;
         private ClusterMaster?         _clusterMaster;
         private StorageGatewayModule?  _storageGateway;
         private ClusterUiCache?        _uiCache;
@@ -279,6 +280,7 @@ namespace Hrot.Editor
 
             // ── 1. ECS world ─────────────────────────────────────────────────
             _world = new EntityRepository();
+            _orchestrationBus = new FdpEventBus(); // Control Plane bus (cluster management)
             var accumulator = new EventAccumulator();
             _kernel = new ModuleHostKernel(_world, accumulator);
             _physicsModule = new PhysicsToolkitModule();
@@ -318,7 +320,7 @@ namespace Hrot.Editor
             // Register Urban Combat doctrines so MissionAdapterSystem can resolve Ambush
             // and InfantryCombat behavior trees when loading UrbanCombatNew scenario files.
             UrbanCombatNewScenario.RegisterUrbanCombatDoctrines(doctrineRegistry);
-            var clusterSlave     = new ClusterSlave(0, "Editor", _world.Bus);
+            var clusterSlave     = new ClusterSlave(0, "Editor", _orchestrationBus);
             var zoneService      = new ZoneManagerService();
 
             // Build the serializer with custom translators AFTER component registration
@@ -411,15 +413,15 @@ namespace Hrot.Editor
             _kernel.Initialize();
 
             // ── 6. Editor application (IEditorLogic facade) ──────────────────
-            var app = new EditorApplication(fileService, _world.Bus, _world, _kernel, logicPacks);
+            var app = new EditorApplication(fileService, _world.Bus, _orchestrationBus, _world, _kernel, logicPacks);
             _editorLogic = app;
 
             // ── 6b. Offline orchestrator — scenario listing via ClusterMaster + UICache ──
             var offlineConfig = new ClusterConfiguration { Mandatory = Array.Empty<string>() };
-            _clusterMaster  = new ClusterMaster(_world.Bus, offlineConfig);
+            _clusterMaster  = new ClusterMaster(_orchestrationBus, offlineConfig);
             _storageGateway = new StorageGatewayModule();
             _clusterMaster.SetStorageGateway(_storageGateway, EditorBootstrap.ScenariosRoot);
-            _uiCache = new ClusterUiCache(_world.Bus);
+            _uiCache = new ClusterUiCache(_orchestrationBus);
             app.SetAvailableScenariosSource(() => _uiCache?.AvailableScenarios ?? Array.Empty<string>());
 
             // ── 7. Map canvas + camera (skipped in headless) ──────────────────
@@ -602,8 +604,9 @@ namespace Hrot.Editor
             // Kernel.Update() internally calls bus.SwapBuffers() then ticks registered modules.
             _kernel?.Update();
 
-            // After the kernel's SwapBuffers, events published in previous frames are in the
-            // read buffer.  Tick the offline orchestrator and drain the tool-activation queue.
+            // Swap the Control Plane bus so intents published by the UI this frame
+            // are readable by ClusterMaster/ClusterUiCache on the orchestration bus.
+            _orchestrationBus?.SwapBuffers();
             _clusterMaster?.Tick();
             _uiCache?.Update();
 

@@ -27,7 +27,8 @@ namespace Hrot.Editor;
 public sealed class EditorApplication : IEditorLogic
 {
     private readonly ScenarioFileService _fileService;
-    private readonly FdpEventBus         _bus;
+    private readonly FdpEventBus         _simBus;
+    private readonly FdpEventBus         _orchestrationBus;
     private readonly EntityRepository    _world;
     private readonly DerRepo             _view = new(localNodeId: 0);
 
@@ -59,15 +60,17 @@ public sealed class EditorApplication : IEditorLogic
 
     public EditorApplication(
         ScenarioFileService fileService,
-        FdpEventBus bus,
+        FdpEventBus simBus,
+        FdpEventBus orchestrationBus,
         EntityRepository world,
         ModuleHostKernel?          kernel          = null,
         IReadOnlyList<IEcsModule>? logicPacks      = null,
         IReadOnlyList<IEcsModule>? translatorPacks = null)
     {
-        _fileService      = fileService ?? throw new ArgumentNullException(nameof(fileService));
-        _bus              = bus         ?? throw new ArgumentNullException(nameof(bus));
-        _world            = world       ?? throw new ArgumentNullException(nameof(world));
+        _fileService      = fileService      ?? throw new ArgumentNullException(nameof(fileService));
+        _simBus           = simBus           ?? throw new ArgumentNullException(nameof(simBus));
+        _orchestrationBus = orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus));
+        _world            = world            ?? throw new ArgumentNullException(nameof(world));
         _kernel           = kernel;
         _logicPacks       = logicPacks;
         _translatorPacks  = translatorPacks;
@@ -106,7 +109,7 @@ public sealed class EditorApplication : IEditorLogic
 
         // 2. Dispatch a cluster transition intent to route the load through the orchestrator.
         //    This triggers HrotEditLoadHandler -> StagingEntityExtractor -> NetworkSpawningSystem
-        _bus.PublishManaged(new Fdp.Toolkit.Orchestration.TransitionStateIntent
+        _orchestrationBus.PublishManaged(new Fdp.Toolkit.Orchestration.TransitionStateIntent
         {
             TransactionId = Guid.NewGuid(),
             TargetState   = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit,
@@ -140,14 +143,14 @@ public sealed class EditorApplication : IEditorLogic
     {
         // Publish an FDP-managed event that the active tool controller listens for.
         // The actual tool switch logic lives in EditorSubsystem.DrainToolActivationEvents().
-        _bus.PublishManaged(new ActivateEditorToolEvent(tool));
+        _simBus.PublishManaged(new ActivateEditorToolEvent(tool));
     }
 
     /// <inheritdoc/>
     public void CommitPropertyEdit(long networkId, IReadOnlyList<object> updatedComponents)
     {
         if (updatedComponents == null) throw new ArgumentNullException(nameof(updatedComponents));
-        _bus.PublishManaged(new UpdateEntityCommand
+        _simBus.PublishManaged(new UpdateEntityCommand
         {
             NetworkId          = networkId,
             ComponentsToUpdate = new List<object>(updatedComponents),
@@ -184,15 +187,15 @@ public sealed class EditorApplication : IEditorLogic
 
     /// <inheritdoc/>
     public void CenterOnEntity(long entityId) =>
-        _bus.PublishManaged(new CenterOnEntityCommand { NetworkId = entityId });
+        _simBus.PublishManaged(new CenterOnEntityCommand { NetworkId = entityId });
 
     /// <inheritdoc/>
     public void SelectEntity(long entityId) =>
-        _bus.PublishManaged(new SelectEntityCommand { NetworkId = entityId });
+        _simBus.PublishManaged(new SelectEntityCommand { NetworkId = entityId });
 
     /// <inheritdoc/>
     public void OpenRenameDialog(long entityId) =>
-        _bus.PublishManaged(new OpenRenameDialogCommand { NetworkId = entityId });
+        _simBus.PublishManaged(new OpenRenameDialogCommand { NetworkId = entityId });
 
     /// <summary>
     /// Returns an <see cref="EditorSystemsModule"/> initialised against this application's
