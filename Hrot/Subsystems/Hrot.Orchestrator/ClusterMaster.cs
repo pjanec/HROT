@@ -15,6 +15,7 @@ using Fdp.Toolkit.Time.Controllers;
 using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType    = Hrot.NED.Descriptors.Orchestration.NodeOpType;
+using FdpClusterState = Fdp.Toolkit.Orchestration.ClusterState;
 
 namespace Hrot.Orchestrator;
 
@@ -840,12 +841,12 @@ public sealed class ClusterMaster : IDisposable
                             tStep.TargetState == ClusterState.LoadingLive || tStep.TargetState == ClusterState.LoadingEdit
                                 ? intent.ScenarioId : null,
                             false,
-                            (int)tStep.TargetState,
+                            (FdpClusterState)(int)tStep.TargetState,
                             ExerciseId: intent.ExerciseId);
 
                         FanOutNodeOp(prepareOp,             tx.TransactionId, preparePayload,              activeNodeIds);
                         FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId,
-                            new CommitStatePayload((int)tStep.TargetState), activeNodeIds);
+                            new CommitStatePayload((FdpClusterState)(int)tStep.TargetState), activeNodeIds);
 
                         // CGF1-S0307: Invoke local context handler for load transitions.
                         if (_globalContextHandler != null &&

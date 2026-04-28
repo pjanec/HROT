@@ -185,7 +185,7 @@ namespace Hrot.SimHost.Tests
                 Operation     = NodeOpType.PrepareState,
                 DomainPayload = new EditLoadHandlerPayload(
                     ScenarioId:  null,
-                    TargetState: 31), // OperatingLive
+                    TargetState: ClusterState.OperatingLive), // OperatingLive
             };
 
             var prepareTask = handler.PrepareAsync(intent, CancellationToken.None);
@@ -231,7 +231,7 @@ namespace Hrot.SimHost.Tests
                 Operation     = NodeOpType.PrepareState,
                 DomainPayload = new EditLoadHandlerPayload(
                     ScenarioId:  null,
-                    TargetState: 31),
+                    TargetState: ClusterState.OperatingLive),
             };
 
             var prepareTask = handler.PrepareAsync(intent, CancellationToken.None);

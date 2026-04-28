@@ -10,6 +10,7 @@ using Hrot.Network.Orchestration;
 using NedClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using NedNodeOpType    = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using FdpNodeOpType    = Fdp.Toolkit.Orchestration.NodeOpType;
+using FdpClusterState  = Fdp.Toolkit.Orchestration.ClusterState;
 
 namespace Hrot.Common.Orchestration;
 
@@ -147,7 +148,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 return new EditLoadHandlerPayload(
                     ScenarioId:    dto?.ScenarioId,
                     IsNewScenario: false,
-                    TargetState:   dto?.TargetState.HasValue == true ? (int)dto.TargetState.Value : 0,
+                    TargetState:   dto?.TargetState.HasValue == true ? (FdpClusterState)(int)dto.TargetState.Value : default,
                     ExerciseId:    dto?.ExerciseId ?? Guid.Empty);
             }
 

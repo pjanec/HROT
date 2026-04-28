@@ -84,7 +84,7 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
         if (intent.Operation == NodeOpType.PrepareState)
         {
             if (intent.DomainPayload is EditLoadHandlerPayload elpState &&
-                elpState.TargetState == (int)ClusterState.OperatingLive)
+                elpState.TargetState == ClusterState.OperatingLive)
             {
                 _operatingLiveTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
                 return await _operatingLiveTcs.Task.ConfigureAwait(false);

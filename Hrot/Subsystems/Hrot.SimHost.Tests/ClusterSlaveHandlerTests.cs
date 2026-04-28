@@ -6,6 +6,7 @@ using Fdp.Toolkit.Orchestration;
 using Xunit;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
+using FdpClusterState = Fdp.Toolkit.Orchestration.ClusterState;
 
 namespace Hrot.SimHost.Tests
 {
@@ -34,7 +35,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.CommitState,
-                DomainPayload = new CommitStatePayload((int)ClusterState.LoadingLive),
+                DomainPayload = new CommitStatePayload(FdpClusterState.LoadingLive),
             });
 
             slave.Tick();
@@ -62,7 +63,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = txId,
                 TargetNodeId  = 0,
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.CommitState,
-                DomainPayload = new CommitStatePayload((int)ClusterState.LoadingLive),
+                DomainPayload = new CommitStatePayload(FdpClusterState.LoadingLive),
             };
 
             // Enqueue the same command twice (simulates DDS re-delivery).
@@ -105,7 +106,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = txId,
                 TargetNodeId  = 0,
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.CommitState,
-                DomainPayload = new CommitStatePayload((int)ClusterState.LoadingLive),
+                DomainPayload = new CommitStatePayload(FdpClusterState.LoadingLive),
             });
 
             slave.Tick();
@@ -154,7 +155,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.CommitState,
-                DomainPayload = new CommitStatePayload((int)ClusterState.LoadingLive),
+                DomainPayload = new CommitStatePayload(FdpClusterState.LoadingLive),
             });
 
             slave.Tick();

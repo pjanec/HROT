@@ -201,7 +201,7 @@ public sealed class ClusterUiCacheTests : IDisposable
             DomainPayload = new EditLoadHandlerPayload(
                 ScenarioId:    null,
                 IsNewScenario: false,
-                TargetState:   (int)ClusterState.LoadingLive),
+                TargetState:   (FdpClusterState)(int)ClusterState.LoadingLive),
         });
 
         Tick();

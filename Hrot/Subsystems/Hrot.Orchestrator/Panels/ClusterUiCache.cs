@@ -203,7 +203,7 @@ public sealed class ClusterUiCache : IDisposable
                 if (intent.DomainPayload is EditLoadHandlerPayload ep)
                     targetState = (ClusterState)ep.TargetState;
                 else if (intent.DomainPayload is CommitStatePayload cp)
-                    targetState = (ClusterState)cp.TargetStateId;
+                    targetState = (ClusterState)(int)cp.TargetState;
                 else if (intent.DomainPayload is int raw)
                     targetState = (ClusterState)raw;
 

@@ -96,7 +96,7 @@ namespace Hrot.CGF.Orchestration.Handlers
             if (intent.Operation == NodeOpType.PrepareState)
             {
                 if (intent.DomainPayload is EditLoadHandlerPayload elp &&
-                    elp.TargetState == (int)ClusterState.OperatingLive)
+                    elp.TargetState == ClusterState.OperatingLive)
                 {
                     _operatingLiveTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
                     return await _operatingLiveTcs.Task.ConfigureAwait(false);

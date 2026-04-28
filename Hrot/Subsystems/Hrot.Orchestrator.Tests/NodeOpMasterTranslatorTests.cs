@@ -12,6 +12,7 @@ using Hrot.Network.Orchestration;
 using NedNodeOpType  = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using NedClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using FdpNodeOpType  = Fdp.Toolkit.Orchestration.NodeOpType;
+using FdpClusterState = Fdp.Toolkit.Orchestration.ClusterState;
 using Xunit;
 
 namespace Hrot.Orchestrator.Tests;
@@ -45,7 +46,7 @@ public sealed class NodeOpMasterTranslatorTests
             TargetNodeId  = 2,
             TransactionId = Guid.NewGuid(),
             Operation     = FdpNodeOpType.PrepareLive,
-            DomainPayload = new EditLoadHandlerPayload("scene1", false, (int)NedClusterState.LoadingLive),
+            DomainPayload = new EditLoadHandlerPayload("scene1", false, (FdpClusterState)(int)NedClusterState.LoadingLive),
         });
         // Swap so translator can read
         bus.SwapBuffers();
@@ -154,8 +155,8 @@ public sealed class NodeOpMasterTranslatorTests
     // ── Test 4: CommitStatePayload round-trip (TASK-D01) ─────────────────────
 
     /// <summary>
-    /// CommitStatePayload serialized by NodeOpMasterTranslator produces a raw integer
-    /// string, which NodeOpSlaveTranslator correctly deserializes back to CommitStatePayload.
+    /// CommitStatePayload serialized by NodeOpMasterTranslator and deserialized back by
+    /// NodeOpSlaveTranslator produces the original CommitStatePayload.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void CommitStatePayload_RoundTrips_ThroughTranslators()
@@ -186,7 +187,7 @@ public sealed class NodeOpMasterTranslatorTests
             TargetNodeId  = nodeId,
             TransactionId = txId,
             Operation     = FdpNodeOpType.CommitState,
-            DomainPayload = new CommitStatePayload(3),
+            DomainPayload = new CommitStatePayload(FdpClusterState.LoadingLive),
         });
         masterBus.SwapBuffers();
         masterTranslator.Tick(); // serializes to DDS
@@ -200,7 +201,7 @@ public sealed class NodeOpMasterTranslatorTests
         Assert.Single(intents);
         Assert.Equal(txId,   intents[0].TransactionId);
         var payload = Assert.IsType<CommitStatePayload>(intents[0].DomainPayload);
-        Assert.Equal(3, payload.TargetStateId);
+        Assert.Equal(FdpClusterState.LoadingLive, payload.TargetState);
     }
 
     // ── Test 5: Ingress — SerializeLocal ResultJson → List<FileManifestEntry> ──

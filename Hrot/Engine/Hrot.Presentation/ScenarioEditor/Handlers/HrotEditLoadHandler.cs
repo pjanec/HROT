@@ -48,9 +48,6 @@ namespace Hrot.ScenarioEditor.Handlers;
 /// </summary>
 public sealed class HrotEditLoadHandler : ITickableClusterStateHandler
 {
-    private const int LoadingEditState   = 10;
-    private const int OperatingEditState = 11;
-
     private readonly ScenarioSerializer _serializer;
     private readonly IScenarioLoader _scenarioLoader;
     private readonly IZoneManagerService _zoneService;
@@ -133,14 +130,14 @@ public sealed class HrotEditLoadHandler : ITickableClusterStateHandler
         // Intercept PrepareState targeting OperatingEdit: hold the cluster in
         // LoadingEdit until DrainDeferredAcks confirms all ECS entities have
         // left the Constructing lifecycle phase.
-        if (payload.TargetState == OperatingEditState)
+        if (payload.TargetState == ClusterState.OperatingEdit)
         {
             _operatingEditTcs = new System.Threading.Tasks.TaskCompletionSource<object?>(
                 System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);
             return _operatingEditTcs.Task;
         }
 
-        if (payload.TargetState != LoadingEditState)
+        if (payload.TargetState != ClusterState.LoadingEdit)
             return System.Threading.Tasks.Task.FromResult<object?>(null);
 
         var isNew      = payload.IsNewScenario;

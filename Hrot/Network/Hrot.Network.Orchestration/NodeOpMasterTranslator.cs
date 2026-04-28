@@ -104,7 +104,6 @@ public sealed class NodeOpMasterTranslator
     /// <summary>
     /// Serialises a typed <paramref name="domainPayload"/> to a JSON string suitable for
     /// <see cref="NodeOpCommand.PayloadJson"/>.
-    /// <c>CommitState</c> payloads (boxed <c>int</c>) are written as a raw integer string.
     /// </summary>
     private string SerializeNodePayload(FdpNodeOpType operation, object? domainPayload)
     {

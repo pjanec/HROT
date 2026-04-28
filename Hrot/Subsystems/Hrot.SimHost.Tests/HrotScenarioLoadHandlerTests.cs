@@ -109,7 +109,7 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
             Operation     = NodeOpType.PrepareState,
             DomainPayload = new Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload(
                 ScenarioId:  null,
-                TargetState: 31), // OperatingLive
+                TargetState: ClusterState.OperatingLive), // OperatingLive
         };
 
         var prepareTask = handler.PrepareAsync(intent, default);
@@ -139,7 +139,7 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
             Operation     = NodeOpType.PrepareState,
             DomainPayload = new Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload(
                 ScenarioId:  null,
-                TargetState: 31),
+                TargetState: ClusterState.OperatingLive),
         };
 
         var prepareTask = handler.PrepareAsync(intent, default);
