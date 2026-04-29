@@ -23,9 +23,9 @@ Legend: `[ ]` not started / `[>]` in progress / `[x]` completed
 
 - [x] **FBT-010** Define marker attributes (`[BTreeAction]`, `[BTreeCondition]`, `[BTreeDefinition]`, `[FbtRegistrar]`)
 - [x] **FBT-011** `BTreeActionGenerator : IIncrementalGenerator` -- emits `FbtActionRegistrar.g.cs`
-- [ ] **FBT-012** `BTreeDefinitionGenerator` — emits `FbtTreeCatalog.g.cs`
+- [x] **FBT-012** `BTreeDefinitionGenerator` -- emits `FbtTreeCatalog.g.cs`
 - [x] **FBT-013** `FbtAutoDiscovery.ScanAndRegister` -- cross-assembly auto-discovery
-- [ ] **FBT-014** Source generator tests
+- [x] **FBT-014** Source generator tests
 
 ---
 
