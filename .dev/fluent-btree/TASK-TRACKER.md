@@ -22,9 +22,9 @@ Legend: `[ ]` not started / `[>]` in progress / `[x]` completed
 ## Phase 2: Fbt.SourceGen — Roslyn Source Generator
 
 - [x] **FBT-010** Define marker attributes (`[BTreeAction]`, `[BTreeCondition]`, `[BTreeDefinition]`, `[FbtRegistrar]`)
-- [ ] **FBT-011** `BTreeActionGenerator : IIncrementalGenerator` — emits `FbtActionRegistrar.g.cs`
+- [x] **FBT-011** `BTreeActionGenerator : IIncrementalGenerator` -- emits `FbtActionRegistrar.g.cs`
 - [ ] **FBT-012** `BTreeDefinitionGenerator` — emits `FbtTreeCatalog.g.cs`
-- [ ] **FBT-013** `FbtAutoDiscovery.ScanAndRegister` — cross-assembly auto-discovery
+- [x] **FBT-013** `FbtAutoDiscovery.ScanAndRegister` -- cross-assembly auto-discovery
 - [ ] **FBT-014** Source generator tests
 
 ---
