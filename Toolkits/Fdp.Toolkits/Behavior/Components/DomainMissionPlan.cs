@@ -5,6 +5,17 @@ using Fdp.Core;
 namespace Fdp.Toolkit.Behavior.Components
 {
     /// <summary>
+    /// Pure-domain representation of a single mission trigger.
+    /// Carries the trigger type name and optional parameter string through the
+    /// scenario serialization round-trip without depending on Hrot.Core.
+    /// </summary>
+    public class DomainMissionTrigger
+    {
+        public string Type   { get; set; } = string.Empty;
+        public string Params { get; set; } = string.Empty;
+    }
+
+    /// <summary>
     /// Pure-domain representation of a single mission task.
     /// No dependency on Hrot.NED or CycloneDDS.
     /// </summary>
@@ -14,6 +25,7 @@ namespace Fdp.Toolkit.Behavior.Components
         public string ExecutingEngine { get; set; } = string.Empty;
         public string BehaviorId      { get; set; } = string.Empty;
         public string BehaviorParams  { get; set; } = string.Empty;
+        public List<DomainMissionTrigger> Triggers { get; set; } = new();
     }
 
     /// <summary>
