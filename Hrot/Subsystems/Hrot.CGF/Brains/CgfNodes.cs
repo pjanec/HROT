@@ -593,14 +593,33 @@ namespace Hrot.CGF.Brains
             return NodeStatus.Running;
         }
         
+        /// <summary>
+        /// BTree action node: holds the entity in place while waiting for a target to become
+        /// visible. Always returns <see cref="NodeStatus.Running"/> so the Selector stays alive.
+        /// </summary>
+        public static NodeStatus Action_HoldPosition(
+            ref BrainBlackboard blackboard,
+            ref BehaviorTreeState state,
+            ref BTreeContext ctx,
+            int paramIndex)
+        {
+            return NodeStatus.Running;
+        }
+
         private static readonly string FireAtTargetJson = $$"""
             {
               "TreeName": "{{Hrot.Map.Definitions.Doctrine.FireAtTargetParamsJsonDto.BehaviorId}}",
               "Root": {
-                "Type": "Sequence",
+                "Type": "Selector",
                 "Children": [
-                  { "Type": "Condition", "Action": "Condition_TargetAliveAndVisible" },
-                  { "Type": "Action",    "Action": "Action_FireAtTarget" }
+                  {
+                    "Type": "Sequence",
+                    "Children": [
+                      { "Type": "Condition", "Action": "Condition_TargetAliveAndVisible" },
+                      { "Type": "Action",    "Action": "Action_FireAtTarget" }
+                    ]
+                  },
+                  { "Type": "Action", "Action": "Action_HoldPosition" }
                 ]
               }
             }
@@ -614,6 +633,7 @@ namespace Hrot.CGF.Brains
             var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
             registry.Register("Condition_TargetAliveAndVisible", Condition_TargetAliveAndVisible);
             registry.Register("Action_FireAtTarget",             Action_FireAtTarget);
+            registry.Register("Action_HoldPosition",             Action_HoldPosition);
             var blob = TreeCompiler.CompileFromJson(FireAtTargetJson);
             return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
         }

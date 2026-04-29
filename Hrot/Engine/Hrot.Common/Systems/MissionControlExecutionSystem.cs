@@ -168,6 +168,11 @@ namespace Hrot.Common.Systems
                             ExecutingEngine = t.ExecutingEngine ?? string.Empty,
                             BehaviorId = t.BehaviorId ?? string.Empty,
                             BehaviorParams = t.BehaviorParams ?? string.Empty,
+                            Triggers = t.Triggers?.ConvertAll(st => new DomainMissionTrigger
+                            {
+                                Type   = st.Type   ?? string.Empty,
+                                Params = st.Params ?? string.Empty,
+                            }) ?? new List<DomainMissionTrigger>(),
                         }) ?? new List<DomainMissionTask>()
                     };
                     repo.SetComponent(entity, queue);

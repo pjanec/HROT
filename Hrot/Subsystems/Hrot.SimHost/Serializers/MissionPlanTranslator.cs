@@ -112,10 +112,13 @@ namespace Hrot.SimHost.Serializers
             //    Use Get -> Mutate -> SetComponent to avoid [InlineArray] defensive-copy trap.
             var queue = new MissionPlanQueue
             {
-                CurrentPhase        = (byte)(obj["CurrentPhase"]?.GetValue<int>() ?? 0),
-                PhaseElapsedSeconds = obj["PhaseElapsedSeconds"]?.GetValue<float>() ?? 0f,
-                PhaseCount          = (byte)Math.Min(
-                    domainPlan.Tasks.Count, MissionPlanQueue.MaxPhases),
+                // Force a clean slate. Never restore execution progress from disk.
+                //CurrentPhase        = (byte)(obj["CurrentPhase"]?.GetValue<int>() ?? 0),
+                //PhaseElapsedSeconds = obj["PhaseElapsedSeconds"]?.GetValue<float>() ?? 0f,
+                CurrentPhase        = 0, 
+                PhaseElapsedSeconds = 0f,
+
+                PhaseCount          = (byte)Math.Min(domainPlan.Tasks.Count, MissionPlanQueue.MaxPhases),
             };
 
             Span<MissionPhase> phases = queue.Phases;
@@ -123,12 +126,18 @@ namespace Hrot.SimHost.Serializers
             {
                 var task = domainPlan.Tasks[i];
                 _registry.TryGetId(task.BehaviorId, out int doctrineId);
+                var hrotTriggers = task.Triggers?.ConvertAll(t => new Hrot.Core.Mission.MissionTrigger
+                {
+                    Type   = t.Type,
+                    Params = t.Params,
+                });
+                var (trigger, triggerParam) = Hrot.Core.Mission.MissionTriggerHelper.ResolveTrigger(hrotTriggers);
 
                 phases[i] = new MissionPhase
                 {
                     DoctrineId   = doctrineId,
-                    Trigger      = MissionTrigger.DoctrineFinished,
-                    TriggerParam = 0f,
+                    Trigger      = trigger,
+                    TriggerParam = triggerParam,
                 };
             }
 
