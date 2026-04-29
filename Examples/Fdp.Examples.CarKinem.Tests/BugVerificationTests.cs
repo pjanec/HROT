@@ -29,24 +29,18 @@ namespace Fdp.Examples.CarKinem.Tests
         [Fact]
         public void Test_Issue1_Stepping_Moves_Simulation()
         {
-            var stepping = _app.SteppingTime;
-            stepping.SeedState(_app.TimeController.GetCurrentState());
-            _app.Kernel.SetTimeController(stepping);  // was: _app.TimeController.SwitchTo(stepping)
+            // Create a fresh app initialized with stepping time controller (must be set before Initialize).
+            using var steppingApp = new HeadlessCarKinemApp();
+            steppingApp.Initialize(useSteppingTime: true);
+            var stepping = steppingApp.SteppingTime;
             
-            // Replicate App behavior: App calls Step() then runs systems, but DOES NOT CALL Kernel.Update().
             float dt = 1.0f / 60.0f;
             stepping.Step(dt); 
             
-            // In a real app loop, we would call _app.RunSystems() here if exposed.
-            // But we want to verifiable correct time propagation.
-            // If we run Kernel.Update(), it calls TimeController.Update().
-            // If TimeController.Update() returns 0 delta (bug), then GlobalTime is frozen.
+            steppingApp.Kernel.Update();
             
-            _app.Kernel.Update();
+            var time = steppingApp.Repository.GetSingleton<GlobalTime>();
             
-            var time = _app.Repository.GetSingleton<GlobalTime>();
-            
-            // Current bug: DeltaTime is 0 even after getting update because SteppingTimeController.Update() returns 0.
             Assert.True(time.DeltaTime > 0.0001f, $"Stepping should produce non-zero DeltaTime. Got {time.DeltaTime}");
         }
 

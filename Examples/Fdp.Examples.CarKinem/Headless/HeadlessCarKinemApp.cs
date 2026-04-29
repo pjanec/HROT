@@ -45,7 +45,7 @@ namespace Fdp.Examples.CarKinem.Headless
         private FormationTemplateManager _formationTemplates = null!;
         private RoadNetworkBlob _roadNetwork = new();
 
-        public void Initialize()
+        public void Initialize(bool useSteppingTime = false)
         {
             // 1. Core Setup
             Repository = new EntityRepository();
@@ -76,7 +76,7 @@ namespace Fdp.Examples.CarKinem.Headless
             SteppingTime = new SteppingTimeController(new GlobalTime());
             
             // Use ContinuousTime directly (SwitchableTimeController removed).
-            TimeController = ContinuousTime; 
+            TimeController = useSteppingTime ? (ITimeController)SteppingTime : ContinuousTime; 
             
             Kernel.SetTimeController(TimeController);
             Kernel.Initialize();

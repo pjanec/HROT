@@ -81,14 +81,14 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             
             adapter.Setup(a => a.GetHitRadius(world, It.IsAny<Entity>())).Returns(5.0f);
             
-            // Act - Click at (21, 21) -> Should hit e2 (dist sqrt(2) approx 1.4 < 5)
+            // Act - Pick at (21, 21) -> Should hit e2 (dist sqrt(2) approx 1.4 < 5)
             // e1 is far (dist sqrt(11^2 + 11^2) approx 15 > 5)
+            // Selection state is managed by map tools via PickEntity(), not HandleInput().
             
-            bool consumed = layer.HandleInput(new Vector2(21, 21), MouseButton.Left, true);
+            Entity? hit = layer.PickEntity(new Vector2(21, 21));
             
             // Assert
-            Assert.True(consumed);
-            selection.VerifySet(s => s.PrimarySelected = e2);
+            Assert.Equal(e2, hit);
         }
 
         // ── BUG2-V001 — Catch-all mode filters hidden entities ──────────────────
