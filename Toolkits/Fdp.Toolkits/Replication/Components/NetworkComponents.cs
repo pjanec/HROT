@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Replication.Components
     /// Unmanaged component (can be used in Queries).
     /// </summary>
     [ComponentId(GlobalComponentIds.NetworkOwnership)]
+    [DataPolicy(DataPolicy.NoSave)]
     public struct NetworkOwnership
     {
         public int PrimaryOwnerId; // Default owner (EntityMaster)
@@ -34,6 +35,7 @@ namespace Fdp.Toolkit.Replication.Components
     /// in reliable initialization mode. Removed after publishing lifecycle status.
     /// </summary>
     [ComponentId(GlobalComponentIds.PendingNetworkAck)]
+    [DataPolicy(DataPolicy.NoSave)]
     public struct PendingNetworkAck 
     { 
         /// <summary>Reliable Init type required to determine expected peers</summary>

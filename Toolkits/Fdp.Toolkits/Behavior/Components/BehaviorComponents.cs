@@ -35,6 +35,7 @@ namespace Fdp.Toolkit.Behavior.Components
 
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.DoctrineState)]
+    [DataPolicy(DataPolicy.NoSave)]
     public struct DoctrineState
     {
         public int ActiveDoctrineHash;
