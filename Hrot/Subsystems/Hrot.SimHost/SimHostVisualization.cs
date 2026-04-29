@@ -32,6 +32,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Hrot.Map.Common.Events;
 using Fdp.Toolkit.NetworkSpawning;
+using Hrot.Presentation.Adapters;
 
 namespace Hrot.SimHost
 {
@@ -201,6 +202,8 @@ namespace Hrot.SimHost
                 new Fdp.Toolkit.Vis2D.Shapes.DefaultEntityShapeLibrary());
             _map.AddLayer(new EntityRenderLayer(
                 "Vehicles", 0, repo, _vehicleQuery, _visualizer, _inspector));
+
+            _map.AddLayer(ProjectileLayerFactory.CreateLayer(repo, _inspector, _map));
 
             _map.AddLayer(new SimHostTrajectoryLayer(trajectoryPool, repo, _inspector));
 

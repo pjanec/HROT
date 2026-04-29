@@ -51,6 +51,7 @@ using Hrot.ScenarioEditor.Rendering;
 using Hrot.ScenarioEditor.Services;
 using Hrot.ScenarioEditor.Adapters;
 using Hrot.ScenarioEditor.Tools;
+using Hrot.Presentation.Adapters;
 using Hrot.SimHost;
 using Hrot.SimHost.Modules;
 using Hrot.Presentation.Facades;
@@ -518,6 +519,7 @@ namespace Hrot.Editor
 
                 // Visual effects layer — draws explosion circles and tracer lines.
                 _canvas.AddLayer(new EffectRenderLayer(_world));
+                _canvas.AddLayer(ProjectileLayerFactory.CreateLayer(_world, _selectionState, _canvas));
 
                 // Standard interaction tool — pan, zoom, select, drag-and-drop.
                 _interactionTool = new EditorInteractionTool(_world, entityQuery, visualizerAdapter, _selectionState);
