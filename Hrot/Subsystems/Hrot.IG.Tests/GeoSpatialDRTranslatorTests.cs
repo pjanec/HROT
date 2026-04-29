@@ -29,6 +29,7 @@ namespace Hrot.IG.Tests
         {
             using var participant = new DdsParticipant(0);
             var repo      = new EntityRepository();
+            repo.RegisterComponent<SimTransform>();
             var entityMap = new NetworkEntityMap();
             var entity    = repo.CreateEntity();
             entityMap.Register(KnownId, entity);
@@ -57,6 +58,7 @@ namespace Hrot.IG.Tests
             var repo      = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterComponent<GhostStateTracker>();
+            repo.RegisterComponent<SimTransform>();
             var entityMap = new NetworkEntityMap();
 
             var ghostCreationSystem = new GhostCreationSystem(entityMap);

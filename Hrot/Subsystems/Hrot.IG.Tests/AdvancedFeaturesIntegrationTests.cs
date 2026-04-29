@@ -5,6 +5,8 @@ using Hrot.IG.Systems;
 using Hrot.ScenarioEditor.Tools;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Combat.Events;
 using Raylib_cs;
 
 namespace Hrot.IG.Tests;
@@ -80,7 +82,8 @@ public class AdvancedFeaturesIntegrationTests
         repo.RegisterManagedComponent<EditablePolyline>();
 
         // --- Events ---
-        repo.RegisterEvent<Hrot.Map.Common.Events.FireInteractionEvent>();
+        repo.RegisterEvent<DetonationNotification>();
+        repo.RegisterEvent<WeaponFireNotification>();
 
         return repo;
     }
@@ -150,12 +153,15 @@ public class AdvancedFeaturesIntegrationTests
         var spawnSystem   = new EventToEffectSystem();
         var cleanupSystem = new VisualEffectCleanupSystem();
 
-        // Publish the event and run the spawn system.
-        repo.Bus.Publish(new Hrot.Map.Common.Events.FireInteractionEvent
-        {
-            ShooterX = ShooterX, ShooterY = ShooterY,
-            TargetX  = TargetX,  TargetY  = TargetY,
-        });
+        // Create entities for the tracer effect (EventToEffectSystem requires Entity refs with SimTransform).
+        var shooterEntity = repo.CreateEntity();
+        repo.AddComponent(shooterEntity, new SimTransform { Position = new Vector3(ShooterX, ShooterY, 0f), Rotation = Quaternion.Identity });
+        var targetEntity = repo.CreateEntity();
+        repo.AddComponent(targetEntity, new SimTransform { Position = new Vector3(TargetX, TargetY, 0f), Rotation = Quaternion.Identity });
+
+        // Publish detonation (spawns explosion) and weapon fire (spawns tracer).
+        repo.Bus.Publish(new DetonationNotification { HitX = TargetX, HitY = TargetY });
+        repo.Bus.Publish(new WeaponFireNotification { Shooter = shooterEntity, Target = targetEntity });
         RunSystem(repo, spawnSystem, dt: 0f);
 
         // Count spawned effect entities.
@@ -259,8 +265,20 @@ public class AdvancedFeaturesIntegrationTests
         var spawnSystem = new EventToEffectSystem();
         var view        = (ISimulationView)repo;
 
-        repo.Bus.Publish(new Hrot.Map.Common.Events.FireInteractionEvent { ShooterX = 0f, ShooterY = 0f, TargetX = 100f, TargetY = 100f });
-        repo.Bus.Publish(new Hrot.Map.Common.Events.FireInteractionEvent { ShooterX = 200f, ShooterY = 0f, TargetX = 300f, TargetY = 0f });
+        // Create entities for tracer effects (WeaponFireNotification requires Entity refs with SimTransform).
+        var shooter1 = repo.CreateEntity();
+        repo.AddComponent(shooter1, new SimTransform { Position = new Vector3(0f,    0f, 0f), Rotation = Quaternion.Identity });
+        var target1 = repo.CreateEntity();
+        repo.AddComponent(target1,  new SimTransform { Position = new Vector3(100f, 100f, 0f), Rotation = Quaternion.Identity });
+        var shooter2 = repo.CreateEntity();
+        repo.AddComponent(shooter2, new SimTransform { Position = new Vector3(200f,   0f, 0f), Rotation = Quaternion.Identity });
+        var target2 = repo.CreateEntity();
+        repo.AddComponent(target2,  new SimTransform { Position = new Vector3(300f,   0f, 0f), Rotation = Quaternion.Identity });
+
+        repo.Bus.Publish(new DetonationNotification { HitX = 100f, HitY = 100f });
+        repo.Bus.Publish(new DetonationNotification { HitX = 300f, HitY =   0f });
+        repo.Bus.Publish(new WeaponFireNotification { Shooter = shooter1, Target = target1 });
+        repo.Bus.Publish(new WeaponFireNotification { Shooter = shooter2, Target = target2 });
 
         RunSystem(repo, spawnSystem, dt: 0f);
 

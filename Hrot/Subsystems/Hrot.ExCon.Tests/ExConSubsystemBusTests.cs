@@ -7,8 +7,8 @@ using Hrot.Orchestrator.Panels;
 namespace Hrot.ExCon.Tests;
 
 /// <summary>
-/// Verifies HEXAG2-S001b: ExConSubsystem uses a single unified FdpEventBus so that
-/// SwitchTimeModeEvent published to the bus is visible to ClusterUiCache and correctly
+/// Verifies HEXAG2-S001b: SwitchTimeModeEvent published to the observer bus (where
+/// DDS time-mode ingress translators write) is visible to ClusterUiCache and correctly
 /// updates IsPaused after one Update() call.
 /// </summary>
 public sealed class ExConSubsystemBusTests
@@ -26,7 +26,7 @@ public sealed class ExConSubsystemBusTests
         subsystem.Initialize(HeadlessConfig());
         try
         {
-            var bus     = subsystem.BusForTest!;
+            var bus     = subsystem.ObserverBusForTest!;
             var uiCache = subsystem.UiCacheForTest!;
 
             // Publish a time-mode switch (Deterministic = paused) to the bus write buffer.

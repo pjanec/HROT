@@ -111,6 +111,9 @@ namespace Hrot.ExCon
         /// <summary>Internal test hook: exposes the unified event bus for bus-unification assertions.</summary>
         internal FdpEventBus? BusForTest => _bus;
 
+        /// <summary>Internal test hook: exposes the observer bus (used by <see cref="ClusterUiCache"/>) for test assertions.</summary>
+        internal FdpEventBus? ObserverBusForTest => _observerBus;
+
         /// <summary>Internal test hook: exposes the <see cref="ClusterUiCache"/> for bus-unification assertions.</summary>
         internal ClusterUiCache? UiCacheForTest => _uiCache;
 

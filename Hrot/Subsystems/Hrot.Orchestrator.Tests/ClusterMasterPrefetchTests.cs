@@ -82,7 +82,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         {
             RequestId     = reqId,
             OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingEdit},\"ScenarioId\":\"{_scenarioId}\"}}",
+            PayloadJson   = $"{{\"TargetState\":\"LoadingEdit\",\"ScenarioId\":\"{_scenarioId}\"}}",
         });
 
         // Tick once: this starts the async gateway task, but the task is NOT yet
@@ -141,7 +141,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         {
             RequestId     = reqId,
             OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingEdit},\"ScenarioId\":\"{missingScenarioId}\"}}",
+            PayloadJson   = $"{{\"TargetState\":\"LoadingEdit\",\"ScenarioId\":\"{missingScenarioId}\"}}",
         });
 
         // Spin until the failure status arrives.

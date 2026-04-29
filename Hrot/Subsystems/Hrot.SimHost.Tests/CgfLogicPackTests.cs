@@ -106,9 +106,9 @@ namespace Hrot.SimHost.Tests
             Assert.Null(ex);
 
             // InputSystems: MissionControlExecutionSystem (1), DoctrineIngressSystem (1) = 2
-            // SimulationSystems: remaining 13 systems (total 15)
+            // SimulationSystems: remaining 14 systems (total 16)
             Assert.Equal(2,  pack.InputSystems.Count);
-            Assert.Equal(13, pack.SimulationSystems.Count);
+            Assert.Equal(14, pack.SimulationSystems.Count);
         }
 
         /// <summary>
@@ -279,8 +279,8 @@ namespace Hrot.SimHost.Tests
 
             // InputSystems: MissionControlExecutionSystem + DoctrineIngressSystem = 2
             Assert.Equal(2,  pack.InputSystems.Count);
-            // SimulationSystems: total 15 - 2 = 13
-            Assert.Equal(13, pack.SimulationSystems.Count);
+            // SimulationSystems: total 16 - 2 = 14
+            Assert.Equal(14, pack.SimulationSystems.Count);
         }
 
         /// <summary>
@@ -296,8 +296,8 @@ namespace Hrot.SimHost.Tests
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
             var pack     = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource);
-            // Total systems across both phases equals 15 (split: 2 input + 13 sim).
-            Assert.Equal(15, pack.InputSystems.Count + pack.SimulationSystems.Count);
+            // Total systems across both phases equals 16 (split: 2 input + 14 sim).
+            Assert.Equal(16, pack.InputSystems.Count + pack.SimulationSystems.Count);
         }
     }
 }

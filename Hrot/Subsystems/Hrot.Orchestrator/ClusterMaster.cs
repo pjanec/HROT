@@ -803,11 +803,7 @@ public sealed class ClusterMaster : IDisposable
             CompletedSteps  = totalSteps,
             IsAborted       = false,
             SourceDsmState  = capturedSourceState,
-            PayloadJson     = JsonSerializer.Serialize(intent, new JsonSerializerOptions
-            {
-                IncludeFields = true,
-                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-            }),
+            PayloadJson     = string.Empty,
         };
         _activeTransaction    = tx;
         _inflightTransitionTx = tx;

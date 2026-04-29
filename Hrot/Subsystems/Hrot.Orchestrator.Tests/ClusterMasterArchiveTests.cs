@@ -73,7 +73,7 @@ public sealed class ClusterMasterArchiveTests
         {
             RequestId     = exportRequestId,
             OperationType = ClusterOpType.ExportArchive,
-            PayloadJson   = "{\"ExerciseId\":\"exercise_cancel_test\"}",
+            PayloadJson   = "{\"ExerciseId\":\"00000000-0000-0000-0000-000000000099\"}",
         });
         exercise.Tick();  // drain injected requests
 

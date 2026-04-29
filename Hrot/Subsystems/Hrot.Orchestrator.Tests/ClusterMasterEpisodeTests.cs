@@ -88,7 +88,7 @@ public sealed class ClusterMasterEpisodeTests
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.ManageEpisode,
-            PayloadJson   = $"{{\"Mode\":\"Start\",\"EpisodeId\":\"{episodeId}\",\"ScenarioId\":\"{scenarioId}\"}}",
+            PayloadJson   = $"{{\"IsStart\":true,\"EpisodeId\":\"{episodeId}\",\"ScenarioId\":\"{scenarioId}\"}}",
         });
         bus.SwapBuffers();
         exercise.Tick();
@@ -141,7 +141,7 @@ public sealed class ClusterMasterEpisodeTests
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.ManageEpisode,
-            PayloadJson   = $"{{\"Mode\":\"Start\",\"EpisodeId\":\"{episodeId}\",\"ScenarioId\":\"irrelevant\"}}",
+            PayloadJson   = $"{{\"IsStart\":true,\"EpisodeId\":\"{episodeId}\",\"ScenarioId\":\"irrelevant\"}}",
         });
         bus.SwapBuffers();
         exercise.Tick();
@@ -191,7 +191,7 @@ public sealed class ClusterMasterEpisodeTests
         {
             RequestId     = requestId,
             OperationType = ClusterOpType.ManageEpisode,
-            PayloadJson   = $"{{\"Mode\":\"Start\",\"EpisodeId\":\"{episodeId}\",\"ScenarioId\":\"nak_test\"}}",
+            PayloadJson   = $"{{\"IsStart\":true,\"EpisodeId\":\"{episodeId}\",\"ScenarioId\":\"nak_test\"}}",
         });
         bus.SwapBuffers();
         exercise.Tick();
@@ -247,7 +247,7 @@ public sealed class ClusterMasterEpisodeTests
         {
             RequestId     = requestId,
             OperationType = ClusterOpType.ManageEpisode,
-            PayloadJson   = "{\"Mode\":\"Start\",\"ScenarioId\":\"missing_episode_id\"}",
+            PayloadJson   = "{\"IsStart\":true,\"ScenarioId\":\"missing_episode_id\"}",
         });
         bus.SwapBuffers();
         exercise.Tick();
@@ -286,7 +286,7 @@ public sealed class ClusterMasterEpisodeTests
         {
             RequestId     = requestId,
             OperationType = ClusterOpType.ManageEpisode,
-            PayloadJson   = $"{{\"Mode\":\"Start\",\"EpisodeId\":\"{episodeId}\",\"ScenarioId\":\"completed_test\"}}",
+            PayloadJson   = $"{{\"IsStart\":true,\"EpisodeId\":\"{episodeId}\",\"ScenarioId\":\"completed_test\"}}",
         });
         bus.SwapBuffers();
         exercise.Tick();
