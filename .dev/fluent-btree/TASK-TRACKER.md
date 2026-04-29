@@ -14,14 +14,14 @@ Legend: `[ ]` not started / `[>]` in progress / `[x]` completed
 - [x] **FBT-003** Expression-based offset resolution + `Unsafe` blackboard projection
 - [x] **FBT-004** Add `NodeDebugMetadata` class + `[NonSerialized] NodeDebugMetadata[]?` to `BehaviorTreeBlob`
 - [x] **FBT-005** Graph data structures (`BehaviorTreeGraph`, `BehaviorTreeNode`, etc.) in `Fbt.Compiler.Graph`
-- [ ] **FBT-006** Unit/integration tests for Phase 1
-- [ ] **FBT-007** `BTreeSchemaExporter` for authoring tool node palette
+- [x] **FBT-006** Unit/integration tests for Phase 1
+- [x] **FBT-007** `BTreeSchemaExporter` for authoring tool node palette
 
 ---
 
 ## Phase 2: Fbt.SourceGen — Roslyn Source Generator
 
-- [ ] **FBT-010** Define marker attributes (`[BTreeAction]`, `[BTreeCondition]`, `[BTreeDefinition]`, `[FbtRegistrar]`)
+- [x] **FBT-010** Define marker attributes (`[BTreeAction]`, `[BTreeCondition]`, `[BTreeDefinition]`, `[FbtRegistrar]`)
 - [ ] **FBT-011** `BTreeActionGenerator : IIncrementalGenerator` — emits `FbtActionRegistrar.g.cs`
 - [ ] **FBT-012** `BTreeDefinitionGenerator` — emits `FbtTreeCatalog.g.cs`
 - [ ] **FBT-013** `FbtAutoDiscovery.ScanAndRegister` — cross-assembly auto-discovery
