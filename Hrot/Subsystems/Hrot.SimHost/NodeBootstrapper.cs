@@ -15,6 +15,7 @@ using Hrot.SimHost.Orchestration.Handlers;
 using Hrot.Common.Scenario;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
+using Fdp.Toolkit.NetworkSpawning;
 
 namespace Hrot.SimHost
 {
@@ -81,6 +82,20 @@ namespace Hrot.SimHost
         /// <param name="scenarioSerializer">
         /// Optional scenario serializer; when provided, a <c>ScenarioLoadClusterStateHandler</c> is registered
         /// so the node can load its scenario file during <see cref="NodeOpType.PrepareLive"/> (CGF1-S0307).
+        /// Must be supplied together with <paramref name="scenarioExtractor"/>, <paramref name="scenarioSource"/>,
+        /// and <paramref name="scenarioIdAllocator"/>.
+        /// </param>
+        /// <param name="scenarioExtractor">
+        /// Extracts <see cref="Hrot.Core.Network.EntityCreationRequest"/> items from raw scenario JSON.
+        /// Required when <paramref name="scenarioSerializer"/> is non-null.
+        /// </param>
+        /// <param name="scenarioSource">
+        /// Queue through which extracted entity creation requests are fed into the genesis pipeline.
+        /// Required when <paramref name="scenarioSerializer"/> is non-null.
+        /// </param>
+        /// <param name="scenarioIdAllocator">
+        /// Allocates stable network IDs for newly created entities during scenario load.
+        /// Required when <paramref name="scenarioSerializer"/> is non-null.
         /// </param>
         /// <param name="localTempRoot">
         /// Local staging directory root used by <c>ScenarioLoadClusterStateHandler</c> to locate pre-fetched
@@ -117,6 +132,9 @@ namespace Hrot.SimHost
             string subsystemName = "SimHost",
             Fdp.Core.FdpEventBus? eventBus = null,
             Fdp.Toolkit.Scenario.ScenarioSerializer? scenarioSerializer = null,
+            IScenarioEntityExtractor? scenarioExtractor = null,
+            ScenarioEntityCreationRequestSource? scenarioSource = null,
+            INetworkIdAllocator? scenarioIdAllocator = null,
             string localTempRoot = @"C:\FDP_Temp",
             CheckpointIOWorker? checkpointWorker = null,
             Fdp.ModuleHost.Scheduling.TogglableSimulationGroup?    simGroup = null,
@@ -184,16 +202,27 @@ namespace Hrot.SimHost
             // Wire scenario/episode handlers when a serializer is provided.
             if (scenarioSerializer != null)
             {
+                if (scenarioExtractor == null) throw new ArgumentNullException(nameof(scenarioExtractor),
+                    "scenarioExtractor is required when scenarioSerializer is provided.");
+                if (scenarioSource == null) throw new ArgumentNullException(nameof(scenarioSource),
+                    "scenarioSource is required when scenarioSerializer is provided.");
+                if (scenarioIdAllocator == null) throw new ArgumentNullException(nameof(scenarioIdAllocator),
+                    "scenarioIdAllocator is required when scenarioSerializer is provided.");
+
                 var scenarioLoader = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
                 var zoneService    = new ZoneManagerService();
 
                 clusterSlave.RegisterHandler(
-                    new HrotScenarioLoadHandler(scenarioSerializer, scenarioLoader, zoneService, world,
+                    new HrotScenarioLoadHandler(scenarioSerializer, scenarioLoader, zoneService,
+                        scenarioExtractor, scenarioSource, scenarioIdAllocator,
+                        world: world,
                         controller: controller,
                         storageDirectory: localTempRoot));
 
                 clusterSlave.RegisterHandler(
-                    new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(scenarioSerializer, scenarioLoader, zoneService, world));
+                    new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(scenarioSerializer, scenarioLoader, zoneService,
+                        scenarioExtractor, scenarioSource, scenarioIdAllocator,
+                        world: world));
 
                 clusterSlave.RegisterHandler(
                     new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world: null));

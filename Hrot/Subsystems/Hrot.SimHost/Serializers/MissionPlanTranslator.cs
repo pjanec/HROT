@@ -81,9 +81,12 @@ namespace Hrot.SimHost.Serializers
             var obj = new JsonObject
             {
                 ["PlanData"]            = JsonNode.Parse(planJson),
-                ["CurrentPhase"]        = (int)queue.CurrentPhase,
-                ["PhaseElapsedSeconds"] = queue.PhaseElapsedSeconds,
-            };
+				
+                // The following are intentionally commented out so that
+                // the scenario doesn't capture transient execution state
+				//["CurrentPhase"]        = (int)queue.CurrentPhase,
+				//["PhaseElapsedSeconds"] = queue.PhaseElapsedSeconds,
+			};
 
             return new Dictionary<string, object> { [Key] = obj };
         }

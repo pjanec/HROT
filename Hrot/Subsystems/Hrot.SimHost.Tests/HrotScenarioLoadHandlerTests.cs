@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Fdp.Core;
+using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Toolkit.Scenario;
+using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Scenario;
 using Hrot.Map.Common.Services;
@@ -45,15 +47,28 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
         public string? TryLoadScenarioJson(string scenarioId) => _json;
     }
 
+    private sealed class StubScenarioEntityExtractor : IScenarioEntityExtractor
+    {
+        public IReadOnlyList<EntityCreationRequest> Extract(
+            ScenarioSerializer serializer, string json, INetworkIdAllocator idAllocator)
+            => Array.Empty<EntityCreationRequest>();
+    }
+
     // ── Shared test fixtures ──────────────────────────────────────────────────
 
     private readonly EntityRepository _repo;
     private readonly ScenarioSerializer _serializer;
+    private readonly StubScenarioEntityExtractor _extractor;
+    private readonly ScenarioEntityCreationRequestSource _source;
+    private readonly SequentialIdAllocator _idAllocator;
 
     public HrotScenarioLoadHandlerTests()
     {
-        _repo       = new EntityRepository();
-        _serializer = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
+        _repo        = new EntityRepository();
+        _serializer  = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
+        _extractor   = new StubScenarioEntityExtractor();
+        _source      = new ScenarioEntityCreationRequestSource();
+        _idAllocator = new SequentialIdAllocator();
     }
 
     public void Dispose() => _repo.Dispose();
@@ -82,7 +97,7 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
 
         var spy     = new SpyZoneManagerService();
         var loader  = new StubScenarioLoader(json);
-        var handler = new HrotScenarioLoadHandler(_serializer, loader, spy, _repo);
+        var handler = new HrotScenarioLoadHandler(_serializer, loader, spy, _extractor, _source, _idAllocator, world: _repo);
 
         var txId   = Guid.NewGuid();
         var intent = MakeIntent("scenario1", txId);
@@ -100,7 +115,7 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
     {
         var spy     = new SpyZoneManagerService();
         var loader  = new StubScenarioLoader(null);
-        var handler = new HrotScenarioLoadHandler(_serializer, loader, spy, _repo);
+        var handler = new HrotScenarioLoadHandler(_serializer, loader, spy, _extractor, _source, _idAllocator, world: _repo);
 
         var intent = new ExecuteNodeOpIntent
         {
@@ -130,7 +145,7 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
     public async Task DrainDeferredAcks_NoWorld_CompletesImmediately()
     {
         var spy     = new SpyZoneManagerService();
-        var handler = new HrotScenarioLoadHandler(_serializer, new StubScenarioLoader(null), spy);
+        var handler = new HrotScenarioLoadHandler(_serializer, new StubScenarioLoader(null), spy, _extractor, _source, _idAllocator);
 
         var intent = new ExecuteNodeOpIntent
         {
@@ -157,7 +172,7 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
     public void CanHandle_ReturnsTrue_ForPrepareLiveAndPrepareState()
     {
         var handler = new HrotScenarioLoadHandler(
-            _serializer, new StubScenarioLoader(null), new SpyZoneManagerService());
+            _serializer, new StubScenarioLoader(null), new SpyZoneManagerService(), _extractor, _source, _idAllocator);
 
         Assert.True(handler.CanHandle(NodeOpType.PrepareLive));
         Assert.True(handler.CanHandle(NodeOpType.PrepareState));
