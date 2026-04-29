@@ -23,6 +23,8 @@
 - FDP/Kernel/Fdp.Kernel.Examples 
 - FDP/ExtDeps
 + FDP/ExtDeps/StructEdit
++ FDP/ExtDeps/FastBTree/src 
++ FDP/ExtDeps/FastHSM/src
 - scripts
 - TestResults
 - *.txt

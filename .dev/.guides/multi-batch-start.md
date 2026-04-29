@@ -5,4 +5,4 @@ Your goal is to manage the implementation of tasks from
 After each batch review and commiting don't forget to continue with creating next batch
  and delegating the work to subagent, do not stop until all tasks are done!
 
-Do NOT use explorer sub-agent, delegate the batches to Claude Sonnet 4.6 sub agent.
+Do NOT use explorer sub-agent, always delegate the batches to Claude Sonnet 4.6 sub-agent.
