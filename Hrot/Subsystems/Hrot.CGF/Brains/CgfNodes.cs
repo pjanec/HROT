@@ -463,7 +463,8 @@ namespace Hrot.CGF.Brains
         /// <summary>
         /// BTree condition node: returns Success when the target entity is alive and
         /// currently tracked in the entity's TargetMemory (visible + threat score > 0).
-        /// Returns Failure when the target is dead or out of sensor range.
+        //  Return Failure when the target is dead.
+        /// Return Running while the target is alive but out of sight.
         /// </summary>
         public static unsafe NodeStatus Condition_TargetAliveAndVisible(
             ref BrainBlackboard blackboard,
@@ -477,21 +478,27 @@ namespace Hrot.CGF.Brains
 
             var target = new Fdp.Core.Entity((ulong)p.TargetPacked);
 
+            // 1. If the target is definitively dead, fail the node so the doctrine finishes cleanly.
             if (!ctx.World.IsAlive(target))
                 return NodeStatus.Failure;
 
+            // 2. Wait for the perception pipeline to initialize/catch up.
             if (!ctx.World.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self))
-                return NodeStatus.Failure;
+                return NodeStatus.Running; // FIX: Was Failure
 
             ref readonly var mem = ref ctx.World.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self);
             for (int i = 0; i < mem.Count; i++)
             {
+                // 3. Target is visible! Proceed to the next node in the Sequence.
                 if (mem.EntityIds[i] == p.TargetPacked && mem.ThreatScores[i] > 0f)
                     return NodeStatus.Success;
             }
 
-            return NodeStatus.Failure;
+            // 4. Target is alive, but not currently visible. 
+            // Return Running to block the Sequence and force a re-evaluation next tick!
+            return NodeStatus.Running; // FIX: Was Failure
         }
+
 
         /// <summary>
         /// BTree action node: manages continuous firing at the configured target via
@@ -610,16 +617,10 @@ namespace Hrot.CGF.Brains
             {
               "TreeName": "{{Hrot.Map.Definitions.Doctrine.FireAtTargetParamsJsonDto.BehaviorId}}",
               "Root": {
-                "Type": "Selector",
+                "Type": "Sequence",
                 "Children": [
-                  {
-                    "Type": "Sequence",
-                    "Children": [
-                      { "Type": "Condition", "Action": "Condition_TargetAliveAndVisible" },
-                      { "Type": "Action",    "Action": "Action_FireAtTarget" }
-                    ]
-                  },
-                  { "Type": "Action", "Action": "Action_HoldPosition" }
+                  { "Type": "Condition", "Action": "Condition_TargetAliveAndVisible" },
+                  { "Type": "Action",    "Action": "Action_FireAtTarget" }
                 ]
               }
             }
