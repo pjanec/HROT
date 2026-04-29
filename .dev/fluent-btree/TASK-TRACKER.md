@@ -9,10 +9,10 @@ Legend: `[ ]` not started / `[>]` in progress / `[x]` completed
 
 ## Phase 1: Fbt.Compiler — Fluent Builder Foundation
 
-- [ ] **FBT-001** Add `TreeCompiler.FlattenToBlob(BuilderNode, string)` overload
-- [ ] **FBT-002** Create `BTreeBuilder<TBlackboard>` fluent API in new `Fbt.Compiler` project
+- [x] **FBT-001** Add `TreeCompiler.FlattenToBlob(BuilderNode, string)` overload
+- [x] **FBT-002** Create `BTreeBuilder<TBlackboard>` fluent API in new `Fbt.Compiler` project
 - [ ] **FBT-003** Expression-based offset resolution + `Unsafe` blackboard projection
-- [ ] **FBT-004** Add `NodeDebugMetadata` class + `[NonSerialized] NodeDebugMetadata[]?` to `BehaviorTreeBlob`
+- [x] **FBT-004** Add `NodeDebugMetadata` class + `[NonSerialized] NodeDebugMetadata[]?` to `BehaviorTreeBlob`
 - [ ] **FBT-005** Graph data structures (`BehaviorTreeGraph`, `BehaviorTreeNode`, etc.) in `Fbt.Compiler.Graph`
 - [ ] **FBT-006** Unit/integration tests for Phase 1
 - [ ] **FBT-007** `BTreeSchemaExporter` for authoring tool node palette
