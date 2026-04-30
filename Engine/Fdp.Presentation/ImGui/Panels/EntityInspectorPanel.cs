@@ -198,7 +198,7 @@ public class EntityInspectorPanel
             bool isSelected = context.SelectedEntity == entity;
             bool isSingleton = entity == RepositoryAdapter.SingletonEntity;
             long? netId = isSingleton ? null : GetNetworkId(session, entity);
-            string baseLabel = isSingleton ? "[Global Singletons]" : $"[{entity.Index}, v{entity.Generation}]";
+            string baseLabel = isSingleton ? "[Singletons]" : $"[{entity.Index}, v{entity.Generation}]";
 
             var style = ImGuiApi.GetStyle();
             var drawList = ImGuiApi.GetWindowDrawList();
@@ -283,7 +283,7 @@ public class EntityInspectorPanel
 
             if (isSingleton)
             {
-                ImGuiApi.TextUnformatted("[Global Singletons]");
+                ImGuiApi.TextUnformatted("[Singletons]");
             }
             else
             {

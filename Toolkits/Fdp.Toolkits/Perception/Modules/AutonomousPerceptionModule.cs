@@ -63,6 +63,9 @@ namespace Fdp.Toolkit.Perception.Modules
         // Prevents global bus corruption when the pipeline runs synchronously in tests.
         private readonly FdpEventBus _scopedBus;
 
+        /// <summary>Exposes the internal perception bus for diagnostic monitoring.</summary>
+        public FdpEventBus ScopedBus => _scopedBus;
+
         // ── Perception systems ─────────────────────────────────────────────────────
 
         private IEcsModuleSystem _localGridBuilder    = null!;

@@ -30,7 +30,8 @@ namespace Fdp.Presentation.Tests
             bus.SwapBuffers();
 
             // Update panel
-            panel.Update(bus, 1);
+            panel.RegisterBus("Test", bus);
+            panel.Update(1);
      
             // Render (smoke test)
             fixture.NewFrame();
@@ -59,7 +60,8 @@ namespace Fdp.Presentation.Tests
             bus.SwapBuffers();
 
             // 3. Update
-            panel.Update(bus, 2);
+            panel.RegisterBus("Test", bus);
+            panel.Update(2);
 
             // 4. Assert empty
             var historyField = typeof(EventBrowserPanel).GetField("_history", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -79,11 +81,12 @@ namespace Fdp.Presentation.Tests
             capacityField.SetValue(panel, 2);
 
             // Add 3 events in separate frames
+            panel.RegisterBus("Test", bus);
             for (int i = 0; i < 3; i++)
             {
                 bus.Publish(new TestEvent { Value = i });
                 bus.SwapBuffers();
-                panel.Update(bus, (uint)i);
+                panel.Update((uint)i);
             }
 
             // Assert count is 2

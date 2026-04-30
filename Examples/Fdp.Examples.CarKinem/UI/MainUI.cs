@@ -102,7 +102,8 @@ namespace Fdp.Examples.CarKinem.UI
             
             // Event Inspector
             // Capture events from bus
-            _eventInspector.Update(repository.Bus, repository.GlobalVersion);
+            _eventInspector.RegisterBus("World", repository.Bus);
+            _eventInspector.Update(repository.GlobalVersion);
             _eventInspector.Draw();
             
             // System Performance Profiler

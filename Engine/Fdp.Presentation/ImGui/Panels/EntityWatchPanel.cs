@@ -48,7 +48,7 @@ public class EntityWatchPanel
 
         if (isSingleton)
         {
-            ImGuiApi.TextUnformatted("[Global Singletons]");
+            ImGuiApi.TextUnformatted("[Singletons]");
         }
         else
         {
