@@ -1,3 +1,6 @@
+using Fdp.Core;
+using Fdp.Presentation.Abstractions;
+
 namespace Fdp.Presentation.Renderers;
 
 /// <summary>
@@ -36,4 +39,19 @@ public interface IImGuiRenderer
     /// <param name="value">The non-null value to render.</param>
     /// <returns><c>true</c> if this renderer handled the output; <c>false</c> for default.</returns>
     bool RenderValue(object value);
+}
+
+/// <summary>
+/// Extended ImGui renderer that receives entity and session context.
+/// Implement this in addition to <see cref="IImGuiRenderer"/> when the renderer
+/// needs to read sibling ECS components (e.g., DoctrineState alongside BrainBlackboard).
+/// </summary>
+public interface IEntityAwareImGuiRenderer : IImGuiRenderer
+{
+    /// <summary>
+    /// Renders a custom detail view using entity and session context.
+    /// Return <c>true</c> if rendering was handled; <c>false</c> to fall through
+    /// to the default hierarchical tree rendering.
+    /// </summary>
+    bool RenderValue(IInspectableSession session, Entity entity, object value);
 }

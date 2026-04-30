@@ -50,6 +50,14 @@ namespace Fdp.Toolkit.Behavior
         /// carries no configurable parameters.
         /// </summary>
         public ParseParamsDelegate? ParseParams { get; init; }
+
+        /// <summary>
+        /// Optional type of the params DTO struct stored at the start of
+        /// <see cref="BrainBlackboard.Memory"/> for this doctrine.
+        /// When non-null, enables typed rendering in <c>BrainBlackboardRenderer</c>.
+        /// The type must be unmanaged (enforced by convention, not the compiler).
+        /// </summary>
+        public Type? ParamsDtoType { get; init; }
     }
 
     /// <summary>

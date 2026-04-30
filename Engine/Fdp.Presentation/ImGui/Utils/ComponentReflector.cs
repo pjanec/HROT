@@ -213,7 +213,11 @@ public class ComponentReflector
                 ImGuiApi.Indent();
 
                 var renderer = ImGuiRendererRegistry.GetRenderer(type);
-                bool handled = renderer != null && renderer.RenderValue(data);
+                bool handled = false;
+                if (renderer is IEntityAwareImGuiRenderer entityRenderer)
+                    handled = entityRenderer.RenderValue(session, e, data);
+                else if (renderer != null)
+                    handled = renderer.RenderValue(data);
 
                 if (!handled)
                     ImGuiPropertyTree.Render(data, contextType: type, out doubleClickedPath);
