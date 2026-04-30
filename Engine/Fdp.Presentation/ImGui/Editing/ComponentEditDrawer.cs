@@ -63,6 +63,7 @@ internal sealed class ComponentEditDrawer
             case EditNodeKind.DynamicArray:
             case EditNodeKind.InlineArray:
             case EditNodeKind.FixedBuffer:
+            case EditNodeKind.BufferView:
                 DrawContainerNode(node);
                 break;
 

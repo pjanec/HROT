@@ -78,9 +78,14 @@ public sealed class BufferViewRequest
     {
         var nodeId = new EditNodeId(IdAlloc.Next());
         var children = new List<EditNode>();
+        IValueBinding? viewBinding = null;
 
         if (Buffer.IsNative && Buffer is NativeStructEditBuffer native)
         {
+            // Provide a root binding so the UI drawer sees a valid, populated object
+            // rather than null when the BufferView node is opened as a whole.
+            viewBinding = new NativeViewBinding(native, NativeOffset, viewType);
+
             foreach (var fi in viewType.GetFields(BindingFlags.Public | BindingFlags.Instance))
             {
                 if (!TryGetSizeOf(fi.FieldType, out int fieldSize)) continue;
@@ -101,7 +106,7 @@ public sealed class BufferViewRequest
         }
 
         var node = new EditNode(nodeId, viewName, BufferPath.Value,
-            EditNodeKind.BufferView, viewType, null, children);
+            EditNodeKind.BufferView, viewType, viewBinding, children);
         return new BufferViewResult { ViewName = viewName, ViewType = viewType, Node = node };
     }
 
@@ -133,4 +138,41 @@ public sealed class BufferViewRequest
         || t == typeof(byte) || t == typeof(sbyte)
         || t == typeof(float) || t == typeof(double)
         || t == typeof(decimal);
+
+    // ── Private binding for the BufferView root node ───────────────────────
+
+    /// <summary>
+    /// Read-only binding for the root <see cref="EditNodeKind.BufferView"/> node.
+    /// Marshals the unmanaged bytes into a boxed DTO so the UI drawer sees a
+    /// valid, populated object instead of <c>null</c>.
+    /// Edits happen seamlessly through the child <c>NativeFieldBinding</c> leaves.
+    /// </summary>
+    private sealed unsafe class NativeViewBinding : IValueBinding
+    {
+        private readonly NativeStructEditBuffer _buffer;
+        private readonly int _offset;
+
+        public Type ValueType { get; }
+
+        public NativeViewBinding(NativeStructEditBuffer buffer, int offset, Type valueType)
+        {
+            _buffer = buffer;
+            _offset = offset;
+            ValueType = valueType;
+        }
+
+        public object? GetBoxed()
+        {
+            if (!_buffer.TryGetRootSpan(out var span)) return null;
+            fixed (byte* ptr = span)
+            {
+                return Marshal.PtrToStructure((IntPtr)(ptr + _offset), ValueType);
+            }
+        }
+
+        // The root view node is display-only; edits flow through child NativeFieldBindings.
+        public void SetBoxed(object? value) { }
+
+        public bool TryGetSpan(out Span<byte> bytes) { bytes = default; return false; }
+    }
 }
