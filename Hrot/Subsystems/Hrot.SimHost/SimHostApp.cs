@@ -155,6 +155,8 @@ namespace Hrot.SimHost
 
         // ── Network factory (injected from composition root) ───────────────────
         private INetworkFactory? _networkFactory;
+        // ── Perception module (stored to expose ScopedBus to the event browser) ───
+        private Fdp.Toolkit.Perception.Modules.AutonomousPerceptionModule? _perceptionMod;
 
         // ── Constructor ───────────────────────────────────────────────────────
 
@@ -456,10 +458,11 @@ namespace Hrot.SimHost
 
             // Register the core simulation logic pack.
             _kernel.RegisterModule(_simCorePack!);
-            _kernel.RegisterModule(new AutonomousPerceptionModule(
+            _perceptionMod = new AutonomousPerceptionModule(
                 colliderRadiusReader: (view, e) => view.HasComponent<PhysicsCollider>(e)
                     ? view.GetComponentRO<PhysicsCollider>(e).Radius
-                    : 0f));
+                    : 0f);
+            _kernel.RegisterModule(_perceptionMod);
 
             // ── 10. Register replication module (bundles all translator packs) ──
             // Packs included: SharedTranslatorPack (EntityMaster, EntityInfo, EntityDamage, FireInteraction),
@@ -497,6 +500,12 @@ namespace Hrot.SimHost
                     worldPosDescriptorId: _networkFactory?.WorldPosDescriptorId ?? 0);
 
                 Logger.Info($"[Node-{localNodeId}] Visualization ready. Window open.");
+
+                // Register extra buses so the event browser combo box can monitor them.
+                if (_eventBus != null)
+                    _vis.FdpEventBrowser.RegisterBus("Orchestration", _eventBus);
+                if (_perceptionMod != null)
+                    _vis.FdpEventBrowser.RegisterBus("Perception", _perceptionMod.ScopedBus);
             }
 
             _initialized = true;

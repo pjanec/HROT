@@ -390,6 +390,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 _doctrineRegistry);
             _fdpRepoAdapter    = new FdpRepositoryAdapter(_context.World);
 
+            _fdpEventBrowser.RegisterBus("World", _context.World.Bus);
+            _fdpEventBrowser.RegisterBus("Orchestration", _context.EventBus);
+
             var renderLayer = new EntityRenderLayer(
                 "CGF Entities", -1, _context.World, _entityQuery, _visualizerAdapter, _selectionState)
                 { Canvas = _canvas };
@@ -465,7 +468,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         if (!_headless && _context != null)
         {
             _fdpFrameCount++;
-            _fdpEventBrowser.Update(_context.World.Bus, _fdpFrameCount);
+            _fdpEventBrowser.Update(_fdpFrameCount);
             _canvas?.Update(deltaTime);
         }
         _context?.EventBus.SwapBuffers();
@@ -554,38 +557,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             ? new MapPickServiceBridge(cgfCanvasAdapter, _context!.World)
             : null;
 
-        _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
-        {
-            builder.AddItem("Inspect...", () =>
-            {
-                var session = _fdpRepoAdapter;
-                bool isSingleton = entity == Fdp.Presentation.Adapters.RepositoryAdapter.SingletonEntity;
-                long? netId = null;
-                if (!isSingleton && session != null && session.HasComponent(entity, typeof(NetworkIdentity)))
-                {
-                    var comp = session.GetComponent(entity, typeof(NetworkIdentity));
-                    if (comp is NetworkIdentity ni)
-                        netId = ni.Value;
-                }
-
-                string title = isSingleton ? "Watch [Global Singletons]"
-                    : netId.HasValue ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
-                    : $"Watch Entity [{entity.Index}, v{entity.Generation}]";
-                var id = $"cgf_watch_{entity.Index}_{entity.Generation}_{System.Guid.NewGuid()}";
-                var watchPanel = new Fdp.Presentation.Panels.EntityWatchPanel(entity);
-                watchPanel.Reflector.EditWindowManager     = windowManager;
-                watchPanel.Reflector.EditSessionGetter     = () => session;
-                watchPanel.Reflector.EditOwningPerspective = "CGF";
-                watchPanel.Reflector.EditPickerContext     = cgfPickBridge;
-                windowManager.RegisterWindow(new FdpEntityWatchWindow(
-                    id,
-                    title,
-                    "CGF",
-                    watchPanel,
-                    () => session,
-                    TitleBarColor));
-            });
-        }));
+        FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
+            _fdpEntityInspector,
+            windowManager,
+            "CGF",
+            () => _fdpRepoAdapter,
+            cgfPickBridge,
+            TitleBarColor);
 
         windowManager.RegisterWindow(new FdpEntityInspectorWindow(
             "cgf_fdp_inspector", "CGF Entity Inspector", "CGF",
@@ -593,12 +571,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             () => _fdpRepoAdapter,
             () => _fdpInspectorState,
             TitleBarColor));
-
-        // Wire component-editor reflector on the inspector panel.
-        _fdpEntityInspector.Reflector.EditWindowManager     = windowManager;
-        _fdpEntityInspector.Reflector.EditSessionGetter     = () => _fdpRepoAdapter;
-        _fdpEntityInspector.Reflector.EditOwningPerspective = "CGF";
-        _fdpEntityInspector.Reflector.EditPickerContext     = cgfPickBridge;
 
         // Register the blackboard view provider so the editor projects typed DTO params.
         _fdpEntityInspector.Reflector.AddBufferViewProvider(new BrainBlackboardViewProvider());

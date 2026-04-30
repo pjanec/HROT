@@ -118,45 +118,15 @@ namespace Hrot.IG
                 () => _app.FdpInspectorState,
                 IgWindowColor.TitleBar));
 
-            // Wire component-editor reflector on the inspector panel.
+            // Wire component-editor reflector and "Inspect..." context menu.
             var igPickBridge = _app.GetMapPickBridge();
-            _app.FdpEntityInspector.Reflector.EditWindowManager     = windowManager;
-            _app.FdpEntityInspector.Reflector.EditSessionGetter     = () => _app.GetFdpRepoAdapter();
-            _app.FdpEntityInspector.Reflector.EditOwningPerspective = "IG";
-            _app.FdpEntityInspector.Reflector.EditPickerContext     = igPickBridge;
-
-            _app.FdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
-            {
-                builder.AddItem("Inspect...", () =>
-                {
-                    var session = _app.GetFdpRepoAdapter();
-                    bool isSingleton = entity == Fdp.Presentation.Adapters.RepositoryAdapter.SingletonEntity;
-                    long? netId = null;
-                    if (!isSingleton && session != null && session.HasComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))
-                    {
-                        var comp = session.GetComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity));
-                        if (comp is Fdp.Toolkit.Replication.Components.NetworkIdentity ni)
-                            netId = ni.Value;
-                    }
-
-                    string title = isSingleton ? "Watch [Global Singletons]"
-                        : netId.HasValue ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
-                        : $"Watch Entity [{entity.Index}, v{entity.Generation}]";
-                    var id = $"ig_watch_{entity.Index}_{entity.Generation}_{Guid.NewGuid()}";
-                    var watchPanel = new EntityWatchPanel(entity);
-                    watchPanel.Reflector.EditWindowManager     = windowManager;
-                    watchPanel.Reflector.EditSessionGetter     = () => session;
-                    watchPanel.Reflector.EditOwningPerspective = "IG";
-                    watchPanel.Reflector.EditPickerContext     = igPickBridge;
-                    windowManager.RegisterWindow(new FdpEntityWatchWindow(
-                        id,
-                        title,
-                        "IG",
-                        watchPanel,
-                        () => session,
-                        TitleBarColor));
-                });
-            }));
+            FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
+                _app.FdpEntityInspector,
+                windowManager,
+                "IG",
+                () => _app.GetFdpRepoAdapter(),
+                igPickBridge,
+                TitleBarColor);
             windowManager.RegisterWindow(new FdpEventBrowserWindow(
                 "ig_fdp_events", "IG Event Browser", "IG",
                 _app.FdpEventBrowser,

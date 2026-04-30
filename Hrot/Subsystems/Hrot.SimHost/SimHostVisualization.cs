@@ -143,6 +143,7 @@ namespace Hrot.SimHost
             _selection = new SimHostSelectionManager();
             _inspector = new SimHostInspectorAdapter(_selection, repo);
             _fdpRepoAdapter = new FdpRepositoryAdapter(repo);
+            _fdpEventBrowser.RegisterBus("World (Main Simulation)", repo.Bus);
 
             // Task 47: register context menu handlers for the FDP entity inspector.
             _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
@@ -382,7 +383,7 @@ namespace Hrot.SimHost
             _map.Update(dt);
 
             _fdpFrameCount++;
-            _fdpEventBrowser.Update(_repo.Bus, _fdpFrameCount);
+            _fdpEventBrowser.Update(_fdpFrameCount);
         }
 
         /// <summary>Renders the 2-D map canvas.  Must be called inside Raylib BeginDrawing.</summary>

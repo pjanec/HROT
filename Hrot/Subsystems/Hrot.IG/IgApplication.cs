@@ -634,6 +634,9 @@ public class IgApplication : IDisposable
         _entityMap = _context.EntityMap;
         _kernel    = _context.Kernel;
 
+        _fdpEventBrowser.RegisterBus("World", _context.World.Bus);
+        _fdpEventBrowser.RegisterBus("Orchestration", _context.EventBus);
+
         //  Shared foundation 
         // Registers network replication, geographic, shared definitions, and
         // lifecycle events identically to SimHost (via SimHostComponentRegistry).
@@ -1225,7 +1228,7 @@ public class IgApplication : IDisposable
         _context?.EventBus.SwapBuffers();
 
         _fdpFrameCount++;
-        _fdpEventBrowser.Update(_world.Bus, _fdpFrameCount);
+        _fdpEventBrowser.Update(_fdpFrameCount);
 
 
 

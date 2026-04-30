@@ -154,6 +154,7 @@ namespace Hrot.Editor
         private FdpRepositoryAdapter?   _fdpRepoAdapter;
         private FdpInspectorState       _fdpInspectorState  = new();
         private uint                    _fdpFrameCount;
+        private Fdp.Toolkit.Perception.Modules.AutonomousPerceptionModule? _perceptionMod;
 
         // ── Offline orchestrator (single-node scenario listing) ───────────────────
 
@@ -439,6 +440,7 @@ namespace Hrot.Editor
                 colliderRadiusReader: (view, e) => view.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e)
                     ? view.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius
                     : 0f);
+            _perceptionMod = perceptionMod;
             var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, entityMap,
                 new ScenarioEntityCreationRequestSource());
             var orchPack         = new OrchestrationLogicPack(clusterSlave);
@@ -447,6 +449,11 @@ namespace Hrot.Editor
             _kernel.RegisterModule(perceptionMod);
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
+
+            // Register all known buses so the event browser combo box shows them.
+            _fdpEventBrowser.RegisterBus("World", _world.Bus);
+            _fdpEventBrowser.RegisterBus("Orchestration", _orchestrationBus!);
+            _fdpEventBrowser.RegisterBus("Perception", perceptionMod.ScopedBus);
 
             // ── 4a. Multi-phase system registration for SimHostCorePack and CgfLogicPack ──
             // CGF Brain systems -- register directly (no toggling needed in the editor)
@@ -737,7 +744,7 @@ namespace Hrot.Editor
             if (!_headless && _world != null)
             {
                 _fdpFrameCount++;
-                _fdpEventBrowser.Update(_world.Bus, _fdpFrameCount);
+                _fdpEventBrowser.Update(_fdpFrameCount);
             }
         }
 
@@ -923,14 +930,17 @@ namespace Hrot.Editor
                 () => _fdpInspectorState,
                 EditorWindowColor.TitleBar));
 
-            // Wire component-editor reflector on the inspector panel.
+            // Wire component-editor reflector and "Inspect..." context menu.
             MapPickServiceBridge? editorPickBridge = _mapPickAdapter != null && _world != null
                 ? new MapPickServiceBridge(_mapPickAdapter, _world)
                 : null;
-            _fdpEntityInspector.Reflector.EditWindowManager     = windowManager;
-            _fdpEntityInspector.Reflector.EditSessionGetter     = () => _fdpRepoAdapter;
-            _fdpEntityInspector.Reflector.EditOwningPerspective = "Editor";
-            _fdpEntityInspector.Reflector.EditPickerContext     = editorPickBridge;
+            FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
+                _fdpEntityInspector,
+                windowManager,
+                "Editor",
+                () => _fdpRepoAdapter,
+                editorPickBridge,
+                EditorWindowColor.TitleBar);
 
             // Register the blackboard view provider so the editor projects typed DTO params.
             _fdpEntityInspector.Reflector.AddBufferViewProvider(new Hrot.Presentation.Renderers.BrainBlackboardViewProvider());
@@ -948,39 +958,6 @@ namespace Hrot.Editor
                 if (def.ParamsDtoType == null) return null;
                 return new StructEdit.Core.EditContext().With("ParamsDtoType", def.ParamsDtoType);
             };
-
-            _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
-            {
-                builder.AddItem("Inspect...", () =>
-                {
-                    var session = _fdpRepoAdapter;
-                    bool isSingleton = entity == Fdp.Presentation.Adapters.RepositoryAdapter.SingletonEntity;
-                    long? netId = null;
-                    if (!isSingleton && session != null && session.HasComponent(entity, typeof(NetworkIdentity)))
-                    {
-                        var comp = session.GetComponent(entity, typeof(NetworkIdentity));
-                        if (comp is NetworkIdentity ni)
-                            netId = ni.Value;
-                    }
-
-                    string title = isSingleton ? "Watch [Global Singletons]"
-                        : netId.HasValue ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
-                        : $"Watch Entity [{entity.Index}, v{entity.Generation}]";
-                    var id = $"editor_watch_{entity.Index}_{entity.Generation}_{Guid.NewGuid()}";
-                    var watchPanel = new EntityWatchPanel(entity);
-                    watchPanel.Reflector.EditWindowManager     = windowManager;
-                    watchPanel.Reflector.EditSessionGetter     = () => session;
-                    watchPanel.Reflector.EditOwningPerspective = "Editor";
-                    watchPanel.Reflector.EditPickerContext     = editorPickBridge;
-                    windowManager.RegisterWindow(new FdpEntityWatchWindow(
-                        id,
-                        title,
-                        "Editor",
-                        watchPanel,
-                        () => session,
-                        TitleBarColor));
-                });
-            }));
 
             windowManager.RegisterWindow(new FdpEventBrowserWindow(
                 "editor_fdp_events", "Editor Event Browser", "Editor",

@@ -212,45 +212,15 @@ namespace Hrot.SimHost
                 () => vis.FdpInspectorState,
                 SimHostWindowColor.TitleBar));
 
-            // Wire component-editor reflector on the inspector panel.
+            // Wire component-editor reflector and "Inspect..." context menu.
             var simhostPickBridge = vis.GetMapPickBridge();
-            vis.FdpEntityInspector.Reflector.EditWindowManager     = windowManager;
-            vis.FdpEntityInspector.Reflector.EditSessionGetter     = () => vis.GetFdpRepoAdapter();
-            vis.FdpEntityInspector.Reflector.EditOwningPerspective = "SimHost";
-            vis.FdpEntityInspector.Reflector.EditPickerContext     = simhostPickBridge;
-
-            vis.FdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
-            {
-                builder.AddItem("Inspect...", () =>
-                {
-                    var session = vis.GetFdpRepoAdapter();
-                    bool isSingleton = entity == Fdp.Presentation.Adapters.RepositoryAdapter.SingletonEntity;
-                    long? netId = null;
-                    if (!isSingleton && session != null && session.HasComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))
-                    {
-                        var comp = session.GetComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity));
-                        if (comp is Fdp.Toolkit.Replication.Components.NetworkIdentity ni)
-                            netId = ni.Value;
-                    }
-
-                    string title = isSingleton ? "Watch [Global Singletons]"
-                        : netId.HasValue ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
-                        : $"Watch Entity [{entity.Index}, v{entity.Generation}]";
-                    var id = $"simhost_watch_{entity.Index}_{entity.Generation}_{Guid.NewGuid()}";
-                    var watchPanel = new EntityWatchPanel(entity);
-                    watchPanel.Reflector.EditWindowManager     = windowManager;
-                    watchPanel.Reflector.EditSessionGetter     = () => session;
-                    watchPanel.Reflector.EditOwningPerspective = "SimHost";
-                    watchPanel.Reflector.EditPickerContext     = simhostPickBridge;
-                    windowManager.RegisterWindow(new FdpEntityWatchWindow(
-                        id,
-                        title,
-                        "SimHost",
-                        watchPanel,
-                        () => session,
-                        TitleBarColor));
-                });
-            }));
+            FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
+                vis.FdpEntityInspector,
+                windowManager,
+                "SimHost",
+                () => vis.GetFdpRepoAdapter(),
+                simhostPickBridge,
+                TitleBarColor);
 
             windowManager.RegisterWindow(new FdpEventBrowserWindow(
                 "simhost_fdp_events", "SimHost Event Browser", "SimHost",
