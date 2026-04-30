@@ -344,11 +344,13 @@ internal static class RepoReflector
     private static readonly Dictionary<Type, MethodInfo> _getComponentCache = new();
     private static readonly Dictionary<Type, MethodInfo> _setComponentCache = new();
     private static readonly Dictionary<Type, MethodInfo> _setManagedComponentCache = new();
+    private static readonly Dictionary<Type, MethodInfo> _setSingletonCache = new();
 
     private static readonly MethodInfo _genericHasComponent;
     private static readonly MethodInfo _genericGetComponent;
     private static readonly MethodInfo _genericSetComponent;
     private static readonly MethodInfo _genericSetManagedComponent;
+    private static readonly MethodInfo _genericSetSingleton;
 
     static RepoReflector()
     {
@@ -377,6 +379,12 @@ internal static class RepoReflector
             m.Name == "SetManagedComponent" &&
             m.IsGenericMethod &&
             m.GetParameters().Length == 2);
+
+        // SetSingleton<T>(T) - unified singleton write
+        _genericSetSingleton = methods.First(m =>
+            m.Name == "SetSingleton" &&
+            m.IsGenericMethod &&
+            m.GetParameters().Length == 1);
     }
     
     public static bool HasComponent(EntityRepository repo, Entity e, Type t) 
@@ -421,5 +429,50 @@ internal static class RepoReflector
             }
             method.Invoke(repo, new object[] { e, component });
         }
+    }
+
+    // ── Singleton access helpers ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns <c>true</c> when a singleton of type <paramref name="t"/> has been set
+    /// in the repository.  Uses <see cref="EntityRepository.GetSingletonTables"/> to
+    /// avoid generic method reflection for the read path.
+    /// </summary>
+    public static bool HasSingleton(EntityRepository repo, Type t)
+    {
+        foreach (var table in repo.GetSingletonTables())
+        {
+            if (table.ComponentType == t) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Returns the singleton component value (boxed) for type <paramref name="t"/>,
+    /// or <c>null</c> when no such singleton is set.
+    /// Reads from slot 0 of the singleton table via
+    /// <see cref="IComponentTable.GetRawObject"/>.
+    /// </summary>
+    public static object? GetSingleton(EntityRepository repo, Type t)
+    {
+        foreach (var table in repo.GetSingletonTables())
+        {
+            if (table.ComponentType == t) return table.GetRawObject(0);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Writes <paramref name="component"/> as the singleton of type <paramref name="t"/>
+    /// via <see cref="EntityRepository.SetSingleton{T}"/>.
+    /// </summary>
+    public static void SetSingleton(EntityRepository repo, Type t, object component)
+    {
+        if (!_setSingletonCache.TryGetValue(t, out var method))
+        {
+            method = _genericSetSingleton.MakeGenericMethod(t);
+            _setSingletonCache[t] = method;
+        }
+        method.Invoke(repo, new object[] { component });
     }
 }

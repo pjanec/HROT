@@ -1,6 +1,7 @@
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
+using Fdp.Presentation.Adapters;
 using Fdp.Presentation.Utils;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
@@ -162,16 +163,22 @@ public class EntityInspectorPanel
 
         foreach (var entity in entities)
         {
-            if (hasFilter)
+            // The singleton pseudo-entity is always included, regardless of filter or limit.
+            bool isSingleton = entity == RepositoryAdapter.SingletonEntity;
+
+            if (!isSingleton)
             {
-                if (filterId != -1 && entity.Index != filterId) continue;
-            }
-            else
-            {
-                if (count >= limit) break;
+                if (hasFilter)
+                {
+                    if (filterId != -1 && entity.Index != filterId) continue;
+                }
+                else
+                {
+                    if (count >= limit) break;
+                }
+                count++;
             }
 
-            count++;
             results.Add(entity);
         }
         
@@ -189,8 +196,9 @@ public class EntityInspectorPanel
         {
             count++;
             bool isSelected = context.SelectedEntity == entity;
-            long? netId = GetNetworkId(session, entity);
-            string baseLabel = $"[{entity.Index}, v{entity.Generation}]";
+            bool isSingleton = entity == RepositoryAdapter.SingletonEntity;
+            long? netId = isSingleton ? null : GetNetworkId(session, entity);
+            string baseLabel = isSingleton ? "[Global Singletons]" : $"[{entity.Index}, v{entity.Generation}]";
 
             var style = ImGuiApi.GetStyle();
             var drawList = ImGuiApi.GetWindowDrawList();
@@ -271,13 +279,21 @@ public class EntityInspectorPanel
         else
         {
             Entity e = context.SelectedEntity.Value;
-            long? netId = GetNetworkId(session, e);
+            bool isSingleton = e == RepositoryAdapter.SingletonEntity;
 
-            ImGuiApi.TextUnformatted($"[{e.Index}, v{e.Generation}]");
-            if (netId.HasValue)
+            if (isSingleton)
             {
-                ImGuiApi.SameLine();
-                ImGuiApi.TextColored(ExConViolet, $"({netId.Value})");
+                ImGuiApi.TextUnformatted("[Global Singletons]");
+            }
+            else
+            {
+                long? netId = GetNetworkId(session, e);
+                ImGuiApi.TextUnformatted($"[{e.Index}, v{e.Generation}]");
+                if (netId.HasValue)
+                {
+                    ImGuiApi.SameLine();
+                    ImGuiApi.TextColored(ExConViolet, $"({netId.Value})");
+                }
             }
 
             if (session.IsReadOnly)

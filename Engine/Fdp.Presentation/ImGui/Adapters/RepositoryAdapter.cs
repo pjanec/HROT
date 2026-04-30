@@ -11,6 +11,14 @@ namespace Fdp.Presentation.Adapters
     {
         private readonly EntityRepository _repo;
 
+        /// <summary>
+        /// Reserved pseudo-entity handle representing all ECS singleton components.
+        /// Always appears as the first entry in <see cref="GetEntities"/>.
+        /// Component queries for this entity are routed to the singleton storage paths
+        /// instead of the standard dynamic-entity tables.
+        /// </summary>
+        public static readonly Entity SingletonEntity = new Entity(int.MaxValue, ushort.MaxValue);
+
         public RepositoryAdapter(EntityRepository repo)
         {
             _repo = repo;
@@ -23,12 +31,17 @@ namespace Fdp.Presentation.Adapters
 
         public int EntityCount => _repo.EntityCount;
 
-        public bool IsAlive(Entity e) => _repo.IsAlive(e);
+        public bool IsAlive(Entity e)
+        {
+            if (e == SingletonEntity) return true;
+            return _repo.IsAlive(e);
+        }
 
         public IEnumerable<Entity> GetEntities()
         {
-            // Iterate all active entities and materialize to avoid iterator state machine issues with ref structs
+            // Singleton pseudo-entity is always the first entry.
             var list = new List<Entity>();
+            list.Add(SingletonEntity);
             foreach(var e in _repo.Query().Build())
             {
                 list.Add(e);
@@ -38,17 +51,22 @@ namespace Fdp.Presentation.Adapters
 
         public bool HasComponent(Entity e, Type componentType)
         {
+            if (e == SingletonEntity) return RepoReflector.HasSingleton(_repo, componentType);
             return RepoReflector.HasComponent(_repo, e, componentType);
         }
 
         public object? GetComponent(Entity e, Type componentType)
         {
+            if (e == SingletonEntity) return RepoReflector.GetSingleton(_repo, componentType);
             return RepoReflector.GetComponent(_repo, e, componentType);
         }
 
         public void SetComponent(Entity e, Type componentType, object componentData)
         {
-            RepoReflector.SetComponent(_repo, e, componentType, componentData);
+            if (e == SingletonEntity)
+                RepoReflector.SetSingleton(_repo, componentType, componentData);
+            else
+                RepoReflector.SetComponent(_repo, e, componentType, componentData);
         }
 
         public IEnumerable<Type> GetAllComponentTypes()
@@ -58,6 +76,8 @@ namespace Fdp.Presentation.Adapters
 
         public bool HasAuthority(Entity e, Type componentType)
         {
+            // Global singletons are owned by this node (no per-entity authority mask).
+            if (e == SingletonEntity) return true;
             int typeId = ComponentTypeRegistry.GetId(componentType);
             if (typeId < 0) return false;
             return _repo.HasAuthority(e, typeId);

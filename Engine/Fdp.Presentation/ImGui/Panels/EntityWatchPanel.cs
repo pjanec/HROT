@@ -1,6 +1,7 @@
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
+using Fdp.Presentation.Adapters;
 using Fdp.Presentation.Utils;
 using ImGuiNET;
 
@@ -43,19 +44,28 @@ public class EntityWatchPanel
             return;
         }
 
-        long? netId = null;
-        if (session.HasComponent(_targetEntity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))
-        {
-            var comp = session.GetComponent(_targetEntity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity));
-            if (comp is Fdp.Toolkit.Replication.Components.NetworkIdentity ni)
-                netId = ni.Value;
-        }
+        bool isSingleton = _targetEntity == RepositoryAdapter.SingletonEntity;
 
-        ImGuiApi.TextUnformatted($"[{_targetEntity.Index}, v{_targetEntity.Generation}]");
-        if (netId.HasValue)
+        if (isSingleton)
         {
-            ImGuiApi.SameLine();
-            ImGuiApi.TextColored(ExConViolet, $"({netId.Value})");
+            ImGuiApi.TextUnformatted("[Global Singletons]");
+        }
+        else
+        {
+            long? netId = null;
+            if (session.HasComponent(_targetEntity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))
+            {
+                var comp = session.GetComponent(_targetEntity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity));
+                if (comp is Fdp.Toolkit.Replication.Components.NetworkIdentity ni)
+                    netId = ni.Value;
+            }
+
+            ImGuiApi.TextUnformatted($"[{_targetEntity.Index}, v{_targetEntity.Generation}]");
+            if (netId.HasValue)
+            {
+                ImGuiApi.SameLine();
+                ImGuiApi.TextColored(ExConViolet, $"({netId.Value})");
+            }
         }
 
         ImGuiApi.SameLine();
