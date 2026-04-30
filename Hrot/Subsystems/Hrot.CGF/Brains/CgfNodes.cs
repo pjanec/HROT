@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using CarKinem.Core;
 using Fbt;
+using Fbt.Compiler;
 using Fbt.Runtime;
 using Fbt.Serialization;
 using Fdp.Toolkit.Behavior;
@@ -234,16 +235,6 @@ namespace Hrot.CGF.Brains
         /// <summary>Arrival radius for each wander waypoint (metres).</summary>
         private const float WanderArrivalRadius = 20f;
 
-        private static readonly string WanderMilitaryJson = $$"""
-            {
-              "TreeName": "{{Hrot.Map.Definitions.Doctrine.WanderMilitaryParamsJsonDto.BehaviorId}}",
-              "Root": {
-                "Type": "Action",
-                "Action": "Action_Wander"
-              }
-            }
-            """;
-
         /// <summary>
         /// BTree action node for the WanderMilitary doctrine.
         ///
@@ -320,23 +311,14 @@ namespace Hrot.CGF.Brains
         /// </summary>
         public static Interpreter<BrainBlackboard, BTreeContext> BuildWanderMilitaryInterpreter()
         {
-            var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
-            registry.Register("Action_Wander", Action_Wander);
-            var blob = TreeCompiler.CompileFromJson(WanderMilitaryJson);
-            return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
+            var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
+            var blob = builder
+                .Action(Action_Wander)
+                .Compile(Hrot.Map.Definitions.Doctrine.WanderMilitaryParamsJsonDto.BehaviorId);
+            return new Interpreter<BrainBlackboard, BTreeContext>(blob, builder.GetRegistry());
         }
 
         // ── Doctrine-specific interpreter builders ─────────────────────────────
-
-        private static readonly string MoveToLocationJson = $$"""
-            {
-              "TreeName": "{{Hrot.Map.Definitions.Doctrine.MoveToLocationParamsJsonDto.BehaviorId}}",
-              "Root": {
-                "Type": "Action",
-                "Action": "Action_WriteMoveToChannel"
-              }
-            }
-            """;
 
         /// <summary>
         /// Builds and returns a ready-to-use BTree interpreter for the MoveTo_BT doctrine.
@@ -346,52 +328,35 @@ namespace Hrot.CGF.Brains
         /// </summary>
         public static Interpreter<BrainBlackboard, BTreeContext> BuildMoveToLocationInterpreter()
         {
-            var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
-            registry.Register("Action_WriteMoveToChannel", Action_WriteMoveToChannel);
-            var blob = TreeCompiler.CompileFromJson(MoveToLocationJson);
-            return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
+            var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
+            var blob = builder
+                .Action(Action_WriteMoveToChannel)
+                .Compile(Hrot.Map.Definitions.Doctrine.MoveToLocationParamsJsonDto.BehaviorId);
+            return new Interpreter<BrainBlackboard, BTreeContext>(blob, builder.GetRegistry());
         }
-
-        private static readonly string FollowRouteJson = $$"""
-            {
-              "TreeName": "{{Hrot.Map.Definitions.Doctrine.FollowRouteParamsJsonDto.BehaviorId}}",
-              "Root": {
-                "Type": "Action",
-                "Action": "Action_WriteFollowRouteChannel"
-              }
-            }
-            """;
 
         /// <summary>
         /// Builds and returns a ready-to-use BTree interpreter for the FollowRoute_BT doctrine.
         /// </summary>
         public static Interpreter<BrainBlackboard, BTreeContext> BuildFollowRouteInterpreter()
         {
-            var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
-            registry.Register("Action_WriteFollowRouteChannel", Action_WriteFollowRouteChannel);
-            var blob = TreeCompiler.CompileFromJson(FollowRouteJson);
-            return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
+            var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
+            var blob = builder
+                .Action(Action_WriteFollowRouteChannel)
+                .Compile(Hrot.Map.Definitions.Doctrine.FollowRouteParamsJsonDto.BehaviorId);
+            return new Interpreter<BrainBlackboard, BTreeContext>(blob, builder.GetRegistry());
         }
-
-        private static readonly string JoinFormationJson = $$"""
-            {
-              "TreeName": "{{Hrot.Map.Definitions.Doctrine.JoinFormationParamsJsonDto.BehaviorId}}",
-              "Root": {
-                "Type": "Action",
-                "Action": "Action_WriteJoinFormationChannel"
-              }
-            }
-            """;
 
         /// <summary>
         /// Builds and returns a ready-to-use BTree interpreter for the JoinFormation_BT doctrine.
         /// </summary>
         public static Interpreter<BrainBlackboard, BTreeContext> BuildJoinFormationInterpreter()
         {
-            var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
-            registry.Register("Action_WriteJoinFormationChannel", Action_WriteJoinFormationChannel);
-            var blob = TreeCompiler.CompileFromJson(JoinFormationJson);
-            return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
+            var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
+            var blob = builder
+                .Action(Action_WriteJoinFormationChannel)
+                .Compile(Hrot.Map.Definitions.Doctrine.JoinFormationParamsJsonDto.BehaviorId);
+            return new Interpreter<BrainBlackboard, BTreeContext>(blob, builder.GetRegistry());
         }
 
         // ── FireAtTarget ───────────────────────────────────────────────────────
@@ -613,30 +578,18 @@ namespace Hrot.CGF.Brains
             return NodeStatus.Running;
         }
 
-        private static readonly string FireAtTargetJson = $$"""
-            {
-              "TreeName": "{{Hrot.Map.Definitions.Doctrine.FireAtTargetParamsJsonDto.BehaviorId}}",
-              "Root": {
-                "Type": "Sequence",
-                "Children": [
-                  { "Type": "Condition", "Action": "Condition_TargetAliveAndVisible" },
-                  { "Type": "Action",    "Action": "Action_FireAtTarget" }
-                ]
-              }
-            }
-            """;
-
         /// <summary>
         /// Builds and returns a ready-to-use BTree interpreter for the FireAtTarget_BT doctrine.
         /// </summary>
         public static Interpreter<BrainBlackboard, BTreeContext> BuildFireAtTargetInterpreter()
         {
-            var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
-            registry.Register("Condition_TargetAliveAndVisible", Condition_TargetAliveAndVisible);
-            registry.Register("Action_FireAtTarget",             Action_FireAtTarget);
-            registry.Register("Action_HoldPosition",             Action_HoldPosition);
-            var blob = TreeCompiler.CompileFromJson(FireAtTargetJson);
-            return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
+            var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
+            var blob = builder
+                .Sequence(s => s
+                    .Condition(Condition_TargetAliveAndVisible)
+                    .Action(Action_FireAtTarget))
+                .Compile(Hrot.Map.Definitions.Doctrine.FireAtTargetParamsJsonDto.BehaviorId);
+            return new Interpreter<BrainBlackboard, BTreeContext>(blob, builder.GetRegistry());
         }
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using Fdp.Core;
 using Fbt;
+using Fbt.Compiler;
 using Fbt.Runtime;
 using Fbt.Serialization;
 using Fdp.Toolkit.Behavior;
@@ -382,45 +383,23 @@ public sealed class NetworkDemoPatrolAndEngageTests
         }
     }
 
-    // PatrolAndEngage BTree JSON: Selector -> [Sequence[Condition_HasTarget, Action_AimAndFire], Action_Wander]
-    private const string PatrolAndEngageJson = """
-        {
-          "TreeName": "PatrolAndEngage",
-          "Root": {
-            "Type": "Selector",
-            "Children": [
-              {
-                "Type": "Sequence",
-                "Children": [
-                  { "Type": "Condition", "Action": "Condition_HasTarget" },
-                  { "Type": "Action",    "Action": "Action_AimAndFire"   }
-                ]
-              },
-              { "Type": "Action", "Action": "Action_Wander" }
-            ]
-          }
-        }
-        """;
-
     /// <summary>
     /// Builds the PatrolAndEngage BTree interpreter used in NDEMO-IT-3.
     /// The tree transitions from wander to aim-and-fire when TargetMemory is populated.
     /// </summary>
     private static unsafe Interpreter<BrainBlackboard, BTreeContext> BuildPatrolAndEngageInterpreter()
     {
-        var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
-
         // Condition: return Success when the entity's TargetMemory has at least one entry.
-        registry.Register("Condition_HasTarget",
+        NodeLogicDelegate<BrainBlackboard, BTreeContext> condition_HasTarget =
             (ref BrainBlackboard bb, ref BehaviorTreeState state, ref BTreeContext ctx, int p) =>
             {
                 if (!ctx.World.HasComponent<TargetMemory>(ctx.Self)) return NodeStatus.Failure;
                 var tm = ctx.World.GetComponent<TargetMemory>(ctx.Self);
                 return tm.Count > 0 ? NodeStatus.Success : NodeStatus.Failure;
-            });
+            };
 
         // Action: write AimAndFire to WeaponChannel when a target is present.
-        registry.Register("Action_AimAndFire",
+        NodeLogicDelegate<BrainBlackboard, BTreeContext> action_AimAndFire =
             (ref BrainBlackboard bb, ref BehaviorTreeState state, ref BTreeContext ctx, int p) =>
             {
                 if (!ctx.World.HasComponent<WeaponChannel>(ctx.Self))  return NodeStatus.Failure;
@@ -443,12 +422,16 @@ public sealed class NetworkDemoPatrolAndEngageTests
 
                 ch.ActiveAction = CombatConstants.ActionIdAimAndFire;
                 return NodeStatus.Running;
-            });
+            };
 
-        // Fallback action: wander when no target is present.
-        registry.Register("Action_Wander", CgfNodes.Action_Wander);
-
-        var blob = TreeCompiler.CompileFromJson(PatrolAndEngageJson);
-        return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
+        var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
+        var blob = builder
+            .Selector(sel => sel
+                .Sequence(seq => seq
+                    .Condition(condition_HasTarget)
+                    .Action(action_AimAndFire))
+                .Action(CgfNodes.Action_Wander))
+            .Compile("PatrolAndEngage");
+        return new Interpreter<BrainBlackboard, BTreeContext>(blob, builder.GetRegistry());
     }
 }
