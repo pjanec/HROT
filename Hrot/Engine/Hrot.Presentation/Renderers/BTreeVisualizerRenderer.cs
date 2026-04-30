@@ -78,7 +78,7 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
         var node = blob.Nodes[nodeIndex];
         bool isRunning    = state.RunningNodeIndex > 0 && state.RunningNodeIndex == nodeIndex;
         bool isIdle       = state.RunningNodeIndex == 0;
-        bool isAncestral  = !isRunning && IsAncestralPath(ref state, nodeIndex);
+        bool isAncestral  = !isRunning && IsAncestralPath(blob, ref state, nodeIndex);
         bool isActivePath = isRunning || isAncestral;
 
         // Color coding
@@ -220,17 +220,18 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
     }
 
     /// <summary>
-    /// Returns true when <paramref name="nodeIndex"/> lies on the active composite
-    /// ancestor path (i.e., exists in the execution stack up to StackPointer).
+    /// Returns true when <paramref name="nodeIndex"/> is a composite ancestor of the
+    /// currently running node (i.e., the running node is inside its subtree).
+    /// Uses the DFS preorder blob layout: node N with SubtreeOffset S covers [N, N+S).
     /// </summary>
-    internal static unsafe bool IsAncestralPath(ref BehaviorTreeState state, int nodeIndex)
+    internal static bool IsAncestralPath(BehaviorTreeBlob blob, ref BehaviorTreeState state, int nodeIndex)
     {
-        if (state.RunningNodeIndex == 0) return false;
-        for (int i = 0; i <= state.StackPointer; i++)
-        {
-            if (state.NodeIndexStack[i] == nodeIndex) return true;
-        }
-        return false;
+        int runningIdx = state.RunningNodeIndex;
+        if (runningIdx == 0) return false;
+        if (nodeIndex == runningIdx) return false; // the running node itself is green, not ancestral
+        if (nodeIndex < 0 || nodeIndex >= blob.Nodes.Length) return false;
+        var node = blob.Nodes[nodeIndex];
+        return nodeIndex < runningIdx && runningIdx < nodeIndex + node.SubtreeOffset;
     }
 
     /// <summary>

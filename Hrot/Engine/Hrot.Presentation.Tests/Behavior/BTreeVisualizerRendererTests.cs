@@ -52,27 +52,38 @@ public class BTreeVisualizerRendererTests
 
     // IsAncestralPath returns false when tree is idle
     [Fact]
-    public unsafe void IsAncestralPath_ReturnsFalse_WhenTreeIdle()
+    public void IsAncestralPath_ReturnsFalse_WhenTreeIdle()
     {
+        var blob = new BehaviorTreeBlob
+        {
+            Nodes = new[] { new NodeDefinition { SubtreeOffset = 3, ChildCount = 1 } }
+        };
         var state = new BehaviorTreeState();
         // RunningNodeIndex = 0 means idle
-        Assert.False(BTreeVisualizerRenderer.IsAncestralPath(ref state, nodeIndex: 1));
+        Assert.False(BTreeVisualizerRenderer.IsAncestralPath(blob, ref state, nodeIndex: 0));
     }
 
-    // IsAncestralPath returns true when nodeIndex is in the execution stack
+    // IsAncestralPath returns true when the running node is inside the node's subtree
     [Fact]
-    public unsafe void IsAncestralPath_ReturnsTrue_WhenNodeOnStack()
+    public unsafe void IsAncestralPath_ReturnsTrue_WhenRunningNodeIsInSubtree()
     {
-        var state = new BehaviorTreeState
+        // Tree layout (DFS preorder):
+        // [0] Sequence, SubtreeOffset=3 (covers [0,3))
+        // [1] Repeater, SubtreeOffset=2 (covers [1,3))
+        // [2] Wait,     SubtreeOffset=1 (leaf)
+        var blob = new BehaviorTreeBlob
         {
-            RunningNodeIndex = 3,
-            StackPointer     = 1,
+            Nodes = new[]
+            {
+                new NodeDefinition { Type = NodeType.Sequence,  ChildCount = 1, SubtreeOffset = 3 },
+                new NodeDefinition { Type = NodeType.Repeater,  ChildCount = 1, SubtreeOffset = 2 },
+                new NodeDefinition { Type = NodeType.Wait,      ChildCount = 0, SubtreeOffset = 1 },
+            }
         };
-        state.NodeIndexStack[0] = 1; // root sequence
-        state.NodeIndexStack[1] = 2; // intermediate selector
-        Assert.True(BTreeVisualizerRenderer.IsAncestralPath(ref state, nodeIndex: 1));
-        Assert.True(BTreeVisualizerRenderer.IsAncestralPath(ref state, nodeIndex: 2));
-        Assert.False(BTreeVisualizerRenderer.IsAncestralPath(ref state, nodeIndex: 3)); // running, not ancestral
-        Assert.False(BTreeVisualizerRenderer.IsAncestralPath(ref state, nodeIndex: 99));
+        var state = new BehaviorTreeState { RunningNodeIndex = 2 }; // Wait is running
+
+        Assert.True(BTreeVisualizerRenderer.IsAncestralPath(blob, ref state, nodeIndex: 0));  // Sequence
+        Assert.True(BTreeVisualizerRenderer.IsAncestralPath(blob, ref state, nodeIndex: 1));  // Repeater
+        Assert.False(BTreeVisualizerRenderer.IsAncestralPath(blob, ref state, nodeIndex: 2)); // running, not ancestral
     }
 }
