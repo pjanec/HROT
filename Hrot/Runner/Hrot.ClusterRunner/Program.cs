@@ -2,6 +2,8 @@ using CommandLine;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using Fdp.Core;
+using Fdp.Core.Logging;
+using Fdp.Presentation.Windows;
 using Fdp.Presentation.WindowManager;
 using Hrot.BDC.Factory;
 using Hrot.ClusterRunner.Configuration;
@@ -45,13 +47,15 @@ class Program
 {
     static int Main(string[] args)
     {
-        // Enable NLog Console Output globally for FdpLog<T>
+        // Enable NLog Console Output globally for FdpLog<T>.
+        // Also register the UI target so the Message Log window captures all output.
         var logConfig = new LoggingConfiguration();
         var logConsole = new ColoredConsoleTarget("logConsole")
         {
             Layout = "${time} | ${level:uppercase=true:padding=-5} | ${logger:shortName=true} | ${message}${exception:format=tostring}"
         };
         logConfig.AddRule(LogLevel.Debug, LogLevel.Fatal, logConsole);
+        logConfig.AddRule(LogLevel.Trace, LogLevel.Fatal, NLogMessageLogTarget.SharedInstance);
         LogManager.Configuration = logConfig;
 
         // Parse CLI args
@@ -221,6 +225,14 @@ class Program
                 // 2. Inject the atlas into the Window Manager
                 var atlas = new Fdp.Presentation.Icons.IconAtlas((nint)atlasTexture.Id, atlasTexture.Width, atlasTexture.Height, 16f);
                 windowManager = new Fdp.Presentation.WindowManager.WindowManager(atlas);
+
+                // 2a. Create the global Message Log window and make the registry
+                //     available so subsystems can register additional sources in
+                //     their RegisterWindows() call below.
+                var messageLogRegistry = new MessageLogRegistry();
+                messageLogRegistry.RegisterSource(NLogMessageLogTarget.SharedInstance);
+                windowManager.RegisterWindow(new MessageLogWindow(messageLogRegistry));
+                windowManager.MessageLogRegistry = messageLogRegistry;
 
                 // 3. Register all GUI panels to the Window Manager
                 foreach (var sub in subsystems)

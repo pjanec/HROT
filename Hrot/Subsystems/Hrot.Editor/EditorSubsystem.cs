@@ -7,6 +7,7 @@ using Fbt;
 using Fbt.HotReload;
 using Fbt.Runtime;
 using Fdp.Core;
+using Fdp.Core.Logging;
 using Fdp.Examples.Scenarios.Integrated;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Runner;
@@ -171,7 +172,8 @@ namespace Hrot.Editor
 
         // ── AI doctrine hot reloader ────────────────────────────────────────────
 
-        private FbtAssemblyHotReloader? _aiHotReloader;
+        private FbtAssemblyHotReloader?      _aiHotReloader;
+        private HotReloadMessageLogSource?   _hotReloadSource;
         // Registration action built on the background ALC thread and applied on the
         // main thread via OnReloadCompleted -> DrainPendingCallbacks.
         private volatile Action<DoctrineRegistry>? _pendingDoctrineApply;
@@ -388,6 +390,13 @@ namespace Hrot.Editor
 
             // Load the current DLL immediately so doctrines are ready before the first frame.
             _aiHotReloader.TriggerInitialLoad();
+
+            // ── Hot-reload message log source ─────────────────────────────────
+            // Wire up after the hot-reloader is configured so that both the
+            // doctrine-swap callbacks and the log-source callbacks are registered.
+            _hotReloadSource = new HotReloadMessageLogSource();
+            _aiHotReloader.OnReloadCompleted += _hotReloadSource.OnReloadCompleted;
+            _aiHotReloader.OnReloadFailed    += _hotReloadSource.OnReloadFailed;
 
             var clusterSlave     = new ClusterSlave(0, "Editor", _orchestrationBus);
             var zoneService      = new ZoneManagerService();
@@ -965,6 +974,13 @@ namespace Hrot.Editor
                 "editor_fdp_events", "Editor Event Browser", "Editor",
                 _fdpEventBrowser,
                 EditorWindowColor.TitleBar));
+
+            // ── Message Log: register hot-reload source ───────────────────────
+            // The NLog source and the global window are created by Program.cs.
+            // Here we attach the Editor-specific Hot Reload source so its messages
+            // appear as a second tab in the shared Message Log window.
+            if (_hotReloadSource != null)
+                windowManager.MessageLogRegistry?.RegisterSource(_hotReloadSource);
 
             if (_kernel != null)
             {
