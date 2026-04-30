@@ -235,7 +235,8 @@ class Program
                 //     their RegisterWindows() call below.
                 var messageLogRegistry = new MessageLogRegistry();
                 messageLogRegistry.RegisterSource(NLogMessageLogTarget.SharedInstance);
-                windowManager.RegisterWindow(new MessageLogWindow(messageLogRegistry));
+                var msgLogWindow = new MessageLogWindow(messageLogRegistry);
+                windowManager.RegisterWindow(msgLogWindow);
                 windowManager.MessageLogRegistry = messageLogRegistry;
 
                 // 3. Register all GUI panels to the Window Manager
@@ -256,6 +257,11 @@ class Program
                 {
                     ImGuiNET.ImGui.Text("System OK");
                 });
+
+                // Message Log notification icon: glows red when unseen messages arrive.
+                var msgLogSection = new Fdp.Presentation.WindowManager.MessageLogStatusBarSection(
+                    msgLogWindow, windowManager);
+                windowManager.StatusBar.RegisterSection("msg_log_notify", sortOrder: 90, msgLogSection.Render);
 
                 // Load persisted settings and get the last active perspective.
                 string? persistedPerspective = windowManager.LoadSettings();

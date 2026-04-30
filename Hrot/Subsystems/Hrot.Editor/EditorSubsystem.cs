@@ -990,6 +990,18 @@ namespace Hrot.Editor
                     renderDelegate: timeControls.Render,
                     perspective:    "Editor");
             }
+
+            // ── Message Log notification icon in status bar ───────────────────
+            // The MessageLogWindow is registered globally by Program.cs; we look it
+            // up here so the Editor also shows the notification badge.
+            if (windowManager.TryGetWindow("fdp_message_log", out var msgLogWin) &&
+                msgLogWin is Fdp.Presentation.Windows.MessageLogWindow typedMsgLogWin)
+            {
+                var msgLogSection = new Fdp.Presentation.WindowManager.MessageLogStatusBarSection(
+                    typedMsgLogWin, windowManager);
+                windowManager.StatusBar.RegisterSection(
+                    "msg_log_notify", sortOrder: 90, msgLogSection.Render);
+            }
         }
 
         /// <inheritdoc/>
