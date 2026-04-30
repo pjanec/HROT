@@ -43,6 +43,14 @@ namespace Fdp.Toolkit.Vis2D.Tools
         /// </summary>
         public event Action<Entity>? OnEntityDragEnd;
 
+        /// <summary>
+        /// Raised when the operator presses <see cref="KeyboardKey.Delete"/> and the
+        /// map canvas owns the keyboard (ImGui did not capture the key press).
+        /// Subscribers perform the actual entity deletion; this tool is agnostic of
+        /// the deletion policy (network vs. local, selection ownership, etc.).
+        /// </summary>
+        public event Action? OnDeleteRequested;
+
         // State
         private bool _isActionMouseDown; // Was 'Left', now generic based on map
         private Vector2 _mouseDownPos;
@@ -198,6 +206,17 @@ namespace Fdp.Toolkit.Vis2D.Tools
         private Entity FindEntityAt(Vector2 pos)
         {
             return _canvas?.PickTopmostEntity(pos) ?? Entity.Null;
+        }
+
+        /// <inheritdoc/>
+        public bool HandleKeyPressed(KeyboardKey key)
+        {
+            if (key == KeyboardKey.Delete)
+            {
+                OnDeleteRequested?.Invoke();
+                return true; // consumed — stops bubbling to camera / global shortcuts
+            }
+            return false;
         }
     }
 }
