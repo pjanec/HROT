@@ -436,6 +436,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
             _canvas.SwitchTool(_interactionTool);
 
+            // Route Delete key through the tool pipeline so ImGui keyboard capture
+            // (e.g. editing a value in a component window) is always respected.
+            _interactionTool.OnDeleteRequested += () =>
+            {
+                if (_selectionState == null) return;
+                foreach (var entity in new List<Entity>(_selectionState.SelectedEntities))
+                    DeleteEntity(entity);
+            };
+
             // Register context menu handler for right-click in the entity inspector panel.
             _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
             {

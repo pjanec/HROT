@@ -81,6 +81,18 @@ public class StandardInteractionTool : IMapTool
     }
 
     /// <summary>
+    /// Passes through the inner FDP tool's delete-requested event.
+    /// Fired when the operator presses <see cref="KeyboardKey.Delete"/> and the
+    /// map canvas owns the keyboard (ImGui did not capture the key press).
+    /// Subscribe here to perform the actual entity deletion for this context.
+    /// </summary>
+    public event Action? OnDeleteRequested
+    {
+        add    => _inner.OnDeleteRequested += value;
+        remove => _inner.OnDeleteRequested -= value;
+    }
+
+    /// <summary>
     /// Constructs a wired selection tool.
     /// </summary>
     /// <param name="world">

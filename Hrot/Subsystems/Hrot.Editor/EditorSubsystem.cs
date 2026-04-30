@@ -645,6 +645,26 @@ namespace Hrot.Editor
                         _openContextMenuThisFrame = true;
                     }
                 };
+
+                // Route Delete key through the tool pipeline so ImGui keyboard capture
+                // (e.g. editing a value in a component window) is always respected.
+                _interactionTool.OnDeleteRequested += () =>
+                {
+                    if (_selectionState == null || _world == null || _contextMenuHandler == null) return;
+                    foreach (var entity in new List<Entity>(_selectionState.SelectedEntities))
+                    {
+                        if (!_world.IsAlive(entity)) continue;
+                        if (_world.HasComponent<NetworkIdentity>(entity))
+                        {
+                            ref readonly var netId = ref _world.GetComponentRO<NetworkIdentity>(entity);
+                            _contextMenuHandler.DeleteEntity(netId.Value);
+                        }
+                        else
+                        {
+                            _world.DestroyEntity(entity);
+                        }
+                    }
+                };
             }
 
             // ── 11. UI panels ─────────────────────────────────────────────────

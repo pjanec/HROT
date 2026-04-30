@@ -267,6 +267,35 @@ namespace Hrot.SimHost
 
             _map.SwitchTool(_interactionTool);
 
+            // Route Delete key through the tool pipeline so ImGui keyboard capture
+            // (e.g. editing a value in a component window) is always respected.
+            _interactionTool.OnDeleteRequested += () =>
+            {
+                if (_selection == null || _repo == null) return;
+                foreach (var e in new List<Fdp.Core.Entity>(_selection.SelectedEntities))
+                {
+                    if (!_repo.IsAlive(e)) continue;
+
+                    if (_repo.HasComponent<NetworkIdentity>(e))
+                    {
+                        // Network-replicated entity -- route through NetworkSpawningSystem
+                        // so the IG ghost is also removed via DDS EntityMaster DISPOSE.
+                        ref readonly var netId = ref _repo.GetComponentRO<NetworkIdentity>(e);
+                        _repo.Bus.PublishManaged(new DestroyEntityCommand
+                        {
+                            NetworkId = netId.Value,
+                            Reason    = "user-deleted",
+                        });
+                    }
+                    else
+                    {
+                        // Local-only entity -- destroy directly.
+                        _repo.DestroyEntity(e);
+                    }
+                }
+                _selection.Clear();
+            };
+
             _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_map, repo), repo);
 
             // Seed a small initial scenario so the window isn't empty
@@ -345,35 +374,6 @@ namespace Hrot.SimHost
         public void Update(float dt)
         {
             if (!_initialized || _repo == null || _map == null || _ui == null) return;
-
-            // Delete selected entities with the Delete key.
-            // Publish DestroyEntityCommand so NetworkSpawningSystem tears down
-            // the network layer properly and IG removes the ghost entity.
-            if (Raylib.IsKeyPressed(KeyboardKey.Delete) && _selection != null)
-            {
-                foreach (var e in new List<Fdp.Core.Entity>(_selection.SelectedEntities))
-                {
-                    if (!_repo.IsAlive(e)) continue;
-
-                    if (_repo.HasComponent<NetworkIdentity>(e))
-                    {
-                        // Network-replicated entity — route through NetworkSpawningSystem
-                        // so the IG ghost is also removed via DDS EntityMaster DISPOSE.
-                        ref readonly var netId = ref _repo.GetComponentRO<NetworkIdentity>(e);
-                        _repo.Bus.PublishManaged(new DestroyEntityCommand
-                        {
-                            NetworkId = netId.Value,
-                            Reason    = "user-deleted",
-                        });
-                    }
-                    else
-                    {
-                        // Local-only entity — destroy directly.
-                        _repo.DestroyEntity(e);
-                    }
-                }
-                _selection.Clear();
-            }
 
             // Time-scale forwarding
             if (_kernel != null)

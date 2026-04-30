@@ -1085,6 +1085,30 @@ public class IgApplication : IDisposable
 
         interactionTool.OnWorldClick += OnCanvasWorldClick;
 
+        // Route Delete key through the tool pipeline so ImGui keyboard capture
+        // (e.g. editing a value in a component window) is always respected.
+        interactionTool.OnDeleteRequested += () =>
+        {
+            foreach (var entity in new List<Entity>(selection.SelectedEntities))
+            {
+                if (!_world.IsAlive(entity)) continue;
+
+                if (_world.HasComponent<NetworkIdentity>(entity))
+                {
+                    ref readonly var netId = ref _world.GetComponentRO<NetworkIdentity>(entity);
+                    _world.Bus.PublishManaged(new DestroyEntityCommand
+                    {
+                        NetworkId = netId.Value,
+                        Reason    = "user-deleted",
+                    });
+                }
+                else
+                {
+                    _world.DestroyEntity(entity);
+                }
+            }
+            selection.ClearSelection();
+        };
 
 
         // Task 5: Wire IG-to-ExCon event translators when DDS participant is ready.
