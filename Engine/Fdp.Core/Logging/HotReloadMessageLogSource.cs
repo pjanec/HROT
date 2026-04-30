@@ -34,6 +34,7 @@ namespace Fdp.Core.Logging
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private readonly List<MessageLogEntry> _messages = new();
+        private readonly object _lock = new();
 
         // ── IMessageLogSource ────────────────────────────────────────────────
         public string SourceId    => "fbt_hotreload";
@@ -83,7 +84,7 @@ namespace Fdp.Core.Logging
                     DateTime.Now, sev, "Compiler", line,
                     LogSyntaxHighlighter.Parse(line),
                     filePath, lineNum);
-                _messages.Add(entry);
+                lock (_lock) _messages.Add(entry);
                 OnMessageAdded?.Invoke(entry);
                 return;
             }
@@ -105,9 +106,15 @@ namespace Fdp.Core.Logging
         }
 
         // ── IMessageLogSource ────────────────────────────────────────────────
-        public IReadOnlyList<MessageLogEntry> GetMessages() => _messages;
+        public IReadOnlyList<MessageLogEntry> GetMessages()
+        {
+            lock (_lock) return _messages.ToArray();
+        }
 
-        public void Clear() => _messages.Clear();
+        public void Clear()
+        {
+            lock (_lock) _messages.Clear();
+        }
 
         // ── Private ──────────────────────────────────────────────────────────
         private void Push(LogSeverity severity, string message)
@@ -115,7 +122,7 @@ namespace Fdp.Core.Logging
             var entry = new MessageLogEntry(
                 DateTime.Now, severity, "HotReload", message,
                 LogSyntaxHighlighter.Parse(message));
-            _messages.Add(entry);
+            lock (_lock) _messages.Add(entry);
             OnMessageAdded?.Invoke(entry);
         }
     }
