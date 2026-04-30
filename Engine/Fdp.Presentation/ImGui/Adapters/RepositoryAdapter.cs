@@ -16,6 +16,9 @@ namespace Fdp.Presentation.Adapters
             _repo = repo;
         }
 
+        /// <summary>Exposes the underlying ECS repository for renderers that need singleton access.</summary>
+        public EntityRepository Repo => _repo;
+
         public bool IsReadOnly => false;
 
         public int EntityCount => _repo.EntityCount;

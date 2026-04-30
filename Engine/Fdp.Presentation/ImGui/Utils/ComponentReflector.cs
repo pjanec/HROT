@@ -10,6 +10,7 @@ using Fdp.Presentation.Editing;
 using Fdp.Presentation.Renderers;
 using ImGuiNET;
 using StructEdit.Core;
+using StructEdit.Core.UnionSupport;
 using StructEdit.Reflection;
 
 using ImGuiApi = ImGuiNET.ImGui;
@@ -52,20 +53,22 @@ public class ComponentReflector
     /// <summary>Perspective name passed to <see cref="ComponentEditWindow"/> on creation.</summary>
     public string EditOwningPerspective { get; set; } = string.Empty;
 
-    // ── Edit service (created once; stateless) ────────────────────────────────
-    private readonly IComponentEditService _editService;
+    // ── Edit service ─────────────────────────────────────────────────────────
+    private IComponentEditService _editService;
+    private readonly List<IBufferViewProvider> _bufferViewProviders = new();
     private readonly Dictionary<Type, IImGuiFieldDrawer> _fieldDrawers = new();
+
+    /// <summary>
+    /// Optional factory invoked before opening an edit window to build a caller-provided
+    /// <see cref="EditContext"/> for a specific entity/component combination.
+    /// Return <c>null</c> to use an empty context.
+    /// </summary>
+    public Func<IInspectableSession, Entity, Type, EditContext?>? EditContextFactory { get; set; }
 
     /// <summary>Default constructor — builds a default edit service.</summary>
     public ComponentReflector()
     {
-        _editService = new ComponentEditServiceBuilder()
-            .RegisterFieldEditor<FixedString32>(new FixedString32FieldEditor())
-            .RegisterFieldEditor<FixedString64>(new FixedString64FieldEditor())
-            .RegisterFieldEditor<Quaternion>(new QuaternionEulerFieldEditor())
-            .RegisterFieldEditor<Guid>(new StructEdit.Reflection.Editors.GuidFieldEditor())
-            .Build();
-
+        _editService = BuildEditService();
         _fieldDrawers[typeof(Quaternion)] = new QuaternionEulerFieldDrawer();
         _fieldDrawers[typeof(Guid)] = new GuidFieldDrawer();
     }
@@ -77,6 +80,28 @@ public class ComponentReflector
     internal ComponentReflector(IComponentEditService editService)
     {
         _editService = editService;
+    }
+
+    /// <summary>
+    /// Registers an additional <see cref="IBufferViewProvider"/> and rebuilds the edit service.
+    /// Must be called before the reflector is first drawn.
+    /// </summary>
+    public void AddBufferViewProvider(IBufferViewProvider provider)
+    {
+        _bufferViewProviders.Add(provider);
+        _editService = BuildEditService();
+    }
+
+    private IComponentEditService BuildEditService()
+    {
+        var builder = new ComponentEditServiceBuilder()
+            .RegisterFieldEditor<FixedString32>(new FixedString32FieldEditor())
+            .RegisterFieldEditor<FixedString64>(new FixedString64FieldEditor())
+            .RegisterFieldEditor<Quaternion>(new QuaternionEulerFieldEditor())
+            .RegisterFieldEditor<Guid>(new StructEdit.Reflection.Editors.GuidFieldEditor());
+        foreach (var p in _bufferViewProviders)
+            builder = builder.RegisterBufferViewProvider(p);
+        return builder.Build();
     }
 
     // ── Byte-cache change detection (BD1-P6T1) ────────────────────────────────
@@ -215,7 +240,7 @@ public class ComponentReflector
                 var renderer = ImGuiRendererRegistry.GetRenderer(type);
                 bool handled = false;
                 if (renderer is IEntityAwareImGuiRenderer entityRenderer)
-                    handled = entityRenderer.RenderValue(session, e, data);
+                    handled = entityRenderer.RenderValue(session, e, data, out doubleClickedPath);
                 else if (renderer != null)
                     handled = renderer.RenderValue(data);
 
@@ -262,7 +287,8 @@ public class ComponentReflector
             EditScope scope = doubleClickedPath != null
                 ? EditScope.ForField(EditPath.Parse(doubleClickedPath))
                 : EditScope.WholeComponent;
-            var editSession = _editService.Open(data, type, scope);
+            var editContext = EditContextFactory?.Invoke(session, e, type) ?? new EditContext();
+            var editSession = _editService.Open(data, type, scope, editContext);
             string title = $"Edit {type.Name} [{e.Index}]";
             EditWindowManager.RegisterWindow(new ComponentEditWindow(
                 winId, title, EditOwningPerspective, editSession,

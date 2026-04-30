@@ -41,8 +41,9 @@ public class EntityAwareRendererTests
         public bool WasCalled { get; private set; }
         public string? GetSummary(object value) => null;
         public bool RenderValue(object value) => false;
-        public bool RenderValue(IInspectableSession session, Entity entity, object value)
+        public bool RenderValue(IInspectableSession session, Entity entity, object value, out string? doubleClickedPath)
         {
+            doubleClickedPath = null;
             WasCalled = true;
             return true;
         }

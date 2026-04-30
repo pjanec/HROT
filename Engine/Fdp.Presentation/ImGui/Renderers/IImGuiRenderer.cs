@@ -52,6 +52,10 @@ public interface IEntityAwareImGuiRenderer : IImGuiRenderer
     /// Renders a custom detail view using entity and session context.
     /// Return <c>true</c> if rendering was handled; <c>false</c> to fall through
     /// to the default hierarchical tree rendering.
+    /// <para>Set <paramref name="doubleClickedPath"/> to the JSON path of the field
+    /// the user double-clicked (e.g. <c>$.Memory.Speed</c>) to open a scoped edit
+    /// window. Set to <c>null</c> if no click occurred or the renderer does not
+    /// support field-level editing.</para>
     /// </summary>
-    bool RenderValue(IInspectableSession session, Entity entity, object value);
+    bool RenderValue(IInspectableSession session, Entity entity, object value, out string? doubleClickedPath);
 }
