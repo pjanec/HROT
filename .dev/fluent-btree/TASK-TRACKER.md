@@ -31,23 +31,23 @@ Legend: `[ ]` not started / `[>]` in progress / `[x]` completed
 
 ## Phase 3: BTreeHotReloadManager
 
-- [ ] **FBT-020** `BTreeHotReloadManager` with `TryReload`, `ReloadResult` enum, and `DoctrineRegistry` patching
-- [ ] **FBT-021** Implement hot reload check in `Interpreter.Tick` (replace stub comment)
-- [ ] **FBT-022** Hot reload tests
-- [ ] **FBT-023** `FbtAssemblyHotReloader` (FileSystemWatcher + collectible ALC + thread-safe reload queue)
+- [x] **FBT-020** `BTreeHotReloadManager` with `TryReload`, `ReloadResult` enum, and `DoctrineRegistry` patching
+- [x] **FBT-021** Implement hot reload check in `Interpreter.Tick` (replace stub comment)
+- [x] **FBT-022** Hot reload tests
+- [x] **FBT-023** `FbtAssemblyHotReloader` (FileSystemWatcher + collectible ALC + thread-safe reload queue)
 
 ---
 
 ## Phase 4: FDP Engine — Extended ImGui Rendering
 
-- [ ] **FBT-030** Define `IEntityAwareImGuiRenderer : IImGuiRenderer`
-- [ ] **FBT-031** Update `ComponentReflector.DrawComponents` to dispatch to extended renderer
-- [ ] **FBT-032** Add `Type? ParamsDtoType` to `DoctrineDefinition`
-- [ ] **FBT-033** `BrainBlackboardRenderer : IEntityAwareImGuiRenderer` (typed DTO display)
-- [ ] **FBT-034** `BTreeVisualizerRenderer : IEntityAwareImGuiRenderer` (live tree display)
-- [ ] **FBT-035** Tests for `ComponentReflector` extended dispatch
-- [ ] **FBT-036** Tests for `BrainBlackboardRenderer`
-- [ ] **FBT-037** Tests for `BTreeVisualizerRenderer`
+- [x] **FBT-030** Define `IEntityAwareImGuiRenderer : IImGuiRenderer`
+- [x] **FBT-031** Update `ComponentReflector.DrawComponents` to dispatch to extended renderer
+- [x] **FBT-032** Add `Type? ParamsDtoType` to `DoctrineDefinition`
+- [x] **FBT-033** `BrainBlackboardRenderer : IEntityAwareImGuiRenderer` (typed DTO display)
+- [x] **FBT-034** `BTreeVisualizerRenderer : IEntityAwareImGuiRenderer` (live tree display)
+- [x] **FBT-035** Tests for `ComponentReflector` extended dispatch
+- [x] **FBT-036** Tests for `BrainBlackboardRenderer`
+- [x] **FBT-037** Tests for `BTreeVisualizerRenderer`
 
 ---
 
