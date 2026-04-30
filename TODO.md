@@ -1,7 +1,7 @@
 -------------------------------------------------------------------
 [IDEA] The event browser should support monitoring all event busses; it should show a combo what event bus we want to monitor
 the different event busses need to be registered (together with display name)
-so that we can monitor erchestration event bus, or the internal event bus for the perception system etc.
+so that we can monitor orchestration event bus, or the internal event bus used exclusively by the perception system etc.
 -------------------------------------------------------------------
 [BUG]
 You have just uncovered a severe memory-misalignment bug in the FDP engine's `DeltaQueryEnumerator` optimization. Your intuition is 100% correct: **the component version is being written perfectly, but `QueryDelta` is looking at the wrong chunk of memory.**

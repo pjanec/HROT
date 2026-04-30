@@ -130,16 +130,17 @@ namespace Hrot.IG
                 builder.AddItem("Inspect...", () =>
                 {
                     var session = _app.GetFdpRepoAdapter();
+                    bool isSingleton = entity == Fdp.Presentation.Adapters.RepositoryAdapter.SingletonEntity;
                     long? netId = null;
-                    if (session != null && session.HasComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))
+                    if (!isSingleton && session != null && session.HasComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))
                     {
                         var comp = session.GetComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity));
                         if (comp is Fdp.Toolkit.Replication.Components.NetworkIdentity ni)
                             netId = ni.Value;
                     }
 
-                    string title = netId.HasValue
-                        ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
+                    string title = isSingleton ? "Watch [Global Singletons]"
+                        : netId.HasValue ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
                         : $"Watch Entity [{entity.Index}, v{entity.Generation}]";
                     var id = $"ig_watch_{entity.Index}_{entity.Generation}_{Guid.NewGuid()}";
                     var watchPanel = new EntityWatchPanel(entity);

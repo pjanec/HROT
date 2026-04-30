@@ -57,6 +57,9 @@ public sealed class EditorEntityContextMenuHandler : IEntityContextMenuHandler, 
     {
         if (!_repo.IsAlive(entity)) return;
 
+        // Skip all map/lifecycle actions for the global singletons pseudo-entity.
+        if (entity == Fdp.Presentation.Adapters.RepositoryAdapter.SingletonEntity) return;
+
         // Resolve network identity.
         long networkId = _repo.HasComponent<NetworkIdentity>(entity)
             ? _repo.GetComponent<NetworkIdentity>(entity).Value

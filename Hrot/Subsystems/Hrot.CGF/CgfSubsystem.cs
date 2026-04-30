@@ -559,16 +559,17 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             builder.AddItem("Inspect...", () =>
             {
                 var session = _fdpRepoAdapter;
+                bool isSingleton = entity == Fdp.Presentation.Adapters.RepositoryAdapter.SingletonEntity;
                 long? netId = null;
-                if (session != null && session.HasComponent(entity, typeof(NetworkIdentity)))
+                if (!isSingleton && session != null && session.HasComponent(entity, typeof(NetworkIdentity)))
                 {
                     var comp = session.GetComponent(entity, typeof(NetworkIdentity));
                     if (comp is NetworkIdentity ni)
                         netId = ni.Value;
                 }
 
-                string title = netId.HasValue
-                    ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
+                string title = isSingleton ? "Watch [Global Singletons]"
+                    : netId.HasValue ? $"Watch Entity [{entity.Index}, v{entity.Generation}] ({netId.Value})"
                     : $"Watch Entity [{entity.Index}, v{entity.Generation}]";
                 var id = $"cgf_watch_{entity.Index}_{entity.Generation}_{System.Guid.NewGuid()}";
                 var watchPanel = new Fdp.Presentation.Panels.EntityWatchPanel(entity);
