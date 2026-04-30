@@ -1133,6 +1133,15 @@ namespace Hrot.Editor
                         if (_canvas != null)
                             _canvas.PushTool(new Hrot.ScenarioEditor.Tools.MeasureTool());
                         break;
+
+                    case Hrot.Editor.EditorTool.Rotate:
+                    {
+                        // Push EntityRotationTool for the primary selected entity (must have SimTransform).
+                        var entity = _selectionState.PrimarySelected;
+                        if (entity is { } e && e != Entity.Null && _world.HasComponent<Fdp.Core.SimTransform>(e))
+                            _canvas!.PushTool(new Hrot.ScenarioEditor.Tools.EntityRotationTool(e, _world));
+                        break;
+                    }
                 }
             }
 

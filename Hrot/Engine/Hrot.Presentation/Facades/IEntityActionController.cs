@@ -28,4 +28,8 @@ public interface IEntityActionController
 
     /// <summary>Activates the distance measurement tool on the map.</summary>
     void ActivateMeasureTool();
+
+    /// <summary>Activates the entity rotation tool on the map for the specified entity.</summary>
+    /// <param name="entityId">The network entity ID of the entity to rotate.</param>
+    void ActivateRotateTool(long entityId);
 }

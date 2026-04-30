@@ -95,6 +95,18 @@ public static class AttributeCompilerFactory
                     descriptorOrdinal: GeoSpatialOrdinal);
         }
 
+        // ── SimTransform — Heading (compass degrees, always registered) ───────
+        builder.RegisterValuePath<SimTransform>(
+            "Heading",
+            (ref SimTransform st, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            {
+                float headingDeg  = (float)r.GetDouble();
+                float mathYawRad  = (90f - headingDeg) * (MathF.PI / 180f);
+                st.Rotation       = System.Numerics.Quaternion.CreateFromAxisAngle(
+                    System.Numerics.Vector3.UnitZ, mathYawRad);
+            },
+            descriptorOrdinal: GeoSpatialOrdinal);
+
         return builder.Build();
     }
 

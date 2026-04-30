@@ -76,6 +76,7 @@ namespace Hrot.Map.Common.Translators
             yield return new OwnershipUpdateTranslator(participant, (int)localNodeId);
             yield return new MapVisualOverlayEgressTranslator(participant, entityMap, geoTransform, localNodeId);
             yield return new MapVisualOverlayIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId);
+            yield return new UpdateEntityAttributeCommandEgressTranslator(participant);
         }
     }
 }

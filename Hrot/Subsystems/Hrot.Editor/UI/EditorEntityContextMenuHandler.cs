@@ -155,6 +155,13 @@ public sealed class EditorEntityContextMenuHandler : IEntityContextMenuHandler, 
     /// <inheritdoc/>
     public void ActivateMeasureTool() => _logic.ActivateTool(EditorTool.Measure);
 
+    /// <inheritdoc/>
+    public void ActivateRotateTool(long entityId)
+    {
+        _logic.SelectEntity(entityId);
+        _logic.ActivateTool(EditorTool.Rotate);
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private Entity FindEntityByNetworkId(long networkId)

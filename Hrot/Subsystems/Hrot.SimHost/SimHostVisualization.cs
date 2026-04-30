@@ -19,6 +19,7 @@ using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Vis2D.Tools;
 using Hrot.Presentation.Facades;
 using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.Menus;
 using CarKinem.Commands;
 using CarKinem.Core;
 using CarKinem.Trajectory;
@@ -83,6 +84,10 @@ namespace Hrot.SimHost
 
         private long _worldPosDescriptorId;
         private bool _initialized;
+
+        // ── Map entity context menu ────────────────────────────────────────────
+        private Entity _pendingMapContextEntity = Entity.Null;
+        private bool   _openMapContextThisFrame;
 
         // ── Public access (tests / other subsystems) ──────────────────────────
         public SimHostSelectionManager? Selection => _selection;
@@ -181,6 +186,10 @@ namespace Hrot.SimHost
                         }
                     }
                 });
+
+                if (_repo!.HasComponent<SimTransform>(entity))
+                    builder.AddItem("Rotate entity", () =>
+                        _map?.PushTool(new Hrot.ScenarioEditor.Tools.EntityRotationTool(entity, _repo!)));
             }));
 
             // ── Scenario manager ──────────────────────────────────────────────
@@ -244,6 +253,17 @@ namespace Hrot.SimHost
             _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
             {
                 if (btn != MouseButton.Right) return;
+
+                // Right-click directly on an entity (no modifier) -> open map context menu.
+                if (!shift && !ctrl && hitEntity != Entity.Null)
+                {
+                    _selection!.Set(hitEntity);
+                    _fdpInspectorState.SelectedEntity = hitEntity;
+                    _pendingMapContextEntity           = hitEntity;
+                    _openMapContextThisFrame           = true;
+                    return;
+                }
+
                 var entities = new List<Fdp.Core.Entity>(_selection.SelectedEntities);
                 if (entities.Count == 0) return;
 
@@ -397,6 +417,52 @@ namespace Hrot.SimHost
         public void DrawUI()
         {
             if (!_initialized || _repo == null || _kernel == null) return;
+
+            // ── Map entity context menu popup ─────────────────────────────────
+            if (_openMapContextThisFrame)
+            {
+                ImGui.OpenPopup("##simhost_map_ctx");
+                _openMapContextThisFrame = false;
+            }
+
+            if (ImGui.BeginPopup("##simhost_map_ctx"))
+            {
+                if (_pendingMapContextEntity != Entity.Null && _repo.IsAlive(_pendingMapContextEntity))
+                {
+                    var ent = _pendingMapContextEntity;
+                    SharedContextMenuPopulator.PopulateEntityMenu(
+                        entityId:            0L,
+                        tkbType:             0L,
+                        hasEditablePolyline: false,
+                        hasRoutePlan:        false,
+                        builder:             new ContextMenuBuilder(),
+                        actions:             new MapContextActionController(
+                            centerOnEntity: _ => CenterCameraOnEntity(ent),
+                            deleteEntity:   _ =>
+                            {
+                                if (_repo!.HasComponent<NetworkIdentity>(ent))
+                                {
+                                    long netIdValue = _repo.GetComponentRO<NetworkIdentity>(ent).Value;
+                                    _repo.Bus.PublishManaged(new DestroyEntityCommand
+                                    {
+                                        NetworkId = netIdValue,
+                                        Reason    = "map-context-deleted",
+                                    });
+                                }
+                                else
+                                {
+                                    _repo.DestroyEntity(ent);
+                                }
+                                _selection?.Remove(ent);
+                                _fdpInspectorState.SelectedEntity = null;
+                            },
+                            rotateTool:     _ => _map?.PushTool(
+                                new Hrot.ScenarioEditor.Tools.EntityRotationTool(ent, _repo!))
+                        ));
+                }
+
+                ImGui.EndPopup();
+            }
 
             // When panels are Window Manager managed, skip rendering them here.
             if (!_panelsWindowManaged && _ui != null)

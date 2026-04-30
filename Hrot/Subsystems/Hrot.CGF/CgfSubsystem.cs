@@ -32,6 +32,7 @@ using Hrot.Presentation.Windows;
 using Hrot.Presentation.Facades;
 using Hrot.Presentation.Renderers;
 using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.Menus;
 using Hrot.SimHost;
 using ImGuiNET;
 using Raylib_cs;
@@ -456,6 +457,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 });
                 builder.AddSeparator();
                 builder.AddItem("Delete entity", () => DeleteEntity(entity));
+                if (_context!.World.HasComponent<Fdp.Core.SimTransform>(entity))
+                    builder.AddItem("Rotate", () =>
+                    {
+                        _selectionState.PrimarySelected = entity;
+                        _canvas?.PushTool(new Hrot.ScenarioEditor.Tools.EntityRotationTool(entity, _context.World));
+                    });
             }));
         }    }
 
@@ -524,20 +531,19 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 && _context?.World != null
                 && _context.World.IsAlive(_pendingContextMenuEntity))
             {
-                if (ImGui.MenuItem("Center on entity"))
-                    CenterCameraOnEntity(_pendingContextMenuEntity);
-
-                if (ImGui.MenuItem("Select entity"))
-                {
-                    if (_selectionState != null)
-                        _selectionState.PrimarySelected = _pendingContextMenuEntity;
-                    _fdpInspectorState.SelectedEntity = _pendingContextMenuEntity;
-                }
-
-                ImGui.Separator();
-
-                if (ImGui.MenuItem("Delete entity"))
-                    DeleteEntity(_pendingContextMenuEntity);
+                var ent = _pendingContextMenuEntity;
+                SharedContextMenuPopulator.PopulateEntityMenu(
+                    entityId:            0L,
+                    tkbType:             0L,
+                    hasEditablePolyline: false,
+                    hasRoutePlan:        false,
+                    builder:             new ContextMenuBuilder(),
+                    actions:             new MapContextActionController(
+                        centerOnEntity: _ => CenterCameraOnEntity(ent),
+                        deleteEntity:   _ => DeleteEntity(ent),
+                        rotateTool:     _ => _canvas?.PushTool(
+                            new Hrot.ScenarioEditor.Tools.EntityRotationTool(ent, _context.World))
+                    ));
             }
 
             ImGui.EndPopup();

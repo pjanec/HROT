@@ -45,6 +45,8 @@ public static class SharedContextMenuPopulator
         if (hasRoutePlan)
             builder.AddItem("Edit Route", () => actions.EditRoute(entityId));
 
+        builder.AddItem("Rotate", () => actions.ActivateRotateTool(entityId));
+
         builder.AddSeparator();
         builder.AddItem("Delete", () => actions.DeleteEntity(entityId));
     }

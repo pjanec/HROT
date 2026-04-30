@@ -36,4 +36,8 @@ public sealed class ExConEntityActionAdapter : IEntityActionController
     /// <inheritdoc/>
     /// <remarks>ExCon has no measure-tool activation — no-op until wired.</remarks>
     public void ActivateMeasureTool() { /* no-op: no measure tool activation in IExConLogic */ }
+
+    /// <inheritdoc/>
+    /// <remarks>ExCon has no local map canvas — no-op until wired.</remarks>
+    public void ActivateRotateTool(long entityId) { /* no-op: no rotate tool activation in IExConLogic */ }
 }
