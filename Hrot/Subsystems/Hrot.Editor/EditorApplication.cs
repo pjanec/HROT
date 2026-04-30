@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using Fdp.Core;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.DER;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Editor.Commands;
@@ -35,6 +37,8 @@ public sealed class EditorApplication : IEditorLogic
     private readonly ModuleHostKernel?          _kernel;
     private readonly IReadOnlyList<IEcsModule>? _logicPacks;
     private readonly IReadOnlyList<IEcsModule>? _translatorPacks;
+    private readonly HotReloadMessageLogSource? _hotReloadSource;
+    private readonly string[]                   _aiProjectPathSegments;
     private SimHostMode _currentMode = SimHostMode.Internal;
 
     // ── Scenario tracking ─────────────────────────────────────────────────────
@@ -65,15 +69,20 @@ public sealed class EditorApplication : IEditorLogic
         EntityRepository world,
         ModuleHostKernel?          kernel          = null,
         IReadOnlyList<IEcsModule>? logicPacks      = null,
-        IReadOnlyList<IEcsModule>? translatorPacks = null)
+        IReadOnlyList<IEcsModule>? translatorPacks = null,
+        HotReloadMessageLogSource? hotReloadSource = null,
+        string[]? aiProjectPathSegments            = null)
     {
-        _fileService      = fileService      ?? throw new ArgumentNullException(nameof(fileService));
-        _simBus           = simBus           ?? throw new ArgumentNullException(nameof(simBus));
-        _orchestrationBus = orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus));
-        _world            = world            ?? throw new ArgumentNullException(nameof(world));
-        _kernel           = kernel;
-        _logicPacks       = logicPacks;
-        _translatorPacks  = translatorPacks;
+        _fileService          = fileService      ?? throw new ArgumentNullException(nameof(fileService));
+        _simBus               = simBus           ?? throw new ArgumentNullException(nameof(simBus));
+        _orchestrationBus     = orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus));
+        _world                = world            ?? throw new ArgumentNullException(nameof(world));
+        _kernel               = kernel;
+        _logicPacks           = logicPacks;
+        _translatorPacks      = translatorPacks;
+        _hotReloadSource      = hotReloadSource;
+        _aiProjectPathSegments = aiProjectPathSegments
+            ?? new[] { "Subsystems", "Hrot.AI.Doctrines", "Hrot.AI.Doctrines.csproj" };
     }
 
     /// <summary>
@@ -205,32 +214,73 @@ public sealed class EditorApplication : IEditorLogic
         // will automatically detect it and swap the BTree interpreters via the ALC.
         Task.Run(() =>
         {
-            // Compute the AI doctrines project path from the deployment directory.
-            // Deployment: {workspace}/Hrot/Runner/Hrot.ClusterRunner/bin/{cfg}/net8.0/
-            // Target:     {workspace}/Hrot/Subsystems/Hrot.AI.Doctrines/Hrot.AI.Doctrines.csproj
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string projectPath = Path.GetFullPath(
-                Path.Combine(baseDir,
-                    "..", "..", "..", "..", "..",
-                    "Subsystems", "Hrot.AI.Doctrines", "Hrot.AI.Doctrines.csproj"));
-
-            var process = new System.Diagnostics.Process
+            string? projectPath = ResolveProjectFilePath(_aiProjectPathSegments);
+            if (projectPath == null)
             {
-                StartInfo = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName        = "dotnet",
-                    Arguments       = $"build \"{projectPath}\"",
-                    CreateNoWindow  = true,
-                    UseShellExecute = false,
-                }
+                _hotReloadSource?.PushLine(
+                    $"ERROR: AI Doctrines project file not found. Searched parent directories" +
+                    $" from CWD for relative path: {Path.Combine(_aiProjectPathSegments)}");
+                return;
+            }
+
+            _hotReloadSource?.PushLine($"Starting dotnet build: {projectPath}");
+
+            var psi = new ProcessStartInfo
+            {
+                FileName               = "dotnet",
+                Arguments              = $"build \"{projectPath}\"",
+                CreateNoWindow         = true,
+                UseShellExecute        = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
             };
+
+            using var process = new Process { StartInfo = psi, EnableRaisingEvents = false };
+
+            // Async line-by-line reading avoids the classic OS pipe-buffer deadlock
+            // that occurs when both stdout and stderr fill up while the caller is
+            // blocked on WaitForExit() with synchronous ReadToEnd().
+            process.OutputDataReceived += (_, e) =>
+            {
+                if (e.Data != null) _hotReloadSource?.PushLine(e.Data);
+            };
+            process.ErrorDataReceived += (_, e) =>
+            {
+                if (e.Data != null) _hotReloadSource?.PushLine($"ERROR: {e.Data}");
+            };
+
             try
             {
                 process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
                 process.WaitForExit();
+                _hotReloadSource?.PushLine($"Build exited with code {process.ExitCode}.");
             }
-            catch (Exception) { /* ignore if dotnet is not found in PATH */ }
+            catch (Exception ex)
+            {
+                _hotReloadSource?.PushLine($"ERROR: Failed to start dotnet process: {ex.Message}");
+            }
         });
+    }
+
+    /// <summary>
+    /// Traverses parent directories upward from <see cref="Environment.CurrentDirectory"/>
+    /// until it finds a file at <paramref name="pathSegments"/> relative to that directory.
+    /// Returns <c>null</c> if the file is not found in any ancestor.
+    /// </summary>
+    private static string? ResolveProjectFilePath(string[] pathSegments)
+    {
+        string relativePath = Path.Combine(pathSegments);
+        string? dir = Environment.CurrentDirectory;
+        while (!string.IsNullOrEmpty(dir))
+        {
+            string candidate = Path.Combine(dir, relativePath);
+            if (File.Exists(candidate))
+                return candidate;
+            dir = Path.GetDirectoryName(dir);
+        }
+        return null;
     }
 
     /// <summary>

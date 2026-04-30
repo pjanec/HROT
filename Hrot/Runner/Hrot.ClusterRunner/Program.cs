@@ -176,6 +176,10 @@ class Program
             subsystems.Add(sub);
         }
 
+        // Propagate configurable AI project path to the editor subsystem before Initialize().
+        foreach (var sub in subsystems.OfType<Hrot.Editor.EditorSubsystem>())
+            sub.AiDoctrinesProjectPath = config.AiDoctrinesProjectPath;
+
         var options = new RunnerOptions
         {
             Headless       = config.Headless,

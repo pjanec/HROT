@@ -291,6 +291,14 @@ namespace Hrot.Editor
             // but we accept it in the constructor to satisfy the dependency graph and allow for future online features.
         }
 
+        /// <summary>
+        /// Relative path segments to the AI Doctrines .csproj used by <see cref="IEditorLogic.RebuildAndReloadAI"/>.
+        /// Set by the composition root (e.g. Program.cs) before <see cref="Initialize"/> is called.
+        /// Defaults to the standard workspace layout.
+        /// </summary>
+        public string[] AiDoctrinesProjectPath { get; set; } =
+            new[] { "Subsystems", "Hrot.AI.Doctrines", "Hrot.AI.Doctrines.csproj" };
+
 
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)
@@ -491,7 +499,10 @@ namespace Hrot.Editor
             _kernel.Initialize();
 
             // ── 6. Editor application (IEditorLogic facade) ──────────────────
-            var app = new EditorApplication(fileService, _world.Bus, _orchestrationBus, _world, _kernel, logicPacks);
+            var app = new EditorApplication(
+                fileService, _world.Bus, _orchestrationBus, _world, _kernel, logicPacks,
+                hotReloadSource: _hotReloadSource,
+                aiProjectPathSegments: AiDoctrinesProjectPath);
             _editorLogic = app;
 
             // ── 6b. Offline orchestrator — scenario listing via ClusterMaster + UICache ──

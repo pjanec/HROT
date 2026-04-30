@@ -30,6 +30,14 @@ namespace Hrot.ClusterRunner.Configuration
         [Option('c', "config", HelpText = "JSON config file path")]
         public string ConfigFile { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Relative path segments to the AI Doctrines project file used for hot-reloading BTrees.
+        /// When relative, the system traverses parent directories from the CWD looking for this path.
+        /// Defaults to the standard workspace layout.
+        /// Can be overridden via JSON config file.
+        /// </summary>
+        public string[] AiDoctrinesProjectPath { get; set; } = new[] { "Subsystems", "Hrot.AI.Doctrines", "Hrot.AI.Doctrines.csproj" };
+
         // -- Parsed values ---------------------------------------------------
 
         /// <summary>Parsed set of requested subsystem names. Set by <see cref="Validate"/>.</summary>
