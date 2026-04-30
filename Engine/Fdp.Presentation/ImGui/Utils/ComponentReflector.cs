@@ -115,6 +115,12 @@ public class ComponentReflector
     /// </summary>
     private readonly Dictionary<Type, byte[]> _unmanagedCache = new();
 
+    // ── In-place edit state ────────────────────────────────────────────────────
+    private IEditSession? _inPlaceEditSession;
+    private Type? _inPlaceEditComponentType;
+    private ComponentEditDrawer? _inPlaceEditDrawer;
+    private string? _inPlaceEditErrorMessage;
+
     /// <summary>
     /// Draws all components attached to <paramref name="e"/> as collapsible sections.
     /// Value-type (unmanaged) components whose bytes differ from the previous frame
@@ -127,6 +133,7 @@ public class ComponentReflector
         if (!e.Equals(_lastInspectedEntity))
         {
             _unmanagedCache.Clear();
+            CloseInPlaceEdit();
             _lastInspectedEntity = e;
         }
 
@@ -227,6 +234,14 @@ public class ComponentReflector
             if (popColors > 0)
                 ImGuiApi.PopStyleColor(popColors);
 
+            // Right-click context menu: retain "Edit in new window" as explicit action
+            if (ImGuiApi.BeginPopupContextItem($"ctx_{type.Name}"))
+            {
+                if (ImGuiApi.MenuItem("Edit in new window"))
+                    TryOpenEditWindow(session, e, type, data, headerDoubleClicked: true, doubleClickedPath: null);
+                ImGuiApi.EndPopup();
+            }
+
             // Level 2 double-click: must appear immediately after CollapsingHeader/PopStyleColor
             // so IsItemHovered() still refers to the header item.
             bool headerDoubleClicked = ImGuiApi.IsItemHovered()
@@ -237,22 +252,32 @@ public class ComponentReflector
             {
                 ImGuiApi.Indent();
 
-                var renderer = ImGuiRendererRegistry.GetRenderer(type);
-                bool handled = false;
-                if (renderer is IEntityAwareImGuiRenderer entityRenderer)
-                    handled = entityRenderer.RenderValue(session, e, data, out doubleClickedPath);
-                else if (renderer != null)
-                    handled = renderer.RenderValue(data);
+                // ── Branch: In-Place Editor vs Read-Only Dump ──────────────────
+                if (_inPlaceEditSession != null && _inPlaceEditComponentType == type)
+                {
+                    DrawInPlaceEditor(session, e, type);
+                }
+                else
+                {
+                    var renderer = ImGuiRendererRegistry.GetRenderer(type);
+                    bool handled = false;
+                    if (renderer is IEntityAwareImGuiRenderer entityRenderer)
+                        handled = entityRenderer.RenderValue(session, e, data, out doubleClickedPath);
+                    else if (renderer != null)
+                        handled = renderer.RenderValue(data);
 
-                if (!handled)
-                    ImGuiPropertyTree.Render(data, contextType: type, out doubleClickedPath);
+                    if (!handled)
+                        ImGuiPropertyTree.Render(data, contextType: type, out doubleClickedPath);
+                }
 
                 ImGuiApi.Unindent();
             }
 
             ImGuiApi.PopID();
 
-            TryOpenEditWindow(session, e, type, data, headerDoubleClicked, doubleClickedPath);
+            // Double-click triggers in-place edit; new-window is via context menu only.
+            if (!session.IsReadOnly && data != null && (headerDoubleClicked || doubleClickedPath != null))
+                StartInPlaceEdit(session, e, type, data, doubleClickedPath);
         }
 
         ForceExpandAll   = false;
@@ -294,6 +319,80 @@ public class ComponentReflector
                 winId, title, EditOwningPerspective, editSession,
                 e, type, EditSessionGetter!, EditPickerContext, _fieldDrawers));
         }
+    }
+
+    // ── In-Place Edit Implementation ──────────────────────────────────────────
+
+    private void StartInPlaceEdit(IInspectableSession session, Entity e, Type type, object data, string? doubleClickedPath)
+    {
+        CloseInPlaceEdit(); // discard any previously active session
+
+        EditScope scope = doubleClickedPath != null
+            ? EditScope.ForField(EditPath.Parse(doubleClickedPath))
+            : EditScope.WholeComponent;
+
+        var editContext = EditContextFactory?.Invoke(session, e, type) ?? new EditContext();
+
+        _inPlaceEditSession = _editService.Open(data, type, scope, editContext);
+        _inPlaceEditComponentType = type;
+        _inPlaceEditDrawer = new ComponentEditDrawer(_inPlaceEditSession, EditPickerContext, _fieldDrawers);
+        _inPlaceEditErrorMessage = null;
+    }
+
+    private void DrawInPlaceEditor(IInspectableSession session, Entity e, Type type)
+    {
+        if (_inPlaceEditSession!.RebuildState == EditRebuildState.RebuildRequired)
+            _inPlaceEditSession.RebuildDocument();
+
+        if (ImGuiApi.BeginTable($"##inPlaceEdit_{type.Name}", 2,
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
+            ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingFixedFit))
+        {
+            ImGuiApi.TableSetupColumn("Property", ImGuiTableColumnFlags.WidthFixed, 180f);
+            ImGuiApi.TableSetupColumn("Value",    ImGuiTableColumnFlags.WidthStretch);
+
+            _inPlaceEditDrawer!.DrawEditNode(_inPlaceEditSession.Document.Root);
+
+            ImGuiApi.EndTable();
+        }
+
+        if (_inPlaceEditErrorMessage != null)
+            ImGuiApi.TextColored(new Vector4(1f, 0.2f, 0.2f, 1f), _inPlaceEditErrorMessage);
+
+        ImGuiApi.Separator();
+
+        if (ImGuiApi.Button("OK") || ImGuiApi.IsKeyPressed(ImGuiKey.Enter))
+        {
+            try
+            {
+                object newState = _inPlaceEditSession!.Commit();
+                if (session.IsAlive(e))
+                    session.SetComponent(e, type, newState);
+                CloseInPlaceEdit();
+            }
+            catch (EditValidationException ex)
+            {
+                _inPlaceEditErrorMessage = ex.Result.Errors.Count > 0
+                    ? ex.Result.Errors[0].Message
+                    : "Validation failed.";
+            }
+        }
+
+        ImGuiApi.SameLine();
+        if (ImGuiApi.Button("Cancel") || ImGuiApi.IsKeyPressed(ImGuiKey.Escape))
+            CloseInPlaceEdit();
+    }
+
+    private void CloseInPlaceEdit()
+    {
+        if (_inPlaceEditSession != null)
+        {
+            _inPlaceEditSession.Dispose();
+            _inPlaceEditSession = null;
+        }
+        _inPlaceEditComponentType = null;
+        _inPlaceEditDrawer = null;
+        _inPlaceEditErrorMessage = null;
     }
 
     private static string BuildHeaderLabel(Type type, object? data)
