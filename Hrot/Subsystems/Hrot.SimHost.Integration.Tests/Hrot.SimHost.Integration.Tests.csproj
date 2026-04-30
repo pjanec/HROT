@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <!-- Hrot application layer -->
+    <ProjectReference Include="..\Hrot.AI.Doctrines\Hrot.AI.Doctrines.csproj" />
     <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
     <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />

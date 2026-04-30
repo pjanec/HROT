@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.ClusterRunner\Hrot.ClusterRunner.csproj" />
+    <ProjectReference Include="..\..\Subsystems\Hrot.AI.Doctrines\Hrot.AI.Doctrines.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.Editor\Hrot.Editor.csproj" />
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
 

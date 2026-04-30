@@ -1,4 +1,4 @@
-namespace Hrot.CGF.Brains;
+namespace Hrot.CGF.Systems.Routing;
 
 /// <summary>
 /// Named byte offsets into <see cref="Fdp.Toolkit.Behavior.Components.BrainBlackboard.Memory"/>

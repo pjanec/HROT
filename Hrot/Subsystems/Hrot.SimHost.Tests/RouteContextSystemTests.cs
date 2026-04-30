@@ -1,6 +1,5 @@
 using System.Numerics;
 using Hrot.Map.Common.Components;
-using Hrot.CGF.Brains;
 using Hrot.CGF.Systems.Routing;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;

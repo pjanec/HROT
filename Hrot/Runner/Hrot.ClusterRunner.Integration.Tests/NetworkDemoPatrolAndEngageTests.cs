@@ -14,7 +14,7 @@ using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.CGF;
-using Hrot.CGF.Brains;
+using Hrot.AI.Doctrines.Brains;
 using Hrot.CGF.Configuration;
 using Hrot.Map.Common;
 using Hrot.SimHost;

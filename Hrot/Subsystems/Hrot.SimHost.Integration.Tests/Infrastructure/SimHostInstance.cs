@@ -10,10 +10,9 @@ using NedMissionTask = Hrot.NED.Descriptors.MissionTask;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Fdp.Toolkit.Perception.Components;
+using Hrot.AI.Doctrines;
 using Hrot.CGF;
-using Hrot.CGF.Brains;
 using Hrot.CGF.Configuration;
-using Hrot.CGF.Generated;
 using Hrot.CGF.Systems;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
@@ -241,7 +240,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             _entityMap        = new NetworkEntityMap();
             _tkbDb            = BuildTkbDatabase();
-            _doctrineRegistry = BuildDoctrineRegistry(_wgs84);
+            _doctrineRegistry = BuildDoctrineRegistry(_wgs84, _entityMap);
 
             // 3. Entity lifecycle module (empty participant list â†’ bypass ACK protocol) â”€
             _elm = new EntityLifecycleModule(_tkbDb, new List<int>());
@@ -837,47 +836,12 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
         // â”€â”€ Doctrine registry factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        private static DoctrineRegistry BuildDoctrineRegistry(Fdp.Modules.Geographic.IGeographicTransform wgs84)
+        private static DoctrineRegistry BuildDoctrineRegistry(
+            Fdp.Modules.Geographic.IGeographicTransform wgs84,
+            NetworkEntityMap entityMap)
         {
             var reg = new DoctrineRegistry();
-
-            var actionRegistry = new ActionRegistry<BrainBlackboard, BTreeContext>();
-            FbtActionRegistrar.RegisterAll(actionRegistry);
-
-            unsafe
-            {
-                reg.Register(CgfDoctrineIds.MoveTo_BT, "MoveToLocation",
-                    new DoctrineDefinition
-                    {
-                        Name       = "MoveToLocation",
-                        BrainTier  = BehaviorConstants.BrainTierBTree,
-                        ParseParams = (json, ptr) => CgfNodes.ParseMoveToParams(json, ptr, wgs84),
-                        BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
-                            FbtTreeCatalog.GetMoveToLocation(), actionRegistry)
-                    });
-                reg.Register(CgfDoctrineIds.FollowRoute_BT, "FollowRoute",
-                    new DoctrineDefinition
-                    {
-                        Name       = "FollowRoute",
-                        BrainTier  = BehaviorConstants.BrainTierBTree,
-                        ParseParams = null,
-                    });
-                reg.Register(CgfDoctrineIds.JoinFormation_BT, "JoinFormation",
-                    new DoctrineDefinition
-                    {
-                        Name       = "JoinFormation",
-                        BrainTier  = BehaviorConstants.BrainTierBTree,
-                        ParseParams = null,
-                    });
-                reg.Register(CgfDoctrineIds.Idle_HSM, "Idle",
-                    new DoctrineDefinition
-                    {
-                        Name       = "Idle",
-                        BrainTier  = BehaviorConstants.BrainTierHsm,
-                        ParseParams = null,
-                    });
-            }
-
+            AiDoctrineFactory.BuildRegistrationAction(wgs84, entityMap)(reg);
             return reg;
         }
     }

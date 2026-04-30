@@ -1,7 +1,6 @@
 using System;
 using System.Text.Json;
 using Hrot.Map.Common.Components;
-using Hrot.CGF.Brains;
 using Fdp.Core;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Behavior.Components;

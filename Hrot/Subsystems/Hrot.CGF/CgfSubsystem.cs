@@ -21,7 +21,6 @@ using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Scenario;
-using Hrot.CGF.Brains;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
 using Hrot.Common;
@@ -205,7 +204,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ── Create replication module via factory (Brain role) ─────────────────
         // Replaces: EntityStatesIngressPack + ActuatorIntentsEgressPack + GhostCleanupModule
         var doctrineRegistry = new DoctrineRegistry();
-        CgfDoctrineSetup.RegisterAll(doctrineRegistry, _context.GeoTransform, _entityMap);
+        CgfDoctrineSetup.LoadFromAiAssembly(doctrineRegistry, _context.GeoTransform, _entityMap);
         _doctrineRegistry = doctrineRegistry;
 
         // Expose the registry to the diagnostic renderers so the entity inspector

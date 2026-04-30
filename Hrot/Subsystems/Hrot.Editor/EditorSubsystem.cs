@@ -172,10 +172,12 @@ namespace Hrot.Editor
         // ── AI doctrine hot reloader ────────────────────────────────────────────
 
         private FbtAssemblyHotReloader? _aiHotReloader;
-        // Staging dictionary for interpreters built on the background ALC thread;
-        // consumed on the main thread inside the OnReloadCompleted callback.
-        private readonly ConcurrentDictionary<string, Interpreter<Fdp.Toolkit.Behavior.Components.BrainBlackboard, BTreeContext>>
-            _hotReloadedInterpreters = new();
+        // Registration action built on the background ALC thread and applied on the
+        // main thread via OnReloadCompleted -> DrainPendingCallbacks.
+        private volatile Action<DoctrineRegistry>? _pendingDoctrineApply;
+        // Captured at Initialize() so the hot-reload lambda can pass them to the factory.
+        private IGeographicTransform? _geoTransform;
+        private NetworkEntityMap?     _entityMap;
         // ── Production visualizer dependencies ───────────────────────────────────
 
         private readonly MapUserConfig     _userConfig     = new();
@@ -328,12 +330,15 @@ namespace Hrot.Editor
 
             // ── 3. Shared services ────────────────────────────────────────────
             var geoTransform     = HrotEnvironment.CreateGeoTransform();
+            _geoTransform = geoTransform;
             var entityMap        = new NetworkEntityMap();
+            _entityMap = entityMap;
             var doctrineRegistry = new DoctrineRegistry();
             _doctrineRegistry = doctrineRegistry;
-            Hrot.CGF.Configuration.CgfDoctrineSetup.RegisterAll(doctrineRegistry, geoTransform, entityMap);
             // Register Urban Combat doctrines so MissionAdapterSystem can resolve Ambush
             // and InfantryCombat behavior trees when loading UrbanCombatNew scenario files.
+            // CGF doctrines (MoveToLocation, FollowRoute, ...) are loaded asynchronously
+            // from Hrot.AI.Doctrines.dll via TriggerInitialLoad() below.
             UrbanCombatNewScenario.RegisterUrbanCombatDoctrines(doctrineRegistry);
 
             // Expose the registry to the diagnostic renderers so the entity inspector
@@ -345,64 +350,44 @@ namespace Hrot.Editor
             // When the user clicks "Reload BTrees" and MSBuild overwrites the DLL, the watcher
             // detects the change, loads the new assembly into a fresh collectible ALC on a
             // background thread, and enqueues an interpreter swap for the main thread to apply.
+            // Watch specifically for Hrot.AI.Doctrines.dll so the watcher does not fire
+            // on unrelated DLL writes during compilation.
             string aiAssemblyDir = AppDomain.CurrentDomain.BaseDirectory;
-            _aiHotReloader = new FbtAssemblyHotReloader(aiAssemblyDir, (registrarType, newAssembly) =>
+            _aiHotReloader = new FbtAssemblyHotReloader(
+                aiAssemblyDir, "Hrot.AI.Doctrines.dll",
+                (registrarType, newAssembly) =>
             {
-                // Create a fresh action registry scoped to this new ALC.
-                var actionReg = new ActionRegistry<Fdp.Toolkit.Behavior.Components.BrainBlackboard, BTreeContext>();
+                // Find AiDoctrineFactory.BuildRegistrationAction in the newly-loaded assembly.
+                var factoryType  = newAssembly.GetType("Hrot.AI.Doctrines.AiDoctrineFactory");
+                var buildMethod  = factoryType?.GetMethod(
+                    "BuildRegistrationAction",
+                    BindingFlags.Public | BindingFlags.Static);
 
-                // FBT Auto-Discovery: invoke the Roslyn-generated RegisterAll via reflection.
-                var registerMethod = registrarType.GetMethod("RegisterAll", BindingFlags.Public | BindingFlags.Static);
-                registerMethod?.Invoke(null, new object[] { actionReg });
-
-                var results = new List<(string, BehaviorTreeBlob)>();
-
-                // Extract blobs from the source-generated FbtTreeCatalog.
-                var catalogType = newAssembly.GetType("Hrot.AI.Doctrines.Generated.FbtTreeCatalog");
-                if (catalogType != null)
+                if (buildMethod != null)
                 {
-                    foreach (var method in catalogType.GetMethods(BindingFlags.Public | BindingFlags.Static))
-                    {
-                        if (method.Name.StartsWith("Get", StringComparison.Ordinal)
-                            && method.ReturnType == typeof(BehaviorTreeBlob))
-                        {
-                            // e.g. "GetMoveToLocation" -> "MoveToLocation"
-                            string treeName = method.Name.Substring(3);
-                            var blob = (BehaviorTreeBlob)method.Invoke(null, null)!;
-                            results.Add((treeName, blob));
-
-                            // Stage the new interpreter for the main thread to pick up safely.
-                            _hotReloadedInterpreters[treeName] =
-                                new Interpreter<Fdp.Toolkit.Behavior.Components.BrainBlackboard, BTreeContext>(
-                                    blob, actionReg);
-                        }
-                    }
+                    // Execute on the background thread: CPU-heavy BTree compilation happens here.
+                    var applyAction = (Action<DoctrineRegistry>?)buildMethod.Invoke(
+                        null, new object?[] { _geoTransform, _entityMap });
+                    if (applyAction != null)
+                        _pendingDoctrineApply = applyAction;
                 }
-                return results;
+
+                // Return a sentinel so OnReloadCompleted fires once on the main thread.
+                return new (string, BehaviorTreeBlob)[] { ("__ai_doctrines__", new BehaviorTreeBlob()) };
             });
 
-            // Patch the live DoctrineRegistry on the main thread when a reload completes.
-            // Preserves ParseParams, ParamsDtoType, BrainTier, and HsmDefinition from the
-            // existing entry so that only the BTreeInterpreter is hot-swapped.
-            _aiHotReloader.OnReloadCompleted += treeName =>
+            // Apply the staged registration on the main thread via DrainPendingCallbacks().
+            // Fully overwrites all CGF doctrine entries so that ParamsDtoType and
+            // ParseParams always reference the ALC-local CgfNodes types.
+            _aiHotReloader.OnReloadCompleted += _ =>
             {
-                if (_hotReloadedInterpreters.TryGetValue(treeName, out var newInterpreter)
-                    && _doctrineRegistry != null
-                    && _doctrineRegistry.TryGetId(treeName, out int doctrineId)
-                    && _doctrineRegistry.TryGetDefinition(doctrineId, out var oldDef))
-                {
-                    _doctrineRegistry.Register(doctrineId, treeName, new DoctrineDefinition
-                    {
-                        Name             = oldDef.Name,
-                        BrainTier        = oldDef.BrainTier,
-                        ParseParams      = oldDef.ParseParams,
-                        ParamsDtoType    = oldDef.ParamsDtoType,
-                        HsmDefinition    = oldDef.HsmDefinition,
-                        BTreeInterpreter = newInterpreter,
-                    });
-                    Console.WriteLine($"[HotReload] Patched DoctrineRegistry for: {treeName}");
-                }
+                var apply = System.Threading.Interlocked.Exchange(ref _pendingDoctrineApply, null);
+                apply?.Invoke(_doctrineRegistry!);
+                Console.WriteLine("[HotReload] AI Doctrines hot-swapped.");
             };
+
+            // Load the current DLL immediately so doctrines are ready before the first frame.
+            _aiHotReloader.TriggerInitialLoad();
 
             var clusterSlave     = new ClusterSlave(0, "Editor", _orchestrationBus);
             var zoneService      = new ZoneManagerService();

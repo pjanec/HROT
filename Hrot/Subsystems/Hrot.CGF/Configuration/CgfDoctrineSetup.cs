@@ -1,101 +1,79 @@
-using Fbt;
-using Fbt.Runtime;
+using System;
+using System.IO;
+using System.Reflection;
+using System.Runtime.Loader;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Behavior;
-using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Replication.Services;
-using Hrot.CGF.Brains;
-using Hrot.CGF.Generated;
 using Hrot.Map.Definitions.Doctrine;
 using Hrot.Presentation.Behavior;
 
 namespace Hrot.CGF.Configuration
 {
     /// <summary>
-    /// Single source of truth for CGF doctrine registrations.
-    /// Relocated from Hrot.SimHost.Configuration as part of the Brain/Muscle
-    /// architectural split (modular-2 feedback-1).
+    /// Bridge that loads CGF doctrine definitions dynamically from the isolated
+    /// <c>Hrot.AI.Doctrines</c> assembly at startup.
+    ///
+    /// <para>
+    /// <c>Hrot.CGF</c> carries <b>no compile-time dependency</b> on
+    /// <c>Hrot.AI.Doctrines</c>.  All BTree node logic, action delegates, and
+    /// interpreter construction are owned exclusively by the AI assembly so that
+    /// the editor's <c>FbtAssemblyHotReloader</c> can reload them independently.
+    /// </para>
     /// </summary>
     public static class CgfDoctrineSetup
     {
+        /// <summary>
+        /// Dynamically loads <c>Hrot.AI.Doctrines.dll</c> from the deployment directory
+        /// into a dedicated <see cref="AssemblyLoadContext"/> and invokes
+        /// <c>AiDoctrineFactory.BuildRegistrationAction</c> via reflection to populate
+        /// <paramref name="registry"/> with all CGF Brain-tier doctrine definitions.
+        ///
+        /// <para>
+        /// This path is used by <see cref="Hrot.CGF.CgfSubsystem"/> at startup.
+        /// The editor uses <c>FbtAssemblyHotReloader.TriggerInitialLoad()</c> instead
+        /// so that the same code path is exercised on every hot-reload.
+        /// </para>
+        /// </summary>
         /// <param name="geoTransform">
-        /// Geographic coordinate transform used by MoveToLocation. May be <c>null</c>
-        /// in the offline editor where only Cartesian coordinates are used.
+        /// Geographic coordinate transform used by MoveToLocation.  May be <c>null</c>
+        /// in contexts that use only Cartesian coordinates.
         /// </param>
-        public static void RegisterAll(
+        public static void LoadFromAiAssembly(
             DoctrineRegistry registry,
             IGeographicTransform? geoTransform,
             NetworkEntityMap entityMap)
         {
-            if (registry  == null) throw new System.ArgumentNullException(nameof(registry));
-            if (entityMap == null) throw new System.ArgumentNullException(nameof(entityMap));
+            if (registry  == null) throw new ArgumentNullException(nameof(registry));
+            if (entityMap == null) throw new ArgumentNullException(nameof(entityMap));
 
-            // One shared registry covers all BTree doctrines for this assembly.
-            // FbtActionRegistrar (generated) registers both 4-param and 3-param bridge closures.
-            var actionRegistry = new ActionRegistry<BrainBlackboard, BTreeContext>();
-            FbtActionRegistrar.RegisterAll(actionRegistry);
+            string dllPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Hrot.AI.Doctrines.dll");
+            if (!File.Exists(dllPath))
+                throw new FileNotFoundException(
+                    $"Hrot.AI.Doctrines.dll not found at '{dllPath}'.  " +
+                    "Build the Hrot.AI.Doctrines project before starting the cluster node.", dllPath);
 
-            unsafe
-            {
-                registry.Register(CgfDoctrineIds.MoveTo_BT, MoveToLocationParamsJsonDto.BehaviorId,
-                    new DoctrineDefinition
-                    {
-                        Name = "MoveToLocation",
-                        BrainTier = BehaviorConstants.BrainTierBTree,
-                        ParseParams = (json, ptr) => CgfNodes.ParseMoveToParams(json, ptr, geoTransform),
-                        ParamsDtoType = typeof(CgfNodes.MoveToLocationParams),
-                        BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
-                            FbtTreeCatalog.GetMoveToLocation(), actionRegistry)
-                    });
+            // Load into a non-collectible ALC so the Default ALC cannot lock the file,
+            // and so the interpreter delegates remain valid for the process lifetime.
+            var alc = new AssemblyLoadContext("AiDoctrines.Startup", isCollectible: false);
+            Assembly aiAssembly;
+            using (var fs = File.OpenRead(dllPath))
+                aiAssembly = alc.LoadFromStream(fs);
 
-                registry.Register(CgfDoctrineIds.FollowRoute_BT, FollowRouteParamsJsonDto.BehaviorId,
-                    new DoctrineDefinition
-                    {
-                        Name = "FollowRoute",
-                        BrainTier = BehaviorConstants.BrainTierBTree,
-                        ParseParams = (json, ptr) => CgfNodes.ParseFollowRouteParams(json, ptr),
-                        ParamsDtoType = typeof(CgfNodes.FollowRouteParams),
-                        BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
-                            FbtTreeCatalog.GetFollowRoute(), actionRegistry)
-                    });
+            var factoryType = aiAssembly.GetType("Hrot.AI.Doctrines.AiDoctrineFactory");
+            var buildMethod = factoryType?.GetMethod(
+                "BuildRegistrationAction",
+                BindingFlags.Public | BindingFlags.Static);
 
-                registry.Register(CgfDoctrineIds.FireAtTarget_BT, FireAtTargetParamsJsonDto.BehaviorId,
-                    new DoctrineDefinition
-                    {
-                        Name = "FireAtTarget",
-                        BrainTier = BehaviorConstants.BrainTierBTree,
-                        ParseParams = (json, ptr) => CgfNodes.ParseFireAtTargetParams(json, ptr, entityMap),
-                        ParamsDtoType = typeof(CgfNodes.FireAtTargetParams),
-                        BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
-                            FbtTreeCatalog.GetFireAtTarget(), actionRegistry)
-                    });
-            }
+            if (buildMethod == null)
+                throw new InvalidOperationException(
+                    "AiDoctrineFactory.BuildRegistrationAction not found in Hrot.AI.Doctrines.dll. " +
+                    "Rebuild the assembly and retry.");
 
-            registry.Register(CgfDoctrineIds.JoinFormation_BT, JoinFormationParamsJsonDto.BehaviorId,
-                new DoctrineDefinition
-                {
-                    Name = "JoinFormation",
-                    BrainTier = BehaviorConstants.BrainTierBTree,
-                    ParamsDtoType = typeof(CgfNodes.JoinFormationParams),
-                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
-                        FbtTreeCatalog.GetJoinFormation(), actionRegistry)
-                });
+            var applyAction = (Action<DoctrineRegistry>?)buildMethod.Invoke(
+                null, new object?[] { geoTransform, entityMap });
 
-            registry.Register(CgfDoctrineIds.Idle_HSM, IdleParamsJsonDto.BehaviorId,
-                new DoctrineDefinition
-                {
-                    Name = "Idle",
-                    BrainTier = BehaviorConstants.BrainTierHsm
-                });
-
-            registry.Register(CgfDoctrineIds.WanderMilitary_BT, WanderMilitaryParamsJsonDto.BehaviorId,
-                new DoctrineDefinition
-                {
-                    Name = "WanderMilitary",
-                    BrainTier = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
-                        FbtTreeCatalog.GetWanderMilitary(), actionRegistry)
-                });
+            applyAction?.Invoke(registry);
         }
 
         /// <summary>
@@ -109,6 +87,5 @@ namespace Hrot.CGF.Configuration
             DoctrineSchemaDiscovery.AutoRegister(new BehaviorUiRegistry(), remapper);
             return remapper;
         }
-
     }
 }
