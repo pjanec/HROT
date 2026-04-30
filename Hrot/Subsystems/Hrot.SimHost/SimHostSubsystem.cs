@@ -16,6 +16,8 @@ using Fdp.Toolkit.Runner;
 using Hrot.SimHost.Windows;
 using Hrot.Presentation.Windows;
 using Hrot.Presentation.Facades;
+using Hrot.UI.Common.Adapters;
+using Hrot.UI.Common.Panels;
 
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 
@@ -51,6 +53,7 @@ namespace Hrot.SimHost
         private SimHostApp? _app;
         private bool _headless;
         private int _nodeId;
+        private ClusterTimeTransportAdapter? _clusterTimeAdapter;
 
         /// <summary>
         /// Initialises SimHost with the specified node role.
@@ -175,6 +178,9 @@ namespace Hrot.SimHost
         /// </summary>
         public void Update(float deltaTime)
         {
+            // Update adapter before Tick() so events from the current read buffer are
+            // captured before SwapBuffers() (called inside Tick) rotates the buffers.
+            _clusterTimeAdapter?.Update();
             _app?.Tick(deltaTime);
         }
 
@@ -234,6 +240,19 @@ namespace Hrot.SimHost
                 SimHostWindowColor.TitleBar));
 
             vis.SetPanelsWindowManaged();
+
+            // ── Time transport controls in status bar ─────────────────────────
+            var bus = _app?.OrchestrationEventBus;
+            if (bus != null)
+            {
+                _clusterTimeAdapter = new ClusterTimeTransportAdapter(bus, () => _app!.CurrentSimTime);
+                var timeSection = new ClusterTimeControlStatusBarSection(_clusterTimeAdapter);
+                windowManager.StatusBar.RegisterSection(
+                    id:             "simhost_time_controls",
+                    sortOrder:      100,
+                    renderDelegate: timeSection.Render,
+                    perspective:    "SimHost");
+            }
         }
 
         /// <summary>Disposes all kernel resources.</summary>

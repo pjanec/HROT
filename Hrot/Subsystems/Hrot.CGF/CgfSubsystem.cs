@@ -33,6 +33,8 @@ using Hrot.Presentation.Facades;
 using Hrot.Presentation.Renderers;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Menus;
+using Hrot.UI.Common.Adapters;
+using Hrot.UI.Common.Panels;
 using Hrot.SimHost;
 using ImGuiNET;
 using Raylib_cs;
@@ -57,8 +59,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private Action?           _cgfNetworkPolling;
 
     // ── Headless + doctrine registry ──────────────────────────────────────────
-    private bool               _headless;
-    private DoctrineRegistry?  _doctrineRegistry;
+    private bool               _headless;    private ClusterTimeTransportAdapter? _clusterTimeAdapter;    private DoctrineRegistry?  _doctrineRegistry;
     private TogglableInputGroup?      _toggleInput;
     private TogglableSimulationGroup? _toggleSim;
     private Hrot.Core.Network.INetworkFactory? _networkFactory;
@@ -475,6 +476,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         _context?.SlaveTranslator?.Tick();
         _context?.ClusterSlave.Tick();
+        _clusterTimeAdapter?.Update();
 
         // Use the no-args kernel update so the SlaveSyncController measures the real
         // wall-clock delta between frames.  The legacy Update(float) path would receive
@@ -614,6 +616,20 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(),
             () => _context?.Kernel,
             TitleBarColor));
+
+        // ── Time transport controls in status bar ─────────────────────────
+        var bus = _context?.EventBus;
+        if (bus != null)
+        {
+            _clusterTimeAdapter = new ClusterTimeTransportAdapter(
+                bus, () => _context?.Kernel.CurrentTime.TotalTime ?? 0.0);
+            var timeSection = new ClusterTimeControlStatusBarSection(_clusterTimeAdapter);
+            windowManager.StatusBar.RegisterSection(
+                id:             "cgf_time_controls",
+                sortOrder:      100,
+                renderDelegate: timeSection.Render,
+                perspective:    "CGF");
+        }
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────

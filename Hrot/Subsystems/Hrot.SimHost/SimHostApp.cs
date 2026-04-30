@@ -639,6 +639,19 @@ namespace Hrot.SimHost
 
         /// <summary>TestHook: current kernel simulation time in seconds. Updates every frame.</summary>
         public double TestHook_CurrentSimTime => _kernel?.CurrentTime.TotalTime ?? 0.0;
+
+        /// <summary>
+        /// Current kernel simulation time in seconds.  Updated every frame.
+        /// Exposed for the time-transport status-bar UI in <see cref="SimHostSubsystem"/>.
+        /// </summary>
+        internal double CurrentSimTime => _kernel?.CurrentTime.TotalTime ?? 0.0;
+
+        /// <summary>
+        /// The orchestration event bus.  Exposed so <see cref="SimHostSubsystem"/> can
+        /// create a <see cref="Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter"/> without
+        /// accessing internal kernel state directly.
+        /// </summary>
+        internal FdpEventBus? OrchestrationEventBus => _eventBus;
         /// <summary>
         /// Internal test hook: returns the runtime type of the currently active time controller
         /// in the SimHost kernel.  Tests use this to verify that after Pause/Resume the
