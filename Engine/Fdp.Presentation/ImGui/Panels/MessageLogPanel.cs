@@ -87,11 +87,12 @@ namespace Fdp.Presentation.Panels
             foreach (var source in _registry.Sources)
                 EnsureTabState(source);
 
-            // Global options toolbar
-            Gui.Checkbox("Timestamp", ref _showTimestamp);
-            Gui.SameLine();
-            Gui.Checkbox("Logger", ref _showLogger);
-            Gui.Separator();
+            // Save the tab bar line's screen position so we can overlay the toolbar
+            // on the same line after EndTabBar (right-aligned, after the last tab).
+            Vector2 tabBarScreenPos = Gui.GetCursorScreenPos();
+
+            IMessageLogSource? activeSource = null;
+            TabState?          activeState  = null;
 
             if (!Gui.BeginTabBar("##MsgLogTabs", ImGuiTabBarFlags.None))
                 return;
@@ -101,10 +102,26 @@ namespace Fdp.Presentation.Panels
                 if (!_tabStates.TryGetValue(source.SourceId, out var state))
                     continue;
 
-                DrawTab(source, state);
+                if (DrawTab(source, state))
+                {
+                    activeSource = source;
+                    activeState  = state;
+                }
             }
 
             Gui.EndTabBar();
+
+            // Remember cursor position just below the tab bar (start of content area).
+            Vector2 afterTabBarScreenPos = Gui.GetCursorScreenPos();
+
+            // Overlay toolbar controls on the right side of the tab bar line.
+            if (activeSource != null && activeState != null)
+                DrawInlineToolbar(tabBarScreenPos, activeSource, activeState);
+
+            // Restore cursor to content area and draw the message list.
+            Gui.SetCursorScreenPos(afterTabBarScreenPos);
+            if (activeSource != null && activeState != null)
+                DrawMessageList(activeSource, activeState);
         }
 
         // ── Private: tab lifecycle ───────────────────────────────────────────
@@ -130,7 +147,8 @@ namespace Fdp.Presentation.Panels
             };
         }
 
-        private void DrawTab(IMessageLogSource source, TabState state)
+        // Returns true when this tab is the currently active (open) one.
+        private bool DrawTab(IMessageLogSource source, TabState state)
         {
             // Attention badge: push red tab colour
             if (state.HasUnobservedAttention)
@@ -159,25 +177,54 @@ namespace Fdp.Presentation.Panels
             }
 
             if (tabOpen)
-            {
-                DrawTabContent(source, state);
                 Gui.EndTabItem();
-            }
+
+            return tabOpen;
         }
 
-        // ── Private: tab content ─────────────────────────────────────────────
+        // ── Private: inline toolbar (overlaid on the tab bar line) ───────────
 
-        private void DrawTabContent(IMessageLogSource source, TabState state)
+        private void DrawInlineToolbar(
+            Vector2 tabBarScreenPos,
+            IMessageLogSource source,
+            TabState state)
         {
-            // -- Toolbar ------
-            Gui.SetNextItemWidth(220f);
+            float itemSpacing = Gui.GetStyle().ItemSpacing.X;
+            float framePadX   = Gui.GetStyle().FramePadding.X;
+            float filterW     = 120f;
+
+            // Estimate total toolbar width for right-alignment.
+            // Checkbox width = checkbox widget + label text + some padding.
+            float itemH    = Gui.GetFrameHeight();
+            float chkTimeW = Gui.CalcTextSize("Time").X   + itemH + framePadX;
+            float chkLogW  = Gui.CalcTextSize("Logger").X + itemH + framePadX;
+            float sevW     = Gui.CalcTextSize("Severity").X + framePadX * 2 + 8f;
+            float clearW   = Gui.CalcTextSize("Clear").X    + framePadX * 2 + 4f;
+            float tailW    = Gui.CalcTextSize("v").X        + framePadX * 2 + 4f;
+            float totalW   = chkTimeW + itemSpacing
+                           + chkLogW  + itemSpacing
+                           + filterW  + itemSpacing
+                           + sevW     + itemSpacing
+                           + clearW   + itemSpacing
+                           + tailW    + 4f;
+
+            // Right-align within the window content region.
+            // Read available width BEFORE repositioning the cursor.
+            float windowMaxX = Gui.GetCursorScreenPos().X + Gui.GetContentRegionAvail().X;
+            float startX     = windowMaxX - totalW;
+
+            Gui.SetCursorScreenPos(new Vector2(startX, tabBarScreenPos.Y));
+
+            Gui.Checkbox("Time", ref _showTimestamp);
+            Gui.SameLine();
+            Gui.Checkbox("Logger", ref _showLogger);
+            Gui.SameLine();
+            Gui.SetNextItemWidth(filterW);
             Gui.InputText($"##filter_{source.SourceId}", ref state.FilterText, 256);
             if (Gui.IsItemHovered())
                 Gui.SetTooltip("Substring filter (message + logger name)");
-
             Gui.SameLine();
             DrawSeverityFilterButton(source.SourceId, state);
-
             Gui.SameLine();
             if (Gui.SmallButton($"Clear##{source.SourceId}"))
             {
@@ -185,17 +232,11 @@ namespace Fdp.Presentation.Panels
                 state.SelectedIndices.Clear();
                 state.HasUnobservedAttention = false;
             }
-
             Gui.SameLine();
             if (Gui.SmallButton($"v##tail_{source.SourceId}"))
                 state.ForceScrollToBottom = true;
             if (Gui.IsItemHovered())
                 Gui.SetTooltip("Scroll to bottom / re-enable auto-scroll");
-
-            Gui.Separator();
-
-            // -- Message list ------
-            DrawMessageList(source, state);
         }
 
         private void DrawSeverityFilterButton(string sourceId, TabState state)
