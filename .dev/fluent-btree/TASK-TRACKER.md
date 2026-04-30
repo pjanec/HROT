@@ -53,9 +53,9 @@ Legend: `[ ]` not started / `[>]` in progress / `[x]` completed
 
 ## Phase 5: Sample Project
 
-- [ ] **FBT-040** Create `CombatBlackboard` DTO + `CombatContext`
-- [ ] **FBT-041** Sample action and condition delegates
-- [ ] **FBT-042** `[BTreeDefinition("Ambush_BT")]` builder method
+- [x] **FBT-040** Create `CombatBlackboard` DTO + `CombatContext`
+- [x] **FBT-041** Sample action and condition delegates
+- [x] **FBT-042** `[BTreeDefinition("Ambush_BT")]` builder method
 - [ ] **FBT-043** Wire `FbtAutoDiscovery` in visual Raylib/ImGui app with live `BTreeVisualizerRenderer`
-- [ ] **FBT-044** Tests for sample project (headless execution)
+- [x] **FBT-044** Tests for sample project (headless execution)
 - [ ] **FBT-045** "Recompile & Reload" button — live ALC hot reload demo in visual app
