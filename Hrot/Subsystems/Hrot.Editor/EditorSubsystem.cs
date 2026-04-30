@@ -979,6 +979,17 @@ namespace Hrot.Editor
                     () => _kernel,
                     EditorWindowColor.TitleBar));
             }
+
+            // ── Time transport controls in status bar ─────────────────────────
+            if (_previewController != null && _timeController != null && _world != null)
+            {
+                var timeControls = new TimeControlStatusBarSection(_previewController, _timeController, _world);
+                windowManager.StatusBar.RegisterSection(
+                    id:             "editor_time_controls",
+                    sortOrder:      100,
+                    renderDelegate: timeControls.Render,
+                    perspective:    "Editor");
+            }
         }
 
         /// <inheritdoc/>
