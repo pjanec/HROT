@@ -31,6 +31,7 @@ using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Presentation.Windows;
 using Hrot.Presentation.Facades;
+using Hrot.Presentation.Renderers;
 using Hrot.UI.Common.Facades;
 using Hrot.SimHost;
 using ImGuiNET;
@@ -206,6 +207,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var doctrineRegistry = new DoctrineRegistry();
         CgfDoctrineSetup.RegisterAll(doctrineRegistry, _context.GeoTransform, _entityMap);
         _doctrineRegistry = doctrineRegistry;
+
+        // Expose the registry to the diagnostic renderers so the entity inspector
+        // can project BrainBlackboard memory and visualize the BTree execution state.
+        BrainBlackboardRenderer.DoctrineRegistryAccessor = doctrineRegistry;
+        BTreeVisualizerRenderer.DoctrineRegistryAccessor = doctrineRegistry;
 
         // Configure network factory for this node so auxiliary translators can be created.
         var nodeFactory = _networkFactory?.ConfigureForNode(_context, NodeRole.Brain, doctrineRegistry);
@@ -593,6 +599,23 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _fdpEntityInspector.Reflector.EditSessionGetter     = () => _fdpRepoAdapter;
         _fdpEntityInspector.Reflector.EditOwningPerspective = "CGF";
         _fdpEntityInspector.Reflector.EditPickerContext     = cgfPickBridge;
+
+        // Register the blackboard view provider so the editor projects typed DTO params.
+        _fdpEntityInspector.Reflector.AddBufferViewProvider(new BrainBlackboardViewProvider());
+
+        // Inject EditContextFactory so TryOpenEditWindow passes ParamsDtoType to StructEdit.
+        var capturedRegistry = _doctrineRegistry;
+        _fdpEntityInspector.Reflector.EditContextFactory = (session, e, type) =>
+        {
+            if (type != typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard)) return null;
+            if (!session.HasComponent(e, typeof(Fdp.Toolkit.Behavior.Components.DoctrineState))) return null;
+            var ds = session.GetComponent(e, typeof(Fdp.Toolkit.Behavior.Components.DoctrineState))
+                as Fdp.Toolkit.Behavior.Components.DoctrineState?;
+            if (ds == null) return null;
+            if (capturedRegistry?.TryGetDefinition(ds.Value.ActiveDoctrineHash, out var def) != true) return null;
+            if (def.ParamsDtoType == null) return null;
+            return new StructEdit.Core.EditContext().With("ParamsDtoType", def.ParamsDtoType);
+        };
 
         windowManager.RegisterWindow(new FdpEventBrowserWindow(
             "cgf_fdp_events", "CGF Event Browser", "CGF",

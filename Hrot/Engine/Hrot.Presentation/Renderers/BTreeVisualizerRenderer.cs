@@ -1,6 +1,7 @@
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
+using Fdp.Presentation.Adapters;
 using Fdp.Presentation.Renderers;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
@@ -12,12 +13,15 @@ namespace Hrot.Presentation.Renderers;
 
 /// <summary>
 /// Entity-aware ImGui renderer for <see cref="BrainBTreeState"/>.
-/// Renders a color-coded interactive tree showing the active execution path.
+/// Renders a color-coded interactive tree showing the active execution path,
+/// decodes per-node runtime state (LocalRegisters, AsyncHandles), and shows
+/// source-location tooltips from NodeDebugMetadata.
 /// </summary>
 [ImGuiRenderer(typeof(BrainBTreeState))]
 public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
 {
     private static readonly Vector4 ColorGreen  = new Vector4(0.2f, 0.9f, 0.2f, 1.0f);
+    private static readonly Vector4 ColorYellow = new Vector4(0.9f, 0.9f, 0.2f, 1.0f);
     private static readonly Vector4 ColorGray   = new Vector4(0.5f, 0.5f, 0.5f, 1.0f);
 
     /// <summary>Set at startup; required for blob lookup.</summary>
@@ -35,8 +39,10 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
 
     // ---- IEntityAwareImGuiRenderer ----
 
-    public bool RenderValue(IInspectableSession session, Entity entity, object value)
+    public bool RenderValue(IInspectableSession session, Entity entity, object value, out string? doubleClickedPath)
     {
+        doubleClickedPath = null;
+
         if (value is not BrainBTreeState btState) return false;
 
         var registry = DoctrineRegistryAccessor;
@@ -54,35 +60,49 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
         var blob = interpreter.Blob;
         if (blob == null || blob.Nodes.Length == 0) return false;
 
-        DrawNode(blob, btState.State, 0);
+        // Resolve global simulation time for elapsed-time labels on Wait/Cooldown nodes.
+        float globalTime = session is RepositoryAdapter ra
+            ? (float)ra.Repo.GetSingletonUnmanaged<GlobalTime>().TotalTime
+            : 0f;
+
+        DrawNode(blob, btState.State, 0, globalTime);
         return true;
     }
 
     // ---- Tree drawing ----
 
-    private static void DrawNode(BehaviorTreeBlob blob, BehaviorTreeState state, int nodeIndex)
+    private static unsafe void DrawNode(BehaviorTreeBlob blob, BehaviorTreeState state, int nodeIndex, float globalTime)
     {
         if (nodeIndex < 0 || nodeIndex >= blob.Nodes.Length) return;
 
         var node = blob.Nodes[nodeIndex];
-        bool isRunning = state.RunningNodeIndex > 0 && state.RunningNodeIndex == nodeIndex;
-        bool isIdle    = state.RunningNodeIndex == 0;
-
-        string label = GetNodeLabel(blob, nodeIndex);
+        bool isRunning    = state.RunningNodeIndex > 0 && state.RunningNodeIndex == nodeIndex;
+        bool isIdle       = state.RunningNodeIndex == 0;
+        bool isAncestral  = !isRunning && IsAncestralPath(ref state, nodeIndex);
+        bool isActivePath = isRunning || isAncestral;
 
         // Color coding
-        bool pushed = false;
+        int popColors = 0;
         if (isRunning)
         {
             ImGui.PushStyleColor(ImGuiCol.Text, ColorGreen);
-            pushed = true;
+            popColors++;
+        }
+        else if (isAncestral)
+        {
+            // Composite on the active execution path
+            ImGui.PushStyleColor(ImGuiCol.Text, ColorYellow);
+            popColors++;
         }
         else if (!isIdle && node.ChildCount == 0)
         {
             // Inactive leaf while tree is running -- dim it
             ImGui.PushStyleColor(ImGuiCol.Text, ColorGray);
-            pushed = true;
+            popColors++;
         }
+
+        // Label with decoded runtime state
+        string label = GetNodeLabel(blob, ref state, nodeIndex, isActivePath, globalTime);
 
         bool hasChildren = node.ChildCount > 0;
         ImGuiTreeNodeFlags flags = hasChildren
@@ -91,7 +111,7 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
 
         bool open = ImGui.TreeNodeEx($"##n{nodeIndex}", flags, label);
 
-        if (pushed) ImGui.PopStyleColor();
+        if (popColors > 0) ImGui.PopStyleColor(popColors);
 
         // Tooltip with debug metadata
         if (ImGui.IsItemHovered() && blob.DebugMetadata != null && nodeIndex < blob.DebugMetadata.Length)
@@ -112,46 +132,112 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
             for (int i = 0; i < node.ChildCount; i++)
             {
                 if (childIndex >= blob.Nodes.Length) break;
-                DrawNode(blob, state, childIndex);
+                DrawNode(blob, state, childIndex, globalTime);
                 childIndex += blob.Nodes[childIndex].SubtreeOffset;
             }
             ImGui.TreePop();
         }
     }
 
-    private static string GetNodeLabel(BehaviorTreeBlob blob, int nodeIndex)
+    private static unsafe string GetNodeLabel(
+        BehaviorTreeBlob blob,
+        ref BehaviorTreeState state,
+        int nodeIndex,
+        bool isActivePath,
+        float globalTime)
     {
         var node = blob.Nodes[nodeIndex];
-        return node.Type switch
+
+        switch (node.Type)
         {
-            NodeType.Sequence  => "Sequence",
-            NodeType.Selector  => "Selector",
-            NodeType.Parallel  => "Parallel",
-            NodeType.Inverter  => "Inverter",
-            NodeType.Wait      => blob.FloatParams.Length > node.PayloadIndex
-                                    ? $"Wait({blob.FloatParams[node.PayloadIndex]:F1}s)"
-                                    : "Wait",
-            NodeType.Repeater  => blob.IntParams.Length > node.PayloadIndex
-                                    ? $"Repeater({blob.IntParams[node.PayloadIndex]}x)"
-                                    : "Repeater",
-            NodeType.Cooldown  => blob.FloatParams.Length > node.PayloadIndex
-                                    ? $"Cooldown({blob.FloatParams[node.PayloadIndex]:F1}s)"
-                                    : "Cooldown",
-            NodeType.Action    => blob.MethodNames.Length > node.PayloadIndex
-                                    ? $"[A] {blob.MethodNames[node.PayloadIndex]}"
-                                    : "[A]",
-            NodeType.Condition => blob.MethodNames.Length > node.PayloadIndex
-                                    ? $"[C] {blob.MethodNames[node.PayloadIndex]}"
-                                    : "[C]",
-            _                  => node.Type.ToString(),
-        };
-        // Note: debug metadata labels (if non-empty) could override the type label here;
-        // kept simple for now (type-based labels are always accurate).
+            case NodeType.Repeater:
+            {
+                int target = blob.IntParams.Length > node.PayloadIndex
+                    ? blob.IntParams[node.PayloadIndex] : 0;
+                if (isActivePath)
+                {
+                    // LocalRegisters[0] holds the current loop iteration counter
+                    int current = state.LocalRegisters[0];
+                    return $"Repeater ({current}/{target}x)";
+                }
+                return $"Repeater ({target}x)";
+            }
+
+            case NodeType.Parallel:
+                if (isActivePath)
+                {
+                    // LocalRegisters[0] = completion bitmask (lower 16 bits)
+                    // LocalRegisters[1] = success bitmask (lower 16 bits)
+                    int completed = System.Numerics.BitOperations.PopCount(
+                        (uint)(state.LocalRegisters[0] & 0xFFFF));
+                    int succeeded = System.Numerics.BitOperations.PopCount(
+                        (uint)(state.LocalRegisters[1] & 0xFFFF));
+                    return $"Parallel ({succeeded} ok / {completed} done / {node.ChildCount} total)";
+                }
+                return "Parallel";
+
+            case NodeType.Wait:
+            {
+                float duration = blob.FloatParams.Length > node.PayloadIndex
+                    ? blob.FloatParams[node.PayloadIndex] : 0f;
+                if (isActivePath && state.RunningNodeIndex == nodeIndex && state.AsyncData != 0)
+                {
+                    // AsyncData stores start-time via AsyncToken.FloatA
+                    float startTime = new AsyncToken(state.AsyncData).FloatA;
+                    float elapsed   = globalTime - startTime;
+                    return $"Wait ({elapsed:F1}s / {duration:F1}s)";
+                }
+                return $"Wait ({duration:F1}s)";
+            }
+
+            case NodeType.Cooldown:
+            {
+                float duration = blob.FloatParams.Length > node.PayloadIndex
+                    ? blob.FloatParams[node.PayloadIndex] : 0f;
+                if (isActivePath && state.RunningNodeIndex == nodeIndex && state.AsyncData != 0)
+                {
+                    float startTime = new AsyncToken(state.AsyncData).FloatA;
+                    float elapsed   = globalTime - startTime;
+                    float remaining = duration - elapsed;
+                    return $"Cooldown ({remaining:F1}s left)";
+                }
+                return $"Cooldown ({duration:F1}s)";
+            }
+
+            case NodeType.Action:
+                return blob.MethodNames.Length > node.PayloadIndex
+                    ? $"[A] {blob.MethodNames[node.PayloadIndex]}"
+                    : "[A]";
+
+            case NodeType.Condition:
+                return blob.MethodNames.Length > node.PayloadIndex
+                    ? $"[C] {blob.MethodNames[node.PayloadIndex]}"
+                    : "[C]";
+
+            default:
+                return node.Type.ToString();
+        }
+    }
+
+    /// <summary>
+    /// Returns true when <paramref name="nodeIndex"/> lies on the active composite
+    /// ancestor path (i.e., exists in the execution stack up to StackPointer).
+    /// </summary>
+    internal static unsafe bool IsAncestralPath(ref BehaviorTreeState state, int nodeIndex)
+    {
+        if (state.RunningNodeIndex == 0) return false;
+        for (int i = 0; i <= state.StackPointer; i++)
+        {
+            if (state.NodeIndexStack[i] == nodeIndex) return true;
+        }
+        return false;
     }
 
     /// <summary>
     /// Testable helper: returns the color to use for a node index given current state.
     /// Returns 0 = default, 1 = green (running), 2 = gray (inactive leaf).
+    /// Ancestral (yellow) detection requires a full <see cref="BehaviorTreeState"/>; use
+    /// <see cref="IsAncestralPath"/> separately.
     /// </summary>
     internal static int GetNodeColorCode(int nodeIndex, int runningNodeIndex, bool hasChildren)
     {

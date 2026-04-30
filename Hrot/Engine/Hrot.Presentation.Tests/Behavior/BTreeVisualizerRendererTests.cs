@@ -1,3 +1,4 @@
+using Fbt;
 using Hrot.Presentation.Renderers;
 using Xunit;
 
@@ -47,5 +48,31 @@ public class BTreeVisualizerRendererTests
     {
         var renderer = new BTreeVisualizerRenderer();
         Assert.False(renderer.RenderValue(new Fdp.Toolkit.Behavior.Components.BrainBTreeState()));
+    }
+
+    // IsAncestralPath returns false when tree is idle
+    [Fact]
+    public unsafe void IsAncestralPath_ReturnsFalse_WhenTreeIdle()
+    {
+        var state = new BehaviorTreeState();
+        // RunningNodeIndex = 0 means idle
+        Assert.False(BTreeVisualizerRenderer.IsAncestralPath(ref state, nodeIndex: 1));
+    }
+
+    // IsAncestralPath returns true when nodeIndex is in the execution stack
+    [Fact]
+    public unsafe void IsAncestralPath_ReturnsTrue_WhenNodeOnStack()
+    {
+        var state = new BehaviorTreeState
+        {
+            RunningNodeIndex = 3,
+            StackPointer     = 1,
+        };
+        state.NodeIndexStack[0] = 1; // root sequence
+        state.NodeIndexStack[1] = 2; // intermediate selector
+        Assert.True(BTreeVisualizerRenderer.IsAncestralPath(ref state, nodeIndex: 1));
+        Assert.True(BTreeVisualizerRenderer.IsAncestralPath(ref state, nodeIndex: 2));
+        Assert.False(BTreeVisualizerRenderer.IsAncestralPath(ref state, nodeIndex: 3)); // running, not ancestral
+        Assert.False(BTreeVisualizerRenderer.IsAncestralPath(ref state, nodeIndex: 99));
     }
 }

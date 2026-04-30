@@ -37,8 +37,10 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
 
     // ---- IEntityAwareImGuiRenderer ----
 
-    public bool RenderValue(IInspectableSession session, Entity entity, object value)
+    public bool RenderValue(IInspectableSession session, Entity entity, object value, out string? doubleClickedPath)
     {
+        doubleClickedPath = null;
+
         if (value is not BrainBlackboard bb) return false;
 
         var registry = DoctrineRegistryAccessor;
@@ -53,7 +55,10 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
 
         if (def.ParamsDtoType != null)
         {
-            RenderTypedDto(bb, def.ParamsDtoType);
+            RenderTypedDto(bb, def.ParamsDtoType, out string? childPath);
+            // Translate "$.Speed" -> "$.Memory.Speed" to match the actual ECS component layout
+            if (childPath != null)
+                doubleClickedPath = "$.Memory" + childPath[1..];
         }
         else
         {
@@ -65,11 +70,10 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
 
     // ---- Helpers ----
 
-    private static unsafe void RenderTypedDto(BrainBlackboard bb, Type dtoType)
+    private static unsafe void RenderTypedDto(BrainBlackboard bb, Type dtoType, out string? doubleClickedPath)
     {
-        int size = Marshal.SizeOf(dtoType);
         object boxed = Marshal.PtrToStructure((IntPtr)bb.Memory, dtoType)!;
-        ImGuiPropertyTree.Render(boxed, contextType: dtoType);
+        ImGuiPropertyTree.Render(boxed, contextType: dtoType, out doubleClickedPath);
     }
 
     private static unsafe void RenderRawBytes(BrainBlackboard bb)

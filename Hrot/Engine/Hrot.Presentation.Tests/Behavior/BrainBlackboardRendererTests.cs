@@ -22,7 +22,7 @@ public class BrainBlackboardRendererTests
         var entity = new Entity(1, 1);
         var bb = new BrainBlackboard();
 
-        bool result = _renderer.RenderValue(session, entity, bb);
+        bool result = _renderer.RenderValue(session, entity, bb, out _);
 
         Assert.False(result);
     }
@@ -35,7 +35,7 @@ public class BrainBlackboardRendererTests
         var session = new MockSession(hasDoctrineState: true, doctrineHash: 42);
         var bb = new BrainBlackboard();
 
-        bool result = _renderer.RenderValue(session, new Entity(1, 1), bb);
+        bool result = _renderer.RenderValue(session, new Entity(1, 1), bb, out _);
 
         Assert.False(result);
     }
@@ -66,7 +66,7 @@ public class BrainBlackboardRendererTests
         var session = new MockSession(hasDoctrineState: true, doctrineHash: 999);
         var bb = new BrainBlackboard();
 
-        bool result = _renderer.RenderValue(session, new Entity(1, 1), bb);
+        bool result = _renderer.RenderValue(session, new Entity(1, 1), bb, out _);
 
         Assert.False(result);
     }

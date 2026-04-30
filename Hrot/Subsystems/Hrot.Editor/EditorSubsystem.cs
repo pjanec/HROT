@@ -322,6 +322,12 @@ namespace Hrot.Editor
             // Register Urban Combat doctrines so MissionAdapterSystem can resolve Ambush
             // and InfantryCombat behavior trees when loading UrbanCombatNew scenario files.
             UrbanCombatNewScenario.RegisterUrbanCombatDoctrines(doctrineRegistry);
+
+            // Expose the registry to the diagnostic renderers so the entity inspector
+            // can project BrainBlackboard memory and visualize the BTree execution state.
+            Hrot.Presentation.Renderers.BrainBlackboardRenderer.DoctrineRegistryAccessor = doctrineRegistry;
+            Hrot.Presentation.Renderers.BTreeVisualizerRenderer.DoctrineRegistryAccessor = doctrineRegistry;
+
             var clusterSlave     = new ClusterSlave(0, "Editor", _orchestrationBus);
             var zoneService      = new ZoneManagerService();
 
@@ -839,6 +845,23 @@ namespace Hrot.Editor
             _fdpEntityInspector.Reflector.EditSessionGetter     = () => _fdpRepoAdapter;
             _fdpEntityInspector.Reflector.EditOwningPerspective = "Editor";
             _fdpEntityInspector.Reflector.EditPickerContext     = editorPickBridge;
+
+            // Register the blackboard view provider so the editor projects typed DTO params.
+            _fdpEntityInspector.Reflector.AddBufferViewProvider(new Hrot.Presentation.Renderers.BrainBlackboardViewProvider());
+
+            // Inject EditContextFactory so TryOpenEditWindow passes ParamsDtoType to StructEdit.
+            var capturedEditorRegistry = _doctrineRegistry;
+            _fdpEntityInspector.Reflector.EditContextFactory = (session, e, type) =>
+            {
+                if (type != typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard)) return null;
+                if (!session.HasComponent(e, typeof(Fdp.Toolkit.Behavior.Components.DoctrineState))) return null;
+                var ds = session.GetComponent(e, typeof(Fdp.Toolkit.Behavior.Components.DoctrineState))
+                    as Fdp.Toolkit.Behavior.Components.DoctrineState?;
+                if (ds == null) return null;
+                if (capturedEditorRegistry?.TryGetDefinition(ds.Value.ActiveDoctrineHash, out var def) != true) return null;
+                if (def.ParamsDtoType == null) return null;
+                return new StructEdit.Core.EditContext().With("ParamsDtoType", def.ParamsDtoType);
+            };
 
             _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
             {
