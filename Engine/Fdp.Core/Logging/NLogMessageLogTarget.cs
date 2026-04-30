@@ -49,7 +49,8 @@ namespace Fdp.Core.Logging
                 logEvent.TimeStamp,
                 MapSeverity(logEvent.Level),
                 logEvent.LoggerName ?? "Unknown",
-                msg);
+                msg,
+                LogSyntaxHighlighter.Parse(msg));
 
             lock (_lock)
                 _messages.Add(entry);

@@ -79,7 +79,10 @@ namespace Fdp.Core.Logging
                 bool isError = m.Groups[3].Value.Equals("error", StringComparison.OrdinalIgnoreCase);
                 var sev = isError ? LogSeverity.Error : LogSeverity.Warning;
 
-                var entry = new MessageLogEntry(DateTime.Now, sev, "Compiler", line, filePath, lineNum);
+                var entry = new MessageLogEntry(
+                    DateTime.Now, sev, "Compiler", line,
+                    LogSyntaxHighlighter.Parse(line),
+                    filePath, lineNum);
                 _messages.Add(entry);
                 OnMessageAdded?.Invoke(entry);
                 return;
@@ -109,7 +112,9 @@ namespace Fdp.Core.Logging
         // ── Private ──────────────────────────────────────────────────────────
         private void Push(LogSeverity severity, string message)
         {
-            var entry = new MessageLogEntry(DateTime.Now, severity, "HotReload", message);
+            var entry = new MessageLogEntry(
+                DateTime.Now, severity, "HotReload", message,
+                LogSyntaxHighlighter.Parse(message));
             _messages.Add(entry);
             OnMessageAdded?.Invoke(entry);
         }

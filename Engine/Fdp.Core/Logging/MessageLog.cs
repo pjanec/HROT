@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace Fdp.Core.Logging
 {
@@ -14,20 +15,67 @@ namespace Fdp.Core.Logging
         Critical,
     }
 
+    // ── Syntax-highlighting token types ─────────────────────────────────────
+    public enum ChunkType { Text, Number, Punctuation }
+
+    /// <summary>A pre-tokenized span of a log message for zero-allocation rendering.</summary>
+    public readonly record struct LogChunk(string Text, ChunkType Type);
+
+    /// <summary>
+    /// Tokenizes a log message string into <see cref="LogChunk"/> segments once
+    /// at ingestion time so the render path never needs to allocate strings.
+    /// </summary>
+    public static class LogSyntaxHighlighter
+    {
+        public static IReadOnlyList<LogChunk> Parse(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+                return Array.Empty<LogChunk>();
+
+            var chunks = new List<LogChunk>(8);
+            int start = 0;
+            ChunkType currentType = ClassifyChar(message[0]);
+
+            for (int i = 1; i < message.Length; i++)
+            {
+                ChunkType t = ClassifyChar(message[i]);
+                if (t != currentType)
+                {
+                    chunks.Add(new LogChunk(message.Substring(start, i - start), currentType));
+                    start = i;
+                    currentType = t;
+                }
+            }
+            chunks.Add(new LogChunk(message.Substring(start), currentType));
+            return chunks;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ChunkType ClassifyChar(char c)
+        {
+            if (c >= '0' && c <= '9') return ChunkType.Number;
+            if (char.IsPunctuation(c) || char.IsSymbol(c)) return ChunkType.Punctuation;
+            return ChunkType.Text;
+        }
+    }
+
     // ── Immutable log record ─────────────────────────────────────────────────
     /// <summary>
     /// A single message captured by an <see cref="IMessageLogSource"/>.
-    /// <para><paramref name="FilePath"/> and <paramref name="LineNumber"/> are optional;
-    /// they are populated by sources that parse compiler output so the UI can open
-    /// the file in the default editor on double-click.</para>
+    /// <para><c>Chunks</c> holds pre-tokenized message segments computed at
+    /// creation time so the UI render loop allocates nothing per frame.</para>
+    /// <para><paramref name="FilePath"/> and <paramref name="LineNumber"/> are
+    /// optional; populated by sources that parse compiler output to enable
+    /// double-click navigation to the file.</para>
     /// </summary>
     public sealed record MessageLogEntry(
-        DateTime    Timestamp,
-        LogSeverity Severity,
-        string      LoggerName,
-        string      Message,
-        string?     FilePath   = null,
-        int         LineNumber = 0);
+        DateTime                Timestamp,
+        LogSeverity             Severity,
+        string                  LoggerName,
+        string                  Message,
+        IReadOnlyList<LogChunk> Chunks,
+        string?                 FilePath   = null,
+        int                     LineNumber = 0);
 
     // ── Source interface ─────────────────────────────────────────────────────
     /// <summary>

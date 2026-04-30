@@ -45,6 +45,12 @@ namespace Fdp.Presentation.Panels
         // Per-source UI state, lazily created in DrawContent()
         private readonly Dictionary<string, TabState> _tabStates = new();
 
+        // ── Static color constants (avoids per-frame struct construction) ──────
+        private static readonly Vector4 s_colorTimestamp   = new(1.00f, 1.00f, 1.00f, 1f);
+        private static readonly Vector4 s_colorLogger      = new(0.60f, 0.60f, 0.60f, 1f);
+        private static readonly Vector4 s_colorNumber      = new(0.30f, 0.80f, 1.00f, 1f); // Cyan
+        private static readonly Vector4 s_colorPunctuation = new(0.90f, 0.60f, 0.20f, 1f); // Amber
+
         // ── Tab state ────────────────────────────────────────────────────────
         private sealed class TabState
         {
@@ -58,7 +64,9 @@ namespace Fdp.Presentation.Panels
             // Original-list indices of selected messages (unsorted during editing)
             public readonly List<int> SelectedIndices = new();
 
-            public bool   AutoScroll = true;
+            // One-shot flag: set by the "scroll to bottom" button to force a
+            // single jump even when the user has scrolled up.
+            public bool ForceScrollToBottom;
             public string FilterText = string.Empty;
         }
 
@@ -152,10 +160,6 @@ namespace Fdp.Presentation.Panels
 
             if (tabOpen)
             {
-                // Clear attention badge while the tab is active and at the bottom
-                if (state.AutoScroll)
-                    state.HasUnobservedAttention = false;
-
                 DrawTabContent(source, state);
                 Gui.EndTabItem();
             }
@@ -184,10 +188,7 @@ namespace Fdp.Presentation.Panels
 
             Gui.SameLine();
             if (Gui.SmallButton($"v##tail_{source.SourceId}"))
-            {
-                state.AutoScroll = true;
-                state.HasUnobservedAttention = false;
-            }
+                state.ForceScrollToBottom = true;
             if (Gui.IsItemHovered())
                 Gui.SetTooltip("Scroll to bottom / re-enable auto-scroll");
 
@@ -288,9 +289,11 @@ namespace Fdp.Presentation.Panels
                 CopySelectedToClipboard(messages, state);
             }
 
-            // Disable auto-scroll when user scrolls up with the wheel
-            if (Gui.IsWindowHovered() && Gui.GetIO().MouseWheel < 0f)
-                state.AutoScroll = false;
+            // Snapshot scroll position BEFORE rendering rows.
+            // With the "sticky bottom" pattern we do not need to track the mouse
+            // wheel; if the scroll bar is no longer at the bottom the flag naturally
+            // becomes false and auto-following stops.
+            bool wasAtBottom = Gui.GetScrollY() >= Gui.GetScrollMaxY() - 1.0f;
 
             if (filtered.Count == 0)
             {
@@ -305,15 +308,14 @@ namespace Fdp.Presentation.Panels
                 }
             }
 
-            // Re-enable auto-scroll when scroll reaches the very bottom
-            if (Gui.GetScrollMaxY() > 0f &&
-                Gui.GetScrollY() >= Gui.GetScrollMaxY() - 2f)
+            // Sticky bottom: snap to tail when the view was already at the bottom
+            // OR when the button was clicked once (ForceScrollToBottom).
+            if (state.ForceScrollToBottom || wasAtBottom)
             {
-                state.AutoScroll = true;
-            }
-
-            if (state.AutoScroll)
                 Gui.SetScrollHereY(1.0f);
+                state.ForceScrollToBottom    = false;
+                state.HasUnobservedAttention = false;
+            }
 
             Gui.EndChild();
         }
@@ -328,51 +330,30 @@ namespace Fdp.Presentation.Panels
         {
             bool isSelected = state.SelectedIndices.Contains(msgIdx);
 
-            // Build the display string for this row
-            var sb = new StringBuilder(160);
-            if (_showTimestamp)
-            {
-                sb.Append('[');
-                sb.Append(msg.Timestamp.ToString("HH:mm:ss.fff"));
-                sb.Append("] ");
-            }
-            if (_showLogger)
-            {
-                sb.Append('[');
-                sb.Append(msg.LoggerName);
-                sb.Append("] ");
-            }
-            sb.Append(msg.Message);
-            string displayStr = sb.ToString();
+            // 1. Save cursor so we can overlay colored text after the selectable.
+            var startPos = Gui.GetCursorPos();
 
-            Gui.PushStyleColor(ImGuiCol.Text, GetSeverityColor(msg.Severity));
-
-            // The selectable spans the full available width so the row is clickable.
-            // Using AllowOverlap so context-menu hit-test works on the same row.
+            // 2. Draw invisible selectable spanning the full row for input handling.
+            //    The ##-only label renders nothing; AllowOverlap lets the context
+            //    menu hit-test work on the same row.
             if (Gui.Selectable(
-                    $"{displayStr}##{msgIdx}",
+                    $"##sel_{msgIdx}",
                     isSelected,
                     ImGuiSelectableFlags.AllowOverlap))
             {
                 if (Gui.GetIO().KeyCtrl)
                 {
-                    // Toggle this item
                     if (isSelected) state.SelectedIndices.Remove(msgIdx);
                     else            state.SelectedIndices.Add(msgIdx);
                 }
                 else
                 {
-                    // Single-click: select only this row
                     state.SelectedIndices.Clear();
                     state.SelectedIndices.Add(msgIdx);
                 }
-                // Clicking a row disables tail-following
-                state.AutoScroll = false;
             }
 
-            Gui.PopStyleColor();
-
-            // Right-click context menu on each row
+            // Right-click context menu on the row
             if (Gui.BeginPopupContextItem($"##rowctx_{msgIdx}"))
             {
                 if (Gui.MenuItem("Copy"))
@@ -391,6 +372,52 @@ namespace Fdp.Presentation.Panels
                 Gui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
             {
                 TryOpenInEditor(msg.FilePath);
+            }
+
+            // 3. Rewind cursor to overlay colored text on top of the selectable.
+            Gui.SetCursorPos(startPos);
+
+            bool needSameLine = false;
+
+            // 4. Timestamp in white
+            if (_showTimestamp)
+            {
+                Gui.TextColored(s_colorTimestamp, $"[{msg.Timestamp:HH:mm:ss.fff}] ");
+                needSameLine = true;
+            }
+
+            // 5. Logger name in gray
+            if (_showLogger)
+            {
+                if (needSameLine) Gui.SameLine(0, 0);
+                Gui.TextColored(s_colorLogger, $"[{msg.LoggerName}] ");
+                needSameLine = true;
+            }
+
+            // 6. Syntax-highlighted message body
+            Vector4 baseColor = GetSeverityColor(msg.Severity);
+            var chunks = msg.Chunks;
+
+            if (chunks.Count == 0)
+            {
+                // Empty or unchunked message: draw the raw text
+                if (needSameLine) Gui.SameLine(0, 0);
+                Gui.TextColored(baseColor, msg.Message);
+            }
+            else
+            {
+                for (int ci = 0; ci < chunks.Count; ci++)
+                {
+                    var chunk = chunks[ci];
+                    Vector4 chunkColor = chunk.Type switch
+                    {
+                        ChunkType.Number      => s_colorNumber,
+                        ChunkType.Punctuation => s_colorPunctuation,
+                        _                     => baseColor,
+                    };
+                    if (needSameLine || ci > 0) Gui.SameLine(0, 0);
+                    Gui.TextColored(chunkColor, chunk.Text);
+                }
             }
         }
 
