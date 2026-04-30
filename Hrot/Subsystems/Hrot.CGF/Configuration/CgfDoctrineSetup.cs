@@ -1,7 +1,11 @@
+using Fbt;
+using Fbt.Runtime;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.CGF.Brains;
+using Hrot.CGF.Generated;
 using Hrot.Map.Definitions.Doctrine;
 using Hrot.Presentation.Behavior;
 
@@ -26,6 +30,11 @@ namespace Hrot.CGF.Configuration
             if (registry  == null) throw new System.ArgumentNullException(nameof(registry));
             if (entityMap == null) throw new System.ArgumentNullException(nameof(entityMap));
 
+            // One shared registry covers all BTree doctrines for this assembly.
+            // FbtActionRegistrar (generated) registers both 4-param and 3-param bridge closures.
+            var actionRegistry = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            FbtActionRegistrar.RegisterAll(actionRegistry);
+
             unsafe
             {
                 registry.Register(CgfDoctrineIds.MoveTo_BT, MoveToLocationParamsJsonDto.BehaviorId,
@@ -34,7 +43,9 @@ namespace Hrot.CGF.Configuration
                         Name = "MoveToLocation",
                         BrainTier = BehaviorConstants.BrainTierBTree,
                         ParseParams = (json, ptr) => CgfNodes.ParseMoveToParams(json, ptr, geoTransform),
-                        BTreeInterpreter = CgfNodes.BuildMoveToLocationInterpreter()
+                        ParamsDtoType = typeof(CgfNodes.MoveToLocationParams),
+                        BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
+                            FbtTreeCatalog.GetMoveToLocation(), actionRegistry)
                     });
 
                 registry.Register(CgfDoctrineIds.FollowRoute_BT, FollowRouteParamsJsonDto.BehaviorId,
@@ -43,7 +54,9 @@ namespace Hrot.CGF.Configuration
                         Name = "FollowRoute",
                         BrainTier = BehaviorConstants.BrainTierBTree,
                         ParseParams = (json, ptr) => CgfNodes.ParseFollowRouteParams(json, ptr),
-                        BTreeInterpreter = CgfNodes.BuildFollowRouteInterpreter()
+                        ParamsDtoType = typeof(CgfNodes.FollowRouteParams),
+                        BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
+                            FbtTreeCatalog.GetFollowRoute(), actionRegistry)
                     });
 
                 registry.Register(CgfDoctrineIds.FireAtTarget_BT, FireAtTargetParamsJsonDto.BehaviorId,
@@ -52,7 +65,9 @@ namespace Hrot.CGF.Configuration
                         Name = "FireAtTarget",
                         BrainTier = BehaviorConstants.BrainTierBTree,
                         ParseParams = (json, ptr) => CgfNodes.ParseFireAtTargetParams(json, ptr, entityMap),
-                        BTreeInterpreter = CgfNodes.BuildFireAtTargetInterpreter()
+                        ParamsDtoType = typeof(CgfNodes.FireAtTargetParams),
+                        BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
+                            FbtTreeCatalog.GetFireAtTarget(), actionRegistry)
                     });
             }
 
@@ -61,7 +76,9 @@ namespace Hrot.CGF.Configuration
                 {
                     Name = "JoinFormation",
                     BrainTier = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = CgfNodes.BuildJoinFormationInterpreter()
+                    ParamsDtoType = typeof(CgfNodes.JoinFormationParams),
+                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
+                        FbtTreeCatalog.GetJoinFormation(), actionRegistry)
                 });
 
             registry.Register(CgfDoctrineIds.Idle_HSM, IdleParamsJsonDto.BehaviorId,
@@ -76,7 +93,8 @@ namespace Hrot.CGF.Configuration
                 {
                     Name = "WanderMilitary",
                     BrainTier = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = CgfNodes.BuildWanderMilitaryInterpreter()
+                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
+                        FbtTreeCatalog.GetWanderMilitary(), actionRegistry)
                 });
         }
 

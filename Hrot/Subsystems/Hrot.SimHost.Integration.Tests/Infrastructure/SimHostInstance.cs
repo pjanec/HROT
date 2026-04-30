@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
+using Fbt;
+using Fbt.Runtime;
 using Hrot.Core.Mission;
 using NedMissionPlan = Hrot.NED.Descriptors.MissionPlan;
 using NedMissionTask = Hrot.NED.Descriptors.MissionTask;
@@ -11,6 +13,7 @@ using Fdp.Toolkit.Perception.Components;
 using Hrot.CGF;
 using Hrot.CGF.Brains;
 using Hrot.CGF.Configuration;
+using Hrot.CGF.Generated;
 using Hrot.CGF.Systems;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
@@ -838,6 +841,9 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         {
             var reg = new DoctrineRegistry();
 
+            var actionRegistry = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            FbtActionRegistrar.RegisterAll(actionRegistry);
+
             unsafe
             {
                 reg.Register(CgfDoctrineIds.MoveTo_BT, "MoveToLocation",
@@ -846,7 +852,8 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                         Name       = "MoveToLocation",
                         BrainTier  = BehaviorConstants.BrainTierBTree,
                         ParseParams = (json, ptr) => CgfNodes.ParseMoveToParams(json, ptr, wgs84),
-                        BTreeInterpreter = CgfNodes.BuildMoveToLocationInterpreter()
+                        BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
+                            FbtTreeCatalog.GetMoveToLocation(), actionRegistry)
                     });
                 reg.Register(CgfDoctrineIds.FollowRoute_BT, "FollowRoute",
                     new DoctrineDefinition

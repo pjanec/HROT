@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -26,6 +26,45 @@ namespace Hrot.CGF.Brains
             IncludeFields = true
         };
 
+        // -- Channel write helpers --
+
+        private static unsafe void WriteToLocomotionParams<T>(ref LocomotionChannel channel, T value)
+            where T : unmanaged
+        {
+            Unsafe.As<byte, T>(ref channel.Params[0]) = value;
+        }
+
+        private static unsafe void WriteToWeaponParams<T>(ref WeaponChannel channel, T value)
+            where T : unmanaged
+        {
+            Unsafe.As<byte, T>(ref channel.Params[0]) = value;
+        }
+
+        // -- Typed blackboard wrappers --
+        // These single-field structs are used as the TBlackboard type in the
+        // BTreeBuilder expression-binding overloads.  Fbt.SourceGen calculates
+        // the byte offset of the Params field at compile time and emits a
+        // zero-pointer bridge closure into FbtActionRegistrar.g.cs that projects
+        // the runtime BrainBlackboard to the exact DTO using Unsafe.As.
+
+        /// <summary>Typed blackboard wrapper for the MoveToLocation doctrine.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MoveToBlackboard { public MoveToLocationParams Params; }
+
+        /// <summary>Typed blackboard wrapper for the FollowRoute doctrine.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct FollowRouteBlackboard { public FollowRouteParams Params; }
+
+        /// <summary>Typed blackboard wrapper for the JoinFormation doctrine.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct JoinFormationBlackboard { public JoinFormationParams Params; }
+
+        /// <summary>Typed blackboard wrapper for the FireAtTarget doctrine.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct FireAtTargetBlackboard { public FireAtTargetParams Params; }
+
+        // -- Param DTO structs --
+
         [StructLayout(LayoutKind.Sequential)]
         public struct MoveToLocationParams
         {
@@ -48,6 +87,44 @@ namespace Hrot.CGF.Brains
             public bool  Loop;
         }
 
+        /// <summary>
+        /// Blackboard DTO for the JoinFormation doctrine.
+        /// Currently parameterless (the contract exists to satisfy the
+        /// ReusableActionDelegate signature pattern). Populated to defaults
+        /// by <see cref="Hrot.Map.Definitions.Doctrine.JoinFormationParamsJsonDto"/> which
+        /// carries no JSON fields.
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct JoinFormationParams
+        {
+            // Reserved for future extension; both fields are zero-initialised
+            // because JoinFormationParamsJsonDto is currently parameterless.
+            public int  LeaderNetworkId;
+            public byte FormationTypeId;
+        }
+
+        /// <summary>
+        /// Blackboard layout for the FireAtTarget doctrine (20 bytes total):
+        ///   [0..7]   TargetPacked (long)  - Entity.PackedValue of the target
+        ///   [8..11]  MaxRounds    (int)   - 0 = unlimited
+        ///   [12..15] CooldownSeconds (float) - seconds between shots
+        ///   [16..19] RoundsFired  (int)   - runtime state, initialized to 0
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct FireAtTargetParams
+        {
+            /// <summary>Packed ECS entity value of the target. 0 = no target resolved yet.</summary>
+            public long  TargetPacked;
+            /// <summary>Maximum number of fire activations. 0 = unlimited.</summary>
+            public int   MaxRounds;
+            /// <summary>Seconds to wait between successive shots.</summary>
+            public float CooldownSeconds;
+            /// <summary>Runtime counter of fire activations (written back to blackboard).</summary>
+            public int   RoundsFired;
+        }
+
+        // -- JSON parse DTOs (private) --
+
         private class MoveToLocationParamsJsonDto
         {
             public double TargetLat { get; set; }
@@ -58,6 +135,13 @@ namespace Hrot.CGF.Brains
             public float Y { get; set; }
         }
 
+        private class FireAtTargetParamsJsonDto
+        {
+            public long  TargetNetworkId  { get; set; }
+            public int   MaxRounds        { get; set; }
+            public float CooldownSeconds  { get; set; }
+        }
+
         /// <summary>
         /// Fallback travel speed (m/s) applied when a <c>MoveToLocation</c> params JSON
         /// does not carry an explicit <c>speed</c> field (e.g. legacy plans committed
@@ -65,6 +149,8 @@ namespace Hrot.CGF.Brains
         /// the entity to stand still indefinitely.
         /// </summary>
         private const float DefaultMoveToSpeed = 15f;
+
+        // -- Parse methods (cold path, unsafe byte* accepted from engine delegate) --
 
         public static unsafe void ParseMoveToParams(string json, byte* ptr, Fdp.Modules.Geographic.IGeographicTransform geoTransform)
         {
@@ -108,18 +194,62 @@ namespace Hrot.CGF.Brains
             Unsafe.Write(ptr, p);
         }
 
-        public static unsafe NodeStatus Action_WriteMoveToChannel(
-            ref BrainBlackboard blackboard,
+        /// <summary>
+        /// Parses FireAtTarget JSON params and writes the resolved
+        /// <see cref="FireAtTargetParams"/> into the blackboard memory pointer.
+        /// </summary>
+        public static unsafe void ParseFireAtTargetParams(
+            string json, byte* ptr,
+            Fdp.Toolkit.Replication.Services.NetworkEntityMap entityMap)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                Unsafe.Write(ptr, default(FireAtTargetParams));
+                return;
+            }
+
+            var dto = JsonSerializer.Deserialize<FireAtTargetParamsJsonDto>(json, JsonOptions);
+            if (dto == null)
+            {
+                Unsafe.Write(ptr, default(FireAtTargetParams));
+                return;
+            }
+
+            long targetPacked = 0;
+            if (dto.TargetNetworkId != 0
+                && entityMap.TryGetEntity(dto.TargetNetworkId, out var entity))
+            {
+                targetPacked = (long)entity.PackedValue;
+            }
+
+            Unsafe.Write(ptr, new FireAtTargetParams
+            {
+                TargetPacked    = targetPacked,
+                MaxRounds       = dto.MaxRounds,
+                CooldownSeconds = dto.CooldownSeconds,
+                RoundsFired     = 0,
+            });
+        }
+
+        // -- Action / Condition delegates --
+        // Three-param ReusableActionDelegate<TValue, BTreeContext> signatures.
+        // The [BTreeAction] / [BTreeCondition] attributes cause Fbt.SourceGen to
+        // emit bridge closures in FbtActionRegistrar.g.cs that project the runtime
+        // BrainBlackboard to TValue using Unsafe.As at byte offset 0.
+        // No 'unsafe' keyword or 'fixed' blocks appear in any of these methods.
+
+        /// <summary>
+        /// BTree action node for the MoveToLocation doctrine.
+        /// Writes the parsed destination into the <see cref="LocomotionChannel"/> every tick.
+        /// </summary>
+        [BTreeAction]
+        public static NodeStatus Action_WriteMoveToChannel(
+            ref MoveToLocationParams p,
             ref BehaviorTreeState state,
-            ref BTreeContext ctx,
-            int paramIndex)
+            ref BTreeContext ctx)
         {
             if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
                 return NodeStatus.Failure;
-
-            MoveToLocationParams p;
-            fixed (byte* src = blackboard.Memory)
-                p = Unsafe.Read<MoveToLocationParams>(src);
 
             ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
             if (ctx.World.HasComponent<DoctrineState>(ctx.Self))
@@ -146,30 +276,25 @@ namespace Hrot.CGF.Brains
 
             channel.ActiveAction = NavigationConstants.ActionIdMoveTo;
 
-            var moveTo = new MoveToParams
+            WriteToLocomotionParams(ref channel, new MoveToParams
             {
                 Destination  = new Vector2(p.X, p.Y),
                 ArrivalRadius = p.ArrivalRadius,
                 Speed        = p.Speed
-            };
-            fixed (byte* dst = channel.Params)
-                Unsafe.Write(dst, moveTo);
+            });
 
             return NodeStatus.Running;
         }
 
-        public static unsafe NodeStatus Action_WriteFollowRouteChannel(
-            ref BrainBlackboard blackboard,
+        /// <summary>BTree action node for the FollowRoute doctrine.</summary>
+        [BTreeAction]
+        public static NodeStatus Action_WriteFollowRouteChannel(
+            ref FollowRouteParams p,
             ref BehaviorTreeState state,
-            ref BTreeContext ctx,
-            int paramIndex)
+            ref BTreeContext ctx)
         {
             if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
                 return NodeStatus.Failure;
-
-            FollowRouteParams p;
-            fixed (byte* src = blackboard.Memory)
-                p = Unsafe.Read<FollowRouteParams>(src);
 
             ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
             if (ctx.World.HasComponent<DoctrineState>(ctx.Self))
@@ -185,22 +310,21 @@ namespace Hrot.CGF.Brains
 
             channel.ActiveAction = NavigationConstants.ActionIdFollowRoute;
 
-            var route = new Fdp.Toolkit.Navigation.FollowRouteParams
+            WriteToLocomotionParams(ref channel, new Fdp.Toolkit.Navigation.FollowRouteParams
             {
                 TrajectoryId = p.TrajectoryId, // FIX: was hardcoded to 0; now reads from blackboard params
                 IsLooped     = (byte)(p.Loop ? 1 : 0)
-            };
-            fixed (byte* dst = channel.Params)
-                Unsafe.Write(dst, route);
+            });
 
             return NodeStatus.Running;
         }
 
+        /// <summary>BTree action node for the JoinFormation doctrine.</summary>
+        [BTreeAction]
         public static NodeStatus Action_WriteJoinFormationChannel(
-            ref BrainBlackboard blackboard,
+            ref JoinFormationParams p,
             ref BehaviorTreeState state,
-            ref BTreeContext ctx,
-            int paramIndex)
+            ref BTreeContext ctx)
         {
             if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
                 return NodeStatus.Failure;
@@ -221,7 +345,7 @@ namespace Hrot.CGF.Brains
             return NodeStatus.Running;
         }
 
-        // ── WanderMilitary ─────────────────────────────────────────────────────────
+        // -- WanderMilitary --
 
         /// <summary>
         /// Maximum distance (metres) from the origin (0, 0) when picking a random
@@ -248,7 +372,8 @@ namespace Hrot.CGF.Brains
         /// <para><b>Return value:</b> always <see cref="NodeStatus.Running"/> so the
         /// BTree root keeps ticking every frame indefinitely.</para>
         /// </summary>
-        public static unsafe NodeStatus Action_Wander(
+        [BTreeAction]
+        public static NodeStatus Action_Wander(
             ref BrainBlackboard blackboard,
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
@@ -290,139 +415,31 @@ namespace Hrot.CGF.Brains
                 channel.ActiveAction = NavigationConstants.ActionIdMoveTo;
                 channel.Status       = NodeStatus.Running;
 
-                var moveTo = new MoveToParams
+                WriteToLocomotionParams(ref channel, new MoveToParams
                 {
                     Destination   = new Vector2(x, y),
                     ArrivalRadius = WanderArrivalRadius,
                     Speed         = WanderSpeed,
-                };
-                fixed (byte* dst = channel.Params)
-                    Unsafe.Write(dst, moveTo);
+                });
             }
 
             return NodeStatus.Running;
         }
 
-        /// <summary>
-        /// Builds and returns a ready-to-use BTree interpreter for the WanderMilitary doctrine.
-        ///
-        /// The tree consists of a single <c>Action_Wander</c> action node that
-        /// continuously picks random MoveTo destinations around the world origin.
-        /// </summary>
-        public static Interpreter<BrainBlackboard, BTreeContext> BuildWanderMilitaryInterpreter()
+        // -- FireAtTarget --
+
+        // Isolated unsafe helper so that Condition_TargetAliveAndVisible and
+        // Action_FireAtTarget themselves need no unsafe keyword.
+        private static unsafe bool IsTargetVisible(
+            in Fdp.Toolkit.Perception.Components.TargetMemory mem,
+            long targetPacked)
         {
-            var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
-            var blob = builder
-                .Action(Action_Wander)
-                .Compile(Hrot.Map.Definitions.Doctrine.WanderMilitaryParamsJsonDto.BehaviorId);
-            return new Interpreter<BrainBlackboard, BTreeContext>(blob, builder.GetRegistry());
-        }
-
-        // ── Doctrine-specific interpreter builders ─────────────────────────────
-
-        /// <summary>
-        /// Builds and returns a ready-to-use BTree interpreter for the MoveTo_BT doctrine.
-        /// The tree consists of a single <c>Action_WriteMoveToChannel</c> action
-        /// that writes the parsed destination into the <see cref="LocomotionChannel"/>
-        /// every tick while the task is active.
-        /// </summary>
-        public static Interpreter<BrainBlackboard, BTreeContext> BuildMoveToLocationInterpreter()
-        {
-            var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
-            var blob = builder
-                .Action(Action_WriteMoveToChannel)
-                .Compile(Hrot.Map.Definitions.Doctrine.MoveToLocationParamsJsonDto.BehaviorId);
-            return new Interpreter<BrainBlackboard, BTreeContext>(blob, builder.GetRegistry());
-        }
-
-        /// <summary>
-        /// Builds and returns a ready-to-use BTree interpreter for the FollowRoute_BT doctrine.
-        /// </summary>
-        public static Interpreter<BrainBlackboard, BTreeContext> BuildFollowRouteInterpreter()
-        {
-            var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
-            var blob = builder
-                .Action(Action_WriteFollowRouteChannel)
-                .Compile(Hrot.Map.Definitions.Doctrine.FollowRouteParamsJsonDto.BehaviorId);
-            return new Interpreter<BrainBlackboard, BTreeContext>(blob, builder.GetRegistry());
-        }
-
-        /// <summary>
-        /// Builds and returns a ready-to-use BTree interpreter for the JoinFormation_BT doctrine.
-        /// </summary>
-        public static Interpreter<BrainBlackboard, BTreeContext> BuildJoinFormationInterpreter()
-        {
-            var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
-            var blob = builder
-                .Action(Action_WriteJoinFormationChannel)
-                .Compile(Hrot.Map.Definitions.Doctrine.JoinFormationParamsJsonDto.BehaviorId);
-            return new Interpreter<BrainBlackboard, BTreeContext>(blob, builder.GetRegistry());
-        }
-
-        // ── FireAtTarget ───────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Blackboard layout for the FireAtTarget doctrine (20 bytes total):
-        ///   [0..7]   TargetPacked (long)  - Entity.PackedValue of the target
-        ///   [8..11]  MaxRounds    (int)   - 0 = unlimited
-        ///   [12..15] CooldownSeconds (float) - seconds between shots
-        ///   [16..19] RoundsFired  (int)   - runtime state, initialized to 0
-        /// </summary>
-        [StructLayout(LayoutKind.Sequential)]
-        public struct FireAtTargetParams
-        {
-            /// <summary>Packed ECS entity value of the target. 0 = no target resolved yet.</summary>
-            public long  TargetPacked;
-            /// <summary>Maximum number of fire activations. 0 = unlimited.</summary>
-            public int   MaxRounds;
-            /// <summary>Seconds to wait between successive shots.</summary>
-            public float CooldownSeconds;
-            /// <summary>Runtime counter of fire activations (written back to blackboard).</summary>
-            public int   RoundsFired;
-        }
-
-        private class FireAtTargetParamsJsonDto
-        {
-            public long  TargetNetworkId  { get; set; }
-            public int   MaxRounds        { get; set; }
-            public float CooldownSeconds  { get; set; }
-        }
-
-        /// <summary>
-        /// Parses FireAtTarget JSON params and writes the resolved
-        /// <see cref="FireAtTargetParams"/> into the blackboard memory pointer.
-        /// </summary>
-        public static unsafe void ParseFireAtTargetParams(
-            string json, byte* ptr,
-            Fdp.Toolkit.Replication.Services.NetworkEntityMap entityMap)
-        {
-            if (string.IsNullOrWhiteSpace(json))
+            for (int i = 0; i < mem.Count; i++)
             {
-                Unsafe.Write(ptr, default(FireAtTargetParams));
-                return;
+                if (mem.EntityIds[i] == targetPacked && mem.ThreatScores[i] > 0f)
+                    return true;
             }
-
-            var dto = JsonSerializer.Deserialize<FireAtTargetParamsJsonDto>(json, JsonOptions);
-            if (dto == null)
-            {
-                Unsafe.Write(ptr, default(FireAtTargetParams));
-                return;
-            }
-
-            long targetPacked = 0;
-            if (dto.TargetNetworkId != 0
-                && entityMap.TryGetEntity(dto.TargetNetworkId, out var entity))
-            {
-                targetPacked = (long)entity.PackedValue;
-            }
-
-            Unsafe.Write(ptr, new FireAtTargetParams
-            {
-                TargetPacked    = targetPacked,
-                MaxRounds       = dto.MaxRounds,
-                CooldownSeconds = dto.CooldownSeconds,
-                RoundsFired     = 0,
-            });
+            return false;
         }
 
         /// <summary>
@@ -431,16 +448,12 @@ namespace Hrot.CGF.Brains
         //  Return Failure when the target is dead.
         /// Return Running while the target is alive but out of sight.
         /// </summary>
-        public static unsafe NodeStatus Condition_TargetAliveAndVisible(
-            ref BrainBlackboard blackboard,
+        [BTreeCondition]
+        public static NodeStatus Condition_TargetAliveAndVisible(
+            ref FireAtTargetParams p,
             ref BehaviorTreeState state,
-            ref BTreeContext ctx,
-            int paramIndex)
+            ref BTreeContext ctx)
         {
-            FireAtTargetParams p;
-            fixed (byte* src = blackboard.Memory)
-                p = Unsafe.Read<FireAtTargetParams>(src);
-
             var target = new Fdp.Core.Entity((ulong)p.TargetPacked);
 
             // 1. If the target is definitively dead, fail the node so the doctrine finishes cleanly.
@@ -452,18 +465,15 @@ namespace Hrot.CGF.Brains
                 return NodeStatus.Running; // FIX: Was Failure
 
             ref readonly var mem = ref ctx.World.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self);
-            for (int i = 0; i < mem.Count; i++)
-            {
-                // 3. Target is visible! Proceed to the next node in the Sequence.
-                if (mem.EntityIds[i] == p.TargetPacked && mem.ThreatScores[i] > 0f)
-                    return NodeStatus.Success;
-            }
 
-            // 4. Target is alive, but not currently visible. 
+            // 3. Target is visible! Proceed to the next node in the Sequence.
+            if (IsTargetVisible(in mem, p.TargetPacked))
+                return NodeStatus.Success;
+
+            // 4. Target is alive, but not currently visible.
             // Return Running to block the Sequence and force a re-evaluation next tick!
             return NodeStatus.Running; // FIX: Was Failure
         }
-
 
         /// <summary>
         /// BTree action node: manages continuous firing at the configured target via
@@ -475,16 +485,12 @@ namespace Hrot.CGF.Brains
         ///   <item>Returns Running while actively firing.</item>
         /// </list>
         /// </summary>
-        public static unsafe NodeStatus Action_FireAtTarget(
-            ref BrainBlackboard blackboard,
+        [BTreeAction]
+        public static NodeStatus Action_FireAtTarget(
+            ref FireAtTargetParams p,
             ref BehaviorTreeState state,
-            ref BTreeContext ctx,
-            int paramIndex)
+            ref BTreeContext ctx)
         {
-            FireAtTargetParams p;
-            fixed (byte* src = blackboard.Memory)
-                p = Unsafe.Read<FireAtTargetParams>(src);
-
             var target = new Fdp.Core.Entity((ulong)p.TargetPacked);
 
             // Target destroyed = mission accomplished.
@@ -494,17 +500,8 @@ namespace Hrot.CGF.Brains
             // Target out of sensor range = mission aborted.
             if (ctx.World.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self))
             {
-                bool visible = false;
                 ref readonly var mem = ref ctx.World.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(ctx.Self);
-                for (int i = 0; i < mem.Count; i++)
-                {
-                    if (mem.EntityIds[i] == p.TargetPacked && mem.ThreatScores[i] > 0f)
-                    {
-                        visible = true;
-                        break;
-                    }
-                }
-                if (!visible) return NodeStatus.Failure;
+                if (!IsTargetVisible(in mem, p.TargetPacked)) return NodeStatus.Failure;
             }
 
             // Max rounds reached = cease fire.
@@ -516,7 +513,7 @@ namespace Hrot.CGF.Brains
 
             ref var channel = ref ctx.World.GetComponentRW<Fdp.Toolkit.Behavior.Components.WeaponChannel>(ctx.Self);
 
-            // Sync DoctrineInstanceId so ChannelArbitrationSystem doesn't clear the channel every frame
+            // Sync DoctrineInstanceId so ChannelArbitrationSystem does not clear the channel every frame
             if (ctx.World.HasComponent<DoctrineState>(ctx.Self))
             {
                 var doctrine = ctx.World.GetComponent<DoctrineState>(ctx.Self);
@@ -536,35 +533,29 @@ namespace Hrot.CGF.Brains
 
             if (needsActivation)
             {
-                fixed (byte* ptr = channel.Params)
-                    *(Fdp.Toolkit.Combat.Executors.AimAndFireParams*)ptr =
-                        new Fdp.Toolkit.Combat.Executors.AimAndFireParams
-                        {
-                            Target          = target,
-                            CooldownSeconds = p.CooldownSeconds,
-                        };
+                WriteToWeaponParams(ref channel, new Fdp.Toolkit.Combat.Executors.AimAndFireParams
+                {
+                    Target          = target,
+                    CooldownSeconds = p.CooldownSeconds,
+                });
 
                 unchecked { channel.ActionInstanceId++; }
                 channel.ActiveAction = Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire;
             }
 
-            // Only increment RoundsFired exactly when the weapon is ready to shoot this tick
+            // Only increment RoundsFired exactly when the weapon is ready to shoot this tick.
+            // Writing back through the ref parameter updates the blackboard in-place -- no
+            // pointer arithmetic required.
             if (ctx.World.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(ctx.Self))
             {
                 var weapon = ctx.World.GetComponent<Fdp.Toolkit.Combat.Components.WeaponState>(ctx.Self);
                 if (weapon.CooldownSecondsRemaining <= 0f)
-                {
-                    fixed (byte* src = blackboard.Memory)
-                    {
-                        FireAtTargetParams* paramsPtr = (FireAtTargetParams*)src;
-                        paramsPtr->RoundsFired = p.RoundsFired + 1;
-                    }
-                }
+                    p.RoundsFired = p.RoundsFired + 1;
             }
 
             return NodeStatus.Running;
         }
-        
+
         /// <summary>
         /// BTree action node: holds the entity in place while waiting for a target to become
         /// visible. Always returns <see cref="NodeStatus.Running"/> so the Selector stays alive.
@@ -578,18 +569,61 @@ namespace Hrot.CGF.Brains
             return NodeStatus.Running;
         }
 
+        // -- [BTreeDefinition] builder methods --
+        // Fbt.SourceGen scans these at compile time and emits FbtTreeCatalog.g.cs
+        // with Get<Name>() methods that call .Compile("<Name>") on first access.
+        // CgfDoctrineSetup retrieves the pre-compiled blobs from that catalog at startup.
+
         /// <summary>
-        /// Builds and returns a ready-to-use BTree interpreter for the FireAtTarget_BT doctrine.
+        /// Exposes the MoveToLocation BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        public static Interpreter<BrainBlackboard, BTreeContext> BuildFireAtTargetInterpreter()
+        [BTreeDefinition("MoveToLocation")]
+        public static BTreeBuilder<MoveToBlackboard, BTreeContext> BuildMoveToLocationTree()
         {
-            var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
-            var blob = builder
+            return new BTreeBuilder<MoveToBlackboard, BTreeContext>()
+                .Action(bb => bb.Params, Action_WriteMoveToChannel);
+        }
+
+        /// <summary>
+        /// Exposes the FollowRoute BTree structure for Fbt.SourceGen static analysis.
+        /// </summary>
+        [BTreeDefinition("FollowRoute")]
+        public static BTreeBuilder<FollowRouteBlackboard, BTreeContext> BuildFollowRouteTree()
+        {
+            return new BTreeBuilder<FollowRouteBlackboard, BTreeContext>()
+                .Action(bb => bb.Params, Action_WriteFollowRouteChannel);
+        }
+
+        /// <summary>
+        /// Exposes the JoinFormation BTree structure for Fbt.SourceGen static analysis.
+        /// </summary>
+        [BTreeDefinition("JoinFormation")]
+        public static BTreeBuilder<JoinFormationBlackboard, BTreeContext> BuildJoinFormationTree()
+        {
+            return new BTreeBuilder<JoinFormationBlackboard, BTreeContext>()
+                .Action(bb => bb.Params, Action_WriteJoinFormationChannel);
+        }
+
+        /// <summary>
+        /// Exposes the WanderMilitary BTree structure for Fbt.SourceGen static analysis.
+        /// </summary>
+        [BTreeDefinition("WanderMilitary")]
+        public static BTreeBuilder<BrainBlackboard, BTreeContext> BuildWanderMilitaryTree()
+        {
+            return new BTreeBuilder<BrainBlackboard, BTreeContext>()
+                .Action(Action_Wander);
+        }
+
+        /// <summary>
+        /// Exposes the FireAtTarget BTree structure for Fbt.SourceGen static analysis.
+        /// </summary>
+        [BTreeDefinition("FireAtTarget")]
+        public static BTreeBuilder<FireAtTargetBlackboard, BTreeContext> BuildFireAtTargetTree()
+        {
+            return new BTreeBuilder<FireAtTargetBlackboard, BTreeContext>()
                 .Sequence(s => s
-                    .Condition(Condition_TargetAliveAndVisible)
-                    .Action(Action_FireAtTarget))
-                .Compile(Hrot.Map.Definitions.Doctrine.FireAtTargetParamsJsonDto.BehaviorId);
-            return new Interpreter<BrainBlackboard, BTreeContext>(blob, builder.GetRegistry());
+                    .Condition(bb => bb.Params, Condition_TargetAliveAndVisible)
+                    .Action(bb => bb.Params, Action_FireAtTarget));
         }
     }
 }
