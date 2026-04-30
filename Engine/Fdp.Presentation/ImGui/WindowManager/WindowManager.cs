@@ -131,6 +131,16 @@ public class WindowManager
         OnPerspectiveChanged?.Invoke(old, newPerspective);
     }
 
+    // ── Message Log Registry ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Optional shared <see cref="Fdp.Core.Logging.MessageLogRegistry"/> instance.
+    /// Set by the application host (e.g. <c>Program.cs</c>) after creating the
+    /// <c>MessageLogWindow</c>; subsystems read it from their
+    /// <c>RegisterWindows</c> override to register additional log sources.
+    /// </summary>
+    public Fdp.Core.Logging.MessageLogRegistry? MessageLogRegistry { get; set; }
+
     // ── Menu Registry ──────────────────────────────────────────────────────────
 
     /// <summary>The global application menu registry.</summary>
