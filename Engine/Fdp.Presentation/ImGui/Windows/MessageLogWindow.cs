@@ -31,6 +31,18 @@ namespace Fdp.Presentation.Windows
             IsOpen = true;
         }
 
+        /// <summary>
+        /// Returns <c>true</c> if any underlying message log tab has unseen
+        /// Warning/Error/Critical messages that are not suppressed by the current filters.
+        /// </summary>
+        public bool HasUnobservedAttention => _panel.HasUnobservedAttention;
+
+        /// <summary>
+        /// Instructs the panel to switch to the first tab reporting unobserved
+        /// attention on the next rendered frame.
+        /// </summary>
+        public void FocusFirstAttentionTab() => _panel.FocusFirstAttentionTab();
+
         protected override void DrawClientArea() => _panel.DrawContent();
     }
 }

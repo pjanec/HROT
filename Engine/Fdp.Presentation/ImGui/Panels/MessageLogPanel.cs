@@ -58,8 +58,18 @@ namespace Fdp.Presentation.Panels
             public volatile bool HasUnobservedAttention;
             public bool NotificationsEnabled;
 
-            // Severities currently hidden (empty = show all)
-            public readonly HashSet<LogSeverity> HiddenSeverities = new();
+            // Severities currently hidden. Trace and Debug are off by default to
+            // reduce noise; the user can re-enable them via the Severity popup.
+            public readonly HashSet<LogSeverity> HiddenSeverities = new()
+            {
+                LogSeverity.Trace,
+                LogSeverity.Debug,
+            };
+
+            // Logger-name filter (per tab, thread-safe via lock on each set)
+            public readonly HashSet<string> KnownLoggers  = new();
+            public readonly HashSet<string> HiddenLoggers = new();
+            public string LoggerSearchText = string.Empty;
 
             // Original-list indices of selected messages (unsorted during editing)
             public readonly List<int> SelectedIndices = new();
@@ -70,10 +80,46 @@ namespace Fdp.Presentation.Panels
             public string FilterText = string.Empty;
         }
 
+        // ── Programmatic tab selection (set by FocusFirstAttentionTab) ────────
+        private string? _forceSelectTabId;
+
         // ── Construction ─────────────────────────────────────────────────────
         public MessageLogPanel(MessageLogRegistry registry)
         {
             _registry = registry;
+        }
+
+        // ── Public notification API ───────────────────────────────────────────
+
+        /// <summary>
+        /// Returns <c>true</c> if any tab has unseen Warning/Error/Critical messages
+        /// that are not suppressed by the current severity or logger filters.
+        /// </summary>
+        public bool HasUnobservedAttention
+        {
+            get
+            {
+                // Avoid LINQ .Any() to keep the hot path allocation-free.
+                foreach (var state in _tabStates.Values)
+                    if (state.HasUnobservedAttention) return true;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Requests the panel to switch to the first tab that currently reports
+        /// unobserved attention. The switch is deferred to the next rendered frame.
+        /// </summary>
+        public void FocusFirstAttentionTab()
+        {
+            foreach (var kvp in _tabStates)
+            {
+                if (kvp.Value.HasUnobservedAttention)
+                {
+                    _forceSelectTabId = kvp.Key;
+                    break;
+                }
+            }
         }
 
         // ── Public draw entry point ──────────────────────────────────────────
@@ -139,11 +185,26 @@ namespace Fdp.Presentation.Panels
             _tabStates[source.SourceId] = state;
 
             // Subscribe on the creation thread (main thread); handler may be called
-            // from a background thread so only write the volatile bool.
+            // from a background thread. Only volatile writes and lock-protected set
+            // reads are performed inside the handler.
             source.OnMessageAdded += entry =>
             {
-                if (state.NotificationsEnabled && entry.Severity >= LogSeverity.Warning)
-                    state.HasUnobservedAttention = true;
+                // Register the logger name so the filter popup can list it.
+                lock (state.KnownLoggers)
+                    state.KnownLoggers.Add(entry.LoggerName);
+
+                if (!state.NotificationsEnabled || entry.Severity < LogSeverity.Warning)
+                    return;
+
+                // Respect current UI filters: if the message would be hidden, do
+                // not raise the attention flag.
+                if (state.HiddenSeverities.Contains(entry.Severity))
+                    return;
+
+                lock (state.HiddenLoggers)
+                    if (state.HiddenLoggers.Contains(entry.LoggerName)) return;
+
+                state.HasUnobservedAttention = true;
             };
         }
 
@@ -154,8 +215,24 @@ namespace Fdp.Presentation.Panels
             if (state.HasUnobservedAttention)
                 Gui.PushStyleColor(ImGuiCol.Tab, new Vector4(0.65f, 0.13f, 0.13f, 1f));
 
-            bool tabOpen = Gui.BeginTabItem(
-                $"{source.DisplayName}##tab_{source.SourceId}");
+            bool tabOpen;
+            // Programmatic tab selection requested by FocusFirstAttentionTab.
+            // We use the 3-param overload (which shows a close button for one frame)
+            // only when the force-select flag is set; otherwise use the simpler overload.
+            if (_forceSelectTabId == source.SourceId)
+            {
+                _forceSelectTabId = null; // Consume
+                bool dummyOpen = true;
+                tabOpen = Gui.BeginTabItem(
+                    $"{source.DisplayName}##tab_{source.SourceId}",
+                    ref dummyOpen,
+                    ImGuiTabItemFlags.SetSelected);
+            }
+            else
+            {
+                tabOpen = Gui.BeginTabItem(
+                    $"{source.DisplayName}##tab_{source.SourceId}");
+            }
 
             if (state.HasUnobservedAttention)
                 Gui.PopStyleColor();
@@ -199,12 +276,14 @@ namespace Fdp.Presentation.Panels
             float chkTimeW = Gui.CalcTextSize("Time").X   + itemH + framePadX;
             float chkLogW  = Gui.CalcTextSize("Logger").X + itemH + framePadX;
             float sevW     = Gui.CalcTextSize("Severity").X + framePadX * 2 + 8f;
+            float logFltW  = Gui.CalcTextSize("Loggers").X  + framePadX * 2 + 8f;
             float clearW   = Gui.CalcTextSize("Clear").X    + framePadX * 2 + 4f;
             float tailW    = Gui.CalcTextSize("v").X        + framePadX * 2 + 4f;
             float totalW   = chkTimeW + itemSpacing
                            + chkLogW  + itemSpacing
                            + filterW  + itemSpacing
                            + sevW     + itemSpacing
+                           + logFltW  + itemSpacing
                            + clearW   + itemSpacing
                            + tailW    + 4f;
 
@@ -225,6 +304,8 @@ namespace Fdp.Presentation.Panels
                 Gui.SetTooltip("Substring filter (message + logger name)");
             Gui.SameLine();
             DrawSeverityFilterButton(source.SourceId, state);
+            Gui.SameLine();
+            DrawLoggerFilterButton(source.SourceId, state);
             Gui.SameLine();
             if (Gui.SmallButton($"Clear##{source.SourceId}"))
             {
@@ -289,6 +370,91 @@ namespace Fdp.Presentation.Panels
             Gui.EndPopup();
         }
 
+        // ── Private: logger-name filter ──────────────────────────────────────
+
+        private static void DrawLoggerFilterButton(string sourceId, TabState state)
+        {
+            int hiddenCount;
+            lock (state.HiddenLoggers) { hiddenCount = state.HiddenLoggers.Count; }
+
+            string label = hiddenCount > 0
+                ? $"Loggers [{hiddenCount} hidden]###log_{sourceId}"
+                : $"Loggers###log_{sourceId}";
+
+            if (hiddenCount > 0)
+                Gui.PushStyleColor(ImGuiCol.Button, new Vector4(0.55f, 0.28f, 0.08f, 1f));
+
+            if (Gui.Button(label))
+                Gui.OpenPopup($"##logpop_{sourceId}");
+
+            if (hiddenCount > 0)
+                Gui.PopStyleColor();
+
+            DrawLoggerFilterPopup(sourceId, state);
+        }
+
+        private static void DrawLoggerFilterPopup(string sourceId, TabState state)
+        {
+            if (!Gui.BeginPopup($"##logpop_{sourceId}")) return;
+
+            Gui.TextDisabled("Filter by logger name:");
+            Gui.Separator();
+            Gui.SetNextItemWidth(220f);
+            Gui.InputTextWithHint("##LoggerSearch_" + sourceId, "Search loggers...", ref state.LoggerSearchText, 128);
+            Gui.Separator();
+
+            bool hasSearch = !string.IsNullOrEmpty(state.LoggerSearchText);
+
+            lock (state.KnownLoggers)
+            lock (state.HiddenLoggers)
+            {
+                if (Gui.SmallButton("Show All"))
+                {
+                    if (hasSearch)
+                    {
+                        foreach (var l in state.KnownLoggers)
+                        {
+                            if (l.Contains(state.LoggerSearchText, StringComparison.OrdinalIgnoreCase))
+                                state.HiddenLoggers.Remove(l);
+                        }
+                    }
+                    else
+                    {
+                        state.HiddenLoggers.Clear();
+                    }
+                }
+                Gui.SameLine();
+                if (Gui.SmallButton("Hide All"))
+                {
+                    foreach (var l in state.KnownLoggers)
+                    {
+                        if (!hasSearch || l.Contains(state.LoggerSearchText, StringComparison.OrdinalIgnoreCase))
+                            state.HiddenLoggers.Add(l);
+                    }
+                }
+
+                Gui.Separator();
+
+                // Scrollable area for large logger lists
+                Gui.BeginChild("##loggers_scroll_" + sourceId, new Vector2(250, 300), ImGuiChildFlags.None);
+                foreach (string logger in state.KnownLoggers.OrderBy(n => n))
+                {
+                    if (hasSearch && !logger.Contains(state.LoggerSearchText, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    bool visible = !state.HiddenLoggers.Contains(logger);
+                    if (Gui.Checkbox(logger, ref visible))
+                    {
+                        if (visible) state.HiddenLoggers.Remove(logger);
+                        else         state.HiddenLoggers.Add(logger);
+                    }
+                }
+                Gui.EndChild();
+            }
+
+            Gui.EndPopup();
+        }
+
         // ── Private: message list ────────────────────────────────────────────
 
         private void DrawMessageList(IMessageLogSource source, TabState state)
@@ -306,6 +472,10 @@ namespace Fdp.Presentation.Panels
                     !msg.Message.Contains(state.FilterText, StringComparison.OrdinalIgnoreCase) &&
                     !msg.LoggerName.Contains(state.FilterText, StringComparison.OrdinalIgnoreCase))
                     continue;
+                bool loggerHidden;
+                lock (state.HiddenLoggers)
+                    loggerHidden = state.HiddenLoggers.Contains(msg.LoggerName);
+                if (loggerHidden) continue;
                 filtered.Add(i);
             }
 

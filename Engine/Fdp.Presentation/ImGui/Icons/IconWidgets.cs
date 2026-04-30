@@ -46,17 +46,25 @@ public static class IconWidgets
     /// Delegates to <see cref="ToggleIcon"/> with a discarded local toggle state,
     /// so no filled background is ever drawn.
     /// </summary>
-    public static bool IconButton(IconAtlas atlas, string id, string coordinate)
+    /// <param name="tint">
+    /// Optional RGBA color tint applied to the icon texture.
+    /// Pass <c>null</c> (default) for full-white / no tint.
+    /// </param>
+    public static bool IconButton(IconAtlas atlas, string id, string coordinate, Vector4? tint = null)
     {
         bool dummy = false;
-        return ToggleIcon(atlas, id, coordinate, ref dummy);
+        return ToggleIcon(atlas, id, coordinate, ref dummy, tint);
     }
 
     /// <summary>
     /// A stateful icon button. Flips <paramref name="isToggled"/> on click and
     /// draws a gray filled background when toggled. Returns <c>true</c> on click.
     /// </summary>
-    public static bool ToggleIcon(IconAtlas atlas, string id, string coordinate, ref bool isToggled)
+    /// <param name="tint">
+    /// Optional RGBA color tint applied to the icon texture.
+    /// Pass <c>null</c> (default) for full-white / no tint.
+    /// </param>
+    public static bool ToggleIcon(IconAtlas atlas, string id, string coordinate, ref bool isToggled, Vector4? tint = null)
     {
         var screenPos = Gui.GetCursorScreenPos();
         var clicked = Gui.InvisibleButton(id, atlas.IconSizeVec);
@@ -73,9 +81,11 @@ public static class IconWidgets
                 screenPos + atlas.IconSizeVec,
                 Gui.GetColorU32(new Vector4(0.3f, 0.3f, 0.3f, 1.0f)));
 
-        // Icon image; shift 1px when pressed
+        // Icon image; shift 1px when pressed.
+        // Resolve tint: null => full-white (no tint), otherwise convert to U32.
         var imagePos = isPressed ? screenPos + new Vector2(1f, 1f) : screenPos;
-        drawList.AddImage(atlas.TextureId, imagePos, imagePos + atlas.IconSizeVec, uv0, uv1);
+        uint imageTint = tint.HasValue ? Gui.GetColorU32(tint.Value) : 0xFFFFFFFF;
+        drawList.AddImage(atlas.TextureId, imagePos, imagePos + atlas.IconSizeVec, uv0, uv1, imageTint);
 
         // Hover border
         if (isHovered)

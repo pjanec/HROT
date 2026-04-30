@@ -28,6 +28,9 @@ public class WindowManager
         _atlas = atlas;
     }
 
+    /// <summary>The icon atlas supplied at construction time.</summary>
+    public IconAtlas Atlas => _atlas;
+
     // ── Registration ───────────────────────────────────────────────────────────
 
     /// <summary>
