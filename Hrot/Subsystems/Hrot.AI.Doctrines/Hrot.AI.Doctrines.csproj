@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>Hrot.AI.Doctrines</AssemblyName>
+    <RootNamespace>Hrot.AI.Doctrines</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- FDP toolkit: BrainBlackboard, BTreeContext, LocomotionChannel, WeaponChannel,
+         DoctrineState, NavigationConstants, MoveToParams, TargetMemory, WeaponState,
+         CarKinem types, and all other Fdp.Toolkit.* namespaces used by CgfNodes.cs. -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- Fdp.Core: Entity type used in Condition_TargetAliveAndVisible and Action_FireAtTarget. -->
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <!-- FastBTree fluent builder (BTreeBuilder<TBlackboard, TContext>) for [BTreeDefinition] methods. -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.Compiler\Fbt.Compiler.csproj" />
+    <!-- Roslyn source generator: emits FbtActionRegistrar.g.cs and FbtTreeCatalog.g.cs. -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.SourceGen\Fbt.SourceGen.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

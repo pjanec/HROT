@@ -1,6 +1,11 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Reflection;
+using Fbt;
+using Fbt.HotReload;
+using Fbt.Runtime;
 using Fdp.Core;
 using Fdp.Examples.Scenarios.Integrated;
 using Fdp.Modules.Geographic;
@@ -163,6 +168,14 @@ namespace Hrot.Editor
         // ── Doctrine registry (promoted for tooltip rendering) ─────────────────
 
         private DoctrineRegistry? _doctrineRegistry;
+
+        // ── AI doctrine hot reloader ────────────────────────────────────────────
+
+        private FbtAssemblyHotReloader? _aiHotReloader;
+        // Staging dictionary for interpreters built on the background ALC thread;
+        // consumed on the main thread inside the OnReloadCompleted callback.
+        private readonly ConcurrentDictionary<string, Interpreter<Fdp.Toolkit.Behavior.Components.BrainBlackboard, BTreeContext>>
+            _hotReloadedInterpreters = new();
         // ── Production visualizer dependencies ───────────────────────────────────
 
         private readonly MapUserConfig     _userConfig     = new();
@@ -327,6 +340,69 @@ namespace Hrot.Editor
             // can project BrainBlackboard memory and visualize the BTree execution state.
             Hrot.Presentation.Renderers.BrainBlackboardRenderer.DoctrineRegistryAccessor = doctrineRegistry;
             Hrot.Presentation.Renderers.BTreeVisualizerRenderer.DoctrineRegistryAccessor = doctrineRegistry;
+
+            // ── Hot reload: watch the deployment directory for Hrot.AI.Doctrines.dll changes ──
+            // When the user clicks "Reload BTrees" and MSBuild overwrites the DLL, the watcher
+            // detects the change, loads the new assembly into a fresh collectible ALC on a
+            // background thread, and enqueues an interpreter swap for the main thread to apply.
+            string aiAssemblyDir = AppDomain.CurrentDomain.BaseDirectory;
+            _aiHotReloader = new FbtAssemblyHotReloader(aiAssemblyDir, (registrarType, newAssembly) =>
+            {
+                // Create a fresh action registry scoped to this new ALC.
+                var actionReg = new ActionRegistry<Fdp.Toolkit.Behavior.Components.BrainBlackboard, BTreeContext>();
+
+                // FBT Auto-Discovery: invoke the Roslyn-generated RegisterAll via reflection.
+                var registerMethod = registrarType.GetMethod("RegisterAll", BindingFlags.Public | BindingFlags.Static);
+                registerMethod?.Invoke(null, new object[] { actionReg });
+
+                var results = new List<(string, BehaviorTreeBlob)>();
+
+                // Extract blobs from the source-generated FbtTreeCatalog.
+                var catalogType = newAssembly.GetType("Hrot.AI.Doctrines.Generated.FbtTreeCatalog");
+                if (catalogType != null)
+                {
+                    foreach (var method in catalogType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+                    {
+                        if (method.Name.StartsWith("Get", StringComparison.Ordinal)
+                            && method.ReturnType == typeof(BehaviorTreeBlob))
+                        {
+                            // e.g. "GetMoveToLocation" -> "MoveToLocation"
+                            string treeName = method.Name.Substring(3);
+                            var blob = (BehaviorTreeBlob)method.Invoke(null, null)!;
+                            results.Add((treeName, blob));
+
+                            // Stage the new interpreter for the main thread to pick up safely.
+                            _hotReloadedInterpreters[treeName] =
+                                new Interpreter<Fdp.Toolkit.Behavior.Components.BrainBlackboard, BTreeContext>(
+                                    blob, actionReg);
+                        }
+                    }
+                }
+                return results;
+            });
+
+            // Patch the live DoctrineRegistry on the main thread when a reload completes.
+            // Preserves ParseParams, ParamsDtoType, BrainTier, and HsmDefinition from the
+            // existing entry so that only the BTreeInterpreter is hot-swapped.
+            _aiHotReloader.OnReloadCompleted += treeName =>
+            {
+                if (_hotReloadedInterpreters.TryGetValue(treeName, out var newInterpreter)
+                    && _doctrineRegistry != null
+                    && _doctrineRegistry.TryGetId(treeName, out int doctrineId)
+                    && _doctrineRegistry.TryGetDefinition(doctrineId, out var oldDef))
+                {
+                    _doctrineRegistry.Register(doctrineId, treeName, new DoctrineDefinition
+                    {
+                        Name             = oldDef.Name,
+                        BrainTier        = oldDef.BrainTier,
+                        ParseParams      = oldDef.ParseParams,
+                        ParamsDtoType    = oldDef.ParamsDtoType,
+                        HsmDefinition    = oldDef.HsmDefinition,
+                        BTreeInterpreter = newInterpreter,
+                    });
+                    Console.WriteLine($"[HotReload] Patched DoctrineRegistry for: {treeName}");
+                }
+            };
 
             var clusterSlave     = new ClusterSlave(0, "Editor", _orchestrationBus);
             var zoneService      = new ZoneManagerService();
@@ -598,7 +674,6 @@ namespace Hrot.Editor
             // Process input pipeline BEFORE kernel update so authored tools
             // (CreationTool, ObstaclePlacementTool, etc.) receive mouse events this frame.
             _canvas?.Update(deltaTime);
-
             // Update camera viewport so MapCullingModule knows what area is on-screen.
             if (_camera != null)
             {
@@ -615,6 +690,12 @@ namespace Hrot.Editor
 
             // Kernel.Update() internally calls bus.SwapBuffers() then ticks registered modules.
             _kernel?.Update();
+
+            // Drain AI hot-reload callbacks safely on the main thread.
+            // Any BTreeInterpreter pointer swaps queued by the background ALC worker
+            // are applied here, between kernel ticks, so no active simulation tick
+            // can observe a half-swapped pointer.
+            _aiHotReloader?.DrainPendingCallbacks();
 
             // Swap the Control Plane bus so intents published by the UI this frame
             // are readable by ClusterMaster/ClusterUiCache on the orchestration bus.
@@ -913,6 +994,8 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Shutdown()
         {
+            _aiHotReloader?.Dispose();
+            _aiHotReloader = null;
             _kernel?.Dispose();
             _kernel = null;
             _physicsModule?.Dispose();

@@ -97,4 +97,12 @@ public interface IEditorLogic
     /// <paramref name="entityId"/>.
     /// </summary>
     void OpenRenameDialog(long entityId);
+
+    /// <summary>
+    /// Invokes the MSBuild compiler on the AI Doctrines assembly in the background.
+    /// Once the build completes and overwrites the DLL, the FileSystemWatcher in
+    /// <c>FbtAssemblyHotReloader</c> automatically detects the change and swaps
+    /// the active BTree interpreters without stalling the editor loop.
+    /// </summary>
+    void RebuildAndReloadAI();
 }

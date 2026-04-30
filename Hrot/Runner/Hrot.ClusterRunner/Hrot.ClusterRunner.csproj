@@ -34,7 +34,11 @@
     <ProjectReference Include="..\..\Subsystems\Hrot.Editor\Hrot.Editor.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
     <!-- IScenario + ScenarioSubsystem for mode ci -->
-    <ProjectReference Include="..\..\..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />  </ItemGroup>
+    <ProjectReference Include=".\..\..\..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
+    <!-- Ensures Hrot.AI.Doctrines.dll is copied to the output directory for hot-reload.
+         No types from this assembly are used statically; the C# compiler strips the
+         IL reference, but MSBuild copy-local mechanics still deliver the DLL. -->
+    <ProjectReference Include="..\..\Subsystems\Hrot.AI.Doctrines\Hrot.AI.Doctrines.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.9.1" />

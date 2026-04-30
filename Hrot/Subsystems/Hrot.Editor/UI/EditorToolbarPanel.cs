@@ -1,4 +1,5 @@
 using ImGuiNET;
+using System.Numerics;
 
 namespace Hrot.Editor.UI;
 
@@ -23,6 +24,8 @@ public sealed class EditorToolbarPanel
             _ = logic.SwitchToInternalAsync();
     }
 
+    public void HandleReloadAIClick(IEditorLogic logic) => logic.RebuildAndReloadAI();
+
     // ── ImGui rendering ───────────────────────────────────────────────────────
 
     public void DrawContent(IEditorLogic logic)
@@ -39,5 +42,9 @@ public sealed class EditorToolbarPanel
         ImGui.SameLine();
         string modeLabel = logic.CurrentMode == SimHostMode.Internal ? "Go External" : "Go Internal";
         if (ImGui.Button(modeLabel)) HandleToggleModeClick(logic);
+        ImGui.SameLine();
+        ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Button, new Vector4(0.8f, 0.4f, 0.0f, 1.0f));
+        if (ImGui.Button("Reload BTrees")) HandleReloadAIClick(logic);
+        ImGui.PopStyleColor();
     }
 }

@@ -24,8 +24,10 @@
     <!-- AttributeCompilerFactory is used by EditorSubsystem to build the JSON→ECS attribute compiler -->
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <!-- UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates / RegisterUrbanCombatDoctrines -->
-    <ProjectReference Include="..\..\..\FDP\Examples\Fdp.Examples.Scenarios\Fdp.Examples.Scenarios.csproj" />
-  </ItemGroup>
+    <ProjectReference Include="..\..\..\FDP\Examples\Fdp.Examples.Scenarios\Fdp.Examples.Scenarios.csproj" />    <!-- Ensures Hrot.AI.Doctrines.dll is copied to the output directory for hot-reload.
+         No types from this assembly are used statically; the C# compiler strips the
+         IL reference, but MSBuild copy-local mechanics still deliver the DLL. -->
+    <ProjectReference Include="..\Hrot.AI.Doctrines\Hrot.AI.Doctrines.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Raylib-cs" Version="7.0.2" />

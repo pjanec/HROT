@@ -387,6 +387,12 @@ class Program
             if (!assemblyName.StartsWith("Hrot.") && !assemblyName.StartsWith("Fdp."))
                 continue;
 
+            // ARCHITECTURE: Do not lock the AI doctrines assembly in the Default ALC.
+            // FbtAssemblyHotReloader loads Hrot.AI.Doctrines exclusively into a
+            // collectible ALC so it can be unloaded and reloaded at runtime.
+            if (assemblyName.Equals("Hrot.AI.Doctrines", StringComparison.OrdinalIgnoreCase))
+                continue;
+
             if (!loaded.Contains(assemblyName))
             {
                 try

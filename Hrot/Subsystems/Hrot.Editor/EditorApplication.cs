@@ -197,6 +197,42 @@ public sealed class EditorApplication : IEditorLogic
     public void OpenRenameDialog(long entityId) =>
         _simBus.PublishManaged(new OpenRenameDialogCommand { NetworkId = entityId });
 
+    /// <inheritdoc/>
+    public void RebuildAndReloadAI()
+    {
+        // Fire-and-forget background compilation to keep the 60Hz UI responsive.
+        // Once MSBuild overwrites the DLL, the FileSystemWatcher in FbtAssemblyHotReloader
+        // will automatically detect it and swap the BTree interpreters via the ALC.
+        Task.Run(() =>
+        {
+            // Compute the AI doctrines project path from the deployment directory.
+            // Deployment: {workspace}/Hrot/Runner/Hrot.ClusterRunner/bin/{cfg}/net8.0/
+            // Target:     {workspace}/Hrot/Subsystems/Hrot.AI.Doctrines/Hrot.AI.Doctrines.csproj
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string projectPath = Path.GetFullPath(
+                Path.Combine(baseDir,
+                    "..", "..", "..", "..", "..",
+                    "Subsystems", "Hrot.AI.Doctrines", "Hrot.AI.Doctrines.csproj"));
+
+            var process = new System.Diagnostics.Process
+            {
+                StartInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName        = "dotnet",
+                    Arguments       = $"build \"{projectPath}\"",
+                    CreateNoWindow  = true,
+                    UseShellExecute = false,
+                }
+            };
+            try
+            {
+                process.Start();
+                process.WaitForExit();
+            }
+            catch (Exception) { /* ignore if dotnet is not found in PATH */ }
+        });
+    }
+
     /// <summary>
     /// Returns an <see cref="EditorSystemsModule"/> initialised against this application's
     /// <see cref="EntityRepository"/>.  The caller must register the returned module with
