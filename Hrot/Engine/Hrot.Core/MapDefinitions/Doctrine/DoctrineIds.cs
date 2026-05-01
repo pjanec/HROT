@@ -21,5 +21,8 @@ namespace Hrot.Map.Definitions.Doctrine
         public const int ConvoyEscort_BT   = 3013;
         public const int InfantryCombat_BT = 3014;
         public const int Ambush_BT         = 3015;
+
+        // Tactical Intent DTOs (1000-1099) — generic intents resolved by mappers
+        public const int DefendArea_Intent = 1000;
     }
 }

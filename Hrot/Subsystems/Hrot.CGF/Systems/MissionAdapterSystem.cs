@@ -1,24 +1,23 @@
 using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
-using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Behavior.Events;
 
 namespace Hrot.CGF.Systems
 {
     /// <summary>
     /// Bridges high-level, managed mission plans into the cognitive ECS tier by detecting phase transitions 
-    /// and publishing <see cref="AssignDoctrineEvent"/>s containing the behavior JSON parameters.
+    /// and publishing <see cref="AssignTacticalIntentEvent"/>s containing the behavior ID and JSON parameters.
     /// </summary>
     /// <remarks>
     /// <para>
     /// <b>Architecture (DRY Pipeline):</b> This system intentionally does <i>not</i> mutate <see cref="DoctrineState"/> 
     /// or <see cref="BrainBlackboard"/> directly. Instead, it acts purely as a change-detector and dispatcher. 
-    /// When a phase change is detected, it extracts the <c>BehaviorParams</c> JSON and publishes an 
-    /// <see cref="AssignDoctrineEvent"/>. This delegates all execution to <see cref="DoctrineIngressSystem"/>, 
-    /// making it the single source of truth for doctrine transitions and atomic blackboard parsing. 
+    /// When a phase change is detected, it extracts the <c>BehaviorId</c> and <c>BehaviorParams</c> JSON and
+    /// publishes an <see cref="AssignTacticalIntentEvent"/>. This delegates resolution to
+    /// <see cref="TacticalIntentResolutionSystem"/>, which translates the intent into a concrete
+    /// <see cref="AssignDoctrineEvent"/> consumed by <see cref="DoctrineIngressSystem"/>.
     /// This eliminates legacy "double-apply" bugs that previously wiped out behavior memory (e.g., <c>RoundsFired</c>).
     /// </para>
     /// <para>
@@ -31,14 +30,7 @@ namespace Hrot.CGF.Systems
     [UpdateInPhase(SystemPhase.Simulation)]
     public class MissionAdapterSystem : IEcsModuleSystem
     {
-        private readonly DoctrineRegistry _doctrineRegistry;
-        private readonly NetworkEntityMap _entityMap;
-
-        public MissionAdapterSystem(DoctrineRegistry doctrineRegistry, NetworkEntityMap entityMap)
-        {
-            _doctrineRegistry = doctrineRegistry ?? throw new ArgumentNullException(nameof(doctrineRegistry));
-            _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
-        }
+        public MissionAdapterSystem() { }
 
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
@@ -78,30 +70,38 @@ namespace Hrot.CGF.Systems
                 {
                     var task = activePlan.Plan.Tasks[queue.CurrentPhase];
                     jsonParams = task.BehaviorParams ?? "{}";
+
+                    uint currentDefHash = (uint)(jsonParams.GetHashCode() ^ phase.DoctrineId);
+
+                    // Skip if nothing changed
+                    if (adapterState.LastPhase == queue.CurrentPhase && adapterState.LastPlanVersion == currentDefHash)
+                        continue;
+
+                    adapterState.LastPhase = queue.CurrentPhase;
+                    adapterState.LastPlanVersion = currentDefHash;
+
+                    // Publish generic tactical intent; TacticalIntentResolutionSystem resolves it.
+                    if (!string.IsNullOrWhiteSpace(task.BehaviorId))
+                    {
+                        repo.Bus.PublishManaged(new AssignTacticalIntentEvent
+                        {
+                            Entity     = entity,
+                            IntentId   = task.BehaviorId,
+                            JsonParams = jsonParams,
+                        });
+                    }
                 }
-
-                uint currentDefHash = (uint)(jsonParams.GetHashCode() ^ phase.DoctrineId);
-
-                // Skip if nothing changed
-                if (adapterState.LastPhase == queue.CurrentPhase && adapterState.LastPlanVersion == currentDefHash)
-                    continue;
-
-                adapterState.LastPhase = queue.CurrentPhase;
-                adapterState.LastPlanVersion = currentDefHash;
-
-                var defName = "Idle";
-                if (_doctrineRegistry.TryGetDefinition(phase.DoctrineId, out var def))
-                    defName = def.Name;
-
-                // Embrace DRY! Remove ALL direct ECS mutation blocks.
-                // No writing to BrainBlackboard. No updating DoctrineState. 
-                // Just publish the managed event and let DoctrineIngressSystem be the single owner!
-                repo.Bus.PublishManaged(new AssignDoctrineEvent
+                else
                 {
-                    Entity = entity,
-                    DoctrineName = defName,
-                    JsonParams = jsonParams
-                });
+                    uint currentDefHash = (uint)phase.DoctrineId;
+
+                    // Skip if nothing changed
+                    if (adapterState.LastPhase == queue.CurrentPhase && adapterState.LastPlanVersion == currentDefHash)
+                        continue;
+
+                    adapterState.LastPhase = queue.CurrentPhase;
+                    adapterState.LastPlanVersion = currentDefHash;
+                }
             }
         }
     }

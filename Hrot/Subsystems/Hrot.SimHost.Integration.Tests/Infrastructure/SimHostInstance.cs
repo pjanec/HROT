@@ -288,7 +288,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             foreach (var s in musclePack.SimulationSystems) simList.Add(s);
             // MissionAdapterSystem bridges ActiveMissionPlan BehaviorParams into BrainBlackboard,
             // enabling end-to-end mission execution tests without a live CGF node.
-            simList.Add(new MissionAdapterSystem(_doctrineRegistry, _entityMap));
+            simList.Add(new MissionAdapterSystem());
 
             foreach (var s in musclePack.PostSimulationSystems) postSimList.Add(s);
 

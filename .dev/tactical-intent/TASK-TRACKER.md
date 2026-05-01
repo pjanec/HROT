@@ -6,14 +6,14 @@
 
 **Goal:** Define the shared event and mapper interface types in `Fdp.Toolkits` with no Hrot dependencies.
 
-- [ ] **TASK-TI001** AssignTacticalIntentEvent — [details](./TASK-DETAIL.md#task-ti001---add-assigntacticalintentevent)
-- [ ] **TASK-TI002** ITacticalOrderMapper Interface and TacticalIntentMapperRegistry — [details](./TASK-DETAIL.md#task-ti002---add-itacticalordermapper-interface-and-tacticalintentmapperregistry)
+- [x] **TASK-TI001** AssignTacticalIntentEvent — [details](./TASK-DETAIL.md#task-ti001---add-assigntacticalintentevent)
+- [x] **TASK-TI002** ITacticalOrderMapper Interface and TacticalIntentMapperRegistry — [details](./TASK-DETAIL.md#task-ti002---add-itacticalordermapper-interface-and-tacticalintentmapperregistry)
 
 ## Phase 2: Receiver-Side Resolution
 
 **Goal:** Add `TacticalIntentResolutionSystem` so that published intents are translated to `AssignDoctrineEvent` on the same node.
 
-- [ ] **TASK-TI003** TacticalIntentResolutionSystem — [details](./TASK-DETAIL.md#task-ti003---implement-tacticalintentresolutionsystem)
+- [x] **TASK-TI003** TacticalIntentResolutionSystem — [details](./TASK-DETAIL.md#task-ti003---implement-tacticalintentresolutionsystem)
 
 ## Phase 3: MissionAdapterSystem Modification
 

@@ -121,7 +121,7 @@ namespace Hrot.CGF
             _missionControlModule   = new MissionControlModule(doctrineRegistry);
             _cognitiveRuntimeModule = new CognitiveRuntimeModule(doctrineRegistry);
             _missionExecutionSystem              = new MissionControlExecutionSystem(entityMap, doctrineRegistry);
-            _missionAdapterSystem                = new MissionAdapterSystem(doctrineRegistry, entityMap);
+            _missionAdapterSystem                = new MissionAdapterSystem();
             _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry);
             _actionDispatchModule   = new ActionDispatchModule(
                 locoExecutors: new (ushort, IActionExecutor<LocomotionChannel>)[]
