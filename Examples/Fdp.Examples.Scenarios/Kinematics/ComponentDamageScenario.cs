@@ -101,12 +101,11 @@ namespace Fdp.Examples.Scenarios.Kinematics
             // MobilityKillSystem is no longer needed: HealthApplicationSystem strips CanMove.
             var damageCalc       = new DamageCalculationSystem();
             var healthApply      = new HealthApplicationSystem();
-            var hsmBridge        = new HsmDamageBridgeSystem();
             var locoKillOnDamage = new LocomotionClearOnMobilityKillSystem();
 
             kernel.RegisterModule(new DirectSystemsModule(
                 "ComponentDamageModule",
-                damageCalc, healthApply, hsmBridge, locoKillOnDamage));
+                damageCalc, healthApply, locoKillOnDamage));
 
             // ── Entity spawning ───────────────────────────────────────────────
             _apc = SpawnApc(world);

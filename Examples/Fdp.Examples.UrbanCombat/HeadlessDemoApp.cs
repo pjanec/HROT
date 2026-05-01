@@ -330,7 +330,6 @@ namespace Fdp.Examples.UrbanCombat
             _simModuleSystems.Add(new BTreeTickSystem(_doctrineRegistry));
             _simModuleSystems.Add(new HsmTickSystem<BrainHsm128>(_doctrineRegistry));
             _simModuleSystems.Add(new DamageSystem());
-            _simModuleSystems.Add(new HsmDamageBridgeSystem());
             _simModuleSystems.Add(new AudioPerceptionSystem());
 
             var weaponSys = new WeaponDispatcherSystem();

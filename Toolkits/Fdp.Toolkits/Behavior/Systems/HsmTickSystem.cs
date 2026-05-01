@@ -1,8 +1,13 @@
 using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fbt;
 using Fhsm.Kernel;
+using Fhsm.Kernel.Data;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
 
 namespace Fdp.Toolkit.Behavior.Systems
 {
@@ -47,14 +52,31 @@ namespace Fdp.Toolkit.Behavior.Systems
     {
         private readonly DoctrineRegistry _registry;
 
+        /// <summary>
+        /// Tracks the <see cref="DoctrineState.InstanceId"/> for which a terminal
+        /// <see cref="DoctrineFinishedEvent"/> was last published, keyed by entity index.
+        /// Prevents repeated publication when the same HSM doctrine stays terminated
+        /// across consecutive ticks.
+        /// </summary>
+        private readonly Dictionary<int, uint> _publishedTerminalForInstanceId = new();
+
+        // Reusable collections for dead-entity pruning — pre-allocated to avoid per-frame heap pressure.
+        private readonly HashSet<int> _seenThisFrame = new();
+        private readonly List<int>    _staleKeys     = new();
+
         public string ProfileName => $"HsmTickSystem<{typeof(T).Name}>";
+
+        // Exposed for unit-testing: number of entities currently being tracked for
+        // deduplication of DoctrineFinishedEvent. Should drop to zero after an entity
+        // is destroyed and one additional Execute() tick has elapsed (stale pruning).
+        internal int TrackedEntityCount => _publishedTerminalForInstanceId.Count;
 
         public HsmTickSystem(DoctrineRegistry registry)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
 
-        public void Execute(ISimulationView view, float deltaTime)
+        public unsafe void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
@@ -66,11 +88,22 @@ namespace Fdp.Toolkit.Behavior.Systems
                 .With<T>()
                 .Build();
 
-            // Early-exit: skip the per-entity overhead when no HSM entities exist.
-            if (q.IsEmpty) return;
+            _seenThisFrame.Clear();
+
+            // Early-exit: skip per-entity overhead when no HSM entities are present.
+            // Still clear the deduplication dict so destroyed entities are pruned immediately.
+            if (q.IsEmpty)
+            {
+                _publishedTerminalForInstanceId.Clear();
+                return;
+            }
+
+            var mobilityLostEvent = new HsmEvent { EventId = BehaviorConstants.EventId_MobilityLost };
 
             foreach (var entity in q)
             {
+                _seenThisFrame.Add(entity.Index);
+
                 var doctrine = repo.GetComponent<DoctrineState>(entity);
 
                 // Only process HSM-tier entities.
@@ -84,6 +117,17 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                 ref var component = ref repo.GetComponentRW<T>(entity);
 
+                // BHU-009: Inject MobilityLost interrupt if blackboard byte 126 is set.
+                if (repo.HasComponent<BrainBlackboard>(entity))
+                {
+                    ref var bb = ref repo.GetComponentRW<BrainBlackboard>(entity);
+                    if (bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost] == 1)
+                    {
+                        T* instPtr = (T*)Unsafe.AsPointer(ref component);
+                        HsmEventQueue.TryEnqueue(instPtr, mobilityLostEvent);
+                    }
+                }
+
                 // DEBT-007 full resolution: WorldHandle carries the GCHandle IntPtr so that
                 // action delegates can recover the EntityRepository via GCHandle.FromIntPtr.
                 // IntPtr is an unmanaged value type -- satisfies 'where TContext : unmanaged'.
@@ -95,7 +139,37 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                 // sizeof(T) determines the tier (64 / 128 / 256) inside HsmKernelCore.
                 HsmKernel.Update(def.HsmDefinition, ref component, bridge, deltaTime);
+
+                // BHU-007: Detect terminal state and publish DoctrineFinishedEvent exactly once
+                // per doctrine instance. The Terminated flag is cleared so new doctrine
+                // assignments don't fire a spurious second event.
+                ref var hdr = ref Unsafe.As<T, InstanceHeader>(ref component);
+                if ((hdr.Flags & InstanceFlags.Terminated) != 0)
+                {
+                    int  entityIdx  = entity.Index;
+                    uint instanceId = doctrine.InstanceId;
+                    if (!_publishedTerminalForInstanceId.TryGetValue(entityIdx, out uint prev)
+                        || prev != instanceId)
+                    {
+                        _publishedTerminalForInstanceId[entityIdx] = instanceId;
+                        repo.Bus.Publish(new DoctrineFinishedEvent { Entity = entity });
+                        // Terminal latch fix: clear flag so a re-assigned doctrine won't
+                        // inherit the Terminated state from the previous one.
+                        hdr.Flags &= unchecked((InstanceFlags)(byte)~(byte)InstanceFlags.Terminated);
+                        hdr.Phase  = InstancePhase.Idle;
+                    }
+                }
             }
+
+            // Prune entries for entities that were not seen in this frame (destroyed or
+            // their required components removed). Uses pre-allocated collections to avoid
+            // per-frame heap allocations.
+            _staleKeys.Clear();
+            foreach (var key in _publishedTerminalForInstanceId.Keys)
+                if (!_seenThisFrame.Contains(key))
+                    _staleKeys.Add(key);
+            foreach (var key in _staleKeys)
+                _publishedTerminalForInstanceId.Remove(key);
         }
     }
 }

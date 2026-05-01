@@ -823,7 +823,6 @@ namespace Fdp.Examples.Scenarios.Integrated
                 new ChannelArbitrationSystem(),
                 new BTreeTickSystem(_doctrineRegistry),
                 new HsmTickSystem<BrainHsm128>(_doctrineRegistry),
-                new HsmDamageBridgeSystem(),
                 weaponSys,
                 interactSys,
                 new LocomotionDispatcherSystem(),

@@ -2,6 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fhsm.Kernel.Data;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 
@@ -125,6 +126,9 @@ namespace Fdp.Toolkit.Behavior.Systems
                     ref var btState = ref repo.GetComponentRW<BrainBTreeState>(evt.Entity);
                     btState.State = default;
                 }
+
+                // 3. BHU-016: Reset HSM instance so the new doctrine starts clean.
+                ResetHsmComponents(repo, evt.Entity);
             }
 
             // ── ClearDoctrineEvent handler ────────────────────────────────────────────────
@@ -168,6 +172,46 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // Reset BTree execution pointer so the new phase starts from the root.
                 if (repo.HasComponent<BrainBTreeState>(evt.Entity))
                     repo.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
+
+                // BHU-016: Reset HSM instance so the new doctrine starts clean.
+                ResetHsmComponents(repo, evt.Entity);
+            }
+        }
+
+        // ── HSM reset helper ─────────────────────────────────────────────────────
+
+        private static unsafe void ResetHsmComponents(EntityRepository repo, Entity entity)
+        {
+            if (repo.HasComponent<BrainHsm64>(entity))
+            {
+                ref var hsm64 = ref repo.GetComponentRW<BrainHsm64>(entity);
+                InstanceHeader* hdr = (InstanceHeader*)Unsafe.AsPointer(ref hsm64);
+                hdr->Flags &= unchecked((InstanceFlags)(byte)~(byte)InstanceFlags.Terminated);
+                hdr->Phase  = InstancePhase.Idle;
+                hdr->QueueHead   = 0;
+                hdr->ActiveTail  = 0;
+                hdr->DeferredTail = 0;
+                hdr->MicroStep   = 0;
+                HsmInstance64* inst = (HsmInstance64*)hdr;
+                inst->ActiveLeafIds[0] = 0xFFFF;
+                inst->ActiveLeafIds[1] = 0xFFFF;
+                inst->EventCount = 0;
+            }
+
+            if (repo.HasComponent<BrainHsm128>(entity))
+            {
+                ref var hsm128 = ref repo.GetComponentRW<BrainHsm128>(entity);
+                InstanceHeader* hdr = (InstanceHeader*)Unsafe.AsPointer(ref hsm128);
+                hdr->Flags &= unchecked((InstanceFlags)(byte)~(byte)InstanceFlags.Terminated);
+                hdr->Phase  = InstancePhase.Idle;
+                hdr->QueueHead   = 0;
+                hdr->ActiveTail  = 0;
+                hdr->DeferredTail = 0;
+                hdr->MicroStep   = 0;
+                HsmInstance128* inst = (HsmInstance128*)hdr;
+                for (int i = 0; i < 4; i++) inst->ActiveLeafIds[i] = 0xFFFF;
+                inst->EventCount      = 0;
+                inst->InterruptSlotUsed = 0;
             }
         }
     }
