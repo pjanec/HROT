@@ -1829,3 +1829,96 @@ When the HSM compiler's `HsmFlattener` runs, it crawls the graph, finds the stri
 
 By having the source generator emit every lifecycle permutation, the domain code remains pure, the builder DSL remains strongly typed, and the underlying memory offset arithmetic is completely encapsulated.
 
+## Large data doctrines
+
+what is some doctrine ever needed a very large parameter structure or a large working memory space for its execution? Providing its own component to store them. How to define the conditions and actions for such a special doctrine?
+
+
+
+When a doctrine requires a massive parameter payload—such as high-resolution heat maps, deep historical tactical context, or complex pre-computed pathing arrays—forcing it into the `BrainBlackboard` is an architectural anti-pattern.
+
+We strictly enforce the 60-byte `DoctrineParameters` limit within the `BlackboardMemoryLayout` to guarantee cache locality, ensure zero-allocation hot-path execution, and mathematically prevent buffer overruns into the `SoftAdvice` and interrupt registers.
+
+To handle a data-heavy doctrine, we lean entirely into Data-Oriented Design (DOD) and the Entity Component System (ECS). Instead of polluting the universal cognitive bus, you decouple the bulky data by defining it as its own dedicated ECS component.
+
+Here is the clean architecture approach to defining and accessing this memory:
+
+### 1. Define the Dedicated ECS Component
+
+You author a pure, unmanaged struct to hold your massive payload, completely independent of the `BrainBlackboard`. This allows the data to scale up to the ECS chunk limits without threatening the cognitive engine's strict memory boundaries.
+
+```
+using System.Runtime.InteropServices;
+using Fdp.Core;
+
+[StructLayout(LayoutKind.Sequential)]
+[ComponentId(250)] // Example application-level component ID
+public unsafe struct TacticalHeatMapData
+{
+    // A massive 1024-byte inline array, well beyond the blackboard's 60-byte limit
+    public fixed float GridWeights;
+    public int ActiveSectors;
+    public float ThreatThreshold;
+}
+```
+
+### 2. Define a Minimal Blackboard DTO
+
+Because your doctrine still needs to be assigned via the `DoctrineRegistry` and bound in the BTree or HSM builder, you define a minimal, completely empty (or very small) DTO to satisfy the `BrainBlackboard` mapping.
+
+```
+[StructLayout(LayoutKind.Sequential)]
+public struct HeavyDoctrineParams
+{
+    // We intentionally leave this empty or store a simple configuration ID.
+    // The actual heavy data lives in TacticalHeatMapData.
+    public byte ConfigurationId;
+}
+```
+
+### 3. Project via the ECS Repository in Shared Actions
+
+The brilliance of the `[SharedAiCondition]` and `[SharedAiAction]` signatures is that they do not restrict you solely to the blackboard. Along with the projected `ref TValue dto`, the compiler-generated thunks also pass the `Entity self` and the live `EntityRepository repo` to your pure static method.
+
+You use this repository reference to read or mutate your massive custom component directly:
+
+```
+public static class HeavyTacticalBehaviors
+{
+    [SharedAiCondition(typeof(HeavyDoctrineParams), nameof(HeavyDoctrineParams))]
+    public static bool Condition_IsSectorHot(ref HeavyDoctrineParams p, Entity self, EntityRepository repo)
+    {
+        // 1. Guard against missing components
+        if (!repo.HasComponent<TacticalHeatMapData>(self)) return false;
+
+        // 2. Fetch the massive component directly from the ECS chunk memory
+        ref readonly var heatMap = ref repo.GetComponentRO<TacticalHeatMapData>(self);
+
+        // 3. Evaluate your condition
+        return heatMap.ActiveSectors > 0 && heatMap.GridWeights > heatMap.ThreatThreshold;
+    }
+
+    [SharedAiAction(typeof(HeavyDoctrineParams), nameof(HeavyDoctrineParams))]
+    public static NodeStatus Action_ProcessHeatMap(ref HeavyDoctrineParams p, Entity self, EntityRepository repo)
+    {
+        if (!repo.HasComponent<TacticalHeatMapData>(self)) return NodeStatus.Failure;
+
+        // Fetch a read-write reference to the massive component
+        ref var heatMap = ref repo.GetComponentRW<TacticalHeatMapData>(self);
+
+        // Mutate the heavy state
+        heatMap.ActiveSectors--;
+
+        return NodeStatus.Success;
+    }
+}
+```
+
+### The Architectural Verdict
+
+This design represents perfect ECS composition. The `BrainBlackboard` remains a lean, rigidly 128-byte cognitive bus focused exclusively on state machine/behavior tree state and universal hardware interrupts. Meanwhile, your `TacticalHeatMapData` component manages its own lifecycle, memory alignment, and network replication rules via standard ECS component logic.
+
+If your heavy component requires complex setup, you simply inject it into the `SpawnEntityCommand.InitialComponents` list at spawn time, or attach it via the `DoctrineIngressSystem` when the doctrine is assigned. The AI developer writes pure logic, and the engine flawlessly respects the memory boundaries.
+
+
+
