@@ -28,6 +28,13 @@
     <ProjectReference Include="..\..\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
   </ItemGroup>
 
+  <!-- FDP domain analyzer: enforces BlackboardMemoryLayout size constraints at compile time -->
+  <ItemGroup>
+    <ProjectReference Include="..\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
   <!-- CycloneDDS (project references - no PackageReference to CycloneDDS allowed) -->
   <ItemGroup>
     <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />

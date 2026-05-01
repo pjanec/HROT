@@ -85,6 +85,20 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public void Register(int id, string name, DoctrineDefinition definition)
         {
+            // Startup-time firewall: ensure the params DTO won't overrun the 60-byte
+            // DoctrineParameters region and corrupt the SoftAdvice or Interrupt registers.
+            // Source generators enforce this at compile time via BHU_004; this check is
+            // the runtime backstop for doctrines whose DTO is bound without [SharedAiAction].
+            if (definition.ParamsDtoType != null)
+            {
+                int dtoSize = System.Runtime.InteropServices.Marshal.SizeOf(definition.ParamsDtoType);
+                if (dtoSize > BehaviorConstants.MaxDoctrineParamByteSize)
+                    throw new InvalidOperationException(
+                        $"Doctrine '{name}' params DTO '{definition.ParamsDtoType.Name}' requires {dtoSize} bytes, " +
+                        $"which exceeds the maximum allowed parameter size of {BehaviorConstants.MaxDoctrineParamByteSize} bytes. " +
+                        "This would corrupt the SoftAdvice and Interrupt registers in BlackboardMemoryLayout.");
+            }
+
             _definitions[id] = definition;
             _nameToId[name] = id;
         }
