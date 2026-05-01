@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
@@ -26,8 +27,9 @@ namespace Fdp.Toolkit.Behavior.Systems
             foreach (var entity in q)
             {
                 ref var bb = ref repo.GetComponentRW<BrainBlackboard>(entity);
-                bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost] = 0;
-                bb.Memory[127] = 0;
+                ref var layout = ref Unsafe.As<BrainBlackboard, BlackboardMemoryLayout>(ref bb);
+                layout.Interrupt_MobilityLost = 0;
+                layout.Interrupt_Reserved     = 0;
             }
         }
     }

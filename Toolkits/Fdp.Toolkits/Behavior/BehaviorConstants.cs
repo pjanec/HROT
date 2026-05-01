@@ -18,6 +18,23 @@ namespace Fdp.Toolkit.Behavior
         /// <summary>Size of BrainBlackboard inline memory.</summary>
         public const int BrainBlackboardByteSize = 128;
 
+        /// <summary>
+        /// Maximum byte size for a doctrine parameter DTO projected onto the blackboard at offset 0.
+        /// Enforced by <c>BTreeBuilder</c> at tree-compile time.
+        /// Keeps parameter payloads clear of the soft-advice region (bytes 60-125) and the
+        /// interrupt registers (bytes 126-127).
+        /// </summary>
+        public const int MaxDoctrineParamByteSize = 60;
+
+        /// <summary>Byte count of the soft-advice region (bytes 60-125).</summary>
+        public const int SoftAdviceByteSize = 66;
+
+        /// <summary>Byte offset of the MobilityLost interrupt register inside BlackboardMemoryLayout.</summary>
+        public const int Interrupt_MobilityLost_Offset = 126;
+
+        /// <summary>Byte offset of the reserved interrupt register inside BlackboardMemoryLayout.</summary>
+        public const int Interrupt_Reserved_Offset = 127;
+
         /// <summary>Maximum number of distinct action types per dispatcher.</summary>
         public const int MaxActionTypes = 64;
 

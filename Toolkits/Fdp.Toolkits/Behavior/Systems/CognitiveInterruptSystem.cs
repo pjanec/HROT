@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
@@ -35,10 +36,11 @@ namespace Fdp.Toolkit.Behavior.Systems
     {
         /// <summary>
         /// Blackboard byte index for the MobilityLost interrupt.
-        /// Set to 1 on the tick CanMove transitions cleared.
-        /// Cleared each frame by <see cref="CognitiveCleanupSystem"/>.
+        /// Derived from <see cref="BehaviorConstants.Interrupt_MobilityLost_Offset"/> so the
+        /// value is compiler-verified against <see cref="BlackboardMemoryLayout.Interrupt_MobilityLost"/>.
+        /// Kept here for backward-compatible test access.
         /// </summary>
-        internal const int InterruptRegister_MobilityLost = 126;
+        internal const int InterruptRegister_MobilityLost = BehaviorConstants.Interrupt_MobilityLost_Offset;
 
         // Reused list for deferred structural adds (cold path: once per entity lifetime).
         private readonly List<(Entity entity, ActorCapabilities caps)> _toInit =
@@ -83,7 +85,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (wasAbleToMove && !canMoveNow)
                 {
                     ref var bb = ref repo.GetComponentRW<BrainBlackboard>(entity);
-                    bb.Memory[InterruptRegister_MobilityLost] = 1;
+                    ref var layout = ref Unsafe.As<BrainBlackboard, BlackboardMemoryLayout>(ref bb);
+                    layout.Interrupt_MobilityLost = 1;
                 }
 
                 prev.Capabilities = curr.Capabilities;

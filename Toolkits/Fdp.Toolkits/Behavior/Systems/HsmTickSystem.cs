@@ -117,11 +117,12 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                 ref var component = ref repo.GetComponentRW<T>(entity);
 
-                // BHU-009: Inject MobilityLost interrupt if blackboard byte 126 is set.
+                // BHU-009: Inject MobilityLost interrupt if the interrupt register is set.
                 if (repo.HasComponent<BrainBlackboard>(entity))
                 {
                     ref var bb = ref repo.GetComponentRW<BrainBlackboard>(entity);
-                    if (bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost] == 1)
+                    ref var layout = ref Unsafe.As<BrainBlackboard, BlackboardMemoryLayout>(ref bb);
+                    if (layout.Interrupt_MobilityLost == 1)
                     {
                         T* instPtr = (T*)Unsafe.AsPointer(ref component);
                         HsmEventQueue.TryEnqueue(instPtr, mobilityLostEvent);
