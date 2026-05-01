@@ -352,6 +352,7 @@ namespace Hrot.Editor
             // Expose the registry to the diagnostic renderers so the entity inspector
             // can project BrainBlackboard memory and visualize the BTree execution state.
             Hrot.Presentation.Renderers.BrainBlackboardRenderer.DoctrineRegistryAccessor = doctrineRegistry;
+            Hrot.Presentation.Renderers.Blackboard1024Renderer.DoctrineRegistryAccessor = doctrineRegistry;
             Hrot.Presentation.Renderers.BTreeVisualizerRenderer.DoctrineRegistryAccessor = doctrineRegistry;
 
             // ── Hot reload: watch the deployment directory for Hrot.AI.Doctrines.dll changes ──
@@ -936,19 +937,28 @@ namespace Hrot.Editor
 
             // Register the blackboard view provider so the editor projects typed DTO params.
             _fdpEntityInspector.Reflector.AddBufferViewProvider(new Hrot.Presentation.Renderers.BrainBlackboardViewProvider());
+            // Register the heavy blackboard view provider for Blackboard1024.
+            _fdpEntityInspector.Reflector.AddBufferViewProvider(new Hrot.Presentation.Renderers.Blackboard1024ViewProvider());
 
-            // Inject EditContextFactory so TryOpenEditWindow passes ParamsDtoType to StructEdit.
+            // Inject EditContextFactory so TryOpenEditWindow passes ParamsDtoType/HeavyDtoType to StructEdit.
             var capturedEditorRegistry = _doctrineRegistry;
             _fdpEntityInspector.Reflector.EditContextFactory = (session, e, type) =>
             {
-                if (type != typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard)) return null;
+                if (type != typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard)
+                 && type != typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024)) return null;
                 if (!session.HasComponent(e, typeof(Fdp.Toolkit.Behavior.Components.DoctrineState))) return null;
                 var ds = session.GetComponent(e, typeof(Fdp.Toolkit.Behavior.Components.DoctrineState))
                     as Fdp.Toolkit.Behavior.Components.DoctrineState?;
                 if (ds == null) return null;
                 if (capturedEditorRegistry?.TryGetDefinition(ds.Value.ActiveDoctrineHash, out var def) != true) return null;
-                if (def.ParamsDtoType == null) return null;
-                return new StructEdit.Core.EditContext().With("ParamsDtoType", def.ParamsDtoType);
+                if (type == typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard))
+                {
+                    if (def.ParamsDtoType == null) return null;
+                    return new StructEdit.Core.EditContext().With("ParamsDtoType", def.ParamsDtoType);
+                }
+                // Blackboard1024
+                if (def.HeavyDtoType == null) return null;
+                return new StructEdit.Core.EditContext().With("HeavyDtoType", def.HeavyDtoType);
             };
 
             windowManager.RegisterWindow(new FdpEventBrowserWindow(

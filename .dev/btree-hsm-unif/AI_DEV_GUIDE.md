@@ -9,10 +9,12 @@
 3. [The BrainBlackboard: The Universal Cognitive Bus](#3-the-brainblackboard-the-universal-cognitive-bus)
 4. [Doctrine Parameters & Memory Projection](#4-doctrine-parameters--memory-projection)
 5. [Unified AI Building Blocks: Shared Conditions and Actions](#5-unified-ai-building-blocks-shared-conditions-and-actions)
-6. [Actuator Preemption and Channel Safety](#6-actuator-preemption-and-channel-safety)
-7. [Decoupled Cognitive Interrupts](#7-decoupled-cognitive-interrupts)
-8. [Mission Routing and Terminal States](#8-mission-routing-and-terminal-states)
-9. [End-to-End Walkthrough: Writing a New Doctrine](#9-end-to-end-walkthrough-writing-a-new-doctrine)
+6. [Heavy-Data Doctrines: Blackboard1024 and Heavy Shared Attributes](#6-heavy-data-doctrines-blackboard1024-and-heavy-shared-attributes)
+7. [Actuator Preemption and Channel Safety](#7-actuator-preemption-and-channel-safety)
+8. [Decoupled Cognitive Interrupts](#8-decoupled-cognitive-interrupts)
+9. [HSM Event Internals](#9-hsm-event-internals)
+10. [Mission Routing and Terminal States](#10-mission-routing-and-terminal-states)
+11. [End-to-End Walkthrough: Writing a New Doctrine](#11-end-to-end-walkthrough-writing-a-new-doctrine)
 
 ---
 
@@ -847,23 +849,208 @@ static NodeStatus MyAction(ref BrainBlackboard bb, ref BehaviorTreeState state,
 
 ### Strict ECS Mutation Constraint
 
-> **Rule: shared action and condition methods must never make structural ECS changes
-> (adding or removing components).**
+> **Rule:** shared action and condition methods can make structural ECS changes
+> (adding or removing components), but never via `HsmCommandWriter` as it is ignored in FDP.
+> Instead, use the `IEntityCommandBuffer` provided by the FDP `EntityRepository`.
+> See Section 9 for the architectural rationale.
 
-The generated adapter thunks bypass FastHSM's deferred `HsmCommandWriter` and write
-directly to the `EntityRepository`. Performing `repo.AddComponent(...)` or
-`repo.RemoveComponent(...)` while the cognitive system is iterating ECS chunks will
-corrupt the chunk arrays.
+## 6. Heavy-Data Doctrines: Blackboard1024 and Heavy Shared Attributes
 
-**Safe inside a shared action:** reading component data, writing fields of existing
-components (e.g., `LocomotionChannel.ActiveAction`), writing to `BrainBlackboard.Memory`.
+### Why `BrainBlackboard` Has a Hard 60-Byte Limit
 
-**Forbidden inside a shared action:** `repo.AddComponent(...)`, `repo.RemoveComponent(...)`,
-creating or destroying entities.
+The first 60 bytes of `BrainBlackboard.Memory` are reserved for doctrine parameters. This ceiling is intentional: it keeps the universal cognitive bus small enough to fit in a single cache line alongside the interrupt registers at bytes 126–127, guarantees zero-allocation hot-path execution, and makes buffer-overrun into the soft-advice region mathematically impossible.
+
+When a doctrine requires far more working memory — a full AI search context, pre-computed firing solutions, high-resolution threat grids, or deep historical tactical data — the correct pattern is to store that data in a **separate ECS component** and give the doctrine methods a compiler-assisted path to reach it.
+
+### The `Blackboard1024` Heavy Component
+
+`Blackboard1024` is a purpose-built 1024-byte unmanaged ECS component designed to hold exactly this kind of heavy doctrine data:
+
+```csharp
+[StructLayout(LayoutKind.Sequential)]
+[ComponentId(GlobalComponentIds.Blackboard1024)]
+[DataPolicy(DataPolicy.NoSave)]
+public unsafe struct Blackboard1024
+{
+    public const int ByteSize = 1024;
+    public fixed byte Memory[ByteSize];
+}
+```
+
+Entities that participate in heavy doctrines carry both `BrainBlackboard` (the 128-byte bus with the minimal params and interrupt registers) **and** `Blackboard1024` (the 1024-byte scratchpad). The two components are independent; `Blackboard1024` is never inspected by `BTreeTickSystem` or `HsmTickSystem` — it is accessed only via the compiler-generated thunks described below.
+
+Register `HeavyDtoType` on the doctrine definition so that the entity inspector can project and display the heavy data at runtime:
+
+```csharp
+registry.Register(DoctrineId, "HeavyDoctrineName",
+    new DoctrineDefinition
+    {
+        Name          = "HeavyDoctrineName",
+        BrainTier     = BehaviorConstants.BrainTierBTree,
+        ParseParams   = ...,
+        ParamsDtoType = typeof(MyMinimalParams),
+        HeavyDtoType  = typeof(MyHeavyData),  // enables Blackboard1024Renderer
+        BTreeInterpreter = ...,
+    });
+```
+
+### `[SharedAiHeavyAction]`: Actions with Heavy Component Access
+
+When a shared action needs to read or write both the minimal blackboard slice **and** a heavy component, annotate it with `[SharedAiHeavyAction]`. The Roslyn generators detect whether the heavy component is managed or unmanaged and emit the correct fetch strategy automatically — no handwritten pointer code required.
+
+**Unmanaged heavy component (e.g., `Blackboard1024`)** — five-argument form:
+
+```csharp
+[SharedAiHeavyAction(
+    typeof(MinimalBlackboard), nameof(MinimalBlackboard.Params),  // minimal projection
+    typeof(Blackboard1024), nameof(Blackboard1024.Memory),         // heavy component + field
+    typeof(MyHeavyData))]                                          // DTO projected via Unsafe.As
+public static NodeStatus Action_ProcessHeavyData(
+    ref MinimalParams minimal,
+    ref MyHeavyData heavy,       // ref: zero-copy, directly in Blackboard1024.Memory
+    Entity self,
+    EntityRepository repo)
+{
+    heavy.TargetCount = 0;
+    minimal.LastProcessedTick = repo.GetCurrentTick();
+    return NodeStatus.Running;
+}
+```
+
+**Managed heavy component (e.g., a doctrine-scoped class)** — three-argument form:
+
+```csharp
+[SharedAiHeavyAction(
+    typeof(MinimalBlackboard), nameof(MinimalBlackboard.Params),
+    typeof(MyManagedState))]   // compiler sees IsReferenceType, emits GetComponent<T>
+public static NodeStatus Action_UpdateManagedState(
+    ref MinimalParams minimal,
+    MyManagedState state,      // by value (class reference), not ref
+    Entity self,
+    EntityRepository repo)
+{
+    state.Phase = Phase.Active;
+    return NodeStatus.Running;
+}
+```
+
+The generated BTree adapter for the unmanaged case looks like:
+
+```csharp
+// Generated -- FbtActionRegistrar.g.cs
+registry.Register("Action_ProcessHeavyData@0",
+    static (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+    {
+        ref var field = ref Unsafe.As<byte, MinimalParams>(
+            ref Unsafe.AddByteOffset(ref Unsafe.As<BrainBlackboard, byte>(ref bb), (nint)0));
+        ref var heavyComp = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
+        ref var heavy = ref Unsafe.As<byte, MyHeavyData>(
+            ref Unsafe.AddByteOffset(ref Unsafe.As<Blackboard1024, byte>(ref heavyComp), (nint)0));
+        var status = global::MyNamespace.Action_ProcessHeavyData(ref field, ref heavy, ctx.Self, ctx.World);
+        return status;
+    });
+```
+
+The HSM action thunk is equivalent, using `repo.GetComponentRW<Blackboard1024>` fetched via the `HsmKernelBridge`.
+
+### `[SharedAiHeavyCondition]`: Conditions with Heavy Component Access
+
+`[SharedAiHeavyCondition]` is the condition counterpart. The method must return `bool`; the generators wrap the boolean into `NodeStatus.Success`/`NodeStatus.Failure` for the BTree registrar and return it directly as a guard `bool` for the HSM thunk.
+
+**Unified constructor** — the `heavyFieldName` parameter is optional. Omit it for managed components; supply it for unmanaged:
+
+```csharp
+// Unmanaged (supply heavyFieldName):
+[SharedAiHeavyCondition(
+    typeof(MinimalBlackboard), nameof(MinimalBlackboard.Params),
+    typeof(Blackboard1024),
+    typeof(MyHeavyData),
+    nameof(Blackboard1024.Memory))]
+public static bool Condition_HasHeavyTarget(
+    ref MinimalParams minimal,
+    ref MyHeavyData heavy,
+    Entity self,
+    EntityRepository repo)
+{
+    return heavy.TargetCount > 0;
+}
+
+// Managed (omit heavyFieldName):
+[SharedAiHeavyCondition(
+    typeof(MinimalBlackboard), nameof(MinimalBlackboard.Params),
+    typeof(MyManagedState),
+    typeof(MyManagedState))]  // heavyDtoType == heavyComponentType for managed
+public static bool Condition_IsPhaseActive(
+    ref MinimalParams minimal,
+    MyManagedState state,
+    Entity self,
+    EntityRepository repo)
+{
+    return state.Phase == Phase.Active;
+}
+```
+
+The generated BTree adapter registers the condition under `RegisterCondition` and wraps the return:
+
+```csharp
+// Generated
+registry.RegisterCondition("Condition_HasHeavyTarget@0",
+    static (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+    {
+        ref var field = ref Unsafe.As<byte, MinimalParams>(...);
+        ref var heavyComp = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
+        ref var heavy = ref Unsafe.As<byte, MyHeavyData>(...);
+        return global::MyNamespace.Condition_HasHeavyTarget(ref field, ref heavy, ctx.Self, ctx.World)
+            ? global::Fbt.NodeStatus.Success
+            : global::Fbt.NodeStatus.Failure;
+    });
+```
+
+For the HSM generator, the guard thunk returns the `bool` directly:
+
+```csharp
+// Generated -- HsmActionRegistrar.g.cs
+private static unsafe bool Guard_Condition_HasHeavyTarget_At0(
+    void* instancePtr, void* contextPtr, ushort eventId)
+{
+    var bridge = (HsmKernelBridge*)contextPtr;
+    var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
+    ref var bb = ref repo.GetComponentRW<BrainBlackboard>(bridge->Self);
+    ref var field = ref Unsafe.As<byte, MinimalParams>(
+        ref Unsafe.AddByteOffset(ref bb.Memory[0], (IntPtr)0));
+    ref var heavyComp = ref repo.GetComponentRW<Blackboard1024>(bridge->Self);
+    ref var heavy = ref Unsafe.As<byte, MyHeavyData>(
+        ref Unsafe.AddByteOffset(ref Unsafe.As<Blackboard1024, byte>(ref heavyComp), (IntPtr)0));
+    return global::MyNamespace.Condition_HasHeavyTarget(ref field, ref heavy, bridge->Self, repo);
+}
+```
+
+The HSM `TransitionBuilder` extension is generated as `Guard_Condition_HasHeavyTarget()`, identical in usage to a standard `[SharedAiCondition]` guard.
+
+### Compiler Argument Order: Action vs Condition Attributes
+
+The two heavy attributes differ in the order of their unmanaged arguments:
+
+| Attribute | Arg 3 | Arg 4 | Arg 5 |
+|---|---|---|---|
+| `[SharedAiHeavyAction]` (3-arg) | `heavyComponentType` | — | — |
+| `[SharedAiHeavyAction]` (5-arg) | `heavyComponentType` | `heavyFieldName` | `heavyDtoType` |
+| `[SharedAiHeavyCondition]` (4-arg) | `heavyComponentType` | `heavyDtoType` | — |
+| `[SharedAiHeavyCondition]` (5-arg) | `heavyComponentType` | `heavyDtoType` | `heavyFieldName` |
+
+The condition attribute places `heavyDtoType` before the optional `heavyFieldName` so that callers can supply the DTO type without having to specify the field name for managed components.
+
+### When to Use Managed vs Unmanaged Heavy Components
+
+| Scenario | Component type | Attribute form |
+|---|---|---|
+| Read-only reference data shared across entities (doctrine config object) | Managed class | 3-arg action / 4-arg condition (no field name) |
+| Per-entity mutable numeric state exceeding 60 bytes (search buffers, heat maps) | `Blackboard1024` (unmanaged struct) | 5-arg action / 5-arg condition (with field name) |
+| Mixed: small config class + large mutable buffer | Both; two attributes on the same method | — |
 
 ---
 
-## 6. Actuator Preemption and Channel Safety
+## 7. Actuator Preemption and Channel Safety
 
 ### The Zombie Action Problem
 
@@ -993,7 +1180,7 @@ builder.State("Firing")
 
 ---
 
-## 7. Decoupled Cognitive Interrupts
+## 8. Decoupled Cognitive Interrupts
 
 ### The Problem
 
@@ -1102,7 +1289,115 @@ CognitiveCleanupSystem         -- zeros bytes 126 & 127 (single-frame pulse guar
 
 ---
 
-## 8. Mission Routing and Terminal States
+## 9. HSM Event Internals
+
+### Event Anatomy: the 24-Byte `HsmEvent`
+
+FastHSM enforces a strict, zero-allocation memory model for event processing. Every event
+in the system uses the universal unmanaged `HsmEvent` struct, packed to exactly 24 bytes:
+an 8-byte header (containing `EventId`, `Priority`, and `Flags`) and a 16-byte inline
+payload buffer (`fixed byte Payload[16]`).
+
+**Defining and registering a custom event:**
+
+```csharp
+const ushort EventId_MyCustomTrigger = 42;
+
+// Register the event ID in the HSM topology
+builder.Event("MyCustomTrigger", EventId_MyCustomTrigger);
+```
+
+**Customizing execution behavior:**
+
+- Set `Priority = EventPriority.Interrupt` to bypass normal queue ordering in
+  memory-constrained Tier 1 queues.
+- Set `EventFlags.IsDeferred` to instruct the kernel to skip the event in the current state
+  and re-queue it stripped of the flag; the event will be re-evaluated after the next
+  transition.
+
+**Inline payload (up to 16 bytes):**
+
+```csharp
+[StructLayout(LayoutKind.Sequential)]
+public struct CustomTriggerPayload
+{
+    public int   TargetEntityId;
+    public float ThreatLevel;
+}  // 8 bytes -- fits in the 16-byte budget
+
+// Inside a perception/sensor system:
+public unsafe void FireCustomTrigger(Entity entity, EntityRepository repo)
+{
+    ref var hsm128 = ref repo.GetComponentRW<BrainHsm128>(entity);
+    HsmInstance128* instPtr = (HsmInstance128*)Unsafe.AsPointer(ref hsm128);
+
+    var evt = new HsmEvent { EventId = EventId_MyCustomTrigger, Priority = EventPriority.Normal };
+    *(CustomTriggerPayload*)evt.Payload = new CustomTriggerPayload { TargetEntityId = 99, ThreatLevel = 0.8f };
+    HsmEventQueue.TryEnqueue(instPtr, evt);
+}
+```
+
+**Indirect payload (> 16 bytes):** store the bulky data in an ECS component or lookup
+table, pass only the integer key inside the 16-byte buffer, and register the event with
+`isIndirect: true`.
+
+### How a Guard or Action Reacts to an Event
+
+Events are passive data containers. They do not execute logic themselves. When the kernel
+dequeues an event and a guarded transition evaluates to `true`, the kernel invokes the
+transition's registered action and the target state's `OnEntry` action via unmanaged
+function pointers.
+
+Inside each action, the `void* contextPtr` argument is always an `HsmKernelBridge*`.
+Unpacking it gives access to the live `EntityRepository`:
+
+```csharp
+[HsmAction(Name = "OnEntry_HandleCustomTrigger")]
+public static unsafe void OnEntry_HandleCustomTrigger(
+    void* instance, void* context, HsmCommandWriter* writer)
+{
+    var bridge = (HsmKernelBridge*)context;
+    var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
+    ref var bb = ref repo.GetComponentRW<BrainBlackboard>(bridge->Self);
+
+    // Zero-allocation projection of blackboard bytes into a typed DTO
+    ref var p = ref Unsafe.As<byte, CombatParams>(ref bb.Memory[0]);
+
+    if (p.AmmoCount > 0)
+    {
+        p.EngageRange += 10.0f;
+        ref var weapon = ref repo.GetComponentRW<WeaponChannel>(bridge->Self);
+        weapon.ActiveAction = CombatConstants.ActionIdAimAndFire;
+    }
+}
+```
+
+In practice, AI behavior developers should use `[SharedAiAction]` instead of writing this
+boilerplate manually. The Roslyn generator produces the identical thunk and also emits
+`OnEntry_HandleCustomTrigger()`, `OnExit_HandleCustomTrigger()`, `Activity_HandleCustomTrigger()`,
+and `Action_HandleCustomTrigger()` extension methods on `StateBuilder` / `TransitionBuilder`.
+
+### Discarding the `HsmCommandWriter`
+
+FDP deliberately discards all writes to `HsmCommandWriter`. `HsmTickSystem<T>` invokes an
+overload of `HsmKernel.Update` that does not request the command buffer; the kernel
+satisfies this with a stack-allocated dummy `CommandPage` that is immediately discarded.
+
+This is intentional. Allowing the HSM to maintain its own deferred command queue alongside
+the ECS `EntityCommandBuffer` would create two competing sources of truth for world
+mutation. FDP enforces a single authority:
+
+- **Actuator channel writes** are made directly via `GetComponentRW` inside generated
+  thunks (or your `[HsmAction]` method) in the same frame.
+- **Structural ECS mutations** (adding/removing components, spawning entities) use
+  `EntityRepository.GetEntityCommandBuffer()` — the standard ECS mechanism.
+
+FastHSM remains a pure, agnostic mathematical state evaluator; the ECS retains absolute
+authority over how and when the world mutates.
+
+---
+
+## 10. Mission Routing and Terminal States
 
 ### The Contract
 
@@ -1208,7 +1503,7 @@ director advances phases identically regardless of which tier is running.
 
 ---
 
-## 9. End-to-End Walkthrough: Writing a New Doctrine
+## 11. End-to-End Walkthrough: Writing a New Doctrine
 
 This section walks through adding a complete `PatrolAndEngage` doctrine to the project.
 The doctrine uses:
@@ -1484,6 +1779,10 @@ called from both the BTree closure and the HSM unmanaged thunk. No duplication.
 | `[HsmGuard]` | `Fhsm.Kernel.Attributes` | Registers an HSM-only guard thunk. |
 | `[SharedAiAction(dtoType, fieldName)]` | `Fbt.Kernel` | Registers an action usable from both BTree and HSM. |
 | `[SharedAiCondition(dtoType, fieldName)]` | `Fbt.Kernel` | Registers a condition usable from both BTree and HSM. |
+| `[SharedAiHeavyAction(dtoType, fieldName, heavyCompType)]` | `Fbt.Kernel` | Heavy managed action: receives the heavy component by class reference. |
+| `[SharedAiHeavyAction(dtoType, fieldName, heavyCompType, heavyFieldName, heavyDtoType)]` | `Fbt.Kernel` | Heavy unmanaged action: zero-copy `ref` into the heavy component's memory. |
+| `[SharedAiHeavyCondition(dtoType, fieldName, heavyCompType, heavyDtoType)]` | `Fbt.Kernel` | Heavy managed condition: receives the heavy component by class reference. |
+| `[SharedAiHeavyCondition(dtoType, fieldName, heavyCompType, heavyDtoType, heavyFieldName)]` | `Fbt.Kernel` | Heavy unmanaged condition: zero-copy `ref` into the heavy component's memory. |
 | `[WritesChannel(kind)]` | `Fbt.Kernel` | Triggers generation of preemption wrappers and exit-cleanup thunks. |
 
 ### BTree Node Signature Variants
@@ -1541,13 +1840,6 @@ HsmDefinitionBlob blob = HsmEmitter.Emit(flat);
 ```
 
 
-# Additional notes
-
-## HOw HSm events can be customized
-
-FastHSM enforces a strict, zero-allocation memory model for event processing. You do not allocate custom event classes or reference types on the heap; instead, every event in the system utilizes the universal `HsmEvent` unmanaged struct, which is rigidly packed to exactly 24 bytes. 
-
-To create and customize new events, you work within these strict memory and architectural boundaries:
 
 **1. Defining and Registering Custom Events**
 To create a new event, you simply define a unique `ushort` identifier for your domain and register it into your state machine's topology using the `HsmBuilder` API. 
@@ -1922,3 +2214,37 @@ If your heavy component requires complex setup, you simply inject it into the `S
 
 
 
+# Ignoring HsmCommandWriter
+
+
+
+The integration of FastHSM into the FDP engine is a masterclass in clean boundary management. It perfectly decouples a generic, domain-agnostic, unmanaged execution library from a highly opinionated Entity Component System (ECS) without sacrificing zero-allocation performance.
+
+Here is how the architecture handles the integration and the somewhat surprising reality of the HsmCommandWriter.
+
+### **1. The Integration Pipeline**
+
+FastHSM is injected into the engine's cognitive loop via the CognitiveRuntimeModule, operating alongside the behavior tree systems. The integration is built on three pillars:
+
+- **Memory Binding (The Components):** Entities do not hold managed state machines. Instead, they are composed with strictly sized unmanaged components like BrainHsm64 or BrainHsm128. A separate DoctrineState component holds an integer hash that acts as a foreign key to the DoctrineRegistry, where the immutable, compiled HsmDefinitionBlob resides.
+- **The Execution Tick:** The actual execution is driven by HsmTickSystem<T>, which runs during the Simulation phase. It queries all entities possessing a specific HSM size component and a matching doctrine, and feeds them into the unmanaged FastHSM kernel.
+- **The Unmanaged Bridge:** To allow the pure unmanaged FastHSM kernel to read and mutate the managed ECS world, the FDP engine passes a HsmKernelBridge struct as the generic context. This bridge holds the target Entity ID and an IntPtr WorldHandle. This handle is a GCHandle to the live EntityRepository, allowing the engine to mathematically project unmanaged memory back into C# references without allocating a single byte on the garbage collector.
+
+### **2. What Executes the** **HsmCommandWriter** **Commands?**
+
+From an architectural standpoint, this is where the FDP engine makes a strict, opinionated decision: **absolutely nothing executes the commands written to the** **HsmCommandWriter****. They are intentionally discarded.**
+
+While FastHSM provides the HsmCommandWriter and its 4KB CommandPage as a generic deferred-mutation queue for standalone use, the FDP engine deliberately drops this data.
+
+If you look at the HsmTickSystem, it invokes an overload of HsmKernel.Update that does not request the command buffer. Under the hood, the generic FastHSM kernel satisfies this by allocating a var dummyPage = new CommandPage(); on the stack, passing it to your actions, and immediately letting it fall out of scope and vanish.
+
+### **Why FDP Discards the Command Writer**
+
+As a senior systems architect, I consider this a brilliant move to prevent impedance mismatch.
+
+If FDP allowed the HSM to maintain its own deferred command queue, you would have two competing sources of truth for world mutation: the ECS's EntityCommandBuffer and the HSM's CommandPage. Instead, FDP enforces pure ECS mechanics:
+
+1. **Cognitive Intents:** As generated by the Roslyn compiler, AI state actions bypass the HsmCommandWriter entirely. They unpack the HsmKernelBridge and write directly to pre-existing ECS Actuator Channels (like LocomotionChannel or WeaponChannel) in the exact same frame.
+2. **Structural Mutations:** If an action absolutely must perform a structural change (like spawning an entity or adding a component), the developer is forced to use the EntityRepository retrieved via the bridge to extract the ECS-native IEntityCommandBuffer.
+
+By discarding the HsmCommandWriter, FDP ensures that FastHSM remains a pure, agnostic mathematical state evaluator, while the ECS retains absolute, undisputed authority over how and when the physical game world mutates.
