@@ -127,8 +127,13 @@ namespace Fdp.Toolkit.Behavior.Systems
                     btState.State = default;
                 }
 
-                // 3. BHU-016: Reset HSM instance so the new doctrine starts clean.
-                ResetHsmComponents(repo, evt.Entity);
+                // 3. BHU-016 / CRITICAL FIX: Reset HSM instance bound to the new doctrine's topology.
+                // Supplying the StructureHash keeps InstanceHeader.MachineId in sync with the new
+                // HsmDefinitionBlob so HsmKernelCore.ValidateInstance passes on the very next tick.
+                if (def.BrainTier == BehaviorConstants.BrainTierHsm && def.HsmDefinition != null)
+                {
+                    ResetHsmComponents(repo, evt.Entity, def.HsmDefinition.Header.StructureHash);
+                }
             }
 
             // ── ClearDoctrineEvent handler ────────────────────────────────────────────────
@@ -173,19 +178,26 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (repo.HasComponent<BrainBTreeState>(evt.Entity))
                     repo.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
 
-                // BHU-016: Reset HSM instance so the new doctrine starts clean.
-                ResetHsmComponents(repo, evt.Entity);
+                // BHU-016 / CRITICAL FIX: Reset HSM instance bound to the new doctrine's topology.
+                // Supplying the StructureHash keeps InstanceHeader.MachineId in sync with the new
+                // HsmDefinitionBlob so HsmKernelCore.ValidateInstance passes on the very next tick.
+                if (def != null && def.BrainTier == BehaviorConstants.BrainTierHsm && def.HsmDefinition != null)
+                {
+                    ResetHsmComponents(repo, evt.Entity, def.HsmDefinition.Header.StructureHash);
+                }
             }
         }
 
         // ── HSM reset helper ─────────────────────────────────────────────────────
 
-        private static unsafe void ResetHsmComponents(EntityRepository repo, Entity entity)
+        private static unsafe void ResetHsmComponents(EntityRepository repo, Entity entity, uint newMachineId)
         {
             if (repo.HasComponent<BrainHsm64>(entity))
             {
                 ref var hsm64 = ref repo.GetComponentRW<BrainHsm64>(entity);
                 InstanceHeader* hdr = (InstanceHeader*)Unsafe.AsPointer(ref hsm64);
+                // CRITICAL FIX: Bind the execution state to the new definition's topology.
+                hdr->MachineId = newMachineId;
                 hdr->Flags &= unchecked((InstanceFlags)(byte)~(byte)InstanceFlags.Terminated);
                 hdr->Phase  = InstancePhase.Idle;
                 hdr->QueueHead   = 0;
@@ -202,6 +214,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             {
                 ref var hsm128 = ref repo.GetComponentRW<BrainHsm128>(entity);
                 InstanceHeader* hdr = (InstanceHeader*)Unsafe.AsPointer(ref hsm128);
+                // CRITICAL FIX: Bind the execution state to the new definition's topology.
+                hdr->MachineId = newMachineId;
                 hdr->Flags &= unchecked((InstanceFlags)(byte)~(byte)InstanceFlags.Terminated);
                 hdr->Phase  = InstancePhase.Idle;
                 hdr->QueueHead   = 0;

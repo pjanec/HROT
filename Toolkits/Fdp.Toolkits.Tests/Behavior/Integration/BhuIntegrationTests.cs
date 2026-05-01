@@ -171,8 +171,8 @@ namespace Fdp.Toolkit.Behavior.Tests
             var registry = new DoctrineRegistry();
             const int    docIdA = 99003;
             const int    docIdB = 99004;
-            // Both doctrines share the same blob hash so that MachineId remains valid
-            // after DoctrineIngressSystem.ResetHsmComponents (which does not update MachineId).
+            // Both doctrines share the same blob hash so that the MachineId written by
+            // DoctrineIngressSystem.ResetHsmComponents remains valid for the shared blob.
             // What we test here is that the InstanceId bump causes a fresh DoctrineFinishedEvent.
             var sharedBlob = Build3StateBlob(0xA3000001);
 
