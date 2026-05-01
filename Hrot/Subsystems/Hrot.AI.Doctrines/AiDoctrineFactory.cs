@@ -5,6 +5,8 @@ using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Replication.Services;
+using Fhsm.Compiler;
+using Fhsm.Kernel.Data;
 using Hrot.AI.Doctrines.Brains;
 using Hrot.AI.Doctrines.Generated;
 
@@ -66,6 +68,14 @@ namespace Hrot.AI.Doctrines
             var wanderBlob        = FbtTreeCatalog.GetWanderMilitary();
             var fireAtTargetBlob  = FbtTreeCatalog.GetFireAtTarget();
 
+            // Pre-compile HSM blob for Idle_HSM: a single "Idle" state with no transitions.
+            var idleHsmBuilder = new HsmBuilder("Idle_HSM");
+            idleHsmBuilder.State("Idle").Initial();
+            var idleGraph    = idleHsmBuilder.Build();
+            HsmNormalizer.Normalize(idleGraph);
+            var idleFlat     = HsmFlattener.Flatten(idleGraph);
+            HsmDefinitionBlob idleHsmBlob = HsmEmitter.Emit(idleFlat);
+
             return (DoctrineRegistry registry) =>
             {
                 // unsafe lambdas assigned to ParseParamsDelegate require this block
@@ -104,8 +114,9 @@ namespace Hrot.AI.Doctrines
                 registry.Register(Idle_HSM, "Idle",
                     new DoctrineDefinition
                     {
-                        Name      = "Idle",
-                        BrainTier = BehaviorConstants.BrainTierHsm,
+                        Name          = "Idle",
+                        BrainTier     = BehaviorConstants.BrainTierHsm,
+                        HsmDefinition = idleHsmBlob,
                     });
 
                 registry.Register(WanderMilitary_BT, "WanderMilitary",

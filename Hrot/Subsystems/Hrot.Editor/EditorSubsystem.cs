@@ -171,14 +171,11 @@ namespace Hrot.Editor
 
         private DoctrineRegistry? _doctrineRegistry;
 
-        // ── AI doctrine hot reloader ────────────────────────────────────────────
+        // ── AI doctrine hot-reload coordinator ─────────────────────────────────
 
-        private FbtAssemblyHotReloader?      _aiHotReloader;
-        private HotReloadMessageLogSource?   _hotReloadSource;
-        // Registration action built on the background ALC thread and applied on the
-        // main thread via OnReloadCompleted -> DrainPendingCallbacks.
-        private volatile Action<DoctrineRegistry>? _pendingDoctrineApply;
-        // Captured at Initialize() so the hot-reload lambda can pass them to the factory.
+        private AiHotReloadCoordinator?    _aiCoordinator;
+        private HotReloadMessageLogSource? _hotReloadSource;
+        // Captured at Initialize() so the coordinator can pass them to the doctrine factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
         // ── Production visualizer dependencies ───────────────────────────────────
@@ -364,48 +361,23 @@ namespace Hrot.Editor
             // Watch specifically for Hrot.AI.Doctrines.dll so the watcher does not fire
             // on unrelated DLL writes during compilation.
             string aiAssemblyDir = AppDomain.CurrentDomain.BaseDirectory;
-            _aiHotReloader = new FbtAssemblyHotReloader(
+            _aiCoordinator = new AiHotReloadCoordinator(
                 aiAssemblyDir, "Hrot.AI.Doctrines.dll",
-                (registrarType, newAssembly) =>
-            {
-                // Find AiDoctrineFactory.BuildRegistrationAction in the newly-loaded assembly.
-                var factoryType  = newAssembly.GetType("Hrot.AI.Doctrines.AiDoctrineFactory");
-                var buildMethod  = factoryType?.GetMethod(
-                    "BuildRegistrationAction",
-                    BindingFlags.Public | BindingFlags.Static);
+                _world!, _doctrineRegistry!,
+                _geoTransform, _entityMap);
 
-                if (buildMethod != null)
-                {
-                    // Execute on the background thread: CPU-heavy BTree compilation happens here.
-                    var applyAction = (Action<DoctrineRegistry>?)buildMethod.Invoke(
-                        null, new object?[] { _geoTransform, _entityMap });
-                    if (applyAction != null)
-                        _pendingDoctrineApply = applyAction;
-                }
-
-                // Return a sentinel so OnReloadCompleted fires once on the main thread.
-                return new (string, BehaviorTreeBlob)[] { ("__ai_doctrines__", new BehaviorTreeBlob()) };
-            });
-
-            // Apply the staged registration on the main thread via DrainPendingCallbacks().
-            // Fully overwrites all CGF doctrine entries so that ParamsDtoType and
-            // ParseParams always reference the ALC-local CgfNodes types.
-            _aiHotReloader.OnReloadCompleted += _ =>
-            {
-                var apply = System.Threading.Interlocked.Exchange(ref _pendingDoctrineApply, null);
-                apply?.Invoke(_doctrineRegistry!);
+            _aiCoordinator.OnReloadCompleted += _ =>
                 Console.WriteLine("[HotReload] AI Doctrines hot-swapped.");
-            };
 
             // Load the current DLL immediately so doctrines are ready before the first frame.
-            _aiHotReloader.TriggerInitialLoad();
+            _aiCoordinator.TriggerInitialLoad();
 
             // ── Hot-reload message log source ─────────────────────────────────
-            // Wire up after the hot-reloader is configured so that both the
+            // Wire up after the coordinator is configured so that both the
             // doctrine-swap callbacks and the log-source callbacks are registered.
             _hotReloadSource = new HotReloadMessageLogSource();
-            _aiHotReloader.OnReloadCompleted += _hotReloadSource.OnReloadCompleted;
-            _aiHotReloader.OnReloadFailed    += _hotReloadSource.OnReloadFailed;
+            _aiCoordinator.OnReloadCompleted += _hotReloadSource.OnReloadCompleted;
+            _aiCoordinator.OnReloadFailed    += _hotReloadSource.OnReloadFailed;
 
             var clusterSlave     = new ClusterSlave(0, "Editor", _orchestrationBus);
             var zoneService      = new ZoneManagerService();
@@ -727,7 +699,7 @@ namespace Hrot.Editor
             // Any BTreeInterpreter pointer swaps queued by the background ALC worker
             // are applied here, between kernel ticks, so no active simulation tick
             // can observe a half-swapped pointer.
-            _aiHotReloader?.DrainPendingCallbacks();
+            _aiCoordinator?.DrainPendingCallbacks();
 
             // Swap the Control Plane bus so intents published by the UI this frame
             // are readable by ClusterMaster/ClusterUiCache on the orchestration bus.
@@ -1027,8 +999,8 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Shutdown()
         {
-            _aiHotReloader?.Dispose();
-            _aiHotReloader = null;
+            _aiCoordinator?.Dispose();
+            _aiCoordinator = null;
             _kernel?.Dispose();
             _kernel = null;
             _physicsModule?.Dispose();

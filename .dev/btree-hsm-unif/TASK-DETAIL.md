@@ -1053,3 +1053,430 @@ Phases 1 and 2 can be developed in parallel.
 Phases 3 and 4 can be developed in parallel with each other and with Phases 1 and 2.
 Phase 5 depends on Phase 4 (BHU-011 must exist before BHU-014).
 BHU-015 and BHU-016 can be developed in parallel with Phases 1, 2, and 4.
+BHU-017 depends on all preceding tasks.
+
+---
+
+## Integration Tests
+
+---
+
+### BHU-017 — End-to-end integration tests proving all unified features work together
+
+**Design ref**: All phases.
+
+**Scope**:
+- New file: `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/Integration/BhuIntegrationTests.cs`
+- New file: `FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/Integration/HsmTerminalStateIntegrationTests.cs`
+- New file: `FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/Integration/HsmSourceGenIntegrationTests.cs`
+- New file: `Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/HsmDoctrineIntegrationTests.cs`
+
+All four files must compile and all tests must pass with zero errors against the
+implementation produced by BHU-001 through BHU-016.
+
+**Dependency**: BHU-017 depends on ALL prior tasks in this workstream (BHU-001 to
+BHU-016). Do NOT implement any of these tests until those tasks are complete and build
+succeeds with zero errors.
+
+---
+
+#### Group A — HSM Terminal State Routing (proves BHU-005 + BHU-006 + BHU-007 + BHU-016)
+
+**File**: `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/Integration/BhuIntegrationTests.cs`
+
+Use `TestWorldFactory.Create()` (already in `Fdp.Toolkits.Tests`) to build an
+`EntityRepository` with all behavior components registered.
+
+Helper: build a minimal 3-state HSM blob with `IsFinal` set on the third state:
+
+```
+State "Idle"  (initial) --EventX(id=10)--> State "Active"
+State "Active"           --EventY(id=20)--> State "Done"
+State "Done"  (final, IsFinal=true)
+```
+
+Construct the blob using `HsmBuilder` + `HsmCompiler.Compile()` so the test exercises
+the real compiler path and proves `StateFlags.IsFinal` is correctly emitted.
+
+**IT-BHU-A1 — HSM reaches final state, `DoctrineFinishedEvent` published**
+
+```
+Arrange:
+  entity with DoctrineState(BrainTierHsm, InstanceId=1), BrainHsm128, BrainBlackboard
+  HsmTickSystem<BrainHsm128> wrapping the blob above
+  Manually inject EventX then EventY into the HSM event queue before ticking
+
+Act:
+  Execute HsmTickSystem<BrainHsm128> once
+
+Assert:
+  repo.Bus.Read<DoctrineFinishedEvent>() contains exactly one event with Entity == entity
+  InstanceFlags.Terminated bit is CLEAR (published + latch cleared in same tick)
+  InstanceHeader.Phase == InstancePhase.Idle (latch reset)
+```
+
+**IT-BHU-A2 — Second tick on same instance does NOT re-publish event (dedup)**
+
+```
+Arrange: same as IT-BHU-A1 after the entity has just finished
+
+Act:
+  Execute HsmTickSystem<BrainHsm128> a second time (no new doctrine assigned)
+
+Assert:
+  No new DoctrineFinishedEvent published this tick (dedup suppressed it)
+  _publishedTerminalForInstanceId[entity.Index] == 1 (InstanceId unchanged)
+```
+
+**IT-BHU-A3 — Doctrine reassignment clears terminal latch, allows new event**
+
+```
+Arrange: entity finished doctrine A (InstanceId=1, TerminatedFlag cleared by A1)
+
+Act:
+  Publish AssignDoctrineHashEvent for doctrine B
+  Execute DoctrineIngressSystem (bumps InstanceId to 2, resets BrainHsm128 via BHU-016)
+  Drive new doctrine to final state (inject EventX + EventY again)
+  Execute HsmTickSystem<BrainHsm128>
+
+Assert:
+  DoctrineFinishedEvent published with InstanceId dedup key == 2
+  BrainHsm128 ActiveLeafIds were all 0xFFFF before first tick of doctrine B
+    (proves BHU-016 reset ran)
+```
+
+**IT-BHU-A4 — BrainHsm64 also publishes event (covers both instance sizes)**
+
+Identical to IT-BHU-A1 but using `BrainHsm64` and `HsmTickSystem<BrainHsm64>`.
+
+Assert the event is published and the latch is cleared.
+
+---
+
+#### Group B — Cognitive Interrupt Decoupling (proves BHU-008 + BHU-009 + BHU-015)
+
+**File**: `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/Integration/BhuIntegrationTests.cs`
+(same file, continuation)
+
+Helper: three systems run in order on the same `EntityRepository`:
+`CognitiveInterruptSystem`, `HsmTickSystem<BrainHsm128>`, `CognitiveCleanupSystem`.
+
+Build an HSM blob where `EventId_MobilityLost` (id=1) causes a transition from
+"Patrol" → "Stopped".
+
+**IT-BHU-B1 — Mobility-lost edge writes byte 126 and HSM receives the event**
+
+```
+Arrange:
+  entity with BrainBlackboard, ActorCapabilityState(CanMove=true),
+  PreviousCapabilities(CanMove=true), BrainHsm128 in "Patrol" state
+
+Act Frame 1:
+  Set ActorCapabilityState.Capabilities &= ~CanMove  (capability lost)
+  Run CognitiveInterruptSystem
+
+Assert mid-frame:
+  bb.Memory[126] == 1
+
+Act Frame 1 continued:
+  Run HsmTickSystem<BrainHsm128>
+  Run CognitiveCleanupSystem
+
+Assert end-of-frame:
+  bb.Memory[126] == 0  (cleanup zeroed it)
+  HSM transitioned from "Patrol" to "Stopped"
+    (confirm by reading ActiveLeafIds via Unsafe.As cast)
+```
+
+**IT-BHU-B2 — No re-trigger on second frame (edge, not level)**
+
+```
+Arrange: entity still has CanMove=false; PreviousCapabilities already updated to false
+
+Act Frame 2:
+  Run CognitiveInterruptSystem (PreviousCapabilities == current, no edge)
+  Run HsmTickSystem<BrainHsm128>
+  Run CognitiveCleanupSystem
+
+Assert:
+  bb.Memory[126] == 0 throughout (no byte set, no spurious event)
+  HSM remains in "Stopped" state (no second transition)
+```
+
+**IT-BHU-B3 — BTree entity also gets byte 126 cleared (brain-tier-agnostic cleanup)**
+
+```
+Arrange:
+  BTree entity with BrainBlackboard; force bb.Memory[126] = 1 directly
+
+Act:
+  Run CognitiveCleanupSystem
+
+Assert:
+  bb.Memory[126] == 0
+```
+
+---
+
+#### Group C — Unified Action/Condition via SharedAiAttributes (proves BHU-011 + BHU-012 + BHU-013)
+
+**File**: `FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/Integration/HsmSourceGenIntegrationTests.cs`
+
+This group proves the cross-paradigm adapter pipeline is correctly wired at runtime.
+It does NOT use a Roslyn test verifier (that belongs in unit tests for BHU-012/013).
+Instead it exercises the GENERATED code after compilation.
+
+Define in the test assembly a shared condition method:
+
+```csharp
+// DTO placed at bb.Memory[0]
+[StructLayout(LayoutKind.Sequential)]
+private struct TestDto { public int Value; }  // Value at offset 0
+
+[SharedAiCondition(typeof(TestDto), nameof(TestDto.Value))]
+private static bool IsValuePositive(ref int value, Entity self, EntityRepository repo)
+    => value > 0;
+```
+
+After compilation the generators will have emitted:
+- In `FbtActionRegistrar.g.cs`: `actionRegistry.RegisterCondition("IsValuePositive@0", ...)`.
+- In `HsmActionRegistrar.g.cs`: `HsmActionDispatcher.RegisterGuard(hash("IsValuePositive@0"), ...)`.
+
+**IT-BHU-C1 — BTree adapter calls through to the shared condition**
+
+```
+Arrange:
+  ActionRegistry with generated FbtActionRegistrar.RegisterAll called
+  BrainBlackboard with Memory[0..3] = BitConverter.GetBytes(42)  (positive value)
+
+Act:
+  Retrieve condition via actionRegistry.TryGetCondition("IsValuePositive@0")
+  Invoke it with a mock BTreeContext
+
+Assert:
+  Returns true (42 > 0)
+```
+
+```
+Arrange: same but Memory[0..3] = BitConverter.GetBytes(-1)
+
+Assert: Returns false
+```
+
+**IT-BHU-C2 — HSM guard adapter calls through to the shared condition**
+
+```
+Arrange:
+  Call HsmActionDispatcher.ClearAll() then generated HsmActionRegistrar.RegisterAll()
+  Construct a fake HsmKernelBridge with a live EntityRepository via GCHandle
+  entity has BrainBlackboard with Memory[0..3] = BitConverter.GetBytes(5)
+
+Act:
+  ushort hashKey = ComputeHash("IsValuePositive@0")
+  bool result = HsmActionDispatcher.EvaluateGuard(hashKey, instancePtr, bridgePtr, eventId=0)
+
+Assert:
+  result == true  (5 > 0)
+```
+
+**IT-BHU-C3 — Both adapters agree on the compound key hash**
+
+```
+Assert:
+  The ushort produced by Fbt.SourceGen's ComputeHash("IsValuePositive@0")
+    equals the ushort produced by Fhsm.SourceGen's ComputeHash("IsValuePositive@0")
+```
+
+Call both `ComputeHash` implementations directly (or the shared helper if extracted).
+This is the cross-generator hash-consistency check required by BHU-013 success condition 7.
+
+---
+
+#### Group D — ClearAll / hot-reload round-trip (proves BHU-002 + generated ClearAll)
+
+**File**: `FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/Integration/HsmTerminalStateIntegrationTests.cs`
+
+**IT-BHU-D1 — ClearAll removes previously registered guards**
+
+```
+Arrange:
+  Register a guard under key id=1234 via HsmActionDispatcher.RegisterGuard(1234, ptr)
+
+Act:
+  HsmActionDispatcher.ClearAll()
+
+Assert:
+  HsmActionDispatcher.EvaluateGuard(1234, null, null, 0) == true
+    (default "no guard = always pass" fallback — guard table is empty)
+```
+
+**IT-BHU-D2 — ClearAll then RegisterAll restores all guards**
+
+```
+Arrange:
+  Call HsmActionDispatcher.ClearAll()
+  Call generated HsmActionRegistrar.RegisterAll()  (re-populates tables)
+
+Act:
+  Evaluate a guard that was originally registered in Fhsm.Kernel's built-in methods
+
+Assert:
+  The guard is correctly dispatched (does not fall through to default)
+```
+
+**IT-BHU-D3 — ClearAll → RegisterAll → IsFinal chain produces correct Terminated flag**
+
+End-to-end: reload sequence followed by advancing to final state.
+
+```
+Arrange:
+  HsmActionDispatcher.ClearAll()
+  HsmActionRegistrar.RegisterAll()
+  Build blob with final state using HsmBuilder.Final()
+  BrainHsm128 entity initialized to the blob
+
+Act:
+  Inject events to drive machine to final state
+  HsmKernel.Update(blob, ref component, bridge, dt)
+
+Assert:
+  (InstanceHeader.Flags & InstanceFlags.Terminated) != 0
+```
+
+---
+
+#### Group E — Full CognitiveRuntimeModule frame (system order + all features together)
+
+**File**: `Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/HsmDoctrineIntegrationTests.cs`
+
+This is the highest-level integration test. It runs the complete `CognitiveRuntimeModule`
+system sequence (all 6 systems) against real entities and proves the whole feature set
+integrates without regression.
+
+**IT-BHU-E1 — CognitiveRuntimeModule system registration order after BHU-010**
+
+```
+Arrange:
+  new CognitiveRuntimeModule(new DoctrineRegistry())
+
+Assert (exact system types at exact indices):
+  [0] ChannelArbitrationSystem
+  [1] CognitiveInterruptSystem     (NOT HsmDamageBridgeSystem)
+  [2] BTreeTickSystem
+  [3] HsmTickSystem<BrainHsm128>
+  [4] HsmTickSystem<BrainHsm64>
+  [5] CognitiveCleanupSystem
+
+  Total count == 6
+  No HsmDamageBridgeSystem anywhere in the list
+```
+
+**IT-BHU-E2 — Full frame: HSM entity mobility-lost interrupt → doctrine finishes → event published**
+
+This test runs all 6 systems in correct order to prove the complete feature set integrates.
+
+```
+Arrange:
+  EntityRepository with TestWorldFactory + DoctrineRegistry
+  Build HSM blob: "Patrol" --MobilityLost(id=1)--> "Stopped" --EventDone(id=99)--> "Done"(final)
+  Register blob as doctrine "HsmPatrol" with BrainTierHsm
+  entity: DoctrineState(HsmPatrol, InstanceId=1), BrainHsm128 initialized to blob,
+          BrainBlackboard, ActorCapabilityState(CanMove=true),
+          PreviousCapabilities(CanMove=true)
+
+Act Frame 1: trigger mobility-lost edge
+  Set ActorCapabilityState.Capabilities &= ~CanMove
+  Run all 6 systems in order (CognitiveInterrupt, BTreeTick, HsmTick128, HsmTick64, Cleanup)
+
+Assert end of Frame 1:
+  HSM transitioned to "Stopped" (verify ActiveLeafIds)
+  bb.Memory[126] == 0 (CognitiveCleanupSystem ran)
+
+Act Frame 2: drive "Stopped" to final state
+  Inject EventDone (id=99) into HSM event queue
+  Run all 6 systems in order
+
+Assert end of Frame 2:
+  repo.Bus.Read<DoctrineFinishedEvent>() contains one event for this entity
+  InstanceFlags.Terminated is CLEAR (latch was cleared after publish)
+  InstanceHeader.Phase == InstancePhase.Idle
+```
+
+**IT-BHU-E3 — BTree entity in same world is unaffected by HSM interrupt path**
+
+```
+Arrange: same world as IT-BHU-E2, plus a second entity with BrainBTreeState + BTreeTickSystem
+         BTree doctrine returns NodeStatus.Running unconditionally
+
+Act Frame 1 (same mobility-lost frame as E2):
+  Run all 6 systems
+
+Assert:
+  BTree entity's BrainBTreeState.State.RunningNodeIndex is unchanged (not disrupted)
+  BTree entity's bb.Memory[126] is 0 after frame (CognitiveCleanupSystem cleared it)
+  No DoctrineFinishedEvent for the BTree entity
+```
+
+---
+
+#### What to do (implementation instructions)
+
+1. **Create `BhuIntegrationTests.cs`** in
+   `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/Integration/` (create directory if absent).
+   Add all Group A and Group B tests. Use `TestWorldFactory.Create()` for world setup.
+   Use `HsmBuilder` + `HsmCompiler.Compile()` for blobs — do NOT hard-code raw
+   `StateDef[]` arrays; the compiler exercises the IsFinal path.
+
+2. **Create `HsmTerminalStateIntegrationTests.cs`** in
+   `FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/Integration/` (create directory if absent).
+   Add all Group D tests.
+
+3. **Create `HsmSourceGenIntegrationTests.cs`** in the same `Fhsm.Tests/Integration/`
+   directory. Add Group C tests.
+   - The test assembly must define the `TestDto` struct and the `IsValuePositive` method
+     with `[SharedAiCondition]` so the source generators emit adapters into the test
+     build. Verify in `obj/` that the generated files appear before writing assertions.
+   - For IT-BHU-C3, call `ComputeHash` from `Fbt.SourceGen`'s `BTreeActionGenerator`
+     and from `Fhsm.SourceGen`'s `HsmActionGenerator` via `InternalsVisibleTo` or by
+     extracting to a shared test helper.
+
+4. **Create `HsmDoctrineIntegrationTests.cs`** in
+   `Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/`.
+   Add all Group E tests.
+   The existing `[Collection("EditorOfflineTests")]` collection fixture is already defined
+   in the project; add a new `[Collection("HsmDoctrineTests")]` if isolation is needed.
+
+5. **Update `CognitiveRuntimeModuleTests.cs`** (existing file in
+   `Fdp.Toolkits.Tests/Behavior/Modules/`) to assert the NEW system order (6 systems,
+   `CognitiveInterruptSystem` at index 1, `CognitiveCleanupSystem` at index 5, no
+   `HsmDamageBridgeSystem`). The old assertion in that file will fail after BHU-010 and
+   must be updated in this task.
+
+**Constraints**:
+- All test methods must use the `Xunit` framework (`[Fact]`).
+- No test may use `Thread.Sleep` or real-time waits. All timing must be expressed as
+  fixed `deltaTime` values passed to system `Execute()` methods.
+- Tests must call `world.Dispose()` (or use `using`) to avoid native memory leaks.
+- Do NOT introduce a new test project. Use the existing `Fdp.Toolkits.Tests`,
+  `Fhsm.Tests`, and `Hrot.ClusterRunner.Integration.Tests` projects.
+- The BHU-E tests run inside `Hrot.ClusterRunner.Integration.Tests` which has access to
+  `Hrot.AI.Doctrines` and full ECS bootstrap infrastructure.
+- Do not add dependencies that are not already transitively available in each test project.
+
+**Success conditions**:
+1. All tests compile with zero errors against the post-BHU-001-to-BHU-016 codebase.
+2. All tests pass: `dotnet test` on each of the three affected projects shows 0 failures.
+3. IT-BHU-A1 to A4 confirm the full IsFinal → Terminated → DoctrineFinishedEvent chain.
+4. IT-BHU-B1 to B3 confirm edge-triggered interrupt byte, HSM event injection, and
+   single-frame pulse cleanup for both brain tiers.
+5. IT-BHU-C1 to C3 confirm that `[SharedAiCondition]`-annotated methods are callable
+   from both the BTree adapter (`actionRegistry`) and the HSM guard dispatcher
+   (`HsmActionDispatcher.EvaluateGuard`), and that both adapters hash the compound key
+   identically.
+6. IT-BHU-D1 to D3 confirm that `HsmActionDispatcher.ClearAll()` genuinely empties the
+   tables and that the full ClearAll → RegisterAll → IsFinal chain works end-to-end.
+7. IT-BHU-E1 confirms the exact 6-system order with no `HsmDamageBridgeSystem`.
+8. IT-BHU-E2 and E3 confirm the complete frame-level interaction between all phases
+   without cross-contamination between HSM and BTree entities.
+9. The updated `CognitiveRuntimeModuleTests` assertion passes (6 systems, correct types
+   at correct indices).

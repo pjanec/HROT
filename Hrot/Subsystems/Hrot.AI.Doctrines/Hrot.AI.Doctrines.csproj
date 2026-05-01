@@ -22,6 +22,13 @@
     <!-- Roslyn source generator: emits FbtActionRegistrar.g.cs and FbtTreeCatalog.g.cs. -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.SourceGen\Fbt.SourceGen.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- FastHSM runtime (HsmDefinitionBlob, HsmActionDispatcher, HotReloadManager, etc.). -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
+    <!-- FastHSM fluent builder (HsmBuilder, HsmCompiler). -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Compiler\Fhsm.Compiler.csproj" />
+    <!-- Roslyn source generator: emits HsmActionRegistrar.g.cs for [HsmAction]/[HsmGuard] methods. -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.SourceGen\Fhsm.SourceGen.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

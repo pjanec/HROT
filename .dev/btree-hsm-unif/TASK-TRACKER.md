@@ -33,3 +33,7 @@
 ## Cross-Cutting
 
 - [ ] BHU-016 — `DoctrineIngressSystem`: reset `BrainHsm64`/`BrainHsm128` on HSM doctrine assignment
+
+## Integration Tests
+
+- [ ] BHU-017 — End-to-end integration tests proving all unified features work together
