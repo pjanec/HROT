@@ -64,6 +64,9 @@ public static class SimHostAuxiliaryTranslatorPack
             // PACK-P001: mission control ingress polls DDS, egress writes ACKs.
             translators.Add(new MissionControlIngressTranslator(participant));
             translators.Add(new MissionControlAckEgressTranslator(participant));
+            // Tactical intent: egress from Commander Brain, ingress on subordinate Brain.
+            translators.Add(new TacticalIntentEgressTranslator(participant, entityMap));
+            translators.Add(new TacticalIntentIngressTranslator(participant, entityMap));
         }
 
         // ── Combat egress — Brain / AllInOne emits WeaponFireIntent → DDS ──

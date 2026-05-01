@@ -36,6 +36,8 @@ namespace Hrot.NED.Descriptors
         // Mission control
         dtMissionControlRequest = 90,
         dtMissionControlAck     = 91,
+        // Tactical intent (Brain-to-Brain)
+        dtTacticalIntentRequest = 92,
         // etc., all known descriptor types here
     }
 

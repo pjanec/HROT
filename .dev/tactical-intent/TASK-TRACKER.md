@@ -19,14 +19,14 @@
 
 **Goal:** Replace `AssignDoctrineEvent` emission in `MissionAdapterSystem` with `AssignTacticalIntentEvent` so human-authored mission plans flow through the same resolution pipeline.
 
-- [ ] **TASK-TI004** MissionAdapterSystem Emits AssignTacticalIntentEvent — [details](./TASK-DETAIL.md#task-ti004---change-missionadaptersystem-to-emit-assigntacticalintentevent)
+- [x] **TASK-TI004** MissionAdapterSystem → AssignTacticalIntentEvent — [details](./TASK-DETAIL.md#task-ti004---change-missionadaptersystem-to-emit-assigntacticalintentevent)
 
 ## Phase 4: UI Discovery for Intent DTOs
 
 **Goal:** Make generic intent DTOs discoverable by `DoctrineSchemaDiscovery` and visible in the Mission Editor behavior dropdown.
 
-- [ ] **TASK-TI005** Commander Flag in DoctrineCategory — [details](./TASK-DETAIL.md#task-ti005---add-commander-flag-to-doctrinecategory)
-- [ ] **TASK-TI006** Example Intent DTOs in Hrot.Core — [details](./TASK-DETAIL.md#task-ti006---add-example-intent-dtos-to-hrotcore)
+- [x] **TASK-TI005** Commander Flag in DoctrineCategory — [details](./TASK-DETAIL.md#task-ti005---add-commander-flag-to-doctrinecategory)
+- [x] **TASK-TI006** Example Intent DTOs in Hrot.Core — [details](./TASK-DETAIL.md#task-ti006---add-example-intent-dtos-to-hrotcore)
 
 ## Phase 5: Network Transport
 
