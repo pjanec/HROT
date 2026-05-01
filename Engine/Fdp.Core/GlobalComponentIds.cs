@@ -239,7 +239,10 @@ namespace Fdp.Core
         /// <summary><c>TargetMemory</c> — fixed-size threat table for perceived targets (FDP.Toolkit.Perception).</summary>
         public const byte TargetMemory            = 73;
 
-
+        /// <summary><c>Blackboard1024</c> — 1024-byte generic heavy blackboard for doctrine-specific large payloads.
+        /// Reusable across different doctrines to avoid exhausting the 256 component-type limit.
+        /// Projected into doctrine-specific DTOs via <c>Unsafe.As</c> inside generated action thunks.</summary>
+        public const byte Blackboard1024          = 74;
 
         /// <summary><c>PathfindingBatchData</c> — zero-allocation singleton for batched pathfinding requests/results (FDP.Toolkit.Navigation).</summary>
         public const byte PathfindingBatchData    = 76;

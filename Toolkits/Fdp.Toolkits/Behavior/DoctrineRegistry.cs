@@ -58,6 +58,15 @@ namespace Fdp.Toolkit.Behavior
         /// The type must be unmanaged (enforced by convention, not the compiler).
         /// </summary>
         public Type? ParamsDtoType { get; init; }
+
+        /// <summary>
+        /// Optional DTO type stored in a generic heavy blackboard component (e.g., <c>Blackboard1024</c>)
+        /// for this doctrine.  When non-null, enables typed rendering in <c>Blackboard1024Renderer</c>
+        /// for unmanaged DTOs projected via <c>Unsafe.As</c> over the component's raw byte array.
+        /// For managed components assigned via <c>[SharedAiHeavyAction]</c>, leave this null
+        /// (the managed class reference is fetched directly and does not need Inspector projection).
+        /// </summary>
+        public Type? HeavyDtoType { get; init; }
     }
 
     /// <summary>
