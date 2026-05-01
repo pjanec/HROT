@@ -1539,3 +1539,293 @@ HsmDefinitionBlob blob = HsmEmitter.Emit(flat);
 [126        ]  InterruptRegister_MobilityLost  (1 = fired, cleared by CognitiveCleanupSystem)
 [127        ]  Reserved
 ```
+
+
+# Additional notes
+
+## HOw HSm events can be customized
+
+FastHSM enforces a strict, zero-allocation memory model for event processing. You do not allocate custom event classes or reference types on the heap; instead, every event in the system utilizes the universal `HsmEvent` unmanaged struct, which is rigidly packed to exactly 24 bytes. 
+
+To create and customize new events, you work within these strict memory and architectural boundaries:
+
+**1. Defining and Registering Custom Events**
+To create a new event, you simply define a unique `ushort` identifier for your domain and register it into your state machine's topology using the `HsmBuilder` API. 
+
+```csharp
+const ushort EventId_MyCustomTrigger = 42;
+
+// Register the event in your HSM topology
+builder.Event("MyCustomTrigger", EventId_MyCustomTrigger);
+```
+During registration, you can also statically define compiler-level constraints for the event, such as its expected `payloadSize`, or flags like `isIndirect` and `isDeferred`. 
+
+**2. Customizing Event Execution Behavior**
+When you enqueue an event at runtime, you instantiate an `HsmEvent` and customize how the kernel evaluates it by assigning specific properties to its 8-byte header:
+*   **Priority:** You can elevate an event by setting its `Priority` field to `EventPriority.Interrupt`, allowing it to bypass normal queue constraints and forcefully overwrite lower-priority events in memory-constrained Tier 1 queues.
+*   **Flags (e.g., Deferred Events):** You can apply bitwise `EventFlags` to change the lifecycle of the event. For example, setting `EventFlags.IsDeferred` instructs the kernel to skip the event if the current state cannot handle it; the kernel will automatically strip the flag and re-queue the event so it can be re-evaluated after the machine transitions to a new state.
+
+**3. Customizing Event Data (The 16-Byte Payload Boundary)**
+The 8-byte header leaves exactly 16 bytes of inline buffer space (`fixed byte Payload`) for you to attach custom data. From a data-oriented design perspective, you populate this by casting your data directly into the raw memory block using `unsafe` pointers.
+
+*   **Inline Payloads (≤ 16 Bytes):** If your custom data is a primitive type (like an `int` or `float`) or a small, unmanaged DTO struct, you project it straight into the buffer.
+    ```csharp
+    var evt = new HsmEvent { EventId = EventId_MyCustomTrigger };
+    var myData = new MyCustomStruct { A = 1, B = 2 };
+    
+    // Zero-allocation pointer cast directly into the fixed buffer
+    *(MyCustomStruct*)evt.Payload = myData;
+    ```
+    This guarantees blisteringly fast execution and cache efficiency without polluting the garbage collector.
+
+*   **Indirect Payloads (> 16 Bytes):** If your custom data struct exceeds the strict 16-byte limit, attempting to inline it will result in memory corruption. The architecture mandates that you use indirection. You must store the bulky payload elsewhere (like a tightly packed ECS buffer or dictionary) and pass only the integer ID or lookup key inside the 16-byte payload. When doing this, you should inform the compiler by registering the event with the `isIndirect: true` flag.
+
+By strictly enforcing the 24-byte footprint and requiring `unsafe` projection for custom data, the engine guarantees that no matter how many custom events you define, your AI execution remains perfectly deterministic and allocation-free.
+
+
+## How HSM events are used
+
+
+A core data-oriented principle: **events do not execute logic or access memory themselves.** 
+
+In FastHSM, an event like `EventId_MyCustomTrigger` is strictly a 24-byte unmanaged data container (`HsmEvent`) pushed into a ring buffer. It is the state machine's **Guards** and **Actions** that react to this event, cross the unmanaged boundary, and manipulate the `BrainBlackboard`.
+
+Here is a concrete, step-by-step example of how this memory pipeline operates, from triggering the event to safely projecting and mutating the blackboard memory.
+
+### 1. Firing the Event (The 24-Byte Data Structure)
+When an external system (like a sensor or a mission script) wants to trigger a behavior change, it constructs an `HsmEvent` and injects it into the entity's HSM queue. We can safely pack up to 16 bytes of custom primitive data directly into the event's inline buffer using unsafe pointer casting.
+
+```csharp
+public const ushort EventId_MyCustomTrigger = 42;
+
+// The 16-byte payload we want to send
+[StructLayout(LayoutKind.Sequential)]
+public struct CustomTriggerPayload 
+{
+    public int TargetEntityId;
+    public float ThreatLevel;
+}
+
+// Inside a System (e.g., PerceptionSystem):
+public unsafe void TriggerCustomBehavior(Entity entity, EntityRepository repo)
+{
+    // Grab the Tier 2 HSM instance pointer from the ECS chunk
+    ref var hsm128 = ref repo.GetComponentRW<BrainHsm128>(entity);
+    HsmInstance128* instPtr = (HsmInstance128*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref hsm128);
+
+    // Construct the 24-byte event
+    var evt = new HsmEvent 
+    { 
+        EventId = EventId_MyCustomTrigger, 
+        Priority = EventPriority.Normal 
+    };
+
+    // Zero-allocation pointer cast directly into the fixed payload buffer
+    var payload = new CustomTriggerPayload { TargetEntityId = 99, ThreatLevel = 0.8f };
+    *(CustomTriggerPayload*)evt.Payload = payload;
+
+    HsmEventQueue.TryEnqueue(instPtr, evt);
+}
+```
+
+### 2. Reacting to the Event (The Execution Boundary)
+When the FastHSM kernel ticks, it dequeues the event and evaluates transitions. If a transition succeeds, the kernel invokes the state's registered actions via unmanaged C# function pointers. 
+
+This is where the magic happens. The kernel passes a `void* context` pointer, which in our FDP pipeline is always a pointer to an `HsmKernelBridge`. We unpack this bridge to cross from the unmanaged simulation loop back into the managed ECS world.
+
+### 3. Accessing the Blackboard (Memory Projection)
+Inside your `[HsmAction]`, you unpack the repository, retrieve the `BrainBlackboard`, and project its raw 128-byte array into your specific AI domain DTO without allocating a single byte on the heap.
+
+```csharp
+[HsmAction(Name = "OnEntry_HandleCustomTrigger")]
+public static unsafe void OnEntry_HandleCustomTrigger(void* instance, void* context, HsmCommandWriter* writer)
+{
+    // 1. Unpack the bridge to cross the unmanaged boundary
+    var bridge = (HsmKernelBridge*)context;
+    
+    // 2. Recover the live ECS EntityRepository using the GCHandle
+    var repo = (EntityRepository)System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
+    
+    // 3. Get the 128-byte BrainBlackboard for this specific entity
+    ref var bb = ref repo.GetComponentRW<BrainBlackboard>(bridge->Self);
+
+    // 4. ZERO-ALLOCATION MEMORY PROJECTION
+    // We treat the blackboard's memory as a typed struct (e.g., CombatParams).
+    // Using Unsafe.As avoids boxing and dynamic reflection overhead.
+    ref var combatParams = ref System.Runtime.CompilerServices.Unsafe.As<byte, CombatParams>(ref bb.Memory);
+
+    // 5. Execute the business logic!
+    if (combatParams.AmmoCount > 0)
+    {
+        combatParams.EngageRange += 10.0f; // Mutate the blackboard safely
+        
+        // Write an intent to the physical actuator channel
+        ref var weaponChannel = ref repo.GetComponentRW<WeaponChannel>(bridge->Self);
+        weaponChannel.ActiveAction = CombatConstants.ActionIdAimAndFire;
+        weaponChannel.ActionInstanceId++;
+    }
+}
+```
+
+### The "Clean Architecture" Shortcut
+Writing the `GCHandle` unpacking and pointer projection boilerplate manually inside every state action introduces the risk of human error. As an AI behavior developer, you should almost never write the code above by hand. 
+
+Instead, you define your logic purely in the domain space using `[SharedAiAction]`. Our Roslyn compiler (`Fhsm.SourceGen`) automatically writes the `HsmKernelBridge` unpacking logic, computes the exact `Marshal.OffsetOf` for your DTO, and emits the unmanaged `unsafe void` thunk for you. This provides you with the ultimate clean architecture: you work exclusively with strongly-typed `ref CombatParams` references, while the compiler enforces the strict, zero-allocation memory constraints under the hood.
+
+
+
+When I showed you above the `unsafe static void OnEntry_HandleCustomTrigger(void* instance, void* context, HsmCommandWriter* writer)` method, I was showing you the raw, paradigm-specific execution layer. This is the exact function signature that the FastHSM kernel *requires* to function, and you *can* write it manually using the `[HsmAction]` attribute.
+
+However, adhering to Clean Architecture, **the AI behavior developer should almost never write that.**
+
+Even if the custom trigger is only going to be used by a state machine right now, the best practice is to author the event handler as a pure domain method using `[SharedAiAction]`.
+
+Here is what the AI developer *actually* writes to handle the custom trigger:
+
+```
+public static class CustomBehaviors
+{
+    // 1. The AI engineer writes pure, safe C#. No pointers, no GCHandles.
+    [SharedAiAction(typeof(CombatParams), nameof(CombatParams))]
+    public static NodeStatus HandleCustomTrigger(ref CombatParams p, Entity self, EntityRepository repo)
+    {
+        if (p.AmmoCount > 0)
+        {
+            p.EngageRange += 10.0f;
+
+            ref var weaponChannel = ref repo.GetComponentRW<WeaponChannel>(self);
+            weaponChannel.ActiveAction = CombatConstants.ActionIdAimAndFire;
+            weaponChannel.ActionInstanceId++;
+        }
+        return NodeStatus.Success;
+    }
+}
+```
+
+### How the Compiler Helps
+
+The moment you annotate that clean method with `[SharedAiAction]`, our Roslyn source generator (`Fhsm.SourceGen`) takes over at compile time. The AI engineer is completely done, but the compiler does two massive things for them:
+
+**1. It Generates the Scary Thunk** The compiler sees your pure domain logic and automatically writes the unmanaged `unsafe void` thunk for you in a hidden `HsmActionRegistrar.g.cs` file. It automatically calculates the exact byte offset of the struct, does the `GCHandle` unpacking, projects the memory, discards the `NodeStatus` return value, and invokes your pure method.
+
+**2. It Generates the Fluent Builder Extension** To hide the underlying string keys from the AI designer, the source generator also emits a strongly-typed extension method for the HSM builder.
+
+Because of this, when the AI engineer goes to wire up their custom trigger in the HSM topology, they just use the fluent, type-safe DSL:
+
+```
+var handleTriggerState = builder.State("HandleTrigger")
+    // This extension method was generated by the compiler!
+    // It safely maps to the unmanaged thunk behind the scenes.
+    .OnEntry_HandleCustomTrigger();
+
+idleState.On(EventId_MyCustomTrigger).GoTo(handleTriggerState);
+```
+
+### When would an AI Engineer use `[HsmAction]` directly?
+
+You only fall back to writing the raw `[HsmAction]` with pointers if you are writing a highly specialized, paradigm-specific engine node.
+
+For example, if you need an action that interacts directly with the `HsmCommandWriter*` (FastHSM's internal deferred command queue) rather than writing to the standard ECS actuator channels, you cannot use a `[SharedAiAction]` because the BTree interpreter has no concept of an `HsmCommandWriter`.
+
+But for 99% of domain logic, you stick to the pure DTO references and let Roslyn write the unmanaged boilerplate!
+
+
+
+
+
+
+
+If AI engineer defines "HandleCustomTrigger" SharedAiAction, how is this exact method name registered to the state machine? How does the compiler knows that HandleCustomTrigger should be used as OnEntry_HandleCustomTrigger? I am missing the link here...
+
+
+
+
+
+This is a brilliant architectural question. You have spotted a fundamental truth about state machines: a piece of logic (an action) is completely agnostic to *when* it executes. The AI engineer defining `HandleCustomTrigger` doesn't know if it will be used when entering a state, exiting a state, or continuously as an activity.
+
+Because the compiler cannot read the designer's mind, it solves this by generating **all possible lifecycle extensions** for every single `[SharedAiAction]`.
+
+Here is the exact link between your pure domain method and the state machine topology.
+
+### 1. The Underlying Builder API
+
+Under the hood, the raw `StateBuilder` and `TransitionBuilder` classes only accept strings. For example:
+
+```
+public StateBuilder OnEntry(string actionName) { ... }
+public StateBuilder Activity(string actionName) { ... }
+public TransitionBuilder Action(string actionName) { ... }
+```
+
+We want to completely hide these string-based methods from the AI engineer so they never have to type the compiler-computed offset keys (like `"HandleCustomTrigger@16"`).
+
+### 2. The Brute-Force Generation Strategy
+
+When the Roslyn source generator (`Fhsm.SourceGen`) scans your assembly and finds this method:
+
+```
+[SharedAiAction(typeof(CombatParams), nameof(CombatParams))]
+public static NodeStatus HandleCustomTrigger(...)
+```
+
+It computes the byte offset (e.g., `16`) and constructs the true compound key: `"HandleCustomTrigger@16"`.
+
+Then, it generates a static extension class that emits **four distinct extension methods** for that single action, mapping it to every possible HSM hook:
+
+```
+// Auto-generated by Fhsm.SourceGen
+public static class SharedAiHsmExtensions
+{
+    // 1. For use when ENTERING a state
+    public static StateBuilder OnEntry_HandleCustomTrigger(this StateBuilder builder)
+    {
+        return builder.OnEntry("HandleCustomTrigger@16");
+    }
+
+    // 2. For use when EXITING a state
+    public static StateBuilder OnExit_HandleCustomTrigger(this StateBuilder builder)
+    {
+        return builder.OnExit("HandleCustomTrigger@16");
+    }
+
+    // 3. For use CONTINUOUSLY while in a state
+    public static StateBuilder Activity_HandleCustomTrigger(this StateBuilder builder)
+    {
+        return builder.Activity("HandleCustomTrigger@16");
+    }
+
+    // 4. For use during a TRANSITION between states
+    public static TransitionBuilder Action_HandleCustomTrigger(this TransitionBuilder builder)
+    {
+        return builder.Action("HandleCustomTrigger@16");
+    }
+}
+```
+
+For conditions (e.g., `[SharedAiCondition] Condition_HasAmmo`), the generator only emits one extension, because conditions can only be used as transition guards:
+
+```
+    public static TransitionBuilder Guard_HasAmmo(this TransitionBuilder builder)
+    {
+        return builder.Guard("Condition_HasAmmo@8");
+    }
+```
+
+### 3. The Developer Experience (IntelliSense)
+
+Because the compiler generates all valid permutations, the AI engineer simply relies on their IDE. When they type: `builder.State("HandleTrigger").`
+
+IntelliSense will immediately suggest:
+
+- `.OnEntry_HandleCustomTrigger()`
+- `.OnExit_HandleCustomTrigger()`
+- `.Activity_HandleCustomTrigger()`
+
+They select the one they want.
+
+### The Architectural Link
+
+When the HSM compiler's `HsmFlattener` runs, it crawls the graph, finds the string `"HandleCustomTrigger@16"`, and hashes it using the FNV-1a algorithm (`ComputeHash`). At runtime, the unmanaged kernel looks up that exact hash in the `HsmActionDispatcher.ActionTable`, resolving the zero-allocation function pointer perfectly.
+
+By having the source generator emit every lifecycle permutation, the domain code remains pure, the builder DSL remains strongly typed, and the underlying memory offset arithmetic is completely encapsulated.
+

@@ -1,8 +1,10 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Hrot.Map.Common.Components;
 using Fdp.Core;
 using Fdp.Core.Logging;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Navigation;
 using Fdp.ModuleHost.Abstractions;
@@ -182,11 +184,17 @@ public sealed class RouteContextSystem : IEcsModuleSystem
             var       root = doc.RootElement;
 
             ref var blackboard = ref repo.GetComponentRW<BrainBlackboard>(vehicleEntity);
+            ref var layout     = ref Unsafe.As<BrainBlackboard, BlackboardMemoryLayout>(ref blackboard);
 
             if (root.TryGetProperty("dangerLevel", out var dangerEl)
              && dangerEl.TryGetInt32(out int dangerValue))
             {
-                blackboard.Memory[BlackboardOffsets.ExpectedThreatLevel] = (byte)System.Math.Clamp(dangerValue, 0, 255);
+                // SoftAdvice region starts at byte 60; ExpectedThreatLevel is at offset 120
+                // (60 bytes into the SoftAdvice block).
+                // Write directly into the SoftAdvice fixed buffer at the compiler-derived offset.
+                fixed (byte* p = layout.SoftAdvice)
+                    p[BlackboardOffsets.ExpectedThreatLevel - BehaviorConstants.MaxDoctrineParamByteSize] =
+                        (byte)System.Math.Clamp(dangerValue, 0, 255);
             }
         }
         catch (JsonException ex)

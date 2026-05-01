@@ -6,9 +6,10 @@ namespace Hrot.CGF.Systems.Routing;
 /// <see cref="Hrot.CGF.Systems.Routing.RouteContextSystem"/>.
 ///
 /// <para>
-/// Soft-advice values occupy the high end of the 128-byte
-/// <see cref="Fdp.Toolkit.Behavior.BehaviorConstants.BrainBlackboardByteSize"/> buffer,
-/// well clear of the doctrine parameter structs that populate offsets 0-15.
+/// Soft-advice values occupy the SoftAdvice region of
+/// <see cref="Fdp.Toolkit.Behavior.Components.BlackboardMemoryLayout"/> (bytes 60-125),
+/// well clear of the doctrine parameter payload (bytes 0-59) and the interrupt registers
+/// (bytes 126-127).
 /// </para>
 /// </summary>
 public static class BlackboardOffsets
@@ -17,6 +18,8 @@ public static class BlackboardOffsets
     /// Byte offset for the per-waypoint threat/danger level
     /// (JSON key: <c>"dangerLevel"</c>).
     /// A value of 0 means unknown/default; higher values indicate increasing danger.
+    /// Placed at the start of the SoftAdvice region (offset 60) + 60 additional bytes = 120.
     /// </summary>
-    public const int ExpectedThreatLevel = 120;
+    public const int ExpectedThreatLevel =
+        Fdp.Toolkit.Behavior.BehaviorConstants.MaxDoctrineParamByteSize + 60;
 }
