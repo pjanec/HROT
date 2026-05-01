@@ -32,13 +32,13 @@
 
 **Goal:** Allow `AssignTacticalIntentEvent` to cross Brain-node boundaries via a dedicated DDS topic and translator pair.
 
-- [ ] **TASK-TI007** TacticalIntentRequest DDS Message and EDescriptorType — [details](./TASK-DETAIL.md#task-ti007---define-tacticalintentrequest-dds-message-and-edescriptortype)
-- [ ] **TASK-TI008** TacticalIntentEgressTranslator — [details](./TASK-DETAIL.md#task-ti008---implement-tacticalintenteresstranslator)
-- [ ] **TASK-TI009** TacticalIntentIngressTranslator — [details](./TASK-DETAIL.md#task-ti009---implement-tacticalintentingresstranslator)
+- [x] **TASK-TI007** TacticalIntentRequest DDS Message and EDescriptorType — [details](./TASK-DETAIL.md#task-ti007---define-tacticalintentrequest-dds-message-and-edescriptortype)
+- [x] **TASK-TI008** TacticalIntentEgressTranslator — [details](./TASK-DETAIL.md#task-ti008---implement-tacticalintenteresstranslator)
+- [x] **TASK-TI009** TacticalIntentIngressTranslator — [details](./TASK-DETAIL.md#task-ti009---implement-tacticalintentingresstranslator)
 
 ## Phase 6: Commander BTree Integration and Example Mapper
 
 **Goal:** Provide a working Commander BTree action and the first concrete mapper so the full pipeline can be exercised end-to-end.
 
-- [ ] **TASK-TI010** Reference Commander BTree Action — [details](./TASK-DETAIL.md#task-ti010---reference-commander-btree-action)
-- [ ] **TASK-TI011** DefendAreaMapper — [details](./TASK-DETAIL.md#task-ti011---implement-defendareamapper-first-concrete-mapper)
+- [x] **TASK-TI010** Reference Commander BTree Action — [details](./TASK-DETAIL.md#task-ti010---reference-commander-btree-action)
+- [x] **TASK-TI011** DefendAreaMapper — [details](./TASK-DETAIL.md#task-ti011---implement-defendareamapper-first-concrete-mapper)

@@ -17,6 +17,8 @@
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <!-- Fdp.Core: Entity type used in Condition_TargetAliveAndVisible and Action_FireAtTarget. -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <!-- Hrot.Core provides: TkbEntityTypes constants used by mapper implementations. -->
+    <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
     <!-- FastBTree fluent builder (BTreeBuilder<TBlackboard, TContext>) for [BTreeDefinition] methods. -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.Compiler\Fbt.Compiler.csproj" />
     <!-- Roslyn source generator: emits FbtActionRegistrar.g.cs and FbtTreeCatalog.g.cs. -->

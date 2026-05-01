@@ -29,6 +29,7 @@ using Hrot.Common.Infrastructure;
 using Hrot.Common.Scenario;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
+using Hrot.AI.Doctrines.Mappers;
 using Hrot.Presentation.Windows;
 using Hrot.Presentation.Facades;
 using Hrot.Presentation.Renderers;
@@ -241,8 +242,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _scenarioSource = new ScenarioEntityCreationRequestSource();
 
         // ── Register CGF simulation logic (Brain-specific) ─────────────────────
+        var mapperRegistry = new TacticalIntentMapperRegistry();
+        mapperRegistry.Register(new DefendAreaMapper());
         var cgfLogicPack = new CgfLogicPack(doctrineRegistry, _entityMap, _scenarioSource,
-            new TacticalIntentMapperRegistry());
+            mapperRegistry);
         _context.Kernel.RegisterModule(cgfLogicPack);
 
         // Execute the Brain systems every frame via two togglable phase groups.
