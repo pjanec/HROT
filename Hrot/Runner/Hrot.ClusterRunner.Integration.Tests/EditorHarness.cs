@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Orchestration;
@@ -158,7 +159,8 @@ public sealed class EditorHarness : IDisposable
 
         // ── Module registration (offline — no translator packs) ───────────────
         var simHostCorePack  = new SimHostCoreLogicPack(EntityMap);
-        var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, EntityMap, new ScenarioEntityCreationRequestSource());
+        var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, EntityMap,
+            new ScenarioEntityCreationRequestSource(), new TacticalIntentMapperRegistry());
         var scenarioMod      = new ScenarioEditorModule(fileService);
         var simHostMod       = new SimHostModule(spawnSys);
 

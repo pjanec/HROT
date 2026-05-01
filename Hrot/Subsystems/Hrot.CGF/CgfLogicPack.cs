@@ -6,6 +6,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Executors;
 using Fdp.Toolkit.Behavior.Modules;
+using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Combat.Systems;
@@ -63,6 +64,7 @@ namespace Hrot.CGF
         // ── Standalone systems (moved from RegisterSystems overloads) ──────────
         private readonly HealthApplicationSystem      _healthApplicationSystem;        private readonly ActiveSensorTracksUpdateSystem _activeSensorTracksUpdateSystem;        private readonly CgfThreatEvaluationSystem    _cgfThreatEvaluationSystem;
         private readonly RouteContextSystem           _routeContextSystem;
+        private readonly TacticalIntentResolutionSystem _tacticalIntentResolutionSystem;
 
         // ── Shared scenario source (constructed once by CgfApplication / CgfSubsystem) ─
         // Held here for future hand-off to load handlers (Phases 3-4).
@@ -93,6 +95,11 @@ namespace Hrot.CGF
         /// and multiplexed alongside the live NED source by <c>CgfSubsystem</c>.
         /// Must not be null.
         /// </param>
+        /// <param name="mapperRegistry">
+        /// Registry of <see cref="ITacticalOrderMapper"/> implementations used by
+        /// <see cref="TacticalIntentResolutionSystem"/> to translate generic tactical
+        /// intent IDs into concrete doctrine assignments.  Must not be null.
+        /// </param>
         /// <param name="vehicleApi">
         /// Optional high-level vehicle command façade forwarded to
         /// <see cref="JoinFormationExecutor"/>.  <c>null</c> while the executor is a stub.
@@ -101,18 +108,21 @@ namespace Hrot.CGF
             DoctrineRegistry                     doctrineRegistry,
             NetworkEntityMap                     entityMap,
             ScenarioEntityCreationRequestSource  scenarioSource,
+            TacticalIntentMapperRegistry         mapperRegistry,
             VehicleAPI?                          vehicleApi = null)
         {
             if (doctrineRegistry == null) throw new ArgumentNullException(nameof(doctrineRegistry));
             if (entityMap        == null) throw new ArgumentNullException(nameof(entityMap));
             if (scenarioSource   == null) throw new ArgumentNullException(nameof(scenarioSource));
+            if (mapperRegistry   == null) throw new ArgumentNullException(nameof(mapperRegistry));
 
             ScenarioSource = scenarioSource;
 
             _missionControlModule   = new MissionControlModule(doctrineRegistry);
             _cognitiveRuntimeModule = new CognitiveRuntimeModule(doctrineRegistry);
-            _missionExecutionSystem = new MissionControlExecutionSystem(entityMap, doctrineRegistry);
-            _missionAdapterSystem   = new MissionAdapterSystem(doctrineRegistry, entityMap);
+            _missionExecutionSystem              = new MissionControlExecutionSystem(entityMap, doctrineRegistry);
+            _missionAdapterSystem                = new MissionAdapterSystem(doctrineRegistry, entityMap);
+            _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry);
             _actionDispatchModule   = new ActionDispatchModule(
                 locoExecutors: new (ushort, IActionExecutor<LocomotionChannel>)[]
                 {
@@ -137,6 +147,7 @@ namespace Hrot.CGF
             foreach (var s in _missionControlModule.InputSystems) inputList.Add(s);
 
             simList.Add(_missionAdapterSystem);
+            simList.Add(_tacticalIntentResolutionSystem);
             foreach (var s in _missionControlModule.SimulationSystems) simList.Add(s);
             simList.Add(_healthApplicationSystem);
             simList.Add(_activeSensorTracksUpdateSystem);

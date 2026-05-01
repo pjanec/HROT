@@ -30,6 +30,7 @@ using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.Lifecycle.Events;
@@ -273,7 +274,8 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             // Use dedicated packs instead of SimulationLogicModule to get IEcsModuleSystem lists.
             var musclePack = new SimHostCoreLogicPack(_entityMap, roadNetwork, trajectoryPool);
             var brainPack  = new CgfLogicPack(_doctrineRegistry, _entityMap,
-                new ScenarioEntityCreationRequestSource());
+                new ScenarioEntityCreationRequestSource(),
+                new TacticalIntentMapperRegistry());
 
             var inputList   = new List<IEcsModuleSystem>();
             var simList     = new List<IEcsModuleSystem>();

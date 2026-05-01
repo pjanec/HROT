@@ -7,6 +7,7 @@ using Fdp.ModuleHost;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Modules;
 using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.CarKinem.Systems;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
@@ -96,7 +97,8 @@ namespace Hrot.SimHost.Tests
             var entityMap        = new NetworkEntityMap();
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
-            var pack    = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource);
+            var pack    = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource,
+                new TacticalIntentMapperRegistry());
             var view = (ISimulationView)world;
             var ex = Record.Exception(() =>
             {
@@ -106,9 +108,9 @@ namespace Hrot.SimHost.Tests
             Assert.Null(ex);
 
             // InputSystems: MissionControlExecutionSystem (1), DoctrineIngressSystem (1) = 2
-            // SimulationSystems: remaining 14 systems (total 16)
+            // SimulationSystems: 15 + TacticalIntentResolutionSystem = 16
             Assert.Equal(2,  pack.InputSystems.Count);
-            Assert.Equal(14, pack.SimulationSystems.Count);
+            Assert.Equal(16, pack.SimulationSystems.Count);
         }
 
         /// <summary>
@@ -123,7 +125,8 @@ namespace Hrot.SimHost.Tests
             var entityMap        = new NetworkEntityMap();
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
-            var pack     = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource);
+            var pack     = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource,
+                new TacticalIntentMapperRegistry());
             // MissionControlModule systems in InputSystems + SimulationSystems
             Assert.Contains(pack.InputSystems,      s => s is DoctrineIngressSystem);
             Assert.Contains(pack.SimulationSystems, s => s is MissionDirectorSystem);
@@ -146,7 +149,8 @@ namespace Hrot.SimHost.Tests
             var pack = new CgfLogicPack(
                 new DoctrineRegistry(),
                 new NetworkEntityMap(),
-                new ScenarioEntityCreationRequestSource());
+                new ScenarioEntityCreationRequestSource(),
+                new TacticalIntentMapperRegistry());
             Assert.Equal("CgfLogicPack", pack.Name);
         }
 
@@ -162,7 +166,8 @@ namespace Hrot.SimHost.Tests
                 new CgfLogicPack(
                     new DoctrineRegistry(),
                     new NetworkEntityMap(),
-                    scenarioSource: null!));
+                    scenarioSource: null!,
+                    mapperRegistry: new TacticalIntentMapperRegistry()));
 
             Assert.Equal("scenarioSource", ex.ParamName);
         }
@@ -267,7 +272,8 @@ namespace Hrot.SimHost.Tests
             var entityMap        = new NetworkEntityMap();
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
-            var pack       = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource);
+            var pack       = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource,
+                new TacticalIntentMapperRegistry());
             // SC1: MissionControlExecutionSystem is in InputSystems.
             Assert.Contains(pack.InputSystems, s => s is MissionControlExecutionSystem);
             // SC2: DoctrineIngressSystem is in InputSystems.
@@ -279,8 +285,8 @@ namespace Hrot.SimHost.Tests
 
             // InputSystems: MissionControlExecutionSystem + DoctrineIngressSystem = 2
             Assert.Equal(2,  pack.InputSystems.Count);
-            // SimulationSystems: total 16 - 2 = 14
-            Assert.Equal(14, pack.SimulationSystems.Count);
+            // SimulationSystems: total 18 - 2 = 16
+            Assert.Equal(16, pack.SimulationSystems.Count);
         }
 
         /// <summary>
@@ -295,9 +301,10 @@ namespace Hrot.SimHost.Tests
             var entityMap        = new NetworkEntityMap();
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
-            var pack     = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource);
-            // Total systems across both phases equals 16 (split: 2 input + 14 sim).
-            Assert.Equal(16, pack.InputSystems.Count + pack.SimulationSystems.Count);
+            var pack     = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource,
+                new TacticalIntentMapperRegistry());
+            // Total systems across both phases equals 18 (split: 2 input + 16 sim).
+            Assert.Equal(18, pack.InputSystems.Count + pack.SimulationSystems.Count);
         }
     }
 }

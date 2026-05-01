@@ -12,6 +12,7 @@ using Fdp.Examples.Scenarios.Integrated;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Runner;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Adapters;
 using Fdp.Presentation.Panels;
@@ -415,7 +416,8 @@ namespace Hrot.Editor
                     : 0f);
             _perceptionMod = perceptionMod;
             var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, entityMap,
-                new ScenarioEntityCreationRequestSource());
+                new ScenarioEntityCreationRequestSource(),
+                new TacticalIntentMapperRegistry());
             var orchPack         = new OrchestrationLogicPack(clusterSlave);
             var scenarioMod      = new ScenarioEditorModule(fileService);
 

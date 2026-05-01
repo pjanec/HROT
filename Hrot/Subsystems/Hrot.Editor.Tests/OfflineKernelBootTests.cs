@@ -1,6 +1,7 @@
 using System;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Time.Controllers;
@@ -41,7 +42,8 @@ public class OfflineKernelBootTests : IDisposable
         var fileService      = EditorBootstrap.CreateFileService();
 
         _kernel.RegisterModule(new SimHostCoreLogicPack(entityMap));
-        _kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, entityMap, new ScenarioEntityCreationRequestSource()));
+        _kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, entityMap, new ScenarioEntityCreationRequestSource(),
+            new TacticalIntentMapperRegistry()));
         _kernel.RegisterModule(new OrchestrationLogicPack(clusterSlave));
         _kernel.RegisterModule(new ScenarioEditorModule(fileService));
 

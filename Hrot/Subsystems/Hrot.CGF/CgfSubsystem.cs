@@ -5,6 +5,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Scheduling;
 using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.NetworkSpawning.Systems;
@@ -240,7 +241,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _scenarioSource = new ScenarioEntityCreationRequestSource();
 
         // ── Register CGF simulation logic (Brain-specific) ─────────────────────
-        var cgfLogicPack = new CgfLogicPack(doctrineRegistry, _entityMap, _scenarioSource);
+        var cgfLogicPack = new CgfLogicPack(doctrineRegistry, _entityMap, _scenarioSource,
+            new TacticalIntentMapperRegistry());
         _context.Kernel.RegisterModule(cgfLogicPack);
 
         // Execute the Brain systems every frame via two togglable phase groups.
