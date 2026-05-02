@@ -83,8 +83,8 @@ namespace Hrot.SimHost.Tests
             using var world = new EntityRepository();
             KinematicComponentRegistry.RegisterAll(world);
 
-            Assert.Null(Record.Exception(() => world.GetComponentTable<FormationMember>()));
-            Assert.Null(Record.Exception(() => world.GetComponentTable<FormationRoster>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<FormationFollower>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<FormationController>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<FormationTarget>()));
         }
 

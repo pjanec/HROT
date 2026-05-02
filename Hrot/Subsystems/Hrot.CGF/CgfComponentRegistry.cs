@@ -79,8 +79,8 @@ public static class CgfComponentRegistry
         world.RegisterComponent<VehicleState>();
         world.RegisterComponent<VehicleParams>();
         world.RegisterComponent<NavState>();
-        world.RegisterComponent<FormationMember>();
-        world.RegisterComponent<FormationRoster>();
+        world.RegisterComponent<FormationFollower>();
+        world.RegisterComponent<FormationController>();
         world.RegisterComponent<FormationTarget>();
         world.RegisterComponent<NavigationStatus>();
         world.RegisterComponent<FrustrationTicks>();

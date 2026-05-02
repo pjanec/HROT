@@ -739,7 +739,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<CarKinem.Core.VehicleState>();
             world.RegisterComponent<CarKinem.Core.VehicleParams>();
             world.RegisterComponent<CarKinem.Core.NavState>();
-            world.RegisterComponent<CarKinem.Formation.FormationRoster>();
+            world.RegisterComponent<CarKinem.Formation.FormationController>();
 
             // â”€â”€ Mission components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             world.RegisterComponent<MissionPlanQueue>();
@@ -802,7 +802,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             template.AddComponent(preset);
             template.AddComponent(new CarKinem.Core.VehicleState());
             template.AddComponent(new CarKinem.Core.NavState());
-            template.AddComponent(new CarKinem.Formation.FormationRoster());
+            template.AddComponent(new CarKinem.Formation.FormationController());
             template.AddComponent(new NetworkTransform());
 
             // Simulation transform

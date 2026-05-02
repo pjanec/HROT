@@ -2,6 +2,7 @@ using CarKinem.Core;
 using CarKinem.Formation;
 using Fdp.Core;
 using Fdp.Toolkit.Navigation;
+using Hrot.Core.CommandHierarchy;
 
 namespace Hrot.SimHost
 {
@@ -28,8 +29,8 @@ namespace Hrot.SimHost
             world.RegisterComponent<VehicleState>();
             world.RegisterComponent<VehicleParams>();
             world.RegisterComponent<NavState>();
-            world.RegisterComponent<FormationMember>();
-            world.RegisterComponent<FormationRoster>();
+            world.RegisterComponent<FormationFollower>();
+            world.RegisterComponent<FormationController>();
             world.RegisterComponent<FormationTarget>();
 
             // CQRS navigation status — written by the Muscle tier (NavigationExecutionSystem)
@@ -38,6 +39,10 @@ namespace Hrot.SimHost
 
             // Per-entity stuck-detection counter (replaces static dictionary).
             world.RegisterComponent<FrustrationTicks>();
+
+            // Commander-Subordinate hierarchy components (AI tier)
+            world.RegisterComponent<UnitSubordinate>();
+            world.RegisterComponent<UnitRoster>();
         }
     }
 }

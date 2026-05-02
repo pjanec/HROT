@@ -76,5 +76,17 @@ namespace Hrot.Map.Definitions
 
         /// <summary><c>InitialTargetsIntent</c> — stores target-memory Network IDs + sensor data; resolved to <c>TargetMemory</c>.</summary>
         public const byte InitialTargetsIntent    = 181;
+
+
+        // ── Commander-Subordinate hierarchy components (commander-subordinates workstream) ──
+
+        /// <summary><c>UnitRoster</c> — fixed-capacity subordinate list on the commanding entity (AI tier); NoSave (derived from UnitSubordinate records).</summary>
+        public const byte UnitRoster = 182;
+
+        /// <summary><c>UnitSubordinate</c> — generation-safe commander reference and tactical designation on subordinate entities (AI tier).</summary>
+        public const byte UnitSubordinate = 183;
+
+        /// <summary><c>InitialUnitSubordinateIntent</c> — genesis intent DTO storing network commander ID at scenario load; resolved to <c>UnitSubordinate</c> by <c>GenesisMaterializationSystem</c> (Phase 4).</summary>
+        public const byte InitialUnitSubordinateIntent = 184;
     }
 }

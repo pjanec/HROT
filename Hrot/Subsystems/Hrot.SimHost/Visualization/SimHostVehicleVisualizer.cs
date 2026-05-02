@@ -27,8 +27,6 @@ namespace Hrot.SimHost.Visualization
         private static readonly Color ColTrajectoryNav    = new(173, 255, 47,  255); // green-yellow
         private static readonly Color ColDefault          = new(200, 200, 200, 255); // light-grey
 
-        // ── Construction ──────────────────────────────────────────────────────
-
         /// <param name="shapeLibrary">Shared entity shape library (injected by the composition root).</param>
         public SimHostVehicleVisualizer(IEntityShapeLibrary shapeLibrary)
             : base(shapeLibrary)
@@ -40,8 +38,8 @@ namespace Hrot.SimHost.Visualization
         /// <inheritdoc/>
         protected override Color ResolveColor(ISimulationView view, Entity entity)
         {
-            if (view.HasComponent<FormationRoster>(entity)) return ColFormationLeader;
-            if (view.HasComponent<FormationMember>(entity)) return ColFormationMember;
+            if (view.HasComponent<FormationController>(entity)) return ColFormationLeader;
+            if (view.HasComponent<FormationFollower>(entity)) return ColFormationMember;
 
             if (view.HasComponent<NavState>(entity))
             {

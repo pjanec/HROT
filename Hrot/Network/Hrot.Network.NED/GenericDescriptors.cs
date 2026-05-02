@@ -114,6 +114,19 @@ namespace Hrot.NED.Descriptors
         FORCE_NEUTRAL
     }
 
+    /// <summary>
+    /// DDS-side tactical designation enum.
+    /// </summary>
+    /// IMPORTANT: Must be kept in sync with Hrot.Core.CommandHierarchy.TacticalDesignation
+    public enum eTacticalDesignation : ushort
+    {
+        Undefined   = 0,
+        Commander   = 1,
+        SquadLeader = 2,
+        Wingman     = 3,
+        Support     = 4,
+    }
+
     // Additional metadata for an entity that is not strictly required for existence
     // but crucial for identification and hierarchy.
     [DdsTopic("EntityInfo")]
