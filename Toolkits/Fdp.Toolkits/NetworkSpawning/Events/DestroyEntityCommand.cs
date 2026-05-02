@@ -15,5 +15,10 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         /// Human-readable reason (for logging/diagnostics).
         /// </summary>
         public string? Reason;
+
+        /// <summary>
+        /// True when this command originated from network ingress (e.g. EntityMaster DISPOSE).
+        /// </summary>
+        public bool IsRemote;
     }
 }

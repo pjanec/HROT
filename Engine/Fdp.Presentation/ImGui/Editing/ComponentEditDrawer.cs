@@ -269,18 +269,26 @@ internal sealed class ComponentEditDrawer
 
         if (type == typeof(long))
         {
-            int v = value is long l ? (int)Math.Clamp(l, int.MinValue, (long)int.MaxValue) : 0;
-            bool ok = ImGuiApi.InputInt("##v", ref v);
-            if (ok) value = (long)v;
-            return ok;
+            string strVal = value is long l ? l.ToString() : "0";
+            bool ok = ImGuiApi.InputText("##v", ref strVal, 64);
+            if (ok && long.TryParse(strVal, out long parsed))
+            {
+                value = parsed;
+                return true;
+            }
+            return false;
         }
 
         if (type == typeof(ulong))
         {
-            int v = value is ulong ul ? (int)Math.Clamp((long)ul, 0L, (long)int.MaxValue) : 0;
-            bool ok = ImGuiApi.InputInt("##v", ref v);
-            if (ok) value = (ulong)Math.Max(0, v);
-            return ok;
+            string strVal = value is ulong ul ? ul.ToString() : "0";
+            bool ok = ImGuiApi.InputText("##v", ref strVal, 64);
+            if (ok && ulong.TryParse(strVal, out ulong parsed))
+            {
+                value = parsed;
+                return true;
+            }
+            return false;
         }
 
         if (type == typeof(short))
