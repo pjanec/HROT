@@ -265,9 +265,9 @@ This batch is DONE when:
 ### Rules for Writing Good Batch Instructions
 
 #### 1. **Sizing: Keep Batches Manageable**
-- **Target:** 4-10 hours of work (1-2 days)
-- **Maximum:** 12 hours (beyond this, split into multiple batches)
-- **Minimum:** 2 hours (smaller work doesn't justify batch overhead)
+- **Target:** 10-16 hours of work
+- **Maximum:** 20 hours (beyond this, split into multiple batches)
+- **Minimum:** 4 hours (smaller work doesn't justify batch overhead)
 
 **Why:** Smaller batches = faster feedback cycles, easier reviews, clearer progress
 
