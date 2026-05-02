@@ -141,7 +141,8 @@ namespace Hrot.BDC.Replication
             _eventBus.PublishManaged(new DestroyEntityCommand
             {
                 NetworkId = networkEntityId,
-                Reason = "BDC_EntityMaster disposed"
+                Reason = "BDC_EntityMaster disposed",
+                IsRemote = true,
             });
         }
 

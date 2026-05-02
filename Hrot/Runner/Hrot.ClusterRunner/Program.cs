@@ -192,6 +192,7 @@ class Program
         {
             Raylib_cs.Raylib.SetConfigFlags(Raylib_cs.ConfigFlags.ResizableWindow | Raylib_cs.ConfigFlags.Msaa4xHint);
             Raylib_cs.Raylib.InitWindow(options.WindowWidth, options.WindowHeight, "HROT Cluster Runner");
+            Raylib_cs.Raylib.SetExitKey(Raylib_cs.KeyboardKey.Null);
             Raylib_cs.Raylib.SetTargetFPS(options.TargetFps);
             rlImGui_cs.rlImGui.Setup(true); 
             ImGui.GetIO().ConfigFlags |= ImGuiConfigFlags.DockingEnable;

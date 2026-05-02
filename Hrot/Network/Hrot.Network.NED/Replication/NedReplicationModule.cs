@@ -487,6 +487,9 @@ public sealed class NedReplicationModule : INedReplicationModule
 
             foreach (var cmd in view.ReadManagedEvents<DestroyEntityCommand>())
             {
+                if (!cmd.IsRemote)
+                    continue;
+
                 if (_entityMap.TryGetEntity(cmd.NetworkId, out var entity))
                 {
                     _entityMap.Unregister(cmd.NetworkId, view.Tick);

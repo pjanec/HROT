@@ -1,20 +1,30 @@
 -----------------------------------------
 [IDEA] Event Browser Multi-select & Copy to JSON
-I need to be able to select multiple events in the Event Browser. The Copy To JSON button.
-Ib the context menu of the event list I would like to see "Copy to JSON" 
+I need to be able to select multiple events in the Event Browser.
+Ib the context menu of the event list I would like to see "Copy" item
 which should make a JSON copy of each selected event (from older to newer) and concatenate these and copy the resulting
 text to the clipboard.
 ---------------------------------------
-[BUG] In entity inspector, in Unit roster, in the Subordinate Entities array,
-the entity ids are shown as packed long 4294967297. I would like to see nice entity id like "[10, v21]".
-Also the TacticalDesignations are shown as plain numbers. I would like to see the enum names instead.
-Maybe a custom renderer for the whole component is needed as the arrays are typed as primitive numbers
-because of fixed array limitations...
-BTW when i double click one item in the SubordinateEntities list showing value 4294967297, 
-the StructEdit editor opens but showing 2147483647. Inconsistent!
----------------------------------------
-[BUG] ECS key is closing the editor. It should not!
----------------------------------------
+[BUG] Event browser's "Copy to json" wrongly serializaes the "Reason" field below
+(probably fixedString)
+
+{
+  "EventType": "Fdp.Toolkit.Lifecycle.Events.DestructionOrder",
+  "Frame": 3095,
+  "Payload": {
+    "Entity": {
+      "PackedValue": 4294967297,
+      "IsNull": false,
+      "Index": 1,
+      "Generation": 1
+    },
+    "FrameNumber": 3096,
+    "Reason": {
+      "Length": 11,
+      "IsEmpty": false
+    }
+  }
+}
 ---------------------------------------
 ---------------------------------------
 [BUG]

@@ -112,7 +112,8 @@ namespace Hrot.Map.Common.Replication.Ingress
             _eventBus.PublishManaged(new DestroyEntityCommand
             {
                 NetworkId = networkEntityId,
-                Reason = "EntityMaster disposed"
+                Reason = "EntityMaster disposed",
+                IsRemote = true,
             });
         }
 
