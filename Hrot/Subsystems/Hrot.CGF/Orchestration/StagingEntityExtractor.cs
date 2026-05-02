@@ -431,6 +431,16 @@ namespace Hrot.CGF.Orchestration
                     }
                     comps[ci] = remappedIntent;
                 }
+                else if (comps[ci] is InitialUnitSubordinateIntent subIntent)
+                {
+                    comps[ci] = new InitialUnitSubordinateIntent
+                    {
+                        CommanderNetworkId = oldToNewMap.TryGetValue(subIntent.CommanderNetworkId, out long newId)
+                            ? newId
+                            : subIntent.CommanderNetworkId,
+                        Designation = subIntent.Designation,
+                    };
+                }
             }
         }
 

@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
 using ImGuiNET;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
@@ -102,8 +105,7 @@ public sealed class SharedOrbatPanel
                     if (payload.NativePtr != null)
                     {
                         int passengerId = *(int*)payload.Data;
-                        int vehicleId   = node.EntityId;
-                        HandleDropPayload(passengerId, vehicleId, ctrl);
+                        HandleHierarchyDropPayload(passengerId, node, ctrl);
                     }
                 }
                 ImGui.EndDragDropTarget();
@@ -120,6 +122,22 @@ public sealed class SharedOrbatPanel
             if (node.Depth > 0)
                 ImGui.Unindent(node.Depth * 12f);
         }
+
+        // Background drop target — dropping here removes the entity from its current command hierarchy.
+        ImGui.Dummy(new Vector2(ImGui.GetContentRegionAvail().X, Math.Max(ImGui.GetContentRegionAvail().Y, 20f)));
+        if (ImGui.BeginDragDropTarget())
+        {
+            unsafe
+            {
+                var bgPayload = ImGui.AcceptDragDropPayload("ORBAT_ENTITY");
+                if (bgPayload.NativePtr != null)
+                {
+                    int subordinateId = *(int*)bgPayload.Data;
+                    ctrl.RequestRemoveSubordinate(subordinateId);
+                }
+            }
+            ImGui.EndDragDropTarget();
+        }
     }
 
     // ── Internal logic (exposed for unit testing) ─────────────────────────────
@@ -133,6 +151,20 @@ public sealed class SharedOrbatPanel
     {
         if (passengerId != vehicleId)
             ctrl.RequestEmbark(passengerId, vehicleId);
+    }
+
+    /// <summary>
+    /// Routes a drop onto a specific ORBAT node: assign-as-subordinate when the target
+    /// node accepts subordinates, embark otherwise. Self-drop is always a no-op.
+    /// </summary>
+    internal void HandleHierarchyDropPayload(int subId, OrbatNodeViewModel targetNode, IOrbatController ctrl)
+    {
+        if (subId == targetNode.EntityId) return;
+
+        if (targetNode.CanAcceptSubordinates)
+            ctrl.RequestAssignSubordinate(subId, targetNode.EntityId);
+        else
+            ctrl.RequestEmbark(subId, targetNode.EntityId);
     }
 
     /// <summary>

@@ -7,6 +7,7 @@ using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Toolkit.Scenario;
+using Hrot.Common.Serializers;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Scenario;
@@ -65,6 +66,7 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
     public HrotScenarioLoadHandlerTests()
     {
         _repo        = new EntityRepository();
+        _repo.RegisterManagedComponent<InitialUnitSubordinateIntent>();
         _serializer  = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
         _extractor   = new StubScenarioEntityExtractor();
         _source      = new ScenarioEntityCreationRequestSource();
@@ -177,5 +179,69 @@ public sealed class HrotScenarioLoadHandlerTests : IDisposable
         Assert.True(handler.CanHandle(NodeOpType.PrepareLive));
         Assert.True(handler.CanHandle(NodeOpType.PrepareState));
         Assert.False(handler.CanHandle(NodeOpType.FinalizeLive));
+    }
+
+    // ── CS026-T01: DrainDeferredAcks blocks while InitialUnitSubordinateIntent present ──
+
+    [Fact]
+    public async Task DrainDeferredAcks_WithPendingSubordinateIntent_DoesNotComplete()
+    {
+        var spy     = new SpyZoneManagerService();
+        var handler = new HrotScenarioLoadHandler(_serializer, new StubScenarioLoader(null), spy, _extractor, _source, _idAllocator, world: _repo);
+
+        var intent = new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 0,
+            Operation     = NodeOpType.PrepareState,
+            DomainPayload = new Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload(
+                ScenarioId:  null,
+                TargetState: ClusterState.OperatingLive),
+        };
+
+        var prepareTask = handler.PrepareAsync(intent, default);
+        Assert.False(prepareTask.IsCompleted);
+
+        // Plant a transient intent to block drain.
+        var entity = _repo.CreateEntity();
+        _repo.SetManagedComponent(entity, new InitialUnitSubordinateIntent { CommanderNetworkId = 42 });
+
+        handler.DrainDeferredAcks();
+
+        // Should still be blocked — intent is present.
+        Assert.False(prepareTask.IsCompleted);
+    }
+
+    // ── CS026-T02: DrainDeferredAcks completes once InitialUnitSubordinateIntent removed ──
+
+    [Fact]
+    public async Task DrainDeferredAcks_AfterRemovingSubordinateIntent_Completes()
+    {
+        var spy     = new SpyZoneManagerService();
+        var handler = new HrotScenarioLoadHandler(_serializer, new StubScenarioLoader(null), spy, _extractor, _source, _idAllocator, world: _repo);
+
+        var intent = new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 0,
+            Operation     = NodeOpType.PrepareState,
+            DomainPayload = new Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload(
+                ScenarioId:  null,
+                TargetState: ClusterState.OperatingLive),
+        };
+
+        var prepareTask = handler.PrepareAsync(intent, default);
+        var entity = _repo.CreateEntity();
+        _repo.SetManagedComponent(entity, new InitialUnitSubordinateIntent { CommanderNetworkId = 42 });
+
+        handler.DrainDeferredAcks();
+        Assert.False(prepareTask.IsCompleted);
+
+        // Remove the intent — drain should now complete.
+        _repo.DestroyEntity(entity);
+        handler.DrainDeferredAcks();
+
+        await prepareTask;
+        Assert.True(prepareTask.IsCompleted);
     }
 }

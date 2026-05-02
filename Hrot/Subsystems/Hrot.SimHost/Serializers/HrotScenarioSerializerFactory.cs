@@ -15,6 +15,7 @@ namespace Hrot.SimHost.Serializers
                 .RegisterTranslator(new VisHierarchyNodeTranslator())
                 .RegisterTranslator(new IsEmbarkedTagTranslator())
                 .RegisterTranslator(new PersonalRouteRefTranslator())
+                .RegisterTranslator(new UnitSubordinateTranslator())
                 .Build();
         }
     }

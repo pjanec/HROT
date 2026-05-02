@@ -132,6 +132,7 @@ namespace Hrot.SimHost.Tests
             _goldRepo.RegisterComponent<ActiveMissionPlan>();
             _goldRepo.RegisterComponent<EpisodeTag>();
             _goldRepo.RegisterManagedComponent<InitialPassengersIntent>();
+            _goldRepo.RegisterManagedComponent<InitialUnitSubordinateIntent>();
         }
 
         public void Dispose() => _goldRepo.Dispose();
@@ -644,6 +645,103 @@ namespace Hrot.SimHost.Tests
             // passengerOldId 2000 must have been remapped to 3002.
             Assert.Equal(1, intent.PassengerNetworkIds.Count);
             Assert.Equal(3002L, intent.PassengerNetworkIds[0]);
+        }
+
+        // ── CS027-T01: InitialUnitSubordinateIntent CommanderNetworkId remapped ────
+
+        private sealed class StubUnitSubordinateIntentTranslator : IEntityScenarioTranslator
+        {
+            private const string DomKey = "_stubSubordinate";
+            private readonly long _commanderNetId;
+
+            public StubUnitSubordinateIntentTranslator(long commanderNetId)
+                => _commanderNetId = commanderNetId;
+
+            public BitMask256 GetConsumedComponentsMask() => new BitMask256();
+
+            public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
+
+            public bool CanTranslate(EntityRepository repo, Entity entity)
+            {
+                int typeId = GlobalComponentIds.SimTransform;
+                return repo.GetHeader(entity.Index).ComponentMask.IsSet(typeId);
+            }
+
+            public Dictionary<string, object> Extract(
+                EntityRepository repo, Entity entity, IGuidResolver guidResolver)
+                => new Dictionary<string, object>
+                {
+                    [DomKey] = new JsonObject { ["CommanderId"] = _commanderNetId }
+                };
+
+            public void Inject(
+                EntityRepository repo, Entity entity,
+                Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
+            {
+                if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
+                var id = ((JsonObject)raw)["CommanderId"]!.GetValue<long>();
+                repo.SetManagedComponent(entity, new InitialUnitSubordinateIntent { CommanderNetworkId = id });
+            }
+        }
+
+        [Fact]
+        public void Extract_InitialUnitSubordinateIntent_RemapsCommanderNetworkIdViaOldToNewMap()
+        {
+            const long subordinateOldId = 1001L;
+            const long commanderOldId   = 2001L;
+
+            var subordinate = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(subordinate, new SimTransform());
+            _goldRepo.SetComponent(subordinate, new NetworkIdentity { Value = subordinateOldId });
+
+            var commander = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(commander, new NetworkIdentity { Value = commanderOldId });
+
+            var allocator = new StubIdAllocator(3001); // subordinate -> 3001, commander -> 3002
+
+            var serializer = BuildSerializer(new StubUnitSubordinateIntentTranslator(commanderOldId));
+            var json = SerializeGoldRepo(_goldRepo, serializer);
+
+            var requests = new StagingEntityExtractor()
+                .Extract(serializer, json, allocator);
+
+            var subReq = requests.Single(r => r.PreAllocatedNetworkId == 3001L);
+
+            var intent = subReq.InitialComponents!
+                .OfType<InitialUnitSubordinateIntent>()
+                .Single();
+
+            // commanderOldId 2001 must have been remapped to 3002.
+            Assert.Equal(3002L, intent.CommanderNetworkId);
+        }
+
+        // ── CS027-T02: Unknown CommanderNetworkId preserved as-is ─────────────────
+
+        [Fact]
+        public void Extract_InitialUnitSubordinateIntent_PreservesUnknownCommanderNetworkId()
+        {
+            const long subordinateOldId     = 1001L;
+            const long unknownCommanderId   = 9999L;
+
+            var subordinate = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(subordinate, new SimTransform());
+            _goldRepo.SetComponent(subordinate, new NetworkIdentity { Value = subordinateOldId });
+
+            var allocator = new StubIdAllocator(3001);
+
+            var serializer = BuildSerializer(new StubUnitSubordinateIntentTranslator(unknownCommanderId));
+            var json = SerializeGoldRepo(_goldRepo, serializer);
+
+            var requests = new StagingEntityExtractor()
+                .Extract(serializer, json, allocator);
+
+            var req = Assert.Single(requests);
+            var intent = req.InitialComponents!
+                .OfType<InitialUnitSubordinateIntent>()
+                .Single();
+
+            // Unknown ID 9999 has no mapping — must be preserved unchanged.
+            Assert.Equal(unknownCommanderId, intent.CommanderNetworkId);
         }
     }
 }

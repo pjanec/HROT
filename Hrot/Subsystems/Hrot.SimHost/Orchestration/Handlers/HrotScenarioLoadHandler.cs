@@ -221,6 +221,7 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
             foreach (var _ in _world.Query().WithManaged<InitialHierarchyIntent>().Build()) return;
             foreach (var _ in _world.Query().WithManaged<InitialTargetsIntent>().Build()) return;
             foreach (var _ in _world.Query().WithManaged<InitialRouteIntent>().Build()) return;
+            foreach (var _ in _world.Query().WithManaged<InitialUnitSubordinateIntent>().Build()) return;
         }
 
         _operatingLiveTcs.TrySetResult(null);

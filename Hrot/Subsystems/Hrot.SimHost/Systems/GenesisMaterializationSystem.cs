@@ -1,5 +1,7 @@
 using System;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
+using Fdp.Core.Logging;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
@@ -49,6 +51,7 @@ namespace Hrot.SimHost.Systems
                 MaterializeHierarchy(view, cmd, repo);
                 MaterializeRoute(view, cmd, repo);
                 MaterializeTargets(view, cmd, repo);
+                MaterializeUnitSubordinate(view, cmd, repo);
                 cmd.Playback(repo);
             }
             finally
@@ -142,6 +145,62 @@ namespace Hrot.SimHost.Systems
                     continue;
                 repo.SetComponent(entity, new PersonalRouteRef { RouteEntity = route });
                 cmd.RemoveManagedComponent<InitialRouteIntent>(entity);
+            }
+        }
+
+        private unsafe void MaterializeUnitSubordinate(ISimulationView view, EntityCommandBuffer cmd, EntityRepository repo)
+        {
+            foreach (var entity in view.Query().WithManaged<InitialUnitSubordinateIntent>().Build())
+            {
+                var intent = view.GetManagedComponentRO<InitialUnitSubordinateIntent>(entity);
+
+                if (intent.CommanderNetworkId == 0)
+                {
+                    cmd.RemoveManagedComponent<InitialUnitSubordinateIntent>(entity);
+                    continue;
+                }
+
+                if (!_entityMap.TryGetEntity(intent.CommanderNetworkId, out var commander) || !view.IsAlive(commander))
+                {
+                    // Escape hatch: if the entity is already Active, the commander will never arrive.
+                    if (repo.GetLifecycleState(entity) == EntityLifecycle.Active)
+                    {
+                        FdpLog<GenesisMaterializationSystem>.Warn(
+                            $"[GenesisMaterializationSystem] Commander network ID {intent.CommanderNetworkId} " +
+                            $"not found for entity {entity.Index}; dropping intent.");
+                        cmd.RemoveManagedComponent<InitialUnitSubordinateIntent>(entity);
+                    }
+                    // Otherwise retry next tick.
+                    continue;
+                }
+
+                // Capacity check — do not set UnitSubordinate if roster is full.
+                var roster = repo.HasComponent<UnitRoster>(commander)
+                    ? repo.GetComponent<UnitRoster>(commander)
+                    : new UnitRoster();
+
+                if (roster.Count >= UnitRoster.Capacity)
+                {
+                    FdpLog<GenesisMaterializationSystem>.Warn(
+                        $"[GenesisMaterializationSystem] Commander {commander.Index} roster is full; " +
+                        $"cannot add subordinate {entity.Index}.");
+                    cmd.RemoveManagedComponent<InitialUnitSubordinateIntent>(entity);
+                    continue;
+                }
+
+                // Atomic write: subordinate component + roster append.
+                repo.SetComponent(entity, new UnitSubordinate
+                {
+                    Commander   = commander,
+                    Designation = intent.Designation,
+                });
+
+                roster.SubordinateEntities[roster.Count]  = (long)entity.PackedValue;
+                roster.TacticalDesignations[roster.Count] = (ushort)intent.Designation;
+                roster.Count++;
+                repo.SetComponent(commander, roster);
+
+                cmd.RemoveManagedComponent<InitialUnitSubordinateIntent>(entity);
             }
         }
 

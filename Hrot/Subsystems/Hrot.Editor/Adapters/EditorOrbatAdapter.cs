@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.Behavior.Events;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
@@ -111,7 +112,8 @@ namespace Hrot.Editor.Adapters
                         Name:           name,
                         Depth:          depth,
                         HasChildren:    hasChildren,
-                        IsPendingDelete: false));
+                        IsPendingDelete: false,
+                        CanAcceptSubordinates: false));
                 }
 
                 // Expand children only if this node is expanded (or no expand filter is active)
@@ -171,6 +173,24 @@ namespace Hrot.Editor.Adapters
             {
                 Passenger = passenger,
             });
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>Subordination assignment is not yet implemented in the Editor; see CS020.</remarks>
+        public void RequestAssignSubordinate(int subordinateEntityId, int commanderEntityId)
+        {
+            FdpLog<EditorOrbatAdapter>.Warn(
+                "[EditorOrbatAdapter] RequestAssignSubordinate not yet implemented " +
+                "(subordinate={0}, commander={1}).", subordinateEntityId, commanderEntityId);
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>Subordination removal is not yet implemented in the Editor; see CS020.</remarks>
+        public void RequestRemoveSubordinate(int subordinateEntityId)
+        {
+            FdpLog<EditorOrbatAdapter>.Warn(
+                "[EditorOrbatAdapter] RequestRemoveSubordinate not yet implemented " +
+                "(subordinate={0}).", subordinateEntityId);
         }
     }
 }

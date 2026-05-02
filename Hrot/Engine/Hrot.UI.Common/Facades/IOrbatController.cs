@@ -32,4 +32,17 @@ public interface IOrbatController
     /// </summary>
     /// <param name="passengerEntityId">The network entity ID of the passenger to disembark.</param>
     void RequestDisembark(int passengerEntityId);
+
+    /// <summary>
+    /// Requests that the subordinate entity be assigned to the specified commander entity.
+    /// </summary>
+    /// <param name="subordinateEntityId">The network entity ID of the entity to assign as subordinate.</param>
+    /// <param name="commanderEntityId">The network entity ID of the commanding entity.</param>
+    void RequestAssignSubordinate(int subordinateEntityId, int commanderEntityId);
+
+    /// <summary>
+    /// Requests that the entity be removed from its current command hierarchy.
+    /// </summary>
+    /// <param name="subordinateEntityId">The network entity ID of the subordinate to remove.</param>
+    void RequestRemoveSubordinate(int subordinateEntityId);
 }

@@ -10,6 +10,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Scenario;
 using Hrot.CGF.Orchestration;
 using Hrot.CGF.Orchestration.Handlers;
+using Hrot.Common.Serializers;
 using Hrot.Core.Network;
 using Xunit;
 
@@ -249,6 +250,87 @@ namespace Hrot.SimHost.Tests
             private readonly Func<string, string?> _fn;
             public LambdaScenarioLoader(Func<string, string?> fn) => _fn = fn;
             public string? TryLoadScenarioJson(string scenarioId) => _fn(scenarioId);
+        }
+
+        // ── CS026-T03: DrainDeferredAcks blocks while InitialUnitSubordinateIntent present ──
+
+        [Fact]
+        public async Task DrainDeferredAcks_WithPendingSubordinateIntent_DoesNotComplete()
+        {
+            var source = new ScenarioEntityCreationRequestSource();
+            using var world = new EntityRepository();
+            world.RegisterManagedComponent<InitialUnitSubordinateIntent>();
+            var handler = new CgfScenarioLoadHandler(
+                new ScenarioSerializerBuilder(SubsystemType).Build(),
+                new LambdaScenarioLoader(_ => null),
+                new StagingEntityExtractor(),
+                source,
+                new StubIdAllocator(100),
+                world);
+
+            var intent = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = NodeOpType.PrepareState,
+                DomainPayload = new EditLoadHandlerPayload(
+                    ScenarioId:  null,
+                    TargetState: ClusterState.OperatingLive),
+            };
+
+            var prepareTask = handler.PrepareAsync(intent, CancellationToken.None);
+            Assert.False(prepareTask.IsCompleted);
+
+            // Plant a transient intent to block drain.
+            var entity = world.CreateEntity();
+            world.SetManagedComponent(entity, new InitialUnitSubordinateIntent { CommanderNetworkId = 99 });
+
+            handler.DrainDeferredAcks();
+
+            // Should still be blocked.
+            await Task.Delay(10);
+            Assert.False(prepareTask.IsCompleted);
+        }
+
+        // ── CS026-T04: DrainDeferredAcks completes once InitialUnitSubordinateIntent removed ──
+
+        [Fact]
+        public async Task DrainDeferredAcks_AfterRemovingSubordinateIntent_Completes()
+        {
+            var source = new ScenarioEntityCreationRequestSource();
+            using var world = new EntityRepository();
+            world.RegisterManagedComponent<InitialUnitSubordinateIntent>();
+            var handler = new CgfScenarioLoadHandler(
+                new ScenarioSerializerBuilder(SubsystemType).Build(),
+                new LambdaScenarioLoader(_ => null),
+                new StagingEntityExtractor(),
+                source,
+                new StubIdAllocator(100),
+                world);
+
+            var intent = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = NodeOpType.PrepareState,
+                DomainPayload = new EditLoadHandlerPayload(
+                    ScenarioId:  null,
+                    TargetState: ClusterState.OperatingLive),
+            };
+
+            var prepareTask = handler.PrepareAsync(intent, CancellationToken.None);
+            var entity = world.CreateEntity();
+            world.SetManagedComponent(entity, new InitialUnitSubordinateIntent { CommanderNetworkId = 99 });
+
+            handler.DrainDeferredAcks();
+            Assert.False(prepareTask.IsCompleted);
+
+            // Remove the intent — drain should now complete.
+            world.DestroyEntity(entity);
+            handler.DrainDeferredAcks();
+
+            await prepareTask;
+            Assert.True(prepareTask.IsCompleted);
         }
     }
 }

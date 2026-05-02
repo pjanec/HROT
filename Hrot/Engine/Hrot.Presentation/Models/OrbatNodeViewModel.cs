@@ -10,9 +10,11 @@ namespace Hrot.UI.Common.Models;
 /// <param name="Depth">Zero-based tree depth used for UI indentation.</param>
 /// <param name="HasChildren">Whether this node has child nodes in the hierarchy.</param>
 /// <param name="IsPendingDelete">Whether the entity is marked for deletion and should render grayed out.</param>
+/// <param name="CanAcceptSubordinates">Whether this node represents a commanding entity that can accept subordinate assignments.</param>
 public sealed record OrbatNodeViewModel(
     int EntityId,
     string Name,
     int Depth,
     bool HasChildren,
-    bool IsPendingDelete);
+    bool IsPendingDelete,
+    bool CanAcceptSubordinates);

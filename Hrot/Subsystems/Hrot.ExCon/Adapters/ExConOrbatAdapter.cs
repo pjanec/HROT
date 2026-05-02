@@ -100,7 +100,8 @@ public sealed class ExConOrbatAdapter : IOrbatDataProvider, IOrbatController
                     Name:            name,
                     Depth:           depth,
                     HasChildren:     hasChildren,
-                    IsPendingDelete: _logic.IsEntityPendingDelete(entityId)));
+                    IsPendingDelete: _logic.IsEntityPendingDelete(entityId),
+                    CanAcceptSubordinates: false));
             }
 
             // Recurse into children when filter is active (scan full subtree) or node is expanded.
@@ -154,5 +155,23 @@ public sealed class ExConOrbatAdapter : IOrbatDataProvider, IOrbatController
         FdpLog<ExConOrbatAdapter>.Warn(
             "[ExConOrbatAdapter] ExCon disembarkation not yet implemented over DDS " +
             "(passenger={0}).", passengerEntityId);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>Subordination assignment is not yet implemented in ExCon; see CS021.</remarks>
+    public void RequestAssignSubordinate(int subordinateEntityId, int commanderEntityId)
+    {
+        FdpLog<ExConOrbatAdapter>.Warn(
+            "[ExConOrbatAdapter] RequestAssignSubordinate not yet implemented over DDS " +
+            "(subordinate={0}, commander={1}).", subordinateEntityId, commanderEntityId);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>Subordination removal is not yet implemented in ExCon; see CS021.</remarks>
+    public void RequestRemoveSubordinate(int subordinateEntityId)
+    {
+        FdpLog<ExConOrbatAdapter>.Warn(
+            "[ExConOrbatAdapter] RequestRemoveSubordinate not yet implemented over DDS " +
+            "(subordinate={0}).", subordinateEntityId);
     }
 }

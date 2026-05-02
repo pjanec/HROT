@@ -1,5 +1,6 @@
 using System;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Perception;
@@ -35,6 +36,9 @@ namespace Hrot.SimHost.Tests
             _repo.RegisterManagedComponent<InitialHierarchyIntent>();
             _repo.RegisterManagedComponent<InitialRouteIntent>();
             _repo.RegisterManagedComponent<InitialTargetsIntent>();
+            _repo.RegisterComponent<UnitRoster>();
+            _repo.RegisterComponent<UnitSubordinate>();
+            _repo.RegisterManagedComponent<InitialUnitSubordinateIntent>();
             _entityMap = new NetworkEntityMap();
         }
 
@@ -185,6 +189,109 @@ namespace Hrot.SimHost.Tests
             Assert.True(_repo.HasComponent<TargetMemory>(entity));
             var mem = _repo.GetComponent<TargetMemory>(entity);
             Assert.Equal(1, mem.Count);
+        }
+
+        // ── CS014-T01: UnitSubordinate + UnitRoster written when commander in map ──
+
+        [Fact]
+        public void UnitSubordinate_WrittenWhenCommanderInMap()
+        {
+            var commander  = _repo.CreateEntity();
+            var subordinate = _repo.CreateEntity();
+
+            const long commanderNetId = 100L;
+            _entityMap.Register(commanderNetId, commander);
+
+            _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
+            {
+                CommanderNetworkId = commanderNetId,
+                Designation        = TacticalDesignation.SquadLeader,
+            });
+
+            var sys = CreateAndStartSystem();
+            sys.Execute(_repo, 0.016f);
+
+            Assert.False(_repo.HasManagedComponent<InitialUnitSubordinateIntent>(subordinate));
+            Assert.True(_repo.HasComponent<UnitSubordinate>(subordinate));
+            var sub = _repo.GetComponent<UnitSubordinate>(subordinate);
+            Assert.Equal(commander, sub.Commander);
+            Assert.Equal(TacticalDesignation.SquadLeader, sub.Designation);
+
+            Assert.True(_repo.HasComponent<UnitRoster>(commander));
+            var roster = _repo.GetComponent<UnitRoster>(commander);
+            Assert.Equal(1, roster.Count);
+        }
+
+        // -- CS014-T02: Intent preserved when commander not yet in map --------------------
+
+        [Fact]
+        public void UnitSubordinate_DeferredWhenCommanderNotInMap()
+        {
+            var subordinate = _repo.CreateEntity();
+            // Set entity to Constructing so escape-hatch does not fire.
+            _repo.SetLifecycleState(subordinate, EntityLifecycle.Constructing);
+
+            _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
+            {
+                CommanderNetworkId = 999L,
+                Designation        = TacticalDesignation.Wingman,
+            });
+
+            var sys = CreateAndStartSystem();
+            sys.Execute(_repo, 0.016f);
+
+            Assert.True(_repo.HasManagedComponent<InitialUnitSubordinateIntent>(subordinate));
+            Assert.False(_repo.HasComponent<UnitSubordinate>(subordinate));
+        }
+
+        // ── CS014-T03: Intent removed when CommanderNetworkId == 0 ────────────────
+
+        [Fact]
+        public void UnitSubordinate_IntentRemovedWhenNetworkIdIsZero()
+        {
+            var subordinate = _repo.CreateEntity();
+
+            _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
+            {
+                CommanderNetworkId = 0L,
+                Designation        = TacticalDesignation.SquadLeader,
+            });
+
+            var sys = CreateAndStartSystem();
+            sys.Execute(_repo, 0.016f);
+
+            Assert.False(_repo.HasManagedComponent<InitialUnitSubordinateIntent>(subordinate));
+            Assert.False(_repo.HasComponent<UnitSubordinate>(subordinate));
+        }
+
+        // ── CS014-T04: Intent dropped when roster at capacity ─────────────────────
+
+        [Fact]
+        public unsafe void UnitSubordinate_IntentDroppedWhenRosterFull()
+        {
+            var commander = _repo.CreateEntity();
+            var roster    = new UnitRoster();
+            roster.Count  = UnitRoster.Capacity;
+            _repo.SetComponent(commander, roster);
+
+            const long commanderNetId = 200L;
+            _entityMap.Register(commanderNetId, commander);
+
+            var subordinate = _repo.CreateEntity();
+            _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
+            {
+                CommanderNetworkId = commanderNetId,
+                Designation        = TacticalDesignation.Support,
+            });
+
+            var sys = CreateAndStartSystem();
+            sys.Execute(_repo, 0.016f);
+
+            Assert.False(_repo.HasManagedComponent<InitialUnitSubordinateIntent>(subordinate));
+            Assert.False(_repo.HasComponent<UnitSubordinate>(subordinate));
+
+            var rosterAfter = _repo.GetComponent<UnitRoster>(commander);
+            Assert.Equal(UnitRoster.Capacity, rosterAfter.Count);
         }
     }
 }

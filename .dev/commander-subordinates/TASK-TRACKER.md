@@ -29,10 +29,10 @@
 
 **Goal:** Update DDS descriptor and translators so the network boundary converts between integer IDs and ECS Entity handles cleanly.
 
-- [ ] **TASK-CS008** Extend EntityInfo DDS descriptor [details](./TASK-DETAIL.md#task-cs008--extend-entityinfo-dds-descriptor)
-- [ ] **TASK-CS009** Remove CommanderId from Fdp.Core.EntityInfo [details](./TASK-DETAIL.md#task-cs009--remove-commanderid-from-fdpcoreentityinfo)
-- [ ] **TASK-CS010** Update EntityInfoEgressTranslator [details](./TASK-DETAIL.md#task-cs010--update-entityinfoegresstranslator)
-- [ ] **TASK-CS011** Update EntityInfoIngressTranslator (with deferred queue) [details](./TASK-DETAIL.md#task-cs011--update-entityinfoingresstranslator-with-deferred-queue)
+- [x] **TASK-CS008** Extend EntityInfo DDS descriptor [details](./TASK-DETAIL.md#task-cs008--extend-entityinfo-dds-descriptor)
+- [x] **TASK-CS009** Remove CommanderId from Fdp.Core.EntityInfo [details](./TASK-DETAIL.md#task-cs009--remove-commanderid-from-fdpcoreentityinfo)
+- [x] **TASK-CS010** Update EntityInfoEgressTranslator [details](./TASK-DETAIL.md#task-cs010--update-entityinfoegresstranslator)
+- [x] **TASK-CS011** Update EntityInfoIngressTranslator (with deferred queue) [details](./TASK-DETAIL.md#task-cs011--update-entityinfoingresstranslator-with-deferred-queue)
 
 ---
 
@@ -41,8 +41,8 @@
 **Goal:** Make command hierarchy survive scenario save/load cycles without persisting volatile entity handles.
 
 - [x] **TASK-CS012** InitialUnitSubordinateIntent component [details](./TASK-DETAIL.md#task-cs012--initialunitsubordinateintent-component)
-- [ ] **TASK-CS013** UnitSubordinateTranslator (IEntityScenarioTranslator) [details](./TASK-DETAIL.md#task-cs013--unitsubordinatetranslator-ientityscenariotranslator)
-- [ ] **TASK-CS014** GenesisMaterializationSystem: MaterializeUnitSubordinate [details](./TASK-DETAIL.md#task-cs014--genesismaterializationsystem-materializeunitsubordinate)
+- [x] **TASK-CS013** UnitSubordinateTranslator (IEntityScenarioTranslator) [details](./TASK-DETAIL.md#task-cs013--unitsubordinatetranslator-ientityscenariotranslator)
+- [x] **TASK-CS014** GenesisMaterializationSystem: MaterializeUnitSubordinate [details](./TASK-DETAIL.md#task-cs014--genesismaterializationsystem-materializeunitsubordinate)
 
 ---
 
@@ -59,9 +59,9 @@
 
 **Goal:** Allow operators to reassign command hierarchy via drag-drop in both the offline Editor and the distributed ExCon.
 
-- [ ] **TASK-CS017** OrbatNodeViewModel: CanAcceptSubordinates flag [details](./TASK-DETAIL.md#task-cs017--orbatnodeviewmodel-canacceptsubordinates-flag)
-- [ ] **TASK-CS018** IOrbatController: subordination methods [details](./TASK-DETAIL.md#task-cs018--iorbatcontroller-subordination-methods)
-- [ ] **TASK-CS019** SharedOrbatPanel: subordination drag-drop [details](./TASK-DETAIL.md#task-cs019--sharedorbatpanel-subordination-drag-drop)
+- [x] **TASK-CS017** OrbatNodeViewModel: CanAcceptSubordinates flag [details](./TASK-DETAIL.md#task-cs017--orbatnodeviewmodel-canacceptsubordinates-flag)
+- [x] **TASK-CS018** IOrbatController: subordination methods [details](./TASK-DETAIL.md#task-cs018--iorbatcontroller-subordination-methods)
+- [x] **TASK-CS019** SharedOrbatPanel: subordination drag-drop [details](./TASK-DETAIL.md#task-cs019--sharedorbatpanel-subordination-drag-drop)
 - [ ] **TASK-CS020** EditorOrbatAdapter full implementation [details](./TASK-DETAIL.md#task-cs020--editororbatadapter-full-implementation)
 - [ ] **TASK-CS021** ExConOrbatAdapter full implementation [details](./TASK-DETAIL.md#task-cs021--exconorbatadapter-full-implementation)
 
@@ -79,8 +79,8 @@
 
 **Goal:** Ensure loaded scenarios arrive in the live cluster with all commander network IDs intact and all intent components resolved before physical simulation starts.
 
-- [ ] **TASK-CS026** Cluster load handlers: InitialUnitSubordinateIntent drain guard [details](./TASK-DETAIL.md#task-cs026--cluster-load-handlers-initialunitsubordinateintent-drain-check)
-- [ ] **TASK-CS027** StagingEntityExtractor: remap CommanderNetworkId on load [details](./TASK-DETAIL.md#task-cs027--stagingentityextractor-remap-commandernetworkid-on-load)
+- [x] **TASK-CS026** Cluster load handlers: InitialUnitSubordinateIntent drain guard [details](./TASK-DETAIL.md#task-cs026--cluster-load-handlers-initialunitsubordinateintent-drain-check)
+- [x] **TASK-CS027** StagingEntityExtractor: remap CommanderNetworkId on load [details](./TASK-DETAIL.md#task-cs027--stagingentityextractor-remap-commandernetworkid-on-load)
 
 ---
 
@@ -96,5 +96,5 @@
 
 **Goal:** Keep the test suite green throughout the refactor and validate distributed boundary correctness.
 
-- [ ] **TASK-CS023** Component registry integration test update [details](./TASK-DETAIL.md#task-cs023--component-registry-integration-test-update)
+- [x] **TASK-CS023** Component registry integration test update [details](./TASK-DETAIL.md#task-cs023--component-registry-integration-test-update)
 - [ ] **TASK-CS025** Integration tests: distributed boundary validation [details](./TASK-DETAIL.md#task-cs025--integration-tests-distributed-boundary-validation)
