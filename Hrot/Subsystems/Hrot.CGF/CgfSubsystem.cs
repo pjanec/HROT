@@ -299,6 +299,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context.Kernel.RegisterGlobalSystem(spawnSystem);
         _context.Kernel.RegisterGlobalSystem(requestSystem);
         _context.Kernel.RegisterGlobalSystem(finalizationSystem);
+        _context.Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(_entityMap!));
 
         // 4. Network-dependent deletion routing: only when a live adapter exists.
         if (adapters != null)

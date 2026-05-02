@@ -13,6 +13,7 @@ using Hrot.Map.Common.Components;
 using Hrot.UI.Common.Facades;
 using Hrot.ScenarioEditor.Tools;
 using Fdp.Toolkit.Replication;
+using Hrot.Core.Network;
 
 namespace Hrot.Editor.Adapters
 {
@@ -33,6 +34,7 @@ namespace Hrot.Editor.Adapters
         private readonly FdpEventBus        _bus;
         private readonly JsonAttributeCompiler? _jsonCompiler;
         private readonly ITkbDatabase?      _tkbDb;
+        private readonly ScenarioEntityCreationRequestSource? _requestSource;
 
         /// <summary>
         /// The TKB entity type most recently passed to <see cref="StartPlacementMode"/>.
@@ -58,12 +60,14 @@ namespace Hrot.Editor.Adapters
             MapCanvas canvas,
             FdpEventBus bus,
             JsonAttributeCompiler? jsonCompiler = null,
-            ITkbDatabase? tkbDb = null)
+            ITkbDatabase? tkbDb = null,
+            ScenarioEntityCreationRequestSource? requestSource = null)
         {
             _canvas       = canvas;
             _bus          = bus;
             _jsonCompiler = jsonCompiler;
             _tkbDb        = tkbDb;
+            _requestSource = requestSource;
         }
 
         /// <inheritdoc/>
@@ -107,7 +111,35 @@ namespace Hrot.Editor.Adapters
                         cmd.InitialComponents = ctx.FlushComponents();
                     }
 
-                    _bus.PublishManaged(cmd);
+
+                    // Preserve explicit unmanaged fields from the tool.
+                    // EntityCreationRequest expects all spatial overrides to be inside the generic list.
+                    if (cmd.InitialTransform.HasValue)
+                    {
+                        cmd.InitialComponents.Add(cmd.InitialTransform.Value);
+                    }
+                    if (cmd.InitialVelocity.HasValue)
+                    {
+                        cmd.InitialComponents.Add(cmd.InitialVelocity.Value);
+                    }
+
+
+                    if (_requestSource != null)
+                    {
+                        _requestSource.Enqueue(new EntityCreationRequest
+                        {
+                            RequestId             = cmd.RequestId,
+                            OwnerAppInstanceId    = cmd.OwnerNodeId,
+                            TkbType               = cmd.TkbType,
+                            DisType               = cmd.DisType,
+                            InitialComponents     = cmd.InitialComponents,
+                            InitialAttributesJson = cmd.InitialAttributesJson
+                        });
+                    }
+                    else
+                    {
+                        _bus.PublishManaged(cmd);
+                    }
                 },
                 tkbType:               tkbType,
                 initialPropertiesJson: initialPropertiesJson,

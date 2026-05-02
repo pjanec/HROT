@@ -1,3 +1,11 @@
+-----------------------------------------
+[IDEA] Event Browser Multi-select & Copy to JSON
+I need to be able to select multiple events in the Event Browser. The Copy To JSON button.
+Ib the context menu of the event list I would like to see "Copy to JSON" 
+which should make a JSON copy of each selected event (from older to newer) and concatenate these and copy the resulting
+text to the clipboard.
+---------------------------------------
+
 [BUG]
 You have just uncovered a severe memory-misalignment bug in the FDP engine's `DeltaQueryEnumerator` optimization. Your intuition is 100% correct: **the component version is being written perfectly, but `QueryDelta` is looking at the wrong chunk of memory.**
 

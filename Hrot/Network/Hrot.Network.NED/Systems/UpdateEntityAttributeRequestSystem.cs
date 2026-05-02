@@ -139,7 +139,7 @@ namespace Hrot.Map.Common.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            _requestSource.ProcessRequests(req => ProcessRequest(req, (EntityRepository)view));
+            _requestSource.ProcessRequests(req => ProcessRequest(req, view, (EntityRepository)view));
         }
 
         public void Dispose()
@@ -150,7 +150,7 @@ namespace Hrot.Map.Common.Systems
 
         // ── Request handling ───────────────────────────────────────────────────
 
-        private void ProcessRequest(UpdateEntityAttributeRequest req, EntityRepository repo)
+        private void ProcessRequest(UpdateEntityAttributeRequest req, ISimulationView view, EntityRepository repo)
         {
             // 1. Resolve the entity from the network ID.
             if (!_entityMap.TryGetEntity((long)req.EntityId, out var entity))
@@ -205,7 +205,7 @@ namespace Hrot.Map.Common.Systems
             if (!string.IsNullOrEmpty(req.AttributePatchJson))
             {
                 req.AttributePatchJson = InterceptCommanderId(
-                    req.AttributePatchJson, req.EntityId, entity, repo,
+                    req.AttributePatchJson, req.EntityId, entity, view, repo,
                     out commanderIntercepted);
             }
 
@@ -272,7 +272,7 @@ namespace Hrot.Map.Common.Systems
         /// a sanitized JSON string without the "CommanderId" key.
         /// </summary>
         private string InterceptCommanderId(
-            string json, int entityNetId, Entity entity, EntityRepository repo,
+            string json, int entityNetId, Entity entity, ISimulationView view, EntityRepository repo,
             out bool intercepted)
         {
             intercepted = false;
@@ -285,6 +285,14 @@ namespace Hrot.Map.Common.Systems
 
                 intercepted = true;
                 long commanderNetId = cmdIdProp.GetInt64();
+                long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(1L, 0);
+                if (!Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(view, entity, packedKey))
+                {
+                    FdpLog<UpdateEntityAttributeRequestSystem>.Warn(
+                        "[UpdAttrReq] Unauthorized hierarchy patch attempt on entity {0}. Dropping change.",
+                        entityNetId);
+                    return RebuildJsonWithout(root, "CommanderId");
+                }
 
                 if (commanderNetId != 0)
                 {

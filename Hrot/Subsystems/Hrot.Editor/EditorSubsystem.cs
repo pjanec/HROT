@@ -460,6 +460,7 @@ namespace Hrot.Editor
             _kernel.RegisterModule(elm);
             _kernel.RegisterModule(new SimHostModule(spawnSys));
             _kernel.RegisterGlobalSystem(requestSystem);
+            _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));
 
             // ── 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ──
             var logicPacks = new List<IEcsModule> { simHostCorePack, perceptionMod, cgfLogicPackInst };
@@ -521,7 +522,7 @@ namespace Hrot.Editor
                 // Build the JSON→ECS attribute compiler with the geo-transform so that
                 // geodetic spawn coordinates are projected correctly on entity placement.
                 var jsonCompiler  = Hrot.SimHost.AttributeCompilerFactory.Build(geoTransform);
-                _spawnAdapter     = new EditorSpawnAdapter(_canvas!, _world.Bus, jsonCompiler, tkbDb);
+                _spawnAdapter     = new EditorSpawnAdapter(_canvas!, _world.Bus, jsonCompiler, tkbDb, scenarioLoadSource);
                 _zoneAdapter      = new EditorZoneAdapter(_canvas!, _world.Bus);
                 _mapConfigAdapter = new EditorMapConfigAdapter(_mapViewConfig, _canvas!);
                 _selectionState   = new DefaultSelectionState();
@@ -664,6 +665,7 @@ namespace Hrot.Editor
                     new(TkbEntityTypes.Insurgent,          "Insurgent"),
                     new(TkbEntityTypes.Unit_TankPlatoon,   "Tank Platoon"),
                     new(TkbEntityTypes.Unit_InfantrySquad, "Infantry Squad"),
+                    new(TkbEntityTypes.Unit_TankPlatoon_Auto, "Tank Platoon (Auto-Spawn)"),
                 };
 
                 _spawnerPanel     = new SpawnerPanel(tkbCatalog);
@@ -1192,8 +1194,18 @@ namespace Hrot.Editor
 
             public void RegisterSystems(ISystemRegistry registry)
             {
-                foreach (var sys in _cgfSimSystems)    registry.RegisterSystem(sys);
-                foreach (var sys in _muscleSimSystems) registry.RegisterSystem(sys);
+                var registeredTypes = new System.Collections.Generic.HashSet<System.Type>();
+
+                foreach (var sys in _cgfSimSystems)
+                {
+                    if (registeredTypes.Add(sys.GetType()))
+                        registry.RegisterSystem(sys);
+                }
+                foreach (var sys in _muscleSimSystems)
+                {
+                    if (registeredTypes.Add(sys.GetType()))
+                        registry.RegisterSystem(sys);
+                }
             }
 
             public void Tick(ISimulationView view, float deltaTime) { }

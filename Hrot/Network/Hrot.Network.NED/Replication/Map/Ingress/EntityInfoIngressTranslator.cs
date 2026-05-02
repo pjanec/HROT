@@ -1,16 +1,17 @@
-using System;
-using System.Collections.Generic;
-using Hrot.NED.Descriptors;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
-using Fdp.Interfaces;
 using Fdp.Core.Logging;
-using Fdp.Toolkit.NetworkSpawning.Events;
-using Fdp.Toolkit.Replication.Systems;
-using Fdp.Toolkit.Replication.Services;
+using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
 using Hrot.Map.Common.Replication;
+using Hrot.NED.Descriptors;
+using System;
+using System.Collections.Generic;
 
 namespace Hrot.Map.Common.Replication.Ingress
 {
@@ -160,16 +161,21 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         internal void ProcessSample(Hrot.NED.Descriptors.EntityInfo info, long netId, EntityRepository? repo = null)
         {
-            // Always apply Name + ForceId to the ECS entity when present.
             var igData = new Fdp.Core.EntityInfo
             {
                 Name    = info.Name,
                 ForceId = (ForceId)(int)info.ForceIdentifier,
             };
 
+            bool hasAuthority = false;
+
             if (repo != null && _entityMap.TryGetEntity(netId, out var entity))
             {
                 repo.SetComponent(entity, igData);
+
+                // Check if the local node owns the EntityInfo descriptor
+                long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+                hasAuthority = repo.HasAuthority(entity, packedKey);
             }
             else
             {
@@ -180,6 +186,14 @@ namespace Hrot.Map.Common.Replication.Ingress
                     RequestId          = Guid.Empty,
                 });
             }
+
+            // Loopback Prevention
+            // If this node owns the EntityInfo descriptor, it is the absolute source of truth.
+            // We must drop incoming hierarchy payloads to prevent loopback packets 
+            // from destroying the local ECS hierarchy.
+            if (hasAuthority)
+                return;
+
 
             // Commander assignment / removal.
             long commanderNetId = info.CommanderId;

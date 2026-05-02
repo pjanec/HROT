@@ -323,17 +323,31 @@ namespace Hrot.CGF.Systems
                             repo.Bus.PublishManaged(dtoCmd);
                         }
                     }
+
                     // 5. Automatically spawn child entities if defined in the TKB template.
                     if (parentTemplate != null && parentTemplate.ChildBlueprints.Count > 0)
                     {
+                        // If PreAllocatedNetworkId != 0, this request came from StagingEntityExtractor (Scenario Load).
+                        bool isScenarioLoad = pending.Request.PreAllocatedNetworkId != 0;
+
                         foreach (var childDef in parentTemplate.ChildBlueprints)
                         {
-                            // Determine child network ID: use pre-allocated override when available;
-                            // fall through to AllocateId() when entry is absent or PreAllocatedId == 0.
+                            // FIX: Explicitly initialize the tuple to satisfy definite assignment rules
+                            (long PreAllocatedId, IReadOnlyList<object> Components) overrideEntry = default;
+            
+                            bool hasOverride = pending.Request.ChildComponentOverrides != null
+                                && pending.Request.ChildComponentOverrides.TryGetValue(childDef.InstanceId, out overrideEntry);
+
+                            // Prevent duplicate ORBAT entities on scenario load.
+                            // Tactical subordinates were extracted as root entities and must be skipped here.
+                            if (isScenarioLoad && !hasOverride)
+                            {
+                                continue;
+                            }
+
+                            // Determine child network ID
                             long childNetworkId;
-                            if (pending.Request.ChildComponentOverrides != null
-                                && pending.Request.ChildComponentOverrides.TryGetValue(childDef.InstanceId, out var overrideEntry)
-                                && overrideEntry.PreAllocatedId != 0)
+                            if (hasOverride && overrideEntry.PreAllocatedId != 0)
                             {
                                 childNetworkId = overrideEntry.PreAllocatedId;
                             }
@@ -341,7 +355,7 @@ namespace Hrot.CGF.Systems
                             {
                                 childNetworkId = _idAllocator.AllocateId();
                             }
-                            
+
                             // Try to get child template to retrieve its DisType
                             ulong childDisType = 0;
                             if (_tkbDb.TryGetByType(childDef.ChildTkbType, out var childTemplate))
@@ -368,11 +382,10 @@ namespace Hrot.CGF.Systems
                                 });
                             }
 
-                            // Merge component overrides for this child instance (when present).
-                            if (pending.Request.ChildComponentOverrides != null
-                                && pending.Request.ChildComponentOverrides.TryGetValue(childDef.InstanceId, out var compEntry))
+                            // Merge component overrides for this child instance
+                            if (hasOverride)
                             {
-                                childComponents.AddRange(compEntry.Components);
+                                childComponents.AddRange(overrideEntry.Components);
                             }
 
                             repo.Bus.PublishManaged(new SpawnEntityCommand
@@ -382,13 +395,32 @@ namespace Hrot.CGF.Systems
                                 OwnerNodeId       = assignedOwner,
                                 DisType           = childDisType,
                                 InitType          = ReliableInitType.AllPeers,
-                                InitialTransform  = initialTransform, // Spawn at parent pos
+                                InitialTransform  = initialTransform, 
                                 InitialVelocity   = initialVelocity,
                                 InitialComponents = childComponents.Count > 0 ? childComponents : null,
-                                RequestId         = Guid.NewGuid(), // Separate trace ID for child
+                                RequestId         = Guid.NewGuid(), 
                             });
+
+                            // Broadcast pre-genesis routing table for auto-spawned children
+                            if (_isDefaultProcessor && _ownershipStrategy != null)
+                            {
+                                var childGrants = _ownershipStrategy.GetInitialGrants(
+                                    new Fdp.Core.DISEntityType { Value = childDisType }, 
+                                    assignedOwner);
+
+                                if (childGrants != null && childGrants.Count > 0)
+                                {
+                                    var childDtoCmd = new Fdp.Toolkit.NetworkSpawning.Events.DeferredTakeOwnershipCommand
+                                    {
+                                        NetworkId = childNetworkId,
+                                    };
+                                    childDtoCmd.Grants.AddRange(childGrants);
+                                    repo.Bus.PublishManaged(childDtoCmd);
+                                }
+                            }
                         }
                     }
+
                 }
 
                 FdpLog<CreateEntityRequestSystem>.Info(

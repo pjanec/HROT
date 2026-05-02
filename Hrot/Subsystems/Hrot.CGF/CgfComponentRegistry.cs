@@ -1,6 +1,7 @@
 using CarKinem.Core;
 using CarKinem.Formation;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Navigation;
@@ -63,6 +64,12 @@ public static class CgfComponentRegistry
         world.RegisterComponent<BrainHsm64>();
         world.RegisterComponent<MissionPlanQueue>();
         world.RegisterComponent<NavigationIntent>();
+        world.RegisterComponent<PreviousCapabilities>(); 
+        world.RegisterComponent<UnitRoster>();
+        world.RegisterComponent<UnitSubordinate>();
+        world.RegisterEvent<CmdAssignSubordinate>();
+        world.RegisterEvent<CmdRemoveSubordinate>();
+        world.RegisterEvent<CmdAssignSubordinateRejected>();
 
         // ── Tier 2: Perception (Brain-side threat awareness) ──────────────────
         // PerceptionReceptor and TargetMemory are part of the TKB entity template
@@ -114,7 +121,12 @@ public static class CgfComponentRegistry
         world.RegisterManagedComponent<ZoneMembership>();
         // EntityMissionIngressTranslator and mission feedback write ActiveMissionPlan.
         world.RegisterManagedComponent<ActiveMissionPlan>();
-        world.RegisterComponent<InitialTargetsIntent>();
+        world.RegisterManagedComponent<InitialUnitSubordinateIntent>();
+        world.RegisterManagedComponent<InitialTargetsIntent>();
+        world.RegisterManagedComponent<InitialPassengersIntent>();
+        world.RegisterManagedComponent<InitialVehicleIntent>();
+        world.RegisterManagedComponent<InitialHierarchyIntent>();
+        world.RegisterManagedComponent<InitialRouteIntent>();
 
     }
 }

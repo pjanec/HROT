@@ -168,6 +168,7 @@ public sealed class EditorHarness : IDisposable
         Kernel.RegisterModule(scenarioMod);
         Kernel.RegisterModule(elm);
         Kernel.RegisterModule(simHostMod);
+        Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(EntityMap));
 
         // ── Multi-phase system registration for SimHostCorePack and CgfLogicPack ──
         // CGF Brain systems -- register directly (no toggling needed in the editor harness)
@@ -269,8 +270,18 @@ public sealed class EditorHarness : IDisposable
 
         public void RegisterSystems(ISystemRegistry registry)
         {
-            foreach (var sys in _cgfSimSystems)    registry.RegisterSystem(sys);
-            foreach (var sys in _muscleSimSystems) registry.RegisterSystem(sys);
+            var registeredTypes = new System.Collections.Generic.HashSet<System.Type>();
+
+            foreach (var sys in _cgfSimSystems)
+            {
+                if (registeredTypes.Add(sys.GetType()))
+                    registry.RegisterSystem(sys);
+            }
+            foreach (var sys in _muscleSimSystems)
+            {
+                if (registeredTypes.Add(sys.GetType()))
+                    registry.RegisterSystem(sys);
+            }
         }
 
         public void Tick(ISimulationView view, float deltaTime) { }
