@@ -4,6 +4,7 @@ using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Trajectory;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Fdp.ModuleHost.Abstractions;
 
 namespace CarKinem.Systems
@@ -40,7 +41,10 @@ namespace CarKinem.Systems
                 if (follower.IsInFormation == 0)
                     continue;
 
-                var leaderEntity = follower.LeaderEntity;
+                // Get leader from UnitSubordinate component (leader reference removed from FormationFollower)
+                if (!repo.HasComponent<UnitSubordinate>(followerEntity))
+                    continue;
+                var leaderEntity = repo.GetComponent<UnitSubordinate>(followerEntity).Commander;
                 if (!repo.IsAlive(leaderEntity))
                     continue;
                 if (!repo.HasComponent<FormationController>(leaderEntity))

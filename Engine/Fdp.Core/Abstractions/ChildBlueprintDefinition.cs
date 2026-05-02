@@ -1,3 +1,5 @@
+using Fdp.Core.CommandHierarchy;
+
 namespace Fdp.Interfaces
 {
     /// <summary>
@@ -15,10 +17,17 @@ namespace Fdp.Interfaces
         /// </summary>
         public long ChildTkbType { get; set; }
 
-        public ChildBlueprintDefinition(int instanceId, long childTkbType)
+        /// <summary>
+        /// The tactical designation of this child within the parent unit.
+        /// <c>Undefined</c> means no commander-subordinate link is created.
+        /// </summary>
+        public TacticalDesignation Designation { get; set; }
+
+        public ChildBlueprintDefinition(int instanceId, long childTkbType, TacticalDesignation designation = TacticalDesignation.Undefined)
         {
-            InstanceId = instanceId;
+            InstanceId   = instanceId;
             ChildTkbType = childTkbType;
+            Designation  = designation;
         }
     }
 }

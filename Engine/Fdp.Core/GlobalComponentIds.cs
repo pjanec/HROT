@@ -347,6 +347,17 @@ namespace Fdp.Core
         /// <summary><c>EntityInfo / IgEntityData</c> — IG-internal entity metadata (name, force affiliation, commander). Moved to Fdp.Core to remove the Faction component.</summary>
         public const byte EntityInfo            = 164;
 
+        // ── Commander-Subordinate hierarchy components (AI tier, IDs 182-184 reserved in HrotComponentIds) ─
+
+        /// <summary><c>UnitRoster</c> — fixed-capacity subordinate list on the commanding entity (AI tier); NoSave (derived from UnitSubordinate records).</summary>
+        public const byte UnitRoster = 182;
+
+        /// <summary><c>UnitSubordinate</c> — generation-safe commander reference and tactical designation on subordinate entities (AI tier).</summary>
+        public const byte UnitSubordinate = 183;
+
+        /// <summary><c>InitialUnitSubordinateIntent</c> — genesis intent DTO storing network commander ID at scenario load.</summary>
+        public const byte InitialUnitSubordinateIntent = 184;
+
         // ── Zone toolkit (201+) ─────────────────────────────────────────────────
         // NOTE: IDs 20–79 are fully allocated across toolkit expansion blocks.
         // ID 200 is reserved by FDP.Toolkit.Scenario (ScenarioComponentIds.ScenarioIgnoreTag).

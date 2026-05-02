@@ -3,6 +3,7 @@ using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Systems;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Xunit;
 
 namespace CarKinem.Tests.Commands
@@ -56,6 +57,9 @@ namespace CarKinem.Tests.Commands
             repo.RegisterComponent<FormationController>();
             repo.RegisterEvent<CmdCreateFormation>();
             repo.RegisterEvent<CmdJoinFormation>();
+            repo.RegisterEvent<CmdAssignSubordinate>();
+            repo.RegisterEvent<CmdRemoveSubordinate>();
+            repo.RegisterEvent<CmdAssignSubordinateRejected>();
             
             var system = new VehicleCommandSystem();
             
@@ -89,11 +93,15 @@ namespace CarKinem.Tests.Commands
             repo.Bus.SwapBuffers();
             system.Execute(repo, 0.016f);
             
-            // Verify follower
-            Assert.True(repo.HasComponent<FormationFollower>(followerEntity));
-            var member = repo.GetComponent<FormationFollower>(followerEntity);
-            Assert.Equal(leaderEntity, member.LeaderEntity);
-            Assert.Equal(1, member.SlotIndex);
+            // Verify follower: VehicleCommandSystem now publishes CmdAssignSubordinate
+            // instead of writing FormationFollower directly (UnitHierarchySystem handles that).
+            // Check that the subordinate intent was published with correct slot index.
+            repo.Bus.SwapBuffers();
+            var assigns = repo.Bus.Read<CmdAssignSubordinate>();
+            Assert.Equal(1, assigns.Length);
+            Assert.Equal(followerEntity, assigns[0].Subordinate);
+            Assert.Equal(leaderEntity, assigns[0].Commander);
+            Assert.Equal((ushort)1, assigns[0].SlotIndex);
             
             repo.Dispose();
         }

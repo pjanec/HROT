@@ -3,6 +3,7 @@ using CarKinem.Formation;
 using CarKinem.Systems;
 using CarKinem.Trajectory;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using System;
 using System.Numerics;
 using Xunit;
@@ -21,6 +22,7 @@ namespace CarKinem.Tests.Formation
             repo.RegisterComponent<FormationController>();
             repo.RegisterComponent<FormationTarget>();
             repo.RegisterComponent<FormationFollower>();
+            repo.RegisterComponent<UnitSubordinate>();
 
             var templateManager = new FormationTemplateManager();
             var trajectoryPool = new TrajectoryPoolManager();
@@ -51,11 +53,11 @@ namespace CarKinem.Tests.Formation
             repo.AddComponent(follower, new SimVelocity { Linear = Vector3.Zero });
             repo.AddComponent(follower, new FormationFollower
             {
-                LeaderEntity = leader,
                 SlotIndex = 0,
                 State = FormationMemberState.Broken,
                 IsInFormation = 1
             });
+            repo.AddComponent(follower, new UnitSubordinate { Commander = leader });
 
             system.Execute(repo, 0.016f);
 
@@ -110,6 +112,7 @@ namespace CarKinem.Tests.Formation
             repo.RegisterComponent<FormationController>();
             repo.RegisterComponent<FormationTarget>();
             repo.RegisterComponent<FormationFollower>();
+            repo.RegisterComponent<UnitSubordinate>();
             repo.RegisterComponent<NavState>();
             repo.RegisterComponent<GlobalTime>();
 
@@ -141,11 +144,11 @@ namespace CarKinem.Tests.Formation
             repo.AddComponent(follower, new FormationTarget());
             repo.AddComponent(follower, new FormationFollower
             {
-                LeaderEntity = leader,
                 SlotIndex = 0,
                 State = FormationMemberState.InSlot,
                 IsInFormation = 1
             });
+            repo.AddComponent(follower, new UnitSubordinate { Commander = leader });
 
             // 4. Run System
             system.Execute(repo, 0.016f);

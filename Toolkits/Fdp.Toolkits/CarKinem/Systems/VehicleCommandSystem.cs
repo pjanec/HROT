@@ -3,8 +3,11 @@ using System.Numerics;
 using CarKinem.Commands;
 using CarKinem.Core;
 using CarKinem.Formation;
+using Fbt;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior.Components;
 
 namespace CarKinem.Systems
 {
@@ -26,6 +29,7 @@ namespace CarKinem.Systems
             ProcessCreateFormationCommands(repo);
             ProcessJoinFormationCommands(repo);
             ProcessLeaveFormationCommands(repo);
+            ProcessAssignSubordinateRejected(repo);
         }
         
         private void ProcessSpawnCommands(EntityRepository repo)
@@ -146,19 +150,16 @@ namespace CarKinem.Systems
                     // Console.WriteLine($"WARNING: CmdJoinFormation: Leader {leaderEntity} has no FormationController");
                     continue;
                 }
-                
-                // Add FormationFollower component if not exists
-                if (!repo.HasComponent<FormationFollower>(followerEntity))
+
+                // Publish CmdAssignSubordinate so UnitHierarchySystem handles hierarchy + FormationFollower atomically
+                repo.Bus.Publish(new CmdAssignSubordinate
                 {
-                    repo.AddComponent(followerEntity, new FormationFollower());
-                }
-                
-                var member = repo.GetComponent<FormationFollower>(followerEntity);
-                member.LeaderEntity = leaderEntity;
-                member.SlotIndex = (ushort)cmd.SlotIndex;
-                member.State = FormationMemberState.Rejoining;
-                member.IsInFormation = 1;
-                repo.SetComponent(followerEntity, member);
+                    Subordinate      = followerEntity,
+                    Commander        = leaderEntity,
+                    Designation      = TacticalDesignation.Undefined,
+                    HasFormationSlot = 1,
+                    SlotIndex        = (ushort)cmd.SlotIndex,
+                });
                 
                 // Set follower navigation mode to Formation
                 var nav = repo.GetComponent<NavState>(followerEntity);
@@ -179,10 +180,29 @@ namespace CarKinem.Systems
                 if (!repo.IsAlive(entity))
                     continue;
                 
+                // Publish removal event so UnitHierarchySystem removes UnitSubordinate and FormationFollower atomically
+                repo.Bus.Publish(new CmdRemoveSubordinate { Subordinate = entity });
+
                 var nav = repo.GetComponent<NavState>(entity);
                 nav.Mode = KinematicsMode.None;
                 
                 repo.SetComponent(entity, nav);
+            }
+        }
+
+        private void ProcessAssignSubordinateRejected(EntityRepository repo)
+        {
+            var events = repo.Bus.Read<CmdAssignSubordinateRejected>();
+
+            foreach (var evt in events)
+            {
+                var sub = evt.Subordinate;
+                if (!repo.IsAlive(sub)) continue;
+                if (!repo.HasComponent<LocomotionChannel>(sub)) continue;
+
+                var channel = repo.GetComponent<LocomotionChannel>(sub);
+                channel.Status = NodeStatus.Failure;
+                repo.SetComponent(sub, channel);
             }
         }
     }
