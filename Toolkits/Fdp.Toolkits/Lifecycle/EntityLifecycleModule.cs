@@ -263,16 +263,17 @@ namespace Fdp.Toolkit.Lifecycle
         }
         
         /// <summary>
-        /// Immediately promotes/destroys any entities whose pending ack sets are already empty.
+        /// Immediately promotes/destroys any entities whose pending ack sets are empty and
+        /// have lived at least one full frame since the order was issued.
         /// Called by <see cref="LifecycleSystem"/> each frame so that zero-participant constructions
-        /// and destructions complete within one lifecycle tick after the order is issued.
+        /// and destructions still honor event visibility in downstream Simulation systems.
         /// </summary>
-        public void DrainInstantComplete(IEntityCommandBuffer cmd)
+        public void DrainInstantComplete(IEntityCommandBuffer cmd, uint currentFrame)
         {
             // Promote zero-ack constructions to Active
             var ready = new List<Entity>();
             foreach (var kvp in _pendingConstruction)
-                if (kvp.Value.RemainingAcks.Count == 0)
+                if (kvp.Value.RemainingAcks.Count == 0 && currentFrame > kvp.Value.StartFrame)
                     ready.Add(kvp.Key);
 
             foreach (var entity in ready)
@@ -289,7 +290,7 @@ namespace Fdp.Toolkit.Lifecycle
             // Destroy zero-ack destructions
             var readyDestruct = new List<Entity>();
             foreach (var kvp in _pendingDestruction)
-                if (kvp.Value.RemainingAcks.Count == 0)
+                if (kvp.Value.RemainingAcks.Count == 0 && currentFrame > kvp.Value.StartFrame)
                     readyDestruct.Add(kvp.Key);
 
             foreach (var entity in readyDestruct)
