@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior.Events;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
@@ -11,7 +12,7 @@ namespace Hrot.Editor.Adapters
     /// for the offline editor by reading the <see cref="EntityRepository"/> directly.
     ///
     /// <para>
-    /// Tree hierarchy is derived from <see cref="EntityInfo.CommanderId"/> (0 = root).
+    /// Tree hierarchy is derived from <c>UnitSubordinate.Commander</c> (no component = root).
     /// <see cref="GetVisibleNodes"/> rebuilds the entity-index cache on every call so
     /// embark/disembark operations can always locate the correct <see cref="Entity"/>
     /// handle.
@@ -67,7 +68,9 @@ namespace Hrot.Editor.Adapters
             {
                 var entity = _indexCache[idx];
                 var info   = _world.GetComponent<EntityInfo>(entity);
-                int cmdId  = info.CommanderId;
+                int cmdId  = _world.HasComponent<UnitSubordinate>(entity)
+                    ? _world.GetComponent<UnitSubordinate>(entity).Commander.Index
+                    : 0;
 
                 if (cmdId == 0)
                 {

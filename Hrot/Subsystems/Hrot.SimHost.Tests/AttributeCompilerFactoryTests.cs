@@ -276,7 +276,6 @@ namespace Hrot.SimHost.Tests
             var igData = Assert.Single( components.OfType<Fdp.Core.EntityInfo>());
             Assert.Equal("TestUnit",     igData.Name);
             Assert.Equal(ForceId.Friend, igData.ForceId);
-            Assert.Equal(42,             igData.CommanderId);
         }
 
         [Fact]

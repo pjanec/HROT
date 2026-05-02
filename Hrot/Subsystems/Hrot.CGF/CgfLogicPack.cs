@@ -65,7 +65,6 @@ namespace Hrot.CGF
         private readonly HealthApplicationSystem      _healthApplicationSystem;        private readonly ActiveSensorTracksUpdateSystem _activeSensorTracksUpdateSystem;        private readonly CgfThreatEvaluationSystem    _cgfThreatEvaluationSystem;
         private readonly RouteContextSystem           _routeContextSystem;
         private readonly TacticalIntentResolutionSystem _tacticalIntentResolutionSystem;
-        private readonly UnitHierarchySystem          _unitHierarchySystem;
 
         // ── Shared scenario source (constructed once by CgfApplication / CgfSubsystem) ─
         // Held here for future hand-off to load handlers (Phases 3-4).
@@ -140,7 +139,6 @@ namespace Hrot.CGF
             _activeSensorTracksUpdateSystem = new ActiveSensorTracksUpdateSystem();
             _cgfThreatEvaluationSystem = new CgfThreatEvaluationSystem();
             _routeContextSystem        = new RouteContextSystem();
-            _unitHierarchySystem       = new UnitHierarchySystem();
 
             var inputList = new List<IEcsModuleSystem>();
             var simList   = new List<IEcsModuleSystem>();
@@ -157,7 +155,6 @@ namespace Hrot.CGF
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);
             simList.Add(_routeContextSystem);
-            simList.Add(_unitHierarchySystem);
 
             InputSystems      = inputList;
             SimulationSystems = simList;

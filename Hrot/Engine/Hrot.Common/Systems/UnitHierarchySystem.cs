@@ -17,7 +17,7 @@ namespace Hrot.Common.Systems
     /// are processed.</para>
     ///
     /// <para>Network dirty marking is performed after every successful assignment or removal
-    /// so that <c>EntityInfoEgressTranslator</c> broadcasts updated <c>CommanderId</c> fields
+    /// so that <c>EntityInfoEgressTranslator</c> broadcasts updated subordination state
     /// to remote nodes.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]

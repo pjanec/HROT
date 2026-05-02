@@ -213,6 +213,7 @@ namespace Hrot.Editor.Tests.Adapters
         {
             _world = new EntityRepository();
             _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
             // Register events for embark/disembark (EmbarkEntityCommand is [EventId] so it's auto-registered)
             _bus = _world.Bus;
         }
@@ -229,8 +230,7 @@ namespace Hrot.Editor.Tests.Adapters
         [Fact]
         public void GetVisibleNodes_TwoEntities_ReturnsCorrectDepths()
         {
-            // Entity index 0 is the CommanderId=0 sentinel ("no commander").
-            // Burn it so parent starts at index 1.
+            // Burn index 0 so parent starts at index 1.
             _world.CreateEntity();
 
             var parent = _world.CreateEntity();
@@ -239,13 +239,13 @@ namespace Hrot.Editor.Tests.Adapters
             _world.AddComponent(parent, new EntityInfo
             {
                 Name       = new Fdp.Core.FixedString64("Alpha"),
-                CommanderId = 0,
             });
+            // Child is subordinate to parent via UnitSubordinate component.
             _world.AddComponent(child, new EntityInfo
             {
                 Name       = new Fdp.Core.FixedString64("Bravo"),
-                CommanderId = parent.Index, // parent.Index == 1 (not 0)
             });
+            _world.AddComponent(child, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = parent });
 
             var adapter = CreateAdapter();
             var nodes   = adapter.GetVisibleNodes("", new HashSet<int>());
@@ -261,19 +261,17 @@ namespace Hrot.Editor.Tests.Adapters
         [Fact]
         public void GetVisibleNodes_WithFilter_ExcludesNonMatchingNodes()
         {
-            _world.CreateEntity(); // burn index 0 (CommanderId sentinel)
+            _world.CreateEntity(); // burn index 0
             var e1 = _world.CreateEntity();
             var e2 = _world.CreateEntity();
 
             _world.AddComponent(e1, new EntityInfo
             {
                 Name       = new Fdp.Core.FixedString64("Tiger"),
-                CommanderId = 0,
             });
             _world.AddComponent(e2, new EntityInfo
             {
                 Name       = new Fdp.Core.FixedString64("Wolf"),
-                CommanderId = 0,
             });
 
             var adapter = CreateAdapter();
@@ -286,19 +284,17 @@ namespace Hrot.Editor.Tests.Adapters
         [Fact]
         public void RequestEmbark_PublishesEmbarkEntityCommand()
         {
-            _world.CreateEntity(); // burn index 0 (CommanderId sentinel)
+            _world.CreateEntity(); // burn index 0
             var passenger = _world.CreateEntity();
             var vehicle   = _world.CreateEntity();
 
             _world.AddComponent(passenger, new EntityInfo
             {
                 Name        = new Fdp.Core.FixedString64("Soldier"),
-                CommanderId = 0,
             });
             _world.AddComponent(vehicle, new EntityInfo
             {
                 Name        = new Fdp.Core.FixedString64("Apc"),
-                CommanderId = 0,
             });
 
             var adapter = CreateAdapter();
@@ -317,12 +313,11 @@ namespace Hrot.Editor.Tests.Adapters
         [Fact]
         public void RequestDisembark_PublishesDisembarkEntityCommand()
         {
-            _world.CreateEntity(); // burn index 0 (CommanderId sentinel)
+            _world.CreateEntity(); // burn index 0
             var passenger = _world.CreateEntity();
             _world.AddComponent(passenger, new EntityInfo
             {
                 Name        = new Fdp.Core.FixedString64("Soldier"),
-                CommanderId = 0,
             });
 
             var adapter = CreateAdapter();

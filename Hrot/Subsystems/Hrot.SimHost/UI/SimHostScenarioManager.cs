@@ -110,7 +110,6 @@ namespace Hrot.SimHost.UI
             {
                 Name        = vehicleClass.ToString(),
                 ForceId     = ForceId.Neutral,
-                CommanderId = 0,
             };
 
             var cmd = new SpawnEntityCommand
@@ -160,7 +159,6 @@ namespace Hrot.SimHost.UI
                 {
                     Name        = $"Roamer-{i + 1}",
                     ForceId     = ForceId.Neutral,
-                    CommanderId = 0,
                 };
 
                 _spawnBus.PublishManaged(new SpawnEntityCommand
@@ -212,7 +210,6 @@ namespace Hrot.SimHost.UI
                 {
                     Name        = $"RoadUser-{i + 1}",
                     ForceId     = ForceId.Neutral,
-                    CommanderId = 0,
                 };
 
                 _spawnBus.PublishManaged(new SpawnEntityCommand
@@ -249,7 +246,6 @@ namespace Hrot.SimHost.UI
             {
                 Name        = "Leader",
                 ForceId     = ForceId.Friend,
-                CommanderId = 0,
             };
 
             _spawnBus.PublishManaged(new SpawnEntityCommand
@@ -271,7 +267,6 @@ namespace Hrot.SimHost.UI
                 {
                     Name        = $"Follower-{i + 1}",
                     ForceId     = ForceId.Friend,
-                    CommanderId = 0,
                 };
 
                 _spawnBus.PublishManaged(new SpawnEntityCommand
@@ -330,7 +325,6 @@ namespace Hrot.SimHost.UI
             {
                 Name        = name,
                 ForceId     = ForceId.Neutral,
-                CommanderId = 0,
             };
 
             _spawnBus.PublishManaged(new SpawnEntityCommand

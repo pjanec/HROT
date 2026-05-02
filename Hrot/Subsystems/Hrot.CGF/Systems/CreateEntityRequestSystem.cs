@@ -355,7 +355,6 @@ namespace Hrot.CGF.Systems
                                 {
                                     Name = $"{parentInfo!.Value.Name}-{childDef.InstanceId}",
                                     ForceId = parentInfo.Value.ForceId,
-                                    CommanderId = (int)pending.NetworkId
                                 }
                             };
 

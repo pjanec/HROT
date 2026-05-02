@@ -1,13 +1,16 @@
 using Hrot.NED.Descriptors;
 using CycloneDDS.Runtime;
-using Fdp.Interfaces;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Fdp.Core.Logging;
+using Fdp.Interfaces;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Utilities;
 using Fdp.ModuleHost.Abstractions;
+using Hrot.Map.Common.Dds;
+using Hrot.Map.Common.Replication;
 
 namespace Hrot.Map.Common.Replication.Egress
 {
@@ -31,7 +34,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private const string DdsTopicName = "EntityInfo";
         private const long OrdinalValue = (long)EDescriptorType.dtEntityInfo;
 
-        private readonly DdsWriter<Hrot.NED.Descriptors.EntityInfo> _writer;
+        private readonly IDdsWriter<Hrot.NED.Descriptors.EntityInfo> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;
 
@@ -45,8 +48,21 @@ namespace Hrot.Map.Common.Replication.Egress
             DdsParticipant participant,
             NetworkEntityMap entityMap,
             long localNodeId)
+            : this(new DdsWriterAdapter<Hrot.NED.Descriptors.EntityInfo>(participant, DdsTopicName),
+                   entityMap, localNodeId)
         {
-			_writer = new DdsWriter<Hrot.NED.Descriptors.EntityInfo>( participant, DdsTopicName );
+        }
+
+        /// <summary>
+        /// Testable constructor. Accepts a pre-built writer so unit tests can
+        /// capture published samples without a live DDS participant.
+        /// </summary>
+        internal EntityInfoEgressTranslator(
+            IDdsWriter<Hrot.NED.Descriptors.EntityInfo> writer,
+            NetworkEntityMap entityMap,
+            long localNodeId)
+        {
+            _writer = writer ?? throw new System.ArgumentNullException(nameof(writer));
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
             _localNodeId = localNodeId;
         }
@@ -86,12 +102,28 @@ namespace Hrot.Map.Common.Replication.Egress
                 ref readonly var netId  = ref view.GetComponentRO<NetworkIdentity>(entity);
                 ref readonly var data   = ref view.GetComponentRO<Fdp.Core.EntityInfo>(entity);
 
+                long commanderNetId = 0;
+                var designation = eTacticalDesignation.Undefined;
+                if (view.HasComponent<UnitSubordinate>(entity))
+                {
+                    ref readonly var sub = ref view.GetComponentRO<UnitSubordinate>(entity);
+                    if (!_entityMap.TryGetNetworkId(sub.Commander, out commanderNetId))
+                    {
+                        FdpLog<EntityInfoEgressTranslator>.Debug(
+                            "[Node-{0}] Commander entity for sub {1} not found in NetworkEntityMap; sending CommanderId=0.",
+                            _localNodeId, netId.Value);
+                        commanderNetId = 0;
+                    }
+                    designation = TacticalDesignationMapper.ToDds(sub.Designation);
+                }
+
 				_writer.Write(new Hrot.NED.Descriptors.EntityInfo
                 {
-                    EntityId        = (int)netId.Value,
-                    Name            = data.Name.ToString(),
-                    ForceIdentifier = MapForceId(data.ForceId),
-                    CommanderId     = data.CommanderId,
+                    EntityId            = (int)netId.Value,
+                    Name                = data.Name.ToString(),
+                    ForceIdentifier     = MapForceId(data.ForceId),
+                    CommanderId         = (int)commanderNetId,
+                    TacticalDesignation = designation,
                 });
 
                 SentSampleCount++;

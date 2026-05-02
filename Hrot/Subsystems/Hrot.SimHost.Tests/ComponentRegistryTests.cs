@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Navigation;
@@ -128,6 +129,25 @@ namespace Hrot.SimHost.Tests
             Assert.Null(Record.Exception(() => world.GetComponentTable<NavigationStatus>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<VehicleState>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<EntityInfo>()));
+
+            // CS023: UnitRoster and UnitSubordinate must be registered.
+            Assert.NotNull(world.GetComponentTable<UnitRoster>());
+            Assert.NotNull(world.GetComponentTable<UnitSubordinate>());
+        }
+
+        /// <summary>
+        /// CS023: After registering all components, every registered component ID
+        /// must be unique — no two types share the same ID.
+        /// </summary>
+        [Fact]
+        public void SimHostComponentRegistry_RegisterAll_ComponentIdsAreUnique()
+        {
+            using var world = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(world);
+
+            var ids = ComponentTypeRegistry.GetAllTypeIds();
+            var uniqueCount = new System.Collections.Generic.HashSet<int>(ids).Count;
+            Assert.Equal(ids.Length, uniqueCount);
         }
     }
 }

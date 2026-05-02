@@ -101,7 +101,6 @@ namespace Hrot.Map.Common.Replication.Utils
                         {
                             Name = d.EntityInfo.Name,
                             ForceId = (ForceId)(int)d.EntityInfo.ForceIdentifier,
-                            CommanderId = d.EntityInfo.CommanderId
                         });
                         break;
 
@@ -276,10 +275,7 @@ namespace Hrot.Map.Common.Replication.Utils
                             $"{{\"Name\":{escapedName},\"Affiliation\":\"{affStr}\"}}",
                             ctx);
 
-                        // CommanderId is not in the JSON schema; set directly.
-                        ref var ei = ref ctx.GetUnmanagedComponent<Fdp.Core.EntityInfo>();
-                        ei.CommanderId = d.EntityInfo.CommanderId;
-
+                        // CommanderId is not in the JSON schema; handled via UnitSubordinate component.
                         result = ctx.FlushComponents();
                         break;
                     }

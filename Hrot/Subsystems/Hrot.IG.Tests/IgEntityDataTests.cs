@@ -14,7 +14,6 @@ namespace Hrot.IG.Tests
 
             Assert.Equal(string.Empty, data.Name);
             Assert.Equal(ForceId.Neutral, data.ForceId);
-            Assert.Equal(0, data.CommanderId);
         }
 
         [Fact]

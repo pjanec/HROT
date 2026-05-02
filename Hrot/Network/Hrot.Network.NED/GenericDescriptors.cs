@@ -150,6 +150,10 @@ namespace Hrot.NED.Descriptors
         // 0 = This entity is a Root unit / Taskforce.
         // >0 = EntityId of the parent unit this entity is attached/subordinate to.
         public int CommanderId;
+
+        // Logical role of this entity within the commander's unit.
+        // Undefined = no designation or no commander.
+        public eTacticalDesignation TacticalDesignation;
     }
 
     // Optimistic Concurrency Control Sidecar.
