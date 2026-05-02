@@ -8,10 +8,10 @@
 
 **Goal:** Define all new ECS components, enums, and component IDs before touching any existing code.
 
-- [ ] **TASK-CS001** TacticalDesignation dual-enum definitions [details](./TASK-DETAIL.md#task-cs001--tacticaldesignation-dual-enum-definitions)
-- [ ] **TASK-CS002** UnitSubordinate component [details](./TASK-DETAIL.md#task-cs002--unitsubordinate-component)
-- [ ] **TASK-CS003** UnitRoster component [details](./TASK-DETAIL.md#task-cs003--unitroster-component)
-- [ ] **TASK-CS004** Component ID registration [details](./TASK-DETAIL.md#task-cs004--component-id-registration)
+- [x] **TASK-CS001** TacticalDesignation dual-enum definitions [details](./TASK-DETAIL.md#task-cs001--tacticaldesignation-dual-enum-definitions)
+- [x] **TASK-CS002** UnitSubordinate component [details](./TASK-DETAIL.md#task-cs002--unitsubordinate-component)
+- [x] **TASK-CS003** UnitRoster component [details](./TASK-DETAIL.md#task-cs003--unitroster-component)
+- [x] **TASK-CS004** Component ID registration [details](./TASK-DETAIL.md#task-cs004--component-id-registration)
 
 ---
 
@@ -19,9 +19,9 @@
 
 **Goal:** Rename and split existing `FormationRoster`/`FormationMember` into generic and formation-specific parts.
 
-- [ ] **TASK-CS005** Rename FormationRoster to FormationController [details](./TASK-DETAIL.md#task-cs005--rename-formationroster-to-formationcontroller)
-- [ ] **TASK-CS006** Rename FormationMember to FormationFollower [details](./TASK-DETAIL.md#task-cs006--rename-formationmember-to-formationfollower)
-- [ ] **TASK-CS007** Update VehicleCommandSystem for new component names [details](./TASK-DETAIL.md#task-cs007--update-vehiclecommandsystem-for-new-component-names)
+- [x] **TASK-CS005** Rename FormationRoster to FormationController [details](./TASK-DETAIL.md#task-cs005--rename-formationroster-to-formationcontroller)
+- [x] **TASK-CS006** Rename FormationMember to FormationFollower [details](./TASK-DETAIL.md#task-cs006--rename-formationmember-to-formationfollower)
+- [x] **TASK-CS007** Update VehicleCommandSystem for new component names [details](./TASK-DETAIL.md#task-cs007--update-vehiclecommandsystem-for-new-component-names)
 
 ---
 
@@ -40,7 +40,7 @@
 
 **Goal:** Make command hierarchy survive scenario save/load cycles without persisting volatile entity handles.
 
-- [ ] **TASK-CS012** InitialUnitSubordinateIntent component [details](./TASK-DETAIL.md#task-cs012--initialunitsubordinateintent-component)
+- [x] **TASK-CS012** InitialUnitSubordinateIntent component [details](./TASK-DETAIL.md#task-cs012--initialunitsubordinateintent-component)
 - [ ] **TASK-CS013** UnitSubordinateTranslator (IEntityScenarioTranslator) [details](./TASK-DETAIL.md#task-cs013--unitsubordinatetranslator-ientityscenariotranslator)
 - [ ] **TASK-CS014** GenesisMaterializationSystem: MaterializeUnitSubordinate [details](./TASK-DETAIL.md#task-cs014--genesismaterializationsystem-materializeunitsubordinate)
 
@@ -50,8 +50,8 @@
 
 **Goal:** Provide a single, event-driven system that is the sole authority for mutating command relationships at runtime.
 
-- [ ] **TASK-CS015** CmdAssignSubordinate and CmdRemoveSubordinate events [details](./TASK-DETAIL.md#task-cs015--cmdassignsubordinate-and-cmdremovesubordinate-events)
-- [ ] **TASK-CS016** UnitHierarchySystem [details](./TASK-DETAIL.md#task-cs016--unithierarchysystem)
+- [x] **TASK-CS015** CmdAssignSubordinate and CmdRemoveSubordinate events [details](./TASK-DETAIL.md#task-cs015--cmdassignsubordinate-and-cmdremovesubordinate-events)
+- [x] **TASK-CS016** UnitHierarchySystem [details](./TASK-DETAIL.md#task-cs016--unithierarchysystem)
 
 ---
 
@@ -88,7 +88,7 @@
 
 **Goal:** Replace the string-based `RoleTag` in TKB blueprints with the typed `TacticalDesignation` enum.
 
-- [ ] **TASK-CS022** TkbChildSlot: replace RoleTag with Designation [details](./TASK-DETAIL.md#task-cs022--tkbchildslot-replace-roletag-with-designation)
+- [x] **TASK-CS022** TkbChildSlot: replace RoleTag with Designation [details](./TASK-DETAIL.md#task-cs022--tkbchildslot-replace-roletag-with-designation)
 
 ---
 
