@@ -5,6 +5,5 @@ namespace Fdp.Core
     {
         public FixedString64 Name;
         public ForceId ForceId;
-        public int CommanderId;
     }
 }
