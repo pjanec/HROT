@@ -26,11 +26,11 @@ namespace Fdp.Examples.CarKinem.Core
                 return new Color(c.R, c.G, c.B, c.A);
             }
             // Priority 2: Inferred Role
-            else if (view.HasComponent<FormationMember>(entity))
+            else if (view.HasComponent<FormationFollower>(entity))
             {
                 return ColorFormationMember;
             }
-            else if (view.HasComponent<FormationRoster>(entity))
+            else if (view.HasComponent<FormationController>(entity))
             {
                  return ColorFormationLeader;
             }

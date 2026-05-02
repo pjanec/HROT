@@ -9,7 +9,7 @@ namespace CarKinem.Commands
     public struct CmdJoinFormation
     {
         public Entity Entity;        // Follower entity
-        public Entity LeaderEntity;  // Formation leader entity (has FormationRoster)
+        public Entity LeaderEntity;  // Formation leader entity (has FormationController)
         public int SlotIndex;        // Desired slot (0-15)
     }
     

@@ -31,30 +31,36 @@ namespace CarKinem.Systems
                     $"{nameof(FormationTargetSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            // Query all formations
-            var formationQuery = repo.Query().With<FormationRoster>().Build();
+            // Query all active formation followers
+            var followerQuery = repo.Query().With<FormationFollower>().Build();
             
-            foreach (var formationEntity in formationQuery)
+            foreach (var followerEntity in followerQuery)
             {
-                var roster = repo.GetComponent<FormationRoster>(formationEntity);
-                UpdateFormation(repo, ref roster);
+                var follower = repo.GetComponent<FormationFollower>(followerEntity);
+                if (follower.IsInFormation == 0)
+                    continue;
+
+                var leaderEntity = follower.LeaderEntity;
+                if (!repo.IsAlive(leaderEntity))
+                    continue;
+                if (!repo.HasComponent<FormationController>(leaderEntity))
+                    continue;
+
+                var controller = repo.GetComponent<FormationController>(leaderEntity);
+                UpdateFollower(repo, followerEntity, ref follower, leaderEntity, ref controller);
             }
         }
         
-        private void UpdateFormation(EntityRepository repo, ref FormationRoster roster)
+        private void UpdateFollower(
+            EntityRepository repo,
+            Entity followerEntity,
+            ref FormationFollower follower,
+            Entity leaderEntity,
+            ref FormationController controller)
         {
-            if (roster.Count == 0)
-                return;
-            
-            // Get leader entity
-            Entity leaderEntity = roster.GetMember(0);
-            
-            if (!repo.IsAlive(leaderEntity))
-                return;
-            
             var leaderState = repo.GetComponent<VehicleState>(leaderEntity);
             var leaderTf = repo.GetComponent<SimTransform>(leaderEntity);
-            var template = _templateManager.GetTemplate(roster.Type);
+            var template = _templateManager.GetTemplate(controller.Type);
             
             // Default Formation Orientation (Rigid fallback)
             Vector3 fwd3D = Vector3.Transform(Vector3.UnitX, leaderTf.Rotation);
@@ -86,110 +92,97 @@ namespace CarKinem.Systems
                 }
             }
             
-            // Update each member's target
-            for (int i = 1; i < roster.Count; i++) // Start at 1 (skip leader)
+            int slotIndex = follower.SlotIndex;
+            Vector2 slotPos;
+            Vector2 slotHeading;
+            
+            // Try to use Trajectory Following (Curved Formation)
+            if (hasTrajectory && template.SlotOffsets != null && slotIndex < template.SlotOffsets.Length)
             {
-                Entity memberEntity = roster.GetMember(i);
+                Vector2 offset = template.SlotOffsets[slotIndex];
+                // offset.X = Longitudinal (Along track), offset.Y = Lateral (Right of track)
                 
-                if (!repo.IsAlive(memberEntity))
-                    continue;
+                float targetS = leaderS + offset.X;
                 
-                int slotIndex = roster.GetSlotIndex(i);
-                Vector2 slotPos;
-                Vector2 slotHeading;
+                // Sample and Extrapolate if needed
+                Vector2 pathPos;
+                Vector2 pathTangent;
                 
-                // Try to use Trajectory Following (Curved Formation)
-                if (hasTrajectory && template.SlotOffsets != null && slotIndex < template.SlotOffsets.Length)
+                if (trajectory.IsLooped == 0)
                 {
-                    Vector2 offset = template.SlotOffsets[slotIndex];
-                    // offset.X = Longitudinal (Along track), offset.Y = Lateral (Right of track)
-                    
-                    float targetS = leaderS + offset.X;
-                    
-                    // Sample and Extrapolate if needed
-                    Vector2 pathPos;
-                    Vector2 pathTangent;
-                    
-                    if (trajectory.IsLooped == 0)
+                    // Linear Extrapolation for start/end
+                    if (targetS < 0)
                     {
-                        // Linear Extrapolation for start/end
-                        if (targetS < 0)
-                        {
-                            var (p0, t0, _) = _trajectoryPool.SampleTrajectory(trajectory.Id, 0);
-                            pathPos = p0 + t0 * targetS; // targetS is negative distance
-                            pathTangent = t0;
-                        }
-                        else if (targetS > trajectory.TotalLength)
-                        {
-                            var (pe, te, _) = _trajectoryPool.SampleTrajectory(trajectory.Id, trajectory.TotalLength);
-                            pathPos = pe + te * (targetS - trajectory.TotalLength);
-                            pathTangent = te;
-                        }
-                        else
-                        {
-                            // On path
-                            (pathPos, pathTangent, _) = _trajectoryPool.SampleTrajectory(trajectory.Id, targetS);
-                        }
+                        var (p0, t0, _) = _trajectoryPool.SampleTrajectory(trajectory.Id, 0);
+                        pathPos = p0 + t0 * targetS; // targetS is negative distance
+                        pathTangent = t0;
+                    }
+                    else if (targetS > trajectory.TotalLength)
+                    {
+                        var (pe, te, _) = _trajectoryPool.SampleTrajectory(trajectory.Id, trajectory.TotalLength);
+                        pathPos = pe + te * (targetS - trajectory.TotalLength);
+                        pathTangent = te;
                     }
                     else
                     {
-                        // Looped: SampleTrajectory handles wrapping
+                        // On path
                         (pathPos, pathTangent, _) = _trajectoryPool.SampleTrajectory(trajectory.Id, targetS);
                     }
-                    
-                    // Apply Lateral Offset
-                    Vector2 pathRight = new Vector2(pathTangent.Y, -pathTangent.X);
-                    slotPos = pathPos + pathRight * offset.Y;
-                    slotHeading = pathTangent;
                 }
                 else
                 {
-                    // Fallback: Rigid Body formation relative to leader's current position/heading
-                    Vector2 leaderPos2D = new Vector2(leaderTf.Position.X, leaderTf.Position.Y);
-                    slotPos = template.GetSlotPosition(slotIndex, leaderPos2D, formationHeading);
-                    slotHeading = formationHeading;
+                    // Looped: SampleTrajectory handles wrapping
+                    (pathPos, pathTangent, _) = _trajectoryPool.SampleTrajectory(trajectory.Id, targetS);
                 }
                 
-                // Get/create FormationTarget component
-                if (!repo.HasComponent<FormationTarget>(memberEntity))
-                {
-                    repo.AddComponent(memberEntity, new FormationTarget());
-                }
-                
-                var target = repo.GetComponent<FormationTarget>(memberEntity);
-                target.TargetPosition = slotPos;
-                target.TargetHeading = slotHeading; 
-                target.TargetSpeed = leaderState.Speed;
-                repo.SetComponent(memberEntity, target);
-                
-                // Update member state based on distance to slot
-                if (repo.HasComponent<FormationMember>(memberEntity))
-                {
-                    var member = repo.GetComponent<FormationMember>(memberEntity);
-                        var memberTf = repo.GetComponent<SimTransform>(memberEntity);
-                        
-                        float distToSlot = Vector2.Distance(new Vector2(memberTf.Position.X, memberTf.Position.Y), slotPos);
-                        
-                        if (distToSlot < roster.Params.ArrivalThreshold)
-                        {
-                            member.State = FormationMemberState.InSlot;
-                        }
-                    else if (distToSlot < roster.Params.BreakDistance * 0.5f) // Heuristic for CatchUp
-                    {
-                        member.State = FormationMemberState.CatchingUp;
-                    }
-                    else if (distToSlot < roster.Params.BreakDistance)
-                    {
-                        member.State = FormationMemberState.Rejoining;
-                    }
-                    else
-                    {
-                        member.State = FormationMemberState.Broken;
-                    }
-                    
-                    repo.SetComponent(memberEntity, member);
-                }
+                // Apply Lateral Offset
+                Vector2 pathRight = new Vector2(pathTangent.Y, -pathTangent.X);
+                slotPos = pathPos + pathRight * offset.Y;
+                slotHeading = pathTangent;
             }
+            else
+            {
+                // Fallback: Rigid Body formation relative to leader's current position/heading
+                Vector2 leaderPos2D = new Vector2(leaderTf.Position.X, leaderTf.Position.Y);
+                slotPos = template.GetSlotPosition(slotIndex, leaderPos2D, formationHeading);
+                slotHeading = formationHeading;
+            }
+            
+            // Get/create FormationTarget component
+            if (!repo.HasComponent<FormationTarget>(followerEntity))
+            {
+                repo.AddComponent(followerEntity, new FormationTarget());
+            }
+            
+            var target = repo.GetComponent<FormationTarget>(followerEntity);
+            target.TargetPosition = slotPos;
+            target.TargetHeading = slotHeading; 
+            target.TargetSpeed = leaderState.Speed;
+            repo.SetComponent(followerEntity, target);
+            
+            // Update follower state based on distance to slot
+            var followerTf = repo.GetComponent<SimTransform>(followerEntity);
+            
+            float distToSlot = Vector2.Distance(new Vector2(followerTf.Position.X, followerTf.Position.Y), slotPos);
+            
+            if (distToSlot < controller.Params.ArrivalThreshold)
+            {
+                follower.State = FormationMemberState.InSlot;
+            }
+            else if (distToSlot < controller.Params.BreakDistance * 0.5f) // Heuristic for CatchUp
+            {
+                follower.State = FormationMemberState.CatchingUp;
+            }
+            else if (distToSlot < controller.Params.BreakDistance)
+            {
+                follower.State = FormationMemberState.Rejoining;
+            }
+            else
+            {
+                follower.State = FormationMemberState.Broken;
+            }
+            
+            repo.SetComponent(followerEntity, follower);
         }
     }
 }

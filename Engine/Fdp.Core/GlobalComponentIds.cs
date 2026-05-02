@@ -101,8 +101,8 @@ namespace Fdp.Core
         /// <summary><c>NavState</c> — navigation and locomotion controller state.</summary>
         public const byte NavState                = 32;
 
-        /// <summary><c>FormationRoster</c> — fixed-capacity formation member list (attached to leader).</summary>
-        public const byte FormationRoster         = 33;
+        /// <summary><c>FormationController</c> — formation type and parameters (attached to leader).</summary>
+        public const byte FormationController     = 33;
 
         /// <summary><c>SimTier</c> — simulation tier level for entity brain prioritization.</summary>
         public const byte SimTier                 = 34;
@@ -137,8 +137,8 @@ namespace Fdp.Core
         /// <summary><c>BallisticProjectile</c> — marks a bullet entity with shooter reference and sweep data.</summary>
         public const byte BallisticProjectile     = 44;
 
-        /// <summary><c>FormationMember</c> — formation membership data for follower vehicles.</summary>
-        public const byte FormationMember         = 45;
+        /// <summary><c>FormationFollower</c> — formation membership data for follower vehicles.</summary>
+        public const byte FormationFollower       = 45;
 
         /// <summary><c>FormationTarget</c> — transient scratchpad driving target written by FormationTargetSystem.</summary>
         public const byte FormationTarget         = 46;

@@ -18,9 +18,9 @@ namespace CarKinem.Tests.Formation
             repo.RegisterComponent<VehicleState>();
             repo.RegisterComponent<SimTransform>();
             repo.RegisterComponent<SimVelocity>();
-            repo.RegisterComponent<FormationRoster>();
+            repo.RegisterComponent<FormationController>();
             repo.RegisterComponent<FormationTarget>();
-            repo.RegisterComponent<FormationMember>();
+            repo.RegisterComponent<FormationFollower>();
 
             var templateManager = new FormationTemplateManager();
             var trajectoryPool = new TrajectoryPoolManager();
@@ -35,6 +35,11 @@ namespace CarKinem.Tests.Formation
                 Rotation = Quaternion.Identity // X-Forward = East
             });
             repo.AddComponent(leader, new SimVelocity { Linear = new Vector3(10, 0, 0) });
+            repo.AddComponent(leader, new FormationController
+            {
+                Type = FormationType.Column,
+                Params = new FormationParams { ArrivalThreshold = 1f, BreakDistance = 20f, MaxCatchUpFactor = 1.2f }
+            });
 
             // Create Follower at (0, 0), Forward East -> Yaw 0
             var follower = repo.CreateEntity();
@@ -44,29 +49,18 @@ namespace CarKinem.Tests.Formation
                 Rotation = Quaternion.Identity // X-Forward = East
             });
             repo.AddComponent(follower, new SimVelocity { Linear = Vector3.Zero });
-            repo.AddComponent(follower, new FormationMember { State = FormationMemberState.Broken });
-
-            // Create Formation Roster Entity
-            var rosterEntity = repo.CreateEntity();
-            var roster = new FormationRoster();
-            
-            // Fixed buffer assignment needs no 'new' allocation, they are inline.
-            roster.SetMember(0, leader); // Leader at index 0
-            roster.SetMember(1, follower);
-            roster.SetSlotIndex(1, 0); // Use first slot
-            roster.Count = 2;
-            roster.Type = FormationType.Column;
-            roster.Params = new FormationParams { ArrivalThreshold = 1f, BreakDistance = 20f, MaxCatchUpFactor = 1.2f };
-            
-            repo.AddComponent(rosterEntity, roster);
+            repo.AddComponent(follower, new FormationFollower
+            {
+                LeaderEntity = leader,
+                SlotIndex = 0,
+                State = FormationMemberState.Broken,
+                IsInFormation = 1
+            });
 
             system.Execute(repo, 0.016f);
 
             // Check follower target
             Assert.True(repo.HasComponent<FormationTarget>(follower));
-            // Wait, does FormationTarget use SimTransform? No, it's a target component.
-            // Check usage inside FormationTargetSystem.
-            // Target is (95, 100).
             
             var target = repo.GetComponent<FormationTarget>(follower);
             
@@ -97,7 +91,7 @@ namespace CarKinem.Tests.Formation
             system.Execute(repo, 0.016f);
             
             // Check state
-            var member = repo.GetComponent<FormationMember>(follower);
+            var member = repo.GetComponent<FormationFollower>(follower);
             // Should be joined/InSlot
             Assert.Equal(FormationMemberState.InSlot, member.State);
 
@@ -113,9 +107,9 @@ namespace CarKinem.Tests.Formation
             repo.RegisterComponent<VehicleState>();
             repo.RegisterComponent<SimTransform>();
             repo.RegisterComponent<SimVelocity>();
-            repo.RegisterComponent<FormationRoster>();
+            repo.RegisterComponent<FormationController>();
             repo.RegisterComponent<FormationTarget>();
-            repo.RegisterComponent<FormationMember>();
+            repo.RegisterComponent<FormationFollower>();
             repo.RegisterComponent<NavState>();
             repo.RegisterComponent<GlobalTime>();
 
@@ -135,23 +129,23 @@ namespace CarKinem.Tests.Formation
                 Position = Vector3.Zero,
                 Rotation = Quaternion.Identity // X-Forward
             });
+            repo.AddComponent(leader, new FormationController
+            {
+                Type = FormationType.Column
+            });
 
             // 2. Create Follower
             var follower = repo.CreateEntity();
             repo.AddComponent(follower, new VehicleState { Speed = 10f });
             repo.AddComponent(follower, new SimTransform { Position = new Vector3(-10, 0, 0), Rotation = Quaternion.Identity });
-            repo.AddComponent(follower, new FormationMember { State = FormationMemberState.InSlot });
             repo.AddComponent(follower, new FormationTarget());
-
-            // 3. Create Roster on Leader
-            var roster = new FormationRoster();
-            roster.Type = FormationType.Column; 
-            
-            roster.SetMember(0, leader);
-            roster.SetMember(1, follower);
-            roster.Count = 2; // Important!
-
-            repo.AddComponent(leader, roster);
+            repo.AddComponent(follower, new FormationFollower
+            {
+                LeaderEntity = leader,
+                SlotIndex = 0,
+                State = FormationMemberState.InSlot,
+                IsInFormation = 1
+            });
 
             // 4. Run System
             system.Execute(repo, 0.016f);

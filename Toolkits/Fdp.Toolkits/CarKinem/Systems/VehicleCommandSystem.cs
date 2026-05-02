@@ -105,29 +105,26 @@ namespace CarKinem.Systems
                     continue;
                 }
                 
-                // Create/update FormationRoster component on leader
-                FormationRoster roster;
+                // Create/update FormationController component on leader
+                FormationController controller;
                 
-                if (repo.HasComponent<FormationRoster>(leaderEntity))
+                if (repo.HasComponent<FormationController>(leaderEntity))
                 {
-                    // Update existing roster
-                    roster = repo.GetComponent<FormationRoster>(leaderEntity);
+                    // Update existing controller
+                    controller = repo.GetComponent<FormationController>(leaderEntity);
                 }
                 else
                 {
-                    // Create new roster
-                    roster = new FormationRoster();
-                    repo.AddComponent(leaderEntity, roster);
+                    // Create new controller
+                    controller = new FormationController();
+                    repo.AddComponent(leaderEntity, controller);
                 }
                 
-                // Configure roster
-                roster.Type = cmd.Type;
-                roster.Params = cmd.Params;
-                roster.Count = 1;  // Leader only initially
-                roster.SetMember(0, leaderEntity);  // Leader is always slot 0
-                roster.SetSlotIndex(0, 0);
+                // Configure controller
+                controller.Type = cmd.Type;
+                controller.Params = cmd.Params;
                 
-                repo.SetComponent(leaderEntity, roster);
+                repo.SetComponent(leaderEntity, controller);
             }
         }
 
@@ -143,35 +140,25 @@ namespace CarKinem.Systems
                 if (!repo.IsAlive(followerEntity) || !repo.IsAlive(leaderEntity))
                     continue;
                 
-                // Verify leader has a formation
-                if (!repo.HasComponent<FormationRoster>(leaderEntity))
+                // Verify leader has a formation controller
+                if (!repo.HasComponent<FormationController>(leaderEntity))
                 {
-                    // Console.WriteLine($"WARNING: CmdJoinFormation: Leader {leaderEntity} has no FormationRoster");
+                    // Console.WriteLine($"WARNING: CmdJoinFormation: Leader {leaderEntity} has no FormationController");
                     continue;
                 }
                 
-                // Add FormationMember component if not exists
-                if (!repo.HasComponent<FormationMember>(followerEntity))
+                // Add FormationFollower component if not exists
+                if (!repo.HasComponent<FormationFollower>(followerEntity))
                 {
-                    repo.AddComponent(followerEntity, new FormationMember());
+                    repo.AddComponent(followerEntity, new FormationFollower());
                 }
                 
-                var member = repo.GetComponent<FormationMember>(followerEntity);
-                member.LeaderEntityId = leaderEntity.Index;  // Store leader index
+                var member = repo.GetComponent<FormationFollower>(followerEntity);
+                member.LeaderEntity = leaderEntity;
                 member.SlotIndex = (ushort)cmd.SlotIndex;
                 member.State = FormationMemberState.Rejoining;
                 member.IsInFormation = 1;
                 repo.SetComponent(followerEntity, member);
-                
-                // Add follower to leader's roster
-                var roster = repo.GetComponent<FormationRoster>(leaderEntity);
-                if (roster.Count < 16)  // Max 16 members
-                {
-                    roster.SetMember(roster.Count, followerEntity);
-                    roster.SetSlotIndex(roster.Count, (ushort)cmd.SlotIndex);
-                    roster.Count++;
-                    repo.SetComponent(leaderEntity, roster);
-                }
                 
                 // Set follower navigation mode to Formation
                 var nav = repo.GetComponent<NavState>(followerEntity);

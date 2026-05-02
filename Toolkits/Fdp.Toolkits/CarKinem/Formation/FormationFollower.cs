@@ -4,18 +4,19 @@ using Fdp.Core;
 namespace CarKinem.Formation
 {
     /// <summary>
-    /// Formation member component (attached to follower entities).
-    /// Enables "pull" pattern: follower reads leader state.
+    /// Formation follower component (attached to follower entities).
+    /// Enables "pull" pattern: follower reads leader state via <see cref="LeaderEntity"/>.
+    /// The tactical command link (who issued the order) is in UnitSubordinate.Commander (Hrot layer).
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.FormationMember)]
-    public struct FormationMember
+    [ComponentId(GlobalComponentIds.FormationFollower)]
+    public struct FormationFollower
     {
-        public int LeaderEntityId;          // Entity ID of formation leader
+        public Entity LeaderEntity;         // Formation leader entity (generation-safe)
         public ushort SlotIndex;            // Which slot in template (0-15)
         public FormationMemberState State;  // Current formation state
         public byte IsInFormation;          // 1 = active member, 0 = inactive
-        
+
         // State tracking
         public float SlotDistFiltered;      // Low-pass filtered distance to slot
         public float RejoinTimer;           // Time spent in Rejoining state

@@ -12,22 +12,22 @@ namespace CarKinem.Tests.Commands
     public class VehicleCommandSystemTests
     {
         [Fact]
-        public void JoinFormation_SetsFormationMemberAndMode()
+        public void JoinFormation_SetsFormationFollowerAndMode()
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<NavState>();
-            repo.RegisterComponent<FormationMember>();
-            repo.RegisterComponent<FormationRoster>();
+            repo.RegisterComponent<FormationFollower>();
+            repo.RegisterComponent<FormationController>();
             repo.RegisterEvent<CmdJoinFormation>();
             
             var system = new VehicleCommandSystem();
             
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NavState());
-            // FormationMember added dynamically by system if missing
+            // FormationFollower added dynamically by system if missing
             
             var leader = repo.CreateEntity();
-            repo.AddComponent(leader, new FormationRoster { Count = 1 });
+            repo.AddComponent(leader, new FormationController());
             
             var api = new VehicleAPI(repo);
             api.JoinFormation(entity, leaderEntity: leader, slotIndex: 2);
@@ -42,9 +42,9 @@ namespace CarKinem.Tests.Commands
             var nav = repo.GetComponent<NavState>(entity);
             Assert.Equal(KinematicsMode.Formation, nav.Mode);
             
-            Assert.True(repo.HasComponent<FormationMember>(entity));
-            var member = repo.GetComponent<FormationMember>(entity);
-            Assert.Equal(leader.Index, member.LeaderEntityId);
+            Assert.True(repo.HasComponent<FormationFollower>(entity));
+            var member = repo.GetComponent<FormationFollower>(entity);
+            Assert.Equal(leader, member.LeaderEntity);
             Assert.Equal(2, member.SlotIndex);
             Assert.Equal(FormationMemberState.Rejoining, member.State);
             

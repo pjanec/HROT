@@ -63,15 +63,15 @@ namespace Fdp.Examples.CarKinem.Tests
         }
         
         [Fact]
-        public void VehicleVisualizer_GetColor_FormationMember_ReturnsCyan()
+        public void VehicleVisualizer_GetColor_FormationFollower_ReturnsCyan()
         {
             // Arrange
             var view = new FakeSimulationView();
             var entity = new Entity(1, 1);
             var vParams = new VehicleParams { Class = VehicleClass.PersonalCar };
             
-            // Add FormationMember component
-            view.AddComponent(entity, new FormationMember());
+            // Add FormationFollower component
+            view.AddComponent(entity, new FormationFollower());
             
             // Act
             var color = ExamplePresets.GetColorForEntity(view, entity, vParams);

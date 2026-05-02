@@ -10,10 +10,10 @@ namespace CarKinem.Tests.Commands
     public class FormationCreationTests
     {
         [Fact]
-        public void CreateFormation_AddsRosterToLeader()
+        public void CreateFormation_AddsControllerToLeader()
         {
             var repo = new EntityRepository();
-            repo.RegisterComponent<FormationRoster>();
+            repo.RegisterComponent<FormationController>();
             repo.RegisterEvent<CmdCreateFormation>();
             
             var system = new VehicleCommandSystem();
@@ -37,24 +37,23 @@ namespace CarKinem.Tests.Commands
             repo.Bus.SwapBuffers();
             system.Execute(repo, 0.016f);
             
-            // Verify roster
-            Assert.True(repo.HasComponent<FormationRoster>(leaderEntity));
-            var roster = repo.GetComponent<FormationRoster>(leaderEntity);
-            Assert.Equal(FormationType.Column, roster.Type);
-            Assert.Equal(1, roster.Count);  // Leader only
-            Assert.Equal(5.0f, roster.Params.Spacing);
+            // Verify controller
+            Assert.True(repo.HasComponent<FormationController>(leaderEntity));
+            var controller = repo.GetComponent<FormationController>(leaderEntity);
+            Assert.Equal(FormationType.Column, controller.Type);
+            Assert.Equal(5.0f, controller.Params.Spacing);
             
             repo.Dispose();
         }
         
         [Fact]
-        public void JoinFormation_AddsFollowerToRoster()
+        public void JoinFormation_AddsFollowerComponent()
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<VehicleState>();
             repo.RegisterComponent<NavState>();
-            repo.RegisterComponent<FormationMember>();
-            repo.RegisterComponent<FormationRoster>();
+            repo.RegisterComponent<FormationFollower>();
+            repo.RegisterComponent<FormationController>();
             repo.RegisterEvent<CmdCreateFormation>();
             repo.RegisterEvent<CmdJoinFormation>();
             
@@ -91,14 +90,10 @@ namespace CarKinem.Tests.Commands
             system.Execute(repo, 0.016f);
             
             // Verify follower
-            Assert.True(repo.HasComponent<FormationMember>(followerEntity));
-            var member = repo.GetComponent<FormationMember>(followerEntity);
-            Assert.Equal(leaderEntity.Index, member.LeaderEntityId);
+            Assert.True(repo.HasComponent<FormationFollower>(followerEntity));
+            var member = repo.GetComponent<FormationFollower>(followerEntity);
+            Assert.Equal(leaderEntity, member.LeaderEntity);
             Assert.Equal(1, member.SlotIndex);
-            
-            // Verify roster
-            var roster = repo.GetComponent<FormationRoster>(leaderEntity);
-            Assert.Equal(2, roster.Count);  // Leader + follower
             
             repo.Dispose();
         }

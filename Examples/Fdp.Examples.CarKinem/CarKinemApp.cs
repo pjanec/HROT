@@ -274,8 +274,8 @@ public class CarKinemApp : FdpApplication
         _repository.RegisterComponent<VehicleState>();
         _repository.RegisterComponent<VehicleParams>();
         _repository.RegisterComponent<NavState>();
-        _repository.RegisterComponent<FormationMember>();
-        _repository.RegisterComponent<FormationRoster>();
+        _repository.RegisterComponent<FormationFollower>();
+        _repository.RegisterComponent<FormationController>();
         _repository.RegisterComponent<FormationTarget>();
         _repository.RegisterComponent<VehicleColor>();
         // _repository.RegisterComponent<NavigationPath>(); // Removed: Trajectories are stored in Pool

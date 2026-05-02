@@ -44,28 +44,14 @@ namespace Fdp.Examples.CarKinem.Visualization
             }
             else if (nav.Mode == KinematicsMode.Formation)
             {
-                if (_view.HasComponent<FormationMember>(selectedEntity.Value))
+                if (_view.HasComponent<FormationFollower>(selectedEntity.Value))
                 {
-                    var member = _view.GetComponentRO<FormationMember>(selectedEntity.Value);
+                    var member = _view.GetComponentRO<FormationFollower>(selectedEntity.Value);
                     
-                    // Leader entity is just an index (int). We must assume generation to find it?
-                    // But we don't have generation info in FormationMember.
-                    // This is a design flaw in the example, but we work with what we have.
-                    // Let's assume active entity at that index.
-                    
-                    // We can query component for that index if we had a way.
-                    // ISimulationView doesn't easily allow random access without generation check.
-                    // However, we can try to guess or skip if invalid.
-                    
-                    // Actually, we can assume the leader might have a trajectory.
-                    // But without Entity struct, we can't safely access components via View usually...
-                    // Wait, View.GetComponentRO<T>(Entity e) requires Entity.
-                    // We can reconstruct an Entity if we trust the index is valid.
-                    
-                    // Let's iterate all entities and find the one with that index? Too slow.
-                    // For now, let's skip Formation trajectory rendering unless we solve this.
-                    // Or cheat:
-                    // var leader = new Entity(member.LeaderEntityId, 0); // Risky
+                    // LeaderEntity is now a generation-safe Entity reference.
+                    // Trajectory rendering from the leader is intentionally deferred
+                    // to the next rendering pass; skipped here for simplicity.
+                    _ = member;
                 }
             }
         }

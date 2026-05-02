@@ -179,24 +179,10 @@ public class VehicleVisualizer : IVisualizerAdapter
             }
         }
         
-        // Draw Formation Leader lines (Legacy functionality)
-        if (view.HasComponent<FormationRoster>(entity))
+        // Draw Formation Leader indicator
+        if (view.HasComponent<FormationController>(entity))
         {
-             var roster = view.GetComponentRO<FormationRoster>(entity);
-             if (roster.Count > 0)
-             {
-                  Raylib.DrawRing(position, parameters.Width * 0.6f, parameters.Width * 0.8f, 0, 360, 32, Color.Magenta);
-                  
-                  for (int i = 1; i < roster.Count; i++)
-                  {
-                      var follower = roster.GetMember(i);
-                      if (view.IsAlive(follower) && view.HasComponent<SimTransform>(follower))
-                      {
-                          var fTf = view.GetComponentRO<SimTransform>(follower);
-                          Raylib.DrawLineEx(position, new Vector2(fTf.Position.X, fTf.Position.Y), 0.1f, new Color(255, 0, 255, 128));
-                      }
-                  }
-             }
+             Raylib.DrawRing(position, parameters.Width * 0.6f, parameters.Width * 0.8f, 0, 360, 32, Color.Magenta);
         }
     }
     

@@ -118,8 +118,8 @@ namespace Fdp.Examples.CarKinem.Headless
             Repository.RegisterComponent<VehicleState>();
             Repository.RegisterComponent<VehicleParams>();
             Repository.RegisterComponent<NavState>();
-            Repository.RegisterComponent<FormationMember>();
-            Repository.RegisterComponent<FormationRoster>();
+            Repository.RegisterComponent<FormationFollower>();
+            Repository.RegisterComponent<FormationController>();
             Repository.RegisterComponent<FormationTarget>();
             Repository.RegisterComponent<VehicleColor>();
             
