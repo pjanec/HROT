@@ -6,6 +6,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Utilities;
 using Hrot.Core.Mission;
@@ -64,6 +65,7 @@ namespace Hrot.Common.Systems
 
         private readonly NetworkEntityMap _entityMap;
         private readonly DoctrineRegistry _doctrineRegistry;
+        private readonly TacticalIntentMapperRegistry _mapperRegistry;
 
         private readonly Dictionary<long, long> _missionVersions = new();
         private readonly Dictionary<long, List<Guid>> _taskOrder = new();
@@ -72,10 +74,12 @@ namespace Hrot.Common.Systems
         /// <summary>Production constructor — creates from ambient services.</summary>
         public MissionControlExecutionSystem(
             NetworkEntityMap entityMap,
-            DoctrineRegistry doctrineRegistry)
+            DoctrineRegistry doctrineRegistry,
+            TacticalIntentMapperRegistry mapperRegistry)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _doctrineRegistry = doctrineRegistry ?? throw new ArgumentNullException(nameof(doctrineRegistry));
+            _mapperRegistry = mapperRegistry ?? throw new ArgumentNullException(nameof(mapperRegistry));
         }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -315,6 +319,14 @@ namespace Hrot.Common.Systems
             if (_doctrineRegistry.TryGetId(behaviorId, out int doctrineId))
                 return doctrineId;
 
+            // Tactical intents (handled by TacticalIntentResolutionSystem) are not in the
+            // concrete DoctrineRegistry. Falling back to 0 is correct; suppress the warning.
+            if (_mapperRegistry.TryGetMapper(behaviorId, out _))
+                return 0;
+
+            // Also suppress for pass-through intents (no mapper needed; TacticalIntentResolutionSystem
+            // uses the intent ID directly as the doctrine name via its fallback path).
+            // We cannot enumerate all valid intent names here, so warn only for truly unknown IDs.
             FdpLog<MissionControlExecutionSystem>.Warn(
                 "[MissionControl] Unknown BehaviorId '{0}'; using doctrine 0 (Idle).",
                 behaviorId);

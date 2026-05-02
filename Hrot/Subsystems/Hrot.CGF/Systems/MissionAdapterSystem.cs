@@ -55,10 +55,16 @@ namespace Hrot.CGF.Systems
                 ref var adapterState = ref repo.GetComponentRW<Hrot.CGF.Components.MissionAdapterState>(entity);
                 var activePlan = repo.GetComponent<ActiveMissionPlan>(entity);
 
-                // Cache exhaustion so re-committing the same mission from phase 0 is correctly detected
+                // Detect exhaustion: publish ClearDoctrineEvent once, then cache so that
+                // re-committing the same mission from phase 0 is correctly detected.
                 if (queue.CurrentPhase >= queue.PhaseCount)
                 {
-                    adapterState.LastPhase = queue.CurrentPhase;
+                    if (adapterState.LastPhase != queue.CurrentPhase)
+                    {
+                        repo.Bus.Publish(new ClearDoctrineEvent { Entity = entity });
+                        adapterState.LastPhase = queue.CurrentPhase;
+                        adapterState.LastPlanVersion = 0;
+                    }
                     continue;
                 }
 

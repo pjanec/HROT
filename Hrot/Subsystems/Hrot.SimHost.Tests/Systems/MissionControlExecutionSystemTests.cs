@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Hrot.Core.Mission;
 using Hrot.Common.Events;
@@ -6,6 +6,7 @@ using Hrot.Common.Systems;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
 using Xunit;
@@ -87,7 +88,7 @@ public class MissionControlExecutionSystemTests
         var entity = repo.CreateEntity();
         entityMap.Register(1L, entity);
 
-        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry(), new TacticalIntentMapperRegistry());
 
         var taskA = Guid.NewGuid();
         var requestId = Guid.NewGuid();
@@ -132,7 +133,7 @@ public class MissionControlExecutionSystemTests
         var entity = repo.CreateEntity();
         entityMap.Register(1L, entity);
 
-        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry(), new TacticalIntentMapperRegistry());
 
         // First mission succeeds (BaseVersion 0).
         var taskA = Guid.NewGuid();
@@ -186,7 +187,7 @@ public class MissionControlExecutionSystemTests
         using var repo = CreateWorld();
         // Do NOT register entity â€” simulate unknown entity.
 
-        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry(), new TacticalIntentMapperRegistry());
 
         var requestId = Guid.NewGuid();
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
@@ -224,7 +225,7 @@ public class MissionControlExecutionSystemTests
         using var repo = CreateWorld();
         // Entity NOT yet registered.
 
-        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry(), new TacticalIntentMapperRegistry());
 
         var taskA = Guid.NewGuid();
         var requestId = Guid.NewGuid();
@@ -272,7 +273,7 @@ public class MissionControlExecutionSystemTests
         var entity = repo.CreateEntity();
         entityMap.Register(1L, entity);
 
-        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry(), new TacticalIntentMapperRegistry());
 
         var taskA = Guid.NewGuid();
         var taskB = Guid.NewGuid();
@@ -328,7 +329,7 @@ public class MissionControlExecutionSystemTests
         var entity = repo.CreateEntity();
         entityMap.Register(1L, entity);
 
-        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry(), new TacticalIntentMapperRegistry());
 
         var taskA = Guid.NewGuid();
         var taskB = Guid.NewGuid();
@@ -367,7 +368,7 @@ public class MissionControlExecutionSystemTests
         var entity = repo.CreateEntity();
         entityMap.Register(1L, entity);
 
-        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry(), new TacticalIntentMapperRegistry());
 
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {

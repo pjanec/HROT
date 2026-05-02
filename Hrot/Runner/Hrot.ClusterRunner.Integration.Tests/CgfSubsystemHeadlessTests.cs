@@ -453,6 +453,138 @@ public sealed class CgfSubsystemHeadlessTests
         Assert.Null(ex);
         _out.WriteLine("[HT8] PASS â€” no crash while processing EntityDamage and EntityInfo updates.");
     }
+    // -- HT-9: MoveToLocation mission via CGF brain -- entity moves without ghost tick --
+
+    /// <summary>
+    /// Regression test for the double-publish race condition where
+    /// <c>MissionDirectorSystem</c> published <see cref="AssignDoctrineHashEvent"/>
+    /// simultaneously with <c>MissionAdapterSystem</c> publishing
+    /// <see cref="AssignTacticalIntentEvent"/>.
+    ///
+    /// Prior to the fix, <c>DoctrineIngressSystem</c> processed the hash event first,
+    /// initialising the BTree with a zero blackboard.  The first tick dispatched
+    /// <c>MoveTo(0,0)</c>; because the entity spawns near the map origin its
+    /// distance to <c>(0,0)</c> was zero, so <c>NavigationExecutionSystem</c>
+    /// immediately set <c>NavigationResult.Arrived</c> and the doctrine finished before
+    /// the entity ever moved.  <c>MissionAdapterSystem</c> then detected the exhausted
+    /// queue and emitted <c>ClearDoctrineEvent</c>, killing the plan.
+    ///
+    /// After the fix <c>MissionDirectorSystem</c> only mutates the unmanaged phase
+    /// pointer and <c>MissionAdapterSystem</c> is the sole emitter of cognitive-tier
+    /// events, so the entity receives real coordinates before the BTree ticks.
+    /// </summary>
+    [Fact]
+    public void SimHost_MoveToLocationMission_EntityMovesWithoutGhostTick()
+    {
+        int domainId = Interlocked.Increment(ref _domainCounter);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
+
+        long tkbType = TkbEntityTypes.Tank_M1Abrams;
+        // Spawn near the map reference origin so a ghost tick targeting (0,0) would
+        // immediately report "arrived" without the entity moving -- the failing scenario.
+        var spawnPos = new CoreGeoPoint { Latitude = 52.524, Longitude = 13.415, Altitude = 0 };
+        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+
+        // Wait for CGF ghost entity to appear.
+        bool cgfReady = harness.PumpUntil(
+            () =>
+            {
+                var map = harness.Cgf!.GhostEntityMap;
+                return map != null && map.TryGetEntity(networkId, out _);
+            },
+            SpawnTimeoutMs / 5);
+        Assert.True(cgfReady, $"CGF ghost entity {networkId} did not appear within {SpawnTimeoutMs} ms.");
+        _out.WriteLine($"[HT9] CGF ghost entity {networkId} ready.");
+
+        // Record baseline SimHost position before the mission is sent.
+        var initialPos = harness.SimHost.TestHook_GetSimTransform(networkId).Position;
+        _out.WriteLine($"[HT9] Initial SimHost position: ({initialPos.X:F3}, {initialPos.Y:F3})");
+
+        // Send a MoveToLocation mission via DDS.  Full Brain pipeline exercised:
+        //   MissionControlRequest (DDS) -> MissionControlExecutionSystem (CGF)
+        //   -> MissionAdapterSystem -> AssignTacticalIntentEvent
+        //   -> TacticalIntentResolutionSystem -> AssignDoctrineEvent (with JSON params)
+        //   -> DoctrineIngressSystem -> BTree tick -> NavigationIntent (DDS)
+        //   -> SimHost NavigationExecution -> entity movement.
+        using var participant = new DdsParticipant((uint)harness.DomainId);
+        using var reqWriter   = new DdsWriter<MissionControlRequest>(participant, "MissionControlRequest");
+        using var ackReader   = new DdsReader<MissionControlAck>(participant, "MissionControlAck");
+
+        var taskId = Guid.NewGuid();
+        reqWriter.Write(new MissionControlRequest
+        {
+            RequestId      = Guid.NewGuid(),
+            TargetEntityId = networkId,
+            BaseVersion    = 0,
+            Payload        = new MissionCommandUnion
+            {
+                _d              = eMissionCommandType.CMD_REPLACE_MISSION,
+                FullMissionData = new MissionPlan
+                {
+                    ActiveTaskId = taskId,
+                    Tasks        = new System.Collections.Generic.List<MissionTask>
+                    {
+                        new MissionTask
+                        {
+                            TaskId          = taskId,
+                            BehaviorId      = "MoveToLocation",
+                            // Target ~1.2 km north-east: far enough that the entity cannot
+                            // reach it within the test window even at maximum speed.
+                            BehaviorParams  = "{\"targetLat\":52.535,\"targetLon\":13.42,\"speed\":15,\"arrivalRadius\":5}",
+                            ExecutingEngine = "CGFX",
+                            State           = eTaskState.TASK_ACTIVE,
+                            Triggers        = new System.Collections.Generic.List<DdsMissionTrigger>
+                            {
+                                new DdsMissionTrigger { Type = "DoctrineFinished", Params = "" }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        _out.WriteLine($"[HT9] MoveToLocation MissionControlRequest sent for entity {networkId}.");
+
+        // Wait for ACK from CGF to confirm the plan was processed by MissionControlExecutionSystem.
+        MissionControlAck missionAck = default;
+        bool ackReceived = harness.PumpUntil(
+            () =>
+            {
+                using var loan = ackReader.Take();
+                foreach (var sample in loan)
+                {
+                    if (sample.IsValid) { missionAck = sample.Data; return true; }
+                }
+                return false;
+            },
+            MissionTimeoutMs / 5);
+        _out.WriteLine($"[HT9] MissionControlAck received={ackReceived}, " +
+                       $"ErrorCode={missionAck.ErrorCode}, NewVersion={missionAck.NewVersion}");
+        Assert.True(ackReceived, "MissionControlAck not received: CGF Brain may not have processed the request.");
+        Assert.Equal(0, missionAck.ErrorCode);
+
+        // Key assertion: entity must start moving toward the real target.
+        // Without the fix, the ghost tick targets (0,0); the entity spawned near (0,0)
+        // immediately "arrives", the doctrine finishes, and the entity never moves.
+        const float MovedThresholdMetres = 5.0f;
+        bool moved = harness.PumpUntil(
+            () =>
+            {
+                var pos = harness.SimHost.TestHook_GetSimTransform(networkId).Position;
+                return Vector3.Distance(pos, initialPos) >= MovedThresholdMetres;
+            },
+            MissionActivationMs);
+
+        var finalPos = harness.SimHost.TestHook_GetSimTransform(networkId).Position;
+        float dist = Vector3.Distance(finalPos, initialPos);
+        _out.WriteLine($"[HT9] initial=({initialPos.X:F3},{initialPos.Y:F3}), " +
+                       $"final=({finalPos.X:F3},{finalPos.Y:F3}), dist={dist:F3} m, moved={moved}");
+
+        Assert.True(moved,
+            $"Entity {networkId} did not move >= {MovedThresholdMetres} m after MoveToLocation mission " +
+            $"(dist={dist:F3} m). Ghost-tick regression: MissionDirectorSystem must not publish " +
+            $"AssignDoctrineHashEvent; only MissionAdapterSystem should emit cognitive-tier events.");
+    }
+
 
     // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
