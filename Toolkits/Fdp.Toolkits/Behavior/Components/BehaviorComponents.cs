@@ -21,6 +21,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.PreviousCapabilities)]
+    [DataPolicy(DataPolicy.NoSave)]
     public struct PreviousCapabilities
     {
         public ActorCapabilities Capabilities;

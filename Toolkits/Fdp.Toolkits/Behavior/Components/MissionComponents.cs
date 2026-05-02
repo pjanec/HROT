@@ -136,6 +136,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.MissionPlanQueue)]
+    [DataPolicy(DataPolicy.NoSave)]
     public struct MissionPlanQueue
     {
         /// <summary>Maximum number of phases in a mission plan.</summary>

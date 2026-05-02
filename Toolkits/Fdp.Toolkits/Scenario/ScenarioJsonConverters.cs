@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Scenario
 {
@@ -107,6 +108,24 @@ namespace Fdp.Toolkit.Scenario
             string w = value.W.ToString("G9", CultureInfo.InvariantCulture);
             writer.WriteRawValue($"[{x}, {y}, {z}, {w}]");
         }
+    }
+
+    internal sealed class FixedString32Converter : JsonConverter<FixedString32>
+    {
+        public override FixedString32 Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => new FixedString32(reader.GetString() ?? string.Empty);
+
+        public override void Write(Utf8JsonWriter writer, FixedString32 value, JsonSerializerOptions options)
+            => writer.WriteStringValue(value.ToString());
+    }
+
+    internal sealed class FixedString64Converter : JsonConverter<FixedString64>
+    {
+        public override FixedString64 Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => new FixedString64(reader.GetString() ?? string.Empty);
+
+        public override void Write(Utf8JsonWriter writer, FixedString64 value, JsonSerializerOptions options)
+            => writer.WriteStringValue(value.ToString());
     }
 
 }

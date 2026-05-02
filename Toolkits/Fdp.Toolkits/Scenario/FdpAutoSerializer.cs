@@ -230,6 +230,9 @@ namespace Fdp.Toolkit.Scenario
                 new QuaternionArrayConverter(),
                 new Vector2ArrayConverter(),
                 new Vector4ArrayConverter(),
+                new FixedString32Converter(),
+                new FixedString64Converter(),
+                new System.Text.Json.Serialization.JsonStringEnumConverter(),
             },
         };
 
