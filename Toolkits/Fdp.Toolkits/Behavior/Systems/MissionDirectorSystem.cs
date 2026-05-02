@@ -106,18 +106,6 @@ namespace Fdp.Toolkit.Behavior.Systems
                 Span<MissionPhase> phases = queue.Phases;
                 var phase = phases[queue.CurrentPhase];
 
-                // Activate the current phase's doctrine if it hasn't been activated yet.
-                // Delegate the write to DoctrineIngressSystem via the event bus so that
-                // DoctrineState has a single owner.
-                if (doctrine.ActiveDoctrineHash != phase.DoctrineId)
-                {
-                    repo.Bus.Publish(new AssignDoctrineHashEvent
-                    {
-                        Entity      = entity,
-                        DoctrineHash = phase.DoctrineId,
-                    });
-                }
-
                 bool triggered = false;
 
                 switch (phase.Trigger)
@@ -182,25 +170,6 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     queue.CurrentPhase++;
                     queue.PhaseElapsedSeconds = 0f;
-
-                    // Load the next phase's doctrine if there is one.
-                    if (queue.CurrentPhase < queue.PhaseCount)
-                    {
-                        // Use the NEW phase index — `phase` still refers to the old slot.
-                        // Delegate the write to DoctrineIngressSystem via the event bus.
-                        repo.Bus.Publish(new AssignDoctrineHashEvent
-                        {
-                            Entity       = entity,
-                            DoctrineHash = phases[queue.CurrentPhase].DoctrineId,
-                        });
-                    }
-                    else
-                    {
-                        // Plan exhausted — delegate doctrine teardown via the event bus
-                        // so DoctrineIngressSystem (the sole owner of DoctrineState writes)
-                        // performs the brain-death reset. Do NOT mutate DoctrineState here.
-                        repo.Bus.Publish(new ClearDoctrineEvent { Entity = entity });
-                    }
                 }
             }
         }
