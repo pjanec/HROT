@@ -71,23 +71,16 @@ public sealed class ExConOrbatAdapter : IOrbatDataProvider, IOrbatController
             }
         }
 
-        // ── BFS walk from root entities ───────────────────────────────────────
+        // ── DFS walk from root entities ───────────────────────────────────────
         var result = new List<OrbatNodeViewModel>();
-        var queue  = new Queue<(int entityId, int depth)>();
-
-        foreach (var rootId in rootIds)
-            queue.Enqueue((rootId, 0));
-
         var visited = new HashSet<int>(); // cycle guard
 
-        while (queue.Count > 0)
+        void CollectNodes(int entityId, int depth)
         {
-            var (entityId, depth) = queue.Dequeue();
-
-            if (!visited.Add(entityId)) continue;
+            if (!visited.Add(entityId)) return;
 
             var entity = _repo.GetEntity(entityId);
-            if (entity is null || !entity.HasDescriptor<EntityInfoDescriptor>()) continue;
+            if (entity is null || !entity.HasDescriptor<EntityInfoDescriptor>()) return;
 
             var info = entity.GetDescriptor<EntityInfoDescriptor>();
             string name = info.Name ?? string.Empty;
@@ -112,12 +105,15 @@ public sealed class ExConOrbatAdapter : IOrbatDataProvider, IOrbatController
             bool shouldExpand = !string.IsNullOrEmpty(filterText)
                 || expandedNodes.Contains(entityId);
 
-            if (shouldExpand && childList is not null)
+            if (shouldExpand && hasChildren)
             {
-                foreach (var childId in childList)
-                    queue.Enqueue((childId, depth + 1));
+                foreach (var childId in childList!)
+                    CollectNodes(childId, depth + 1);
             }
         }
+
+        foreach (var rootId in rootIds)
+            CollectNodes(rootId, 0);
 
         return result;
     }

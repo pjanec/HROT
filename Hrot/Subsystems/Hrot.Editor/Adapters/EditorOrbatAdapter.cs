@@ -85,18 +85,16 @@ namespace Hrot.Editor.Adapters
                 }
             }
 
-            // ── BFS walk from roots ──────────────────────────────────────────
+            // ── DFS walk from roots ──────────────────────────────────────────
             var result = new List<OrbatNodeViewModel>();
-            var queue  = new Queue<(int entityIdx, int depth)>();
+            var visited = new HashSet<int>();
 
-            foreach (var root in rootIndices)
-                queue.Enqueue((root, 0));
-
-            while (queue.Count > 0)
+            void CollectNodes(int idx, int depth)
             {
-                var (idx, depth) = queue.Dequeue();
+                // Cycle guard
+                if (!visited.Add(idx)) return;
+                if (!_indexCache.TryGetValue(idx, out var entity)) return;
 
-                if (!_indexCache.TryGetValue(idx, out var entity)) continue;
                 var info = _world.GetComponent<EntityInfo>(entity);
                 string name = info.Name.ToString();
 
@@ -104,9 +102,10 @@ namespace Hrot.Editor.Adapters
                 bool passesFilter = string.IsNullOrEmpty(filterText)
                     || name.Contains(filterText, System.StringComparison.OrdinalIgnoreCase);
 
+                bool hasChildren = children.ContainsKey(idx) && children[idx].Count > 0;
+
                 if (passesFilter)
                 {
-                    bool hasChildren = children.ContainsKey(idx) && children[idx].Count > 0;
                     result.Add(new OrbatNodeViewModel(
                         EntityId:       idx,
                         Name:           name,
@@ -118,12 +117,15 @@ namespace Hrot.Editor.Adapters
 
                 // Expand children only if this node is expanded (or no expand filter is active)
                 bool expanded = expandedNodes.Count == 0 || expandedNodes.Contains(idx) || !passesFilter;
-                if (expanded && children.TryGetValue(idx, out var childList))
+                if (expanded && hasChildren)
                 {
-                    foreach (var child in childList)
-                        queue.Enqueue((child, depth + 1));
+                    foreach (var child in children[idx])
+                        CollectNodes(child, depth + 1);
                 }
             }
+
+            foreach (var root in rootIndices)
+                CollectNodes(root, 0);
 
             return result;
         }

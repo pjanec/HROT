@@ -5,7 +5,17 @@ Ib the context menu of the event list I would like to see "Copy to JSON"
 which should make a JSON copy of each selected event (from older to newer) and concatenate these and copy the resulting
 text to the clipboard.
 ---------------------------------------
-
+[BUG] In entity inspector, in Unit roster, in the Subordinate Entities array,
+the entity ids are shown as packed long 4294967297. I would like to see nice entity id like "[10, v21]".
+Also the TacticalDesignations are shown as plain numbers. I would like to see the enum names instead.
+Maybe a custom renderer for the whole component is needed as the arrays are typed as primitive numbers
+because of fixed array limitations...
+BTW when i double click one item in the SubordinateEntities list showing value 4294967297, 
+the StructEdit editor opens but showing 2147483647. Inconsistent!
+---------------------------------------
+---------------------------------------
+---------------------------------------
+---------------------------------------
 [BUG]
 You have just uncovered a severe memory-misalignment bug in the FDP engine's `DeltaQueryEnumerator` optimization. Your intuition is 100% correct: **the component version is being written perfectly, but `QueryDelta` is looking at the wrong chunk of memory.**
 
