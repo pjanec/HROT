@@ -1,4 +1,4 @@
-﻿I do not se the new doctrine FireAtTarget_BT in the list of doctrines when editing the missions on ExCon. Pls add it there.
+﻿I do not se the new behavior FireAtTarget_BT in the list of behaviors when editing the missions on ExCon. Pls add it there.
 
 ------------
 
@@ -95,9 +95,9 @@ To safely process continuous-time floating-point values deterministically, we mu
 
 Stage 2: Cognitive & Behavior Implementation
 
-With the pipeline adapted, we define the new doctrine relying entirely on the `BrainBlackboard` for state memory.
+With the pipeline adapted, we define the new behavior relying entirely on the `BrainBlackboard` for state memory.
 
--   **Task 2.1:** Create a `FireAtTargetParamsJsonDto` class containing `TargetNetworkId` (long), `MaxRounds` (int), and `CooldownSeconds` (float).-   **Task 2.2:** Write a parser delegate `ParseFireAtTargetParams` that deserializes the DTO, resolves the target entity via `NetworkEntityMap`, and strictly packs the layout into `BrainBlackboard.Memory`.-   **Task 2.3:** Implement `Condition_IsTargetValidAndVisible` to query the entity's `TargetMemory`. It must evaluate threat scores to guarantee the target remains organically visible.-   **Task 2.4:** Implement `Action_FireWithLimit` to evaluate the internal rounds-fired counter, pack `AimAndFireParams`, and increment the `WeaponChannel.ActionInstanceId` to trigger the execution pipeline.-   **Task 2.5:** Define a unique constant in `CgfDoctrineIds` and register the `FireAtTarget_BT` doctrine definition in `CgfDoctrineSetup.RegisterAll`.
+-   **Task 2.1:** Create a `FireAtTargetParamsJsonDto` class containing `TargetNetworkId` (long), `MaxRounds` (int), and `CooldownSeconds` (float).-   **Task 2.2:** Write a parser delegate `ParseFireAtTargetParams` that deserializes the DTO, resolves the target entity via `NetworkEntityMap`, and strictly packs the layout into `BrainBlackboard.Memory`.-   **Task 2.3:** Implement `Condition_IsTargetValidAndVisible` to query the entity's `TargetMemory`. It must evaluate threat scores to guarantee the target remains organically visible.-   **Task 2.4:** Implement `Action_FireWithLimit` to evaluate the internal rounds-fired counter, pack `AimAndFireParams`, and increment the `WeaponChannel.ActionInstanceId` to trigger the execution pipeline.-   **Task 2.5:** Define a unique constant in `CgfBehaviorIds` and register the `FireAtTarget_BT` behavior definition in `CgfBehaviorSetup.RegisterAll`.
 
 Stage 3: Editor UI Integration
 
@@ -119,7 +119,7 @@ Stage 1: Offline Engine Capability Alignment
 
 To execute the Grand Integration Demo scenario within the offline Editor, the application's composition root must be brought to parity with the live simulation nodes. The lack of proper schema registration currently causes the Editor to fall back to default states upon deserialization.
 
--   **Task 1.1: TKB Registration:** Provision the Transient Knowledge Base by invoking `DemoTkbSetup.RegisterAll(tkb)` during `EditorSubsystem.Initialize`. This guarantees that the entity blueprints for `MilitaryApc` (2001), `InfantrySoldier` (2002), and `Insurgent` (2003) are resolvable when the `ScenarioSerializer` reads the file.-   **Task 1.2: Doctrine Registration:** Invoke `UrbanCombatNewScenario.RegisterUrbanCombatDoctrines` against the Editor's `DoctrineRegistry` during kernel bootstrap. This satisfies the behavior tree definitions so the `MissionAdapterSystem` can correctly assign the `Ambush` and `InfantryCombat` behaviors rather than safely defaulting to "Idle".
+-   **Task 1.1: TKB Registration:** Provision the Transient Knowledge Base by invoking `DemoTkbSetup.RegisterAll(tkb)` during `EditorSubsystem.Initialize`. This guarantees that the entity blueprints for `MilitaryApc` (2001), `InfantrySoldier` (2002), and `Insurgent` (2003) are resolvable when the `ScenarioSerializer` reads the file.-   **Task 1.2: Behavior Registration:** Invoke `UrbanCombatNewScenario.RegisterUrbanCombatBehaviors` against the Editor's `BehaviorRegistry` during kernel bootstrap. This satisfies the behavior tree definitions so the `MissionAdapterSystem` can correctly assign the `Ambush` and `InfantryCombat` behaviors rather than safely defaulting to "Idle".
 
 Stage 2: Offline Presentation Parity
 
@@ -131,7 +131,7 @@ Stage 3: Mission Authoring UI
 
 To support user-friendly scenario editing, the presentation tier must decouple the domain logic from raw string manipulation.
 
--   **Task 3.1: ImGui Parameter Widgets:** Extend the `MissionPanel.DrawContent` method to explicitly intercept the Urban Combat doctrine IDs. Implement dedicated rendering functions that parse the underlying parameter schemas and expose native ImGui controls (sliders, checkboxes, combo boxes) to replace the fallback raw JSON multiline buffer.
+-   **Task 3.1: ImGui Parameter Widgets:** Extend the `MissionPanel.DrawContent` method to explicitly intercept the Urban Combat behavior IDs. Implement dedicated rendering functions that parse the underlying parameter schemas and expose native ImGui controls (sliders, checkboxes, combo boxes) to replace the fallback raw JSON multiline buffer.
 
 After the hexagon architecture refactor the visualization is missing also any representation of entity's mission; for moveToLocation tasks there used to be an orange line drawn to the waypoints. how to return this back? to both the editor and to the all-networked-subsystems-in-one-process mode.
 
@@ -295,7 +295,7 @@ In `EditorSubsystem.Initialize`, instantiate the standard WGS-84 transform using
 // ADD THIS: Instantiate the standard geodetic transform
 var geoTransform     = HrotEnvironment.CreateGeoTransform(); 
 var entityMap        = new NetworkEntityMap();
-var doctrineRegistry = new DoctrineRegistry();
+var behaviorRegistry = new BehaviorRegistry();
 // ... 
 
 // ── 10. Canvas-dependent adapters, layers, and interaction tool ───
@@ -573,7 +573,7 @@ Here is the objective assessment of the current state and the exact steps requir
 
 The codebase already contains a dedicated presentation adapter for the Brain node: the `CgfDebugVisualizerAdapter`.
 
-Because the CGF node natively owns the cognitive ECS components, this adapter directly queries `DoctrineState`, `MissionPlanQueue`, `LocomotionChannel`, `WeaponChannel`, `TargetMemory`, and `ActorCapabilityState` to build a rich multi-line diagnostic tooltip on mouse hover. Furthermore, it colour-codes the entity symbols based on the active doctrine's tier (e.g., Blue for BTree, Teal for HSM).
+Because the CGF node natively owns the cognitive ECS components, this adapter directly queries `BehaviorState`, `MissionPlanQueue`, `LocomotionChannel`, `WeaponChannel`, `TargetMemory`, and `ActorCapabilityState` to build a rich multi-line diagnostic tooltip on mouse hover. Furthermore, it colour-codes the entity symbols based on the active behavior's tier (e.g., Blue for BTree, Teal for HSM).
 
 This adapter is currently wired into `CgfSubsystem.Initialize` when running in non-headless mode. You do not need to implement any additional logic or publishing mechanisms to see these tooltips on the CGF map; they will appear automatically when hovering over entities.
 

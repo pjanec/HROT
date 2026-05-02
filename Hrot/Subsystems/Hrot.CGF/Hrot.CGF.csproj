@@ -51,8 +51,8 @@
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <!-- NodeBootstrapper and EcsRecordReplayController (CGF record/replay wiring, feedback-5 Point 4) -->
     <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
-    <!-- Hrot.AI.Doctrines: doctrine behavior trees and mapper implementations, hot-reloaded -->
-    <ProjectReference Include="..\Hrot.AI.Doctrines\Hrot.AI.Doctrines.csproj" />
+    <!-- Hrot.AI.Behaviors: behavior behavior trees and mapper implementations, hot-reloaded -->
+    <ProjectReference Include="..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
   </ItemGroup>
 
 </Project>

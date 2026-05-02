@@ -134,9 +134,9 @@ Or it can be defined using the flexible `Params` fallback:
 
 The compiler then assigns a **PayloadIndex** to the compiled `NodeDefinition`. At runtime, the behavior tree interpreter uses this index to look up the static parameter from the context, such as calling `context.GetFloatParam(paramIndex)` to retrieve a wait duration.
 
-Let's say i want to define a highly reusable btree node with conditions and actions which are supposed to take parameters from the blackboard. How can we specify where in the blackboard the condition and/or action the parameters are located? I do not want to hardcode the blackboard memory offsets inside the actions or conditions. I would like to specify the offset from outside (maybe by specifying the offset value as static parameter?) Even better i would like for that node to specify the name of the field in the btree parameter dto structure (which is used to interpret the byte array of the blackboard), expecting some runtime compiler to find the real offset. The btree parameter dto structure could be registered with the doctrine id when a doctrine gets registered. This registration could be used by the custom renderer for the brain blackboard component to render the dto fields instead of plain bytes
+Let's say i want to define a highly reusable btree node with conditions and actions which are supposed to take parameters from the blackboard. How can we specify where in the blackboard the condition and/or action the parameters are located? I do not want to hardcode the blackboard memory offsets inside the actions or conditions. I would like to specify the offset from outside (maybe by specifying the offset value as static parameter?) Even better i would like for that node to specify the name of the field in the btree parameter dto structure (which is used to interpret the byte array of the blackboard), expecting some runtime compiler to find the real offset. The btree parameter dto structure could be registered with the behavior id when a behavior gets registered. This registration could be used by the custom renderer for the brain blackboard component to render the dto fields instead of plain bytes
 
-To achieve highly reusable Behavior Tree nodes that dynamically read parameters from specific blackboard offsets, you can leverage the existing FastBTree architecture while extending the Doctrine registration and UI rendering systems to support your ideal workflow.
+To achieve highly reusable Behavior Tree nodes that dynamically read parameters from specific blackboard offsets, you can leverage the existing FastBTree architecture while extending the Behavior registration and UI rendering systems to support your ideal workflow.
 
 Here is how you can implement both of your proposed solutions based on the FDP architecture:
 
@@ -180,10 +180,10 @@ public static unsafe NodeStatus Condition_CheckDistance(
 
 To use field names directly in the JSON and have the compiler calculate the real offset, you can introduce a pre-processing step before handing the JSON to the standard `TreeCompiler`.
 
-Currently, FDP doctrines map a `ParseParamsDelegate` to handle how JSON is injected into the 128-byte `BrainBlackboard` memory. You can extend the `DoctrineDefinition` class to explicitly hold the DTO Type:
+Currently, FDP behaviors map a `ParseParamsDelegate` to handle how JSON is injected into the 128-byte `BrainBlackboard` memory. You can extend the `BehaviorDefinition` class to explicitly hold the DTO Type:
 
 ```
-public sealed class DoctrineDefinition
+public sealed class BehaviorDefinition
 {
     public required string Name { get; init; }
     public byte BrainTier { get; init; }
@@ -194,7 +194,7 @@ public sealed class DoctrineDefinition
 
 When building your behavior trees, you could write a JSON pre-processor that:
 
--   Reads `"FieldName": "AmmoCount"` from the node definition.-   Uses `System.Runtime.InteropServices.Marshal.OffsetOf(doctrineDef.ParamsDtoType, "AmmoCount")` to find the exact byte offset in the struct.-   Injects this calculated offset into the `"Params": { "offset": X }` dictionary.-   Passes the modified JSON to `TreeCompiler.CompileFromJson`.
+-   Reads `"FieldName": "AmmoCount"` from the node definition.-   Uses `System.Runtime.InteropServices.Marshal.OffsetOf(behaviorDef.ParamsDtoType, "AmmoCount")` to find the exact byte offset in the struct.-   Injects this calculated offset into the `"Params": { "offset": X }` dictionary.-   Passes the modified JSON to `TreeCompiler.CompileFromJson`.
 
 This gives you the authoring convenience of string-based field names without paying any reflection or string-lookup costs during the 60Hz runtime tick.
 
@@ -214,8 +214,8 @@ public class BrainBlackboardRenderer : IImGuiRenderer
     {
         if (value is not BrainBlackboard bb) return false;
 
-        // 1. You would need access to the entity's DoctrineState to get the ActiveDoctrineHash. 
-        // 2. Query the DoctrineRegistry for the DoctrineDefinition to get ParamsDtoType.
+        // 1. You would need access to the entity's BehaviorState to get the ActiveBehaviorHash. 
+        // 2. Query the BehaviorRegistry for the BehaviorDefinition to get ParamsDtoType.
         // 3. If a valid DTO type is found, marshal the raw bytes into a boxed object:
         
         object dtoBoxed;
@@ -233,9 +233,9 @@ public class BrainBlackboardRenderer : IImGuiRenderer
 }
 ```
 
-_Note: Because_ _IImGuiRenderer.RenderValue_ _only receives the value itself__, you may need to extend the signature to pass the current_ _Entity_ _or_ _IInspectableSession_ _context so you can look up the entity's_ _DoctrineState_ _to find the correct DTO._
+_Note: Because_ _IImGuiRenderer.RenderValue_ _only receives the value itself__, you may need to extend the signature to pass the current_ _Entity_ _or_ _IInspectableSession_ _context so you can look up the entity's_ _BehaviorState_ _to find the correct DTO._
 
-By linking the DTO struct to the `DoctrineRegistry`, both your compiler and your ImGui debug tools share a single source of truth for memory layout, completely eliminating the need to read raw hex bytes while debugging.
+By linking the DTO struct to the `BehaviorRegistry`, both your compiler and your ImGui debug tools share a single source of truth for memory layout, completely eliminating the need to read raw hex bytes while debugging.
 
 how do the local refisters and async handles work?
 
@@ -298,13 +298,13 @@ Because the native `TreeCompiler` will ignore `{"offset": 16}` on a `Condition` 
 
 To achieve your goal of defining the target field/offset in the JSON, you have two options:
 
--   **Use the Pre-processor / Blackboard Approach:** As discussed in the previous response, you write a pre-processor that reads your custom JSON properties (like `"FieldName": "AmmoCount"`), calculates the byte offset using reflection, and injects it into the JSON payload that gets sent to the Doctrine's `ParseParamsDelegate`. That delegate then writes the calculated offset directly into `BrainBlackboard.Memory` when the entity spawns. Your custom condition then reads the offset from the blackboard.-   **Extend the Compiler:** You would need to modify `BuilderNode.cs` and `TreeCompiler.cs` to explicitly support parsing custom `Params` for `Action`/`Condition` nodes, and extend `NodeDefinition` (which is currently tightly packed at 8 bytes) to hold a secondary payload index for static parameter lookups.
+-   **Use the Pre-processor / Blackboard Approach:** As discussed in the previous response, you write a pre-processor that reads your custom JSON properties (like `"FieldName": "AmmoCount"`), calculates the byte offset using reflection, and injects it into the JSON payload that gets sent to the Behavior's `ParseParamsDelegate`. That delegate then writes the calculated offset directly into `BrainBlackboard.Memory` when the entity spawns. Your custom condition then reads the offset from the blackboard.-   **Extend the Compiler:** You would need to modify `BuilderNode.cs` and `TreeCompiler.cs` to explicitly support parsing custom `Params` for `Action`/`Condition` nodes, and extend `NodeDefinition` (which is currently tightly packed at 8 bytes) to hold a secondary payload index for static parameter lookups.
 
-ad Use the Pre-processor / Blackboard Approach: ParseParamsDelegate is used to parse parameters provided from outside (from the scenario for example) to the doctrine. Parameters get parsed into a DTO which is then written to the blackoard byte array, is that correct? What i need is to tell the reusable node (used inside different Btrees using different parameter dtos) what exact field of the concrete doctrine's param Dto should carries the parameters for this reusable node. This is not what comes from the external parameter source. This is not a doctrine instance parameter. What i need is is a parameter of concrete doctrine type (concrete btree json) that gets saved with the doctrine json, referencing an existing field in that doctrine's parameter dto.
+ad Use the Pre-processor / Blackboard Approach: ParseParamsDelegate is used to parse parameters provided from outside (from the scenario for example) to the behavior. Parameters get parsed into a DTO which is then written to the blackoard byte array, is that correct? What i need is to tell the reusable node (used inside different Btrees using different parameter dtos) what exact field of the concrete behavior's param Dto should carries the parameters for this reusable node. This is not what comes from the external parameter source. This is not a behavior instance parameter. What i need is is a parameter of concrete behavior type (concrete btree json) that gets saved with the behavior json, referencing an existing field in that behavior's parameter dto.
 
 Yes, your understanding is exactly correct. The `ParseParamsDelegate` is specifically for parsing dynamic, per-instance parameters (like those assigned by a scenario script or `MissionPhase`) into a concrete DTO struct, which is then written into the 128-byte `BrainBlackboard.Memory` array.
 
-Since you want the BTree definition to specify the target DTO field for a reusable node, this represents a **static parameter of the tree itself**. Because the `BehaviorTreeBlob` is shared across all entities using that doctrine, the byte offset for that field is constant for that specific tree.
+Since you want the BTree definition to specify the target DTO field for a reusable node, this represents a **static parameter of the tree itself**. Because the `BehaviorTreeBlob` is shared across all entities using that behavior, the byte offset for that field is constant for that specific tree.
 
 Since we know the native `TreeCompiler` strips custom parameters from `Action` and `Condition` nodes, the most elegant way to build your pre-processor without modifying the FastBTree source code is to use **Delegate Currying via the Action Registry**.
 
@@ -324,7 +324,7 @@ You author your BTree JSON using your custom property (e.g., `TargetField`) to r
 
 2\. The Pre-processor & Dynamic Registration
 
-When you register a new Doctrine, your pre-processor will intercept the JSON before passing it to `TreeCompiler.CompileFromJson`. It will reflect on the Doctrine's DTO, calculate the byte offset, and **dynamically generate a new method name** to register in the `ActionRegistry`.
+When you register a new Behavior, your pre-processor will intercept the JSON before passing it to `TreeCompiler.CompileFromJson`. It will reflect on the Behavior's DTO, calculate the byte offset, and **dynamically generate a new method name** to register in the `ActionRegistry`.
 
 Here is how the pre-processor logic would look:
 
@@ -394,9 +394,9 @@ public static unsafe NodeStatus Reusable_CheckDistance(
 
 Why this architecture is ideal:
 
--   **Zero Runtime Reflection:** `Marshal.OffsetOf` is only called once when the doctrine is registered.-   **Zero Memory Waste:** Because the offset is baked directly into the delegate closure registered in the `ActionRegistry`, you don't waste any of your precious 128-byte `BrainBlackboard.Memory` or custom static array space storing the offset.-   **Clean Authoring:** Your AI designers can write JSON using human-readable DTO property names, and the system guarantees the exact memory offset is perfectly synced with the C# struct layout.
+-   **Zero Runtime Reflection:** `Marshal.OffsetOf` is only called once when the behavior is registered.-   **Zero Memory Waste:** Because the offset is baked directly into the delegate closure registered in the `ActionRegistry`, you don't waste any of your precious 128-byte `BrainBlackboard.Memory` or custom static array space storing the offset.-   **Clean Authoring:** Your AI designers can write JSON using human-readable DTO property names, and the system guarantees the exact memory offset is perfectly synced with the C# struct layout.
 
-interception json is clumsy. Also defining the doctrines only in json is not practical. Much better would be if we define some kind of (fluent?) btree building api allowing to define the nodes using csharp object with constructors, building a DOM. This DOM tree would be equivalent to the json but would allow defining the btrees in csharp code in type safe way. The btree compiler might accept this DOM, or the DOM can be convertible to the JSON. Such DOM could carry the equivalent of the "TargetField", and maby more debug-friendly metadata information usable for diagnostics (maybe somehow usable by the entity inspector renderers?)
+interception json is clumsy. Also defining the behaviors only in json is not practical. Much better would be if we define some kind of (fluent?) btree building api allowing to define the nodes using csharp object with constructors, building a DOM. This DOM tree would be equivalent to the json but would allow defining the btrees in csharp code in type safe way. The btree compiler might accept this DOM, or the DOM can be convertible to the JSON. Such DOM could carry the equivalent of the "TargetField", and maby more debug-friendly metadata information usable for diagnostics (maybe somehow usable by the entity inspector renderers?)
 
 You are absolutely right, and your intuition aligns perfectly with how the engine already handles state machines!
 
@@ -489,8 +489,8 @@ public class BTreeStateRenderer : IImGuiRenderer
     {
         var btState = (BrainBTreeState)value;
         
-        // You can look up the ActiveDoctrineHash from the entity's DoctrineState,
-        // grab the BehaviorTreeBlob from the DoctrineRegistry, and then use ImGui
+        // You can look up the ActiveBehaviorHash from the entity's BehaviorState,
+        // grab the BehaviorTreeBlob from the BehaviorRegistry, and then use ImGui
         // to draw the nodes. 
         
         // Because btState.State.RunningNodeIndex tracks the current execution path,
@@ -820,7 +820,7 @@ When your builder calls `.Compile()`, it populates the `DebugMetadata` array so 
 
 To render this in the Entity Inspector, you implement the `IImGuiRenderer` interface and register it for `BrainBTreeState`.
 
-_Note: Because_ _IImGuiRenderer.RenderValue_ _only receives the value itself__, your UI framework will need a way to look up the entity's_ _DoctrineState_ _to find the correct_ _BehaviorTreeBlob_ _from the_ _DoctrineRegistry__._
+_Note: Because_ _IImGuiRenderer.RenderValue_ _only receives the value itself__, your UI framework will need a way to look up the entity's_ _BehaviorState_ _to find the correct_ _BehaviorTreeBlob_ _from the_ _BehaviorRegistry__._
 
 ```
 [ImGuiRenderer(typeof(BrainBTreeState))]
@@ -833,7 +833,7 @@ public class BTreeVisualizerRenderer : IImGuiRenderer
         var btreeState = (BrainBTreeState)value;
         ref var state = ref btreeState.State;
         
-        // 1. Resolve the static BehaviorTreeBlob for this entity (via DoctrineRegistry)
+        // 1. Resolve the static BehaviorTreeBlob for this entity (via BehaviorRegistry)
         BehaviorTreeBlob blob = ResolveBlobForCurrentEntity(); 
         if (blob == null) return false;
 
@@ -959,7 +959,7 @@ private bool IsNodeInExecutionStack(ref BehaviorTreeState state, int nodeIndex)
 
 **Summary of what this gives you:** By combining the static DOM you built in C# with the 64-byte `BehaviorTreeState`, your ImGui renderer will instantly display a live, color-coded execution tree. Designers and engineers will be able to see the exact C# file and line number that generated a specific behavior, watch timers count down in real-time on `Wait` nodes, and see exactly which branch of a `Selector` or `Sequence` is actively evaluating.
 
-ad "Because IImGuiRenderer.RenderValue only receives the value itself, your UI framework will need a way to look up the entity's DoctrineState to find the correct BehaviorTreeBlob from the DoctrineRegistry"
+ad "Because IImGuiRenderer.RenderValue only receives the value itself, your UI framework will need a way to look up the entity's BehaviorState to find the correct BehaviorTreeBlob from the BehaviorRegistry"
 
 this is what i meant with extending the IImGuiRenderer interface - how to extend it to get access to all what we might need? just optionally, to still keeping the simplicity of the interfaces for cases where we do not need suc extended access
 
@@ -1036,14 +1036,14 @@ public class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
         var btreeState = (BrainBTreeState)value;
         ref var state = ref btreeState.State;
         
-        // 1. Use the session to safely retrieve the sibling DoctrineState
-        if (!session.HasComponent(entity, typeof(DoctrineState))) 
+        // 1. Use the session to safely retrieve the sibling BehaviorState
+        if (!session.HasComponent(entity, typeof(BehaviorState))) 
             return false;
 
-        var doctrine = (DoctrineState)session.GetComponent(entity, typeof(DoctrineState));
+        var behavior = (BehaviorState)session.GetComponent(entity, typeof(BehaviorState));
         
-        // 2. You now have the ActiveDoctrineHash to look up your BehaviorTreeBlob!
-        BehaviorTreeBlob blob = ResolveBlobFromRegistry(doctrine.ActiveDoctrineHash);
+        // 2. You now have the ActiveBehaviorHash to look up your BehaviorTreeBlob!
+        BehaviorTreeBlob blob = ResolveBlobFromRegistry(behavior.ActiveBehaviorHash);
         if (blob == null) return false;
 
         // 3. Draw the tree using ImGui
@@ -1078,7 +1078,7 @@ The json were originally meant for being authored by a graphical tool. With the 
 
 Yes, that makes absolute sense! In fact, your intuition perfectly aligns with the architectural direction the engine is already taking for its other systems.
 
-If you look at the sources, the engine is currently suffering from a "worst of both worlds" scenario with FastBTree: because there is no external graphical tool, the BTrees are literally being hardcoded as raw multi-line JSON strings directly inside the C# files! For example, in `CgfNodes.cs`, doctrines like `MoveToLocation`, `FollowRoute`, and `FireAtTarget` are defined as raw JSON strings that are parsed at runtime.
+If you look at the sources, the engine is currently suffering from a "worst of both worlds" scenario with FastBTree: because there is no external graphical tool, the BTrees are literally being hardcoded as raw multi-line JSON strings directly inside the C# files! For example, in `CgfNodes.cs`, behaviors like `MoveToLocation`, `FollowRoute`, and `FireAtTarget` are defined as raw JSON strings that are parsed at runtime.
 
 Transitioning this to a fluent C# builder and an assembly-scanning auto-registration system is the ideal path forward. Here is how it directly mirrors existing patterns in your codebase:
 
@@ -1090,13 +1090,13 @@ The engine's Hierarchical State Machine (`FastHSM`) already implements the exact
 
 2\. Auto-Registration is already an FDP Paradigm
 
-Your idea to scan the assembly and auto-register the compiled trees fits perfectly with how the engine's `DoctrineRegistry` handles DTOs. Currently, `DoctrineSchemaDiscovery.AutoRegister` uses reflection to scan the assembly for types decorated with `[DoctrineContractAttribute]` and automatically wires them into the UI and behavior remappers.
+Your idea to scan the assembly and auto-register the compiled trees fits perfectly with how the engine's `BehaviorRegistry` handles DTOs. Currently, `BehaviorSchemaDiscovery.AutoRegister` uses reflection to scan the assembly for types decorated with `[BehaviorContractAttribute]` and automatically wires them into the UI and behavior remappers.
 
 The Ideal FastBTree Workflow
 
 By replacing the JSON approach with your fluent C# builder API, you could create a `Fbt.SourceGen` project that completes the pipeline:
 
--   **Authoring:** Developers define BTrees in pure C# using the fluent `BTreeBuilder` (as we designed earlier), utilizing lambda expressions to safely map parameters to the `BrainBlackboard`.-   **Compilation:** You decorate these builder methods with an attribute like `[BTreeDefinition("Ambush_BT")]`.-   **Source Generation:** During the build step, your Roslyn source generator scans for these attributes, automatically generates the string-to-delegate mapping required by `ActionRegistry`, and emits the `BehaviorTreeBlob`.-   **Startup:** `CgfDoctrineSetup.RegisterAll` simply calls an auto-generated `FbtRegistrar.RegisterAll(registry)`, instantly registering all BTrees without parsing a single string of JSON at runtime.
+-   **Authoring:** Developers define BTrees in pure C# using the fluent `BTreeBuilder` (as we designed earlier), utilizing lambda expressions to safely map parameters to the `BrainBlackboard`.-   **Compilation:** You decorate these builder methods with an attribute like `[BTreeDefinition("Ambush_BT")]`.-   **Source Generation:** During the build step, your Roslyn source generator scans for these attributes, automatically generates the string-to-delegate mapping required by `ActionRegistry`, and emits the `BehaviorTreeBlob`.-   **Startup:** `CgfBehaviorSetup.RegisterAll` simply calls an auto-generated `FbtRegistrar.RegisterAll(registry)`, instantly registering all BTrees without parsing a single string of JSON at runtime.
 
 **Conclusion:** Moving away from JSON to a fluent, C#-compiled, and auto-registered approach eliminates the parsing overhead during `TreeCompiler.CompileFromJson`, gives you compile-time safety against typos in node names, ensures memory offsets never break, and matches the high-performance design philosophy already established by `FastHSM` and `Fhsm.SourceGen`.
 
@@ -1119,7 +1119,7 @@ It will introduce three new marker attributes:
 With the source generator in place, your AI developers simply write clean, type-safe C# code without worrying about registration, string keys, or memory offsets:
 
 ```
-public static class UrbanCombatDoctrines
+public static class UrbanCombatBehaviors
 {
     // 1. Define the highly reusable, type-safe condition
     [BTreeCondition]
@@ -1177,7 +1177,7 @@ namespace Fdp.Examples.UrbanCombat.Generated
                     ref byte targetRef = ref Unsafe.AddByteOffset(ref bbBase, (nint)4);
                     ref int subDtoRef = ref Unsafe.As<byte, int>(ref targetRef);
                     
-                    return UrbanCombatDoctrines.CheckAmmo(ref subDtoRef, ref state, ref ctx);
+                    return UrbanCombatBehaviors.CheckAmmo(ref subDtoRef, ref state, ref ctx);
                 });
 
             // ... registers other actions ...
@@ -1203,18 +1203,18 @@ namespace Fdp.Examples.UrbanCombat.Generated
 
 5\. The Ultimate Application Startup
 
-Because of `Fbt.SourceGen`, your engine startup code in `CgfDoctrineSetup.RegisterAll` becomes incredibly clean. You no longer need to parse raw JSON strings. You just invoke the generated registrar:
+Because of `Fbt.SourceGen`, your engine startup code in `CgfBehaviorSetup.RegisterAll` becomes incredibly clean. You no longer need to parse raw JSON strings. You just invoke the generated registrar:
 
 ```
-public static void RegisterAll(DoctrineRegistry registry)
+public static void RegisterAll(BehaviorRegistry registry)
 {
     var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
     
     // Call the source-generated registrar to bind all memory-projected delegates
     FbtActionRegistrar.RegisterAll(actionReg);
 
-    // Register doctrines directly from the source-generated catalog
-    registry.Register(CgfDoctrineIds.Ambush_BT, "Ambush", new DoctrineDefinition
+    // Register behaviors directly from the source-generated catalog
+    registry.Register(CgfBehaviorIds.Ambush_BT, "Ambush", new BehaviorDefinition
     {
         Name = "Ambush",
         BrainTier = BehaviorConstants.BrainTierBTree,
@@ -1236,7 +1236,7 @@ Yes, this is absolutely possible and represents the gold standard for a modular,
 
 Because Roslyn Source Generators run at the compilation level for _each individual project_, `Fbt.SourceGen` will automatically generate a separate registration class for every assembly that uses it. You can then use reflection at engine startup to discover and invoke these generated registrars dynamically.
 
-This approach is highly idiomatic to the FDP/HROT engine. The engine already uses this exact pattern for discovering UI panels (`ImGuiRendererRegistry.ScanAllAssemblies()`), schema DTOs (`DoctrineSchemaDiscovery.AutoRegister`), and even entire subsystem plugins (`ScanForSubsystems()` in `ClusterRunner/Program.cs`).
+This approach is highly idiomatic to the FDP/HROT engine. The engine already uses this exact pattern for discovering UI panels (`ImGuiRendererRegistry.ScanAllAssemblies()`), schema DTOs (`BehaviorSchemaDiscovery.AutoRegister`), and even entire subsystem plugins (`ScanForSubsystems()` in `ClusterRunner/Program.cs`).
 
 Here is how you can implement this cross-assembly auto-registration pipeline:
 
@@ -1251,7 +1251,7 @@ public class FbtRegistrarAttribute : Attribute { }
 
 2\. What `Fbt.SourceGen` Emits Per Project
 
-When `Fbt.SourceGen` runs on your individual projects (like `Project.Core.AI` or `Project.Combat.AI`), it generates a localized registrar and tags it with the marker attribute. Notice how it passes both the `ActionRegistry` and the `DoctrineRegistry`:
+When `Fbt.SourceGen` runs on your individual projects (like `Project.Core.AI` or `Project.Combat.AI`), it generates a localized registrar and tags it with the marker attribute. Notice how it passes both the `ActionRegistry` and the `BehaviorRegistry`:
 
 ```
 // <auto-generated/>
@@ -1266,14 +1266,14 @@ namespace Project.Combat.AI.Generated
     {
         public static void RegisterAll(
             ActionRegistry<BrainBlackboard, BTreeContext> actionReg, 
-            DoctrineRegistry doctrineReg)
+            BehaviorRegistry behaviorReg)
         {
             // 1. Registers memory-projected actions local to THIS assembly
             actionReg.Register("Auto_CheckAmmo_Offset4", ...);
 
             // 2. Registers the compiled blob local to THIS assembly
             var ambushBlob = new BehaviorTreeBlob { ... };
-            doctrineReg.Register(2001, "Ambush_BT", new DoctrineDefinition
+            behaviorReg.Register(2001, "Ambush_BT", new BehaviorDefinition
             {
                 Name = "Ambush",
                 BrainTier = BehaviorConstants.BrainTierBTree,
@@ -1286,14 +1286,14 @@ namespace Project.Combat.AI.Generated
 
 3\. The Engine Auto-Discovery Scanner
 
-At engine startup (e.g., inside `CgfDoctrineSetup.RegisterAll` or a central bootstrapper), you write a small reflection utility to scan the `AppDomain` for any class tagged with `[FbtRegistrar]`, and invoke its `RegisterAll` method:
+At engine startup (e.g., inside `CgfBehaviorSetup.RegisterAll` or a central bootstrapper), you write a small reflection utility to scan the `AppDomain` for any class tagged with `[FbtRegistrar]`, and invoke its `RegisterAll` method:
 
 ```
 public static class FbtAutoDiscovery
 {
     public static void ScanAndRegister(
         ActionRegistry<BrainBlackboard, BTreeContext> actionReg, 
-        DoctrineRegistry doctrineReg)
+        BehaviorRegistry behaviorReg)
     {
         // Search all currently loaded assemblies
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
@@ -1310,7 +1310,7 @@ public static class FbtAutoDiscovery
                     var method = registrarType.GetMethod("RegisterAll", 
                         BindingFlags.Public | BindingFlags.Static);
                         
-                    method?.Invoke(null, new object[] { actionReg, doctrineReg });
+                    method?.Invoke(null, new object[] { actionReg, behaviorReg });
                 }
             }
             catch (ReflectionTypeLoadException) 
@@ -1359,7 +1359,7 @@ If the visual tool compiles a new `.dll` while the engine is running, we need to
 
 If you look at the engine's `FastHSM` library, it already has a `HotReloadManager` that perfectly handles this problem. It compares the old blob's `StructureHash` against the new blob to determine if it can perform a "Soft Reload" (only parameters changed) or a "Hard Reset" (the tree shape changed).
 
-**The Change:** The FastBTree `BehaviorTreeBlob` already contains a `StructureHash` and `ParamHash`, and the `Interpreter.Tick` method actually contains a placeholder comment reading `// === HOT RELOAD CHECK (Stub for now) ===`. We need to implement a BTree `HotReloadManager`. When the engine detects a new DLL, it scans it for `[FbtRegistrar]`, updates the `DoctrineRegistry`, and uses the hashes to seamlessly transition the `BehaviorTreeState` of live entities to the new logic.
+**The Change:** The FastBTree `BehaviorTreeBlob` already contains a `StructureHash` and `ParamHash`, and the `Interpreter.Tick` method actually contains a placeholder comment reading `// === HOT RELOAD CHECK (Stub for now) ===`. We need to implement a BTree `HotReloadManager`. When the engine detects a new DLL, it scans it for `[FbtRegistrar]`, updates the `BehaviorRegistry`, and uses the hashes to seamlessly transition the `BehaviorTreeState` of live entities to the new logic.
 
 3\. Use `AssemblyLoadContext` for True Dynamic Unloading
 
@@ -1367,7 +1367,7 @@ Currently, the HROT `ClusterRunner` uses `Assembly.Load` to eagerly load referen
 
 **The Change:** To support continuous iteration where the visual tool repeatedly compiles and injects a new `.dll`, the engine's auto-discovery scanner must be updated to load these specific AI project assemblies into a collectible **AssemblyLoadContext** **(ALC)**. When the tool pushes a new DLL, the engine:
 
--   Unloads the old ALC.-   Loads the new DLL into a new ALC.-   Invokes the generated `FbtActionRegistrar.RegisterAll()` to overwrite the pointers in the `ActionRegistry` and `DoctrineRegistry`.
+-   Unloads the old ALC.-   Loads the new DLL into a new ALC.-   Invokes the generated `FbtActionRegistrar.RegisterAll()` to overwrite the pointers in the `ActionRegistry` and `BehaviorRegistry`.
 
 4\. Create a Schema Exporter for the Visual Tool
 
@@ -1388,7 +1388,7 @@ Summary of the Pipeline
 
 With these minor additions, your pipeline becomes incredibly powerful:
 
--   **Visual Tool:** The designer drags a "Check Ammo" node into a sequence and sets the threshold to 5.-   **Code Generation:** The tool silently writes a `.cs` file using our fluent `BTreeBuilder`, embedding `"node_123"` as the visual ID.-   **Compilation:** The tool triggers `dotnet build`. Our Roslyn `Fbt.SourceGen` resolves the exact memory offset for "Ammo" at compile time and embeds it into the bytecode array without parsing any JSON.-   **Hot Reload:** The tool signals the engine. The engine loads the new `.dll` via ALC, the `HotReloadManager` patches the active `DoctrineRegistry`, and the live enemies immediately start using the new logic. Live telemetry flows back to the tool highlighting `"node_123"` in real-time.
+-   **Visual Tool:** The designer drags a "Check Ammo" node into a sequence and sets the threshold to 5.-   **Code Generation:** The tool silently writes a `.cs` file using our fluent `BTreeBuilder`, embedding `"node_123"` as the visual ID.-   **Compilation:** The tool triggers `dotnet build`. Our Roslyn `Fbt.SourceGen` resolves the exact memory offset for "Ammo" at compile time and embeds it into the bytecode array without parsing any JSON.-   **Hot Reload:** The tool signals the engine. The engine loads the new `.dll` via ALC, the `HotReloadManager` patches the active `BehaviorRegistry`, and the live enemies immediately start using the new logic. Live telemetry flows back to the tool highlighting `"node_123"` in real-time.
 
 The graphical authoring tool will be c# based so it can easily parse the btree code itself, no need to use an intermediate file format. But for sure we will need to define data structures describing the btrees "decompiled" from the csharp sources so the authoring tool can directly use it!
 

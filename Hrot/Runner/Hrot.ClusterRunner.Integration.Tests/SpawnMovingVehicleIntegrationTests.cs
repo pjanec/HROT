@@ -48,7 +48,7 @@ public class SpawnMovingVehicleIntegrationTests
 
     /// <summary>
     /// Spawns a tank via SimHost (bypassing the DDS MissionControlRequest round-trip)
-    /// and assigns WanderMilitary doctrine directly.
+    /// and assigns WanderMilitary behavior directly.
     /// Verifies that the IG <see cref="SimTransform"/> position changes within
     /// <see cref="MovementTimeoutFrames"/> frames — proving that the shadow-state comparison
     /// in <c>GeoSpatialEgressTranslator</c> publishes position updates every tick the entity

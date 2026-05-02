@@ -12,7 +12,7 @@
 The simulation engine is designed around a distributed multi-node topology where different
 simulation concerns can run on separate physical (or logical) processes connected via DDS:
 
-- **Brain node** (`NodeRole.Brain`) — AI doctrines, mission management, behaviour trees / HSMs
+- **Brain node** (`NodeRole.Brain`) — AI behaviors, mission management, behaviour trees / HSMs
 - **Muscle node** (`NodeRole.MuscleGround`) — vehicle kinematics, physics, weapon simulation
 - **Perception node** (`NodeRole.Perception`) — spatial queries, line-of-sight raycasting
 - **Navigation Solver node** (`NodeRole.NavigationSolver`) — pathfinding over road graphs
@@ -80,7 +80,7 @@ After this workstream the **Brain node is a pure cognitive tier**:
 ┌──────────────────────────────────────────────┐
 │  Brain Node                                  │
 │  • Mission management (MissionDirectorSystem)│
-│  • BTree / HSM doctrine runtime              │
+│  • BTree / HSM behavior runtime              │
 │  • Sensor data consumption (TargetMemory)    │
 │  • Navigation intents (NavigationIntent)     │
 │  • Weapon fire intents (WeaponFireIntent)    │
@@ -343,9 +343,9 @@ redundant and breaks the Brain/Muscle boundary. Remove it; the primary check on
 
 ### 8.5 MissionDirectorSystem.ReachedDestination + UI Generator
 
-`MissionTrigger.ReachedDestination` must be removed (or aliased to `DoctrineFinished` for
+`MissionTrigger.ReachedDestination` must be removed (or aliased to `BehaviorFinished` for
 backward compatibility). The UI right-click handler that creates `MoveToLocation` missions
-must emit `MissionTrigger.DoctrineFinished` instead. See Task **BS1-T022**.
+must emit `MissionTrigger.BehaviorFinished` instead. See Task **BS1-T022**.
 
 ---
 

@@ -63,7 +63,7 @@ var storageProvider    = new Fdp.Toolkit.Orchestration.LocalDiskStorageProvider(
 var scenarioLoader     = new Hrot.Map.Common.Scenario.HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
 var extractor          = new Hrot.CGF.Orchestration.StagingEntityExtractor();
 var cgfIdAllocator     = new Hrot.Core.Network.SequentialIdAllocator();
-var behaviorRemapper   = Hrot.CGF.Configuration.CgfDoctrineSetup.CreateBehaviorRemapper();
+var behaviorRemapper   = Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper();
 
 newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfScenarioLoadHandler(
     scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, behaviorRemapper));
@@ -213,7 +213,7 @@ Once the scenario has loaded, enforce the following validation gates across the 
 Query the respective `EntityRepository` or `NetworkEntityMap` for each subsystem to ensure exactly 2 entities were spawned and promoted.
 *   `SimHost` (Muscle) must contain the entities with `SimTransform` and `NetworkAuthority`.
 *   `IG` (Presentation) must contain the entities with `ResolvedStyle` and `EntityLifecycle.Active`.
-*   `CGF` (Brain) must contain the ghost entities with the cognitive components (e.g., `DoctrineState`).
+*   `CGF` (Brain) must contain the ghost entities with the cognitive components (e.g., `BehaviorState`).
 
 **Assertion B: ID Translation & Schema Drift Protection**
 This is the critical success condition for the remapping effort.

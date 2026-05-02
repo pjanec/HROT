@@ -9,7 +9,7 @@ The work spans five refactoring areas that collectively:
 2. **Fix descriptor ordinal magic numbers** - replace hardcoded integer ordinals in network translators with named enumerations.
 3. **Segregate network translator interfaces** - separate the base `INetworkTranslator` from descriptor-specific concerns; give event translators their own lightweight contract.
 4. **Introduce `SystemPhase.Manual`** - elevate the "direct execution" module pattern from an invisible hack into a first-class, diagnostics-visible feature of the ModuleHost.
-5. **Eliminate doctrine magic strings** - replace all hardcoded behavior-ID strings with a `[DoctrineContract]` attribute placed on parameter DTOs, making the DTO the Single Source of Truth for every doctrine.
+5. **Eliminate behavior magic strings** - replace all hardcoded behavior-ID strings with a `[BehaviorContract]` attribute placed on parameter DTOs, making the DTO the Single Source of Truth for every behavior.
 
 All phases are independent enough to be tackled in sequence without blocking each other.
 
@@ -53,11 +53,11 @@ All phases are independent enough to be tackled in sequence without blocking eac
 - `ReplicationBootstrap.cs` exists at `FDP/Network/Fdp.Network.Cyclone/ReplicationBootstrap.cs` and is used only by NetworkDemo.
 - `FdpDescriptorAttribute.cs` exists at `FDP/Engine/Fdp.Core/Abstractions/FdpDescriptorAttribute.cs` and is used only by the NetworkDemo demo-specific structs/classes.
 - `Fdp.Examples.NetworkDemo` and `Fdp.Examples.NetworkDemo.Tests` exist in `FDP/Examples/`.
-- `DoctrineCatalog.cs` uses hardcoded string arrays (`["ConvoyEscort", "MoveToLocation", ...]`).
+- `BehaviorCatalog.cs` uses hardcoded string arrays (`["ConvoyEscort", "MoveToLocation", ...]`).
 - `BehaviorUiSetup.cs` uses `registry.Register<FireAtTargetParamsJsonDto>("FireAtTarget")` etc.
-- `CgfDoctrineSetup.cs` uses `registry.Register(CgfDoctrineIds.FireAtTarget_BT, "FireAtTarget", ...)` etc.
+- `CgfBehaviorSetup.cs` uses `registry.Register(CgfBehaviorIds.FireAtTarget_BT, "FireAtTarget", ...)` etc.
 - `CgfNodes.cs` contains inline JSON strings with `"TreeName": "FireAtTarget"`, etc.
-- `DoctrineContractAttribute` and `DoctrineCategory` do NOT exist yet.
+- `BehaviorContractAttribute` and `BehaviorCategory` do NOT exist yet.
 - `ScenarioBehaviorRemapper` is in `FDP/Toolkits/Fdp.Toolkits/Behavior/ScenarioBehaviorRemapper.cs`.
 - `MultiInstanceCycloneTranslator` implements `INetworkReplayTarget` but is NOT used in `Hrot` production code. It should be kept (not deleted) but `INetworkReplayTarget` stripped.
 - Production `OwnershipUpdateTranslator` (in `Hrot.Network.NED`) already has `IDescriptorTranslator` only, no `INetworkReplayTarget`. The NetworkDemo-local version will be deleted as part of the demo deletion.
@@ -526,22 +526,22 @@ Without this forwarding call, `AutonomousPerceptionModule.RegisterSystems` is ne
 
 ---
 
-## Phase 5: Doctrine Auto-Registration
+## Phase 5: Behavior Auto-Registration
 
 ### Goal
-Eliminate doctrine behavior-ID magic strings from four distinct locations — composition roots, domain catalogs, AI tree asset definitions, and unit tests — by making the parameter DTO the **Single Source of Truth** for each doctrine's string identifier, integer ID, and tactical applicability category.
+Eliminate behavior behavior-ID magic strings from four distinct locations — composition roots, domain catalogs, AI tree asset definitions, and unit tests — by making the parameter DTO the **Single Source of Truth** for each behavior's string identifier, integer ID, and tactical applicability category.
 
-### 5.1 Define `DoctrineCategory` and `DoctrineContractAttribute`
+### 5.1 Define `BehaviorCategory` and `BehaviorContractAttribute`
 
 Both belong in `Hrot.Core`, alongside the existing parameter DTOs.
 
 **New files:**
-- `Hrot/Engine/Hrot.Core/MapDefinitions/Doctrine/DoctrineCategory.cs`
-- `Hrot/Engine/Hrot.Core/MapDefinitions/Doctrine/DoctrineContractAttribute.cs`
+- `Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/BehaviorCategory.cs`
+- `Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/BehaviorContractAttribute.cs`
 
 ```csharp
 [Flags]
-public enum DoctrineCategory
+public enum BehaviorCategory
 {
     None         = 0,
     Civilian     = 1 << 0,
@@ -552,15 +552,15 @@ public enum DoctrineCategory
 }
 
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-public sealed class DoctrineContractAttribute : Attribute
+public sealed class BehaviorContractAttribute : Attribute
 {
-    public int DoctrineId { get; }
+    public int BehaviorId { get; }
     public string BehaviorId { get; }
-    public DoctrineCategory ValidCategories { get; }
+    public BehaviorCategory ValidCategories { get; }
 
-    public DoctrineContractAttribute(int doctrineId, string behaviorId, DoctrineCategory categories)
+    public BehaviorContractAttribute(int behaviorId, string behaviorId, BehaviorCategory categories)
     {
-        DoctrineId = doctrineId;
+        BehaviorId = behaviorId;
         BehaviorId = behaviorId;
         ValidCategories = categories;
     }
@@ -569,39 +569,39 @@ public sealed class DoctrineContractAttribute : Attribute
 
 ### 5.2 Decorate Existing Parameter DTOs and Add Empty Marker DTOs
 
-Each DTO decorated with `[DoctrineContract]` must also expose `public const string BehaviorId = "..."` so the value can be referenced in AI tree JSON templates at compile time.
+Each DTO decorated with `[BehaviorContract]` must also expose `public const string BehaviorId = "..."` so the value can be referenced in AI tree JSON templates at compile time.
 
 Existing parameter DTOs to decorate (file paths in `Hrot/Engine/Hrot.Core/`):
-- `FireAtTargetParamsJsonDto` — `[DoctrineContract(CgfDoctrineIds.FireAtTarget_BT, BehaviorId, DoctrineCategory.AllMilitary)]`
-- `MoveToLocationParamsJsonDto` — `[DoctrineContract(CgfDoctrineIds.MoveTo_BT, BehaviorId, DoctrineCategory.AllMilitary | DoctrineCategory.Civilian)]`
-- `FollowRouteParamsJsonDto` — `[DoctrineContract(CgfDoctrineIds.FollowRoute_BT, BehaviorId, DoctrineCategory.AllMilitary)]`
-- `JoinFormationParamsJsonDto` — `[DoctrineContract(CgfDoctrineIds.JoinFormation_BT, BehaviorId, DoctrineCategory.Infantry)]`
+- `FireAtTargetParamsJsonDto` — `[BehaviorContract(CgfBehaviorIds.FireAtTarget_BT, BehaviorId, BehaviorCategory.AllMilitary)]`
+- `MoveToLocationParamsJsonDto` — `[BehaviorContract(CgfBehaviorIds.MoveTo_BT, BehaviorId, BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]`
+- `FollowRouteParamsJsonDto` — `[BehaviorContract(CgfBehaviorIds.FollowRoute_BT, BehaviorId, BehaviorCategory.AllMilitary)]`
+- `JoinFormationParamsJsonDto` — `[BehaviorContract(CgfBehaviorIds.JoinFormation_BT, BehaviorId, BehaviorCategory.Infantry)]`
 
-Create new **empty marker DTOs** for parameterless doctrines (these do not carry params but still need a DTO to anchor the attribute):
-- `IdleParamsJsonDto` — `[DoctrineContract(CgfDoctrineIds.Idle_HSM, BehaviorId, DoctrineCategory.AllMilitary)]`
-- `WanderMilitaryParamsJsonDto` — `[DoctrineContract(CgfDoctrineIds.WanderMilitary_BT, BehaviorId, DoctrineCategory.MilitaryApc)]`
-- `ConvoyEscortParamsJsonDto` — `[DoctrineContract(CgfDoctrineIds.ConvoyEscort_BT, BehaviorId, DoctrineCategory.MilitaryApc)]`
-- `InfantryCombatParamsJsonDto` — `[DoctrineContract(CgfDoctrineIds.InfantryCombat_BT, BehaviorId, DoctrineCategory.Infantry)]`
-- `AmbushParamsJsonDto` — `[DoctrineContract(CgfDoctrineIds.Ambush_BT, BehaviorId, DoctrineCategory.Insurgent)]`
+Create new **empty marker DTOs** for parameterless behaviors (these do not carry params but still need a DTO to anchor the attribute):
+- `IdleParamsJsonDto` — `[BehaviorContract(CgfBehaviorIds.Idle_HSM, BehaviorId, BehaviorCategory.AllMilitary)]`
+- `WanderMilitaryParamsJsonDto` — `[BehaviorContract(CgfBehaviorIds.WanderMilitary_BT, BehaviorId, BehaviorCategory.MilitaryApc)]`
+- `ConvoyEscortParamsJsonDto` — `[BehaviorContract(CgfBehaviorIds.ConvoyEscort_BT, BehaviorId, BehaviorCategory.MilitaryApc)]`
+- `InfantryCombatParamsJsonDto` — `[BehaviorContract(CgfBehaviorIds.InfantryCombat_BT, BehaviorId, BehaviorCategory.Infantry)]`
+- `AmbushParamsJsonDto` — `[BehaviorContract(CgfBehaviorIds.Ambush_BT, BehaviorId, BehaviorCategory.Insurgent)]`
 
-### 5.3 Build `DoctrineSchemaDiscovery` for Auto-Registration
+### 5.3 Build `BehaviorSchemaDiscovery` for Auto-Registration
 
-Create a utility class in `Hrot.Core` that scans `Hrot.Core`'s assembly for all types marked with `[DoctrineContract]` and performs the required registrations. The method signature accepts the registries:
+Create a utility class in `Hrot.Core` that scans `Hrot.Core`'s assembly for all types marked with `[BehaviorContract]` and performs the required registrations. The method signature accepts the registries:
 
 ```csharp
-public static class DoctrineSchemaDiscovery
+public static class BehaviorSchemaDiscovery
 {
     public static void AutoRegister(BehaviorUiRegistry uiRegistry, ScenarioBehaviorRemapper remapper)
     {
         var uiRegMethod  = typeof(BehaviorUiRegistry).GetMethod("Register")!;
         var remapMethod  = typeof(ScenarioBehaviorRemapper).GetMethod("Register")!;
 
-        var dtoTypes = typeof(DoctrineContractAttribute).Assembly.GetTypes()
-            .Where(t => t.GetCustomAttribute<DoctrineContractAttribute>() != null);
+        var dtoTypes = typeof(BehaviorContractAttribute).Assembly.GetTypes()
+            .Where(t => t.GetCustomAttribute<BehaviorContractAttribute>() != null);
 
         foreach (var type in dtoTypes)
         {
-            var attr = type.GetCustomAttribute<DoctrineContractAttribute>()!;
+            var attr = type.GetCustomAttribute<BehaviorContractAttribute>()!;
             uiRegMethod.MakeGenericMethod(type).Invoke(uiRegistry, [attr.BehaviorId]);
             remapMethod.MakeGenericMethod(type).Invoke(remapper, [attr.BehaviorId]);
         }
@@ -609,7 +609,7 @@ public static class DoctrineSchemaDiscovery
 }
 ```
 
-**Dependency note:** `DoctrineSchemaDiscovery` must reference `BehaviorUiRegistry` (in `Fdp.Toolkit.Behavior`) and must be placed in a layer that can reference both. Options:
+**Dependency note:** `BehaviorSchemaDiscovery` must reference `BehaviorUiRegistry` (in `Fdp.Toolkit.Behavior`) and must be placed in a layer that can reference both. Options:
 - Place it in `Hrot.Presentation` which already references `Hrot.Core` and the FDP toolkits.
 - Or place it in `Hrot.CGF` if that project already has both references.
   
@@ -619,57 +619,57 @@ Verify project dependency graphs before choosing the home. Do not create circula
 
 **File:** `Hrot/Engine/Hrot.Presentation/Behavior/BehaviorUiSetup.cs`
 
-Replace the manual `Register<T>("string")` calls with a call to `DoctrineSchemaDiscovery.AutoRegister(registry, remapper)`. The `remapper` parameter should be plumbed in from the composition root.
+Replace the manual `Register<T>("string")` calls with a call to `BehaviorSchemaDiscovery.AutoRegister(registry, remapper)`. The `remapper` parameter should be plumbed in from the composition root.
 
-### 5.5 Replace `CgfDoctrineSetup` Manual Registrations
+### 5.5 Replace `CgfBehaviorSetup` Manual Registrations
 
-**File:** `Hrot/Subsystems/Hrot.CGF/Configuration/CgfDoctrineSetup.cs`
+**File:** `Hrot/Subsystems/Hrot.CGF/Configuration/CgfBehaviorSetup.cs`
 
-The call to `registry.Register(id, "BehaviorId", ...)` passes the behavior-ID string manually. Replace with `DoctrineSchemaDiscovery.AutoRegister(...)` or derive the `behaviorId` parameter directly from the DTO's `[DoctrineContract].BehaviorId`.
+The call to `registry.Register(id, "BehaviorId", ...)` passes the behavior-ID string manually. Replace with `BehaviorSchemaDiscovery.AutoRegister(...)` or derive the `behaviorId` parameter directly from the DTO's `[BehaviorContract].BehaviorId`.
 
-### 5.6 Rebuild `DoctrineCatalog` Using Reflection
+### 5.6 Rebuild `BehaviorCatalog` Using Reflection
 
-**File:** `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/DoctrineCatalog.cs`
+**File:** `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/BehaviorCatalog.cs`
 
-Replace the hardcoded string arrays with a static dictionary built once at type-initialization from `[DoctrineContract]` attributes:
+Replace the hardcoded string arrays with a static dictionary built once at type-initialization from `[BehaviorContract]` attributes:
 
 ```csharp
-public static class DoctrineCatalog
+public static class BehaviorCatalog
 {
-    private static readonly Dictionary<DoctrineCategory, List<string>> _map = BuildMap();
+    private static readonly Dictionary<BehaviorCategory, List<string>> _map = BuildMap();
 
-    private static Dictionary<DoctrineCategory, List<string>> BuildMap()
+    private static Dictionary<BehaviorCategory, List<string>> BuildMap()
     {
-        var map = Enum.GetValues<DoctrineCategory>()
+        var map = Enum.GetValues<BehaviorCategory>()
             .ToDictionary(c => c, _ => new List<string>());
 
-        var attrs = typeof(DoctrineContractAttribute).Assembly.GetTypes()
-            .Select(t => t.GetCustomAttribute<DoctrineContractAttribute>())
+        var attrs = typeof(BehaviorContractAttribute).Assembly.GetTypes()
+            .Select(t => t.GetCustomAttribute<BehaviorContractAttribute>())
             .Where(a => a != null);
 
         foreach (var attr in attrs)
         {
-            foreach (var cat in Enum.GetValues<DoctrineCategory>())
+            foreach (var cat in Enum.GetValues<BehaviorCategory>())
             {
-                if (cat != DoctrineCategory.None && attr!.ValidCategories.HasFlag(cat))
+                if (cat != BehaviorCategory.None && attr!.ValidCategories.HasFlag(cat))
                     map[cat].Add(attr.BehaviorId);
             }
         }
         return map;
     }
 
-    public static IReadOnlyList<string> GetValidDoctrines(long tkbType)
+    public static IReadOnlyList<string> GetValidBehaviors(long tkbType)
     {
         var cat = MapTkbTypeToCategory(tkbType);
-        return _map.TryGetValue(cat, out var list) ? list : _map[DoctrineCategory.None];
+        return _map.TryGetValue(cat, out var list) ? list : _map[BehaviorCategory.None];
     }
 
-    private static DoctrineCategory MapTkbTypeToCategory(long tkbType) => tkbType switch
+    private static BehaviorCategory MapTkbTypeToCategory(long tkbType) => tkbType switch
     {
-        TkbEntityTypes.CivilianPedestrian => DoctrineCategory.Civilian,
-        TkbEntityTypes.MilitaryApc        => DoctrineCategory.MilitaryApc,
-        TkbEntityTypes.Insurgent          => DoctrineCategory.Insurgent,
-        _                                 => DoctrineCategory.None
+        TkbEntityTypes.CivilianPedestrian => BehaviorCategory.Civilian,
+        TkbEntityTypes.MilitaryApc        => BehaviorCategory.MilitaryApc,
+        TkbEntityTypes.Insurgent          => BehaviorCategory.Insurgent,
+        _                                 => BehaviorCategory.None
     };
 }
 ```
@@ -691,24 +691,24 @@ private static readonly string FireAtTargetJson = $$"""
 
 Apply the same pattern to all other AI tree JSON definitions in the file.
 
-### 5.8 Create `DoctrineTestHelper` and Update Unit Tests
+### 5.8 Create `BehaviorTestHelper` and Update Unit Tests
 
-**New file:** `Hrot/Engine/Hrot.Core/MapDefinitions/Doctrine/DoctrineTestHelper.cs` (or in a test-helper project)
+**New file:** `Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/BehaviorTestHelper.cs` (or in a test-helper project)
 
 ```csharp
-public static class DoctrineTestHelper
+public static class BehaviorTestHelper
 {
     public static string GetBehaviorId<TDto>()
     {
-        var attr = typeof(TDto).GetCustomAttribute<DoctrineContractAttribute>()
+        var attr = typeof(TDto).GetCustomAttribute<BehaviorContractAttribute>()
             ?? throw new InvalidOperationException(
-                $"{typeof(TDto).Name} is missing [DoctrineContractAttribute]");
+                $"{typeof(TDto).Name} is missing [BehaviorContractAttribute]");
         return attr.BehaviorId;
     }
 }
 ```
 
-Update test files that hardcode behavior-ID strings (e.g., `BehaviorRemappingTests.cs`, `MissionPanelTests.cs`) to derive the string via `DoctrineTestHelper.GetBehaviorId<FireAtTargetParamsJsonDto>()`.
+Update test files that hardcode behavior-ID strings (e.g., `BehaviorRemappingTests.cs`, `MissionPanelTests.cs`) to derive the string via `BehaviorTestHelper.GetBehaviorId<FireAtTargetParamsJsonDto>()`.
 
 ---
 
@@ -723,7 +723,7 @@ Phase 2 (Ordinals)        Phase 4 (Manual Phase)
     v                           v
 Phase 3 (Interface Segregation) ---- consumes INetworkTranslator base
                                       (can proceed after Phase 1)
-Phase 5 (Doctrine) -- fully independent
+Phase 5 (Behavior) -- fully independent
 ```
 
 Phases 1, 2, 4, and 5 can be worked on simultaneously. Phase 3 must be executed after Phase 1 because Phase 3 removes members from `CycloneNativeEventTranslator` that were previously tied to `INetworkReplayTarget` / `IDescriptorTranslator`.
@@ -734,6 +734,6 @@ Phases 1, 2, 4, and 5 can be worked on simultaneously. Phase 3 must be executed 
 
 - `TimeDescriptorType` in `Fdp.Toolkit.Time` must NOT reference `Hrot.NED.Descriptors`.
 - `BdcDescriptorType` in `Hrot.Network.BDC` must NOT reference `Hrot.Network.NED`.
-- `DoctrineContractAttribute`/`DoctrineCategory` in `Hrot.Core` must NOT reference `Hrot.Presentation` or `Fdp.Toolkit.Behavior` (those reference `Hrot.Core`, not the other way around).
-- `DoctrineSchemaDiscovery` must live in a project that already references BOTH `Hrot.Core` AND `Fdp.Toolkit.Behavior` (and optionally `Hrot.Presentation`). Candidate: `Hrot.Presentation` or `Hrot.CGF`. Verify with the `.csproj` dependency graph before deciding.
+- `BehaviorContractAttribute`/`BehaviorCategory` in `Hrot.Core` must NOT reference `Hrot.Presentation` or `Fdp.Toolkit.Behavior` (those reference `Hrot.Core`, not the other way around).
+- `BehaviorSchemaDiscovery` must live in a project that already references BOTH `Hrot.Core` AND `Fdp.Toolkit.Behavior` (and optionally `Hrot.Presentation`). Candidate: `Hrot.Presentation` or `Hrot.CGF`. Verify with the `.csproj` dependency graph before deciding.
 - `INetworkTranslator` in `Fdp.Core` is the root interface. All other network abstractions (`IDescriptorTranslator`, `INetworkEventTranslator`) live in the same `Fdp.Interfaces` namespace within `Fdp.Core`. No new project dependencies are created.

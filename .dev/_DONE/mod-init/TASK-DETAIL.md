@@ -163,10 +163,10 @@
 **NOT in scope:**
 - `SharedTranslatorPack`, `KinematicTranslatorPack` (separate tasks targeting `Hrot.Map.Common`)
 - Changing the translator list yielded by the factory
-- Introducing any interface abstraction — `DoctrineRegistry?` is used as the concrete type directly
+- Introducing any interface abstraction — `BehaviorRegistry?` is used as the concrete type directly
 
 **Constraints:**
-- `Hrot.Network.csproj` already references `FDP.Toolkit.Behavior` (MODINIT-S100); `DoctrineRegistry?` is used directly — no `IDoctrineRegistry` interface
+- `Hrot.Network.csproj` already references `FDP.Toolkit.Behavior` (MODINIT-S100); `BehaviorRegistry?` is used directly — no `IBehaviorRegistry` interface
 - `Hrot.Network.csproj` must not gain a `<ProjectReference>` to `Hrot.SimHost` or `Hrot.IG`
 - After MODINIT-S107, `NavigationIntentEgressTranslator` and `NavigationStatusIngressTranslator` live in `Hrot.Map.Common.Replication.Egress/Ingress` — accessible to `Hrot.Network` transitively
 
@@ -180,7 +180,7 @@
 
 4. **No old namespace:** Zero callers reference `Hrot.SimHost.Network.CognitiveTranslatorPack`.
 
-5. **No interface abstraction:** `grep "IDoctrineRegistry" Hrot.Network/Translators/CognitiveTranslatorPack.cs` returns zero results.
+5. **No interface abstraction:** `grep "IBehaviorRegistry" Hrot.Network/Translators/CognitiveTranslatorPack.cs` returns zero results.
 
 6. **Existing tests remain green.**
 
@@ -345,14 +345,14 @@ Update all callers to use the new namespaces.
   - Add `.WithReplication(_role)` to the `HrotNodeBuilder` chain; access the module as `_context.NedReplication`
   - **Delete** the `_nedReplicationModule` private field entirely — the `SubsystemOrchestrator` retrieves the module via `HrotNodeContext.NedReplication`, not via application-level state
   - Remove the `// TODO (P2 debt)` comment along with the field
-  - Pass the concrete `DoctrineRegistry` instance directly into `CognitiveTranslatorPack` at composition time; `SimHostApp` still owns and provides the concrete registry
+  - Pass the concrete `BehaviorRegistry` instance directly into `CognitiveTranslatorPack` at composition time; `SimHostApp` still owns and provides the concrete registry
 - In `Hrot.SimHost/NodeBootstrapper.cs` (`BuildTranslators` method):
   - Update `using Hrot.SimHost.Network;` for `SharedTranslatorPack` and `KinematicTranslatorPack` → `using Hrot.Map.Common.Translators;`
   - Update `CognitiveTranslatorPack` reference → `using Hrot.Network.Translators;`
   - No logic changes
 
 **NOT in scope:**
-- Touching domain-specific `SimHostApp` initializations: `DoctrineRegistry`, `RoadNetworkBlob`, `CheckpointIOWorker`, scenario serializers, physics modules, visualization
+- Touching domain-specific `SimHostApp` initializations: `BehaviorRegistry`, `RoadNetworkBlob`, `CheckpointIOWorker`, scenario serializers, physics modules, visualization
 - Migrating `IgApplication` (done in MODINIT-S302 after this task is verified green)
 - Any changes to test helpers or fixture code
 

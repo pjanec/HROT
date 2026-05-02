@@ -7,13 +7,13 @@
 
 ## Phase 1 — Core Brain-Death Lifecycle
 
-**Goal:** Ensure doctrine is explicitly cleared to `DoctrineIds.None` when a mission ends or is aborted, and that `ChannelArbitrationSystem` always triggers `OnExit` so the muscle layer is cleanly shut down. Two distinct events are introduced: `DoctrineFinishedEvent` (notification, bottom-up, from behavior machinery) and `ClearDoctrineEvent` (imperative, top-down, from mission/control tier).
+**Goal:** Ensure behavior is explicitly cleared to `BehaviorIds.None` when a mission ends or is aborted, and that `ChannelArbitrationSystem` always triggers `OnExit` so the muscle layer is cleanly shut down. Two distinct events are introduced: `BehaviorFinishedEvent` (notification, bottom-up, from behavior machinery) and `ClearBehaviorEvent` (imperative, top-down, from mission/control tier).
 
-- [x] **BD1-P1T0a** DoctrineFinishedEvent — Bottom-Up Notification from LocomotionDispatcherSystem  [details](./BD1-TASK-DETAIL.md#bd1-p1t0a-doctrinefinishedevent--bottom-up-notification-from-locomotiondispatchersystem)
-- [x] **BD1-P1T0b** ClearDoctrineEvent — Top-Down Imperative via DoctrineIngressSystem  [details](./BD1-TASK-DETAIL.md#bd1-p1t0b-cleardoctrineevent--top-down-imperative-via-doctrineingresssystem)
+- [x] **BD1-P1T0a** BehaviorFinishedEvent — Bottom-Up Notification from LocomotionDispatcherSystem  [details](./BD1-TASK-DETAIL.md#bd1-p1t0a-behaviorfinishedevent--bottom-up-notification-from-locomotiondispatchersystem)
+- [x] **BD1-P1T0b** ClearBehaviorEvent — Top-Down Imperative via BehaviorIngressSystem  [details](./BD1-TASK-DETAIL.md#bd1-p1t0b-clearbehaviorevent--top-down-imperative-via-behavioringresssystem)
 - [x] **BD1-P1T1** ChannelArbitrationSystem — OnExit Guarantee  [details](./BD1-TASK-DETAIL.md#bd1-p1t1-channelarbitrationsystem--onexit-guarantee)
-- [x] **BD1-P1T2** MissionDirectorSystem — DoctrineFinished Trigger + End-of-Mission Clear  [details](./BD1-TASK-DETAIL.md#bd1-p1t2-missiondirectorsystem--doctrinefinished-trigger--end-of-mission-clear)
-- [x] **BD1-P1T3** MissionControlRequestSystem — CMD_ABORT_ALL Doctrine Clear  [details](./BD1-TASK-DETAIL.md#bd1-p1t3-missioncontrolrequestsystem--cmd_abort_all-doctrine-clear)
+- [x] **BD1-P1T2** MissionDirectorSystem — BehaviorFinished Trigger + End-of-Mission Clear  [details](./BD1-TASK-DETAIL.md#bd1-p1t2-missiondirectorsystem--behaviorfinished-trigger--end-of-mission-clear)
+- [x] **BD1-P1T3** MissionControlRequestSystem — CMD_ABORT_ALL Behavior Clear  [details](./BD1-TASK-DETAIL.md#bd1-p1t3-missioncontrolrequestsystem--cmd_abort_all-behavior-clear)
 
 ---
 

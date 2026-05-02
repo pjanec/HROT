@@ -25,13 +25,13 @@ public static class EditorBootstrap
     /// </summary>
     public static ScenarioFileService CreateFileService()
     {
-        // A minimal doctrine registry is created here so MissionPlanTranslator can
-        // resolve BehaviorId -> DoctrineId on Inject. The editor uses a full registry
+        // A minimal behavior registry is created here so MissionPlanTranslator can
+        // resolve BehaviorId -> BehaviorId on Inject. The editor uses a full registry
         // via EditorSubsystem; this factory creates an empty one consistent with the
-        // SimHostApp Muscle-tier pattern (doctrines live on the Brain/CGF node).
-        var doctrineRegistry = new DoctrineRegistry();
+        // SimHostApp Muscle-tier pattern (behaviors live on the Brain/CGF node).
+        var behaviorRegistry = new BehaviorRegistry();
 
-        var serializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(doctrineRegistry);
+        var serializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
 
         return new ScenarioFileService(serializer);
     }

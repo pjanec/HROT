@@ -25,7 +25,7 @@
 
 | Item | Status | Notes |
 |------|--------|-------|
-| `EntityMission_MovesEntity` integration test | ✅ Fixed | `SimHostInstance.Tick()` called `Bus.SwapBuffers()` 3× before `_simGroup.Run()`, destroying managed events. Fixed by having `MissionAdapterSystem` update `DoctrineState` directly in addition to publishing the event. |
+| `EntityMission_MovesEntity` integration test | ✅ Fixed | `SimHostInstance.Tick()` called `Bus.SwapBuffers()` 3× before `_simGroup.Run()`, destroying managed events. Fixed by having `MissionAdapterSystem` update `BehaviorState` directly in addition to publishing the event. |
 
 ---
 
@@ -74,11 +74,11 @@
 
 **Q1: What issues did you encounter during implementation? How did you resolve them?**
 
-**`EntityMission_MovesEntity` silent failure (most complex issue):** The integration test produced "Expected movement > 50m. Actually moved 0,0m" with no diagnostic output. `Console.Error.WriteLine` inside `SystemGroup.OnUpdate()` is completely suppressed by the test runner — the exception catch is silent. Switched to `Console.WriteLine` and ran with `--logger "console;verbosity=normal"`. Tracing revealed that `DoctrineIngressSystem.ConsumeManaged<AssignDoctrineEvent>()` always returned `events.Count=0`.
+**`EntityMission_MovesEntity` silent failure (most complex issue):** The integration test produced "Expected movement > 50m. Actually moved 0,0m" with no diagnostic output. `Console.Error.WriteLine` inside `SystemGroup.OnUpdate()` is completely suppressed by the test runner — the exception catch is silent. Switched to `Console.WriteLine` and ran with `--logger "console;verbosity=normal"`. Tracing revealed that `BehaviorIngressSystem.ConsumeManaged<AssignBehaviorEvent>()` always returned `events.Count=0`.
 
 Root cause: `SimHostInstance.Tick()` calls `Bus.SwapBuffers()` **four times per tick** — three times before `_simGroup.Run()` (for spawn/lifecycle phases) and once at the end. Production `SimHostApp.OnUpdate()` calls it only once. On each pre-sim swap: `_front`↔`_back` swap occurs, then `_back.Clear()` destroys whatever was in `_front`. So any managed event published in tick N is destroyed by tick N+1's first pre-sim swap before simulation systems ever read it.
 
-Fix: `MissionAdapterSystem` now directly mutates `DoctrineState.ActiveDoctrineHash`, increments `InstanceId`, sets `BrainTier`, and resets `BrainBTreeState` synchronously — in addition to (not instead of) publishing `AssignDoctrineEvent`. This bypasses the event bus for the initial activation while keeping the event publish for production compatibility.
+Fix: `MissionAdapterSystem` now directly mutates `BehaviorState.ActiveBehaviorHash`, increments `InstanceId`, sets `BrainTier`, and resets `BrainBTreeState` synchronously — in addition to (not instead of) publishing `AssignBehaviorEvent`. This bypasses the event bus for the initial activation while keeping the event publish for production compatibility.
 
 **`RenderContext.Zoom` invalid object initializer:** `Zoom` is a computed property (`=> Camera.Zoom`), not a settable field. Test code using `new RenderContext { Zoom = 1f }` wouldn't compile. Fix: `new RenderContext { Camera = new Camera2D { Zoom = 1f } }`.
 
@@ -98,7 +98,7 @@ Fix: `MissionAdapterSystem` now directly mutates `DoctrineState.ActiveDoctrineHa
 
 **Q3: What design decisions did you make beyond the instructions? What alternatives did you consider?**
 
-**`AssignDoctrineEvent` still published alongside direct state update (A001 / EntityMission fix):** Considered removing the event publish and relying solely on the direct update. Rejected because production `SimHostApp.OnUpdate()` only calls `SwapBuffers()` once, so events _do_ survive in production, and `DoctrineIngressSystem` may provide additional setup steps beyond what `MissionAdapterSystem` directly applies. Keeping both paths ensures neither production nor test behaviour regresses.
+**`AssignBehaviorEvent` still published alongside direct state update (A001 / EntityMission fix):** Considered removing the event publish and relying solely on the direct update. Rejected because production `SimHostApp.OnUpdate()` only calls `SwapBuffers()` once, so events _do_ survive in production, and `BehaviorIngressSystem` may provide additional setup steps beyond what `MissionAdapterSystem` directly applies. Keeping both paths ensures neither production nor test behaviour regresses.
 
 **`MissionTriggerHelper` placement (DEBT-01):** Placed in `Hrot.Map.Common/Helpers/` because both `MissionControlRequestSystem` (SimHost) and `EntityMissionIngressTranslator` (Map.Common) reference map-level mission concepts. `Hrot.Map.Common` is on the dependency boundary that both already reference, making it the natural shared location without creating a new cross-project dependency.
 
@@ -106,7 +106,7 @@ Fix: `MissionAdapterSystem` now directly mutates `DoctrineState.ActiveDoctrineHa
 
 **Q4: What edge cases did you discover that weren't mentioned in the spec?**
 
-**Doctrine assignment when `BrainBTreeState` is absent:** The direct `DoctrineState` update in `MissionAdapterSystem` attempts `World.GetComponentRW<BrainBTreeState>(entity)`. Entities may not have this component (e.g., non-BTree doctrine types). Added `World.HasComponent<BrainBTreeState>()` guard before the reset to prevent a missing-component exception.
+**Behavior assignment when `BrainBTreeState` is absent:** The direct `BehaviorState` update in `MissionAdapterSystem` attempts `World.GetComponentRW<BrainBTreeState>(entity)`. Entities may not have this component (e.g., non-BTree behavior types). Added `World.HasComponent<BrainBTreeState>()` guard before the reset to prevent a missing-component exception.
 
 **`SimHostInstance` duplicate `RegisterComponent<MissionAdapterState>()`:** Appears twice in the constructor. This is pre-existing and idempotent (duplicate registration is harmless in the component registry implementation). Left in place to avoid scope creep; noted here for the lead's awareness.
 

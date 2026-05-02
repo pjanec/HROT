@@ -35,7 +35,7 @@ This document provides **detailed task breakdown** for implementing SimHost Mock
    ```
    Hrot.SimHost/
      Program.cs
-     DoctrineIds.cs
+     BehaviorIds.cs
      Components/
        NetworkIdComponent.cs
      Systems/
@@ -773,16 +773,16 @@ namespace Hrot.SimHost.Tests
 
 **Steps:**
 1. In `SimulationLogicModule.RegisterSystems()`, register in order:
-   - `new MissionAdapterSystem(_doctrineRegistry, _entityMap)` â€” runs first each frame
-   - `new ChannelArbitrationSystem()` â€” preempts stale channels on doctrine change
-   - `new BTreeTickSystem(_doctrineRegistry)` â€” zero-alloc stack context, ticks the BTree
+   - `new MissionAdapterSystem(_behaviorRegistry, _entityMap)` â€” runs first each frame
+   - `new ChannelArbitrationSystem()` â€” preempts stale channels on behavior change
+   - `new BTreeTickSystem(_behaviorRegistry)` â€” zero-alloc stack context, ticks the BTree
    - `new LocomotionDispatcherSystem()` â€” OnEnter/Execute/OnExit lifecycle for executors
    - `new MoveToExecutor()` â€” existing toolkit executor
    - `new FollowRouteExecutor()` â€” existing toolkit executor
    - `new JoinFormationExecutor(_vehicleAPI, _entityMap)` â€” new (implemented in S4.4)
    - *(existing)* `new SpatialHashSystem()`, `new FormationTargetSystem()`, `new VehicleCommandSystem()`, `new CarKinematicsSystem(...)`
    - `new LinearKinematicsSystem()` â€” for non-wheeled entities; already excludes `VehicleState` entities via its own query filter
-2. Update `SimulationLogicModule` constructor to accept `DoctrineRegistry` and `NetworkEntityMap` parameters.
+2. Update `SimulationLogicModule` constructor to accept `BehaviorRegistry` and `NetworkEntityMap` parameters.
 3. Write a minimal unit test verifying all systems register without error on an empty world.
 
 **Acceptance Criteria:**
@@ -898,23 +898,23 @@ Register both translators in `Program.cs` translator list.
 
 ### Task S4.3: Implement MissionAdapterSystem
 
-**Goal:** Implement the thin adapter that maps the active `MissionTask.BehaviorId` string to a `DoctrineId`, writes parameters into `BrainBlackboard`, and monitors `LocomotionChannel.Status` to advance `ActiveTaskId`.
+**Goal:** Implement the thin adapter that maps the active `MissionTask.BehaviorId` string to a `BehaviorId`, writes parameters into `BrainBlackboard`, and monitors `LocomotionChannel.Status` to advance `ActiveTaskId`.
 
 **Implementation:**
 
 Create `Systems/MissionAdapterSystem.cs` following the architecture described in [DESIGN-SIMHOST.md Â§4.4](./DESIGN-SIMHOST.md#44-missionadaptersystem).
 
 Key logic summary:
-1. Query entities with `EntityMission` + `DoctrineState` + `BrainBlackboard`.
-2. `DoctrineRegistry.TryGetId(task.BehaviorId, out int id)` â€” log warning and skip if not found.
-3. If `DoctrineState.ActiveDoctrineHash != id`: set hash, call `DoctrineDefinition.ParseParams(task.BehaviorParams, ref blackboard)`.
+1. Query entities with `EntityMission` + `BehaviorState` + `BrainBlackboard`.
+2. `BehaviorRegistry.TryGetId(task.BehaviorId, out int id)` â€” log warning and skip if not found.
+3. If `BehaviorState.ActiveBehaviorHash != id`: set hash, call `BehaviorDefinition.ParseParams(task.BehaviorParams, ref blackboard)`.
 4. Read `LocomotionChannel.Status`:
    - `NodeStatus.Success` â†’ `AdvanceToNextTask()`
    - `NodeStatus.Failure` â†’ `MarkTaskFailed()`
 5. `AdvanceToNextTask`: mark current task `TASK_DONE`, activate next by setting `ActiveTaskId`; if no next task, remove `EntityMission` component.
 
 **Acceptance Criteria:**
-- âś… `MissionAdapter_ResolvesDoctrineId()`: given `BehaviorId="MoveToLocation"`, `DoctrineState.ActiveDoctrineHash` is set to `DoctrineIds.MoveTo_BT`
+- âś… `MissionAdapter_ResolvesBehaviorId()`: given `BehaviorId="MoveToLocation"`, `BehaviorState.ActiveBehaviorHash` is set to `BehaviorIds.MoveTo_BT`
 - âś… `MissionAdapter_AdvancesTaskOnSuccess()`: when `LocomotionChannel.Status == Success`, `ActiveTaskId` moves to the next task and previous task state is `TASK_DONE`
 - âś… `MissionAdapter_MarksFailedOnChannelFailure()`: when status is `Failure`, current task state is `TASK_FAILED`
 - âś… Unknown `BehaviorId` logs a warning and does not throw
@@ -995,7 +995,7 @@ namespace Hrot.SimHost.Systems
         }
     }
 
-    /// <summary>Params struct read from BrainBlackboard for JoinFormation doctrine.</summary>
+    /// <summary>Params struct read from BrainBlackboard for JoinFormation behavior.</summary>
     public struct JoinFormationParams
     {
         public int    LeaderNetworkId;
@@ -1137,8 +1137,8 @@ namespace Hrot.SimHost
                     if (c is Hrot.NED.Descriptors.EntityMaster m) { dis = m.DisType; return true; }
                     dis = 0; return false;
                 }));
-            // SimulationLogicModule: registers DoctrineRegistry + Behavior toolkit + CarKinem + LinearKinematicsSystem (see Task S4.1)
-            world.AddModule(new SimulationLogicModule(doctrineRegistry, networkEntityMap));
+            // SimulationLogicModule: registers BehaviorRegistry + Behavior toolkit + CarKinem + LinearKinematicsSystem (see Task S4.1)
+            world.AddModule(new SimulationLogicModule(behaviorRegistry, networkEntityMap));
             // GeographicModule: registers SimTransformBridgeSystem post-physics (see Task S3.1)
             world.AddModule(new GeographicModule(geoTransform));
             Console.WriteLine("  - SimHost modules registered");
@@ -1231,7 +1231,7 @@ namespace Hrot.SimHost
 
 **Acceptance Criteria:**
 - âś… Main() entry point compiles
-- âś… `DoctrineRegistry` compiled and set as kernel singleton before `kernel.Initialize()` (follow `NetworkDemoApp.cs` / `HeadlessDemoApp.cs` pattern); stable `int` constants defined in `DoctrineIds.cs` per DEBT-006 rules; BTree/HSM doctrine definitions registered for all four `BehaviorId` strings: `"MoveToLocation"`, `"FollowRoute"`, `"JoinFormation"`, `"Idle"`
+- âś… `BehaviorRegistry` compiled and set as kernel singleton before `kernel.Initialize()` (follow `NetworkDemoApp.cs` / `HeadlessDemoApp.cs` pattern); stable `int` constants defined in `BehaviorIds.cs` per DEBT-006 rules; BTree/HSM behavior definitions registered for all four `BehaviorId` strings: `"MoveToLocation"`, `"FollowRoute"`, `"JoinFormation"`, `"Idle"`
 - âś… `EntityMissionTranslator` and `EntityMissionEgressTranslator` included in the translator list passed to `CycloneNetworkModule`
 - âś… `GeographicModule` registered at kernel level (not as an app module) with the configured `WGS84Transform`
 - âś… `CycloneNetworkModule` constructed with full translator list and registered via `kernel.RegisterModule`
@@ -1909,7 +1909,7 @@ export CYCLONEDDS_URI=file:///path/to/cyclonedds.xml
 
 **Documentation Coverage:**
 - `CreateEntityRequestSystem` - Request handler system
-- `MissionAdapterSystem` - Behavior toolkit adapter (maps BehaviorId → DoctrineId)
+- `MissionAdapterSystem` - Behavior toolkit adapter (maps BehaviorId → BehaviorId)
 - `JoinFormationExecutor` - `IActionExecutor<LocomotionChannel>` for formation joining
 - `EntityMissionTranslator` / `EntityMissionEgressTranslator` - DDS ↔ ECS mission sync
 - All component structs

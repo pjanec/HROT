@@ -129,7 +129,7 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
             $"Entity (networkId={networkId}) spawned via NedCommandGateway never moved on IG. " +
             $"Baseline=({posA.X:F3},{posA.Y:F3}), final=({posB.X:F3},{posB.Y:F3}), " +
             $"travelled={travelledMetres:F4} m (threshold={MovementThresholdMetres} m). " +
-            $"Verify WanderMilitary mission was committed and doctrine activated.");
+            $"Verify WanderMilitary mission was committed and behavior activated.");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

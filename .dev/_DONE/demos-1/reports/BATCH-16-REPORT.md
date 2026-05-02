@@ -43,15 +43,15 @@ BATCH-15 review noted "no .cs file in Fdp.Examples.Scenarios imports that assemb
 
 ### Item 2: CS8602 — `UrbanCombatNewScenario.cs` ~line 800
 
-**Root cause:** `DoctrineDefinition.HsmDefinition` is declared `HsmDefinitionBlob?` (nullable reference type). The if-condition `_doctrineRegistry.TryGetDefinition(...)` guarded against the doctrine being absent, but not against the doctrine existing with a null `HsmDefinition`.
+**Root cause:** `BehaviorDefinition.HsmDefinition` is declared `HsmDefinitionBlob?` (nullable reference type). The if-condition `_behaviorRegistry.TryGetDefinition(...)` guarded against the behavior being absent, but not against the behavior existing with a null `HsmDefinition`.
 
 **Fix:**
 ```csharp
 // Before:
-if (_doctrineRegistry.TryGetDefinition(DoctrineConvoyEscort, out var convoyDef))
+if (_behaviorRegistry.TryGetDefinition(BehaviorConvoyEscort, out var convoyDef))
 
 // After:
-if (_doctrineRegistry.TryGetDefinition(DoctrineConvoyEscort, out var convoyDef)
+if (_behaviorRegistry.TryGetDefinition(BehaviorConvoyEscort, out var convoyDef)
     && convoyDef.HsmDefinition != null)
 ```
 
@@ -126,7 +126,7 @@ For Phase 1, the alternative was to change the code to match the spec (add event
 
 **Q4: What edge cases did you discover that weren't mentioned in the spec?**
 
-The CS8602 fix shows `TryGetDefinition` can return `true` while `HsmDefinition` is null (a BTree-only doctrine). The guard `&& convoyDef.HsmDefinition != null` correctly handles this without changing existing semantics — if the convoy doctrine has no HSM blob, the brain pre-init is simply skipped (the run still proceeds).
+The CS8602 fix shows `TryGetDefinition` can return `true` while `HsmDefinition` is null (a BTree-only behavior). The guard `&& convoyDef.HsmDefinition != null` correctly handles this without changing existing semantics — if the convoy behavior has no HSM blob, the brain pre-init is simply skipped (the run still proceeds).
 
 **Q5: Are there any performance concerns or optimization opportunities you noticed?**
 

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>Hrot.AI.Behaviors</AssemblyName>
+    <RootNamespace>Hrot.AI.Behaviors</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- FDP toolkit: BrainBlackboard, BTreeContext, LocomotionChannel, WeaponChannel,
+         BehaviorState, NavigationConstants, MoveToParams, TargetMemory, WeaponState,
+         CarKinem types, and all other Fdp.Toolkit.* namespaces used by CgfNodes.cs. -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- Fdp.Core: Entity type used in Condition_TargetAliveAndVisible and Action_FireAtTarget. -->
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <!-- Hrot.Core provides: TkbEntityTypes constants used by mapper implementations. -->
+    <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
+    <!-- FastBTree fluent builder (BTreeBuilder<TBlackboard, TContext>) for [BTreeDefinition] methods. -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.Compiler\Fbt.Compiler.csproj" />
+    <!-- Roslyn source generator: emits FbtActionRegistrar.g.cs and FbtTreeCatalog.g.cs. -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.SourceGen\Fbt.SourceGen.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- FastHSM runtime (HsmDefinitionBlob, HsmActionDispatcher, HotReloadManager, etc.). -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
+    <!-- FastHSM fluent builder (HsmBuilder, HsmCompiler). -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Compiler\Fhsm.Compiler.csproj" />
+    <!-- Roslyn source generator: emits HsmActionRegistrar.g.cs for [HsmAction]/[HsmGuard] methods. -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.SourceGen\Fhsm.SourceGen.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

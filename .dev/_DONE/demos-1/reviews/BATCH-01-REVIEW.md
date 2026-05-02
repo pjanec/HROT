@@ -52,7 +52,7 @@ FDP.Framework.Runner:
 Fdp.Examples.Common:
 - Added IScenario and ScenarioFailureException
 - Implemented ScenarioSubsystem with time injection and EvaluateTick hooks
-- Added DemoScenario ids and doctrine constants
+- Added DemoScenario ids and behavior constants
 
 Fdp.Examples.Runner:
 - Implemented demo runner Program.cs using CommandLine

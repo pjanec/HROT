@@ -8,11 +8,11 @@
 ## Phase 0: `Hrot.UI.Common` — Shared Library Foundation
 
 **Goal:** Create the new shared ImGui project and define all Port interfaces, shared DTOs,
-`DoctrineCatalog`, and `DoctrineRegistry` extension — the contracts every other phase depends on.
+`BehaviorCatalog`, and `BehaviorRegistry` extension — the contracts every other phase depends on.
 
 - [x] **EDIT1-L001** Create `Hrot.UI.Common` project + all nine Facade interfaces + shared DTOs [details](./TASK-DETAIL.md#edit1-l001--create-hrotuicommon-project--all-facade-interfaces)
-- [x] **EDIT1-L002** `DoctrineCatalog` in `Hrot.Map.Definitions` (TKB-to-doctrine mapping) [details](./TASK-DETAIL.md#edit1-l002--doctrinecatalog-in-hrotmapdefinitions)
-- [x] **EDIT1-L003** `DoctrineRegistry.GetRegisteredNames()` + `TryGetId()` methods [details](./TASK-DETAIL.md#edit1-l003--doctrineregistrygetregisterednames)
+- [x] **EDIT1-L002** `BehaviorCatalog` in `Hrot.Map.Definitions` (TKB-to-behavior mapping) [details](./TASK-DETAIL.md#edit1-l002--behaviorcatalog-in-hrotmapdefinitions)
+- [x] **EDIT1-L003** `BehaviorRegistry.GetRegisteredNames()` + `TryGetId()` methods [details](./TASK-DETAIL.md#edit1-l003--behaviorregistrygetregisterednames)
 
 ---
 
@@ -22,7 +22,7 @@
 shared library, replacing `IExConLogic` dependencies with focused Port interfaces.
 
 - [x] **EDIT1-P001** Migrate `SpawnerPanel` → `Hrot.UI.Common` (wire to `ISpawnController`) [details](./TASK-DETAIL.md#edit1-p001--migrate-spawnerpanel-to-hrotuicommon)
-- [x] **EDIT1-P002** Migrate `MissionPanel` → `Hrot.UI.Common` (dynamic doctrine catalog via `IMissionEditorService`) [details](./TASK-DETAIL.md#edit1-p002--migrate-missionpanel-with-dynamic-doctrine-catalog)
+- [x] **EDIT1-P002** Migrate `MissionPanel` → `Hrot.UI.Common` (dynamic behavior catalog via `IMissionEditorService`) [details](./TASK-DETAIL.md#edit1-p002--migrate-missionpanel-with-dynamic-behavior-catalog)
 - [x] **EDIT1-P003** Migrate `ConfigPanel` → `Hrot.UI.Common` (wire to `IMapConfigController`) [details](./TASK-DETAIL.md#edit1-p003--migrate-configpanel-to-hrotuicommon)
 
 ---
@@ -57,7 +57,7 @@ embarkation drag-and-drop), `PreviewPanel`, `ZoneEditorPanel`, and `SharedContex
 layers (4) that translate UI intents into domain events and ECS mutations.
 
 - [x] **EDIT1-A001** `EditorSpawnAdapter` (`ISpawnController` — tool push adapter) [details](./TASK-DETAIL.md#edit1-a001--editorspawnadapter-ispawncontroller)
-- [x] **EDIT1-A002** `EditorMissionService` (`IMissionEditorService` — doctrine filtering + TAP commit) [details](./TASK-DETAIL.md#edit1-a002--editormissionservice-imissioneditorservice)
+- [x] **EDIT1-A002** `EditorMissionService` (`IMissionEditorService` — behavior filtering + TAP commit) [details](./TASK-DETAIL.md#edit1-a002--editormissionservice-imissioneditorservice)
 - [x] **EDIT1-A003** `EditorOrbatAdapter` (`IOrbatDataProvider` + `IOrbatController` + embark intents) [details](./TASK-DETAIL.md#edit1-a003--editororbatadapter-iorbatdataprovider--iorbatcontroller)
 - [x] **EDIT1-A004** `EditorMapPickAdapter` (`IMapPickService` — location, entity, area picks) [details](./TASK-DETAIL.md#edit1-a004--editormappickadapter-imappickservice)
 - [x] **EDIT1-A005** `EditorZoneAdapter` (`IZoneAuthoringController`) [details](./TASK-DETAIL.md#edit1-a005--editorzonéadapter-izoneauthoringcontroller)
@@ -88,7 +88,7 @@ NED adapters — completing DRY for the C2 subsystem.
 
 - [x] **EDIT1-X001** `ExConOrbatAdapter` (`IOrbatDataProvider` + `IOrbatController` via `IDerRepo`) [details](./TASK-DETAIL.md#edit1-x001--exconorbatadapter-iorbatdataprovider--iorbatcontroller)
 - [x] **EDIT1-X002** `ExConLogic : ISpawnController` declaration (zero logic change) [details](./TASK-DETAIL.md#edit1-x002--exconlogic-implements-ispawncontroller)
-- [x] **EDIT1-X003** `MissionEditorService` NED adapter — `GetAvailableBehaviors` via `DoctrineCatalog` [details](./TASK-DETAIL.md#edit1-x003--missioneditorservice-ned-adapter--dynamic-doctrine-filter)
+- [x] **EDIT1-X003** `MissionEditorService` NED adapter — `GetAvailableBehaviors` via `BehaviorCatalog` [details](./TASK-DETAIL.md#edit1-x003--missioneditorservice-ned-adapter--dynamic-behavior-filter)
 - [x] **EDIT1-X004** ExCon composition root: wire all shared panels to NED adapters [details](./TASK-DETAIL.md#edit1-x004--excon-composition-root-wire-shared-panels)
 - [x] **EDIT1-X005** ExCon `ContextMenuLogic` refactor — `JsonContextMenuBuilder` + `ExConEntityActionAdapter` + `SharedContextMenuPopulator` [details](./TASK-DETAIL.md#edit1-x005--excon-contextmenulogic-refactor-via-sharedcontextmenupopulator)
 
@@ -102,4 +102,4 @@ running inside `EditorHarness`.
 - [x] **EDIT1-T001** Embarkation & cargo tests (valid embark, capacity limit, disembark restore) [details](./TASK-DETAIL.md#edit1-t001--embarkation--cargo-integration-tests)
 - [x] **EDIT1-T002** Target memory seeding tests (single, N-to-1, 1-to-N) [details](./TASK-DETAIL.md#edit1-t002--target-memory-seeding-integration-tests)
 - [x] **EDIT1-T003** Zone obstacle authoring + full save pipeline tests [details](./TASK-DETAIL.md#edit1-t003--zone-obstacle-authoring--save-pipeline-tests)
-- [x] **EDIT1-T004** Doctrine catalog filtering tests (per TkbType + registry cross-check) [details](./TASK-DETAIL.md#edit1-t004--doctrine-catalog-filtering-tests)
+- [x] **EDIT1-T004** Behavior catalog filtering tests (per TkbType + registry cross-check) [details](./TASK-DETAIL.md#edit1-t004--behavior-catalog-filtering-tests)

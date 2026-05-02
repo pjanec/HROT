@@ -31,7 +31,7 @@ Legend: `[ ]` not started / `[>]` in progress / `[x]` completed
 
 ## Phase 3: BTreeHotReloadManager
 
-- [x] **FBT-020** `BTreeHotReloadManager` with `TryReload`, `ReloadResult` enum, and `DoctrineRegistry` patching
+- [x] **FBT-020** `BTreeHotReloadManager` with `TryReload`, `ReloadResult` enum, and `BehaviorRegistry` patching
 - [x] **FBT-021** Implement hot reload check in `Interpreter.Tick` (replace stub comment)
 - [x] **FBT-022** Hot reload tests
 - [x] **FBT-023** `FbtAssemblyHotReloader` (FileSystemWatcher + collectible ALC + thread-safe reload queue)
@@ -42,7 +42,7 @@ Legend: `[ ]` not started / `[>]` in progress / `[x]` completed
 
 - [x] **FBT-030** Define `IEntityAwareImGuiRenderer : IImGuiRenderer`
 - [x] **FBT-031** Update `ComponentReflector.DrawComponents` to dispatch to extended renderer
-- [x] **FBT-032** Add `Type? ParamsDtoType` to `DoctrineDefinition`
+- [x] **FBT-032** Add `Type? ParamsDtoType` to `BehaviorDefinition`
 - [x] **FBT-033** `BrainBlackboardRenderer : IEntityAwareImGuiRenderer` (typed DTO display)
 - [x] **FBT-034** `BTreeVisualizerRenderer : IEntityAwareImGuiRenderer` (live tree display)
 - [x] **FBT-035** Tests for `ComponentReflector` extended dispatch

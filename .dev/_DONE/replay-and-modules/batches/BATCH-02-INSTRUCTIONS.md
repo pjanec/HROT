@@ -326,7 +326,7 @@ Update from `world.AddSystem` pattern to `system.Execute(world, dt)`.
 
 | File | Phase |
 |------|-------|
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/DoctrineIngressSystem.cs` | `Input` |
+| `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BehaviorIngressSystem.cs` | `Input` |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/MissionDirectorSystem.cs` | `Simulation` |
 
 Apply universal conversion rules.
@@ -347,12 +347,12 @@ public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
 
 Populate in the constructor:
 ```csharp
-public MissionControlModule(DoctrineRegistry registry)
+public MissionControlModule(BehaviorRegistry registry)
 {
     _registry = registry;
     InputSystems = new IEcsModuleSystem[]
     {
-        new DoctrineIngressSystem(_registry),
+        new BehaviorIngressSystem(_registry),
     };
     SimulationSystems = new IEcsModuleSystem[]
     {
@@ -373,11 +373,11 @@ Update from "RegisterSystems adds N systems to group" to:
 var module = new MissionControlModule(registry);
 Assert.Single(module.InputSystems);
 Assert.Single(module.SimulationSystems);
-Assert.IsType<DoctrineIngressSystem>(module.InputSystems[0]);
+Assert.IsType<BehaviorIngressSystem>(module.InputSystems[0]);
 Assert.IsType<MissionDirectorSystem>(module.SimulationSystems[0]);
 ```
 
-Individual system tests (`DoctrineIngressSystemTests.cs`, `MissionDirectorSystemTests.cs`): update
+Individual system tests (`BehaviorIngressSystemTests.cs`, `MissionDirectorSystemTests.cs`): update
 from `world.AddSystem` pattern to `system.Execute(world, dt)`.
 
 ---
@@ -456,7 +456,7 @@ public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
 
 Populate in constructor:
 ```csharp
-public CognitiveRuntimeModule(DoctrineRegistry registry)
+public CognitiveRuntimeModule(BehaviorRegistry registry)
 {
     _registry = registry;
     SimulationSystems = new IEcsModuleSystem[]

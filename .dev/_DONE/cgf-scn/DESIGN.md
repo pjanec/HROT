@@ -109,7 +109,7 @@ sets the correct live `ParentEntity` when it spawns the child.
 
 ### Decision 6 — Two-pass network ID remapping
 
-Doctrine mission tasks store entity references as `long`/`int` network IDs
+Behavior mission tasks store entity references as `long`/`int` network IDs
 embedded in opaque `BehaviorParams` JSON strings (e.g., `targetNetworkId` in
 `FireAtTarget`, `routeEntityId` in `FollowRoute`).  Because these IDs are
 reallocated during genesis, a two-pass process is required:
@@ -118,11 +118,11 @@ reallocated during genesis, a two-pass process is required:
   entity that has a `NetworkIdentity` in the staging repository.  Build a
   `Dictionary<long, long> oldToNewNetworkId` translation map.
 - **Pass 2 (Extraction & Patching):** Extract components, apply the exclusion
-  mask, and remap any network IDs embedded in doctrine JSON strings using the
+  mask, and remap any network IDs embedded in behavior JSON strings using the
   translation map.
 
 The Pass 1 ID pre-allocated for each entity is the definitive network ID: the
-remapped doctrine JSON patches reference it, and the live cluster must materialise
+remapped behavior JSON patches reference it, and the live cluster must materialise
 the entity with exactly this ID.  Each `EntityCreationRequest` therefore carries a
 `PreAllocatedNetworkId` field (default `0`).  `CreateEntityRequestSystem` checks
 this field during request ingress: if non-zero, it uses the pre-allocated value
@@ -201,7 +201,7 @@ The two architectural paths to resolution are:
 
 1. **Schema Elevation:** Refactor `PassengerBuffer` and `TargetMemory` to store
    stable 64-bit `long` NetworkIdentity values instead of volatile `Entity` handles,
-   aligning them with how `ActiveMissionPlan` doctrine JSON parameters handle cross-
+   aligning them with how `ActiveMissionPlan` behavior JSON parameters handle cross-
    entity references.  Once network-ID-based, these components follow the same
    `oldToNewMap` remapping pass defined in Decision 6.  The `IEntityScenarioTranslator`
    mechanism becomes unnecessary for them.
@@ -236,7 +236,7 @@ callers:
   reads this field when iterating `parentTemplate.ChildBlueprints`: if the entry for
   `childDef.InstanceId` is present, it uses the tuple's `PreAllocatedId` for the child's
   `SpawnEntityCommand.NetworkId` (bypassing `AllocateId()`) and merges `Components` into
-  the child's `InitialComponents`.  This ensures that doctrine JSON parameters patched
+  the child's `InitialComponents`.  This ensures that behavior JSON parameters patched
   with child network IDs in Pass 2 always match the IDs that `NetworkSpawningSystem`
   materialises.  `NetworkSpawningSystem` itself is unchanged.
   Children without a `NetworkIdentity` in the staging DOM are assigned
@@ -380,7 +380,7 @@ Responsibilities:
 ### Task C005: Behavior Param Remapping
 
 Define the remapping infrastructure used by `StagingEntityExtractor` to patch
-network IDs embedded in doctrine JSON strings.
+network IDs embedded in behavior JSON strings.
 
 #### C005a — RemapNetworkIdAttribute
 
@@ -440,7 +440,7 @@ public sealed class ScenarioBehaviorRemapper
 `Register<TDto>` calls `BehaviorParamRemapperCompiler.Compile<TDto>()` and stores
 the result.  Unrecognized `behaviorId` values pass through unchanged.
 
-Registration at composition time (alongside `DoctrineRegistry.Register`):
+Registration at composition time (alongside `BehaviorRegistry.Register`):
 
 ```
 remapper.Register<FireAtTargetParamsJsonDto>("FireAtTarget")
@@ -496,7 +496,7 @@ else
 ```
 
 This change ensures the child's `SpawnEntityCommand.NetworkId` matches the ID that
-was patched into the parent's doctrine JSON during Pass 2.  NED/BDC-originated
+was patched into the parent's behavior JSON during Pass 2.  NED/BDC-originated
 requests always have `ChildComponentOverrides = null`, so the existing
 `AllocateId()` path is exercised as before.
 
@@ -600,7 +600,7 @@ to be instantiated twice — once via DDS and once via direct deserialization.
 
 **Goal:** Replace the hardcoded `DrawFireAtTargetParams`, `DrawMoveToLocationParams`,
 and `DrawFollowRouteParams` methods in `MissionPanel` with a generic,
-DTO-attribute-driven rendering mechanism that works for any registered doctrine.
+DTO-attribute-driven rendering mechanism that works for any registered behavior.
 
 This phase builds on Phase 2's DTOs and extends them with presentation metadata
 attributes.
@@ -712,7 +712,7 @@ Refactor `MissionPanel`:
 
 ### Task C011: Composition Root Registration
 
-In `CgfDoctrineSetup` (or the equivalent setup class), register DTO types for
+In `CgfBehaviorSetup` (or the equivalent setup class), register DTO types for
 both remapping and UI rendering:
 
 ```csharp

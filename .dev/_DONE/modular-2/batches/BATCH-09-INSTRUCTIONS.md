@@ -599,7 +599,7 @@ namespace Hrot.Network.NED.SimHost;
 
 /// <summary>
 /// NED implementation of <see cref="ISimHostMissionSender"/>.
-/// Sends a MoveToLocation doctrine mission via DDS <c>MissionControlRequest</c>.
+/// Sends a MoveToLocation behavior mission via DDS <c>MissionControlRequest</c>.
 /// </summary>
 internal sealed class NedSimHostMissionSender : ISimHostMissionSender
 {
@@ -638,7 +638,7 @@ internal sealed class NedSimHostMissionSender : ISimHostMissionSender
                             BehaviorParams  = paramsJson,
                             Triggers        = new List<MissionTrigger>
                             {
-                                new MissionTrigger { Type = "DoctrineFinished" },
+                                new MissionTrigger { Type = "BehaviorFinished" },
                             },
                             State = eTaskState.TASK_PLANNED,
                         }
@@ -834,7 +834,7 @@ var networkFactory = new NedNetworkFactory(
     role:             _role,
     tkbDb:            tkbDb,
     lifecycleModule:  elm,
-    doctrineRegistry: doctrineRegistry);
+    behaviorRegistry: behaviorRegistry);
 ```
 
 Verify the exact constructor signature of `NedNetworkFactory` before writing the code.

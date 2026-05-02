@@ -64,8 +64,8 @@ dotnet build IOS-IG-SimHost.sln 2>&1 | Select-String "error|Error" -NotMatch | S
 
 ### Important Codebase Facts
 
-1. **`MissionPanel` has hardcoded behavior IDs** (`DoctrineIdMoveToLocation = 1`, etc.) and calls
-   `DoctrineRegistry` constructor directly. Both must be removed — the doctrine dropdown is now
+1. **`MissionPanel` has hardcoded behavior IDs** (`BehaviorIdMoveToLocation = 1`, etc.) and calls
+   `BehaviorRegistry` constructor directly. Both must be removed — the behavior dropdown is now
    driven by `IMissionEditorService.GetAvailableBehaviors(entityId)`.
 2. **`MissionCommitResult`** — the existing ExCon `MissionPanel` holds a reference to the ExCon-specific
    `Services.MissionCommitResult` class (which has an `ErrorCode` field). After migration, the panel
@@ -103,7 +103,7 @@ panels to those interfaces.  After this batch:
 ## 🎯 Batch Objectives
 
 1. **EDIT1-P001** — Move `SpawnerPanel` to `Hrot.UI.Common`, change dependency from `IExConLogic` to `ISpawnController`
-2. **EDIT1-P002** — Move `MissionPanel` to `Hrot.UI.Common`, replace hardcoded doctrines with `IMissionEditorService.GetAvailableBehaviors()`
+2. **EDIT1-P002** — Move `MissionPanel` to `Hrot.UI.Common`, replace hardcoded behaviors with `IMissionEditorService.GetAvailableBehaviors()`
 3. **EDIT1-P003** — Move `ConfigPanel` to `Hrot.UI.Common`, replace JSON patch building with `IMapConfigController.ApplyConfig()`
 
 ---
@@ -148,8 +148,8 @@ panels to those interfaces.  After this batch:
 2. Create `Hrot.UI.Common/Panels/MissionPanel.cs`:
    - Change namespace to `Hrot.UI.Common.Panels`
    - Replace `DrawContent(IExConLogic logic)` with `DrawContent(IMissionEditorService service, IMapPickService pick)`
-   - **Remove** `private readonly string[] _behaviorIds;`, all `DoctrineIdXxx` constants,
-     `DoctrineRegistry` constructor call, and the `BehaviorCatalogCapacity` constant
+   - **Remove** `private readonly string[] _behaviorIds;`, all `BehaviorIdXxx` constants,
+     `BehaviorRegistry` constructor call, and the `BehaviorCatalogCapacity` constant
    - In the task-behaviour combo box rendering: call `service.GetAvailableBehaviors(_selectedEntityId)` each frame
      to populate the dropdown (cache result in a local variable inside `DrawContent` — not a field)
    - "Pick Location" button → `_pendingLocationPick = pick.PickLocationAsync()` (use `IMapPickService`)

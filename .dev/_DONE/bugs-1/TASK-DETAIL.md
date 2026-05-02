@@ -317,14 +317,14 @@ compatibility.
 
 ---
 
-### BUG1-M001 Default `DoctrineFinished` Trigger on Task Creation
+### BUG1-M001 Default `BehaviorFinished` Trigger on Task Creation
 
-**Design Reference:** [§4.1 Default `DoctrineFinished` Trigger on Task Creation](./DESIGN.md#41-default-doctrinefinished-trigger-on-task-creation)
+**Design Reference:** [§4.1 Default `BehaviorFinished` Trigger on Task Creation](./DESIGN.md#41-default-behaviorfinished-trigger-on-task-creation)
 
 **Scope**
 
 - **In:** Change `HandleAddTask()` in `MissionPanel` to initialise `Triggers` with a single
-  `MissionTrigger { Type = "DoctrineFinished" }` instead of an empty list.
+  `MissionTrigger { Type = "BehaviorFinished" }` instead of an empty list.
 - **Out:** `HandleEditBehaviorId` (no workaround to inject per-behavior triggers needed).
   SimHost-side `MissionControlRequestSystem`, `MissionDirectorSystem`. DDS data model.
 
@@ -332,28 +332,28 @@ compatibility.
 
 | File | Change |
 |---|---|
-| `Hrot.ExCon/Panels/MissionPanel.cs` | `HandleAddTask()`: `Triggers = new List<MissionTrigger>()` → `Triggers = new List<MissionTrigger> { new MissionTrigger { Type = "DoctrineFinished" } }` |
+| `Hrot.ExCon/Panels/MissionPanel.cs` | `HandleAddTask()`: `Triggers = new List<MissionTrigger>()` → `Triggers = new List<MissionTrigger> { new MissionTrigger { Type = "BehaviorFinished" } }` |
 
 **Constraints**
 
 - Do not modify `HandleEditBehaviorId` to inject spatial triggers — the design talk explicitly
-  rejects this approach in favour of `DoctrineFinished`.
+  rejects this approach in favour of `BehaviorFinished`.
 - The `Type` string must exactly match what `MissionControlRequestSystem` parses — verify it is
-  the string `"DoctrineFinished"` via grep of `MissionControlRequestSystem`.
+  the string `"BehaviorFinished"` via grep of `MissionControlRequestSystem`.
 
 **Success Conditions**
 
-1. **New task has DoctrineFinished trigger:**  
+1. **New task has BehaviorFinished trigger:**  
    *Setup:* Construct a `MissionPanel`. Call `HandleAddTask()`.  
-   *Assert:* `GetDraftTasks()[0].Triggers` has exactly one entry with `Type == "DoctrineFinished"`.
+   *Assert:* `GetDraftTasks()[0].Triggers` has exactly one entry with `Type == "BehaviorFinished"`.
 
 2. **Multiple tasks each have the trigger:**  
    *Setup:* Call `HandleAddTask()` twice.  
-   *Assert:* Both tasks have `Triggers.Count == 1` and `Triggers[0].Type == "DoctrineFinished"`.
+   *Assert:* Both tasks have `Triggers.Count == 1` and `Triggers[0].Type == "BehaviorFinished"`.
 
 3. **Existing MissionPanel unit tests pass:**  
    All tests in `Hrot.ExCon.Tests` that exercise `MissionPanel` pass without modification (update
-   those that assert `Triggers` is empty — they should now assert `DoctrineFinished`).
+   those that assert `Triggers` is empty — they should now assert `BehaviorFinished`).
 
 ---
 

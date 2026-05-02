@@ -356,28 +356,28 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         }
     }
 
-    // ── T004 ── Doctrine Catalog ──────────────────────────────────────────────
+    // ── T004 ── Behavior Catalog ──────────────────────────────────────────────
 
     [Fact]
-    public void DoctrineCatalog_Insurgent_ReturnsInsurgentDoctrines()
+    public void BehaviorCatalog_Insurgent_ReturnsInsurgentBehaviors()
     {
-        var doctrines = DoctrineCatalog.GetValidDoctrines(TkbEntityTypes.Insurgent);
+        var behaviors = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.Insurgent);
 
-        Assert.Contains("Ambush",        doctrines);
-        Assert.DoesNotContain("WanderCivil", doctrines);
+        Assert.Contains("Ambush",        behaviors);
+        Assert.DoesNotContain("WanderCivil", behaviors);
     }
 
     [Fact]
-    public void DoctrineCatalog_Civilian_ReturnsCivilianDoctrines()
+    public void BehaviorCatalog_Civilian_ReturnsCivilianBehaviors()
     {
-        var doctrines = DoctrineCatalog.GetValidDoctrines(TkbEntityTypes.CivilianPedestrian);
+        var behaviors = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.CivilianPedestrian);
 
-        Assert.Contains("WanderCivil", doctrines);
-        Assert.DoesNotContain("Ambush",    doctrines);
+        Assert.Contains("WanderCivil", behaviors);
+        Assert.DoesNotContain("Ambush",    behaviors);
     }
 
     [Fact]
-    public void EditorMissionService_FiltersOutUnregisteredDoctrines()
+    public void EditorMissionService_FiltersOutUnregisteredBehaviors()
     {
         using var harness = new EditorHarness();
         var world = harness.Repo;
@@ -388,9 +388,9 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         world.AddComponent(insurgent, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
         world.AddComponent(insurgent, new Fdp.Toolkit.Replication.Components.NetworkIdentity(insurgentNetId));
 
-        // Build a DoctrineRegistry that only registers "Ambush" (not "MoveToLocation").
-        var registry = new Fdp.Toolkit.Behavior.DoctrineRegistry();
-        registry.Register(1, "Ambush", new Fdp.Toolkit.Behavior.DoctrineDefinition { Name = "Ambush" });
+        // Build a BehaviorRegistry that only registers "Ambush" (not "MoveToLocation").
+        var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+        registry.Register(1, "Ambush", new Fdp.Toolkit.Behavior.BehaviorDefinition { Name = "Ambush" });
 
         var service = new EditorMissionService(world.Bus, world, registry);
 

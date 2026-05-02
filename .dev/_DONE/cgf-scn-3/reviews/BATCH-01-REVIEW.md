@@ -18,7 +18,7 @@ All four tasks (S301–S304) are correctly implemented:
   correct, HasManagedComponent false after abort).
 
 - **S302** — Span extraction before the for-loop correctly avoids the InlineArray
-  defensive-copy trap. Tests verify PhaseCount 3, correct DoctrineId on each phase, and
+  defensive-copy trap. Tests verify PhaseCount 3, correct BehaviorId on each phase, and
   zero-task edge case.
 
 - **S303** — `[DataPolicy(DataPolicy.NoSave)]` correctly placed. Old round-trip test

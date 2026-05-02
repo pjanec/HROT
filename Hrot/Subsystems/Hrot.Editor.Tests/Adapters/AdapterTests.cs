@@ -113,7 +113,7 @@ namespace Hrot.Editor.Tests.Adapters
     {
         private readonly EntityRepository _repo;
         private readonly FdpEventBus      _bus;
-        private readonly DoctrineRegistry _registry;
+        private readonly BehaviorRegistry _registry;
 
         public EditorMissionServiceTests()
         {
@@ -124,7 +124,7 @@ namespace Hrot.Editor.Tests.Adapters
             _repo.RegisterEvent<MissionControlAckEvent>();
 
             _bus      = _repo.Bus;
-            _registry = new DoctrineRegistry();
+            _registry = new BehaviorRegistry();
         }
 
         public void Dispose() => _repo.Dispose();
@@ -132,8 +132,8 @@ namespace Hrot.Editor.Tests.Adapters
         [Fact]
         public void GetAvailableBehaviors_InsurgentWithRegisteredAmbush_ReturnsAmbush()
         {
-            // Register "Ambush" doctrine.
-            _registry.Register(1, "Ambush", new DoctrineDefinition
+            // Register "Ambush" behavior.
+            _registry.Register(1, "Ambush", new BehaviorDefinition
             {
                 Name       = "Ambush",
                 BrainTier  = BehaviorConstants.BrainTierBTree,

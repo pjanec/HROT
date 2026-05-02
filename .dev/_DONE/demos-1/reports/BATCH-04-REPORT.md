@@ -83,7 +83,7 @@ The FastBTree `Interpreter.ExecuteSelector()` uses a resume optimisation: when a
 
 - **Event bus timing (BallisticsAndHit):** The 1-tick delay between `HitResolutionSystem` publishing `HitEvent` and `DamageSystem` consuming it was initially surprising. After tracing `ModuleHostKernel.UpdateInternal()` I confirmed that `Bus.SwapBuffers()` precedes module `Tick()` dispatch, so events published during dispatch are only readable the NEXT frame. This is architecturally correct — it matches the Input/Sim separation. Phase timing adjusted accordingly.
 
-- **`fixed` statement on local struct (BehaviorValidation):** `fixed (byte* mem = bb.Memory)` is rejected when `bb` is a stack-local variable because stack frames are already fixed. Fixed by using byte-by-byte writes for initialization in `SpawnAgent`, while the `ref`-based component access in `EvaluateTick` continues to use `fixed` correctly (consistent with `DoctrineIngressSystem`).
+- **`fixed` statement on local struct (BehaviorValidation):** `fixed (byte* mem = bb.Memory)` is rejected when `bb` is a stack-local variable because stack frames are already fixed. Fixed by using byte-by-byte writes for initialization in `SpawnAgent`, while the `ref`-based component access in `EvaluateTick` continues to use `fixed` correctly (consistent with `BehaviorIngressSystem`).
 
 - **BTree Selector resume optimisation (BehaviorValidation):** The FastBTree Selector's skip-optimization permanently blocked Sequence re-evaluation once `Action_Flee` was running. Resolved by resetting `BrainBTreeState` to `default` each tick in `EvaluateTick`. Documented as a design decision.
 
@@ -101,7 +101,7 @@ The FastBTree `Interpreter.ExecuteSelector()` uses a resume optimisation: when a
 
 - **`MuzzleVelocity = 2000 m/s`:** Chosen to guarantee at least 8× the target diameter per tick, clearly demonstrating CCD anti-tunneling. Alternatives considered: (a) 600 m/s minimum for barely-tunneling — rejected because edge cases in float precision near the boundary make tests brittle. (b) Shrinking the target instead — rejected because it changes the spec geometry.
 
-- **`DemoDoctrineIds.Combat = 2900`:** Added a new `DemoDoctrineIds.cs` file in the Scenarios project rather than polluting `DoctrineIds` in the Behavior toolkit, maintaining clear separation between framework and demo IDs.
+- **`DemoBehaviorIds.Combat = 2900`:** Added a new `DemoBehaviorIds.cs` file in the Scenarios project rather than polluting `BehaviorIds` in the Behavior toolkit, maintaining clear separation between framework and demo IDs.
 
 **Q4: What edge cases did you discover that weren't mentioned in the spec?**
 

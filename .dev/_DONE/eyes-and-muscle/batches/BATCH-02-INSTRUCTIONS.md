@@ -88,9 +88,9 @@ all modules inline in `Initialize()`. This is the clean pattern that future subs
      `RegisterIgComponents` or equivalent)
 
 5. **`SimulationLogicModule` (Muscle) creation:** For the Muscle role, use
-   `NodeBootstrapper.BuildSimulationLogic(NodeRole.MuscleGround, doctrineRegistry, entityMap, ...)`.
-   The `NodeBootstrapper` for this batch does NOT need full doctrine population — a minimal
-   `DoctrineRegistry` with no entries is sufficient for the PoC.
+   `NodeBootstrapper.BuildSimulationLogic(NodeRole.MuscleGround, behaviorRegistry, entityMap, ...)`.
+   The `NodeBootstrapper` for this batch does NOT need full behavior population — a minimal
+   `BehaviorRegistry` with no entries is sufficient for the PoC.
 
 6. **Headless mode in integration tests:** `SubsystemConfig.Headless = true` skips Raylib window
    creation. When `HrotNodeConfig.Headless = true`, the builder also skips DDS participant creation.
@@ -200,13 +200,13 @@ private bool _initialized;
         domainId: config.DomainId ?? 0);
     _context.Kernel.RegisterModule(_nedReplicationModule);
 
-5.  Create doctrine registry (domain-specific, stays here):
-    var doctrineRegistry = new DoctrineRegistry();    // empty for PoC
+5.  Create behavior registry (domain-specific, stays here):
+    var behaviorRegistry = new BehaviorRegistry();    // empty for PoC
 
 6.  Create and register SimulationLogicModule (Muscle subset):
     var bootstrapper = new NodeBootstrapper();
     _simLogicModule = bootstrapper.BuildSimulationLogic(
-        NodeRole.MuscleGround, doctrineRegistry, _context.EntityMap);
+        NodeRole.MuscleGround, behaviorRegistry, _context.EntityMap);
     _context.Kernel.RegisterModule(_simLogicModule);
 
 7.  Register IG presentation modules (after checking what's available):
@@ -557,7 +557,7 @@ Submit to: `.dev/eyes-and-muscle/reports/BATCH-02-REPORT.md`
 1. **Phase 4 is OUT OF SCOPE** — only the Corrective-0 fix and EAM-E001/E002/E003.
 2. **Do NOT create a separate "App" class** — `EyesAndMuscleSubsystem` is self-contained and calls
    `HrotNodeBuilder` directly. No `EyesAndMuscleApp` wrapper.
-3. **Minimal doctrine registry** — a `new DoctrineRegistry()` with no entries is fine for the PoC.
+3. **Minimal behavior registry** — a `new BehaviorRegistry()` with no entries is fine for the PoC.
 4. **For integration tests, use headless=true in `HrotNodeConfig`** to skip DDS allocator routing.
    This means `ClusterSlave` runs in standalone-friendly state (no DDS heartbeats).
 5. **Check `IEcsModule` interface** for the exact method signatures — some TASK-DETAIL method names

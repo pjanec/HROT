@@ -75,7 +75,7 @@ The 20–49 toolkit ID block is full. There is currently no compile-time check p
 
 ## TASK 4: DB-MOD1-05 — Lazy-Register `BrainHsm64` to Skip Empty Frames
 
-`BrainHsm64` updates every frame regardless of whether any entity has an active HSM doctrine.
+`BrainHsm64` updates every frame regardless of whether any entity has an active HSM behavior.
 
 **What to do:**
 - Check the `BrainHsm64` system update method. If the entity query returns zero results, the system should early-exit without cost.

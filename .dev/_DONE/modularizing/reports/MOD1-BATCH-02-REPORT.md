@@ -29,7 +29,7 @@
 **Hrot.SimHost.Tests:** 99 / 100 passed (1 pre-existing DDS infrastructure failure — see Outstanding Issues)
 
 **Key Test Scenarios Verified:**
-- ✅ `MissionControlModule_RegistersSystems_DoctrineIngressAndMissionDirector`
+- ✅ `MissionControlModule_RegistersSystems_BehaviorIngressAndMissionDirector`
 - ✅ `CognitiveRuntimeModule_RegistersSystems_AllFourCognitiveSystems`
 - ✅ `ActionDispatchModule_RegistersSystems_LocoAndWeaponDispatchers`
 - ✅ `GroundKinematicsModule_RegistersSystems_AllFiveKinematicSystems`
@@ -49,7 +49,7 @@
 **Q1: What issues did you encounter during implementation? How did you resolve them?**
 
 **Issue 1 — `ComponentSystem` and `IModuleSystem` are entirely separate hierarchies.**  
-The batch spec instructs modules to implement `IModule` and use `ISystemRegistry.RegisterSystem<T>`. However, `ISystemRegistry.RegisterSystem<T>` is constrained to `T : IModuleSystem`, and every simulation system in the codebase (`DoctrineIngressSystem`, `CarKinematicsSystem`, etc.) extends `ComponentSystem`, not `IModuleSystem`. These two hierarchies are completely separate with no shared interface.  
+The batch spec instructs modules to implement `IModule` and use `ISystemRegistry.RegisterSystem<T>`. However, `ISystemRegistry.RegisterSystem<T>` is constrained to `T : IModuleSystem`, and every simulation system in the codebase (`BehaviorIngressSystem`, `CarKinematicsSystem`, etc.) extends `ComponentSystem`, not `IModuleSystem`. These two hierarchies are completely separate with no shared interface.  
 **Resolution:** Implemented modules as plain C# classes with a `RegisterSystems(SystemGroup group)` method instead of `IModule`/`ISystemRegistry`. The correct API for `ComponentSystem`-based systems is `SystemGroup.AddSystem(ComponentSystem)`, which is what all modules use. Module tests verify the correct system types are registered by calling `SystemGroup.GetSystems()`, which returns `IReadOnlyList<ComponentSystem>`.
 
 **Issue 2 — Circular dependency prevents `ActionDispatchModule` from living in `FDP.Toolkit.Behavior`.**  
@@ -61,8 +61,8 @@ The batch spec instructs modules to implement `IModule` and use `ISystemRegistry
 **Resolution:** `LinearKinematicsSystem` is registered directly in the `SimulationLogicModule` facade (the Hrot.SimHost aggregation layer), which has visibility to both toolkits. This is documented as a known limitation: `GroundKinematicsModule` covers only the 5 systems that live within `FDP.Toolkit.CarKinem` itself.
 
 **Issue 4 — `MissionDirectorSystem` had a phase-advancement bug that caused 2 tests to fail.**  
-`MissionDirector_AdvancesPhase_WhenReachedDestination` and `MissionDirector_AdvancesPhase_WhenHealthCritical` both expected `doctrine.ActiveDoctrineHash == 400` (the next phase's doctrine) but received `300` (the current phase's doctrine). Root cause: in the `if (triggered)` block, `queue.CurrentPhase++` advanced the index but then `doctrine.ActiveDoctrineHash = phase.DoctrineId` assigned from the stale local variable `phase` — which was captured before the increment and still pointed to the old phase slot.  
-**Resolution:** Changed `doctrine.ActiveDoctrineHash = phase.DoctrineId` to `doctrine.ActiveDoctrineHash = phases[queue.CurrentPhase].DoctrineId` (indexing with the *new* `CurrentPhase` value after the increment). This is a correctness fix that was independent of the DB-MOD1-01 rename; the struct layout did not change.
+`MissionDirector_AdvancesPhase_WhenReachedDestination` and `MissionDirector_AdvancesPhase_WhenHealthCritical` both expected `behavior.ActiveBehaviorHash == 400` (the next phase's behavior) but received `300` (the current phase's behavior). Root cause: in the `if (triggered)` block, `queue.CurrentPhase++` advanced the index but then `behavior.ActiveBehaviorHash = phase.BehaviorId` assigned from the stale local variable `phase` — which was captured before the increment and still pointed to the old phase slot.  
+**Resolution:** Changed `behavior.ActiveBehaviorHash = phase.BehaviorId` to `behavior.ActiveBehaviorHash = phases[queue.CurrentPhase].BehaviorId` (indexing with the *new* `CurrentPhase` value after the increment). This is a correctness fix that was independent of the DB-MOD1-01 rename; the struct layout did not change.
 
 **Issue 5 — `WithOwned<SimTransform>()` in `CarKinematicsSystem` caused 4 existing tests to fail.**  
 After enforcing `.WithOwned<SimTransform>()` per the task spec, four `CarKinematicsSystemTests` tests began failing because their test entities were created with `repo.AddComponent(entity, new SimTransform {...})` without calling `repo.SetAuthority<SimTransform>(entity, true)`. The system's query filtered them out as ghost entities, so positions never updated.  
@@ -91,8 +91,8 @@ The spec assumed an `IModule`/`ISystemRegistry`-based design, but the `Component
 **`GroundKinematicsModule` exposes `TrajectoryPool` and `FormationTemplates` as properties.**  
 Both are created inside `GroundKinematicsModule` and consumed by `SimulationLogicModule` (which stores them for caller access via its own properties). Rather than requiring callers to pass them in, the module owns them and exposes them after construction. This is consistent with the "module owns its sub-resources" intent of the batch.
 
-**`MissionControlModule` takes `DoctrineRegistry` dependency via constructor.**  
-`DoctrineIngressSystem` requires a `DoctrineRegistry` at construction time. Rather than producing a new one internally (which would be unusable by callers), it is injected so the same registry instance is shared between this module and `CognitiveRuntimeModule` (which also uses it for `BTreeTickSystem` and `HsmTickSystem`). This aligns with the single-instance-per-simulation model already established in the old `SimulationLogicModule`.
+**`MissionControlModule` takes `BehaviorRegistry` dependency via constructor.**  
+`BehaviorIngressSystem` requires a `BehaviorRegistry` at construction time. Rather than producing a new one internally (which would be unusable by callers), it is injected so the same registry instance is shared between this module and `CognitiveRuntimeModule` (which also uses it for `BTreeTickSystem` and `HsmTickSystem`). This aligns with the single-instance-per-simulation model already established in the old `SimulationLogicModule`.
 
 ---
 
@@ -130,13 +130,13 @@ Every system migrated to `WithOwned<T>()` effectively requires a new convention 
 
 | File | Change |
 |------|--------|
-| `FDP/Toolkits/FDP.Toolkit.Behavior/Modules/MissionControlModule.cs` | **NEW** — Registers `DoctrineIngressSystem` + `MissionDirectorSystem` |
+| `FDP/Toolkits/FDP.Toolkit.Behavior/Modules/MissionControlModule.cs` | **NEW** — Registers `BehaviorIngressSystem` + `MissionDirectorSystem` |
 | `FDP/Toolkits/FDP.Toolkit.Behavior/Modules/CognitiveRuntimeModule.cs` | **NEW** — Registers `ChannelArbitrationSystem`, `BTreeTickSystem`, `HsmTickSystem<BrainHsm128>`, `HsmTickSystem<BrainHsm64>` |
 | `Hrot.SimHost/Modules/ActionDispatchModule.cs` | **NEW** — Registers `LocomotionDispatcherSystem` (with 3 executors) + `WeaponDispatcherSystem` (with `AimAndFireExecutor`) |
 | `FDP/Toolkits/FDP.Toolkit.CarKinem/Modules/GroundKinematicsModule.cs` | **NEW** — Registers `SpatialHashSystem`, `FormationTargetSystem`, `VehicleCommandSystem`, `CarKinematicsSystem`, `NavigationExecutionSystem` |
 | `Hrot.SimHost/Modules/SimulationLogicModule.cs` | **REWRITTEN** — Delegation facade; delegates to 4 sub-modules; system count 17→19 |
 | `FDP/Toolkits/FDP.Toolkit.CarKinem/Systems/CarKinematicsSystem.cs` | **MODIFIED** — Added `.WithOwned<SimTransform>()` to entity query |
-| `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs` | **FIXED** — Phase advancement bug: `phase.DoctrineId` → `phases[queue.CurrentPhase].DoctrineId` after increment |
+| `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs` | **FIXED** — Phase advancement bug: `phase.BehaviorId` → `phases[queue.CurrentPhase].BehaviorId` after increment |
 | `FDP/Toolkits/FDP.Toolkit.Behavior/FDP.Toolkit.Behavior.csproj` | **MODIFIED** — Added `ModuleHost.Core` reference |
 | `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/FDP.Toolkit.Behavior.Tests.csproj` | **MODIFIED** — Added `ModuleHost.Core` reference |
 | `FDP.Toolkit.Behavior.Tests/Modules/MissionControlModuleTests.cs` | **NEW** — 2 unit tests verifying system registration |

@@ -33,7 +33,7 @@ BATCH-03 delivers the DDS transport layer for Tactical Intent distribution. All 
 - `dtTacticalIntentRequest = 92` added after `dtMissionControlAck = 91`. Ordinal is unique and sequential.
 
 ### TacticalIntentEgressTranslator.cs
-- Authority gate: `repo.HasAuthority<DoctrineState>(evt.Entity)` — correct component.
+- Authority gate: `repo.HasAuthority<BehaviorState>(evt.Entity)` — correct component.
 - `ReadManaged<AssignTacticalIntentEvent>()` used correctly (managed event, not struct event).
 - Internal test constructor follows existing `WeaponFireIntentEgressTranslator` pattern.
 - Entity-not-in-map silently skips (correct; no exception).

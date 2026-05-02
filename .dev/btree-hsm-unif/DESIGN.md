@@ -2,12 +2,12 @@
 
 ## Executive Summary
 
-`Hrot.AI.Doctrines` currently supports only Behavior Tree (BTree) doctrines. FastHSM
+`Hrot.AI.Behaviors` currently supports only Behavior Tree (BTree) behaviors. FastHSM
 exists as a parallel paradigm but the two are not interchangeable: hot reload ignores
 HSM, the HSM kernel never sets the `Terminated` flag, there is no unified interrupt path,
 and there is no way to share condition/action logic between the two paradigms.
 
-This design unifies BTree and HSM as first-class doctrine paradigms so that a CGF unit's
+This design unifies BTree and HSM as first-class behavior paradigms so that a CGF unit's
 tactical brain can be implemented in either technology without the mission director,
 reload pipeline, or interrupt system needing to know which one is running.
 
@@ -15,7 +15,7 @@ reload pipeline, or interrupt system needing to know which one is running.
 
 | Phase | Theme                            | Key files changed |
 |-------|----------------------------------|-------------------|
-| 1     | Unified Hot Reload Coordinator   | `Hrot.Editor`, `Fhsm.Kernel`, `Hrot.AI.Doctrines.csproj` |
+| 1     | Unified Hot Reload Coordinator   | `Hrot.Editor`, `Fhsm.Kernel`, `Hrot.AI.Behaviors.csproj` |
 | 2     | HSM Terminal State Routing       | `Fhsm.Compiler`, `Fhsm.Kernel`, `Fdp.Toolkits` |
 | 3     | Cognitive Interrupt Decoupling   | `Fdp.Toolkits` |
 | 4     | Shared AI Node Attributes        | `Fbt.Kernel`, `Fbt.SourceGen`, `Fhsm.SourceGen` |
@@ -60,7 +60,7 @@ public static void RegisterAction(ushort id, IntPtr action) => ActionTable[id] =
 public static void RegisterGuard(ushort id, IntPtr guard)  => GuardTable[id]  = guard;
 ```
 
-For user assemblies (e.g. `Hrot.AI.Doctrines`), `Fhsm.SourceGen` generates
+For user assemblies (e.g. `Hrot.AI.Behaviors`), `Fhsm.SourceGen` generates
 `HsmActionRegistrar.g.cs` in namespace `{assemblyName}.Generated`:
 
 ```csharp
@@ -83,7 +83,7 @@ boundary.
 - `BrainHsm256` ECS component does NOT exist (`HsmInstance256` exists only in
   `Fhsm.Kernel`; there is no corresponding ECS component).
 - Does NOT detect `InstanceFlags.Terminated` after `HsmKernel.Update()`.
-- Does NOT publish `DoctrineFinishedEvent`.
+- Does NOT publish `BehaviorFinishedEvent`.
 
 ### StateFlags.IsFinal / InstanceFlags.Terminated
 
@@ -111,9 +111,9 @@ unimplemented stub.
 - Completely ignores BTree entities.
 - `CognitiveRuntimeModule` registers it before `HsmTickSystem<T>`.
 
-### Hrot.AI.Doctrines
+### Hrot.AI.Behaviors
 
-`Hrot/Subsystems/Hrot.AI.Doctrines/Hrot.AI.Doctrines.csproj`
+`Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj`
 
 References only BTree libraries:
 - `Fdp.Toolkits` (BrainBlackboard, channels, etc.)
@@ -123,7 +123,7 @@ References only BTree libraries:
 
 Does NOT reference `Fhsm.Kernel`, `Fhsm.Compiler`, or `Fhsm.SourceGen`.
 
-Contains `Idle_HSM` in `AiDoctrineFactory` as a stub with `HsmDefinition = null`.
+Contains `Idle_HSM` in `AiBehaviorFactory` as a stub with `HsmDefinition = null`.
 
 ---
 
@@ -139,7 +139,7 @@ prevents safe HSM pointer refresh.
 
 ### Design
 
-#### 1.1 — Add Fhsm references to `Hrot.AI.Doctrines.csproj`
+#### 1.1 — Add Fhsm references to `Hrot.AI.Behaviors.csproj`
 
 ```xml
 <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
@@ -149,9 +149,9 @@ prevents safe HSM pointer refresh.
 ```
 
 This enables:
-- Writing HSM doctrines with `[HsmAction]`/`[HsmGuard]` methods in `CgfNodes.cs` or a
+- Writing HSM behaviors with `[HsmAction]`/`[HsmGuard]` methods in `CgfNodes.cs` or a
   new `CgfHsmNodes.cs`.
-- Source generator emitting `Hrot.AI.Doctrines.Generated.HsmActionRegistrar.g.cs` with
+- Source generator emitting `Hrot.AI.Behaviors.Generated.HsmActionRegistrar.g.cs` with
   `RegisterAll()`.
 
 #### 1.2 — Add `HsmActionDispatcher.ClearAll()` to `Fhsm.Kernel`
@@ -182,20 +182,20 @@ AiHotReloadCoordinator
   - FileSystemWatcher + debounce timer (identical mechanics to FbtAssemblyHotReloader)
   - Background thread: LoadAndReload(path)
       1. Load new ALC, load assembly.
-      2. Reflect AiDoctrineFactory.BuildRegistrationAction() ->
-             Action<DoctrineRegistry> applyAction.
+      2. Reflect AiBehaviorFactory.BuildRegistrationAction() ->
+             Action<BehaviorRegistry> applyAction.
          This is the SAME reflection pattern already in EditorSubsystem lines 367-410.
       3. Build local ActionRegistry, call FbtActionRegistrar.RegisterAll(actionRegistry).
       4. Invoke applyAction(stagingRegistry) to collect BTree AND HSM blobs into a
-         staging DoctrineRegistry.
+         staging BehaviorRegistry.
       5. Enqueue main-thread callback with:
            (stagingRegistry, newAlc, old applyAction reference)
   - Main-thread drain (DrainPendingCallbacks()):
       6. HsmActionDispatcher.ClearAll()
-      7. Reflect Hrot.AI.Doctrines.Generated.HsmActionRegistrar.RegisterAll()
+      7. Reflect Hrot.AI.Behaviors.Generated.HsmActionRegistrar.RegisterAll()
          on the new assembly.
-      8. Apply staging registry to live DoctrineRegistry.
-      9. For each machine ID in staging registry's HSM doctrines: iterate over all
+      8. Apply staging registry to live BehaviorRegistry.
+      9. For each machine ID in staging registry's HSM behaviors: iterate over all
         matching chunks in `world.Query<BrainHsmNN>()` and call
         `HotReloadManager.TryReload()` with each chunk's component span. The FDP ECS
         stores components in 64KB `NativeChunk` blocks; there is no single contiguous
@@ -211,21 +211,21 @@ AiHotReloadCoordinator
 Steps 6-10 must execute between simulation ticks (i.e., inside `DrainPendingCallbacks`,
 which is called at the start of each frame before any tick system runs).
 
-#### 1.4 — Update `AiDoctrineFactory.BuildRegistrationAction`
+#### 1.4 — Update `AiBehaviorFactory.BuildRegistrationAction`
 
 The existing `BuildRegistrationAction(ActionRegistry)` method returns
-`Action<DoctrineRegistry>`. It must be extended to:
+`Action<BehaviorRegistry>`. It must be extended to:
 
 1. Still call `FbtActionRegistrar.RegisterAll(actionRegistry)` for BTree nodes.
 2. Also call `HsmActionRegistrar.RegisterAll()` via the generated class — but NOTE: since
    `RegisterAll()` touches `HsmActionDispatcher`'s non-thread-safe Dictionary, this call
    is moved OUT of `BuildRegistrationAction` and into the main-thread callback (step 7
    above). `BuildRegistrationAction` only needs to build the `HsmDefinitionBlob` objects
-   and register them into the staging `DoctrineRegistry`.
-3. Build `HsmDefinitionBlob` objects for all HSM doctrines (using `HsmCompiler.Compile()`
+   and register them into the staging `BehaviorRegistry`.
+3. Build `HsmDefinitionBlob` objects for all HSM behaviors (using `HsmCompiler.Compile()`
    on the `StateMachineGraph` returned by `HsmBuilder.Build()`).
-4. Register HSM doctrines via `stagingRegistry.RegisterHsmDoctrine(name, blob)` (a new
-   overload or a new method to be added to `DoctrineRegistry`).
+4. Register HSM behaviors via `stagingRegistry.RegisterHsmBehavior(name, blob)` (a new
+   overload or a new method to be added to `BehaviorRegistry`).
 
 #### 1.5 — Update `EditorSubsystem`
 
@@ -245,7 +245,7 @@ Hrot.Editor
        -> Fhsm.Kernel (HsmActionDispatcher, HotReloadManager, HsmDefinitionBlob)
        -> Fdp.Core (EntityRepository)
        -> Fdp.Toolkits (BrainHsm64, BrainHsm128)
-Hrot.AI.Doctrines
+Hrot.AI.Behaviors
   -> Fhsm.Kernel (new)
   -> Fhsm.Compiler (new)
   -> Fhsm.SourceGen (analyzer, new)
@@ -267,7 +267,7 @@ The entire `IsFinal` → `Terminated` chain is unimplemented:
 4. `HsmKernelCore` never checks `StateFlags.IsFinal` and never sets
    `InstanceFlags.Terminated`.
 5. `HsmTickSystem<T>` never reads `InstanceFlags.Terminated`.
-6. No `DoctrineFinishedEvent` is published for HSM doctrines.
+6. No `BehaviorFinishedEvent` is published for HSM behaviors.
 
 ### Design
 
@@ -322,7 +322,7 @@ guard logic already prevents transitions from states with no registered transiti
 which is the normal case for final states. No additional kernel change is needed for
 that constraint.
 
-#### 2.4 — `HsmTickSystem<T>` — publish `DoctrineFinishedEvent`
+#### 2.4 — `HsmTickSystem<T>` — publish `BehaviorFinishedEvent`
 
 Mirror the deduplication pattern from `BTreeTickSystem`:
 
@@ -340,13 +340,13 @@ _seenThisFrame.Add(entity.Index);
 ref var hdr = ref Unsafe.As<T, InstanceHeader>(ref component);
 if ((hdr.Flags & InstanceFlags.Terminated) != 0)
 {
-    uint instanceId = doctrine.InstanceId; // matches BTreeTickSystem's dedup contract
+    uint instanceId = behavior.InstanceId; // matches BTreeTickSystem's dedup contract
     int  entityIdx  = entity.Index;
     if (!_publishedTerminalForInstanceId.TryGetValue(entityIdx, out uint prev)
         || prev != instanceId)
     {
         _publishedTerminalForInstanceId[entityIdx] = instanceId;
-        _eventBus.Publish(new DoctrineFinishedEvent { Entity = entity });
+        _eventBus.Publish(new BehaviorFinishedEvent { Entity = entity });
     }
 }
 
@@ -357,8 +357,8 @@ foreach (var key in _publishedTerminalForInstanceId.Keys)
 foreach (var key in _staleKeys) _publishedTerminalForInstanceId.Remove(key);
 ```
 
-`DoctrineFinishedEvent` and `_eventBus` are already present in the toolkit. The
-deduplication value is `doctrine.InstanceId` (consistent with `BTreeTickSystem`). The
+`BehaviorFinishedEvent` and `_eventBus` are already present in the toolkit. The
+deduplication value is `behavior.InstanceId` (consistent with `BTreeTickSystem`). The
 stale-key pruning loop mirrors `BTreeTickSystem`'s pattern and prevents unbounded
 dictionary growth when entities are destroyed.
 
@@ -371,11 +371,11 @@ hdr.Flags &= ~InstanceFlags.Terminated;
 hdr.Phase  = InstancePhase.Idle;
 ```
 
-Without this, if the mission director assigns a new doctrine (bumping `doctrine.InstanceId`),
+Without this, if the mission director assigns a new behavior (bumping `behavior.InstanceId`),
 the sticky `Terminated` flag from the previous run causes the very first tick of the new
-doctrine to instantly publish another `DoctrineFinishedEvent`, skipping the new phase
-entirely. `DoctrineIngressSystem` (see the DoctrineIngressSystem section below) provides
-defense-in-depth by also resetting HSM state on every doctrine assignment.
+behavior to instantly publish another `BehaviorFinishedEvent`, skipping the new phase
+entirely. `BehaviorIngressSystem` (see the BehaviorIngressSystem section below) provides
+defense-in-depth by also resetting HSM state on every behavior assignment.
 
 ---
 
@@ -505,7 +505,7 @@ bytes are never read as stale on the following frame.
 
 ### Problem
 
-Conditions and actions that are logically the same across BTree and HSM doctrines must
+Conditions and actions that are logically the same across BTree and HSM behaviors must
 currently be duplicated: once as a `NodeLogicDelegate` with `[BTreeCondition]` for BTree,
 and once as an unmanaged static with `[HsmGuard]` for HSM. There is no way to annotate a
 single method and have both source generators pick it up.
@@ -515,13 +515,13 @@ single method and have both source generators pick it up.
 #### 4.1 — New Attributes in `Fbt.Kernel`
 
 Place the shared attributes in `Fbt.Kernel` (namespace `Fbt.Kernel`), which is already
-referenced by both `Hrot.AI.Doctrines` (for BTree use) and can be referenced by
+referenced by both `Hrot.AI.Behaviors` (for BTree use) and can be referenced by
 `Fhsm.SourceGen` (for HSM use, since source generators reference assemblies by metadata
 only, not by runtime linking):
 
 ```csharp
 /// <summary>
-/// Marks a static method as a shared AI condition usable from both BTree and HSM doctrines.
+/// Marks a static method as a shared AI condition usable from both BTree and HSM behaviors.
 /// Signature: static bool MethodName(ref TValue dto, Entity self, EntityRepository repo)
 /// TValue must be the type of the field <paramref name="fieldName"/> on <paramref name="dtoType"/>.
 /// The source generator computes the byte offset of that field within the parent DTO via
@@ -543,7 +543,7 @@ public sealed class SharedAiConditionAttribute : Attribute
 }
 
 /// <summary>
-/// Marks a static method as a shared AI action usable from both BTree and HSM doctrines.
+/// Marks a static method as a shared AI action usable from both BTree and HSM behaviors.
 /// Signature: static NodeStatus MethodName(ref TValue dto, Entity self, EntityRepository repo)
 /// HSM adapter discards the NodeStatus return (HSM is event-driven, not polling).
 /// Apply multiple times on the same method to share it across different parent DTOs.
@@ -563,7 +563,7 @@ public sealed class SharedAiActionAttribute : Attribute
 
 `Fhsm.SourceGen` scans for these attributes **by fully qualified name** (string comparison
 on `INamedTypeSymbol.ToDisplayString()`), so it does NOT need a compile-time reference to
-`Fbt.Kernel`. Only `Hrot.AI.Doctrines` needs a runtime reference to `Fbt.Kernel` to use
+`Fbt.Kernel`. Only `Hrot.AI.Behaviors` needs a runtime reference to `Fbt.Kernel` to use
 the attributes — which it already has via `Fdp.Toolkits` → `Fbt.Kernel`.
 
 #### 4.2 — BTree Adapter in `Fbt.SourceGen`
@@ -660,7 +660,7 @@ circular-looking dependency:
 Fhsm.SourceGen → [reads attribute metadata from user assembly] → Fbt.Kernel (no project ref needed)
 ```
 
-The user assembly (`Hrot.AI.Doctrines`) references `Fbt.Kernel` at compile time (via
+The user assembly (`Hrot.AI.Behaviors`) references `Fbt.Kernel` at compile time (via
 `Fdp.Toolkits`), making the attribute symbols visible to both generators.
 
 ---
@@ -672,10 +672,10 @@ The user assembly (`Hrot.AI.Doctrines`) references `Fbt.Kernel` at compile time 
 BTree nodes and HSM states that write to `LocomotionChannel`, `WeaponChannel`, or
 `InteractionChannel` must clear those channels when the node fails or the state exits.
 Currently this cleanup is manual and error-prone. Missing cleanup leads to stale channel
-states that persist across doctrine transitions.
+states that persist across behavior transitions.
 
-`ChannelArbitrationSystem` handles doctrine-level preemption (full channel reset on
-doctrine switch), but does not handle sub-doctrine-level node/state exit.
+`ChannelArbitrationSystem` handles behavior-level preemption (full channel reset on
+behavior switch), but does not handle sub-behavior-level node/state exit.
 
 ### Design
 
@@ -758,22 +758,22 @@ offending state and the missing cleanup key, making the omission impossible to m
 
 ---
 
-## DoctrineIngressSystem — HSM State Reset on Doctrine Transition
+## BehaviorIngressSystem — HSM State Reset on Behavior Transition
 
 ### Gap
 
-`DoctrineIngressSystem` correctly resets `BrainBTreeState.State = default` when a BTree
-doctrine is assigned. It does **not** touch `BrainHsm64` or `BrainHsm128`.
+`BehaviorIngressSystem` correctly resets `BrainBTreeState.State = default` when a BTree
+behavior is assigned. It does **not** touch `BrainHsm64` or `BrainHsm128`.
 
-If the mission director transitions an entity to a different HSM doctrine (e.g., from
+If the mission director transitions an entity to a different HSM behavior (e.g., from
 `Idle_HSM` to `Combat_HSM`), the new state machine ticks against the stale execution
 state from the previous run: active leaf IDs, lifecycle phase, event queues, and history
 slots all carry over. The result is garbage evaluations and potential out-of-bounds
-state-slot accesses in the new doctrine's topology.
+state-slot accesses in the new behavior's topology.
 
 ### Fix
 
-Extend `DoctrineIngressSystem` so that when an HSM doctrine is assigned (detected by
+Extend `BehaviorIngressSystem` so that when an HSM behavior is assigned (detected by
 `BrainTier == BrainTierHsm64` or `BrainTierHsm128`), it resets the corresponding
 `BrainHsm64`/`BrainHsm128` component. The reset must:
 
@@ -783,10 +783,10 @@ Extend `DoctrineIngressSystem` so that when an HSM doctrine is assigned (detecte
 2. Clear `InstanceFlags.Terminated` in `InstanceHeader.Flags` — defense-in-depth against
    the Terminal State Latch bug described in Phase 2.
 3. Reset `InstanceHeader.Phase` to `InstancePhase.Idle`.
-4. Set `InstanceHeader.MachineId` to the new doctrine's machine ID.
+4. Set `InstanceHeader.MachineId` to the new behavior's machine ID.
 
 The existing BTree reset (`BrainBTreeState.State = default`) must remain unchanged.
-Verify the location of `DoctrineIngressSystem` at task start (likely `Hrot.CGF` or
+Verify the location of `BehaviorIngressSystem` at task start (likely `Hrot.CGF` or
 `Fdp.Toolkits`).
 
 ---
@@ -801,20 +801,20 @@ Hot Reload (Phase 1)
   Main thread (DrainPendingCallbacks):
     -> HsmActionDispatcher.ClearAll()
     -> HsmActionRegistrar.RegisterAll()    [new ALC pointers]
-    -> apply staging registry to live DoctrineRegistry
-    -> HotReloadManager.TryReload() for each HSM doctrine
+    -> apply staging registry to live BehaviorRegistry
+    -> HotReloadManager.TryReload() for each HSM behavior
     -> release old ALC ref
 
 Frame tick (Phase 2 + 3)
   CognitiveInterruptSystem:
     -> read ActorCapabilityState (edge-triggered), write interrupt bytes to BrainBlackboard
   BTreeTickSystem:
-    -> tick BTree, publish DoctrineFinishedEvent on Success/Failure
+    -> tick BTree, publish BehaviorFinishedEvent on Success/Failure
     -> BTree Observer nodes poll blackboard interrupt bytes natively
   HsmTickSystem<T>:
     -> read blackboard interrupt bytes -> inject HsmEvents (Phase 3)
     -> HsmKernel.Update()
-    -> check InstanceFlags.Terminated -> publish DoctrineFinishedEvent + clear flag (Phase 2)
+    -> check InstanceFlags.Terminated -> publish BehaviorFinishedEvent + clear flag (Phase 2)
   CognitiveCleanupSystem:
     -> zero all interrupt register bytes (single-frame pulse enforcement)
 
@@ -832,14 +832,14 @@ Shared node authoring (Phase 4)
 
 | Project | Change type |
 |---------|-------------|
-| `Hrot.AI.Doctrines` | Add Fhsm project refs; add HSM doctrine methods |
+| `Hrot.AI.Behaviors` | Add Fhsm project refs; add HSM behavior methods |
 | `Hrot.Editor` | Replace `FbtAssemblyHotReloader` with `AiHotReloadCoordinator` |
 | `Hrot.CGF` | Update if it also creates a hot reloader |
 | `Fhsm.Kernel` | Add `ClearAll()` to generated `HsmActionDispatcher` (via SourceGen change) |
 | `Fhsm.Compiler` | Add `StateNode.IsFinal`, `StateBuilder.Final()`, `HsmFlattener` update |
 | `Fhsm.Kernel` (core) | Implement `StateFlags.IsFinal` → `InstanceFlags.Terminated` in `HsmKernelCore` |
 | `Fdp.Toolkits` | `HsmTickSystem<T>` terminal detection + interrupt ingestion (no consume); `CognitiveInterruptSystem` (new, edge-triggered); `CognitiveCleanupSystem` (new); `CognitiveRuntimeModule` registration order; `HsmDamageBridgeSystem` removal |
-| `Hrot.CGF` (or `Fdp.Toolkits`) | `DoctrineIngressSystem`: reset `BrainHsm64`/`BrainHsm128` on HSM doctrine assignment |
+| `Hrot.CGF` (or `Fdp.Toolkits`) | `BehaviorIngressSystem`: reset `BrainHsm64`/`BrainHsm128` on HSM behavior assignment |
 | `Fbt.Kernel` | New `SharedAiConditionAttribute`, `SharedAiActionAttribute`, `WritesChannelAttribute` |
 | `Fbt.SourceGen` | Extend `BTreeActionGenerator` for shared attributes and channel cleanup |
 | `Fhsm.SourceGen` | Extend `HsmActionGenerator` for shared attributes (guard/action thunks) and channel cleanup |
@@ -852,12 +852,12 @@ Shared node authoring (Phase 4)
 
 `HsmInstance256` exists in `Fhsm.Kernel` but no `BrainHsm256` ECS component exists.
 `HsmTickSystem<T>` is generic, so it could technically support 256-byte instances.
-A future task should add `BrainHsm256` if any doctrine's HSM state exceeds 128 bytes.
+A future task should add `BrainHsm256` if any behavior's HSM state exceeds 128 bytes.
 This design does not add it; `HsmTickSystem<BrainHsm256>` is out of scope.
 
 ### Q2: BTreeTickSystem dedup key vs HsmTickSystem dedup key
 
-`BTreeTickSystem` uses `DoctrineState.InstanceId` as the deduplication value.
+`BTreeTickSystem` uses `BehaviorState.InstanceId` as the deduplication value.
 `HsmTickSystem<T>` uses `InstanceHeader.Generation` as the equivalent. These are
 semantically the same concept (per-incarnation unique counter) but have different field
 names. This is acceptable; no unification of field names is needed.

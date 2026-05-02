@@ -19,7 +19,7 @@ namespace Hrot.SimHost.Tests
 {
     /// <summary>
     /// Verifies that <see cref="SimHostScenarioManager"/> publishes <see cref="SpawnEntityCommand"/>
-    /// events with correct doctrine, blackboard, and <see cref="EntityInfo"/> payloads so that
+    /// events with correct behavior, blackboard, and <see cref="EntityInfo"/> payloads so that
     /// entities are visible on the IG map and execute their assigned BTree behaviours.
     /// </summary>
     public class SimHostScenarioManagerTests
@@ -128,7 +128,7 @@ namespace Hrot.SimHost.Tests
         }
 
         [Fact]
-        public void SpawnCollisionTest_BothCommands_HaveFollowRouteDoctrine()
+        public void SpawnCollisionTest_BothCommands_HaveFollowRouteBehavior()
         {
             var (sut, bus) = CreateSut();
             sut.SpawnCollisionTest(VehicleClass.PersonalCar);

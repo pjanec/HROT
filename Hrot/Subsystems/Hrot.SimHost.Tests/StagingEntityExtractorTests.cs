@@ -256,7 +256,7 @@ namespace Hrot.SimHost.Tests
                     {
                         new DomainMissionTask
                         {
-                            BehaviorId     = "FireAtTarget",
+                            BehaviorName     = "FireAtTarget",
                             BehaviorParams = "{\"targetNetworkId\":1001,\"maxRounds\":5,\"cooldownSeconds\":1.0}",
                         }
                     }

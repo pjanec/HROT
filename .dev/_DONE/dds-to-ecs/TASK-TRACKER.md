@@ -184,8 +184,8 @@ with `MissionPlanQueue`, compile real BTree interpreters, replace `MissionAdapte
 - [x] **DDS2ECS-S16T1** Delete `EntityMissionHolder`, register `MissionPlanQueue` — [details](./TASK-DETAIL.md#dds2ecs-s16t1--delete-entitymissionholder)
 - [x] **DDS2ECS-S16T2** Rewrite `EntityMissionTranslator` to write `MissionPlanQueue` — [details](./TASK-DETAIL.md#dds2ecs-s16t2--rewrite-entitymissiontranslator-to-write-missionplanqueue)
 - [x] **DDS2ECS-S16T3** Delete `MissionAdapterSystem`, register `MissionDirectorSystem` — [details](./TASK-DETAIL.md#dds2ecs-s16t3--delete-missionadaptersystem-register-missiondirectorsystem)
-- [x] **DDS2ECS-S16T4** Compile real BTree interpreters for all doctrines — [details](./TASK-DETAIL.md#dds2ecs-s16t4--compile-real-btree-interpreters-for-all-doctrines)
-- [x] **DDS2ECS-S16T5** Wire `ParseParams` delegates for param-carrying doctrines — [details](./TASK-DETAIL.md#dds2ecs-s16t5--wire-parseparams-delegates-for-param-carrying-doctrines)
+- [x] **DDS2ECS-S16T4** Compile real BTree interpreters for all behaviors — [details](./TASK-DETAIL.md#dds2ecs-s16t4--compile-real-btree-interpreters-for-all-behaviors)
+- [x] **DDS2ECS-S16T5** Wire `ParseParams` delegates for param-carrying behaviors — [details](./TASK-DETAIL.md#dds2ecs-s16t5--wire-parseparams-delegates-for-param-carrying-behaviors)
 
 ---
 

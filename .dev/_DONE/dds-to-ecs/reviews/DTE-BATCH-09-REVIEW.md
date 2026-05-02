@@ -13,7 +13,7 @@ Runner integration tests now cover context-menu push, entity destroy, and missio
 ---
 
 ## Code Quality & Design Adherence
-- `EntityMissionTranslator` builds `MissionPlanQueue` and respects doctrine registry lookups, aligning with Phase 16 requirements.
+- `EntityMissionTranslator` builds `MissionPlanQueue` and respects behavior registry lookups, aligning with Phase 16 requirements.
 - `MissionControlRequestSystem` applies jump/abort/replace to `MissionPlanQueue` and returns DDS acknowledgments as specified.
 - `ContextActionsUpdateTranslator` and `ContextMenuSystem` complete the selection ? IOS ? IG action flow required for S15T4.
 

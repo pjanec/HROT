@@ -25,7 +25,7 @@
 | `Hrot/Subsystems/Hrot.SimHost/Serializers/MissionPlanTranslator.cs` | NEW — custom `IEntityScenarioTranslator` for `ActiveMissionPlan` + `MissionPlanQueue` |
 | `Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs` | Added `MissionPlanTranslator` registration (TASK-S202 site 1) |
 | `Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs` | Added `MissionPlanTranslator` registration (TASK-S202 site 2) |
-| `Hrot/Subsystems/Hrot.Editor/EditorBootstrap.cs` | Added `MissionPlanTranslator` registration + `DoctrineRegistry` construction (TASK-S202 site 3) |
+| `Hrot/Subsystems/Hrot.Editor/EditorBootstrap.cs` | Added `MissionPlanTranslator` registration + `BehaviorRegistry` construction (TASK-S202 site 3) |
 | `FDP/Toolkits/Fdp.Toolkits/Scenario/FdpAutoSerializer.cs` | Extended to serialize `fixed` buffers and `[InlineArray]` fields via expression trees + `Holder<T>` pattern |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/InteractionComponents.cs` | Added `[ScenarioIgnore]` to `PassengerBuffer.Passengers` (Entity-in-InlineArray handled by `PassengerBufferTranslator`) |
 | `Hrot/Subsystems/Hrot.SimHost.Tests/MissionPlanTranslatorTests.cs` | NEW — 4 unit tests for TASK-S201 |
@@ -148,17 +148,17 @@ via a `MemberInit`, then calls `FillFixedBuffer(holder, fieldOffset, len, jsonAr
 reference-to-class (not ref-struct) and use `Unsafe.AddByteOffset` internally. The final
 `SetComponent(entity, holder.Value)` commits the result to ECS storage.
 
-### Q4: EditorBootstrap DoctrineRegistry Is Empty — Is That Correct?
+### Q4: EditorBootstrap BehaviorRegistry Is Empty — Is That Correct?
 
-Yes. `EditorBootstrap.CreateFileService()` creates an empty `DoctrineRegistry` (no
-`CgfDoctrineSetup.RegisterAll(...)` call). This is intentional: the Editor does not
-load doctrine TOML files at bootstrap time. `MissionPlanTranslator.Inject` handles
+Yes. `EditorBootstrap.CreateFileService()` creates an empty `BehaviorRegistry` (no
+`CgfBehaviorSetup.RegisterAll(...)` call). This is intentional: the Editor does not
+load behavior TOML files at bootstrap time. `MissionPlanTranslator.Inject` handles
 unknown `BehaviorId` strings gracefully — `_registry.TryGetId(task.BehaviorId, out int id)`
-returns `false`, and the code falls back to `doctrineId = 0`. Mission plans from
-scenario files are still structurally restored; the resolved `DoctrineId` is
-re-populated at simulation startup when `CgfDoctrineSetup` runs. This matches the
+returns `false`, and the code falls back to `behaviorId = 0`. Mission plans from
+scenario files are still structurally restored; the resolved `BehaviorId` is
+re-populated at simulation startup when `CgfBehaviorSetup` runs. This matches the
 existing behavior of the Editor serializer (which saves but does not interpret runtime
-doctrine state).
+behavior state).
 
 ### Q5: Entity Safety Check Design — Why Not Throw for Translator-Handled Types?
 
@@ -189,7 +189,7 @@ limitations.
 
 TASK-S202: Register MissionPlanTranslator as the first translator in the
 ScenarioSerializerBuilder chain at all 3 sites (SimHostApp.cs, CgfSubsystem.cs,
-EditorBootstrap.cs). EditorBootstrap gets an empty DoctrineRegistry; re-resolved
+EditorBootstrap.cs). EditorBootstrap gets an empty BehaviorRegistry; re-resolved
 at simulation startup.
 
 TASK-S301: Extend FdpAutoSerializer to compile extract/inject delegates for

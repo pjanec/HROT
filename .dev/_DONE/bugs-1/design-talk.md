@@ -617,7 +617,7 @@ However, the `MissionPlanQueue` reveals why it refuses to advance to the next ta
 "CurrentPhase": 0,
 "Phases": [
   {
-    "DoctrineId": 3001,
+    "BehaviorId": 3001,
     "Trigger": "TimerElapsed",
     "TriggerParam": 3.4028235E+38
   },
@@ -665,17 +665,17 @@ public void HandleEditBehaviorId(int index, string behaviorId)
 
 This change strictly mirrors how your headless `ScenarioDirector` programmatically builds its plans. With this in place, selecting `MoveToLocation` will automatically attach the `ReachedDestination` trigger to the payload. When the `NavState` registers arrival, the `MissionDirectorSystem` will instantly bump the `CurrentPhase` index and the vehicle will seamlessly continue to your second waypoint.
 
-instead of I would like to use (or create if not yet existing) the DoctrineFinished trigger as the default trigger, intuitively sequencing the tasks
+instead of I would like to use (or create if not yet existing) the BehaviorFinished trigger as the default trigger, intuitively sequencing the tasks
 
-Using `DoctrineFinished` as the universal default is a much better architectural choice than hardcoding spatial triggers like `ReachedDestination`. It intuitively sequences the tasks by waiting for the behavior tree (or HSM) to naturally report a terminal state (`Success` or `Failure`), fully decoupling the mission planner from the specific locomotion mechanics of the task.
+Using `BehaviorFinished` as the universal default is a much better architectural choice than hardcoding spatial triggers like `ReachedDestination`. It intuitively sequences the tasks by waiting for the behavior tree (or HSM) to naturally report a terminal state (`Success` or `Failure`), fully decoupling the mission planner from the specific locomotion mechanics of the task.
 
 The good news is that you do not need to create this trigger; it already exists in the BDC SST data model and the FDP engine.
 
 Here is how the backend pipeline already supports it:
 
--   When a behavior tree finishes, the `BTreeTickSystem` publishes a `DoctrineFinishedEvent`.-   The `MissionDirectorSystem` catches this event and natively evaluates the `MissionTrigger.DoctrineFinished` condition, advancing the `MissionPlanQueue` to the next phase.-   The `MissionControlRequestSystem` is already wired to parse the string `"DoctrineFinished"` from the DDS payload into the ECS `EcsMissionTrigger.DoctrineFinished` enum.
+-   When a behavior tree finishes, the `BTreeTickSystem` publishes a `BehaviorFinishedEvent`.-   The `MissionDirectorSystem` catches this event and natively evaluates the `MissionTrigger.BehaviorFinished` condition, advancing the `MissionPlanQueue` to the next phase.-   The `MissionControlRequestSystem` is already wired to parse the string `"BehaviorFinished"` from the DDS payload into the ECS `EcsMissionTrigger.BehaviorFinished` enum.
 
-To implement this pragmatically, you just need to update the IOS UI to use `"DoctrineFinished"` as the default trigger when building the DDS payload.
+To implement this pragmatically, you just need to update the IOS UI to use `"BehaviorFinished"` as the default trigger when building the DDS payload.
 
 First, if you implemented the previous workaround in `HandleEditBehaviorId`, remove it so it stops overwriting triggers. Then, update the `HandleAddTask` method in `Hrot.ExCon/Panels/MissionPanel.cs` to inject the trigger at the moment of task creation:
 
@@ -692,10 +692,10 @@ public void HandleAddTask()
         BehaviorId     = string.Empty,
         BehaviorParams = string.Empty,
         
-        // FIX: Inject DoctrineFinished as the intuitive sequential default
+        // FIX: Inject BehaviorFinished as the intuitive sequential default
         Triggers       = new List<MissionTrigger> 
         { 
-            new MissionTrigger { Type = "DoctrineFinished" } 
+            new MissionTrigger { Type = "BehaviorFinished" } 
         },
         
         State          = eTaskState.TASK_PLANNED

@@ -20,7 +20,7 @@ namespace Hrot.CGF.Orchestration
     /// <para>
     /// <b>Pass 1 – ID allocation:</b> pre-allocate new network IDs for every entity
     /// that carries a <c>NetworkIdentity</c> component.  Records the old-to-new mapping
-    /// so that network IDs embedded in doctrine <c>BehaviorParams</c> JSON strings can be
+    /// so that network IDs embedded in behavior <c>BehaviorParams</c> JSON strings can be
     /// patched in Pass 2.
     /// </para>
     /// <para>
@@ -201,7 +201,7 @@ namespace Hrot.CGF.Orchestration
                 // ── Pass 1: ID allocation ──────────────────────────────────────────
                 // Pre-allocate new network IDs for every entity (root and child) that
                 // carries a NetworkIdentity in the staging DOM.  Build the translation
-                // map so doctrine BehaviorParams can be patched in Pass 2.
+                // map so behavior BehaviorParams can be patched in Pass 2.
                 var oldToNewMap = new Dictionary<long, long>();
                 for (int i = 0; i <= maxIdx; i++)
                 {
@@ -363,7 +363,7 @@ namespace Hrot.CGF.Orchestration
                         {
                             task.BehaviorParams =
                                 behaviorRemapper.RemapJson(
-                                    task.BehaviorId,
+                                    task.BehaviorName,
                                     task.BehaviorParams,
                                     oldToNewMap)
                                 ?? task.BehaviorParams;

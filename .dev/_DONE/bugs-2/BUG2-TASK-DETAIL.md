@@ -125,7 +125,7 @@ public override void Dispose(long networkEntityId)
 In both files, locate the `ResolveTrigger` switch and add:
 
 ```csharp
-"DoctrineFinished" => (EcsMissionTrigger.DoctrineFinished, 0f),
+"BehaviorFinished" => (EcsMissionTrigger.BehaviorFinished, 0f),
 "UnderAttack"      => (EcsMissionTrigger.UnderAttack,      0f),
 ```
 
@@ -134,11 +134,11 @@ fall back to `TimerElapsed(0f)` as a safe observable failure mode.
 
 #### Success conditions
 
-- `EntityMissionIngressTranslatorTests.ResolveTrigger_DoctrineFinished_ReturnsCorrectEnum` (new):
-  pass a payload containing `"DoctrineFinished"` and assert the translated `EcsMissionTrigger`
-  equals `DoctrineFinished`.
+- `EntityMissionIngressTranslatorTests.ResolveTrigger_BehaviorFinished_ReturnsCorrectEnum` (new):
+  pass a payload containing `"BehaviorFinished"` and assert the translated `EcsMissionTrigger`
+  equals `BehaviorFinished`.
 - `EntityMissionIngressTranslatorTests.ResolveTrigger_UnderAttack_ReturnsCorrectEnum` (new).
-- `MissionControlRequestSystemTests.ResolveTrigger_DoctrineFinished_ReturnsCorrectEnum` (new,
+- `MissionControlRequestSystemTests.ResolveTrigger_BehaviorFinished_ReturnsCorrectEnum` (new,
   mirrored for the SimHost version).
 - `MissionControlRequestSystemTests.ResolveTrigger_UnderAttack_ReturnsCorrectEnum` (new).
 - Existing tests for `TimerElapsed`, `ReachedDestination`, `HealthCritical` continue to pass.
@@ -159,7 +159,7 @@ fall back to `TimerElapsed(0f)` as a safe observable failure mode.
    ```csharp
    private static readonly string[] _triggerTypes =
    {
-       "DoctrineFinished", "TimerElapsed", "ReachedDestination", "HealthCritical", "UnderAttack"
+       "BehaviorFinished", "TimerElapsed", "ReachedDestination", "HealthCritical", "UnderAttack"
    };
 
    private static string GetDefaultTriggerParams(string triggerType) => triggerType switch
@@ -225,7 +225,7 @@ fall back to `TimerElapsed(0f)` as a safe observable failure mode.
    if (task.Triggers != null && task.Triggers.Count > 0)
    {
        var trigger      = task.Triggers[0];
-       string trigType  = trigger.Type   ?? "DoctrineFinished";
+       string trigType  = trigger.Type   ?? "BehaviorFinished";
        string trigParam = trigger.Params ?? string.Empty;
 
        ImGui.Text("Trigger:");
@@ -253,19 +253,19 @@ fall back to `TimerElapsed(0f)` as a safe observable failure mode.
    else
    {
        if (ImGui.Button($"+ Add Trigger##{i}"))
-           HandleAddTrigger(i, "DoctrineFinished");
+           HandleAddTrigger(i, "BehaviorFinished");
    }
    ```
 
 #### Success conditions
 
 - `MissionPanelTests.HandleEditTriggerType_UpdatesTriggerInDraft` (new): create a draft with one
-  task that has a `DoctrineFinished` trigger; call `HandleEditTriggerType(0, 0, "TimerElapsed")`;
+  task that has a `BehaviorFinished` trigger; call `HandleEditTriggerType(0, 0, "TimerElapsed")`;
   assert the trigger type is updated and params are set to `"10.0"`.
 - `MissionPanelTests.HandleEditTriggerParams_UpdatesParamsInDraft` (new).
-- `MissionPanelTests.HandleAddTrigger_AddsDoctrineFinishedTrigger` (new): call
-  `HandleAddTrigger(0, "DoctrineFinished")` on a task with no triggers; assert one trigger is
-  added with type `DoctrineFinished` and empty params.
+- `MissionPanelTests.HandleAddTrigger_AddsBehaviorFinishedTrigger` (new): call
+  `HandleAddTrigger(0, "BehaviorFinished")` on a task with no triggers; assert one trigger is
+  added with type `BehaviorFinished` and empty params.
 - `GetDefaultTriggerParams_KnownTypes_ReturnExpectedDefaults` (new): parameterized test
   verifying each branch of the switch.
 

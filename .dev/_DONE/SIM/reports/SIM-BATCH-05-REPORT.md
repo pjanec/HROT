@@ -14,19 +14,19 @@
 **File modified:** `Hrot.SimHost/Program.cs`
 
 **Changes:**
-- Created a `DoctrineRegistry` and registered all four SimHost doctrines using stable integer IDs from `SimHostDoctrineIds`:
+- Created a `BehaviorRegistry` and registered all four SimHost behaviors using stable integer IDs from `SimHostBehaviorIds`:
   - `MoveTo_BT (3001)` → `"MoveToLocation"`, `BrainTier = BrainTierBTree`
   - `FollowRoute_BT (3002)` → `"FollowRoute"`, `BrainTier = BrainTierBTree`
   - `JoinFormation_BT (3003)` → `"JoinFormation"`, `BrainTier = BrainTierBTree`
   - `Idle_HSM (3010)` → `"Idle"`, `BrainTier = BrainTierHsm`
-- Instantiated `SimulationLogicModule(doctrineRegistry, entityMap, vehicleAPI: null)`.
+- Instantiated `SimulationLogicModule(behaviorRegistry, entityMap, vehicleAPI: null)`.
 - Created a dedicated `SystemGroup`, called `group.Create(world)`, then `simLogicModule.RegisterSystems(kernelGroup)` — wiring all 9 systems into the ECS.
 - Seeded `GlobalTime` singleton on the world before the loop (`DeltaTime = 1/Hz, TimeScale = 1.0`).
 - Both `kernel.Update()` (handles time + modules + network) and `kernelGroup.Run()` (behavior / nav / physics) are called every frame.
 
 **Note on VehicleAPI:** Registered as `null` (dummy). `JoinFormationExecutor` accepts a nullable `VehicleAPI` so this is safe for Phase S5. Full wiring deferred to a later phase.
 
-**Note on Doctrine Interpreters:** BTree/HSM interpreter blobs are `null` for all four doctrines. `BTreeTickSystem` and `HsmTickSystem` guard on per-entity doctrine tier before accessing the interpreter, so on an empty world (no spawned entities) this is safe. Full BTree/HSM assets are a Phase S6+ concern.
+**Note on Behavior Interpreters:** BTree/HSM interpreter blobs are `null` for all four behaviors. `BTreeTickSystem` and `HsmTickSystem` guard on per-entity behavior tier before accessing the interpreter, so on an empty world (no spawned entities) this is safe. Full BTree/HSM assets are a Phase S6+ concern.
 
 ---
 
@@ -94,7 +94,7 @@ Yes. The current order in `Program.cs` is well-structured:
 1. **Config load** — must be first (DomainId, SimulationRateHz, GeodeticOrigin are needed by subsequent steps).
 2. **Kernel + ECS world** — must precede all module and system registration.
 3. **DDS participant** — created before any network services.
-4. **Doctrine registry** — must be populated before `SimulationLogicModule` is constructed (it's passed in the constructor).
+4. **Behavior registry** — must be populated before `SimulationLogicModule` is constructed (it's passed in the constructor).
 5. **SimulationLogicModule + SystemGroup** — must come before `kernel.Initialize()` since the group holds live system state.
 6. **GlobalTime seed** — set before `kernel.Initialize()` so the very first `ComponentSystem.DeltaTime` read is valid.
 7. **Modules registered** — `GeographicModule`, `EntityLifecycleModule`, `SimHostModule`, `CycloneNetworkModule`.

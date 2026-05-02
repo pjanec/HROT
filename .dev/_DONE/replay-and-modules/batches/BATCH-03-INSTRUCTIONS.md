@@ -111,7 +111,7 @@ currently create three systems inline: `new HealthApplicationSystem()`,
 constructor.
 
 The split between Input and Simulation phases is:
-- **Input:** `_missionExecutionSystem`, then `_missionControlModule.InputSystems` (DoctrineIngress)
+- **Input:** `_missionExecutionSystem`, then `_missionControlModule.InputSystems` (BehaviorIngress)
 - **Simulation:** `_missionAdapterSystem`, `_missionControlModule.SimulationSystems`,
   `_healthApplicationSystem`, `_cgfThreatEvaluationSystem`,
   `_cognitiveRuntimeModule.SimulationSystems`, `_actionDispatchModule.SimulationSystems`,
@@ -569,7 +569,7 @@ _postSimGroup.Create(_world);
 var simLogicModule = new SimulationLogicModule(..., role: NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception);
 simLogicModule.RegisterSystems(_inputGroup, _simGroup, _postSimGroup);
 // MissionAdapterSystem ...
-_simGroup.AddSystem(new MissionAdapterSystem(_doctrineRegistry, _entityMap));
+_simGroup.AddSystem(new MissionAdapterSystem(_behaviorRegistry, _entityMap));
 ```
 
 Current disposal:
@@ -607,7 +607,7 @@ Replace the three `SystemGroup` fields with `IReadOnlyList<IEcsModuleSystem>` li
 
    // Use dedicated packs instead of SimulationLogicModule to get IEcsModuleSystem lists.
    var musclePack = new SimHostCoreLogicPack(_entityMap, roadNetwork, trajectoryPool);
-   var brainPack  = new CgfLogicPack(_doctrineRegistry, _entityMap,
+   var brainPack  = new CgfLogicPack(_behaviorRegistry, _entityMap,
        new ScenarioEntityCreationRequestSource());
 
    var inputList   = new System.Collections.Generic.List<IEcsModuleSystem>();
@@ -621,7 +621,7 @@ Replace the three `SystemGroup` fields with `IReadOnlyList<IEcsModuleSystem>` li
    foreach (var s in musclePack.SimulationSystems) simList.Add(s);
    // MissionAdapterSystem bridges ActiveMissionPlan BehaviorParams into BrainBlackboard,
    // enabling end-to-end mission execution tests without a live CGF node.
-   simList.Add(new MissionAdapterSystem(_doctrineRegistry, _entityMap));
+   simList.Add(new MissionAdapterSystem(_behaviorRegistry, _entityMap));
 
    foreach (var s in musclePack.PostSimulationSystems) postSimList.Add(s);
 

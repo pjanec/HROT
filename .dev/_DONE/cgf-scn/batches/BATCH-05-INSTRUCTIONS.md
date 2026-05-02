@@ -14,13 +14,13 @@
 ### Developer Instructions
 
 This is the final batch.  It delivers the generic DTO-driven mission editor UI and
-wires everything together in the composition root (`CgfDoctrineSetup`).
+wires everything together in the composition root (`CgfBehaviorSetup`).
 
 Four tasks plus one debt fix:
 1. **TASK-C008** — Presentation attributes (`MapPickableWorldLocationAttribute`, `MapPickableEntityAttribute`)
 2. **TASK-C009** — `BehaviorUiCompiler` + `BehaviorUiRegistry` + `IPickInteractionContext`
 3. **TASK-C010** — `MissionPanel` integration (generic generic draw path, implement `IPickInteractionContext`)
-4. **TASK-C011** — `CgfDoctrineSetup` composition root wiring
+4. **TASK-C011** — `CgfBehaviorSetup` composition root wiring
 5. **DEBT-D005** — Wire `ScenarioBehaviorRemapper` into `CgfApplication` load handler constructors
 
 ### Required Reading (IN ORDER)
@@ -36,7 +36,7 @@ Four tasks plus one debt fix:
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Attributes/RemapNetworkIdAttribute.cs` | The existing attribute pattern to follow for the two new presentation attributes |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Params/FireAtTargetParamsJsonDto.cs` | DTO that gets the new presentation attributes applied |
 | `Hrot/Engine/Hrot.Presentation/Panels/MissionPanel.cs` (or `Hrot.UI.Common`) | Current hardcoded mission param UI being replaced — read first to understand the existing structure |
-| `Hrot/Subsystems/Hrot.CGF/Configuration/CgfDoctrineSetup.cs` | Where doctines are registered — where you add remapper and UI registry wiring |
+| `Hrot/Subsystems/Hrot.CGF/Configuration/CgfBehaviorSetup.cs` | Where doctines are registered — where you add remapper and UI registry wiring |
 | `Hrot/Subsystems/Hrot.CGF/CgfApplication.cs` | Where to pass `ScenarioBehaviorRemapper` through to load handler constructors (DEBT-D005) |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorParamRemapperCompiler.cs` | Existing compiler pattern for TASK-C009 UI compiler |
 
@@ -51,13 +51,13 @@ Four tasks plus one debt fix:
 - `Hrot/Engine/Hrot.Presentation/Behavior/BehaviorUiCompiler.cs` (NEW) — or in `Hrot.UI.Common`
 - `Hrot/Engine/Hrot.Presentation/Behavior/BehaviorUiRegistry.cs` (NEW) — or in `Hrot.UI.Common`
 - `Hrot/Engine/Hrot.Presentation/Panels/MissionPanel.cs` (MODIFY) — integrate generic UI path
-- `Hrot/Subsystems/Hrot.CGF/Configuration/CgfDoctrineSetup.cs` (MODIFY) — register DTOs and UI
+- `Hrot/Subsystems/Hrot.CGF/Configuration/CgfBehaviorSetup.cs` (MODIFY) — register DTOs and UI
 - `Hrot/Subsystems/Hrot.CGF/CgfApplication.cs` (MODIFY) — DEBT-D005: wire remapper to handlers
 
 **Test files:**
 - `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/PresentationAttributeTests.cs` — C008 tests
 - `Hrot/Engine/Hrot.Presentation.Tests/` or `Hrot.SimHost.Tests/` — C009, C010 tests
-- `Hrot/Subsystems/Hrot.SimHost.Tests/CgfDoctrineSetupTests.cs` — C011 tests
+- `Hrot/Subsystems/Hrot.SimHost.Tests/CgfBehaviorSetupTests.cs` — C011 tests
 
 ### Build Commands
 
@@ -102,7 +102,7 @@ methods with a `BehaviorUiRegistry` lookup.
 - Apply both to the DTOs from TASK-C005b where appropriate
 - Implement `IPickInteractionContext`, `BehaviorUiCompiler`, `BehaviorUiRegistry`
 - Integrate generic UI path into `MissionPanel`; implement `IPickInteractionContext`
-- Wire remapper and UI registry in `CgfDoctrineSetup`
+- Wire remapper and UI registry in `CgfBehaviorSetup`
 - DEBT-D005: pass `ScenarioBehaviorRemapper` to load handler constructors in `CgfApplication`
 - All tests passing; solution builds cleanly
 
@@ -185,7 +185,7 @@ Key changes:
 
 ### Task 4: Composition Root Registration (TASK-C011)
 
-**File:** `Hrot/Subsystems/Hrot.CGF/Configuration/CgfDoctrineSetup.cs` (MODIFY)
+**File:** `Hrot/Subsystems/Hrot.CGF/Configuration/CgfBehaviorSetup.cs` (MODIFY)
 **Task Definition:** See [TASK-DETAIL.md](../TASK-DETAIL.md#task-c011--composition-root-registration)
 
 Changes:
@@ -193,7 +193,7 @@ Changes:
    and `FollowRouteParamsJsonDto` for `"FollowRoute"`
 2. Construct `BehaviorUiRegistry` and register delegates for `"FireAtTarget"`, `"FollowRoute"`,
    `"MoveToLocation"`
-3. Expose both (e.g., as properties on `CgfDoctrineSetup`) so `CgfApplication` can retrieve them
+3. Expose both (e.g., as properties on `CgfBehaviorSetup`) so `CgfApplication` can retrieve them
 
 **Tests Required:**
 1. Integration test: minimal scenario JSON with `FireAtTarget` task → remapper updates `targetNetworkId`
@@ -204,7 +204,7 @@ Changes:
 
 **File:** `Hrot/Subsystems/Hrot.CGF/CgfApplication.cs` (MODIFY)
 
-After running `CgfDoctrineSetup`, retrieve the `ScenarioBehaviorRemapper` and pass it
+After running `CgfBehaviorSetup`, retrieve the `ScenarioBehaviorRemapper` and pass it
 to `CgfScenarioLoadHandler` and `CgfEpisodeLoadHandler` constructors.  These constructors
 already accept an optional `remapper` parameter — just pass the non-null instance.
 
@@ -225,7 +225,7 @@ already accept an optional `remapper` parameter — just pass the non-null insta
 1. **Task 1 (C008):** Add attributes + apply to DTOs → Write 3 tests → ALL pass ✅
 2. **Task 2 (C009):** `IPickInteractionContext` + `BehaviorUiCompiler` + Registry → Write 4 tests → ALL pass ✅
 3. **Task 3 (C010):** Modify `MissionPanel` → Write 3 tests → ALL pass ✅
-4. **Task 4 (C011):** Modify `CgfDoctrineSetup` → Write 3 tests → ALL pass ✅
+4. **Task 4 (C011):** Modify `CgfBehaviorSetup` → Write 3 tests → ALL pass ✅
 5. **Task 5 (D005):** Wire remapper in `CgfApplication` → `dotnet build` passes ✅
 6. **Final:** `dotnet build IOS-IG-SimHost.sln` → 0 errors; all test projects green ✅
 
@@ -266,7 +266,7 @@ This batch is DONE when:
 - [ ] `BehaviorUiRegistry` implemented
 - [ ] `MissionPanel` integrated with registry lookup + `IPickInteractionContext`; 3 tests pass
   and `MissionPanel.cs` exists in exactly one project
-- [ ] `CgfDoctrineSetup` registers remapper and UI registry; 3 tests pass
+- [ ] `CgfBehaviorSetup` registers remapper and UI registry; 3 tests pass
 - [ ] `CgfApplication` passes `ScenarioBehaviorRemapper` to both load handlers (DEBT-D005)
 - [ ] `dotnet build IOS-IG-SimHost.sln` — 0 errors
 - [ ] All test projects green (or pre-existing failures only)
@@ -280,7 +280,7 @@ This batch is DONE when:
 - `BehaviorUiCompiler`: all reflection must happen inside `Compile<TDto>()`, not in the returned delegate
 - `MissionPanel` must implement `IPickInteractionContext` — not a separate adapter class
 - Do NOT break existing `DrawRawJsonEditor` fallback path
-- `BehaviorId` strings in `CgfDoctrineSetup` must match what `DoctrineRegistry` uses exactly
+- `BehaviorId` strings in `CgfBehaviorSetup` must match what `BehaviorRegistry` uses exactly
 
 ---
 
@@ -291,6 +291,6 @@ This batch is DONE when:
 - **Behavior attributes dir:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Attributes/`
 - **BehaviorParamRemapperCompiler:** `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorParamRemapperCompiler.cs` (expression tree pattern)
 - **MissionPanel:** `Hrot/Engine/Hrot.Presentation/Panels/MissionPanel.cs`
-- **CgfDoctrineSetup:** `Hrot/Subsystems/Hrot.CGF/Configuration/CgfDoctrineSetup.cs`
+- **CgfBehaviorSetup:** `Hrot/Subsystems/Hrot.CGF/Configuration/CgfBehaviorSetup.cs`
 - **CgfApplication:** `Hrot/Subsystems/Hrot.CGF/CgfApplication.cs`
 - **Previous reviews:** `.dev/cgf-scn/reviews/BATCH-01-REVIEW.md` through `BATCH-04-REVIEW.md`

@@ -11,7 +11,7 @@
 
 | Task | Status | Notes |
 |------|--------|-------|
-| [CORRECTIVE] Eliminate CS0618 `MissionTrigger.ReachedDestination` | ✅ Complete | `EntityMissionEgressTranslator` + `SimHostInstance`; also fixes egress correctness for DoctrineFinished |
+| [CORRECTIVE] Eliminate CS0618 `MissionTrigger.ReachedDestination` | ✅ Complete | `EntityMissionEgressTranslator` + `SimHostInstance`; also fixes egress correctness for BehaviorFinished |
 | [DOC] Align DEM1-D007 terrain docs with `IgAltitudeBaselineEstablished` | ✅ Complete | DEM1-TASK-DETAIL.md D007 spawn section updated with bootstrap note |
 | DEM1-D008 ParallelStoriesScenario | ✅ Complete | Live recording + naked-node replay; 3 tests; 51/51 pass |
 
@@ -40,7 +40,7 @@ ParallelStories (DEM1-D008):
 - `Hrot.Map.Common/Replication/Egress/EntityMissionEgressTranslator.cs`
 - `Hrot.SimHost.Integration.Tests/Infrastructure/SimHostInstance.cs`
 
-**Problem:** Two code sites used `MissionTrigger.ReachedDestination` (value=1, `[Obsolete]`), generating CS0618. The correct runtime trigger for "doctrine completed" is `DoctrineFinished` (value=4). The egress translator's old `switch` case was mapping `EcsMissionTrigger.ReachedDestination` (internal-enum value=1, which is the same integer as the old code) to the string `"ReachedDestination"`, while `EcsMissionTrigger.DoctrineFinished` (value=4) was silently falling through to `"TimerElapsed"` — a correctness bug, not just a warning.
+**Problem:** Two code sites used `MissionTrigger.ReachedDestination` (value=1, `[Obsolete]`), generating CS0618. The correct runtime trigger for "behavior completed" is `BehaviorFinished` (value=4). The egress translator's old `switch` case was mapping `EcsMissionTrigger.ReachedDestination` (internal-enum value=1, which is the same integer as the old code) to the string `"ReachedDestination"`, while `EcsMissionTrigger.BehaviorFinished` (value=4) was silently falling through to `"TimerElapsed"` — a correctness bug, not just a warning.
 
 **Fix applied:**
 
@@ -50,7 +50,7 @@ ParallelStories (DEM1-D008):
 EcsMissionTrigger.ReachedDestination => "ReachedDestination",
 
 // After:
-EcsMissionTrigger.DoctrineFinished   => "DoctrineFinished",
+EcsMissionTrigger.BehaviorFinished   => "BehaviorFinished",
 ```
 
 `SimHostInstance.cs` — replaced the ingress mapping:
@@ -59,10 +59,10 @@ EcsMissionTrigger.DoctrineFinished   => "DoctrineFinished",
 "ReachedDestination" => (MissionTrigger.ReachedDestination, 0f)
 
 // After:
-"ReachedDestination" => (MissionTrigger.DoctrineFinished, 0f)
+"ReachedDestination" => (MissionTrigger.BehaviorFinished, 0f)
 ```
 
-The ingress case keeps the `"ReachedDestination"` string key so that legacy DDS messages with that trigger name still resolve at runtime, but now map to `DoctrineFinished` (the correct current-generation trigger).
+The ingress case keeps the `"ReachedDestination"` string key so that legacy DDS messages with that trigger name still resolve at runtime, but now map to `BehaviorFinished` (the correct current-generation trigger).
 
 **DEBT-TRACKER:** Row `BS-1-BATCH-06` (CS0618 `ReachedDestination`) marked ✅.
 

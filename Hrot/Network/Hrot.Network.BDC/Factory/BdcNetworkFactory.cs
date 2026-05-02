@@ -103,7 +103,7 @@ namespace Hrot.BDC.Factory
         public Hrot.Core.Network.INetworkFactory ConfigureForNode(
             Hrot.Common.Infrastructure.HrotNodeContext context,
             Hrot.Common.NodeRole                       role,
-            Fdp.Toolkit.Behavior.DoctrineRegistry?     doctrineRegistry = null)
+            Fdp.Toolkit.Behavior.BehaviorRegistry?     behaviorRegistry = null)
         {
             return new BdcNetworkFactory(
                 context.Participant,

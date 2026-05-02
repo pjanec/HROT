@@ -20,7 +20,7 @@ Complete **at least two** of the following (or equivalent **DEBT-TRACKER** rows)
 | 1 | Remove **`Fdp.Examples.NetworkDemo`** **`ProjectReference`** from **`Fdp.Examples.Scenarios.csproj`** if no code uses it; verify full **`Fdp.Examples.Scenarios`** build + **`Fdp.Examples.Scenarios.Tests`**. | BATCH-15 review |
 | 2 | Fix **CS8602** in **`UrbanCombatNewScenario.cs`** (HSM init / `TryGetDefinition` path ~line 800). | BATCH-15 review |
 | 3 | **P3** RVO lateral (**BATCH-03**) **or** FastBTree **`Selector`** documentation (**BATCH-04**) — pick one row still **open** in **`DEBT-TRACKER`**. | Historical Examples debt |
-| 4 | **P3** `MissionDirectorSystem` one-frame **`AssignDoctrineHashEvent`** delay (**BD1-BATCH-02** → BD1-BATCH-04) — document or unify. | Behavior toolkit |
+| 4 | **P3** `MissionDirectorSystem` one-frame **`AssignBehaviorHashEvent`** delay (**BD1-BATCH-02** → BD1-BATCH-04) — document or unify. | Behavior toolkit |
 | 5 | **P3** Consolidate **`DistributedTankScenario`** redundant class **`<summary>`** paragraphs (BATCH-14 review debt). | Documentation |
 
 If a row is **blocked**, document owner and **retarget** in **`DEBT-TRACKER`**.
@@ -39,7 +39,7 @@ If a row is **blocked**, document owner and **retarget** in **`DEBT-TRACKER`**.
 
 **Minimum:** Update **docs** to describe the **implemented** latches and note **Latch 5** as narrative / log milestone until HSM recovery exists.
 
-**Stretch (optional):** Add **HSM** transition **Disabled → Cruising** on a **`RecoveryComplete`**-style event (or repair doctrine) and assert **FollowRoute** on APC before success **or** rename log / test to avoid implying movement.
+**Stretch (optional):** Add **HSM** transition **Disabled → Cruising** on a **`RecoveryComplete`**-style event (or repair behavior) and assert **FollowRoute** on APC before success **or** rename log / test to avoid implying movement.
 
 ---
 
@@ -73,5 +73,5 @@ dotnet test "Hrot.ClusterRunner.Integration.Tests\Hrot.ClusterRunner.Integration
 
 ## Pitfalls
 
-- **HSM recovery** touches doctrine design — do not half-implement; prefer **doc honesty** if product has not signed off on new transitions.  
+- **HSM recovery** touches behavior design — do not half-implement; prefer **doc honesty** if product has not signed off on new transitions.  
 - Removing **`NetworkDemo`** reference may expose **transitive** dependency misuse elsewhere — run **build** for **Runner** + **Scenarios** together.

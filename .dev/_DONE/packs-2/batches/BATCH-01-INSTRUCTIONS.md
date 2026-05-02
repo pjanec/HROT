@@ -128,7 +128,7 @@ Creates a composite `IEcsModule` wrapping the Muscle-tier modules:
 **Key constraints:**
 - `ExecutionPolicy.Synchronous()` unless a sub-module dictates otherwise.
 - The constructor must accept the same parameters that the sub-modules require (e.g.
-  `DoctrineRegistry`, `RoadNetworkBlob`, `NetworkEntityMap`, trajectory pool, etc.).
+  `BehaviorRegistry`, `RoadNetworkBlob`, `NetworkEntityMap`, trajectory pool, etc.).
   Refer to how `SimulationLogicModule` constructs these sub-modules with role `MuscleGround`.
 - `RegisterSystems` must call each sub-module's `RegisterSystems` in the same order as
   `SimulationLogicModule` currently does for the `MuscleGround` role.
@@ -150,7 +150,7 @@ Creates a composite `IEcsModule` wrapping the Brain-tier modules:
 - `ActionDispatchModule` (`Hrot.SimHost.Modules` or `FDP.Toolkit.Behavior.Modules` — check actual location)
 
 **Key constraints:**
-- The constructor must accept `DoctrineRegistry` and `NetworkEntityMap` (or whatever the sub-modules require).
+- The constructor must accept `BehaviorRegistry` and `NetworkEntityMap` (or whatever the sub-modules require).
 - `RegisterSystems` delegates to sub-module `RegisterSystems` in correct execution order
   (Mission → Cognitive → ActionDispatch, matching current `SimulationLogicModule` Brain order).
 - No changes to the sub-modules.

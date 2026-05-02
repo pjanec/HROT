@@ -11,21 +11,21 @@
 
 ## Phase 2: Receiver-Side Resolution
 
-**Goal:** Add `TacticalIntentResolutionSystem` so that published intents are translated to `AssignDoctrineEvent` on the same node.
+**Goal:** Add `TacticalIntentResolutionSystem` so that published intents are translated to `AssignBehaviorEvent` on the same node.
 
 - [x] **TASK-TI003** TacticalIntentResolutionSystem — [details](./TASK-DETAIL.md#task-ti003---implement-tacticalintentresolutionsystem)
 
 ## Phase 3: MissionAdapterSystem Modification
 
-**Goal:** Replace `AssignDoctrineEvent` emission in `MissionAdapterSystem` with `AssignTacticalIntentEvent` so human-authored mission plans flow through the same resolution pipeline.
+**Goal:** Replace `AssignBehaviorEvent` emission in `MissionAdapterSystem` with `AssignTacticalIntentEvent` so human-authored mission plans flow through the same resolution pipeline.
 
 - [x] **TASK-TI004** MissionAdapterSystem → AssignTacticalIntentEvent — [details](./TASK-DETAIL.md#task-ti004---change-missionadaptersystem-to-emit-assigntacticalintentevent)
 
 ## Phase 4: UI Discovery for Intent DTOs
 
-**Goal:** Make generic intent DTOs discoverable by `DoctrineSchemaDiscovery` and visible in the Mission Editor behavior dropdown.
+**Goal:** Make generic intent DTOs discoverable by `BehaviorSchemaDiscovery` and visible in the Mission Editor behavior dropdown.
 
-- [x] **TASK-TI005** Commander Flag in DoctrineCategory — [details](./TASK-DETAIL.md#task-ti005---add-commander-flag-to-doctrinecategory)
+- [x] **TASK-TI005** Commander Flag in BehaviorCategory — [details](./TASK-DETAIL.md#task-ti005---add-commander-flag-to-behaviorcategory)
 - [x] **TASK-TI006** Example Intent DTOs in Hrot.Core — [details](./TASK-DETAIL.md#task-ti006---add-example-intent-dtos-to-hrotcore)
 
 ## Phase 5: Network Transport

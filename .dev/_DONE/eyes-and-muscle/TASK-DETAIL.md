@@ -25,7 +25,7 @@ Create two new building-block types:
 **Constraints**
 
 - `FdpKernelBuilder` must NOT reference `CycloneDDS`, `Hrot.NED`, `Hrot.SimHost`, or `Hrot.IG`. It belongs in a namespace that is accessible from all of those projects (e.g., `Hrot.Common` or `FDP.Framework.Runner`). If it goes in `Hrot.ClusterRunner`, it is internal to that project, which is acceptable since EyesAndMuscle lives there.
-- `HrotNodeBuilder` must NOT reference `Hrot.SimHost` internal domain types (doctrines, SimHost components, road network). It only knows about generic Hrot infrastructure (`HrotEnvironment`, NED orchestration message types, `ClusterSlave`).
+- `HrotNodeBuilder` must NOT reference `Hrot.SimHost` internal domain types (behaviors, SimHost components, road network). It only knows about generic Hrot infrastructure (`HrotEnvironment`, NED orchestration message types, `ClusterSlave`).
 - Builders are single-use; `Build()` must throw `InvalidOperationException` if called more than once.
 - `HrotNodeContext` is a positional record; all fields are `init`-only.
 
@@ -322,7 +322,7 @@ When `config.Headless = true`, skip Raylib/MapCanvas creation entirely. All modu
 **Constraints**
 
 - Do not copy-paste large blocks from `SimHostApp.OnLoad`; use `HrotNodeBuilder`.
-- The `doctrineRegistry` is constructed here (not inside the builder), because doctrines are domain-specific.
+- The `behaviorRegistry` is constructed here (not inside the builder), because behaviors are domain-specific.
 - Road network loading: load from `config.json` if available; use `default` (empty) blob if not found.
 - The subsystem must be usable without an `OrchestratorSubsystem` (i.e., ClusterSlave starts in standalone-friendly state).
 

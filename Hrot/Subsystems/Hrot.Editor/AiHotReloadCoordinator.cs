@@ -15,9 +15,9 @@ using Fhsm.Kernel.Data;
 namespace Hrot.Editor
 {
     /// <summary>
-    /// Unified hot-reload coordinator for the AI doctrine assembly
-    /// (<c>Hrot.AI.Doctrines.dll</c>).  Manages the ALC lifecycle for both BTree
-    /// and HSM doctrines, replacing the older <c>FbtAssemblyHotReloader</c> pattern.
+    /// Unified hot-reload coordinator for the AI behavior assembly
+    /// (<c>Hrot.AI.Behaviors.dll</c>).  Manages the ALC lifecycle for both BTree
+    /// and HSM behaviors, replacing the older <c>FbtAssemblyHotReloader</c> pattern.
     ///
     /// <para><b>Thread model:</b>
     /// <list type="bullet">
@@ -26,7 +26,7 @@ namespace Hrot.Editor
     ///     the result.</item>
     ///   <item>Main thread — <see cref="DrainPendingCallbacks"/>: dequeues each
     ///     pending action (success or failure), and for success:
-    ///     clears the HSM action table, re-registers, applies doctrines, and
+    ///     clears the HSM action table, re-registers, applies behaviors, and
     ///     hot-reloads existing HSM instances.</item>
     /// </list>
     /// The order inside <see cref="DrainPendingCallbacks"/> is mandated:
@@ -37,12 +37,12 @@ namespace Hrot.Editor
         // ---- Payload produced on background thread, consumed on main thread ----
         private readonly struct PendingReload
         {
-            public readonly DoctrineRegistry    StagingRegistry;
+            public readonly BehaviorRegistry    StagingRegistry;
             public readonly AssemblyLoadContext NewAlc;
             public readonly AssemblyLoadContext? OldAlc;
 
             public PendingReload(
-                DoctrineRegistry stagingRegistry,
+                BehaviorRegistry stagingRegistry,
                 AssemblyLoadContext newAlc,
                 AssemblyLoadContext? oldAlc)
             {
@@ -65,7 +65,7 @@ namespace Hrot.Editor
 
         // ---- Dependencies ----
         private readonly EntityRepository      _world;
-        private readonly DoctrineRegistry      _liveRegistry;
+        private readonly BehaviorRegistry      _liveRegistry;
         private readonly IGeographicTransform? _geoTransform;
         private readonly NetworkEntityMap?     _entityMap;
         private readonly HotReloadManager      _hotReloadManager = new();
@@ -93,16 +93,16 @@ namespace Hrot.Editor
         /// Creates the coordinator.
         /// </summary>
         /// <param name="watchDirectory">Directory to monitor for DLL changes.</param>
-        /// <param name="dllFilter">File filter, e.g. <c>"Hrot.AI.Doctrines.dll"</c>.</param>
+        /// <param name="dllFilter">File filter, e.g. <c>"Hrot.AI.Behaviors.dll"</c>.</param>
         /// <param name="world">Live ECS world used for per-chunk HSM hot reload.</param>
-        /// <param name="liveRegistry">Doctrine registry updated on main thread.</param>
-        /// <param name="geoTransform">Geographic transform passed to doctrine factory.</param>
-        /// <param name="entityMap">Entity map passed to doctrine factory.</param>
+        /// <param name="liveRegistry">Behavior registry updated on main thread.</param>
+        /// <param name="geoTransform">Geographic transform passed to behavior factory.</param>
+        /// <param name="entityMap">Entity map passed to behavior factory.</param>
         public AiHotReloadCoordinator(
             string watchDirectory,
             string dllFilter,
             EntityRepository world,
-            DoctrineRegistry liveRegistry,
+            BehaviorRegistry liveRegistry,
             IGeographicTransform? geoTransform,
             NetworkEntityMap? entityMap)
         {
@@ -164,11 +164,11 @@ namespace Hrot.Editor
                     HsmActionDispatcher.ClearAll();
 
                     // Step 2: re-register HSM actions from the NEW assembly.
-                    var newAssembly = FindAssembly(pending.NewAlc, "Hrot.AI.Doctrines");
+                    var newAssembly = FindAssembly(pending.NewAlc, "Hrot.AI.Behaviors");
                     if (newAssembly != null)
                     {
                         var registrarType = newAssembly.GetType(
-                            "Hrot.AI.Doctrines.Generated.HsmActionRegistrar");
+                            "Hrot.AI.Behaviors.Generated.HsmActionRegistrar");
                         registrarType?.GetMethod("RegisterAll",
                             BindingFlags.Public | BindingFlags.Static)
                             ?.Invoke(null, null);
@@ -208,11 +208,11 @@ namespace Hrot.Editor
                         pending.OldAlc.Unload();
                     }
 
-                    OnReloadCompleted?.Invoke("__ai_doctrines__");
+                    OnReloadCompleted?.Invoke("__ai_behaviors__");
                 }
                 catch (Exception ex)
                 {
-                    OnReloadFailed?.Invoke("__ai_doctrines__", ex);
+                    OnReloadFailed?.Invoke("__ai_behaviors__", ex);
                 }
             }
         }
@@ -269,8 +269,8 @@ namespace Hrot.Editor
                     }
                 }
 
-                // Locate AiDoctrineFactory in the newly-loaded assembly.
-                var factoryType = newAssembly.GetType("Hrot.AI.Doctrines.AiDoctrineFactory");
+                // Locate AiBehaviorFactory in the newly-loaded assembly.
+                var factoryType = newAssembly.GetType("Hrot.AI.Behaviors.AiBehaviorFactory");
                 var buildMethod = factoryType?.GetMethod(
                     "BuildRegistrationAction",
                     BindingFlags.Public | BindingFlags.Static);
@@ -279,13 +279,13 @@ namespace Hrot.Editor
                 {
                     newAlc.Unload();
                     var ex = new InvalidOperationException(
-                        $"'AiDoctrineFactory.BuildRegistrationAction' not found in '{dllPath}'.");
+                        $"'AiBehaviorFactory.BuildRegistrationAction' not found in '{dllPath}'.");
                     EnqueueFailure(dllPath, ex);
                     return;
                 }
 
                 // Invoke on this background thread; CPU-heavy BTree/HSM compilation happens here.
-                var applyAction = (Action<DoctrineRegistry>?)buildMethod.Invoke(
+                var applyAction = (Action<BehaviorRegistry>?)buildMethod.Invoke(
                     null, new object?[] { _geoTransform, _entityMap });
 
                 if (applyAction == null)
@@ -297,7 +297,7 @@ namespace Hrot.Editor
                     return;
                 }
 
-                var stagingRegistry = new DoctrineRegistry();
+                var stagingRegistry = new BehaviorRegistry();
                 applyAction(stagingRegistry);
 
                 // Swap in new ALC; the previous one is passed to the drain for orderly release.

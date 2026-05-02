@@ -7,28 +7,28 @@
 
 ## Phase 1 — Core Brain-Death Lifecycle
 
-### BD1-P1T0a: DoctrineFinishedEvent — Bottom-Up Notification from BTreeTickSystem
+### BD1-P1T0a: BehaviorFinishedEvent — Bottom-Up Notification from BTreeTickSystem
 
 **Files:**
-- *(new)* `FDP/Toolkits/FDP.Toolkit.Behavior/Events/DoctrineFinishedEvent.cs`
+- *(new)* `FDP/Toolkits/FDP.Toolkit.Behavior/Events/BehaviorFinishedEvent.cs`
 - `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BTreeTickSystem.cs`
 
-**Design Reference:** [§1.0a DoctrineFinishedEvent (notification, bottom-up)](./BD1-DESIGN.md#10a-doctrinefinishedevent-notification-bottom-up)
+**Design Reference:** [§1.0a BehaviorFinishedEvent (notification, bottom-up)](./BD1-DESIGN.md#10a-behaviorfinishedevent-notification-bottom-up)
 
 **Description:**
 
-Create the `DoctrineFinishedEvent` class — a **notification** published by the **BTree cognitive machinery** when the doctrine's BTree root evaluates to a terminal state. This flows **upward** from the Cognitive tier to the Mission tier. It does NOT itself change any state.
+Create the `BehaviorFinishedEvent` class — a **notification** published by the **BTree cognitive machinery** when the behavior's BTree root evaluates to a terminal state. This flows **upward** from the Cognitive tier to the Mission tier. It does NOT itself change any state.
 
-**Critical tier boundary:** `LocomotionDispatcherSystem` must NOT publish this event. It operates at the *action* level (individual BTree leaf nodes). A single doctrine may contain many locomotion actions in sequence; only the BTree **root** result represents doctrine completion. `BTreeTickSystem` is the correct publisher because it evaluates the full doctrine tree and observes the root result.
+**Critical tier boundary:** `LocomotionDispatcherSystem` must NOT publish this event. It operates at the *action* level (individual BTree leaf nodes). A single behavior may contain many locomotion actions in sequence; only the BTree **root** result represents behavior completion. `BTreeTickSystem` is the correct publisher because it evaluates the full behavior tree and observes the root result.
 
 ```csharp
-// DoctrineFinishedEvent.cs
+// BehaviorFinishedEvent.cs
 using Fdp.Kernel;
 using Fbt;
 
 namespace FDP.Toolkit.Behavior.Events
 {
-    public sealed class DoctrineFinishedEvent
+    public sealed class BehaviorFinishedEvent
     {
         public Entity Entity;
         public NodeStatus Result; // Success or Failure
@@ -43,7 +43,7 @@ var rootResult = def.BTreeInterpreter!.Tick(ref blackboard, ref btState.State, r
 
 if (rootResult == NodeStatus.Success || rootResult == NodeStatus.Failure)
 {
-    World.Bus.PublishManaged(new DoctrineFinishedEvent
+    World.Bus.PublishManaged(new BehaviorFinishedEvent
     {
         Entity = entity,
         Result = rootResult
@@ -53,72 +53,72 @@ if (rootResult == NodeStatus.Success || rootResult == NodeStatus.Failure)
 
 Publish only **once per terminal transition**: if the interpreter already returned `Success` on the previous tick and does so again, do not re-publish. Guard with a `BrainBTreeState` status field or by checking that the BTree was `Running` before this tick (capture status before the `Tick` call).
 
-This task is a **prerequisite** for BD1-P1T2 (which adds the `DoctrineFinished` trigger type to `MissionDirectorSystem`).
+This task is a **prerequisite** for BD1-P1T2 (which adds the `BehaviorFinished` trigger type to `MissionDirectorSystem`).
 
 **Success Conditions:**
 
-1. **Unit test — `BTreeTickSystemTests.DoctrineRoot_Success_PublishesDoctrineFinishedEvent`**
-   - Register a doctrine whose BTree interpreter returns `NodeStatus.Success` on first tick.
-   - Create an entity with `DoctrineState { ActiveDoctrineHash = X, BrainTier = BTree }` and `BrainBTreeState`.
+1. **Unit test — `BTreeTickSystemTests.BehaviorRoot_Success_PublishesBehaviorFinishedEvent`**
+   - Register a behavior whose BTree interpreter returns `NodeStatus.Success` on first tick.
+   - Create an entity with `BehaviorState { ActiveBehaviorHash = X, BrainTier = BTree }` and `BrainBTreeState`.
    - Run `BTreeTickSystem.OnUpdate()` once.
-   - Assert: exactly one `DoctrineFinishedEvent` was published on the bus for this entity.
-   - Assert: `DoctrineFinishedEvent.Result == NodeStatus.Success`.
+   - Assert: exactly one `BehaviorFinishedEvent` was published on the bus for this entity.
+   - Assert: `BehaviorFinishedEvent.Result == NodeStatus.Success`.
 
-2. **Unit test — `BTreeTickSystemTests.DoctrineRoot_Failure_PublishesDoctrineFinishedEvent`**
+2. **Unit test — `BTreeTickSystemTests.BehaviorRoot_Failure_PublishesBehaviorFinishedEvent`**
    - Same setup, BTree returns `NodeStatus.Failure`.
-   - Assert: `DoctrineFinishedEvent.Result == NodeStatus.Failure`.
+   - Assert: `BehaviorFinishedEvent.Result == NodeStatus.Failure`.
 
-3. **Unit test — `BTreeTickSystemTests.DoctrineRoot_Running_DoesNotPublishEvent`**
+3. **Unit test — `BTreeTickSystemTests.BehaviorRoot_Running_DoesNotPublishEvent`**
    - BTree returns `NodeStatus.Running`.
-   - Assert: no `DoctrineFinishedEvent` published.
+   - Assert: no `BehaviorFinishedEvent` published.
 
-4. **Unit test — `BTreeTickSystemTests.DoctrineRoot_Success_PublishedOnlyOnce`**
+4. **Unit test — `BTreeTickSystemTests.BehaviorRoot_Success_PublishedOnlyOnce`**
    - BTree returns `Success` on frame 1; returns `Success` again on frame 2 (re-ticked).
    - Assert: event published exactly once (no repeated firing on a terminal that stays terminal).
 
-5. **Unit test — `BTreeTickSystemTests.DoctrineFinished_NotPublishedByLocomotionDispatcher`**
+5. **Unit test — `BTreeTickSystemTests.BehaviorFinished_NotPublishedByLocomotionDispatcher`**
    - Simulate a `MoveToExecutor` setting `channel.Status = NodeStatus.Success` inside `LocomotionDispatcherSystem`.
    - Run `LocomotionDispatcherSystem` but NOT `BTreeTickSystem`.
-   - Assert: no `DoctrineFinishedEvent` on the bus (the locomotion layer has no doctrine awareness).
+   - Assert: no `BehaviorFinishedEvent` on the bus (the locomotion layer has no behavior awareness).
 
 ---
 
-### BD1-P1T0b: ClearDoctrineEvent — Top-Down Imperative via DoctrineIngressSystem
+### BD1-P1T0b: ClearBehaviorEvent — Top-Down Imperative via BehaviorIngressSystem
 
 **Files:**
-- *(new)* `FDP/Toolkits/FDP.Toolkit.Behavior/Events/ClearDoctrineEvent.cs`
-- `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs`
+- *(new)* `FDP/Toolkits/FDP.Toolkit.Behavior/Events/ClearBehaviorEvent.cs`
+- `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs`
 
-**Design Reference:** [§1.0b ClearDoctrineEvent (imperative, top-down)](./BD1-DESIGN.md#10b-cleardoctrineevent-imperative-top-down)
+**Design Reference:** [§1.0b ClearBehaviorEvent (imperative, top-down)](./BD1-DESIGN.md#10b-clearbehaviorevent-imperative-top-down)
 
 **Description:**
 
-Create the `ClearDoctrineEvent` class — an **imperative command** published by higher-level systems to forcibly clear the active doctrine. This flows **downward** into the Cognitive tier and is consumed by `DoctrineIngressSystem`, which owns all `DoctrineState` writes.
+Create the `ClearBehaviorEvent` class — an **imperative command** published by higher-level systems to forcibly clear the active behavior. This flows **downward** into the Cognitive tier and is consumed by `BehaviorIngressSystem`, which owns all `BehaviorState` writes.
 
 ```csharp
-// ClearDoctrineEvent.cs
+// ClearBehaviorEvent.cs
 using Fdp.Kernel;
 
 namespace FDP.Toolkit.Behavior.Events
 {
-    public sealed class ClearDoctrineEvent
+    public sealed class ClearBehaviorEvent
     {
         public Entity Entity;
     }
 }
 ```
 
-In `DoctrineIngressSystem.OnUpdate`, add a `ConsumeManaged<ClearDoctrineEvent>()` loop:
+In `BehaviorIngressSystem.OnUpdate`, add a `ConsumeManaged<ClearBehaviorEvent>()` loop:
 
 ```csharp
-var clearEvents = World.Bus.ConsumeManaged<ClearDoctrineEvent>();
+var clearEvents = World.Bus.ConsumeManaged<ClearBehaviorEvent>();
 foreach (var evt in clearEvents)
 {
-    if (evt == null || !World.HasComponent<DoctrineState>(evt.Entity)) continue;
-    ref var doctrine = ref World.GetComponentRW<DoctrineState>(evt.Entity);
-    doctrine.ActiveDoctrineHash = DoctrineIds.None;
-    unchecked { doctrine.InstanceId++; }
-    doctrine.BrainTier = 0;
+    if (evt == null || !World.HasComponent<BehaviorState>(evt.Entity)) continue;
+    ref var behavior = ref World.GetComponentRW<BehaviorState>(evt.Entity);
+    behavior.ActiveBehaviorHash = BehaviorIds.None;
+    unchecked { behavior.InstanceId++; }
+    behavior.BrainTier = 0;
     if (World.HasComponent<BrainBTreeState>(evt.Entity))
         World.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
 }
@@ -128,23 +128,23 @@ This task is a **prerequisite** for BD1-P1T2 and BD1-P1T3.
 
 **Success Conditions:**
 
-1. **Unit test — `DoctrineIngressSystemTests.ClearDoctrineEvent_SetsDoctrineToNone`**
-   - Create entity with `DoctrineState { ActiveDoctrineHash = 2001, InstanceId = 5, BrainTier = 2 }` and `BrainBTreeState`.
-   - Publish `ClearDoctrineEvent { Entity = entity }` on the bus. Run update once.
-   - Assert: `DoctrineState.ActiveDoctrineHash == 0`, `InstanceId == 6`, `BrainTier == 0`, `BrainBTreeState.State == default`.
+1. **Unit test — `BehaviorIngressSystemTests.ClearBehaviorEvent_SetsBehaviorToNone`**
+   - Create entity with `BehaviorState { ActiveBehaviorHash = 2001, InstanceId = 5, BrainTier = 2 }` and `BrainBTreeState`.
+   - Publish `ClearBehaviorEvent { Entity = entity }` on the bus. Run update once.
+   - Assert: `BehaviorState.ActiveBehaviorHash == 0`, `InstanceId == 6`, `BrainTier == 0`, `BrainBTreeState.State == default`.
 
-2. **Unit test — `DoctrineIngressSystemTests.ClearDoctrineEvent_NoDoctrineState_IsIgnored`**
-   - Create entity **without** `DoctrineState`. Publish `ClearDoctrineEvent`. Run update.
+2. **Unit test — `BehaviorIngressSystemTests.ClearBehaviorEvent_NoBehaviorState_IsIgnored`**
+   - Create entity **without** `BehaviorState`. Publish `ClearBehaviorEvent`. Run update.
    - Assert: no exception; entity state unchanged.
 
-3. **Unit test — `DoctrineIngressSystemTests.ClearDoctrineEvent_DoesNotAffectOtherEntities`**
-   - Create entities A and B both with `DoctrineState { ActiveDoctrineHash = 1001 }`.
-   - Publish `ClearDoctrineEvent { Entity = A }`. Run update.
-   - Assert: A `ActiveDoctrineHash == 0`; B `ActiveDoctrineHash == 1001`.
+3. **Unit test — `BehaviorIngressSystemTests.ClearBehaviorEvent_DoesNotAffectOtherEntities`**
+   - Create entities A and B both with `BehaviorState { ActiveBehaviorHash = 1001 }`.
+   - Publish `ClearBehaviorEvent { Entity = A }`. Run update.
+   - Assert: A `ActiveBehaviorHash == 0`; B `ActiveBehaviorHash == 1001`.
 
-4. **Unit test — `DoctrineIngressSystemTests.ClearVsAssign_AreIndependent`**
-   - In the same frame: publish `AssignDoctrineEvent` for entity A and `ClearDoctrineEvent` for entity B.
-   - Run update. Assert: A has assigned doctrine; B has `DoctrineIds.None`.
+4. **Unit test — `BehaviorIngressSystemTests.ClearVsAssign_AreIndependent`**
+   - In the same frame: publish `AssignBehaviorEvent` for entity A and `ClearBehaviorEvent` for entity B.
+   - Run update. Assert: A has assigned behavior; B has `BehaviorIds.None`.
 
 ---
 
@@ -172,16 +172,16 @@ unchecked { channel.ActionInstanceId++; }
 **Success Conditions:**
 
 1. **Unit test — `ChannelArbitrationSystemTests.ChannelClear_ShouldNotZeroActionInstanceId`**
-   - Create an entity with `DoctrineState { InstanceId = 1 }` and `LocomotionChannel { ActiveAction = 5, DoctrineInstanceId = 0, ActionInstanceId = 7, DispatchedInstanceId = 7 }`.
+   - Create an entity with `BehaviorState { InstanceId = 1 }` and `LocomotionChannel { ActiveAction = 5, BehaviorInstanceId = 0, ActionInstanceId = 7, DispatchedInstanceId = 7 }`.
    - Run `ChannelArbitrationSystem.OnUpdate()` once.
    - Assert: `channel.ActiveAction == 0`.
    - Assert: `channel.ActionInstanceId == 8` (incremented, not zero).
    - Assert: `channel.DispatchedInstanceId == 7` (unchanged).
 
-2. **Unit test — `ChannelArbitrationSystemTests.NoPreemption_WhenDoctrineMatches`**
-   - Create an entity with `DoctrineState { InstanceId = 3 }` and `LocomotionChannel { ActiveAction = 2, DoctrineInstanceId = 3, ActionInstanceId = 1 }`.
+2. **Unit test — `ChannelArbitrationSystemTests.NoPreemption_WhenBehaviorMatches`**
+   - Create an entity with `BehaviorState { InstanceId = 3 }` and `LocomotionChannel { ActiveAction = 2, BehaviorInstanceId = 3, ActionInstanceId = 1 }`.
    - Run one update.
-   - Assert: `channel.ActiveAction == 2` (unchanged — doctrine matches).
+   - Assert: `channel.ActiveAction == 2` (unchanged — behavior matches).
 
 3. **Unit test — `ChannelArbitrationSystemTests.WeaponChannel_ReceivesOnExitSignal`**
    - Same pattern as test 1 but for `WeaponChannel`.
@@ -191,11 +191,11 @@ unchecked { channel.ActionInstanceId++; }
 
 ---
 
-### BD1-P1T2: MissionDirectorSystem — DoctrineFinished Trigger + End-of-Mission Clear
+### BD1-P1T2: MissionDirectorSystem — BehaviorFinished Trigger + End-of-Mission Clear
 
 **File:** `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs`
 
-**Design Reference:** [§1.2 MissionDirectorSystem — End-of-Mission Doctrine Clear](./BD1-DESIGN.md#12-missiondirectorsystem--end-of-mission-doctrine-clear)
+**Design Reference:** [§1.2 MissionDirectorSystem — End-of-Mission Behavior Clear](./BD1-DESIGN.md#12-missiondirectorsystem--end-of-mission-behavior-clear)
 
 **Prerequisites:** BD1-P1T0a and BD1-P1T0b must be complete.
 
@@ -203,94 +203,94 @@ unchecked { channel.ActionInstanceId++; }
 
 This task has two sub-changes:
 
-**Sub-change A — New `DoctrineFinished` trigger type:**
+**Sub-change A — New `BehaviorFinished` trigger type:**
 
-Add `DoctrineFinished` to the `MissionTrigger` enum. In `MissionDirectorSystem.OnUpdate`, add a new `case MissionTrigger.DoctrineFinished` that consumes `DoctrineFinishedEvent`s from the bus for the current entity. When a matching event is found, set `triggered = true`. This replaces the coupling to `NavState.HasArrived` for this trigger type.
+Add `BehaviorFinished` to the `MissionTrigger` enum. In `MissionDirectorSystem.OnUpdate`, add a new `case MissionTrigger.BehaviorFinished` that consumes `BehaviorFinishedEvent`s from the bus for the current entity. When a matching event is found, set `triggered = true`. This replaces the coupling to `NavState.HasArrived` for this trigger type.
 
 ```csharp
-case MissionTrigger.DoctrineFinished:
-    // Consume any DoctrineFinishedEvent for this entity published this frame.
+case MissionTrigger.BehaviorFinished:
+    // Consume any BehaviorFinishedEvent for this entity published this frame.
     // (Bus provides peek/consume by entity pattern or a lookup cache built once per frame.)
-    if (HasDoctrineFinishedEvent(entity, out var result))
+    if (HasBehaviorFinishedEvent(entity, out var result))
         triggered = true;
     break;
 ```
 
-**Sub-change B — End-of-plan: publish ClearDoctrineEvent:**
+**Sub-change B — End-of-plan: publish ClearBehaviorEvent:**
 
-When the trigger fires and `CurrentPhase >= PhaseCount` (plan exhausted), publish `ClearDoctrineEvent`. Do NOT directly write `DoctrineState`.
+When the trigger fires and `CurrentPhase >= PhaseCount` (plan exhausted), publish `ClearBehaviorEvent`. Do NOT directly write `BehaviorState`.
 
 ```csharp
 if (queue.CurrentPhase < queue.PhaseCount)
 {
-    unchecked { doctrine.InstanceId++; }
-    doctrine.ActiveDoctrineHash = phases[queue.CurrentPhase].DoctrineId;
+    unchecked { behavior.InstanceId++; }
+    behavior.ActiveBehaviorHash = phases[queue.CurrentPhase].BehaviorId;
 }
 else
 {
-    World.Bus.PublishManaged(new FDP.Toolkit.Behavior.Events.ClearDoctrineEvent { Entity = entity });
+    World.Bus.PublishManaged(new FDP.Toolkit.Behavior.Events.ClearBehaviorEvent { Entity = entity });
 }
 ```
 
 **Success Conditions:**
 
-1. **Unit test — `MissionDirectorSystemTests.DoctrineFinishedTrigger_AdvancesPhase`**
-   - Build a single-phase queue with trigger = `DoctrineFinished`.
-   - Publish `DoctrineFinishedEvent { Entity = entity, Result = NodeStatus.Success }` on bus.
+1. **Unit test — `MissionDirectorSystemTests.BehaviorFinishedTrigger_AdvancesPhase`**
+   - Build a single-phase queue with trigger = `BehaviorFinished`.
+   - Publish `BehaviorFinishedEvent { Entity = entity, Result = NodeStatus.Success }` on bus.
    - Run one update.
-   - Assert: a `ClearDoctrineEvent` was published (end of plan, one phase).
+   - Assert: a `ClearBehaviorEvent` was published (end of plan, one phase).
    - Assert: `queue.CurrentPhase == 1`.
 
-2. **Unit test — `MissionDirectorSystemTests.DoctrineFinishedTrigger_MultiPhase_SetsNextDoctrine`**
-   - Build a two-phase queue; phase 0 trigger = `DoctrineFinished`.
+2. **Unit test — `MissionDirectorSystemTests.BehaviorFinishedTrigger_MultiPhase_SetsNextBehavior`**
+   - Build a two-phase queue; phase 0 trigger = `BehaviorFinished`.
    - Publish event; run update.
-   - Assert: no `ClearDoctrineEvent` published (still in plan).
-   - Assert: `doctrine.ActiveDoctrineHash == <phase-1-doctrine-id>`.
+   - Assert: no `ClearBehaviorEvent` published (still in plan).
+   - Assert: `behavior.ActiveBehaviorHash == <phase-1-behavior-id>`.
 
-3. **Unit test — `MissionDirectorSystemTests.DoctrineFinishedTrigger_WrongEntity_DoesNotFire`**
-   - Publish `DoctrineFinishedEvent` for a **different** entity.
+3. **Unit test — `MissionDirectorSystemTests.BehaviorFinishedTrigger_WrongEntity_DoesNotFire`**
+   - Publish `BehaviorFinishedEvent` for a **different** entity.
    - Assert: no phase advance.
 
-4. **Unit test — `MissionDirectorSystemTests.MissionComplete_PublishesClearDoctrineEvent`**
-   - Same as test 1: verify `ClearDoctrineEvent` is published when plan is exhausted.
+4. **Unit test — `MissionDirectorSystemTests.MissionComplete_PublishesClearBehaviorEvent`**
+   - Same as test 1: verify `ClearBehaviorEvent` is published when plan is exhausted.
 
-5. **Integration test — `MissionDirectorSystemTests.MissionComplete_ViaDoctrineIngress_SetsDoctrineToNone`**
-   - Include `MissionDirectorSystem`, `DoctrineIngressSystem`, and bus swap in the test world.
-   - Publish `DoctrineFinishedEvent` for a single-phase plan.
-   - Run two updates (event published in frame 1, consumed by DoctrineIngressSystem in frame 2).
-   - Assert: `doctrine.ActiveDoctrineHash == 0`.
+5. **Integration test — `MissionDirectorSystemTests.MissionComplete_ViaBehaviorIngress_SetsBehaviorToNone`**
+   - Include `MissionDirectorSystem`, `BehaviorIngressSystem`, and bus swap in the test world.
+   - Publish `BehaviorFinishedEvent` for a single-phase plan.
+   - Run two updates (event published in frame 1, consumed by BehaviorIngressSystem in frame 2).
+   - Assert: `behavior.ActiveBehaviorHash == 0`.
 
 ---
 
-### BD1-P1T3: MissionControlRequestSystem — CMD_ABORT_ALL Doctrine Clear
+### BD1-P1T3: MissionControlRequestSystem — CMD_ABORT_ALL Behavior Clear
 
 **File:** `Hrot.SimHost/Systems/MissionControlRequestSystem.cs`
 
-**Design Reference:** [§1.3 MissionControlRequestSystem — CMD_ABORT_ALL Doctrine Clear](./BD1-DESIGN.md#13-missioncontrolrequestsystem--cmd_abort_all-doctrine-clear)
+**Design Reference:** [§1.3 MissionControlRequestSystem — CMD_ABORT_ALL Behavior Clear](./BD1-DESIGN.md#13-missioncontrolrequestsystem--cmd_abort_all-behavior-clear)
 
 **Prerequisite:** BD1-P1T0b must be complete.
 
 **Description:**
 
-The `CMD_ABORT_ALL` case zeroes the `MissionPlanQueue` and removes the `EntityMissionHolder`. After abort the entity continues executing its last channel because `DoctrineState` is never touched.
+The `CMD_ABORT_ALL` case zeroes the `MissionPlanQueue` and removes the `EntityMissionHolder`. After abort the entity continues executing its last channel because `BehaviorState` is never touched.
 
-This is a top-down **imperative** use of `ClearDoctrineEvent` — the operator is commanding an immediate doctrine reset regardless of what the behavior machinery is currently doing. Add a `repo.Bus.PublishManaged(new ClearDoctrineEvent { Entity = entity })` after resetting the queue.
+This is a top-down **imperative** use of `ClearBehaviorEvent` — the operator is commanding an immediate behavior reset regardless of what the behavior machinery is currently doing. Add a `repo.Bus.PublishManaged(new ClearBehaviorEvent { Entity = entity })` after resetting the queue.
 
-**Note:** This is explicitly **not** a `DoctrineFinishedEvent`. The doctrine did not finish naturally; it was interrupted. The distinction matters because other systems may need to reason about natural vs. forced termination in the future.
+**Note:** This is explicitly **not** a `BehaviorFinishedEvent`. The behavior did not finish naturally; it was interrupted. The distinction matters because other systems may need to reason about natural vs. forced termination in the future.
 
 **Success Conditions:**
 
-1. **Unit test — `MissionControlRequestSystemTests.AbortAll_PublishesClearDoctrineEvent`**
-   - Spawn entity with `DoctrineState { ActiveDoctrineHash = 2001, InstanceId = 3 }` and a non-empty `MissionPlanQueue`.
+1. **Unit test — `MissionControlRequestSystemTests.AbortAll_PublishesClearBehaviorEvent`**
+   - Spawn entity with `BehaviorState { ActiveBehaviorHash = 2001, InstanceId = 3 }` and a non-empty `MissionPlanQueue`.
    - Send `CMD_ABORT_ALL` via `ProcessRequest`.
-   - Assert: a `ClearDoctrineEvent` with the correct entity was published on the bus.
+   - Assert: a `ClearBehaviorEvent` with the correct entity was published on the bus.
    - Assert: `MissionPlanQueue.PhaseCount == 0`.
 
-2. **Unit test — `MissionControlRequestSystemTests.AbortAll_NoDoctrineState_DoesNotThrow`**
-   - Spawn entity **without** `DoctrineState`.
+2. **Unit test — `MissionControlRequestSystemTests.AbortAll_NoBehaviorState_DoesNotThrow`**
+   - Spawn entity **without** `BehaviorState`.
    - Send `CMD_ABORT_ALL`.
    - Assert: operation completes without exception; `MissionPlanQueue.PhaseCount == 0`.
-   - Assert: `ClearDoctrineEvent` is still published (the ingress system will guard against missing `DoctrineState`).
+   - Assert: `ClearBehaviorEvent` is still published (the ingress system will guard against missing `BehaviorState`).
 
 3. **Regression test — `MissionControlRequestSystemTests.AbortAll_WritesSuccessAck`**
    - Verify the existing ACK with `SstErrorCode.Success` is still written.
@@ -311,33 +311,33 @@ The `_interactionTool.OnWorldClick` lambda currently:
 - On Shift: always calls `_scenario.AddWaypoint()` (muscle path) — broken when brain is active.
 - On plain click: always sends `CMD_REPLACE_MISSION` with empty `Triggers` — produces an infinite-loop overshoot.
 
-Rewrite the handler with two distinct code paths, selected by checking `DoctrineState.ActiveDoctrineHash`:
+Rewrite the handler with two distinct code paths, selected by checking `BehaviorState.ActiveBehaviorHash`:
 
-**Brain-dead path** (no `DoctrineState` component OR `ActiveDoctrineHash == DoctrineIds.None`):
+**Brain-dead path** (no `BehaviorState` component OR `ActiveBehaviorHash == BehaviorIds.None`):
 - Plain click → `_scenario.SetDestination(e, pos, ...)`.
 - Shift click → `_scenario.AddWaypoint(e, pos, ...)`.
 
-**Brain-active path** (`ActiveDoctrineHash != DoctrineIds.None`):
+**Brain-active path** (`ActiveBehaviorHash != BehaviorIds.None`):
 - Plain click → send `CMD_REPLACE_MISSION` with a `MoveToLocation` task carrying a `ReachedDestination` trigger.
 - Shift click is **not** supported for brain-active entities (to be tackled in a future increment). For this task, plain right-click is the only supported path; Shift behaves identically to plain click for brain-active entities.
 
-**Important:** The task sent on the brain-active path **must** include the `ReachedDestination` trigger, so that `MissionDirectorSystem` fires task completion and the doctrine is eventually cleared by fix BD1-P1T2.
+**Important:** The task sent on the brain-active path **must** include the `ReachedDestination` trigger, so that `MissionDirectorSystem` fires task completion and the behavior is eventually cleared by fix BD1-P1T2.
 
 **Success Conditions:**
 
 1. **Unit test — `SimHostVisualizationTests.RightClick_BrainDead_CallsSetDestination`**
-   - Arrange entity with no `DoctrineState` (or `ActiveDoctrineHash == 0`).
+   - Arrange entity with no `BehaviorState` (or `ActiveBehaviorHash == 0`).
    - Simulate right-click event (non-shift).
    - Assert: `_scenario.SetDestination` was called with the clicked position.
    - Assert: `_missionWriter.Write` was NOT called.
 
 2. **Unit test — `SimHostVisualizationTests.ShiftRightClick_BrainDead_CallsAddWaypoint`**
-   - Arrange entity with no active doctrine.
+   - Arrange entity with no active behavior.
    - Simulate Shift+right-click.
    - Assert: `_scenario.AddWaypoint` was called.
 
 3. **Unit test — `SimHostVisualizationTests.RightClick_BrainActive_WritesMissionWithTrigger`**
-   - Arrange entity with `DoctrineState { ActiveDoctrineHash = 2001 }` and `NetworkIdentity`.
+   - Arrange entity with `BehaviorState { ActiveBehaviorHash = 2001 }` and `NetworkIdentity`.
    - Simulate right-click.
    - Assert: `_missionWriter.Write` was called once.
    - Assert: the written `MissionControlRequest.Payload.FullMissionData.Tasks[0].Triggers` contains exactly one trigger of type `"ReachedDestination"`.

@@ -1,4 +1,4 @@
-# BATCH-08: Phase 4 — IEntityAwareImGuiRenderer, ComponentReflector, DoctrineDefinition, BrainBlackboardRenderer, BTreeVisualizerRenderer
+# BATCH-08: Phase 4 — IEntityAwareImGuiRenderer, ComponentReflector, BehaviorDefinition, BrainBlackboardRenderer, BTreeVisualizerRenderer
 
 **Batch Number:** BATCH-08
 **Tasks:** FBT-030, FBT-031, FBT-032, FBT-033, FBT-034, FBT-035, FBT-036, FBT-037
@@ -14,7 +14,7 @@
 1. `.dev/fluent-btree/TASK-DETAIL.md` — FBT-030 through FBT-037
 2. `FDP/Engine/Fdp.Presentation/ImGui/Renderers/IImGuiRenderer.cs` — existing interface
 3. `FDP/Engine/Fdp.Presentation/ImGui/Utils/ComponentReflector.cs` — lines 210-225 (dispatch)
-4. `FDP/Toolkits/Fdp.Toolkits/Behavior/DoctrineRegistry.cs` — `DoctrineDefinition` class
+4. `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorRegistry.cs` — `BehaviorDefinition` class
 5. `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BrainComponents.cs` — `BrainBTreeState`
 6. `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs` — `BrainBlackboard`
 7. `Hrot/Engine/Hrot.Presentation/Renderers/MissionPlanQueueRenderer.cs` — existing renderer pattern
@@ -39,7 +39,7 @@ dotnet test FDP/Engine/Fdp.Presentation.Tests/Fdp.Presentation.Tests.csproj 2>&1
 # Hrot.Presentation tests
 dotnet test Hrot/Engine/Hrot.Presentation.Tests/Hrot.Presentation.Tests.csproj 2>&1 | Select-String "Passed!|Failed!" | Select-Object -Last 2
 
-# Fdp.Toolkits tests (verify DoctrineDefinition change doesn't break them)
+# Fdp.Toolkits tests (verify BehaviorDefinition change doesn't break them)
 dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj 2>&1 | Select-String "Passed!|Failed!" | Select-Object -Last 2
 ```
 
@@ -76,7 +76,7 @@ Add AFTER the existing `IImGuiRenderer` interface (same file):
 /// <summary>
 /// Extended ImGui renderer that receives entity and session context.
 /// Implement this in addition to <see cref="IImGuiRenderer"/> when the renderer
-/// needs to read sibling ECS components (e.g., DoctrineState alongside BrainBlackboard).
+/// needs to read sibling ECS components (e.g., BehaviorState alongside BrainBlackboard).
 /// </summary>
 public interface IEntityAwareImGuiRenderer : IImGuiRenderer
 {
@@ -123,22 +123,22 @@ This is the ONLY change in this file. No other modifications.
 
 ---
 
-### Step 4: Add `ParamsDtoType` to `DoctrineDefinition` (FBT-032)
+### Step 4: Add `ParamsDtoType` to `BehaviorDefinition` (FBT-032)
 
-**File:** `FDP/Toolkits/Fdp.Toolkits/Behavior/DoctrineRegistry.cs`
+**File:** `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorRegistry.cs`
 
-In `DoctrineDefinition`, add AFTER the `ParseParams` property:
+In `BehaviorDefinition`, add AFTER the `ParseParams` property:
 ```csharp
 /// <summary>
 /// Optional type of the params DTO struct stored at the start of
-/// <see cref="BrainBlackboard.Memory"/> for this doctrine.
+/// <see cref="BrainBlackboard.Memory"/> for this behavior.
 /// When non-null, enables typed rendering in <c>BrainBlackboardRenderer</c>.
 /// The type must be unmanaged (enforced by convention, not the compiler).
 /// </summary>
 public Type? ParamsDtoType { get; init; }
 ```
 
-No other changes to this file. All existing doctrine registrations continue to work with `ParamsDtoType = null` (the default).
+No other changes to this file. All existing behavior registrations continue to work with `ParamsDtoType = null` (the default).
 
 ---
 
@@ -161,7 +161,7 @@ namespace Hrot.Presentation.Renderers;
 
 /// <summary>
 /// Entity-aware ImGui renderer for <see cref="BrainBlackboard"/>.
-/// When the active doctrine has a <see cref="DoctrineDefinition.ParamsDtoType"/>,
+/// When the active behavior has a <see cref="BehaviorDefinition.ParamsDtoType"/>,
 /// interprets <see cref="BrainBlackboard.Memory"/> as that typed struct and renders
 /// it via <see cref="ImGuiPropertyTree.Render"/>. Falls back to raw hex display otherwise.
 /// </summary>
@@ -170,16 +170,16 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
 {
     /// <summary>
     /// Set once at startup (e.g., in CgfSubsystem initialization).
-    /// Required for doctrine lookup.
+    /// Required for behavior lookup.
     /// </summary>
-    public static DoctrineRegistry? DoctrineRegistryAccessor { get; set; }
+    public static BehaviorRegistry? BehaviorRegistryAccessor { get; set; }
 
     // ---- IImGuiRenderer ----
 
     public string? GetSummary(object value) => "Blackboard Memory";
 
     /// <summary>
-    /// Non-entity-aware fallback. Cannot look up doctrine without an entity.
+    /// Non-entity-aware fallback. Cannot look up behavior without an entity.
     /// Always falls through to default rendering.
     /// </summary>
     public bool RenderValue(object value) => false;
@@ -190,15 +190,15 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
     {
         if (value is not BrainBlackboard bb) return false;
 
-        var registry = DoctrineRegistryAccessor;
+        var registry = BehaviorRegistryAccessor;
         if (registry == null) return false;
 
-        if (!session.HasComponent(entity, typeof(DoctrineState))) return false;
+        if (!session.HasComponent(entity, typeof(BehaviorState))) return false;
 
-        var doctrineStateObj = session.GetComponent(entity, typeof(DoctrineState));
-        if (doctrineStateObj is not DoctrineState ds) return false;
+        var behaviorStateObj = session.GetComponent(entity, typeof(BehaviorState));
+        if (behaviorStateObj is not BehaviorState ds) return false;
 
-        if (!registry.TryGetDefinition(ds.ActiveDoctrineHash, out var def)) return false;
+        if (!registry.TryGetDefinition(ds.ActiveBehaviorHash, out var def)) return false;
 
         if (def.ParamsDtoType != null)
         {
@@ -300,7 +300,7 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
     private static readonly Vector4 ColorGray   = new Vector4(0.5f, 0.5f, 0.5f, 1.0f);
 
     /// <summary>Set at startup; required for blob lookup.</summary>
-    public static DoctrineRegistry? DoctrineRegistryAccessor { get; set; }
+    public static BehaviorRegistry? BehaviorRegistryAccessor { get; set; }
 
     // ---- IImGuiRenderer ----
 
@@ -318,14 +318,14 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
     {
         if (value is not BrainBTreeState btState) return false;
 
-        var registry = DoctrineRegistryAccessor;
+        var registry = BehaviorRegistryAccessor;
         if (registry == null) return false;
 
-        if (!session.HasComponent(entity, typeof(DoctrineState))) return false;
-        var dsObj = session.GetComponent(entity, typeof(DoctrineState));
-        if (dsObj is not DoctrineState ds) return false;
+        if (!session.HasComponent(entity, typeof(BehaviorState))) return false;
+        var dsObj = session.GetComponent(entity, typeof(BehaviorState));
+        if (dsObj is not BehaviorState ds) return false;
 
-        if (!registry.TryGetDefinition(ds.ActiveDoctrineHash, out var def)) return false;
+        if (!registry.TryGetDefinition(ds.ActiveBehaviorHash, out var def)) return false;
 
         var interpreter = def.BTreeInterpreter;
         if (interpreter == null) return false;
@@ -535,11 +535,11 @@ public class BrainBlackboardRendererTests
 {
     private static readonly BrainBlackboardRenderer _renderer = new BrainBlackboardRenderer();
 
-    // SC3: Renderer returns false when entity has no DoctrineState
+    // SC3: Renderer returns false when entity has no BehaviorState
     [Fact]
-    public void RenderValue_ReturnsFalse_WhenNoDoctrineState()
+    public void RenderValue_ReturnsFalse_WhenNoBehaviorState()
     {
-        var session = new MockSession(hasDoctrineState: false);
+        var session = new MockSession(hasBehaviorState: false);
         var entity = new Entity(1, 1);
         var bb = new BrainBlackboard();
 
@@ -548,12 +548,12 @@ public class BrainBlackboardRendererTests
         Assert.False(result);
     }
 
-    // Renderer returns false when DoctrineRegistry is null
+    // Renderer returns false when BehaviorRegistry is null
     [Fact]
     public void RenderValue_ReturnsFalse_WhenRegistryNull()
     {
-        BrainBlackboardRenderer.DoctrineRegistryAccessor = null;
-        var session = new MockSession(hasDoctrineState: true, doctrineHash: 42);
+        BrainBlackboardRenderer.BehaviorRegistryAccessor = null;
+        var session = new MockSession(hasBehaviorState: true, behaviorHash: 42);
         var bb = new BrainBlackboard();
 
         bool result = _renderer.RenderValue(session, new Entity(1, 1), bb);
@@ -578,13 +578,13 @@ public class BrainBlackboardRendererTests
         Assert.False(result);
     }
 
-    // With registry but unknown doctrine hash → false
+    // With registry but unknown behavior hash → false
     [Fact]
-    public void RenderValue_ReturnsFalse_WhenDoctrineNotRegistered()
+    public void RenderValue_ReturnsFalse_WhenBehaviorNotRegistered()
     {
-        var registry = new DoctrineRegistry();
-        BrainBlackboardRenderer.DoctrineRegistryAccessor = registry;
-        var session = new MockSession(hasDoctrineState: true, doctrineHash: 999);
+        var registry = new BehaviorRegistry();
+        BrainBlackboardRenderer.BehaviorRegistryAccessor = registry;
+        var session = new MockSession(hasBehaviorState: true, behaviorHash: 999);
         var bb = new BrainBlackboard();
 
         bool result = _renderer.RenderValue(session, new Entity(1, 1), bb);
@@ -595,22 +595,22 @@ public class BrainBlackboardRendererTests
     // Helpers
     private sealed class MockSession : IInspectableSession
     {
-        private readonly bool _hasDoctrineState;
-        private readonly int _doctrineHash;
-        public MockSession(bool hasDoctrineState, int doctrineHash = 0)
+        private readonly bool _hasBehaviorState;
+        private readonly int _behaviorHash;
+        public MockSession(bool hasBehaviorState, int behaviorHash = 0)
         {
-            _hasDoctrineState = hasDoctrineState;
-            _doctrineHash     = doctrineHash;
+            _hasBehaviorState = hasBehaviorState;
+            _behaviorHash     = behaviorHash;
         }
         public bool IsReadOnly => true;
         public int EntityCount => 1;
         public IEnumerable<Entity> GetEntities() => Array.Empty<Entity>();
         public bool IsAlive(Entity e) => true;
         public IEnumerable<Type> GetAllComponentTypes() => Array.Empty<Type>();
-        public bool HasComponent(Entity e, Type t) => t == typeof(DoctrineState) && _hasDoctrineState;
+        public bool HasComponent(Entity e, Type t) => t == typeof(BehaviorState) && _hasBehaviorState;
         public object? GetComponent(Entity e, Type t)
-            => t == typeof(DoctrineState) && _hasDoctrineState
-                ? (object)new DoctrineState { ActiveDoctrineHash = _doctrineHash }
+            => t == typeof(BehaviorState) && _hasBehaviorState
+                ? (object)new BehaviorState { ActiveBehaviorHash = _behaviorHash }
                 : null;
         public void SetComponent(Entity e, Type t, object v) { }
         public bool HasAuthority(Entity e, Type t) => false;
@@ -678,7 +678,7 @@ public class BTreeVisualizerRendererTests
 
 ## ⚠️ Quality Standards
 
-- FBT-032: Adding `ParamsDtoType = null` as default must not break any existing `new DoctrineDefinition { ... }` initializers. It is `init`-only so it's optional.
+- FBT-032: Adding `ParamsDtoType = null` as default must not break any existing `new BehaviorDefinition { ... }` initializers. It is `init`-only so it's optional.
 - FBT-031: The dispatch change must NOT break any `IImGuiRenderer` implementations that do NOT implement `IEntityAwareImGuiRenderer` — they still use the `else if` path.
 - `BrainBlackboardRenderer`: The `fixed (byte* ptr = bb.Memory)` block requires `AllowUnsafeBlocks = true` in `Hrot.Presentation.csproj` — verify this is set.
 - `BTreeVisualizerRenderer`: `interpreter.Blob` requires the `Blob` property to be added in Step 1.
@@ -691,7 +691,7 @@ public class BTreeVisualizerRendererTests
 
 - [ ] `IEntityAwareImGuiRenderer` interface exists and inherits `IImGuiRenderer`
 - [ ] `ComponentReflector` uses entity-aware path when renderer implements the new interface
-- [ ] `DoctrineDefinition.ParamsDtoType` property added with `null` default
+- [ ] `BehaviorDefinition.ParamsDtoType` property added with `null` default
 - [ ] `Interpreter<T>.Blob` property added
 - [ ] `BrainBlackboardRenderer` compiles + registered via `[ImGuiRenderer]` attribute
 - [ ] `BTreeVisualizerRenderer` compiles + `GetNodeColorCode` internal helper exists
@@ -727,7 +727,7 @@ public class BTreeVisualizerRendererTests
 ## Tasks Completed
 - [ ] FBT-030: IEntityAwareImGuiRenderer interface
 - [ ] FBT-031: ComponentReflector dispatch update
-- [ ] FBT-032: DoctrineDefinition.ParamsDtoType
+- [ ] FBT-032: BehaviorDefinition.ParamsDtoType
 - [ ] FBT-033: BrainBlackboardRenderer
 - [ ] FBT-034: BTreeVisualizerRenderer
 - [ ] FBT-035: Tests (Fdp.Presentation.Tests)
@@ -754,7 +754,7 @@ Q3: Any rendering issues with the IEntityAwareImGuiRenderer dispatch?
 |------|---------|
 | `FDP/Engine/Fdp.Presentation/ImGui/Renderers/IImGuiRenderer.cs` | Add `IEntityAwareImGuiRenderer` |
 | `FDP/Engine/Fdp.Presentation/ImGui/Utils/ComponentReflector.cs` | Update dispatch |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/DoctrineRegistry.cs` | Add `ParamsDtoType` |
+| `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorRegistry.cs` | Add `ParamsDtoType` |
 | `FDP/ExtDeps/FastBTree/src/Fbt.Kernel/Runtime/Interpreter.cs` | Add `Blob` property |
 | `Hrot/Engine/Hrot.Presentation/Renderers/MissionPlanQueueRenderer.cs` | Pattern reference |
 | `FDP/Engine/Fdp.Presentation.Tests/ImGui/ImGuiTestFixture.cs` | Copy to Hrot.Presentation.Tests |

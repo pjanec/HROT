@@ -100,9 +100,9 @@ namespace Hrot.Presentation.Tests.Behavior
         public void BehaviorUiRegistry_RegisterAndTryGet_ReturnsDelegate()
         {
             var registry = new BehaviorUiRegistry();
-            registry.Register<FireAtTargetParamsJsonDto>(Hrot.Map.Definitions.Doctrine.FireAtTargetParamsJsonDto.BehaviorId);
+            registry.Register<FireAtTargetParamsJsonDto>(Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto.BehaviorId);
 
-            bool found = registry.TryGet(Hrot.Map.Definitions.Doctrine.FireAtTargetParamsJsonDto.BehaviorId, out var drawDelegate);
+            bool found = registry.TryGet(Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto.BehaviorId, out var drawDelegate);
 
             Assert.True(found);
             Assert.NotNull(drawDelegate);

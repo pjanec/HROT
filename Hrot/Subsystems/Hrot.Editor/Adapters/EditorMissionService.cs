@@ -17,8 +17,8 @@ namespace Hrot.Editor.Adapters
     /// Implements <see cref="IMissionEditorService"/> for the offline editor.
     ///
     /// <para>
-    /// Doctrine filtering: intersects the per-TKB catalog from <see cref="DoctrineCatalog"/>
-    /// with the live-registered names from <see cref="DoctrineRegistry"/> to avoid
+    /// Behavior filtering: intersects the per-TKB catalog from <see cref="BehaviorCatalog"/>
+    /// with the live-registered names from <see cref="BehaviorRegistry"/> to avoid
     /// offering behaviours that are not currently installed in the engine.
     /// </para>
     ///
@@ -35,14 +35,14 @@ namespace Hrot.Editor.Adapters
     {
         private readonly FdpEventBus      _bus;
         private readonly EntityRepository _repo;
-        private readonly DoctrineRegistry _registry;
+        private readonly BehaviorRegistry _registry;
 
         private readonly Dictionary<Guid, TaskCompletionSource<MissionCommitResult>> _pendingCommits = new();
 
         /// <param name="bus">Local FDP event bus.</param>
         /// <param name="repo">Entity repository for ECS component reads.</param>
-        /// <param name="registry">Live doctrine registry used for filtering.</param>
-        public EditorMissionService(FdpEventBus bus, EntityRepository repo, DoctrineRegistry registry)
+        /// <param name="registry">Live behavior registry used for filtering.</param>
+        public EditorMissionService(FdpEventBus bus, EntityRepository repo, BehaviorRegistry registry)
         {
             _bus      = bus;
             _repo     = repo;
@@ -73,7 +73,7 @@ namespace Hrot.Editor.Adapters
                 return Array.Empty<string>();
 
             long tkbType = _repo.GetComponent<TkbIdentity>(entity).TkbType;
-            var catalog  = DoctrineCatalog.GetValidDoctrines(tkbType);
+            var catalog  = BehaviorCatalog.GetValidBehaviors(tkbType);
 
             return catalog.Where(n => _registry.TryGetId(n, out _)).ToList();
         }
@@ -170,7 +170,7 @@ namespace Hrot.Editor.Adapters
                 tasks.Add(new Hrot.Core.Mission.MissionTask
                 {
                     TaskId          = dt.TaskId,
-                    BehaviorId      = dt.BehaviorId,
+                    BehaviorId      = dt.BehaviorName,
                     BehaviorParams  = dt.BehaviorParams,
                     ExecutingEngine = dt.ExecutingEngine,
                     State           = Hrot.Core.Mission.eTaskState.TASK_PLANNED,

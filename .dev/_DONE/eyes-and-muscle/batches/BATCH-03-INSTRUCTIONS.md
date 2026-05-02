@@ -115,7 +115,7 @@ global using NodeRole = Hrot.Common.NodeRole;
 - Step 4: Create DdsParticipant + EnsureIdAllocatorRouting + entityMap
 - Step 5: Geodetic config (wgs84)
 - Step 5a/5b: Attribute compilers
-- Step 6: Doctrine registry
+- Step 6: Behavior registry
 - Step 7: Road network
 - Step 8: NodeBootstrapper.BuildSimulationLogic (creates _simLogicModule)
 - Step 8a: ClusterSlave + BuildOrchestration
@@ -177,8 +177,8 @@ protected override void OnLoad()
     var jsonAttributeCompiler = AttributeCompilerFactory.Build(wgs84);
     var binaryInterpreter     = AttributeCompilerFactory.BuildBinaryInterpreter(wgs84);
 
-    // ── Step 6 — Doctrine registry (SimHost-specific; not in HrotNodeBuilder) ─
-    // ... (keep doctrine setup unchanged from original OnLoad)
+    // ── Step 6 — Behavior registry (SimHost-specific; not in HrotNodeBuilder) ─
+    // ... (keep behavior setup unchanged from original OnLoad)
 
     // ── Step 7 — Road network ─────────────────────────────────────────────────
     var roadNetwork = LoadRoadNetwork(nodeConfig.RoadNetworkBlobPath);
@@ -186,7 +186,7 @@ protected override void OnLoad()
     // ── Step 8 — SimulationLogicModule (NodeBootstrapper; unchanged) ──────────
     var bootstrapper = new NodeBootstrapper();
     _simLogicModule  = bootstrapper.BuildSimulationLogic(
-        _role, _doctrineRegistry, _entityMap, vehicleApi: null, roadNetwork);
+        _role, _behaviorRegistry, _entityMap, vehicleApi: null, roadNetwork);
 
     // ── BuildOrchestration: pass HrotNodeBuilder-provided ghost/lifecycle objs ─
     var ghostCreationSystem   = _context.GhostCreationSystem
@@ -210,7 +210,7 @@ protected override void OnLoad()
     // ── _kernelGroup systems (unchanged) ────────────────────────────────────────
     _kernelGroup = new SystemGroup();
     _kernelGroup.Create(_world);
-    _kernelGroup.AddSystem(new MissionControlExecutionSystem(_entityMap, _doctrineRegistry));
+    _kernelGroup.AddSystem(new MissionControlExecutionSystem(_entityMap, _behaviorRegistry));
     // ... (keep same as original)
     _simLogicModule.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);
 
@@ -281,7 +281,7 @@ dotnet test d:\Work\IOS-IG-SimHost-FDP-2\Hrot.SimHost.Tests --no-build
 ```
 
 *SC2 — SimHostApp.OnLoad body is ≤ 60 meaningful lines:*
-> Review: the method body is dominated by calls to `HrotNodeBuilder`, module registration, and SimHost-specific doctrine/road-network setup. The private `EnsureIdAllocatorRouting` method is deleted.
+> Review: the method body is dominated by calls to `HrotNodeBuilder`, module registration, and SimHost-specific behavior/road-network setup. The private `EnsureIdAllocatorRouting` method is deleted.
 
 *SC3 — No manual `HrotEnvironment.CreateParticipant` in OnLoad:*
 > Review: `HrotEnvironment.CreateParticipant` not called directly in `SimHostApp.OnLoad`.
@@ -484,9 +484,9 @@ public void Initialize(SubsystemConfig config)
     _context.Kernel.RegisterModule(_nedReplicationModule);
 
     // ── Register CGF simulation logic (Brain-specific) ────────────────────────
-    var doctrineRegistry = new DoctrineRegistry();
+    var behaviorRegistry = new BehaviorRegistry();
     _entityMap           = _nedReplicationModule.GhostCreationSystem.EntityMap; // re-use from module
-    _context.Kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, _entityMap));
+    _context.Kernel.RegisterModule(new CgfLogicPack(behaviorRegistry, _entityMap));
 
     // ── Initialize ────────────────────────────────────────────────────────────
     _context.Kernel.Initialize();
@@ -496,7 +496,7 @@ public void Initialize(SubsystemConfig config)
 > **Implementation notes:**
 > 1. Add `private HrotNodeContext? _context;` and `private IEcsModule? _nedReplicationModule;` fields.
 > 2. `_entityMap` must be created BEFORE `NedReplicationModule` (pass it in), OR use `_nedReplicationModule.GhostCreationSystem` to access the entity map afterwards. Best: create `_entityMap = new NetworkEntityMap();` before calling `NedReplicationModule` ctor and pass it in.
-> 3. `CgfLogicPack(doctrineRegistry, _entityMap)` — CgfLogicPack is `IEcsModule`, so use `RegisterModule`.
+> 3. `CgfLogicPack(behaviorRegistry, _entityMap)` — CgfLogicPack is `IEcsModule`, so use `RegisterModule`.
 > 4. Do NOT call `CgfApplication` at all — it's entirely replaced by `HrotNodeBuilder`.
 > 5. Drop `GhostCleanupModule` — `NedReplicationModule` registers `DisposalMonitoringSystem` which handles cleanup.
 > 6. `EntityStatesIngressPack` (ingress physical states) and `ActuatorIntentsEgressPack` (egress actuator intents) are REPLACED by `NedReplicationModule(Brain)` which uses `CognitiveTranslatorPack` (NavigationIntent + GeoSpatial + Mission). This is a translator set change — run all CGF integration tests carefully to verify no regressions.

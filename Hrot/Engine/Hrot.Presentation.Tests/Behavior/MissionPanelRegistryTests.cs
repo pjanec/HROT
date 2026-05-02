@@ -39,7 +39,7 @@ namespace Hrot.Presentation.Tests.Behavior
         public void C010_MissionPanel_Constructor_WithRegistryArg_Succeeds()
         {
             var registry = new BehaviorUiRegistry();
-            registry.Register<Fdp.Toolkit.Behavior.Params.FireAtTargetParamsJsonDto>(Hrot.Map.Definitions.Doctrine.FireAtTargetParamsJsonDto.BehaviorId);
+            registry.Register<Fdp.Toolkit.Behavior.Params.FireAtTargetParamsJsonDto>(Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto.BehaviorId);
 
             var panel = new MissionPanel(behaviorUiRegistry: registry);
 

@@ -48,7 +48,7 @@ Welcome back! In SIM-BATCH-02 you stubbed out the `MissionAdapterSystem`. Now th
 
 ## Context
 
-`MissionAdapterSystem` translates the string-based abstract AI behaviour commands (`MoveToLocation`, `Formation`, etc.) inside the `EntityMission` task list into concrete `DoctrineId` triggers that the toolkit's `BrainBTreeState` actually processes natively. It is the bridge between the abstracted high-level node command from IOS, to low level C# fast tree nodes. 
+`MissionAdapterSystem` translates the string-based abstract AI behaviour commands (`MoveToLocation`, `Formation`, etc.) inside the `EntityMission` task list into concrete `BehaviorId` triggers that the toolkit's `BrainBTreeState` actually processes natively. It is the bridge between the abstracted high-level node command from IOS, to low level C# fast tree nodes. 
 In addition to translating, it updates the `LocomotionChannel.Status` and triggers task completion when nodes return `Success` or `Failure`.
 
 Furthermore, for the `JoinFormation` behavior specifically, the `JoinFormationExecutor` acts as the low-level action executor linking the behavior to the actual `VehicleAPI` vehicle physics and formation logic.
@@ -57,8 +57,8 @@ Furthermore, for the `JoinFormation` behavior specifically, the `JoinFormationEx
 
 ## 🎯 Batch Objectives
 - Fill out the `MissionAdapterSystem.cs` stub.
-- Filter on `EntityMission`, `DoctrineState`, and `BrainBlackboard`.
-- Correctly parse `BehaviorParams` using the matching behavior `ParseParams` via `DoctrineDefinition`.
+- Filter on `EntityMission`, `BehaviorState`, and `BrainBlackboard`.
+- Correctly parse `BehaviorParams` using the matching behavior `ParseParams` via `BehaviorDefinition`.
 - Track output status and update task index upon completion.
 - Fill out the `JoinFormationExecutor.cs` stub.
 - Register `JoinFormationExecutor` properly by uncommenting its registration inside `SimulationLogicModule.cs` from BATCH-02.
@@ -74,15 +74,15 @@ Furthermore, for the `JoinFormation` behavior specifically, the `JoinFormationEx
 **Task Definition:** See [TASK-DETAILS-SIMHOST.md](../../docs/design/TASK-DETAILS-SIMHOST.md#task-s43-implement-missionadaptersystem)
 
 **Description:**
-Map the active `MissionTask.BehaviorId` string to a `DoctrineId`, and process its state.
+Map the active `MissionTask.BehaviorId` string to a `BehaviorId`, and process its state.
 
 **Requirements:**
 Implementation must follow these exact steps (from design spec):
-1. Query entities with `EntityMissionHolder` (Managed), `DoctrineState`, and `BrainBlackboard`. *Note: we use `EntityMissionHolder` since S4.2*.
-2. Extract the current underlying active task matching `ActiveTaskId`. If `DoctrineRegistry.TryGetId(task.BehaviorId, out int id)` fails — log a warning and return.
-3. Check `DoctrineState.ActiveDoctrineHash`. If it doesn't match `id`:
-   - Set the `ActiveDoctrineHash` directly to `id`.
-   - Call `DoctrineDefinition.ParseParams(task.BehaviorParams, ref blackboard)`. (Note: use `ActionId` mappings accordingly!).
+1. Query entities with `EntityMissionHolder` (Managed), `BehaviorState`, and `BrainBlackboard`. *Note: we use `EntityMissionHolder` since S4.2*.
+2. Extract the current underlying active task matching `ActiveTaskId`. If `BehaviorRegistry.TryGetId(task.BehaviorId, out int id)` fails — log a warning and return.
+3. Check `BehaviorState.ActiveBehaviorHash`. If it doesn't match `id`:
+   - Set the `ActiveBehaviorHash` directly to `id`.
+   - Call `BehaviorDefinition.ParseParams(task.BehaviorParams, ref blackboard)`. (Note: use `ActionId` mappings accordingly!).
 4. Read the `LocomotionChannel.Status` state:
    - On `NodeStatus.Success` → Execute `AdvanceToNextTask()` 
    - On `NodeStatus.Failure` → Execute `MarkTaskFailed()`
@@ -92,7 +92,7 @@ Implementation must follow these exact steps (from design spec):
    - If there is no next task (mission complete), safely remove the `EntityMissionHolder` component.
 
 **Tests Required:**
-- ✅ `MissionAdapter_ResolvesDoctrineId()`: Test mapping `BehaviorId` to correct BT hash correctly.
+- ✅ `MissionAdapter_ResolvesBehaviorId()`: Test mapping `BehaviorId` to correct BT hash correctly.
 - ✅ `MissionAdapter_AdvancesTaskOnSuccess()`: Test node changing state automatically from Success -> Next Task pointer.
 - ✅ `MissionAdapter_MarksFailedOnChannelFailure()`: Test task failure handling.
 - ✅ Unknown strings warn safely.
@@ -129,7 +129,7 @@ For `JoinFormationExecutor`, create mock entities acting as the leader to test `
 
 ## 📊 Report Requirements
 
-**Q1 Doctrine Definition Access:** How did you find retrieving `DoctrineDefinition` from the integer Registry Hash? Were any methods missing from the toolkit?
+**Q1 Behavior Definition Access:** How did you find retrieving `BehaviorDefinition` from the integer Registry Hash? Were any methods missing from the toolkit?
 - **Q2 Component Read/Write:** Modifying nested items inside the `EntityMissionHolder.Mission.Plan.Tasks` list causes problems with C# mutating returned struct properties by value vs reference. How did you structure your writes to ensure it synchronized safely inside the ECS layer?
 - **Q3 Unknown Behaviors:** Could we mitigate unknown strings by mapping them to an 'Idle' command safely instead of logging warnings forever? What do you think about the error output spam?
 

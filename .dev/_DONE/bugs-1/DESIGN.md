@@ -243,7 +243,7 @@ measure. The update rate must be throttled (design talk specifies **10 Hz**).
 
 ## Phase 4 — Mission System Fixes
 
-### 4.1 Default `DoctrineFinished` Trigger on Task Creation
+### 4.1 Default `BehaviorFinished` Trigger on Task Creation
 
 **Files:** `Hrot.ExCon/Panels/MissionPanel.cs`
 
@@ -263,16 +263,16 @@ HandleAddTask() → Triggers = []
   → entity stops at waypoint 1, never continues
 ```
 
-**Fix:** Inject `DoctrineFinished` as the default trigger in `HandleAddTask()`:
+**Fix:** Inject `BehaviorFinished` as the default trigger in `HandleAddTask()`:
 
 ```csharp
-Triggers = new List<MissionTrigger> { new MissionTrigger { Type = "DoctrineFinished" } }
+Triggers = new List<MissionTrigger> { new MissionTrigger { Type = "BehaviorFinished" } }
 ```
 
-`DoctrineFinished` is the architecturally correct default. The backend pipeline already supports it:
-- `BTreeTickSystem` publishes `DoctrineFinishedEvent` when a behavior tree reaches a terminal state.
-- `MissionDirectorSystem` natively evaluates `EcsMissionTrigger.DoctrineFinished`.
-- `MissionControlRequestSystem` already parses the string `"DoctrineFinished"` from the DDS payload.
+`BehaviorFinished` is the architecturally correct default. The backend pipeline already supports it:
+- `BTreeTickSystem` publishes `BehaviorFinishedEvent` when a behavior tree reaches a terminal state.
+- `MissionDirectorSystem` natively evaluates `EcsMissionTrigger.BehaviorFinished`.
+- `MissionControlRequestSystem` already parses the string `"BehaviorFinished"` from the DDS payload.
 
 No SimHost-side changes are required.
 

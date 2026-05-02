@@ -106,7 +106,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Core.Tests", "Hrot\Eng
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.CGF", "Hrot\Subsystems\Hrot.CGF\Hrot.CGF.csproj", "{A0AE1288-C153-41B3-AFCB-DCFC29D72299}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.AI.Doctrines", "Hrot\Subsystems\Hrot.AI.Doctrines\Hrot.AI.Doctrines.csproj", "{B1C2D3E4-F5A6-7890-BCDE-F01234567890}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.AI.Behaviors", "Hrot\Subsystems\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj", "{B1C2D3E4-F5A6-7890-BCDE-F01234567890}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fhsm.Kernel", "FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj", "{643C8B65-F14C-481B-A651-FE0BE005651F}"
 EndProject

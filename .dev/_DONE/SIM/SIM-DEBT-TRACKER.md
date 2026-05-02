@@ -21,7 +21,7 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 |---|---|---|---|---|---|
 | SIM-DEBT-02 | P3 | `EntityMissionEgressTranslator` | Table-level dirty flag tracking causes minor over-scan evaluation if entity A is changed and entity B is not, triggering a read of both. | TBD | Open |
 | SIM-DEBT-03 | P2 | `EntityMissionTranslator` | Late-join race condition. Unknown entity IDs are safely silently skipped, but `EntityMission` data is dropped if it arrives before `EntityMaster`. | TBD | Open |
-| SIM-DEBT-04 | P3 | `MissionAdapterSystem` | Unregistered BehaviorId string logs warning continuously. Implement Idle fallback behavior (`SimHostDoctrineIds.Idle_HSM = 3010`) to prevent log-spam. | TBD | Open |
+| SIM-DEBT-04 | P3 | `MissionAdapterSystem` | Unregistered BehaviorId string logs warning continuously. Implement Idle fallback behavior (`SimHostBehaviorIds.Idle_HSM = 3010`) to prevent log-spam. | TBD | Open |
 | SIM-DEBT-05 | P2 | `VehicleAPI` | `VehicleAPI.JoinFormation` currently does not take a `FormationType` parameter. Implement the API overload to forward this correctly to `VehicleCommandSystem`. | TBD | Open |
 | SIM-DEBT-06 | P4 | `Program.cs` | Refactor the setup ordering sequence if `VehicleAPI` needs data loaded upstream. Create a factory pattern like `SimulationLogicModule.Build(IKernelServices)` to separate concerns and setup bounds gracefully. | TBD | Open |
 | SIM-DEBT-07 | P4 | `Integration.Tests` | Extract `MockIOSClient` and `SimHostInstance` into a reusable `DDS.TestMocks` library for broader test capability across component projects. | TBD | Open |

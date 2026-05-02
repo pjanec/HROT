@@ -178,7 +178,7 @@ class Program
 
         // Propagate configurable AI project path to the editor subsystem before Initialize().
         foreach (var sub in subsystems.OfType<Hrot.Editor.EditorSubsystem>())
-            sub.AiDoctrinesProjectPath = config.AiDoctrinesProjectPath;
+            sub.AiBehaviorsProjectPath = config.AiBehaviorsProjectPath;
 
         var options = new RunnerOptions
         {
@@ -409,10 +409,10 @@ class Program
             if (!assemblyName.StartsWith("Hrot.") && !assemblyName.StartsWith("Fdp."))
                 continue;
 
-            // ARCHITECTURE: Do not lock the AI doctrines assembly in the Default ALC.
-            // FbtAssemblyHotReloader loads Hrot.AI.Doctrines exclusively into a
+            // ARCHITECTURE: Do not lock the AI behaviors assembly in the Default ALC.
+            // FbtAssemblyHotReloader loads Hrot.AI.Behaviors exclusively into a
             // collectible ALC so it can be unloaded and reloaded at runtime.
-            if (assemblyName.Equals("Hrot.AI.Doctrines", StringComparison.OrdinalIgnoreCase))
+            if (assemblyName.Equals("Hrot.AI.Behaviors", StringComparison.OrdinalIgnoreCase))
                 continue;
 
             if (!loaded.Contains(assemblyName))

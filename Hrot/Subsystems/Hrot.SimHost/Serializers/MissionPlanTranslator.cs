@@ -29,13 +29,13 @@ namespace Hrot.SimHost.Serializers
     {
         private const string Key = "MissionPlan";
 
-        private readonly DoctrineRegistry _registry;
+        private readonly BehaviorRegistry _registry;
 
         // MissionPlan components store safe Network IDs, not volatile ECS Entity handles.
         // They must survive extraction so the genesis pipeline can remap and apply them.
         public bool IsExtractionSafe => true;
 
-        public MissionPlanTranslator(DoctrineRegistry registry)
+        public MissionPlanTranslator(BehaviorRegistry registry)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
@@ -125,7 +125,7 @@ namespace Hrot.SimHost.Serializers
             for (int i = 0; i < queue.PhaseCount; i++)
             {
                 var task = domainPlan.Tasks[i];
-                _registry.TryGetId(task.BehaviorId, out int doctrineId);
+                _registry.TryGetId(task.BehaviorName, out int behaviorId);
                 var hrotTriggers = task.Triggers?.ConvertAll(t => new Hrot.Core.Mission.MissionTrigger
                 {
                     Type   = t.Type,
@@ -135,7 +135,7 @@ namespace Hrot.SimHost.Serializers
 
                 phases[i] = new MissionPhase
                 {
-                    DoctrineId   = doctrineId,
+                    BehaviorId   = behaviorId,
                     Trigger      = trigger,
                     TriggerParam = triggerParam,
                 };

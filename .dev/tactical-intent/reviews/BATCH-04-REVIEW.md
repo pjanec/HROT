@@ -35,15 +35,15 @@ BATCH-04 delivers the final phase of the Tactical Intent Distribution System: a 
 - `ITacticalOrderMapper` interface correctly implemented.
 - `TkbEntityTypes.MilitaryApc` / `InfantrySoldier` — correct constants via `Hrot.Map.Common` namespace.
 - `HasComponent<TkbIdentity>` guard before reading component — correct defensive pattern.
-- `assignment = null!` default with early returns — matches pattern; `AssignDoctrineEvent` is a class so `null!` is safe.
-- `DoctrineName` field name used correctly (verified against event class).
+- `assignment = null!` default with early returns — matches pattern; `AssignBehaviorEvent` is a class so `null!` is safe.
+- `BehaviorName` field name used correctly (verified against event class).
 
 ### CgfSubsystem.cs
 - `mapperRegistry.Register(new DefendAreaMapper())` added before passing to `CgfLogicPack` — correct composition root wiring.
 
 ### Project References
-- `Hrot.AI.Doctrines.csproj` → `Hrot.Core`: required for `TkbEntityTypes` constants. No circular dependency.
-- `Hrot.CGF.csproj` → `Hrot.AI.Doctrines`: appropriate since CGF is the Brain-tier bundle that owns mapper registration.
+- `Hrot.AI.Behaviors.csproj` → `Hrot.Core`: required for `TkbEntityTypes` constants. No circular dependency.
+- `Hrot.CGF.csproj` → `Hrot.AI.Behaviors`: appropriate since CGF is the Brain-tier bundle that owns mapper registration.
 
 ---
 
@@ -66,7 +66,7 @@ All 11 tasks of the Tactical Intent Distribution System are now implemented and 
 2. `ITacticalOrderMapper` + registry (TI002)
 3. `TacticalIntentResolutionSystem` (TI003)
 4. `MissionAdapterSystem` emits tactical intents (TI004)
-5. `DoctrineCategory.Commander` flag (TI005)
+5. `BehaviorCategory.Commander` flag (TI005)
 6. `DefendAreaIntentDto` example (TI006)
 7. `TacticalIntentRequest` DDS struct (TI007)
 8. `TacticalIntentEgressTranslator` (TI008)

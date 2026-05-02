@@ -57,7 +57,7 @@ Here is the exact breakdown of what is happening:
 
 **Why your IOS fix worked (and why this is different):** You correctly observed that for IOS-spawned entities, you had to send a `MoveToLocation` mission plan to stop the brain pipeline from overwriting the navigation intent. That diagnosis is perfectly accurate _for fully networked entities_. IOS entities are spawned via `SpawnEntityCommand`, which routes through the `NetworkSpawningSystem` and fully applies the TKB blueprints. If those blueprints include active default brains (like the `TrafficBrainSystem` for civilians), they will run every frame, emit a `NavigationIntent`, and the `NavigationIntentBridgeSystem` will constantly overwrite any manual `NavState` legacy commands. Sending a `CMD_REPLACE_MISSION` correctly preempts the brain.
 
-However, `SpawnEntityLocal` bypasses the TKB entirely. It never attaches `DoctrineState`, `LocomotionChannel`, or `NavigationIntent` to the entities. Because `NavigationIntent` is completely absent, the `NavigationIntentBridgeSystem` skips them entirely. The behavior system is physically incapable of overwriting their intent—they just lack the ownership required to be simulated by the muscle layer.
+However, `SpawnEntityLocal` bypasses the TKB entirely. It never attaches `BehaviorState`, `LocomotionChannel`, or `NavigationIntent` to the entities. Because `NavigationIntent` is completely absent, the `NavigationIntentBridgeSystem` skips them entirely. The behavior system is physically incapable of overwriting their intent—they just lack the ownership required to be simulated by the muscle layer.
 
 **How to Fix This:** You need to update `SimHostScenarioManager` so that `SpawnRoamers`, `SpawnRoadUsers`, and `SpawnCollisionTest` stop using `SpawnEntityLocal`.
 
@@ -81,11 +81,11 @@ In `SimHostVisualization.cs`, the right-click handler creates a `MissionTask` fo
 
 Bug 2: The Missing Terminal Idle State
 
-Even if you fix the trigger, the right-click logic only sends a **single-task** mission plan. When the `MissionDirectorSystem` completes the final task in a plan, it simply stops evaluating. Because there is no next phase, the entity's `DoctrineState` remains stuck on `MoveToLocation_BT`, keeping the intent alive.
+Even if you fix the trigger, the right-click logic only sends a **single-task** mission plan. When the `MissionDirectorSystem` completes the final task in a plan, it simply stops evaluating. Because there is no next phase, the entity's `BehaviorState` remains stuck on `MoveToLocation_BT`, keeping the intent alive.
 
 Bug 3: The Orphaned Intent (Channel Arbitration Bug)
 
-If you append an `Idle` task to the mission plan, the doctrine will change. When a doctrine changes, `ChannelArbitrationSystem` correctly detects the mismatch and clears the channel using `channel = default;`. However, wiping the struct to `default` sets both `ActionInstanceId = 0` and `DispatchedInstanceId = 0`. On the very next tick, `LocomotionDispatcherSystem` evaluates `0 != 0` as `false`, which **completely bypasses the** **OnExit** **lifecycle method**. Because `MoveToExecutor.OnExit` is never called, the `NavigationIntent` is never reverted to `NavigationMode.None`. The muscle layer is permanently orphaned and continues executing the old command forever.
+If you append an `Idle` task to the mission plan, the behavior will change. When a behavior changes, `ChannelArbitrationSystem` correctly detects the mismatch and clears the channel using `channel = default;`. However, wiping the struct to `default` sets both `ActionInstanceId = 0` and `DispatchedInstanceId = 0`. On the very next tick, `LocomotionDispatcherSystem` evaluates `0 != 0` as `false`, which **completely bypasses the** **OnExit** **lifecycle method**. Because `MoveToExecutor.OnExit` is never called, the `NavigationIntent` is never reverted to `NavigationMode.None`. The muscle layer is permanently orphaned and continues executing the old command forever.
 
 \--------------------------------------------------------------------------------
 
@@ -96,14 +96,14 @@ How to Fix It
 Update the Locomotion, Weapon, and Interaction channel blocks to look like this:
 
 ```
-if (channel.ActiveAction != 0 && channel.DoctrineInstanceId != doctrine.InstanceId)
+if (channel.ActiveAction != 0 && channel.BehaviorInstanceId != behavior.InstanceId)
 {
     channel.ActiveAction = 0;
     unchecked { channel.ActionInstanceId++; } // Forces dispatcher to call OnExit
 }
 ```
 
-**2\. Fix the Right-Click Mission Plan in** **SimHostVisualization** Open `Hrot.SimHost/SimHostVisualization.cs`. In the `OnWorldClick` handler where the right-click mission is generated, you need to add the `ReachedDestination` trigger and append an `Idle` task so the doctrine cleanly resets.
+**2\. Fix the Right-Click Mission Plan in** **SimHostVisualization** Open `Hrot.SimHost/SimHostVisualization.cs`. In the `OnWorldClick` handler where the right-click mission is generated, you need to add the `ReachedDestination` trigger and append an `Idle` task so the behavior cleanly resets.
 
 Replace the task generation block with this:
 
@@ -143,11 +143,11 @@ var plan = new MissionPlan
 };
 ```
 
-With these fixes, the vehicle will reach the destination, trigger the phase advancement, switch to the `Idle` doctrine, correctly invoke `MoveToExecutor.OnExit`, clear the `NavigationIntent`, and come to a smooth, permanent stop.
+With these fixes, the vehicle will reach the destination, trigger the phase advancement, switch to the `Idle` behavior, correctly invoke `MoveToExecutor.OnExit`, clear the `NavigationIntent`, and come to a smooth, permanent stop.
 
-I do not want any explicit Idle task - i thinks it is a wrong solution to another problem. If the doctrine (behavior) finishes, the task should be marked finished and if there is no other task started via trigger, the entity should have no specific doctrine, meaning nothing is stimulating any channel. I also need a way how to clear the doctrine on the entity, so it enters the no-doctrine state, executing no behavior, stimulating no channels, basically doing nothing special (like in case of 'brain death'). If i need the entity to start executing some idle behavior, we can assign en entity-specific "Idle" doctrine or something which mest be overwritten by each newly triggered task (each new incoming doctrine request)
+I do not want any explicit Idle task - i thinks it is a wrong solution to another problem. If the behavior (behavior) finishes, the task should be marked finished and if there is no other task started via trigger, the entity should have no specific behavior, meaning nothing is stimulating any channel. I also need a way how to clear the behavior on the entity, so it enters the no-behavior state, executing no behavior, stimulating no channels, basically doing nothing special (like in case of 'brain death'). If i need the entity to start executing some idle behavior, we can assign en entity-specific "Idle" behavior or something which mest be overwritten by each newly triggered task (each new incoming behavior request)
 
-Your architectural reasoning is absolutely correct. Relying on an explicit "Idle" task is a workaround. A completed mission or an aborted plan should naturally drop the entity into a "no-doctrine" state (represented by `DoctrineIds.None = 0`), which should cleanly shut down all active channels.
+Your architectural reasoning is absolutely correct. Relying on an explicit "Idle" task is a workaround. A completed mission or an aborted plan should naturally drop the entity into a "no-behavior" state (represented by `BehaviorIds.None = 0`), which should cleanly shut down all active channels.
 
 The reason the entity stays stuck executing its last behavior is due to an omission in how your mission and command systems handle the end-of-plan state.
 
@@ -155,9 +155,9 @@ Here is exactly how to fix the systems so the entity enters the "brain death" st
 
 1\. Fix the End-of-Mission Transition (`MissionDirectorSystem`)
 
-Currently, when `MissionDirectorSystem` detects that a trigger has fired and the mission is over (`CurrentPhase >= PhaseCount`), it simply skips assigning a new doctrine. Because it does nothing, the `DoctrineState` permanently retains the _last_ executing doctrine (e.g., `MoveToLocation`), keeping the muscle layer permanently stimulated.
+Currently, when `MissionDirectorSystem` detects that a trigger has fired and the mission is over (`CurrentPhase >= PhaseCount`), it simply skips assigning a new behavior. Because it does nothing, the `BehaviorState` permanently retains the _last_ executing behavior (e.g., `MoveToLocation`), keeping the muscle layer permanently stimulated.
 
-To fix this, we need to explicitly assign the "no-doctrine" state when the queue runs out.
+To fix this, we need to explicitly assign the "no-behavior" state when the queue runs out.
 
 Open `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs` and update the phase transition block:
 
@@ -167,26 +167,26 @@ if (triggered)
     queue.CurrentPhase++;
     queue.PhaseElapsedSeconds = 0f;
 
-    // Load the next phase's doctrine if there is one.
+    // Load the next phase's behavior if there is one.
     if (queue.CurrentPhase < queue.PhaseCount)
     {
-        unchecked { doctrine.InstanceId++; }
-        doctrine.ActiveDoctrineHash = phases[queue.CurrentPhase].DoctrineId;
+        unchecked { behavior.InstanceId++; }
+        behavior.ActiveBehaviorHash = phases[queue.CurrentPhase].BehaviorId;
     }
     else
     {
-        // FIX: Mission is completely finished. Transition to "no doctrine".
-        unchecked { doctrine.InstanceId++; }
-        doctrine.ActiveDoctrineHash = DoctrineIds.None; // 0
+        // FIX: Mission is completely finished. Transition to "no behavior".
+        unchecked { behavior.InstanceId++; }
+        behavior.ActiveBehaviorHash = BehaviorIds.None; // 0
     }
 }
 ```
 
-2\. Fix Explicit Doctrine Clearing (`MissionControlRequestSystem`)
+2\. Fix Explicit Behavior Clearing (`MissionControlRequestSystem`)
 
-When you need to manually clear the doctrine (e.g., clicking "ABORT" from the IOS), the system sends a `CMD_ABORT_ALL` command. Currently, `MissionControlRequestSystem` wipes the `MissionPlanQueue` to 0, but it completely forgets to wipe the `DoctrineState`.
+When you need to manually clear the behavior (e.g., clicking "ABORT" from the IOS), the system sends a `CMD_ABORT_ALL` command. Currently, `MissionControlRequestSystem` wipes the `MissionPlanQueue` to 0, but it completely forgets to wipe the `BehaviorState`.
 
-Open `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` and add the doctrine wipe to the `CMD_ABORT_ALL` block:
+Open `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` and add the behavior wipe to the `CMD_ABORT_ALL` block:
 
 ```
 case eMissionCommandType.CMD_ABORT_ALL:
@@ -200,12 +200,12 @@ case eMissionCommandType.CMD_ABORT_ALL:
     repo.SetComponent(entity, abortQueue);
     repo.RemoveComponent<Hrot.SimHost.Components.EntityMissionHolder>(entity);
 
-    // FIX: Explicitly wipe the doctrine state so the entity goes "brain dead"
-    if (repo.HasComponent<DoctrineState>(entity))
+    // FIX: Explicitly wipe the behavior state so the entity goes "brain dead"
+    if (repo.HasComponent<BehaviorState>(entity))
     {
-        ref var doc = ref repo.GetComponentRW<DoctrineState>(entity);
+        ref var doc = ref repo.GetComponentRW<BehaviorState>(entity);
         unchecked { doc.InstanceId++; }
-        doc.ActiveDoctrineHash = FDP.Toolkit.Behavior.DoctrineIds.None; // 0
+        doc.ActiveBehaviorHash = FDP.Toolkit.Behavior.BehaviorIds.None; // 0
     }
 
     _taskOrder[request.TargetEntityId] = new List<Guid>();
@@ -222,7 +222,7 @@ Why this works perfectly now
 
 With these two fixes (and assuming you applied the `ChannelArbitrationSystem` fix from earlier), the lifecycle will now correctly resolve itself:
 
--   The `MissionDirectorSystem` (or the Abort command) sets `ActiveDoctrineHash` to `0` and bumps the `InstanceId`.-   The `ChannelArbitrationSystem` detects the mismatch, zeroes the `ActiveAction` in the `LocomotionChannel`, and bumps the `ActionInstanceId`.-   The `LocomotionDispatcherSystem` detects the action change and fires `OnExit` for the outgoing behavior.-   `MoveToExecutor.OnExit` runs, resetting the `NavigationIntent` to `NavigationMode.None`.-   The muscle layer sees `NavigationMode.None`, stops steering, and the vehicle comes to a complete, permanent stop.
+-   The `MissionDirectorSystem` (or the Abort command) sets `ActiveBehaviorHash` to `0` and bumps the `InstanceId`.-   The `ChannelArbitrationSystem` detects the mismatch, zeroes the `ActiveAction` in the `LocomotionChannel`, and bumps the `ActionInstanceId`.-   The `LocomotionDispatcherSystem` detects the action change and fires `OnExit` for the outgoing behavior.-   `MoveToExecutor.OnExit` runs, resetting the `NavigationIntent` to `NavigationMode.None`.-   The muscle layer sees `NavigationMode.None`, stops steering, and the vehicle comes to a complete, permanent stop.
 
 No RVO avoidance . after implementing teh Navigation state split into Navigation Intent and the 'muscle', Vehicle on simhost entities no longer avoid each other. For example the "Collision test".
 
@@ -410,13 +410,13 @@ _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
 
 This completely resolves the conflict. Shift+Right-clicks will now generate sequential multi-phase missions that the BTree executor will naturally advance through as each destination is reached.
 
-Well - although adding task to mission is an alternative, i would rather do the following: if there is no doctrine (brain death mode), this Shift+Right click was working like before, talking directly to the muscle (just for the sake of restoring the old functionality which was 'broken' by the introduction of the NacitationIntention split and the behaviros. It shouold be possible as under brain-death conditions there should be no coflict, correct?
+Well - although adding task to mission is an alternative, i would rather do the following: if there is no behavior (brain death mode), this Shift+Right click was working like before, talking directly to the muscle (just for the sake of restoring the old functionality which was 'broken' by the introduction of the NacitationIntention split and the behaviros. It shouold be possible as under brain-death conditions there should be no coflict, correct?
 
 You are absolutely correct in your reasoning.
 
-Under "brain death" conditions (where the entity has no active doctrine), there is no conflict between the brain and the muscle. This is because the **NavigationIntentBridgeSystem** **explicitly skips entities whose** **NavigationIntent.Mode** **is** **None**. If the brain is inactive, it stops projecting a `NavigationIntent`, which leaves the muscle layer's `NavState` completely free to be manipulated by direct legacy commands like your `_scenario.AddWaypoint()`.
+Under "brain death" conditions (where the entity has no active behavior), there is no conflict between the brain and the muscle. This is because the **NavigationIntentBridgeSystem** **explicitly skips entities whose** **NavigationIntent.Mode** **is** **None**. If the brain is inactive, it stops projecting a `NavigationIntent`, which leaves the muscle layer's `NavState` completely free to be manipulated by direct legacy commands like your `_scenario.AddWaypoint()`.
 
-You can easily restore the old functionality by adding a simple branching check in your `SimHostVisualization` right-click handler. If the entity has no active doctrine, you bypass the mission system and talk directly to the muscle.
+You can easily restore the old functionality by adding a simple branching check in your `SimHostVisualization` right-click handler. If the entity has no active behavior, you bypass the mission system and talk directly to the muscle.
 
 Here is how you can update the `_interactionTool.OnWorldClick` handler in `Hrot.SimHost/SimHostVisualization.cs` to achieve exactly this:
 
@@ -433,11 +433,11 @@ _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
 
         // 1. Check if the entity is in "brain death" mode
         bool isBrainDead = true;
-        if (repo.HasComponent<DoctrineState>(e))
+        if (repo.HasComponent<BehaviorState>(e))
         {
-            var doctrine = repo.GetComponentRO<DoctrineState>(e);
-            // DoctrineIds.None == 0
-            isBrainDead = doctrine.ActiveDoctrineHash == FDP.Toolkit.Behavior.DoctrineIds.None; 
+            var behavior = repo.GetComponentRO<BehaviorState>(e);
+            // BehaviorIds.None == 0
+            isBrainDead = behavior.ActiveBehaviorHash == FDP.Toolkit.Behavior.BehaviorIds.None; 
         }
 
         // 2. Branch based on brain state
@@ -501,23 +501,23 @@ _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
 };
 ```
 
-**Why this is a solid solution:** By checking `doctrine.ActiveDoctrineHash == DoctrineIds.None`, you cleanly support both paradigms. Your "Collision test" vehicles (which lack behaviors) and your aborted/brain-dead networked entities will immediately use the legacy spline-drawing `_scenario.AddWaypoint()` logic, while fully active AI units will continue to receive properly formatted mission updates.
+**Why this is a solid solution:** By checking `behavior.ActiveBehaviorHash == BehaviorIds.None`, you cleanly support both paradigms. Your "Collision test" vehicles (which lack behaviors) and your aborted/brain-dead networked entities will immediately use the legacy spline-drawing `_scenario.AddWaypoint()` logic, while fully active AI units will continue to receive properly formatted mission updates.
 
 
 
 
 ---------------------
-the clear-droctrine should be similar kindof command/event as the one for setting a doctrine - i think there is some internal fdp event for assigning a doctrine, so it should complemented with some cancel or clear one. it shoudl not be tied directly toa high level CMD\_ABORT\_ALL as this is different (higher) layer of control - the mission level.
+the clear-droctrine should be similar kindof command/event as the one for setting a behavior - i think there is some internal fdp event for assigning a behavior, so it should complemented with some cancel or clear one. it shoudl not be tied directly toa high level CMD\_ABORT\_ALL as this is different (higher) layer of control - the mission level.
 
-You are absolutely right. Architecturally, the mission layer (`MissionDirectorSystem` and `MissionControlRequestSystem`) should not be directly micromanaging the `DoctrineState` components. That violates the separation of concerns between the Mission tier and the Cognitive/Behavior tier.
+You are absolutely right. Architecturally, the mission layer (`MissionDirectorSystem` and `MissionControlRequestSystem`) should not be directly micromanaging the `BehaviorState` components. That violates the separation of concerns between the Mission tier and the Cognitive/Behavior tier.
 
-The internal FDP event you are thinking of is **AssignDoctrineEvent**, which is consumed by the **DoctrineIngressSystem**. To implement this cleanly, we should introduce a complementary **ClearDoctrineEvent** that the `DoctrineIngressSystem` can handle, allowing any higher-level system to request a "brain death" state through the proper channels.
+The internal FDP event you are thinking of is **AssignBehaviorEvent**, which is consumed by the **BehaviorIngressSystem**. To implement this cleanly, we should introduce a complementary **ClearBehaviorEvent** that the `BehaviorIngressSystem` can handle, allowing any higher-level system to request a "brain death" state through the proper channels.
 
 Here is how to implement the clean, event-driven approach:
 
-1\. Create the `ClearDoctrineEvent`
+1\. Create the `ClearBehaviorEvent`
 
-Create a new managed event class mirroring `AssignDoctrineEvent` in `FDP/Toolkits/FDP.Toolkit.Behavior/Events/ClearDoctrineEvent.cs`:
+Create a new managed event class mirroring `AssignBehaviorEvent` in `FDP/Toolkits/FDP.Toolkit.Behavior/Events/ClearBehaviorEvent.cs`:
 
 ```
 using Fdp.Kernel;
@@ -525,39 +525,39 @@ using Fdp.Kernel;
 namespace FDP.Toolkit.Behavior.Events
 {
     /// <summary>
-    /// Managed event that requests the removal of any active doctrine from an entity,
+    /// Managed event that requests the removal of any active behavior from an entity,
     /// placing it into a "brain dead" / idle state.
-    /// Consumed synchronously by DoctrineIngressSystem.
+    /// Consumed synchronously by BehaviorIngressSystem.
     /// </summary>
-    public sealed class ClearDoctrineEvent
+    public sealed class ClearBehaviorEvent
     {
         public Entity Entity;
     }
 }
 ```
 
-2\. Update `DoctrineIngressSystem` to Handle the Clear Event
+2\. Update `BehaviorIngressSystem` to Handle the Clear Event
 
-Open `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs` and update the `OnUpdate` method to consume and process the new clear events alongside the assign events:
+Open `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs` and update the `OnUpdate` method to consume and process the new clear events alongside the assign events:
 
 ```
 protected override unsafe void OnUpdate()
 {
-    // ... existing AssignDoctrineEvent logic ...
+    // ... existing AssignBehaviorEvent logic ...
 
-    // ── Process ClearDoctrineEvents ──────────────────────────────────────
-    var clearEvents = World.Bus.ConsumeManaged<ClearDoctrineEvent>();
+    // ── Process ClearBehaviorEvents ──────────────────────────────────────
+    var clearEvents = World.Bus.ConsumeManaged<ClearBehaviorEvent>();
     foreach (var evt in clearEvents)
     {
         if (evt == null) continue;
-        if (!World.HasComponent<DoctrineState>(evt.Entity)) continue;
+        if (!World.HasComponent<BehaviorState>(evt.Entity)) continue;
 
-        ref var doctrine = ref World.GetComponentRW<DoctrineState>(evt.Entity);
+        ref var behavior = ref World.GetComponentRW<BehaviorState>(evt.Entity);
         
-        // Wipe the active doctrine
-        doctrine.ActiveDoctrineHash = DoctrineIds.None; // 0
-        unchecked { doctrine.InstanceId++; }            // Bump token to trigger channel arbitration preemption
-        doctrine.BrainTier = 0;                         // Reset tier
+        // Wipe the active behavior
+        behavior.ActiveBehaviorHash = BehaviorIds.None; // 0
+        unchecked { behavior.InstanceId++; }            // Bump token to trigger channel arbitration preemption
+        behavior.BrainTier = 0;                         // Reset tier
 
         // Reset BTree execution pointer if it exists
         if (World.HasComponent<BrainBTreeState>(evt.Entity))
@@ -571,7 +571,7 @@ protected override unsafe void OnUpdate()
 
 3\. Dispatch the Event from the Mission Layer
 
-Now you can revert the explicit `DoctrineState` manipulation I suggested earlier, and replace it with publishing this new event.
+Now you can revert the explicit `BehaviorState` manipulation I suggested earlier, and replace it with publishing this new event.
 
 **For** **MissionDirectorSystem** **(When a mission finishes naturally):** Open `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs` and update the phase transition block:
 
@@ -579,13 +579,13 @@ Now you can revert the explicit `DoctrineState` manipulation I suggested earlier
     // ... inside phase transition ...
     if (queue.CurrentPhase < queue.PhaseCount)
     {
-        unchecked { doctrine.InstanceId++; }
-        doctrine.ActiveDoctrineHash = phases[queue.CurrentPhase].DoctrineId;
+        unchecked { behavior.InstanceId++; }
+        behavior.ActiveBehaviorHash = phases[queue.CurrentPhase].BehaviorId;
     }
     else
     {
         // Mission is completely finished. Publish event to clear the brain.
-        World.Bus.PublishManaged(new FDP.Toolkit.Behavior.Events.ClearDoctrineEvent { Entity = entity });
+        World.Bus.PublishManaged(new FDP.Toolkit.Behavior.Events.ClearBehaviorEvent { Entity = entity });
     }
 ```
 
@@ -603,8 +603,8 @@ case eMissionCommandType.CMD_ABORT_ALL:
     repo.SetComponent(entity, abortQueue);
     repo.RemoveComponent<Hrot.SimHost.Components.EntityMissionHolder>(entity);
 
-    // Properly instruct the cognitive layer to clear the doctrine
-    repo.Bus.PublishManaged(new FDP.Toolkit.Behavior.Events.ClearDoctrineEvent { Entity = entity });
+    // Properly instruct the cognitive layer to clear the behavior
+    repo.Bus.PublishManaged(new FDP.Toolkit.Behavior.Events.ClearBehaviorEvent { Entity = entity });
     
     _taskOrder[request.TargetEntityId] = new List<Guid>();
     
@@ -616,7 +616,7 @@ case eMissionCommandType.CMD_ABORT_ALL:
 }
 ```
 
-This properly adheres to the FDP architecture: the Mission systems maintain the `MissionPlanQueue`, and when they dictate a behavioral change (or cessation), they emit an event that the `DoctrineIngressSystem` translates into actual `DoctrineState` and `BrainBTreeState` resets. The `ChannelArbitrationSystem` will then cleanly shut down the locomotion muscle.
+This properly adheres to the FDP architecture: the Mission systems maintain the `MissionPlanQueue`, and when they dictate a behavioral change (or cessation), they emit an event that the `BehaviorIngressSystem` translates into actual `BehaviorState` and `BrainBTreeState` resets. The `ChannelArbitrationSystem` will then cleanly shut down the locomotion muscle.
 
 \[BUG\] DisType in badira sst entity master DDS topic struct is represented a plain long. It should be a @final structure with fields (kind, country etc, all 8 fields 1 byte each) to be easily readable in DDS monitoring tool. Inside the engine in the entity header the DIS type should be stores as FDP-specific fixed-layout memory struct (different from the DDS type as FDP should not be dependent on any project-specific DDS network) (for easy display during debug). But for quick filtering it might support fast comparison in the entity queries using the struct cast to long or something performance effective.
 

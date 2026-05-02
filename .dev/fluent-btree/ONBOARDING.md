@@ -8,7 +8,7 @@ with a Roslyn source generator, hot reload, and rich debug visualization.
 
 ## 1. What This Workstream Does
 
-FastBTree doctrines are currently defined as raw JSON strings embedded in C# source files
+FastBTree behaviors are currently defined as raw JSON strings embedded in C# source files
 (see `Hrot/Subsystems/Hrot.CGF/CgfNodes.cs`). This workstream replaces that with:
 
 1. **`Fbt.Compiler`** — A fluent C# builder API (`BTreeBuilder<TBlackboard>`) that constructs
@@ -57,7 +57,7 @@ FDP/Engine/Fdp.Presentation/
   ImGui/Utils/ComponentReflector.cs  [MODIFY] Dispatch extended renderer
 
 FDP/Toolkits/Fdp.Toolkits/
-  Behavior/DoctrineRegistry.cs       [MODIFY] Add ParamsDtoType to DoctrineDefinition
+  Behavior/BehaviorRegistry.cs       [MODIFY] Add ParamsDtoType to BehaviorDefinition
 
 Hrot/Engine/Hrot.Presentation/
   Behavior/BrainBlackboardRenderer.cs  [NEW]
@@ -73,10 +73,10 @@ Hrot/Engine/Hrot.Presentation/
 | `BehaviorTreeBlob` | `Fbt.Kernel` | Immutable compiled tree; shared across all entities |
 | `BehaviorTreeState` | `Fbt.Kernel` | 64-byte per-entity runtime state |
 | `BrainBTreeState` | `Fdp.Toolkits` | Wraps `BehaviorTreeState`; lives in ECS |
-| `BrainBlackboard` | `Fdp.Toolkits` | `fixed byte Memory[128]`; doctrine params |
-| `DoctrineState` | `Fdp.Toolkits` | `ActiveDoctrineHash`, `InstanceId`, `BrainTier` |
-| `DoctrineDefinition` | `Fdp.Toolkits` | Named doctrine with BTree and HSM interpreters |
-| `DoctrineRegistry` | `Fdp.Toolkits` | Startup registry mapping int hashes to definitions |
+| `BrainBlackboard` | `Fdp.Toolkits` | `fixed byte Memory[128]`; behavior params |
+| `BehaviorState` | `Fdp.Toolkits` | `ActiveBehaviorHash`, `InstanceId`, `BrainTier` |
+| `BehaviorDefinition` | `Fdp.Toolkits` | Named behavior with BTree and HSM interpreters |
+| `BehaviorRegistry` | `Fdp.Toolkits` | Startup registry mapping int hashes to definitions |
 | `TreeCompiler` | `Fbt.Kernel` | Compiles JSON or BuilderNode DOM to blob |
 | `BuilderNode` | `Fbt.Kernel` | Intermediate DOM node |
 | `Interpreter<TBB, TCtx>` | `Fbt.Kernel` | Executes a blob against entity state |
@@ -195,6 +195,6 @@ everything above.
 | Existing renderer registry | `FDP/Engine/Fdp.Presentation/ImGui/Renderers/ImGuiRendererRegistry.cs` |
 | Existing component reflector | `FDP/Engine/Fdp.Presentation/ImGui/Utils/ComponentReflector.cs` |
 | CGF JSON strings (to be replaced) | `Hrot/Subsystems/Hrot.CGF/CgfNodes.cs` |
-| CGF doctrine setup (to be replaced) | `Hrot/Subsystems/Hrot.CGF/CgfDoctrineSetup.cs` |
-| DoctrineRegistry | `FDP/Toolkits/Fdp.Toolkits/Behavior/DoctrineRegistry.cs` |
+| CGF behavior setup (to be replaced) | `Hrot/Subsystems/Hrot.CGF/CgfBehaviorSetup.cs` |
+| BehaviorRegistry | `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorRegistry.cs` |
 | BrainBlackboard | `FDP/Toolkits/Fdp.Toolkits/Behavior/BrainBlackboard.cs` |

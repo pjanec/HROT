@@ -54,7 +54,7 @@ Work task-by-task. Fix compile errors immediately. Do not stop and ask — work 
 **The TASK-DETAIL mentions `world.RegisterManagedEvent<T>()`. This method does NOT exist** on  
 `EntityRepository`. Managed events (classes, not structs) in the FDP kernel work via  
 `Bus.PublishManaged<T>(evt)` / `Bus.ConsumeManaged<T>()` **without any pre-registration**.  
-See `AssignDoctrineEvent` (a sealed class with no `[EventId]`, no registration) as the reference pattern.
+See `AssignBehaviorEvent` (a sealed class with no `[EventId]`, no registration) as the reference pattern.
 
 **Therefore:**
 - `SpawnZoneObstacleCommand` and `UpdateZoneConfigCommand` are **managed events** (classes with `string` fields)
@@ -324,7 +324,7 @@ in a CGF or Editor simulation context throw at runtime?
 - **Design:** `.dev/edit-1/DESIGN.md` §Phase 3
 - **Existing EventId constants:** `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorConstants.cs`
 - **Existing Perception constants:** `FDP/Toolkits/FDP.Toolkit.Perception/PerceptionConstants.cs`
-- **Existing unmanaged event pattern:** `FDP/Toolkits/FDP.Toolkit.Behavior/Events/AssignDoctrineHashEvent.cs`
-- **Existing managed event pattern:** `FDP/Toolkits/FDP.Toolkit.Behavior/Events/AssignDoctrineEvent.cs` (no [EventId], no registration)
+- **Existing unmanaged event pattern:** `FDP/Toolkits/FDP.Toolkit.Behavior/Events/AssignBehaviorHashEvent.cs`
+- **Existing managed event pattern:** `FDP/Toolkits/FDP.Toolkit.Behavior/Events/AssignBehaviorEvent.cs` (no [EventId], no registration)
 - **Registration pattern:** `Hrot.SimHost/CognitiveComponentRegistry.cs`, `Hrot.SimHost/CombatComponentRegistry.cs`
 - **Test project:** `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/`, `Hrot.Map.Common.Tests/`, `Hrot.SimHost.Tests/`

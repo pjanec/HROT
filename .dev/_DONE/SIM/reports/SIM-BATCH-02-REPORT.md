@@ -20,7 +20,7 @@ Wired `FDP.Toolkit.Behavior` and `FDP.Toolkit.Navigation` systems into a new `Si
 
 | File | Description |
 |------|-------------|
-| `Hrot.SimHost/Modules/SimulationLogicModule.cs` | Core module; constructor accepts `DoctrineRegistry` + `NetworkEntityMap`; `RegisterSystems(SystemGroup)` registers all 9 systems in strict spec order |
+| `Hrot.SimHost/Modules/SimulationLogicModule.cs` | Core module; constructor accepts `BehaviorRegistry` + `NetworkEntityMap`; `RegisterSystems(SystemGroup)` registers all 9 systems in strict spec order |
 | `Hrot.SimHost/Systems/MissionAdapterSystem.cs` | Empty `ComponentSystem` stub — full implementation deferred to TASK-S4.3 |
 | `Hrot.SimHost/Systems/JoinFormationExecutor.cs` | `IActionExecutor<LocomotionChannel>` stub — full implementation deferred to TASK-S4.4 |
 | `Hrot.SimHost.Tests/SimulationLogicModuleTests.cs` | 2 xUnit tests verifying empty-world topology and `LinearKinematicsSystem` presence |
@@ -36,9 +36,9 @@ Wired `FDP.Toolkit.Behavior` and `FDP.Toolkit.Navigation` systems into a new `Si
 
 ## System Registration Order (as implemented)
 
-1. `MissionAdapterSystem(_doctrineRegistry, _entityMap)` — stub, S4.3
+1. `MissionAdapterSystem(_behaviorRegistry, _entityMap)` — stub, S4.3
 2. `ChannelArbitrationSystem()` — preempts stale channels
-3. `BTreeTickSystem(_doctrineRegistry)` — zero-alloc BTree tick
+3. `BTreeTickSystem(_behaviorRegistry)` — zero-alloc BTree tick
 4. `LocomotionDispatcherSystem()` + `MoveToExecutor` + `FollowRouteExecutor` (executors); `JoinFormationExecutor` commented-out stub (S4.4)
 5. `SpatialHashSystem()` — builds spatial grid each frame
 6. `FormationTargetSystem(_formationTemplateManager, _trajectoryPool)` — formation slot targets
@@ -72,7 +72,7 @@ Not yet — 9 systems is still manageable in a single `RegisterSystems` method. 
 
 **Q3 Stubs:** Which specific empty stubs did you have to create?
 
-- **`MissionAdapterSystem`**: Created as a `ComponentSystem` subclass with a `DoctrineRegistry` + `NetworkEntityMap` constructor and an empty `OnUpdate()`. Marked `[UpdateInGroup(typeof(SimulationSystemGroup))]`. No queries, no component access.
+- **`MissionAdapterSystem`**: Created as a `ComponentSystem` subclass with a `BehaviorRegistry` + `NetworkEntityMap` constructor and an empty `OnUpdate()`. Marked `[UpdateInGroup(typeof(SimulationSystemGroup))]`. No queries, no component access.
 
 - **`JoinFormationExecutor`**: Created as a `sealed class` implementing `IActionExecutor<LocomotionChannel>` with `VehicleAPI?` + `NetworkEntityMap` constructor. All three interface methods (`OnEnter`, `Execute`, `OnExit`) are no-ops. Its registration in `LocomotionDispatcherSystem` is left commented out pending `ActionIdJoinFormation` constant definition in `NavigationConstants` (S4.4).
 

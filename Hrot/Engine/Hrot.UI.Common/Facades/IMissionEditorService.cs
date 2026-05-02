@@ -11,7 +11,7 @@ namespace Hrot.UI.Common.Facades;
 public interface IMissionEditorService
 {
     /// <summary>
-    /// Returns the available behaviour names for the given entity, filtered to doctrines
+    /// Returns the available behaviour names for the given entity, filtered to behaviors
     /// that are both registered in the live engine and valid for the entity's TKB type.
     /// </summary>
     /// <param name="entityId">The network entity ID.</param>

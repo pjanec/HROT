@@ -145,7 +145,7 @@ When I removed `using Hrot.SimHost.Network;` from `NavigationTranslatorTests.cs`
 
 2. **`NedReplicationModule.cs` uses `Hrot.SimHost.NodeBootstrapper` and `Hrot.SimHost` for types**. Actually checking the actual module code more carefully, the module itself does NOT reference NodeBootstrapper. The `using Hrot.SimHost;` line is for `NodeRole` — but `NodeRole` is actually in `Hrot.Common`. So after Stage 2, removing `using Hrot.SimHost;` may be straightforward once the remaining network packs are also moved.
 
-3. **The `_doctrineRegistry: null` placeholder** in `NedReplicationModule.cs` (line: `doctrineRegistry: null, // moved to subsystem responsibility in Phase 4`) signals that the CognitiveTranslatorPack's `DoctrineRegistry` injection is intentionally deferred. This pattern should be preserved in Stage 2 — the concrete `DoctrineRegistry` coupling should flow from the application layer (SimHostApp), not be baked into the module.
+3. **The `_behaviorRegistry: null` placeholder** in `NedReplicationModule.cs` (line: `behaviorRegistry: null, // moved to subsystem responsibility in Phase 4`) signals that the CognitiveTranslatorPack's `BehaviorRegistry` injection is intentionally deferred. This pattern should be preserved in Stage 2 — the concrete `BehaviorRegistry` coupling should flow from the application layer (SimHostApp), not be baked into the module.
 
 4. **`GhostCreationSystem` and `SmartEgressSystem`** are already in the correct location (`FDP.Toolkit.Replication.Systems`) as noted in the design. No risk here.
 

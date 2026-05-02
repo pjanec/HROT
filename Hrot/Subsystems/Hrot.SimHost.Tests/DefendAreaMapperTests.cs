@@ -1,6 +1,6 @@
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
-using Hrot.AI.Doctrines.Mappers;
+using Hrot.AI.Behaviors.Mappers;
 using Hrot.Map.Common;
 
 namespace Hrot.SimHost.Tests
@@ -31,7 +31,7 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// MilitaryApc entity must map to the "ConvoyEscort" doctrine.
+        /// MilitaryApc entity must map to the "ConvoyEscort" behavior.
         /// </summary>
         [Fact]
         public void TryMap_MilitaryApc_ReturnsConvoyEscort()
@@ -44,12 +44,12 @@ namespace Hrot.SimHost.Tests
 
             Assert.True(result);
             Assert.NotNull(assignment);
-            Assert.Equal("ConvoyEscort", assignment.DoctrineName);
+            Assert.Equal("ConvoyEscort", assignment.BehaviorName);
             Assert.Equal(entity, assignment.Entity);
         }
 
         /// <summary>
-        /// InfantrySoldier entity must map to the "InfantryCombat" doctrine.
+        /// InfantrySoldier entity must map to the "InfantryCombat" behavior.
         /// </summary>
         [Fact]
         public void TryMap_InfantrySoldier_ReturnsInfantryCombat()
@@ -62,7 +62,7 @@ namespace Hrot.SimHost.Tests
 
             Assert.True(result);
             Assert.NotNull(assignment);
-            Assert.Equal("InfantryCombat", assignment.DoctrineName);
+            Assert.Equal("InfantryCombat", assignment.BehaviorName);
             Assert.Equal(entity, assignment.Entity);
         }
 

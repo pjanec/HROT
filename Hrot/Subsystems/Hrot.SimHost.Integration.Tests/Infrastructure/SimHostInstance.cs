@@ -10,7 +10,7 @@ using NedMissionTask = Hrot.NED.Descriptors.MissionTask;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Fdp.Toolkit.Perception.Components;
-using Hrot.AI.Doctrines;
+using Hrot.AI.Behaviors;
 using Hrot.CGF;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
@@ -197,7 +197,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         private readonly WGS84Transform   _wgs84;
         private readonly NetworkEntityMap _entityMap;
         private readonly TkbDatabase      _tkbDb;
-        private readonly DoctrineRegistry _doctrineRegistry;
+        private readonly BehaviorRegistry _behaviorRegistry;
         private readonly EntityLifecycleModule _elm;
 
         // â”€â”€ Public world accessors (accessible to MockExConClient) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -241,7 +241,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             _entityMap        = new NetworkEntityMap();
             _tkbDb            = BuildTkbDatabase();
-            _doctrineRegistry = BuildDoctrineRegistry(_wgs84, _entityMap);
+            _behaviorRegistry = BuildBehaviorRegistry(_wgs84, _entityMap);
 
             // 3. Entity lifecycle module (empty participant list â†’ bypass ACK protocol) â”€
             _elm = new EntityLifecycleModule(_tkbDb, new List<int>());
@@ -273,7 +273,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             // Use dedicated packs instead of SimulationLogicModule to get IEcsModuleSystem lists.
             var musclePack = new SimHostCoreLogicPack(_entityMap, roadNetwork, trajectoryPool);
-            var brainPack  = new CgfLogicPack(_doctrineRegistry, _entityMap,
+            var brainPack  = new CgfLogicPack(_behaviorRegistry, _entityMap,
                 new ScenarioEntityCreationRequestSource(),
                 new TacticalIntentMapperRegistry());
 
@@ -334,7 +334,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             //         published + ACK written; entity reaches Active within this same tick.
             Tick(1f / 60f);
 
-            // Ticks 2-5: extra simulation ticks to let physics/doctrine settle.
+            // Ticks 2-5: extra simulation ticks to let physics/behavior settle.
             // Entity is already Active after Tick 1; these ticks are safety margin.
             for (int i = 0; i < 4; i++) Tick(1f / 60f);
 
@@ -375,14 +375,14 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             for (int i = 0; i < count; i++)
             {
                 var task = tasks[i];
-                int doctrineId = ResolveDoctrineId(task.BehaviorId);
+                int behaviorId = ResolveBehaviorId(task.BehaviorId);
                 var (trigger, param) = ResolveTrigger(task.Triggers);
                 
                 System.Console.WriteLine($"[SimHostInstance] task {i}: trigger={trigger}, param={param}");
 
                 queue.Phases[i] = new MissionPhase
                 {
-                    DoctrineId   = doctrineId,
+                    BehaviorId   = behaviorId,
                     Trigger      = trigger,
                     TriggerParam = param
                 };
@@ -392,13 +392,13 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             return queue;
         }
 
-        private int ResolveDoctrineId(string? behaviorId)
+        private int ResolveBehaviorId(string? behaviorName)
         {
-            if (string.IsNullOrWhiteSpace(behaviorId))
+            if (string.IsNullOrWhiteSpace(behaviorName))
                 return 0;
 
-            if (_doctrineRegistry.TryGetId(behaviorId, out int doctrineId))
-                return doctrineId;
+            if (_behaviorRegistry.TryGetId(behaviorName, out int behaviorId))
+                return behaviorId;
 
             return 0;
         }
@@ -412,7 +412,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 {
                     TaskId          = t.TaskId,
                     ExecutingEngine = t.ExecutingEngine ?? string.Empty,
-                    BehaviorId      = t.BehaviorId      ?? string.Empty,
+                    BehaviorName      = t.BehaviorId      ?? string.Empty,
                     BehaviorParams  = t.BehaviorParams  ?? string.Empty,
                 }) ?? new List<DomainMissionTask>()
             };
@@ -431,7 +431,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             return type switch
             {
                 "TimerElapsed"       => (Fdp.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, ParseTriggerParam(trigger.Params)),
-                "ReachedDestination" => (Fdp.Toolkit.Behavior.Components.MissionTrigger.DoctrineFinished, 0f),
+                "ReachedDestination" => (Fdp.Toolkit.Behavior.Components.MissionTrigger.BehaviorFinished, 0f),
                 "HealthCritical"     => (Fdp.Toolkit.Behavior.Components.MissionTrigger.HealthCritical, ParseTriggerParam(trigger.Params)),
                 _                    => (Fdp.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, float.MaxValue)
             };
@@ -588,7 +588,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// <para>
         /// When no spawn request is pending the lifecycle sub-swaps are skipped,
         /// so the single end-of-tick <see cref="EntityEventBus.SwapBuffers"/> makes
-        /// this tick's simulation events (e.g. <c>AssignDoctrineEvent</c>) visible
+        /// this tick's simulation events (e.g. <c>AssignBehaviorEvent</c>) visible
         /// on the read buffer for the next tick's input group â€” exactly mirroring
         /// the production <c>SimHostApp.OnUpdate()</c> pattern.
         /// </para>
@@ -597,7 +597,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// When a spawn IS pending, sub-swaps A and B are required so that the event bus
         /// mediates the spawn pipeline synchronously within one tick.  During spawn ticks
         /// the sub-swaps consume the simulation write-buffer early; <see cref="MissionAdapterSystem"/>'s
-        /// direct <c>DoctrineState</c> write ensures mission events are never silently
+        /// direct <c>BehaviorState</c> write ensures mission events are never silently
         /// dropped regardless of bus timing.
         /// </para>
         /// </summary>
@@ -611,7 +611,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             // â”€â”€ Phase 1: Simulation Logic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // Matches SimHostApp.OnUpdate() order: simulation runs first on the
-            // previous tick's read buffer so DoctrineIngressSystem and other input
+            // previous tick's read buffer so BehaviorIngressSystem and other input
             // systems correctly see events published in the prior tick.
             foreach (var s in _inputSystems)   s.Execute(view, dt);
             foreach (var s in _simSystems)     s.Execute(view, dt);
@@ -709,7 +709,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<SimVelocity>();
 
             // â”€â”€ Behavior toolkit components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            world.RegisterComponent<DoctrineState>();
+            world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();
@@ -718,7 +718,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<BrainBlackboard>();
             world.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
 
-            // HSM brain tiers (for APC-style HSM doctrines)
+            // HSM brain tiers (for APC-style HSM behaviors)
             world.RegisterComponent<BrainHsm64>();
             world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<PreviousCapabilities>();
@@ -810,7 +810,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             template.AddComponent(new SimVelocity  { Linear  = Vector3.Zero, Angular  = Vector3.Zero });
 
             // Behavior
-            template.AddComponent(new DoctrineState { BrainTier = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree });
+            template.AddComponent(new BehaviorState { BrainTier = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree });
             template.AddComponent(new BrainBlackboard());
             template.AddComponent(new BrainBTreeState());
             template.AddComponent(new LocomotionChannel());
@@ -836,14 +836,14 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             db.Register(template);
         }
 
-        // â”€â”€ Doctrine registry factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â”€â”€ Behavior registry factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        private static DoctrineRegistry BuildDoctrineRegistry(
+        private static BehaviorRegistry BuildBehaviorRegistry(
             Fdp.Modules.Geographic.IGeographicTransform wgs84,
             NetworkEntityMap entityMap)
         {
-            var reg = new DoctrineRegistry();
-            AiDoctrineFactory.BuildRegistrationAction(wgs84, entityMap)(reg);
+            var reg = new BehaviorRegistry();
+            AiBehaviorFactory.BuildRegistrationAction(wgs84, entityMap)(reg);
             return reg;
         }
     }

@@ -46,7 +46,7 @@ feat(examples): BATCH-17 decouple Scenarios from NetworkDemo, doc and test hygie
 - Add TransformSyncSystem to Fdp.Examples.Common; TerrainClamping uses Common
 - Drop NetworkDemo from Scenarios; add ModuleHost.Network.Cyclone ref for D009
 - Consolidate DistributedTankScenario class summary (Phase B/C DDS loco)
-- Document MissionDirectorSystem one-frame doctrine delay (BD1-BATCH-02)
+- Document MissionDirectorSystem one-frame behavior delay (BD1-BATCH-02)
 - Serialise UrbanAmbushIntegrationTests and BlueprintTests (HeadlessDemoApp)
 - Align DEM1-TASK-DETAIL D010 Latch4 with 600-tick test contract
 ```

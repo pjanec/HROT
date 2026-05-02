@@ -65,7 +65,7 @@ Refactoring towards better modularization and generalization. **What should be g
 
 **Step 1 — Identify which translators belong to each pack.** Grep `SimHostApp.OnLoad` for all `translators.Add(...)` calls. Categorise each translator:
 - **Kinematic:** translators that read/write `SimTransform`, `SimVelocity`, `LocomotionChannel`, navigation state, route commands, formation state.
-- **Cognitive:** translators that read/write `MissionData`, doctrine commands, `BehaviorTree` activation commands, AI state.
+- **Cognitive:** translators that read/write `MissionData`, behavior commands, `BehaviorTree` activation commands, AI state.
 - **Shared:** already in `SharedTranslatorPack` — leave untouched.
 - **Other:** translators that don't fit the above three — document in the report and leave in `OnLoad` for now.
 

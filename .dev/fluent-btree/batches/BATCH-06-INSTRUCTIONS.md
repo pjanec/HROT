@@ -74,7 +74,7 @@ The manager is a standalone component that:
 1. Maintains a `Dictionary<string, BehaviorTreeBlob>` of registered blobs by tree name
 2. On `TryReload`, compares `StructureHash` and `ParamHash` to determine the result
 3. Calls `hardResetAction` on each instance for `HardReset`
-4. Does NOT reference `DoctrineRegistry` (which is in Fdp.Toolkits) — the caller is responsible for patching the registry
+4. Does NOT reference `BehaviorRegistry` (which is in Fdp.Toolkits) — the caller is responsible for patching the registry
 
 ```csharp
 using System;
@@ -85,7 +85,7 @@ namespace Fbt.HotReload
     /// <summary>
     /// Manages hot reload of behavior tree blobs.
     /// Tracks registered blobs and computes reload results by comparing structure/param hashes.
-    /// DoctrineRegistry patching is the caller's responsibility.
+    /// BehaviorRegistry patching is the caller's responsibility.
     /// </summary>
     public class BTreeHotReloadManager
     {

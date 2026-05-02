@@ -58,9 +58,9 @@ namespace Hrot.SimHost
         public string RoadNetworkBlobPath   { get; init; } = string.Empty;
 
         /// <summary>
-        /// File-system path to the doctrine registry JSON. Empty string means use built-in.
+        /// File-system path to the behavior registry JSON. Empty string means use built-in.
         /// </summary>
-        public string DoctrineRegistryPath  { get; init; } = string.Empty;
+        public string BehaviorRegistryPath  { get; init; } = string.Empty;
 
         /// <summary>
         /// File-system path to the entity template database. Empty string means use built-in.

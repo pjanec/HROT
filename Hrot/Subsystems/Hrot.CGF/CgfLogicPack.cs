@@ -30,7 +30,7 @@ namespace Hrot.CGF
     ///
     /// <para><b>Contained modules (in registration order matching the Brain role):</b></para>
     /// <list type="number">
-    ///   <item><see cref="MissionControlModule"/> — doctrine ingress + mission direction</item>
+    ///   <item><see cref="MissionControlModule"/> — behavior ingress + mission direction</item>
     ///   <item><see cref="CognitiveRuntimeModule"/> — BTree/HSM tick + channel arbitration</item>
     ///   <item><see cref="ActionDispatchModule"/> — locomotion + weapon dispatchers</item>
     /// </list>
@@ -82,8 +82,8 @@ namespace Hrot.CGF
         /// Creates the Brain-tier CGF logic pack with the standard Brain executor set
         /// (MoveToExecutor, FollowRouteExecutor, JoinFormationExecutor, AimAndFireExecutor).
         /// </summary>
-        /// <param name="doctrineRegistry">
-        /// Doctrine definitions registry forwarded to <see cref="MissionControlModule"/>
+        /// <param name="behaviorRegistry">
+        /// Behavior definitions registry forwarded to <see cref="MissionControlModule"/>
         /// and <see cref="CognitiveRuntimeModule"/>.
         /// </param>
         /// <param name="entityMap">
@@ -98,29 +98,29 @@ namespace Hrot.CGF
         /// <param name="mapperRegistry">
         /// Registry of <see cref="ITacticalOrderMapper"/> implementations used by
         /// <see cref="TacticalIntentResolutionSystem"/> to translate generic tactical
-        /// intent IDs into concrete doctrine assignments.  Must not be null.
+        /// intent IDs into concrete behavior assignments.  Must not be null.
         /// </param>
         /// <param name="vehicleApi">
         /// Optional high-level vehicle command façade forwarded to
         /// <see cref="JoinFormationExecutor"/>.  <c>null</c> while the executor is a stub.
         /// </param>
         public CgfLogicPack(
-            DoctrineRegistry                     doctrineRegistry,
+            BehaviorRegistry                     behaviorRegistry,
             NetworkEntityMap                     entityMap,
             ScenarioEntityCreationRequestSource  scenarioSource,
             TacticalIntentMapperRegistry         mapperRegistry,
             VehicleAPI?                          vehicleApi = null)
         {
-            if (doctrineRegistry == null) throw new ArgumentNullException(nameof(doctrineRegistry));
+            if (behaviorRegistry == null) throw new ArgumentNullException(nameof(behaviorRegistry));
             if (entityMap        == null) throw new ArgumentNullException(nameof(entityMap));
             if (scenarioSource   == null) throw new ArgumentNullException(nameof(scenarioSource));
             if (mapperRegistry   == null) throw new ArgumentNullException(nameof(mapperRegistry));
 
             ScenarioSource = scenarioSource;
 
-            _missionControlModule   = new MissionControlModule(doctrineRegistry);
-            _cognitiveRuntimeModule = new CognitiveRuntimeModule(doctrineRegistry);
-            _missionExecutionSystem              = new MissionControlExecutionSystem(entityMap, doctrineRegistry, mapperRegistry);
+            _missionControlModule   = new MissionControlModule(behaviorRegistry);
+            _cognitiveRuntimeModule = new CognitiveRuntimeModule(behaviorRegistry);
+            _missionExecutionSystem              = new MissionControlExecutionSystem(entityMap, behaviorRegistry, mapperRegistry);
             _missionAdapterSystem                = new MissionAdapterSystem();
             _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry);
             _actionDispatchModule   = new ActionDispatchModule(

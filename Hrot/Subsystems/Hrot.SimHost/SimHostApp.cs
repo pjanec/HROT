@@ -107,8 +107,8 @@ namespace Hrot.SimHost
         /// </summary>
         public SimHostVisualization? Visualization => _vis;
 
-        // ── Doctrine registry ─────────────────────────────────────────────────
-        private DoctrineRegistry? _doctrineRegistry;
+        // ── Behavior registry ─────────────────────────────────────────────────
+        private BehaviorRegistry? _behaviorRegistry;
 
         // ── SimLogic ─────────────────────────────────────────────────────────
         private SimHostCoreLogicPack? _simCorePack;
@@ -254,13 +254,13 @@ namespace Hrot.SimHost
             Logger.Info($"[Node-{localNodeId}] Node ID:         {localNodeId}");
             Logger.Info($"[Node-{localNodeId}] Simulation Rate: {nodeConfig.SimulationRateHz} Hz");
 
-            // ── 2. Geodetic transform — created before builder so doctrine lambdas can close over it ──
+            // ── 2. Geodetic transform — created before builder so behavior lambdas can close over it ──
             var wgs84     = HrotEnvironment.CreateGeoTransform();
             _geoTransform = wgs84;
 
-            // ── 3. Doctrine registry (empty on the Muscle shell; Brain doctrines live in CgfDoctrineSetup) ──
-            var doctrineRegistry = new DoctrineRegistry();
-            _doctrineRegistry = doctrineRegistry;
+            // ── 3. Behavior registry (empty on the Muscle shell; Brain behaviors live in CgfBehaviorSetup) ──
+            var behaviorRegistry = new BehaviorRegistry();
+            _behaviorRegistry = behaviorRegistry;
 
             // ── 4. Create DDS participant in the Application Shell (Composition Root) ───
             // Rule: only the outermost executable may instantiate DdsParticipant.
@@ -295,7 +295,7 @@ namespace Hrot.SimHost
             // Configure the injected factory with this node's participant, entityMap, etc.
             // then create the replication module from the factory.
             // When no factory is injected (unit-test / offline path), fall back to a no-op module.
-            INetworkFactory? nodeFactory = _networkFactory?.ConfigureForNode(baseContext, _role, doctrineRegistry);
+            INetworkFactory? nodeFactory = _networkFactory?.ConfigureForNode(baseContext, _role, behaviorRegistry);
             Hrot.Common.Abstractions.IReplicationModule replicationModule = nodeFactory?.CreateReplicationModule() ?? new NullReplicationModule();
 
             _context = baseContext with
@@ -372,7 +372,7 @@ namespace Hrot.SimHost
             // fixed-size buffers or InlineArrays embedding Entity cross-references.
             // The auto-serialiser produces empty/truncated JSON for those fields, zeroing
             // entity handles on every round-trip.
-            var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(doctrineRegistry);
+            var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
 
             // CheckpointIOWorker: starts its background I/O thread here; owned by SimHostApp
             // and disposed in Shutdown().
@@ -630,11 +630,11 @@ namespace Hrot.SimHost
             ?? throw new InvalidOperationException("SimHostApp is not initialized.");
 
         /// <summary>
-        /// TestHook: exposes the <see cref="DoctrineRegistry"/> so integration tests can
-        /// register scenario-specific doctrines (e.g. UrbanCombat) before transitioning the
+        /// TestHook: exposes the <see cref="BehaviorRegistry"/> so integration tests can
+        /// register scenario-specific behaviors (e.g. UrbanCombat) before transitioning the
         /// cluster to OperatingLive.
         /// </summary>
-        public DoctrineRegistry TestHook_DoctrineRegistry => _doctrineRegistry
+        public BehaviorRegistry TestHook_BehaviorRegistry => _behaviorRegistry
             ?? throw new InvalidOperationException("SimHostApp is not initialized.");
 
         /// <summary>TestHook: current kernel simulation time in seconds. Updates every frame.</summary>

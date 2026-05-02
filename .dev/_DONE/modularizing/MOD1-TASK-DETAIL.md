@@ -194,7 +194,7 @@ See [MOD1-DESIGN.md §3.2](./MOD1-DESIGN.md#phase-2--brain--muscle-module-decomp
 
 ### MOD1-P2T1 — Create `MissionControlModule`
 
-**Goal:** Extract doctrine ingress and mission direction into a discrete `IModule`.
+**Goal:** Extract behavior ingress and mission direction into a discrete `IModule`.
 
 **Target assembly:** `FDP.Toolkit.Behavior` (see §2.5 — generic AI; no Hrot domain knowledge)
 
@@ -206,12 +206,12 @@ See [MOD1-DESIGN.md §3.2](./MOD1-DESIGN.md#phase-2--brain--muscle-module-decomp
 public sealed class MissionControlModule : IModule
 {
     public string Name => "MissionControl";
-    private readonly DoctrineRegistry _registry;
-    public MissionControlModule(DoctrineRegistry registry) => _registry = registry;
+    private readonly BehaviorRegistry _registry;
+    public MissionControlModule(BehaviorRegistry registry) => _registry = registry;
 
     public void RegisterSystems(ISystemRegistry registry)
     {
-        registry.AddToGroup(SystemPhase.Input,      new DoctrineIngressSystem(_registry));
+        registry.AddToGroup(SystemPhase.Input,      new BehaviorIngressSystem(_registry));
         registry.AddToGroup(SystemPhase.Simulation, new MissionDirectorSystem());
     }
     public void Tick(ISimulationView view, float dt) { }
@@ -222,7 +222,7 @@ public sealed class MissionControlModule : IModule
 
 1. `dotnet build FDP/Toolkits/FDP.Toolkit.Behavior` succeeds; `dotnet build Hrot.SimHost` succeeds (adds project reference to toolkit).
 2. Unit test `MissionControlModule_RegistersSystems`:  
-   — Instantiate `MissionControlModule`, register into a `ModuleHostKernel`, verify `DoctrineIngressSystem` and `MissionDirectorSystem` are discoverable via kernel's system list.
+   — Instantiate `MissionControlModule`, register into a `ModuleHostKernel`, verify `BehaviorIngressSystem` and `MissionDirectorSystem` are discoverable via kernel's system list.
 3. Existing `Hrot.SimHost.Tests.SimulationLogicModuleTests` continue to pass (verify `SimulationLogicModule` delegates to the new module correctly).
 
 ---
@@ -241,8 +241,8 @@ public sealed class MissionControlModule : IModule
 public sealed class CognitiveRuntimeModule : IModule
 {
     public string Name => "CognitiveRuntime";
-    private readonly DoctrineRegistry _registry;
-    public CognitiveRuntimeModule(DoctrineRegistry registry) => _registry = registry;
+    private readonly BehaviorRegistry _registry;
+    public CognitiveRuntimeModule(BehaviorRegistry registry) => _registry = registry;
 
     public void RegisterSystems(ISystemRegistry reg)
     {
@@ -259,7 +259,7 @@ public sealed class CognitiveRuntimeModule : IModule
 
 1. `dotnet build FDP/Toolkits/FDP.Toolkit.Behavior` succeeds; `dotnet build Hrot.SimHost` succeeds.
 2. Unit test `CognitiveRuntimeModule_RegistersAllTickSystems`:  
-   — Instantiate with a populated `DoctrineRegistry`, register into a kernel, verify `BTreeTickSystem`, `HsmTickSystem<BrainHsm128>`, `HsmTickSystem<BrainHsm64>`, and `ChannelArbitrationSystem` are present in the kernel's system schedule.
+   — Instantiate with a populated `BehaviorRegistry`, register into a kernel, verify `BTreeTickSystem`, `HsmTickSystem<BrainHsm128>`, `HsmTickSystem<BrainHsm64>`, and `ChannelArbitrationSystem` are present in the kernel's system schedule.
 3. Existing `Hrot.SimHost.Tests` behavior AI tests (`BrainBTreeSystem`, channel arbitration tests) continue to pass.
 
 ---
@@ -431,7 +431,7 @@ Each pack's `Create(...)` returns `IEnumerable<IDescriptorTranslator>`.
 
 Each registry has a single `RegisterAll(EntityRepository world)` static method. Components already in `HrotSharedComponentRegistry` are NOT duplicated (idempotency is safe but DRY is preferred).
 
-**`CognitiveComponentRegistry.RegisterAll`** registers: `DoctrineState`, `LocomotionChannel`, `WeaponChannel`, `InteractionChannel`, `ActorCapabilityState`, `BrainBTreeState`, `BrainBlackboard`, `BrainHsm128`, `BrainHsm64`, `MissionPlanQueue`, `MissionAdapterState`, `NavigationIntent`.
+**`CognitiveComponentRegistry.RegisterAll`** registers: `BehaviorState`, `LocomotionChannel`, `WeaponChannel`, `InteractionChannel`, `ActorCapabilityState`, `BrainBTreeState`, `BrainBlackboard`, `BrainHsm128`, `BrainHsm64`, `MissionPlanQueue`, `MissionAdapterState`, `NavigationIntent`.
 
 **`KinematicComponentRegistry.RegisterAll`** registers: `VehicleState`, `VehicleParams`, `NavState`, `FormationMember`, `FormationRoster`, `FormationTarget`, `NavigationStatus`.
 
@@ -521,7 +521,7 @@ public enum NodeRole { Brain, MuscleGround, ImageGenerator, AllInOne }
 **Design reference:** [MOD1-DESIGN.md §3.3.5](./MOD1-DESIGN.md#335--cyclonedds-discovery-configuration) and [§3.3.6](./MOD1-DESIGN.md#336--entry-point--role-selection)
 
 **Files to create / modify:**
-- `Hrot.SimHost/NodeConfiguration.cs` — JSON-serialisable record with `CycloneDdsConfigPath`, `DdsDomainId`, `RoadNetworkBlobPath`, `DoctrineRegistryPath`, `EntityTemplatePath`.
+- `Hrot.SimHost/NodeConfiguration.cs` — JSON-serialisable record with `CycloneDdsConfigPath`, `DdsDomainId`, `RoadNetworkBlobPath`, `BehaviorRegistryPath`, `EntityTemplatePath`.
 - `Hrot.SimHost.Standalone/Config/dds-allinone.xml` — loopback-only config.
 - `Hrot.SimHost.Standalone/Config/dds-node.xml` — multicast auto-discovery config.
 - `Hrot.SimHost.Standalone/Config/default.json`, `brain.json`, `muscle.json`, `perception.json`, `navsolver.json` — role-specific parameter files.

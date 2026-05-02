@@ -62,8 +62,8 @@ The current `DataPolicy.NoSave` XML comment incorrectly reads
 `Hrot/Subsystems/Hrot.SimHost/Serializers/WeaponChannelTranslator.cs` must be deleted.
 It was introduced to partially preserve `WeaponChannel` across scenario round-trips.  Now that
 `WeaponChannel` carries `[DataPolicy(DataPolicy.NoSave)]`, the serializer never visits it.
-The active doctrine re-initializes the channel organically on the first simulation tick after
-load through `DoctrineIngressSystem`.
+The active behavior re-initializes the channel organically on the first simulation tick after
+load through `BehaviorIngressSystem`.
 
 Its registration must also be removed from `SimHostApp.cs`.
 
@@ -95,12 +95,12 @@ A single combined `IEntityScenarioTranslator` handles both components atomically
 1. **Extract**: serialize `ActiveMissionPlan.Plan` as a JSON-embedded string (using
    `HrotSerializerOptions.HrotJsonOptions`); save `MissionPlanQueue.CurrentPhase` and
    `PhaseElapsedSeconds` alongside it.
-2. **Inject**: deserialize the plan JSON back to `DomainMissionPlan`; use `DoctrineRegistry`
-   to map `BehaviorId` strings back to integer doctrine IDs; rebuild `MissionPlanQueue`
+2. **Inject**: deserialize the plan JSON back to `DomainMissionPlan`; use `BehaviorRegistry`
+   to map `BehaviorId` strings back to integer behavior IDs; rebuild `MissionPlanQueue`
    (including trigger chain) atomically.
 
 The translator resides in `Hrot/Subsystems/Hrot.SimHost/Serializers/MissionPlanTranslator.cs`.
-It must take a `DoctrineRegistry` constructor parameter.
+It must take a `BehaviorRegistry` constructor parameter.
 
 ### Registration Sites
 
@@ -108,14 +108,14 @@ The translator must be registered at every `ScenarioSerializerBuilder` call site
 
 | File | Action |
 |---|---|
-| `Hrot/Subsystems/Hrot.Editor/EditorBootstrap.cs` | Add `.RegisterTranslator(new MissionPlanTranslator(doctrineRegistry))` |
+| `Hrot/Subsystems/Hrot.Editor/EditorBootstrap.cs` | Add `.RegisterTranslator(new MissionPlanTranslator(behaviorRegistry))` |
 | `Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs` | Add `MissionPlanTranslator`; remove `WeaponChannelTranslator` |
 | `Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs` | Add `MissionPlanTranslator` |
 
-`DoctrineRegistry` is already constructed in each of these sites (via `CgfDoctrineSetup`);
+`BehaviorRegistry` is already constructed in each of these sites (via `CgfBehaviorSetup`);
 it must be passed to the translator constructor.
 
-### Preview-to-Scenario Extraction and "Doctrine Amnesia"
+### Preview-to-Scenario Extraction and "Behavior Amnesia"
 
 When saving a new scenario from a paused preview, execution buffers (`WeaponChannel`,
 `BrainBTreeState`, etc.) are intentionally excluded.  This "amnesia" is architecturally sound
@@ -173,7 +173,7 @@ affected.  Managed classes (like `ActiveMissionPlan`) remain outside the auto-se
 ### Impact on BrainBlackboard
 
 `BrainBlackboard` has `fixed byte Memory[...]`.  After this upgrade, the auto-serializer will
-emit the full byte array as a JSON array.  Doctrines that cache entity handles as packed `long`
+emit the full byte array as a JSON array.  Behaviors that cache entity handles as packed `long`
 values inside this buffer MUST NOT do so — `Build()` will throw `InvalidOperationException` if
 it detects an `Entity`-typed fixed buffer; and any raw-`long` entity handles packed inside a
 `byte` buffer are invisible to the constraint check and will silently become stale after a

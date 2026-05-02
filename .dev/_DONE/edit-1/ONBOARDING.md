@@ -32,8 +32,8 @@ To reproduce the Urban Combat demo entirely through the editor UI (replacing the
 - **Target Memory Seeding** — link a perceiver to a target entity via context menu + map pick.
 - **Static Zone & Obstacle Authoring** — assign road network + drop cylindrical physics
   obstacles onto the map (complements the Zone DTO infrastructure from `packs-3`).
-- **Dynamic Doctrine Catalog** — mission doctrine dropdown filtered per entity TKB type,
-  driven by a shared `DoctrineCatalog` in `Hrot.Map.Definitions`.
+- **Dynamic Behavior Catalog** — mission behavior dropdown filtered per entity TKB type,
+  driven by a shared `BehaviorCatalog` in `Hrot.Map.Definitions`.
 
 ---
 
@@ -91,7 +91,7 @@ Hrot.ExCon/
   Adapters/                      ← ExConOrbatAdapter, ExConMapConfigAdapter (NEW/updated)
 
 Hrot.Map.Definitions/
-  Tkb/DoctrineCatalog.cs         ← NEW: TKB → doctrine name mapping
+  Tkb/BehaviorCatalog.cs         ← NEW: TKB → behavior name mapping
 
 FDP/Toolkits/
   FDP.Toolkit.Behavior/Events/   ← EmbarkEntityCommand, DisembarkEntityCommand (NEW)

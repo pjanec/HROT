@@ -42,7 +42,7 @@ namespace Hrot.CGF
             HrotSharedComponentRegistry.RegisterAll(world);
 
             // 2. Cognitive & Kinematic Components (CGF Logic Pack needs these)
-            world.RegisterComponent<FDP.Toolkit.Behavior.Components.DoctrineState>();
+            world.RegisterComponent<FDP.Toolkit.Behavior.Components.BehaviorState>();
             world.RegisterComponent<FDP.Toolkit.Behavior.Components.LocomotionChannel>();
             world.RegisterComponent<FDP.Toolkit.Behavior.Components.WeaponChannel>();
             world.RegisterComponent<FDP.Toolkit.Behavior.Components.InteractionChannel>();

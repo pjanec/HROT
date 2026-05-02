@@ -31,7 +31,7 @@ Since you need the flexibility to run multiple subsystems (SimHost, IG, ExCon, C
 
 Instead of hardcoding system registration, we will formalize the approach currently hinted at in `NodeBootstrapper`. A node (or runner subsystem) will be assembled purely by choosing which packs to install. For example, assembling a **CGF (Brain) Node** will look like this:
 
--   **Install Logic Packs:** `CgfLogicPack` (Doctrine, BTree, HSM), `OrchestrationLogicPack` (Time sync, Cluster state).-   **Install Translator Packs (HROT):** `HrotIntentEgressPack` (Sends intents to muscle), `HrotStateIngressPack` (Receives physics states from muscle).
+-   **Install Logic Packs:** `CgfLogicPack` (Behavior, BTree, HSM), `OrchestrationLogicPack` (Time sync, Cluster state).-   **Install Translator Packs (HROT):** `HrotIntentEgressPack` (Sends intents to muscle), `HrotStateIngressPack` (Receives physics states from muscle).
 
 Assembling an **All-In-One Node (Editor)** will simply install both the Brain and Muscle logic packs _without_ the network translator packs, allowing them to communicate purely via the internal shared ECS and event bus.
 
@@ -55,7 +55,7 @@ You noted that there are likely CQRS violations. The architectural goal is stric
 
 I will audit the codebase and enforce this boundary. We already have a good foundation with `NavigationIntent` (Command) and `NavigationStatus` (Result). The audit will target and convert the following likely violations:
 
--   **Direct Physics Mutations by AI:** Ensure no BTree or HSM nodes in the Brain are directly modifying `SimTransform`, `SimVelocity`, or `VehicleState`. They must only write to `LocomotionChannel`, `WeaponChannel`, or broadcast `NavigationIntent`.-   **Direct Mission Mutations by Physics:** Ensure Muscle systems (like `CarKinematicsSystem` or collision solvers) do not directly modify the `MissionPlanQueue` or `DoctrineState`. They must emit status events (like `NavigationStatus.Arrived` or `HitEvent`) which the Brain consumes to advance its own mission phases.-   **Combat Executors:** Ensure that firing a weapon on the Brain node only emits a `WeaponFireIntent`. The actual bullet spawning (`CmdSpawnVehicle` / `BallisticProjectile`) and damage calculation must happen on the Muscle node, triggered by the translated intent.
+-   **Direct Physics Mutations by AI:** Ensure no BTree or HSM nodes in the Brain are directly modifying `SimTransform`, `SimVelocity`, or `VehicleState`. They must only write to `LocomotionChannel`, `WeaponChannel`, or broadcast `NavigationIntent`.-   **Direct Mission Mutations by Physics:** Ensure Muscle systems (like `CarKinematicsSystem` or collision solvers) do not directly modify the `MissionPlanQueue` or `BehaviorState`. They must emit status events (like `NavigationStatus.Arrived` or `HitEvent`) which the Brain consumes to advance its own mission phases.-   **Combat Executors:** Ensure that firing a weapon on the Brain node only emits a `WeaponFireIntent`. The actual bullet spawning (`CmdSpawnVehicle` / `BallisticProjectile`) and damage calculation must happen on the Muscle node, triggered by the translated intent.
 
 Next Steps
 
@@ -211,7 +211,7 @@ World.SetComponent(vehicle, intent);
 
 Step 3.2: Refactor UI Right-Click Logic (`SimHostVisualization`)
 
-In `SimHostVisualization.HandleRightClickForEntity`, there is an explicit "Brain-dead path" that bypasses the mission machinery and mutates the destination directly for entities without an active doctrine. We must treat the UI as an authoritative Commander (Brain) and enforce intent usage even for these entities.
+In `SimHostVisualization.HandleRightClickForEntity`, there is an explicit "Brain-dead path" that bypasses the mission machinery and mutates the destination directly for entities without an active behavior. We must treat the UI as an authoritative Commander (Brain) and enforce intent usage even for these entities.
 
 Modify the "Brain-dead path" to write a `NavigationIntent` instead of calling `setDestination` (which wraps `CmdFollowTrajectory` or direct `NavState` mutation):
 
@@ -255,11 +255,11 @@ Let's review the five identified flaws, see where the current codebase stands, a
 
 1\. `MissionControlRequestSystem` is a God Class (Direct DDS & JSON Coupling)
 
-**Status: STILL VALID AND CRITICAL.** Looking at the current codebase, `MissionControlRequestSystem` is still directly instantiating `DdsReader<MissionControlRequest>` and `DdsWriter<MissionControlAck>`. Furthermore, it writes directly to `EntityMission` over DDS and parses parameters using `System.Text.Json`. This system is a massive monolith that mixes network I/O, serialization, and core domain mutations (altering `MissionPlanQueue` and `DoctrineState`).
+**Status: STILL VALID AND CRITICAL.** Looking at the current codebase, `MissionControlRequestSystem` is still directly instantiating `DdsReader<MissionControlRequest>` and `DdsWriter<MissionControlAck>`. Furthermore, it writes directly to `EntityMission` over DDS and parses parameters using `System.Text.Json`. This system is a massive monolith that mixes network I/O, serialization, and core domain mutations (altering `MissionPlanQueue` and `BehaviorState`).
 
 **The Fix:** We must split this class entirely:
 
--   **Translator Pack (****MissionControlIngressTranslator****):** Polls the DDS topic, handles the JSON deserialization, and drops a strongly-typed, unmanaged `MissionControlIntent` onto the event bus.-   **Logic Pack (****MissionControlExecutionSystem****):** A pure ECS system that consumes `MissionControlIntent`, validates it, and mutates `MissionPlanQueue` or `DoctrineState`. It will have zero knowledge of CycloneDDS or JSON.
+-   **Translator Pack (****MissionControlIngressTranslator****):** Polls the DDS topic, handles the JSON deserialization, and drops a strongly-typed, unmanaged `MissionControlIntent` onto the event bus.-   **Logic Pack (****MissionControlExecutionSystem****):** A pure ECS system that consumes `MissionControlIntent`, validates it, and mutates `MissionPlanQueue` or `BehaviorState`. It will have zero knowledge of CycloneDDS or JSON.
 
 2\. `UpdateEntityDescriptorRequestSystem` Directly Reads DDS
 
@@ -341,7 +341,7 @@ Step 1.3: Purify the Core System (`MissionControlExecutionSystem`)
 
 Now we rewrite the core logic system so that it has zero knowledge of CycloneDDS or JSON.
 
--   **Remove Network Dependencies:** Delete the `DdsReader<MissionControlRequest>`, `DdsWriter<MissionControlAck>`, and `DdsWriter<EntityMission>` fields from `MissionControlRequestSystem`.-   **Update the Constructor:** It should now only take the `NetworkEntityMap` and `DoctrineRegistry`.-   **Consume Intents:** Change `OnUpdate` to consume `MissionControlIntent` from the `FdpEventBus` instead of calling `_reader.Take()`.-   **Emit Acks Locally:** Instead of calling `_writer?.Write(new MissionControlAck(...))`, it will now call `World.Bus.Publish(new MissionControlAckEvent(...))`.-   **Delete** **PublishEntityMission****:** Currently, the system manually pushes the updated `EntityMission` to DDS upon success. **Delete this entirely.** The engine already possesses an `EntityMissionEgressTranslator` which listens for ECS changes to `MissionPlanQueue` and automatically publishes `EntityMission` over DDS. Relying on the existing translator enforces a single path for state replication.
+-   **Remove Network Dependencies:** Delete the `DdsReader<MissionControlRequest>`, `DdsWriter<MissionControlAck>`, and `DdsWriter<EntityMission>` fields from `MissionControlRequestSystem`.-   **Update the Constructor:** It should now only take the `NetworkEntityMap` and `BehaviorRegistry`.-   **Consume Intents:** Change `OnUpdate` to consume `MissionControlIntent` from the `FdpEventBus` instead of calling `_reader.Take()`.-   **Emit Acks Locally:** Instead of calling `_writer?.Write(new MissionControlAck(...))`, it will now call `World.Bus.Publish(new MissionControlAckEvent(...))`.-   **Delete** **PublishEntityMission****:** Currently, the system manually pushes the updated `EntityMission` to DDS upon success. **Delete this entirely.** The engine already possesses an `EntityMissionEgressTranslator` which listens for ECS changes to `MissionPlanQueue` and automatically publishes `EntityMission` over DDS. Relying on the existing translator enforces a single path for state replication.
 
 The Architectural Win
 
@@ -737,7 +737,7 @@ We previously identified that `DetonationNotification` and `WeaponFireIntent` we
 
 We fixed the CQRS violation for `ApcMobilityTriggerSystem`, but there is another cross-domain query lurking in the perception toolkit.
 
-**The Flaw:** `AudioPerceptionSystem` requires `SpatialGridData` and `SimTransform` to calculate distance (which are Muscle-tier physics components). However, when it finds a listener, it directly mutates `TargetMemory`. `TargetMemory` is a Brain-tier cognitive component used by doctrines (like the BTree Ambush). In a distributed cluster, the Muscle node has no `TargetMemory`, so this system will silently fail.
+**The Flaw:** `AudioPerceptionSystem` requires `SpatialGridData` and `SimTransform` to calculate distance (which are Muscle-tier physics components). However, when it finds a listener, it directly mutates `TargetMemory`. `TargetMemory` is a Brain-tier cognitive component used by behaviors (like the BTree Ambush). In a distributed cluster, the Muscle node has no `TargetMemory`, so this system will silently fail.
 
 **The Clean Fix:**
 

@@ -14,7 +14,7 @@ using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.CGF;
-using Hrot.AI.Doctrines.Brains;
+using Hrot.AI.Behaviors.Brains;
 using Hrot.CGF.Configuration;
 using Hrot.Map.Common;
 using Hrot.SimHost;
@@ -36,7 +36,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// Phase 1 (split-authority spawn) and Phase 4 (authoritative damage) are exercised
 /// here because they do not require the full ExCon MissionControlRequest round-trip.
 /// Phase 2 (BTree NavigationIntent flow) and Phase 3 (AutonomousPerception reaction)
-/// each depend on the complete doctrine-activation chain; those are documented as
+/// each depend on the complete behavior-activation chain; those are documented as
 /// separate skipped tests below.
 /// </para>
 ///
@@ -51,7 +51,7 @@ public sealed class NetworkDemoPatrolAndEngageTests
     private const int BTreeNavigationTimeoutMs     = 12_000;
     private const int PumpSleepMs                  = 5;
 
-    // PatrolAndEngage doctrine ID used in Phase 3 test (outside the CgfDoctrineIds range).
+    // PatrolAndEngage behavior ID used in Phase 3 test (outside the CgfBehaviorIds range).
     private const int PatrolAndEngage_BT = 3099;
 
     // ── NDEMO-IT-1 ────────────────────────────────────────────────────────────
@@ -181,7 +181,7 @@ public sealed class NetworkDemoPatrolAndEngageTests
     /// Phase 2: Validates the Brain BTree → NavigationIntent → Muscle kinematics pipeline.
     ///
     /// <list type="bullet">
-    ///   <item>The CGF BTreeTickSystem evaluates the WanderMilitary_BT doctrine on the
+    ///   <item>The CGF BTreeTickSystem evaluates the WanderMilitary_BT behavior on the
     ///     patrol entity and calls <c>Action_Wander</c>, which writes a MoveTo command to
     ///     <c>LocomotionChannel</c>.</item>
     ///   <item><c>MoveToExecutor.OnEnter</c> (ActionDispatchModule) writes
@@ -194,7 +194,7 @@ public sealed class NetworkDemoPatrolAndEngageTests
     /// </list>
     ///
     /// <para>
-    /// Doctrine activation is performed directly on the CGF entity's <c>DoctrineState</c>
+    /// Behavior activation is performed directly on the CGF entity's <c>BehaviorState</c>
     /// component, bypassing the ExCon <c>MissionControlRequest</c> chain.  This is the
     /// minimal test hook that still exercises the full BTree-to-kinematics pipeline.
     /// </para>
@@ -243,9 +243,9 @@ public sealed class NetworkDemoPatrolAndEngageTests
         // NavigationIntent -> NavigationIntentEgressTranslator (DDS) ->
         // NavigationIntentIngressTranslator -> NavigationIntentBridgeSystem ->
         // NavState -> CarKinematicsSystem pipeline.
-        var doctrine = harness.Cgf.World!.GetComponent<DoctrineState>(cgfEntity);
-        doctrine.ActiveDoctrineHash = CgfDoctrineIds.WanderMilitary_BT;
-        harness.Cgf.World.SetComponent(cgfEntity, doctrine);
+        var behavior = harness.Cgf.World!.GetComponent<BehaviorState>(cgfEntity);
+        behavior.ActiveBehaviorHash = CgfBehaviorIds.WanderMilitary_BT;
+        harness.Cgf.World.SetComponent(cgfEntity, behavior);
 
         // Wait for SimTransform.Position to move; threshold > 0.1 m confirms
         // CarKinematicsSystem acted on the NavigationIntent delivered via DDS.
@@ -272,8 +272,8 @@ public sealed class NetworkDemoPatrolAndEngageTests
     /// Phase 3: Validates the asynchronous perception-to-engagement pipeline on the Brain.
     ///
     /// <list type="bullet">
-    ///   <item>A custom <c>PatrolAndEngage_BT</c> doctrine is registered in the CGF
-    ///     DoctrineRegistry.  The BTree has a Selector: when <c>TargetMemory.Count&gt;0</c>
+    ///   <item>A custom <c>PatrolAndEngage_BT</c> behavior is registered in the CGF
+    ///     BehaviorRegistry.  The BTree has a Selector: when <c>TargetMemory.Count&gt;0</c>
     ///     (<c>Condition_HasTarget</c> succeeds) it engages via <c>Action_AimAndFire</c>;
     ///     otherwise it falls back to <c>Action_Wander</c>.</item>
     ///   <item><c>TargetMemory</c> is injected on the CGF entity (simulating the delivery
@@ -320,22 +320,22 @@ public sealed class NetworkDemoPatrolAndEngageTests
 
         harness.Cgf!.GhostEntityMap!.TryGetEntity(networkId, out Entity cgfEntity);
 
-        // -- Phase 3a: Register PatrolAndEngage_BT doctrine --
+        // -- Phase 3a: Register PatrolAndEngage_BT behavior --
         // The BTree selector: if TargetMemory.Count > 0 engage via AimAndFire,
         // otherwise wander (fallback).
-        harness.Cgf.TestHook_DoctrineRegistry!.Register(PatrolAndEngage_BT, "PatrolAndEngage",
-            new DoctrineDefinition
+        harness.Cgf.TestHook_BehaviorRegistry!.Register(PatrolAndEngage_BT, "PatrolAndEngage",
+            new BehaviorDefinition
             {
                 Name             = "PatrolAndEngage",
                 BrainTier        = BehaviorConstants.BrainTierBTree,
                 BTreeInterpreter = BuildPatrolAndEngageInterpreter(),
             });
 
-        // Activate the PatrolAndEngage doctrine on the CGF entity.
-        var doctrine = harness.Cgf.World!.GetComponent<DoctrineState>(cgfEntity);
-        doctrine.ActiveDoctrineHash = PatrolAndEngage_BT;
-        unchecked { doctrine.InstanceId++; }
-        harness.Cgf.World.SetComponent(cgfEntity, doctrine);
+        // Activate the PatrolAndEngage behavior on the CGF entity.
+        var behavior = harness.Cgf.World!.GetComponent<BehaviorState>(cgfEntity);
+        behavior.ActiveBehaviorHash = PatrolAndEngage_BT;
+        unchecked { behavior.InstanceId++; }
+        harness.Cgf.World.SetComponent(cgfEntity, behavior);
 
         // Pump a few frames: BTree should be Running in Action_Wander (no target yet).
         harness.PumpFrames(10);

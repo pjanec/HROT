@@ -32,9 +32,9 @@ Rule 3 mandates that subsystems never call `new DdsParticipant()`; they must acc
 *The Fix:* Strip this out. The `CgfApplication` should rely entirely on the `Participant` provided by `HrotNodeConfig` / `INetworkFactory`.
 
 **3. Lingering Lateral Coupling (CGF -> SimHost)**
-You successfully moved `CgfNodes.cs` to `Hrot.CGF`, but `CgfDoctrineSetup.cs` is still incorrectly calling `SimHostNodes.ParseMoveToParams` and `SimHostNodes.BuildMoveToLocationInterpreter()`. Because of this, `Hrot.CGF` still thinks it needs to know about `Hrot.SimHost`.
+You successfully moved `CgfNodes.cs` to `Hrot.CGF`, but `CgfBehaviorSetup.cs` is still incorrectly calling `SimHostNodes.ParseMoveToParams` and `SimHostNodes.BuildMoveToLocationInterpreter()`. Because of this, `Hrot.CGF` still thinks it needs to know about `Hrot.SimHost`.
 
-*The Fix:* Update `CgfDoctrineSetup.cs` to call the newly relocated methods on `CgfNodes` instead of `SimHostNodes`, and ensure `Hrot.CGF.csproj` has zero project references pointing to `Hrot.SimHost.csproj`.
+*The Fix:* Update `CgfBehaviorSetup.cs` to call the newly relocated methods on `CgfNodes` instead of `SimHostNodes`, and ensure `Hrot.CGF.csproj` has zero project references pointing to `Hrot.SimHost.csproj`.
 
 ***
 

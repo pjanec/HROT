@@ -14,7 +14,7 @@
 | EDIT1-W002 | ✅ Complete | `ScenarioFileService` zone bundling already implemented in prior commit; `ScenarioFileServiceZoneTests` (2 tests) already present and passing. Fixed pre-existing `EditorFileOpsIntegrationTests` failure caused by camelCase JSON key mismatch. |
 | EDIT1-X001 | ✅ Complete | Created `Hrot.ExCon/Adapters/ExConOrbatAdapter.cs` (150 lines); 7 tests added to `ExConAdapterTests.cs`. |
 | EDIT1-X002 | ✅ Complete | Added `Hrot.UI.Common.Facades.ISpawnController` to `ExConLogic` class declaration using FQN to avoid namespace ambiguity. |
-| EDIT1-X003 | ✅ Complete | Added `GetAvailableBehaviors` to `Services.IMissionEditorService`, implemented in `MissionEditorService` via `DoctrineCatalog`, delegated in `ExConMissionShim`. |
+| EDIT1-X003 | ✅ Complete | Added `GetAvailableBehaviors` to `Services.IMissionEditorService`, implemented in `MissionEditorService` via `BehaviorCatalog`, delegated in `ExConMissionShim`. |
 
 ---
 
@@ -40,9 +40,9 @@
 - [x] `ExConAdapterTests.ToggleExpanded_TogglesLocalSetTwice_ReturnsToOriginalState` — state
 - [x] `ExConAdapterTests.RequestEmbark_AndDisembark_DoNotThrow` — no-op safety
 - [x] `ExConLogicSpawnControllerTests.ExConLogic_ImplementsISpawnController` — interface
-- [x] `MissionEditorServiceGetBehaviorsTests.GetAvailableBehaviors_InsurgentEntity_ReturnsInsurgentDoctrines`
+- [x] `MissionEditorServiceGetBehaviorsTests.GetAvailableBehaviors_InsurgentEntity_ReturnsInsurgentBehaviors`
 - [x] `MissionEditorServiceGetBehaviorsTests.GetAvailableBehaviors_EntityNotFound_ReturnsEmpty`
-- [x] `MissionEditorServiceGetBehaviorsTests.GetAvailableBehaviors_InfantryEntity_ReturnsInfantryDoctrines`
+- [x] `MissionEditorServiceGetBehaviorsTests.GetAvailableBehaviors_InfantryEntity_ReturnsInfantryBehaviors`
 - [x] `ScenarioFileServiceZoneTests.SaveScenario_WithActiveZone_WritesZoneSection` (pre-existing W002)
 - [x] `ScenarioFileServiceZoneTests.SaveScenario_WithoutActiveZones_OmitsZoneSection` (pre-existing W002)
 

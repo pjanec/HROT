@@ -323,7 +323,7 @@ namespace Hrot.DDS.DataModel.Tests
                             BehaviorParams  = string.Empty,
                             Triggers        = new List<MissionTrigger>
                             {
-                                new MissionTrigger { Type = "DoctrineFinished", Params = "0" }
+                                new MissionTrigger { Type = "BehaviorFinished", Params = "0" }
                             },
                             State = eTaskState.TASK_ACTIVE
                         }
@@ -354,7 +354,7 @@ namespace Hrot.DDS.DataModel.Tests
             Assert.Single(result.Plan.Tasks);
             Assert.Equal("WanderMilitary", result.Plan.Tasks[0].BehaviorId);
             Assert.Single(result.Plan.Tasks[0].Triggers);
-            Assert.Equal("DoctrineFinished", result.Plan.Tasks[0].Triggers![0].Type);
+            Assert.Equal("BehaviorFinished", result.Plan.Tasks[0].Triggers![0].Type);
         }
     }
 }

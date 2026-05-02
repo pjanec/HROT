@@ -4,21 +4,21 @@
 
 ## Table of Contents
 
-1. [The Cognitive Tier & Doctrine Paradigms](#1-the-cognitive-tier--doctrine-paradigms)
+1. [The Cognitive Tier & Behavior Paradigms](#1-the-cognitive-tier--behavior-paradigms)
 2. [Quick-Start: Your First AI Behavior](#2-quick-start-your-first-ai-behavior)
 3. [The BrainBlackboard: The Universal Cognitive Bus](#3-the-brainblackboard-the-universal-cognitive-bus)
-4. [Doctrine Parameters & Memory Projection](#4-doctrine-parameters--memory-projection)
+4. [Behavior Parameters & Memory Projection](#4-behavior-parameters--memory-projection)
 5. [Unified AI Building Blocks: Shared Conditions and Actions](#5-unified-ai-building-blocks-shared-conditions-and-actions)
-6. [Heavy-Data Doctrines: Blackboard1024 and Heavy Shared Attributes](#6-heavy-data-doctrines-blackboard1024-and-heavy-shared-attributes)
+6. [Heavy-Data Behaviors: Blackboard1024 and Heavy Shared Attributes](#6-heavy-data-behaviors-blackboard1024-and-heavy-shared-attributes)
 7. [Actuator Preemption and Channel Safety](#7-actuator-preemption-and-channel-safety)
 8. [Decoupled Cognitive Interrupts](#8-decoupled-cognitive-interrupts)
 9. [HSM Event Internals](#9-hsm-event-internals)
 10. [Mission Routing and Terminal States](#10-mission-routing-and-terminal-states)
-11. [End-to-End Walkthrough: Writing a New Doctrine](#11-end-to-end-walkthrough-writing-a-new-doctrine)
+11. [End-to-End Walkthrough: Writing a New Behavior](#11-end-to-end-walkthrough-writing-a-new-behavior)
 
 ---
 
-## 1. The Cognitive Tier & Doctrine Paradigms
+## 1. The Cognitive Tier & Behavior Paradigms
 
 ### Architectural Overview
 
@@ -34,13 +34,13 @@ The engine enforces a rigid **CQRS boundary** between two tiers:
   are muscle-tier systems.
 
 From the perspective of the higher-level `MissionDirectorSystem`, the tactical brain of an
-entity is a perfectly interchangeable black box called a **Doctrine**. The mission layer
-assigns a doctrine and simply waits for a `DoctrineFinishedEvent`. It never knows, or cares,
+entity is a perfectly interchangeable black box called a **Behavior**. The mission layer
+assigns a behavior and simply waits for a `BehaviorFinishedEvent`. It never knows, or cares,
 whether the brain under the hood is a behavior tree or a state machine.
 
 ### Available Paradigms
 
-There are three paradigms for authoring a doctrine, ranked by performance budget:
+There are three paradigms for authoring a behavior, ranked by performance budget:
 
 #### Tier 2 — FastBTree
 
@@ -55,7 +55,7 @@ Choose FastBTree when:
 - You need `Observer` nodes that reactively abort branches.
 
 ```csharp
-// Brain tier constant used in DoctrineDefinition and DoctrineState
+// Brain tier constant used in BehaviorDefinition and BehaviorState
 const byte BrainTierBTree = BehaviorConstants.BrainTierBTree; // == 2
 ```
 
@@ -118,18 +118,18 @@ public class TrafficBrainSystem : IEcsModuleSystem
                 : NavigationConstants.ActionIdMoveTo;
 
             // Keep the channel alive -- ChannelArbitrationSystem guards on InstanceId.
-            if (view.HasComponent<DoctrineState>(entity))
+            if (view.HasComponent<BehaviorState>(entity))
             {
-                var doctrine = view.GetComponentRO<DoctrineState>(entity);
-                channel.DoctrineInstanceId = doctrine.InstanceId;
+                var behavior = view.GetComponentRO<BehaviorState>(entity);
+                channel.BehaviorInstanceId = behavior.InstanceId;
             }
         }
     }
 }
 ```
 
-Tier 0 entities do not use `DoctrineState`, `BrainBlackboard`, or the doctrine registry.
-They are controlled purely by the hardcoded system. `DoctrineFinishedEvent` is never
+Tier 0 entities do not use `BehaviorState`, `BrainBlackboard`, or the behavior registry.
+They are controlled purely by the hardcoded system. `BehaviorFinishedEvent` is never
 published for them.
 
 ---
@@ -148,16 +148,16 @@ sufficient.
 
 ---
 
-### Example A: A Combat Doctrine (FastBTree)
+### Example A: A Combat Behavior (FastBTree)
 
-A complete BTree doctrine that checks ammo, fires a weapon, and falls back to holding
+A complete BTree behavior that checks ammo, fires a weapon, and falls back to holding
 position when ammunition is exhausted. This example covers the four steps every BTree
-doctrine requires.
+behavior requires.
 
 #### A1. Define the DTO and Blackboard Wrapper
 
 ```csharp
-/// <summary>Parameters for the Combat doctrine. Written at doctrine assignment from JSON.</summary>
+/// <summary>Parameters for the Combat behavior. Written at behavior assignment from JSON.</summary>
 [StructLayout(LayoutKind.Sequential)]
 public struct CombatParams
 {
@@ -258,12 +258,12 @@ without any builder construction cost at runtime.
 #### A4. Register and Assign
 
 ```csharp
-// In AiDoctrineFactory.BuildRegistrationAction():
-const int CombatDoctrineId = 4001;
+// In AiBehaviorFactory.BuildRegistrationAction():
+const int CombatBehaviorId = 4001;
 var combatBlob = FbtTreeCatalog.GetCombat_BT();
 
-registry.Register(CombatDoctrineId, "Combat_BT",
-    new DoctrineDefinition
+registry.Register(CombatBehaviorId, "Combat_BT",
+    new BehaviorDefinition
     {
         Name             = "Combat_BT",
         BrainTier        = BehaviorConstants.BrainTierBTree,
@@ -274,25 +274,25 @@ registry.Register(CombatDoctrineId, "Combat_BT",
     });
 
 // From mission code:
-world.Bus.PublishManaged(new AssignDoctrineEvent
+world.Bus.PublishManaged(new AssignBehaviorEvent
 {
     Entity       = soldierEntity,
-    DoctrineName = "Combat_BT",
+    BehaviorName = "Combat_BT",
     JsonParams   = @"{ ""AmmoCount"": 30, ""EngageRange"": 80.0 }",
 });
 ```
 
-`DoctrineIngressSystem` deserialises the JSON onto a `stackalloc` shadow of `CombatParams`,
-writes it to `BrainBlackboard.Memory`, increments `DoctrineState.InstanceId`, and sets
+`BehaviorIngressSystem` deserialises the JSON onto a `stackalloc` shadow of `CombatParams`,
+writes it to `BrainBlackboard.Memory`, increments `BehaviorState.InstanceId`, and sets
 `BrainTier = BrainTierBTree`. `BTreeTickSystem` begins evaluating the compiled selector on
 the entity every simulation frame. Section 4 covers `ParseParams` and the full ingress
 flow in detail.
 
 ---
 
-### Example B: A Patrol Doctrine (FastHSM)
+### Example B: A Patrol Behavior (FastHSM)
 
-A complete HSM doctrine for a vehicle that follows a route until it is physically disabled.
+A complete HSM behavior for a vehicle that follows a route until it is physically disabled.
 This example shows the HSM authoring experience, where `Fhsm.SourceGen` emits type-safe
 `StateBuilder` extension methods so that string keys and byte offsets never appear in your
 builder code.
@@ -362,7 +362,7 @@ public static HsmDefinitionBlob BuildPatrolHsm()
         .On(BehaviorConstants.EventId_MobilityLost).GoTo("Disabled");
 
     builder.State("Disabled")
-        .Final();                       // entering here publishes DoctrineFinishedEvent
+        .Final();                       // entering here publishes BehaviorFinishedEvent
 
     var graph = builder.Build();
     HsmNormalizer.Normalize(graph);
@@ -375,18 +375,18 @@ When the vehicle is immobilised, `CognitiveInterruptSystem` sets byte 126 of the
 `BrainBlackboard`. `HsmTickSystem` reads that byte before the next tick and injects
 `EventId_MobilityLost`, driving the machine into `Disabled`. The `LocomotionChannel` is
 cleared by the exit-cleanup thunk wired inside `OnEntry_MoveAlongRoute()`. Section 8
-covers how `MissionDirectorSystem` reacts to the `DoctrineFinishedEvent` published on
+covers how `MissionDirectorSystem` reacts to the `BehaviorFinishedEvent` published on
 `Final` state entry.
 
 #### B4. Register
 
 ```csharp
-// In AiDoctrineFactory.BuildRegistrationAction():
-const int PatrolDoctrineId = 4002;
+// In AiBehaviorFactory.BuildRegistrationAction():
+const int PatrolBehaviorId = 4002;
 var patrolHsmBlob = BuildPatrolHsm();
 
-registry.Register(PatrolDoctrineId, "Patrol_HSM",
-    new DoctrineDefinition
+registry.Register(PatrolBehaviorId, "Patrol_HSM",
+    new BehaviorDefinition
     {
         Name          = "Patrol_HSM",
         BrainTier     = BehaviorConstants.BrainTierHsm,
@@ -441,11 +441,11 @@ not enforce these boundaries at runtime, so you must respect them):
 ```
 Byte offset   Purpose
 ──────────────────────────────────────────────────────────
-[0 .. ~60]    Doctrine parameters: written once at ingress by ParseParamsDelegate.
+[0 .. ~60]    Behavior parameters: written once at ingress by ParseParamsDelegate.
               Struct layout matches your DTO (e.g. MoveToLocationParams at offset 0).
 
 [~61 .. 125]  Contextual "soft advice": written by external systems such as
-              RouteContextSystem that inject sensory hints for the running doctrine.
+              RouteContextSystem that inject sensory hints for the running behavior.
 
 [126]         Interrupt register: MobilityLost (1 = fired this frame, 0 = clear).
 [127]         Interrupt register: reserved for future use.
@@ -485,29 +485,29 @@ entirely and receive your DTO directly via a typed `ref` parameter.
 
 ---
 
-## 4. Doctrine Parameters & Memory Projection
+## 4. Behavior Parameters & Memory Projection
 
 ### The Ingress Flow
 
-When the mission layer assigns a behavior, it publishes an `AssignDoctrineEvent`:
+When the mission layer assigns a behavior, it publishes an `AssignBehaviorEvent`:
 
 ```csharp
-world.Bus.PublishManaged(new AssignDoctrineEvent
+world.Bus.PublishManaged(new AssignBehaviorEvent
 {
     Entity       = myEntity,
-    DoctrineName = "FireAtTarget",
+    BehaviorName = "FireAtTarget",
     JsonParams   = @"{ ""TargetNetworkId"": 42, ""MaxRounds"": 5, ""CooldownSeconds"": 1.5 }",
 });
 ```
 
-`DoctrineIngressSystem` (running in `InputSystemGroup`) consumes this event and:
+`BehaviorIngressSystem` (running in `InputSystemGroup`) consumes this event and:
 
-1. Looks up the `DoctrineDefinition` in `DoctrineRegistry`.
+1. Looks up the `BehaviorDefinition` in `BehaviorRegistry`.
 2. Uses a `stackalloc` shadow copy of the blackboard to attempt parsing — if the JSON
-   is malformed, the entity remains on its **previous doctrine uninterrupted** (atomic
+   is malformed, the entity remains on its **previous behavior uninterrupted** (atomic
    transition guarantee).
 3. On success, copies the shadow buffer to the live `BrainBlackboard` component and
-   increments `DoctrineState.InstanceId` (the preemption token).
+   increments `BehaviorState.InstanceId` (the preemption token).
 
 ### Defining a Parameter DTO
 
@@ -533,7 +533,7 @@ Important rules:
 - The struct must be `unmanaged` (no managed references).
 - Use `[StructLayout(LayoutKind.Sequential)]` to guarantee deterministic field ordering.
 - The struct is placed at **offset 0** of `BrainBlackboard.Memory`. Its total size must fit
-  within the doctrine-parameters region (roughly bytes 0–60).
+  within the behavior-parameters region (roughly bytes 0–60).
 
 ### Writing the ParseParamsDelegate
 
@@ -854,17 +854,17 @@ static NodeStatus MyAction(ref BrainBlackboard bb, ref BehaviorTreeState state,
 > Instead, use the `IEntityCommandBuffer` provided by the FDP `EntityRepository`.
 > See Section 9 for the architectural rationale.
 
-## 6. Heavy-Data Doctrines: Blackboard1024 and Heavy Shared Attributes
+## 6. Heavy-Data Behaviors: Blackboard1024 and Heavy Shared Attributes
 
 ### Why `BrainBlackboard` Has a Hard 60-Byte Limit
 
-The first 60 bytes of `BrainBlackboard.Memory` are reserved for doctrine parameters. This ceiling is intentional: it keeps the universal cognitive bus small enough to fit in a single cache line alongside the interrupt registers at bytes 126–127, guarantees zero-allocation hot-path execution, and makes buffer-overrun into the soft-advice region mathematically impossible.
+The first 60 bytes of `BrainBlackboard.Memory` are reserved for behavior parameters. This ceiling is intentional: it keeps the universal cognitive bus small enough to fit in a single cache line alongside the interrupt registers at bytes 126–127, guarantees zero-allocation hot-path execution, and makes buffer-overrun into the soft-advice region mathematically impossible.
 
-When a doctrine requires far more working memory — a full AI search context, pre-computed firing solutions, high-resolution threat grids, or deep historical tactical data — the correct pattern is to store that data in a **separate ECS component** and give the doctrine methods a compiler-assisted path to reach it.
+When a behavior requires far more working memory — a full AI search context, pre-computed firing solutions, high-resolution threat grids, or deep historical tactical data — the correct pattern is to store that data in a **separate ECS component** and give the behavior methods a compiler-assisted path to reach it.
 
 ### The `Blackboard1024` Heavy Component
 
-`Blackboard1024` is a purpose-built 1024-byte unmanaged ECS component designed to hold exactly this kind of heavy doctrine data:
+`Blackboard1024` is a purpose-built 1024-byte unmanaged ECS component designed to hold exactly this kind of heavy behavior data:
 
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
@@ -877,15 +877,15 @@ public unsafe struct Blackboard1024
 }
 ```
 
-Entities that participate in heavy doctrines carry both `BrainBlackboard` (the 128-byte bus with the minimal params and interrupt registers) **and** `Blackboard1024` (the 1024-byte scratchpad). The two components are independent; `Blackboard1024` is never inspected by `BTreeTickSystem` or `HsmTickSystem` — it is accessed only via the compiler-generated thunks described below.
+Entities that participate in heavy behaviors carry both `BrainBlackboard` (the 128-byte bus with the minimal params and interrupt registers) **and** `Blackboard1024` (the 1024-byte scratchpad). The two components are independent; `Blackboard1024` is never inspected by `BTreeTickSystem` or `HsmTickSystem` — it is accessed only via the compiler-generated thunks described below.
 
-Register `HeavyDtoType` on the doctrine definition so that the entity inspector can project and display the heavy data at runtime:
+Register `HeavyDtoType` on the behavior definition so that the entity inspector can project and display the heavy data at runtime:
 
 ```csharp
-registry.Register(DoctrineId, "HeavyDoctrineName",
-    new DoctrineDefinition
+registry.Register(BehaviorId, "HeavyBehaviorName",
+    new BehaviorDefinition
     {
-        Name          = "HeavyDoctrineName",
+        Name          = "HeavyBehaviorName",
         BrainTier     = BehaviorConstants.BrainTierBTree,
         ParseParams   = ...,
         ParamsDtoType = typeof(MyMinimalParams),
@@ -917,7 +917,7 @@ public static NodeStatus Action_ProcessHeavyData(
 }
 ```
 
-**Managed heavy component (e.g., a doctrine-scoped class)** — three-argument form:
+**Managed heavy component (e.g., a behavior-scoped class)** — three-argument form:
 
 ```csharp
 [SharedAiHeavyAction(
@@ -1044,7 +1044,7 @@ The condition attribute places `heavyDtoType` before the optional `heavyFieldNam
 
 | Scenario | Component type | Attribute form |
 |---|---|---|
-| Read-only reference data shared across entities (doctrine config object) | Managed class | 3-arg action / 4-arg condition (no field name) |
+| Read-only reference data shared across entities (behavior config object) | Managed class | 3-arg action / 4-arg condition (no field name) |
 | Per-entity mutable numeric state exceeding 60 bytes (search buffers, heat maps) | `Blackboard1024` (unmanaged struct) | 5-arg action / 5-arg condition (with field name) |
 | Mixed: small config class + large mutable buffer | Both; two attributes on the same method | — |
 
@@ -1279,7 +1279,7 @@ This single system covers _all_ brain tiers. There is no tier-specific cleanup c
 ### System Execution Order in `CognitiveRuntimeModule`
 
 ```
-ChannelArbitrationSystem       -- clears stale channels from previous doctrine
+ChannelArbitrationSystem       -- clears stale channels from previous behavior
 CognitiveInterruptSystem       -- writes interrupt bytes (edge-triggered)
 BTreeTickSystem                -- polls byte 126 via Observer nodes, ticks tree
 HsmTickSystem<BrainHsm128>     -- reads byte 126, injects event, ticks machine
@@ -1401,13 +1401,13 @@ authority over how and when the world mutates.
 
 ### The Contract
 
-The `MissionDirectorSystem` never inspects the underlying brain tier. It strings doctrines
-together through `MissionPlanQueue` phases and reacts to `DoctrineFinishedEvent`.
+The `MissionDirectorSystem` never inspects the underlying brain tier. It strings behaviors
+together through `MissionPlanQueue` phases and reacts to `BehaviorFinishedEvent`.
 
-### Signaling Completion from a FastBTree Doctrine
+### Signaling Completion from a FastBTree Behavior
 
 When the root node of a BTree evaluates to `NodeStatus.Success` or `NodeStatus.Failure`,
-`BTreeTickSystem` publishes a `DoctrineFinishedEvent` exactly once per doctrine assignment:
+`BTreeTickSystem` publishes a `BehaviorFinishedEvent` exactly once per behavior assignment:
 
 ```csharp
 // BTreeTickSystem -- simplified
@@ -1416,10 +1416,10 @@ var rootResult = def.BTreeInterpreter!.Tick(ref blackboard, ref btState.State, r
 if (rootResult == NodeStatus.Success || rootResult == NodeStatus.Failure)
 {
     if (!_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint prev)
-        || prev != doctrine.InstanceId)
+        || prev != behavior.InstanceId)
     {
-        repo.Bus.Publish(new DoctrineFinishedEvent { Entity = entity, Result = rootResult });
-        _publishedTerminalForInstanceId[entity.Index] = doctrine.InstanceId;
+        repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity, Result = rootResult });
+        _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
     }
 }
 ```
@@ -1427,12 +1427,12 @@ if (rootResult == NodeStatus.Success || rootResult == NodeStatus.Failure)
 The deduplication ensures the event fires **once** regardless of how many frames the tree
 stays in a terminal state before the mission director advances to the next phase.
 
-For BTree doctrines to terminate, their root node must eventually return `Success` or
+For BTree behaviors to terminate, their root node must eventually return `Success` or
 `Failure`. An indefinitely-running action (like `Action_Wander` which always returns
-`Running`) means the doctrine never finishes — this is intentional for "run forever"
+`Running`) means the behavior never finishes — this is intentional for "run forever"
 missions.
 
-### Signaling Completion from a FastHSM Doctrine
+### Signaling Completion from a FastHSM Behavior
 
 Mark a state as terminal using the `.Final()` builder extension:
 
@@ -1448,7 +1448,7 @@ builder
 ```
 
 When the kernel enters a `Final` state, it sets `InstanceFlags.Terminated` in the instance
-header. `HsmTickSystem<T>` detects this and publishes `DoctrineFinishedEvent`:
+header. `HsmTickSystem<T>` detects this and publishes `BehaviorFinishedEvent`:
 
 ```csharp
 // HsmTickSystem<T> -- simplified
@@ -1456,12 +1456,12 @@ ref var hdr = ref Unsafe.As<T, InstanceHeader>(ref component);
 if ((hdr.Flags & InstanceFlags.Terminated) != 0)
 {
     if (!_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint prev)
-        || prev != doctrine.InstanceId)
+        || prev != behavior.InstanceId)
     {
-        _publishedTerminalForInstanceId[entity.Index] = doctrine.InstanceId;
-        repo.Bus.Publish(new DoctrineFinishedEvent { Entity = entity });
+        _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
+        repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity });
     }
-    // Immediately clear -- prevents the "terminal latch" bug on rapid doctrine reassignment.
+    // Immediately clear -- prevents the "terminal latch" bug on rapid behavior reassignment.
     hdr.Flags &= ~InstanceFlags.Terminated;
     hdr.Phase  = InstancePhase.Idle;
 }
@@ -1469,44 +1469,44 @@ if ((hdr.Flags & InstanceFlags.Terminated) != 0)
 
 ### Configuring Mission Phases
 
-Set `MissionTrigger.DoctrineFinished` so the `MissionDirectorSystem` advances on the event:
+Set `MissionTrigger.BehaviorFinished` so the `MissionDirectorSystem` advances on the event:
 
 ```csharp
 var queue = new MissionPlanQueue();
 queue.PhaseCount = 3;
 
-// Phase 0: move to waypoint (BTree doctrine -- finishes when arrival is confirmed)
+// Phase 0: move to waypoint (BTree behavior -- finishes when arrival is confirmed)
 queue.Phases[0] = new MissionPhase
 {
-    DoctrineId = DoctrineIds.MoveToLocation,
-    Trigger    = MissionTrigger.DoctrineFinished,
+    BehaviorId = BehaviorIds.MoveToLocation,
+    Trigger    = MissionTrigger.BehaviorFinished,
 };
 
 // Phase 1: fire at the target (BTree -- finishes when target is dead or ammo out)
 queue.Phases[1] = new MissionPhase
 {
-    DoctrineId = DoctrineIds.FireAtTarget,
-    Trigger    = MissionTrigger.DoctrineFinished,
+    BehaviorId = BehaviorIds.FireAtTarget,
+    Trigger    = MissionTrigger.BehaviorFinished,
 };
 
 // Phase 2: idle forever (HSM -- no trigger needed, this is the final phase)
 queue.Phases[2] = new MissionPhase
 {
-    DoctrineId = DoctrineIds.IdleHsm,
+    BehaviorId = BehaviorIds.IdleHsm,
     Trigger    = MissionTrigger.TimerElapsed,
     TriggerParam = 99999f,
 };
 ```
 
-BTree and HSM doctrines are interchangeable within the same `MissionPlanQueue`. The mission
+BTree and HSM behaviors are interchangeable within the same `MissionPlanQueue`. The mission
 director advances phases identically regardless of which tier is running.
 
 ---
 
-## 11. End-to-End Walkthrough: Writing a New Doctrine
+## 11. End-to-End Walkthrough: Writing a New Behavior
 
-This section walks through adding a complete `PatrolAndEngage` doctrine to the project.
-The doctrine uses:
+This section walks through adding a complete `PatrolAndEngage` behavior to the project.
+The behavior uses:
 - A **FastBTree** tree that sequences patrol movement with combat.
 - Shared conditions and actions usable from both BTree and (hypothetically) an HSM variant.
 - Proper channel safety via `[WritesChannel]`.
@@ -1517,7 +1517,7 @@ Add this to `CgfNodes.cs` alongside the other param structs:
 
 ```csharp
 /// <summary>
-/// Parameters for the PatrolAndEngage doctrine, placed at offset 0 of BrainBlackboard.
+/// Parameters for the PatrolAndEngage behavior, placed at offset 0 of BrainBlackboard.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 public struct PatrolAndEngageParams
@@ -1575,7 +1575,7 @@ Target the `Params` field of `PatrolAndEngageBlackboard` so each method receives
 
 ```csharp
 /// <summary>
-/// Condition: returns true if any threat is within the doctrine's EngageRange.
+/// Condition: returns true if any threat is within the behavior's EngageRange.
 /// Works in both BTree and HSM via [SharedAiCondition].
 /// </summary>
 [SharedAiCondition(typeof(PatrolAndEngageBlackboard), nameof(PatrolAndEngageBlackboard.Params))]
@@ -1647,23 +1647,23 @@ public static BehaviorTreeBlob BuildPatrolAndEngage()
         .Compile("PatrolAndEngage");
 }
 
-### Step 5: Register the Doctrine
+### Step 5: Register the Behavior
 
-In `AiDoctrineFactory.BuildRegistrationAction()`:
+In `AiBehaviorFactory.BuildRegistrationAction()`:
 
 ```csharp
-// Stable ID -- add to the constant block and to CgfDoctrineIds in Hrot.CGF.
+// Stable ID -- add to the constant block and to CgfBehaviorIds in Hrot.CGF.
 private const int PatrolAndEngage_BT = 3013;
 
 // In BuildRegistrationAction:
 var patrolBlob = FbtTreeCatalog.GetPatrolAndEngage();
 
-return (DoctrineRegistry registry) =>
+return (BehaviorRegistry registry) =>
 {
     // ... existing registrations ...
 
     registry.Register(PatrolAndEngage_BT, "PatrolAndEngage",
-        new DoctrineDefinition
+        new BehaviorDefinition
         {
             Name             = "PatrolAndEngage",
             BrainTier        = BehaviorConstants.BrainTierBTree,
@@ -1675,27 +1675,27 @@ return (DoctrineRegistry registry) =>
 };
 ```
 
-### Step 6: Assign the Doctrine from Mission Code
+### Step 6: Assign the Behavior from Mission Code
 
 ```csharp
-world.Bus.PublishManaged(new AssignDoctrineEvent
+world.Bus.PublishManaged(new AssignBehaviorEvent
 {
     Entity       = infantryEntity,
-    DoctrineName = "PatrolAndEngage",
+    BehaviorName = "PatrolAndEngage",
     JsonParams   = @"{ ""WaypointX"": 400.0, ""WaypointY"": 200.0, ""EngageRange"": 75.0 }",
 });
 ```
 
-`DoctrineIngressSystem` will:
+`BehaviorIngressSystem` will:
 1. Deserialize JSON into `PatrolAndEngageParams` on a stack shadow.
 2. Write the shadow to `BrainBlackboard.Memory[0..19]`.
-3. Set `DoctrineState.BrainTier = BrainTierBTree` and increment `InstanceId`.
+3. Set `BehaviorState.BrainTier = BrainTierBTree` and increment `InstanceId`.
 
-For **Tier 1 (HSM)** doctrines, the ingress system performs two additional steps that are
+For **Tier 1 (HSM)** behaviors, the ingress system performs two additional steps that are
 critical for correctness:
 - **Unmanaged queue scrub:** it physically zeroes the `ActiveLeafIds` array in the HSM
   instance header (`BrainHsm64` or `BrainHsm128`), preventing stale event IDs from a
-  previous doctrine activation from being re-processed by the kernel on the next tick.
+  previous behavior activation from being re-processed by the kernel on the next tick.
 - **`MachineId` synchronization:** it binds `InstanceHeader.MachineId` to the
   `StructureHash` of the newly assigned `HsmDefinitionBlob`. If the kernel's
   `ValidateInstance` firewall detects a mismatch between the instance's `MachineId` and
@@ -1704,8 +1704,8 @@ critical for correctness:
   immediately tickable.
 
 You do not call these steps yourself — they are handled automatically by
-`DoctrineIngressSystem`. Understanding them is useful for diagnosing entities that appear
-frozen after a rapid doctrine reassignment.
+`BehaviorIngressSystem`. Understanding them is useful for diagnosing entities that appear
+frozen after a rapid behavior reassignment.
 
 ### Step 7 (Optional): Write an HSM Variant
 
@@ -1743,7 +1743,7 @@ var patrolFlat     = HsmFlattener.Flatten(patrolGraph);
 HsmDefinitionBlob patrolHsmBlob = HsmEmitter.Emit(patrolFlat);
 
 registry.Register(PatrolAndEngage_HSM, "PatrolAndEngage_HSM",
-    new DoctrineDefinition
+    new BehaviorDefinition
     {
         Name          = "PatrolAndEngage_HSM",
         BrainTier     = BehaviorConstants.BrainTierHsm,
@@ -1760,13 +1760,13 @@ called from both the BTree closure and the HSM unmanaged thunk. No duplication.
 
 ## Quick Reference
 
-### Doctrine Tier Summary
+### Behavior Tier Summary
 
 | Tier | Component | Tick system | Termination | Use case |
 |------|-----------|-------------|-------------|----------|
 | 2 — BTree | `BrainBTreeState` | `BTreeTickSystem` | Root returns `Success`/`Failure` | Complex sequential logic |
 | 1 — HSM | `BrainHsm64` / `BrainHsm128` | `HsmTickSystem<T>` | Entry into `.Final()` state | Reactive, zero-alloc behaviors |
-| 0 — Script | none | Custom `IEcsModuleSystem` | Never (no `DoctrineFinishedEvent`) | Massive simple populations |
+| 0 — Script | none | Custom `IEcsModuleSystem` | Never (no `BehaviorFinishedEvent`) | Massive simple populations |
 
 ### Attribute Cheat Sheet
 
@@ -1833,7 +1833,7 @@ HsmDefinitionBlob blob = HsmEmitter.Emit(flat);
 ### Blackboard Memory Map
 
 ```
-[0   .. ~60 ]  Doctrine params DTO (your struct at offset 0)
+[0   .. ~60 ]  Behavior params DTO (your struct at offset 0)
 [~61 .. 125 ]  Contextual soft-advice (written by external systems)
 [126        ]  InterruptRegister_MobilityLost  (1 = fired, cleared by CognitiveCleanupSystem)
 [127        ]  Reserved
@@ -2121,17 +2121,17 @@ When the HSM compiler's `HsmFlattener` runs, it crawls the graph, finds the stri
 
 By having the source generator emit every lifecycle permutation, the domain code remains pure, the builder DSL remains strongly typed, and the underlying memory offset arithmetic is completely encapsulated.
 
-## Large data doctrines
+## Large data behaviors
 
-what is some doctrine ever needed a very large parameter structure or a large working memory space for its execution? Providing its own component to store them. How to define the conditions and actions for such a special doctrine?
+what is some behavior ever needed a very large parameter structure or a large working memory space for its execution? Providing its own component to store them. How to define the conditions and actions for such a special behavior?
 
 
 
-When a doctrine requires a massive parameter payload—such as high-resolution heat maps, deep historical tactical context, or complex pre-computed pathing arrays—forcing it into the `BrainBlackboard` is an architectural anti-pattern.
+When a behavior requires a massive parameter payload—such as high-resolution heat maps, deep historical tactical context, or complex pre-computed pathing arrays—forcing it into the `BrainBlackboard` is an architectural anti-pattern.
 
-We strictly enforce the 60-byte `DoctrineParameters` limit within the `BlackboardMemoryLayout` to guarantee cache locality, ensure zero-allocation hot-path execution, and mathematically prevent buffer overruns into the `SoftAdvice` and interrupt registers.
+We strictly enforce the 60-byte `BehaviorParameters` limit within the `BlackboardMemoryLayout` to guarantee cache locality, ensure zero-allocation hot-path execution, and mathematically prevent buffer overruns into the `SoftAdvice` and interrupt registers.
 
-To handle a data-heavy doctrine, we lean entirely into Data-Oriented Design (DOD) and the Entity Component System (ECS). Instead of polluting the universal cognitive bus, you decouple the bulky data by defining it as its own dedicated ECS component.
+To handle a data-heavy behavior, we lean entirely into Data-Oriented Design (DOD) and the Entity Component System (ECS). Instead of polluting the universal cognitive bus, you decouple the bulky data by defining it as its own dedicated ECS component.
 
 Here is the clean architecture approach to defining and accessing this memory:
 
@@ -2156,11 +2156,11 @@ public unsafe struct TacticalHeatMapData
 
 ### 2. Define a Minimal Blackboard DTO
 
-Because your doctrine still needs to be assigned via the `DoctrineRegistry` and bound in the BTree or HSM builder, you define a minimal, completely empty (or very small) DTO to satisfy the `BrainBlackboard` mapping.
+Because your behavior still needs to be assigned via the `BehaviorRegistry` and bound in the BTree or HSM builder, you define a minimal, completely empty (or very small) DTO to satisfy the `BrainBlackboard` mapping.
 
 ```
 [StructLayout(LayoutKind.Sequential)]
-public struct HeavyDoctrineParams
+public struct HeavyBehaviorParams
 {
     // We intentionally leave this empty or store a simple configuration ID.
     // The actual heavy data lives in TacticalHeatMapData.
@@ -2177,8 +2177,8 @@ You use this repository reference to read or mutate your massive custom componen
 ```
 public static class HeavyTacticalBehaviors
 {
-    [SharedAiCondition(typeof(HeavyDoctrineParams), nameof(HeavyDoctrineParams))]
-    public static bool Condition_IsSectorHot(ref HeavyDoctrineParams p, Entity self, EntityRepository repo)
+    [SharedAiCondition(typeof(HeavyBehaviorParams), nameof(HeavyBehaviorParams))]
+    public static bool Condition_IsSectorHot(ref HeavyBehaviorParams p, Entity self, EntityRepository repo)
     {
         // 1. Guard against missing components
         if (!repo.HasComponent<TacticalHeatMapData>(self)) return false;
@@ -2190,8 +2190,8 @@ public static class HeavyTacticalBehaviors
         return heatMap.ActiveSectors > 0 && heatMap.GridWeights > heatMap.ThreatThreshold;
     }
 
-    [SharedAiAction(typeof(HeavyDoctrineParams), nameof(HeavyDoctrineParams))]
-    public static NodeStatus Action_ProcessHeatMap(ref HeavyDoctrineParams p, Entity self, EntityRepository repo)
+    [SharedAiAction(typeof(HeavyBehaviorParams), nameof(HeavyBehaviorParams))]
+    public static NodeStatus Action_ProcessHeatMap(ref HeavyBehaviorParams p, Entity self, EntityRepository repo)
     {
         if (!repo.HasComponent<TacticalHeatMapData>(self)) return NodeStatus.Failure;
 
@@ -2210,7 +2210,7 @@ public static class HeavyTacticalBehaviors
 
 This design represents perfect ECS composition. The `BrainBlackboard` remains a lean, rigidly 128-byte cognitive bus focused exclusively on state machine/behavior tree state and universal hardware interrupts. Meanwhile, your `TacticalHeatMapData` component manages its own lifecycle, memory alignment, and network replication rules via standard ECS component logic.
 
-If your heavy component requires complex setup, you simply inject it into the `SpawnEntityCommand.InitialComponents` list at spawn time, or attach it via the `DoctrineIngressSystem` when the doctrine is assigned. The AI developer writes pure logic, and the engine flawlessly respects the memory boundaries.
+If your heavy component requires complex setup, you simply inject it into the `SpawnEntityCommand.InitialComponents` list at spawn time, or attach it via the `BehaviorIngressSystem` when the behavior is assigned. The AI developer writes pure logic, and the engine flawlessly respects the memory boundaries.
 
 
 
@@ -2226,8 +2226,8 @@ Here is how the architecture handles the integration and the somewhat surprising
 
 FastHSM is injected into the engine's cognitive loop via the CognitiveRuntimeModule, operating alongside the behavior tree systems. The integration is built on three pillars:
 
-- **Memory Binding (The Components):** Entities do not hold managed state machines. Instead, they are composed with strictly sized unmanaged components like BrainHsm64 or BrainHsm128. A separate DoctrineState component holds an integer hash that acts as a foreign key to the DoctrineRegistry, where the immutable, compiled HsmDefinitionBlob resides.
-- **The Execution Tick:** The actual execution is driven by HsmTickSystem<T>, which runs during the Simulation phase. It queries all entities possessing a specific HSM size component and a matching doctrine, and feeds them into the unmanaged FastHSM kernel.
+- **Memory Binding (The Components):** Entities do not hold managed state machines. Instead, they are composed with strictly sized unmanaged components like BrainHsm64 or BrainHsm128. A separate BehaviorState component holds an integer hash that acts as a foreign key to the BehaviorRegistry, where the immutable, compiled HsmDefinitionBlob resides.
+- **The Execution Tick:** The actual execution is driven by HsmTickSystem<T>, which runs during the Simulation phase. It queries all entities possessing a specific HSM size component and a matching behavior, and feeds them into the unmanaged FastHSM kernel.
 - **The Unmanaged Bridge:** To allow the pure unmanaged FastHSM kernel to read and mutate the managed ECS world, the FDP engine passes a HsmKernelBridge struct as the generic context. This bridge holds the target Entity ID and an IntPtr WorldHandle. This handle is a GCHandle to the live EntityRepository, allowing the engine to mathematically project unmanaged memory back into C# references without allocating a single byte on the garbage collector.
 
 ### **2. What Executes the** **HsmCommandWriter** **Commands?**

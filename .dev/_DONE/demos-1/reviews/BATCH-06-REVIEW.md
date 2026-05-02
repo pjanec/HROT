@@ -17,11 +17,11 @@ Core deliverables match the **intent** of DEM1-D006/D007 and the two BATCH-05 de
 
 ## Issues Found (developer submission)
 
-### Issue 1: MissionCommand test used wrong `DemoDoctrineIds`
+### Issue 1: MissionCommand test used wrong `DemoBehaviorIds`
 
 **File:** `FDP/Examples/Fdp.Examples.Scenarios.Tests/ScenarioTests.cs`  
-**Problem:** Namespace `Fdp.Examples.Scenarios.Tests` is nested under `Fdp.Examples.Scenarios` for name lookup. Unqualified `DemoDoctrineIds.Combat` bound to `Fdp.Examples.Scenarios.DemoDoctrineIds` (2900), not `Fdp.Examples.Common.Constants.DemoDoctrineIds` (200).  
-**Fix:** Qualify `Fdp.Examples.Common.Constants.DemoDoctrineIds.Combat` (applied).
+**Problem:** Namespace `Fdp.Examples.Scenarios.Tests` is nested under `Fdp.Examples.Scenarios` for name lookup. Unqualified `DemoBehaviorIds.Combat` bound to `Fdp.Examples.Scenarios.DemoBehaviorIds` (2900), not `Fdp.Examples.Common.Constants.DemoBehaviorIds` (200).  
+**Fix:** Qualify `Fdp.Examples.Common.Constants.DemoBehaviorIds.Combat` (applied).
 
 ### Issue 2: `TerrainQueryResolutionSystem` jump-rejection never engaged at Z=0
 
@@ -50,7 +50,7 @@ Core deliverables match the **intent** of DEM1-D006/D007 and the two BATCH-05 de
 ### Issue 6: DEM1-D006 literal “register MissionControlModule + CognitiveRuntimeModule”
 
 **File:** `FDP/Examples/Fdp.Examples.Scenarios/Cognitive/MissionCommandScenario.cs`  
-**Problem:** Task text asks for modules; implementation drives `DoctrineIngressSystem`, `MissionDirectorSystem`, `ChannelArbitrationSystem` manually (same pattern as `SensorGridScenario`). Acceptable for deterministic tick proofs **if documented** — XMl doc already explains; no code change required.
+**Problem:** Task text asks for modules; implementation drives `BehaviorIngressSystem`, `MissionDirectorSystem`, `ChannelArbitrationSystem` manually (same pattern as `SensorGridScenario`). Acceptable for deterministic tick proofs **if documented** — XMl doc already explains; no code change required.
 
 ### Issue 7: LocalGridBuilder “incremental” debt
 
@@ -68,7 +68,7 @@ Core deliverables match the **intent** of DEM1-D006/D007 and the two BATCH-05 de
 
 ## Test Quality Assessment
 
-- Mission / terrain xUnit tests assert **exit codes**, **phase observables**, and **meaningful thresholds** (doctrine hash, `ActiveAction`, offsets, `LastValidIgAltitude`). Not string-shallow.  
+- Mission / terrain xUnit tests assert **exit codes**, **phase observables**, and **meaningful thresholds** (behavior hash, `ActiveAction`, offsets, `LastValidIgAltitude`). Not string-shallow.  
 - Phase 4 terrain test mostly duplicates full run but adds an extra `TargetZOffset` bound — acceptable.  
 - **Regression:** After fixes, `Fdp.Examples.Scenarios.Tests`: **48/48 passed**; `Fdp.Toolkit.Geographic.Tests` passes.
 
@@ -88,14 +88,14 @@ feat(dem1): Phase 4 scenarios, perception bus isolation, clamping fixes (BATCH-0
 Completes DEM1-D006 (MissionCommandScenario), DEM1-D007 (TerrainClampingScenario).
 Closes DEBT: LocalGridBuilder dirty fast path; AutonomousPerception scoped bus.
 
-- Cognitive: manual DoctrineIngress / MissionDirector / ChannelArbitration pipeline
-  with same-tick doctrine apply via double SwapBuffers.
+- Cognitive: manual BehaviorIngress / MissionDirector / ChannelArbitration pipeline
+  with same-tick behavior apply via double SwapBuffers.
 - Perception: TerrainQuery* + TransformSync + MockTerrainProvider; Z=0 authority
   reset after sync to avoid ReferenceSimZ feedback.
 - Geographic: IgAltitudeBaselineEstablished for jump-rejection (sea-level safe).
 - Runner: register behaviorvalidation, missioncommand, terrainclamping.
 - Common: ScenarioSubsystem calls OnShutdown before world dispose.
-- Tests: fix DemoDoctrineIds qualification in nested test namespace.
+- Tests: fix DemoBehaviorIds qualification in nested test namespace.
 
 Tests: Fdp.Examples.Scenarios.Tests 48/48; Fdp.Toolkit.Geographic.Tests.
 ```

@@ -31,16 +31,16 @@
 ## 📝 Developer Insights
 
 **Q1: What issues did you encounter during implementation? How did you resolve them?**
-Assigning ParseParams delegates in SimHostApp required an unsafe context because the delegate signature uses pointers. Marked RegisterDoctrines as unsafe to resolve the compiler error.
+Assigning ParseParams delegates in SimHostApp required an unsafe context because the delegate signature uses pointers. Marked RegisterBehaviors as unsafe to resolve the compiler error.
 
 **Q2: Did you spot any weak points in the existing codebase? What would you improve?**
 FollowRoute missions lack a clear path from behavior params to a trajectory ID, which limits functional route following without extra tooling or a trajectory builder hook.
 
 **Q3: What design decisions did you make beyond the instructions? What alternatives did you consider?**
-I introduced a RegisterDoctrines helper method in SimHostApp to keep OnLoad shorter and mirror the UrbanCombat pattern. The alternative was to keep inline registration, but it would be harder to maintain alongside the new BTree setup.
+I introduced a RegisterBehaviors helper method in SimHostApp to keep OnLoad shorter and mirror the UrbanCombat pattern. The alternative was to keep inline registration, but it would be harder to maintain alongside the new BTree setup.
 
 **Q4: What edge cases did you discover that weren't mentioned in the spec?**
-Action nodes may be invoked on entities missing LocomotionChannel or DoctrineState; the new SimHostNodes guards against missing components to avoid null refs.
+Action nodes may be invoked on entities missing LocomotionChannel or BehaviorState; the new SimHostNodes guards against missing components to avoid null refs.
 
 **Q5: Are there any performance concerns or optimization opportunities you noticed?**
 ParseParams uses System.Text.Json and allocates during mission changes. It is not in a per-frame hot path, but caching parsed mission parameters or a pooled serializer could reduce allocations if churn becomes high.

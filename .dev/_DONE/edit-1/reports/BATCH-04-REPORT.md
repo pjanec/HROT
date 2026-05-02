@@ -76,7 +76,7 @@ Note that `FDP.Toolkit.Perception.Tests` is only in `FDP/FDP.sln`, not in `IOS-I
 Yes — as already called out in the batch instructions' "Critical Codebase Fact" section. The spec document (TASK-DETAIL) mentioned `world.RegisterManagedEvent<T>()`, but this method does NOT exist on `EntityRepository`. Only `RegisterEvent<T>()` is present (for unmanaged structs via `Bus.Register<T>()`).
 
 For managed events (class types), no registration API exists at all. `FdpEventBus.PublishManaged<T>` and `ConsumeManaged<T>` both use a `ConcurrentDictionary<int, object>` keyed by `GetManagedTypeId<T>()` (hash of the CLR type's full name), and the stream is created lazily on first publish. This is confirmed by:
-- `AssignDoctrineEvent` (a sealed class) — has no `[EventId]`, no registration call anywhere, and works fine.
+- `AssignBehaviorEvent` (a sealed class) — has no `[EventId]`, no registration call anywhere, and works fine.
 - `FdpEventBus.GetOrCreateManagedStream<T>()` creates the stream on demand.
 
 Therefore `SpawnZoneObstacleCommand` and `UpdateZoneConfigCommand`:
@@ -92,7 +92,7 @@ Therefore `SpawnZoneObstacleCommand` and `UpdateZoneConfigCommand`:
 
 3. **`Assert.Single` instead of `Assert.Equal(1, ...)` for collection-size assertions** — Chose the xUnit-idiomatic form to avoid the xUnit2013 analyzer warning and match the spirit of existing test code. For `ReadOnlySpan<T>` the conversion `.ToArray()` is required before `Assert.Single` since `ReadOnlySpan<T>` is not `IEnumerable<T>`.
 
-4. **No `[StructLayout(LayoutKind.Sequential)]` on embarkation structs** — The batch instructions do not specify it for `EmbarkEntityCommand` / `DisembarkEntityCommand`, and neither does the existing `AssignDoctrineHashEvent` reference pattern. `SeedTargetCommand` carries the `[StructLayout]` attribute following `PerceptionEvents.cs` precedent (all four existing perception structs have it).
+4. **No `[StructLayout(LayoutKind.Sequential)]` on embarkation structs** — The batch instructions do not specify it for `EmbarkEntityCommand` / `DisembarkEntityCommand`, and neither does the existing `AssignBehaviorHashEvent` reference pattern. `SeedTargetCommand` carries the `[StructLayout]` attribute following `PerceptionEvents.cs` precedent (all four existing perception structs have it).
 
 **Q4: Are the CGF or Editor registries also missing these events? Will publishing them throw at runtime?**
 

@@ -21,7 +21,7 @@ No issues found.
 
 ## Test Quality Assessment
 
-Tests are solid. SC-5 (authority gate) correctly uses `SetAuthority<DoctrineState>(entity, true)` absent to simulate remote ownership — tests actual behavior, not just compilation. SC-4 fallback verifies both `DoctrineName` AND `JsonParams` forwarding. SC-3 verifies no exception on deleted entity. All assertions use `Assert.Equal`/`Assert.Single`/`Assert.Empty` on actual values.
+Tests are solid. SC-5 (authority gate) correctly uses `SetAuthority<BehaviorState>(entity, true)` absent to simulate remote ownership — tests actual behavior, not just compilation. SC-4 fallback verifies both `BehaviorName` AND `JsonParams` forwarding. SC-3 verifies no exception on deleted entity. All assertions use `Assert.Equal`/`Assert.Single`/`Assert.Empty` on actual values.
 
 ---
 

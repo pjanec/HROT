@@ -16,7 +16,7 @@ repair work were completed in this session.
 | Task | Area | Description |
 |------|------|-------------|
 | IF001 | SimHost | Remove `VehicleState` descriptor contamination from `DescriptorMapper` |
-| IF002 | SimHost | Fix doctrine preemption — increment `InstanceId` on every doctrine update |
+| IF002 | SimHost | Fix behavior preemption — increment `InstanceId` on every behavior update |
 | IF003 | SimHost | Publish `EntityMasterDescriptor` over DDS on every entity master change |
 | IF004 | IG | Fix ghost ownership — `EntityMasterTranslator` sets `IsLocallyOwned` from node ID |
 | IF005 | IG | Register `TransformSyncSystem` so remote entity positions interpolate |
@@ -33,7 +33,7 @@ repair work were completed in this session.
 | File | Change |
 |------|--------|
 | `Systems/DescriptorMapperSystem.cs` | IF001: removed `VehicleState` write; only writes canonical descriptors |
-| `Systems/DoctrineProcessingSystem.cs` | IF002: added `unchecked { doctrine.InstanceId++; }` on every doctrine update |
+| `Systems/BehaviorProcessingSystem.cs` | IF002: added `unchecked { behavior.InstanceId++; }` on every behavior update |
 | `Systems/EntityMasterPublishingSystem.cs` | IF003: created — publishes `EntityMasterDescriptor` DDS topic per changed entity |
 
 ### Hrot.IG (IF004–IF006, IF008)

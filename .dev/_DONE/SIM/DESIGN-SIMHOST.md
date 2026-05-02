@@ -38,9 +38,9 @@
 | **Network Spawning** | ❌ NEW (shared) | `FDP.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem` | Unified entity creation: ID, TKB, network infra, ELM — see [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) |
 | **Descriptor Mapper** | ❌ NEW | `Hrot.SimHost.Util.DescriptorMapper` | Converts DDS `EntityDescriptorUnion` list → `List<object>` for SpawnEntityCommand |
 | **CreateEntity Handler** | ❌ NEW | `Hrot.SimHost.Systems.CreateEntityRequestSystem` | Translates DDS CreateEntityRequest → SpawnEntityCommand (thin, no direct ELM/TKB calls) |
-| **Mission Execution** | ✅ EXISTS | `FDP.Toolkit.Behavior` / `FDP.Toolkit.Navigation` | BTree doctrine pipeline: ChannelArbitrationSystem → BTreeTickSystem → Executors |
+| **Mission Execution** | ✅ EXISTS | `FDP.Toolkit.Behavior` / `FDP.Toolkit.Navigation` | BTree behavior pipeline: ChannelArbitrationSystem → BTreeTickSystem → Executors |
 | **WorldPos Bridge** | ✅ EXISTS | `Fdp.Toolkit.Geographic.SimTransformBridgeSystem` | Converts SimTransform/SimVelocity → GeoTransform/GeoVelocity post-physics |
-| **MissionAdapterSystem** | ❌ NEW | `Hrot.SimHost.Systems.MissionAdapterSystem` | Maps active MissionTask.BehaviorId → DoctrineId, writes BrainBlackboard params, advances ActiveTaskId on channel success |
+| **MissionAdapterSystem** | ❌ NEW | `Hrot.SimHost.Systems.MissionAdapterSystem` | Maps active MissionTask.BehaviorId → BehaviorId, writes BrainBlackboard params, advances ActiveTaskId on channel success |
 | **EntityMissionTranslator** | ❌ NEW | `Hrot.SimHost.Translators.EntityMissionTranslator` | Syncs DDS EntityMission topic ↔ ECS managed component (ingress + egress) |
 | **JoinFormationExecutor** | ❌ NEW | `Hrot.SimHost.Systems.JoinFormationExecutor` | `IActionExecutor<LocomotionChannel>` for formation joining |
 | **SimHost Application** | ❌ NEW | `Hrot.SimHost.Program` | Main application shell, initialization |
@@ -625,32 +625,32 @@ namespace Hrot.SimHost.Modules
         private readonly VehicleAPI _vehicleAPI;
         private readonly RoadNetworkBlob _roadNetwork;
         private readonly TrajectoryPoolManager _trajectoryPool;
-        private readonly DoctrineRegistry _doctrineRegistry;
+        private readonly BehaviorRegistry _behaviorRegistry;
         private readonly NetworkEntityMap _entityMap;
         
         public SimulationLogicModule(
             VehicleAPI vehicleAPI,
             RoadNetworkBlob roadNetwork,
             TrajectoryPoolManager trajectoryPool,
-            DoctrineRegistry doctrineRegistry,
+            BehaviorRegistry behaviorRegistry,
             NetworkEntityMap entityMap)
         {
             _vehicleAPI = vehicleAPI;
             _roadNetwork = roadNetwork;
             _trajectoryPool = trajectoryPool;
-            _doctrineRegistry = doctrineRegistry;
+            _behaviorRegistry = behaviorRegistry;
             _entityMap = entityMap;
         }
         
         public void RegisterSystems(ISystemRegistry registry)
         {
-            // 1. Mission adapter — runs first, sets/updates DoctrineState before BTree tick.
-            //    DoctrineRegistry must be compiled and set as kernel singleton before Initialize().
-            registry.RegisterSystem(new MissionAdapterSystem(_doctrineRegistry, _entityMap));
+            // 1. Mission adapter — runs first, sets/updates BehaviorState before BTree tick.
+            //    BehaviorRegistry must be compiled and set as kernel singleton before Initialize().
+            registry.RegisterSystem(new MissionAdapterSystem(_behaviorRegistry, _entityMap));
 
             // 2. Behavior toolkit pipeline (BTree execution)
             registry.RegisterSystem(new ChannelArbitrationSystem());
-            registry.RegisterSystem(new BTreeTickSystem(_doctrineRegistry));
+            registry.RegisterSystem(new BTreeTickSystem(_behaviorRegistry));
             registry.RegisterSystem(new LocomotionDispatcherSystem());
 
             // 3. Action executors
@@ -679,7 +679,7 @@ namespace Hrot.SimHost.Modules
 
 ### 4.4 MissionAdapterSystem
 
-**Purpose:** Thin adapter between the DDS `EntityMission` data model and the FDP Behavior toolkit. Does **not** execute physics commands directly; it resolves `BehaviorId` strings to `DoctrineId` integers, writes JSON parameters into the `BrainBlackboard`, and advances `ActiveTaskId` when the behavior toolkit reports task completion.
+**Purpose:** Thin adapter between the DDS `EntityMission` data model and the FDP Behavior toolkit. Does **not** execute physics commands directly; it resolves `BehaviorId` strings to `BehaviorId` integers, writes JSON parameters into the `BrainBlackboard`, and advances `ActiveTaskId` when the behavior toolkit reports task completion.
 
 **Architecture:**
 
@@ -692,7 +692,7 @@ namespace Hrot.SimHost.Systems
     using Fdp.Kernel;
 
     /// <summary>
-    /// Thin adapter: DDS EntityMission → DoctrineState / BrainBlackboard.
+    /// Thin adapter: DDS EntityMission → BehaviorState / BrainBlackboard.
     /// Monitors LocomotionChannel.Status to advance ActiveTaskId.
     /// Does NOT call VehicleAPI directly — all execution is delegated to the
     /// Behavior toolkit pipeline (BTreeTickSystem + Executors).
@@ -700,12 +700,12 @@ namespace Hrot.SimHost.Systems
     /// </summary>
     public class MissionAdapterSystem
     {
-        private readonly DoctrineRegistry _doctrineRegistry;
+        private readonly BehaviorRegistry _behaviorRegistry;
         private readonly NetworkEntityMap _entityMap;
 
-        public MissionAdapterSystem(DoctrineRegistry doctrineRegistry, NetworkEntityMap entityMap)
+        public MissionAdapterSystem(BehaviorRegistry behaviorRegistry, NetworkEntityMap entityMap)
         {
-            _doctrineRegistry = doctrineRegistry;
+            _behaviorRegistry = behaviorRegistry;
             _entityMap = entityMap;
         }
 
@@ -713,37 +713,37 @@ namespace Hrot.SimHost.Systems
         {
             var query = world.Query()
                 .With<EntityMission>()
-                .With<DoctrineState>()
+                .With<BehaviorState>()
                 .With<BrainBlackboard>()
                 .Build();
 
             foreach (var entity in query)
             {
                 var mission  = world.GetComponent<EntityMission>(entity);
-                var doctrine = world.GetComponent<DoctrineState>(entity);
+                var behavior = world.GetComponent<BehaviorState>(entity);
                 var bb       = world.GetComponent<BrainBlackboard>(entity);
 
                 // 1. Find the active task
                 var activeTask = FindTaskById(mission, mission.ActiveTaskId);
                 if (activeTask == null) continue;
 
-                // 2. Resolve BehaviorId string → DoctrineId int
-                if (!_doctrineRegistry.TryGetId(activeTask.BehaviorId, out int doctrineId))
+                // 2. Resolve BehaviorId string → BehaviorId int
+                if (!_behaviorRegistry.TryGetId(activeTask.BehaviorId, out int behaviorId))
                 {
                     FdpLog.Warn($"[MissionAdapter] Unknown BehaviorId: '{activeTask.BehaviorId}'");
                     continue;
                 }
 
-                // 3. Apply doctrine if it changed (new task or task restart)
-                if (doctrine.ActiveDoctrineHash != doctrineId)
+                // 3. Apply behavior if it changed (new task or task restart)
+                if (behavior.ActiveBehaviorHash != behaviorId)
                 {
-                    doctrine.ActiveDoctrineHash = doctrineId;
-                    world.SetComponent(entity, doctrine);
+                    behavior.ActiveBehaviorHash = behaviorId;
+                    world.SetComponent(entity, behavior);
 
                     // Parse JSON params directly into BrainBlackboard inline memory (zero alloc)
                     if (!string.IsNullOrEmpty(activeTask.BehaviorParams))
                     {
-                        var def = _doctrineRegistry.GetDefinition(doctrineId);
+                        var def = _behaviorRegistry.GetDefinition(behaviorId);
                         def.ParseParams(activeTask.BehaviorParams, ref bb);
                         world.SetComponent(entity, bb);
                     }
@@ -800,14 +800,14 @@ namespace Hrot.SimHost.Systems
 }
 ```
 
-**Supported BehaviorId strings** (registered in `DoctrineIds.cs` via `DoctrineRegistry`):
+**Supported BehaviorId strings** (registered in `BehaviorIds.cs` via `BehaviorRegistry`):
 
-| BehaviorId string | DoctrineIds constant | Params struct |
+| BehaviorId string | BehaviorIds constant | Params struct |
 |---|---|---|
-| `"MoveToLocation"` | `DoctrineIds.MoveTo_BT` | `MoveToLocationParams { X, Y, Speed=15, ArrivalRadius=5 }` |
-| `"FollowRoute"` | `DoctrineIds.FollowRoute_BT` | `FollowRouteParams { Waypoints[], Speed=15, Loop=false }` |
-| `"JoinFormation"` | `DoctrineIds.JoinFormation_BT` | `JoinFormationParams { LeaderNetworkId, FormationType }` |
-| `"Idle"` | `DoctrineIds.Idle_HSM` | *(no params)* |
+| `"MoveToLocation"` | `BehaviorIds.MoveTo_BT` | `MoveToLocationParams { X, Y, Speed=15, ArrivalRadius=5 }` |
+| `"FollowRoute"` | `BehaviorIds.FollowRoute_BT` | `FollowRouteParams { Waypoints[], Speed=15, Loop=false }` |
+| `"JoinFormation"` | `BehaviorIds.JoinFormation_BT` | `JoinFormationParams { LeaderNetworkId, FormationType }` |
+| `"Idle"` | `BehaviorIds.Idle_HSM` | *(no params)* |
 ### 4.5 GeographicModule (Fdp.Toolkit.Geographic)
 
 **`WorldPosBridgeModule` is removed.** `GeographicModule` from `Fdp.Toolkit.Geographic` is registered at kernel startup and provides all coordinate-bridge functionality automatically.
@@ -1001,8 +1001,8 @@ ModuleHostKernel Update Sequence:
   3. CycloneNetworkModule (DDS read/write)
   4. EntityCreationModule (CreateEntityRequestSystem)
   5. SimulationLogicModule:
-       - MissionAdapterSystem            (DDS mission → DoctrineState/BrainBlackboard)
-       - ChannelArbitrationSystem        (preempt stale channels on doctrine change)
+       - MissionAdapterSystem            (DDS mission → BehaviorState/BrainBlackboard)
+       - ChannelArbitrationSystem        (preempt stale channels on behavior change)
        - BTreeTickSystem                 (tick BTree, write LocomotionChannel.Request)
        - LocomotionDispatcherSystem      (OnEnter/Execute/OnExit lifecycle)
        - MoveToExecutor / FollowRouteExecutor / JoinFormationExecutor
@@ -1021,9 +1021,9 @@ EntityMission (DDS)
   ↓ EntityMissionTranslator
 ECS EntityMission component
   ↓ MissionAdapterSystem
-DoctrineState.ActiveDoctrineHash + BrainBlackboard params set
+BehaviorState.ActiveBehaviorHash + BrainBlackboard params set
   ↓ ChannelArbitrationSystem
-stale LocomotionChannel cleared on doctrine change
+stale LocomotionChannel cleared on behavior change
   ↓ BTreeTickSystem
 LocomotionChannel.Request written
   ↓ LocomotionDispatcherSystem → MoveToExecutor / FollowRouteExecutor / JoinFormationExecutor
@@ -1049,7 +1049,7 @@ DDS EntityMission → IOS (feedback loop)
 ├──────────────────────────────────────────────┤
 │ EntityMissionTranslator → ECS component      │
 │   ↓                                          │
-│ MissionAdapterSystem (doctrine + params)     │
+│ MissionAdapterSystem (behavior + params)     │
 │   ↓                                          │
 │ BTreeTickSystem → LocomotionChannel.Request  │
 │   ↓                                          │
@@ -1113,11 +1113,11 @@ public void Update(float dt)
 
 ### 6.3 Mission Command Re-Entrancy
 
-**Issue:** If IOS sends a new `EntityMission` with `ActiveTaskId` pointing to the already-active task, `MissionAdapterSystem` must not reset doctrine state unnecessarily.
+**Issue:** If IOS sends a new `EntityMission` with `ActiveTaskId` pointing to the already-active task, `MissionAdapterSystem` must not reset behavior state unnecessarily.
 
 **Solution:**
-- `MissionAdapterSystem` only re-applies doctrine and re-parses params when `DoctrineState.ActiveDoctrineHash != doctrineId` (i.e., the resolved doctrine actually changed).
-- If IOS re-sends the same `ActiveTaskId` with an unchanged `BehaviorId`, `DoctrineState.ActiveDoctrineHash` will already match and no restart occurs.
+- `MissionAdapterSystem` only re-applies behavior and re-parses params when `BehaviorState.ActiveBehaviorHash != behaviorId` (i.e., the resolved behavior actually changed).
+- If IOS re-sends the same `ActiveTaskId` with an unchanged `BehaviorId`, `BehaviorState.ActiveBehaviorHash` will already match and no restart occurs.
 
 ### 6.4 ID Allocation Race Condition
 
@@ -1158,7 +1158,7 @@ public void Update(float dt)
    ```
    Hrot.SimHost/
      Program.cs
-     DoctrineIds.cs
+     BehaviorIds.cs
      Modules/
        EntityCreationModule.cs
        SimulationLogicModule.cs
@@ -1223,7 +1223,7 @@ public void Update(float dt)
 **Tasks:**
 1. Register `ChannelArbitrationSystem`, `BTreeTickSystem`, `LocomotionDispatcherSystem`, `MoveToExecutor`, `FollowRouteExecutor`, and `LinearKinematicsSystem` in `SimulationLogicModule` (S4.1).
 2. Implement `EntityMissionTranslator` (DDS ingress) and `EntityMissionEgressTranslator` (DDS egress) in `Translators/` (S4.2).
-3. Implement `MissionAdapterSystem` — reads active `MissionTask.BehaviorId`, resolves `DoctrineId` via `DoctrineRegistry`, writes `DoctrineState` + `BrainBlackboard`, monitors `LocomotionChannel.Status` to advance `ActiveTaskId` (S4.3).
+3. Implement `MissionAdapterSystem` — reads active `MissionTask.BehaviorId`, resolves `BehaviorId` via `BehaviorRegistry`, writes `BehaviorState` + `BrainBlackboard`, monitors `LocomotionChannel.Status` to advance `ActiveTaskId` (S4.3).
 4. Implement `JoinFormationExecutor` — `IActionExecutor<LocomotionChannel>`, looks up leader via `NetworkEntityMap`, calls `VehicleAPI.CreateFormation()` (S4.4).
 
 **Estimated Effort:** 5 days

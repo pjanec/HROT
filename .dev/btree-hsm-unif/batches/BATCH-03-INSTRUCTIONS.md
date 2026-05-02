@@ -19,7 +19,7 @@
 
 - `FDP/Toolkits/Fdp.Toolkits.Tests/Fdp.Toolkits.Tests.csproj` — Groups A + B tests go in `Behavior/Integration/BhuIntegrationTests.cs`
 - `FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/Fhsm.Tests.csproj` — Groups C + D go in `Integration/HsmSourceGenIntegrationTests.cs` and `Integration/HsmTerminalStateIntegrationTests.cs`
-- `Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/` — Group E goes in `HsmDoctrineIntegrationTests.cs`
+- `Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/` — Group E goes in `HsmBehaviorIntegrationTests.cs`
 
 ### Verify first
 
@@ -67,13 +67,13 @@ Full specs in TASK-DETAIL.md "Group A" section. Key points:
 - Use `TestWorldFactory.Create()` to build `EntityRepository`.
 - Build a 3-state HSM blob using `HsmBuilder + HsmCompiler.Compile()`:
   `"Idle" --EventX(id=10)--> "Active" --EventY(id=20)--> "Done"(IsFinal=true)`
-- **IT-BHU-A1:** Drive from Idle → Done in one tick (inject EventX+EventY before tick). Assert `DoctrineFinishedEvent` published, `Terminated` bit CLEAR, `Phase == Idle` after tick.
-- **IT-BHU-A2:** Second tick same entity. Assert NO new `DoctrineFinishedEvent` (dedup by InstanceId).
-- **IT-BHU-A3:** Reassign doctrine (new InstanceId). Drive to final again. Assert event published with new InstanceId; `ActiveLeafIds == 0xFFFF` before first tick of new doctrine (proves BHU-016 reset).
+- **IT-BHU-A1:** Drive from Idle → Done in one tick (inject EventX+EventY before tick). Assert `BehaviorFinishedEvent` published, `Terminated` bit CLEAR, `Phase == Idle` after tick.
+- **IT-BHU-A2:** Second tick same entity. Assert NO new `BehaviorFinishedEvent` (dedup by InstanceId).
+- **IT-BHU-A3:** Reassign behavior (new InstanceId). Drive to final again. Assert event published with new InstanceId; `ActiveLeafIds == 0xFFFF` before first tick of new behavior (proves BHU-016 reset).
 - **IT-BHU-A4:** Same as IT-BHU-A1 but using `BrainHsm64` and `HsmTickSystem<BrainHsm64>`.
 
 **Notes:**
-- Find `DoctrineFinishedEvent` definition before writing — search for it in the codebase.
+- Find `BehaviorFinishedEvent` definition before writing — search for it in the codebase.
 - Find `InstanceFlags.Terminated` and `InstancePhase.Idle` — they are in `Fhsm.Kernel`.
 - Find `HsmEventQueue.TryEnqueue` and the event ID constants before writing.
 - `HsmTickSystem<T>.Update()` takes `EntityRepository world, float dt`.
@@ -130,14 +130,14 @@ Full specs in TASK-DETAIL.md "Group D" section. Key points:
 - **IMPORTANT:** D2 and D3 call `RegisterAll()` which mutates shared static state in `HsmActionDispatcher`. Run these tests with `[Collection("HsmDispatcherSerial")]` or equivalent isolation so they don't race with other tests that rely on the static tables. Study how existing `Fhsm.Tests` handle this isolation.
 
 ### Group E — Full CognitiveRuntimeModule Frame
-**File:** `Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/HsmDoctrineIntegrationTests.cs`
+**File:** `Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/HsmBehaviorIntegrationTests.cs`
 
 Two tests: IT-BHU-E1, IT-BHU-E2.
 
 Full specs in TASK-DETAIL.md "Group E" section. Key points:
 
 - **IT-BHU-E1:** Construct `CognitiveRuntimeModule`. Assert exact system types at exact indices 0–5. No `HsmDamageBridgeSystem` anywhere. Total count == 6.
-- **IT-BHU-E2:** Full frame integration test — build a 3-state HSM doctrine, entity with all components, run all 6 systems for 2 frames. Assert HSM transitions correctly in Frame 1 (mobility-lost), reaches final state in Frame 2, `DoctrineFinishedEvent` published.
+- **IT-BHU-E2:** Full frame integration test — build a 3-state HSM behavior, entity with all components, run all 6 systems for 2 frames. Assert HSM transitions correctly in Frame 1 (mobility-lost), reaches final state in Frame 2, `BehaviorFinishedEvent` published.
 
 **Notes:**
 - Look at existing `Hrot.ClusterRunner.Integration.Tests` for patterns on how to construct `CognitiveRuntimeModule` and drive it.
@@ -174,5 +174,5 @@ Full specs in TASK-DETAIL.md "Group E" section. Key points:
 - **Existing test patterns:** `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/` (all existing test files)
 - **Existing Fhsm.Tests patterns:** `FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/` (Kernel/, Compiler/, SourceGen/)
 - **TestWorldFactory:** `FDP/Toolkits/Fdp.Toolkits.Tests/` (find TestWorldFactory.Create())
-- **DoctrineFinishedEvent:** Search for it in `Fdp.Toolkits` namespace
+- **BehaviorFinishedEvent:** Search for it in `Fdp.Toolkits` namespace
 - **CognitiveRuntimeModuleTests.cs:** Already passes, shows how to check system types/count

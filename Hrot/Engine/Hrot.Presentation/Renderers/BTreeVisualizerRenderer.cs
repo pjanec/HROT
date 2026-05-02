@@ -25,7 +25,7 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
     private static readonly Vector4 ColorGray   = new Vector4(0.5f, 0.5f, 0.5f, 1.0f);
 
     /// <summary>Set at startup; required for blob lookup.</summary>
-    public static DoctrineRegistry? DoctrineRegistryAccessor { get; set; }
+    public static BehaviorRegistry? BehaviorRegistryAccessor { get; set; }
 
     // ---- IImGuiRenderer ----
 
@@ -45,14 +45,14 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
 
         if (value is not BrainBTreeState btState) return false;
 
-        var registry = DoctrineRegistryAccessor;
+        var registry = BehaviorRegistryAccessor;
         if (registry == null) return false;
 
-        if (!session.HasComponent(entity, typeof(DoctrineState))) return false;
-        var dsObj = session.GetComponent(entity, typeof(DoctrineState));
-        if (dsObj is not DoctrineState ds) return false;
+        if (!session.HasComponent(entity, typeof(BehaviorState))) return false;
+        var dsObj = session.GetComponent(entity, typeof(BehaviorState));
+        if (dsObj is not BehaviorState ds) return false;
 
-        if (!registry.TryGetDefinition(ds.ActiveDoctrineHash, out var def)) return false;
+        if (!registry.TryGetDefinition(ds.ActiveBehaviorHash, out var def)) return false;
 
         var interpreter = def.BTreeInterpreter;
         if (interpreter == null) return false;

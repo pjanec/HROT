@@ -36,10 +36,10 @@ namespace Hrot.Network.Translators
         ///   Cartesian waypoints to WGS-84 <c>GeoPosition</c>, and by <see cref="GeoSpatialIngressTranslator"/>
         ///   to convert received coordinates back to Cartesian.
         /// </param>
-        /// <param name="doctrineRegistry">
-        ///   Doctrine registry forwarded to <see cref="EntityMissionEgressTranslator"/> and
+        /// <param name="behaviorRegistry">
+        ///   Behavior registry forwarded to <see cref="EntityMissionEgressTranslator"/> and
         ///   <see cref="EntityMissionIngressTranslator"/> for mission-plan serialisation/deserialisation.
-        ///   May be <c>null</c> when running without a doctrine layer.
+        ///   May be <c>null</c> when running without a behavior layer.
         /// </param>
         /// <param name="ghostCreationSystem">
         ///   Ghost-creation helper injected into <see cref="GeoSpatialIngressTranslator"/>
@@ -50,14 +50,14 @@ namespace Hrot.Network.Translators
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
             IGeographicTransform geoTransform,
-            DoctrineRegistry?    doctrineRegistry,
+            BehaviorRegistry?    behaviorRegistry,
             GhostCreationSystem  ghostCreationSystem,
             long                 localNodeId = 0)
         {
             yield return new NavigationIntentEgressTranslator(participant, entityMap, geoTransform, localNodeId);
-            yield return new EntityMissionEgressTranslator(participant, entityMap, doctrineRegistry);
-            if (doctrineRegistry != null)
-                yield return new EntityMissionIngressTranslator(participant, entityMap, doctrineRegistry, ghostCreationSystem);
+            yield return new EntityMissionEgressTranslator(participant, entityMap, behaviorRegistry);
+            if (behaviorRegistry != null)
+                yield return new EntityMissionIngressTranslator(participant, entityMap, behaviorRegistry, ghostCreationSystem);
             yield return new NavigationStatusIngressTranslator(participant, entityMap, localNodeId);
         }
     }

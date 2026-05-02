@@ -943,10 +943,10 @@ public void Initialize(SubsystemConfig config)
         .Build();
 
     // 2. Register domain-specific logic (What makes CGF unique)
-    var doctrineRegistry = new DoctrineRegistry();
+    var behaviorRegistry = new BehaviorRegistry();
     var entityMap = new NetworkEntityMap();
     
-    _context.Kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, entityMap));
+    _context.Kernel.RegisterModule(new CgfLogicPack(behaviorRegistry, entityMap));
     _context.Kernel.RegisterModule(new GhostCleanupModule(entityMap));
 }
 ```

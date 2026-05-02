@@ -32,7 +32,7 @@ This yields two distinct, highly controlled reload paths:
 
 I plan to place both the HSM as well as BTree to a single separately reloadable AI assembly (where currently just the btree definitions are stored). This meands we will have two hot reload mechanisms tied to a single dll. Can this be a problem?
 
-Yes, coupling both FastBTree and FastHSM into a single hot-reloadable assembly—such as `Hrot.AI.Doctrines.dll`—presents critical memory safety and lifecycle synchronization challenges.
+Yes, coupling both FastBTree and FastHSM into a single hot-reloadable assembly—such as `Hrot.AI.Behaviors.dll`—presents critical memory safety and lifecycle synchronization challenges.
 
 The primary architectural danger stems from how FastHSM achieves its zero-allocation performance. The `Fhsm.SourceGen` compiler generates a static `HsmActionDispatcher` containing dictionaries that map action and guard IDs directly to unmanaged C# function pointers (`delegate* <void*, void*, HsmCommandWriter*, void>`). When the `FbtAssemblyHotReloader` detects a DLL change, it loads the new assembly into a fresh, collectible `AssemblyLoadContext` (ALC) and subsequently unloads the old one. Because unmanaged function pointers do not act as managed GC roots to keep their target assembly alive, if any live HSM instance evaluates a transition or executes an action using a pointer from the unloaded ALC, it will immediately result in a hard crash (Access Violation).
 
@@ -54,11 +54,11 @@ Solving the coordinator unification, pointer invalidation and hard resets seems 
 
 You hit the nail on the head. While splitting the assemblies might seem like an easy out to avoid the complexities of memory synchronization, it would severely compromise the architectural cohesion of your AI domain and absolutely introduce the dependency headaches you are anticipating.
 
-Here is exactly why your instinct to stick with a single, unified assembly (like `Hrot.AI.Doctrines.dll`) is the correct architectural choice:
+Here is exactly why your instinct to stick with a single, unified assembly (like `Hrot.AI.Behaviors.dll`) is the correct architectural choice:
 
 **1\. Massive Overlap in Domain Vocabulary** FastBTree and FastHSM are just different execution mechanisms for the same underlying cognitive layer. They inherently share a massive amount of domain surface area:
 
--   **Memory & Context:** Both execute against the exact same `BrainBlackboard` inline memory and rely on tightly coupled context bridges (like `BTreeContext` and `HsmKernelBridge`) to interact with the ECS `EntityRepository`.-   **Actuator Channels:** Whether an AI agent makes a decision via a BTree or an HSM, the output goes to the exact same CQRS-style execution channels: `LocomotionChannel`, `WeaponChannel`, and `InteractionChannel`.-   **The Doctrine Registry:** At the core of the engine, both paradigms are registered into the exact same `DoctrineRegistry`. The underlying `DoctrineDefinition` struct is designed as a unified container that holds either a `BTreeInterpreter` or an `HsmDefinitionBlob`, determined simply by whether the `BrainTier` is set to `BrainTierBTree` or `BrainTierHsm`.
+-   **Memory & Context:** Both execute against the exact same `BrainBlackboard` inline memory and rely on tightly coupled context bridges (like `BTreeContext` and `HsmKernelBridge`) to interact with the ECS `EntityRepository`.-   **Actuator Channels:** Whether an AI agent makes a decision via a BTree or an HSM, the output goes to the exact same CQRS-style execution channels: `LocomotionChannel`, `WeaponChannel`, and `InteractionChannel`.-   **The Behavior Registry:** At the core of the engine, both paradigms are registered into the exact same `BehaviorRegistry`. The underlying `BehaviorDefinition` struct is designed as a unified container that holds either a `BTreeInterpreter` or an `HsmDefinitionBlob`, determined simply by whether the `BrainTier` is set to `BrainTierBTree` or `BrainTierHsm`.
 
 **2\. The Circular Dependency Trap** If you split the assemblies into `AI.BTree.dll` and `AI.HSM.dll`, you would be grouping by _mechanism_ rather than by _domain cohesion_, violating the Common Closure Principle. Because both mechanisms need to reference the same custom behavior parameters (like `MoveToLocationParams` or `FireAtTargetParams`) and share the same event constants (like `BehaviorConstants.EventId_MobilityLost`), you would immediately be forced to extract a third `AI.Common.dll` assembly.
 
@@ -78,7 +78,7 @@ Here is how you build the Unified Coordinator at the engine level (e.g., within 
 
 **1\. Extract IO and ALC Management** Rip the `FbtAssemblyHotReloader` out of the BTree library. Move the file-watching and ALC instantiation into your engine's integration layer (like `Hrot.Editor.EditorSubsystem`). This layer becomes the sole owner of the `AssemblyLoadContext` lifecycle.
 
-**2\. Unified Assembly Scanning** When a file change triggers a reload, the engine-level coordinator loads the new `Hrot.AI.Doctrines.dll` into a fresh ALC. It must then scan the assembly for both paradigms simultaneously:
+**2\. Unified Assembly Scanning** When a file change triggers a reload, the engine-level coordinator loads the new `Hrot.AI.Behaviors.dll` into a fresh ALC. It must then scan the assembly for both paradigms simultaneously:
 
 -   It invokes the `[FbtRegistrar]` methods to extract the `BehaviorTreeBlob` assets.-   It invokes the generated `HsmActionRegistrar.RegisterAll()` to wire up FastHSM's unmanaged function pointers.-   It extracts the `HsmDefinitionBlob` assets from the new assembly.
 
@@ -250,7 +250,7 @@ Here is the architectural blueprint to achieve this:
 
 1\. The Unified Domain Signature
 
-We define a single, shared signature that requests the specific DTO (`TValue`) by reference, along with the ECS context. Because HROT's doctrine design conventionally places the behavior's parameter DTO at the start of the `BrainBlackboard` inline memory, we can assume offset 0 for doctrine-specific parameters.
+We define a single, shared signature that requests the specific DTO (`TValue`) by reference, along with the ECS context. Because HROT's behavior design conventionally places the behavior's parameter DTO at the start of the `BrainBlackboard` inline memory, we can assume offset 0 for behavior-specific parameters.
 
 ```
 [SharedAiCondition]
@@ -308,9 +308,9 @@ Why this is the Architectural Gold Standard:
 
 -   **Complete DRY Principle:** Your AI gameplay engineers write the condition logic once, dealing strictly with typed DTOs and ECS domains.-   **Zero Allocation / Highest Performance:** By abandoning dynamic expression trees and `Marshal.OffsetOf` at runtime, the JIT compiler can aggressively inline the `Unsafe.As` memory projections.-   **Engine Isolation:** FastHSM retains its strict, unmanaged 16-byte transition definitions and function pointers, and FastBTree retains its sequential memory execution, while both systems magically interop with the same domain logic.
 
-the reusable condition can be reused because it does NOT depend on a concrete doctrine's parameter dto; the condition might depend on some substructure of the parameters that are located at different offsets for different doctrines (as they might use different parameter dto)
+the reusable condition can be reused because it does NOT depend on a concrete behavior's parameter dto; the condition might depend on some substructure of the parameters that are located at different offsets for different behaviors (as they might use different parameter dto)
 
-You are absolutely correct; assuming the substructure is always at offset 0 violates the goal of modular, reusable behaviors. A true reusable condition must be able to project a specific substructure regardless of where it is packed within a doctrine's distinct parameter DTO.
+You are absolutely correct; assuming the substructure is always at offset 0 violates the goal of modular, reusable behaviors. A true reusable condition must be able to project a specific substructure regardless of where it is packed within a behavior's distinct parameter DTO.
 
 In the `FastBTree` architecture, this exact problem is solved elegantly at tree-build time. The `BTreeBuilder.Condition<TValue>` method accepts an `Expression<Func<TBlackboard, TValue>>` to extract the precise byte offset of the substructure using `Marshal.OffsetOf`. It then curries that offset into a zero-allocation closure, registering it in the `ActionRegistry` under a compound key formatted as `DeclaringType.MethodName@offset`. At runtime, it correctly projects the memory using `Unsafe.AddByteOffset(ref bb, offset)`.
 
@@ -333,13 +333,13 @@ public static bool HasSufficientAmmo(
 }
 ```
 
-**2\. FastHSM SourceGen DTO-Specific Thunks** We extend the `Fhsm.SourceGen` compiler to analyze the semantic model. When it detects that a doctrine's specific DTO uses a shared condition on a nested field, it calculates the exact byte offset at _compile time_. It then emits a highly optimized, unmanaged adapter specifically for that DTO/offset combination.
+**2\. FastHSM SourceGen DTO-Specific Thunks** We extend the `Fhsm.SourceGen` compiler to analyze the semantic model. When it detects that a behavior's specific DTO uses a shared condition on a nested field, it calculates the exact byte offset at _compile time_. It then emits a highly optimized, unmanaged adapter specifically for that DTO/offset combination.
 
 ```
 // Emitted by Fhsm.SourceGen in HsmActionRegistrar.g.cs
 public static unsafe class HsmGeneratedAdapters
 {
-    // The generator hardcodes the specific offset (e.g., 16 bytes) for this exact doctrine DTO
+    // The generator hardcodes the specific offset (e.g., 16 bytes) for this exact behavior DTO
     private const int FireAtTargetParamsOffset = 16; 
 
     public static bool HasSufficientAmmo_Offset16(void* instance, void* context, ushort eventId)
@@ -386,10 +386,10 @@ public static NodeStatus Action_Cruise(
 {
     // Write to the CQRS-style channel
     ref var loco = ref repo.GetComponentRW<LocomotionChannel>(self);
-    var doctrine = repo.GetComponent<DoctrineState>(self);
+    var behavior = repo.GetComponent<BehaviorState>(self);
 
     loco.ActiveAction = NavigationConstants.ActionIdFollowRoute;
-    loco.DoctrineInstanceId = doctrine.InstanceId;
+    loco.BehaviorInstanceId = behavior.InstanceId;
     
     // BTree needs to know this is an ongoing process
     return NodeStatus.Running; 
@@ -449,9 +449,9 @@ is there anything else worth unifying/redesignign/reconsidering from the perspec
 
 From a clean architecture perspective, there are three critical areas in the cognitive tier where FastHSM and FastBTree currently diverge or leak domain logic into their execution mechanisms. Unifying these will significantly strengthen the engine.
 
-**1\. Unified Mission Completion Routing (Terminal States)** Currently, the `MissionDirectorSystem` relies heavily on the `DoctrineFinishedEvent` to advance mission phases (e.g., when `MissionTrigger.DoctrineFinished` is used).
+**1\. Unified Mission Completion Routing (Terminal States)** Currently, the `MissionDirectorSystem` relies heavily on the `BehaviorFinishedEvent` to advance mission phases (e.g., when `MissionTrigger.BehaviorFinished` is used).
 
--   **The BTree Implementation:** The `BTreeTickSystem` natively detects when the behavior tree's root evaluates to `NodeStatus.Success` or `NodeStatus.Failure` and automatically publishes this event, gracefully handing control back to the mission layer.-   **The HSM Gap:** The `HsmTickSystem<T>` does not currently publish `DoctrineFinishedEvent`. If an HSM-driven entity (like the APC running `ConvoyEscort_HSM`) reaches a logical conclusion, it cannot naturally trigger a phase advancement in the `MissionPlanQueue`.-   **The Redesign:** You should introduce the concept of "Terminal States" into the FastHSM builder. When the `HsmTickSystem<T>` evaluates the Run-To-Completion (RTC) phase and lands in a designated terminal state, it should extract the `Entity` from the `HsmKernelBridge` and publish the exact same `DoctrineFinishedEvent`. This unifies the CQRS mission pipeline so the `MissionDirectorSystem` treats BTree and HSM doctrines as perfectly interchangeable black boxes.
+-   **The BTree Implementation:** The `BTreeTickSystem` natively detects when the behavior tree's root evaluates to `NodeStatus.Success` or `NodeStatus.Failure` and automatically publishes this event, gracefully handing control back to the mission layer.-   **The HSM Gap:** The `HsmTickSystem<T>` does not currently publish `BehaviorFinishedEvent`. If an HSM-driven entity (like the APC running `ConvoyEscort_HSM`) reaches a logical conclusion, it cannot naturally trigger a phase advancement in the `MissionPlanQueue`.-   **The Redesign:** You should introduce the concept of "Terminal States" into the FastHSM builder. When the `HsmTickSystem<T>` evaluates the Run-To-Completion (RTC) phase and lands in a designated terminal state, it should extract the `Entity` from the `HsmKernelBridge` and publish the exact same `BehaviorFinishedEvent`. This unifies the CQRS mission pipeline so the `MissionDirectorSystem` treats BTree and HSM behaviors as perfectly interchangeable black boxes.
 
 **2\. Decoupling Cognitive Interrupts (The Capability Bridge)** How the AI reacts to sudden physical changes (like taking damage) is currently implemented inconsistently across the two paradigms.
 
@@ -460,21 +460,21 @@ From a clean architecture perspective, there are three critical areas in the cog
 
 **3\. Actuator Preemption and Channel Safety** Both BTree and HSM must interact with the exact same CQRS actuator channels (`LocomotionChannel`, `WeaponChannel`, `InteractionChannel`).
 
--   **The Danger:** The `ChannelArbitrationSystem` prevents "zombie actions" by clearing channels when an entity's `DoctrineInstanceId` changes. However, within a _single_ doctrine's lifetime, transitioning between internal states/nodes requires meticulous management of the `ActionInstanceId`.-   **The Unification:** In BTree, action nodes typically return `NodeStatus.Running` and bump the `ActionInstanceId` only when they first activate. In FastHSM, actions are fired via `OnEntry`, `OnExit`, or `Activity` hooks using unmanaged pointers. You should enforce a strict architectural rule via your unified Source Generators: _any_ transition away from an active node/state that was driving a channel MUST emit an `OnExit` cleanup routine that zeroes out the `ActiveAction` and bumps the `ActionInstanceId`. By standardizing this cleanup generation in both `Fbt.SourceGen` and `Fhsm.SourceGen`, you guarantee that neither AI engine can ever leave an orphaned actuator command running on the physical entity if a transition abruptly aborts a sequence.
+-   **The Danger:** The `ChannelArbitrationSystem` prevents "zombie actions" by clearing channels when an entity's `BehaviorInstanceId` changes. However, within a _single_ behavior's lifetime, transitioning between internal states/nodes requires meticulous management of the `ActionInstanceId`.-   **The Unification:** In BTree, action nodes typically return `NodeStatus.Running` and bump the `ActionInstanceId` only when they first activate. In FastHSM, actions are fired via `OnEntry`, `OnExit`, or `Activity` hooks using unmanaged pointers. You should enforce a strict architectural rule via your unified Source Generators: _any_ transition away from an active node/state that was driving a channel MUST emit an `OnExit` cleanup routine that zeroes out the `ActiveAction` and bumps the `ActionInstanceId`. By standardizing this cleanup generation in both `Fbt.SourceGen` and `Fhsm.SourceGen`, you guarantee that neither AI engine can ever leave an orphaned actuator command running on the physical entity if a transition abruptly aborts a sequence.
 
 let's pls detail the "Unified Mission Completion Routing (Terminal States)" from the code perspective
 
-To unify mission completion routing, we need to enforce a strict CQRS boundary between the Cognitive tier (BTree/HSM execution) and the Mission tier (`MissionDirectorSystem`). The architectural contract linking them is the `DoctrineFinishedEvent`.
+To unify mission completion routing, we need to enforce a strict CQRS boundary between the Cognitive tier (BTree/HSM execution) and the Mission tier (`MissionDirectorSystem`). The architectural contract linking them is the `BehaviorFinishedEvent`.
 
-When `MissionDirectorSystem` evaluates a mission phase transition configured with `MissionTrigger.DoctrineFinished`, it purely listens for this event on the bus. It does not care _how_ the AI made the decision, preserving the black-box nature of the cognitive engines.
+When `MissionDirectorSystem` evaluates a mission phase transition configured with `MissionTrigger.BehaviorFinished`, it purely listens for this event on the bus. It does not care _how_ the AI made the decision, preserving the black-box nature of the cognitive engines.
 
 Here is the exact code perspective on how to bring FastHSM up to parity with FastBTree using this contract.
 
 1\. The Current Standard: FastBTree
 
-The `BTreeTickSystem` currently sets the gold standard for this architecture. When the interpreter evaluates the behavior tree, it checks if the root node returns a terminal status (`NodeStatus.Success` or `NodeStatus.Failure`). If so, it publishes the `DoctrineFinishedEvent`.
+The `BTreeTickSystem` currently sets the gold standard for this architecture. When the interpreter evaluates the behavior tree, it checks if the root node returns a terminal status (`NodeStatus.Success` or `NodeStatus.Failure`). If so, it publishes the `BehaviorFinishedEvent`.
 
-Crucially, it caches the `DoctrineState.InstanceId` in a `_publishedTerminalForInstanceId` dictionary to ensure that if the BTree remains in a terminal state across multiple simulation ticks, the event is only published exactly once per doctrine assignment.
+Crucially, it caches the `BehaviorState.InstanceId` in a `_publishedTerminalForInstanceId` dictionary to ensure that if the BTree remains in a terminal state across multiple simulation ticks, the event is only published exactly once per behavior assignment.
 
 2\. The Gap in FastHSM
 
@@ -494,14 +494,14 @@ Here is what the refactored `HsmTickSystem<T>` should look like:
 [UpdateInPhase(SystemPhase.Simulation)]
 public class HsmTickSystem<T> : IEcsModuleSystem, IProfiledSystem where T : unmanaged
 {
-    private readonly DoctrineRegistry _registry;
+    private readonly BehaviorRegistry _registry;
 
     // Track InstanceId to ensure exactly-once publication, matching BTreeTickSystem
     private readonly Dictionary<int, uint> _publishedTerminalForInstanceId = new();
     private readonly HashSet<int> _seenThisFrame = new();
     private readonly List<int> _staleKeys = new();
 
-    public HsmTickSystem(DoctrineRegistry registry)
+    public HsmTickSystem(BehaviorRegistry registry)
     {
         _registry = registry;
     }
@@ -509,17 +509,17 @@ public class HsmTickSystem<T> : IEcsModuleSystem, IProfiledSystem where T : unma
     public void Execute(ISimulationView view, float deltaTime)
     {
         var repo = (EntityRepository)view;
-        var q = repo.Query().With<DoctrineState>().With<T>().Build();
+        var q = repo.Query().With<BehaviorState>().With<T>().Build();
 
         _seenThisFrame.Clear();
 
         foreach (var entity in q)
         {
             _seenThisFrame.Add(entity.Index);
-            var doctrine = repo.GetComponent<DoctrineState>(entity);
+            var behavior = repo.GetComponent<BehaviorState>(entity);
 
-            if (doctrine.BrainTier != BehaviorConstants.BrainTierHsm) continue;
-            if (!_registry.TryGetDefinition(doctrine.ActiveDoctrineHash, out var def)) continue;
+            if (behavior.BrainTier != BehaviorConstants.BrainTierHsm) continue;
+            if (!_registry.TryGetDefinition(behavior.ActiveBehaviorHash, out var def)) continue;
 
             ref var component = ref repo.GetComponentRW<T>(entity);
             
@@ -537,18 +537,18 @@ public class HsmTickSystem<T> : IEcsModuleSystem, IProfiledSystem where T : unma
 
             if ((header.Flags & InstanceFlags.Terminated) != 0)
             {
-                // 3. Ensure exactly-once execution using the Doctrine InstanceId preemption token
+                // 3. Ensure exactly-once execution using the Behavior InstanceId preemption token
                 if (!_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint prevInstanceId)
-                    || prevInstanceId != doctrine.InstanceId)
+                    || prevInstanceId != behavior.InstanceId)
                 {
-                    repo.Bus.Publish(new DoctrineFinishedEvent
+                    repo.Bus.Publish(new BehaviorFinishedEvent
                     {
                         Entity = entity,
                         // Map the HSM termination to a Success result for the CQRS boundary
                         Result = NodeStatus.Success 
                     });
                     
-                    _publishedTerminalForInstanceId[entity.Index] = doctrine.InstanceId;
+                    _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
                 }
             }
         }
@@ -566,9 +566,9 @@ public class HsmTickSystem<T> : IEcsModuleSystem, IProfiledSystem where T : unma
 
 Architectural Benefits
 
-By surfacing `InstanceFlags.Terminated` through the `DoctrineFinishedEvent`:
+By surfacing `InstanceFlags.Terminated` through the `BehaviorFinishedEvent`:
 
--   **Polymorphic Mission Planning**: The `MissionDirectorSystem` can now string together BTree and HSM doctrines interchangeably within the same `MissionPlanQueue` using `MissionTrigger.DoctrineFinished`.-   **Engine Encapsulation**: The mission tier remains completely oblivious to whether the cognitive workload was executed by a sequential BTree or a concurrent HSM.-   **Zero-Allocation Pipeline**: By leveraging `Unsafe.As<T, InstanceHeader>`, we extract the terminal state directly from the inline chunk memory without boxing, maintaining the strict performance budget of the simulation hot-path.
+-   **Polymorphic Mission Planning**: The `MissionDirectorSystem` can now string together BTree and HSM behaviors interchangeably within the same `MissionPlanQueue` using `MissionTrigger.BehaviorFinished`.-   **Engine Encapsulation**: The mission tier remains completely oblivious to whether the cognitive workload was executed by a sequential BTree or a concurrent HSM.-   **Zero-Allocation Pipeline**: By leveraging `Unsafe.As<T, InstanceHeader>`, we extract the terminal state directly from the inline chunk memory without boxing, maintaining the strict performance budget of the simulation hot-path.
 
 pls detail the "Decoupling Cognitive Interrupts" from the code perspective
 
@@ -597,7 +597,7 @@ This violates the Single Responsibility Principle. The system handling physical 
 
 The Solution: The Blackboard as the Universal Cognitive Bus
 
-To achieve clean architecture, the capability bridge must be completely agnostic to the AI execution paradigm. Both FastBTree and FastHSM doctrines are backed by the exact same 128-byte `BrainBlackboard` inline memory. We can use designated bytes at the end of this blackboard as hardware-level "Interrupt Registers".
+To achieve clean architecture, the capability bridge must be completely agnostic to the AI execution paradigm. Both FastBTree and FastHSM behaviors are backed by the exact same 128-byte `BrainBlackboard` inline memory. We can use designated bytes at the end of this blackboard as hardware-level "Interrupt Registers".
 
 Here is the code perspective on how to refactor this:
 
@@ -694,13 +694,13 @@ Here is the code perspective on how the engine's defense-in-depth works and how 
 
 1\. The Macro Defense: `ChannelArbitrationSystem`
 
-At the highest level, the engine protects against zombie actions during full doctrine swaps using the `DoctrineInstanceId`.
+At the highest level, the engine protects against zombie actions during full behavior swaps using the `BehaviorInstanceId`.
 
-When `MissionDirectorSystem` changes a doctrine, it bumps the `DoctrineState.InstanceId`. The `ChannelArbitrationSystem` sits immediately after the mission tier and acts as a firewall. It iterates over all channels (`LocomotionChannel`, `WeaponChannel`, `InteractionChannel`) and forcefully zeroes them out if the cognitive ownership has changed.
+When `MissionDirectorSystem` changes a behavior, it bumps the `BehaviorState.InstanceId`. The `ChannelArbitrationSystem` sits immediately after the mission tier and acts as a firewall. It iterates over all channels (`LocomotionChannel`, `WeaponChannel`, `InteractionChannel`) and forcefully zeroes them out if the cognitive ownership has changed.
 
 ```
 // Inside ChannelArbitrationSystem.Execute
-if (channel.ActiveAction != 0 && channel.DoctrineInstanceId != doctrine.InstanceId)
+if (channel.ActiveAction != 0 && channel.BehaviorInstanceId != behavior.InstanceId)
 {
     channel.ActiveAction = 0;
     // Bumping the ActionInstanceId is the crucial signal to the Dispatcher
@@ -733,7 +733,7 @@ if (channel.ActionInstanceId != channel.DispatchedInstanceId)
 
 3\. The Unified Code Perspective (SourceGen Enforcement)
 
-Currently, cleaning up channels during _intra-doctrine_ transitions requires manual boilerplate. For instance, in FastHSM, your designers are forced to manually write `OnEnter_Disabled` methods that explicitly set `loco.ActiveAction = 0`. This is fragile; if a designer forgets this in a new transition, you get a zombie action.
+Currently, cleaning up channels during _intra-behavior_ transitions requires manual boilerplate. For instance, in FastHSM, your designers are forced to manually write `OnEnter_Disabled` methods that explicitly set `loco.ActiveAction = 0`. This is fragile; if a designer forgets this in a new transition, you get a zombie action.
 
 To unify and enforce channel safety, you should leverage the Roslyn source generators (`Fbt.SourceGen` and `Fhsm.SourceGen`) to automatically emit preemption thunks based on the `[SharedAiAction]` attributes we discussed earlier.
 

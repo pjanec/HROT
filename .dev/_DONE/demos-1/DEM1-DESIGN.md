@@ -202,7 +202,7 @@ Always defaults to `--headless --deterministic` when neither `--attach-vis2d` is
 |---------|---------|-----------|
 | `DemoSpawnMsg` | Spawn/destroy a networked entity (no ELM handshake) | `NetworkId:long`, `TkbType:long`, `OwnerNodeId:int`, `IsDestroyed:bool` |
 | `DemoTransformMsg` | Replicate `SimTransform` in flat Cartesian space | `NetworkId:long`, PosX/Y/Z, RotX/Y/Z/W (float) |
-| `DemoLocomotionMsg` | Replicate `LocomotionChannel` to physics node | `NetworkId:long`, `ActiveAction:ushort`, `DoctrineInstanceId:uint`, `ActionInstanceId:uint` |
+| `DemoLocomotionMsg` | Replicate `LocomotionChannel` to physics node | `NetworkId:long`, `ActiveAction:ushort`, `BehaviorInstanceId:uint`, `ActionInstanceId:uint` |
 | `DemoWeaponMsg` | Replicate `WeaponChannel` to turret physics node | (same as LocomotionMsg shape) |
 | `DemoCombatInteractionMsg` | Cross-process fire/hit notification | `ShooterNetId:long`, `TargetNetId:long`, `IsHit:bool`, `Damage:float` |
 
@@ -224,7 +224,7 @@ Fdp.Examples.Common/
 ├── Constants/
 │   ├── ScenarioNames.cs            ← String constants for --scenario flag
 │   ├── DemoTemplateIds.cs          ← TKB integer IDs (e.g. CommandTank = 100)
-│   └── DemoDoctrineIds.cs          ← Doctrine hash constants
+│   └── DemoBehaviorIds.cs          ← Behavior hash constants
 └── Helpers/
     ├── MockTerrainProvider.cs      ← Deterministic ITerrainProvider for TerrainClamping test
     └── DemoRoadGraphFactory.cs     ← Builds minimal 4-way intersection RoadNetworkBlob
@@ -338,13 +338,13 @@ Max ticks: `100`.
 
 **Topology:** `MissionControlModule` + `CognitiveRuntimeModule`.
 
-Commander has a 2-phase plan: Phase 0 = Patrol (Doctrine 100, trigger UnderAttack), Phase 1 = Combat (Doctrine 200, trigger TimerElapsed). Script injects a `MoveTo` command in Phase 0, then injects a threat into `TargetMemory` at tick 10.
+Commander has a 2-phase plan: Phase 0 = Patrol (Behavior 100, trigger UnderAttack), Phase 1 = Combat (Behavior 200, trigger TimerElapsed). Script injects a `MoveTo` command in Phase 0, then injects a threat into `TargetMemory` at tick 10.
 
 | Phase | Tick | Action | Assertion |
 |-------|------|--------|-----------|
 | 1 – Patrol active  | 5  | Script writes MoveTo | CurrentPhase==0, Loco==MoveTo |
 | 2 – Threat injected | 10 | Enemy into TargetMemory | count==1 |
-| 3 – Phase advanced  | 11 | Director triggers | CurrentPhase==1, Doctrine==200 |
+| 3 – Phase advanced  | 11 | Director triggers | CurrentPhase==1, Behavior==200 |
 | 4 – Preemption      | 12 | Arbitration clears stale | Loco==0 |
 
 Max ticks: `20`.

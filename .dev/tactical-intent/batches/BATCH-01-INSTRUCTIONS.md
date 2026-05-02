@@ -14,8 +14,8 @@
 ### Required Reading (IN ORDER)
 1. **Design Document:** `.dev/tactical-intent/DESIGN.md` — read completely, every section
 2. **Task Definitions:** `.dev/tactical-intent/TASK-DETAIL.md` — tasks TASK-TI001, TASK-TI002, TASK-TI003 in detail
-3. **Existing event pattern:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/AssignDoctrineEvent.cs` — model for TI001
-4. **Existing system pattern:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/DoctrineIngressSystem.cs` — model for TI003
+3. **Existing event pattern:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/AssignBehaviorEvent.cs` — model for TI001
+4. **Existing system pattern:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BehaviorIngressSystem.cs` — model for TI003
 5. **CgfLogicPack wiring:** `Hrot/Subsystems/Hrot.CGF/CgfLogicPack.cs` — where TI003 system gets registered
 
 ### Source Code Locations
@@ -33,12 +33,12 @@ Questions (if any): `.dev/tactical-intent/questions/BATCH-01-QUESTIONS.md`
 
 ## Context
 
-This batch lays the entire foundation of the Tactical Intent Distribution System. The goal is to create the event and mapper interface types that all other phases depend on, and then add the receiver-side system that translates generic intents to concrete `AssignDoctrineEvent`s.
+This batch lays the entire foundation of the Tactical Intent Distribution System. The goal is to create the event and mapper interface types that all other phases depend on, and then add the receiver-side system that translates generic intents to concrete `AssignBehaviorEvent`s.
 
 The **key architectural insight** is:
 - Senders (`MissionAdapterSystem`, Commander AI) emit `AssignTacticalIntentEvent` with a string `IntentId` — they never know the recipient's unit type
-- `TacticalIntentResolutionSystem` on the receiver node translates the intent via a mapper registry, or falls through to treat the `IntentId` as a direct doctrine name
-- `DoctrineIngressSystem` (untouched) handles the final `AssignDoctrineEvent` exactly as before
+- `TacticalIntentResolutionSystem` on the receiver node translates the intent via a mapper registry, or falls through to treat the `IntentId` as a direct behavior name
+- `BehaviorIngressSystem` (untouched) handles the final `AssignBehaviorEvent` exactly as before
 
 **Related Tasks:**
 - [TASK-TI001](./../TASK-DETAIL.md#task-ti001---add-assigntacticalintentevent) — new managed event
@@ -67,7 +67,7 @@ The **key architectural insight** is:
 **File:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/AssignTacticalIntentEvent.cs` (NEW FILE)  
 **Task Definition:** See [TASK-DETAIL.md §TASK-TI001](../TASK-DETAIL.md#task-ti001---add-assigntacticalintentevent)
 
-Model this exactly on `AssignDoctrineEvent.cs` in the same folder. Key constraints:
+Model this exactly on `AssignBehaviorEvent.cs` in the same folder. Key constraints:
 - `sealed class` (not struct) — carries managed string fields
 - Namespace: `Fdp.Toolkit.Behavior.Events`
 - Fields: `Entity Entity`, `string IntentId = string.Empty`, `string JsonParams = string.Empty`
@@ -95,7 +95,7 @@ public interface ITacticalOrderMapper
     string TargetIntentId { get; }
 
     bool TryMap(Entity entity, EntityRepository repo, string jsonParams,
-                out AssignDoctrineEvent assignment);
+                out AssignBehaviorEvent assignment);
 }
 ```
 
@@ -123,12 +123,12 @@ No Hrot-specific dependencies. Namespace: `Fdp.Toolkit.Behavior.TacticalOrderMap
 - Constructor: `TacticalIntentResolutionSystem(TacticalIntentMapperRegistry mapperRegistry)`
 - Per-frame logic (critical — see DESIGN.md §2.1):
   1. Read all `AssignTacticalIntentEvent` from `repo.Bus.ReadManaged<AssignTacticalIntentEvent>()`
-  2. For each event: **first** check `repo.HasAuthority<DoctrineState>(evt.Entity)` — if `false`, skip silently
+  2. For each event: **first** check `repo.HasAuthority<BehaviorState>(evt.Entity)` — if `false`, skip silently
   3. If entity doesn't exist (deleted), skip silently
   4. Look up `evt.IntentId` in `_mapperRegistry`
-  5. If mapper found and `TryMap` returns `true` → publish the returned `AssignDoctrineEvent`
-  6. Otherwise (no mapper, or `TryMap` returned `false`) → publish `new AssignDoctrineEvent { Entity = evt.Entity, DoctrineName = evt.IntentId, JsonParams = evt.JsonParams }`
-- Must NOT mutate `DoctrineState`, `BrainBTreeState`, or `BrainBlackboard` directly
+  5. If mapper found and `TryMap` returns `true` → publish the returned `AssignBehaviorEvent`
+  6. Otherwise (no mapper, or `TryMap` returned `false`) → publish `new AssignBehaviorEvent { Entity = evt.Entity, BehaviorName = evt.IntentId, JsonParams = evt.JsonParams }`
+- Must NOT mutate `BehaviorState`, `BrainBTreeState`, or `BrainBlackboard` directly
 
 **CgfLogicPack wiring changes required:**
 1. Add `TacticalIntentMapperRegistry mapperRegistry` parameter to `CgfLogicPack` constructor
@@ -139,13 +139,13 @@ No Hrot-specific dependencies. Namespace: `Fdp.Toolkit.Behavior.TacticalOrderMap
 **Tests in `Hrot/Subsystems/Hrot.SimHost.Tests/`:**
 
 Add `TacticalIntentResolutionSystemTests.cs`:
-- **SC-1:** Registry has mapper for "DefendArea"; entity has `DoctrineState` (authority = true); publish intent + execute system → `AssignDoctrineEvent` published with mapper-translated doctrine name
-- **SC-2:** Empty registry; entity has `DoctrineState`; publish intent with `IntentId="ConvoyEscort"` → `AssignDoctrineEvent` published with `DoctrineName == "ConvoyEscort"` (pass-through)  
-- **SC-3:** Publish event for entity that does not exist → no exception, no `AssignDoctrineEvent` published
-- **SC-4:** Mapper registered but `TryMap` returns `false`; entity has `DoctrineState` → fallback publishes `new AssignDoctrineEvent` with `DoctrineName == evt.IntentId`
-- **SC-5:** Entity does NOT have `DoctrineState` (simulating remote-owned cognitive state) → no `AssignDoctrineEvent` published, no exception
+- **SC-1:** Registry has mapper for "DefendArea"; entity has `BehaviorState` (authority = true); publish intent + execute system → `AssignBehaviorEvent` published with mapper-translated behavior name
+- **SC-2:** Empty registry; entity has `BehaviorState`; publish intent with `IntentId="ConvoyEscort"` → `AssignBehaviorEvent` published with `BehaviorName == "ConvoyEscort"` (pass-through)  
+- **SC-3:** Publish event for entity that does not exist → no exception, no `AssignBehaviorEvent` published
+- **SC-4:** Mapper registered but `TryMap` returns `false`; entity has `BehaviorState` → fallback publishes `new AssignBehaviorEvent` with `BehaviorName == evt.IntentId`
+- **SC-5:** Entity does NOT have `BehaviorState` (simulating remote-owned cognitive state) → no `AssignBehaviorEvent` published, no exception
 
-For authority simulation in tests: **entity without `DoctrineState` component = no authority** (since `HasAuthority<DoctrineState>` returns false when the component is absent or not owned). Use `TestWorldFactory.Create()` for world setup. Check how existing tests in `Hrot/Subsystems/Hrot.SimHost.Tests/` set up CGF worlds — look at `CgfLogicPackTests.cs`.
+For authority simulation in tests: **entity without `BehaviorState` component = no authority** (since `HasAuthority<BehaviorState>` returns false when the component is absent or not owned). Use `TestWorldFactory.Create()` for world setup. Check how existing tests in `Hrot/Subsystems/Hrot.SimHost.Tests/` set up CGF worlds — look at `CgfLogicPackTests.cs`.
 
 ---
 
@@ -161,10 +161,10 @@ For authority simulation in tests: **entity without `DoctrineState` component = 
 ## ⚠️ Quality Standards
 
 - No new Hrot dependencies in `FDP/Toolkits/Fdp.Toolkits/` (circular dep violation)
-- `AssignDoctrineEvent` and `DoctrineIngressSystem` are NOT modified
+- `AssignBehaviorEvent` and `BehaviorIngressSystem` are NOT modified
 - `CgfSubsystem.cs` construction site updated so `CgfLogicPack` receives the new `TacticalIntentMapperRegistry` parameter
-- The authority gate (`HasAuthority<DoctrineState>`) must be implemented as a skip (not an exception)
-- The fallback path must allocate a **new** `AssignDoctrineEvent` instance — do not pool or reuse
+- The authority gate (`HasAuthority<BehaviorState>`) must be implemented as a skip (not an exception)
+- The fallback path must allocate a **new** `AssignBehaviorEvent` instance — do not pool or reuse
 
 ---
 
@@ -196,8 +196,8 @@ Submit `.dev/tactical-intent/reports/BATCH-01-REPORT.md` with:
 ## 📚 Reference Materials
 - **Task Definitions:** `.dev/tactical-intent/TASK-DETAIL.md` — TASK-TI001, TASK-TI002, TASK-TI003
 - **Design:** `.dev/tactical-intent/DESIGN.md` — §1.1, §1.2, §1.3, §2.1, §2.2, Architectural Decisions
-- **Pattern reference:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/AssignDoctrineEvent.cs`
-- **Pattern reference:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/DoctrineIngressSystem.cs`
-- **Pattern reference:** `FDP/Toolkits/Fdp.Toolkits/Behavior/DoctrineRegistry.cs`
+- **Pattern reference:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/AssignBehaviorEvent.cs`
+- **Pattern reference:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BehaviorIngressSystem.cs`
+- **Pattern reference:** `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorRegistry.cs`
 - **Wiring target:** `Hrot/Subsystems/Hrot.CGF/CgfLogicPack.cs`
 - **Construction site:** `Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs` line 243

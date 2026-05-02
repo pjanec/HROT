@@ -16,7 +16,7 @@
 | BUG1-T003 | ✅ Complete | `_nodeIdOverride` field added to `IosSubsystem`; stored from `config.NodeId` in `Initialize()`; `TestHook_NodeIdOverride` exposed |
 | BUG1-T004 | ✅ Complete | Two distinct root causes fixed — see Q5 below |
 | BUG1-I001 | ✅ Complete | `ContinuousDragUpdates` flag + `_continuousDragTimer` throttle + `IBdcCommandGateway` interface + `SendWorldPosUpdate` refactor |
-| BUG1-M001 | ✅ Complete | `HandleAddTask()` now seeds `Triggers = [{ Type = "DoctrineFinished" }]` on every new task |
+| BUG1-M001 | ✅ Complete | `HandleAddTask()` now seeds `Triggers = [{ Type = "BehaviorFinished" }]` on every new task |
 | BUG1-M002 | ✅ Complete | `SendControlCommandAsync` added to `IMissionEditorService`/`MissionEditorService`; `HandleJump`/`HandleAbort` now use the async path and set `_commitInFlight = true` |
 
 ---
@@ -44,8 +44,8 @@
 - ✅ `ContinuousDragOn_CallsFiredAtThreshold` — timer crosses 0.1 s on 4th frame → 1 call
 - ✅ `DragEnd_AlwaysSendsExactlyOneUpdate` — drop always issues exactly one call
 - ✅ `DragEnd_ResetsContinuousDragTimer` — timer zeroed after drag end
-- ✅ `AddTask_NewTask_HasDoctrineFinishedTrigger` — new task has exactly one "DoctrineFinished" trigger
-- ✅ `AddTask_MultipleTasksEach_HaveDoctrineFinishedTrigger` — all new tasks have the trigger
+- ✅ `AddTask_NewTask_HasBehaviorFinishedTrigger` — new task has exactly one "BehaviorFinished" trigger
+- ✅ `AddTask_MultipleTasksEach_HaveBehaviorFinishedTrigger` — all new tasks have the trigger
 - ✅ `HandleJump_WithSelection_SetsCommitInFlight` — Jump sets `CommitInFlight = true`
 - ✅ `HandleAbort_WithSelection_SetsCommitInFlight` — Abort sets `CommitInFlight = true`
 - ✅ All 6 previously-failing `Hrot.IG.Tests` now pass (311 → 315)
@@ -84,7 +84,7 @@
 
 **Q4: What edge cases did you discover that weren't mentioned in the spec?**
 
-1. **`HandleAddTask` when `SelectedEntityId == 0`:** `EnsureDraftForEdit` returns false early, so the test `AddTask_AppendsToDraftPlan` works because it sets `SelectedEntityId = 1`. No issue here but worth noting: the DoctrineFinished trigger is only added when the edit can proceed.
+1. **`HandleAddTask` when `SelectedEntityId == 0`:** `EnsureDraftForEdit` returns false early, so the test `AddTask_AppendsToDraftPlan` works because it sets `SelectedEntityId = 1`. No issue here but worth noting: the BehaviorFinished trigger is only added when the edit can proceed.
 
 2. **`HandleAbort`/`HandleJump` with `SelectedEntityId == 0`:** The guarded path short-circuits before calling `SendControlCommandAsync`, so `CommitInFlight` stays false. This is correct — verified by updating `HandleAbort_NoSelection_DoesNotCallService` and `HandleJump_NoSelection_DoesNotCallService` to check `SendControlCommandAsync` instead.
 

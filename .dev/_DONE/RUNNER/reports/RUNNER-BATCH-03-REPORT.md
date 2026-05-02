@@ -36,7 +36,7 @@
 - `IosSubsystemTests.cs` — 10 tests covering Initialize, Update, DrawUI, multi-update, Shutdown, NullDdsWriter isolation
 
 **Key Test Scenarios Verified:**
-- [x] SimHostSubsystem initialises full kernel stack (ECS, doctrine registry, network modules) without crashing
+- [x] SimHostSubsystem initialises full kernel stack (ECS, behavior registry, network modules) without crashing
 - [x] SimHostSubsystem.Update() ticks ECS kernel and SystemGroup without exception
 - [x] SimHostSubsystem.Start()/Stop() background thread starts and terminates cleanly
 - [x] IgSubsystem.InitializeEmbedded(headless:true) completes without a Raylib window

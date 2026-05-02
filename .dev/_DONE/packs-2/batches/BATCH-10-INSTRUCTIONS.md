@@ -238,7 +238,7 @@ Currently, pack instances are created and passed anonymously to `RegisterModule`
 **Before (current, lines ~31–36):**
 ```csharp
 kernel.RegisterModule(new SimHostCoreLogicPack(entityMap));
-kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, entityMap));
+kernel.RegisterModule(new CgfLogicPack(behaviorRegistry, entityMap));
 kernel.RegisterModule(new OrchestrationLogicPack(clusterSlave));
 kernel.RegisterModule(new ScenarioEditorModule(fileService));
 ```
@@ -247,7 +247,7 @@ kernel.RegisterModule(new ScenarioEditorModule(fileService));
 ```csharp
 // ── 4a. Named pack instances for feature-switch RCU ────────────────────────
 var simHostCorePack = new SimHostCoreLogicPack(entityMap);
-var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, entityMap);
+var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, entityMap);
 var orchPack        = new OrchestrationLogicPack(clusterSlave);
 var scenarioMod     = new ScenarioEditorModule(fileService);
 
@@ -393,7 +393,7 @@ public EditorHarness()
 
     EntityMap = new NetworkEntityMap();
 
-    var doctrineRegistry = new DoctrineRegistry();
+    var behaviorRegistry = new BehaviorRegistry();
     var clusterSlave     = new ClusterSlave(0, "EditorHarness");
     var fileService      = EditorBootstrap.CreateFileService();
 
@@ -407,7 +407,7 @@ public EditorHarness()
 
     // ── Module registration (offline — no translator packs) ───────────────
     var simHostCorePack = new SimHostCoreLogicPack(EntityMap);
-    var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, EntityMap);
+    var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, EntityMap);
     var scenarioMod     = new ScenarioEditorModule(fileService);
 
     Kernel.RegisterModule(simHostCorePack);

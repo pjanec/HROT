@@ -12,7 +12,7 @@
 
 ## Phase 1 — Unified Hot Reload Coordinator
 
-- [x] BHU-001 — Add Fhsm references to `Hrot.AI.Doctrines.csproj`
+- [x] BHU-001 — Add Fhsm references to `Hrot.AI.Behaviors.csproj`
 - [x] BHU-002 — Add `HsmActionDispatcher.ClearAll()` to `Fhsm.Kernel` (via SourceGen)
 - [x] BHU-003 — Build `AiHotReloadCoordinator`
 - [x] BHU-004 — Wire `AiHotReloadCoordinator` into `EditorSubsystem`
@@ -21,7 +21,7 @@
 
 - [x] BHU-005 — Implement `IsFinal` in `Fhsm.Compiler` (`StateNode`, `StateBuilder`, `HsmFlattener`)
 - [x] BHU-006 — Implement `StateFlags.IsFinal` → `InstanceFlags.Terminated` in `HsmKernelCore`
-- [x] BHU-007 — `HsmTickSystem<T>`: detect `Terminated` + publish `DoctrineFinishedEvent`
+- [x] BHU-007 — `HsmTickSystem<T>`: detect `Terminated` + publish `BehaviorFinishedEvent`
 
 ## Phase 3 — Cognitive Interrupt Decoupling
 
@@ -42,11 +42,11 @@
 
 ## Cross-Cutting
 
-- [x] BHU-016 — `DoctrineIngressSystem`: reset `BrainHsm64`/`BrainHsm128` on HSM doctrine assignment
+- [x] BHU-016 — `BehaviorIngressSystem`: reset `BrainHsm64`/`BrainHsm128` on HSM behavior assignment
 
 ## Integration Tests
 
 - [x] BHU-017 — End-to-end integration tests proving all unified features work together
   - Groups A+B: `BhuIntegrationTests` (7 tests, Fdp.Toolkits.Tests)
   - Groups C+D: `HsmSourceGenIntegrationTests` + `HsmTerminalStateIntegrationTests` (6 tests, Fhsm.Tests)
-  - Group E: `HsmDoctrineIntegrationTests` (2 tests, Hrot.ClusterRunner.Integration.Tests)
+  - Group E: `HsmBehaviorIntegrationTests` (2 tests, Hrot.ClusterRunner.Integration.Tests)

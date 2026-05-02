@@ -14,7 +14,7 @@
 | BUG2-N001 | ✅ Done | Removed duplicate `UpdateEntityDescriptorRequestSystem` from `SimHostApp.cs`; added `RegisteredSystemTypes_ContainsNoDuplicates` test |
 | BUG2-N002 | ✅ Done | Added `EnableSenderTracking` to all 4 DDS participants (SimHost, IG, IosSubsystem, NetworkDemo); added `ProcessSample_WithSenderTracking_SetsOwnerId` integration test |
 | BUG2-N003 | ✅ Done | Added `Dispose(long)` override to `WorldPosEgressTranslator` that tombstones the DR sample; added DDS integration tests `Dispose_CallsDisposeOnDrWriter` and `Dispose_AlsoCallsBaseDispose` |
-| BUG2-M001 | ✅ Done | Added `DoctrineFinished` and `UnderAttack` cases to `ResolveTrigger` in both `MissionControlRequestSystem` and `EntityMissionIngressTranslator`; made method `internal`; tests in both test projects |
+| BUG2-M001 | ✅ Done | Added `BehaviorFinished` and `UnderAttack` cases to `ResolveTrigger` in both `MissionControlRequestSystem` and `EntityMissionIngressTranslator`; made method `internal`; tests in both test projects |
 | BUG2-M002 | ✅ Done | Added `_triggerTypes`, `GetDefaultTriggerParams`, `HandleEditTriggerType`, `HandleEditTriggerParams`, `HandleAddTrigger` to `MissionPanel`; trigger UI block in `Draw`; 4 tests added |
 | BUG2-M003 | ✅ Done | Replaced `↑`, `↓`, `✕` button labels with `Up`, `Down`, `Delete` across all task rows |
 | BUG2-M004 | ✅ Done | Added `HandleForceCommit` and `TestHook_ClearDraftAndDismissConflict` to `MissionPanel`; replaced static commit UI with conditional conflict vs commit UI; 3 tests added |
@@ -43,7 +43,7 @@
 - ✅ No duplicate system types registered in `SimHostApp`
 - ✅ `SenderIdentityConfig.AppInstanceId` flows through to `EntityMaster.OwnerId` over DDS
 - ✅ `WorldPos` sample is tombstoned (not just abandoned) when entity is disposed
-- ✅ `ResolveTrigger` returns correct enum for all 5 trigger strings including new DoctrineFinished/UnderAttack
+- ✅ `ResolveTrigger` returns correct enum for all 5 trigger strings including new BehaviorFinished/UnderAttack
 - ✅ Trigger type change resets params to type-appropriate defaults
 - ✅ Force commit is sent with `baseVersion == 0` bypassing OCC check
 - ✅ `HandleForceCommit` dismisses the conflict alert inline

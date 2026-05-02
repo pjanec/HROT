@@ -27,7 +27,7 @@ Validated **`.dev-workstream/reports/BATCH-15-REPORT.md`** against **source**. *
 ### Tasks 4a–4f — DEM1-D010
 
 - **4a:** **`UrbanCombatNewScenario`**, **`ScenarioName`** → **`ScenarioNames.UrbanCombat`**.  
-- **4b:** Pipeline covers **Behavior** (doctrine/BTree/HSM), **Combat**, **Physics**, **Perception**, **CarKinem** (**`CarKinematicsSystem`** + road), **Navigation** channels/dispatch — consistent with §6.5 toolkit list. **Fhsm** compiler/sourcegen referenced for APC HSM (appropriate).  
+- **4b:** Pipeline covers **Behavior** (behavior/BTree/HSM), **Combat**, **Physics**, **Perception**, **CarKinem** (**`CarKinematicsSystem`** + road), **Navigation** channels/dispatch — consistent with §6.5 toolkit list. **Fhsm** compiler/sourcegen referenced for APC HSM (appropriate).  
 - **4c:** **`_road = DemoRoadGraphFactory.CreateCityIntersection()`**.  
 - **4d:** **5 + 3 + 1 + 4 + 1 = 14** spawns; TKB IDs **1001–1002, 2001–2003**; APC **ConvoyEscort** HSM; insurgent **Ambush** BTree + **`TargetMemory`** pre-seed; soldiers embarked + **TargetMemory** pre-seed (intentional deviation from legacy infantry BT — documented in code XML and report).  
 - **4e:** Latches **1–4** + success path; **`tick > 600`** throws phase **5** with latch diagnostics.  

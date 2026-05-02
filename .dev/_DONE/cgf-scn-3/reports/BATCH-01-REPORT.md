@@ -47,12 +47,12 @@ the C# 12 InlineArray defensive-copy trap:
 ```csharp
 Span<MissionPhase> phases = queue.Phases;
 for (int i = 0; i < plan.Tasks.Count && i < MaxPhases; i++)
-    phases[i] = new MissionPhase { DoctrineId = doctrineId, TaskId = taskIds[i] };
+    phases[i] = new MissionPhase { BehaviorId = behaviorId, TaskId = taskIds[i] };
 ```
 
 **Tests added** (`Hrot\Subsystems\Hrot.SimHost.Tests\Systems\MissionControlExecutionSystemTests.cs`):
-- `ReplaceMission_3TaskPlan_PhaseCountAndDoctrineIdCorrect` — SC1 (PhaseCount == 3), SC2 (each
-  phase has DoctrineId == 101).
+- `ReplaceMission_3TaskPlan_PhaseCountAndBehaviorIdCorrect` — SC1 (PhaseCount == 3), SC2 (each
+  phase has BehaviorId == 101).
 - `ReplaceMission_EmptyPlan_PhaseCountIsZero` — SC3 (zero-task plan gives PhaseCount 0).
 
 ---

@@ -95,10 +95,10 @@ public sealed class DistributedBrainMuscleIntegrationTests
 
     // ── IT-4c ─────────────────────────────────────────────────────────────────
 
-    [Fact(Skip = "CGF AI mission assignment round-trip not deterministically testable without ExCon MissionControlRequest chain; NavigationIntent is set only after full doctrine activation.")]
+    [Fact(Skip = "CGF AI mission assignment round-trip not deterministically testable without ExCon MissionControlRequest chain; NavigationIntent is set only after full behavior activation.")]
     public void CgfAiIntent_ReachesSimHost_ViaDds()
     {
-        // This test requires CGF to receive a doctrine assignment via MissionControlRequest (DDS),
+        // This test requires CGF to receive a behavior assignment via MissionControlRequest (DDS),
         // activate a navigation executor, and publish NavigationIntent back to SimHost via DDS.
         // The full chain requires ExCon participation which is not part of the SimHost-only harness.
         // Placeholder for future implementation when the ExCon can be driven offline.

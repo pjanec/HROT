@@ -352,9 +352,9 @@ Test: OnFailure_LogFileContains_DiagnosticValues
    }
    ```
 
-3. `DemoDoctrineIds.cs`:
+3. `DemoBehaviorIds.cs`:
    ```csharp
-   public static class DemoDoctrineIds
+   public static class DemoBehaviorIds
    {
        public const uint Patrol       = 100;
        public const uint Combat       = 200;
@@ -739,9 +739,9 @@ Build a synthetic BTree JSON (inline string constant):
 }
 ```
 
-Register doctrine hash `DemoDoctrineIds.Combat` pointing to this BTree.
+Register behavior hash `DemoBehaviorIds.Combat` pointing to this BTree.
 
-Spawn agent with `DoctrineState{ActiveDoctrineHash=Combat}`, `BrainBTreeState`, `BrainBlackboard`, `LocomotionChannel`, `WeaponChannel`, `ActorCapabilityState{CanMove|CanShoot}`.
+Spawn agent with `BehaviorState{ActiveBehaviorHash=Combat}`, `BrainBTreeState`, `BrainBlackboard`, `LocomotionChannel`, `WeaponChannel`, `ActorCapabilityState{CanMove|CanShoot}`.
 
 Initialize blackboard memory: `MockBlackboardState{ThreatVisible=false, AmmoCount=10}`.
 
@@ -829,18 +829,18 @@ Test: SensorGrid_Phase3_TargetReacquiredAfterWall
 
 Register `MissionControlModule` + `CognitiveRuntimeModule` (no physics, no executors).
 
-Register two dummy doctrines: Patrol (id=100), Combat (id=200).
+Register two dummy behaviors: Patrol (id=100), Combat (id=200).
 
 Spawn Commander with:
-- `DoctrineState{ActiveDoctrineHash=100, InstanceId=1}`
+- `BehaviorState{ActiveBehaviorHash=100, InstanceId=1}`
 - `LocomotionChannel{}`, `WeaponChannel{}`, `TargetMemory{}`
-- `MissionPlanQueue`: 2 phases. Phase 0 = `{DoctrineId=100, Trigger=UnderAttack}`. Phase 1 = `{DoctrineId=200, Trigger=TimerElapsed, TriggerParam=5.0}`.
+- `MissionPlanQueue`: 2 phases. Phase 0 = `{BehaviorId=100, Trigger=UnderAttack}`. Phase 1 = `{BehaviorId=200, Trigger=TimerElapsed, TriggerParam=5.0}`.
   - **Important:** Use `Span<MissionPhase>` cast when setting phases to avoid C# `[InlineArray]` defensive-copy mutation trap.
 
 `EvaluateTick`:
-- Tick 5: write `LocomotionChannel{ActiveAction=MoveTo, DoctrineInstanceId=1}`. Set `_passedPhase1=true`
+- Tick 5: write `LocomotionChannel{ActiveAction=MoveTo, BehaviorInstanceId=1}`. Set `_passedPhase1=true`
 - Tick 10: inject enemy into `TargetMemory` (method `TargetMemory.AddOrUpdateTarget(...)`)
-- Tick 11: Phase 3 — assert `queue.CurrentPhase==1` and `doctrine.ActiveDoctrineHash==200`
+- Tick 11: Phase 3 — assert `queue.CurrentPhase==1` and `behavior.ActiveBehaviorHash==200`
 - Tick 12: Phase 4 — assert `loco.ActiveAction==0` (preempted) → all latches → return true
 
 **Success conditions:**
@@ -853,7 +853,7 @@ Test: MissionCommand_RunToCompletion_ExitsZero
 Test: MissionCommand_Phase3_DirectorAdvancesPhase_WhenThreated
   During: tick 11
   Then: commander.MissionPlanQueue.CurrentPhase == 1
-  AND:  commander.DoctrineState.ActiveDoctrineHash == DemoDoctrineIds.Combat (200)
+  AND:  commander.BehaviorState.ActiveBehaviorHash == DemoBehaviorIds.Combat (200)
 
 Test: MissionCommand_Phase4_ArbitrationPreemptsStaleLocoCommand
   During: tick 12  

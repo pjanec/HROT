@@ -2,7 +2,7 @@ using Fbt;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Events;
-using Hrot.AI.Doctrines.Brains;
+using Hrot.AI.Behaviors.Brains;
 
 namespace Hrot.SimHost.Tests
 {

@@ -7,7 +7,7 @@ using Xunit;
 namespace Hrot.Editor.Tests.IntegrationTests;
 
 /// <summary>
-/// Integration tests verifying that the urban-combat TKB blueprints and doctrines
+/// Integration tests verifying that the urban-combat TKB blueprints and behaviors
 /// are correctly registered by <see cref="UrbanCombatNewScenario"/> helper methods.
 ///
 /// These tests exercise the static registration path used by <c>EditorSubsystem</c>
@@ -23,12 +23,12 @@ public sealed class UrbanCombatRegistrationTests
     private const long TkbInfantrySoldier    = 2002L;
     private const long TkbInsurgent          = 2003L;
 
-    // ── Doctrine IDs ─────────────────────────────────────────────────────────
+    // ── Behavior IDs ─────────────────────────────────────────────────────────
 
-    private const int DoctrineWanderCivil    = 1001;
-    private const int DoctrineConvoyEscort   = 2001;
-    private const int DoctrineInfantryCombat = 2002;
-    private const int DoctrineAmbush         = 2003;
+    private const int BehaviorWanderCivil    = 1001;
+    private const int BehaviorConvoyEscort   = 2001;
+    private const int BehaviorInfantryCombat = 2002;
+    private const int BehaviorAmbush         = 2003;
 
     // ═════════════════════════════════════════════════════════════════════════
     // TKB registration
@@ -74,44 +74,44 @@ public sealed class UrbanCombatRegistrationTests
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // Doctrine registration
+    // Behavior registration
     // ═════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// All four UrbanCombat doctrine IDs must be findable in the registry after
-    /// <see cref="UrbanCombatNewScenario.RegisterUrbanCombatDoctrines"/> is called.
+    /// All four UrbanCombat behavior IDs must be findable in the registry after
+    /// <see cref="UrbanCombatNewScenario.RegisterUrbanCombatBehaviors"/> is called.
     /// </summary>
     [Theory]
-    [InlineData(DoctrineWanderCivil,    "WanderCivil")]
-    [InlineData(DoctrineConvoyEscort,   "ConvoyEscort")]
-    [InlineData(DoctrineInfantryCombat, "InfantryCombat")]
-    [InlineData(DoctrineAmbush,         "Ambush")]
-    public void RegisterUrbanCombatDoctrines_RegistersAllFourDoctrines(int id, string expectedName)
+    [InlineData(BehaviorWanderCivil,    "WanderCivil")]
+    [InlineData(BehaviorConvoyEscort,   "ConvoyEscort")]
+    [InlineData(BehaviorInfantryCombat, "InfantryCombat")]
+    [InlineData(BehaviorAmbush,         "Ambush")]
+    public void RegisterUrbanCombatBehaviors_RegistersAllFourBehaviors(int id, string expectedName)
     {
-        var registry = new DoctrineRegistry();
+        var registry = new BehaviorRegistry();
 
-        UrbanCombatNewScenario.RegisterUrbanCombatDoctrines(registry);
+        UrbanCombatNewScenario.RegisterUrbanCombatBehaviors(registry);
 
         Assert.True(registry.TryGetDefinition(id, out _),
-            $"Doctrine id={id} ({expectedName}) was not registered.");
+            $"Behavior id={id} ({expectedName}) was not registered.");
     }
 
     /// <summary>
-    /// Each registered doctrine must resolve its name to the expected integer ID.
+    /// Each registered behavior must resolve its name to the expected integer ID.
     /// </summary>
     [Theory]
-    [InlineData("WanderCivil",    DoctrineWanderCivil)]
-    [InlineData("ConvoyEscort",   DoctrineConvoyEscort)]
-    [InlineData("InfantryCombat", DoctrineInfantryCombat)]
-    [InlineData("Ambush",         DoctrineAmbush)]
-    public void RegisterUrbanCombatDoctrines_NameResolvesToCorrectId(string name, int expectedId)
+    [InlineData("WanderCivil",    BehaviorWanderCivil)]
+    [InlineData("ConvoyEscort",   BehaviorConvoyEscort)]
+    [InlineData("InfantryCombat", BehaviorInfantryCombat)]
+    [InlineData("Ambush",         BehaviorAmbush)]
+    public void RegisterUrbanCombatBehaviors_NameResolvesToCorrectId(string name, int expectedId)
     {
-        var registry = new DoctrineRegistry();
+        var registry = new BehaviorRegistry();
 
-        UrbanCombatNewScenario.RegisterUrbanCombatDoctrines(registry);
+        UrbanCombatNewScenario.RegisterUrbanCombatBehaviors(registry);
 
         Assert.True(registry.TryGetId(name, out int id),
-            $"Doctrine '{name}' could not be resolved to an ID.");
+            $"Behavior '{name}' could not be resolved to an ID.");
         Assert.Equal(expectedId, id);
     }
 }

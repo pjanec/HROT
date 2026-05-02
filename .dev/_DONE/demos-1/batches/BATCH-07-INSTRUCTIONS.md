@@ -48,7 +48,7 @@ Complete **corrective / documentation work first**, then **DEM1-D008**. All task
 
 ## ✅ Tasks
 
-### Task 1: [CORRECTIVE] Replace `MissionTrigger.ReachedDestination` with `DoctrineFinished`
+### Task 1: [CORRECTIVE] Replace `MissionTrigger.ReachedDestination` with `BehaviorFinished`
 
 **Debt:** `.dev-workstream/DEBT-TRACKER.md` — BS-1-BATCH-06 row (Target BATCH-07)
 

@@ -57,7 +57,7 @@ was present before this batch and is unchanged.
 | EditorSpawnAdapterTests | `StartPlacementMode_PushesCreationTool` | `CreationTool` pushed onto canvas |
 | EditorSpawnAdapterTests | `StartAreaAuthoringMode_PushesAreaPlacementTool` | `AreaPlacementTool` pushed |
 | EditorSpawnAdapterTests | `StartRouteAuthoringMode_PushesRoutePlacementTool` | `RoutePlacementTool` pushed |
-| EditorMissionServiceTests | `GetAvailableBehaviors_InsurgentWithRegisteredAmbush_ReturnsAmbush` | Doctrine filtering works |
+| EditorMissionServiceTests | `GetAvailableBehaviors_InsurgentWithRegisteredAmbush_ReturnsAmbush` | Behavior filtering works |
 | EditorMissionServiceTests | `GetAvailableBehaviors_DeadEntity_ReturnsEmpty` | Dead entity guard |
 | EditorMissionServiceTests | `CommitMissionAsync_PollAcksWithMatchingAck_ResolvesSuccess` | Full TAP round-trip |
 | EditorOrbatAdapterTests | `GetVisibleNodes_TwoEntities_ReturnsCorrectDepths` | BFS depth ordering |

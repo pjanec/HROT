@@ -19,7 +19,7 @@ new C# project assemblies.
 
 | Tier     | Node Role      | Owns                                                       | Emits                          |
 |----------|----------------|------------------------------------------------------------|--------------------------------|
-| Brain    | CGF / ExCon    | `BrainBlackboard`, `BrainHsm*`, `DoctrineState`, `NavigationIntent` | Intents (commands)  |
+| Brain    | CGF / ExCon    | `BrainBlackboard`, `BrainHsm*`, `BehaviorState`, `NavigationIntent` | Intents (commands)  |
 | Muscle   | SimHost        | `NavState`, `SimTransform`, `VehicleState`, `Health`       | Status/State events            |
 | Network  | Translator Pack | `DdsReader<T>` / `DdsWriter<T>`, `NetworkEntityMap`       | External DDS messages          |
 
@@ -233,7 +233,7 @@ Split into three pieces:
 2. **`MissionControlAckEgressTranslator`** (Translator Pack): consumes `MissionControlAckEvent`
    from `FdpEventBus`, writes `MissionControlAck` to DDS.
 3. **`MissionControlExecutionSystem`** (Logic Pack): renamed/refactored from the existing class.
-   Consumes `MissionControlIntent`, mutates `MissionPlanQueue`/`DoctrineState`, publishes
+   Consumes `MissionControlIntent`, mutates `MissionPlanQueue`/`BehaviorState`, publishes
    `MissionControlAckEvent`. No DDS, no JSON. The `DdsWriter<EntityMission>` is *deleted* —
    the existing `EntityMissionEgressTranslator` already replicates `MissionPlanQueue` ECS
    changes over DDS automatically.

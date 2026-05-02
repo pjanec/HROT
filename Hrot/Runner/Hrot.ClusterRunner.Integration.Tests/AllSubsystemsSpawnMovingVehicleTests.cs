@@ -234,8 +234,8 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         if (!cgfMap.TryGetEntity(networkId, out var entity)) { output.WriteLine($"[DIAG-CGF] entity {networkId} not in map"); return; }
         if (!cgfWorld.IsAlive(entity)) { output.WriteLine("[DIAG-CGF] entity not alive"); return; }
 
-        string docHash = cgfWorld.HasComponent<Fdp.Toolkit.Behavior.Components.DoctrineState>(entity)
-            ? cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.DoctrineState>(entity).ActiveDoctrineHash.ToString()
+        string docHash = cgfWorld.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(entity)
+            ? cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(entity).ActiveBehaviorHash.ToString()
             : "no-component";
         string navMode = cgfWorld.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(entity)
             ? cgfWorld.GetComponent<Fdp.Toolkit.Navigation.NavigationIntent>(entity).Mode.ToString()
@@ -249,7 +249,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         string caps = cgfWorld.HasComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(entity)
             ? cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(entity).Capabilities.ToString()
             : "no-component";
-        output.WriteLine($"[DIAG-CGF] DoctrineHash={docHash} NavMode={navMode} MissionPlanQueue={planPhase}");
+        output.WriteLine($"[DIAG-CGF] BehaviorHash={docHash} NavMode={navMode} MissionPlanQueue={planPhase}");
         output.WriteLine($"[DIAG-CGF] LocoChannel={loco} ActorCaps={caps}");
     }
 

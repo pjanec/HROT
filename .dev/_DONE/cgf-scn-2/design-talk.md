@@ -34,7 +34,7 @@ Then i went to Scenario Browser and pressed "Save As" and saved the scenario.
 
 I added the scenario file see ScenarioSample.
 
-But there is no FireAtTarget doctrine saved anywhere in the scenario!
+But there is no FireAtTarget behavior saved anywhere in the scenario!
 
 The simulation time is probably still frozen. Maybe the commit command just frozen in the FDP event buffer? see the MissionControlIntent source which shows the dump of the MissionControlIntent event there.
 
@@ -79,9 +79,9 @@ namespace Hrot.SimHost.Serializers
     public sealed class MissionPlanTranslator : IEntityScenarioTranslator
     {
         private const string Key = "MissionPlan";
-        private readonly DoctrineRegistry _registry;
+        private readonly BehaviorRegistry _registry;
 
-        public MissionPlanTranslator(DoctrineRegistry registry)
+        public MissionPlanTranslator(BehaviorRegistry registry)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
@@ -141,13 +141,13 @@ namespace Hrot.SimHost.Serializers
             for (int i = 0; i < queue.PhaseCount; i++)
             {
                 var task = domainPlan.Tasks[i];
-                _registry.TryGetId(task.BehaviorId, out int doctrineId);
+                _registry.TryGetId(task.BehaviorId, out int behaviorId);
                 
                 // Standard triggers rebuild (simplified; extend via MissionTriggerHelper if your DomainTask adds them)
                 queue.Phases[i] = new MissionPhase
                 {
-                    DoctrineId = doctrineId,
-                    Trigger = MissionTrigger.DoctrineFinished, 
+                    BehaviorId = behaviorId,
+                    Trigger = MissionTrigger.BehaviorFinished, 
                     TriggerParam = 0f
                 };
             }
@@ -171,7 +171,7 @@ var serializer = new ScenarioSerializerBuilder("Hrot.Scenario")
     .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
     .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
     .RegisterTranslator(new Hrot.SimHost.Serializers.WeaponChannelTranslator())
-    .RegisterTranslator(new Hrot.SimHost.Serializers.MissionPlanTranslator(doctrineRegistry)) // ADD THIS
+    .RegisterTranslator(new Hrot.SimHost.Serializers.MissionPlanTranslator(behaviorRegistry)) // ADD THIS
     .Build();
 ```
 
@@ -183,11 +183,11 @@ The decision to extract `ActiveMissionPlan` and `MissionPlanQueue` into a combin
 
 In our ECS architecture, the mission state is intentionally split across the managed/unmanaged boundary:
 
--   **ActiveMissionPlan** is a managed Tier-2 class containing the pure-domain strings (`BehaviorId`, `BehaviorParams`).-   **MissionPlanQueue** is a blittable Tier-1 struct containing the highly optimized execution phases and triggers (`DoctrineId`, `MissionTrigger`).
+-   **ActiveMissionPlan** is a managed Tier-2 class containing the pure-domain strings (`BehaviorId`, `BehaviorParams`).-   **MissionPlanQueue** is a blittable Tier-1 struct containing the highly optimized execution phases and triggers (`BehaviorId`, `MissionTrigger`).
 
-To rebuild the unmanaged `MissionPlanQueue` during a scenario load, the system must map the human-readable `BehaviorId` strings back into engine-specific `DoctrineId` integers via the `DoctrineRegistry`. If you allow the auto-serializer to handle them as separate DOM nodes, you introduce a deserialization race condition: the pipeline might attempt to inject and compile the `MissionPlanQueue` before the `ActiveMissionPlan` strings have been deserialized.
+To rebuild the unmanaged `MissionPlanQueue` during a scenario load, the system must map the human-readable `BehaviorId` strings back into engine-specific `BehaviorId` integers via the `BehaviorRegistry`. If you allow the auto-serializer to handle them as separate DOM nodes, you introduce a deserialization race condition: the pipeline might attempt to inject and compile the `MissionPlanQueue` before the `ActiveMissionPlan` strings have been deserialized.
 
-By combining them into a single `MissionPlan` JSON node, the translator guarantees atomic reconstruction. It reads the string definitions, resolves the doctrine IDs, and safely rebuilds both the managed data and the unmanaged `[InlineArray]` execution queue in a single deterministic pass.
+By combining them into a single `MissionPlan` JSON node, the translator guarantees atomic reconstruction. It reads the string definitions, resolves the behavior IDs, and safely rebuilds both the managed data and the unmanaged `[InlineArray]` execution queue in a single deterministic pass.
 
 Missing Translators (Critical Data Loss)
 
@@ -199,7 +199,7 @@ You must immediately implement custom `IEntityScenarioTranslator` classes for th
 
 **1\.** **BrainBlackboard**
 
--   **The Flaw:** Serialized as `{"Memory": {"FixedElementField": 0}}`. The blackboard contains a `fixed byte Memory` buffer.-   **Impact:** All cognitive AI state is erased on load. Crucially, doctrines like `FireAtTarget` store local entity references as packed `long` values inside this buffer (e.g., `TargetPacked`). Without a custom translator to extract these as GUID strings via `IGuidResolver`, cross-entity target references will become dangling pointers.
+-   **The Flaw:** Serialized as `{"Memory": {"FixedElementField": 0}}`. The blackboard contains a `fixed byte Memory` buffer.-   **Impact:** All cognitive AI state is erased on load. Crucially, behaviors like `FireAtTarget` store local entity references as packed `long` values inside this buffer (e.g., `TargetPacked`). Without a custom translator to extract these as GUID strings via `IGuidResolver`, cross-entity target references will become dangling pointers.
 
 **2\.** **LocomotionChannel** **&** **InteractionChannel**
 
@@ -416,7 +416,7 @@ Based on the codebase, the following components store raw or packed entity handl
 
 3\. Active Execution Channels
 
--   **WeaponChannel**: Contains a `fixed byte Params` buffer. When executing `ActionIdAimAndFire`, this buffer is cast to `AimAndFireParams`, which embeds a raw `Entity Target` handle.-   **LocomotionChannel** **&** **InteractionChannel**: Also rely on opaque `fixed byte Params` and `fixed byte State` buffers. If any active doctrine behavior packs an entity reference into these buffers, the reference will become stale. _(Architectural Note: Like perception, active execution channels represent mid-tick runtime state. You should rely on_ _ActiveMissionPlan__—which stores safe JSON strings patched by the_ _ScenarioBehaviorRemapper__—to cleanly re-initialize the channels via_ _DoctrineIngressSystem_ _upon load, rather than trying to transmit active channels over the network.)_
+-   **WeaponChannel**: Contains a `fixed byte Params` buffer. When executing `ActionIdAimAndFire`, this buffer is cast to `AimAndFireParams`, which embeds a raw `Entity Target` handle.-   **LocomotionChannel** **&** **InteractionChannel**: Also rely on opaque `fixed byte Params` and `fixed byte State` buffers. If any active behavior behavior packs an entity reference into these buffers, the reference will become stale. _(Architectural Note: Like perception, active execution channels represent mid-tick runtime state. You should rely on_ _ActiveMissionPlan__—which stores safe JSON strings patched by the_ _ScenarioBehaviorRemapper__—to cleanly re-initialize the channels via_ _BehaviorIngressSystem_ _upon load, rather than trying to transmit active channels over the network.)_
 
 4\. Hierarchical & Structural Links
 
@@ -442,7 +442,7 @@ By intercepting these relations and converting them into managed Intent componen
 
 In summary, the Intent pattern decouples relational domain logic from binary memory layouts. You must still upgrade the `FdpAutoSerializer` expression trees to correctly loop over `fixed` buffers for pure scalar data, but you must actively prevent the serializer from touching arrays containing `Entity` handles by utilizing strict `[DataPolicy.NoSave]` boundaries.
 
-do we need to save the state of the WeaponChannel and LocomotionChannel and InteractionChannel to the scenario at all?Is the scenario trated as an exact snapshot of the very current state of the ECS? If the doctrine has already started and is running, we probably need to save these components as there is not way of reconstructing their state otherwise. But if we consider a scenario to define simplified initial conditions only, ignoring the working state of those problematic (difficult-to-serialize) components, and somehow making sure these problemtic components are initialized in different, simplified, initialization-specific way?
+do we need to save the state of the WeaponChannel and LocomotionChannel and InteractionChannel to the scenario at all?Is the scenario trated as an exact snapshot of the very current state of the ECS? If the behavior has already started and is running, we probably need to save these components as there is not way of reconstructing their state otherwise. But if we consider a scenario to define simplified initial conditions only, ignoring the working state of those problematic (difficult-to-serialize) components, and somehow making sure these problemtic components are initialized in different, simplified, initialization-specific way?
 
 Your proposition is architecturally correct. A scenario is unequivocally not an exact snapshot of the current ECS state; treating it as one is a category error.
 
@@ -462,7 +462,7 @@ The single source of truth for an entity's scenario behavior is the managed `Act
 
 When a distributed cluster loads a scenario:
 
--   The `StagingEntityExtractor` safely patches the declarative network IDs within the `ActiveMissionPlan` JSON strings.-   The entities spawn with empty, zero-initialized execution channels and brain states.-   The `MissionAdapterSystem` and `DoctrineIngressSystem` read the `ActiveMissionPlan` and freshly initialize the cognitive tier.-   The B-Tree or HSM evaluates the doctrine and organically populates the `LocomotionChannel` or `WeaponChannel` on the very first simulation tick, cleanly starting the behavior from its declarative initial conditions.
+-   The `StagingEntityExtractor` safely patches the declarative network IDs within the `ActiveMissionPlan` JSON strings.-   The entities spawn with empty, zero-initialized execution channels and brain states.-   The `MissionAdapterSystem` and `BehaviorIngressSystem` read the `ActiveMissionPlan` and freshly initialize the cognitive tier.-   The B-Tree or HSM evaluates the behavior and organically populates the `LocomotionChannel` or `WeaponChannel` on the very first simulation tick, cleanly starting the behavior from its declarative initial conditions.
 
 Required Architectural Corrections
 
@@ -538,9 +538,9 @@ NoRecord = 1 << 2,
 NoSave = 1 << 3,
 ```
 
-Let's imagine the situation we are in the middle of the preview, we pause the time. We like the exact current state of the simulation and we would like to save this as an initial state for a new scenario. The entities are in the middle of executing their doctrines (having some brain states) etc. We can take a checkpoint snapshot that already supports this well. But we want to savethe situation as initial conditions for a new scenario file. based on our previous conversation, scenarios are now not allowed to include the brain state. That means the system needs to save the scenario in a state that is as close as possible to the current ECS situation, and try to reconstruct similar situation on scenario load. In case of tasks within a mission plan, we should remember what task is currently active and activate it automatically on scenario load which will restart the task (restarts its doctrine). That means we do not try to remember what doctrine the entity is currently executing, we rely on the mission plan only. Doctrines for Entities that were comanded to execute their current doctrines from different sources (menu command, sub-hierarchical state machine etc.) will forget the doctrine completely. I am not sure here if this "doctrine amnesia" could work well enough for behavior trees and hierarchical state machines based AI behaviors (they should be idempotent in some way to be able to restore their behvaior) and how to approach this.
+Let's imagine the situation we are in the middle of the preview, we pause the time. We like the exact current state of the simulation and we would like to save this as an initial state for a new scenario. The entities are in the middle of executing their behaviors (having some brain states) etc. We can take a checkpoint snapshot that already supports this well. But we want to savethe situation as initial conditions for a new scenario file. based on our previous conversation, scenarios are now not allowed to include the brain state. That means the system needs to save the scenario in a state that is as close as possible to the current ECS situation, and try to reconstruct similar situation on scenario load. In case of tasks within a mission plan, we should remember what task is currently active and activate it automatically on scenario load which will restart the task (restarts its behavior). That means we do not try to remember what behavior the entity is currently executing, we rely on the mission plan only. Behaviors for Entities that were comanded to execute their current behaviors from different sources (menu command, sub-hierarchical state machine etc.) will forget the behavior completely. I am not sure here if this "behavior amnesia" could work well enough for behavior trees and hierarchical state machines based AI behaviors (they should be idempotent in some way to be able to restore their behvaior) and how to approach this.
 
-Your concern regarding "doctrine amnesia" highlights a fundamental tension between declarative authoring templates (Scenarios) and binary memory snapshots (Checkpoints). You are attempting to use a Scenario extraction to perform a Checkpoint's job.
+Your concern regarding "behavior amnesia" highlights a fundamental tension between declarative authoring templates (Scenarios) and binary memory snapshots (Checkpoints). You are attempting to use a Scenario extraction to perform a Checkpoint's job.
 
 Architecturally, extracting a mid-preview state as a new Scenario means you are intentionally shedding the transient execution context. Relying on the "amnesia" of execution buffers is the only correct approach. The system must reconstruct the active behavior organically upon load.
 
@@ -550,7 +550,7 @@ Fortunately, the ECS architecture you have built is inherently reactive. The "id
 
 Your assumption that entities commanded via menu interactions will suffer amnesia is incorrect.
 
-In `SimHostVisualization.cs`, the `HandleRightClickForEntity` method evaluates whether an entity is "brain-active". If the entity has an active doctrine, the right-click does not bypass the mission tier; instead, it issues a `CMD_REPLACE_MISSION` via the `ISimHostMissionSender`.
+In `SimHostVisualization.cs`, the `HandleRightClickForEntity` method evaluates whether an entity is "brain-active". If the entity has an active behavior, the right-click does not bypass the mission tier; instead, it issues a `CMD_REPLACE_MISSION` via the `ISimHostMissionSender`.
 
 This means that operator overrides are correctly ingested into the `ActiveMissionPlan` and `MissionPlanQueue` components. Because you implemented the `MissionPlanTranslator`, these mid-preview overrides will be safely serialized to the scenario JSON as pure domain intent. Upon load, the entity will seamlessly resume the operator's last commanded task.
 
@@ -564,7 +564,7 @@ When the scenario is loaded:
 
 -   The entity spawns with an empty `BrainBTreeState` (due to `DataPolicy.NoSave`).-   The `TargetMemory` is reconstructed accurately by the translator.-   On the first simulation tick, the BTree ticks from the root, immediately sees that `TargetMemory` contains the threat, and branches straight back into `Action_FireAtTarget`.
 
-The doctrine is idempotent because the decision-making state (`TargetMemory`, `ActorCapabilityState`, `Health`) is preserved by the serializers.
+The behavior is idempotent because the decision-making state (`TargetMemory`, `ActorCapabilityState`, `Health`) is preserved by the serializers.
 
 3\. Fast-Forwarding Hierarchical State Machines
 
@@ -870,7 +870,7 @@ private void WriteCheckpointFile(EntityRepository snapshot, Guid requestId)
 
 These changes securely route the correct buffer to the binary writer without degrading the zero-allocation fast-path used by the live Flight Recorder.
 
-pls summarize the final decisions taken related to the scenario saving/loading/preview-to-scenario since i asked aboout that the "there is no FireAtTarget doctrine saved anywhere in the scenario"
+pls summarize the final decisions taken related to the scenario saving/loading/preview-to-scenario since i asked aboout that the "there is no FireAtTarget behavior saved anywhere in the scenario"
 
 The architectural decisions made regarding scenario persistence establish a strict, impenetrable boundary between declarative authoring intent and transient execution state. Treating a scenario JSON file as a binary memory dump is a fundamental category error.
 
@@ -882,7 +882,7 @@ Here is the objective summary of the finalized architectural boundaries:
 
 **3\. Network ID Translation (The "Intent" Pattern)** An ECS `Entity` handle is a strictly local memory pointer (Index + Generation) and is invalid across distributed cluster boundaries. Raw entity handles stored in high-performance `[InlineArray]` or `fixed` buffers must never be serialized directly. We resolved this by implementing custom `IEntityScenarioTranslator` classes, such as `TargetMemoryTranslator` and `PassengerBufferTranslator`. During extraction, these translators convert local ECS handles into stable GUID strings or Network IDs. Upon scenario load, the `StagingEntityExtractor` patches these IDs, and the target node late-binds them to newly allocated local ECS handles.
 
-**4\. Preview-to-Scenario Extraction and "Doctrine Amnesia"** When extracting a new scenario from a paused preview, the system intentionally sheds the active AI execution context. This "doctrine amnesia" is architecturally sound. Because our FastBTree and FastHSM implementations do not hold deep internal state, they are purely reactive projections of persistent ECS data.
+**4\. Preview-to-Scenario Extraction and "Behavior Amnesia"** When extracting a new scenario from a paused preview, the system intentionally sheds the active AI execution context. This "behavior amnesia" is architecturally sound. Because our FastBTree and FastHSM implementations do not hold deep internal state, they are purely reactive projections of persistent ECS data.
 
 -   B-Trees recover idempotently: they tick from the root on load, evaluate preserved environmental state (e.g., `TargetMemory` translated via `TargetMemoryTranslator`), and instantly branch back into the correct action (e.g., `Action_AimAndFire`).-   HSMs fast-forward correctly: if an APC was disabled mid-preview, the preserved `Health` scalar triggers the `HealthApplicationSystem` to strip the `CanMove` capability. The `HsmDamageBridgeSystem` immediately detects this missing capability and injects the `MobilityLost` event, snapping the state machine back into the `Disabled` phase on the very first tick.
 

@@ -19,7 +19,7 @@ The current code does not achieve step 2. There are three concrete bugs:
 
 **Bug A (SimHostApp):** `SimHostApp.OnLoad` creates `var simulationSystemGroup = new SimulationSystemGroup()` and immediately passes it to the replay handler — but no simulation systems are ever added to it. The actual simulation systems run in a separate `_kernelGroup` that the replay handler knows nothing about. Disabling the empty group does nothing.
 
-**Bug B (Input phase):** Nothing ever disables the input-phase systems during replay. The `CycloneIngressSystem`, `DoctrineIngressSystem`, `FireProcessingSystem`, `PersonalRouteAuthoringSystem`, and others keep running, injecting live commands and live network data into the world on top of the historical state.
+**Bug B (Input phase):** Nothing ever disables the input-phase systems during replay. The `CycloneIngressSystem`, `BehaviorIngressSystem`, `FireProcessingSystem`, `PersonalRouteAuthoringSystem`, and others keep running, injecting live commands and live network data into the world on top of the historical state.
 
 **Bug C (CgfSubsystem):** The `ReferenceReplayLoadHandler` registered in `CgfSubsystem` is passed `simGroup: null, lifecycleGroup: null`. Even if the handler logic were correct, it would toggle nothing on the CGF node.
 

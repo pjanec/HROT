@@ -14,7 +14,7 @@ This workstream contains **five coordinated refactoring efforts** across the FDP
 | **Phase 2: Ordinal Cleanup** | Replace all magic integer literals in `DescriptorOrdinal` properties with named enumerations (`EDescriptorType`, `TimeDescriptorType`, `BdcDescriptorType`). |
 | **Phase 3: Network Interface Segregation** | Introduce `INetworkTranslator` as a base interface; give transient event translators (`CycloneNativeEventTranslator` etc.) their own `INetworkEventTranslator` contract instead of forcing them to implement `IDescriptorTranslator`. Remove the `GetDirectionLabel` string-matching hack in `ArchitectureDiagnosticsPanel`. |
 | **Phase 4: SystemPhase.Manual** | Add `SystemPhase.Manual = 255` to the FDP ModuleHost framework; add `ISystemRegistry.RegisterManualSystem<T>()` with profiling wrapper support; refactor `AutonomousPerceptionModule` so its four inner systems are registered with and visible to the kernel's diagnostic UI. |
-| **Phase 5: Doctrine Auto-Registration** | Replace all hardcoded behavior-ID magic strings with a `[DoctrineContract]` attribute on parameter DTOs in `Hrot.Core`. Rebuild `DoctrineCatalog`, `BehaviorUiSetup`, and `CgfDoctrineSetup` via reflection-based auto-discovery. |
+| **Phase 5: Behavior Auto-Registration** | Replace all hardcoded behavior-ID magic strings with a `[BehaviorContract]` attribute on parameter DTOs in `Hrot.Core`. Rebuild `BehaviorCatalog`, `BehaviorUiSetup`, and `CgfBehaviorSetup` via reflection-based auto-discovery. |
 
 ---
 
@@ -61,7 +61,7 @@ FDP/
 
 Hrot/
   Engine/
-    Hrot.Core/MapDefinitions/Tkb/   DoctrineCatalog.cs       <- Phase 5 target
+    Hrot.Core/MapDefinitions/Tkb/   BehaviorCatalog.cs       <- Phase 5 target
     Hrot.Core/MapDefinitions/...    FireAtTargetParamsJsonDto.cs, etc.
     Hrot.Presentation/Behavior/     BehaviorUiSetup.cs       <- Phase 5 target
   Network/
@@ -77,7 +77,7 @@ Hrot/
       Systems/                      PerceptionBroadphaseSystem.cs (to delete)
                                     ThreatEvaluationAdapterSystem.cs (to delete)
     Hrot.CGF/
-      Configuration/                CgfDoctrineSetup.cs      <- Phase 5 target
+      Configuration/                CgfBehaviorSetup.cs      <- Phase 5 target
       Brains/                       CgfNodes.cs              <- Phase 5 target
 ```
 
@@ -127,6 +127,6 @@ It defines the coding standards, commit discipline, batch workflow, and review e
 
 - **EDescriptorType**: Enum that maps DDS topic ordinals for the NED network protocol. Only NED-owned descriptors live here. Other domains (`Fdp.Toolkit.Time`, `Hrot.BDC`) have their own enums.
 
-- **DoctrineContractAttribute** (new in Phase 5): Applied to parameter DTOs in `Hrot.Core`. Contains the doctrine's integer ID, behavior-ID string, and which entity categories may use it. The DTO becomes the Single Source of Truth.
+- **BehaviorContractAttribute** (new in Phase 5): Applied to parameter DTOs in `Hrot.Core`. Contains the behavior's integer ID, behavior-ID string, and which entity categories may use it. The DTO becomes the Single Source of Truth.
 
 - **AutonomousPerceptionModule**: Runs a private four-system LOS pipeline on a scoped event bus. Requires multiple intra-frame bus swaps (hence `SystemPhase.Manual`). After Phase 4, its systems are visible in `ArchitectureDiagnosticsPanel` under the Manual phase.

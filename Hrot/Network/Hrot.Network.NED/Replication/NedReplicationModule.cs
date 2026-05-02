@@ -132,8 +132,8 @@ public sealed class NedReplicationModule : INedReplicationModule
     /// <param name="eventBus">Application event bus.</param>
     /// <param name="localNodeId">Local DDS node identifier.</param>
     /// <param name="domainId">DDS domain ID (unused in this version; reserved for future use).</param>
-    /// <param name="doctrineRegistry">
-    ///   Optional doctrine registry forwarded to <see cref="CognitiveTranslatorPack"/> for
+    /// <param name="behaviorRegistry">
+    ///   Optional behavior registry forwarded to <see cref="CognitiveTranslatorPack"/> for
     ///   <c>EntityMissionEgressTranslator</c> and <c>EntityMissionIngressTranslator</c>.
     /// </param>
     /// <param name="tkbDb">
@@ -157,7 +157,7 @@ public sealed class NedReplicationModule : INedReplicationModule
         FdpEventBus           eventBus,
         int                   localNodeId,
         int                   domainId,
-        DoctrineRegistry?     doctrineRegistry  = null,
+        BehaviorRegistry?     behaviorRegistry  = null,
         ITkbDatabase?         tkbDb             = null,
         EntityLifecycleModule? lifecycleModule  = null)
     {
@@ -221,7 +221,7 @@ public sealed class NedReplicationModule : INedReplicationModule
             if (_roleHasBrain)
                 _cognitiveTranslators = CognitiveTranslatorPack.Create(
                     participant, entityMap, geoTransform,
-                    doctrineRegistry,
+                    behaviorRegistry,
                     GhostCreationSystem,
                     localNodeId: localNodeId);
 

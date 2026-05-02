@@ -8,10 +8,10 @@
 
 ## Completion Status
 
-- [x] MPM-P5-T04: Replace BehaviorUiSetup + CgfDoctrineSetup behavior-ID strings
-- [x] MPM-P5-T05: Rebuild DoctrineCatalog using reflection
+- [x] MPM-P5-T04: Replace BehaviorUiSetup + CgfBehaviorSetup behavior-ID strings
+- [x] MPM-P5-T05: Rebuild BehaviorCatalog using reflection
 - [x] MPM-P5-T06: Update CgfNodes.cs TreeName strings with DTO constants
-- [x] MPM-P5-T07: Create DoctrineTestHelper + update test files
+- [x] MPM-P5-T07: Create BehaviorTestHelper + update test files
 
 ---
 
@@ -51,14 +51,14 @@ All non-integration tests pass.
 **Q1: How did you handle BehaviorUiSetup - which approach did you use (Option A vs B)?**
 
 Used Option A: replaced the body of `CreateRegistry()` with a single call to
-`DoctrineSchemaDiscovery.AutoRegister(registry, new ScenarioBehaviorRemapper())`.
+`BehaviorSchemaDiscovery.AutoRegister(registry, new ScenarioBehaviorRemapper())`.
 A throwaway `ScenarioBehaviorRemapper` is created and discarded - it is never used for
 anything because `CreateRegistry()` only returns the `BehaviorUiRegistry`. This keeps the
 method body to a minimal two lines. The old `using Fdp.Toolkit.Behavior.Params` was
 removed (no longer needed); replaced with `using Fdp.Toolkit.Behavior` for
 `ScenarioBehaviorRemapper`.
 
-**Q2: Does Hrot.CGF reference Hrot.Core? How did you handle CgfDoctrineSetup string replacement?**
+**Q2: Does Hrot.CGF reference Hrot.Core? How did you handle CgfBehaviorSetup string replacement?**
 
 Hrot.CGF does NOT have a direct `<ProjectReference>` to Hrot.Core in its .csproj.
 However, Hrot.Core types ARE accessible transitively: Hrot.CGF directly references
@@ -67,37 +67,37 @@ project references flow to the compiler by default, and Hrot.CGF already uses
 `Hrot.Map.Common` types from Hrot.Common (which itself imports Hrot.Core). This
 establishes that Hrot.Core is on the reference path.
 
-For `RegisterAll()`: added `using Hrot.Map.Definitions.Doctrine;` and replaced each
+For `RegisterAll()`: added `using Hrot.Map.Definitions.Behavior;` and replaced each
 string literal in `registry.Register(id, "BehaviorId", ...)` with the corresponding
 DTO's `BehaviorId` constant (e.g. `MoveToLocationParamsJsonDto.BehaviorId`). The
-`DoctrineDefinition.Name` property values were left as hardcoded strings per the
+`BehaviorDefinition.Name` property values were left as hardcoded strings per the
 minimize-diff rule - the task only specifies replacing the `registry.Register()` argument.
 
 For `CreateBehaviorRemapper()`: Hrot.CGF directly references Hrot.Presentation which
-contains `DoctrineSchemaDiscovery`. Replaced the two manual `remapper.Register<T>()` calls
-with `DoctrineSchemaDiscovery.AutoRegister(new BehaviorUiRegistry(), remapper)`. This
+contains `BehaviorSchemaDiscovery`. Replaced the two manual `remapper.Register<T>()` calls
+with `BehaviorSchemaDiscovery.AutoRegister(new BehaviorUiRegistry(), remapper)`. This
 now registers all 9 Hrot.Core DTOs with the remapper (not just the 2 with
 `[RemapNetworkId]` properties), which is harmless - registering a DTO with no
 `[RemapNetworkId]` properties is a no-op at remapping time. Removed the now-unused
 `using Fdp.Toolkit.Behavior.Params`.
 
-**Q3: How did you handle the civilian doctrines (WanderCivil, PanicFlee) in DoctrineCatalog?**
+**Q3: How did you handle the civilian behaviors (WanderCivil, PanicFlee) in BehaviorCatalog?**
 
-`s_civilianDoctrines = ["WanderCivil", "PanicFlee"]` is preserved exactly as a
-hardcoded field. The `GetValidDoctrines()` switch still routes `CivilianPedestrian` and
-`CivilianCar` to this hardcoded list. The civilian doctrines have no
-`[DoctrineContract]` DTO and would not appear in the reflection scan.
+`s_civilianBehaviors = ["WanderCivil", "PanicFlee"]` is preserved exactly as a
+hardcoded field. The `GetValidBehaviors()` switch still routes `CivilianPedestrian` and
+`CivilianCar` to this hardcoded list. The civilian behaviors have no
+`[BehaviorContract]` DTO and would not appear in the reflection scan.
 
-The `s_defaultDoctrines` fallback list is also preserved as hardcoded (the instructions
+The `s_defaultBehaviors` fallback list is also preserved as hardcoded (the instructions
 explicitly say this is acceptable). Only the three military/insurgent lists are rebuilt
 dynamically via a static constructor that calls `BuildMap()`.
 
-`BuildMap()` scans `typeof(DoctrineContractAttribute).Assembly` for all types with
-`[DoctrineContract]`, then for each of the three non-civilian categories checks
+`BuildMap()` scans `typeof(BehaviorContractAttribute).Assembly` for all types with
+`[BehaviorContract]`, then for each of the three non-civilian categories checks
 `attr.ValidCategories.HasFlag(cat)` to bucket the `BehaviorId` into the right list.
 
 Note: the dynamically-built lists include `Idle` and `WanderMilitary` in the MilitaryApc
-list (both have `DoctrineCategory.AllMilitary` or `DoctrineCategory.MilitaryApc`). The
+list (both have `BehaviorCategory.AllMilitary` or `BehaviorCategory.MilitaryApc`). The
 original hardcoded lists did not include these. This is correct - the DTO category
 annotations are the source of truth. The task verification says the list "still contains"
 the original entries, which it does.
@@ -113,16 +113,16 @@ each field was changed from `const string` to `static readonly string`. The
 There is a naming conflict: CgfNodes.cs contains a private inner class
 `FireAtTargetParamsJsonDto` (a local serialization struct) and `MoveToLocationParamsJsonDto`
 (also a private inner class). To avoid ambiguity without adding a general
-`using Hrot.Map.Definitions.Doctrine;`, fully-qualified names were used for all 5 DTO
+`using Hrot.Map.Definitions.Behavior;`, fully-qualified names were used for all 5 DTO
 references in the interpolations (e.g.
-`Hrot.Map.Definitions.Doctrine.WanderMilitaryParamsJsonDto.BehaviorId`). This is verbose
+`Hrot.Map.Definitions.Behavior.WanderMilitaryParamsJsonDto.BehaviorId`). This is verbose
 but unambiguous and requires no change to the existing using directives.
 
 **Q5: Which test files were updated? Which were left with magic strings, and why?**
 
 Updated (Hrot.Presentation.Tests - directly references Hrot.Core):
 - `Hrot.Presentation.Tests/Behavior/MissionPanelRegistryTests.cs` (line ~42):
-  `"FireAtTarget"` replaced with `Hrot.Map.Definitions.Doctrine.FireAtTargetParamsJsonDto.BehaviorId`
+  `"FireAtTarget"` replaced with `Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto.BehaviorId`
 - `Hrot.Presentation.Tests/Behavior/BehaviorUiCompilerTests.cs` (lines ~103, 105):
   Both `"FireAtTarget"` occurrences replaced with fully-qualified `BehaviorId` constant.
 
@@ -137,34 +137,34 @@ Left unchanged (no direct Hrot.Core project reference in .csproj):
   values are correct by definition.
 
 Created:
-- `Hrot.Core/MapDefinitions/Doctrine/DoctrineTestHelper.cs` - new helper with
-  `GetBehaviorId<TDto>()` that reads `[DoctrineContractAttribute]` via reflection.
+- `Hrot.Core/MapDefinitions/Behavior/BehaviorTestHelper.cs` - new helper with
+  `GetBehaviorId<TDto>()` that reads `[BehaviorContractAttribute]` via reflection.
 
 **Q6: Are there any remaining magic behavior-ID strings elsewhere in the codebase?**
 
-- `CgfDoctrineSetup.RegisterAll()`: the `DoctrineDefinition.Name = "MoveToLocation"`
+- `CgfBehaviorSetup.RegisterAll()`: the `BehaviorDefinition.Name = "MoveToLocation"`
   property values are still hardcoded strings. These are display names, not behavior IDs
   used for lookup - they were not targeted by the task specification.
 - `Hrot.SimHost.Tests` and `Hrot.Network.NED.Tests`: as noted above, left unchanged due
   to missing direct Hrot.Core project references.
-- `DoctrineCatalog.s_defaultDoctrines`: kept as hardcoded fallback by design.
+- `BehaviorCatalog.s_defaultBehaviors`: kept as hardcoded fallback by design.
 
 ---
 
 ## Suggested Commit Message
 
 ```
-MPM Phase 5b: Doctrine auto-registration completion (BATCH-06)
+MPM Phase 5b: Behavior auto-registration completion (BATCH-06)
 
-- BehaviorUiSetup.CreateRegistry() now uses DoctrineSchemaDiscovery.AutoRegister
+- BehaviorUiSetup.CreateRegistry() now uses BehaviorSchemaDiscovery.AutoRegister
   (removes FireAtTarget/FollowRoute/MoveToLocation magic strings)
-- CgfDoctrineSetup.RegisterAll() uses DTO BehaviorId constants for all 6 doctrines
-- CgfDoctrineSetup.CreateBehaviorRemapper() uses DoctrineSchemaDiscovery.AutoRegister
-- DoctrineCatalog: military/insurgent lists rebuilt via [DoctrineContract] reflection;
+- CgfBehaviorSetup.RegisterAll() uses DTO BehaviorId constants for all 6 behaviors
+- CgfBehaviorSetup.CreateBehaviorRemapper() uses BehaviorSchemaDiscovery.AutoRegister
+- BehaviorCatalog: military/insurgent lists rebuilt via [BehaviorContract] reflection;
   civilian list (WanderCivil, PanicFlee) preserved as hardcoded
 - CgfNodes.cs: 5 TreeName JSON strings use $$""" interpolation with DTO BehaviorId
   constants; const -> static readonly to allow interpolation
-- DoctrineTestHelper added to Hrot.Core for test use
+- BehaviorTestHelper added to Hrot.Core for test use
 - MissionPanelRegistryTests and BehaviorUiCompilerTests updated to use
   FireAtTargetParamsJsonDto.BehaviorId constant
 ```

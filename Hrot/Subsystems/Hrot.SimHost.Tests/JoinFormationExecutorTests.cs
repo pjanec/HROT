@@ -36,7 +36,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// Writes <paramref name="p"/> into the entity's <see cref="BrainBlackboard.Memory"/>
-        /// at offset 0, simulating what <c>DoctrineDefinition.ParseParams</c> would do.
+        /// at offset 0, simulating what <c>BehaviorDefinition.ParseParams</c> would do.
         /// </summary>
         private static unsafe void WriteBlackboardParams(
             EntityRepository world, Entity entity, JoinFormationParams p)

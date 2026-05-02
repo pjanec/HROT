@@ -32,7 +32,7 @@ You must introduce a `CompositeEntityCreationRequestSource` that accepts an arra
 ### Verification Needed: Child Entity ID Assignment
 In `StagingEntityExtractor`, you correctly define the child override signature as `IReadOnlyDictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>`. However, the source excerpts for the `CreateEntityRequestSystem` do not show the implementation logic that iterates `ChildBlueprints`. 
 
-You must manually verify that `CreateEntityRequestSystem` explicitly reads the `PreAllocatedId` from this tuple for each child blueprint, and assigns it to the child's `SpawnEntityCommand.NetworkId` instead of calling `_idAllocator.AllocateId()`. If this was omitted, the newly spawned child entities will receive different IDs than the ones patched into your Doctrine JSON parameters, permanently breaking all cross-entity references.
+You must manually verify that `CreateEntityRequestSystem` explicitly reads the `PreAllocatedId` from this tuple for each child blueprint, and assigns it to the child's `SpawnEntityCommand.NetworkId` instead of calling `_idAllocator.AllocateId()`. If this was omitted, the newly spawned child entities will receive different IDs than the ones patched into your Behavior JSON parameters, permanently breaking all cross-entity references.
 
 -----------
 
@@ -294,11 +294,11 @@ This restores the Open-Closed Principle. The `CreateEntityRequestSystem` remains
 
 ------------
 
-right now the mission task editor UI, when i select a doctrine from the combo, does not present any way how tio pick entity or world location from map.
+right now the mission task editor UI, when i select a behavior from the combo, does not present any way how tio pick entity or world location from map.
 
 -------------
 
-the mission editor, whn selecting doctrine with parameters, does  no longer offers any way of picking the target entity or target location from the map. Moreover, for the world location the parameters contain independent field for latitude and longiture, both marked with MapPickableWorldLocation. This is a bit more difficult to handle automatically and generally (needs some logic that one pick from map affects 2 different parameter fields). is such a logic present?
+the mission editor, whn selecting behavior with parameters, does  no longer offers any way of picking the target entity or target location from the map. Moreover, for the world location the parameters contain independent field for latitude and longiture, both marked with MapPickableWorldLocation. This is a bit more difficult to handle automatically and generally (needs some logic that one pick from map affects 2 different parameter fields). is such a logic present?
 
 
 ---------------
@@ -343,7 +343,7 @@ public class MoveToLocationParamsJsonDto
 
 ### 2. Missing Generic Consumption Pipeline
 Your `IPickInteractionContext` only defines `RequestEntityPick` and `RequestLocationPick`. It is missing the `TryConsume` methods. 
-Consequently, when the async pick task finishes, `MissionPanel.PollPickCompletion` still uses hardcoded `if (behaviorId == BehaviorNameFireAtTarget)` checks to manually serialize legacy DTOs. This permanently breaks map picking for any newly registered doctrine.
+Consequently, when the async pick task finishes, `MissionPanel.PollPickCompletion` still uses hardcoded `if (behaviorId == BehaviorNameFireAtTarget)` checks to manually serialize legacy DTOs. This permanently breaks map picking for any newly registered behavior.
 
 **Correction:**
 You must strip the DTO knowledge entirely from `MissionPanel` and implement raw consumption buffers.
@@ -435,5 +435,5 @@ if (pickLocation != null && prop.PropertyType == typeof(Hrot.Core.Mission.GeoPoi
 }
 ```
 
-By bridging the JSON scalar primitives with a strongly-typed `GeoPoint` facade property, and moving the pick consumption strictly into the compiled delegates, you restore full zero-allocation, generic UI generation for all doctrine parameter combinations.
+By bridging the JSON scalar primitives with a strongly-typed `GeoPoint` facade property, and moving the pick consumption strictly into the compiled delegates, you restore full zero-allocation, generic UI generation for all behavior parameter combinations.
 

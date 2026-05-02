@@ -9,7 +9,7 @@ namespace Hrot.CGF.Systems
 {
     /// <summary>
     /// Translates <see cref="AssignTacticalIntentEvent"/>s into
-    /// <see cref="AssignDoctrineEvent"/>s by consulting the
+    /// <see cref="AssignBehaviorEvent"/>s by consulting the
     /// <see cref="TacticalIntentMapperRegistry"/>.
     ///
     /// <para><b>Frame behaviour:</b></para>
@@ -19,7 +19,7 @@ namespace Hrot.CGF.Systems
     ///     read buffer (populated by <c>SwapBuffers</c> at the end of the previous frame).
     ///   </item>
     ///   <item>
-    ///     For each event, evaluate <c>repo.HasAuthority&lt;DoctrineState&gt;(evt.Entity)</c>.
+    ///     For each event, evaluate <c>repo.HasAuthority&lt;BehaviorState&gt;(evt.Entity)</c>.
     ///     If <c>false</c>, the cognitive state is owned by a remote node (or the entity
     ///     no longer exists) — skip silently without publishing anything.
     ///   </item>
@@ -28,20 +28,20 @@ namespace Hrot.CGF.Systems
     ///   </item>
     ///   <item>
     ///     <b>Mapper found and <c>TryMap</c> succeeds:</b> publish the returned
-    ///     <see cref="AssignDoctrineEvent"/>.
+    ///     <see cref="AssignBehaviorEvent"/>.
     ///   </item>
     ///   <item>
     ///     <b>No mapper or <c>TryMap</c> returns <c>false</c>:</b> treat the intent ID as a
-    ///     direct doctrine name and publish
-    ///     <c>new AssignDoctrineEvent { Entity, DoctrineName = evt.IntentId, JsonParams }</c>.
+    ///     direct behavior name and publish
+    ///     <c>new AssignBehaviorEvent { Entity, BehaviorName = evt.IntentId, JsonParams }</c>.
     ///   </item>
     /// </list>
     ///
     /// <para>
-    /// This system must NOT mutate <c>DoctrineState</c>, <c>BrainBTreeState</c>, or
+    /// This system must NOT mutate <c>BehaviorState</c>, <c>BrainBTreeState</c>, or
     /// <c>BrainBlackboard</c> directly — all cognitive state transitions are handled by
-    /// <c>DoctrineIngressSystem</c> (Input phase), which consumes the published
-    /// <see cref="AssignDoctrineEvent"/> on the next frame.
+    /// <c>BehaviorIngressSystem</c> (Input phase), which consumes the published
+    /// <see cref="AssignBehaviorEvent"/> on the next frame.
     /// </para>
     ///
     /// <para>Registered in the Simulation phase of <c>CgfLogicPack</c>
@@ -56,7 +56,7 @@ namespace Hrot.CGF.Systems
         /// Creates the system with the supplied mapper registry.
         /// </summary>
         /// <param name="mapperRegistry">
-        /// Registry of intent-to-doctrine mappers.  May be empty (all intents fall
+        /// Registry of intent-to-behavior mappers.  May be empty (all intents fall
         /// through to the pass-through path).  Must not be <c>null</c>.
         /// </param>
         public TacticalIntentResolutionSystem(TacticalIntentMapperRegistry mapperRegistry)
@@ -81,33 +81,33 @@ namespace Hrot.CGF.Systems
                 if (evt == null) continue;
 
                 // Authority gate (CQRS boundary): skip when this node does not own the
-                // cognitive state for the entity.  HasAuthority<DoctrineState> also returns
+                // cognitive state for the entity.  HasAuthority<BehaviorState> also returns
                 // false when the entity has been destroyed, handling the deleted-entity case.
-                if (!repo.HasAuthority<DoctrineState>(evt.Entity))
+                if (!repo.HasAuthority<BehaviorState>(evt.Entity))
                     continue;
 
                 // Try mapper path first.
-                AssignDoctrineEvent? doctrineEvent = null;
+                AssignBehaviorEvent? behaviorEvent = null;
 
                 if (_mapperRegistry.TryGetMapper(evt.IntentId, out var mapper))
                 {
                     if (mapper.TryMap(evt.Entity, repo, evt.JsonParams, out var mapped))
-                        doctrineEvent = mapped;
+                        behaviorEvent = mapped;
                 }
 
-                // Fallback: treat IntentId as a direct doctrine name.
+                // Fallback: treat IntentId as a direct behavior name.
                 // A new instance is always allocated (pooling/reuse is not permitted).
-                if (doctrineEvent == null)
+                if (behaviorEvent == null)
                 {
-                    doctrineEvent = new AssignDoctrineEvent
+                    behaviorEvent = new AssignBehaviorEvent
                     {
                         Entity       = evt.Entity,
-                        DoctrineName = evt.IntentId,
+                        BehaviorName = evt.IntentId,
                         JsonParams   = evt.JsonParams,
                     };
                 }
 
-                repo.Bus.PublishManaged(doctrineEvent);
+                repo.Bus.PublishManaged(behaviorEvent);
             }
         }
     }

@@ -12,7 +12,7 @@
 ## 📋 Onboarding & Workflow
 
 ### Developer Instructions
-Welcome back to BUG1-BATCH-03. After User testing, we found a critical bug in how SimHost parses newly minted `DoctrineFinished` triggers coming from the network (BUG1-M001-A). Your top priority is addressing this P1 failure. Once resolved, proceed with the outstanding debt items highlighted during BATCH-02 review.
+Welcome back to BUG1-BATCH-03. After User testing, we found a critical bug in how SimHost parses newly minted `BehaviorFinished` triggers coming from the network (BUG1-M001-A). Your top priority is addressing this P1 failure. Once resolved, proceed with the outstanding debt items highlighted during BATCH-02 review.
 Ensure strict adherence to testing for all paths implemented.
 
 ### Required Reading (IN ORDER)
@@ -35,19 +35,19 @@ Ensure strict adherence to testing for all paths implemented.
 
 ## ✅ Tasks
 
-### Task 1: Fix DoctrineFinished String Parsing Bug (BUG1-M001-A)  [P1 Critical]
+### Task 1: Fix BehaviorFinished String Parsing Bug (BUG1-M001-A)  [P1 Critical]
 
 **File:** `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` (UPDATE)  
 
 **Description:**
-User feedback indicates that vehicles don't move when assigned a task. The root cause is `MissionControlRequestSystem.ResolveTrigger()` does not contain a handler for the `"DoctrineFinished"` string pattern coming from the `MissionTrigger.Type` field over DDS. It falls through to the default of `(TimerElapsed, 0f)` which instantly completes the movement phase!
+User feedback indicates that vehicles don't move when assigned a task. The root cause is `MissionControlRequestSystem.ResolveTrigger()` does not contain a handler for the `"BehaviorFinished"` string pattern coming from the `MissionTrigger.Type` field over DDS. It falls through to the default of `(TimerElapsed, 0f)` which instantly completes the movement phase!
 
 **Requirements:**
-- Add string pattern `"DoctrineFinished"` to the switch statement mapping to `EcsMissionTrigger.DoctrineFinished`.
+- Add string pattern `"BehaviorFinished"` to the switch statement mapping to `EcsMissionTrigger.BehaviorFinished`.
 - Maintain the current `0f` default parameter mapping for it.
 
 **Tests Required:**
-- ✅ Unit tests checking `ResolveTrigger` string-to-EcsComponent conversions covering "DoctrineFinished" and validating it actually yields `EcsMissionTrigger.DoctrineFinished`.
+- ✅ Unit tests checking `ResolveTrigger` string-to-EcsComponent conversions covering "BehaviorFinished" and validating it actually yields `EcsMissionTrigger.BehaviorFinished`.
 
 ---
 

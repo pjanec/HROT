@@ -167,7 +167,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         Assert.NotEmpty(plan.Plan.Tasks);
 
         var task = plan.Plan.Tasks[0];
-        Assert.Equal("FireAtTarget", task.BehaviorId);
+        Assert.Equal("FireAtTarget", task.BehaviorName);
         Assert.False(string.IsNullOrWhiteSpace(task.BehaviorParams),
             "BehaviorParams must not be empty after scenario load.");
 
@@ -232,7 +232,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
                     {
                         TaskId          = Guid.NewGuid(),
                         ExecutingEngine = "CGF",
-                        BehaviorId      = "FireAtTarget",
+                        BehaviorName      = "FireAtTarget",
                         BehaviorParams  = behaviorParams,
                     },
                 },

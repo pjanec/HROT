@@ -152,7 +152,7 @@ Here is an evaluation of the missing implementation details and the gaps we must
 
 3\. "Simplified State" Serialization Logic
 
-**The Concept:** The spec states that "state can be saved in simplified form and re-calculated to full form on load" to reduce scenario file size and decouple from internal memory formats. **The Gap:** The current FDP `DataPolicy` attribute only provides a binary inclusion/exclusion filter (`[DataPolicy(DataPolicy.NoSave)]`). There is no established interface for a component to provide a "simplified" JSON representation of itself. **How to resolve it:** We need to specify an `IScenarioSerializable` interface or rely entirely on dedicated JSON DTOs for complex components. When the CGF saves a scenario, it shouldn't just dump the `DoctrineState` or `BrainBlackboard` structs. Instead, it should map them into a simplified string representation (e.g., converting the 128-byte blackboard array back into the named JSON variables the AI expects).
+**The Concept:** The spec states that "state can be saved in simplified form and re-calculated to full form on load" to reduce scenario file size and decouple from internal memory formats. **The Gap:** The current FDP `DataPolicy` attribute only provides a binary inclusion/exclusion filter (`[DataPolicy(DataPolicy.NoSave)]`). There is no established interface for a component to provide a "simplified" JSON representation of itself. **How to resolve it:** We need to specify an `IScenarioSerializable` interface or rely entirely on dedicated JSON DTOs for complex components. When the CGF saves a scenario, it shouldn't just dump the `BehaviorState` or `BrainBlackboard` structs. Instead, it should map them into a simplified string representation (e.g., converting the 128-byte blackboard array back into the named JSON variables the AI expects).
 
 4\. Distributed Multi-File Loading Routing
 
@@ -182,7 +182,7 @@ Here is how this approach beautifully streamlines your implementation:
 
 Because the JSON schema is standardized , the Orchestrator can simply deserialize the scenario file using standard `System.Text.Json` or `Newtonsoft.Json`.
 
--   It iterates through the `Entities` dictionary.-   It explicitly looks for components it has authority over, namely `GlobalTime` and `WeatherArea` .-   If an entity contains `SimTransform`, `DoctrineState`, or `VehicleState`, the Orchestrator simply ignores it.-   Conversely, when `SimHost` or `CGF` load the exact same file, their native `EditLoadDsmHandler` will parse the tanks and AI brains, but silently drop the `GlobalTime` component because they are not the authority for it.
+-   It iterates through the `Entities` dictionary.-   It explicitly looks for components it has authority over, namely `GlobalTime` and `WeatherArea` .-   If an entity contains `SimTransform`, `BehaviorState`, or `VehicleState`, the Orchestrator simply ignores it.-   Conversely, when `SimHost` or `CGF` load the exact same file, their native `EditLoadDsmHandler` will parse the tanks and AI brains, but silently drop the `GlobalTime` component because they are not the authority for it.
 
 2\. Massive Simplification for Phase 1 (Single-File Scenario)
 

@@ -484,7 +484,7 @@ draw the menu. The ECS state is populated but never shown.
 - **IOS `MissionEditorService`**: Sends `MissionControlRequest` messages (`CMD_REPLACE_MISSION`,
   `CMD_JUMP_TO_TASK`, `CMD_ABORT_ALL`) and awaits `MissionControlAck`.
 - **SimHost `MissionAdapterSystem`**: Executes missions from `EntityMissionHolder` by mapping
-  task `BehaviorId` → `DoctrineHash` and pushing `BehaviorParams` JSON to `BrainBlackboard`.
+  task `BehaviorId` → `BehaviorHash` and pushing `BehaviorParams` JSON to `BrainBlackboard`.
 - **🚨 Critical gap:** SimHost has **no translator or system that reads `MissionControlRequest`
   or writes `MissionControlAck`**. IOS commands go into the DDS void — SimHost never applies them.
   A `MissionControlRequestSystem` must be implemented in SimHost.
@@ -605,11 +605,11 @@ draw the menu. The ECS state is populated but never shown.
 
 **Goal:** Align SimHost's mission execution pipeline with the `UrbanCombat` golden standard:
 replace the managed-DTO holder with `MissionPlanQueue`, compile real BTree interpreters for all
-doctrines, and replace the custom `MissionAdapterSystem` with the toolkit-standard
+behaviors, and replace the custom `MissionAdapterSystem` with the toolkit-standard
 `MissionDirectorSystem`.
 
 **Source of truth:** `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs` — specifically
-`RegisterDoctrines()` and `RegisterSystems()`. See also §10 below for the full deviation analysis.
+`RegisterBehaviors()` and `RegisterSystems()`. See also §10 below for the full deviation analysis.
 
 **Prerequisite:** Phase 13 (MissionControlRequestSystem) uses `EntityMissionHolder` today;
 update that reference to `MissionPlanQueue` as part of S16T1.
@@ -617,9 +617,9 @@ update that reference to `MissionPlanQueue` as part of S16T1.
 | Task | Description |
 |------|-------------|
 | DDS2ECS-S16T1 | Delete `EntityMissionHolder.cs`; replace `RegisterManagedComponent<EntityMissionHolder>()` with `RegisterComponent<MissionPlanQueue>()` in `SimHostApp.cs` |
-| DDS2ECS-S16T2 | Rewrite `EntityMissionTranslator` to write `MissionPlanQueue` (resolve `BehaviorId` → `doctrineId` via `DoctrineRegistry.TryGetId`; map trigger strings → `MissionTrigger` enum); update `EntityMissionTranslatorTests.cs` |
+| DDS2ECS-S16T2 | Rewrite `EntityMissionTranslator` to write `MissionPlanQueue` (resolve `BehaviorId` → `behaviorId` via `BehaviorRegistry.TryGetId`; map trigger strings → `MissionTrigger` enum); update `EntityMissionTranslatorTests.cs` |
 | DDS2ECS-S16T3 | Delete `MissionAdapterSystem.cs`; in `SimulationLogicModule.RegisterSystems()` replace `new MissionAdapterSystem(...)` with `new MissionDirectorSystem()` |
-| DDS2ECS-S16T4 | Compile BTree JSON blobs for `MoveTo_BT`, `FollowRoute_BT`, `JoinFormation_BT` and register real `Interpreter<BrainBlackboard,BTreeContext>` in each `DoctrineDefinition` in `SimHostApp.cs`; create `Hrot.SimHost/Brains/SimHostNodes.cs` |
+| DDS2ECS-S16T4 | Compile BTree JSON blobs for `MoveTo_BT`, `FollowRoute_BT`, `JoinFormation_BT` and register real `Interpreter<BrainBlackboard,BTreeContext>` in each `BehaviorDefinition` in `SimHostApp.cs`; create `Hrot.SimHost/Brains/SimHostNodes.cs` |
 | DDS2ECS-S16T5 | Wire `ParseParams` delegates for `MoveTo_BT` and `FollowRoute_BT` so `BrainBlackboard.Memory` is hydrated with target coordinates on phase activation |
 
 ---
@@ -671,24 +671,24 @@ logic through the GC every frame — the exact same anti-pattern as `WorldPos` (
 
 ### 10.2 Brain Deviation — Null `BTreeInterpreter`
 
-**Golden standard (`UrbanCombat`):** Every BTree doctrine is compiled from JSON and registered
+**Golden standard (`UrbanCombat`):** Every BTree behavior is compiled from JSON and registered
 with a real `Interpreter<BrainBlackboard,BTreeContext>`:
 
 ```csharp
 var blob = TreeCompiler.CompileFromJson(InfantryCombatJson);
 var reg  = new ActionRegistry<BrainBlackboard, BTreeContext>();
 reg.Register("HoldPosition", InsurgentNodes.Action_HoldPosition);
-_doctrineRegistry.Register(DoctrineIds.InfantryCombat, "InfantryCombat",
-    new DoctrineDefinition {
+_behaviorRegistry.Register(BehaviorIds.InfantryCombat, "InfantryCombat",
+    new BehaviorDefinition {
         Name             = "InfantryCombat",
         BrainTier        = BehaviorConstants.BrainTierBTree,
         BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, reg),
     });
 ```
 
-**SimHost deviation (`SimHostApp.cs` lines 135–142):** All BTree doctrines are registered with
+**SimHost deviation (`SimHostApp.cs` lines 135–142):** All BTree behaviors are registered with
 only `Name` and `BrainTier`; `BTreeInterpreter` is implicitly `null`. `BTreeTickSystem` silently
-skips any entity whose doctrine has a null interpreter. `LocomotionChannel` is never written.
+skips any entity whose behavior has a null interpreter. `LocomotionChannel` is never written.
 The vehicle never moves.
 
 **Fix:** S16T4 + S16T5 — compile blobs, build `ActionRegistry` instances with action delegates,
@@ -834,7 +834,7 @@ retained on the template so IG can still query it for ORBAT/inspector display.
 | `ThreatEvaluationSystem` | Sim | Updates `TargetMemory` scores from events |
 | `DamageSystem` | Sim | Subtracts from `Health` on `HitEvent` |
 | `HsmDamageBridgeSystem` | Sim | Propagates health changes to HSM capability state |
-| `HsmTickSystem<BrainHsm128>` | Sim | Ticks HSM brains (needed for APC-type doctrines) |
+| `HsmTickSystem<BrainHsm128>` | Sim | Ticks HSM brains (needed for APC-type behaviors) |
 | `BallisticsSystem` | PostSim | Moves `BallisticProjectile` entities each frame |
 
 Without these, combat BTree actions (`Action_AimAndFire`) do nothing observable in the simulation.
@@ -848,7 +848,7 @@ DDS EntityMission  ──►  EntityMissionTranslator  ──►  MissionPlanQue
                                                    MissionDirectorSystem
                                                   (evaluates MissionTrigger)
                                                               │
-                                                   DoctrineState.ActiveDoctrineHash
+                                                   BehaviorState.ActiveBehaviorHash
                                                               │
                                        ChannelArbitrationSystem ──► BTreeTickSystem
                                                               │

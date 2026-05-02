@@ -76,7 +76,7 @@ internal sealed class ExConMissionShim : IMissionEditorService
     internal ExConMissionShim(Services.IMissionEditorService inner) => _inner = inner;
 
     /// <inheritdoc/>
-    /// <remarks>Delegates to the inner <see cref="Services.IMissionEditorService"/> which uses <see cref="DoctrineCatalog"/>.</remarks>
+    /// <remarks>Delegates to the inner <see cref="Services.IMissionEditorService"/> which uses <see cref="BehaviorCatalog"/>.</remarks>
     public IReadOnlyList<string> GetAvailableBehaviors(long entityId)
         => _inner.GetAvailableBehaviors(entityId);
 

@@ -13,7 +13,7 @@ testing of the IOS / IG / SimHost federated simulation stack. The issues span ni
 | Area | Summary |
 |---|---|
 | **Network Correctness** | Duplicate ACKs from a double-registered system; all DDS participants missing `EnableSenderTracking`; WorldPos topic instance not tombstoned on entity deletion |
-| **Mission System** | `DoctrineFinished` and `UnderAttack` triggers silently fall back to `TimerElapsed(0f)`, causing vehicles to skip their first task; no trigger editing UI in the IOS task editor; unreadable Unicode symbol buttons; no version-conflict resolution UI |
+| **Mission System** | `BehaviorFinished` and `UnderAttack` triggers silently fall back to `TimerElapsed(0f)`, causing vehicles to skip their first task; no trigger editing UI in the IOS task editor; unreadable Unicode symbol buttons; no version-conflict resolution UI |
 | **IOS UI Clean-up** | Legacy tool-selection combo still present in Map Configuration panel; ORBAT tree subordinates rendered without indentation |
 | **IG Interaction** | No per-frame drag update mode; SHIFT key should trigger immediate DDS geo-spatial broadcast for testing |
 | **Layer Visibility** | Entities on disabled layers remain selectable and show selection rings; entity render layer ignores per-entity layer masks |

@@ -116,12 +116,12 @@ This batch bundles 9 tasks from phases 1, 2, and 3 of the BUG2 work tracking. Th
 **Files:** `Hrot.SimHost/Systems/MissionControlRequestSystem.cs`, `Hrot.Map.Common/Translators/EntityMissionIngressTranslator.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-m001-fix-missing-resolvetrigger-cases)
 
-**Description:** Add `"DoctrineFinished"` and `"UnderAttack"` cases to the switch in `ResolveTrigger`.
+**Description:** Add `"BehaviorFinished"` and `"UnderAttack"` cases to the switch in `ResolveTrigger`.
 
 **Tests Required:**
-- ✅ `EntityMissionIngressTranslatorTests.ResolveTrigger_DoctrineFinished_ReturnsCorrectEnum` (new)
+- ✅ `EntityMissionIngressTranslatorTests.ResolveTrigger_BehaviorFinished_ReturnsCorrectEnum` (new)
 - ✅ `EntityMissionIngressTranslatorTests.ResolveTrigger_UnderAttack_ReturnsCorrectEnum` (new)
-- ✅ `MissionControlRequestSystemTests.ResolveTrigger_DoctrineFinished_ReturnsCorrectEnum` (new)
+- ✅ `MissionControlRequestSystemTests.ResolveTrigger_BehaviorFinished_ReturnsCorrectEnum` (new)
 - ✅ `MissionControlRequestSystemTests.ResolveTrigger_UnderAttack_ReturnsCorrectEnum` (new)
 
 ### Task 5: Add Trigger Selection UI to MissionPanel (BUG2-M002)
@@ -134,7 +134,7 @@ This batch bundles 9 tasks from phases 1, 2, and 3 of the BUG2 work tracking. Th
 **Tests Required:**
 - ✅ `MissionPanelTests.HandleEditTriggerType_UpdatesTriggerInDraft` (new)
 - ✅ `MissionPanelTests.HandleEditTriggerParams_UpdatesParamsInDraft` (new)
-- ✅ `MissionPanelTests.HandleAddTrigger_AddsDoctrineFinishedTrigger` (new)
+- ✅ `MissionPanelTests.HandleAddTrigger_AddsBehaviorFinishedTrigger` (new)
 - ✅ Parameterized test verifying `GetDefaultTriggerParams` behavior.
 
 ### Task 6: Fix Unreadable Mission Task Action Buttons (BUG2-M003)

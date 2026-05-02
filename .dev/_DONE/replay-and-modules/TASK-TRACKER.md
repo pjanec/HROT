@@ -13,7 +13,7 @@
 - [x] T-RMF-06  Convert `CombatModule` systems (FireProcessingSystem, RaycastSolverSystem, HitResolutionSystem, BallisticsSystem) — expose phase arrays
 - [x] T-RMF-07  Convert `GroundKinematicsModule` systems (SpatialHashSystem, CarKinematicsSystem, LinearKinematicsSystem, NavigationExecutionSystem, FormationTargetSystem, VehicleCommandSystem) — expose phase arrays
 - [x] T-RMF-08  Convert navigation bridge systems (PersonalRouteAuthoringSystem, NavigationIntentBridgeSystem, RouteTrajectorySyncSystem)
-- [x] T-RMF-09  Convert `MissionControlModule` systems (DoctrineIngressSystem, MissionDirectorSystem, others)
+- [x] T-RMF-09  Convert `MissionControlModule` systems (BehaviorIngressSystem, MissionDirectorSystem, others)
 - [x] T-RMF-10  Convert `CognitiveRuntimeModule` and `ActionDispatchModule` systems
 - [x] T-RMF-11  Convert standalone CGF systems and `DamageAssessmentModule`
 - [x] T-RMF-12  Convert `GenesisMaterializationSystem` -- throw `InvalidOperationException` if view is not `EntityRepository`

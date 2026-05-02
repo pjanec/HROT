@@ -40,7 +40,7 @@ Failed!  - Failed: 10, Passed: 130, Skipped: 4, Total: 144, Duration: 6 m 34 s
 All 10 failures are pre-existing integration test failures identical to the BATCH-02 baseline:
 `SpawnMovingVehicle_IgPositionContinuesToUpdate`, `ExCon_CommitMissionAsync_ResolvesWithAck_NotTimeout`,
 `AllSubsystems_TransitionToOperatingLive_CommitStateIsNotDroppedAsDuplicate`,
-`SimHost_WanderMission_EntityMovesAfterDoctrineActivation`, `CGF_MovingVehicle_GhostPositionUpdates`,
+`SimHost_WanderMission_EntityMovesAfterBehaviorActivation`, `CGF_MovingVehicle_GhostPositionUpdates`,
 `DistributedLoad_TranslatesNetworkIds_AndSpawnsEntitiesWithRemappedMissionPlan`,
 `UrbanCombatExtractedToJson_ExecutesSuccessfullyInLiveMode`, and three others.
 None are related to BATCH-03 changes. No new test failures were introduced.

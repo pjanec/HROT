@@ -17,7 +17,7 @@
 - `HrotEnvironment.CreateGeoTransform()` is in `Hrot.Map.Common` — returns WGS84 transform with Berlin origin.
 - `GhostCreationSystem` is `FDP.Toolkit.Replication.Systems.GhostCreationSystem`, takes `NetworkEntityMap` in constructor.
 - `ActuatorIntentsEgressPack` is in `Hrot.SimHost/Translators/ActuatorIntentsEgressPack.cs` (NOT in Map.Common).
-- `CgfLogicPack` exists in `Hrot.CGF/CgfLogicPack.cs` and takes `(DoctrineRegistry, NetworkEntityMap, VehicleAPI? = null)`.
+- `CgfLogicPack` exists in `Hrot.CGF/CgfLogicPack.cs` and takes `(BehaviorRegistry, NetworkEntityMap, VehicleAPI? = null)`.
 - `Hrot.ClusterRunner.csproj` already references `Hrot.Map.Common`, `Hrot.CGF`, `Hrot.SimHost`.
 
 ---
@@ -523,12 +523,12 @@ public sealed class CgfSubsystem : ISubsystem
         _app = new CgfApplication(config.DomainId, nodeId: config.NodeId != 0 ? config.NodeId : 400);
 
         // ── Brain-role pack installation (PACK2-R002) ─────────────────────────
-        var doctrineRegistry   = new DoctrineRegistry();
+        var behaviorRegistry   = new BehaviorRegistry();
         var entityMap          = new NetworkEntityMap();
         var geoTransform       = HrotEnvironment.CreateGeoTransform();
         var ghostCreation      = new GhostCreationSystem(entityMap);
 
-        _app.Install(new CgfLogicPack(doctrineRegistry, entityMap));
+        _app.Install(new CgfLogicPack(behaviorRegistry, entityMap));
         _app.Install(new EntityStatesIngressPack(
             PackRole.Ingress,
             _app.Participant,

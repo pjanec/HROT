@@ -40,8 +40,8 @@ This batch implements Phase 2 and Phase 3 of the cgf-scn-2 workstream.
 | `FDP/Toolkits/Fdp.Toolkits/Scenario/FdpAutoSerializer.cs` | File to be upgraded for Phase 3 |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/DomainMissionPlan.cs` | `ActiveMissionPlan`, `DomainMissionPlan` types |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/MissionComponents.cs` | `MissionPlanQueue`, `MissionPhaseBuffer`, `MissionPhase`, `MissionTrigger` |
-| `Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs` | Registration site 1 (already has DoctrineRegistry constructed via `CgfDoctrineSetup`) |
-| `Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs` | Registration site 2 (has `doctrineRegistry` local var) |
+| `Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs` | Registration site 1 (already has BehaviorRegistry constructed via `CgfBehaviorSetup`) |
+| `Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs` | Registration site 2 (has `behaviorRegistry` local var) |
 | `Hrot/Subsystems/Hrot.Editor/EditorBootstrap.cs` | Registration site 3 |
 | `FDP/Toolkits/Fdp.Toolkits.Tests/Scenario/ScenarioSerializerTests.cs` | Test patterns for scenario serializer |
 
@@ -113,9 +113,9 @@ explains the detection approach and the critical `Entity`-in-buffer constraint.
 public sealed class MissionPlanTranslator : IEntityScenarioTranslator
 {
     private const string Key = "MissionPlan";
-    private readonly DoctrineRegistry _registry;
+    private readonly BehaviorRegistry _registry;
 
-    public MissionPlanTranslator(DoctrineRegistry registry) { ... }
+    public MissionPlanTranslator(BehaviorRegistry registry) { ... }
 
     public BitMask256 GetConsumedComponentsMask()  // set bits for MissionPlanQueue AND mask managed ActiveMissionPlan
     public string[] GetOutputDomKeys() => new[] { Key };
@@ -135,8 +135,8 @@ public sealed class MissionPlanTranslator : IEntityScenarioTranslator
 **Inject logic:**
 1. Read `"PlanData"` from DOM and deserialize to `DomainMissionPlan`
 2. Call `repo.SetManagedComponent(entity, new ActiveMissionPlan { Plan = domainPlan })`
-3. Rebuild `MissionPlanQueue`: for each task, call `_registry.TryGetId(task.BehaviorId, out int doctrineId)`;
-   use `MissionTrigger.DoctrineFinished` as default trigger; populate `queue.Phases[i]`
+3. Rebuild `MissionPlanQueue`: for each task, call `_registry.TryGetId(task.BehaviorId, out int behaviorId)`;
+   use `MissionTrigger.BehaviorFinished` as default trigger; populate `queue.Phases[i]`
 4. Call `repo.SetComponent(entity, queue)`
 
 **Reference:** `.dev/cgf-scn-2/design-talk.md` lines ~90-160 has a near-complete implementation.
@@ -155,7 +155,7 @@ is consumed in `FdpAutoSerializer` / `ScenarioSerializerBuilder` to confirm.
    and `"PhaseElapsedSeconds"`.
 2. **Inject test:** Call `Inject` with the DOM from test 1; assert entity has
    `ActiveMissionPlan` with `Plan.Tasks[0].BehaviorId == "FireAtTarget"` and a matching
-   `MissionPlanQueue` with `Phases[0].DoctrineId` equal to the registry-resolved ID.
+   `MissionPlanQueue` with `Phases[0].BehaviorId` equal to the registry-resolved ID.
 3. **CanTranslate false:** Entity with no `ActiveMissionPlan`; `CanTranslate` returns `false`.
 4. **Round-trip test:** Serialize a world with a mission entity; deserialize into a fresh
    repo; assert `ActiveMissionPlan.Plan.Tasks.Count` and all `BehaviorId` strings match.
@@ -167,28 +167,28 @@ is consumed in `FdpAutoSerializer` / `ScenarioSerializerBuilder` to confirm.
 **Files to UPDATE:** `SimHostApp.cs`, `CgfSubsystem.cs`, `EditorBootstrap.cs`
 **Task Definition:** See [TASK-DETAIL.md — TASK-S202](../TASK-DETAIL.md#task-s202-register-missionplantranslator-at-all-serializer-sites)
 
-Each site already has a `DoctrineRegistry` instance; pass it to the constructor.
+Each site already has a `BehaviorRegistry` instance; pass it to the constructor.
 
 **Site 1 — `Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs`:**
 The `ScenarioSerializerBuilder` already exists (after WeaponChannelTranslator removal from BATCH-01).
 Add:
 ```csharp
 var scenarioSerializer = new ScenarioSerializerBuilder(HrotSubsystemTypes.Scenario)
-    .RegisterTranslator(new Hrot.SimHost.Serializers.MissionPlanTranslator(doctrineRegistry))
+    .RegisterTranslator(new Hrot.SimHost.Serializers.MissionPlanTranslator(behaviorRegistry))
     .RegisterTranslator(new Hrot.SimHost.Serializers.TargetMemoryTranslator())
     .RegisterTranslator(new Hrot.SimHost.Serializers.PassengerBufferTranslator())
     .Build();
 ```
-Find where `doctrineRegistry` is available in `SimHostApp.cs` — check for `CgfDoctrineSetup`
-or the `DoctrineRegistry` construction pattern.
+Find where `behaviorRegistry` is available in `SimHostApp.cs` — check for `CgfBehaviorSetup`
+or the `BehaviorRegistry` construction pattern.
 
 **Site 2 — `Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs`:**
-The `doctrineRegistry` local variable exists before `ScenarioSerializerBuilder` is called.
+The `behaviorRegistry` local variable exists before `ScenarioSerializerBuilder` is called.
 Add the translator before `.Build()`.
 
 **Site 3 — `Hrot/Subsystems/Hrot.Editor/EditorBootstrap.cs`:**
-Find where `CreateFileService()` builds the serializer. Obtain or construct a `DoctrineRegistry`
-via `CgfDoctrineSetup.RegisterAll(...)` (same call pattern as CGF and SimHost). Pass it to
+Find where `CreateFileService()` builds the serializer. Obtain or construct a `BehaviorRegistry`
+via `CgfBehaviorSetup.RegisterAll(...)` (same call pattern as CGF and SimHost). Pass it to
 `MissionPlanTranslator`.
 
 **Constraint:** Registration must occur BEFORE `.Build()` is called.
@@ -279,7 +279,7 @@ field, throw `InvalidOperationException`.
 2. Inject from JSON array; assert all 3 values are restored.
 3. `MissionPlanQueue` auto-serialization round-trip (WITHOUT `DataPolicy.NoSave`): create
    a queue with 2 phases; serialize; inject into a fresh component; assert all
-   `DoctrineId`, `Trigger`, `CurrentPhase`, `PhaseElapsedSeconds` match.
+   `BehaviorId`, `Trigger`, `CurrentPhase`, `PhaseElapsedSeconds` match.
 
 ---
 
@@ -352,8 +352,8 @@ How did you handle the pinning / Unsafe.Add pattern inside expression trees?
 **Q2:** Was the `IEntityScenarioTranslator` interface exactly as you expected from reading
 `PassengerBufferTranslator`? Were there surprises?
 
-**Q3:** Did the `CgfDoctrineSetup` call in `EditorBootstrap.cs` require any non-obvious
-wiring? Was the `DoctrineRegistry` already present or did you need to construct one?
+**Q3:** Did the `CgfBehaviorSetup` call in `EditorBootstrap.cs` require any non-obvious
+wiring? Was the `BehaviorRegistry` already present or did you need to construct one?
 
 **Q4:** What design decisions did you make beyond the spec?
 

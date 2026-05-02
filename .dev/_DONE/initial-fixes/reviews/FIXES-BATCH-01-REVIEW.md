@@ -34,11 +34,11 @@ fix: architecture bugs and UI panel wiring (FIXES-BATCH-01)
 
 Completes TASK-IF001, TASK-IF002, TASK-IF003, TASK-IF004, TASK-IF005, TASK-IF006, TASK-IF007, TASK-IF008
 
-Corrects SimHost validation errors by stripping VehicleState descriptors from the mapping phase, increments doctrine ID per change, and publishes EntityMaster on the DDS interface. Adjusts ghost node tagging logic within IG so that remote entity dead reckoning correctly takes over. Finally, completes UI panel lifecycle wiring across the IG and IOS applications.
+Corrects SimHost validation errors by stripping VehicleState descriptors from the mapping phase, increments behavior ID per change, and publishes EntityMaster on the DDS interface. Adjusts ghost node tagging logic within IG so that remote entity dead reckoning correctly takes over. Finally, completes UI panel lifecycle wiring across the IG and IOS applications.
 
 Hrot.SimHost:
 - Eliminated implicit VehicleState inclusion on entities
-- Fixes MissionAdapterSystem doctrine caching
+- Fixes MissionAdapterSystem behavior caching
 - Adds direct AutoCycloneTranslator to publish EntityMaster DDS topic
 
 Hrot.IG:

@@ -6,7 +6,7 @@
  - 'Entity creator' panel with entity type selector (enumerating all tkb entities) - similat to ExCon is using
  - 'Area creator' panel activating the vertex-sequence placement tool and creating the area entity
  - 'Mission editor' panel as found in ExCon (just using pure FDP events only)
-    - including target point clicking from map for the selected doctrine (similar to what ExCon is having)
+    - including target point clicking from map for the selected behavior (similar to what ExCon is having)
  - entity symbol rendering (graphicla representation and text label)
     - kinamit entities displayed as the simHost is doing, just with entity id label
  - map pan/zoom (same as IG is using)
@@ -451,9 +451,9 @@ _editorLogic.CommitPropertyEdit(
 
 The `UpdateEntityCommandEgressTranslator` or local simulation logic will then intercept this edit and apply it cleanly to the ECS world.
 
-pls detail how the point picking tool is triggered from the mission editor panel when the doctrine requires target point coordinates
+pls detail how the point picking tool is triggered from the mission editor panel when the behavior requires target point coordinates
 
-When the operator selects a doctrine that requires spatial coordinates, such as `MoveToLocation`, the `MissionPanel` cleanly abstracts away raw JSON editing by rendering a dedicated "Pick Location" button. The flow to capture this coordinate relies on a strictly decoupled, asynchronous request-response cycle using the Task-based Asynchronous Pattern (TAP) and CQRS principles.
+When the operator selects a behavior that requires spatial coordinates, such as `MoveToLocation`, the `MissionPanel` cleanly abstracts away raw JSON editing by rendering a dedicated "Pick Location" button. The flow to capture this coordinate relies on a strictly decoupled, asynchronous request-response cycle using the Task-based Asynchronous Pattern (TAP) and CQRS principles.
 
 Here is exactly how the architecture handles the spatial pick:
 
@@ -1142,9 +1142,9 @@ Here are the missing UI capabilities and tools we need to build:
 
 -   A file-picker to assign the `RoadNetworkPath` for the active zone.-   An obstacle placement tool (similar to `CreationTool`) that emits a pure event to spawn an unmanaged entity with a `PhysicsCollider` and `SimTransform`, which the `ZoneManagerService` will serialize into the `ZoneObstacleDto` list on save.
 
-4\. Expanding the Mission/Doctrine Catalog
+4\. Expanding the Mission/Behavior Catalog
 
-**The Requirement:** The scenario assigns specific military and civilian doctrines: `ConvoyEscort`, `InfantryCombat`, `Ambush`, and `WanderCivil`. **The Missing UI:** If you look at the current `MissionPanel` implementation, the `_behaviorIds` dropdown is rigidly hardcoded to a capacity of 4: `MoveToLocation`, `FollowRoute`, `JoinFormation`, and `Idle`. **The Architectural Fix:** The shared `MissionPanel` needs to stop hardcoding these string literals. The `IMissionEditorService` facade should expose a method to query the available behavior IDs dynamically, allowing the Editor adapter to read them straight from the local `DoctrineRegistry`.
+**The Requirement:** The scenario assigns specific military and civilian behaviors: `ConvoyEscort`, `InfantryCombat`, `Ambush`, and `WanderCivil`. **The Missing UI:** If you look at the current `MissionPanel` implementation, the `_behaviorIds` dropdown is rigidly hardcoded to a capacity of 4: `MoveToLocation`, `FollowRoute`, `JoinFormation`, and `Idle`. **The Architectural Fix:** The shared `MissionPanel` needs to stop hardcoding these string literals. The `IMissionEditorService` facade should expose a method to query the available behavior IDs dynamically, allowing the Editor adapter to read them straight from the local `BehaviorRegistry`.
 
 these are great improvements. let's pls detail one by one. start with 1. Embarkation & Cargo Management UI
 
@@ -1589,23 +1589,23 @@ By keeping the entities strictly as standard `SimTransform` + `PhysicsCollider` 
 
 When the operator clicks "Save" in the `ScenarioBrowserPanel`, the `ScenarioFileService` will call `_zoneManagerService.GetActiveZones()`, which will effortlessly query these exact components, map them to `ZoneObstacleDto` instances, and bundle them into the `HrotScenarioEnvelopeDto.Zones` dictionary for writing to disk. The UI never has to parse JSON, and the FDP engine never has to know about file paths.
 
-ps detail 4. Expanding the Mission/Doctrine Catalog
+ps detail 4. Expanding the Mission/Behavior Catalog
 
-To fully support authoring the Urban Combat scenario from the UI, the operator needs to be able to select the specific narrative doctrines (`ConvoyEscort`, `InfantryCombat`, `Ambush`, and `WanderCivil`) from the Mission Editor dropdown.
+To fully support authoring the Urban Combat scenario from the UI, the operator needs to be able to select the specific narrative behaviors (`ConvoyEscort`, `InfantryCombat`, `Ambush`, and `WanderCivil`) from the Mission Editor dropdown.
 
-Currently, this is impossible because the `MissionPanel` severely violates Clean Architecture. Looking at the source, `MissionPanel` manually instantiates a dummy `DoctrineRegistry` in its constructor and rigidly hardcodes exactly four behaviors (`MoveToLocation`, `FollowRoute`, `JoinFormation`, `Idle`).
+Currently, this is impossible because the `MissionPanel` severely violates Clean Architecture. Looking at the source, `MissionPanel` manually instantiates a dummy `BehaviorRegistry` in its constructor and rigidly hardcodes exactly four behaviors (`MoveToLocation`, `FollowRoute`, `JoinFormation`, `Idle`).
 
 To fix this and make the panel fully data-driven, we must extract the catalog knowledge out of the UI and push it down into the host application via the `IMissionEditorService` adapter.
 
 Here is the exact step-by-step implementation.
 
-1\. Extend the Engine's `DoctrineRegistry`
+1\. Extend the Engine's `BehaviorRegistry`
 
-Currently, `DoctrineRegistry` holds the dictionary of definitions but does not expose the list of registered names. We must add a simple getter so the adapters can read the actual registered capabilities of the running engine.
+Currently, `BehaviorRegistry` holds the dictionary of definitions but does not expose the list of registered names. We must add a simple getter so the adapters can read the actual registered capabilities of the running engine.
 
 ```
-// FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineRegistry.cs
-public sealed class DoctrineRegistry
+// FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs
+public sealed class BehaviorRegistry
 {
     // Existing fields...
     private readonly Dictionary<string, int> _nameToId = new(StringComparer.Ordinal);
@@ -1637,7 +1637,7 @@ public interface IMissionEditorService
 
 3\. Refactor the Shared `MissionPanel`
 
-Remove the hardcoded constants and the dummy `DoctrineRegistry` instantiation from the panel. Instead, fetch the available behaviors dynamically from the injected facade.
+Remove the hardcoded constants and the dummy `BehaviorRegistry` instantiation from the panel. Instead, fetch the available behaviors dynamically from the injected facade.
 
 ```
 // Hrot.UI.Common/Panels/MissionPanel.cs
@@ -1670,9 +1670,9 @@ public void DrawContent(IExConLogic logic)
 
 4\. The Offline Editor Adapter (`EditorMissionService`)
 
-In the `Hrot.Editor` project, we inject the live `DoctrineRegistry` into our adapter. When the UI asks for available behaviors, we simply query the registry at memory-bus speeds.
+In the `Hrot.Editor` project, we inject the live `BehaviorRegistry` into our adapter. When the UI asks for available behaviors, we simply query the registry at memory-bus speeds.
 
-Because the `Hrot.Editor` boots up with the `SimHostComponentRegistry` and registers all the Urban Combat doctrines (like `Ambush` and `ConvoyEscort`), they will immediately appear in the dropdown.
+Because the `Hrot.Editor` boots up with the `SimHostComponentRegistry` and registers all the Urban Combat behaviors (like `Ambush` and `ConvoyEscort`), they will immediately appear in the dropdown.
 
 ```
 // Hrot.Editor/Adapters/EditorMissionService.cs
@@ -1680,9 +1680,9 @@ public class EditorMissionService : IMissionEditorService
 {
     private readonly FdpEventBus _bus;
     private readonly EntityRepository _repo;
-    private readonly DoctrineRegistry _registry;
+    private readonly BehaviorRegistry _registry;
 
-    public EditorMissionService(FdpEventBus bus, EntityRepository repo, DoctrineRegistry registry)
+    public EditorMissionService(FdpEventBus bus, EntityRepository repo, BehaviorRegistry registry)
     {
         _bus = bus;
         _repo = repo;
@@ -1691,7 +1691,7 @@ public class EditorMissionService : IMissionEditorService
 
     public IReadOnlyList<string> GetAvailableBehaviors()
     {
-        // Dynamically returns whatever doctrines the Editor kernel has registered
+        // Dynamically returns whatever behaviors the Editor kernel has registered
         // e.g. ["MoveToLocation", "FollowRoute", "Ambush", "ConvoyEscort", "WanderCivil"]
         return _registry.GetRegisteredNames();
     }
@@ -1702,9 +1702,9 @@ public class EditorMissionService : IMissionEditorService
 
 5\. The ExCon Adapter (Network Layer)
 
-For the networked `ExCon` node, the `MissionEditorService` currently does not have access to the SimHost's internal `DoctrineRegistry`.
+For the networked `ExCon` node, the `MissionEditorService` currently does not have access to the SimHost's internal `BehaviorRegistry`.
 
-To fulfill the contract without adding complex DDS discovery for doctrines just yet, we can simply construct ExCon's `MissionEditorService` with a pre-configured list of known doctrine strings provided by the `ExConLogic` composition root.
+To fulfill the contract without adding complex DDS discovery for behaviors just yet, we can simply construct ExCon's `MissionEditorService` with a pre-configured list of known behavior strings provided by the `ExConLogic` composition root.
 
 ```
 // Hrot.ExCon/Services/MissionEditorService.cs
@@ -1724,7 +1724,7 @@ public sealed class MissionEditorService : IMissionEditorService
 
 Why this satisfies Clean Architecture:
 
-By implementing this, the `MissionPanel` becomes a pure presentation component. It blindly renders the strings provided by the `IMissionEditorService`. When you boot the `Hrot.Editor` to author the Urban Combat scenario, your local adapter seamlessly supplies `Ambush`, `ConvoyEscort`, and `WanderCivil`, allowing the operator to assign these tactical doctrines to entities completely through the UI without writing a single line of scenario-specific application code.
+By implementing this, the `MissionPanel` becomes a pure presentation component. It blindly renders the strings provided by the `IMissionEditorService`. When you boot the `Hrot.Editor` to author the Urban Combat scenario, your local adapter seamlessly supplies `Ambush`, `ConvoyEscort`, and `WanderCivil`, allowing the operator to assign these tactical behaviors to entities completely through the UI without writing a single line of scenario-specific application code.
 
 How should the Drag-and-Drop system handle capacity limits for vehicles?
 
@@ -1736,31 +1736,31 @@ Here is how we handle it using strict separation of concerns:
 
 By encapsulating the capacity logic exclusively within the FDP engine's execution phase, we uphold the Single Responsibility Principle. If designers decide to vary the capacity based on vehicle parameters in the future, our shared ImGui Drag-and-Drop code requires absolutely zero modifications.
 
-Can we create a shared catalog for all Doctrine IDs?
+Can we create a shared catalog for all Behavior IDs?
 
 Yes, we can, but we must strictly respect the Anti-Corruption Layer between the generic FDP engine framework and the specific HROT application.
 
-Currently, Doctrine IDs are scattered but carefully managed through block allocations to ensure they are globally unique across the entire project without colliding.
+Currently, Behavior IDs are scattered but carefully managed through block allocations to ensure they are globally unique across the entire project without colliding.
 
--   **Framework-level doctrines:** Concepts like `WanderCivil` (1001), `ConvoyEscort` (2001), and `Ambush` (2003) live inside `FDP.Toolkit.Behavior.DoctrineIds`.-   **Application-level doctrines:** HROT-specific tactical implementations like `MoveTo_BT` (3001) and `FollowRoute_BT` (3002) live inside `Hrot.SimHost.SimHostDoctrineIds`.
+-   **Framework-level behaviors:** Concepts like `WanderCivil` (1001), `ConvoyEscort` (2001), and `Ambush` (2003) live inside `FDP.Toolkit.Behavior.BehaviorIds`.-   **Application-level behaviors:** HROT-specific tactical implementations like `MoveTo_BT` (3001) and `FollowRoute_BT` (3002) live inside `Hrot.SimHost.SimHostBehaviorIds`.
 
-From a Clean Architecture perspective, we **cannot** shove the HROT-specific doctrines down into the FDP toolkit, because the underlying simulation engine should not depend on the specific tactical behaviors of the host application.
+From a Clean Architecture perspective, we **cannot** shove the HROT-specific behaviors down into the FDP toolkit, because the underlying simulation engine should not depend on the specific tactical behaviors of the host application.
 
 However, we can achieve your goal using a two-pronged approach:
 
 1\. The Compile-Time Catalog (`Hrot.Map.Definitions`)
 
-Just as we centralized all unit types in `TkbEntityTypes` inside the `Hrot.Map.Definitions` project, we should move `SimHostDoctrineIds` out of `Hrot.SimHost` and into `Hrot.Map.Definitions`.
+Just as we centralized all unit types in `TkbEntityTypes` inside the `Hrot.Map.Definitions` project, we should move `SimHostBehaviorIds` out of `Hrot.SimHost` and into `Hrot.Map.Definitions`.
 
-By placing `HrotDoctrineIds` in the definitions library, all application subsystems (`Hrot.ExCon`, `Hrot.Editor`, and `Hrot.SimHost`) can safely reference the compile-time constants without taking a dependency on the heavyweight simulation host.
+By placing `HrotBehaviorIds` in the definitions library, all application subsystems (`Hrot.ExCon`, `Hrot.Editor`, and `Hrot.SimHost`) can safely reference the compile-time constants without taking a dependency on the heavyweight simulation host.
 
-2\. The Runtime Catalog (`DoctrineRegistry`)
+2\. The Runtime Catalog (`BehaviorRegistry`)
 
-The true shared catalog is already built into the architecture: the `DoctrineRegistry`.
+The true shared catalog is already built into the architecture: the `BehaviorRegistry`.
 
-At startup, the composition root registers both the FDP toolkit doctrines and the HROT application doctrines into this single registry, mapping their stable integer IDs to their behavior string names.
+At startup, the composition root registers both the FDP toolkit behaviors and the HROT application behaviors into this single registry, mapping their stable integer IDs to their behavior string names.
 
-Because of the Dependency Inversion refactor we just designed for the `MissionPanel`, your UI doesn't actually need to reference the compile-time IDs at all. By calling `logic.MissionEditorService.GetAvailableBehaviors()`, the UI dynamically polls the `DoctrineRegistry` to populate its dropdowns at memory-bus speeds.
+Because of the Dependency Inversion refactor we just designed for the `MissionPanel`, your UI doesn't actually need to reference the compile-time IDs at all. By calling `logic.MissionEditorService.GetAvailableBehaviors()`, the UI dynamically polls the `BehaviorRegistry` to populate its dropdowns at memory-bus speeds.
 
 This means your UI remains 100% data-driven and blissfully ignorant of the underlying ID routing, while the backend maintains strict separation between engine and application boundaries.
 
@@ -1998,9 +1998,9 @@ First, it delegates the dynamic state extraction to the framework by calling `_f
 
 The service then composes a strongly-typed `HrotScenarioEnvelopeDto` containing the `Header`, the resolved `Zones` dictionary, and the dynamic `Entities` block extracted from the FDP DOM. Finally, it writes the entire structure to disk using `JsonSerializer.Serialize` configured with a unified `HrotJsonOptions` instance. This shared configuration enforces a camel-case naming policy and ignores null values, ensuring that if no zones are active, the `Zones` property is omitted from the JSON payload entirely to preserve backward compatibility. This design guarantees that our persistent storage mechanism remains entirely decoupled from UI input paradigms and raw memory layout.
 
-How can we filter the availble doctrine per the type of the entity?
+How can we filter the availble behavior per the type of the entity?
 
-To enforce strict entity-to-doctrine constraints (e.g., an Infantry Soldier can use "InfantryCombat", an APC uses "ConvoyEscort", and a Civilian uses "WanderCivil") without violating Clean Architecture, we must rely on our **Ports and Adapters** design.
+To enforce strict entity-to-behavior constraints (e.g., an Infantry Soldier can use "InfantryCombat", an APC uses "ConvoyEscort", and a Civilian uses "WanderCivil") without violating Clean Architecture, we must rely on our **Ports and Adapters** design.
 
 Because the `MissionPanel` (the UI View) is entirely ignorant of the ECS engine and the CycloneDDS network, it cannot directly inspect an entity's capabilities or its `BrainTier`. Instead, we must pass the context of _which_ entity is selected through the port, and let the backend adapters resolve the business rules.
 
@@ -2042,25 +2042,25 @@ using Hrot.Map.Common;
 
 namespace Hrot.Map.Definitions.Tkb
 {
-    public static class DoctrineCatalog
+    public static class BehaviorCatalog
     {
-        private static readonly IReadOnlyList<string> _civilianDoctrines = new[] { "WanderCivil", "PanicFlee" };
-        private static readonly IReadOnlyList<string> _vehicleDoctrines = new[] { "MoveToLocation", "FollowRoute", "JoinFormation" };
-        private static readonly IReadOnlyList<string> _apcDoctrines = new[] { "ConvoyEscort", "MoveToLocation", "FollowRoute" };
-        private static readonly IReadOnlyList<string> _infantryDoctrines = new[] { "InfantryCombat", "MoveToLocation", "JoinFormation" };
-        private static readonly IReadOnlyList<string> _insurgentDoctrines = new[] { "Ambush", "MoveToLocation" };
+        private static readonly IReadOnlyList<string> _civilianBehaviors = new[] { "WanderCivil", "PanicFlee" };
+        private static readonly IReadOnlyList<string> _vehicleBehaviors = new[] { "MoveToLocation", "FollowRoute", "JoinFormation" };
+        private static readonly IReadOnlyList<string> _apcBehaviors = new[] { "ConvoyEscort", "MoveToLocation", "FollowRoute" };
+        private static readonly IReadOnlyList<string> _infantryBehaviors = new[] { "InfantryCombat", "MoveToLocation", "JoinFormation" };
+        private static readonly IReadOnlyList<string> _insurgentBehaviors = new[] { "Ambush", "MoveToLocation" };
 
-        public static IReadOnlyList<string> GetValidDoctrines(long tkbType)
+        public static IReadOnlyList<string> GetValidBehaviors(long tkbType)
         {
             return tkbType switch
             {
-                TkbEntityTypes.CivilianPedestrian => _civilianDoctrines,
-                TkbEntityTypes.CivilianCar        => _civilianDoctrines,
-                TkbEntityTypes.MilitaryApc        => _apcDoctrines,
-                TkbEntityTypes.InfantrySoldier    => _infantryDoctrines,
-                TkbEntityTypes.Insurgent          => _insurgentDoctrines,
+                TkbEntityTypes.CivilianPedestrian => _civilianBehaviors,
+                TkbEntityTypes.CivilianCar        => _civilianBehaviors,
+                TkbEntityTypes.MilitaryApc        => _apcBehaviors,
+                TkbEntityTypes.InfantrySoldier    => _infantryBehaviors,
+                TkbEntityTypes.Insurgent          => _insurgentBehaviors,
                 // Fallback for standard vehicles (Tanks, IFVs, HMMWV)
-                _ => _vehicleDoctrines 
+                _ => _vehicleBehaviors 
             };
         }
     }
@@ -2079,7 +2079,7 @@ using FDP.Toolkit.Replication.Components;
 public class EditorMissionService : IMissionEditorService
 {
     private readonly EntityRepository _repo;
-    private readonly DoctrineRegistry _registry; // Existing FDP registry
+    private readonly BehaviorRegistry _registry; // Existing FDP registry
 
     public IReadOnlyList<string> GetAvailableBehaviors(long entityId)
     {
@@ -2093,10 +2093,10 @@ public class EditorMissionService : IMissionEditorService
         long tkbType = _repo.GetUnmanagedComponentRO<TkbIdentity>(entity).TkbType;
 
         // 2. Fetch the allowed string names from the shared catalog
-        var allowedNames = DoctrineCatalog.GetValidDoctrines(tkbType);
+        var allowedNames = BehaviorCatalog.GetValidBehaviors(tkbType);
 
-        // 3. Ensure the local FDP engine actually has these doctrines registered
-        // (Prevents the UI from offering a doctrine that the engine can't execute)
+        // 3. Ensure the local FDP engine actually has these behaviors registered
+        // (Prevents the UI from offering a behavior that the engine can't execute)
         return allowedNames.Where(name => _registry.TryGetId(name, out _)).ToList();
     }
 }
@@ -2104,7 +2104,7 @@ public class EditorMissionService : IMissionEditorService
 
 4\. The ExCon Adapter (`MissionEditorService`)
 
-In the lightweight `ExCon` node, there is no FDP engine or `DoctrineRegistry`. The UI simply needs to know what doctrines are conceptually valid for the entity selected. The adapter queries the `IDerRepo` to get the `TkbType` and applies the exact same shared catalog.
+In the lightweight `ExCon` node, there is no FDP engine or `BehaviorRegistry`. The UI simply needs to know what behaviors are conceptually valid for the entity selected. The adapter queries the `IDerRepo` to get the `TkbType` and applies the exact same shared catalog.
 
 ```
 // Hrot.ExCon/Services/MissionEditorService.cs
@@ -2122,15 +2122,15 @@ public sealed class MissionEditorService : IMissionEditorService
         if (entity == null) 
             return Array.Empty<string>();
 
-        // Map the TKB type directly to the allowed doctrines using the shared catalog
-        return DoctrineCatalog.GetValidDoctrines(entity.TkbType);
+        // Map the TKB type directly to the allowed behaviors using the shared catalog
+        return BehaviorCatalog.GetValidBehaviors(entity.TkbType);
     }
 }
 ```
 
 Why this is the correct architectural approach:
 
--   **Zero Network Round-Trips:** When the operator clicks an entity in the UI, the ExCon doesn't need to ask the cluster what doctrines are allowed. It resolves them locally in microseconds.-   **Total UI Ignorance:** The `MissionPanel` stays completely data-driven. It blindly renders whatever strings the adapter hands it.-   **Strict Anti-Corruption Layer:** The FDP Engine's `DoctrineRegistry` doesn't get polluted with application-level `TkbType` business rules. The mapping lives exactly where it should: in `Hrot.Map.Definitions.Tkb` alongside the vehicle physics and visual definitions.
+-   **Zero Network Round-Trips:** When the operator clicks an entity in the UI, the ExCon doesn't need to ask the cluster what behaviors are allowed. It resolves them locally in microseconds.-   **Total UI Ignorance:** The `MissionPanel` stays completely data-driven. It blindly renders whatever strings the adapter hands it.-   **Strict Anti-Corruption Layer:** The FDP Engine's `BehaviorRegistry` doesn't get polluted with application-level `TkbType` business rules. The mapping lives exactly where it should: in `Hrot.Map.Definitions.Tkb` alongside the vehicle physics and visual definitions.
 
 pls summarize the concepts and refactors and new features we have just discussed.
 
@@ -2151,8 +2151,8 @@ To replicate the programmatic Urban Combat demo purely through the data-driven U
 -   **Embarkation & Cargo Management (Drag-and-Drop):**
     -   We added ImGui payload drag-and-drop to the shared ORBAT panel.-   The UI emits a pure `EmbarkEntityCommand`.-   The execution is handled safely by an `EditorCargoSystem` that validates the strict `Capacity` of the `PassengerBuffer` component, entirely isolating domain invariants from the presentation layer.-   **Target Memory Seeding (N-to-M Link Tool):**
     -   Instead of writing a redundant tool, we reused the framework's highly optimized, allocation-free `EntityPickerTool` and `BoxSelectionTool` behind an async `IMapPickService` facade.-   The UI emits a pure `SeedTargetCommand`. The backend `EditorPerceptionSetupSystem` safely injects target references into the unsafe fixed-size arrays of the `TargetMemory` component during the thread-safe `Input` phase.-   **Static Zone & Obstacle Authoring:**
-    -   Created a `ZoneEditorPanel` to assign `RoadNetworkPath` definitions and define static obstacle radii.-   The editor adapter uses a lightweight canvas tool to emit an event that spawns an unmanaged `SimTransform` + `PhysicsCollider` entity.-   This preserves the integrity of the save pipeline, as the `ZoneManagerService` easily translates these components into `ZoneObstacleDto` records for the `HrotScenarioEnvelopeDto` file.-   **Dynamic Mission/Doctrine Catalog Filtering:**
-    -   Eliminated the hardcoded doctrine strings (like `MoveToLocation`) from the `MissionPanel`.-   The UI now dynamically polls the `IMissionEditorService` for available doctrines.-   We introduced a statically typed capability map (`DoctrineCatalog`) alongside the `TkbEntityTypes` in `Hrot.Map.Definitions`. The backend adapter evaluates the entity's `TkbIdentity` to restrict the doctrine list (e.g., ensuring an APC gets `ConvoyEscort` while an Insurgent gets `Ambush`) without polluting the engine's generic `DoctrineRegistry`.
+    -   Created a `ZoneEditorPanel` to assign `RoadNetworkPath` definitions and define static obstacle radii.-   The editor adapter uses a lightweight canvas tool to emit an event that spawns an unmanaged `SimTransform` + `PhysicsCollider` entity.-   This preserves the integrity of the save pipeline, as the `ZoneManagerService` easily translates these components into `ZoneObstacleDto` records for the `HrotScenarioEnvelopeDto` file.-   **Dynamic Mission/Behavior Catalog Filtering:**
+    -   Eliminated the hardcoded behavior strings (like `MoveToLocation`) from the `MissionPanel`.-   The UI now dynamically polls the `IMissionEditorService` for available behaviors.-   We introduced a statically typed capability map (`BehaviorCatalog`) alongside the `TkbEntityTypes` in `Hrot.Map.Definitions`. The backend adapter evaluates the entity's `TkbIdentity` to restrict the behavior list (e.g., ensuring an APC gets `ConvoyEscort` while an Insurgent gets `Ambush`) without polluting the engine's generic `BehaviorRegistry`.
 
 By executing these refactors, you achieve 100% UI code reuse between your lightweight distributed C2 client (`ExCon`) and your offline monolithic authoring environment (`Hrot.Editor`). The UI remains fiercely data-driven, while domain validation and ECS memory safety are strictly confined to the engine execution phases.
 
@@ -2283,7 +2283,7 @@ public void ZoneAuthoring_ObstaclePlacement_SerializesToZoneDto()
 }
 ```
 
-4\. Doctrine Catalog Filtering Test
+4\. Behavior Catalog Filtering Test
 
 We must prove our Anti-Corruption Layer restricts the Mission dropdown options based on the target's `TkbIdentity` blueprint, completely independently of the ImGui combo box.
 
@@ -2293,10 +2293,10 @@ public void MissionEditorService_FiltersAvailableBehaviors_ByTkbBlueprint()
 {
     using var harness = new EditorHarness();
     
-    // Setup the adapter with the live offline DoctrineRegistry
-    var registry = new DoctrineRegistry();
-    registry.Register(1001, "WanderCivil", new DoctrineDefinition());
-    registry.Register(2003, "Ambush", new DoctrineDefinition());
+    // Setup the adapter with the live offline BehaviorRegistry
+    var registry = new BehaviorRegistry();
+    registry.Register(1001, "WanderCivil", new BehaviorDefinition());
+    registry.Register(2003, "Ambush", new BehaviorDefinition());
     var adapter = new EditorMissionService(harness.Bus, harness.Repo, registry);
 
     // 1. Arrange: Spawn an Insurgent and a Civilian
@@ -2307,13 +2307,13 @@ public void MissionEditorService_FiltersAvailableBehaviors_ByTkbBlueprint()
     harness.Repo.AddComponent(civilian, new TkbIdentity { TkbType = TkbEntityTypes.CivilianPedestrian });
 
     // 2. Act & Assert: The UI adapter queries the capabilities dynamically
-    var insurgentDoctrines = adapter.GetAvailableBehaviors(insurgent.Index);
-    Assert.Contains("Ambush", insurgentDoctrines);
-    Assert.DoesNotContain("WanderCivil", insurgentDoctrines);
+    var insurgentBehaviors = adapter.GetAvailableBehaviors(insurgent.Index);
+    Assert.Contains("Ambush", insurgentBehaviors);
+    Assert.DoesNotContain("WanderCivil", insurgentBehaviors);
 
-    var civilianDoctrines = adapter.GetAvailableBehaviors(civilian.Index);
-    Assert.Contains("WanderCivil", civilianDoctrines);
-    Assert.DoesNotContain("Ambush", civilianDoctrines);
+    var civilianBehaviors = adapter.GetAvailableBehaviors(civilian.Index);
+    Assert.Contains("WanderCivil", civilianBehaviors);
+    Assert.DoesNotContain("Ambush", civilianBehaviors);
 }
 ```
 
@@ -2492,7 +2492,7 @@ classDiagram
     ModuleHostKernel o-- ScenarioEditorModule : Registers
 
     note for SimHostCoreLogicPack "Executes Muscle-tier logic\n(Physics, NavExecution, Ballistics)"
-    note for CgfLogicPack "Executes Brain-tier logic\n(HSM/BTree, Doctrines, Mission Plans)"
+    note for CgfLogicPack "Executes Brain-tier logic\n(HSM/BTree, Behaviors, Mission Plans)"
     note for ScenarioEditorModule "Handles File I/O and\nOffline UI Adapters"
 ```
 

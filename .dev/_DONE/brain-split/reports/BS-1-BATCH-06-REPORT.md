@@ -75,23 +75,23 @@ if (!needsNewTarget && ctx.World.HasComponent<NavState>(ctx.Self))
 **Files modified:**
 
 1. `FDP/Toolkits/FDP.Toolkit.Behavior/Components/MissionComponents.cs`  
-   — Added `[Obsolete]` attribute to `MissionTrigger.ReachedDestination` with a message directing new code to use `DoctrineFinished`. Retained the enum value (= 1) for DDS serialisation compatibility. Added `using System;` for the attribute.
+   — Added `[Obsolete]` attribute to `MissionTrigger.ReachedDestination` with a message directing new code to use `BehaviorFinished`. Retained the enum value (= 1) for DDS serialisation compatibility. Added `using System;` for the attribute.
 
 2. `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs`  
-   — Replaced the `ReachedDestination` switch case (which read `NavState.HasArrived`) with the `DoctrineFinished` logic (checks `_doctrineFinishedThisFrame`). The `CarKinem.Core` import was removed (no longer needed). The class XML doc was updated to reflect the new behaviour.
+   — Replaced the `ReachedDestination` switch case (which read `NavState.HasArrived`) with the `BehaviorFinished` logic (checks `_behaviorFinishedThisFrame`). The `CarKinem.Core` import was removed (no longer needed). The class XML doc was updated to reflect the new behaviour.
 
 3. `Hrot.SimHost/SimHostVisualization.cs`  
-   — Changed the DDS trigger string emitted by `HandleRightClickForEntity` from `"ReachedDestination"` to `"DoctrineFinished"`. Updated the method's XML doc comment accordingly.
+   — Changed the DDS trigger string emitted by `HandleRightClickForEntity` from `"ReachedDestination"` to `"BehaviorFinished"`. Updated the method's XML doc comment accordingly.
 
 **Tests added/updated:**
 
 - `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/MissionDirectorSystemTests.cs`:
-  - Existing `MissionDirector_AdvancesPhase_WhenReachedDestination` updated to verify the new behaviour: `NavState.HasArrived = 1` alone does NOT advance the phase; it requires a `DoctrineFinishedEvent`.
-  - New: `ReachedDestination_AdvancesPhase_ViaDoctrineFinishedEvent` (SC1)
+  - Existing `MissionDirector_AdvancesPhase_WhenReachedDestination` updated to verify the new behaviour: `NavState.HasArrived = 1` alone does NOT advance the phase; it requires a `BehaviorFinishedEvent`.
+  - New: `ReachedDestination_AdvancesPhase_ViaBehaviorFinishedEvent` (SC1)
   - New: `ReachedDestination_DoesNotAdvance_WhenOnlyNavStateHasArrived` (SC2 negative)
 
 - `Hrot.SimHost.Tests/SimHostVisualizationTests.cs`:
-  - Updated `RightClick_BrainActive_WritesMissionWithTrigger` assertion from `"ReachedDestination"` to `"DoctrineFinished"` (SC3).
+  - Updated `RightClick_BrainActive_WritesMissionWithTrigger` assertion from `"ReachedDestination"` to `"BehaviorFinished"` (SC3).
   - Updated class and method XML docs.
 
 ---
@@ -99,7 +99,7 @@ if (!needsNewTarget && ctx.World.HasComponent<NavState>(ctx.Self))
 ## Challenges
 
 **`goto case` with `[Obsolete]` enum — unexpected runtime failure:**  
-The first implementation used `goto case MissionTrigger.DoctrineFinished` in the `ReachedDestination` switch case. The code compiled cleanly but the test `MissionDirector_AdvancesPhase_WhenReachedDestination` failed when all tests ran together (phase stayed at 0 after a two-run sequence). The test passed in isolation. Replacing `goto case` with direct inline logic (duplicating the single `if` statement) resolved the failure immediately. The root cause was likely a compiler subtlety where the `goto case` to an `[Obsolete]`-annotated label produced different IL than expected. The inline approach is cleaner and removes ambiguity.
+The first implementation used `goto case MissionTrigger.BehaviorFinished` in the `ReachedDestination` switch case. The code compiled cleanly but the test `MissionDirector_AdvancesPhase_WhenReachedDestination` failed when all tests ran together (phase stayed at 0 after a two-run sequence). The test passed in isolation. Replacing `goto case` with direct inline logic (duplicating the single `if` statement) resolved the failure immediately. The root cause was likely a compiler subtlety where the `goto case` to an `[Obsolete]`-annotated label produced different IL than expected. The inline approach is cleaner and removes ambiguity.
 
 **`fixed` buffer in test context:**  
 Reading `channel.Params` (a C# fixed buffer) in a test using `fixed (byte* src = channel.Params)` triggered `CS0213` ("already fixed expression") because `channel` is a local struct copy, not a GC-tracked heap object. Resolution: used `Unsafe.ReadUnaligned<MoveToParams>(ref channel.Params[0])` instead, which works for a value-type local.
@@ -111,7 +111,7 @@ Adding `[Obsolete]` to the enum value required adding `using System;` to the fil
 
 ## Design Gaps / Edge Cases
 
-**`ReachedDestination` in `MissionTriggerHelper.ResolveTrigger`:** The helper still maps the DDS string `"ReachedDestination"` to `EcsMissionTrigger.ReachedDestination` rather than silently remapping it to `DoctrineFinished`. This is intentional: the runtime evaluation path already delegates to the `DoctrineFinished` logic inside `MissionDirectorSystem`, so remapping at ingress would create a double-translation that obscures the backward-compat story. The `[Obsolete]` attribute with a descriptive message is sufficient guidance.
+**`ReachedDestination` in `MissionTriggerHelper.ResolveTrigger`:** The helper still maps the DDS string `"ReachedDestination"` to `EcsMissionTrigger.ReachedDestination` rather than silently remapping it to `BehaviorFinished`. This is intentional: the runtime evaluation path already delegates to the `BehaviorFinished` logic inside `MissionDirectorSystem`, so remapping at ingress would create a double-translation that obscures the backward-compat story. The `[Obsolete]` attribute with a descriptive message is sufficient guidance.
 
 **`EntityMissionEgressTranslator` and `SimHostInstance` using `ReachedDestination`:** These sites generate `CS0618` obsolete warnings after this batch. They fall outside the scope of BS1-T022 (which targets the runtime evaluation path, not every call site). They are tracked as follow-up debt.
 

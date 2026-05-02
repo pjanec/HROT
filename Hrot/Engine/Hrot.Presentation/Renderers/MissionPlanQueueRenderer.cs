@@ -41,12 +41,12 @@ public sealed class MissionPlanQueueRenderer : IImGuiRenderer
                 bool open = ImGui.TreeNodeEx($"Phase [{i}]", ImGuiTreeNodeFlags.SpanAvailWidth);
                     
                 ImGui.TableSetColumnIndex(1);
-                ImGui.TextDisabled($"DoctrineId: {phases[i].DoctrineId}"); // Summary in value cell
+                ImGui.TextDisabled($"BehaviorId: {phases[i].BehaviorId}"); // Summary in value cell
 
                 if (open)
                 {
                     var p = phases[i];
-                    DrawLeafRow("  DoctrineId", p.DoctrineId.ToString());
+                    DrawLeafRow("  BehaviorId", p.BehaviorId.ToString());
                     DrawLeafRow("  Trigger", p.Trigger.ToString());
                     DrawLeafRow("  TriggerParam", p.TriggerParam.ToString("F2"));
                     ImGui.TreePop();

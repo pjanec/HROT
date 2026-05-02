@@ -26,7 +26,7 @@ namespace Hrot.SimHost
     /// <summary>
     /// Thin <see cref="ISubsystem"/> adapter that embeds the SimHost simulation engine.
     ///
-    /// <para>All initialization, doctrine registration, ECS wiring, and network setup
+    /// <para>All initialization, behavior registration, ECS wiring, and network setup
     /// live in <see cref="SimHostApp"/>.  This class simply owns a <see cref="SimHostApp"/>
     /// instance, delegates the subsystem lifecycle to it, and adds the runner-specific
     /// background loop (<see cref="Start"/> / <see cref="Stop"/>).</para>
@@ -110,11 +110,11 @@ namespace Hrot.SimHost
         internal NetworkEntityMap TestHook_EntityMap => App.TestHook_EntityMap;
 
         /// <summary>
-        /// TestHook: exposes the <see cref="DoctrineRegistry"/> so integration tests can
-        /// register scenario-specific doctrines before transitioning the cluster to OperatingLive.
+        /// TestHook: exposes the <see cref="BehaviorRegistry"/> so integration tests can
+        /// register scenario-specific behaviors before transitioning the cluster to OperatingLive.
         /// </summary>
-        internal Fdp.Toolkit.Behavior.DoctrineRegistry TestHook_DoctrineRegistry
-            => App.TestHook_DoctrineRegistry;
+        internal Fdp.Toolkit.Behavior.BehaviorRegistry TestHook_BehaviorRegistry
+            => App.TestHook_BehaviorRegistry;
 
         /// <summary>TestHook: spawns an entity and returns its network ID.</summary>
         internal long TestHook_SpawnEntity(long tkbType, GeoPoint position)

@@ -25,7 +25,7 @@ public class MissionControlExecutionSystemTests
     {
         var repo = new EntityRepository();
         repo.RegisterComponent<MissionPlanQueue>();
-        repo.RegisterComponent<DoctrineState>();
+        repo.RegisterComponent<BehaviorState>();
         repo.RegisterComponent<BrainBTreeState>();
         repo.RegisterManagedComponent<ActiveMissionPlan>();
         repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
@@ -33,11 +33,11 @@ public class MissionControlExecutionSystemTests
         return repo;
     }
 
-    private static DoctrineRegistry CreateDoctrineRegistry()
+    private static BehaviorRegistry CreateBehaviorRegistry()
     {
-        var registry = new DoctrineRegistry();
+        var registry = new BehaviorRegistry();
         registry.Register(101, "MoveToLocation",
-            new DoctrineDefinition { Name = "MoveToLocation", BrainTier = BehaviorConstants.BrainTierBTree });
+            new BehaviorDefinition { Name = "MoveToLocation", BrainTier = BehaviorConstants.BrainTierBTree });
         return registry;
     }
 
@@ -88,7 +88,7 @@ public class MissionControlExecutionSystemTests
         var entity = repo.CreateEntity();
         entityMap.Register(1L, entity);
 
-        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry(), new TacticalIntentMapperRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
 
         var taskA = Guid.NewGuid();
         var requestId = Guid.NewGuid();
@@ -133,7 +133,7 @@ public class MissionControlExecutionSystemTests
         var entity = repo.CreateEntity();
         entityMap.Register(1L, entity);
 
-        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry(), new TacticalIntentMapperRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
 
         // First mission succeeds (BaseVersion 0).
         var taskA = Guid.NewGuid();
@@ -187,7 +187,7 @@ public class MissionControlExecutionSystemTests
         using var repo = CreateWorld();
         // Do NOT register entity â€” simulate unknown entity.
 
-        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry(), new TacticalIntentMapperRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
 
         var requestId = Guid.NewGuid();
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
@@ -225,7 +225,7 @@ public class MissionControlExecutionSystemTests
         using var repo = CreateWorld();
         // Entity NOT yet registered.
 
-        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry(), new TacticalIntentMapperRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
 
         var taskA = Guid.NewGuid();
         var requestId = Guid.NewGuid();
@@ -273,7 +273,7 @@ public class MissionControlExecutionSystemTests
         var entity = repo.CreateEntity();
         entityMap.Register(1L, entity);
 
-        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry(), new TacticalIntentMapperRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
 
         var taskA = Guid.NewGuid();
         var taskB = Guid.NewGuid();
@@ -319,17 +319,17 @@ public class MissionControlExecutionSystemTests
 
     /// <summary>
     /// S302-SC1/SC2: Processing a 3-task plan produces a <see cref="MissionPlanQueue"/>
-    /// with <c>PhaseCount == 3</c> and each phase bearing the expected doctrine ID.
+    /// with <c>PhaseCount == 3</c> and each phase bearing the expected behavior ID.
     /// </summary>
     [Fact]
-    public void ReplaceMission_3TaskPlan_PhaseCountAndDoctrineIdCorrect()
+    public void ReplaceMission_3TaskPlan_PhaseCountAndBehaviorIdCorrect()
     {
         var entityMap = new NetworkEntityMap();
         using var repo = CreateWorld();
         var entity = repo.CreateEntity();
         entityMap.Register(1L, entity);
 
-        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry(), new TacticalIntentMapperRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
 
         var taskA = Guid.NewGuid();
         var taskB = Guid.NewGuid();
@@ -351,10 +351,10 @@ public class MissionControlExecutionSystemTests
         var queue = repo.GetComponent<MissionPlanQueue>(entity);
         Assert.Equal(3, queue.PhaseCount);
 
-        // SC2: Each phase has the MoveToLocation doctrine ID (101).
+        // SC2: Each phase has the MoveToLocation behavior ID (101).
         Span<MissionPhase> phases = queue.Phases;
         for (int i = 0; i < 3; i++)
-            Assert.Equal(101, phases[i].DoctrineId);
+            Assert.Equal(101, phases[i].BehaviorId);
     }
 
     /// <summary>
@@ -368,7 +368,7 @@ public class MissionControlExecutionSystemTests
         var entity = repo.CreateEntity();
         entityMap.Register(1L, entity);
 
-        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry(), new TacticalIntentMapperRegistry());
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
 
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {

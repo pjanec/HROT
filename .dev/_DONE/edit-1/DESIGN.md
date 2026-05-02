@@ -18,8 +18,8 @@ In addition to the DRY extraction, `edit-1` introduces **three new authoring cap
 that are needed to reproduce the Urban Combat demo entirely through the UI:
 - **Embarkation & Cargo Management** — load infantry into vehicles via ORBAT drag-and-drop.
 - **Target Memory Seeding** — link a perceiver to a target entity on the map.
-- **Dynamic Doctrine Catalog** — mission doctrine dropdowns filtered by entity TKB blueprint,
-  driven by `DoctrineCatalog` in `Hrot.Map.Definitions`.
+- **Dynamic Behavior Catalog** — mission behavior dropdowns filtered by entity TKB blueprint,
+  driven by `BehaviorCatalog` in `Hrot.Map.Definitions`.
 
 ### Architecture Principles
 
@@ -86,7 +86,7 @@ implementation code goes here — only contracts and pure rendering panels.
 - `FDP.Toolkit.DER` (for `IDerRepo` used by ExCon adapters — reference only in the
   adapter namespaces, not in panel namespaces)
 - `Hrot.NED` (strictly for shared DTOs and enums — no DDS transport types)
-- `Hrot.Map.Definitions` (for `TkbEntityTypes`, `DoctrineCatalog`)
+- `Hrot.Map.Definitions` (for `TkbEntityTypes`, `BehaviorCatalog`)
 
 **Forbidden references:** `Hrot.ExCon`, `CycloneDDS`, `ModuleHost`, `Hrot.SimHost`.
 
@@ -152,16 +152,16 @@ public record MapLayerState(bool Satellite, bool GroundUnits, bool AirUnits, boo
 public record MissionCommitResult(bool Success, long NewVersion, string? ErrorMessage = null);
 ```
 
-### 0.B — `DoctrineCatalog` in `Hrot.Map.Definitions`
+### 0.B — `BehaviorCatalog` in `Hrot.Map.Definitions`
 
-A static, compile-time capability map that restricts which doctrines each TKB entity type
+A static, compile-time capability map that restricts which behaviors each TKB entity type
 may use.  Lives alongside `TkbEntityTypes` in `Hrot.Map.Definitions.Tkb`.
 
 ```csharp
-// Hrot.Map.Definitions/Tkb/DoctrineCatalog.cs
-public static class DoctrineCatalog
+// Hrot.Map.Definitions/Tkb/BehaviorCatalog.cs
+public static class BehaviorCatalog
 {
-    public static IReadOnlyList<string> GetValidDoctrines(long tkbType) => tkbType switch
+    public static IReadOnlyList<string> GetValidBehaviors(long tkbType) => tkbType switch
     {
         TkbEntityTypes.CivilianPedestrian => ["WanderCivil", "PanicFlee"],
         TkbEntityTypes.CivilianCar        => ["WanderCivil", "PanicFlee"],
@@ -173,13 +173,13 @@ public static class DoctrineCatalog
 }
 ```
 
-**Rationale:** The FDP engine's `DoctrineRegistry` must not be polluted with
+**Rationale:** The FDP engine's `BehaviorRegistry` must not be polluted with
 application-level `TkbType` routing rules.  The catalog lives where it belongs —
 next to the unit type constants.
 
-### 0.C — `DoctrineRegistry` Extension: `GetRegisteredNames()`
+### 0.C — `BehaviorRegistry` Extension: `GetRegisteredNames()`
 
-The existing `FDP.Toolkit.Behavior.DoctrineRegistry` class gains a single new read-only
+The existing `FDP.Toolkit.Behavior.BehaviorRegistry` class gains a single new read-only
 property / method:
 
 ```csharp
@@ -188,7 +188,7 @@ public IReadOnlyList<string> GetRegisteredNames()
 ```
 
 Used by `EditorMissionService` to cross-check catalog names against actually-registered
-doctrines (preventing UI offering a doctrine the local engine cannot execute).
+behaviors (preventing UI offering a behavior the local engine cannot execute).
 
 ---
 
@@ -206,10 +206,10 @@ The panel's internal state (selected TKB type, affiliation picker, initial prope
 preserved.  The translation from "Activate Placement Tool" button → `StartPlacementMode` remains
 inside the panel; the panel no longer constructs DDS payloads.
 
-### 1.B — Migrate `MissionPanel` (Dynamic Doctrine Catalog)
+### 1.B — Migrate `MissionPanel` (Dynamic Behavior Catalog)
 
 Move to `Hrot.UI.Common/Panels/MissionPanel.cs`.
-- Remove the hardcoded `_behaviorIds` constants array and the dummy `DoctrineRegistry`
+- Remove the hardcoded `_behaviorIds` constants array and the dummy `BehaviorRegistry`
   instantiation in the panel constructor.
 - Replace with dynamic calls: `logic.GetAvailableBehaviors(_selectedEntityId)` where `logic`
   is the injected `IMissionEditorService`.
@@ -367,11 +367,11 @@ registration API in the FDP kernel) to be called at startup.
 
 `Hrot.Editor/Adapters/EditorMissionService.cs`
 
-- Injected with `FdpEventBus`, `EntityRepository`, `DoctrineRegistry`.
+- Injected with `FdpEventBus`, `EntityRepository`, `BehaviorRegistry`.
 - `GetAvailableBehaviors(entityId)`:
   1. Read `TkbIdentity.TkbType` from ECS.
-  2. Call `DoctrineCatalog.GetValidDoctrines(tkbType)`.
-  3. Filter to names actually registered in `DoctrineRegistry`.
+  2. Call `BehaviorCatalog.GetValidBehaviors(tkbType)`.
+  3. Filter to names actually registered in `BehaviorRegistry`.
   4. Return filtered list.
 - `GetMissionSnapshot` → query `ActiveMissionPlan` managed component from ECS.
 - `CommitMissionAsync` → publish `MissionControlIntent` to event bus; cache `TaskCompletionSource<MissionCommitResult>` keyed by `RequestId`.
@@ -646,7 +646,7 @@ Update `Hrot.ExCon/Services/MissionEditorService.cs`:
 - `GetAvailableBehaviors(entityId)`:
   1. Get entity from `IDerRepo`.
   2. Check `TkbType` from NED descriptor.
-  3. Return `DoctrineCatalog.GetValidDoctrines(tkbType)`.
+  3. Return `BehaviorCatalog.GetValidBehaviors(tkbType)`.
   (No fallback to hardcoded list; returns empty on lookup failure.)
 
 ### 6.D — ExCon Composition Root: Wire Shared Panels
@@ -766,19 +766,19 @@ All tests live in a new class `EditorAuthoringIntegrationTests` in
 - Assert `envelope.Zones["test"].RoadNetworkPath == "Assets/sample_road.json"`.
 - Assert `envelope.Zones["test"].Obstacles.Count == 1`; `Obstacles[0].X == 50`.
 
-### 7.D — Doctrine Catalog Filtering
+### 7.D — Behavior Catalog Filtering
 
-**Test 1: Insurgent TKB resolves only Insurgent-valid doctrines**
+**Test 1: Insurgent TKB resolves only Insurgent-valid behaviors**
 - Spawn entity with `TkbIdentity { TkbType = TkbEntityTypes.Insurgent }`.
 - `EditorMissionService.GetAvailableBehaviors(entity.Index)`.
 - Assert contains `"Ambush"`; does not contain `"WanderCivil"`.
 
-**Test 2: Civilian TKB resolves only civilian doctrines**
+**Test 2: Civilian TKB resolves only civilian behaviors**
 - Spawn entity with `TkbIdentity { TkbType = TkbEntityTypes.CivilianPedestrian }`.
 - Assert contains `"WanderCivil"`; does not contain `"Ambush"`.
 
 **Test 3: Missing engine registration is filtered out**
-- Register only `"Ambush"` in `DoctrineRegistry`; entity is Insurgent.
+- Register only `"Ambush"` in `BehaviorRegistry`; entity is Insurgent.
 - Assert returns `["Ambush"]` (other catalog entries absent from registry are excluded).
 
 ---
@@ -836,11 +836,11 @@ tool hot path, and clean cancellation if the operator presses Escape.
 
 | Phase | Key Deliverables |
 |-------|-----------------|
-| 0 | `Hrot.UI.Common` project; all 9 Facade interfaces; `OrbatNodeViewModel`/`MapLayerState`/`MissionCommitResult` DTOs; `DoctrineCatalog` in `Hrot.Map.Definitions`; `DoctrineRegistry.GetRegisteredNames()` |
-| 1 | Migrated `SpawnerPanel`, `MissionPanel` (dynamic doctrine), `ConfigPanel` — all wired to Ports |
+| 0 | `Hrot.UI.Common` project; all 9 Facade interfaces; `OrbatNodeViewModel`/`MapLayerState`/`MissionCommitResult` DTOs; `BehaviorCatalog` in `Hrot.Map.Definitions`; `BehaviorRegistry.GetRegisteredNames()` |
+| 1 | Migrated `SpawnerPanel`, `MissionPanel` (dynamic behavior), `ConfigPanel` — all wired to Ports |
 | 2 | `SharedOrbatPanel` (embarkation D&D), `PreviewPanel`, `ZoneEditorPanel`, `SharedContextMenuPopulator` |
 | 3 | `EmbarkEntityCommand`, `DisembarkEntityCommand`, `SeedTargetCommand`, `SpawnZoneObstacleCommand`, `UpdateZoneConfigCommand` |
 | 4 | 8 Editor adapter classes; `EditorCargoSystem`, `EditorPerceptionSetupSystem`, `EditorZoneAuthoringSystem`, `PerceptionMapLayer` |
 | 5 | Full `Hrot.Editor` composition root wiring (all panels, adapters, map canvas, systems, layers) |
 | 6 | `ExConOrbatAdapter`; `ExConLogic: ISpawnController`; updated `MissionEditorService`; ExCon comp-root wired to shared panels |
-| 7 | `EditorAuthoringIntegrationTests` — 10 headless tests covering embarkation, target seeding, zone authoring, doctrine filtering |
+| 7 | `EditorAuthoringIntegrationTests` — 10 headless tests covering embarkation, target seeding, zone authoring, behavior filtering |

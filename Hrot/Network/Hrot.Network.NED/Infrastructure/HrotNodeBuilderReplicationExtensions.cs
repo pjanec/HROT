@@ -25,7 +25,7 @@ public sealed class HrotNodeBuilderWithReplication
 {
     private readonly HrotNodeBuilder _builder;
     private readonly NodeRole        _role;
-    private DoctrineRegistry?        _doctrineRegistry;
+    private BehaviorRegistry?        _behaviorRegistry;
 
     internal HrotNodeBuilderWithReplication(HrotNodeBuilder builder, NodeRole role)
     {
@@ -34,13 +34,13 @@ public sealed class HrotNodeBuilderWithReplication
     }
 
     /// <summary>
-    /// Injects a <see cref="DoctrineRegistry"/> that will be forwarded to
+    /// Injects a <see cref="BehaviorRegistry"/> that will be forwarded to
     /// <see cref="CognitiveTranslatorPack"/> so that <c>EntityMissionEgressTranslator</c>
     /// and <c>EntityMissionIngressTranslator</c> can serialise/deserialise mission plans.
     /// </summary>
-    public HrotNodeBuilderWithReplication WithDoctrineRegistry(DoctrineRegistry? registry)
+    public HrotNodeBuilderWithReplication WithBehaviorRegistry(BehaviorRegistry? registry)
     {
-        _doctrineRegistry = registry;
+        _behaviorRegistry = registry;
         return this;
     }
 
@@ -72,7 +72,7 @@ public sealed class HrotNodeBuilderWithReplication
             eventBus:         context.World.Bus,
             localNodeId:      context.NodeId,
             domainId:         0,
-            doctrineRegistry: _doctrineRegistry,
+            behaviorRegistry: _behaviorRegistry,
             tkbDb:            HrotEnvironment.CreateTkb(),
             lifecycleModule:  elm);
 
@@ -113,7 +113,7 @@ public static class HrotNodeBuilderReplicationExtensions
         this HrotNodeContext context,
         NodeRole             role,
         DdsParticipant       participant,
-        DoctrineRegistry?    doctrineRegistry = null)
+        BehaviorRegistry?    behaviorRegistry = null)
     {
         var elm = null as EntityLifecycleModule;
         foreach (var m in context.BaseModules)
@@ -129,7 +129,7 @@ public static class HrotNodeBuilderReplicationExtensions
             eventBus:         context.World.Bus,
             localNodeId:      context.NodeId,
             domainId:         0,
-            doctrineRegistry: doctrineRegistry,
+            behaviorRegistry: behaviorRegistry,
             tkbDb:            HrotEnvironment.CreateTkb(),
             lifecycleModule:  elm);
 

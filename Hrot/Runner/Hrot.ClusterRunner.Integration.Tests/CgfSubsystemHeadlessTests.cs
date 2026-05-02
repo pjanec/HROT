@@ -26,7 +26,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// <para><b>Coverage:</b></para>
 /// <list type="bullet">
 ///   <item>Entity creation on SimHost propagates to the CGF ghost repository via DDS.</item>
-///   <item>Moving vehicle (WanderMilitary doctrine) state updates reach the CGF ghost.</item>
+///   <item>Moving vehicle (WanderMilitary behavior) state updates reach the CGF ghost.</item>
 ///   <item>IG visual overlay objects (MapVisualOverlay / EditablePolyline) are created.</item>
 ///   <item>Entity drag-and-drop position update propagates from SimHost to CGF ghost.</item>
 ///   <item>Mission assignment (MissionControlRequest via DDS) reaches SimHost and the
@@ -123,7 +123,7 @@ public sealed class CgfSubsystemHeadlessTests
     // â”€â”€ HT-3: Moving vehicle â€” GeoSpatial updates reach CGF ghost â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
-    /// Spawns a tank, assigns WanderMilitary doctrine so it moves, and verifies that the
+    /// Spawns a tank, assigns WanderMilitary behavior so it moves, and verifies that the
     /// CGF ghost entity's <see cref="SimTransform"/> position changes as the SimHost publishes
     /// updated <c>WorldPos</c> DDS samples.  This tests the
     /// <c>GeoSpatialIngressTranslator</c> â†’ CGF ghost update path end-to-end.
@@ -358,15 +358,15 @@ public sealed class CgfSubsystemHeadlessTests
     }
 
 
-    // â”€â”€ HT-7: Mission + AI execution â€” doctrine activates and entity moves â”€â”€â”€â”€
+    // â”€â”€ HT-7: Mission + AI execution â€” behavior activates and entity moves â”€â”€â”€â”€
 
     /// <summary>
-    /// Assigns WanderMilitary doctrine via TestHook, waits for the entity to become active,
+    /// Assigns WanderMilitary behavior via TestHook, waits for the entity to become active,
     /// and verifies that the entity moves (proving the full Brain + Muscle execution loop
-    /// from doctrine â†’ BTree â†’ locomotion â†’ kinematics â†’ SimTransform update is intact).
+    /// from behavior â†’ BTree â†’ locomotion â†’ kinematics â†’ SimTransform update is intact).
     /// </summary>
     [Fact]
-    public void SimHost_WanderMission_EntityMovesAfterDoctrineActivation()
+    public void SimHost_WanderMission_EntityMovesAfterBehaviorActivation()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
         using var harness = new HrotRunnerHarness("simhost", domainId);
@@ -400,7 +400,7 @@ public sealed class CgfSubsystemHeadlessTests
 
         Assert.True(moved,
             $"Entity {networkId} did not move after WanderMilitary assignment within {MissionActivationMs} ms. " +
-            $"CarKinematicsSystem, GroundKinematicsSystem, or Brain doctrine activation may be broken.");
+            $"CarKinematicsSystem, GroundKinematicsSystem, or Brain behavior activation may be broken.");
     }
 
     // â”€â”€ HT-8: CGF does not crash when EntityStates arrive (regression for component-165 crash) â”€
@@ -457,17 +457,17 @@ public sealed class CgfSubsystemHeadlessTests
 
     /// <summary>
     /// Regression test for the double-publish race condition where
-    /// <c>MissionDirectorSystem</c> published <see cref="AssignDoctrineHashEvent"/>
+    /// <c>MissionDirectorSystem</c> published <see cref="AssignBehaviorHashEvent"/>
     /// simultaneously with <c>MissionAdapterSystem</c> publishing
     /// <see cref="AssignTacticalIntentEvent"/>.
     ///
-    /// Prior to the fix, <c>DoctrineIngressSystem</c> processed the hash event first,
+    /// Prior to the fix, <c>BehaviorIngressSystem</c> processed the hash event first,
     /// initialising the BTree with a zero blackboard.  The first tick dispatched
     /// <c>MoveTo(0,0)</c>; because the entity spawns near the map origin its
     /// distance to <c>(0,0)</c> was zero, so <c>NavigationExecutionSystem</c>
-    /// immediately set <c>NavigationResult.Arrived</c> and the doctrine finished before
+    /// immediately set <c>NavigationResult.Arrived</c> and the behavior finished before
     /// the entity ever moved.  <c>MissionAdapterSystem</c> then detected the exhausted
-    /// queue and emitted <c>ClearDoctrineEvent</c>, killing the plan.
+    /// queue and emitted <c>ClearBehaviorEvent</c>, killing the plan.
     ///
     /// After the fix <c>MissionDirectorSystem</c> only mutates the unmanaged phase
     /// pointer and <c>MissionAdapterSystem</c> is the sole emitter of cognitive-tier
@@ -503,8 +503,8 @@ public sealed class CgfSubsystemHeadlessTests
         // Send a MoveToLocation mission via DDS.  Full Brain pipeline exercised:
         //   MissionControlRequest (DDS) -> MissionControlExecutionSystem (CGF)
         //   -> MissionAdapterSystem -> AssignTacticalIntentEvent
-        //   -> TacticalIntentResolutionSystem -> AssignDoctrineEvent (with JSON params)
-        //   -> DoctrineIngressSystem -> BTree tick -> NavigationIntent (DDS)
+        //   -> TacticalIntentResolutionSystem -> AssignBehaviorEvent (with JSON params)
+        //   -> BehaviorIngressSystem -> BTree tick -> NavigationIntent (DDS)
         //   -> SimHost NavigationExecution -> entity movement.
         using var participant = new DdsParticipant((uint)harness.DomainId);
         using var reqWriter   = new DdsWriter<MissionControlRequest>(participant, "MissionControlRequest");
@@ -535,7 +535,7 @@ public sealed class CgfSubsystemHeadlessTests
                             State           = eTaskState.TASK_ACTIVE,
                             Triggers        = new System.Collections.Generic.List<DdsMissionTrigger>
                             {
-                                new DdsMissionTrigger { Type = "DoctrineFinished", Params = "" }
+                                new DdsMissionTrigger { Type = "BehaviorFinished", Params = "" }
                             }
                         }
                     }
@@ -564,7 +564,7 @@ public sealed class CgfSubsystemHeadlessTests
 
         // Key assertion: entity must start moving toward the real target.
         // Without the fix, the ghost tick targets (0,0); the entity spawned near (0,0)
-        // immediately "arrives", the doctrine finishes, and the entity never moves.
+        // immediately "arrives", the behavior finishes, and the entity never moves.
         const float MovedThresholdMetres = 5.0f;
         bool moved = harness.PumpUntil(
             () =>
@@ -582,7 +582,7 @@ public sealed class CgfSubsystemHeadlessTests
         Assert.True(moved,
             $"Entity {networkId} did not move >= {MovedThresholdMetres} m after MoveToLocation mission " +
             $"(dist={dist:F3} m). Ghost-tick regression: MissionDirectorSystem must not publish " +
-            $"AssignDoctrineHashEvent; only MissionAdapterSystem should emit cognitive-tier events.");
+            $"AssignBehaviorHashEvent; only MissionAdapterSystem should emit cognitive-tier events.");
     }
 
 

@@ -37,7 +37,7 @@ namespace Hrot.SimHost.Tests
         public SimHostVisualizationTests()
         {
             _repo = new EntityRepository();
-            _repo.RegisterComponent<DoctrineState>();
+            _repo.RegisterComponent<BehaviorState>();
             _repo.RegisterComponent<NetworkIdentity>();
             _repo.RegisterComponent<VehicleParams>();
             _repo.RegisterComponent<EcsNavigationIntent>();
@@ -48,14 +48,14 @@ namespace Hrot.SimHost.Tests
         // ── Test 1: brain-dead plain click → NavigationIntent(DirectPoint) ────────
 
         /// <summary>
-        /// Right-click on a brain-dead entity (no active doctrine) must write
+        /// Right-click on a brain-dead entity (no active behavior) must write
         /// NavigationIntent{Mode=DirectPoint, FinalDestination, TargetSpeed=15f, ArrivalRadius=3f}
         /// and must NOT invoke <c>missionWriter</c> or <c>setDestination</c>.
         /// </summary>
         [Fact]
         public void RightClick_BrainDead_WritesNavigationIntentDirectPoint()
         {
-            // Arrange: entity with no DoctrineState (brain-dead by absence of component).
+            // Arrange: entity with no BehaviorState (brain-dead by absence of component).
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new EcsNavigationIntent { IntentId = 5u });
 
@@ -82,14 +82,14 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// Same as above but with <c>DoctrineState { ActiveDoctrineHash = 0 }</c>
+        /// Same as above but with <c>BehaviorState { ActiveBehaviorHash = 0 }</c>
         /// (brain-dead via explicit None hash).
         /// </summary>
         [Fact]
         public void RightClick_BrainDead_ViaZeroHash_WritesNavigationIntent()
         {
             var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DoctrineIds.None });
+            _repo.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = BehaviorIds.None });
             _repo.AddComponent(entity, new EcsNavigationIntent { IntentId = 0u });
 
             bool setDestinationCalled = false;
@@ -118,7 +118,7 @@ namespace Hrot.SimHost.Tests
         {
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new EcsNavigationIntent { IntentId = 3u });
-            // No DoctrineState → brain-dead.
+            // No BehaviorState → brain-dead.
 
             bool addWaypointCalled   = false;
             bool setDestinationCalled = false;
@@ -147,10 +147,10 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void RightClick_BrainActive_WritesMissionWithTrigger()
         {
-            // Arrange: entity with active doctrine and a network identity.
+            // Arrange: entity with active behavior and a network identity.
             var stub = new StubMissionSender();
             var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = 2001 });
+            _repo.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = 2001 });
             _repo.AddComponent(entity, new NetworkIdentity { Value = 99 });
 
             bool setDestinationCalled = false;
@@ -187,7 +187,7 @@ namespace Hrot.SimHost.Tests
         public void Initialize_SetsMapCameraOffset()
         {
             var repo = new EntityRepository();
-            repo.RegisterComponent<DoctrineState>();
+            repo.RegisterComponent<BehaviorState>();
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterComponent<VehicleParams>();
             repo.RegisterComponent<VehicleState>();

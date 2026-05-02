@@ -14,7 +14,7 @@ namespace Hrot.ClusterRunner.Tests
     /// Integration tests for the embedded <see cref="SimHostSubsystem"/> implementation.
     ///
     /// <para>These tests exercise the full SimHost initialisation stack including
-    /// ECS kernel, doctrine registry, and network modules. They require that the
+    /// ECS kernel, behavior registry, and network modules. They require that the
     /// CycloneDDS runtime is available on the test host (same requirement as
     /// <see cref="WaitingRoomCoordinatorTests"/>).</para>
     /// </summary>
@@ -101,7 +101,7 @@ namespace Hrot.ClusterRunner.Tests
         public void Initialize_CreatesKernelAndModules_WithoutException()
         {
             // Verifies that the full SimHost initialisation stack (ECS world,
-            // doctrine registry, geographic module, network module) does not throw.
+            // behavior registry, geographic module, network module) does not throw.
             var ex = Record.Exception(() => _subsystem.Initialize(HeadlessConfig()));
             Assert.Null(ex);
         }

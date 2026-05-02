@@ -141,7 +141,7 @@ public sealed class EditorHarness : IDisposable
 
         EntityMap = new NetworkEntityMap();
 
-        var doctrineRegistry = new DoctrineRegistry();
+        var behaviorRegistry = new BehaviorRegistry();
         var clusterSlave     = new ClusterSlave(0, "EditorHarness", OrchBus);
         var serializer       = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
         var zoneService      = new ZoneManagerService();
@@ -159,7 +159,7 @@ public sealed class EditorHarness : IDisposable
 
         // ── Module registration (offline — no translator packs) ───────────────
         var simHostCorePack  = new SimHostCoreLogicPack(EntityMap);
-        var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, EntityMap,
+        var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, EntityMap,
             new ScenarioEntityCreationRequestSource(), new TacticalIntentMapperRegistry());
         var scenarioMod      = new ScenarioEditorModule(fileService);
         var simHostMod       = new SimHostModule(spawnSys);

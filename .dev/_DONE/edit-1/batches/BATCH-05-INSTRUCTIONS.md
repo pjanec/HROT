@@ -109,7 +109,7 @@ The complex adapters (`EditorEntityContextMenuHandler`, `EditorCargoSystem`, `Ed
 ## 🎯 Batch Objectives
 
 1. **A001** — `EditorSpawnAdapter` — translates `ISpawnController` calls to `MapCanvas.PushTool` 
-2. **A002** — `EditorMissionService` — dynamic doctrine filtering + TAP (Task-based async pattern) mission commits
+2. **A002** — `EditorMissionService` — dynamic behavior filtering + TAP (Task-based async pattern) mission commits
 3. **A003** — `EditorOrbatAdapter` — ECS-backed ORBAT tree + embarkation/disembarkation
 4. **A004** — `EditorMapPickAdapter` — async pick via `MapCanvas` tools
 5. **A005** — `EditorZoneAdapter` — publishes zone managed-events + pushes obstacle tool
@@ -148,20 +148,20 @@ No DDS types.
 **Full spec:** `.dev/edit-1/TASK-DETAIL.md` §EDIT1-A002  
 **Design:** `.dev/edit-1/DESIGN.md` §4.B
 
-**Constructor:** `EditorMissionService(FdpEventBus bus, EntityRepository repo, DoctrineRegistry registry)`
+**Constructor:** `EditorMissionService(FdpEventBus bus, EntityRepository repo, BehaviorRegistry registry)`
 
 **Key implementations:**
 - `GetAvailableBehaviors(long entityId)`:
   1. Cast `entityId` to `int`, get entity; guard alive + has `TkbIdentity`; else return `Array.Empty<string>()`
   2. Get `tkbType` from `TkbIdentity` component
-  3. `var catalog = DoctrineCatalog.GetValidDoctrines(tkbType)` (from `Hrot.Map.Definitions`)
+  3. `var catalog = BehaviorCatalog.GetValidBehaviors(tkbType)` (from `Hrot.Map.Definitions`)
   4. Return `catalog.Where(n => registry.TryGetId(n, out _)).ToList()`
 - `GetMissionSnapshot(long entityId)` → read `ActiveMissionPlan` managed component; map to `(MissionPlan?, long)`. Return `(null, 0)` if not present.
 - `CommitMissionAsync` and `SendControlCommandAsync` → TAP pattern: create `TaskCompletionSource<MissionCommitResult>`, cache by `requestId`, publish `MissionControlIntent` event. Return `tcs.Task`.
 - `PollAcks()` (called from Editor update loop) → consume `MissionControlAckEvent` from bus; resolve pending tasks.
 
 **Tests:**
-1. Create entity with `TkbIdentity.TkbType = TkbEntityTypes.Insurgent`; register `"Ambush"` doctrine; call `GetAvailableBehaviors` → returns list containing `"Ambush"`
+1. Create entity with `TkbIdentity.TkbType = TkbEntityTypes.Insurgent`; register `"Ambush"` behavior; call `GetAvailableBehaviors` → returns list containing `"Ambush"`
 2. Entity not alive → `GetAvailableBehaviors` returns empty list
 3. `CommitMissionAsync` → pump `PollAcks()` after injecting a matching ack event → `Task` completes with `Success = true`
 
@@ -351,6 +351,6 @@ What did you create or substitute?
 - **Tool patterns:** `Hrot.ScenarioEditor/Tools/` (CreationTool, StandardInteractionTool, RouteEditTool, EditTool — AreaAuthoring/RouteAuthoring only exist as IG methods, NOT tool classes)
 - **IMapTool interface:** `FDP/Toolkits/FDP.Toolkit.Vis2D/Abstractions/IMapTool.cs`
 - **New IScenarioStateProvider + ScenarioEditorState:** Create in `Hrot.ScenarioEditor/` (see Key API Facts §7)
-- **DoctrineCatalog:** `Hrot.Map.Definitions/Tkb/DoctrineCatalog.cs`
-- **DoctrineRegistry:** `FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineRegistry.cs`
+- **BehaviorCatalog:** `Hrot.Map.Definitions/Tkb/BehaviorCatalog.cs`
+- **BehaviorRegistry:** `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs`
 - **Test project:** `Hrot.Editor.Tests/` (use this for all adapter tests)

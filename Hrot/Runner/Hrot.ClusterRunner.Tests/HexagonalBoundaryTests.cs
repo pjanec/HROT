@@ -263,7 +263,7 @@ public sealed class HexagonalBoundaryTests
 
         // Return this (not _base) so the spy is preserved after ConfigureForNode.
         public INetworkFactory ConfigureForNode(DdsParticipant? p, int n, NodeRole r) => this;
-        public INetworkFactory ConfigureForNode(HrotNodeContext c, NodeRole r, DoctrineRegistry? d = null) => this;
+        public INetworkFactory ConfigureForNode(HrotNodeContext c, NodeRole r, BehaviorRegistry? d = null) => this;
 
         // Inject the spy instead of a null-object translator.
         public ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus bus, int nodeId)
@@ -321,7 +321,7 @@ public sealed class HexagonalBoundaryTests
         public long                NavigationStatusDescriptorId => _base.NavigationStatusDescriptorId;
 
         public INetworkFactory ConfigureForNode(DdsParticipant? p, int n, NodeRole r) => this;
-        public INetworkFactory ConfigureForNode(HrotNodeContext c, NodeRole r, DoctrineRegistry? d = null) => this;
+        public INetworkFactory ConfigureForNode(HrotNodeContext c, NodeRole r, BehaviorRegistry? d = null) => this;
 
         // Return spy instead of NullDisposable.
         public IDisposable CreateIdAllocatorServer() => _spy;

@@ -1645,7 +1645,7 @@ When subsystems or disparate systems need to communicate without holding direct 
 
 While a _generic_ subsystem-local service registry is not recommended, the framework makes heavy use of **Domain-Specific Registries**. This is the clean architecture alternative to a generic DI container, as it enforces strict type safety and domain constraints:
 
--   `ScenarioRegistry`: Explicitly maps string names to `IScenario` factory functions, avoiding reflection overhead while keeping startup fast and errors obvious.-   `DoctrineRegistry`: Maps integer IDs to AI `DoctrineDefinition` structures.-   `MapLayerRegistry`: A static, strongly-typed registry defining map layer predicates for the IG.
+-   `ScenarioRegistry`: Explicitly maps string names to `IScenario` factory functions, avoiding reflection overhead while keeping startup fast and errors obvious.-   `BehaviorRegistry`: Maps integer IDs to AI `BehaviorDefinition` structures.-   `MapLayerRegistry`: A static, strongly-typed registry defining map layer predicates for the IG.
 
 Summary
 

@@ -14,7 +14,7 @@ We are adding a **right-click context menu** to entity rows in the IOS ORBAT pan
 | **Center on entity** | Always | Pans the IG camera to the entity's current position |
 | **Delete** | Always | Requests entity deletion via SimHost; row is locked until ACK |
 | **Edit Route** | Physical entities only | Launches route-drawing tool on the IG; on completion the route is auto-assigned to the vehicle |
-| **Abort Mission** | Physical entities only | Sends `CMD_ABORT_ALL` to halt the entity's active doctrine |
+| **Abort Mission** | Physical entities only | Sends `CMD_ABORT_ALL` to halt the entity's active behavior |
 
 "Physical entities" are simulation units (vehicles, soldiers, etc.) as opposed to map graphics (routes, symbols, overlays).  The two mission-targeted actions are intentionally restricted to physical entities only.  **There is no propagation to subordinate entities** — actions always target only the entity that was right-clicked.
 

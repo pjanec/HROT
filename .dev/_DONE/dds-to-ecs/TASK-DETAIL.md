@@ -1122,7 +1122,7 @@ the network until the user clicks "Commit" (S14T3).
 
 **Change:**  
 For each task in the draft list, display:
-- An `ImGui.Combo` (dropdown) populated from the doctrine registry for `BehaviorId`.
+- An `ImGui.Combo` (dropdown) populated from the behavior registry for `BehaviorId`.
 - An `ImGui.InputTextMultiline` for the raw `BehaviorParams` JSON string.
 
 **Success Conditions:**
@@ -1305,7 +1305,7 @@ Flow:
 ## Phase 16: SimHost Mission Pipeline (UrbanCombat Alignment)
 
 *Source of truth: `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs`
-(`RegisterDoctrines()`, `RegisterSystems()`). See DESIGN.md §10 for full deviation analysis.*
+(`RegisterBehaviors()`, `RegisterSystems()`). See DESIGN.md §10 for full deviation analysis.*
 
 ---
 
@@ -1340,16 +1340,16 @@ entry; simply stop using it. Add an `[Obsolete]` comment on that line.
 **File:** `Hrot.SimHost/Translators/EntityMissionTranslator.cs`
 **Tests:** `Hrot.SimHost.Tests/EntityMissionTranslatorTests.cs`
 
-**Constructor change:** add `DoctrineRegistry _doctrineRegistry` parameter (matching the pattern
+**Constructor change:** add `BehaviorRegistry _behaviorRegistry` parameter (matching the pattern
 used by `MissionAdapterSystem`; the registry is already available in `SimHostApp`).
 
 **`PollIngress` / `ApplyToEntity` logic:**
 1. Iterate `ddsMission.Plan.Tasks` — truncate silently at 8 (log warning if count > 8).
-2. For each task, call `_doctrineRegistry.TryGetId(task.BehaviorId, out int doctrineId)`.
-   If resolution fails, log a warning and use `doctrineId = 0` (Idle).
+2. For each task, call `_behaviorRegistry.TryGetId(task.BehaviorId, out int behaviorId)`.
+   If resolution fails, log a warning and use `behaviorId = 0` (Idle).
 3. Map the first entry in `task.Triggers` list to `MissionTrigger` enum via the lookup table
    below. Unknown strings → `MissionTrigger.Immediate`.
-4. Build `MissionPhase { DoctrineId = doctrineId, Trigger = trigger, TriggerParam = param }`.
+4. Build `MissionPhase { BehaviorId = behaviorId, Trigger = trigger, TriggerParam = param }`.
 5. Write `MissionPlanQueue { PhaseCount = n, CurrentPhase = 0 }` with `cmd.SetComponent(...)`.
    (Unmanaged — `SetComponent`, not `SetManagedComponent`.)
 6. On `NOT_ALIVE_DISPOSED`: `cmd.RemoveComponent<MissionPlanQueue>(entity)`.
@@ -1364,7 +1364,7 @@ used by `MissionAdapterSystem`; the registry is already available in `SimHostApp
 
 **Test rewrites required in `EntityMissionTranslatorTests.cs`:**
 - `Ingress_ApplyToEntity_SetsMissionPlanQueue` — verify `PhaseCount`, `CurrentPhase == 0`, first
-  `MissionPhase.DoctrineId` matches the resolved doctrine, no `EntityMissionHolder` present.
+  `MissionPhase.BehaviorId` matches the resolved behavior, no `EntityMissionHolder` present.
 - `Ingress_ComponentRemoval_ClearsMissionPlanQueue` — verify `MissionPlanQueue` is removed on
   `NOT_ALIVE_DISPOSED`.
 
@@ -1387,7 +1387,7 @@ Remove:
 ```csharp
 // ── 1. MissionAdapterSystem ──────────────────────────────────────────
 // Stub — full implementation in TASK-S4.3.
-group.AddSystem(new MissionAdapterSystem(_doctrineRegistry, _entityMap));
+group.AddSystem(new MissionAdapterSystem(_behaviorRegistry, _entityMap));
 ```
 
 Replace with:
@@ -1410,13 +1410,13 @@ constructor parameter list and all associated plumbing.
 
 ---
 
-### DDS2ECS-S16T4 — Compile Real BTree Interpreters for All Doctrines
+### DDS2ECS-S16T4 — Compile Real BTree Interpreters for All Behaviors
 
 **Files:**
-- Edit: `Hrot.SimHost/SimHostApp.cs` (in `RegisterDoctrines()`)
+- Edit: `Hrot.SimHost/SimHostApp.cs` (in `RegisterBehaviors()`)
 - Create: `Hrot.SimHost/Brains/SimHostNodes.cs`
 
-**Pattern** — mirror `UrbanCombat/HeadlessDemoApp.cs RegisterDoctrines()`:
+**Pattern** — mirror `UrbanCombat/HeadlessDemoApp.cs RegisterBehaviors()`:
 ```csharp
 // MoveTo_BT
 private const string MoveToJson = """
@@ -1426,12 +1426,12 @@ private const string MoveToJson = """
     }
     """;
 
-// In RegisterDoctrines():
+// In RegisterBehaviors():
 var moveToReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
 moveToReg.Register("WriteMoveToChannel", SimHostNodes.Action_WriteMoveToChannel);
 var moveToBlob = TreeCompiler.CompileFromJson(MoveToJson);
-doctrineRegistry.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
-    new DoctrineDefinition {
+behaviorRegistry.Register(SimHostBehaviorIds.MoveTo_BT, "MoveToLocation",
+    new BehaviorDefinition {
         Name             = "MoveToLocation",
         BrainTier        = BehaviorConstants.BrainTierBTree,
         BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(moveToBlob, moveToReg),
@@ -1454,20 +1454,20 @@ using FDP.Toolkit.Behavior.Executors;
 ```
 
 **Success Conditions:**
-1. `doctrineRegistry.TryGetDefinition(SimHostDoctrineIds.MoveTo_BT, out var def)` → `def.BTreeInterpreter != null`.
-2. A single-frame simulation tick with an entity carrying `DoctrineState.ActiveDoctrineHash == MoveTo_BT` does not throw or produce a null-ref.
+1. `behaviorRegistry.TryGetDefinition(SimHostBehaviorIds.MoveTo_BT, out var def)` → `def.BTreeInterpreter != null`.
+2. A single-frame simulation tick with an entity carrying `BehaviorState.ActiveBehaviorHash == MoveTo_BT` does not throw or produce a null-ref.
 3. `dotnet build` GREEN.
 
 ---
 
-### DDS2ECS-S16T5 — Wire ParseParams Delegates for Param-Carrying Doctrines
+### DDS2ECS-S16T5 — Wire ParseParams Delegates for Param-Carrying Behaviors
 
 **Files:**
-- Edit: `Hrot.SimHost/SimHostApp.cs` (add `ParseParams` to each `DoctrineDefinition` that carries params)
+- Edit: `Hrot.SimHost/SimHostApp.cs` (add `ParseParams` to each `BehaviorDefinition` that carries params)
 - Edit: `Hrot.SimHost/Brains/SimHostNodes.cs` (add param struct definitions)
 
 **Goal:** When `EntityMissionTranslator` or `MissionDirectorSystem` activates a phase, the
-`DoctrineDefinition.ParseParams` delegate is called with `(task.BehaviorParams, ptr)` to write
+`BehaviorDefinition.ParseParams` delegate is called with `(task.BehaviorParams, ptr)` to write
 target coordinates into `BrainBlackboard.Memory` so `Action_WriteMoveToChannel` can read them.
 
 **Param structs** (add to `SimHostNodes.cs`):
@@ -1499,11 +1499,11 @@ unsafe ParseParams = static (json, ptr) =>
 }
 ```
 
-Wire into the `MoveTo_BT` and `FollowRoute_BT` `DoctrineDefinition` objects created in S16T4.
+Wire into the `MoveTo_BT` and `FollowRoute_BT` `BehaviorDefinition` objects created in S16T4.
 
 **Success Conditions:**
 1. `SimHostNodes_ParseParams_WritesCorrectBytesToBlackboard` unit test: construct
-   `DoctrineDefinition` for `MoveTo_BT`, call `def.ParseParams(json, ptr)`, read
+   `BehaviorDefinition` for `MoveTo_BT`, call `def.ParseParams(json, ptr)`, read
    `MoveToLocationParams` back and assert `X`, `Y`, `Speed`, `ArrivalRadius` match.
 2. No managed heap allocations inside the `ParseParams` delegate (use `Unsafe.Write`).
 3. `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj` GREEN.
@@ -1548,7 +1548,7 @@ Add three `<ProjectReference>` entries inside the existing `<ItemGroup>` that al
 After the existing `world.RegisterComponent<BrainBlackboard>();` line, add:
 
 ```csharp
-// HSM brain tiers (for APC-style HSM doctrines)
+// HSM brain tiers (for APC-style HSM behaviors)
 world.RegisterComponent<FDP.Toolkit.Behavior.Components.BrainHsm64>();
 world.RegisterComponent<FDP.Toolkit.Behavior.Components.BrainHsm128>();
 world.RegisterComponent<FDP.Toolkit.Behavior.Components.PreviousCapabilities>();
@@ -1634,7 +1634,7 @@ simGroup.AddSystem(new LosRequestBatchingSystem());
 simGroup.AddSystem(new ThreatEvaluationSystem());
 simGroup.AddSystem(new DamageSystem());
 simGroup.AddSystem(new HsmDamageBridgeSystem());
-simGroup.AddSystem(new HsmTickSystem<BrainHsm128>(_doctrineRegistry));
+simGroup.AddSystem(new HsmTickSystem<BrainHsm128>(_behaviorRegistry));
 ```
 
 **PostSim phase:**

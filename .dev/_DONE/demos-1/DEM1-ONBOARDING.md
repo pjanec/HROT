@@ -71,7 +71,7 @@ FDP/Examples/
 └── Fdp.Examples.UrbanCombat.Tests/  ← legacy (reference for test patterns!)
 ```
 
-> **Tip:** `Fdp.Examples.UrbanCombat` is an excellent reference. It shows how to build a `HeadlessDemoApp`, `ScenarioDirector`, register doctrines, and use `FDP.Toolkit.Behavior`.
+> **Tip:** `Fdp.Examples.UrbanCombat` is an excellent reference. It shows how to build a `HeadlessDemoApp`, `ScenarioDirector`, register behaviors, and use `FDP.Toolkit.Behavior`.
 
 ### Framework and Toolkits You Will Use
 

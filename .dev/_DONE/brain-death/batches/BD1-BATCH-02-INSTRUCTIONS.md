@@ -54,7 +54,7 @@ This batch starts by fixing a critical allocation issue raised during the BATCH-
 ---
 
 ## Context
-During BATCH-01, `ClearDoctrineEvent` and `DoctrineFinishedEvent` were implemented as managed classes causing GC allocation on every publish. We will convert them to unmanaged structs. Then, we will fix the SimHost right-click interaction to properly differentiate between brain-active entities (routes through mission command) and brain-dead entities (routes straight to muscle).
+During BATCH-01, `ClearBehaviorEvent` and `BehaviorFinishedEvent` were implemented as managed classes causing GC allocation on every publish. We will convert them to unmanaged structs. Then, we will fix the SimHost right-click interaction to properly differentiate between brain-active entities (routes through mission command) and brain-dead entities (routes straight to muscle).
 
 ---
 
@@ -68,16 +68,16 @@ During BATCH-01, `ClearDoctrineEvent` and `DoctrineFinishedEvent` were implement
 
 ### Task 1: CORRECTIVE-0 — Zero-Allocation Events
 **Files:**
-- `FDP/Toolkits/FDP.Toolkit.Behavior/Events/ClearDoctrineEvent.cs`
-- `FDP/Toolkits/FDP.Toolkit.Behavior/Events/DoctrineFinishedEvent.cs`
+- `FDP/Toolkits/FDP.Toolkit.Behavior/Events/ClearBehaviorEvent.cs`
+- `FDP/Toolkits/FDP.Toolkit.Behavior/Events/BehaviorFinishedEvent.cs`
 - `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BTreeTickSystem.cs`
-- `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs`
+- `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs`
 - `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs`
 - `Hrot.SimHost/Systems/MissionControlRequestSystem.cs`
 - The associated Test files.
 
 **Description:**
-Change `ClearDoctrineEvent` and `DoctrineFinishedEvent` from `sealed class` to `struct`. Replace all usages of `PublishManaged` and `ConsumeManaged` for these events with `PublishUnmanaged` and `ConsumeUnmanaged`. Update tests accordingly.
+Change `ClearBehaviorEvent` and `BehaviorFinishedEvent` from `sealed class` to `struct`. Replace all usages of `PublishManaged` and `ConsumeManaged` for these events with `PublishUnmanaged` and `ConsumeUnmanaged`. Update tests accordingly.
 
 **Tests Required:**
 - ✅ Verify existing tests compile and pass. Add assertion or validation that the struct copying behaves correctly if needed.
@@ -95,7 +95,7 @@ Change `ClearDoctrineEvent` and `DoctrineFinishedEvent` from `sealed class` to `
 **File:** `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs`
 
 **Description:**
-For triggers other than `DoctrineFinished`, Phase transitions currently mutate `DoctrineState` directly. Standardize this by using `AssignDoctrineEvent` (or a similar mechanism) instead of directly mutating it, restoring single-ownership to `DoctrineIngressSystem`.
+For triggers other than `BehaviorFinished`, Phase transitions currently mutate `BehaviorState` directly. Standardize this by using `AssignBehaviorEvent` (or a similar mechanism) instead of directly mutating it, restoring single-ownership to `BehaviorIngressSystem`.
 
 **Tests Required:**
 - ✅ Existing tests must pass, proving phase transitions behave correctly but correctly delegate state mutation.

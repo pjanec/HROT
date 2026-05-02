@@ -208,11 +208,11 @@ namespace Hrot.Core.Mission
             {
                 "TimerElapsed"       => (EcsMissionTrigger.TimerElapsed,     ParseTriggerParam(trigger.Params)),
                 // "ReachedDestination" is the legacy wire string for the navigation-arrival trigger.
-                // Per BS1-T022, arrival is now signalled via the DoctrineFinished path.
-                // Map to DoctrineFinished at ingress to preserve backward wire compatibility.
-                "ReachedDestination" => (EcsMissionTrigger.DoctrineFinished, 0f),
+                // Per BS1-T022, arrival is now signalled via the BehaviorFinished path.
+                // Map to BehaviorFinished at ingress to preserve backward wire compatibility.
+                "ReachedDestination" => (EcsMissionTrigger.BehaviorFinished, 0f),
                 "HealthCritical"     => (EcsMissionTrigger.HealthCritical,   ParseTriggerParam(trigger.Params)),
-                "DoctrineFinished"   => (EcsMissionTrigger.DoctrineFinished, 0f),
+                "BehaviorFinished"   => (EcsMissionTrigger.BehaviorFinished, 0f),
                 "UnderAttack"        => (EcsMissionTrigger.UnderAttack,      0f),
                 _                    => (EcsMissionTrigger.TimerElapsed,     0f)
             };

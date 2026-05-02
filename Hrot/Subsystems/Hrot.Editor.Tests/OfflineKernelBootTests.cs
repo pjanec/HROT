@@ -37,12 +37,12 @@ public class OfflineKernelBootTests : IDisposable
         _kernel.SetTimeController(stepping);
 
         var entityMap        = new NetworkEntityMap();
-        var doctrineRegistry = new DoctrineRegistry();
+        var behaviorRegistry = new BehaviorRegistry();
         var clusterSlave     = new ClusterSlave(0, "EditorTest");
         var fileService      = EditorBootstrap.CreateFileService();
 
         _kernel.RegisterModule(new SimHostCoreLogicPack(entityMap));
-        _kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, entityMap, new ScenarioEntityCreationRequestSource(),
+        _kernel.RegisterModule(new CgfLogicPack(behaviorRegistry, entityMap, new ScenarioEntityCreationRequestSource(),
             new TacticalIntentMapperRegistry()));
         _kernel.RegisterModule(new OrchestrationLogicPack(clusterSlave));
         _kernel.RegisterModule(new ScenarioEditorModule(fileService));

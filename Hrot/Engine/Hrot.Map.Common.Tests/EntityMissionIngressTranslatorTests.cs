@@ -17,16 +17,16 @@ namespace Hrot.Map.Common.Tests
         // ── BUG2-M001 – New trigger cases ─────────────────────────────────────
 
         [Fact]
-        public void ResolveTrigger_DoctrineFinished_ReturnsCorrectEnum()
+        public void ResolveTrigger_BehaviorFinished_ReturnsCorrectEnum()
         {
             var triggers = new List<DdsMissionTrigger>
             {
-                new DdsMissionTrigger { Type = "DoctrineFinished", Params = "" }
+                new DdsMissionTrigger { Type = "BehaviorFinished", Params = "" }
             };
 
             var (trigger, param) = MissionTriggerHelper.ResolveTrigger(triggers);
 
-            Assert.Equal(EcsMissionTrigger.DoctrineFinished, trigger);
+            Assert.Equal(EcsMissionTrigger.BehaviorFinished, trigger);
             Assert.Equal(0f, param);
         }
 
@@ -61,10 +61,10 @@ namespace Hrot.Map.Common.Tests
         }
 
         [Fact]
-        public void ResolveTrigger_ReachedDestination_MapsToDoctrineFinished()
+        public void ResolveTrigger_ReachedDestination_MapsToBehaviorFinished()
         {
             // "ReachedDestination" is the legacy wire string; per BS1-T022 it maps to
-            // DoctrineFinished at ingress (EcsMissionTrigger.ReachedDestination is [Obsolete]).
+            // BehaviorFinished at ingress (EcsMissionTrigger.ReachedDestination is [Obsolete]).
             var triggers = new List<DdsMissionTrigger>
             {
                 new DdsMissionTrigger { Type = "ReachedDestination", Params = "" }
@@ -72,7 +72,7 @@ namespace Hrot.Map.Common.Tests
 
             var (trigger, param) = MissionTriggerHelper.ResolveTrigger(triggers);
 
-            Assert.Equal(EcsMissionTrigger.DoctrineFinished, trigger);
+            Assert.Equal(EcsMissionTrigger.BehaviorFinished, trigger);
             Assert.Equal(0f, param);
         }
 

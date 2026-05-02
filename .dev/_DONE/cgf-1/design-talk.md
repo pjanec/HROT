@@ -16,7 +16,7 @@ CGF should have its own "CGF Control Panel" ImGui control panel (inspired by Sim
 
 -   restart the simulation - delete all entities, create everything again
 -   pause/resume the simulation, change time speed (0.1 - 10x), step the simulation deterministically, all by remote controlling the time master in other subsystem (currently in SimHost)
--   dynamically create new entities of different types (those the demo supports), giving them initially the same doctrine as in the demo.
+-   dynamically create new entities of different types (those the demo supports), giving them initially the same behavior as in the demo.
 
 CGF logic should use the fire / detonation messages from Hrot.NED. If they are obsolete or insufficient, the may be updated/extended as necessary to fulfill the needs (taking inspiration from the netowork messages defined in the FDP demos.
 
@@ -38,7 +38,7 @@ Architectural Alignment & Feasibility
 
 **2\. Brain / Muscle Separation** Your proposed split maps perfectly to the established data models:
 
--   **Navigation & Kinematics:** CGF (Brain) will evaluate BTree/HSM doctrines and write to `NavigationIntent`. SimHost (Muscle) will execute `CarKinematicsSystem`, perform pathfinding/avoidance, and return `NavigationStatus` over DDS to CGF.-   **Perception:** SimHost will run the `AutonomousPerceptionModule` (LOS raycasting, spatial hashing). It will broadcast the `SensorTargets` DDS topic, which CGF will ingest to update its entities' `TargetMemory` so the brains can react to threats.-   **Combat & Damage Assessment:** CGF will issue a `WeaponFireRequest`. SimHost will process the ballistics and hit detection, then publish a `MunitionDetonation` message. Because you want CGF to own the damage assessment, CGF will consume `MunitionDetonation`, run the `DamageCalculationSystem` to compute HP loss, and apply the damage locally (and optionally broadcast `EntityHitDamage` or `EntityDamage` so the IG can update health bars).
+-   **Navigation & Kinematics:** CGF (Brain) will evaluate BTree/HSM behaviors and write to `NavigationIntent`. SimHost (Muscle) will execute `CarKinematicsSystem`, perform pathfinding/avoidance, and return `NavigationStatus` over DDS to CGF.-   **Perception:** SimHost will run the `AutonomousPerceptionModule` (LOS raycasting, spatial hashing). It will broadcast the `SensorTargets` DDS topic, which CGF will ingest to update its entities' `TargetMemory` so the brains can react to threats.-   **Combat & Damage Assessment:** CGF will issue a `WeaponFireRequest`. SimHost will process the ballistics and hit detection, then publish a `MunitionDetonation` message. Because you want CGF to own the damage assessment, CGF will consume `MunitionDetonation`, run the `DamageCalculationSystem` to compute HP loss, and apply the damage locally (and optionally broadcast `EntityHitDamage` or `EntityDamage` so the IG can update health bars).
 
 **3\. IG Visualization** The `Hrot.IG` subsystem already contains the infrastructure for your visual requirements:
 
@@ -56,9 +56,9 @@ While the foundation is solid, implementing this exact CGF workflow will expose 
 
 -   **Required Fix:** Implement a `ScenarioControlRequest` (e.g., `CMD_CLEAR_ALL`) DDS topic. `SimHost` and `IG` must consume this to trigger their internal `ScenarioManager.ClearAll()` logic, which safely flushes the ECS repository, ELM lifecycle states, and trajectory pools.
 
-**Gap 3: Dynamic Spawn with Initial Doctrine** When CGF dynamically creates an entity via `CreateEntityRequest`, it needs to ensure the entity wakes up with the correct doctrine (e.g., `Ambush` or `ConvoyEscort` from the UrbanCombat demo). The `CreateEntityRequest` relies on `InitialDescriptors`.
+**Gap 3: Dynamic Spawn with Initial Behavior** When CGF dynamically creates an entity via `CreateEntityRequest`, it needs to ensure the entity wakes up with the correct behavior (e.g., `Ambush` or `ConvoyEscort` from the UrbanCombat demo). The `CreateEntityRequest` relies on `InitialDescriptors`.
 
--   **Required Fix:** Ensure the `EntityMission` descriptor (or a comparable initialization payload) is properly packed into the `EntityDescriptorUnion` during the `CreateEntityRequest`, and that the `CreateEntityRequestSystem` on SimHost successfully maps this into the ECS `MissionPlanQueue` or `DoctrineState` at spawn time.
+-   **Required Fix:** Ensure the `EntityMission` descriptor (or a comparable initialization payload) is properly packed into the `EntityDescriptorUnion` during the `CreateEntityRequest`, and that the `CreateEntityRequestSystem` on SimHost successfully maps this into the ECS `MissionPlanQueue` or `BehaviorState` at spawn time.
 
 **Gap 4: Continuous Combat Channel Sync** The FDP headless demos relied on raw `DemoWeaponMsg` and `DemoLocomotionMsg` structs to constantly sync the active BTree action ID to the physics node. Hrot's data model utilizes discrete events like `WeaponFireRequest`.
 
@@ -98,7 +98,7 @@ Impact on the CGF Subsystem
 
 Integrating the Orchestrator dramatically simplifies your CGF design:
 
--   **CGF sheds global responsibilities:** CGF no longer needs to worry about time scale, pausing, or coordinating global restarts.-   **CGF becomes a** **ClusterSlave****:** CGF simply instantiates a `ClusterSlave` to listen to `NodeOpCommand` messages from the Orchestrator. When commanded to enter `RunningLive`, CGF wakes up its BTrees and evaluates its doctrines. When commanded to enter `Standby`, CGF flushes its AI states.-   **Focus on the Brain:** CGF can now purely focus on its core objective: evaluating entity doctrines, running the Damage Assessment, and publishing `WeaponFireRequest` and `NavigationIntent` messages for `SimHost` to execute.
+-   **CGF sheds global responsibilities:** CGF no longer needs to worry about time scale, pausing, or coordinating global restarts.-   **CGF becomes a** **ClusterSlave****:** CGF simply instantiates a `ClusterSlave` to listen to `NodeOpCommand` messages from the Orchestrator. When commanded to enter `RunningLive`, CGF wakes up its BTrees and evaluates its behaviors. When commanded to enter `Standby`, CGF flushes its AI states.-   **Focus on the Brain:** CGF can now purely focus on its core objective: evaluating entity behaviors, running the Damage Assessment, and publishing `WeaponFireRequest` and `NavigationIntent` messages for `SimHost` to execute.
 
 The mgmt-DESIGN talks about scenario saving. The current FDP probably does not yet have a complete support for saving the scenario state to a scenario file but there was an idea that the ECS components can support serialization specifically targetted for scenario saving (saving stuff in persistable way that does not depend on internal memory format, using persitable entity ids that are saveable and restorable independently on current local ECS entity id etc.) I will need to implement at least some very basic support for distributed scenario saving/loading (together with checkpointing and dry run possibilities).
 
@@ -156,7 +156,7 @@ Here is how the deterministic testing flow is designed to work:
 
 -   **Frame-Perfect Assertions:** The test harness uses the `ScenarioSubsystem` to drive the loop. Every frame, it advances the time by a fixed delta and calls your script's `EvaluateTick()` method _before_ the main kernel updates. This allows your tests to safely inject events and evaluate precise state assertions at exact tick boundaries.-   **Automated CI Integration:** If a test assertion fails, or if the simulation exceeds its predefined maximum tick budget, the subsystem halts and exits with standard CI exit codes (0 for success, 1 for assertion failure, 2 for timeout).-   **Safe System Operations:** To keep the test perfectly deterministic even during complex background tasks (like saving or loading), the **ClusterMaster** **automatically intercepts heavy** **ClusterOpRequests** **during deterministic mode and signals the master time controller to temporarily halt frame emission**.
 
-Making this your primary testing mechanism for the minimalist CGF is a fantastic approach. It will allow you to run fast, headless regression tests in your CI pipeline, instantly catching any synchronization or state machine bugs before introducing the massive complexity of the final `UrbanCombat` AI doctrines.
+Making this your primary testing mechanism for the minimalist CGF is a fantastic approach. It will allow you to run fast, headless regression tests in your CI pipeline, instantly catching any synchronization or state machine bugs before introducing the massive complexity of the final `UrbanCombat` AI behaviors.
 
 let's take a closer look ok the content of the mgmt-DESIGN and let's prepare a more detailed stage plan for implementing the ideas from the mgmt-DESIGN in the context of our CGF implementation effort. Let's pls suggest the stages list first (conside 'stage' as sub-unit of a much bigger 'phase'.
 
@@ -254,6 +254,6 @@ ok. We need to be sure each of the stage development end with a clear well defin
 
 -   **Stage 4.1: Trivial Scenario Full-Loop Test**
     -   **Validation:** End-to-end integration. An automated CI script drives a trivial scenario through `RunningLive` -> Record -> Pause (Future Barrier) -> Checkpoint -> `RunningReplay` -> Branch to new Live. Assert exit code 0.-   **Stage 4.2: Urban Combat AI Porting**
-    -   **Validation:** AI bootstrap test. The CGF subsystem processes a `CreateEntityRequest` for a Military APC and Insurgent. Assert the `DoctrineState` correctly maps to the `ConvoyEscort_HSM` and `Ambush_BT` compiled blobs.-   **Stage 4.3: Combat CQRS Sync**
+    -   **Validation:** AI bootstrap test. The CGF subsystem processes a `CreateEntityRequest` for a Military APC and Insurgent. Assert the `BehaviorState` correctly maps to the `ConvoyEscort_HSM` and `Ambush_BT` compiled blobs.-   **Stage 4.3: Combat CQRS Sync**
     -   **Validation:** Distributed combat message test. The CGF evaluates `Ambush_BT` and publishes `WeaponFireRequest`. Assert the SimHost's `WeaponFireRequestIngressTranslator` consumes it and translates it to a `WeaponFireIntent` ECS event. Assert `DamageCalculationSystem` publishes `DamageAssessedEvent`, which returns to the CGF as `EntityHitDamage`.
 

@@ -382,7 +382,7 @@ public void RegisterSystems(ISystemRegistry registry)
 - `SharedTranslatorPack.Create(...)` — study the actual signature in the file (it may differ
   slightly from TASK-DETAIL). Match what the code actually accepts.
 - `KinematicTranslatorPack.Create(...)` — same: study the actual method signature.
-- `CognitiveTranslatorPack.Create(...)` — takes `doctrineRegistry?` which can be `null` for
+- `CognitiveTranslatorPack.Create(...)` — takes `behaviorRegistry?` which can be `null` for
   NedReplicationModule (moved to subsystem's responsibility).
 - `CycloneNetworkIngressSystem` and `CycloneEgressSystem` — these classes are defined inside
   `CycloneNetworkModule.cs` (local to the Cyclone assembly). Check their namespace and whether

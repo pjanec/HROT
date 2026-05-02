@@ -26,7 +26,7 @@ namespace Hrot.SimHost.Tests
         public TacticalIntentEgressTranslatorTests()
         {
             _world = new EntityRepository();
-            _world.RegisterComponent<DoctrineState>();
+            _world.RegisterComponent<BehaviorState>();
             _entityMap = new NetworkEntityMap();
         }
 
@@ -40,14 +40,14 @@ namespace Hrot.SimHost.Tests
             return (translator, writer);
         }
 
-        // SC-1: Entity in map, no DoctrineState authority -> DDS write happens
+        // SC-1: Entity in map, no BehaviorState authority -> DDS write happens
         [Fact]
         public void ScanAndPublish_NoAuthority_WritesDdsSample()
         {
             var (translator, writer) = BuildTranslator();
 
             var entity = _world.CreateEntity();
-            _world.AddComponent(entity, new DoctrineState());
+            _world.AddComponent(entity, new BehaviorState());
             // Authority NOT set (remote entity)
             _entityMap.Register(42L, entity);
 
@@ -74,7 +74,7 @@ namespace Hrot.SimHost.Tests
             var (translator, writer) = BuildTranslator();
 
             var entity = _world.CreateEntity();
-            _world.AddComponent(entity, new DoctrineState());
+            _world.AddComponent(entity, new BehaviorState());
             // Entity not registered in entityMap
 
             _world.Bus.PublishManaged(new AssignTacticalIntentEvent
@@ -98,11 +98,11 @@ namespace Hrot.SimHost.Tests
             var (translator, writer) = BuildTranslator();
 
             var e1 = _world.CreateEntity();
-            _world.AddComponent(e1, new DoctrineState());
+            _world.AddComponent(e1, new BehaviorState());
             _entityMap.Register(1L, e1);
 
             var e2 = _world.CreateEntity();
-            _world.AddComponent(e2, new DoctrineState());
+            _world.AddComponent(e2, new BehaviorState());
             _entityMap.Register(2L, e2);
 
             _world.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = e1, IntentId = "DefendArea", JsonParams = "{}" });
@@ -115,15 +115,15 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, translator.SentSampleCount);
         }
 
-        // SC-4: Entity HAS DoctrineState authority -> no DDS write
+        // SC-4: Entity HAS BehaviorState authority -> no DDS write
         [Fact]
         public void ScanAndPublish_HasAuthority_NoDdsWrite()
         {
             var (translator, writer) = BuildTranslator();
 
             var entity = _world.CreateEntity();
-            _world.AddComponent(entity, new DoctrineState());
-            _world.SetAuthority<DoctrineState>(entity, true);  // locally owned
+            _world.AddComponent(entity, new BehaviorState());
+            _world.SetAuthority<BehaviorState>(entity, true);  // locally owned
             _entityMap.Register(99L, entity);
 
             _world.Bus.PublishManaged(new AssignTacticalIntentEvent

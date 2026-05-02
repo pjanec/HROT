@@ -39,7 +39,7 @@ Cross-checked **`.dev-workstream/reports/BATCH-09-REPORT.md`** against the tree.
 
 ### Task 4 — File rename
 
-**Found:** **`BehaviorValidationDoctrineIds.cs`** at repo root of `Fdp.Examples.Scenarios` (report-accurate).
+**Found:** **`BehaviorValidationBehaviorIds.cs`** at repo root of `Fdp.Examples.Scenarios` (report-accurate).
 
 ### Task 5 — DEM1-D009 Phase A
 
@@ -68,7 +68,7 @@ BATCH-09: incremental perception grid; scoped-bus contract; recording Blocking; 
 - SpatialHashGrid: Remove + free-list; LocalGridBuilderSystem incremental updates + full rebuild on count change
 - AutonomousPerceptionModule: document scoped event whitelist; test world-bus non-leakage
 - RecordingConfiguration.Blocking + RecorderTickSystem wiring; Replay test for blocking recording
-- Rename DemoDoctrineIds.cs to BehaviorValidationDoctrineIds.cs
+- Rename DemoBehaviorIds.cs to BehaviorValidationBehaviorIds.cs
 - Add DistributedTankScenario (two DDS participants, dual kernels), registry + Phase A tests
 ```
 

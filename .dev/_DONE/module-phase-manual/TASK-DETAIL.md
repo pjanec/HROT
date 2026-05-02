@@ -484,26 +484,26 @@ Without this forwarding call, `AutonomousPerceptionModule.RegisterSystems` is ne
 
 ---
 
-## Phase 5: Doctrine Auto-Registration
+## Phase 5: Behavior Auto-Registration
 
-### MPM-P5-T01 - Create DoctrineCategory and DoctrineContractAttribute
+### MPM-P5-T01 - Create BehaviorCategory and BehaviorContractAttribute
 
-**Design reference:** [DESIGN.md § Phase 5.1](./DESIGN.md#51-define-doctrinecategory-and-doctrinecontractattribute)
+**Design reference:** [DESIGN.md § Phase 5.1](./DESIGN.md#51-define-behaviorcategory-and-behaviorcontractattribute)
 
 **Scope:**
-Introduce the two new types in `Hrot.Core` that anchor all doctrine metadata.
+Introduce the two new types in `Hrot.Core` that anchor all behavior metadata.
 
 **New files:**
-- `Hrot/Engine/Hrot.Core/MapDefinitions/Doctrine/DoctrineCategory.cs`
-- `Hrot/Engine/Hrot.Core/MapDefinitions/Doctrine/DoctrineContractAttribute.cs`
+- `Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/BehaviorCategory.cs`
+- `Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/BehaviorContractAttribute.cs`
 
-Contents as specified in [DESIGN.md § 5.1](./DESIGN.md#51-define-doctrinecategory-and-doctrinecontractattribute).
+Contents as specified in [DESIGN.md § 5.1](./DESIGN.md#51-define-behaviorcategory-and-behaviorcontractattribute).
 
 **Success conditions:**
 - Both files exist and compile without errors.
-- `DoctrineCategory` is a `[Flags]` enum with values: `None=0`, `Civilian=1`, `MilitaryApc=2`, `Infantry=4`, `Insurgent=8`, `AllMilitary=14`.
-- `DoctrineContractAttribute` is `AttributeUsage(AttributeTargets.Class, Inherited=false, AllowMultiple=false)`.
-- Unit test: Decorate a dummy class with the attribute. Verify `GetCustomAttribute<DoctrineContractAttribute>()` returns the correct `DoctrineId`, `BehaviorId`, and `ValidCategories`.
+- `BehaviorCategory` is a `[Flags]` enum with values: `None=0`, `Civilian=1`, `MilitaryApc=2`, `Infantry=4`, `Insurgent=8`, `AllMilitary=14`.
+- `BehaviorContractAttribute` is `AttributeUsage(AttributeTargets.Class, Inherited=false, AllowMultiple=false)`.
+- Unit test: Decorate a dummy class with the attribute. Verify `GetCustomAttribute<BehaviorContractAttribute>()` returns the correct `BehaviorId`, `BehaviorId`, and `ValidCategories`.
 
 ---
 
@@ -512,51 +512,51 @@ Contents as specified in [DESIGN.md § 5.1](./DESIGN.md#51-define-doctrinecatego
 **Design reference:** [DESIGN.md § Phase 5.2](./DESIGN.md#52-decorate-existing-parameter-dtos-and-add-empty-marker-dtos)
 
 **Scope:**
-Apply `[DoctrineContract]` to existing DTOs and create empty marker DTOs for parameterless doctrines. Add `public const string BehaviorId` to each.
+Apply `[BehaviorContract]` to existing DTOs and create empty marker DTOs for parameterless behaviors. Add `public const string BehaviorId` to each.
 
 **Existing DTO files to modify** (all in `Hrot/Engine/Hrot.Core/`):
-- `FireAtTargetParamsJsonDto.cs` - add `[DoctrineContract(CgfDoctrineIds.FireAtTarget_BT, BehaviorId, DoctrineCategory.AllMilitary)]` and `public const string BehaviorId = "FireAtTarget";`
-- `MoveToLocationParamsJsonDto.cs` - add `[DoctrineContract(CgfDoctrineIds.MoveTo_BT, BehaviorId, DoctrineCategory.AllMilitary | DoctrineCategory.Civilian)]` and `public const string BehaviorId = "MoveToLocation";`
+- `FireAtTargetParamsJsonDto.cs` - add `[BehaviorContract(CgfBehaviorIds.FireAtTarget_BT, BehaviorId, BehaviorCategory.AllMilitary)]` and `public const string BehaviorId = "FireAtTarget";`
+- `MoveToLocationParamsJsonDto.cs` - add `[BehaviorContract(CgfBehaviorIds.MoveTo_BT, BehaviorId, BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]` and `public const string BehaviorId = "MoveToLocation";`
 - `FollowRouteParamsJsonDto.cs` - add attribute and `public const string BehaviorId = "FollowRoute";`
 - `JoinFormationParamsJsonDto.cs` - add attribute and `public const string BehaviorId = "JoinFormation";`
 
-**New empty marker DTO files to create** (in `Hrot/Engine/Hrot.Core/MapDefinitions/Doctrine/`):
+**New empty marker DTO files to create** (in `Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/`):
 - `IdleParamsJsonDto.cs`
 - `WanderMilitaryParamsJsonDto.cs`
 - `ConvoyEscortParamsJsonDto.cs`
 - `InfantryCombatParamsJsonDto.cs`
 - `AmbushParamsJsonDto.cs`
 
-Each new file contains a class with the `[DoctrineContract]` attribute and a `public const string BehaviorId` constant only.
+Each new file contains a class with the `[BehaviorContract]` attribute and a `public const string BehaviorId` constant only.
 
 **Success conditions:**
-- All five existing DTOs have both the `[DoctrineContract]` attribute and a `const string BehaviorId`.
+- All five existing DTOs have both the `[BehaviorContract]` attribute and a `const string BehaviorId`.
 - All five marker DTO files exist and compile.
-- Reflection test: `Assembly.GetTypes().Where(t => t.GetCustomAttribute<DoctrineContractAttribute>() != null)` returns at least 9 types (4 existing + 5 new).
+- Reflection test: `Assembly.GetTypes().Where(t => t.GetCustomAttribute<BehaviorContractAttribute>() != null)` returns at least 9 types (4 existing + 5 new).
 
 ---
 
-### MPM-P5-T03 - Create DoctrineSchemaDiscovery
+### MPM-P5-T03 - Create BehaviorSchemaDiscovery
 
-**Design reference:** [DESIGN.md § Phase 5.3](./DESIGN.md#53-build-doctrineschemariscovery-for-auto-registration)
+**Design reference:** [DESIGN.md § Phase 5.3](./DESIGN.md#53-build-behaviorschemariscovery-for-auto-registration)
 
 **Scope:**
 Create the auto-registration utility that scans the assembly and invokes `Register<T>` generically on `BehaviorUiRegistry` and `ScenarioBehaviorRemapper`.
 
-**Pre-condition:** Verify which project can reference both `Hrot.Core` (for `DoctrineContractAttribute`) and `Fdp.Toolkit.Behavior` (for `ScenarioBehaviorRemapper`) and `Hrot.Presentation` (for `BehaviorUiRegistry`) without creating a circular dependency. Check `.csproj` files of candidate projects (`Hrot.Presentation`, `Hrot.CGF`).
+**Pre-condition:** Verify which project can reference both `Hrot.Core` (for `BehaviorContractAttribute`) and `Fdp.Toolkit.Behavior` (for `ScenarioBehaviorRemapper`) and `Hrot.Presentation` (for `BehaviorUiRegistry`) without creating a circular dependency. Check `.csproj` files of candidate projects (`Hrot.Presentation`, `Hrot.CGF`).
 
 **New file:** Create in the appropriate project (confirmed by dependency check above).
 
-Content: `DoctrineSchemaDiscovery.AutoRegister(BehaviorUiRegistry, ScenarioBehaviorRemapper)` as specified in [DESIGN.md § 5.3](./DESIGN.md#53-build-doctrineschemariscovery-for-auto-registration).
+Content: `BehaviorSchemaDiscovery.AutoRegister(BehaviorUiRegistry, ScenarioBehaviorRemapper)` as specified in [DESIGN.md § 5.3](./DESIGN.md#53-build-behaviorschemariscovery-for-auto-registration).
 
 **Success conditions:**
-- `DoctrineSchemaDiscovery.cs` compiles without creating a circular project dependency.
-- Unit test: Call `AutoRegister` with mock/real registry instances. Verify that `BehaviorUiRegistry` has registered entries for all 9 doctrine DTOs. Verify `ScenarioBehaviorRemapper` has delegates for all 9 behavior IDs.
+- `BehaviorSchemaDiscovery.cs` compiles without creating a circular project dependency.
+- Unit test: Call `AutoRegister` with mock/real registry instances. Verify that `BehaviorUiRegistry` has registered entries for all 9 behavior DTOs. Verify `ScenarioBehaviorRemapper` has delegates for all 9 behavior IDs.
 - No magic strings appear in the test or the `AutoRegister` method itself.
 
 ---
 
-### MPM-P5-T04 - Replace BehaviorUiSetup and CgfDoctrineSetup Manual Registrations
+### MPM-P5-T04 - Replace BehaviorUiSetup and CgfBehaviorSetup Manual Registrations
 
 **Design reference:** [DESIGN.md § Phase 5.4 - 5.5](./DESIGN.md#54-replace-behavioruisetup-manual-registrations)
 
@@ -564,32 +564,32 @@ Content: `DoctrineSchemaDiscovery.AutoRegister(BehaviorUiRegistry, ScenarioBehav
 Remove the hardcoded `Register<T>("string")` calls from both setup files and replace with the auto-discovery call.
 
 **Files to modify:**
-- `Hrot/Engine/Hrot.Presentation/Behavior/BehaviorUiSetup.cs`: Replace the body of `CreateRegistry()` with `DoctrineSchemaDiscovery.AutoRegister(registry, remapper)`. Plumb `remapper` parameter in from the call site if not already present.
-- `Hrot/Subsystems/Hrot.CGF/Configuration/CgfDoctrineSetup.cs`: Derive the `behaviorId` argument in each `registry.Register(id, behaviorId, ...)` call from the DTO's `[DoctrineContract].BehaviorId` instead of a raw string literal. Alternatively, if the full auto-registration approach applies here, use `DoctrineSchemaDiscovery`.
+- `Hrot/Engine/Hrot.Presentation/Behavior/BehaviorUiSetup.cs`: Replace the body of `CreateRegistry()` with `BehaviorSchemaDiscovery.AutoRegister(registry, remapper)`. Plumb `remapper` parameter in from the call site if not already present.
+- `Hrot/Subsystems/Hrot.CGF/Configuration/CgfBehaviorSetup.cs`: Derive the `behaviorId` argument in each `registry.Register(id, behaviorId, ...)` call from the DTO's `[BehaviorContract].BehaviorId` instead of a raw string literal. Alternatively, if the full auto-registration approach applies here, use `BehaviorSchemaDiscovery`.
 
 **Success conditions:**
-- No magic behavior-ID string literals exist in `BehaviorUiSetup.cs` or `CgfDoctrineSetup.cs`.
+- No magic behavior-ID string literals exist in `BehaviorUiSetup.cs` or `CgfBehaviorSetup.cs`.
 - Integration test: Build and run the UI setup; assert that `BehaviorUiRegistry` returns a non-null UI descriptor for `"FireAtTarget"`, `"MoveToLocation"`, etc.
 - Solution builds without errors.
 
 ---
 
-### MPM-P5-T05 - Rebuild DoctrineCatalog Using Reflection
+### MPM-P5-T05 - Rebuild BehaviorCatalog Using Reflection
 
-**Design reference:** [DESIGN.md § Phase 5.6](./DESIGN.md#56-rebuild-doctrinecatalog-using-reflection)
+**Design reference:** [DESIGN.md § Phase 5.6](./DESIGN.md#56-rebuild-behaviorcatalog-using-reflection)
 
 **Scope:**
-Replace the hardcoded string arrays in `DoctrineCatalog.cs` with a reflection-based dictionary built once at type initialization.
+Replace the hardcoded string arrays in `BehaviorCatalog.cs` with a reflection-based dictionary built once at type initialization.
 
-**File to modify:** `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/DoctrineCatalog.cs`
+**File to modify:** `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/BehaviorCatalog.cs`
 
-Replace `s_militaryApcDoctrines`, `s_infantryDoctrines`, `s_insurgentDoctrines`, `s_defaultDoctrines` arrays with the `BuildMap()` implementation as specified in [DESIGN.md § 5.6](./DESIGN.md#56-rebuild-doctrinecatalog-using-reflection).
+Replace `s_militaryApcBehaviors`, `s_infantryBehaviors`, `s_insurgentBehaviors`, `s_defaultBehaviors` arrays with the `BuildMap()` implementation as specified in [DESIGN.md § 5.6](./DESIGN.md#56-rebuild-behaviorcatalog-using-reflection).
 
 **Success conditions:**
-- No string literals like `"ConvoyEscort"`, `"FireAtTarget"`, etc. appear in `DoctrineCatalog.cs`.
-- Unit test: `DoctrineCatalog.GetValidDoctrines(TkbEntityTypes.MilitaryApc)` returns a list containing `"FireAtTarget"`, `"MoveToLocation"`, `"ConvoyEscort"`, `"WanderMilitary"`, `"FollowRoute"`.
-- Unit test: `DoctrineCatalog.GetValidDoctrines(TkbEntityTypes.CivilianPedestrian)` does NOT contain `"FireAtTarget"`.
-- Adding a new `[DoctrineContract]` DTO automatically appears in the catalog results without touching `DoctrineCatalog.cs`.
+- No string literals like `"ConvoyEscort"`, `"FireAtTarget"`, etc. appear in `BehaviorCatalog.cs`.
+- Unit test: `BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.MilitaryApc)` returns a list containing `"FireAtTarget"`, `"MoveToLocation"`, `"ConvoyEscort"`, `"WanderMilitary"`, `"FollowRoute"`.
+- Unit test: `BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.CivilianPedestrian)` does NOT contain `"FireAtTarget"`.
+- Adding a new `[BehaviorContract]` DTO automatically appears in the catalog results without touching `BehaviorCatalog.cs`.
 
 ---
 
@@ -602,7 +602,7 @@ Replace inline JSON tree-name string literals with references to the `const stri
 
 **File to modify:** `Hrot/Subsystems/Hrot.CGF/Brains/CgfNodes.cs`
 
-For each AI tree JSON string containing `"TreeName": "XxxDoctrineId"`, change the literal string value to use a C# interpolated raw string:
+For each AI tree JSON string containing `"TreeName": "XxxBehaviorId"`, change the literal string value to use a C# interpolated raw string:
 ```csharp
 private static readonly string FireAtTargetJson = $$"""
 {
@@ -621,22 +621,22 @@ Apply to all tree definitions in the file.
 
 ---
 
-### MPM-P5-T07 - Create DoctrineTestHelper and Update Tests
+### MPM-P5-T07 - Create BehaviorTestHelper and Update Tests
 
-**Design reference:** [DESIGN.md § Phase 5.8](./DESIGN.md#58-create-doctrinetesthelper-and-update-unit-tests)
+**Design reference:** [DESIGN.md § Phase 5.8](./DESIGN.md#58-create-behaviortesthelper-and-update-unit-tests)
 
 **Scope:**
 Provide a test helper to extract behavior IDs from the attribute, and update all test files that hardcode behavior-ID strings.
 
-**New file:** `Hrot/Engine/Hrot.Core/MapDefinitions/Doctrine/DoctrineTestHelper.cs`
+**New file:** `Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/BehaviorTestHelper.cs`
 
-Content as specified in [DESIGN.md § 5.8](./DESIGN.md#58-create-doctrinetesthelper-and-update-unit-tests).
+Content as specified in [DESIGN.md § 5.8](./DESIGN.md#58-create-behaviortesthelper-and-update-unit-tests).
 
 **Files to scan and update:**
-Search for any test file under `Hrot/` that contains a string literal matching a doctrine behavior ID (e.g., `"FireAtTarget"`, `"MoveToLocation"`, `"FollowRoute"`, etc. used as test data). In each such file, replace the raw string with `DoctrineTestHelper.GetBehaviorId<TDto>()`.
+Search for any test file under `Hrot/` that contains a string literal matching a behavior behavior ID (e.g., `"FireAtTarget"`, `"MoveToLocation"`, `"FollowRoute"`, etc. used as test data). In each such file, replace the raw string with `BehaviorTestHelper.GetBehaviorId<TDto>()`.
 
 **Success conditions:**
-- `DoctrineTestHelper.GetBehaviorId<FireAtTargetParamsJsonDto>()` returns `"FireAtTarget"`.
-- `DoctrineTestHelper.GetBehaviorId<SomethingWithoutAttribute>()` throws `InvalidOperationException`.
+- `BehaviorTestHelper.GetBehaviorId<FireAtTargetParamsJsonDto>()` returns `"FireAtTarget"`.
+- `BehaviorTestHelper.GetBehaviorId<SomethingWithoutAttribute>()` throws `InvalidOperationException`.
 - All updated test files pass.
 - No magic behavior-ID strings remain in test files that were previously hardcoded.

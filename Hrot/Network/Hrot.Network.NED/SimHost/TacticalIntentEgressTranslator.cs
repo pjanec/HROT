@@ -20,7 +20,7 @@ namespace Hrot.Network.NED.SimHost
     ///
     /// <para>
     /// <b>Authority gate:</b> Only publishes when
-    /// <c>!repo.HasAuthority&lt;DoctrineState&gt;(evt.Entity)</c>.
+    /// <c>!repo.HasAuthority&lt;BehaviorState&gt;(evt.Entity)</c>.
     /// Locally-owned entities are handled by <c>TacticalIntentResolutionSystem</c>
     /// in the same frame; no DDS traffic needed.
     /// </para>
@@ -69,7 +69,7 @@ namespace Hrot.Network.NED.SimHost
 
                 // Authority gate: locally-owned entities are resolved by
                 // TacticalIntentResolutionSystem in the same frame.
-                if (repo.HasAuthority<DoctrineState>(evt.Entity)) continue;
+                if (repo.HasAuthority<BehaviorState>(evt.Entity)) continue;
 
                 if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))
                 {

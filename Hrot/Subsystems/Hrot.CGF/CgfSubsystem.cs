@@ -29,7 +29,7 @@ using Hrot.Common.Infrastructure;
 using Hrot.Common.Scenario;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
-using Hrot.AI.Doctrines.Mappers;
+using Hrot.AI.Behaviors.Mappers;
 using Hrot.Presentation.Windows;
 using Hrot.Presentation.Facades;
 using Hrot.Presentation.Renderers;
@@ -60,8 +60,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private NetworkEntityMap? _entityMap;
     private Action?           _cgfNetworkPolling;
 
-    // ── Headless + doctrine registry ──────────────────────────────────────────
-    private bool               _headless;    private ClusterTimeTransportAdapter? _clusterTimeAdapter;    private DoctrineRegistry?  _doctrineRegistry;
+    // ── Headless + behavior registry ──────────────────────────────────────────
+    private bool               _headless;    private ClusterTimeTransportAdapter? _clusterTimeAdapter;    private BehaviorRegistry?  _behaviorRegistry;
     private TogglableInputGroup?      _toggleInput;
     private TogglableSimulationGroup? _toggleSim;
     private Hrot.Core.Network.INetworkFactory? _networkFactory;
@@ -115,10 +115,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <summary>TestHook: exposes the CGF ECS world for integration tests.</summary>
     internal Fdp.Core.EntityRepository? World => _context?.World;
 
-    /// <summary>TestHook: exposes the CGF doctrine registry so integration tests can register
-    /// scenario-specific doctrines (e.g. UrbanCombat) before the cluster transitions to
+    /// <summary>TestHook: exposes the CGF behavior registry so integration tests can register
+    /// scenario-specific behaviors (e.g. UrbanCombat) before the cluster transitions to
     /// OperatingLive and scenario entities begin executing missions.</summary>
-    internal DoctrineRegistry? TestHook_DoctrineRegistry => _doctrineRegistry;
+    internal BehaviorRegistry? TestHook_BehaviorRegistry => _behaviorRegistry;
 
     /// <summary>
     /// TestHook: spawns an entity and publishes a <c>DeferredTakeOwnership</c> routing table
@@ -207,18 +207,18 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // ── Create replication module via factory (Brain role) ─────────────────
         // Replaces: EntityStatesIngressPack + ActuatorIntentsEgressPack + GhostCleanupModule
-        var doctrineRegistry = new DoctrineRegistry();
-        CgfDoctrineSetup.LoadFromAiAssembly(doctrineRegistry, _context.GeoTransform, _entityMap);
-        _doctrineRegistry = doctrineRegistry;
+        var behaviorRegistry = new BehaviorRegistry();
+        CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry, _context.GeoTransform, _entityMap);
+        _behaviorRegistry = behaviorRegistry;
 
         // Expose the registry to the diagnostic renderers so the entity inspector
         // can project BrainBlackboard memory and visualize the BTree execution state.
-        BrainBlackboardRenderer.DoctrineRegistryAccessor = doctrineRegistry;
-        Hrot.Presentation.Renderers.Blackboard1024Renderer.DoctrineRegistryAccessor = doctrineRegistry;
-        BTreeVisualizerRenderer.DoctrineRegistryAccessor = doctrineRegistry;
+        BrainBlackboardRenderer.BehaviorRegistryAccessor = behaviorRegistry;
+        Hrot.Presentation.Renderers.Blackboard1024Renderer.BehaviorRegistryAccessor = behaviorRegistry;
+        BTreeVisualizerRenderer.BehaviorRegistryAccessor = behaviorRegistry;
 
         // Configure network factory for this node so auxiliary translators can be created.
-        var nodeFactory = _networkFactory?.ConfigureForNode(_context, NodeRole.Brain, doctrineRegistry);
+        var nodeFactory = _networkFactory?.ConfigureForNode(_context, NodeRole.Brain, behaviorRegistry);
 
         var replicationModule = nodeFactory?.CreateReplicationModule();
         if (replicationModule != null)
@@ -244,7 +244,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ── Register CGF simulation logic (Brain-specific) ─────────────────────
         var mapperRegistry = new TacticalIntentMapperRegistry();
         mapperRegistry.Register(new DefendAreaMapper());
-        var cgfLogicPack = new CgfLogicPack(doctrineRegistry, _entityMap, _scenarioSource,
+        var cgfLogicPack = new CgfLogicPack(behaviorRegistry, _entityMap, _scenarioSource,
             mapperRegistry);
         _context.Kernel.RegisterModule(cgfLogicPack);
 
@@ -348,10 +348,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             resumeGlobalTimePush:  _context.Kernel.ResumeGlobalTimePush));
 
         // 2. CGF-Authoritative Scenario and Episode Load Handlers (must be BEFORE ReferenceLiveLoadHandler)
-        var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(_doctrineRegistry!);
+        var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(_behaviorRegistry!);
         var scenarioLoader     = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
         var cgfIdAllocator     = new SequentialIdAllocator();
-        var behaviorRemapper   = CgfDoctrineSetup.CreateBehaviorRemapper();
+        var behaviorRemapper   = CgfBehaviorSetup.CreateBehaviorRemapper();
         var extractor          = new Hrot.CGF.Orchestration.StagingEntityExtractor();
 
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfScenarioLoadHandler(
@@ -395,7 +395,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _selectionState    = new DefaultSelectionState();
             _visualizerAdapter = new CgfDebugVisualizerAdapter(
                 new Fdp.Toolkit.Vis2D.Shapes.DefaultEntityShapeLibrary(),
-                _doctrineRegistry);
+                _behaviorRegistry);
             _fdpRepoAdapter    = new FdpRepositoryAdapter(_context.World);
 
             _fdpEventBrowser.RegisterBus("World", _context.World.Bus);
@@ -601,16 +601,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _fdpEntityInspector.Reflector.AddBufferViewProvider(new Hrot.Presentation.Renderers.Blackboard1024ViewProvider());
 
         // Inject EditContextFactory so TryOpenEditWindow passes ParamsDtoType/HeavyDtoType to StructEdit.
-        var capturedRegistry = _doctrineRegistry;
+        var capturedRegistry = _behaviorRegistry;
         _fdpEntityInspector.Reflector.EditContextFactory = (session, e, type) =>
         {
             if (type != typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard)
              && type != typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024)) return null;
-            if (!session.HasComponent(e, typeof(Fdp.Toolkit.Behavior.Components.DoctrineState))) return null;
-            var ds = session.GetComponent(e, typeof(Fdp.Toolkit.Behavior.Components.DoctrineState))
-                as Fdp.Toolkit.Behavior.Components.DoctrineState?;
+            if (!session.HasComponent(e, typeof(Fdp.Toolkit.Behavior.Components.BehaviorState))) return null;
+            var ds = session.GetComponent(e, typeof(Fdp.Toolkit.Behavior.Components.BehaviorState))
+                as Fdp.Toolkit.Behavior.Components.BehaviorState?;
             if (ds == null) return null;
-            if (capturedRegistry?.TryGetDefinition(ds.Value.ActiveDoctrineHash, out var def) != true) return null;
+            if (capturedRegistry?.TryGetDefinition(ds.Value.ActiveBehaviorHash, out var def) != true) return null;
             if (type == typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard))
             {
                 if (def.ParamsDtoType == null) return null;

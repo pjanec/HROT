@@ -1,15 +1,15 @@
 
-how well is the entity "brain" (the part executing the doctrines) separated from the "muscles" (like the kinematic motion model of a vehicle)?
+how well is the entity "brain" (the part executing the behaviors) separated from the "muscles" (like the kinematic motion model of a vehicle)?
 
 The architecture demonstrates an exceptionally clean, data-oriented separation between the decision-making "brains" and the physical "muscles", communicating entirely through decoupled, zero-allocation ECS components.
 
 Here is how the pipeline enforces this strict separation of concerns:
 
-**1\. The Brain (Decision Layer)** The cognitive layer, driven by FastBTree (`BrainBTreeState`) or FastHSM (`BrainHsm128` / `BrainHsm64`), has absolutely no knowledge of vehicle physics, wheelbases, or steering angles. When an AI doctrine makes a decision (e.g., a wander behavior deciding to move to a random point), the action node simply writes a high-level intent—an Action ID and a small unmanaged parameter struct like `MoveToParams`—into the entity's `LocomotionChannel` component.
+**1\. The Brain (Decision Layer)** The cognitive layer, driven by FastBTree (`BrainBTreeState`) or FastHSM (`BrainHsm128` / `BrainHsm64`), has absolutely no knowledge of vehicle physics, wheelbases, or steering angles. When an AI behavior makes a decision (e.g., a wander behavior deciding to move to a random point), the action node simply writes a high-level intent—an Action ID and a small unmanaged parameter struct like `MoveToParams`—into the entity's `LocomotionChannel` component.
 
 **2\. The Nervous System (Translation Layer)** The bridge between mind and muscle is handled by the `LocomotionDispatcherSystem` and a suite of stateless `IActionExecutor` implementations. The dispatcher monitors the `LocomotionChannel` and routes the active action to the appropriate executor, such as the `MoveToExecutor` or `FollowRouteExecutor`. These executors act as translators: they parse the channel's parameters and map them into concrete navigation targets by mutating the entity's `NavState` component, setting the `FinalDestination`, `TargetSpeed`, and `NavigationMode`.
 
-**3\. The Muscles (Kinematic Layer)** At the bottom of the pipeline, the `CarKinematicsSystem` acts as the physics engine and operates entirely ignorant of behavior trees, HSMs, or AI doctrines. It strictly reads the intended targets from the `NavState` alongside the vehicle's physical limits defined in `VehicleParams` and `VehicleState`. It then performs the heavy mathematical lifting: calculating local collision avoidance via RVO, computing steering angles using a Pure Pursuit controller, and integrating the kinematic bicycle model. Finally, it writes the resulting spatial updates directly into the `SimTransform` and `SimVelocity` components.
+**3\. The Muscles (Kinematic Layer)** At the bottom of the pipeline, the `CarKinematicsSystem` acts as the physics engine and operates entirely ignorant of behavior trees, HSMs, or AI behaviors. It strictly reads the intended targets from the `NavState` alongside the vehicle's physical limits defined in `VehicleParams` and `VehicleState`. It then performs the heavy mathematical lifting: calculating local collision avoidance via RVO, computing steering angles using a Pure Pursuit controller, and integrating the kinematic bicycle model. Finally, it writes the resulting spatial updates directly into the `SimTransform` and `SimVelocity` components.
 
 **Architectural Wins** This design is a textbook application of Data-Oriented Design (DOD) and the Dependency Inversion Principle. Because the layers communicate exclusively by mutating sequential, unmanaged structs (`LocomotionChannel` → `NavState` → `SimTransform`), the hot path generates zero garbage collection (GC) pressure and maintains high CPU cache locality. Furthermore, this decoupling allows the engine to route different entities to entirely different physics backends—for example, using `LinearKinematicsSystem` instead of `CarKinematicsSystem` for non-wheeled entities—without requiring a single change to the upstream AI logic.
 
@@ -37,7 +37,7 @@ To distribute this, you must introduce a new DDS descriptor (e.g., `NavigationIn
 
 3\. What the Sim Node Does
 
-The Sim node acts entirely as the "muscles" and remains completely ignorant of behavior trees or AI doctrines. Each tick, the `CarKinematicsSystem` runs in parallel across all vehicles,. It reads the replicated `NavState` (containing the `FinalDestination` and `TargetSpeed`), calculates local collision avoidance (RVO) against the spatial hash grid, computes the required steering angle via a Pure Pursuit controller, and applies the kinematic bicycle model,,. Finally, it writes the resulting state directly into the `SimTransform` and `SimVelocity` components.
+The Sim node acts entirely as the "muscles" and remains completely ignorant of behavior trees or AI behaviors. Each tick, the `CarKinematicsSystem` runs in parallel across all vehicles,. It reads the replicated `NavState` (containing the `FinalDestination` and `TargetSpeed`), calculates local collision avoidance (RVO) against the spatial hash grid, computes the required steering angle via a Pure Pursuit controller, and applies the kinematic bicycle model,,. Finally, it writes the resulting state directly into the `SimTransform` and `SimVelocity` components.
 
 4\. Signaling Fulfillment (The Feedback Loop)
 
@@ -482,7 +482,7 @@ By structuring the data model this way, you establish a perfectly decoupled **Co
 
 This design strictly isolates coordinate math and physics logic inside the respective engines. The DDS bus acts only as the universal, strongly-typed state synchronizer, adhering flawlessly to clean distributed systems architecture.
 
-What the elements the brain logically consits of (components, systems...)? I would like to "modularize" it, i.e. to instantiate the "brain capabilities" by installing a module host module or modules. Is (could be, should be?) the brain common for all types of entities, meaning the doctrine execution machinery inclusing behavior trees and hiearachical state machines? What/how many modules can we (should we) break it into?
+What the elements the brain logically consits of (components, systems...)? I would like to "modularize" it, i.e. to instantiate the "brain capabilities" by installing a module host module or modules. Is (could be, should be?) the brain common for all types of entities, meaning the behavior execution machinery inclusing behavior trees and hiearachical state machines? What/how many modules can we (should we) break it into?
 
 This is an excellent architectural initiative. Breaking apart monolithic logic into highly cohesive, decoupled modules is exactly how we scale an ECS engine gracefully.
 
@@ -496,11 +496,11 @@ The brain is entirely decoupled from the "muscles" (physics, kinematics). It rea
 
 **The Data (ECS Components):**
 
--   **Identity & Tier:** `SimTier` (e.g., civilian vs. tactical) and `DoctrineState` (which specific behavior hash is active, and the preemption `InstanceId`).-   **Cognitive Memory:** `BrainBlackboard` (a 128-byte unmanaged fixed buffer for zero-allocation parameter storage).-   **Execution State:** `BrainBTreeState` (for FastBTree), `BrainHsm64`, and `BrainHsm128` (for FastHSM).-   **Output Channels (The Intents):** `LocomotionChannel`, `WeaponChannel`, and `InteractionChannel`. These hold the chosen action ID, status (`Running`, `Success`, `Failure`), and inline parameter/state byte buffers.
+-   **Identity & Tier:** `SimTier` (e.g., civilian vs. tactical) and `BehaviorState` (which specific behavior hash is active, and the preemption `InstanceId`).-   **Cognitive Memory:** `BrainBlackboard` (a 128-byte unmanaged fixed buffer for zero-allocation parameter storage).-   **Execution State:** `BrainBTreeState` (for FastBTree), `BrainHsm64`, and `BrainHsm128` (for FastHSM).-   **Output Channels (The Intents):** `LocomotionChannel`, `WeaponChannel`, and `InteractionChannel`. These hold the chosen action ID, status (`Running`, `Success`, `Failure`), and inline parameter/state byte buffers.
 
 **The Logic (ECS Systems):**
 
--   **Mission & Command:** `DoctrineIngressSystem` (assigns behaviors and parses JSON params into the blackboard) and `MissionDirectorSystem` (advances multi-phase plans based on triggers like time or health).-   **Arbitration:** `ChannelArbitrationSystem` (detects when a doctrine changes and instantly preempts/clears stale output channels).-   **The Engines:** `BTreeTickSystem` and `HsmTickSystem<T>` (the generic evaluators that step the logic forward each frame).
+-   **Mission & Command:** `BehaviorIngressSystem` (assigns behaviors and parses JSON params into the blackboard) and `MissionDirectorSystem` (advances multi-phase plans based on triggers like time or health).-   **Arbitration:** `ChannelArbitrationSystem` (detects when a behavior changes and instantly preempts/clears stale output channels).-   **The Engines:** `BTreeTickSystem` and `HsmTickSystem<T>` (the generic evaluators that step the logic forward each frame).
 
 2\. Is the Brain Common for All Entities?
 
@@ -510,7 +510,7 @@ A civilian pedestrian, an insurgent, and an M1 Abrams tank all share the exact s
 
 The architecture achieves this generic universality by treating behaviors as data:
 
--   The `BTreeTickSystem` simply queries for any entity matching `DoctrineState` where `BrainTier == BrainTierBTree`.-   It looks up the active behavior by its hash in the `DoctrineRegistry`.-   It evaluates the generic interpreter, which writes standard intents (like `ActionIdMoveTo`) into the `LocomotionChannel`.
+-   The `BTreeTickSystem` simply queries for any entity matching `BehaviorState` where `BrainTier == BrainTierBTree`.-   It looks up the active behavior by its hash in the `BehaviorRegistry`.-   It evaluates the generic interpreter, which writes standard intents (like `ActionIdMoveTo`) into the `LocomotionChannel`.
 
 Because the "Brain" only outputs abstract intents, it doesn't care if the entity has wheels, tracks, or legs.
 
@@ -522,15 +522,15 @@ This allows host applications to install only the layers of cognition they actua
 
 Module 1: `MissionControlModule` (The Higher Brain)
 
-**Responsibility:** Handling top-down commands, multi-phase mission plans, and doctrine assignment. **Execution Policy:** Synchronous (Main Thread) or Fast Replica. **Registered Systems:**
+**Responsibility:** Handling top-down commands, multi-phase mission plans, and behavior assignment. **Execution Policy:** Synchronous (Main Thread) or Fast Replica. **Registered Systems:**
 
--   `DoctrineIngressSystem` (runs in `InputSystemGroup` to apply new behaviors immediately).-   `MissionDirectorSystem` (runs in `SimulationSystemGroup` to evaluate phase triggers).
+-   `BehaviorIngressSystem` (runs in `InputSystemGroup` to apply new behaviors immediately).-   `MissionDirectorSystem` (runs in `SimulationSystemGroup` to evaluate phase triggers).
 
 Module 2: `CognitiveRuntimeModule` (The Core Brain)
 
 **Responsibility:** Executing the localized AI frame-by-frame. This is the raw evaluation engine. **Execution Policy:** Slow Background (e.g., `ExecutionPolicy.SlowBackground(10)`). BTree and HSM ticks are highly parallelizable and usually don't need to run at a full 60Hz. **Registered Systems:**
 
--   `ChannelArbitrationSystem` (runs first to clear stale intents).-   `BTreeTickSystem` (evaluates Behavior Trees).-   `HsmTickSystem<BrainHsm64>` / `HsmTickSystem<BrainHsm128>` (evaluates Hierarchical State Machines).-   _Note: You would inject the shared_ _DoctrineRegistry_ _into this module's constructor._
+-   `ChannelArbitrationSystem` (runs first to clear stale intents).-   `BTreeTickSystem` (evaluates Behavior Trees).-   `HsmTickSystem<BrainHsm64>` / `HsmTickSystem<BrainHsm128>` (evaluates Hierarchical State Machines).-   _Note: You would inject the shared_ _BehaviorRegistry_ _into this module's constructor._
 
 Module 3: `ActionDispatchModule` (The Nervous System)
 
@@ -878,7 +878,7 @@ namespace Fdp.Kernel
         public const byte SimVelocity = 2;
         
         // 20-109: FDP Toolkits
-        public const byte DoctrineState = 22;
+        public const byte BehaviorState = 22;
     }
 }
 ```
@@ -956,7 +956,7 @@ Smart sensors should run continuously and autonomously, completely decoupled fro
 
 **The Distributed Flow:**
 
--   **Perception Node (Execution):** Evaluates vision cones (`VisionBroadphaseSystem`) and calculates threat scores (`ThreatEvaluationSystem`). It automatically drops decaying threats and sorts the array descending by threat level.-   **Network Replication:** The Perception Node is authoritative over the `TargetMemory` descriptor. It publishes this unmanaged struct over DDS.-   **Brain Node (Consumption):** The Brain node receives the DDS updates and overwrites its local shadow `TargetMemory`. The AI doctrines (like `Ambush_BT`) never loop or calculate distances; they simply query `TargetMemory.Count > 0` in O(1) time to instantly know if a threat is present.
+-   **Perception Node (Execution):** Evaluates vision cones (`VisionBroadphaseSystem`) and calculates threat scores (`ThreatEvaluationSystem`). It automatically drops decaying threats and sorts the array descending by threat level.-   **Network Replication:** The Perception Node is authoritative over the `TargetMemory` descriptor. It publishes this unmanaged struct over DDS.-   **Brain Node (Consumption):** The Brain node receives the DDS updates and overwrites its local shadow `TargetMemory`. The AI behaviors (like `Ambush_BT`) never loop or calculate distances; they simply query `TargetMemory.Count > 0` in O(1) time to instantly know if a threat is present.
 
 2\. Dumb Direct Queries (The Ultra-Fast Path)
 
@@ -1022,7 +1022,7 @@ We take the existing monolithic raycast pipeline and "cut" it in half, inserting
 
 On the Brain Node (Egressing Requests)
 
-Your AI doctrines (e.g., `VisionBroadphaseSystem`) continue to write requests into the **local, unmanaged** `RaycastBatchData` singleton using fast native arrays.
+Your AI behaviors (e.g., `VisionBroadphaseSystem`) continue to write requests into the **local, unmanaged** `RaycastBatchData` singleton using fast native arrays.
 
 Instead of a local physics solver reading this, you introduce a `RaycastBatchEgressTranslator`. At the end of the `Input` phase, this translator reads the populated native array, copies the data into the variable-sized `RaycastRequestBatch` DDS class, publishes it, and instantly zeroes out the local `RaycastBatchData.Count`.
 
@@ -1298,7 +1298,7 @@ Because a node might be written in Unreal/Unity or simply distributed across a c
 
 What logic module does the Brain node need to install for perception? **Absolutely nothing.**
 
-This is the beauty of Data-Oriented Design (DOD). Because the network translators decode the DDS payloads directly into the local unmanaged ECS components (`TargetMemory` and `RaycastBatchData`), the Brain node does not need any perception systems installed. Your `BTreeTickSystem` simply queries `TargetMemory.Count > 0` or looks up its `RayId` in the local batch. The Brain node remains perfectly lightweight, spending 100% of its CPU budget evaluating AI doctrines.
+This is the beauty of Data-Oriented Design (DOD). Because the network translators decode the DDS payloads directly into the local unmanaged ECS components (`TargetMemory` and `RaycastBatchData`), the Brain node does not need any perception systems installed. Your `BTreeTickSystem` simply queries `TargetMemory.Count > 0` or looks up its `RayId` in the local batch. The Brain node remains perfectly lightweight, spending 100% of its CPU budget evaluating AI behaviors.
 
 4\. Node Composition Example (The Bootstrapper)
 

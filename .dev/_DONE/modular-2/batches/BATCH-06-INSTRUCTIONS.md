@@ -213,7 +213,7 @@ public sealed class NedNetworkFactory : INetworkFactory
     private readonly NodeRole             _role;
     private readonly ITkbDatabase?        _tkbDb;
     private readonly EntityLifecycleModule? _lifecycleModule;
-    private readonly DoctrineRegistry?    _doctrineRegistry;
+    private readonly BehaviorRegistry?    _behaviorRegistry;
 
     public NedNetworkFactory(
         DdsParticipant?       participant,
@@ -224,7 +224,7 @@ public sealed class NedNetworkFactory : INetworkFactory
         NodeRole              role,
         ITkbDatabase?         tkbDb            = null,
         EntityLifecycleModule? lifecycleModule  = null,
-        DoctrineRegistry?     doctrineRegistry = null)
+        BehaviorRegistry?     behaviorRegistry = null)
     {
         _participant      = participant;
         _entityMap        = entityMap;
@@ -234,7 +234,7 @@ public sealed class NedNetworkFactory : INetworkFactory
         _role             = role;
         _tkbDb            = tkbDb;
         _lifecycleModule  = lifecycleModule;
-        _doctrineRegistry = doctrineRegistry;
+        _behaviorRegistry = behaviorRegistry;
     }
 
     /// <inheritdoc/>
@@ -249,7 +249,7 @@ public sealed class NedNetworkFactory : INetworkFactory
                domainId:          0,
                tkbDb:             _tkbDb,
                lifecycleModule:   _lifecycleModule,
-               doctrineRegistry:  _doctrineRegistry);
+               behaviorRegistry:  _behaviorRegistry);
 
     /// <inheritdoc/>
     public ICommandGateway CreateCommandGateway()

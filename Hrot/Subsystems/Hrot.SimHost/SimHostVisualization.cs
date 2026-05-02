@@ -79,7 +79,7 @@ namespace Hrot.SimHost
         /// <summary>When set, the Window Manager renders these panels; DrawUI skips them.</summary>
         private bool _panelsWindowManaged;
 
-        // ── Mission control (right-click navigate via doctrine) ───────────────
+        // ── Mission control (right-click navigate via behavior) ───────────────
         private ISimHostMissionSender? _missionSender;
 
         private long _worldPosDescriptorId;
@@ -328,13 +328,13 @@ namespace Hrot.SimHost
         /// Processes a right-click interaction for a single entity using brain-aware routing.
         ///
         /// <list type="bullet">
-        ///   <item><b>Brain-dead</b> (<c>DoctrineState</c> absent or
-        ///         <c>ActiveDoctrineHash == DoctrineIds.None</c>): talks directly to the
+        ///   <item><b>Brain-dead</b> (<c>BehaviorState</c> absent or
+        ///         <c>ActiveBehaviorHash == BehaviorIds.None</c>): talks directly to the
         ///         muscle layer via <paramref name="setDestination"/> / <paramref name="addWaypoint"/>.</item>
-        ///   <item><b>Brain-active</b> (<c>ActiveDoctrineHash != DoctrineIds.None</c>): sends a
+        ///   <item><b>Brain-active</b> (<c>ActiveBehaviorHash != BehaviorIds.None</c>): sends a
         ///         <c>CMD_REPLACE_MISSION</c> via <paramref name="missionWriter"/>. The task
-        ///         includes a <c>DoctrineFinished</c> trigger so <c>MissionDirectorSystem</c>
-        ///         can advance and ultimately clear the doctrine when the plan exhausts.</item>
+        ///         includes a <c>BehaviorFinished</c> trigger so <c>MissionDirectorSystem</c>
+        ///         can advance and ultimately clear the behavior when the plan exhausts.</item>
         /// </list>
         ///
         /// Extracted from the <c>OnWorldClick</c> lambda for unit-test accessibility.
@@ -349,9 +349,9 @@ namespace Hrot.SimHost
             Action<Entity, Vector2, TrajectoryInterpolation> addWaypoint,
             ISimHostMissionSender? missionSender)
         {
-            // Determine if the entity has an active (non-zero) doctrine.
-            bool brainActive = repo.HasComponent<DoctrineState>(entity)
-                && repo.GetComponent<DoctrineState>(entity).ActiveDoctrineHash != DoctrineIds.None;
+            // Determine if the entity has an active (non-zero) behavior.
+            bool brainActive = repo.HasComponent<BehaviorState>(entity)
+                && repo.GetComponent<BehaviorState>(entity).ActiveBehaviorHash != BehaviorIds.None;
 
             if (!brainActive)
             {

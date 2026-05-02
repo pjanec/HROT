@@ -390,7 +390,7 @@ rationale.
 **Success Conditions:**
 
 1. **Unit test — intent written, no direct mutation:** Simulate a right-click at world position P
-   on an entity that has no active doctrine (`BrainHsm*` absent or no active doctrine state).
+   on an entity that has no active behavior (`BrainHsm*` absent or no active behavior state).
    Assert the entity's `NavigationIntent` is set to `{ Mode=DirectPoint, FinalDestination=P,
    TargetSpeed=15f, ArrivalRadius=3.0f }` with `IntentId` incremented.
 2. **Unit test — NavState not touched:** Assert `NavState` on the entity is unchanged after the
@@ -473,7 +473,7 @@ commands should remain in the codebase).
 
 - Changes to `EntityMissionEgressTranslator` (it continues to handle ECS → DDS mission
   replication automatically).
-- Changes to `DoctrineRegistry` or `NetworkEntityMap` usage within the execution logic itself.
+- Changes to `BehaviorRegistry` or `NetworkEntityMap` usage within the execution logic itself.
 
 **New files / locations:**
 
@@ -497,7 +497,7 @@ commands should remain in the codebase).
 **Success Conditions:**
 
 1. **Unit test — execution system is DDS-free:** Instantiate `MissionControlExecutionSystem` with
-   only an `FdpEventBus` and `DoctrineRegistry`. Publish a `MissionControlIntent` to the bus.
+   only an `FdpEventBus` and `BehaviorRegistry`. Publish a `MissionControlIntent` to the bus.
    Tick the system. Assert that:
    - The target entity's `MissionPlanQueue` is updated per the payload.
    - A `MissionControlAckEvent` is published on the bus with `ErrorCode == 0`.
@@ -1102,7 +1102,7 @@ independent.
 
 **Out of Scope:**
 
-- Redesign of `MissionAdapterSystem` doctrine logic (only the component access pattern changes).
+- Redesign of `MissionAdapterSystem` behavior logic (only the component access pattern changes).
 - Mission command network translators (PACK-P001 scope).
 
 **Dependencies:** Coordinate with PACK-P001 if both tasks are active simultaneously —
@@ -1145,8 +1145,8 @@ both touch the mission component type used in `MissionAdapterSystem`.
 3. **Unit test — egress translator produces correct DDS struct:** Populate
    `ActiveMissionPlan.Plan.Tasks` with 2 `DomainMissionTask` instances. Assert the emitted
    `EntityMission` DDS struct contains matching task data.
-4. **Integration test — MissionAdapterSystem resolves doctrine correctly:** With
-   `ActiveMissionPlan.Plan` populated, tick `MissionAdapterSystem`. Assert doctrine state is
+4. **Integration test — MissionAdapterSystem resolves behavior correctly:** With
+   `ActiveMissionPlan.Plan` populated, tick `MissionAdapterSystem`. Assert behavior state is
    updated identically to the pre-refactor behaviour.
 5. **IG render test — MissionRenderLayer reads plan:** Set `ActiveMissionPlan.Plan` with
    waypoints. Tick `MissionRenderLayer`. Assert rendered waypoints match plan task data.

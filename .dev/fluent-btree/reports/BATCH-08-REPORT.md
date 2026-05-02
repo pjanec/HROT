@@ -1,4 +1,4 @@
-# BATCH-08 Report: Phase 4 — IEntityAwareImGuiRenderer, ComponentReflector, DoctrineDefinition, BrainBlackboardRenderer, BTreeVisualizerRenderer
+# BATCH-08 Report: Phase 4 — IEntityAwareImGuiRenderer, ComponentReflector, BehaviorDefinition, BrainBlackboardRenderer, BTreeVisualizerRenderer
 
 **Batch Number:** BATCH-08
 **Tasks:** FBT-030, FBT-031, FBT-032, FBT-033, FBT-034, FBT-035, FBT-036, FBT-037
@@ -40,7 +40,7 @@ The 13 failures in `Fdp.Toolkits.Tests` are pre-existing and unrelated to this b
 | `FDP/ExtDeps/FastBTree/src/Fbt.Kernel/Runtime/Interpreter.cs` | FBT-034 prereq | Added `public BehaviorTreeBlob Blob => _blob;` property |
 | `FDP/Engine/Fdp.Presentation/ImGui/Renderers/IImGuiRenderer.cs` | FBT-030 | Added `IEntityAwareImGuiRenderer` interface; added `using Fdp.Core; using Fdp.Presentation.Abstractions;` |
 | `FDP/Engine/Fdp.Presentation/ImGui/Utils/ComponentReflector.cs` | FBT-031 | Updated dispatch to use `IEntityAwareImGuiRenderer.RenderValue(session, e, data)` when available |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/DoctrineRegistry.cs` | FBT-032 | Added `public Type? ParamsDtoType { get; init; }` to `DoctrineDefinition` |
+| `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorRegistry.cs` | FBT-032 | Added `public Type? ParamsDtoType { get; init; }` to `BehaviorDefinition` |
 
 ---
 
@@ -69,7 +69,7 @@ The `SampleComponent` test helper in `EntityAwareRendererTests` was annotated wi
 
 - [x] `IEntityAwareImGuiRenderer` interface exists and inherits `IImGuiRenderer`
 - [x] `ComponentReflector` uses entity-aware path when renderer implements the new interface
-- [x] `DoctrineDefinition.ParamsDtoType` property added with `null` default
+- [x] `BehaviorDefinition.ParamsDtoType` property added with `null` default
 - [x] `Interpreter<T>.Blob` property added
 - [x] `BrainBlackboardRenderer` compiles + registered via `[ImGuiRenderer]` attribute
 - [x] `BTreeVisualizerRenderer` compiles + `GetNodeColorCode` internal helper exists

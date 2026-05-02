@@ -16,8 +16,8 @@ Implemented the main application shell for `Hrot.SimHost` encompassing configura
 ## Issues Found
 
 **No systemic issues found.** The work meets the spec perfectly. 
-- You properly identified the need to wrap `SimulationLogicModule` registration after `DoctrineRegistry` is fully initialized, and properly supplied a mock `VehicleAPI` directly for execution.
-- Good job adding `SimHostDoctrineIds` mapping for ID guarantees and decoupling logic.
+- You properly identified the need to wrap `SimulationLogicModule` registration after `BehaviorRegistry` is fully initialized, and properly supplied a mock `VehicleAPI` directly for execution.
+- Good job adding `SimHostBehaviorIds` mapping for ID guarantees and decoupling logic.
 - Adding `<Content CopyToOutputDirectory="PreserveNewest">` for the configuration file was a great call as it guarantees runtime availability.
 - The Ctrl+C thread block and clean token cancellation propagates perfectly down the stack.
 

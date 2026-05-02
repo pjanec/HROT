@@ -44,14 +44,14 @@
 - [x] **MPM-P4-T05** Refactor AutonomousPerceptionModule to use RegisterManualSystem [details](./TASK-DETAIL.md#mpm-p4-t05---refactor-autonomousperceptionmodule)
 
 
-## Phase 5: Doctrine Auto-Registration
+## Phase 5: Behavior Auto-Registration
 
-**Goal:** Eliminate all doctrine behavior-ID magic strings; make the parameter DTO the Single Source of Truth.
+**Goal:** Eliminate all behavior behavior-ID magic strings; make the parameter DTO the Single Source of Truth.
 
-- [x] **MPM-P5-T01** Create DoctrineCategory enum and DoctrineContractAttribute in Hrot.Core [details](./TASK-DETAIL.md#mpm-p5-t01---create-doctrinecategory-and-doctrinecontractattribute)
+- [x] **MPM-P5-T01** Create BehaviorCategory enum and BehaviorContractAttribute in Hrot.Core [details](./TASK-DETAIL.md#mpm-p5-t01---create-behaviorcategory-and-behaviorcontractattribute)
 - [x] **MPM-P5-T02** Decorate existing parameter DTOs and create empty marker DTOs [details](./TASK-DETAIL.md#mpm-p5-t02---decorate-dtos-and-create-empty-marker-dtos)
-- [x] **MPM-P5-T03** Create DoctrineSchemaDiscovery auto-registration utility [details](./TASK-DETAIL.md#mpm-p5-t03---create-doctrineschemariscovery)
-- [x] **MPM-P5-T04** Replace BehaviorUiSetup and CgfDoctrineSetup manual registrations [details](./TASK-DETAIL.md#mpm-p5-t04---replace-behavioruisetup-and-cgfdoctrinesetup-manual-registrations)
-- [x] **MPM-P5-T05** Rebuild DoctrineCatalog using reflection [details](./TASK-DETAIL.md#mpm-p5-t05---rebuild-doctrinecatalog-using-reflection)
+- [x] **MPM-P5-T03** Create BehaviorSchemaDiscovery auto-registration utility [details](./TASK-DETAIL.md#mpm-p5-t03---create-behaviorschemariscovery)
+- [x] **MPM-P5-T04** Replace BehaviorUiSetup and CgfBehaviorSetup manual registrations [details](./TASK-DETAIL.md#mpm-p5-t04---replace-behavioruisetup-and-cgfbehaviorsetup-manual-registrations)
+- [x] **MPM-P5-T05** Rebuild BehaviorCatalog using reflection [details](./TASK-DETAIL.md#mpm-p5-t05---rebuild-behaviorcatalog-using-reflection)
 - [x] **MPM-P5-T06** Update CgfNodes.cs AI tree JSON to use DTO BehaviorId constants [details](./TASK-DETAIL.md#mpm-p5-t06---update-cgfnodescs-to-use-dto-behaviorid-constants)
-- [x] **MPM-P5-T07** Create DoctrineTestHelper and eliminate magic strings from unit tests [details](./TASK-DETAIL.md#mpm-p5-t07---create-doctrinetesthelper-and-update-tests)
+- [x] **MPM-P5-T07** Create BehaviorTestHelper and eliminate magic strings from unit tests [details](./TASK-DETAIL.md#mpm-p5-t07---create-behaviortesthelper-and-update-tests)

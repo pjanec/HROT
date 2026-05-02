@@ -129,7 +129,7 @@ Extract the repeated Hrot node bootstrap sequence into reusable building blocks 
 
 **Stays per-subsystem (NOT shared):**
 - Component registration (`RegisterSimComponents`, `RegisterIgComponents`)
-- Doctrine registry (domain-specific)
+- Behavior registry (domain-specific)
 - Road network loading
 - Scenario serializer building (depends on domain component set)
 - `CheckpointIOWorker` (only Brain/AllInOne roles need it)
@@ -324,7 +324,7 @@ Apply `HrotNodeBuilder` and `NedReplicationModule` universally to all existing n
 
 ### What stays per-subsystem after migration
 
-The same list as Phase 1 (component registration, doctrine registry, road network, scenario serializer, `CheckpointIOWorker`, Replay/Edit/Episode handlers). `HrotNodeBuilder` does not absorb these because they are genuinely domain-specific.
+The same list as Phase 1 (component registration, behavior registry, road network, scenario serializer, `CheckpointIOWorker`, Replay/Edit/Episode handlers). `HrotNodeBuilder` does not absorb these because they are genuinely domain-specific.
 
 ---
 

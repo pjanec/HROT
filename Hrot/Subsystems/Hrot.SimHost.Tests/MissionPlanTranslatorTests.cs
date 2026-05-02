@@ -20,9 +20,9 @@ namespace Hrot.SimHost.Tests
         private const string SubsystemType = "Test.Scenario";
 
         private readonly EntityRepository _repo;
-        private readonly DoctrineRegistry  _registry;
+        private readonly BehaviorRegistry  _registry;
 
-        // FireAtTarget doctrine ID used across tests.
+        // FireAtTarget behavior ID used across tests.
         private const int FireAtTargetId = 99;
 
         public MissionPlanTranslatorTests()
@@ -31,10 +31,10 @@ namespace Hrot.SimHost.Tests
             _repo.RegisterComponent<MissionPlanQueue>();
             _repo.RegisterManagedComponent<ActiveMissionPlan>();
 
-            _registry = new DoctrineRegistry();
+            _registry = new BehaviorRegistry();
             _registry.Register(
                 FireAtTargetId, "FireAtTarget",
-                new DoctrineDefinition
+                new BehaviorDefinition
                 {
                     Name = "FireAtTarget",
                     BrainTier = BehaviorConstants.BrainTierBTree,
@@ -53,7 +53,7 @@ namespace Hrot.SimHost.Tests
         private static NullGuidResolver MakeResolver() => new NullGuidResolver();
 
         /// <summary>Creates an entity with <see cref="ActiveMissionPlan"/> and a matching <see cref="MissionPlanQueue"/>.</summary>
-        private Entity CreateMissionEntity(string behaviorId = "FireAtTarget")
+        private Entity CreateMissionEntity(string behaviorName = "FireAtTarget")
         {
             var entity = _repo.CreateEntity();
 
@@ -65,14 +65,14 @@ namespace Hrot.SimHost.Tests
                     new DomainMissionTask
                     {
                         TaskId    = Guid.NewGuid(),
-                        BehaviorId = behaviorId,
+                        BehaviorName = behaviorName,
                         BehaviorParams = string.Empty,
                     }
                 }
             };
             _repo.SetManagedComponent(entity, new ActiveMissionPlan { Plan = plan });
 
-            _registry.TryGetId(behaviorId, out int doctrineId);
+            _registry.TryGetId(behaviorName, out int behaviorId);
             var queue = new MissionPlanQueue
             {
                 CurrentPhase        = 0,
@@ -83,8 +83,8 @@ namespace Hrot.SimHost.Tests
             Span<MissionPhase> phases = queue.Phases;
             phases[0] = new MissionPhase
             {
-                DoctrineId   = doctrineId,
-                Trigger      = MissionTrigger.DoctrineFinished,
+                BehaviorId   = behaviorId,
+                Trigger      = MissionTrigger.BehaviorFinished,
                 TriggerParam = 0f,
             };
             _repo.SetComponent(entity, queue);
@@ -120,7 +120,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// S201-SC2: Inject with DOM from Extract restores ActiveMissionPlan.Plan.Tasks[0].BehaviorId
-        /// and the corresponding MissionPlanQueue.Phases[0].DoctrineId.
+        /// and the corresponding MissionPlanQueue.Phases[0].BehaviorId.
         /// </summary>
         [Fact]
         public void Inject_WithExtractedDom_RestoresActivePlanAndQueue()
@@ -141,13 +141,13 @@ namespace Hrot.SimHost.Tests
             var activePlan = ((ISimulationView)_repo).GetManagedComponentRO<ActiveMissionPlan>(entity);
             Assert.NotNull(activePlan);
             Assert.Single(activePlan!.Plan.Tasks);
-            Assert.Equal("FireAtTarget", activePlan.Plan.Tasks[0].BehaviorId);
+            Assert.Equal("FireAtTarget", activePlan.Plan.Tasks[0].BehaviorName);
 
             // Assert MissionPlanQueue.
             var queue = _repo.GetComponent<MissionPlanQueue>(entity);
             Assert.Equal(1, queue.PhaseCount);
-            Assert.Equal(FireAtTargetId, queue.Phases[0].DoctrineId);
-            Assert.Equal(MissionTrigger.DoctrineFinished, queue.Phases[0].Trigger);
+            Assert.Equal(FireAtTargetId, queue.Phases[0].BehaviorId);
+            Assert.Equal(MissionTrigger.BehaviorFinished, queue.Phases[0].Trigger);
         }
 
         // ── Test 3: CanTranslate returns false without ActiveMissionPlan ──────────
@@ -203,7 +203,7 @@ namespace Hrot.SimHost.Tests
             var plan = ((ISimulationView)freshRepo).GetManagedComponentRO<ActiveMissionPlan>(freshEntity);
             Assert.NotNull(plan);
             Assert.Equal(1, plan!.Plan.Tasks.Count);
-            Assert.Equal("FireAtTarget", plan.Plan.Tasks[0].BehaviorId);
+            Assert.Equal("FireAtTarget", plan.Plan.Tasks[0].BehaviorName);
 
             freshRepo.Dispose();
         }

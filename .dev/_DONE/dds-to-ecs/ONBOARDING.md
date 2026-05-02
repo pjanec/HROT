@@ -64,7 +64,7 @@ Additionally, a design review against the `UrbanCombat` golden standard (`FDP/Ex
 | SimHost application shell | `Hrot.SimHost/SimHostApp.cs` |
 | SimHost egress translators | `Hrot.SimHost/Translators/` |
 | SimHost systems (to add) | `Hrot.SimHost/Systems/` (MissionControlRequestSystem, MissionDirectorSystem registration) |
-| SimHost mission pipeline | `Hrot.SimHost/SimHostApp.cs` doctrine registration, `Hrot.SimHost/Brains/SimHostNodes.cs` (Phase 16) |
+| SimHost mission pipeline | `Hrot.SimHost/SimHostApp.cs` behavior registration, `Hrot.SimHost/Brains/SimHostNodes.cs` (Phase 16) |
 | SimHost combat pipeline | `Hrot.SimHost/Modules/SimulationLogicModule.cs` (Phase 17), `Hrot.SimHost/Hrot.SimHost.csproj` (Phase 17) |
 | TKB template definitions | `Hrot.Map.Definitions/Tkb/BdcTkbBuilder.cs`, `BdcTkbCatalog.cs` (Phase 17) |
 | UrbanCombat golden standard | `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs`, `Setup/DemoTkbSetup.cs` |
@@ -164,7 +164,7 @@ that all code in this repo must follow.
   if running on a machine with strict port limits.
 - **Mission pipeline (Phase 16) — golden standard is `UrbanCombat`:** Before touching any
   SimHost mission code, read `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs` in full.
-  Pay particular attention to `RegisterDoctrines()` (compiling BTree blobs, building
+  Pay particular attention to `RegisterBehaviors()` (compiling BTree blobs, building
   `ActionRegistry`, registering real `Interpreter<>`) and `RegisterSystems()` (using
   `MissionDirectorSystem`, not a hand-rolled adapter). The three deviations are analysed in
   DESIGN.md §10. S16T1–S16T5 **must be applied together** — applying any subset leaves the

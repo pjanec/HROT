@@ -91,7 +91,7 @@ flowchart TB
         direction TB
         CGFPack[CgfLogicPack]
         CGFNodes[CgfNodes]
-        CGFDoc[CgfDoctrineSetup]
+        CGFDoc[CgfBehaviorSetup]
         
         CGFPack --> MC
         CGFPack --> CR
@@ -126,11 +126,11 @@ To achieve this pristine Hexagonal and CQRS boundary, we must ruthlessly evict t
 
 Here is the precise refactoring plan to transition the codebase from its current state (`HROT_48`/`FDP_48`) to the desired architecture:
 
-### 1. Evict AI and Doctrines from the Muscle Node
-Currently, `Hrot.SimHost` acts as a monolithic "God Assembly" that illegally hosts Brain-tier logic. The Muscle node has no business knowing how to traverse a behavior tree or register AI doctrines.
+### 1. Evict AI and Behaviors from the Muscle Node
+Currently, `Hrot.SimHost` acts as a monolithic "God Assembly" that illegally hosts Brain-tier logic. The Muscle node has no business knowing how to traverse a behavior tree or register AI behaviors.
 *   **Move:** `Hrot.SimHost/Brains/SimHostNodes.cs` must be physically relocated to `Hrot.CGF/Brains/CgfNodes.cs`.
-*   **Move:** `Hrot.SimHost/Configuration/SimHostDoctrineSetup.cs` must be relocated to `Hrot.CGF/Configuration/CgfDoctrineSetup.cs`.
-*   **Result:** `Hrot.CGF` becomes the sole owner of all concrete AI execution nodes and doctrine definitions.
+*   **Move:** `Hrot.SimHost/Configuration/SimHostBehaviorSetup.cs` must be relocated to `Hrot.CGF/Configuration/CgfBehaviorSetup.cs`.
+*   **Result:** `Hrot.CGF` becomes the sole owner of all concrete AI execution nodes and behavior definitions.
 
 ### 2. Dismantle the SimulationLogicModule
 The `SimulationLogicModule` residing in `Hrot.SimHost` forces the Muscle project to reference Brain modules like `MissionControlModule` and `CognitiveRuntimeModule`, directly violating our role-based composition goals.
@@ -138,7 +138,7 @@ The `SimulationLogicModule` residing in `Hrot.SimHost` forces the Muscle project
 *   **Replacement:** The `SimHost` node will solely rely on `SimHostCoreLogicPack`, which is already beautifully blind to AI concepts and only wires up Combat, Damage, Ground Kinematics, and Perception.
 
 ### 3. Sever the Lateral Dependency
-Because `Hrot.CGF` was historically relying on `SimHostDoctrineSetup` located in the `SimHost` assembly, it was forced to carry a lateral project reference to its peer subsystem. 
+Because `Hrot.CGF` was historically relying on `SimHostBehaviorSetup` located in the `SimHost` assembly, it was forced to carry a lateral project reference to its peer subsystem. 
 *   **Action:** Delete the `<ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />` line from `Hrot.CGF.csproj`.
 *   **Result:** `Hrot.CGF` and `Hrot.SimHost` become 100% physically isolated, sharing only the neutral DTOs and TKB blueprints located in `Hrot.Core`.
 

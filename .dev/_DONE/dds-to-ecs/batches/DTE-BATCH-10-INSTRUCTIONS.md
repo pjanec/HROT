@@ -12,7 +12,7 @@
 ## ?? Onboarding & Workflow
 
 ### Developer Instructions
-This batch completes the UrbanCombat-aligned mission pipeline by removing the legacy `MissionAdapterSystem`, registering `MissionDirectorSystem`, compiling real BTree interpreters, and wiring parameter parsing for doctrine definitions.
+This batch completes the UrbanCombat-aligned mission pipeline by removing the legacy `MissionAdapterSystem`, registering `MissionDirectorSystem`, compiling real BTree interpreters, and wiring parameter parsing for behavior definitions.
 
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md`
@@ -51,21 +51,21 @@ This batch completes the UrbanCombat-aligned mission pipeline by removing the le
 
 ---
 
-### Task 2: DDS2ECS-S16T4 � Compile real BTree interpreters for all doctrines
+### Task 2: DDS2ECS-S16T4 � Compile real BTree interpreters for all behaviors
 **Files:**
-- `Hrot.SimHost/DoctrineIds.cs` and doctrine registry setup
+- `Hrot.SimHost/BehaviorIds.cs` and behavior registry setup
 - Any required FDP behavior toolkit classes
 
-**Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s16t4--compile-real-btree-interpreters-for-all-doctrines`
+**Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s16t4--compile-real-btree-interpreters-for-all-behaviors`
 
 ---
 
 ### Task 3: DDS2ECS-S16T5 � Wire `ParseParams` delegates
 **Files:**
-- `Hrot.SimHost/DoctrineIds.cs` or doctrine registry setup
+- `Hrot.SimHost/BehaviorIds.cs` or behavior registry setup
 - `Hrot.SimHost.Tests/*` for coverage
 
-**Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s16t5--wire-parseparams-delegates-for-param-carrying-doctrines`
+**Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s16t5--wire-parseparams-delegates-for-param-carrying-behaviors`
 
 ---
 
@@ -115,7 +115,7 @@ This batch is DONE when:
 
 ## ?? Common Pitfalls to Avoid
 - Do not keep `MissionAdapterSystem` registered once `MissionDirectorSystem` is in place.
-- Do not skip doctrine interpreter compilation; partial doctrine coverage is a failure.
+- Do not skip behavior interpreter compilation; partial behavior coverage is a failure.
 - Do not leave `ParseParams` unassigned for param-carrying behaviors.
 
 ---

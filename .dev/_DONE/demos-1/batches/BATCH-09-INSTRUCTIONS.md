@@ -70,9 +70,9 @@ Sequence: Task 1 → green tests; Task 2 → green tests; Task 3 → green tests
 
 ---
 
-### Task 4: [HYGIENE] Rename `DemoDoctrineIds.cs`
+### Task 4: [HYGIENE] Rename `DemoBehaviorIds.cs`
 
-**File:** `FDP/Examples/Fdp.Examples.Scenarios/DemoDoctrineIds.cs` → `BehaviorValidationDoctrineIds.cs` (type already renamed in BATCH-08).
+**File:** `FDP/Examples/Fdp.Examples.Scenarios/DemoBehaviorIds.cs` → `BehaviorValidationBehaviorIds.cs` (type already renamed in BATCH-08).
 
 **Goal:** File name matches type; update `.csproj` if explicit compile items exist (usually automatic).
 

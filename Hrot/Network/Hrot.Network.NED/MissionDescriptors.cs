@@ -40,9 +40,9 @@ namespace Hrot.NED.Descriptors
 
         public string ExecutingEngine;      // who is going to execute the behavior "CGFX" etc.
 
-        public string BehaviorId;           // e.g., "MoveToLocation", could be also bkbId od the doctrine (for CGFX)
+        public string BehaviorId;           // e.g., "MoveToLocation", could be also bkbId od the behavior (for CGFX)
 
-        public string BehaviorParams;       // JSON string (Schema validated) for the doctrine
+        public string BehaviorParams;       // JSON string (Schema validated) for the behavior
 
         [DdsManaged]
         public List<MissionTrigger> Triggers;

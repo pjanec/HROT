@@ -477,8 +477,8 @@ SC4 — Source generator emits Roslyn diagnostic error `BTreeDiagnostics.Blackbo
 
 **Scope:**
 - Add `FbtAutoDiscovery` static class to `Fbt.Compiler`.
-- Method `ScanAndRegister(ActionRegistry<BrainBlackboard, BTreeContext> actionReg, DoctrineRegistry doctrineReg)`.
-  - Wait: `DoctrineRegistry` is in `Fdp.Toolkits`. If `Fbt.Compiler` should not depend on FDP, expose a more generic overload and let the HROT/FDP integration layer call it. Use an overload accepting only `ActionRegistry` for the base case, with a HROT-specific extension in `Hrot.CGF` that also registers into `DoctrineRegistry`.
+- Method `ScanAndRegister(ActionRegistry<BrainBlackboard, BTreeContext> actionReg, BehaviorRegistry behaviorReg)`.
+  - Wait: `BehaviorRegistry` is in `Fdp.Toolkits`. If `Fbt.Compiler` should not depend on FDP, expose a more generic overload and let the HROT/FDP integration layer call it. Use an overload accepting only `ActionRegistry` for the base case, with a HROT-specific extension in `Hrot.CGF` that also registers into `BehaviorRegistry`.
 - Scans `AppDomain.CurrentDomain.GetAssemblies()` for types annotated with `[FbtRegistrar]`.
 - Invokes `RegisterAll` on each found type via reflection.
 
@@ -523,7 +523,7 @@ SC2 — Scanner does not throw when a non-reflectable assembly is present.
 
 **Scope:**
 - Create `FDP/ExtDeps/FastBTree/src/Fbt.Kernel/HotReload/BTreeHotReloadManager.cs`.
-- `BTreeHotReloadManager` class (non-generic, manages string-keyed blobs and a reference to the `DoctrineRegistry` for patching).
+- `BTreeHotReloadManager` class (non-generic, manages string-keyed blobs and a reference to the `BehaviorRegistry` for patching).
 - `ReloadResult` enum in the same namespace: `NewTree, NoChange, SoftReload, HardReset`.
 - Public method:
   ```
@@ -534,7 +534,7 @@ SC2 — Scanner does not throw when a non-reflectable assembly is present.
   ```
 - Internally:
   1. Compare `StructureHash` and `ParamHash` between old and new blobs.
-  2. On any result other than `NoChange`, patch the active `DoctrineDefinition` inside the `DoctrineRegistry` by replacing its `BTreeInterpreter` with a new `Interpreter` constructed from `newBlob` and the existing `ActionRegistry`. This ensures live entities execute the new logic on the very next tick.
+  2. On any result other than `NoChange`, patch the active `BehaviorDefinition` inside the `BehaviorRegistry` by replacing its `BTreeInterpreter` with a new `Interpreter` constructed from `newBlob` and the existing `ActionRegistry`. This ensures live entities execute the new logic on the very next tick.
   3. On `HardReset`, additionally call `instance.State.Reset()` for every entry in `liveInstances`.
   4. On `SoftReload`, do not mutate instance states — the interpreter picks up the new float/int params via the updated blob automatically.
 
@@ -549,7 +549,7 @@ SC2 — Scanner does not throw when a non-reflectable assembly is present.
       where TState : unmanaged
   ```
   And provide an extension method in `Fdp.Toolkits` that calls it with `state => state.State.Reset()`. Use this approach.
-- The `DoctrineRegistry` reference must be injected at construction time: `BTreeHotReloadManager(DoctrineRegistry registry)`. The registry is in `Fdp.Toolkits`; the DI is handled by the host, not the manager itself.
+- The `BehaviorRegistry` reference must be injected at construction time: `BTreeHotReloadManager(BehaviorRegistry registry)`. The registry is in `Fdp.Toolkits`; the DI is handled by the host, not the manager itself.
 - Must never throw; guard against null `newBlob`.
 - Registry patching must happen before the method returns, so the calling site can be certain the new blob is active.
 
@@ -588,10 +588,10 @@ SC5 — Empty `liveInstances` span: HardReset returns without error:
 // Assert: TryReload with Span<BrainBTreeState>.Empty returns HardReset, no exception
 ```
 
-SC6 — `DoctrineRegistry` is updated before `TryReload` returns:
+SC6 — `BehaviorRegistry` is updated before `TryReload` returns:
 ```
-// Setup: Register a blob B1 in DoctrineRegistry; call TryReload with B2 (different StructureHash)
-// Assert: After TryReload returns, DoctrineRegistry.TryGetDefinition(treeName).BTreeInterpreter.Blob
+// Setup: Register a blob B1 in BehaviorRegistry; call TryReload with B2 (different StructureHash)
+// Assert: After TryReload returns, BehaviorRegistry.TryGetDefinition(treeName).BTreeInterpreter.Blob
 //         == B2 (the new blob is active)
 //         This is verified before any entity tick occurs
 ```
@@ -646,9 +646,9 @@ SC1 — A new `Interpreter` constructed with a different blob (different `Struct
 - `FbtAssemblyHotReloader` — a class that orchestrates the full ALC-based reload cycle:
   1. Takes a watch directory path at construction time and starts a `FileSystemWatcher` monitoring `*.dll` changes.
   2. On detection of a new DLL: load it into a new collectible `AssemblyLoadContext` (`new AssemblyLoadContext(name, isCollectible: true)`).
-  3. Via reflection, find the `[FbtRegistrar]`-annotated class in the new assembly and call its `RegisterAll(actionReg, doctrineReg)` to overwrite all action/condition delegate pointers.
+  3. Via reflection, find the `[FbtRegistrar]`-annotated class in the new assembly and call its `RegisterAll(actionReg, behaviorReg)` to overwrite all action/condition delegate pointers.
   4. Extract new `BehaviorTreeBlob` instances from the `FbtTreeCatalog` class emitted into the new assembly.
-  5. For each discovered blob, call `BTreeHotReloadManager.TryReload(treeName, newBlob, liveInstances)` to patch the `DoctrineRegistry` and optionally reset entity states.
+  5. For each discovered blob, call `BTreeHotReloadManager.TryReload(treeName, newBlob, liveInstances)` to patch the `BehaviorRegistry` and optionally reset entity states.
   6. Unload the old `AssemblyLoadContext` by calling `oldAlc.Unload()`. Store a `WeakReference<AssemblyLoadContext>` to the old ALC so callers can verify it has been GC'd.
 - `FbtAssemblyHotReloader` must provide:
   - `event Action<string>? OnReloadCompleted` — fired with tree name after a successful reload.
@@ -760,28 +760,28 @@ SC2 — When a renderer implements only `IImGuiRenderer`, it receives just the v
 
 ---
 
-### TASK-FBT-032: Add `ParamsDtoType` to `DoctrineDefinition`
+### TASK-FBT-032: Add `ParamsDtoType` to `BehaviorDefinition`
 
 **Design Reference:** DESIGN.md § 2.8, Phase 4
 
 **Scope:**
-- Modify `FDP/Toolkits/Fdp.Toolkits/Behavior/DoctrineRegistry.cs`.
-- Add `Type? ParamsDtoType { get; init; }` to `DoctrineDefinition`.
-- Update `CgfDoctrineSetup.RegisterAll` to populate `ParamsDtoType` for all existing BTree doctrines that have a params DTO (e.g., `MoveToLocationParams`, `FollowRouteParams`, `FireAtTargetParams`).
+- Modify `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorRegistry.cs`.
+- Add `Type? ParamsDtoType { get; init; }` to `BehaviorDefinition`.
+- Update `CgfBehaviorSetup.RegisterAll` to populate `ParamsDtoType` for all existing BTree behaviors that have a params DTO (e.g., `MoveToLocationParams`, `FollowRouteParams`, `FireAtTargetParams`).
 
 **Constraints:**
-- `ParamsDtoType` must be `unmanaged` at runtime (enforced by a `Debug.Assert` or comment, not a type constraint at compile time since `DoctrineDefinition` is non-generic).
+- `ParamsDtoType` must be `unmanaged` at runtime (enforced by a `Debug.Assert` or comment, not a type constraint at compile time since `BehaviorDefinition` is non-generic).
 - No breaking change: `ParamsDtoType = null` remains valid and means "no typed DTO".
 
 **Success Conditions:**
 
-SC1 — `DoctrineDefinition` accepts a `ParamsDtoType`:
+SC1 — `BehaviorDefinition` accepts a `ParamsDtoType`:
 ```
-// Assert: new DoctrineDefinition { Name = "MoveTo", ..., ParamsDtoType = typeof(MoveToLocationParams) }
+// Assert: new BehaviorDefinition { Name = "MoveTo", ..., ParamsDtoType = typeof(MoveToLocationParams) }
 //         compiles and stores the type correctly.
 ```
 
-SC2 — `DoctrineRegistry.TryGetDefinition` returns the definition with `ParamsDtoType` set:
+SC2 — `BehaviorRegistry.TryGetDefinition` returns the definition with `ParamsDtoType` set:
 ```
 // Assert: def.ParamsDtoType == typeof(MoveToLocationParams)
 ```
@@ -797,24 +797,24 @@ SC2 — `DoctrineRegistry.TryGetDefinition` returns the definition with `ParamsD
 - Implements `IEntityAwareImGuiRenderer` for `BrainBlackboard`.
 - Annotated with `[ImGuiRenderer(typeof(BrainBlackboard))]` for auto-discovery.
 - In `RenderValue(IInspectableSession session, Entity entity, object value)`:
-  1. Read `DoctrineState` component from session for the entity.
-  2. Look up the `DoctrineDefinition` from `DoctrineRegistry` via `ActiveDoctrineHash`.
+  1. Read `BehaviorState` component from session for the entity.
+  2. Look up the `BehaviorDefinition` from `BehaviorRegistry` via `ActiveBehaviorHash`.
   3. If `ParamsDtoType != null`, use `Marshal.PtrToStructure` (or `Unsafe.As`) to interpret `BrainBlackboard.Memory` as the DTO type.
   4. Pass the boxed DTO to `ImGuiPropertyTree.Render` to display all fields.
   5. Fallback: if no DTO type, display raw hex bytes (16 bytes per row).
-- The renderer needs access to `DoctrineRegistry`. Since it is registered as a singleton, the registry can be injected via a static property set during startup or passed through `IInspectableSession`.
+- The renderer needs access to `BehaviorRegistry`. Since it is registered as a singleton, the registry can be injected via a static property set during startup or passed through `IInspectableSession`.
 
 **Constraints:**
 - `Marshal.PtrToStructure` is only called once per frame per entity, on the display path (not the hot tick path) — acceptable performance.
-- `DoctrineRegistry` must be accessible from the renderer. Recommended approach: add a static settable property `DoctrineRegistry? DoctrineRegistryAccessor` to the renderer class, set at startup in `CgfSubsystem` initialization.
-- The renderer must check that `session.HasComponent<DoctrineState>(entity)` before reading it.
+- `BehaviorRegistry` must be accessible from the renderer. Recommended approach: add a static settable property `BehaviorRegistry? BehaviorRegistryAccessor` to the renderer class, set at startup in `CgfSubsystem` initialization.
+- The renderer must check that `session.HasComponent<BehaviorState>(entity)` before reading it.
 
 **Success Conditions:**
 
 SC1 — Renderer displays DTO field names when `ParamsDtoType` is set:
 ```
-// Setup: Mock IInspectableSession returning a DoctrineState with known ActiveDoctrineHash
-//        DoctrineRegistry entry with ParamsDtoType = typeof(MoveToLocationParams)
+// Setup: Mock IInspectableSession returning a BehaviorState with known ActiveBehaviorHash
+//        BehaviorRegistry entry with ParamsDtoType = typeof(MoveToLocationParams)
 //        BrainBlackboard.Memory with MoveToLocationParams written at offset 0
 // Assert: RenderValue returns true (handled)
 //         ImGuiPropertyTree.Render is called with a boxed MoveToLocationParams
@@ -825,7 +825,7 @@ SC2 — Renderer falls back gracefully when no `ParamsDtoType`:
 // Assert: RenderValue returns true (handled); raw bytes shown
 ```
 
-SC3 — Renderer does not throw when entity has no `DoctrineState`:
+SC3 — Renderer does not throw when entity has no `BehaviorState`:
 ```
 // Assert: RenderValue returns false (fallback to default rendering)
 ```
@@ -841,8 +841,8 @@ SC3 — Renderer does not throw when entity has no `DoctrineState`:
 - Implements `IEntityAwareImGuiRenderer` for `BrainBTreeState`.
 - Annotated with `[ImGuiRenderer(typeof(BrainBTreeState))]`.
 - In `RenderValue(IInspectableSession session, Entity entity, object value)`:
-  1. Read `DoctrineState` from session to get `ActiveDoctrineHash`.
-  2. Retrieve `BehaviorTreeBlob` from `DoctrineDefinition.BTreeInterpreter._blob` (via a getter exposed on `DoctrineDefinition`, or via a separate blob registry).
+  1. Read `BehaviorState` from session to get `ActiveBehaviorHash`.
+  2. Retrieve `BehaviorTreeBlob` from `BehaviorDefinition.BTreeInterpreter._blob` (via a getter exposed on `BehaviorDefinition`, or via a separate blob registry).
   3. Call recursive `DrawNode(blob, ref state, index: 0)` to render the tree.
 - `DrawNode` logic:
   - Determine if node is on the active execution path: `state.RunningNodeIndex == index` (green) or `IsAncestralPath(ref state, index)` (yellow) or inactive (white).
@@ -856,16 +856,16 @@ SC3 — Renderer does not throw when entity has no `DoctrineState`:
 **Constraints:**
 - Access to the internal `_blob` field of `Interpreter<BrainBlackboard, BTreeContext>` requires either:
   - Exposing a `BehaviorTreeBlob Blob { get; }` property on `Interpreter<TBlackboard, TContext>` (preferred), or
-  - Storing the blob separately in `DoctrineDefinition`.
+  - Storing the blob separately in `BehaviorDefinition`.
   - Preferred: add `public BehaviorTreeBlob Blob => _blob;` to `Interpreter`.
 - Must not allocate during rendering (no LINQ, no boxing of struct fields if avoidable).
 - `DebugMetadata` may be null; renderer must handle this gracefully (show only node type).
 
 **Success Conditions:**
 
-SC1 — Renderer returns `true` for a known `BrainBTreeState` with a matching doctrine:
+SC1 — Renderer returns `true` for a known `BrainBTreeState` with a matching behavior:
 ```
-// Setup: Mock session, entity with DoctrineState, registry with a BTree doctrine
+// Setup: Mock session, entity with BehaviorState, registry with a BTree behavior
 // Assert: RenderValue returns true
 ```
 
@@ -1003,7 +1003,7 @@ SC2 — Blob structure: Selector(0) → Sequence(1) → Condition(2) → Conditi
   4. Create `Interpreter<CombatBlackboard, CombatContext>(blob, actionReg)`.
   5. Run the game loop: tick the interpreter once per frame; render the `BTreeVisualizerRenderer` in an ImGui window showing the live color-coded tree state.
   6. Display the `CombatBlackboard` typed fields via `BrainBlackboardRenderer` in a separate ImGui window.
-- The sample application must provide a controllable `CombatBlackboard`: ImGui sliders/checkboxes for `AmmoCount` and `ThreatVisible` so the user can manually drive the entity through different doctrine branches.
+- The sample application must provide a controllable `CombatBlackboard`: ImGui sliders/checkboxes for `AmmoCount` and `ThreatVisible` so the user can manually drive the entity through different behavior branches.
 
 **Constraints:**
 - The sample must compile with `Fdp.Presentation` referenced. If Raylib is not available in the build environment, the project may gracefully fall back to a console-only mode controlled by a compile-time constant — but the visual path is the primary deliverable.

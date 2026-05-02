@@ -2,7 +2,7 @@
 
 ## Overview
 
-This workstream fixes a cluster of interconnected bugs that emerged after the **CQRS Brain/Muscle split** (NavigationIntent vs. NavState). The common thread across all bugs is that the ECS lifecycle for doctrine and channel cleanup is incomplete: when a mission ends, is aborted, or is replaced, the entity never cleanly reaches a **"brain death" state** (no active doctrine, no stimulated channels). The muscle layer stays permanently active, producing the looping, overshoot, and conflict symptoms described in the design talk.
+This workstream fixes a cluster of interconnected bugs that emerged after the **CQRS Brain/Muscle split** (NavigationIntent vs. NavState). The common thread across all bugs is that the ECS lifecycle for behavior and channel cleanup is incomplete: when a mission ends, is aborted, or is replaced, the entity never cleanly reaches a **"brain death" state** (no active behavior, no stimulated channels). The muscle layer stays permanently active, producing the looping, overshoot, and conflict symptoms described in the design talk.
 
 A secondary class of bugs deals with entities that are not properly registered in the spatial collision grid (`SpatialHashSystem`) and entities spawned via a legacy local path (`SpawnEntityLocal`) that bypasses the network authority requirement.
 
@@ -11,10 +11,10 @@ A secondary class of bugs deals with entities that are not properly registered i
 | Subsystem | Key File(s) |
 |---|---|
 | Channel lifecycle | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/ChannelArbitrationSystem.cs` |
-| Doctrine ingress (new event) | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs` |
-| Doctrine clear event (new) | `FDP/Toolkits/FDP.Toolkit.Behavior/Events/ClearDoctrineEvent.cs` |
-| Doctrine finished event (new) | `FDP/Toolkits/FDP.Toolkit.Behavior/Events/DoctrineFinishedEvent.cs` |
-| BTree doctrine runner | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BTreeTickSystem.cs` |
+| Behavior ingress (new event) | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs` |
+| Behavior clear event (new) | `FDP/Toolkits/FDP.Toolkit.Behavior/Events/ClearBehaviorEvent.cs` |
+| Behavior finished event (new) | `FDP/Toolkits/FDP.Toolkit.Behavior/Events/BehaviorFinishedEvent.cs` |
+| BTree behavior runner | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BTreeTickSystem.cs` |
 | Mission director | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs` |
 | Mission adapter (existing) | `Hrot.SimHost/Systems/MissionAdapterSystem.cs` |
 | Mission abort | `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` |
@@ -31,7 +31,7 @@ A secondary class of bugs deals with entities that are not properly registered i
 
 ## Phase 1 — Core Brain-Death Lifecycle
 
-**Goal:** Establish a reliable "no doctrine" (brain-death) state that is entered automatically when a mission completes or is aborted, and propagated correctly through the channel dispatch pipeline.
+**Goal:** Establish a reliable "no behavior" (brain-death) state that is entered automatically when a mission completes or is aborted, and propagated correctly through the channel dispatch pipeline.
 
 ### Event Architecture: Two Distinct Events
 
@@ -39,62 +39,62 @@ The design introduces **two events** that must not be confused:
 
 | Event | Direction | Meaning | Producer | Consumer |
 |---|---|---|---|---|
-| `DoctrineFinishedEvent` | **Bottom-up** (notification) | "The doctrine has completed naturally" | `BTreeTickSystem` (when BTree root evaluates to Success/Failure) | `MissionDirectorSystem` |
-| `ClearDoctrineEvent` | **Top-down** (imperative) | "Stop/reset the doctrine immediately" | `MissionDirectorSystem` (end of plan), `MissionControlRequestSystem` (CMD_ABORT_ALL) | `DoctrineIngressSystem` |
+| `BehaviorFinishedEvent` | **Bottom-up** (notification) | "The behavior has completed naturally" | `BTreeTickSystem` (when BTree root evaluates to Success/Failure) | `MissionDirectorSystem` |
+| `ClearBehaviorEvent` | **Top-down** (imperative) | "Stop/reset the behavior immediately" | `MissionDirectorSystem` (end of plan), `MissionControlRequestSystem` (CMD_ABORT_ALL) | `BehaviorIngressSystem` |
 
-`DoctrineFinishedEvent` flows **out** of the cognitive/behavior tier upward to the mission tier — it is a report of what has happened. `ClearDoctrineEvent` flows **into** the cognitive tier from above — it is a command to change state.
+`BehaviorFinishedEvent` flows **out** of the cognitive/behavior tier upward to the mission tier — it is a report of what has happened. `ClearBehaviorEvent` flows **into** the cognitive tier from above — it is a command to change state.
 
-**The muscle layer (`LocomotionDispatcherSystem`, `NavigationExecutionSystem`) must never publish either event.** The Muscle tier has no awareness of doctrines; it only reports physical operation status (`NavigationStatus.Result`, `channel.Status`). The BTree machinery reads those statuses and decides whether the *doctrine* is finished — that decision belongs exclusively to the cognitive tier.
+**The muscle layer (`LocomotionDispatcherSystem`, `NavigationExecutionSystem`) must never publish either event.** The Muscle tier has no awareness of behaviors; it only reports physical operation status (`NavigationStatus.Result`, `channel.Status`). The BTree machinery reads those statuses and decides whether the *behavior* is finished — that decision belongs exclusively to the cognitive tier.
 
 ### Existing Mission Tier Architecture (Context)
 
 The two-system arrangement in the mission tier is already in place:
 
 - **`MissionDirectorSystem`**: Evaluates triggers on the `MissionPlanQueue` and advances `CurrentPhase` when they fire.
-- **`MissionAdapterSystem`**: Detects phase advances (by shadow-tracking `MissionPlanQueue.CurrentPhase`) and publishes `AssignDoctrineEvent` — which `DoctrineIngressSystem` consumes to apply the new doctrine, bump `InstanceId`, and reset the BTree execution pointer.
+- **`MissionAdapterSystem`**: Detects phase advances (by shadow-tracking `MissionPlanQueue.CurrentPhase`) and publishes `AssignBehaviorEvent` — which `BehaviorIngressSystem` consumes to apply the new behavior, bump `InstanceId`, and reset the BTree execution pointer.
 
-The new `DoctrineFinished` trigger type plugs directly into `MissionDirectorSystem`’s existing trigger evaluation loop.
+The new `BehaviorFinished` trigger type plugs directly into `MissionDirectorSystem`’s existing trigger evaluation loop.
 
-### `DoctrineState.InstanceId` — Universal Change Signal
+### `BehaviorState.InstanceId` — Universal Change Signal
 
-There is **no `DoctrineChanged` event** in the FDP event bus. Instead, `DoctrineIngressSystem` increments `DoctrineState.InstanceId` on **every** change: assignment, re-assignment (same doctrine, new params), and forced clear. This integer is the single authoritative change token observable by any system.
+There is **no `BehaviorChanged` event** in the FDP event bus. Instead, `BehaviorIngressSystem` increments `BehaviorState.InstanceId` on **every** change: assignment, re-assignment (same behavior, new params), and forced clear. This integer is the single authoritative change token observable by any system.
 
-Any external observer wanting to detect all doctrine transitions (assigned / cleared / finished) should use the **shadow-polling pattern**:
+Any external observer wanting to detect all behavior transitions (assigned / cleared / finished) should use the **shadow-polling pattern**:
 
 ```csharp
 // in the observing system:
-private readonly Dictionary<int, uint> _prevDoctrineInstanceId = new();
+private readonly Dictionary<int, uint> _prevBehaviorInstanceId = new();
 
 // in OnUpdate:
 foreach (var entity in query)
 {
-    var doctrine = World.GetComponent<DoctrineState>(entity);
-    if (!_prevDoctrineInstanceId.TryGetValue(entity.Index, out uint prev)
-        || prev != doctrine.InstanceId)
+    var behavior = World.GetComponent<BehaviorState>(entity);
+    if (!_prevBehaviorInstanceId.TryGetValue(entity.Index, out uint prev)
+        || prev != behavior.InstanceId)
     {
-        bool isNowBrainDead = doctrine.ActiveDoctrineHash == DoctrineIds.None;
+        bool isNowBrainDead = behavior.ActiveBehaviorHash == BehaviorIds.None;
         // handle change...
-        _prevDoctrineInstanceId[entity.Index] = doctrine.InstanceId;
+        _prevBehaviorInstanceId[entity.Index] = behavior.InstanceId;
     }
 }
 ```
 
-### 1.0a DoctrineFinishedEvent (notification, bottom-up)
+### 1.0a BehaviorFinishedEvent (notification, bottom-up)
 
-**Problem:** After `MoveToExecutor.Execute` sets `channel.Status = NodeStatus.Success`, the BTree root evaluates to `Success` in the same or a subsequent tick of `BTreeTickSystem`. However, `BTreeTickSystem` currently discards this terminal result silently — it calls `Interpreter.Tick()` but does not report the doctrine's completion upward. The Mission tier compensates by polling `NavState.HasArrived` directly in `MissionDirectorSystem`, coupling the Mission tier to the physics layer.
+**Problem:** After `MoveToExecutor.Execute` sets `channel.Status = NodeStatus.Success`, the BTree root evaluates to `Success` in the same or a subsequent tick of `BTreeTickSystem`. However, `BTreeTickSystem` currently discards this terminal result silently — it calls `Interpreter.Tick()` but does not report the behavior's completion upward. The Mission tier compensates by polling `NavState.HasArrived` directly in `MissionDirectorSystem`, coupling the Mission tier to the physics layer.
 
 **Tier ownership clarification:**
 - **`NavigationExecutionSystem` (Muscle)**: writes `NavigationStatus.Result = NavResult.Arrived` — purely physical.
 - **`MoveToExecutor` (Action executor)**: reads `NavigationStatus`, sets `channel.Status = NodeStatus.Success` — the Cognitive/Action layer bridge.
-- **`BTreeTickSystem` (Doctrine machinery)**: calls `Interpreter.Tick()` on the entity’s doctrine BTree. When the BTree **root** returns `NodeStatus.Success` or `NodeStatus.Failure`, the *entire doctrine* has concluded. This is the only correct place to publish `DoctrineFinishedEvent`.
+- **`BTreeTickSystem` (Behavior machinery)**: calls `Interpreter.Tick()` on the entity’s behavior BTree. When the BTree **root** returns `NodeStatus.Success` or `NodeStatus.Failure`, the *entire behavior* has concluded. This is the only correct place to publish `BehaviorFinishedEvent`.
 
-The `LocomotionDispatcherSystem` must **not** publish this event. It operates at the *action* level (individual BTree leaf nodes), not at the *doctrine* level (BTree root). A doctrine may contain many sequential or conditional locomotion actions; only the BTree root result represents doctrine completion.
+The `LocomotionDispatcherSystem` must **not** publish this event. It operates at the *action* level (individual BTree leaf nodes), not at the *behavior* level (BTree root). A behavior may contain many sequential or conditional locomotion actions; only the BTree root result represents behavior completion.
 
-**Fix:** In `BTreeTickSystem.OnUpdate`, capture the BTree root result returned (or implied) by `Interpreter.Tick`. When the root transitions to `Success` or `Failure`, publish `DoctrineFinishedEvent`:
+**Fix:** In `BTreeTickSystem.OnUpdate`, capture the BTree root result returned (or implied) by `Interpreter.Tick`. When the root transitions to `Success` or `Failure`, publish `BehaviorFinishedEvent`:
 
 ```csharp
-// DoctrineFinishedEvent.cs
-public sealed class DoctrineFinishedEvent
+// BehaviorFinishedEvent.cs
+public sealed class BehaviorFinishedEvent
 {
     public Entity Entity;
     public NodeStatus Result; // Success or Failure
@@ -108,7 +108,7 @@ var rootResult = def.BTreeInterpreter!.Tick(ref blackboard, ref btState.State, r
 
 if (rootResult == NodeStatus.Success || rootResult == NodeStatus.Failure)
 {
-    World.Bus.PublishManaged(new DoctrineFinishedEvent
+    World.Bus.PublishManaged(new BehaviorFinishedEvent
     {
         Entity = entity,
         Result = rootResult
@@ -116,35 +116,35 @@ if (rootResult == NodeStatus.Success || rootResult == NodeStatus.Failure)
 }
 ```
 
-`MissionDirectorSystem` adds a new `DoctrineFinished` trigger type that consumes these notifications rather than polling `NavState.HasArrived` directly.
+`MissionDirectorSystem` adds a new `BehaviorFinished` trigger type that consumes these notifications rather than polling `NavState.HasArrived` directly.
 
-### 1.0b ClearDoctrineEvent (imperative, top-down)
+### 1.0b ClearBehaviorEvent (imperative, top-down)
 
-**Problem:** The original design proposed that `MissionDirectorSystem` and `MissionControlRequestSystem` directly manipulate `DoctrineState.ActiveDoctrineHash`. This violates separation of concerns — the Mission tier should not micromanage the Cognitive/Behavior tier's internal components.
+**Problem:** The original design proposed that `MissionDirectorSystem` and `MissionControlRequestSystem` directly manipulate `BehaviorState.ActiveBehaviorHash`. This violates separation of concerns — the Mission tier should not micromanage the Cognitive/Behavior tier's internal components.
 
-The Behavior toolkit already has an event-driven path for assigning doctrines: `AssignDoctrineEvent` consumed by `DoctrineIngressSystem`. The clear operation should mirror this exact pattern, but as an imperative command flowing **downward**.
+The Behavior toolkit already has an event-driven path for assigning behaviors: `AssignBehaviorEvent` consumed by `BehaviorIngressSystem`. The clear operation should mirror this exact pattern, but as an imperative command flowing **downward**.
 
-**Fix:** Create a `ClearDoctrineEvent` in `FDP/Toolkits/FDP.Toolkit.Behavior/Events/` and add a handler for it in `DoctrineIngressSystem.OnUpdate`. Any system that needs to **forcibly** put an entity into brain-death state publishes this event; `DoctrineIngressSystem` translates it into `DoctrineState` and `BrainBTreeState` resets.
+**Fix:** Create a `ClearBehaviorEvent` in `FDP/Toolkits/FDP.Toolkit.Behavior/Events/` and add a handler for it in `BehaviorIngressSystem.OnUpdate`. Any system that needs to **forcibly** put an entity into brain-death state publishes this event; `BehaviorIngressSystem` translates it into `BehaviorState` and `BrainBTreeState` resets.
 
 ```csharp
-// ClearDoctrineEvent.cs
-public sealed class ClearDoctrineEvent
+// ClearBehaviorEvent.cs
+public sealed class ClearBehaviorEvent
 {
     public Entity Entity;
 }
 ```
 
-In `DoctrineIngressSystem.OnUpdate`:
+In `BehaviorIngressSystem.OnUpdate`:
 
 ```csharp
-var clearEvents = World.Bus.ConsumeManaged<ClearDoctrineEvent>();
+var clearEvents = World.Bus.ConsumeManaged<ClearBehaviorEvent>();
 foreach (var evt in clearEvents)
 {
-    if (evt == null || !World.HasComponent<DoctrineState>(evt.Entity)) continue;
-    ref var doctrine = ref World.GetComponentRW<DoctrineState>(evt.Entity);
-    doctrine.ActiveDoctrineHash = DoctrineIds.None;
-    unchecked { doctrine.InstanceId++; }
-    doctrine.BrainTier = 0;
+    if (evt == null || !World.HasComponent<BehaviorState>(evt.Entity)) continue;
+    ref var behavior = ref World.GetComponentRW<BehaviorState>(evt.Entity);
+    behavior.ActiveBehaviorHash = BehaviorIds.None;
+    unchecked { behavior.InstanceId++; }
+    behavior.BrainTier = 0;
     if (World.HasComponent<BrainBTreeState>(evt.Entity))
         World.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
 }
@@ -154,51 +154,51 @@ Sections §1.2 and §1.3 describe when the Mission layer publishes this event.
 
 ### 1.1 ChannelArbitrationSystem — OnExit Guarantee
 
-**Problem:** `ChannelArbitrationSystem` detects a doctrine `InstanceId` mismatch and clears the outgoing channel by assigning `channel = default`. This sets `ActionInstanceId = 0` AND `DispatchedInstanceId = 0`. On the next tick `LocomotionDispatcherSystem` evaluates `ActionInstanceId != DispatchedInstanceId` → `0 != 0` → `false`, so `OnExit` is **never called**. `MoveToExecutor.OnExit` never runs; `NavigationIntent` is never cleared to `NavigationMode.None`; the muscle keeps driving forever.
+**Problem:** `ChannelArbitrationSystem` detects a behavior `InstanceId` mismatch and clears the outgoing channel by assigning `channel = default`. This sets `ActionInstanceId = 0` AND `DispatchedInstanceId = 0`. On the next tick `LocomotionDispatcherSystem` evaluates `ActionInstanceId != DispatchedInstanceId` → `0 != 0` → `false`, so `OnExit` is **never called**. `MoveToExecutor.OnExit` never runs; `NavigationIntent` is never cleared to `NavigationMode.None`; the muscle keeps driving forever.
 
 **Fix:** Instead of resetting the channel to `default`, zero only `ActiveAction` and **increment** `ActionInstanceId` (unchecked). This preserves the inequality that triggers `OnExit` in `LocomotionDispatcherSystem` while still signalling that the channel has been deactivated. Apply the same pattern to `WeaponChannel` and `InteractionChannel`.
 
 ```
-if (channel.ActiveAction != 0 && channel.DoctrineInstanceId != doctrine.InstanceId)
+if (channel.ActiveAction != 0 && channel.BehaviorInstanceId != behavior.InstanceId)
 {
     channel.ActiveAction = 0;
     unchecked { channel.ActionInstanceId++; }
 }
 ```
 
-### 1.2 MissionDirectorSystem — End-of-Mission Doctrine Clear
+### 1.2 MissionDirectorSystem — End-of-Mission Behavior Clear
 
-**Problem:** When `MissionDirectorSystem` detects that the trigger has fired and `CurrentPhase >= PhaseCount`, it simply `continue`s without touching `DoctrineState`. The `ActiveDoctrineHash` permanently retains the last executed doctrine (e.g. `MoveToLocation_BT`), keeping the muscle layer permanently stimulated.
+**Problem:** When `MissionDirectorSystem` detects that the trigger has fired and `CurrentPhase >= PhaseCount`, it simply `continue`s without touching `BehaviorState`. The `ActiveBehaviorHash` permanently retains the last executed behavior (e.g. `MoveToLocation_BT`), keeping the muscle layer permanently stimulated.
 
-**Trigger upgrade:** The existing `ReachedDestination` trigger polls `NavState.HasArrived` directly. This creates Mission → Physics tier coupling. Add a new `DoctrineFinished` trigger type that instead consumes `DoctrineFinishedEvent` notifications published by `LocomotionDispatcherSystem` (see §1.0a). This is the proper architectural channel for doctrine completion reporting.
+**Trigger upgrade:** The existing `ReachedDestination` trigger polls `NavState.HasArrived` directly. This creates Mission → Physics tier coupling. Add a new `BehaviorFinished` trigger type that instead consumes `BehaviorFinishedEvent` notifications published by `LocomotionDispatcherSystem` (see §1.0a). This is the proper architectural channel for behavior completion reporting.
 
-**End-of-plan fix (using ClearDoctrineEvent):** When all phases are exhausted, publish a `ClearDoctrineEvent`. Do NOT directly write `DoctrineState` — let `DoctrineIngressSystem` handle it (see §1.0b). This preserves the Mission/Cognitive separation of concerns.
+**End-of-plan fix (using ClearBehaviorEvent):** When all phases are exhausted, publish a `ClearBehaviorEvent`. Do NOT directly write `BehaviorState` — let `BehaviorIngressSystem` handle it (see §1.0b). This preserves the Mission/Cognitive separation of concerns.
 
 ```csharp
 // in the triggered block:
 if (queue.CurrentPhase < queue.PhaseCount)
 {
-    unchecked { doctrine.InstanceId++; }
-    doctrine.ActiveDoctrineHash = phases[queue.CurrentPhase].DoctrineId;
+    unchecked { behavior.InstanceId++; }
+    behavior.ActiveBehaviorHash = phases[queue.CurrentPhase].BehaviorId;
 }
 else
 {
-    // Mission complete → delegate brain-death to DoctrineIngressSystem
-    World.Bus.PublishManaged(new FDP.Toolkit.Behavior.Events.ClearDoctrineEvent { Entity = entity });
+    // Mission complete → delegate brain-death to BehaviorIngressSystem
+    World.Bus.PublishManaged(new FDP.Toolkit.Behavior.Events.ClearBehaviorEvent { Entity = entity });
 }
 ```
 
-### 1.3 MissionControlRequestSystem — CMD_ABORT_ALL Doctrine Clear
+### 1.3 MissionControlRequestSystem — CMD_ABORT_ALL Behavior Clear
 
-**Problem:** `CMD_ABORT_ALL` zeroes the `MissionPlanQueue` but never touches `DoctrineState`. The entity continues stimulating its last channel even after an operator abort.
+**Problem:** `CMD_ABORT_ALL` zeroes the `MissionPlanQueue` but never touches `BehaviorState`. The entity continues stimulating its last channel even after an operator abort.
 
-**Fix (using ClearDoctrineEvent imperative):** After zeroing the queue, publish a `ClearDoctrineEvent`. This is the correct use of the *imperative* event — an external command forcibly overriding whatever the doctrine machinery might be doing. Do NOT directly write `DoctrineState`.
+**Fix (using ClearBehaviorEvent imperative):** After zeroing the queue, publish a `ClearBehaviorEvent`. This is the correct use of the *imperative* event — an external command forcibly overriding whatever the behavior machinery might be doing. Do NOT directly write `BehaviorState`.
 
 ```csharp
 case eMissionCommandType.CMD_ABORT_ALL:
 {
     // ... existing queue clear ...
-    repo.Bus.PublishManaged(new FDP.Toolkit.Behavior.Events.ClearDoctrineEvent { Entity = entity });
+    repo.Bus.PublishManaged(new FDP.Toolkit.Behavior.Events.ClearBehaviorEvent { Entity = entity });
     // ...
 }
 ```
@@ -211,15 +211,15 @@ case eMissionCommandType.CMD_ABORT_ALL:
 
 ### 2.1 SimHostVisualization — Brain-Aware Right-Click Handler
 
-**Problem (overshoot loop):** Regular right-click sends a `CMD_REPLACE_MISSION` with a `MoveToLocation` task whose `Triggers` list is empty. `MissionControlRequestSystem.BuildQueue` assigns a fallback `TimerElapsed(float.MaxValue)` trigger. The task never completes; `DoctrineState` is never cleared; vehicle overshoots and loops.
+**Problem (overshoot loop):** Regular right-click sends a `CMD_REPLACE_MISSION` with a `MoveToLocation` task whose `Triggers` list is empty. `MissionControlRequestSystem.BuildQueue` assigns a fallback `TimerElapsed(float.MaxValue)` trigger. The task never completes; `BehaviorState` is never cleared; vehicle overshoots and loops.
 
-**Problem (Shift+Click conflict):** Shift+right-click calls `_scenario.AddWaypoint()` directly on `NavState`. If the entity has an active doctrine, `NavigationIntentBridgeSystem` overwrites `NavState` on the very next tick, erasing the waypoint and creating a 1-frame flicker.
+**Problem (Shift+Click conflict):** Shift+right-click calls `_scenario.AddWaypoint()` directly on `NavState`. If the entity has an active behavior, `NavigationIntentBridgeSystem` overwrites `NavState` on the very next tick, erasing the waypoint and creating a 1-frame flicker.
 
-**Fix:** Implement a two-path handler based on `DoctrineState.ActiveDoctrineHash`:
+**Fix:** Implement a two-path handler based on `BehaviorState.ActiveBehaviorHash`:
 
-- **Brain-dead path** (`ActiveDoctrineHash == DoctrineIds.None` or no `DoctrineState`): talk directly to the muscle layer via `_scenario.SetDestination` / `_scenario.AddWaypoint`. This restores the pre-CQRS-split behaviour for local-only entities (collision test, roamers) and for entities that have been brought into a brain-dead state by a completed or aborted mission.
+- **Brain-dead path** (`ActiveBehaviorHash == BehaviorIds.None` or no `BehaviorState`): talk directly to the muscle layer via `_scenario.SetDestination` / `_scenario.AddWaypoint`. This restores the pre-CQRS-split behaviour for local-only entities (collision test, roamers) and for entities that have been brought into a brain-dead state by a completed or aborted mission.
 
-- **Brain-active path** (any non-zero doctrine): send a `CMD_REPLACE_MISSION` via `_missionWriter`. The task **must** include a `ReachedDestination` trigger so `MissionDirectorSystem` can advance through the plan and ultimately clear the doctrine when the queue is exhausted (via the fix in §1.2).
+- **Brain-active path** (any non-zero behavior): send a `CMD_REPLACE_MISSION` via `_missionWriter`. The task **must** include a `ReachedDestination` trigger so `MissionDirectorSystem` can advance through the plan and ultimately clear the behavior when the queue is exhausted (via the fix in §1.2).
 
 **No "Idle" sentinel task:** No explicit `Idle` task is needed or desired. The brain-death mechanism from Phase 1 handles the terminal state.
 
@@ -284,17 +284,17 @@ _map.Camera.Offset = new Vector2(1280 / 2f, 720 / 2f);
 
 The complete lifecycle for a right-click-navigated entity after all fixes:
 
-1. Right-click → `CMD_REPLACE_MISSION` with `MoveToLocation` + `DoctrineFinished` trigger.
-2. `MissionDirectorSystem` advances phase 0. `MissionAdapterSystem` detects the phase change and publishes `AssignDoctrineEvent`.
-3. `DoctrineIngressSystem` consumes `AssignDoctrineEvent` → sets `ActiveDoctrineHash = MoveToLocation_BT`, bumps `InstanceId`, resets BTree state.
-4. `ChannelArbitrationSystem` detects `InstanceId` bump → no preemption (channel not yet active for the new doctrine).
+1. Right-click → `CMD_REPLACE_MISSION` with `MoveToLocation` + `BehaviorFinished` trigger.
+2. `MissionDirectorSystem` advances phase 0. `MissionAdapterSystem` detects the phase change and publishes `AssignBehaviorEvent`.
+3. `BehaviorIngressSystem` consumes `AssignBehaviorEvent` → sets `ActiveBehaviorHash = MoveToLocation_BT`, bumps `InstanceId`, resets BTree state.
+4. `ChannelArbitrationSystem` detects `InstanceId` bump → no preemption (channel not yet active for the new behavior).
 5. `BTreeTickSystem` ticks the `MoveToLocation` BTree → leaf dispatches `MoveToExecutor.OnEnter` via `LocomotionDispatcherSystem` → writes `NavigationIntent`.
 6. `NavigationIntentBridgeSystem` copies intent to `NavState`.
 7. Vehicle moves. `NavigationExecutionSystem` (Muscle) writes `NavigationStatus.Result = Arrived`.
 8. `MoveToExecutor.Execute` reads `NavigationStatus`, sets `channel.Status = NodeStatus.Success`.
-9. `BTreeTickSystem` calls `Interpreter.Tick()` → BTree **root** evaluates to `NodeStatus.Success` → publishes `DoctrineFinishedEvent { Entity, Result = Success }` **(bottom-up notification from the cognitive machinery)**.
-10. `MissionDirectorSystem` consumes `DoctrineFinishedEvent` (new `DoctrineFinished` trigger) → `CurrentPhase++` → `CurrentPhase >= PhaseCount` → publishes `ClearDoctrineEvent` **(top-down imperative)**.
-11. `DoctrineIngressSystem` consumes `ClearDoctrineEvent` → sets `ActiveDoctrineHash = DoctrineIds.None`, bumps `InstanceId`, resets `BrainBTreeState`.
+9. `BTreeTickSystem` calls `Interpreter.Tick()` → BTree **root** evaluates to `NodeStatus.Success` → publishes `BehaviorFinishedEvent { Entity, Result = Success }` **(bottom-up notification from the cognitive machinery)**.
+10. `MissionDirectorSystem` consumes `BehaviorFinishedEvent` (new `BehaviorFinished` trigger) → `CurrentPhase++` → `CurrentPhase >= PhaseCount` → publishes `ClearBehaviorEvent` **(top-down imperative)**.
+11. `BehaviorIngressSystem` consumes `ClearBehaviorEvent` → sets `ActiveBehaviorHash = BehaviorIds.None`, bumps `InstanceId`, resets `BrainBTreeState`.
 12. `ChannelArbitrationSystem` sees `InstanceId` mismatch → zeroes `ActiveAction`, increments `ActionInstanceId`.
 13. `LocomotionDispatcherSystem` sees `ActionInstanceId != DispatchedInstanceId` → calls `MoveToExecutor.OnExit` → sets `NavigationIntent.Mode = NavigationMode.None`.
 14. `NavigationIntentBridgeSystem` skips entity (mode = None).
@@ -302,7 +302,7 @@ The complete lifecycle for a right-click-navigated entity after all fixes:
 16. Shift+right-click now takes the muscle path → `_scenario.AddWaypoint()` works correctly.
 
 **Abort path (CMD_ABORT_ALL):**
-- `MissionControlRequestSystem` zeroes queue → publishes `ClearDoctrineEvent` **(top-down imperative, bypasses the doctrine-finished notification entirely — doctrine machinery is interrupted mid-execution)**.
+- `MissionControlRequestSystem` zeroes queue → publishes `ClearBehaviorEvent` **(top-down imperative, bypasses the behavior-finished notification entirely — behavior machinery is interrupted mid-execution)**.
 - Steps 11–15 apply identically.
 
 ---

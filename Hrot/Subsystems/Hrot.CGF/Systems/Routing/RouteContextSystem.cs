@@ -193,7 +193,7 @@ public sealed class RouteContextSystem : IEcsModuleSystem
                 // (60 bytes into the SoftAdvice block).
                 // Write directly into the SoftAdvice fixed buffer at the compiler-derived offset.
                 fixed (byte* p = layout.SoftAdvice)
-                    p[BlackboardOffsets.ExpectedThreatLevel - BehaviorConstants.MaxDoctrineParamByteSize] =
+                    p[BlackboardOffsets.ExpectedThreatLevel - BehaviorConstants.MaxBehaviorParamByteSize] =
                         (byte)System.Math.Clamp(dangerValue, 0, 255);
             }
         }

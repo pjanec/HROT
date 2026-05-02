@@ -7,7 +7,7 @@
 The SimHost, IG, and IOS applications were implemented to spec but contained critical architectural deviations and bugs discovered through a thorough review against the FDP engine's golden examples:
 
 - **`Fdp.Examples.NetworkDemo`** — gold standard for distributed ownership, translator patterns, and DDS topic publication
-- **`Fdp.Examples.UrbanCombat`** — gold standard for doctrine-driven behavior control and entity lifecycle
+- **`Fdp.Examples.UrbanCombat`** — gold standard for behavior-driven behavior control and entity lifecycle
 
 The IOS implementation was rated architecturally excellent; the bugs are concentrated in SimHost and IG. Additionally both IG and IOS have UI panel wiring issues that prevent any panels from appearing at startup.
 
@@ -15,7 +15,7 @@ The IOS implementation was rated architecturally excellent; the bugs are concent
 
 ## Phase 1: SimHost Architecture Fixes
 
-**Goal:** Make SimHost a fully compliant FDP authority node — correct physics component assignment, proper doctrine preemption signalling, and complete DDS topic publication.
+**Goal:** Make SimHost a fully compliant FDP authority node — correct physics component assignment, proper behavior preemption signalling, and complete DDS topic publication.
 
 ### 1.1 Remove VehicleState Contamination
 
@@ -25,11 +25,11 @@ The TKB template already adds `VehicleState` only when appropriate; the extra li
 
 **Files:** `Hrot.SimHost/Util/DescriptorMapper.cs`
 
-### 1.2 Fix Doctrine Preemption
+### 1.2 Fix Behavior Preemption
 
-`MissionAdapterSystem` updates `ActiveDoctrineHash` when a new doctrine arrives but never increments `DoctrineState.InstanceId`. `ChannelArbitrationSystem` (Behavior toolkit) uses `InstanceId` change detection to preempt stale locomotion and weapon channels — without the increment, old channels accumulate indefinitely.
+`MissionAdapterSystem` updates `ActiveBehaviorHash` when a new behavior arrives but never increments `BehaviorState.InstanceId`. `ChannelArbitrationSystem` (Behavior toolkit) uses `InstanceId` change detection to preempt stale locomotion and weapon channels — without the increment, old channels accumulate indefinitely.
 
-Pattern from `UrbanCombat`'s `DoctrineIngressSystem`: always `unchecked { doctrine.InstanceId++; }` alongside a hash change.
+Pattern from `UrbanCombat`'s `BehaviorIngressSystem`: always `unchecked { behavior.InstanceId++; }` alongside a hash change.
 
 **Files:** `Hrot.SimHost/Systems/MissionAdapterSystem.cs`
 

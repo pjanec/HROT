@@ -101,14 +101,14 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
         Assert.True(clusterMaster.NodeRoster.ActiveNodes.Count > 0,
             "At least one node should appear in the cluster roster within 5 s.");
 
-        // Register UC doctrines in both the SimHost's and the CGF's DoctrineRegistry.
+        // Register UC behaviors in both the SimHost's and the CGF's BehaviorRegistry.
         // SimHost runs kinematic/combat systems (Muscle tier); CGF runs mission-control
-        // and doctrine execution (Brain tier). Both must know the UC doctrine definitions
+        // and behavior execution (Brain tier). Both must know the UC behavior definitions
         // before the cluster transitions to OperatingLive and scenario missions start.
-        UrbanCombatNewScenario.RegisterUrbanCombatDoctrines(
-            harness.SimHost.TestHook_DoctrineRegistry);
-        UrbanCombatNewScenario.RegisterUrbanCombatDoctrines(
-            cgf.CgfSvc.TestHook_DoctrineRegistry!);
+        UrbanCombatNewScenario.RegisterUrbanCombatBehaviors(
+            harness.SimHost.TestHook_BehaviorRegistry);
+        UrbanCombatNewScenario.RegisterUrbanCombatBehaviors(
+            cgf.CgfSvc.TestHook_BehaviorRegistry!);
 
         var payloadJson = JsonSerializer.Serialize(new { TargetState = 31, ScenarioId = _scenarioId });
         await clusterMaster.HandleClusterOpRequestAsync(new ClusterOpRequest
@@ -178,8 +178,8 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
         // match the production SimHost serializer, ensuring entity cross-references in
         // TargetMemory (insurgent/APC targets) and PassengerBuffer (embarked soldiers)
         // survive the JSON round-trip as GUID-tracked handles.
-        var doctrineRegistry = new Fdp.Toolkit.Behavior.DoctrineRegistry();
-        var serializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(doctrineRegistry);
+        var behaviorRegistry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+        var serializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
         var fdpDom     = serializer.Serialize(extractRepo, new ScenarioHeader("Hrot.Scenario"));
 
         // Wrap in the application-layer DTO.  SubsystemType must match "Hrot.Scenario" so

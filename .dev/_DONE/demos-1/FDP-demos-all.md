@@ -29,7 +29,7 @@ Fdp.Examples/
 └── Constants/                 \# Strict enforcement of "No Magic Strings"  
     ├── ScenarioNames.cs  
     ├── TemplateIds.cs  
-    └── DoctrineKeys.cs
+    └── BehaviorKeys.cs
 
 ## **3\. Naming Rules & Architectural Standards**
 
@@ -142,7 +142,7 @@ These structs represent the serialized data crossing the network boundaries betw
 * **MissionCommandEvent**  
   * *Purpose:* Simulates an HQ operator overriding an AI's active waypoint.  
   * *Fields:* EntityId (int), CommandType (Enum: SetWaypoint, ClearWaypoint), TargetX, TargetY (float).  
-* **DoctrineUpdateEvent**  
+* **BehaviorUpdateEvent**  
   * *Purpose:* Updates the AI's Rules of Engagement in the Blackboard.  
   * *Fields:* EntityId (int), Key (int/hash), Value (int \- e.g., WeaponsFree, HoldFire).
 
@@ -487,7 +487,7 @@ This unit test provides absolute confidence in the FDP.Toolkit.Behavior module. 
 
 ## **1\. Objective**
 
-The MissionCommand scenario is a headless, CI-focused unit test designed to mathematically prove that **Dynamic Mission and Doctrine updates** correctly override an AI's active behavior.
+The MissionCommand scenario is a headless, CI-focused unit test designed to mathematically prove that **Dynamic Mission and Behavior updates** correctly override an AI's active behavior.
 
 It validates that when an external commander (HQ) or a replicated network command mutates the entity's BlackboardComponent, the active Behavior Tree instantly re-evaluates its state. It proves the AI can seamlessly switch from an aggressive posture to a defensive one (Rules of Engagement) by halting writes to the WeaponChannel and initiating new commands on the LocomotionChannel.
 
@@ -495,9 +495,9 @@ It validates that when an external commander (HQ) or a replicated network comman
 
 This demo relies strictly on the actual cognitive pipeline and ECS implementation:
 
-* **BlackboardComponent**: Acts as the authoritative source of truth for both *Internal State* (e.g., ammo, sensors) and *External Doctrine* (e.g., Rules of Engagement, current mission waypoint).  
+* **BlackboardComponent**: Acts as the authoritative source of truth for both *Internal State* (e.g., ammo, sensors) and *External Behavior* (e.g., Rules of Engagement, current mission waypoint).  
 * **Command Ingress Mocking**: In a full distributed environment, HQ commands are ghosted via FDP.Toolkit.Replication. For this isolated unit test, the IScenario script acts as the network ingress, directly mutating the Blackboard to simulate the arrival of an HQ command.  
-* **Dynamic BTree Evaluation**: Proves that the Behavior Tree does not cache stale condition states. It actively checks Doctrine.RoE on every tick.  
+* **Dynamic BTree Evaluation**: Proves that the Behavior Tree does not cache stale condition states. It actively checks Behavior.RoE on every tick.  
 * **Execution Boundary**: Like the other cognitive tests, this strictly monitors the ECS LocomotionChannel and WeaponChannel output. It does not load the Dispatchers or Physics toolkits.
 
 ## **3\. Scenario Setup**
@@ -506,7 +506,7 @@ This demo relies strictly on the actual cognitive pipeline and ECS implementatio
 
 The NodeBootstrapper initializes a headless world with the BehaviorToolkit and spawns a single CommanderEntity.
 
-* **Blackboard Setup:** \* Doctrine.RoE \= WeaponsFree (Default)  
+* **Blackboard Setup:** \* Behavior.RoE \= WeaponsFree (Default)  
   * Mission.TargetX \= 0.0  
   * Env.ThreatVisible \= false  
 * **BTree Definition:**  
@@ -529,8 +529,8 @@ The scenario hooks into the Node.OnTick event to inject HQ commands and sensor d
 | **0** | Initialization (RoE \= WeaponsFree) | Channels Idle. | Baseline stability. |
 | **10** | HQ: Mission.TargetX \= 100.0 | LocomotionChannel \= MoveTo WeaponChannel \= Idle | **Mission Control.** AI accepts the external waypoint and acts on it. |
 | **20** | Sensor: Env.ThreatVisible \= true | LocomotionChannel \= MoveTo WeaponChannel \= AimAndFire | **Baseline Combat.** AI engages the threat because default RoE allows it. |
-| **30** | HQ: Doctrine.RoE \= HoldFire | LocomotionChannel \= Evade WeaponChannel \= Idle | **Doctrine Override\!** The BTree re-evaluates the active threat under new RoE. It instantly clears the weapon channel and overrides the locomotion channel to evade. |
-| **40** | Sensor: Env.ThreatVisible \= true | LocomotionChannel \= Evade WeaponChannel \= Idle | **Sustained Discipline.** A new threat appears, but the AI strictly respects the HoldFire doctrine. |
+| **30** | HQ: Behavior.RoE \= HoldFire | LocomotionChannel \= Evade WeaponChannel \= Idle | **Behavior Override\!** The BTree re-evaluates the active threat under new RoE. It instantly clears the weapon channel and overrides the locomotion channel to evade. |
+| **40** | Sensor: Env.ThreatVisible \= true | LocomotionChannel \= Evade WeaponChannel \= Idle | **Sustained Discipline.** A new threat appears, but the AI strictly respects the HoldFire behavior. |
 
 ## **5\. Programmatic Assertions**
 
@@ -553,7 +553,7 @@ public class MissionCommandScenario : IScenario
                 bb.SetBool("Env.ThreatVisible", true);  
               
             else if (currentTick \== 30\)   
-                bb.SetInt("Doctrine.RoE", (int)RulesOfEngagement.HoldFire);  
+                bb.SetInt("Behavior.RoE", (int)RulesOfEngagement.HoldFire);  
         };
 
         node.SetCompletionCondition(() \=\>   
@@ -569,23 +569,23 @@ public class MissionCommandScenario : IScenario
             var tick25 \= history.GetStateAt(25);  
             bool engagedThreat \= tick25.WeaponChannel.ActiveAction \== CombatConstants.ActionIdAimAndFire;
 
-            // 3\. Assert Doctrine Change / Hold Fire (Tick 35 & 45\)  
+            // 3\. Assert Behavior Change / Hold Fire (Tick 35 & 45\)  
             var tick35 \= history.GetStateAt(35);  
             var tick45 \= history.GetStateAt(45);  
               
             bool heldFire \= tick35.WeaponChannel.ActiveAction \== 0 &&   
                             tick45.WeaponChannel.ActiveAction \== 0;  
               
-            bool evadedUnderDoctrine \= tick35.LocomotionChannel.ActiveAction \== NavigationConstants.ActionIdEvade;
+            bool evadedUnderBehavior \= tick35.LocomotionChannel.ActiveAction \== NavigationConstants.ActionIdEvade;
 
-            return missionAccepted && engagedThreat && heldFire && evadedUnderDoctrine;  
+            return missionAccepted && engagedThreat && heldFire && evadedUnderBehavior;  
         });  
     }  
 }
 
 ## **6\. Value to the FDP Framework**
 
-This test mathematically guarantees that High-Level Command logic functions perfectly within the FDP.Toolkit.Behavior module. It proves that military doctrines are not hardcoded into the BTree topology, but are dynamically evaluated variables. If an engineer accidentally caches a condition state or writes a BTree sequence that ignores the Blackboard's RoE updates, this CI test will fail immediately.
+This test mathematically guarantees that High-Level Command logic functions perfectly within the FDP.Toolkit.Behavior module. It proves that military behaviors are not hardcoded into the BTree topology, but are dynamically evaluated variables. If an engineer accidentally caches a condition state or writes a BTree sequence that ignores the Blackboard's RoE updates, this CI test will fail immediately.
 
 # **Specification: Fdp.Examples.AutoDrive**
 
@@ -803,7 +803,7 @@ public class ComponentDamageScenario : IScenario
 
 ## **6\. Value to the FDP Framework**
 
-By mandating a strict decoupling between CarKinem and Combat, this architecture ensures immense reusability. The KinematicConstraintsComponent updated by the Damage Arbiter is the exact same component that the Brain can update to enforce a "Cautious Driving" doctrine, or that the Environment node can update to simulate driving through deep mud.
+By mandating a strict decoupling between CarKinem and Combat, this architecture ensures immense reusability. The KinematicConstraintsComponent updated by the Damage Arbiter is the exact same component that the Brain can update to enforce a "Cautious Driving" behavior, or that the Environment node can update to simulate driving through deep mud.
 
 This test guarantees that CarKinem never devolves into spaghetti code filled with if (entity.IsDamaged) statements, maintaining a pristine, single-responsibility physics solver.
 
@@ -1302,8 +1302,8 @@ public class HumanOverrideScenario : IScenario
           
         // Give it an initial autonomous waypoint  
         ref var bb \= ref node.World.GetComponentRW\<BlackboardComponent\>(agent);  
-        bb.SetFloat(DoctrineKeys.MissionTargetX, 50.0f);  
-        bb.SetFloat(DoctrineKeys.MissionTargetY, 0.0f);
+        bb.SetFloat(BehaviorKeys.MissionTargetX, 50.0f);  
+        bb.SetFloat(BehaviorKeys.MissionTargetY, 0.0f);
 
         // Inject the simulated human interaction  
         node.OnTick \+= (currentTick) \=\>   

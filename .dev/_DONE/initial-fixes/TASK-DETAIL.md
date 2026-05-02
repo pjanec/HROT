@@ -35,34 +35,34 @@
 
 ---
 
-## TASK-IF002: Fix Doctrine Preemption
+## TASK-IF002: Fix Behavior Preemption
 
-**Design Reference:** [DESIGN.md § 1.2](./DESIGN.md#12-fix-doctrine-preemption)
+**Design Reference:** [DESIGN.md § 1.2](./DESIGN.md#12-fix-behavior-preemption)
 
 ### Scope
-**In:** Add `unchecked { doctrine.InstanceId++; }` in `MissionAdapterSystem` immediately before `World.SetComponent` when `ActiveDoctrineHash` changes.  
+**In:** Add `unchecked { behavior.InstanceId++; }` in `MissionAdapterSystem` immediately before `World.SetComponent` when `ActiveBehaviorHash` changes.  
 **Out:** No changes to hash comparison logic, channel arbitration, or any other system.
 
 ### Location
-`Hrot.SimHost/Systems/MissionAdapterSystem.cs` — inside the `if (doctrine.ActiveDoctrineHash != doctrineId)` branch
+`Hrot.SimHost/Systems/MissionAdapterSystem.cs` — inside the `if (behavior.ActiveBehaviorHash != behaviorId)` branch
 
 ### Constraints
 - The increment MUST use `unchecked` to allow natural byte/ushort wrap-around without overflow exceptions
 - The increment MUST occur before `World.SetComponent` so the new `InstanceId` is published in the same component write
-- Pattern source: `UrbanCombat`'s `DoctrineIngressSystem`
+- Pattern source: `UrbanCombat`'s `BehaviorIngressSystem`
 
 ### Success Conditions
 
-**SC1 — InstanceId increments on doctrine change**  
-*Setup:* Create an entity with `DoctrineState { ActiveDoctrineHash = A, InstanceId = 5 }`. Invoke `MissionAdapterSystem` with a new doctrine ID `B`.  
-*Assert:* After the system runs, `DoctrineState.InstanceId == 6`.
+**SC1 — InstanceId increments on behavior change**  
+*Setup:* Create an entity with `BehaviorState { ActiveBehaviorHash = A, InstanceId = 5 }`. Invoke `MissionAdapterSystem` with a new behavior ID `B`.  
+*Assert:* After the system runs, `BehaviorState.InstanceId == 6`.
 
 **SC2 — InstanceId wraps around without exception**  
-*Setup:* Entity with `DoctrineState { InstanceId = 255 }` (or `MaxValue` for the type). Trigger doctrine change.  
+*Setup:* Entity with `BehaviorState { InstanceId = 255 }` (or `MaxValue` for the type). Trigger behavior change.  
 *Assert:* No `OverflowException`; `InstanceId` wraps to `0`.
 
-**SC3 — No increment on same doctrine**  
-*Setup:* Trigger `MissionAdapterSystem` with a doctrine ID that matches the current `ActiveDoctrineHash`.  
+**SC3 — No increment on same behavior**  
+*Setup:* Trigger `MissionAdapterSystem` with a behavior ID that matches the current `ActiveBehaviorHash`.  
 *Assert:* `InstanceId` is unchanged.
 
 ---

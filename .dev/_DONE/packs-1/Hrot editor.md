@@ -18,10 +18,10 @@ Logic packs
 * Translator packs  
   * Entity states and simulation events  
   * Actuator Intents (locomotion, weapons, comms)  
-  * Service queries/responses (navigation, perception…)  
+  * Service queries/responses (navigation, perceptionï¿½)  
   * Network id allocation  
 * FDP CGF logic pack included modules for  
-  * Doctrine machinery, BTree, HSM, Missions  
+  * Behavior machinery, BTree, HSM, Missions  
   * Actions and conditions for use with BTree/HSM  
   * Json Scenario management  
 * FDP Orchestration logic pack  
@@ -72,14 +72,14 @@ HROT demo should
 * Show decoupled network distributed architecture  
 * Subsystems are simplified to bare minimum  
   * ExCon \- remote cluster control. Non ECS network entity monitoring. Entity manipulation requests.  
-  * SimHost \- the muscle.  Simple kinematics, navigation, perception. Owns entity ‘muscle’ components (navig state, position…)  
-  * Cgf \- the ‘brain’. Owns entity ‘brain’ components (navig intent, weapon intent…)  
-  * Ig \- the ‘presenter’. Owns nothing.  
+  * SimHost \- the muscle.  Simple kinematics, navigation, perception. Owns entity ï¿½muscleï¿½ components (navig state, positionï¿½)  
+  * Cgf \- the ï¿½brainï¿½. Owns entity ï¿½brainï¿½ components (navig intent, weapon intentï¿½)  
+  * Ig \- the ï¿½presenterï¿½. Owns nothing.  
 * Full Orchestration  
   * orchestration logic packcluster state sync, network id allocations, exercise time master, wall clock sync master.  
   * Uses NED messages  
 * Should serve as development platform for new features  
-* Subsystems follow cluster state management (exercise lifecycle \- load/operate/unload, recording/replay, preview, editing, file archiving…)
+* Subsystems follow cluster state management (exercise lifecycle \- load/operate/unload, recording/replay, preview, editing, file archivingï¿½)
 
 HROT editor
 

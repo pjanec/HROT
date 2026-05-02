@@ -13,11 +13,11 @@ For each new or modified test ask:
 | Question | Common failure |
 |---|---|
 | Does it assert the specific field/value that matters, or just "no exception"? | `BTreeTick_ProducesChannelWrite` that doesn't assert `channel.ActiveAction` |
-| Does it verify the full chain, not just isolated units? | Testing doctrine ingress without checking arbitration clears the stale channel on the next frame |
+| Does it verify the full chain, not just isolated units? | Testing behavior ingress without checking arbitration clears the stale channel on the next frame |
 | Does it distinguish "fired" from "fired correctly"? | `SpyExecutor` counting `Execute` calls but never verifying the executor can write back to the channel |
 | Does adding a named constant to the production code mean the test assertion should reference it too? | `Assert.True(size <= 96)` after `MaxChannelSizeBytes = 96` exists |
 | Is there a negative case for every positive case? | Testing "stale channel is cleared" but not "valid channel is NOT cleared" |
-| Does the test catch a realistic regression, or only the implementation as written? | Checking `ActiveAction == 0` after clear but not `DoctrineInstanceId == 0` — a selective-clear regression would slip through |
+| Does the test catch a realistic regression, or only the implementation as written? | Checking `ActiveAction == 0` after clear but not `BehaviorInstanceId == 0` — a selective-clear regression would slip through |
 
 Flag weak tests as **Issues** in the review (P1 if they miss the core contract, P2 if minor). Weak tests must be corrected in the next batch **before** new feature work begins (they are Corrective Task 0).
 

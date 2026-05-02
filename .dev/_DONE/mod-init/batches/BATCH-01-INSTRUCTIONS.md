@@ -199,7 +199,7 @@ See "Success Condition 2" — verify `KinematicTranslatorPack.Create(...)` retur
 - Namespace: `Hrot.SimHost.Network` → `Hrot.Network.Translators`
 - Update all callers. Find them: `grep -r "CognitiveTranslatorPack" --include="*.cs"`
 - `Hrot.Network.csproj` must NOT gain a reference to `Hrot.SimHost` or `Hrot.IG`
-- `DoctrineRegistry?` is used as a concrete type — no interface abstraction
+- `BehaviorRegistry?` is used as a concrete type — no interface abstraction
 
 **Tests required:**
 See "Success Condition 2" — verify `CognitiveTranslatorPack.Create(...)` returns `NavigationIntentEgressTranslator`, `EntityMissionEgressTranslator`, `GeoSpatialIngressTranslator`, `NavigationStatusIngressTranslator`.

@@ -21,7 +21,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(42u, config.DdsDomainId);
             Assert.Equal(string.Empty, config.CycloneDdsConfigPath);
             Assert.Equal(string.Empty, config.RoadNetworkBlobPath);
-            Assert.Equal(string.Empty, config.DoctrineRegistryPath);
+            Assert.Equal(string.Empty, config.BehaviorRegistryPath);
             Assert.Equal(string.Empty, config.EntityTemplatePath);
         }
 

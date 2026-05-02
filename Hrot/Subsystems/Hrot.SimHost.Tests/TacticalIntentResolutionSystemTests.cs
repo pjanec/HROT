@@ -14,12 +14,12 @@ namespace Hrot.SimHost.Tests
     /// Authority model used in tests:
     /// <list type="bullet">
     ///   <item>
-    ///     <b>Local authority:</b> entity has <c>DoctrineState</c> component AND
-    ///     <c>SetAuthority&lt;DoctrineState&gt;(entity, true)</c> has been called.
+    ///     <b>Local authority:</b> entity has <c>BehaviorState</c> component AND
+    ///     <c>SetAuthority&lt;BehaviorState&gt;(entity, true)</c> has been called.
     ///   </item>
     ///   <item>
-    ///     <b>No authority:</b> entity is dead, OR entity lacks <c>DoctrineState</c>,
-    ///     OR <c>DoctrineState</c> authority bit is not set (simulates remote-owned
+    ///     <b>No authority:</b> entity is dead, OR entity lacks <c>BehaviorState</c>,
+    ///     OR <c>BehaviorState</c> authority bit is not set (simulates remote-owned
     ///     cognitive state).
     ///   </item>
     /// </list>
@@ -29,48 +29,48 @@ namespace Hrot.SimHost.Tests
         // ── Helpers ──────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Creates a minimal world with <c>DoctrineState</c> registered.
+        /// Creates a minimal world with <c>BehaviorState</c> registered.
         /// </summary>
         private static EntityRepository CreateTestWorld()
         {
             var repo = new EntityRepository();
-            repo.RegisterComponent<DoctrineState>();
+            repo.RegisterComponent<BehaviorState>();
             return repo;
         }
 
         /// <summary>
-        /// Creates an entity with local authority over <c>DoctrineState</c>.
+        /// Creates an entity with local authority over <c>BehaviorState</c>.
         /// </summary>
         private static Entity CreateAuthorityEntity(EntityRepository repo)
         {
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new DoctrineState());
-            repo.SetAuthority<DoctrineState>(entity, true);
+            repo.AddComponent(entity, new BehaviorState());
+            repo.SetAuthority<BehaviorState>(entity, true);
             return entity;
         }
 
         // ── Stub mapper ───────────────────────────────────────────────────────
 
-        /// <summary>Stub mapper that always succeeds and returns a fixed doctrine name.</summary>
+        /// <summary>Stub mapper that always succeeds and returns a fixed behavior name.</summary>
         private sealed class SuccessMapper : ITacticalOrderMapper
         {
-            private readonly string _resultDoctrine;
+            private readonly string _resultBehavior;
 
             public string TargetIntentId { get; }
 
-            public SuccessMapper(string targetIntentId, string resultDoctrine)
+            public SuccessMapper(string targetIntentId, string resultBehavior)
             {
                 TargetIntentId = targetIntentId;
-                _resultDoctrine = resultDoctrine;
+                _resultBehavior = resultBehavior;
             }
 
             public bool TryMap(Entity self, EntityRepository repo, string jsonParams,
-                               out AssignDoctrineEvent assignment)
+                               out AssignBehaviorEvent assignment)
             {
-                assignment = new AssignDoctrineEvent
+                assignment = new AssignBehaviorEvent
                 {
                     Entity       = self,
-                    DoctrineName = _resultDoctrine,
+                    BehaviorName = _resultBehavior,
                     JsonParams   = jsonParams,
                 };
                 return true;
@@ -85,7 +85,7 @@ namespace Hrot.SimHost.Tests
             public FailingMapper(string targetIntentId) => TargetIntentId = targetIntentId;
 
             public bool TryMap(Entity self, EntityRepository repo, string jsonParams,
-                               out AssignDoctrineEvent assignment)
+                               out AssignBehaviorEvent assignment)
             {
                 assignment = null!;
                 return false;
@@ -95,12 +95,12 @@ namespace Hrot.SimHost.Tests
         // ── SC-1 ─────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// SC-1: Registry has a mapper for "DefendArea"; entity has <c>DoctrineState</c>
+        /// SC-1: Registry has a mapper for "DefendArea"; entity has <c>BehaviorState</c>
         /// with local authority.  After publishing the intent and executing the system
-        /// the mapper-translated <see cref="AssignDoctrineEvent"/> must be published.
+        /// the mapper-translated <see cref="AssignBehaviorEvent"/> must be published.
         /// </summary>
         [Fact]
-        public void Execute_MapperFound_PublishesTranslatedDoctrineEvent()
+        public void Execute_MapperFound_PublishesTranslatedBehaviorEvent()
         {
             using var repo = CreateTestWorld();
             var entity = CreateAuthorityEntity(repo);
@@ -121,21 +121,21 @@ namespace Hrot.SimHost.Tests
             system.Execute(repo, 0.016f);
             repo.Bus.SwapBuffers();
 
-            var doctrineEvents = repo.Bus.ReadManaged<AssignDoctrineEvent>();
-            Assert.Single(doctrineEvents);
-            Assert.Equal("InfantryDefend", doctrineEvents[0].DoctrineName);
-            Assert.Equal(entity, doctrineEvents[0].Entity);
+            var behaviorEvents = repo.Bus.ReadManaged<AssignBehaviorEvent>();
+            Assert.Single(behaviorEvents);
+            Assert.Equal("InfantryDefend", behaviorEvents[0].BehaviorName);
+            Assert.Equal(entity, behaviorEvents[0].Entity);
         }
 
         // ── SC-2 ─────────────────────────────────────────────────────────────
 
         /// <summary>
         /// SC-2: Empty registry; entity has local authority.
-        /// <see cref="AssignDoctrineEvent"/> is published with the original
-        /// <c>IntentId</c> as the doctrine name (pass-through).
+        /// <see cref="AssignBehaviorEvent"/> is published with the original
+        /// <c>IntentId</c> as the behavior name (pass-through).
         /// </summary>
         [Fact]
-        public void Execute_EmptyRegistry_PassesThroughIntentIdAsDoctrineName()
+        public void Execute_EmptyRegistry_PassesThroughIntentIdAsBehaviorName()
         {
             using var repo = CreateTestWorld();
             var entity = CreateAuthorityEntity(repo);
@@ -153,19 +153,19 @@ namespace Hrot.SimHost.Tests
             system.Execute(repo, 0.016f);
             repo.Bus.SwapBuffers();
 
-            var doctrineEvents = repo.Bus.ReadManaged<AssignDoctrineEvent>();
-            Assert.Single(doctrineEvents);
-            Assert.Equal("ConvoyEscort", doctrineEvents[0].DoctrineName);
+            var behaviorEvents = repo.Bus.ReadManaged<AssignBehaviorEvent>();
+            Assert.Single(behaviorEvents);
+            Assert.Equal("ConvoyEscort", behaviorEvents[0].BehaviorName);
         }
 
         // ── SC-3 ─────────────────────────────────────────────────────────────
 
         /// <summary>
         /// SC-3: Event published for an entity that does not exist (destroyed).
-        /// System must not throw and must not publish any <see cref="AssignDoctrineEvent"/>.
+        /// System must not throw and must not publish any <see cref="AssignBehaviorEvent"/>.
         /// </summary>
         [Fact]
-        public void Execute_DeletedEntity_NoExceptionNoDoctrineEventPublished()
+        public void Execute_DeletedEntity_NoExceptionNoBehaviorEventPublished()
         {
             using var repo = CreateTestWorld();
             var entity = CreateAuthorityEntity(repo);
@@ -185,8 +185,8 @@ namespace Hrot.SimHost.Tests
             Assert.Null(ex);
 
             repo.Bus.SwapBuffers();
-            var doctrineEvents = repo.Bus.ReadManaged<AssignDoctrineEvent>();
-            Assert.Empty(doctrineEvents);
+            var behaviorEvents = repo.Bus.ReadManaged<AssignBehaviorEvent>();
+            Assert.Empty(behaviorEvents);
         }
 
         // ── SC-4 ─────────────────────────────────────────────────────────────
@@ -194,10 +194,10 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// SC-4: Mapper is registered for the intent ID but <c>TryMap</c> returns
         /// <c>false</c>; entity has local authority.  The fallback path must publish
-        /// a new <see cref="AssignDoctrineEvent"/> with <c>DoctrineName == evt.IntentId</c>.
+        /// a new <see cref="AssignBehaviorEvent"/> with <c>BehaviorName == evt.IntentId</c>.
         /// </summary>
         [Fact]
-        public void Execute_MapperReturnsFailure_FallbackPublishesIntentIdAsDoctrineName()
+        public void Execute_MapperReturnsFailure_FallbackPublishesIntentIdAsBehaviorName()
         {
             using var repo = CreateTestWorld();
             var entity = CreateAuthorityEntity(repo);
@@ -218,28 +218,28 @@ namespace Hrot.SimHost.Tests
             system.Execute(repo, 0.016f);
             repo.Bus.SwapBuffers();
 
-            var doctrineEvents = repo.Bus.ReadManaged<AssignDoctrineEvent>();
-            Assert.Single(doctrineEvents);
-            Assert.Equal("DefendArea", doctrineEvents[0].DoctrineName);
-            Assert.Equal("{\"radius\":100}", doctrineEvents[0].JsonParams);
+            var behaviorEvents = repo.Bus.ReadManaged<AssignBehaviorEvent>();
+            Assert.Single(behaviorEvents);
+            Assert.Equal("DefendArea", behaviorEvents[0].BehaviorName);
+            Assert.Equal("{\"radius\":100}", behaviorEvents[0].JsonParams);
         }
 
         // ── SC-5 ─────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// SC-5: Entity does NOT have authority over <c>DoctrineState</c> (simulating a
-        /// remote-owned entity).  No <see cref="AssignDoctrineEvent"/> must be published
+        /// SC-5: Entity does NOT have authority over <c>BehaviorState</c> (simulating a
+        /// remote-owned entity).  No <see cref="AssignBehaviorEvent"/> must be published
         /// and no exception must be thrown.
         /// </summary>
         [Fact]
-        public void Execute_NoAuthority_NoDoctrineEventPublished()
+        public void Execute_NoAuthority_NoBehaviorEventPublished()
         {
             using var repo = CreateTestWorld();
 
-            // Create entity with DoctrineState but WITHOUT setting authority —
+            // Create entity with BehaviorState but WITHOUT setting authority —
             // simulates remote-owned cognitive state.
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new DoctrineState());
+            repo.AddComponent(entity, new BehaviorState());
             // Authority bit deliberately NOT set.
 
             var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry());
@@ -256,8 +256,8 @@ namespace Hrot.SimHost.Tests
             Assert.Null(ex);
 
             repo.Bus.SwapBuffers();
-            var doctrineEvents = repo.Bus.ReadManaged<AssignDoctrineEvent>();
-            Assert.Empty(doctrineEvents);
+            var behaviorEvents = repo.Bus.ReadManaged<AssignBehaviorEvent>();
+            Assert.Empty(behaviorEvents);
         }
     }
 }

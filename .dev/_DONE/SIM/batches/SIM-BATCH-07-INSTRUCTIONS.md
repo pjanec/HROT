@@ -64,7 +64,7 @@ You must execute the following debt tasks in sequential descending order of seve
 **Area:** `MissionAdapterSystem`
 **Description:** Unregistered BehaviorId strings cause persistent warning outputs every frame. 
 **Acceptance Criteria:**
-- Implement fallback behavior targeting `SimHostDoctrineIds.Idle_HSM = 3010`.
+- Implement fallback behavior targeting `SimHostBehaviorIds.Idle_HSM = 3010`.
 - Throw a single warning per entity transitioning into this state safely to prevent CLI log flooding.
 - Assert tests correctly map unknown ids to `Idle_HSM`.
 

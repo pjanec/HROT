@@ -168,15 +168,15 @@ namespace Hrot.Editor
         // ── Selection state ───────────────────────────────────────────────────────
 
         private DefaultSelectionState? _selectionState;
-        // ── Doctrine registry (promoted for tooltip rendering) ─────────────────
+        // ── Behavior registry (promoted for tooltip rendering) ─────────────────
 
-        private DoctrineRegistry? _doctrineRegistry;
+        private BehaviorRegistry? _behaviorRegistry;
 
-        // ── AI doctrine hot-reload coordinator ─────────────────────────────────
+        // ── AI behavior hot-reload coordinator ─────────────────────────────────
 
         private AiHotReloadCoordinator?    _aiCoordinator;
         private HotReloadMessageLogSource? _hotReloadSource;
-        // Captured at Initialize() so the coordinator can pass them to the doctrine factory.
+        // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
         // ── Production visualizer dependencies ───────────────────────────────────
@@ -291,12 +291,12 @@ namespace Hrot.Editor
         }
 
         /// <summary>
-        /// Relative path segments to the AI Doctrines .csproj used by <see cref="IEditorLogic.RebuildAndReloadAI"/>.
+        /// Relative path segments to the AI Behaviors .csproj used by <see cref="IEditorLogic.RebuildAndReloadAI"/>.
         /// Set by the composition root (e.g. Program.cs) before <see cref="Initialize"/> is called.
         /// Defaults to the standard workspace layout.
         /// </summary>
-        public string[] AiDoctrinesProjectPath { get; set; } =
-            new[] { "Subsystems", "Hrot.AI.Doctrines", "Hrot.AI.Doctrines.csproj" };
+        public string[] AiBehaviorsProjectPath { get; set; } =
+            new[] { "Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj" };
 
 
         /// <inheritdoc/>
@@ -342,41 +342,41 @@ namespace Hrot.Editor
             _geoTransform = geoTransform;
             var entityMap        = new NetworkEntityMap();
             _entityMap = entityMap;
-            var doctrineRegistry = new DoctrineRegistry();
-            _doctrineRegistry = doctrineRegistry;
-            // Register Urban Combat doctrines so MissionAdapterSystem can resolve Ambush
+            var behaviorRegistry = new BehaviorRegistry();
+            _behaviorRegistry = behaviorRegistry;
+            // Register Urban Combat behaviors so MissionAdapterSystem can resolve Ambush
             // and InfantryCombat behavior trees when loading UrbanCombatNew scenario files.
-            // CGF doctrines (MoveToLocation, FollowRoute, ...) are loaded asynchronously
-            // from Hrot.AI.Doctrines.dll via TriggerInitialLoad() below.
-            UrbanCombatNewScenario.RegisterUrbanCombatDoctrines(doctrineRegistry);
+            // CGF behaviors (MoveToLocation, FollowRoute, ...) are loaded asynchronously
+            // from Hrot.AI.Behaviors.dll via TriggerInitialLoad() below.
+            UrbanCombatNewScenario.RegisterUrbanCombatBehaviors(behaviorRegistry);
 
             // Expose the registry to the diagnostic renderers so the entity inspector
             // can project BrainBlackboard memory and visualize the BTree execution state.
-            Hrot.Presentation.Renderers.BrainBlackboardRenderer.DoctrineRegistryAccessor = doctrineRegistry;
-            Hrot.Presentation.Renderers.Blackboard1024Renderer.DoctrineRegistryAccessor = doctrineRegistry;
-            Hrot.Presentation.Renderers.BTreeVisualizerRenderer.DoctrineRegistryAccessor = doctrineRegistry;
+            Hrot.Presentation.Renderers.BrainBlackboardRenderer.BehaviorRegistryAccessor = behaviorRegistry;
+            Hrot.Presentation.Renderers.Blackboard1024Renderer.BehaviorRegistryAccessor = behaviorRegistry;
+            Hrot.Presentation.Renderers.BTreeVisualizerRenderer.BehaviorRegistryAccessor = behaviorRegistry;
 
-            // ── Hot reload: watch the deployment directory for Hrot.AI.Doctrines.dll changes ──
+            // ── Hot reload: watch the deployment directory for Hrot.AI.Behaviors.dll changes ──
             // When the user clicks "Reload BTrees" and MSBuild overwrites the DLL, the watcher
             // detects the change, loads the new assembly into a fresh collectible ALC on a
             // background thread, and enqueues an interpreter swap for the main thread to apply.
-            // Watch specifically for Hrot.AI.Doctrines.dll so the watcher does not fire
+            // Watch specifically for Hrot.AI.Behaviors.dll so the watcher does not fire
             // on unrelated DLL writes during compilation.
             string aiAssemblyDir = AppDomain.CurrentDomain.BaseDirectory;
             _aiCoordinator = new AiHotReloadCoordinator(
-                aiAssemblyDir, "Hrot.AI.Doctrines.dll",
-                _world!, _doctrineRegistry!,
+                aiAssemblyDir, "Hrot.AI.Behaviors.dll",
+                _world!, _behaviorRegistry!,
                 _geoTransform, _entityMap);
 
             _aiCoordinator.OnReloadCompleted += _ =>
-                Console.WriteLine("[HotReload] AI Doctrines hot-swapped.");
+                Console.WriteLine("[HotReload] AI Behaviors hot-swapped.");
 
-            // Load the current DLL immediately so doctrines are ready before the first frame.
+            // Load the current DLL immediately so behaviors are ready before the first frame.
             _aiCoordinator.TriggerInitialLoad();
 
             // ── Hot-reload message log source ─────────────────────────────────
             // Wire up after the coordinator is configured so that both the
-            // doctrine-swap callbacks and the log-source callbacks are registered.
+            // behavior-swap callbacks and the log-source callbacks are registered.
             _hotReloadSource = new HotReloadMessageLogSource();
             _aiCoordinator.OnReloadCompleted += _hotReloadSource.OnReloadCompleted;
             _aiCoordinator.OnReloadFailed    += _hotReloadSource.OnReloadFailed;
@@ -386,7 +386,7 @@ namespace Hrot.Editor
 
             // Build the serializer with custom translators AFTER component registration
             // so FdpAutoSerializer compiles extraction delegates for all registered types.
-            var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(doctrineRegistry);
+            var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
 
             // Inject bus and zoneService so file ops trigger WorldResetEvent and persist zone data.
             var fileService = new ScenarioFileService(scenarioSerializer, _world.Bus, zoneService);
@@ -415,7 +415,7 @@ namespace Hrot.Editor
                     ? view.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius
                     : 0f);
             _perceptionMod = perceptionMod;
-            var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, entityMap,
+            var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, entityMap,
                 new ScenarioEntityCreationRequestSource(),
                 new TacticalIntentMapperRegistry());
             var orchPack         = new OrchestrationLogicPack(clusterSlave);
@@ -484,7 +484,7 @@ namespace Hrot.Editor
             var app = new EditorApplication(
                 fileService, _world.Bus, _orchestrationBus, _world, _kernel, logicPacks,
                 hotReloadSource: _hotReloadSource,
-                aiProjectPathSegments: AiDoctrinesProjectPath);
+                aiProjectPathSegments: AiBehaviorsProjectPath);
             _editorLogic = app;
 
             // ── 6b. Offline orchestrator — scenario listing via ClusterMaster + UICache ──
@@ -510,7 +510,7 @@ namespace Hrot.Editor
             _previewController = new EditorPreviewController(_world, _timeController!);
 
             // ── 9. Mission service (no canvas dependency) ─────────────────────
-            _missionService = new EditorMissionService(_world.Bus, _world, doctrineRegistry);
+            _missionService = new EditorMissionService(_world.Bus, _world, behaviorRegistry);
 
             // ── 10. Canvas-dependent adapters, layers, and interaction tool ───
             if (!_headless)
@@ -788,15 +788,15 @@ namespace Hrot.Editor
                         sb.AppendLine($"Health: {hp.Current:F0} / {hp.Max:F0}");
                     }
 
-                    if (_world.HasComponent<Fdp.Toolkit.Behavior.Components.DoctrineState>(hovered.Value))
+                    if (_world.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(hovered.Value))
                     {
-                        ref readonly var ds = ref _world.GetComponentRO<Fdp.Toolkit.Behavior.Components.DoctrineState>(hovered.Value);
-                        string docName = ds.ActiveDoctrineHash == 0 ? "Idle" : ds.ActiveDoctrineHash.ToString();
+                        ref readonly var ds = ref _world.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(hovered.Value);
+                        string docName = ds.ActiveBehaviorHash == 0 ? "Idle" : ds.ActiveBehaviorHash.ToString();
 
-                        if (_doctrineRegistry != null && _doctrineRegistry.TryGetName(ds.ActiveDoctrineHash, out string? name))
+                        if (_behaviorRegistry != null && _behaviorRegistry.TryGetName(ds.ActiveBehaviorHash, out string? name))
                             docName = name;
 
-                        sb.AppendLine($"Doctrine: {docName} (Tier {ds.BrainTier})");
+                        sb.AppendLine($"Behavior: {docName} (Tier {ds.BrainTier})");
                     }
 
                     if (sb.Length > 0)
@@ -943,16 +943,16 @@ namespace Hrot.Editor
             _fdpEntityInspector.Reflector.AddBufferViewProvider(new Hrot.Presentation.Renderers.Blackboard1024ViewProvider());
 
             // Inject EditContextFactory so TryOpenEditWindow passes ParamsDtoType/HeavyDtoType to StructEdit.
-            var capturedEditorRegistry = _doctrineRegistry;
+            var capturedEditorRegistry = _behaviorRegistry;
             _fdpEntityInspector.Reflector.EditContextFactory = (session, e, type) =>
             {
                 if (type != typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard)
                  && type != typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024)) return null;
-                if (!session.HasComponent(e, typeof(Fdp.Toolkit.Behavior.Components.DoctrineState))) return null;
-                var ds = session.GetComponent(e, typeof(Fdp.Toolkit.Behavior.Components.DoctrineState))
-                    as Fdp.Toolkit.Behavior.Components.DoctrineState?;
+                if (!session.HasComponent(e, typeof(Fdp.Toolkit.Behavior.Components.BehaviorState))) return null;
+                var ds = session.GetComponent(e, typeof(Fdp.Toolkit.Behavior.Components.BehaviorState))
+                    as Fdp.Toolkit.Behavior.Components.BehaviorState?;
                 if (ds == null) return null;
-                if (capturedEditorRegistry?.TryGetDefinition(ds.Value.ActiveDoctrineHash, out var def) != true) return null;
+                if (capturedEditorRegistry?.TryGetDefinition(ds.Value.ActiveBehaviorHash, out var def) != true) return null;
                 if (type == typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard))
                 {
                     if (def.ParamsDtoType == null) return null;

@@ -13,7 +13,7 @@
 |------|--------|-------|
 | [CORRECTIVE] LocalGridBuilderSystem incremental/dirty updates | ✅ Complete | `Dictionary<int, Vector2> _prevPositions` + `_lastEntityCount`; zero-allocation fast path |
 | [CORRECTIVE] AutonomousPerceptionModule scoped bus isolation | ✅ Complete | Private `FdpEventBus _scopedBus`; `PerceptionScopedView` + `PerceptionScopedCommandBuffer` inner classes |
-| DEM1-D006 MissionCommandScenario | ✅ Complete | 3 tests; manual double-SwapBuffers pipeline driver; DoctrineIngress + MissionDirector + ChannelArbitration |
+| DEM1-D006 MissionCommandScenario | ✅ Complete | 3 tests; manual double-SwapBuffers pipeline driver; BehaviorIngress + MissionDirector + ChannelArbitration |
 | DEM1-D007 TerrainClampingScenario | ✅ Complete | 5 tests; manual terrain pipeline driver; NetworkTransform sync guard; jump-rejection validated |
 
 ---
@@ -80,7 +80,7 @@ private int _lastEntityCount = -1;
 
 **File:** `FDP/Toolkits/FDP.Toolkit.Perception/Modules/AutonomousPerceptionModule.cs`
 
-**Problem:** Between pipeline stages (LocalGridBuilder → VisionBroadphase → LosRequestBatching → ThreatEvaluation), inter-stage events (e.g. `LosCheckRequestEvent`) must be flushed from the ECB and swapped on the event bus before the consuming stage runs. The original code called `FlushEcbAndSwap(view)` which calls `world.Bus.SwapBuffers()` — the **global** event bus. In production, this would prematurely advance non-perception events (e.g. half-published `AssignDoctrineHashEvent` streams), breaking cross-system ordering contracts.
+**Problem:** Between pipeline stages (LocalGridBuilder → VisionBroadphase → LosRequestBatching → ThreatEvaluation), inter-stage events (e.g. `LosCheckRequestEvent`) must be flushed from the ECB and swapped on the event bus before the consuming stage runs. The original code called `FlushEcbAndSwap(view)` which calls `world.Bus.SwapBuffers()` — the **global** event bus. In production, this would prematurely advance non-perception events (e.g. half-published `AssignBehaviorHashEvent` streams), breaking cross-system ordering contracts.
 
 **Fix applied — private scoped bus:**
 
@@ -129,37 +129,37 @@ _threatEvaluation.Execute(scopedView, dt);
 
 #### Pipeline Topology
 
-`DoctrineIngressSystem`, `MissionDirectorSystem`, and `ChannelArbitrationSystem` are created, `.Create(world)` called, and then driven **manually** in `EvaluateTick` — no kernel module is registered. This follows the `SensorGridScenario` precedent and enables exact-tick assertions.
+`BehaviorIngressSystem`, `MissionDirectorSystem`, and `ChannelArbitrationSystem` are created, `.Create(world)` called, and then driven **manually** in `EvaluateTick` — no kernel module is registered. This follows the `SensorGridScenario` precedent and enables exact-tick assertions.
 
 #### One-Frame Delay Problem and Double-SwapBuffers Solution
 
-`MissionDirectorSystem.OnUpdate()` publishes `AssignDoctrineHashEvent` to notify `DoctrineIngressSystem` of a doctrine switch. Normally, the kernel's `SwapBuffers()` call (in `UpdateInternal`) would make this event readable exactly one tick later. With exact-tick assertions at tick 11 (the same tick as the threat injection at tick 10), a one-tick lag would fail every assertion.
+`MissionDirectorSystem.OnUpdate()` publishes `AssignBehaviorHashEvent` to notify `BehaviorIngressSystem` of a behavior switch. Normally, the kernel's `SwapBuffers()` call (in `UpdateInternal`) would make this event readable exactly one tick later. With exact-tick assertions at tick 11 (the same tick as the threat injection at tick 10), a one-tick lag would fail every assertion.
 
 **Solution — double-SwapBuffers pipeline:** `EvaluateTick` manually orchestrates the pipeline every tick:
 
 ```csharp
 world.Bus.SwapBuffers();        // (1) flush previous tick's lingering events
-_doctrineIngress.Run();         // (2) apply any pending AssignDoctrineHashEvents
-_missionDirector.Run();         // (3) evaluate phase triggers; publishes AssignDoctrineHashEvent
+_behaviorIngress.Run();         // (2) apply any pending AssignBehaviorHashEvents
+_missionDirector.Run();         // (3) evaluate phase triggers; publishes AssignBehaviorHashEvent
 world.Bus.SwapBuffers();        // (4) make step-3 events immediately readable
-_doctrineIngress.Run();         // (5) apply the step-3 doctrine switch in the same tick
-_channelArbitration.Run();      // (6) clear stale channels whose DoctrineInstanceId is expired
+_behaviorIngress.Run();         // (5) apply the step-3 behavior switch in the same tick
+_channelArbitration.Run();      // (6) clear stale channels whose BehaviorInstanceId is expired
 ```
 
-Steps (4)+(5) collapse the one-frame delay into zero, so at tick 11 both `MissionPlanQueue.CurrentPhase == 1` and `DoctrineState.ActiveDoctrineHash == 200` (Combat) are already committed.
+Steps (4)+(5) collapse the one-frame delay into zero, so at tick 11 both `MissionPlanQueue.CurrentPhase == 1` and `BehaviorState.ActiveBehaviorHash == 200` (Combat) are already committed.
 
 #### Phase Table
 
 | Phase | Tick | Script action | Assertion |
 |-------|------|---------------|-----------|
-| 1 | 5 | Write `LocoChannel { ActiveAction=MoveTo, DoctrineInstanceId=1 }` | (no assertion — setup) |
+| 1 | 5 | Write `LocoChannel { ActiveAction=MoveTo, BehaviorInstanceId=1 }` | (no assertion — setup) |
 | 2 | 10 | Inject enemy into `TargetMemory` (id=999, range=50) | (no assertion — setup) |
-| 3 | 11 | — | `MissionPlanQueue.CurrentPhase == 1`, `DoctrineState.ActiveDoctrineHash == 200` |
+| 3 | 11 | — | `MissionPlanQueue.CurrentPhase == 1`, `BehaviorState.ActiveBehaviorHash == 200` |
 | 4 | 12 | — | `LocomotionChannel.ActiveAction == 0` (stale command cleared by arbitration) |
 
-#### Doctrine Constants
+#### Behavior Constants
 
-The scenario uses `Fdp.Examples.Common.Constants.DemoDoctrineIds.Patrol = 100` and `Combat = 200`. A using alias `CommonDoctrineIds = Fdp.Examples.Common.Constants.DemoDoctrineIds` was added to `MissionCommandScenario.cs` because the parent namespace `Fdp.Examples.Scenarios` has a local `DemoDoctrineIds` class (used by `BehaviorValidationScenario` with `Combat = 2900`) that would otherwise shadow the Common one.
+The scenario uses `Fdp.Examples.Common.Constants.DemoBehaviorIds.Patrol = 100` and `Combat = 200`. A using alias `CommonBehaviorIds = Fdp.Examples.Common.Constants.DemoBehaviorIds` was added to `MissionCommandScenario.cs` because the parent namespace `Fdp.Examples.Scenarios` has a local `DemoBehaviorIds` class (used by `BehaviorValidationScenario` with `Combat = 2900`) that would otherwise shadow the Common one.
 
 ---
 
@@ -240,15 +240,15 @@ This follows the `PhysicsToolkitModule` pattern established in BATCH-05.
 
 ## 🐛 Issues Encountered
 
-### 1. DemoDoctrineIds namespace shadowing
+### 1. DemoBehaviorIds namespace shadowing
 
-`MissionCommandScenario.cs` is in namespace `Fdp.Examples.Scenarios.Cognitive`. The compiler resolves the unqualified `DemoDoctrineIds` to the parent namespace `Fdp.Examples.Scenarios.DemoDoctrineIds` (which only has `Combat = 2900`, no `Patrol`). The fix was a using alias at the top of the file:
+`MissionCommandScenario.cs` is in namespace `Fdp.Examples.Scenarios.Cognitive`. The compiler resolves the unqualified `DemoBehaviorIds` to the parent namespace `Fdp.Examples.Scenarios.DemoBehaviorIds` (which only has `Combat = 2900`, no `Patrol`). The fix was a using alias at the top of the file:
 
 ```csharp
-using CommonDoctrineIds = Fdp.Examples.Common.Constants.DemoDoctrineIds;
+using CommonBehaviorIds = Fdp.Examples.Common.Constants.DemoBehaviorIds;
 ```
 
-This is a documentation-worthy pattern: any future scenario in `Fdp.Examples.Scenarios.*` that needs the Common doctrine IDs (100/200 range) must use this alias to avoid the shadowing.
+This is a documentation-worthy pattern: any future scenario in `Fdp.Examples.Scenarios.*` that needs the Common behavior IDs (100/200 range) must use this alias to avoid the shadowing.
 
 ### 2. Fdp.Examples.NetworkDemo project type (OutputType=Exe)
 
@@ -266,7 +266,7 @@ With `driveFromNetwork: true`, `TransformSyncSystem` lerps ALL entity positions 
 
 1. **`ModuleHostKernel` swap order** — `SwapBuffers` in `UpdateInternal` runs BEFORE module `Tick()` calls, not after. This creates a one-frame event lag for any module that publishes events expecting them to be visible later in the same tick. The double-SwapBuffers pattern in `MissionCommandScenario.EvaluateTick` works around this but is intricate and easy to get wrong.
 
-2. **`DemoDoctrineIds` split across namespaces** — Having two `DemoDoctrineIds` classes (one in `Fdp.Examples.Common.Constants` for range 100–500, one in `Fdp.Examples.Scenarios` for range 2900) at the same unqualified name is a footgun. A future consolidation (e.g. a single registry) would prevent this class of bug.
+2. **`DemoBehaviorIds` split across namespaces** — Having two `DemoBehaviorIds` classes (one in `Fdp.Examples.Common.Constants` for range 100–500, one in `Fdp.Examples.Scenarios` for range 2900) at the same unqualified name is a footgun. A future consolidation (e.g. a single registry) would prevent this class of bug.
 
 3. **`TerrainQueryBatchData` ownership** — The `NativeArray` fields inside `TerrainQueryBatchData` are allocated by `TerrainQueryInitializationSystem` but not owned by any `IDisposable` in the toolkit layer. Callers in scenarios must manually dispose them in `OnShutdown()`. Wrapping in a toolkit-level disposable (similar to `PhysicsToolkitModule`) would eliminate the footgun.
 
@@ -276,10 +276,10 @@ With `driveFromNetwork: true`, `TransformSyncSystem` lerps ALL entity positions 
 
 - **`PerceptionScopedView` inner class placement:** Placed inside `AutonomousPerceptionModule` rather than as a separate file. This keeps the scoped bus pattern co-located with its only consumer, makes the tight coupling explicit, and avoids polluting the module's public API surface.
 - **Early-return dirty check order in `LocalGridBuilderSystem`:** Entity count change is checked first (O(1)) before iterating positions (O(n)), allowing the fastest possible fast path when entities are added or removed.
-- **MissionCommandScenario pipeline double-invoke of `_doctrineIngress.Run()`:** Running DoctrineIngress twice per tick is intentional and documented in the file. The first call (before MissionDirector) applies any previously published events; the second (after MissionDirector + SwapBuffers) applies the newly published doctrine switch in the same tick. Adding a comment in the code prevents future readers from "optimising" this away.
+- **MissionCommandScenario pipeline double-invoke of `_behaviorIngress.Run()`:** Running BehaviorIngress twice per tick is intentional and documented in the file. The first call (before MissionDirector) applies any previously published events; the second (after MissionDirector + SwapBuffers) applies the newly published behavior switch in the same tick. Adding a comment in the code prevents future readers from "optimising" this away.
 
 ### Edge Cases
 
 - **Spike right at tick boundary:** The spike region in `MockTerrainProvider` spans only ±0.5 m around X=40m. At 60 Hz with 0.167 m/tick, the vehicle traverses the spike in 3 ticks. Phase 3 asserts at tick 240 (X≈40m) rather than at the first rejection event, which could be tick 237-239. The assertion verifies the accumulated state (`LastValidIgAltitude < 10`), which is robust across any tick in the spike window.
 - **Zero-entity world in LocalGridBuilderSystem:** When `count == 0` and `_lastEntityCount == 0`, the dirty scan returns "clean" immediately. A world with no entities never triggers a rebuild, which is correct.
-- **MissionCommandScenario `Configure()` ordering:** `_doctrineIngress.Create(world)` must be called before `world.Bus.SwapBuffers()` or `RegisterEvents()` creates the bus slots. The order in `Configure()` (Register events → Create systems → Spawn entity) was verified to be correct.
+- **MissionCommandScenario `Configure()` ordering:** `_behaviorIngress.Create(world)` must be called before `world.Bus.SwapBuffers()` or `RegisterEvents()` creates the bus slots. The order in `Configure()` (Register events → Create systems → Spawn entity) was verified to be correct.

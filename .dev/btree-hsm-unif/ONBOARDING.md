@@ -2,7 +2,7 @@
 
 ## What Is This Workstream?
 
-This workstream makes BTree and HSM doctrines interchangeable in `Hrot.AI.Doctrines`.
+This workstream makes BTree and HSM behaviors interchangeable in `Hrot.AI.Behaviors`.
 At the end of all phases, a CGF unit's tactical brain can be authored in either
 Behavior Tree (FastBTree) or Hierarchical State Machine (FastHSM) without the editor,
 mission director, or interrupt system needing to know which paradigm is running.
@@ -20,8 +20,8 @@ Entry point: `FDP/ExtDeps/FastBTree/src/`
 - **`Fbt.SourceGen`**: Roslyn generator — scans `[BTreeAction]`/`[BTreeCondition]` and
   emits `FbtActionRegistrar.g.cs`
 - **`BrainBTreeState`**: ECS component holding the live tree state (64 bytes)
-- Doctrines defined in `Hrot.AI.Doctrines/AiDoctrineFactory.cs` and
-  `Hrot.AI.Doctrines/Brains/CgfNodes.cs`
+- Behaviors defined in `Hrot.AI.Behaviors/AiBehaviorFactory.cs` and
+  `Hrot.AI.Behaviors/Brains/CgfNodes.cs`
 
 ### HSM (FastHSM)
 
@@ -35,7 +35,7 @@ Entry point: `FDP/ExtDeps/FastHSM/src/`
 - **`Fhsm.SourceGen`**: Roslyn generator — scans `[HsmAction]`/`[HsmGuard]` and emits
   `HsmActionRegistrar.g.cs` (user assembly) and `HsmActionDispatcher.g.cs` (kernel)
 - **`BrainHsm64` / `BrainHsm128`**: ECS components (64 / 128-byte fixed buffers)
-- Doctrines will be defined in the same `AiDoctrineFactory.cs` as BTree doctrines
+- Behaviors will be defined in the same `AiBehaviorFactory.cs` as BTree behaviors
 
 ### ECS and Toolkit
 
@@ -43,15 +43,15 @@ Entry point: `FDP/ExtDeps/FastHSM/src/`
 
 | System | Purpose |
 |--------|---------|
-| `ChannelArbitrationSystem` | Resets channels on doctrine change |
+| `ChannelArbitrationSystem` | Resets channels on behavior change |
 | `CognitiveInterruptSystem` | Writes interrupt flags to `BrainBlackboard` (Phase 3) |
-| `BTreeTickSystem` | Ticks BTree instances; publishes `DoctrineFinishedEvent` |
+| `BTreeTickSystem` | Ticks BTree instances; publishes `BehaviorFinishedEvent` |
 | `HsmTickSystem<BrainHsm128>` | Ticks 128-byte HSM instances |
 | `HsmTickSystem<BrainHsm64>` | Ticks 64-byte HSM instances |
 
 ### Hot Reload
 
-`Hrot.Editor` watches `Hrot.AI.Doctrines.dll` for changes. When the DLL is rebuilt, the
+`Hrot.Editor` watches `Hrot.AI.Behaviors.dll` for changes. When the DLL is rebuilt, the
 coordinator loads it into a fresh `AssemblyLoadContext`, extracts BTree + HSM blobs, and
 applies them at the next frame boundary.
 
@@ -72,8 +72,8 @@ FDP/
         Components/         BrainBlackboard, BrainHsm64, BrainHsm128, channels
 Hrot/
   Subsystems/
-    Hrot.AI.Doctrines/      Hot-reloadable doctrine assembly
-      AiDoctrineFactory.cs  Single registration point for all doctrines
+    Hrot.AI.Behaviors/      Hot-reloadable behavior assembly
+      AiBehaviorFactory.cs  Single registration point for all behaviors
       Brains/CgfNodes.cs    BTree action/condition delegates
     Hrot.Editor/
       EditorSubsystem.cs    Owns hot reload coordinator; drives simulation
@@ -100,10 +100,10 @@ Or for the libraries only (faster iteration):
 dotnet build FDP/FDP.sln
 ```
 
-The `Hrot.AI.Doctrines` project can be rebuilt in isolation when developing doctrines:
+The `Hrot.AI.Behaviors` project can be rebuilt in isolation when developing behaviors:
 
 ```
-dotnet build Hrot/Subsystems/Hrot.AI.Doctrines/Hrot.AI.Doctrines.csproj
+dotnet build Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj
 ```
 
 Copy the output DLL to the watch directory to trigger hot reload in a running editor.
@@ -179,5 +179,5 @@ Batch E.
 
 5. **The compound key `"MethodName@offset"` must be consistent between `Fbt.SourceGen`
    and `Fhsm.SourceGen`.**
-   If the format ever changes, both generators and all doctrine JSON/DSL files referencing
+   If the format ever changes, both generators and all behavior JSON/DSL files referencing
    shared nodes must be updated together.

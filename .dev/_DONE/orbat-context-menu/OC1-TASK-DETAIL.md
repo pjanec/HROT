@@ -443,7 +443,7 @@ Tests use `ImGuiTestEngine` or a stub render harness consistent with other panel
 
 ### Constraints
 - `contextId` in the JSON must use `ToString("N")` (no dashes) to match the format used by other authoring commands in the codebase.
-- This action should be callable even if the entity currently has an active mission—the IG orchestration sends `CMD_REPLACE_MISSION`, which replaces any existing doctrine.
+- This action should be callable even if the entity currently has an active mission—the IG orchestration sends `CMD_REPLACE_MISSION`, which replaces any existing behavior.
 - Guard `_commandWriter?.Write(...)`.
 
 ### Success Conditions

@@ -12,8 +12,8 @@
 | File | Status | Description |
 |------|--------|-------------|
 | `FDP/Toolkits/FDP.Toolkit.Navigation/NavigationConstants.cs` | ✅ Updated | Added `ActionIdJoinFormation = 5` constant |
-| `Hrot.SimHost/DoctrineIds.cs` | ✅ Created | Stable doctrine ID constants for SimHost (`MoveTo_BT=3001`, `FollowRoute_BT=3002`, `JoinFormation_BT=3003`, `Idle_HSM=3010`) |
-| `Hrot.SimHost/Systems/MissionAdapterSystem.cs` | ✅ Implemented | Full replacement of stub — BehaviorId → DoctrineId translation, ParseParams, task advancement |
+| `Hrot.SimHost/BehaviorIds.cs` | ✅ Created | Stable behavior ID constants for SimHost (`MoveTo_BT=3001`, `FollowRoute_BT=3002`, `JoinFormation_BT=3003`, `Idle_HSM=3010`) |
+| `Hrot.SimHost/Systems/MissionAdapterSystem.cs` | ✅ Implemented | Full replacement of stub — BehaviorId → BehaviorId translation, ParseParams, task advancement |
 | `Hrot.SimHost/Systems/JoinFormationExecutor.cs` | ✅ Implemented | Full replacement of stub — `JoinFormationParams`, `InFormationTag`, `IActionExecutor<LocomotionChannel>` |
 | `Hrot.SimHost/Modules/SimulationLogicModule.cs` | ✅ Updated | Uncommented `JoinFormationExecutor` registration with `ActionIdJoinFormation` |
 | `Hrot.SimHost/Hrot.SimHost.csproj` | ✅ Updated | Added `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>` (required for `BrainBlackboard.Memory` pointer access) |
@@ -28,7 +28,7 @@
 
 | Test | Verifies |
 |------|----------|
-| `MissionAdapter_ResolvesDoctrineId` | `BehaviorId = "MoveToLocation"` → `DoctrineState.ActiveDoctrineHash` set to `SimHostDoctrineIds.MoveTo_BT` |
+| `MissionAdapter_ResolvesBehaviorId` | `BehaviorId = "MoveToLocation"` → `BehaviorState.ActiveBehaviorHash` set to `SimHostBehaviorIds.MoveTo_BT` |
 | `MissionAdapter_AdvancesTaskOnSuccess` | `LocomotionChannel.Status = Success` → task1 marked `TASK_DONE`, task2 becomes active |
 | `MissionAdapter_MarksFailedOnChannelFailure` | `LocomotionChannel.Status = Failure` → active task marked `TASK_FAILED` |
 | `MissionAdapter_UnknownBehaviorId_DoesNotThrow` | Unregistered `BehaviorId` → logs warning, skips entity, no exception |
@@ -47,16 +47,16 @@
 
 ## Report Questions
 
-### Q1 — Doctrine Definition Access: Retrieving `DoctrineDefinition` from the Integer Registry Hash
+### Q1 — Behavior Definition Access: Retrieving `BehaviorDefinition` from the Integer Registry Hash
 
-Retrieval worked smoothly. The `DoctrineRegistry` exposes two complementary lookup methods:
+Retrieval worked smoothly. The `BehaviorRegistry` exposes two complementary lookup methods:
 - `TryGetId(string name, out int id)` — string-to-int lookup at the task translation boundary
-- `TryGetDefinition(int id, out DoctrineDefinition def)` — int-to-definition lookup to get the `ParseParams` delegate
+- `TryGetDefinition(int id, out BehaviorDefinition def)` — int-to-definition lookup to get the `ParseParams` delegate
 
-Both are dictionary lookups; no methods were missing. The only gotcha was that `ParseParams` is a nullable delegate field on `DoctrineDefinition` (`Func<string, byte*, void>?`), so the implementation guards against null and empty params before calling it:
+Both are dictionary lookups; no methods were missing. The only gotcha was that `ParseParams` is a nullable delegate field on `BehaviorDefinition` (`Func<string, byte*, void>?`), so the implementation guards against null and empty params before calling it:
 
 ```csharp
-if (_doctrineRegistry.TryGetDefinition(doctrineId, out var def)
+if (_behaviorRegistry.TryGetDefinition(behaviorId, out var def)
     && def.ParseParams != null
     && !string.IsNullOrEmpty(activeTask.BehaviorParams))
 {
@@ -100,17 +100,17 @@ Finally, **`World.SetManagedComponent(entity, holder)` must be called** to bump 
 
 ### Q3 — Unknown Behaviors: Spam Mitigation via Idle Fallback
 
-The current implementation logs a `Warn` message every frame for any entity whose `BehaviorId` is not registered in `DoctrineRegistry`. In a real deployment this would produce continuous log spam if an entity receives a mission with an unfamiliar behavior string.
+The current implementation logs a `Warn` message every frame for any entity whose `BehaviorId` is not registered in `BehaviorRegistry`. In a real deployment this would produce continuous log spam if an entity receives a mission with an unfamiliar behavior string.
 
 **Two mitigation options:**
 
-**Option A — Idle fallback:** Map unknown `BehaviorId` strings to `SimHostDoctrineIds.Idle_HSM` instead of skipping. This makes the entity visibly idle rather than freezing, which is a more graceful failure mode in a live exercise.
+**Option A — Idle fallback:** Map unknown `BehaviorId` strings to `SimHostBehaviorIds.Idle_HSM` instead of skipping. This makes the entity visibly idle rather than freezing, which is a more graceful failure mode in a live exercise.
 
 ```csharp
-if (!_doctrineRegistry.TryGetId(activeTask.BehaviorId, out int doctrineId))
+if (!_behaviorRegistry.TryGetId(activeTask.BehaviorId, out int behaviorId))
 {
     FdpLog<MissionAdapterSystem>.Warn(...);
-    doctrineId = SimHostDoctrineIds.Idle_HSM;   // graceful fallback
+    behaviorId = SimHostBehaviorIds.Idle_HSM;   // graceful fallback
 }
 ```
 
@@ -138,6 +138,6 @@ The initial design considered `string FormationType` in the params struct, but `
 
 ## Outstanding Issues / Next Steps
 
-- The `Idle_HSM` doctrine (`SimHostDoctrineIds.Idle_HSM = 3010`) must be registered in `SimulationLogicModule`'s `DoctrineRegistry.Register` call before the Idle fallback in Q3 Option A can be enabled.
+- The `Idle_HSM` behavior (`SimHostBehaviorIds.Idle_HSM = 3010`) must be registered in `SimulationLogicModule`'s `BehaviorRegistry.Register` call before the Idle fallback in Q3 Option A can be enabled.
 - `VehicleAPI.JoinFormation` currently does not take a `FormationType` parameter — the `FormationTypeId` decoded from `JoinFormationParams` is mapped to `CarKinem.Formation.FormationType` but not yet forwarded to the API call. This will require a `VehicleAPI` overload addition in a future batch.
 - Consider adding a `FormationLeaveExecutor` to handle orderly departure from formations (currently entities remain in `InFormationTag` indefinitely after task completion).

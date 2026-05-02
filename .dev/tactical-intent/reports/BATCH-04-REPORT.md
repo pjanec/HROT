@@ -45,8 +45,8 @@ TASK-TI011 (`DefendAreaMapperTests`):
 
 | File | Purpose |
 |------|---------|
-| `Hrot/Subsystems/Hrot.AI.Doctrines/Brains/CommanderNodes.cs` | BTree action node for issuing tactical intents to subordinates (TASK-TI010) |
-| `Hrot/Subsystems/Hrot.AI.Doctrines/Mappers/DefendAreaMapper.cs` | ITacticalOrderMapper implementation for "DefendArea" intent (TASK-TI011) |
+| `Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CommanderNodes.cs` | BTree action node for issuing tactical intents to subordinates (TASK-TI010) |
+| `Hrot/Subsystems/Hrot.AI.Behaviors/Mappers/DefendAreaMapper.cs` | ITacticalOrderMapper implementation for "DefendArea" intent (TASK-TI011) |
 | `Hrot/Subsystems/Hrot.SimHost.Tests/CommanderNodesTests.cs` | Tests for TASK-TI010 (2 tests) |
 | `Hrot/Subsystems/Hrot.SimHost.Tests/DefendAreaMapperTests.cs` | Tests for TASK-TI011 (5 tests) |
 
@@ -54,9 +54,9 @@ TASK-TI011 (`DefendAreaMapperTests`):
 
 | File | Change |
 |------|--------|
-| `Hrot/Subsystems/Hrot.AI.Doctrines/Hrot.AI.Doctrines.csproj` | Added `<ProjectReference>` to `Hrot.Core` for `TkbEntityTypes` constants |
-| `Hrot/Subsystems/Hrot.CGF/Hrot.CGF.csproj` | Added `<ProjectReference>` to `Hrot.AI.Doctrines` for mapper registration |
-| `Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs` | Added `using Hrot.AI.Doctrines.Mappers;`; extracted `mapperRegistry` local and called `mapperRegistry.Register(new DefendAreaMapper())` before passing it to `CgfLogicPack` |
+| `Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj` | Added `<ProjectReference>` to `Hrot.Core` for `TkbEntityTypes` constants |
+| `Hrot/Subsystems/Hrot.CGF/Hrot.CGF.csproj` | Added `<ProjectReference>` to `Hrot.AI.Behaviors` for mapper registration |
+| `Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs` | Added `using Hrot.AI.Behaviors.Mappers;`; extracted `mapperRegistry` local and called `mapperRegistry.Register(new DefendAreaMapper())` before passing it to `CgfLogicPack` |
 
 ---
 
@@ -77,12 +77,12 @@ No dependency on `Hrot.Core` was needed for this task; all types come from `Fdp.
 `DefendAreaMapper` implements `ITacticalOrderMapper`. Key details discovered before implementation:
 - `TkbEntityTypes` is in namespace `Hrot.Map.Common` (file at `Hrot/Engine/Hrot.Core/MapDefinitions/TkbEntityTypes.cs`)
 - `TkbEntityTypes.MilitaryApc = 503L`, `TkbEntityTypes.InfantrySoldier = 504L`
-- `AssignDoctrineEvent` field is `DoctrineName` (not `Name`)
+- `AssignBehaviorEvent` field is `BehaviorName` (not `Name`)
 - `ITacticalOrderMapper.TryMap` first parameter is `Entity self` (matched in implementation)
 - `repo.GetComponent<TkbIdentity>(self)` used for read-only TkbType access
 
 **Project reference chain added:**
-- `Hrot.AI.Doctrines` ← `Hrot.Core` (for `TkbEntityTypes`)
-- `Hrot.CGF` ← `Hrot.AI.Doctrines` (for `DefendAreaMapper` at composition root)
+- `Hrot.AI.Behaviors` ← `Hrot.Core` (for `TkbEntityTypes`)
+- `Hrot.CGF` ← `Hrot.AI.Behaviors` (for `DefendAreaMapper` at composition root)
 
 The `CgfSubsystem.cs` mapper registration was placed between creating the `TacticalIntentMapperRegistry` and passing it to `CgfLogicPack`, following the pattern specified in the instructions.

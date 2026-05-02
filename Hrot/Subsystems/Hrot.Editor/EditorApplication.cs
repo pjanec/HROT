@@ -82,7 +82,7 @@ public sealed class EditorApplication : IEditorLogic
         _translatorPacks      = translatorPacks;
         _hotReloadSource      = hotReloadSource;
         _aiProjectPathSegments = aiProjectPathSegments
-            ?? new[] { "Subsystems", "Hrot.AI.Doctrines", "Hrot.AI.Doctrines.csproj" };
+            ?? new[] { "Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj" };
     }
 
     /// <summary>
@@ -218,7 +218,7 @@ public sealed class EditorApplication : IEditorLogic
             if (projectPath == null)
             {
                 _hotReloadSource?.PushLine(
-                    $"ERROR: AI Doctrines project file not found. Searched parent directories" +
+                    $"ERROR: AI Behaviors project file not found. Searched parent directories" +
                     $" from CWD for relative path: {Path.Combine(_aiProjectPathSegments)}");
                 return;
             }

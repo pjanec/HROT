@@ -120,7 +120,7 @@ Span<MissionPhase> phases = queue.Phases;
 // REPLACE (inside the loop, was queue.Phases[i] = ...):
 phases[i] = new MissionPhase
 {
-    DoctrineId  = doctrineId,
+    BehaviorId  = behaviorId,
     Trigger     = trigger,
     TriggerParam = param
 };
@@ -129,9 +129,9 @@ phases[i] = new MissionPhase
 **Tests to add in `MissionControlExecutionSystemTests.cs`:**
 
 Add a test that:
-- Creates a plan with 3 tasks (all "MoveToLocation" doctrine)
+- Creates a plan with 3 tasks (all "MoveToLocation" behavior)
 - After processing CMD_REPLACE_MISSION, asserts `queue.PhaseCount == 3`
-- Asserts each of the 3 phases has a non-default `DoctrineId` matching the registered doctrine
+- Asserts each of the 3 phases has a non-default `BehaviorId` matching the registered behavior
 
 ---
 

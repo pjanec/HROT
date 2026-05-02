@@ -78,8 +78,8 @@ Additionally, `Fdp.Examples.UrbanCombat` demonstrates how to host multiple model
 Update the main entry point to include the new logic topologies.
 
 **Requirements:**
-1. In `Program.cs`, initialize a `DoctrineRegistry` and dummy `VehicleAPI` as per the spec.
-2. Register `SimulationLogicModule` by instantiating it with the `DoctrineRegistry`, `NetworkEntityMap`, and dummy `VehicleAPI`. Call `RegisterSystems(kernelGroup)` where appropriate. (You may need to modify how `Program.cs` builds its `ModuleHostKernel` to include explicit system group configuration, or use `kernel.RegisterModule(...)` if `SimulationLogicModule` implements `IModule`. According to the spec, `SimulationLogicModule` requires you to call `RegisterSystems` manually on a dedicated `SystemGroup`. Refer to `TASK-DETAILS-SIMHOST.md`).
+1. In `Program.cs`, initialize a `BehaviorRegistry` and dummy `VehicleAPI` as per the spec.
+2. Register `SimulationLogicModule` by instantiating it with the `BehaviorRegistry`, `NetworkEntityMap`, and dummy `VehicleAPI`. Call `RegisterSystems(kernelGroup)` where appropriate. (You may need to modify how `Program.cs` builds its `ModuleHostKernel` to include explicit system group configuration, or use `kernel.RegisterModule(...)` if `SimulationLogicModule` implements `IModule`. According to the spec, `SimulationLogicModule` requires you to call `RegisterSystems` manually on a dedicated `SystemGroup`. Refer to `TASK-DETAILS-SIMHOST.md`).
 3. Ensure the project still compiles perfectly. 
 
 **Tests Required:**

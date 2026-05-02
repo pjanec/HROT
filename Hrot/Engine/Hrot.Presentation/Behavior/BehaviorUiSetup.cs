@@ -21,7 +21,7 @@ namespace Hrot.Presentation.Behavior
         public static BehaviorUiRegistry CreateRegistry()
         {
             var registry = new BehaviorUiRegistry();
-            DoctrineSchemaDiscovery.AutoRegister(registry, new ScenarioBehaviorRemapper());
+            BehaviorSchemaDiscovery.AutoRegister(registry, new ScenarioBehaviorRemapper());
             return registry;
         }
     }

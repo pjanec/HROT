@@ -13,7 +13,7 @@ testing of the IOS / IG / SimHost federated simulation stack. The issues span ei
 
 1. **Network Correctness** — duplicate system registration causing double ACKs; missing DDS sender
    identity tracking; orphaned WorldPos descriptor after entity deletion
-2. **Mission System** — missing `DoctrineFinished` / `UnderAttack` trigger cases in message-to-ECS
+2. **Mission System** — missing `BehaviorFinished` / `UnderAttack` trigger cases in message-to-ECS
    translation; no trigger selection UI in the task editor; unreadable task action buttons; missing
    version-conflict resolution UI in the mission panel
 3. **IOS UI clean-up** — legacy tool combo still present in Map Configuration panel; ORBAT tree
@@ -113,18 +113,18 @@ the five documented trigger types:
 | `"TimerElapsed"` | `EcsMissionTrigger.TimerElapsed` | ✓ handled |
 | `"ReachedDestination"` | `EcsMissionTrigger.ReachedDestination` | ✓ handled |
 | `"HealthCritical"` | `EcsMissionTrigger.HealthCritical` | ✓ handled |
-| `"DoctrineFinished"` | `EcsMissionTrigger.DoctrineFinished` | ✗ falls to default |
+| `"BehaviorFinished"` | `EcsMissionTrigger.BehaviorFinished` | ✗ falls to default |
 | `"UnderAttack"` | `EcsMissionTrigger.UnderAttack` | ✗ falls to default |
 
-The catch-all default returns `(EcsMissionTrigger.TimerElapsed, 0f)`. A `DoctrineFinished` trigger
+The catch-all default returns `(EcsMissionTrigger.TimerElapsed, 0f)`. A `BehaviorFinished` trigger
 therefore becomes a `TimerElapsed` trigger with a 0-second threshold, which fires immediately on
 the first simulation tick. The `MissionDirectorSystem` advances the queue past the `MoveToLocation`
 task before the locomotion pipeline can process it — the vehicle never moves.
 
 This bug is highly visible because the `MissionPanel` UI defaults all newly created tasks to
-`DoctrineFinished`.
+`BehaviorFinished`.
 
-**Fix:** Add `"DoctrineFinished"` and `"UnderAttack"` cases to the switch in both `ResolveTrigger`
+**Fix:** Add `"BehaviorFinished"` and `"UnderAttack"` cases to the switch in both `ResolveTrigger`
 methods.
 
 ---
@@ -135,7 +135,7 @@ methods.
 
 The `MissionPanel` task-rendering loop displays the task type and behavior parameters but
 completely skips the trigger definition. Operators can only see and edit trigger data indirectly.
-Because the default trigger for new tasks is `DoctrineFinished` (which the backend currently
+Because the default trigger for new tasks is `BehaviorFinished` (which the backend currently
 mis-handles — see §2.1), operators have no way to change it to `ReachedDestination` without
 editing raw JSON externally.
 
@@ -145,7 +145,7 @@ editing raw JSON externally.
 
    ```csharp
    private static readonly string[] _triggerTypes = {
-       "DoctrineFinished", "TimerElapsed", "ReachedDestination", "HealthCritical", "UnderAttack"
+       "BehaviorFinished", "TimerElapsed", "ReachedDestination", "HealthCritical", "UnderAttack"
    };
 
    private static string GetDefaultTriggerParams(string triggerType) => triggerType switch
@@ -162,7 +162,7 @@ editing raw JSON externally.
 3. **Render the trigger UI** In the per-task `for` loop, after the `BehaviorParams` block:
    - If the task already has triggers: combo (`##TrigType{i}`) + input text (`##TrigParams{i}`) +
      "Default" button.
-   - If no triggers: `+ Add Trigger` button (defaults to `DoctrineFinished`).
+   - If no triggers: `+ Add Trigger` button (defaults to `BehaviorFinished`).
 
 ---
 

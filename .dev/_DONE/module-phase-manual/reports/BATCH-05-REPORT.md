@@ -1,9 +1,9 @@
 # BATCH-05 Report
 
 ## Completion Status
-- [x] MPM-P5-T01: Create DoctrineCategory + DoctrineContractAttribute
+- [x] MPM-P5-T01: Create BehaviorCategory + BehaviorContractAttribute
 - [x] MPM-P5-T02: Decorate existing DTOs + create 5 marker DTOs
-- [x] MPM-P5-T03: Create DoctrineSchemaDiscovery
+- [x] MPM-P5-T03: Create BehaviorSchemaDiscovery
 
 ## Build Status
 `dotnet build IOS-IG-SimHost.sln` - 0 errors, 0 warnings introduced by this batch.
@@ -30,33 +30,33 @@ The 3 DTOs with JSON properties were found in Fdp.Toolkits, not in Hrot.Core:
 
 `JoinFormationParamsJsonDto` did not exist anywhere in the codebase.
 
-These could not be decorated with `[DoctrineContract]` in-place because:
-1. `DoctrineContractAttribute` (Hrot.Core) cannot be applied in `Fdp.Toolkits` without
+These could not be decorated with `[BehaviorContract]` in-place because:
+1. `BehaviorContractAttribute` (Hrot.Core) cannot be applied in `Fdp.Toolkits` without
    creating a circular dependency (Fdp.Toolkits has no Hrot dependencies).
-2. `CgfDoctrineIds` (Hrot.CGF) cannot be referenced from Fdp.Toolkits for the same reason.
+2. `CgfBehaviorIds` (Hrot.CGF) cannot be referenced from Fdp.Toolkits for the same reason.
 
 Resolution: new Hrot.Core versions of all 4 DTOs were created in
-`Hrot/Engine/Hrot.Core/MapDefinitions/Doctrine/`, carrying the full JSON property
-definitions plus `[DoctrineContract]` + `BehaviorId`. The Fdp.Toolkits originals remain
+`Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/`, carrying the full JSON property
+definitions plus `[BehaviorContract]` + `BehaviorId`. The Fdp.Toolkits originals remain
 untouched (they are still used by BehaviorUiSetup and ScenarioBehaviorRemapper until
 BATCH-06 switches to AutoRegister).
 
-**Q2: What are the exact behavior ID strings found in BehaviorUiSetup.cs/CgfDoctrineSetup.cs?**
+**Q2: What are the exact behavior ID strings found in BehaviorUiSetup.cs/CgfBehaviorSetup.cs?**
 
 From `BehaviorUiSetup.cs`: `"FireAtTarget"`, `"FollowRoute"`, `"MoveToLocation"`
-From `CgfDoctrineSetup.cs`: same three, plus `"JoinFormation"`, `"Idle"`, `"WanderMilitary"`
-From `DoctrineCatalog.cs` (string literals): `"ConvoyEscort"`, `"InfantryCombat"`, `"Ambush"`
+From `CgfBehaviorSetup.cs`: same three, plus `"JoinFormation"`, `"Idle"`, `"WanderMilitary"`
+From `BehaviorCatalog.cs` (string literals): `"ConvoyEscort"`, `"InfantryCombat"`, `"Ambush"`
 
 The three strings for ConvoyEscort, InfantryCombat, Ambush do not yet appear in either
-setup file - they are referenced only in DoctrineCatalog. BATCH-06 will need to add their
-DoctrineDefinition registrations to CgfDoctrineSetup.
+setup file - they are referenced only in BehaviorCatalog. BATCH-06 will need to add their
+BehaviorDefinition registrations to CgfBehaviorSetup.
 
-**Q3: Which project hosts DoctrineSchemaDiscovery, and why?**
+**Q3: Which project hosts BehaviorSchemaDiscovery, and why?**
 
-`Hrot.Presentation` (`Hrot/Engine/Hrot.Presentation/Behavior/DoctrineSchemaDiscovery.cs`).
+`Hrot.Presentation` (`Hrot/Engine/Hrot.Presentation/Behavior/BehaviorSchemaDiscovery.cs`).
 
 Dependency check:
-- `Hrot.Presentation` already references `Hrot.Core` (DoctrineContractAttribute) v
+- `Hrot.Presentation` already references `Hrot.Core` (BehaviorContractAttribute) v
 - `Hrot.Presentation` already references `Fdp.Toolkits` (ScenarioBehaviorRemapper) v
 - `BehaviorUiRegistry` is defined in `Hrot.Presentation` itself v
 - No new project references needed v
@@ -83,22 +83,22 @@ The `Invoke` call passes `new object[] { attr.BehaviorId }` as the argument arra
 
 **Q5: Other places where behavior-ID strings are hardcoded that BATCH-06 should know:**
 
-1. `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/DoctrineCatalog.cs` - has hardcoded lists of
+1. `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/BehaviorCatalog.cs` - has hardcoded lists of
    behavior-ID strings per entity category. BATCH-06 / MPM-P5-T05 should replace these
    with the reflection-based BuildMap approach described in DESIGN.md 5.6.
 
-2. `Hrot/Subsystems/Hrot.CGF/Configuration/CgfDoctrineSetup.cs` - each
+2. `Hrot/Subsystems/Hrot.CGF/Configuration/CgfBehaviorSetup.cs` - each
    `registry.Register(id, "BehaviorId", ...)` call still uses a raw string. BATCH-06
-   should derive the string from the DTO's `[DoctrineContract].BehaviorId` or call
-   `DoctrineSchemaDiscovery.AutoRegister`.
+   should derive the string from the DTO's `[BehaviorContract].BehaviorId` or call
+   `BehaviorSchemaDiscovery.AutoRegister`.
 
-3. `CgfDoctrineIds.cs` does not yet have constants for ConvoyEscort, InfantryCombat, or
-   Ambush (they are assigned IDs 3013-3015 in the new local `DoctrineIds.cs`). BATCH-06
-   should add those constants to `CgfDoctrineIds.cs` to keep it as the single source for
-   Hrot.CGF consumers, and optionally remove the duplication with `DoctrineIds.cs`.
+3. `CgfBehaviorIds.cs` does not yet have constants for ConvoyEscort, InfantryCombat, or
+   Ambush (they are assigned IDs 3013-3015 in the new local `BehaviorIds.cs`). BATCH-06
+   should add those constants to `CgfBehaviorIds.cs` to keep it as the single source for
+   Hrot.CGF consumers, and optionally remove the duplication with `BehaviorIds.cs`.
 
-4. The assembly scan in `DoctrineSchemaDiscovery` covers only `Hrot.Core` (the assembly
-   that contains `DoctrineContractAttribute`). The 3 original Fdp.Toolkits DTOs remain
+4. The assembly scan in `BehaviorSchemaDiscovery` covers only `Hrot.Core` (the assembly
+   that contains `BehaviorContractAttribute`). The 3 original Fdp.Toolkits DTOs remain
    undecorated; after BATCH-06 switches callers to AutoRegister those Fdp.Toolkits classes
    can be removed or left as legacy types.
 
@@ -106,38 +106,38 @@ The `Invoke` call passes `new object[] { attr.BehaviorId }` as the argument arra
 
 ## New Files Created
 
-**Hrot.Core (`Hrot/Engine/Hrot.Core/MapDefinitions/Doctrine/`):**
-- `DoctrineCategory.cs` - [Flags] enum; AllMilitary = 14
-- `DoctrineContractAttribute.cs` - sealed attribute with DoctrineId, BehaviorId, ValidCategories
-- `DoctrineIds.cs` - internal constants mirroring CgfDoctrineIds (3001-3015)
-- `FireAtTargetParamsJsonDto.cs` - full JSON props + [DoctrineContract] + BehaviorId
-- `MoveToLocationParamsJsonDto.cs` - full JSON props + [DoctrineContract] + BehaviorId
-- `FollowRouteParamsJsonDto.cs` - full JSON props + [DoctrineContract] + BehaviorId
-- `JoinFormationParamsJsonDto.cs` - marker + [DoctrineContract] + BehaviorId
-- `IdleParamsJsonDto.cs` - marker + [DoctrineContract] + BehaviorId
-- `WanderMilitaryParamsJsonDto.cs` - marker + [DoctrineContract] + BehaviorId
-- `ConvoyEscortParamsJsonDto.cs` - marker + [DoctrineContract] + BehaviorId
-- `InfantryCombatParamsJsonDto.cs` - marker + [DoctrineContract] + BehaviorId
-- `AmbushParamsJsonDto.cs` - marker + [DoctrineContract] + BehaviorId
+**Hrot.Core (`Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/`):**
+- `BehaviorCategory.cs` - [Flags] enum; AllMilitary = 14
+- `BehaviorContractAttribute.cs` - sealed attribute with BehaviorId, BehaviorId, ValidCategories
+- `BehaviorIds.cs` - internal constants mirroring CgfBehaviorIds (3001-3015)
+- `FireAtTargetParamsJsonDto.cs` - full JSON props + [BehaviorContract] + BehaviorId
+- `MoveToLocationParamsJsonDto.cs` - full JSON props + [BehaviorContract] + BehaviorId
+- `FollowRouteParamsJsonDto.cs` - full JSON props + [BehaviorContract] + BehaviorId
+- `JoinFormationParamsJsonDto.cs` - marker + [BehaviorContract] + BehaviorId
+- `IdleParamsJsonDto.cs` - marker + [BehaviorContract] + BehaviorId
+- `WanderMilitaryParamsJsonDto.cs` - marker + [BehaviorContract] + BehaviorId
+- `ConvoyEscortParamsJsonDto.cs` - marker + [BehaviorContract] + BehaviorId
+- `InfantryCombatParamsJsonDto.cs` - marker + [BehaviorContract] + BehaviorId
+- `AmbushParamsJsonDto.cs` - marker + [BehaviorContract] + BehaviorId
 
 **Hrot.Presentation (`Hrot/Engine/Hrot.Presentation/Behavior/`):**
-- `DoctrineSchemaDiscovery.cs` - AutoRegister scans Hrot.Core assembly
+- `BehaviorSchemaDiscovery.cs` - AutoRegister scans Hrot.Core assembly
 
 ---
 
 ## Suggested Commit Message
 
 ```
-MPM Phase 5a: Doctrine contract foundation (BATCH-05)
+MPM Phase 5a: Behavior contract foundation (BATCH-05)
 
-- Hrot.Core: DoctrineCategory [Flags] enum (AllMilitary=14)
-- Hrot.Core: DoctrineContractAttribute with DoctrineId, BehaviorId, ValidCategories
-- Hrot.Core: DoctrineIds internal constants (3001-3015), mirrors CgfDoctrineIds
-- Hrot.Core: 4 contract-bearing DTOs in MapDefinitions/Doctrine/ (FireAtTarget,
+- Hrot.Core: BehaviorCategory [Flags] enum (AllMilitary=14)
+- Hrot.Core: BehaviorContractAttribute with BehaviorId, BehaviorId, ValidCategories
+- Hrot.Core: BehaviorIds internal constants (3001-3015), mirrors CgfBehaviorIds
+- Hrot.Core: 4 contract-bearing DTOs in MapDefinitions/Behavior/ (FireAtTarget,
   MoveToLocation, FollowRoute, JoinFormation) with full JSON properties
 - Hrot.Core: 5 empty marker DTOs (Idle, WanderMilitary, ConvoyEscort,
-  InfantryCombat, Ambush) with [DoctrineContract] + BehaviorId
-- Hrot.Presentation: DoctrineSchemaDiscovery.AutoRegister scans Hrot.Core assembly
+  InfantryCombat, Ambush) with [BehaviorContract] + BehaviorId
+- Hrot.Presentation: BehaviorSchemaDiscovery.AutoRegister scans Hrot.Core assembly
   and registers all 9 DTOs with BehaviorUiRegistry and ScenarioBehaviorRemapper
 - Build: 0 errors, no new project references, test baseline unchanged (10 pre-existing
   integration failures)

@@ -6,9 +6,9 @@ namespace Hrot.Presentation.Renderers;
 
 /// <summary>
 /// StructEdit plugin that projects the raw 128-byte <see cref="BrainBlackboard.Memory"/>
-/// buffer as the active doctrine's <c>ParamsDtoType</c> in the component editor.
+/// buffer as the active behavior's <c>ParamsDtoType</c> in the component editor.
 /// Registered on startup via <c>ComponentReflector.AddBufferViewProvider</c> when
-/// a doctrine registry with typed parameters is available.
+/// a behavior registry with typed parameters is available.
 /// </summary>
 public sealed class BrainBlackboardViewProvider : IBufferViewProvider
 {

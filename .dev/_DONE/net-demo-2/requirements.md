@@ -37,7 +37,7 @@ Here is the exact breakdown of the parts, behaviors, and consequences the demo m
 
 The demo must initialize two separate node contexts:
 
-- **The Brain Node (`NodeRole.Brain`):** Hosts the `CgfLogicPack`, `CognitiveRuntimeModule`, and `MissionControlModule`. It owns cognitive state (`DoctrineState`, `TargetMemory`, `Health`) but lacks physical kinematics.
+- **The Brain Node (`NodeRole.Brain`):** Hosts the `CgfLogicPack`, `CognitiveRuntimeModule`, and `MissionControlModule`. It owns cognitive state (`BehaviorState`, `TargetMemory`, `Health`) but lacks physical kinematics.
 - **The Muscle Node (`NodeRole.MuscleGround | NodeRole.Perception`):** Hosts the `SimHostCoreLogicPack`, `GroundKinematicsModule`, and the background `AutonomousPerceptionModule`. It has no AI, acting purely as a physics and geometry solver.
 
 ### 2. Actions & Behaviors (The Scenario Flow)
@@ -50,7 +50,7 @@ The demo must initialize two separate node contexts:
 
 **Phase 2: Cognitive Intent to Kinematic Execution (Navigation)**
 
-- **Action:** The Brain's behavior tree evaluates a patrol doctrine and writes a `NavigationIntent` component (e.g., `MoveTo`).
+- **Action:** The Brain's behavior tree evaluates a patrol behavior and writes a `NavigationIntent` component (e.g., `MoveTo`).
 - **Behavior:** The intent crosses the DDS boundary to the Muscle node. The `NavigationIntentBridgeSystem` translates it into a native `NavState`, and the `CarKinematicsSystem` begins integrating physical movement.
 - **Consequence:** The Muscle node computes the physical trajectory and returns a `NavigationStatus` (e.g., `InProgress` or `Arrived`) back to the Brain, satisfying the CQRS navigation contract without the Brain ever running kinematics.
 
@@ -139,12 +139,12 @@ namespace Hrot.Examples.NetworkDemo
             if (role.HasFlag(NodeRole.Brain)) CgfComponentRegistry.RegisterAll(context.World);
 
             // 4. Toolkit Module Wiring
-            var doctrineRegistry = new Fdp.Toolkit.Behavior.DoctrineRegistry();
-            DemoScenarioSetup.RegisterDoctrines(doctrineRegistry);
+            var behaviorRegistry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+            DemoScenarioSetup.RegisterBehaviors(behaviorRegistry);
 
             if (role.HasFlag(NodeRole.Brain))
             {
-                context.Kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, context.EntityMap));
+                context.Kernel.RegisterModule(new CgfLogicPack(behaviorRegistry, context.EntityMap));
             }
             if (role.HasFlag(NodeRole.MuscleGround))
             {
@@ -207,7 +207,7 @@ namespace Hrot.Examples.NetworkDemo
         }
         """;
 
-        public static void RegisterDoctrines(DoctrineRegistry registry)
+        public static void RegisterBehaviors(BehaviorRegistry registry)
         {
             var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
             actionReg.Register("Condition_HasTarget", CgfNodes.Condition_HasTarget); //
@@ -216,7 +216,7 @@ namespace Hrot.Examples.NetworkDemo
 
             var blob = TreeCompiler.CompileFromJson(PatrolAndEngageJson);
 
-            registry.Register(1001, "PatrolAndEngage", new DoctrineDefinition
+            registry.Register(1001, "PatrolAndEngage", new BehaviorDefinition
             {
                 Name = "PatrolAndEngage",
                 BrainTier = BehaviorConstants.BrainTierBTree,
@@ -237,7 +237,7 @@ namespace Hrot.Examples.NetworkDemo
             };
             context.EventBus.PublishManaged(cmd);
 
-            // Assign Doctrine via MissionControl logic
+            // Assign Behavior via MissionControl logic
             // ...
         }
     }
@@ -267,7 +267,7 @@ flowchart TD
     subgraph Ports_Brain [Brain Tier Ports]
         Cgf[CgfLogicPack]
         BTree[BTreeTickSystem]
-        Doc[(DoctrineState)]
+        Doc[(BehaviorState)]
         NavIntent[(NavigationIntent)]
     end
 
@@ -343,7 +343,7 @@ Add the following test specification: **`NetworkDemo_PatrolAndEngage_ExecutesDis
 
 **Phase 2: Cognitive Intent to Kinematic Execution**
 
-- **Assert:** The Brain's `BTreeTickSystem` evaluates the patrol doctrine and writes a `NavigationIntent`.
+- **Assert:** The Brain's `BTreeTickSystem` evaluates the patrol behavior and writes a `NavigationIntent`.
 - Pump the network frames.
 - **Assert:** The Muscle node receives the `NavigationIntent` via DDS, translates it to `NavState`, and the `CarKinematicsSystem` begins mutating `SimTransform` (Velocity > 0).
 

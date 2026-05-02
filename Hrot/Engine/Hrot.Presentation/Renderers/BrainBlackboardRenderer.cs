@@ -12,7 +12,7 @@ namespace Hrot.Presentation.Renderers;
 
 /// <summary>
 /// Entity-aware ImGui renderer for <see cref="BrainBlackboard"/>.
-/// When the active doctrine has a <see cref="DoctrineDefinition.ParamsDtoType"/>,
+/// When the active behavior has a <see cref="BehaviorDefinition.ParamsDtoType"/>,
 /// interprets <see cref="BrainBlackboard.Memory"/> as that typed struct and renders
 /// it via <see cref="ImGuiPropertyTree.Render"/>. Falls back to raw hex display otherwise.
 /// </summary>
@@ -21,16 +21,16 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
 {
     /// <summary>
     /// Set once at startup (e.g., in CgfSubsystem initialization).
-    /// Required for doctrine lookup.
+    /// Required for behavior lookup.
     /// </summary>
-    public static DoctrineRegistry? DoctrineRegistryAccessor { get; set; }
+    public static BehaviorRegistry? BehaviorRegistryAccessor { get; set; }
 
     // ---- IImGuiRenderer ----
 
     public string? GetSummary(object value) => "Blackboard Memory";
 
     /// <summary>
-    /// Non-entity-aware fallback. Cannot look up doctrine without an entity.
+    /// Non-entity-aware fallback. Cannot look up behavior without an entity.
     /// Always falls through to default rendering.
     /// </summary>
     public bool RenderValue(object value) => false;
@@ -43,15 +43,15 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
 
         if (value is not BrainBlackboard bb) return false;
 
-        var registry = DoctrineRegistryAccessor;
+        var registry = BehaviorRegistryAccessor;
         if (registry == null) return false;
 
-        if (!session.HasComponent(entity, typeof(DoctrineState))) return false;
+        if (!session.HasComponent(entity, typeof(BehaviorState))) return false;
 
-        var doctrineStateObj = session.GetComponent(entity, typeof(DoctrineState));
-        if (doctrineStateObj is not DoctrineState ds) return false;
+        var behaviorStateObj = session.GetComponent(entity, typeof(BehaviorState));
+        if (behaviorStateObj is not BehaviorState ds) return false;
 
-        if (!registry.TryGetDefinition(ds.ActiveDoctrineHash, out var def)) return false;
+        if (!registry.TryGetDefinition(ds.ActiveBehaviorHash, out var def)) return false;
 
         if (def.ParamsDtoType != null)
         {

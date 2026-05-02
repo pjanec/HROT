@@ -6,7 +6,7 @@
  - 'Entity creator' panel with entity type selector (enumerating all tkb entities) - similat to ExCon is using
  - 'Area creator' panel activating the vertex-sequence placement tool and creating the area entity
  - 'Mission editor' panel as found in ExCon (just using pure FDP events only)
-    - including target point clicking from map for the selected doctrine (similar to what ExCon is having)
+    - including target point clicking from map for the selected behavior (similar to what ExCon is having)
  - entity symbol rendering (graphicla representation and text label)
     - kinamit entities displayed as the simHost is doing, just with entity id label
  - map pan/zoom (same as IG is using)

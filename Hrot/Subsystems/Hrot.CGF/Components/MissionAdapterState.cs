@@ -12,7 +12,7 @@ namespace Hrot.CGF.Components
     /// reactive change-detector, comparing the active MissionPlanQueue against this struct's 
     /// <see cref="LastPhase"/> and <see cref="LastPlanVersion"/> [1, 2]. 
     /// When a mismatch or phase exhaustion is detected, it extracts the behavior parameters 
-    /// and publishes an AssignDoctrineEvent, bridging the mission into the cognitive tier 
+    /// and publishes an AssignBehaviorEvent, bridging the mission into the cognitive tier 
     /// statelessly and safely without direct ECS mutation [2-4].
     /// </para>
     ///
@@ -22,7 +22,7 @@ namespace Hrot.CGF.Components
     /// we guarantee that newly 
     /// deserialized entities natively lack this component on the first tick. The system will 
     /// then automatically bootstrap it with a dummy state and seamlessly trigger the mission's 
-    /// initial doctrine activation.
+    /// initial behavior activation.
     /// </para>
     /// </summary>
     [ComponentId(129)]
@@ -35,7 +35,7 @@ namespace Hrot.CGF.Components
         public byte LastPhase;
 
         /// <summary>
-        /// A hash combining the phase's DoctrineId and its JSON BehaviorParams. 
+        /// A hash combining the phase's BehaviorId and its JSON BehaviorParams. 
         /// Used to detect when a mission plan is explicitly restarted or re-committed 
         /// at the exact same phase [2].
         /// </summary>

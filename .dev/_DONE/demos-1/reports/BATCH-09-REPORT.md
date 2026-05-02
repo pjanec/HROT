@@ -14,7 +14,7 @@
 | Task 1 — `LocalGridBuilderSystem` incremental updates | ✅ Complete | Per-entity Remove+Add; FreeList in SpatialHashGrid |
 | Task 2 — `AutonomousPerceptionModule` scoped bus contract | ✅ Complete | XML doc whitelist + isolation regression test |
 | Task 3 — `RecordingModule` blocking option | ✅ Complete | `RecordingConfiguration.Blocking` flag + wired through |
-| Task 4 — Rename `DemoDoctrineIds.cs` | ✅ Complete | File renamed to `BehaviorValidationDoctrineIds.cs` |
+| Task 4 — Rename `DemoBehaviorIds.cs` | ✅ Complete | File renamed to `BehaviorValidationBehaviorIds.cs` |
 | Task 5 — DEM1-D009 Phase A DistributedTank | ✅ Phase A complete | Two kernels + 2 DDS participants; see Phase B follow-ups |
 
 ---
@@ -109,9 +109,9 @@ kernel.RegisterModule(new RecordingModule(config));
 
 ---
 
-### Task 4 — Rename `DemoDoctrineIds.cs`
+### Task 4 — Rename `DemoBehaviorIds.cs`
 
-- Renamed `FDP/Examples/Fdp.Examples.Scenarios/DemoDoctrineIds.cs` → `BehaviorValidationDoctrineIds.cs` as flagged in BATCH-08 review.
+- Renamed `FDP/Examples/Fdp.Examples.Scenarios/DemoBehaviorIds.cs` → `BehaviorValidationBehaviorIds.cs` as flagged in BATCH-08 review.
 - No `.csproj` changes needed (no explicit compile items for this file).
 
 ---
@@ -149,5 +149,5 @@ The following DEBT-TRACKER rows should be updated by the lead after review:
 | `LocalGridBuilderSystem` dirty path does full Clear+reinsert (BATCH-06 review, Target BATCH-09) | ✅ Resolved |
 | `PerceptionScopedView.ConsumeEvents<T>` whitelist implicit (BATCH-06 review, Target BATCH-09) | ✅ Resolved (contract clarified + test) |
 | `RecordingConfiguration.Blocking` missing (BATCH-07 report, Target BATCH-09+) | ✅ Resolved |
-| `DemoDoctrineIds.cs` filename stale (BATCH-08 review, Target BATCH-09) | ✅ Resolved |
+| `DemoBehaviorIds.cs` filename stale (BATCH-08 review, Target BATCH-09) | ✅ Resolved |
 | DEM1-D009 DistributedTank (Target BATCH-09) | ⏳ Phase A complete; Phase B planned |

@@ -61,7 +61,7 @@ public sealed class MissionPanel : IPickInteractionContext
 
     private static readonly string[] _triggerTypes =
     {
-        "DoctrineFinished", "TimerElapsed", "ReachedDestination", "HealthCritical", "UnderAttack"
+        "BehaviorFinished", "TimerElapsed", "ReachedDestination", "HealthCritical", "UnderAttack"
     };
 
     /// <summary>Returns the default params string for the given trigger type.</summary>
@@ -192,7 +192,7 @@ public sealed class MissionPanel : IPickInteractionContext
             ExecutingEngine = string.Empty,
             BehaviorId      = string.Empty,
             BehaviorParams  = string.Empty,
-            Triggers        = new List<MissionTrigger> { new MissionTrigger { Type = "DoctrineFinished" } },
+            Triggers        = new List<MissionTrigger> { new MissionTrigger { Type = "BehaviorFinished" } },
             State           = eTaskState.TASK_PLANNED
         });
     }
@@ -494,7 +494,7 @@ public sealed class MissionPanel : IPickInteractionContext
                 if (task.Triggers != null && task.Triggers.Count > 0)
                 {
                     var trigger      = task.Triggers[0];
-                    string trigType  = trigger.Type   ?? "DoctrineFinished";
+                    string trigType  = trigger.Type   ?? "BehaviorFinished";
                     string trigParam = trigger.Params ?? string.Empty;
 
                     ImGui.Text("Trigger:");
@@ -522,7 +522,7 @@ public sealed class MissionPanel : IPickInteractionContext
                 else
                 {
                     if (ImGui.Button($"+ Add Trigger##{i}"))
-                        HandleAddTrigger(i, "DoctrineFinished");
+                        HandleAddTrigger(i, "BehaviorFinished");
                 }
 
                 if (ImGui.SmallButton($"Up##{i}"))   HandleMoveTask(i, i - 1);

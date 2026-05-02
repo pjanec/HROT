@@ -25,7 +25,7 @@ public void RegisterSystems(SystemGroup inputGroup, SystemGroup simGroup)
 {
     if (inputGroup == null) throw new ArgumentNullException(nameof(inputGroup));
     if (simGroup   == null) throw new ArgumentNullException(nameof(simGroup));
-    inputGroup.AddSystem(new DoctrineIngressSystem(_registry));
+    inputGroup.AddSystem(new BehaviorIngressSystem(_registry));
     simGroup.AddSystem(new MissionDirectorSystem());
 }
 ```
@@ -40,7 +40,7 @@ The existing single-group overload is unchanged.
 
 Added new overload:
 - `inputGroup`: receives `_missionExecutionSystem` (MissionControlExecutionSystem) and
-  `DoctrineIngressSystem` (via `_missionControlModule.RegisterSystems(inputGroup, simGroup)`).
+  `BehaviorIngressSystem` (via `_missionControlModule.RegisterSystems(inputGroup, simGroup)`).
 - `simGroup`: receives all remaining systems — `_missionAdapterSystem`, `MissionDirectorSystem`,
   `HealthApplicationSystem`, `CgfThreatEvaluationSystem`, CognitiveRuntimeModule systems,
   ActionDispatchModule systems, `RouteContextSystem` (13 total).
@@ -50,7 +50,7 @@ Added new overload:
   (removed erroneous CreateEntityRequestSystem reference from comment).
 - Added `Hrot.Common.Systems` using.
 - `CgfLogicPack_TwoGroupOverload_RoutesSystemsCorrectly` — SC1 (MissionControlExecutionSystem
-  in inputGroup), SC2 (DoctrineIngressSystem in inputGroup), SC3 (MissionDirectorSystem in
+  in inputGroup), SC2 (BehaviorIngressSystem in inputGroup), SC3 (MissionDirectorSystem in
   simGroup), correct counts (2 in inputGroup, 13 in simGroup).
 - `CgfLogicPack_SingleGroupOverload_StillAddsAllSystemsToOneGroup` — SC4 regression check.
 - `CgfLogicPack_TwoGroupOverload_NullInputGroup_Throws` — SC5a.

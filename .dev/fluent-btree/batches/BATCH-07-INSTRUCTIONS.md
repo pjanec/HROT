@@ -58,7 +58,7 @@ dotnet test FDP/ExtDeps/FastBTree/tests/Fbt.Tests/Fbt.Tests.csproj 2>&1 | Select
 
 #### Interface Design
 
-The class must remain free of FDP/HROT dependencies (no DoctrineRegistry, no BrainBTreeState). All integration is done via events and delegates.
+The class must remain free of FDP/HROT dependencies (no BehaviorRegistry, no BrainBTreeState). All integration is done via events and delegates.
 
 ```csharp
 namespace Fbt.HotReload

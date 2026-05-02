@@ -152,7 +152,7 @@ If you change kernel/orchestrator code paths, also run:
 dotnet test "FDP\Framework\FDP.Framework.Runner.Tests\FDP.Framework.Runner.Tests.csproj"
 ```
 
-New tests must assert **behavior** (doctrine phase, clamping offsets, exit codes)—not only log strings or property existence. Follow `.dev-workstream/guides/CODE-STANDARDS.md`.
+New tests must assert **behavior** (behavior phase, clamping offsets, exit codes)—not only log strings or property existence. Follow `.dev-workstream/guides/CODE-STANDARDS.md`.
 
 ---
 
@@ -177,7 +177,7 @@ Batch is **DONE** when:
 
 - **`MissionPhase` / `[InlineArray]`:** use the task detail’s `Span<MissionPhase>` pattern when mutating queue phases.
 - **Terrain stack:** register systems in the **groups** listed in `DEM1-TASK-DETAIL.md`; `TerrainQuerySolverSystem` must receive `MockTerrainProvider` as specified.
-- **Obsolete APIs:** codebase may warn on `MissionTrigger.ReachedDestination`; prefer `DoctrineFinished` (see `MissionDirectorSystem` / BS-1 debt) where writing new mission logic.
+- **Obsolete APIs:** codebase may warn on `MissionTrigger.ReachedDestination`; prefer `BehaviorFinished` (see `MissionDirectorSystem` / BS-1 debt) where writing new mission logic.
 
 ---
 

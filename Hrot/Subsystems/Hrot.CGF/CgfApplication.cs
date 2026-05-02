@@ -183,7 +183,7 @@ namespace Hrot.CGF
                 var cgfIdAllocator = new SequentialIdAllocator();
                 var extractor      = new Hrot.CGF.Orchestration.StagingEntityExtractor();
                 // D005: create the remapper once and share it between both load handlers.
-                var behaviorRemapper = CgfDoctrineSetup.CreateBehaviorRemapper();
+                var behaviorRemapper = CgfBehaviorSetup.CreateBehaviorRemapper();
 
                 // CGF-authoritative: extracts entities via StagingEntityExtractor and
                 // enqueues EntityCreationRequests into the shared source.

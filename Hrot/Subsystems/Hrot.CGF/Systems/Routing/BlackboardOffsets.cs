@@ -8,7 +8,7 @@ namespace Hrot.CGF.Systems.Routing;
 /// <para>
 /// Soft-advice values occupy the SoftAdvice region of
 /// <see cref="Fdp.Toolkit.Behavior.Components.BlackboardMemoryLayout"/> (bytes 60-125),
-/// well clear of the doctrine parameter payload (bytes 0-59) and the interrupt registers
+/// well clear of the behavior parameter payload (bytes 0-59) and the interrupt registers
 /// (bytes 126-127).
 /// </para>
 /// </summary>
@@ -21,5 +21,5 @@ public static class BlackboardOffsets
     /// Placed at the start of the SoftAdvice region (offset 60) + 60 additional bytes = 120.
     /// </summary>
     public const int ExpectedThreatLevel =
-        Fdp.Toolkit.Behavior.BehaviorConstants.MaxDoctrineParamByteSize + 60;
+        Fdp.Toolkit.Behavior.BehaviorConstants.MaxBehaviorParamByteSize + 60;
 }

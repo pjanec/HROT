@@ -70,15 +70,15 @@ All content in Phase C was already present in Phase B.
 
 **Finding:** `MissionAdapterSystem` (the "redundant write" mentioned in the DEBT-TRACKER row)
 was removed in DTE-BATCH-10. The original concern was that the event-bus path introduces a
-one-frame activation delay — `MissionDirectorSystem` publishes `AssignDoctrineHashEvent` in
-`SimulationSystemGroup` but `DoctrineIngressSystem` consumes it in `InputSystemGroup`, which
+one-frame activation delay — `MissionDirectorSystem` publishes `AssignBehaviorHashEvent` in
+`SimulationSystemGroup` but `BehaviorIngressSystem` consumes it in `InputSystemGroup`, which
 runs on the **following** frame.
 
 **Fix:** Added a dedicated `<para>` section titled **"One-frame activation delay (BD1-BATCH-02)"**
 to the `MissionDirectorSystem` class XML comment, documenting:
 - Why the delay exists (InputSystemGroup runs before SimulationSystemGroup).
-- That it is by design (preserves single-owner semantics for `DoctrineState`).
-- The workaround for test harnesses (manually call `DoctrineIngressSystem.OnUpdate` after
+- That it is by design (preserves single-owner semantics for `BehaviorState`).
+- The workaround for test harnesses (manually call `BehaviorIngressSystem.OnUpdate` after
   `MissionDirectorSystem` in the tick loop — pattern already used in
   `MissionCommandScenario.cs` and `MissionDirectorSystemTests.cs`).
 

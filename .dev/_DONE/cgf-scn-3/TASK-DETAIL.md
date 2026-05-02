@@ -100,7 +100,7 @@ Replace every `queue.Phases[i] = new MissionPhase { ... }` with `phases[i] = new
 
 SC1 — After processing a `CMD_REPLACE_MISSION` intent with a 3-task plan, `repo.GetComponent<MissionPlanQueue>(entity).PhaseCount` equals 3.
 
-SC2 — Each phase `phases[0]`, `phases[1]`, `phases[2]` has the correct `DoctrineId`, `Trigger`, and `TriggerParam` matching the input tasks.
+SC2 — Each phase `phases[0]`, `phases[1]`, `phases[2]` has the correct `BehaviorId`, `Trigger`, and `TriggerParam` matching the input tasks.
 
 SC3 — A `CMD_REPLACE_MISSION` with a 0-task plan produces a queue where `PhaseCount == 0`.
 
@@ -149,7 +149,7 @@ public unsafe struct BrainBlackboard
 
 **Success Conditions**
 
-SC1 — After saving a scenario that contains an entity with an active doctrine, the resulting JSON
+SC1 — After saving a scenario that contains an entity with an active behavior, the resulting JSON
 does not contain any `"BrainBlackboard"` key.
 
 SC2 — `FdpAutoSerializer.Serialize` output for a world containing a `BrainBlackboard` component
@@ -223,7 +223,7 @@ Add `RegisterSystems(SystemGroup inputGroup, SystemGroup simGroup)` overload to
 
 **Constraints**
 
-- `DoctrineIngressSystem` routes to `inputGroup` — it parses `AssignDoctrineHashEvent` (an
+- `BehaviorIngressSystem` routes to `inputGroup` — it parses `AssignBehaviorHashEvent` (an
   input-phase event) and must not run after the Simulation phase starts populating its read
   buffer.
 - `MissionDirectorSystem` routes to `simGroup` — it reads `GlobalTime.DeltaTime` and must run
@@ -243,14 +243,14 @@ public void RegisterSystems(SystemGroup inputGroup, SystemGroup simGroup)
     if (inputGroup == null) throw new ArgumentNullException(nameof(inputGroup));
     if (simGroup   == null) throw new ArgumentNullException(nameof(simGroup));
 
-    inputGroup.AddSystem(new DoctrineIngressSystem(_registry));
+    inputGroup.AddSystem(new BehaviorIngressSystem(_registry));
     simGroup.AddSystem(new MissionDirectorSystem());
 }
 ```
 
 **Success Conditions**
 
-SC1 — Calling the new overload with two non-null groups adds exactly one `DoctrineIngressSystem`
+SC1 — Calling the new overload with two non-null groups adds exactly one `BehaviorIngressSystem`
 to `inputGroup` and exactly one `MissionDirectorSystem` to `simGroup`.
 
 SC2 — Calling the existing `RegisterSystems(SystemGroup group)` single-group overload still
@@ -296,7 +296,7 @@ Add the new overload with the system routing described above.
 SC1 — The new overload routes `MissionControlExecutionSystem` to `inputGroup` and all remaining
 systems to `simGroup`.
 
-SC2 — `DoctrineIngressSystem` ends up in `inputGroup` (via `_missionControlModule.RegisterSystems(inputGroup, simGroup)`).
+SC2 — `BehaviorIngressSystem` ends up in `inputGroup` (via `_missionControlModule.RegisterSystems(inputGroup, simGroup)`).
 
 SC3 — `MissionDirectorSystem` ends up in `simGroup`.
 
@@ -383,7 +383,7 @@ SC1 — An integration test that spawns an entity and sends a `MissionControlInt
 `MissionControlExecutionSystem` processes it in the Input phase (the intent is drained before
 the simulation group ticks in the same frame).
 
-SC2 — `DoctrineIngressSystem` runs before `BTreeTickSystem` within the same kernel update.
+SC2 — `BehaviorIngressSystem` runs before `BTreeTickSystem` within the same kernel update.
 
 SC3 — Existing `CgfSubsystem` integration tests that exercise mission assignment pass.
 

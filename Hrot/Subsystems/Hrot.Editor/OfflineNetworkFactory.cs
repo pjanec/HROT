@@ -70,7 +70,7 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     public INetworkFactory ConfigureForNode(
         Hrot.Common.Infrastructure.HrotNodeContext       context,
         Hrot.Common.NodeRole                             role,
-        Fdp.Toolkit.Behavior.DoctrineRegistry?           doctrineRegistry = null)
+        Fdp.Toolkit.Behavior.BehaviorRegistry?           behaviorRegistry = null)
         => this;
 
     /// <inheritdoc/>

@@ -37,7 +37,7 @@ Completes BUG2-N001, BUG2-N002, BUG2-N003, BUG2-M001, BUG2-M002, BUG2-M003, BUG2
 Fixes duplicate system registration for descriptor updates, avoiding double ACKs.
 Adds EnableSenderTracking to all DDS participants to ensure identity metadata propagates.
 Fixes a descriptor leak by tombstoning WorldPos in EgressTranslator.Dispose.
-Adds DoctrineFinished and UnderAttack to mission trigger resolution.
+Adds BehaviorFinished and UnderAttack to mission trigger resolution.
 Updates MissionPanel with complete UI to edit triggers, discard drafts, and handle version conflicts.
 Replaces unreadable Unicode icons on mission list buttons with ASCII equivalents.
 Removes legacy ActiveTool logic from Map Configuration output.

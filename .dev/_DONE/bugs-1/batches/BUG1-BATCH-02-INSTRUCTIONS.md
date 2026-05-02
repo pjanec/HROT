@@ -58,7 +58,7 @@ We discovered testability and architectural paper-cuts during BATCH-01, plus pre
 - [DEBT] BUG1-T003: Pass NodeId into IOS Subsystem.
 - [DEBT] BUG1-T004: Fix pre-existing IG test failures.
 - [BUG1-I001](docs/bugs-1/TASK-DETAIL.md#bug1-i001-add-continuous-drag-update-toggle-to-ig): Add Continuous Drag Update Toggle to IG.
-- [BUG1-M001](docs/bugs-1/TASK-DETAIL.md#bug1-m001-default-doctrinefinished-trigger-on-task-creation): Default DoctrineFinished Trigger.
+- [BUG1-M001](docs/bugs-1/TASK-DETAIL.md#bug1-m001-default-behaviorfinished-trigger-on-task-creation): Default BehaviorFinished Trigger.
 - [BUG1-M002](docs/bugs-1/TASK-DETAIL.md#bug1-m002-track-control-commands-for-occ-version-sync): Track Control Commands for OCC Version Sync.
 
 ---
@@ -148,13 +148,13 @@ There are ~6 pre-existing failures under `EditToolTests` and `TraceLoggingTests`
 
 ---
 
-### Task 6: Default DoctrineFinished Trigger (BUG1-M001)
+### Task 6: Default BehaviorFinished Trigger (BUG1-M001)
 
 **File:** `Hrot.ExCon/Panels/MissionPanel.cs` (UPDATE)  
-**Task Definition:** See [TASK-DETAIL.md §BUG1-M001](docs/bugs-1/TASK-DETAIL.md#bug1-m001-default-doctrinefinished-trigger-on-task-creation)
+**Task Definition:** See [TASK-DETAIL.md §BUG1-M001](docs/bugs-1/TASK-DETAIL.md#bug1-m001-default-behaviorfinished-trigger-on-task-creation)
 
 **Requirements:**
-- Add default trigger `Type = "DoctrineFinished"` in `HandleAddTask()`.
+- Add default trigger `Type = "BehaviorFinished"` in `HandleAddTask()`.
 
 **Tests Required:**
 - ✅ Single and multiple task creation must yield precisely one trigger correctly named.

@@ -12,15 +12,15 @@ Read these files before writing any code:
 
 - `.dev/tactical-intent/DESIGN.md` — full architecture overview
 - `.dev/tactical-intent/TASK-TRACKER.md` — task status
-- `Hrot/Subsystems/Hrot.AI.Doctrines/Brains/CgfNodes.cs` — BTree action node patterns
-- `Hrot/Subsystems/Hrot.AI.Doctrines/Hrot.AI.Doctrines.csproj` — project references
+- `Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CgfNodes.cs` — BTree action node patterns
+- `Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj` — project references
 - `FDP/Toolkits/Fdp.Toolkits/Behavior/BTreeContext.cs` — BTreeContext struct (`World` is `EntityRepository`)
 - `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs` — BrainBlackboard layout
 - `FDP/Toolkits/Fdp.Toolkits/Behavior/TacticalOrderMapper/ITacticalOrderMapper.cs` — mapper interface
 - `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/AssignTacticalIntentEvent.cs` — the event type
 - `FDP/Toolkits/Fdp.Toolkits/Replication/Components/TkbIdentity.cs` — TkbIdentity struct (`TkbType: long`)
 - `Hrot/Engine/Hrot.Core/MapDefinitions/TkbEntityTypes.cs` — `MilitaryApc = 503L`, `InfantrySoldier = 504L`
-- `Hrot/Engine/Hrot.Core/MapDefinitions/Doctrine/DoctrineIds.cs` — existing doctrine ID constants
+- `Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/BehaviorIds.cs` — existing behavior ID constants
 - `Hrot/Subsystems/Hrot.SimHost.Tests/TacticalIntentResolutionSystemTests.cs` — test harness pattern
 - `Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs` — composition root (see how TacticalIntentMapperRegistry is constructed)
 - `Hrot/Subsystems/Hrot.CGF/CgfLogicPack.cs` — see TacticalIntentMapperRegistry parameter
@@ -31,9 +31,9 @@ Read these files before writing any code:
 
 **Goal:** Demonstrate how a Commander AI node publishes `AssignTacticalIntentEvent` for a subordinate.
 
-### New File: `Hrot/Subsystems/Hrot.AI.Doctrines/Brains/CommanderNodes.cs`
+### New File: `Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CommanderNodes.cs`
 
-Create a new static class `CommanderNodes` in namespace `Hrot.AI.Doctrines.Brains`.
+Create a new static class `CommanderNodes` in namespace `Hrot.AI.Behaviors.Brains`.
 
 **Required usings:**
 ```csharp
@@ -56,7 +56,7 @@ public struct IssueTacticalIntentBlackboard { public IssueTacticalIntentParams P
 /// <para>
 /// IntentId and JsonParams cannot be embedded as strings in the unmanaged blackboard.
 /// The IntentId is encoded as an integer ordinal resolved from the intent registry at
-/// tree-build time by the AiDoctrineFactory (TODO: wire registry lookup).
+/// tree-build time by the AiBehaviorFactory (TODO: wire registry lookup).
 /// JsonParams are pre-serialized as a fixed-length UTF-8 blob when the tree is authored
 /// (TODO: implement fixed-buffer encoding).
 /// </para>
@@ -78,7 +78,7 @@ public struct IssueTacticalIntentParams
     /// <summary>
     /// Integer ordinal of the tactical intent to issue, resolved from the intent
     /// registry at tree authoring time. Maps to a string IntentId at runtime.
-    /// TODO: wire to a registered intent-type lookup table in AiDoctrineFactory.
+    /// TODO: wire to a registered intent-type lookup table in AiBehaviorFactory.
     /// </summary>
     public int IntentTypeOrdinal;
 }
@@ -152,9 +152,9 @@ Test: `Action_IssueTacticalIntent_WithZeroPacked_ReturnsFailure`
 
 ## TASK-TI011 — DefendAreaMapper
 
-**Goal:** First concrete `ITacticalOrderMapper` implementation that maps the "DefendArea" intent to unit-type-specific doctrines.
+**Goal:** First concrete `ITacticalOrderMapper` implementation that maps the "DefendArea" intent to unit-type-specific behaviors.
 
-### Modify: `Hrot/Subsystems/Hrot.AI.Doctrines/Hrot.AI.Doctrines.csproj`
+### Modify: `Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj`
 
 Add `Hrot.Core` project reference (needed for `TkbEntityTypes` constants):
 
@@ -163,8 +163,8 @@ Add `Hrot.Core` project reference (needed for `TkbEntityTypes` constants):
 <ProjectReference Include="..\..\..\Hrot\Engine\Hrot.Core\Hrot.Core.csproj" />
 ```
 
-Wait — paths relative to `Hrot.AI.Doctrines.csproj` location. The csproj is at:
-`Hrot/Subsystems/Hrot.AI.Doctrines/Hrot.AI.Doctrines.csproj`
+Wait — paths relative to `Hrot.AI.Behaviors.csproj` location. The csproj is at:
+`Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj`
 
 `Hrot.Core.csproj` is at:
 `Hrot/Engine/Hrot.Core/Hrot.Core.csproj`
@@ -177,7 +177,7 @@ Add inside the existing `<ItemGroup>`:
 <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
 ```
 
-### New File: `Hrot/Subsystems/Hrot.AI.Doctrines/Mappers/DefendAreaMapper.cs`
+### New File: `Hrot/Subsystems/Hrot.AI.Behaviors/Mappers/DefendAreaMapper.cs`
 
 Create a new `Mappers/` directory. File:
 
@@ -189,20 +189,20 @@ using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.MapDefinitions;
 
-namespace Hrot.AI.Doctrines.Mappers
+namespace Hrot.AI.Behaviors.Mappers
 {
     /// <summary>
     /// Mapper for the "DefendArea" tactical intent.
     /// Translates <see cref="AssignTacticalIntentEvent.IntentId"/> == "DefendArea"
-    /// into a unit-type-specific <see cref="AssignDoctrineEvent"/>:
+    /// into a unit-type-specific <see cref="AssignBehaviorEvent"/>:
     /// <list type="bullet">
-    ///   <item><see cref="TkbEntityTypes.MilitaryApc"/> → "ConvoyEscort" doctrine</item>
-    ///   <item><see cref="TkbEntityTypes.InfantrySoldier"/> → "InfantryCombat" doctrine</item>
+    ///   <item><see cref="TkbEntityTypes.MilitaryApc"/> → "ConvoyEscort" behavior</item>
+    ///   <item><see cref="TkbEntityTypes.InfantrySoldier"/> → "InfantryCombat" behavior</item>
     ///   <item>All other unit types → returns <c>false</c> (pass-through fallback)</item>
     /// </list>
     /// <para>
     /// The JsonParams from the original intent (centre lat/lon, radius) are forwarded
-    /// unchanged to the target doctrine for further interpretation.
+    /// unchanged to the target behavior for further interpretation.
     /// </para>
     /// </summary>
     public sealed class DefendAreaMapper : ITacticalOrderMapper
@@ -213,7 +213,7 @@ namespace Hrot.AI.Doctrines.Mappers
             Entity entity,
             EntityRepository repo,
             string jsonParams,
-            out AssignDoctrineEvent assignment)
+            out AssignBehaviorEvent assignment)
         {
             assignment = null!;
 
@@ -222,20 +222,20 @@ namespace Hrot.AI.Doctrines.Mappers
 
             var tkbType = repo.GetComponent<TkbIdentity>(entity).TkbType;
 
-            string doctrineName = tkbType switch
+            string behaviorName = tkbType switch
             {
                 TkbEntityTypes.MilitaryApc     => "ConvoyEscort",
                 TkbEntityTypes.InfantrySoldier => "InfantryCombat",
                 _                              => string.Empty
             };
 
-            if (string.IsNullOrEmpty(doctrineName))
+            if (string.IsNullOrEmpty(behaviorName))
                 return false;
 
-            assignment = new AssignDoctrineEvent
+            assignment = new AssignBehaviorEvent
             {
                 Entity      = entity,
-                DoctrineName = doctrineName,
+                BehaviorName = behaviorName,
                 JsonParams   = jsonParams
             };
             return true;
@@ -246,9 +246,9 @@ namespace Hrot.AI.Doctrines.Mappers
 
 **Check namespace:** Look at `TkbEntityTypes.cs` for its namespace (likely `Hrot.Map.MapDefinitions` or `Hrot.Core.MapDefinitions`). Adjust the `using` accordingly.
 
-**Check `AssignDoctrineEvent` fields:** Look at `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/AssignDoctrineEvent.cs` for the exact field names (may be `DoctrineName`/`Name` — use whatever the file declares).
+**Check `AssignBehaviorEvent` fields:** Look at `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/AssignBehaviorEvent.cs` for the exact field names (may be `BehaviorName`/`Name` — use whatever the file declares).
 
-**Check `repo.GetComponent<T>` vs `GetComponentRO<T>`:** Use the same pattern as `TacticalIntentResolutionSystem.cs` which already calls `repo.HasAuthority<DoctrineState>`. For read-only access to `TkbIdentity`, use `repo.GetComponent<TkbIdentity>(entity)` or `GetComponentRO<TkbIdentity>` — check which one compiles.
+**Check `repo.GetComponent<T>` vs `GetComponentRO<T>`:** Use the same pattern as `TacticalIntentResolutionSystem.cs` which already calls `repo.HasAuthority<BehaviorState>`. For read-only access to `TkbIdentity`, use `repo.GetComponent<TkbIdentity>(entity)` or `GetComponentRO<TkbIdentity>` — check which one compiles.
 
 ### Modify: `Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs`
 
@@ -263,24 +263,24 @@ mapperRegistry.Register(new DefendAreaMapper());
 
 **Check the exact location:** Look for `new TacticalIntentMapperRegistry()` in `CgfSubsystem.cs`. Add the `Register` call immediately after the `new TacticalIntentMapperRegistry()` line, before the registry is passed to `CgfLogicPack`.
 
-**Required using:** Add `using Hrot.AI.Doctrines.Mappers;` to `CgfSubsystem.cs`.
+**Required using:** Add `using Hrot.AI.Behaviors.Mappers;` to `CgfSubsystem.cs`.
 
-**Check if `CgfSubsystem.cs` already has a reference to `Hrot.AI.Doctrines`:** Look at `Hrot.CGF.csproj` — `Hrot.AI.Doctrines` is NOT currently referenced by `Hrot.CGF`. 
+**Check if `CgfSubsystem.cs` already has a reference to `Hrot.AI.Behaviors`:** Look at `Hrot.CGF.csproj` — `Hrot.AI.Behaviors` is NOT currently referenced by `Hrot.CGF`. 
 
 Two options:
-1. Add `Hrot.AI.Doctrines` reference to `Hrot.CGF.csproj` and register in `CgfSubsystem.cs`.
-2. Register the mapper in a different composition root that already references `Hrot.AI.Doctrines`.
+1. Add `Hrot.AI.Behaviors` reference to `Hrot.CGF.csproj` and register in `CgfSubsystem.cs`.
+2. Register the mapper in a different composition root that already references `Hrot.AI.Behaviors`.
 
-**Preferred option:** Check which projects reference both `Hrot.CGF` and `Hrot.AI.Doctrines`. `Hrot.ClusterRunner` references both. But the best composition root is whichever boots up the CGF subsystem and also has access to the mapper.
+**Preferred option:** Check which projects reference both `Hrot.CGF` and `Hrot.AI.Behaviors`. `Hrot.ClusterRunner` references both. But the best composition root is whichever boots up the CGF subsystem and also has access to the mapper.
 
-**Actually:** Look at `Hrot.SimHost/` — it is likely the top-level composition root. Check `Hrot.SimHost.csproj` for references to both `Hrot.CGF` and `Hrot.AI.Doctrines`. If not, add `Hrot.AI.Doctrines` to `Hrot.CGF.csproj` (since `Hrot.CGF` is already the Brain-tier bundle and `Hrot.AI.Doctrines` contains doctrine definitions that CGF uses for hot-reload).
+**Actually:** Look at `Hrot.SimHost/` — it is likely the top-level composition root. Check `Hrot.SimHost.csproj` for references to both `Hrot.CGF` and `Hrot.AI.Behaviors`. If not, add `Hrot.AI.Behaviors` to `Hrot.CGF.csproj` (since `Hrot.CGF` is already the Brain-tier bundle and `Hrot.AI.Behaviors` contains behavior definitions that CGF uses for hot-reload).
 
 Look at `CgfSubsystem.cs` to understand where `TacticalIntentMapperRegistry` is created. Then find the appropriate composition root that can call `mapperRegistry.Register(new DefendAreaMapper())`.
 
 **If adding to `Hrot.CGF.csproj`:**
 ```xml
-<!-- Hrot.AI.Doctrines: doctrine behavior trees and mapper implementations, hot-reloaded -->
-<ProjectReference Include="..\Hrot.AI.Doctrines\Hrot.AI.Doctrines.csproj" />
+<!-- Hrot.AI.Behaviors: behavior behavior trees and mapper implementations, hot-reloaded -->
+<ProjectReference Include="..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
 ```
 
 **Tests for TI011:**
@@ -292,11 +292,11 @@ Create `Hrot/Subsystems/Hrot.SimHost.Tests/DefendAreaMapperTests.cs`.
 Test: `TryMap_MilitaryApc_ReturnsConvoyEscort`
 - Create entity; add `TkbIdentity { TkbType = TkbEntityTypes.MilitaryApc }`.
 - Call `new DefendAreaMapper().TryMap(entity, repo, "{}", out var assignment)`.
-- Assert: returns `true`; `assignment.DoctrineName == "ConvoyEscort"`; `assignment.Entity == entity`.
+- Assert: returns `true`; `assignment.BehaviorName == "ConvoyEscort"`; `assignment.Entity == entity`.
 
 Test: `TryMap_InfantrySoldier_ReturnsInfantryCombat`
 - Create entity; add `TkbIdentity { TkbType = TkbEntityTypes.InfantrySoldier }`.
-- Assert: `true`, `DoctrineName == "InfantryCombat"`.
+- Assert: `true`, `BehaviorName == "InfantryCombat"`.
 
 Test: `TryMap_UnknownTkbType_ReturnsFalse`
 - Create entity; add `TkbIdentity { TkbType = 999L }`.

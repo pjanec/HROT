@@ -177,7 +177,7 @@ public class MiniExConPanelState
     ///
     /// The method awaits the <see cref="CreateEntityAck"/> to obtain the allocated entity ID,
     /// then sends a <see cref="MissionControlRequest"/> with <c>CMD_REPLACE_MISSION</c> carrying
-    /// a single-task <see cref="MissionPlan"/> using the <c>WanderMilitary</c> doctrine.
+    /// a single-task <see cref="MissionPlan"/> using the <c>WanderMilitary</c> behavior.
     ///
     /// Returns silently and logs a warning when <paramref name="gateway"/> is <c>null</c>.
     /// </summary>

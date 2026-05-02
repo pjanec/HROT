@@ -94,7 +94,7 @@ The current implementation returns `new MapLayerState(false, false, false, false
 reflecting live panel state.  Phase 6 must wire this through the real config reader.
 
 **`ExConMissionShim.GetAvailableBehaviors()` always returns empty.**  
-Populating the behavior dropdown requires `DoctrineRegistry` access, which is coupled to the
+Populating the behavior dropdown requires `BehaviorRegistry` access, which is coupled to the
 concrete `ExConLogic` in ways not yet bridged by the interface.  Panels will silently show an
 empty behavior list in production until Phase 6 is implemented.
 
@@ -164,5 +164,5 @@ The highest BATCH-03 risk lies in the **remaining panels not yet migrated**:
 
 - Phase-1 shims are temporary — Phase 6 should replace `ExConPanelAdapters.cs` with real bridge implementations inside `ExConLogic`.
 - `ExConMapConfigShim.GetCurrentConfig()` returns hard-coded defaults; will need real state reader in Phase 6.
-- `ExConMissionShim.GetAvailableBehaviors()` always returns empty; doctrine registry access needs bridging.
+- `ExConMissionShim.GetAvailableBehaviors()` always returns empty; behavior registry access needs bridging.
 - `OrbatPanel`, `InteractionPanel`, `DiagnosticsPanel` are still ExCon-internal and rely on `IExConLogic`; scheduled for BATCH-03+.

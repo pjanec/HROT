@@ -145,7 +145,7 @@ Test project: `Hrot/Network/Hrot.Network.NED.Tests/Hrot.Network.NED.Tests.csproj
 
 The egress translator runs on a Commander Brain node. It:
 1. Reads all `AssignTacticalIntentEvent` managed events from the local bus.
-2. For each event, checks `!repo.HasAuthority<DoctrineState>(evt.Entity)`.
+2. For each event, checks `!repo.HasAuthority<BehaviorState>(evt.Entity)`.
    - `true` (no local authority) → the entity's brain is on another node — write to DDS.
    - `false` (has local authority) → `TacticalIntentResolutionSystem` handles it locally — skip.
 3. Resolves the local `Entity` to its `TargetEntityId` via `NetworkEntityMap.TryGetNetworkId`.
@@ -157,8 +157,8 @@ The egress translator runs on a Commander Brain node. It:
 |--------|---|---|
 | Event type | Struct event (`WeaponFireIntent`) | Managed event (`AssignTacticalIntentEvent`) |
 | Read API | `view.ReadEvents<T>()` | cast to `EntityRepository`, then `repo.Bus.ReadManaged<T>()` |
-| Authority component | `NetworkAuthority` | `DoctrineState` |
-| Authority API | `view.HasAuthority(entity)` | `repo.HasAuthority<DoctrineState>(entity)` |
+| Authority component | `NetworkAuthority` | `BehaviorState` |
+| Authority API | `view.HasAuthority(entity)` | `repo.HasAuthority<BehaviorState>(entity)` |
 
 ### File to create
 
@@ -185,7 +185,7 @@ namespace Hrot.Network.NED.SimHost
     ///
     /// <para>
     /// <b>Authority gate:</b> Only publishes when
-    /// <c>!repo.HasAuthority&lt;DoctrineState&gt;(evt.Entity)</c>.
+    /// <c>!repo.HasAuthority&lt;BehaviorState&gt;(evt.Entity)</c>.
     /// Locally-owned entities are handled by <c>TacticalIntentResolutionSystem</c>
     /// in the same frame; no DDS traffic needed.
     /// </para>
@@ -234,7 +234,7 @@ namespace Hrot.Network.NED.SimHost
 
                 // Authority gate: locally-owned entities are resolved by
                 // TacticalIntentResolutionSystem in the same frame.
-                if (repo.HasAuthority<DoctrineState>(evt.Entity)) continue;
+                if (repo.HasAuthority<BehaviorState>(evt.Entity)) continue;
 
                 if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))
                 {
@@ -286,8 +286,8 @@ if (role.HasFlag(NodeRole.Brain))
 **File:** `Hrot/Subsystems/Hrot.SimHost.Tests/TacticalIntentEgressTranslatorTests.cs` (new file)
 
 Model this closely on `WeaponFireIntentEgressTranslatorTests.cs`. Key differences:
-- Use `DoctrineState` (not `NetworkAuthority`) for authority
-- Use `repo.SetAuthority<DoctrineState>(entity, true/false)` to control authority
+- Use `BehaviorState` (not `NetworkAuthority`) for authority
+- Use `repo.SetAuthority<BehaviorState>(entity, true/false)` to control authority
 - Use `repo.Bus.PublishManaged(new AssignTacticalIntentEvent {...})` + `SwapBuffers()` then call `ScanAndPublish(repo)`
 - The `CapturingWriter<TacticalIntentRequest>` stub (same pattern, different type)
 
@@ -318,7 +318,7 @@ namespace Hrot.SimHost.Tests
         public TacticalIntentEgressTranslatorTests()
         {
             _world = new EntityRepository();
-            _world.RegisterComponent<DoctrineState>();
+            _world.RegisterComponent<BehaviorState>();
             _entityMap = new NetworkEntityMap();
         }
 
@@ -332,14 +332,14 @@ namespace Hrot.SimHost.Tests
             return (translator, writer);
         }
 
-        // SC-1: Entity in map, no DoctrineState authority → DDS write happens
+        // SC-1: Entity in map, no BehaviorState authority → DDS write happens
         [Fact]
         public void ScanAndPublish_NoAuthority_WritesDdsSample()
         {
             var (translator, writer) = BuildTranslator();
 
             var entity = _world.CreateEntity();
-            _world.AddComponent(entity, new DoctrineState());
+            _world.AddComponent(entity, new BehaviorState());
             // Authority NOT set (remote entity)
             _entityMap.Register(42L, entity);
 
@@ -366,7 +366,7 @@ namespace Hrot.SimHost.Tests
             var (translator, writer) = BuildTranslator();
 
             var entity = _world.CreateEntity();
-            _world.AddComponent(entity, new DoctrineState());
+            _world.AddComponent(entity, new BehaviorState());
             // Entity not registered in entityMap
 
             _world.Bus.PublishManaged(new AssignTacticalIntentEvent
@@ -390,11 +390,11 @@ namespace Hrot.SimHost.Tests
             var (translator, writer) = BuildTranslator();
 
             var e1 = _world.CreateEntity();
-            _world.AddComponent(e1, new DoctrineState());
+            _world.AddComponent(e1, new BehaviorState());
             _entityMap.Register(1L, e1);
 
             var e2 = _world.CreateEntity();
-            _world.AddComponent(e2, new DoctrineState());
+            _world.AddComponent(e2, new BehaviorState());
             _entityMap.Register(2L, e2);
 
             _world.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = e1, IntentId = "DefendArea", JsonParams = "{}" });
@@ -407,15 +407,15 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, translator.SentSampleCount);
         }
 
-        // SC-4: Entity HAS DoctrineState authority → no DDS write
+        // SC-4: Entity HAS BehaviorState authority → no DDS write
         [Fact]
         public void ScanAndPublish_HasAuthority_NoDdsWrite()
         {
             var (translator, writer) = BuildTranslator();
 
             var entity = _world.CreateEntity();
-            _world.AddComponent(entity, new DoctrineState());
-            _world.SetAuthority<DoctrineState>(entity, true);  // locally owned
+            _world.AddComponent(entity, new BehaviorState());
+            _world.SetAuthority<BehaviorState>(entity, true);  // locally owned
             _entityMap.Register(99L, entity);
 
             _world.Bus.PublishManaged(new AssignTacticalIntentEvent
@@ -449,7 +449,7 @@ The ingress translator runs on a subordinate Brain node. It:
 3. If found, calls `repo.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity, IntentId, JsonParams })`.
 4. If the entity is not in the map, skips silently.
 
-> **No authority check in ingress:** The ingress translator does not check `HasAuthority<DoctrineState>`. Authority verification happens downstream in `TacticalIntentResolutionSystem`. The ingress translator's job is only to transfer the wire message to the local bus.
+> **No authority check in ingress:** The ingress translator does not check `HasAuthority<BehaviorState>`. Authority verification happens downstream in `TacticalIntentResolutionSystem`. The ingress translator's job is only to transfer the wire message to the local bus.
 
 ### Pattern to follow
 

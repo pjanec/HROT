@@ -12,12 +12,12 @@ namespace Hrot.CGF.Systems
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Architecture (DRY Pipeline):</b> This system intentionally does <i>not</i> mutate <see cref="DoctrineState"/> 
+    /// <b>Architecture (DRY Pipeline):</b> This system intentionally does <i>not</i> mutate <see cref="BehaviorState"/> 
     /// or <see cref="BrainBlackboard"/> directly. Instead, it acts purely as a change-detector and dispatcher. 
     /// When a phase change is detected, it extracts the <c>BehaviorId</c> and <c>BehaviorParams</c> JSON and
     /// publishes an <see cref="AssignTacticalIntentEvent"/>. This delegates resolution to
     /// <see cref="TacticalIntentResolutionSystem"/>, which translates the intent into a concrete
-    /// <see cref="AssignDoctrineEvent"/> consumed by <see cref="DoctrineIngressSystem"/>.
+    /// <see cref="AssignBehaviorEvent"/> consumed by <see cref="BehaviorIngressSystem"/>.
     /// This eliminates legacy "double-apply" bugs that previously wiped out behavior memory (e.g., <c>RoundsFired</c>).
     /// </para>
     /// <para>
@@ -41,13 +41,13 @@ namespace Hrot.CGF.Systems
 
             var query = repo.Query()
                 .With<MissionPlanQueue>()
-                .With<DoctrineState>()
+                .With<BehaviorState>()
                 .Build();
 
             foreach (var entity in query)
             {
                 ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
-                ref var doctrine = ref repo.GetComponentRW<DoctrineState>(entity);
+                ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
 
                 if (!repo.HasComponent<Hrot.CGF.Components.MissionAdapterState>(entity))
                     repo.AddComponent(entity, new Hrot.CGF.Components.MissionAdapterState { LastPhase = byte.MaxValue });
@@ -55,13 +55,13 @@ namespace Hrot.CGF.Systems
                 ref var adapterState = ref repo.GetComponentRW<Hrot.CGF.Components.MissionAdapterState>(entity);
                 var activePlan = repo.GetComponent<ActiveMissionPlan>(entity);
 
-                // Detect exhaustion: publish ClearDoctrineEvent once, then cache so that
+                // Detect exhaustion: publish ClearBehaviorEvent once, then cache so that
                 // re-committing the same mission from phase 0 is correctly detected.
                 if (queue.CurrentPhase >= queue.PhaseCount)
                 {
                     if (adapterState.LastPhase != queue.CurrentPhase)
                     {
-                        repo.Bus.Publish(new ClearDoctrineEvent { Entity = entity });
+                        repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity });
                         adapterState.LastPhase = queue.CurrentPhase;
                         adapterState.LastPlanVersion = 0;
                     }
@@ -77,7 +77,7 @@ namespace Hrot.CGF.Systems
                     var task = activePlan.Plan.Tasks[queue.CurrentPhase];
                     jsonParams = task.BehaviorParams ?? "{}";
 
-                    uint currentDefHash = (uint)(jsonParams.GetHashCode() ^ phase.DoctrineId);
+                    uint currentDefHash = (uint)(jsonParams.GetHashCode() ^ phase.BehaviorId);
 
                     // Skip if nothing changed
                     if (adapterState.LastPhase == queue.CurrentPhase && adapterState.LastPlanVersion == currentDefHash)
@@ -87,19 +87,19 @@ namespace Hrot.CGF.Systems
                     adapterState.LastPlanVersion = currentDefHash;
 
                     // Publish generic tactical intent; TacticalIntentResolutionSystem resolves it.
-                    if (!string.IsNullOrWhiteSpace(task.BehaviorId))
+                    if (!string.IsNullOrWhiteSpace(task.BehaviorName))
                     {
                         repo.Bus.PublishManaged(new AssignTacticalIntentEvent
                         {
                             Entity     = entity,
-                            IntentId   = task.BehaviorId,
+                            IntentId   = task.BehaviorName,
                             JsonParams = jsonParams,
                         });
                     }
                 }
                 else
                 {
-                    uint currentDefHash = (uint)phase.DoctrineId;
+                    uint currentDefHash = (uint)phase.BehaviorId;
 
                     // Skip if nothing changed
                     if (adapterState.LastPhase == queue.CurrentPhase && adapterState.LastPlanVersion == currentDefHash)

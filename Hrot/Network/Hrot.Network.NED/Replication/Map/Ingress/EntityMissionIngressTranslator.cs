@@ -29,7 +29,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     {
         private readonly DdsReader<EntityMission> _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly DoctrineRegistry _doctrineRegistry;
+        private readonly BehaviorRegistry _behaviorRegistry;
         private readonly GhostCreationSystem _ghostCreationSystem;
 
         public string TopicName => "EntityMission";
@@ -41,12 +41,12 @@ namespace Hrot.Map.Common.Replication.Ingress
         public EntityMissionIngressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            DoctrineRegistry doctrineRegistry,
+            BehaviorRegistry behaviorRegistry,
             GhostCreationSystem ghostCreationSystem)
         {
             _reader = new DdsReader<EntityMission>(participant, "EntityMission");
             _entityMap = entityMap;
-            _doctrineRegistry = doctrineRegistry ?? throw new ArgumentNullException(nameof(doctrineRegistry));
+            _behaviorRegistry = behaviorRegistry ?? throw new ArgumentNullException(nameof(behaviorRegistry));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
         }
 
@@ -151,12 +151,12 @@ namespace Hrot.Map.Common.Replication.Ingress
             for (int i = 0; i < count; i++)
             {
                 var task = tasks[i];
-                int doctrineId = ResolveDoctrineId(task.BehaviorId);
+                int behaviorId = ResolveBehaviorId(task.BehaviorId);
                 var (trigger, param) = ResolveTrigger(task.Triggers);
 
                 queue.Phases[i] = new MissionPhase
                 {
-                    DoctrineId = doctrineId,
+                    BehaviorId = behaviorId,
                     Trigger = trigger,
                     TriggerParam = param
                 };
@@ -166,23 +166,23 @@ namespace Hrot.Map.Common.Replication.Ingress
             return queue;
         }
 
-        private int ResolveDoctrineId(string? behaviorId)
+        private int ResolveBehaviorId(string? behaviorName)
         {
-            if (string.IsNullOrWhiteSpace(behaviorId))
+            if (string.IsNullOrWhiteSpace(behaviorName))
                 return 0;
 
-            if (_doctrineRegistry.TryGetId(behaviorId, out int doctrineId))
-                return doctrineId;
+            if (_behaviorRegistry.TryGetId(behaviorName, out int behaviorId))
+                return behaviorId;
 
             // Fallback: if BehaviorId is a raw numeric string (legacy egress without registry)
-            // treat it directly as the doctrine integer ID.
-            if (int.TryParse(behaviorId, System.Globalization.NumberStyles.Integer,
+            // treat it directly as the behavior integer ID.
+            if (int.TryParse(behaviorName, System.Globalization.NumberStyles.Integer,
                     System.Globalization.CultureInfo.InvariantCulture, out int numericId) && numericId > 0)
                 return numericId;
 
             FdpLog<EntityMissionIngressTranslator>.Warn(
-                "[MissionTranslator] Unknown BehaviorId '{0}'; using doctrine 0 (Idle).",
-                behaviorId);
+                "[MissionTranslator] Unknown BehaviorName '{0}'; using behavior 0 (Idle).",
+                behaviorName);
             return 0;
         }
 

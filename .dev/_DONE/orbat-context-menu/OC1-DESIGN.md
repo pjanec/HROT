@@ -33,7 +33,7 @@ The IG owns the drawing canvas, spatial transforms, and async command gateway.  
 Selection is a non-destructive, transient UI state.  The IOS applies selection locally (same frame) and dispatches the network command concurrently.  This avoids perceptible input lag without introducing a feedback loop, because the IG only emits `SelectionChangedEvent` from physical mouse clicks — never in response to programmatic `CMD_SET_SELECTION` commands.
 
 ### Physical-Entity Gating
-"Edit Route" and "Abort Mission" concern simulation-side state (locomotion, doctrine) that map graphic entities do not have.  Showing these menu items for route or area graphics would confuse operators and produce no-op or error results.  A local helper, `IsSimulatedEntity(int entityId)`, gates these items based on the entity's `TkbType` from the local `IDerRepo`.
+"Edit Route" and "Abort Mission" concern simulation-side state (locomotion, behavior) that map graphic entities do not have.  Showing these menu items for route or area graphics would confuse operators and produce no-op or error results.  A local helper, `IsSimulatedEntity(int entityId)`, gates these items based on the entity's `TkbType` from the local `IDerRepo`.
 
 ### No Propagation to Subordinates
 Mission operations (Abort, Edit Route) are issued only to the directly selected entity.  Subordinate propagation is not supported in the current codebase and is explicitly **out of scope** for this workstream.

@@ -30,7 +30,7 @@ The following constraints govern every change in this workstream:
    time controller. ECS systems still tick and drain the event bus; only integration systems that
    multiply by `dt` are effectively halted. Groups must never be disabled as a freeze mechanism.
 5. **Phase separation.** Command-processing systems (`MissionControlExecutionSystem`,
-   `DoctrineIngressSystem`) belong in the Input phase. Cognitive runtime systems (B-Trees, mission
+   `BehaviorIngressSystem`) belong in the Input phase. Cognitive runtime systems (B-Trees, mission
    director, kinematics) belong in the Simulation phase.
 
 ---
@@ -71,8 +71,8 @@ Replace `queue.Phases[i] = new MissionPhase { ... }` with `phases[i] = new Missi
 
 ### 1.3 BrainBlackboard Data Policy
 
-`BrainBlackboard` is a 128-byte unmanaged scratch-pad written by the `DoctrineIngressSystem` when
-a doctrine's `ParseParamsDelegate` initializes cognitive parameters. It is deterministically
+`BrainBlackboard` is a 128-byte unmanaged scratch-pad written by the `BehaviorIngressSystem` when
+a behavior's `ParseParamsDelegate` initializes cognitive parameters. It is deterministically
 reconstructed from `ActiveMissionPlan` on every load. Serializing it into a scenario JSON exposes
 opaque execution-tier memory to the authoring domain and violates the State vs. Message boundary.
 
@@ -104,14 +104,14 @@ cluster while establishing the correct phase topology for the editor fix in Phas
 ### 2.1 MissionControlModule Phase Split
 
 `MissionControlModule.RegisterSystems(SystemGroup group)` currently routes both
-`DoctrineIngressSystem` (an input-phase command consumer) and `MissionDirectorSystem` (a
+`BehaviorIngressSystem` (an input-phase command consumer) and `MissionDirectorSystem` (a
 simulation-phase state advancer) into the same generic group. This violates phase ordering.
 
 **Files:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Modules/MissionControlModule.cs`
 
 Add `public void RegisterSystems(SystemGroup inputGroup, SystemGroup simGroup)` overload:
-- `inputGroup.AddSystem(new DoctrineIngressSystem(_registry))` — parses JSON, assigns ECS
-  doctrines before the AI ticks.
+- `inputGroup.AddSystem(new BehaviorIngressSystem(_registry))` — parses JSON, assigns ECS
+  behaviors before the AI ticks.
 - `simGroup.AddSystem(new MissionDirectorSystem())` — advances phases based on elapsed time
   and trigger conditions.
 
@@ -131,7 +131,7 @@ violating the phase contract.
 
 Add `public void RegisterSystems(SystemGroup inputGroup, SystemGroup simGroup)` overload:
 - `inputGroup.AddSystem(_missionExecutionSystem)` — drains `MissionControlIntent` from bus.
-- `simGroup.AddSystem(_missionAdapterSystem)` — bridges `MissionPlanQueue` phases to `DoctrineState`.
+- `simGroup.AddSystem(_missionAdapterSystem)` — bridges `MissionPlanQueue` phases to `BehaviorState`.
 - `_missionControlModule.RegisterSystems(inputGroup, simGroup)` — uses the new two-group overload.
 - `simGroup.AddSystem(new HealthApplicationSystem())` — unchanged.
 - `simGroup.AddSystem(new CgfThreatEvaluationSystem())` — unchanged.
@@ -330,4 +330,4 @@ pipeline materializes the entity, those stale IDs fail to resolve, causing silen
 | D2 | Freeze time via `SwitchToDeterministic` (0 dt), not by disabling groups | Disabled groups orphan events in the bus. A `dt = 0` kernel tick safely drains events while halting integration. |
 | D3 | Keep existing `RegisterSystems(SystemGroup simGroup)` single-group overloads | Backward compat with tests and single-group callers (e.g. `SimulationLogicModule`). |
 | D4 | Share `CgfInputGroupAdapter` via `Hrot.Common` | Avoids duplication between `CgfSubsystem` and `EditorSubsystem`. `Hrot.Common` already has transitive access to `IEcsModuleSystem` through `Fdp.Network.Cyclone → Fdp.ModuleHost`. |
-| D5 | Do NOT move `DoctrineIngressSystem` phase in the existing `CgfSubsystem` path until Phase 2 | The single-group `RegisterSystems(simGroup)` path must remain valid for the distributed `SimulationLogicModule` which owns its own phase dispatch. |
+| D5 | Do NOT move `BehaviorIngressSystem` phase in the existing `CgfSubsystem` path until Phase 2 | The single-group `RegisterSystems(simGroup)` path must remain valid for the distributed `SimulationLogicModule` which owns its own phase dispatch. |

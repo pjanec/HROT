@@ -6,7 +6,7 @@ Welcome to the **MOD1** workstream. This document gives you the context and orie
 
 ## 1. What Are We Building?
 
-The SimHost is currently a **monolithic all-in-one process** that runs the AI brain (doctrine assignment, behavior tree evaluation, locomotion intent output) and the physics muscles (vehicle kinematics, formation management) in the same executable. You cannot deploy the Brain on one machine and the Muscles on another without significant rework.
+The SimHost is currently a **monolithic all-in-one process** that runs the AI brain (behavior assignment, behavior tree evaluation, locomotion intent output) and the physics muscles (vehicle kinematics, formation management) in the same executable. You cannot deploy the Brain on one machine and the Muscles on another without significant rework.
 
 **MOD1 refactors this into composable, independently-deployable modules** that can be snapped together at process startup to create any desired deployment topology.
 
@@ -55,7 +55,7 @@ Hrot.SimHost/
 │   ├── MissionControlRequestSystem.cs
 │   └── ...
 ├── Brains/
-│   └── SimHostNodes.cs                    ← Doctrine definitions + parameter parsers
+│   └── SimHostNodes.cs                    ← Behavior definitions + parameter parsers
 └── Components/                            ← Target for new NavigationIntent/NavigationStatus (P1T1)
 ```
 

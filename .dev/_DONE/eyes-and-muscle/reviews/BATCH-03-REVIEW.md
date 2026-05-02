@@ -56,7 +56,7 @@ All 4 files cleanly moved with updated namespaces. Key addition: `HrotNodeContex
 | Success Criterion | Status |
 |---|---|
 | SC1: SimHost tests pass, 0 regressions | ✅ |
-| SC2: `OnLoad` body significantly reduced (steps 2–4+8a collapsed to ~8 lines) | ✅ (spirit met; doctrine setup is unavoidably lengthy) |
+| SC2: `OnLoad` body significantly reduced (steps 2–4+8a collapsed to ~8 lines) | ✅ (spirit met; behavior setup is unavoidably lengthy) |
 | SC3: No `HrotEnvironment.CreateParticipant` in `OnLoad` | ✅ |
 | SC4: `_context` and `_nedReplicationModule` fields present | ⚠️ Partial — `_nedReplicationModule` is null (see deviation) |
 

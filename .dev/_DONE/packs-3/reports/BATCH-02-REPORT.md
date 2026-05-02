@@ -61,7 +61,7 @@ Implements the full lifecycle:
    `PassengerBufferTranslator`, `WeaponChannelTranslator`), wraps in `HrotScenarioEnvelopeDto`,
    writes to `C:\FDP_Temp\<guid>\scenario.json`.
 2. Boots `HrotRunnerHarness(Orchestrator | SimHost)` + `CgfHarness`, 20-frame DDS warmup.
-3. Registers `UrbanCombatDoctrines` in the SimHost's `DoctrineRegistry`.
+3. Registers `UrbanCombatBehaviors` in the SimHost's `BehaviorRegistry`.
 4. Issues `ClusterOpRequest { TargetState = 31 }` → pumps until `OperatingLive`.
 5. Loops ≤800 ticks calling `UrbanCombatValidator.EvaluateTick()`.
 6. `Dispose` removes staging directory.

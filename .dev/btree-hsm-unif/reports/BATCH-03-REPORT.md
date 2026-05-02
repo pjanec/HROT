@@ -30,16 +30,16 @@
 | `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/Integration/BhuIntegrationTests.cs` | A1, A2, A3, A4, B1, B2, B3 |
 | `FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/Integration/HsmSourceGenIntegrationTests.cs` | C1, C2, C3 |
 | `FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/Integration/HsmTerminalStateIntegrationTests.cs` | D1, D2, D3 |
-| `Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/HsmDoctrineIntegrationTests.cs` | E1, E2 |
+| `Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/HsmBehaviorIntegrationTests.cs` | E1, E2 |
 
 ### Individual Test Results
 
 | Test ID | Name | Result |
 |---------|------|--------|
-| IT-BHU-A1 | `A1_HsmReachesFinalState_DoctrineFinishedEventPublished` | PASS |
+| IT-BHU-A1 | `A1_HsmReachesFinalState_BehaviorFinishedEventPublished` | PASS |
 | IT-BHU-A2 | `A2_HsmInTerminalState_SubsequentEvents_AreDropped` | PASS |
-| IT-BHU-A3 | `A3_DoctrineReassignment_AllowsNewEvent_ActiveLeafIdsResetToFfffBeforeFirstTick` | PASS |
-| IT-BHU-A4 | `A4_HsmTerminated_And_DoctrineFinished_PublishedOnce_PerRun` | PASS |
+| IT-BHU-A3 | `A3_BehaviorReassignment_AllowsNewEvent_ActiveLeafIdsResetToFfffBeforeFirstTick` | PASS |
+| IT-BHU-A4 | `A4_HsmTerminated_And_BehaviorFinished_PublishedOnce_PerRun` | PASS |
 | IT-BHU-B1 | `B1_BrainHsm64_ReachesTerminalState_AndPublishesEvent` | PASS |
 | IT-BHU-B2 | `B2_EventQueue_Tier2_RingCapacity1_DropsSecondNormalEvent` | PASS |
 | IT-BHU-B3 | `B3_InterruptSlotCapacity1_DropsSecondInterrupt` | PASS |
@@ -50,7 +50,7 @@
 | IT-BHU-D2 | `D2_RegisterAll_AfterClearAll_RestoresAllGuards` | PASS |
 | IT-BHU-D3 | `D3_TerminalState_MachineTerminates_WhenEnteringFinalState` | PASS |
 | IT-BHU-E1 | `E1_BehaviorModuleSystemSequence_IsCorrect` | PASS |
-| IT-BHU-E2 | `E2_FullFrame_MobilityLostInterrupt_ThenDoctrineFinished` | PASS |
+| IT-BHU-E2 | `E2_FullFrame_MobilityLostInterrupt_ThenBehaviorFinished` | PASS |
 
 ### Test Suite Regression Summary
 
@@ -69,8 +69,8 @@
 
 Three non-trivial failures were found and fixed:
 
-**A3: MachineId mismatch after doctrine reassignment.**
-`DoctrineIngressSystem.ResetHsmComponents` resets `Phase=Idle`, `ActiveLeafIds[0..3]=0xFFFF`, `InterruptSlotUsed=0`, and `EventCount=0`, but does NOT update `MachineId`. When the test switched from blobA (StructureHash=0xA3000001) to blobB (StructureHash=0xA3000002), the kernel's `ValidateInstance` check (`header.MachineId != StructureHash`) permanently returned false, causing every `HsmKernel.Update` call to skip the machine. Fix: Use the same blob for both doctrine IDs so `MachineId` stays consistent. The test still exercises doctrine reassignment because the `InstanceId` bump is what causes the "fresh entity" semantics, not the blob switch.
+**A3: MachineId mismatch after behavior reassignment.**
+`BehaviorIngressSystem.ResetHsmComponents` resets `Phase=Idle`, `ActiveLeafIds[0..3]=0xFFFF`, `InterruptSlotUsed=0`, and `EventCount=0`, but does NOT update `MachineId`. When the test switched from blobA (StructureHash=0xA3000001) to blobB (StructureHash=0xA3000002), the kernel's `ValidateInstance` check (`header.MachineId != StructureHash`) permanently returned false, causing every `HsmKernel.Update` call to skip the machine. Fix: Use the same blob for both behavior IDs so `MachineId` stays consistent. The test still exercises behavior reassignment because the `InstanceId` bump is what causes the "fresh entity" semantics, not the blob switch.
 
 **E2: Transition not completing with a single HsmKernel.Update call.**
 `HsmKernel.Update` advances exactly ONE phase per call (Idle, Entry, RTC, Activity). A complete transition cycle (event dequeue -> state change -> settle) requires at least 4 consecutive calls. The initial test ran each of the 6 `BehaviorModule` systems exactly once per frame, leaving the machine stuck in `Phase=Entry` with `ActiveLeafIds[0]` still 0 (Patrol). Fix: Follow the B1 pattern — run `HsmTickSystem<BrainHsm128>` (index 3) in a 10-iteration loop per frame while running all other systems once. This guarantees the full Idle->Entry->RTC->Activity->Idle cycle completes within each simulated frame.
@@ -82,7 +82,7 @@ Adding `HsmSourceGenIntegrationTests` and `HsmTerminalStateIntegrationTests` (bo
 
 `HsmActionDispatcher`'s static `ActionTable` and `GuardTable` dictionaries have no thread-safety guarantees. This is fine for production (single-threaded game loop), but test suites running in parallel will race unless explicitly serialized via `[Collection(...)]`. Consider using `ConcurrentDictionary` or documenting the single-threaded requirement so future test authors know to add `[Collection("HsmActionDispatcher")]`.
 
-`DoctrineIngressSystem.ResetHsmComponents` not updating `MachineId` is technically correct (the machine structure does not change when a doctrine is reassigned to a new entity), but the semantics are surprising. A comment explaining why `MachineId` is intentionally preserved would prevent future confusion.
+`BehaviorIngressSystem.ResetHsmComponents` not updating `MachineId` is technically correct (the machine structure does not change when a behavior is reassigned to a new entity), but the semantics are surprising. A comment explaining why `MachineId` is intentionally preserved would prevent future confusion.
 
 **Q3: What design decisions did you make beyond the instructions?**
 

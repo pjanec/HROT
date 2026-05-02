@@ -450,12 +450,12 @@ public class MissionPanelTests
         Assert.False(panel.CommitButtonEnabled);
     }
 
-    // ── BUG1-M001: DoctrineFinished default trigger ───────────────────────────
+    // ── BUG1-M001: BehaviorFinished default trigger ───────────────────────────
 
     [Fact]
-    public void AddTask_NewTask_HasDoctrineFinishedTrigger()
+    public void AddTask_NewTask_HasBehaviorFinishedTrigger()
     {
-        // Each newly-added task must carry exactly one default trigger of type "DoctrineFinished"
+        // Each newly-added task must carry exactly one default trigger of type "BehaviorFinished"
         var panel = new MissionPanel { SelectedEntityId = 1 };
 
         panel.HandleAddTask();
@@ -463,11 +463,11 @@ public class MissionPanelTests
         var task = panel.DraftPlan!.Tasks![0];
         Assert.NotNull(task.Triggers);
         Assert.Single(task.Triggers!);
-        Assert.Equal("DoctrineFinished", task.Triggers![0].Type);
+        Assert.Equal("BehaviorFinished", task.Triggers![0].Type);
     }
 
     [Fact]
-    public void AddTask_MultipleTasksEach_HaveDoctrineFinishedTrigger()
+    public void AddTask_MultipleTasksEach_HaveBehaviorFinishedTrigger()
     {
         var panel = new MissionPanel { SelectedEntityId = 1 };
 
@@ -479,7 +479,7 @@ public class MissionPanelTests
         {
             Assert.NotNull(task.Triggers);
             Assert.Single(task.Triggers!);
-            Assert.Equal("DoctrineFinished", task.Triggers![0].Type);
+            Assert.Equal("BehaviorFinished", task.Triggers![0].Type);
         }
     }
 
@@ -513,7 +513,7 @@ public class MissionPanelTests
 
     // ── BUG2-M002 – Trigger selection UI handlers ─────────────────────────────
 
-    private static MissionPanel CreatePanelWithDraftTask(string initialTriggerType = "DoctrineFinished")
+    private static MissionPanel CreatePanelWithDraftTask(string initialTriggerType = "BehaviorFinished")
     {
         var panel = new MissionPanel { SelectedEntityId = 1 };
         var plan  = BuildPlan("MoveToLocation");
@@ -526,7 +526,7 @@ public class MissionPanelTests
     }
 
     [Theory]
-    [InlineData("DoctrineFinished",   "")]
+    [InlineData("BehaviorFinished",   "")]
     [InlineData("TimerElapsed",       "10.0")]
     [InlineData("ReachedDestination", "")]
     [InlineData("HealthCritical",     "0.25")]
@@ -539,7 +539,7 @@ public class MissionPanelTests
     [Fact]
     public void HandleEditTriggerType_UpdatesTriggerTypeAndResetsParams()
     {
-        var panel = CreatePanelWithDraftTask("DoctrineFinished");
+        var panel = CreatePanelWithDraftTask("BehaviorFinished");
 
         panel.HandleEditTriggerType(0, 0, "TimerElapsed");
 
@@ -567,11 +567,11 @@ public class MissionPanelTests
         plan.Tasks![0].Triggers = new List<MissionTrigger>();
         panel.SetDraftPlan(plan, baseVersion: 0);
 
-        panel.HandleAddTrigger(0, "DoctrineFinished");
+        panel.HandleAddTrigger(0, "BehaviorFinished");
 
         var triggers = panel.DraftPlan!.Tasks![0].Triggers!;
         Assert.Single(triggers);
-        Assert.Equal("DoctrineFinished", triggers[0].Type);
+        Assert.Equal("BehaviorFinished", triggers[0].Type);
         Assert.Equal("", triggers[0].Params);
     }
 

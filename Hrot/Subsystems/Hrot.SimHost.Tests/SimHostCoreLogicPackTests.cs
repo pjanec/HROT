@@ -35,7 +35,7 @@ namespace Hrot.SimHost.Tests
             var world = new EntityRepository();
 
             // Behavior / locomotion
-            world.RegisterComponent<DoctrineState>();
+            world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();

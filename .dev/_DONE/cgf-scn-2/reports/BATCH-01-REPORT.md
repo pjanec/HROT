@@ -91,8 +91,8 @@ the lock and confirmed all relevant compilation units are error-free.
 
 ### Q2: Other Execution-State Components That Should Carry [DataPolicy(DataPolicy.NoSave)]
 
-Reviewing `BehaviorComponents.cs`, the `DoctrineState` struct holds transient runtime
-doctrine assignment state (which action plan is currently executing). It does not carry
+Reviewing `BehaviorComponents.cs`, the `BehaviorState` struct holds transient runtime
+behavior assignment state (which action plan is currently executing). It does not carry
 `NoSave` yet. Similarly `ActorCapabilityState` tracks capabilities granted mid-simulation
 and would be wrong in a declarative scenario template. Both are candidates for
 `[DataPolicy(DataPolicy.NoSave)]` in a follow-up batch — though they may legitimately

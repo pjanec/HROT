@@ -11,7 +11,7 @@ public interface IMissionEditorService : IDisposable
 {
     /// <summary>
     /// Returns the available behaviour names for the given entity, filtered to
-    /// doctrines that are valid for the entity's TKB type.  Returns an empty
+    /// behaviors that are valid for the entity's TKB type.  Returns an empty
     /// list when the entity is not found.
     /// </summary>
     /// <param name="entityId">The network entity ID.</param>

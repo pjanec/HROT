@@ -5,7 +5,7 @@
 **Phase:** Phase 5 (W002 only) + Phase 6 Part 1 (X001, X002, X003)  
 **Estimated Effort:** 5–7 hours  
 **Priority:** HIGH  
-**Dependencies:** BATCH-01 (DoctrineCatalog), BATCH-02 (panel migration), BATCH-03 (SharedOrbatPanel) ✅
+**Dependencies:** BATCH-01 (BehaviorCatalog), BATCH-02 (panel migration), BATCH-03 (SharedOrbatPanel) ✅
 
 ---
 
@@ -17,7 +17,7 @@ Four medium-complexity tasks:
 1. **W002** — Update `ScenarioFileService.SaveScenario` to bundle zone data in the envelope
 2. **X001** — Create `ExConOrbatAdapter` (new IDerRepo-backed ORBAT adapter for ExCon)
 3. **X002** — Declare `ExConLogic : ISpawnController` (zero logic, just interface declaration)
-4. **X003** — Update `MissionEditorService.GetAvailableBehaviors` to use `DoctrineCatalog`
+4. **X003** — Update `MissionEditorService.GetAvailableBehaviors` to use `BehaviorCatalog`
 
 No ECS systems. No MapCanvas. No unsafe code. Work task-by-task.
 
@@ -42,7 +42,7 @@ No ECS systems. No MapCanvas. No unsafe code. Work task-by-task.
 
 - **`IZoneManagerService.GetActiveZones()`** — search in `Hrot.Map.Common/` for this interface and return type
 - **`HrotScenarioEnvelopeDto`** — search in `Hrot.Map.Common/` or `Hrot.ScenarioEditor/`; has properties for FDP entity DOM + zone data
-- **`DoctrineCatalog.GetValidDoctrines(long tkbType)`** — in `Hrot.Map.Definitions/Tkb/DoctrineCatalog.cs`; returns `IReadOnlyList<string>`
+- **`BehaviorCatalog.GetValidBehaviors(long tkbType)`** — in `Hrot.Map.Definitions/Tkb/BehaviorCatalog.cs`; returns `IReadOnlyList<string>`
 - **`IDerRepo`** — from `FDP.Toolkit.DER`; check `Hrot.ExCon.csproj` — already has this reference
 - **`IOrbatDataProvider`** and **`IOrbatController`** interfaces — in `Hrot.UI.Common/Facades/`
 - **`IExConLogic.SendEmbarkRequest`** — may or may not exist; if it doesn't, log a not-implemented warning in `RequestEmbark`
@@ -128,7 +128,7 @@ If method signatures don't exactly match `ISpawnController`, adjust to match the
 
 ---
 
-### Task 4: EDIT1-X003 — `MissionEditorService` Dynamic Doctrine Filter
+### Task 4: EDIT1-X003 — `MissionEditorService` Dynamic Behavior Filter
 
 **Full spec:** `.dev/edit-1/TASK-DETAIL.md` §EDIT1-X003  
 **File:** `Hrot.ExCon/Services/MissionEditorService.cs` (UPDATE)
@@ -143,17 +143,17 @@ If method signatures don't exactly match `ISpawnController`, adjust to match the
    {
        var entity = _repo.GetEntity((int)entityId);
        if (entity == null) return Array.Empty<string>();
-       return DoctrineCatalog.GetValidDoctrines(entity.TkbType);
+       return BehaviorCatalog.GetValidBehaviors(entity.TkbType);
    }
    ```
 3. Remove any existing hardcoded `_knownBehaviors` list.
-4. Add `using Hrot.Map.Definitions.Tkb;` (for `DoctrineCatalog`) + `using Hrot.Map.Definitions;` (for `TkbEntityTypes`)
+4. Add `using Hrot.Map.Definitions.Tkb;` (for `BehaviorCatalog`) + `using Hrot.Map.Definitions;` (for `TkbEntityTypes`)
 5. Check `Hrot.ExCon.csproj` for reference to `Hrot.Map.Definitions` — if missing, add it.
 
 **Note:** `IDerRepo.GetEntity(int id)` — check the actual API. It might be `GetEntity(int)` or `GetEntityById(int)` or similar. Look at how `IDerRepo` is used elsewhere in the ExCon project.
 
 **Tests:**
-1. Stub `IDerRepo` returns entity with `TkbType = TkbEntityTypes.Insurgent`; assert `GetAvailableBehaviors` returns list containing an insurgent doctrine
+1. Stub `IDerRepo` returns entity with `TkbType = TkbEntityTypes.Insurgent`; assert `GetAvailableBehaviors` returns list containing an insurgent behavior
 2. Stub `IDerRepo.GetEntity` returns null; assert returns empty list
 
 ---
@@ -211,7 +211,7 @@ dotnet test Hrot.Editor.Tests --no-build
 - [ ] `ScenarioFileService.SaveScenario` bundles zone data
 - [ ] `ExConOrbatAdapter` created in `Hrot.ExCon/Adapters/`
 - [ ] `ExConLogic : ISpawnController` declared
-- [ ] `MissionEditorService.GetAvailableBehaviors` uses `DoctrineCatalog` 
+- [ ] `MissionEditorService.GetAvailableBehaviors` uses `BehaviorCatalog` 
 - [ ] All 377 ExCon tests still pass
 - [ ] Minimum 8 new tests
 - [ ] Report written to `.dev/edit-1/reports/BATCH-07-REPORT.md`

@@ -75,7 +75,7 @@ The Brain node is the **authoritative** node: it spawns entities natively and pu
 
 #### 1d. Why `BehaviorToolkit` (`CognitiveRuntimeModule`) is NOT added to Brain
 
-`CognitiveRuntimeModule` is not an `IEcsModule` — it exposes `RegisterSystems(SystemGroup group)` (for `SimulationLogicModule` delegation), not `RegisterSystems(ISystemRegistry registry)`. There is no `IEcsModule` wrapper for it. More importantly, the demo does not need BTree/HSM execution: locomotion commands are injected by `EvaluateTick` at tick 20 (scenario controller pattern). Adding `CognitiveRuntimeModule` would require `DoctrineRegistry`, entity archetypes with `DoctrineState`/`ActorCapabilityState`, and would effectively fork a second `UrbanCombat` harness — explicitly prohibited by BATCH-13 instructions.
+`CognitiveRuntimeModule` is not an `IEcsModule` — it exposes `RegisterSystems(SystemGroup group)` (for `SimulationLogicModule` delegation), not `RegisterSystems(ISystemRegistry registry)`. There is no `IEcsModule` wrapper for it. More importantly, the demo does not need BTree/HSM execution: locomotion commands are injected by `EvaluateTick` at tick 20 (scenario controller pattern). Adding `CognitiveRuntimeModule` would require `BehaviorRegistry`, entity archetypes with `BehaviorState`/`ActorCapabilityState`, and would effectively fork a second `UrbanCombat` harness — explicitly prohibited by BATCH-13 instructions.
 
 #### 1e. `DEM1-TASK-DETAIL.md` and `DEM1-TASK-TRACKER.md` updated
 

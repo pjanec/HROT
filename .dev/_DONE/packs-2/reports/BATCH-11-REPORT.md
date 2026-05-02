@@ -47,7 +47,7 @@
 Initially **no** — `SoftClear()` calls `Bus.ClearAll()`, wiping the event published in `FireWorldReset`. Fixed by publishing the bus event *after* `SoftClear()` (while keeping the synchronous `_worldResetObservers` callback *before*). After this fix `harness.Bus.ConsumeManaged<WorldResetEvent>().Count > 0` returns `true` after a single pump frame.
 
 ### Q3: Was IT-3c (CGF AI intent) implementable?
-**No — skipped.** `NavigationIntent` exists in `FDP.Toolkit.Navigation` but CGF does not auto-assign navigation doctrines without an ExCon `MissionControlRequest` DDS message. The round-trip would require the full ExCon/MissionControl chain which is outside the scope of the SimHost-only harness. Marked `[Fact(Skip="...")]`.
+**No — skipped.** `NavigationIntent` exists in `FDP.Toolkit.Navigation` but CGF does not auto-assign navigation behaviors without an ExCon `MissionControlRequest` DDS message. The round-trip would require the full ExCon/MissionControl chain which is outside the scope of the SimHost-only harness. Marked `[Fact(Skip="...")]`.
 
 ### Q4: Did R006 DDS tests pass or skip?
 **Failed with `CycloneDDS.Runtime.DdsException: Failed to create participant`** — this machine does not have a CycloneDDS native library installed. IT-4a and IT-4b fail immediately; IT-4c is skipped. This matches the existing pattern for all DDS-dependent tests in the suite (`HarnessSmokeTests`, `MiniExCon`, `ClusterOpE2e`). Domain counter starts at 300 (above HrotRunnerHarness range 100–199 and CgfHarness range 200–299).

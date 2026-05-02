@@ -1,6 +1,6 @@
-[BUG\] Vehicle given MoveToLocation mission task does not start moving. Probably missing DoctrineFinished trigger case?
+[BUG\] Vehicle given MoveToLocation mission task does not start moving. Probably missing BehaviorFinished trigger case?
 
-You are exactly right on your suspicion. The vehicle fails to start moving because the `DoctrineFinished` trigger case is missing, but the bug specifically resides in the parsing layer that translates incoming messages into ECS components, rather than the execution system itself.
+You are exactly right on your suspicion. The vehicle fails to start moving because the `BehaviorFinished` trigger case is missing, but the bug specifically resides in the parsing layer that translates incoming messages into ECS components, rather than the execution system itself.
 
 Here is a detailed breakdown of the bug and its mechanics:
 
@@ -10,21 +10,21 @@ If you look at the `switch` statements in both methods, they only explicitly han
 
 -   `"TimerElapsed"`-   `"ReachedDestination"`-   `"HealthCritical"`
 
-Both methods are entirely missing the cases for `"DoctrineFinished"` and `"UnderAttack"`.
+Both methods are entirely missing the cases for `"BehaviorFinished"` and `"UnderAttack"`.
 
-**2\. The "Zero-Second" Fallback Trap** Because `"DoctrineFinished"` is not explicitly defined in the switch statement, the code falls through to the default catch-all case (`_`): `_ => (EcsMissionTrigger.TimerElapsed, 0f)`.
+**2\. The "Zero-Second" Fallback Trap** Because `"BehaviorFinished"` is not explicitly defined in the switch statement, the code falls through to the default catch-all case (`_`): `_ => (EcsMissionTrigger.TimerElapsed, 0f)`.
 
-This converts your intended `DoctrineFinished` trigger into a **TimerElapsed** **trigger with a 0-second duration threshold**.
+This converts your intended `BehaviorFinished` trigger into a **TimerElapsed** **trigger with a 0-second duration threshold**.
 
 **3\. Why the Vehicle Never Moves** When the `MissionDirectorSystem` evaluates the active mission phase each tick, it handles the `TimerElapsed` condition by checking if `queue.PhaseElapsedSeconds >= phase.TriggerParam`.
 
-Since the fallback mapped the parameter to `0f`, this condition evaluates to `true` instantly on the very first simulation tick. As a result, the `MissionDirectorSystem` immediately advances the queue to the next phase (or clears the doctrine entirely if the queue is empty). **The vehicle never starts moving because the** **MoveToLocation** **task is skipped instantly before the locomotion pipeline can even process it.**
+Since the fallback mapped the parameter to `0f`, this condition evaluates to `true` instantly on the very first simulation tick. As a result, the `MissionDirectorSystem` immediately advances the queue to the next phase (or clears the behavior entirely if the queue is empty). **The vehicle never starts moving because the** **MoveToLocation** **task is skipped instantly before the locomotion pipeline can even process it.**
 
-_Note: This bug is highly visible because the_ _MissionPanel_ _UI explicitly defaults any newly added task to use the_ _DoctrineFinished_ _trigger_.
+_Note: This bug is highly visible because the_ _MissionPanel_ _UI explicitly defaults any newly added task to use the_ _BehaviorFinished_ _trigger_.
 
-**Architectural Insight for the Fix:** While you need to fix the `switch` statements in `ResolveTrigger` to correctly map `"DoctrineFinished"` to `EcsMissionTrigger.DoctrineFinished`, you should also note that **MoveToLocation** **tasks are designed to use the** **ReachedDestination** **trigger**, not `DoctrineFinished`.
+**Architectural Insight for the Fix:** While you need to fix the `switch` statements in `ResolveTrigger` to correctly map `"BehaviorFinished"` to `EcsMissionTrigger.BehaviorFinished`, you should also note that **MoveToLocation** **tasks are designed to use the** **ReachedDestination** **trigger**, not `BehaviorFinished`.
 
-The underlying behavior tree for `MoveToLocation` uses an action node (`Action_WriteMoveToChannel`) that continuously returns `NodeStatus.Running`. Because it always returns `Running`, the BTree root will never naturally reach a terminal state to fire a `DoctrineFinishedEvent`. Instead, programmatic move commands (like right-clicking the map) explicitly assign the `"ReachedDestination"` trigger, which allows the `MissionDirectorSystem` to read the `NavState.HasArrived` flag managed by the physical kinematics layer.
+The underlying behavior tree for `MoveToLocation` uses an action node (`Action_WriteMoveToChannel`) that continuously returns `NodeStatus.Running`. Because it always returns `Running`, the BTree root will never naturally reach a terminal state to fire a `BehaviorFinishedEvent`. Instead, programmatic move commands (like right-clicking the map) explicitly assign the `"ReachedDestination"` trigger, which allows the `MissionDirectorSystem` to read the `NavState.HasArrived` flag managed by the physical kinematics layer.
 
 \[BUG\] still getting 2 identical acks for update entity descriptor request dtWorldPos (running each IOS, IG, SimHost standalone); only the descriptor owner should send one
 
@@ -39,7 +39,7 @@ The IG node is correctly obeying the "only the descriptor owner should send one"
 **The Fix:** Open `Hrot.SimHost/SimHostApp.cs` and remove the duplicate `_kernelGroup.AddSystem` call.
 
 ```
-_kernelGroup.AddSystem(new MissionAdapterSystem(doctrineRegistry, entityMap));
+_kernelGroup.AddSystem(new MissionAdapterSystem(behaviorRegistry, entityMap));
 
 // Remove one of these duplicate registrations:
 _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant, entityMap, wgs84));
@@ -292,11 +292,11 @@ private const float ContinuousDragIntervalSec = 0.1f;
 
 **Why this works perfectly for your test:** The `EntityDragTool` fires `OnEntityMoved` every frame the mouse is held down and moving. By comparing `worldPos` directly against `_lastDragWorldPos` before calling `SendWorldPosUpdate`, you guarantee that a new `UpdateEntityDescriptorRequest` is blasted over the DDS network exactly once per frame, but _only_ if the entity's coordinates actually changed, completely eliminating the 0.1s delay.
 
-\[BUG\] Selection & Mission editor does not show any trigger selection UI - there should be a combo for trigger selection and textbox for trigger parameters, with button for insering some valid default trigger-type-specific parameter json so that the user can easily change it without the need to remember all the trigger properties. DoctrineFinished should remain the default trigger for new tasks.
+\[BUG\] Selection & Mission editor does not show any trigger selection UI - there should be a combo for trigger selection and textbox for trigger parameters, with button for insering some valid default trigger-type-specific parameter json so that the user can easily change it without the need to remember all the trigger properties. BehaviorFinished should remain the default trigger for new tasks.
 
 To fix this and expose the trigger selection UI to the operator, you need to update the **Hrot.ExCon/Panels/MissionPanel.cs** file.
 
-The underlying `MissionPlan` data structures and ingress translators already fully support these triggers (`TimerElapsed`, `ReachedDestination`, `HealthCritical`, `UnderAttack`, `DoctrineFinished`), but the `MissionPanel` was simply skipping them during the ImGui rendering loop.
+The underlying `MissionPlan` data structures and ingress translators already fully support these triggers (`TimerElapsed`, `ReachedDestination`, `HealthCritical`, `UnderAttack`, `BehaviorFinished`), but the `MissionPanel` was simply skipping them during the ImGui rendering loop.
 
 Here are the specific additions to make to `MissionPanel.cs`:
 
@@ -306,7 +306,7 @@ At the top of the `MissionPanel` class, add an array containing the valid trigge
 
 ```
 private static readonly string[] _triggerTypes = { 
-    "DoctrineFinished", 
+    "BehaviorFinished", 
     "TimerElapsed", 
     "ReachedDestination", 
     "HealthCritical", 
@@ -386,7 +386,7 @@ Inside the `Draw(IIosLogic logic)` method, locate the `for (int i = 0; i < planT
         if (task.Triggers != null && task.Triggers.Count > 0)
         {
             var trigger = task.Triggers;
-            string triggerType = trigger.Type ?? "DoctrineFinished";
+            string triggerType = trigger.Type ?? "BehaviorFinished";
             string triggerParams = trigger.Params ?? string.Empty;
     
             ImGui.Text("Trigger:");
@@ -421,7 +421,7 @@ Inside the `Draw(IIosLogic logic)` method, locate the `for (int i = 0; i < planT
         else
         {
             if (ImGui.Button($"+ Add Trigger##{i}"))
-                HandleAddTrigger(i, "DoctrineFinished");
+                HandleAddTrigger(i, "BehaviorFinished");
         }
         
         // ... existing task Move/Delete buttons ...
@@ -429,7 +429,7 @@ Inside the `Draw(IIosLogic logic)` method, locate the `for (int i = 0; i < planT
             HandleMoveTask(i, i - 1);
 ```
 
-**Note:** `HandleAddTask` (around line 351) already defaults new tasks to use `new MissionTrigger { Type = "DoctrineFinished" }`, so `DoctrineFinished` will inherently remain the default trigger for all newly appended tasks!
+**Note:** `HandleAddTask` (around line 351) already defaults new tasks to use `new MissionTrigger { Type = "BehaviorFinished" }`, so `BehaviorFinished` will inherently remain the default trigger for all newly appended tasks!
 
 \[BUG\] Buttons for Mission Task Up/Down/Delete operations should contain normal text, now unreadable symbol only.
 
@@ -653,7 +653,7 @@ Then, inside the `SimulationLogicModule` constructor, properly assign it:
 
 ```
 public SimulationLogicModule(
-    DoctrineRegistry         doctrineRegistry,
+    BehaviorRegistry         behaviorRegistry,
     NetworkEntityMap          entityMap,
     VehicleAPI?               vehicleAPI               = null,
     RoadNetworkBlob           roadNetwork              = default,

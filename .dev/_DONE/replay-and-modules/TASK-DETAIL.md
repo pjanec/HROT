@@ -339,7 +339,7 @@ Apply standard conversion rules. These systems are used in both SimHostCoreLogic
 
 | System | New Phase |
 |--------|-----------|
-| `DoctrineIngressSystem` | `SystemPhase.Input` |
+| `BehaviorIngressSystem` | `SystemPhase.Input` |
 | `MissionDirectorSystem` | `SystemPhase.Simulation` |
 | Any other systems in this module | Per their previous group assignment |
 
@@ -389,7 +389,7 @@ Delete all `RegisterSystems(SystemGroup)` overloads from both modules. Activate 
 | System | New Phase | Note |
 |--------|-----------|------|
 | `MissionControlExecutionSystem` | `SystemPhase.Input` | Previously in inputGroup (two-group overload) |
-| `MissionAdapterSystem` | `SystemPhase.Simulation` | Bridges MissionPlanQueue to DoctrineState |
+| `MissionAdapterSystem` | `SystemPhase.Simulation` | Bridges MissionPlanQueue to BehaviorState |
 | `HealthApplicationSystem` | `SystemPhase.Simulation` | Applies authoritative damage to Health |
 | `CgfThreatEvaluationSystem` | `SystemPhase.Simulation` | Decays/boosts TargetMemory scores |
 | `RouteContextSystem` | `SystemPhase.Simulation` | Writes danger level to BrainBlackboard |

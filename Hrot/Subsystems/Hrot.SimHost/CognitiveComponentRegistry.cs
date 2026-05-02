@@ -8,7 +8,7 @@ namespace Hrot.SimHost
     /// <summary>
     /// ECS component registry for cognitive / Brain-tier components.
     ///
-    /// <para>Registers: doctrine state, locomotion and weapon channels, actor capability,
+    /// <para>Registers: behavior state, locomotion and weapon channels, actor capability,
     /// BTree and HSM brain components, mission plan queue + adapter state, and the
     /// CQRS <see cref="NavigationIntent"/> command component.</para>
     ///
@@ -25,7 +25,7 @@ namespace Hrot.SimHost
         /// </summary>
         public static void RegisterAll(EntityRepository world)
         {
-            world.RegisterComponent<DoctrineState>();
+            world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<SimTier>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();

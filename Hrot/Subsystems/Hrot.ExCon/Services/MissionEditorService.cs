@@ -70,7 +70,7 @@ public sealed class MissionEditorService : IMissionEditorService
     {
         var entity = _repo.GetEntity((int)entityId);
         if (entity is null) return Array.Empty<string>();
-        return DoctrineCatalog.GetValidDoctrines(entity.TkbType);
+        return BehaviorCatalog.GetValidBehaviors(entity.TkbType);
     }
 
     /// <inheritdoc/>

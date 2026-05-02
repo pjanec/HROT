@@ -31,10 +31,10 @@ All 12 tasks in BATCH-01 are complete. The solution builds with 0 errors. All ne
 
 ## Task Completion Details
 
-### BHU-001 — Add Fhsm references to `Hrot.AI.Doctrines.csproj`
+### BHU-001 — Add Fhsm references to `Hrot.AI.Behaviors.csproj`
 **Status:** COMPLETE
-- Added `<ProjectReference>` to `Fhsm.Kernel` and `Fhsm.Compiler` in `Hrot.AI.Doctrines.csproj`.
-- Created `Hrot/Subsystems/Hrot.AI.Doctrines/Brains/CgfHsmNodes.cs` with `ICgfHsmNode` interface and `CgfHsmState` abstract base class.
+- Added `<ProjectReference>` to `Fhsm.Kernel` and `Fhsm.Compiler` in `Hrot.AI.Behaviors.csproj`.
+- Created `Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CgfHsmNodes.cs` with `ICgfHsmNode` interface and `CgfHsmState` abstract base class.
 
 ### BHU-002 — Add `[HsmAction]` support to `HsmActionGenerator`
 **Status:** COMPLETE
@@ -43,13 +43,13 @@ All 12 tasks in BATCH-01 are complete. The solution builds with 0 errors. All ne
 
 ### BHU-003 — Create `AiHotReloadCoordinator`
 **Status:** COMPLETE
-- Created `Hrot/Subsystems/Hrot.Editor/AiHotReloadCoordinator.cs` with unified reload for both BTree and HSM doctrines.
+- Created `Hrot/Subsystems/Hrot.Editor/AiHotReloadCoordinator.cs` with unified reload for both BTree and HSM behaviors.
 - 3 integration tests pass.
 
-### BHU-004 — Wire `AiHotReloadCoordinator` into `EditorSubsystem` and `AiDoctrineFactory`
+### BHU-004 — Wire `AiHotReloadCoordinator` into `EditorSubsystem` and `AiBehaviorFactory`
 **Status:** COMPLETE
 - Updated `EditorSubsystem.cs` to instantiate and use `AiHotReloadCoordinator`.
-- Updated `AiDoctrineFactory.cs` to support HSM doctrine factory registration.
+- Updated `AiBehaviorFactory.cs` to support HSM behavior factory registration.
 
 ### BHU-005 — Add `.Final()` and `.IsInitial` to `HsmBuilder`
 **Status:** COMPLETE
@@ -62,10 +62,10 @@ All 12 tasks in BATCH-01 are complete. The solution builds with 0 errors. All ne
 - Added terminal-state detection in `HsmKernelCore.InitializeSlot` and transition logic: sets `InstanceFlags.Terminated` when entering a `StateFlags.IsFinal` state.
 - 4 new tests in `TerminatedFlagTests.cs` all pass (241/241 Fhsm.Tests).
 
-### BHU-007 — Detect terminal state and publish `DoctrineFinishedEvent` in `HsmTickSystem`
+### BHU-007 — Detect terminal state and publish `BehaviorFinishedEvent` in `HsmTickSystem`
 **Status:** COMPLETE
 - After each `HsmKernel.Update`, checks `InstanceFlags.Terminated`.
-- Publishes `DoctrineFinishedEvent` exactly once per doctrine instance (deduplication via `_publishedTerminalForInstanceId` dict).
+- Publishes `BehaviorFinishedEvent` exactly once per behavior instance (deduplication via `_publishedTerminalForInstanceId` dict).
 - Clears `Terminated` flag and sets `Phase = Idle` after publishing.
 - Stale-key pruning on entity removal (also in early-exit path).
 - 4 new tests in `HsmTickSystemTerminalTests.cs` all pass.
@@ -101,19 +101,19 @@ All 12 tasks in BATCH-01 are complete. The solution builds with 0 errors. All ne
 - New system `CognitiveCleanupSystem.cs`: clears `BrainBlackboard.Memory[126]` and `[127]` each frame.
 - 1 new test in `CognitiveCleanupSystemTests.cs` passes.
 
-### BHU-016 — HSM reset in `DoctrineIngressSystem`
+### BHU-016 — HSM reset in `BehaviorIngressSystem`
 **Status:** COMPLETE
-- Added `using Fhsm.Kernel.Data;` to `DoctrineIngressSystem.cs`.
+- Added `using Fhsm.Kernel.Data;` to `BehaviorIngressSystem.cs`.
 - Added private static `ResetHsmComponents` helper: clears `Terminated`, sets `Phase = Idle`, resets queue head/tail/count, and sets `ActiveLeafIds` to `0xFFFF` sentinel for both `BrainHsm64` and `BrainHsm128`.
-- Called in both `AssignDoctrineEvent` and `AssignDoctrineHashEvent` handlers.
-- 2 new tests in `DoctrineIngressSystemHsmResetTests.cs` all pass.
+- Called in both `AssignBehaviorEvent` and `AssignBehaviorHashEvent` handlers.
+- 2 new tests in `BehaviorIngressSystemHsmResetTests.cs` all pass.
 
 ---
 
 ## Files Changed
 
 ### New files
-- `Hrot/Subsystems/Hrot.AI.Doctrines/Brains/CgfHsmNodes.cs`
+- `Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CgfHsmNodes.cs`
 - `Hrot/Subsystems/Hrot.Editor/AiHotReloadCoordinator.cs`
 - `FDP/ExtDeps/FastHSM/tests/Fhsm.Tests/Kernel/TerminatedFlagTests.cs`
 - `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/CognitiveInterruptSystem.cs`
@@ -121,20 +121,20 @@ All 12 tasks in BATCH-01 are complete. The solution builds with 0 errors. All ne
 - `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/HsmTickSystemTerminalTests.cs`
 - `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/CognitiveInterruptSystemTests.cs`
 - `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/CognitiveCleanupSystemTests.cs`
-- `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/DoctrineIngressSystemHsmResetTests.cs`
+- `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/BehaviorIngressSystemHsmResetTests.cs`
 
 ### Modified files
-- `Hrot/Subsystems/Hrot.AI.Doctrines/Hrot.AI.Doctrines.csproj`
+- `Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj`
 - `FDP/ExtDeps/FastHSM/src/Fhsm.SourceGen/HsmActionGenerator.cs`
 - `Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs`
-- `Hrot/Subsystems/Hrot.AI.Doctrines/AiDoctrineFactory.cs`
+- `Hrot/Subsystems/Hrot.AI.Behaviors/AiBehaviorFactory.cs`
 - `FDP/ExtDeps/FastHSM/src/Fhsm.Compiler/Graph/StateNode.cs`
 - `FDP/ExtDeps/FastHSM/src/Fhsm.Compiler/HsmBuilder.cs`
 - `FDP/ExtDeps/FastHSM/src/Fhsm.Compiler/HsmFlattener.cs`
 - `FDP/ExtDeps/FastHSM/src/Fhsm.Kernel/HsmKernelCore.cs`
 - `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/HsmTickSystem.cs`
 - `FDP/Toolkits/Fdp.Toolkits/Behavior/Modules/CognitiveRuntimeModule.cs`
-- `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/DoctrineIngressSystem.cs`
+- `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BehaviorIngressSystem.cs`
 - `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/Modules/CognitiveRuntimeModuleTests.cs`
 - `FDP/Examples/Fdp.Examples.Scenarios/Kinematics/ComponentDamageScenario.cs`
 - `FDP/Examples/Fdp.Examples.Scenarios/Integrated/UrbanCombatNewScenario.cs`

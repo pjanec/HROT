@@ -4,23 +4,23 @@ using Hrot.Map.Definitions.Tkb;
 namespace Hrot.Map.Common.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="Hrot.Map.Definitions.Doctrine.Intents.DefendAreaIntentDto"/> (TASK-TI006).
+/// Unit tests for <see cref="Hrot.Map.Definitions.Behavior.Intents.DefendAreaIntentDto"/> (TASK-TI006).
 /// </summary>
 public class DefendAreaIntentDtoTests
 {
-    // SC-2: DoctrineCatalog includes "DefendArea" for MilitaryApc (AllMilitary covers it)
+    // SC-2: BehaviorCatalog includes "DefendArea" for MilitaryApc (AllMilitary covers it)
     [Fact]
-    public void DoctrineCatalog_MilitaryApc_ContainsDefendArea()
+    public void BehaviorCatalog_MilitaryApc_ContainsDefendArea()
     {
-        var doctrines = DoctrineCatalog.GetValidDoctrines(TkbEntityTypes.MilitaryApc);
-        Assert.Contains("DefendArea", doctrines);
+        var behaviors = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.MilitaryApc);
+        Assert.Contains("DefendArea", behaviors);
     }
 
-    // SC-3: DoctrineCatalog does NOT include "DefendArea" for Civilian types
+    // SC-3: BehaviorCatalog does NOT include "DefendArea" for Civilian types
     [Fact]
-    public void DoctrineCatalog_CivilianCar_DoesNotContainDefendArea()
+    public void BehaviorCatalog_CivilianCar_DoesNotContainDefendArea()
     {
-        var doctrines = DoctrineCatalog.GetValidDoctrines(TkbEntityTypes.CivilianCar);
-        Assert.DoesNotContain("DefendArea", doctrines);
+        var behaviors = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.CivilianCar);
+        Assert.DoesNotContain("DefendArea", behaviors);
     }
 }

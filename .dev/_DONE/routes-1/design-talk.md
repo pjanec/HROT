@@ -256,7 +256,7 @@ Here is the architectural blueprint we have aligned on to cleanly overhaul the r
 
 **6\. Decoupling Physics from AI Semantics** We will keep AI domain logic entirely out of the mathematical trajectory pool. Waypoints in the `RoutePlan` will carry metadata like `SpeedMetersPerSec` and `ExtensionJson`. While the `CarKinematicsSystem` blindly follows the geometric spline, the `MissionDirectorSystem` will evaluate the vehicle's progress and trigger AI state changes or mission tasks when specific semantic nodes are reached.
 
-The extra json in a waypoint was meant as something that could set some entity property or some state in the blackboard rather than directly activating some doctrine (which is what the mission system is there for). More some kinf 'soft advice' to the entity rather than a hard imperative. Gor example it can advice the entity to be more csutios as that psrt of the route is expected more dangerous.
+The extra json in a waypoint was meant as something that could set some entity property or some state in the blackboard rather than directly activating some behavior (which is what the mission system is there for). More some kinf 'soft advice' to the entity rather than a hard imperative. Gor example it can advice the entity to be more csutios as that psrt of the route is expected more dangerous.
 
 That is a brilliant architectural distinction. You are completely right, and I appreciate you calling out that mixing imperative behavioral commands into spatial waypoints violates the Single Responsibility Principle.
 
@@ -272,7 +272,7 @@ This system's only job is to compare the vehicle's `ProgressS` against the preco
 
 2\. Injecting Advice into the BrainBlackboard
 
-Instead of altering the `DoctrineState` or `MissionPlanQueue`, the `RouteContextSystem` parses this JSON and writes the data directly into the vehicle's `BrainBlackboard`.
+Instead of altering the `BehaviorState` or `MissionPlanQueue`, the `RouteContextSystem` parses this JSON and writes the data directly into the vehicle's `BrainBlackboard`.
 
 Our `BrainBlackboard` uses a fixed inline byte array (`Memory`) designed exactly for this kind of transient, contextual state. For example, the JSON `{"dangerLevel": 2}` could be parsed, and the value `2` written to a designated `ExpectedThreatLevel` byte offset in the blackboard's memory.
 

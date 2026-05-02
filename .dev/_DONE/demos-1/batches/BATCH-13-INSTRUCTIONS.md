@@ -77,7 +77,7 @@ Task 1 design note in **report** (implement vs trim spec) → code + tests → T
 
 ### Task 4: [OPTIONAL] Single P3 item from **DEBT-TRACKER**
 
-**Examples:** `FastBTree` **Selector** re-evaluation doc, RVO lateral bias, **`MissionDirectorSystem`** one-frame doctrine delay — pick **one** row and close or retarget.
+**Examples:** `FastBTree` **Selector** re-evaluation doc, RVO lateral bias, **`MissionDirectorSystem`** one-frame behavior delay — pick **one** row and close or retarget.
 
 ---
 

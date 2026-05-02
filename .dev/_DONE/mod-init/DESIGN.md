@@ -56,7 +56,7 @@ Hrot.NED  ·  FDP toolkits                (domain contracts / toolkits)
 
 **`Hrot.Network` project references:** `Hrot.Common`, `Hrot.Map.Common` (explicit), `FDP.Toolkit.Behavior`. It sits between the application layer and `Hrot.Common`, breaking all three circular-dependency pressure points:
 - `NedReplicationModule` can use `NodeRole` (from `Hrot.Common`) without `Hrot.Map.Common` needing to reference `Hrot.Common`.
-- `CognitiveTranslatorPack` can use `DoctrineRegistry` from `FDP.Toolkit.Behavior` directly, with no interface abstraction.
+- `CognitiveTranslatorPack` can use `BehaviorRegistry` from `FDP.Toolkit.Behavior` directly, with no interface abstraction.
 - `.WithReplication()` is architecturally *forced* to be an extension class: `Hrot.Common` does not reference `Hrot.Network`, so the method cannot live as a native instance method on `HrotNodeBuilder`.
 
 **`INedReplicationModule` interface (in `Hrot.Common`):** `HrotNodeContext` is in `Hrot.Common` and cannot hold a `NedReplicationModule` concrete reference (that type is in `Hrot.Network`, which is above `Hrot.Common`). To keep `HrotNodeContext.NedReplication` strongly typed, a minimal `INedReplicationModule` interface is defined in `Hrot.Common`. The concrete `NedReplicationModule` (in `Hrot.Network`) implements it. This is the only abstraction this workstream introduces.
@@ -91,7 +91,7 @@ The system's existing `driveFromNetwork` flag logic must be preserved:
 
 #### 1.2 Move Translator Packs to Hrot.Map.Common
 
-All three packs already exist in `Hrot.SimHost/Network/`. `SharedTranslatorPack` and `KinematicTranslatorPack` move to `Hrot.Map.Common.Translators`; `CognitiveTranslatorPack` moves to `Hrot.Network.Translators` (see DoctrineRegistry note below).
+All three packs already exist in `Hrot.SimHost/Network/`. `SharedTranslatorPack` and `KinematicTranslatorPack` move to `Hrot.Map.Common.Translators`; `CognitiveTranslatorPack` moves to `Hrot.Network.Translators` (see BehaviorRegistry note below).
 
 **Why `Hrot.Map.Common` for Shared/Kinematic and not `Hrot.Common`:** These packs instantiate translators like `EntityMasterEgressTranslator` that physically live in `Hrot.Map.Common.Replication.Egress`. `Hrot.Map.Common` cannot reference `Hrot.Common` (that direction would create a cycle since `Hrot.Common` already references `Hrot.Map.Common`), so the packs must live in `Hrot.Map.Common` where all their translator dependencies already reside.
 
@@ -105,8 +105,8 @@ All three packs already exist in `Hrot.SimHost/Network/`. `SharedTranslatorPack`
 
 **Prerequisite for `KinematicTranslatorPack` and `CognitiveTranslatorPack` (Stage 1.4):** These packs reference `NavigationIntent*Translator` and `NavigationStatus*Translator` files that currently live in `Hrot.SimHost/Network/`. Those must be moved first (see Stage 1.4).
 
-**DoctrineRegistry dependency (`CognitiveTranslatorPack`):**
-`CognitiveTranslatorPack` takes a `DoctrineRegistry?` parameter from `FDP.Toolkit.Behavior`. `Hrot.Map.Common` does not (and must not) reference `FDP.Toolkit.Behavior` — that toolkit carries AI/combat domain concepts that have no place in map infrastructure. Therefore `CognitiveTranslatorPack` moves to **`Hrot.Network.Translators`** instead of `Hrot.Map.Common.Translators`. `Hrot.Network` holds a direct `<ProjectReference>` to `FDP.Toolkit.Behavior`, so `CognitiveTranslatorPack` can use the concrete `DoctrineRegistry?` type directly with no interface abstraction.
+**BehaviorRegistry dependency (`CognitiveTranslatorPack`):**
+`CognitiveTranslatorPack` takes a `BehaviorRegistry?` parameter from `FDP.Toolkit.Behavior`. `Hrot.Map.Common` does not (and must not) reference `FDP.Toolkit.Behavior` — that toolkit carries AI/combat domain concepts that have no place in map infrastructure. Therefore `CognitiveTranslatorPack` moves to **`Hrot.Network.Translators`** instead of `Hrot.Map.Common.Translators`. `Hrot.Network` holds a direct `<ProjectReference>` to `FDP.Toolkit.Behavior`, so `CognitiveTranslatorPack` can use the concrete `BehaviorRegistry?` type directly with no interface abstraction.
 
 #### 1.3 Validate Layer Boundaries After Stage 1
 
@@ -197,8 +197,8 @@ Current state: role-based manual translator instantiation with a `// TODO (P2 de
 - Remove manual `GhostCreationSystem` instantiation that currently precedes the orchestration build.
 - Add `.WithReplication(_role)` to the `HrotNodeBuilder` chain; access the module as `_context.NedReplication`.
 - Remove the `_nedReplicationModule` private field entirely — the `SubsystemOrchestrator` retrieves the module via `HrotNodeContext.NedReplication`, not via application-layer state. The `// TODO (P2 debt)` comment is deleted along with the field.
-- Pass the concrete `DoctrineRegistry` instance into `CognitiveTranslatorPack` directly at composition time; `SimHostApp` still owns the concrete registry.
-- **Retain domain specifics:** `DoctrineRegistry`, `RoadNetworkBlob`, `CheckpointIOWorker`, scenario serializers, and physics/visualization modules remain explicitly registered by `SimHostApp`.
+- Pass the concrete `BehaviorRegistry` instance into `CognitiveTranslatorPack` directly at composition time; `SimHostApp` still owns the concrete registry.
+- **Retain domain specifics:** `BehaviorRegistry`, `RoadNetworkBlob`, `CheckpointIOWorker`, scenario serializers, and physics/visualization modules remain explicitly registered by `SimHostApp`.
 
 **Also update `NodeBootstrapper.BuildTranslators`:**
 This method in `Hrot.SimHost/NodeBootstrapper.cs` already uses the three packs by name. After the packs move, `NodeBootstrapper.BuildTranslators` needs its `using` directives updated: `SharedTranslatorPack` and `KinematicTranslatorPack` from `Hrot.SimHost.Network` → `Hrot.Map.Common.Translators`; `CognitiveTranslatorPack` → `Hrot.Network.Translators`. No logic changes.
@@ -271,7 +271,7 @@ No refactoring of domain logic or replication wiring is needed.
 | Introduce `Hrot.Network` assembly | Breaks three simultaneous dep pressure points: (1) `NedReplicationModule` needs `NodeRole` from above; (2) `CognitiveTranslatorPack` needs `FDP.Toolkit.Behavior`; (3) `.WithReplication()` must not modify `HrotNodeBuilder` (OCP). One new assembly eliminates all three hacks. |
 | Move `DeadReckoningSyncSystem` to `Hrot.Common` (not `Hrot.Map.Common`) | It depends on ECS system abstractions already in `Hrot.Common`; pure ACL smoothing with no rendering concern |
 | **Move** `SharedTranslatorPack` and `KinematicTranslatorPack` to `Hrot.Map.Common.Translators` | They are the correct peer layer for `EntityStatesIngressPack`; their only deps are already in `Hrot.Map.Common` |
-| **Move** `CognitiveTranslatorPack` to `Hrot.Network.Translators` | It requires `DoctrineRegistry` from `FDP.Toolkit.Behavior`; `Hrot.Map.Common` does not (and must not) reference that toolkit |
+| **Move** `CognitiveTranslatorPack` to `Hrot.Network.Translators` | It requires `BehaviorRegistry` from `FDP.Toolkit.Behavior`; `Hrot.Map.Common` does not (and must not) reference that toolkit |
 | Move `NavigationIntent*` and `NavigationStatus*` translators before moving their packs | These 4 files in `Hrot.SimHost/Network/` are prerequisites for `KinematicTranslatorPack` and `CognitiveTranslatorPack` to compile in their new homes |
 | Place `NedReplicationModule` in `Hrot.Network.Replication` | `Hrot.Network` references both `Hrot.Common` (for `NodeRole`) and `Hrot.Map.Common` (for translator packs) with no cycle |
 | `INedReplicationModule` interface in `Hrot.Common` | `HrotNodeContext` (in `Hrot.Common`) cannot hold a concrete `Hrot.Network` type without a cycle; minimal interface keeps the property strongly typed |

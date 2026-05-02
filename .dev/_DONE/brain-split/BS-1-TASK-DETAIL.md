@@ -968,12 +968,12 @@ Remove the secondary `NavState.HasArrived` check in `SimHostNodes.Action_Wander`
 **Scope**
 
 1. **MissionDirectorSystem**: Change the `MissionTrigger.ReachedDestination` case to poll
-   `DoctrineFinishedEvent` (or map it to the `DoctrineFinished` trigger) instead of
+   `BehaviorFinishedEvent` (or map it to the `BehaviorFinished` trigger) instead of
    `NavState.HasArrived`.
 
 2. **UI Generator**: Find the code that creates `MoveToLocation` missions (right-click handler
    `HandleRightClickForEntity`) and change the trigger from `MissionTrigger.ReachedDestination`
-   to `MissionTrigger.DoctrineFinished`.
+   to `MissionTrigger.BehaviorFinished`.
 
 **Files to modify**
 
@@ -984,28 +984,28 @@ Remove the secondary `NavState.HasArrived` check in `SimHostNodes.Action_Wander`
 
 **Constraints**
 
-- If both `ReachedDestination` and `DoctrineFinished` enum values exist, map `ReachedDestination`
-  to the same logic as `DoctrineFinished` for backward compatibility; optionally mark
+- If both `ReachedDestination` and `BehaviorFinished` enum values exist, map `ReachedDestination`
+  to the same logic as `BehaviorFinished` for backward compatibility; optionally mark
   `ReachedDestination` as `[Obsolete]`.
 - Do NOT delete the `ReachedDestination` enum value in this task (may break serialised mission
   plans); only fix the runtime evaluation.
 - Test that missions sent over DDS (with the old `ReachedDestination` trigger) still advance
-  correctly by falling through to the `DoctrineFinished` path.
+  correctly by falling through to the `BehaviorFinished` path.
 
 **Success Conditions**
 
-1. *ReachedDestination mission advances (using DoctrineFinishedEvent):*  
+1. *ReachedDestination mission advances (using BehaviorFinishedEvent):*  
    Setup: entity on Brain node only (no `NavState`); mission phase trigger is `ReachedDestination`.  
-   Simulate `DoctrineFinishedEvent` for that entity.  
+   Simulate `BehaviorFinishedEvent` for that entity.  
    Assert: `MissionPlanQueue.CurrentPhase` increments.
 
 2. *NavState.HasArrived no longer consulted:*  
    Setup: `NavState.HasArrived = 1` on a Brain-only entity.  
-   Assert: this alone does NOT advance the mission phase (trigger now requires DoctrineFinished).
+   Assert: this alone does NOT advance the mission phase (trigger now requires BehaviorFinished).
 
-3. *UI right-click generates DoctrineFinished trigger:*  
+3. *UI right-click generates BehaviorFinished trigger:*  
    Setup: simulate right-click for `MoveToLocation`.  
-   Assert: the generated `MissionPhase.Trigger == MissionTrigger.DoctrineFinished`.
+   Assert: the generated `MissionPhase.Trigger == MissionTrigger.BehaviorFinished`.
 
-4. *Existing DoctrineFinished test path unchanged:* existing tests for
-   `MissionTrigger.DoctrineFinished` still pass.
+4. *Existing BehaviorFinished test path unchanged:* existing tests for
+   `MissionTrigger.BehaviorFinished` still pass.

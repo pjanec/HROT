@@ -16,7 +16,7 @@ namespace Hrot.Common
     ///   <item>
     ///     <term><see cref="MuscleGround"/></term>
     ///     <description>ActionDispatch + GroundKinematics + Combat.
-    ///     No doctrine or BTree — movement orders arrive as <c>NavigationIntent</c>
+    ///     No behavior or BTree — movement orders arrive as <c>NavigationIntent</c>
     ///     from a remote Brain node.</description>
     ///   </item>
     ///   <item>
@@ -41,7 +41,7 @@ namespace Hrot.Common
         /// <summary>No role assigned.</summary>
         None = 0,
 
-        /// <summary>Brain tier: doctrine, mission planning, AI, and cognitive dispatch.</summary>
+        /// <summary>Brain tier: behavior, mission planning, AI, and cognitive dispatch.</summary>
         Brain = 1 << 0,
 
         /// <summary>Muscle tier: ground kinematics and navigation execution.</summary>

@@ -19,15 +19,15 @@ namespace Hrot.Editor.Tests
             AppDomain.CurrentDomain.BaseDirectory;
 
         private static readonly string DllPath =
-            Path.Combine(DllDirectory, "Hrot.AI.Doctrines.dll");
+            Path.Combine(DllDirectory, "Hrot.AI.Behaviors.dll");
 
         private readonly EntityRepository _world;
-        private readonly DoctrineRegistry _registry;
+        private readonly BehaviorRegistry _registry;
 
         public AiHotReloadCoordinatorTests()
         {
             _world    = new EntityRepository();
-            _registry = new DoctrineRegistry();
+            _registry = new BehaviorRegistry();
         }
 
         public void Dispose()
@@ -39,7 +39,7 @@ namespace Hrot.Editor.Tests
 
         private AiHotReloadCoordinator CreateCoordinator()
             => new AiHotReloadCoordinator(
-                DllDirectory, "Hrot.AI.Doctrines.dll",
+                DllDirectory, "Hrot.AI.Behaviors.dll",
                 _world, _registry,
                 geoTransform: null, entityMap: null);
 

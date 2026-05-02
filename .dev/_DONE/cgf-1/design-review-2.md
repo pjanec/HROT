@@ -3,7 +3,7 @@ Now the drill state machine and the whole orchestration is outside of fdp, in ap
 
 Moving the orchestration and Drill State Machine (DSM) into an FDP toolkit (e.g., `FDP.Toolkit.Orchestration`) is a very natural evolution for this architecture. The current implementation in `Hrot.Common.Orchestration` and `Hrot.Orchestrator` is structurally sound but tightly coupled to Hrot's specific DDS topics, file paths, and domain states.
 
-To achieve your goal of a highly reusable, overridable toolkit without falling into "generic hell", you can use the same registry and facade patterns you've successfully used for Doctrines and ECS Components.
+To achieve your goal of a highly reusable, overridable toolkit without falling into "generic hell", you can use the same registry and facade patterns you've successfully used for Behaviors and ECS Components.
 
 Here is a blueprint for generalizing the orchestration layer into an FDP Toolkit:
 
@@ -13,7 +13,7 @@ Currently, the state machine relies on a hardcoded `ClusterState` enum (Standby,
 
 **Generalization Strategy:**
 
--   **State IDs:** Replace the fixed `ClusterState` enum with integer IDs or String tags in the core engine, much like you use integer hashes for `DoctrineIds` or `ComponentId`.-   **Graph Builder:** Create a `TransitionGraphBuilder` that allows the application to define states and valid transitions at startup. The core FDP toolkit can define base states (e.g., `0 = Standby`, `1 = Fault`), and the application appends its own.-   **Agnostic Planner:** The BFS algorithm in `TransitionPlanner.CalculateShortestPath` is perfectly generic. It just needs to run against an injected `ITransitionGraph` rather than a static dictionary.
+-   **State IDs:** Replace the fixed `ClusterState` enum with integer IDs or String tags in the core engine, much like you use integer hashes for `BehaviorIds` or `ComponentId`.-   **Graph Builder:** Create a `TransitionGraphBuilder` that allows the application to define states and valid transitions at startup. The core FDP toolkit can define base states (e.g., `0 = Standby`, `1 = Fault`), and the application appends its own.-   **Agnostic Planner:** The BFS algorithm in `TransitionPlanner.CalculateShortestPath` is perfectly generic. It just needs to run against an injected `ITransitionGraph` rather than a static dictionary.
 
 ```
 // App-specific setup

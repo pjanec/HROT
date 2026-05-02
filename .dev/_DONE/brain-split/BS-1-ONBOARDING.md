@@ -24,7 +24,7 @@ architectural boundary — most critically:
   which silently fails in a distributed topology.
 
 After this workstream the **Brain node is a pure cognitive tier**: it writes intents, consumes
-sensor data, and evaluates doctrines — it never touches physics components directly.
+sensor data, and evaluates behaviors — it never touches physics components directly.
 
 ---
 

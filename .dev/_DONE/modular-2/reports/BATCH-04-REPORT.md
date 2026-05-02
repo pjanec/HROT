@@ -57,7 +57,7 @@ BATCH-04 completes the modular decomposition by creating `Hrot.Core` (absorbing 
 - `Hrot.Core.Tests/BdcTkbBuilderPhysicsTests.cs`
 - `Hrot.Core.Tests/ComponentIdTests.cs`
 - `Hrot.Core.Tests/ConstantsTests.cs`
-- `Hrot.Core.Tests/DoctrineCatalogTests.cs`
+- `Hrot.Core.Tests/BehaviorCatalogTests.cs`
 - `Hrot.Core.Tests/HrotEnvironmentTests.cs`
 - `Hrot.Core.Tests/HrotScenarioDtoTests.cs`
 - `Hrot.Core.Tests/HrotSharedComponentRegistryTests.cs`
@@ -99,7 +99,7 @@ BATCH-04 completes the modular decomposition by creating `Hrot.Core` (absorbing 
 - `Hrot.Map.Definitions/TkbEntityTypes.cs`
 - `Hrot.Map.Definitions/Tkb/BdcTkbBuilder.cs`
 - `Hrot.Map.Definitions/Tkb/BdcTkbCatalog.cs`
-- `Hrot.Map.Definitions/Tkb/DoctrineCatalog.cs`
+- `Hrot.Map.Definitions/Tkb/BehaviorCatalog.cs`
 - `Hrot.Map.Definitions/Tkb/IgVisualDef.cs`
 - `Hrot.Map.Definitions/Tkb/SimCombatDef.cs`
 - `Hrot.Map.Definitions/Tkb/SimVehicleDef.cs`
@@ -114,7 +114,7 @@ BATCH-04 completes the modular decomposition by creating `Hrot.Core` (absorbing 
 - `Hrot.Network.Orchestration/Orchestration/OrchestrationMessages.cs` - was duplicate of Hrot.NED's definition; removed to fix CS0433
 
 ### From Hrot.Map.Common.Tests (moved to Hrot.Core.Tests):
-- 12 test files (BdcTkbBuilderPhysics, ComponentId, Constants, DoctrineCatalog, HrotEnvironment, etc.)
+- 12 test files (BdcTkbBuilderPhysics, ComponentId, Constants, BehaviorCatalog, HrotEnvironment, etc.)
 - `Services/ZoneManagerServiceTests.cs`
 
 ### Caller files modified:

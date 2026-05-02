@@ -59,7 +59,7 @@ public sealed class PreviewModeVehicleMovementTests
                     new DomainMissionTask
                     {
                         TaskId         = Guid.NewGuid(),
-                        BehaviorId     = "MoveToLocation",
+                        BehaviorName     = "MoveToLocation",
                         BehaviorParams = "{\"x\":500,\"y\":500,\"Speed\":15}",
                     }
                 }

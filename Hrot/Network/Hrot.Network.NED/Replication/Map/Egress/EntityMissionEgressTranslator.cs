@@ -27,7 +27,7 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private readonly DdsWriter<EntityMission> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly DoctrineRegistry? _doctrineRegistry;
+        private readonly BehaviorRegistry? _behaviorRegistry;
 
         public string TopicName => "EntityMission";
         public long DescriptorOrdinal => (long)EDescriptorType.dtEntityMission;
@@ -38,11 +38,11 @@ namespace Hrot.Map.Common.Replication.Egress
         public EntityMissionEgressTranslator(
             DdsParticipant   participant,
             NetworkEntityMap entityMap,
-            DoctrineRegistry? doctrineRegistry = null)
+            BehaviorRegistry? behaviorRegistry = null)
         {
             _writer           = new DdsWriter<EntityMission>(participant, "EntityMission");
             _entityMap        = entityMap;
-            _doctrineRegistry = doctrineRegistry;
+            _behaviorRegistry = behaviorRegistry;
         }
 
         /// <summary>
@@ -109,17 +109,17 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 string triggerType = phase.Trigger switch
                 {
-                    EcsMissionTrigger.DoctrineFinished    => "DoctrineFinished",
+                    EcsMissionTrigger.BehaviorFinished    => "BehaviorFinished",
                     EcsMissionTrigger.HealthCritical      => "HealthCritical",
                     EcsMissionTrigger.UnderAttack         => "UnderAttack",
                     _                                     => "TimerElapsed"
                 };
 
                 // Resolve human-readable name; fall back to numeric string for legacy interop.
-                string behaviorId = _doctrineRegistry != null
-                    && _doctrineRegistry.TryGetName(phase.DoctrineId, out var resolvedName)
+                string behaviorId = _behaviorRegistry != null
+                    && _behaviorRegistry.TryGetName(phase.BehaviorId, out var resolvedName)
                     ? resolvedName
-                    : phase.DoctrineId.ToString(CultureInfo.InvariantCulture);
+                    : phase.BehaviorId.ToString(CultureInfo.InvariantCulture);
 
                 string behaviorParams = (activePlan?.Plan?.Tasks != null && i < activePlan.Plan.Tasks.Count)
                     ? activePlan.Plan.Tasks[i].BehaviorParams ?? string.Empty

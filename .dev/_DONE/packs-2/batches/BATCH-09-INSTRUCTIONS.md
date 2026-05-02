@@ -15,7 +15,7 @@
 - R003 scaffolds `CgfHarness` and `EditorHarness` for integration tests, plus adds a shared-domain/mode constructor to `HrotRunnerHarness` for use by R006.
 - `ModuleHostKernel(EntityRepository, EventAccumulator)` requires a time controller via `SetTimeController` before `Initialize()` can be called. Use `TimeControllerFactory.Create(bus, new TimeControllerConfig { Role = TimeRole.Standalone })`.
 - `NetworkEntityMap` is a simple DDS-free `ConcurrentDictionary<long,Entity>` in `ModuleHost.Network.Cyclone.Services` — safe to instantiate without DDS.
-- `DoctrineRegistry` is from `FDP.Toolkit.Behavior` — safe to instantiate without DDS.
+- `BehaviorRegistry` is from `FDP.Toolkit.Behavior` — safe to instantiate without DDS.
 - `ClusterSlave` is from `FDP.Toolkit.Orchestration` — safe to instantiate with just `nodeId + subsystemName`.
 
 ---
@@ -92,13 +92,13 @@ kernel.SetTimeController(timeCtrl);
 
 // ── 3. Shared services ────────────────────────────────────────────────────────
 var entityMap        = new NetworkEntityMap();
-var doctrineRegistry = new DoctrineRegistry();
+var behaviorRegistry = new BehaviorRegistry();
 var clusterSlave     = new ClusterSlave(nodeId: 0, subsystemName: "Editor", eventBus: world.Bus);
 var fileService      = EditorBootstrap.CreateFileService();
 
 // ── 4. Module registration (offline — no translator packs) ───────────────────
 kernel.RegisterModule(new SimHostCoreLogicPack(entityMap));
-kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, entityMap));
+kernel.RegisterModule(new CgfLogicPack(behaviorRegistry, entityMap));
 kernel.RegisterModule(new OrchestrationLogicPack(clusterSlave));
 kernel.RegisterModule(new ScenarioEditorModule(fileService));
 
@@ -190,12 +190,12 @@ public class OfflineKernelBootTests : IDisposable
         _kernel.SetTimeController(timeCtrl);
 
         var entityMap        = new NetworkEntityMap();
-        var doctrineRegistry = new DoctrineRegistry();
+        var behaviorRegistry = new BehaviorRegistry();
         var clusterSlave     = new ClusterSlave(nodeId: 0, subsystemName: "EditorTest");
         var fileService      = EditorBootstrap.CreateFileService();
 
         _kernel.RegisterModule(new SimHostCoreLogicPack(entityMap));
-        _kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, entityMap));
+        _kernel.RegisterModule(new CgfLogicPack(behaviorRegistry, entityMap));
         _kernel.RegisterModule(new OrchestrationLogicPack(clusterSlave));
         _kernel.RegisterModule(new ScenarioEditorModule(fileService));
 
@@ -464,11 +464,11 @@ public sealed class EditorHarness : IDisposable
         Kernel.SetTimeController(timeCtrl);
 
         var entityMap        = new NetworkEntityMap();
-        var doctrineRegistry = new DoctrineRegistry();
+        var behaviorRegistry = new BehaviorRegistry();
         var clusterSlave     = new ClusterSlave(nodeId: 0, subsystemName: "EditorHarness");
 
         Kernel.RegisterModule(new SimHostCoreLogicPack(entityMap));
-        Kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, entityMap));
+        Kernel.RegisterModule(new CgfLogicPack(behaviorRegistry, entityMap));
         Kernel.RegisterModule(new ScenarioEditorModule());
 
         Kernel.Initialize();

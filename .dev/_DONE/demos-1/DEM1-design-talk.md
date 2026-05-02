@@ -14,7 +14,7 @@ The stuff shared by different demo apps/subytems (like components, dds topics, c
 
 The new demos must demonstrate ALL the features and concepts present in/supported by the FDP & toolkits, like for example  - planning trajectory (path planner)  - following trajectory (car kinem)  - detecting enemies (perception)  - ground clamping  - car avoidance
 
-To fully demonstrate these, the following nodes (subsystems) might to be needed  - IG (ground clamping, smoothing, perception - visibility raycasts, smart sensors-enemy list)  - Sim (car kinematics with avoidance - owner of position descriptor, road network, path planner, physics, ballistics, hit detection, damage inflicting to vehicles... )  - Brain (missions, doctrines, BTree, HSM, blackboard, channels, combat AI etc...)
+To fully demonstrate these, the following nodes (subsystems) might to be needed  - IG (ground clamping, smoothing, perception - visibility raycasts, smart sensors-enemy list)  - Sim (car kinematics with avoidance - owner of position descriptor, road network, path planner, physics, ballistics, hit detection, damage inflicting to vehicles... )  - Brain (missions, behaviors, BTree, HSM, blackboard, channels, combat AI etc...)
 
 \- some subsystems that could show partial ownership
 
@@ -576,7 +576,7 @@ namespace Fdp.Examples.Common.Scenarios
             // 3. Bridging to AI
             simGroup.AddSystem(new HsmDamageBridgeSystem()); 
             // 4. AI Tick
-            simGroup.AddSystem(new HsmTickSystem<BrainHsm128>(new DoctrineRegistry()));
+            simGroup.AddSystem(new HsmTickSystem<BrainHsm128>(new BehaviorRegistry()));
             
             kernel.RegisterGlobalSystem(simGroup);
 
@@ -893,15 +893,15 @@ It validates the strict, zero-allocation dataflow between the Blackboard, the Hi
 
 This demo relies strictly on the actual AI implementations from `Fdp.Toolkit.Behavior`:
 
--   **Cognitive Isolation:** Registers only the `CognitiveRuntimeModule`. It intentionally excludes `ActionDispatchModule` and `GroundKinematicsModule` to prove the AI can _decide_ independently of _execution_.-   **Unmanaged Blackboard:** Proves that `BrainBlackboard` memory can be safely mutated via raw pointers to simulate sensor inputs.-   **Phase-Based Arbitration:** Proves that the `ChannelArbitrationSystem` correctly preempts and clears stale intent on the channels when the doctrine or state machine changes context.
+-   **Cognitive Isolation:** Registers only the `CognitiveRuntimeModule`. It intentionally excludes `ActionDispatchModule` and `GroundKinematicsModule` to prove the AI can _decide_ independently of _execution_.-   **Unmanaged Blackboard:** Proves that `BrainBlackboard` memory can be safely mutated via raw pointers to simulate sensor inputs.-   **Phase-Based Arbitration:** Proves that the `ChannelArbitrationSystem` correctly preempts and clears stale intent on the channels when the behavior or state machine changes context.
 
 3\. Scenario Setup
 
 **3.1. The AI Template** The runner initializes a headless world and spawns a single Commander entity.
 
--   It possesses `DoctrineState` (Tier = BTree), `BrainBTreeState`, `BrainBlackboard`, `LocomotionChannel`, and `WeaponChannel`.
+-   It possesses `BehaviorState` (Tier = BTree), `BrainBTreeState`, `BrainBlackboard`, `LocomotionChannel`, and `WeaponChannel`.
 
-**3.2. Custom BTree Definition** The test registers a synthetic Behavior Tree acting as the Doctrine:
+**3.2. Custom BTree Definition** The test registers a synthetic Behavior Tree acting as the Behavior:
 
 -   **Selector Node:**
     -   **Sequence 1 (Engage):** `Condition_ThreatVisible` ➔ `Condition_HasAmmo` ➔ `Action_AimAndFire`-   **Sequence 2 (Flee):** `Action_Flee`
@@ -977,7 +977,7 @@ namespace Fdp.Examples.Common.Scenarios
     public class BehaviorValidationScenario : IScenario
     {
         private Entity _agent;
-        private DoctrineRegistry _registry;
+        private BehaviorRegistry _registry;
         
         // CI Checkpoint tracking
         private bool _passedPhase1_Safe = false;
@@ -985,7 +985,7 @@ namespace Fdp.Examples.Common.Scenarios
 
         public void Configure(EntityRepository world, ModuleHostKernel kernel)
         {
-            _registry = new DoctrineRegistry();
+            _registry = new BehaviorRegistry();
 
             // 1. Build and Register Mock BTree
             var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
@@ -996,7 +996,7 @@ namespace Fdp.Examples.Common.Scenarios
 
             // Assuming a compiled blob from JSON matching the Objective spec
             var treeBlob = TreeCompiler.CompileFromJson(GetMockBTreeJson()); 
-            _registry.Register(100, "MockCombat", new DoctrineDefinition 
+            _registry.Register(100, "MockCombat", new BehaviorDefinition 
             { 
                 Name = "MockCombat", 
                 BrainTier = BehaviorConstants.BrainTierBTree,
@@ -1012,7 +1012,7 @@ namespace Fdp.Examples.Common.Scenarios
 
             // 3. Spawn Agent
             _agent = world.CreateEntity();
-            world.AddComponent(_agent, new DoctrineState { ActiveDoctrineHash = 100, BrainTier = BehaviorConstants.BrainTierBTree });
+            world.AddComponent(_agent, new BehaviorState { ActiveBehaviorHash = 100, BrainTier = BehaviorConstants.BrainTierBTree });
             world.AddComponent(_agent, new BrainBTreeState());
             world.AddComponent(_agent, new BrainBlackboard());
             world.AddComponent(_agent, new LocomotionChannel());
@@ -1542,13 +1542,13 @@ Specification: Fdp.Examples.MissionCommand
 
 The MissionCommand scenario is a headless, CI-focused unit test designed to mathematically prove **Dynamic Mission Advancement and Stale Intent Preemption**.
 
-It validates the strict dataflow between `MissionPlanQueue`, `DoctrineState`, and the Action Channels. It proves that the AI can seamlessly switch from a patrol phase to a combat phase based on real-time sensory input, and that this transition instantly revokes the previous phase's movement commands to prevent the vehicle from driving blindly into danger while the new tactical behavior evaluates.
+It validates the strict dataflow between `MissionPlanQueue`, `BehaviorState`, and the Action Channels. It proves that the AI can seamlessly switch from a patrol phase to a combat phase based on real-time sensory input, and that this transition instantly revokes the previous phase's movement commands to prevent the vehicle from driving blindly into danger while the new tactical behavior evaluates.
 
 2\. Architectural Alignment
 
 This demo relies strictly on the actual cognitive pipeline and C# 12 ECS optimizations:
 
--   **Zero-Allocation Mission Queue:** Evaluates the `MissionPlanQueue`, correctly utilizing `Span<MissionPhase>` casting to bypass the C# `[InlineArray]` defensive-copy mutation trap.-   **Decoupled Trigger Evaluation:** Proves that `MissionDirectorSystem` can evaluate the `MissionTrigger.UnderAttack` condition purely by observing the `TargetMemory` component, remaining perfectly decoupled from the actual `PerceptionToolkit` raycasting logic.-   **Graceful Preemption:** Proves that advancing a phase increments the `DoctrineState.InstanceId` preemption token, which guarantees the `ChannelArbitrationSystem` will zero out the `LocomotionChannel` before the muscle layer executes it again.
+-   **Zero-Allocation Mission Queue:** Evaluates the `MissionPlanQueue`, correctly utilizing `Span<MissionPhase>` casting to bypass the C# `[InlineArray]` defensive-copy mutation trap.-   **Decoupled Trigger Evaluation:** Proves that `MissionDirectorSystem` can evaluate the `MissionTrigger.UnderAttack` condition purely by observing the `TargetMemory` component, remaining perfectly decoupled from the actual `PerceptionToolkit` raycasting logic.-   **Graceful Preemption:** Proves that advancing a phase increments the `BehaviorState.InstanceId` preemption token, which guarantees the `ChannelArbitrationSystem` will zero out the `LocomotionChannel` before the muscle layer executes it again.
 
 3\. Scenario Setup
 
@@ -1556,7 +1556,7 @@ This demo relies strictly on the actual cognitive pipeline and C# 12 ECS optimiz
 
 **3.2. The Entity & Mission Plan** A single Commander entity is spawned with a two-phase `MissionPlanQueue`:
 
--   **Phase 0 (Patrol):** Doctrine ID `100`. Trigger: `UnderAttack`.-   **Phase 1 (Combat):** Doctrine ID `200`. Trigger: `TimerElapsed` (5.0 seconds).
+-   **Phase 0 (Patrol):** Behavior ID `100`. Trigger: `UnderAttack`.-   **Phase 1 (Combat):** Behavior ID `200`. Trigger: `TimerElapsed` (5.0 seconds).
 
 **3.3. Event Injection** Instead of running a full Behavior Tree for this test, the `IScenario` script acts as a synthetic BTree, manually writing to the action channels to prove that the kernel's arbitration and director systems properly manage the underlying state.
 
@@ -1576,7 +1576,7 @@ This demo relies strictly on the actual cognitive pipeline and C# 12 ECS optimiz
 
 **5**
 
-Synthetic BTree writes `MoveTo` into `LocomotionChannel` using Doctrine ID 100.
+Synthetic BTree writes `MoveTo` into `LocomotionChannel` using Behavior ID 100.
 
 `CurrentPhase == 0`<br>`ActiveAction == MoveTo`
 
@@ -1598,9 +1598,9 @@ Script injects an enemy into `TargetMemory` with `ThreatScore = 100`.
 
 `MissionDirectorSystem` detects the threat and advances the mission.
 
-`CurrentPhase == 1`<br>`ActiveDoctrineHash == 200`
+`CurrentPhase == 1`<br>`ActiveBehaviorHash == 200`
 
-**Mission Control.** The Director successfully evaluated the `UnderAttack` condition and transitioned the active doctrine.
+**Mission Control.** The Director successfully evaluated the `UnderAttack` condition and transitioned the active behavior.
 
 **Phase 4: Preemption**
 
@@ -1610,7 +1610,7 @@ Script injects an enemy into `TargetMemory` with `ThreatScore = 100`.
 
 `LocomotionChannel.ActiveAction == 0`
 
-**Stale Intent Revocation.** Arbitration instantly halted the vehicle because the movement command belonged to the outdated Phase 0 doctrine.
+**Stale Intent Revocation.** Arbitration instantly halted the vehicle because the movement command belonged to the outdated Phase 0 behavior.
 
 5\. Programmatic Assertions (`IScenario` Implementation)
 
@@ -1638,10 +1638,10 @@ namespace Fdp.Examples.Common.Scenarios
 
         public void Configure(EntityRepository world, ModuleHostKernel kernel)
         {
-            var registry = new DoctrineRegistry();
-            // Dummy doctrines to satisfy registry lookup
-            registry.Register(100, "Patrol", new DoctrineDefinition { Name = "Patrol", BrainTier = BehaviorConstants.BrainTierBTree });
-            registry.Register(200, "Combat", new DoctrineDefinition { Name = "Combat", BrainTier = BehaviorConstants.BrainTierBTree });
+            var registry = new BehaviorRegistry();
+            // Dummy behaviors to satisfy registry lookup
+            registry.Register(100, "Patrol", new BehaviorDefinition { Name = "Patrol", BrainTier = BehaviorConstants.BrainTierBTree });
+            registry.Register(200, "Combat", new BehaviorDefinition { Name = "Combat", BrainTier = BehaviorConstants.BrainTierBTree });
 
             // Register Cognitive Pipeline
             var missionModule = new MissionControlModule(registry);
@@ -1655,7 +1655,7 @@ namespace Fdp.Examples.Common.Scenarios
 
             // Spawn Entity
             _commander = world.CreateEntity();
-            world.AddComponent(_commander, new DoctrineState { ActiveDoctrineHash = 100, InstanceId = 1 });
+            world.AddComponent(_commander, new BehaviorState { ActiveBehaviorHash = 100, InstanceId = 1 });
             world.AddComponent(_commander, new LocomotionChannel());
             world.AddComponent(_commander, new WeaponChannel());
             world.AddComponent(_commander, new TargetMemory());
@@ -1665,8 +1665,8 @@ namespace Fdp.Examples.Common.Scenarios
             
             // CRITICAL: Safely cast the [InlineArray] to Span to avoid defensive-copy mutation trap
             Span<MissionPhase> phases = queue.Phases;
-            phases = new MissionPhase { DoctrineId = 100, Trigger = MissionTrigger.UnderAttack };
-            phases[1] = new MissionPhase { DoctrineId = 200, Trigger = MissionTrigger.TimerElapsed, TriggerParam = 5.0f };
+            phases = new MissionPhase { BehaviorId = 100, Trigger = MissionTrigger.UnderAttack };
+            phases[1] = new MissionPhase { BehaviorId = 200, Trigger = MissionTrigger.TimerElapsed, TriggerParam = 5.0f };
             
             world.AddComponent(_commander, queue);
         }
@@ -1676,7 +1676,7 @@ namespace Fdp.Examples.Common.Scenarios
         public bool EvaluateTick(uint currentTick, EntityRepository world)
         {
             ref readonly var queue = ref world.GetComponentRO<MissionPlanQueue>(_commander);
-            ref readonly var doctrine = ref world.GetComponentRO<DoctrineState>(_commander);
+            ref readonly var behavior = ref world.GetComponentRO<BehaviorState>(_commander);
             ref readonly var loco = ref world.GetComponentRO<LocomotionChannel>(_commander);
 
             // Phase 1: Synthetic BTree output (Tick 5)
@@ -1684,7 +1684,7 @@ namespace Fdp.Examples.Common.Scenarios
             {
                 ref var rwLoco = ref world.GetComponentRW<LocomotionChannel>(_commander);
                 rwLoco.ActiveAction = NavigationConstants.ActionIdMoveTo;
-                rwLoco.DoctrineInstanceId = doctrine.InstanceId; // Bind to Phase 0
+                rwLoco.BehaviorInstanceId = behavior.InstanceId; // Bind to Phase 0
                 _passedPhase1_Patrol = true;
             }
 
@@ -1699,14 +1699,14 @@ namespace Fdp.Examples.Common.Scenarios
             // Phase 3 Checkpoint (Tick 11) - Director Advanced Phase
             if (currentTick == 11)
             {
-                _passedPhase3_PhaseAdvanced = queue.CurrentPhase == 1 && doctrine.ActiveDoctrineHash == 200;
+                _passedPhase3_PhaseAdvanced = queue.CurrentPhase == 1 && behavior.ActiveBehaviorHash == 200;
                 if (!_passedPhase3_PhaseAdvanced) throw new Exception($"[Phase 3 Failed] MissionDirectorSystem failed to advance phase. CurrentPhase={queue.CurrentPhase}");
             }
 
             // Phase 4 Checkpoint / Completion (Tick 12) - Preemption
             if (currentTick == 12)
             {
-                // Locomotion MUST be zeroed out because its DoctrineInstanceId (1) no longer matches the DoctrineState (2)
+                // Locomotion MUST be zeroed out because its BehaviorInstanceId (1) no longer matches the BehaviorState (2)
                 bool wasPreempted = loco.ActiveAction == 0;
 
                 if (wasPreempted && _passedPhase1_Patrol && _passedPhase3_PhaseAdvanced)
@@ -2261,7 +2261,7 @@ namespace Fdp.Examples.Common.Scenarios
             app.Initialize(); // Registers the massive block of systems across all phases
 
             // 3. Spawn the Cast
-            var director = new ScenarioDirector(world, tkb, _road, app.DoctrineRegistry);
+            var director = new ScenarioDirector(world, tkb, _road, app.BehaviorRegistry);
             director.SetupAmbushScenario();
 
             // Capture specific entities for tracking
@@ -2634,8 +2634,8 @@ To support the `DistributedTank` demo and "Host of Hosts" topology without dragg
 -   **DemoSpawnMsg** _(Replaces_ _SimObjectLifecycleMsg_ _/_ _EntityMasterTopic__)_
     -   **Purpose:** Commands headless nodes to spawn an entity without waiting for the full ELM handshake if running in fast-mock mode.-   **Fields:** `NetworkId` (long), `TkbType` (long), `OwnerNodeId` (int), `IsDestroyed` (bool).-   **DemoTransformMsg** _(Replaces_ _Transform3DMsg_ _/_ _GeoStateDescriptor__)_
     -   **Purpose:** Replicates `SimTransform` purely in flat Cartesian space.-   **Fields:** `NetworkId` (long), `PosX`, `PosY`, `PosZ` (float), `RotX`, `RotY`, `RotZ`, `RotW` (float).-   **DemoLocomotionMsg** _(Replaces_ _LocomotionIntentMsg__)_
-    -   **Purpose:** Replicates the AI's `LocomotionChannel` downwards to the CarKinem physics node.-   **Fields:** `NetworkId` (long), `ActiveAction` (ushort), `DoctrineInstanceId` (uint), `ActionInstanceId` (uint).-   **DemoWeaponMsg** _(Replaces_ _WeaponIntentMsg__)_
-    -   **Purpose:** Replicates the AI's `WeaponChannel` downwards to the Turret physics node.-   **Fields:** `NetworkId` (long), `ActiveAction` (ushort), `DoctrineInstanceId` (uint), `ActionInstanceId` (uint).-   **DemoCombatInteractionMsg** _(Replaces_ _WeaponFireEvent_ _/_ _HitNotificationEvent_ _over DDS)_
+    -   **Purpose:** Replicates the AI's `LocomotionChannel` downwards to the CarKinem physics node.-   **Fields:** `NetworkId` (long), `ActiveAction` (ushort), `BehaviorInstanceId` (uint), `ActionInstanceId` (uint).-   **DemoWeaponMsg** _(Replaces_ _WeaponIntentMsg__)_
+    -   **Purpose:** Replicates the AI's `WeaponChannel` downwards to the Turret physics node.-   **Fields:** `NetworkId` (long), `ActiveAction` (ushort), `BehaviorInstanceId` (uint), `ActionInstanceId` (uint).-   **DemoCombatInteractionMsg** _(Replaces_ _WeaponFireEvent_ _/_ _HitNotificationEvent_ _over DDS)_
     -   **Purpose:** Notifies cross-process nodes that a shot was fired or a hit was resolved by `RaycastSolverSystem`.-   **Fields:** `ShooterNetId` (long), `TargetNetId` (long), `IsHit` (bool), `Damage` (float).
 
 \--------------------------------------------------------------------------------
@@ -2701,7 +2701,7 @@ Examples/
 │   └── Constants/                   # Strict enforcement of "No Magic Strings"
 │       ├── ScenarioNames.cs
 │       ├── DemoTemplateIds.cs
-│       └── DemoDoctrineIds.cs
+│       └── DemoBehaviorIds.cs
 │
 ├── Fdp.Examples.Scenarios/          # [NEW] The CI Test Scripts (IScenario)
 │   ├── Fdp.Examples.Scenarios.csproj
@@ -2735,7 +2735,7 @@ Examples/
 
 **Fdp.Examples.Common**
 
--   **Rule:** Houses the connective tissue used by the runner and the scenarios.-   **Constants:** Magic strings and hardcoded integer IDs are strictly forbidden in scenario scripts. They must reference `DemoTemplateIds.CommandTank` or `DemoDoctrineIds.Ambush`.-   **Translators:** Holds the specific `IDescriptorTranslator` classes that map the lightweight `Fdp.Examples.DDS` messages to generic ECS components (e.g., mapping `DemoTransformMsg` to `SimTransform`).
+-   **Rule:** Houses the connective tissue used by the runner and the scenarios.-   **Constants:** Magic strings and hardcoded integer IDs are strictly forbidden in scenario scripts. They must reference `DemoTemplateIds.CommandTank` or `DemoBehaviorIds.Ambush`.-   **Translators:** Holds the specific `IDescriptorTranslator` classes that map the lightweight `Fdp.Examples.DDS` messages to generic ECS components (e.g., mapping `DemoTransformMsg` to `SimTransform`).
 
 **Fdp.Examples.Scenarios**
 

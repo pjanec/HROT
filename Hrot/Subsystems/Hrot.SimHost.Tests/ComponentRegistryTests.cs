@@ -123,7 +123,7 @@ namespace Hrot.SimHost.Tests
             // Verify the full set of components remains accessible.
             SimHostComponentRegistry.RegisterAll(world);
 
-            Assert.Null(Record.Exception(() => world.GetComponentTable<DoctrineState>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<BehaviorState>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<NavigationIntent>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<NavigationStatus>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<VehicleState>()));

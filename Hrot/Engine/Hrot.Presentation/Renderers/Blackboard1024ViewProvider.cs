@@ -6,9 +6,9 @@ namespace Hrot.Presentation.Renderers;
 
 /// <summary>
 /// StructEdit plugin that projects the raw 1024-byte <see cref="Blackboard1024.Memory"/>
-/// buffer as the active doctrine's <c>HeavyDtoType</c> in the component editor.
+/// buffer as the active behavior's <c>HeavyDtoType</c> in the component editor.
 /// Registered on startup via <c>ComponentReflector.AddBufferViewProvider</c> when
-/// a doctrine registry with heavy DTO types is available.
+/// a behavior registry with heavy DTO types is available.
 /// </summary>
 public sealed class Blackboard1024ViewProvider : IBufferViewProvider
 {

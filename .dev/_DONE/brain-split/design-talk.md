@@ -1,4 +1,4 @@
-How does the mission mechanism work? from dds network down to doctrine assignment and cancelling? what is the role of MissionAdapterSystem?
+How does the mission mechanism work? from dds network down to behavior assignment and cancelling? what is the role of MissionAdapterSystem?
 
 The mission mechanism is designed around a clean separation between network ingress, unmanaged execution, and cognitive state assignment, ensuring high-frequency ticks remain allocation-free while supporting complex JSON-parameterised behaviours.
 
@@ -10,7 +10,7 @@ The pipeline begins when a `MissionControlRequest` arrives over DDS. The `Missio
 
 If the command is `CMD_REPLACE_MISSION`, the system unpacks the `MissionPlan` into two distinct ECS components:
 
--   **MissionPlanQueue**: A high-performance, unmanaged component that stores up to 8 `MissionPhase` structs inline. It contains only the numeric doctrine ID and trigger thresholds.-   **EntityMissionHolder**: A managed component that retains the full original payload, including the heap-allocated JSON parameter strings for each task. The system then returns a `MissionControlAck` over DDS to close the transaction.
+-   **MissionPlanQueue**: A high-performance, unmanaged component that stores up to 8 `MissionPhase` structs inline. It contains only the numeric behavior ID and trigger thresholds.-   **EntityMissionHolder**: A managed component that retains the full original payload, including the heap-allocated JSON parameter strings for each task. The system then returns a `MissionControlAck` over DDS to close the transaction.
 
 2\. Phase Progression
 
@@ -24,21 +24,21 @@ Because `MissionPlanQueue` is strictly unmanaged for CPU cache efficiency, it ca
 
 The `MissionAdapterSystem` acts as the critical bridge between the managed mission data and the unmanaged cognitive tier. When it detects that the `CurrentPhase` has advanced, it does two things:
 
--   **Atomic Blackboard Injection:** It pulls the JSON `BehaviorParams` from the managed `EntityMissionHolder` and calls `ParseParams` to write the data directly into the unmanaged `BrainBlackboard`. This happens on the exact same frame, completely bypassing event-bus lag.-   **Event Publication:** It publishes an `AssignDoctrineEvent` to signal the rest of the cognitive tier that a new behaviour needs to be spun up.
+-   **Atomic Blackboard Injection:** It pulls the JSON `BehaviorParams` from the managed `EntityMissionHolder` and calls `ParseParams` to write the data directly into the unmanaged `BrainBlackboard`. This happens on the exact same frame, completely bypassing event-bus lag.-   **Event Publication:** It publishes an `AssignBehaviorEvent` to signal the rest of the cognitive tier that a new behaviour needs to be spun up.
 
-4\. Doctrine Assignment
+4\. Behavior Assignment
 
-The `DoctrineIngressSystem` consumes the `AssignDoctrineEvent`. It acts as the sole authoritative mutator for cognitive state. When applying the new doctrine, it:
+The `BehaviorIngressSystem` consumes the `AssignBehaviorEvent`. It acts as the sole authoritative mutator for cognitive state. When applying the new behavior, it:
 
--   Updates the `ActiveDoctrineHash` and sets the appropriate `BrainTier` (BTree or HSM).-   Resets the execution pointer (`BrainBTreeState.State = default`) so the new behaviour starts cleanly from the root.-   Increments the `InstanceId` (using an `unchecked` wrap). This acts as a monotonic preemption token.
+-   Updates the `ActiveBehaviorHash` and sets the appropriate `BrainTier` (BTree or HSM).-   Resets the execution pointer (`BrainBTreeState.State = default`) so the new behaviour starts cleanly from the root.-   Increments the `InstanceId` (using an `unchecked` wrap). This acts as a monotonic preemption token.
 
 5\. Cancelling and Teardown
 
-If the operator issues a `CMD_ABORT_ALL` command, the `MissionControlRequestSystem` empties the `MissionPlanQueue` (`PhaseCount = 0`), removes the `EntityMissionHolder`, and publishes a `ClearDoctrineEvent`.
+If the operator issues a `CMD_ABORT_ALL` command, the `MissionControlRequestSystem` empties the `MissionPlanQueue` (`PhaseCount = 0`), removes the `EntityMissionHolder`, and publishes a `ClearBehaviorEvent`.
 
-The `ClearDoctrineEvent` forces a top-down abort:
+The `ClearBehaviorEvent` forces a top-down abort:
 
--   `DoctrineIngressSystem` catches the event and forces the entity into a "brain-dead" state, setting the doctrine to `DoctrineIds.None`, clearing the brain tier, and bumping the `InstanceId` preemption token.-   On the next tick, the `ChannelArbitrationSystem` evaluates the locomotion, weapon, and interaction channels. It detects that the channels' `DoctrineInstanceId` no longer matches the entity's `DoctrineState.InstanceId`.-   The arbitration system immediately zeros out the channels' active actions. This cleanly halts all physical movement and firing at the muscle layer without the executors needing to handle the abort logic themselves.
+-   `BehaviorIngressSystem` catches the event and forces the entity into a "brain-dead" state, setting the behavior to `BehaviorIds.None`, clearing the brain tier, and bumping the `InstanceId` preemption token.-   On the next tick, the `ChannelArbitrationSystem` evaluates the locomotion, weapon, and interaction channels. It detects that the channels' `BehaviorInstanceId` no longer matches the entity's `BehaviorState.InstanceId`.-   The arbitration system immediately zeros out the channels' active actions. This cleanly halts all physical movement and firing at the muscle layer without the executors needing to handle the abort logic themselves.
 
 MissionTrigger.ReachedDestination trigger checks NavState. Who updates the NavState? What if the navigation runs on different node than the brain?
 
@@ -52,11 +52,11 @@ Here is why this happens, and why it is an architectural flaw:
 
 -   **Lack of Replication:** `NavState` is an internal kinematic component. It is never replicated over the DDS network.-   **CQRS Violation:** The engine uses a strict CQRS contract for distributed movement. The Brain node publishes a `NavigationIntent` command, and the Muscle node (running `NavigationExecutionSystem`) executes the physics and replies with a `NavigationStatus`.-   Because `NavState` is never updated on the Brain node by the network ingress layer, `MissionDirectorSystem` will never see `HasArrived == 1`. It is a leaky abstraction that couples the cognitive tier directly to a local kinematic component.
 
-**The Correct Architectural Approach** To fix this in a distributed topology, you must stop using `MissionTrigger.ReachedDestination` and instead use **MissionTrigger.DoctrineFinished**.
+**The Correct Architectural Approach** To fix this in a distributed topology, you must stop using `MissionTrigger.ReachedDestination` and instead use **MissionTrigger.BehaviorFinished**.
 
 This fully respects the network boundary and leverages the CQRS pipeline correctly:
 
--   The remote Muscle node determines that the vehicle is within the arrival radius and broadcasts `NavigationStatus.Result = Arrived` over DDS.-   The Brain node receives this via the `NavigationStatusIngressTranslator`.-   The `MoveToExecutor` (running on the Brain) reads the replicated `NavigationStatus` and returns `NodeStatus.Success`.-   The `BTreeTickSystem` observes that the doctrine's root node has reached a terminal state and publishes a `DoctrineFinishedEvent`.-   `MissionDirectorSystem` consumes the event and cleanly advances the mission phase without ever needing to touch `NavState`.
+-   The remote Muscle node determines that the vehicle is within the arrival radius and broadcasts `NavigationStatus.Result = Arrived` over DDS.-   The Brain node receives this via the `NavigationStatusIngressTranslator`.-   The `MoveToExecutor` (running on the Brain) reads the replicated `NavigationStatus` and returns `NodeStatus.Success`.-   The `BTreeTickSystem` observes that the behavior's root node has reached a terminal state and publishes a `BehaviorFinishedEvent`.-   `MissionDirectorSystem` consumes the event and cleanly advances the mission phase without ever needing to touch `NavState`.
 
 MissionTrigger.HealthCritical checks the HealthData ECS component. Is the HealthData calculated on the brain node? If on muscle node, is it updated over network?
 
@@ -80,7 +80,7 @@ Here is how it interacts across the engine's boundaries:
 
 **3\. Interaction with the Brain (Cognitive Tier)** The interaction follows a strict CQRS and event-driven contract to maintain boundary purity:
 
--   **Top-Down (Command):** The Brain evaluates BTree or HSM doctrines and writes intent (like `ActionIdAimAndFire`) into the `WeaponChannel`. The associated `AimAndFireExecutor` evaluates cooldowns and ammo, then publishes a `FireRequestEvent`. The `FireProcessingSystem` within the `CombatModule` consumes this event to spawn the bullet entity and configure its ballistics.-   **Bottom-Up (Feedback):** When the `DamageSystem` applies hits, it updates a `HealthData` mirror component. This allows cognitive systems (like the `MissionDirectorSystem` evaluating `HealthCritical` triggers) to react to damage states without creating a circular assembly dependency. Furthermore, if damage causes a mobility kill, the `HsmDamageBridgeSystem` injects a hardware-level `MobilityLost` event directly into the Brain's HSM queue.
+-   **Top-Down (Command):** The Brain evaluates BTree or HSM behaviors and writes intent (like `ActionIdAimAndFire`) into the `WeaponChannel`. The associated `AimAndFireExecutor` evaluates cooldowns and ammo, then publishes a `FireRequestEvent`. The `FireProcessingSystem` within the `CombatModule` consumes this event to spawn the bullet entity and configure its ballistics.-   **Bottom-Up (Feedback):** When the `DamageSystem` applies hits, it updates a `HealthData` mirror component. This allows cognitive systems (like the `MissionDirectorSystem` evaluating `HealthCritical` triggers) to react to damage states without creating a circular assembly dependency. Furthermore, if damage causes a mobility kill, the `HsmDamageBridgeSystem` injects a hardware-level `MobilityLost` event directly into the Brain's HSM queue.
 
 **4\. Interaction with Muscles (Kinematics Tier)** The Combat module enforces physical consequences on the kinematic tier through capability bitmasks. When an entity takes damage, systems like `ApcMobilitySystem` or `MobilityKillSystem` evaluate the health drop and strip the `ActorCapabilities.CanMove` flag. By clearing this capability flag, the combat pipeline immediately forces the locomotion channels to fail and halts physical movement at the kinematic layer, effectively simulating a mobility kill while leaving the weapon channels active.
 
@@ -226,14 +226,14 @@ Here is why this happens, and why it is an architectural flaw:
 2.  **CQRS Violation:** The engine uses a strict CQRS contract for distributed movement. The Brain node publishes a `NavigationIntent` command, and the Muscle node (running `NavigationExecutionSystem`) executes the physics and replies with a `NavigationStatus`.
 3.  Because `NavState` is never updated on the Brain node by the network ingress layer, `MissionDirectorSystem` will never see `HasArrived == 1`. It is a leaky abstraction that couples the cognitive tier directly to a local kinematic component.
 
-**The Correct Architectural Approach** To fix this in a distributed topology, you must stop using `MissionTrigger.ReachedDestination` and instead use **`MissionTrigger.DoctrineFinished`**.
+**The Correct Architectural Approach** To fix this in a distributed topology, you must stop using `MissionTrigger.ReachedDestination` and instead use **`MissionTrigger.BehaviorFinished`**.
 
 This fully respects the network boundary and leverages the CQRS pipeline correctly:
 
 1.  The remote Muscle node determines that the vehicle is within the arrival radius and broadcasts `NavigationStatus.Result = Arrived` over DDS.
 2.  The Brain node receives this via the `NavigationStatusIngressTranslator`.
 3.  The `MoveToExecutor` (running on the Brain) reads the replicated `NavigationStatus` and returns `NodeStatus.Success`.
-4.  The `BTreeTickSystem` observes that the doctrine's root node has reached a terminal state and publishes a `DoctrineFinishedEvent`.
+4.  The `BTreeTickSystem` observes that the behavior's root node has reached a terminal state and publishes a `BehaviorFinishedEvent`.
 5.  `MissionDirectorSystem` consumes the event and cleanly advances the mission phase without ever needing to touch `NavState`.
 
 **Yes, this bug and architectural flaw still fully apply to the current codebase.**
@@ -242,9 +242,9 @@ The engine currently suffers from this exact leaky abstraction, and it will brea
 
 -   **MissionDirectorSystem** **still polls** **NavState****:** Inside `MissionDirectorSystem.cs`, the `MissionTrigger.ReachedDestination` case still explicitly looks for the local `NavState` component and checks if `nav.HasArrived == 1`.-   **NavState** **is not replicated:** Looking at the network translators, `NavState` is completely absent from both the `KinematicTranslatorPack` (Muscle egress) and the `CognitiveTranslatorPack` (Brain ingress). Because it is never sent over DDS, the Brain node's `MissionDirectorSystem` will never observe `HasArrived == 1`.-   **The UI hardcodes the flawed trigger:** When a user right-clicks to send a vehicle to a location (`HandleRightClickForEntity`), the system generates a `MoveToLocation` task and hardcodes the `ReachedDestination` trigger into the mission plan. As a result, these generated missions will hang indefinitely if the vehicle's kinematics run on a separate node.
 
-**The CQRS Pipeline is already built to support your fix:** Your proposed architectural approach using `MissionTrigger.DoctrineFinished` is exactly how the distributed command pipeline was intended to be used:
+**The CQRS Pipeline is already built to support your fix:** Your proposed architectural approach using `MissionTrigger.BehaviorFinished` is exactly how the distributed command pipeline was intended to be used:
 
--   The Muscle node broadcasts `NavigationStatus` via the `NavigationStatusEgressTranslator`.-   The Brain node receives the status via `NavigationStatusIngressTranslator`.-   The `MoveToExecutor` correctly implements the CQRS contract: it observes `NavigationStatus.Result == Arrived` and translates it to `NodeStatus.Success`.-   The `BTreeTickSystem` detects this terminal success and cleanly publishes the `DoctrineFinishedEvent`.-   `MissionDirectorSystem` already has a working `MissionTrigger.DoctrineFinished` case that listens for this exact event to advance the phase.
+-   The Muscle node broadcasts `NavigationStatus` via the `NavigationStatusEgressTranslator`.-   The Brain node receives the status via `NavigationStatusIngressTranslator`.-   The `MoveToExecutor` correctly implements the CQRS contract: it observes `NavigationStatus.Result == Arrived` and translates it to `NodeStatus.Success`.-   The `BTreeTickSystem` detects this terminal success and cleanly publishes the `BehaviorFinishedEvent`.-   `MissionDirectorSystem` already has a working `MissionTrigger.BehaviorFinished` case that listens for this exact event to advance the phase.
 
 **Additional Note (A second manifestation of the bug):** If you are fixing this, you will also need to address the `FollowRouteExecutor`. It currently runs on the Brain tier but directly polls `NavState.HasArrived` to determine if a route loop has finished. Because of the same lack of `NavState` replication, `FollowRouteExecutor` will also fail to advance in a distributed topology and needs to be migrated to read the CQRS `NavigationStatus` component instead.
 
@@ -326,7 +326,7 @@ Instead of the Brain computing line-of-sight locally, the architecture offloads 
 
 Here is how the perception mechanism correctly handles the distributed topology:
 
-**1\. The Command / Configuration (Brain -> Solver)** The Brain node (which runs the AI doctrines) owns the configuration of the entity's sensors but does not run the spatial queries.
+**1\. The Command / Configuration (Brain -> Solver)** The Brain node (which runs the AI behaviors) owns the configuration of the entity's sensors but does not run the spatial queries.
 
 -   It uses the `BrainPerceptionTranslatorPack` to broadcast `SensorConfig` descriptors over DDS.-   This descriptor contains the parameters needed for sensing, such as `VisionRange`, `HearingRange`, and `FovDegrees`.-   The Brain can also publish explicit `RaycastRequestBatch` queries for specific line-of-sight checks.
 
@@ -340,7 +340,7 @@ Here is how the perception mechanism correctly handles the distributed topology:
 
 **4\. The Ingestion and AI Decision (Brain)** The Brain node receives the `SensorTargets` messages via its `SensorTargetsIngressTranslator` and uses them to update the local `TargetMemory` ECS component attached to the observer entity.
 
--   Behavior trees running on the Brain (like the Insurgent's `Ambush_BT` doctrine) simply use nodes like `Condition_HasTarget` to check if `TargetMemory.Count > 0`.
+-   Behavior trees running on the Brain (like the Insurgent's `Ambush_BT` behavior) simply use nodes like `Condition_HasTarget` to check if `TargetMemory.Count > 0`.
 
 **Summary:** Because the Brain tier never directly polls kinematic or spatial components to "see" targets, it completely avoids the distributed hang-ups seen in the navigation tier. It writes to `SensorConfig`, waits for `SensorTargets` to update its `TargetMemory`, and reacts accordingly—perfectly respecting the network boundary.
 
@@ -350,7 +350,7 @@ The engine's CQRS (Command Query Responsibility Segregation) architecture is spe
 
 Here is how the distributed infrastructure currently handles autonomous navigation and status reporting:
 
-**1\. The Command (Brain -> Muscle/Solver)** When an AI doctrine on the Brain node wants a vehicle to move, it does not micromanage the steering or local pathing. Instead, it publishes a **NavigationIntent** component over the DDS network.
+**1\. The Command (Brain -> Muscle/Solver)** When an AI behavior on the Brain node wants a vehicle to move, it does not micromanage the steering or local pathing. Instead, it publishes a **NavigationIntent** component over the DDS network.
 
 -   This intent simply specifies the `FinalDestination` (in geographic coordinates), the `TargetSpeed`, the `ArrivalRadius`, and the `Mode` (e.g., `NAV_DIRECT_POINT` or `NAV_FOLLOW_ROUTE`).-   If a complex path needs to be found around obstacles, the Brain can offload this to a dedicated **Navigation Solver node** by publishing a `PathRequestBatch` containing the start, end, and mobility profile (wheeled, tracked, infantry). The solver computes the route across the road graph and returns a registered `RouteHandle` for the vehicle to follow.
 

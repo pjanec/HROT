@@ -136,7 +136,7 @@ Fix the entity spawn flow to correctly attach these baseline components.
 
 **Task Definition:** See [MOD1-TASK-DETAIL.md section MOD1-P2T1](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p2t1--create-missioncontrolmodule)
 
-**Description:** Extract doctrine ingress and mission direction.
+**Description:** Extract behavior ingress and mission direction.
 
 **Tests Required:**
 - ✅ `MissionControlModule_RegistersSystems`

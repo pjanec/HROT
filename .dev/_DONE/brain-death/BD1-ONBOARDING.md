@@ -7,12 +7,12 @@ This document orients new developers on what we are fixing, where the code lives
 
 ## What Are We Fixing?
 
-After the CQRS **Brain/Muscle split** (NavigationIntent vs. NavState), several inter-related bugs emerged. The common root cause is that the ECS lifecycle for doctrine and channel cleanup is **incomplete**: entities never cleanly reach a "brain death" state (no active doctrine, no stimulated channels) when a mission finishes or is aborted. This causes:
+After the CQRS **Brain/Muscle split** (NavigationIntent vs. NavState), several inter-related bugs emerged. The common root cause is that the ECS lifecycle for behavior and channel cleanup is **incomplete**: entities never cleanly reach a "brain death" state (no active behavior, no stimulated channels) when a mission finishes or is aborted. This causes:
 
 | Symptom | Root cause |
 |---|---|
-| Vehicle overshoots destination and loops | `MissionDirectorSystem` never clears doctrine at end of mission; `ChannelArbitrationSystem` never fires `OnExit` |
-| Abort (CMD_ABORT_ALL) doesn't stop vehicles | `MissionControlRequestSystem` clears the queue but not `DoctrineState` |
+| Vehicle overshoots destination and loops | `MissionDirectorSystem` never clears behavior at end of mission; `ChannelArbitrationSystem` never fires `OnExit` |
+| Abort (CMD_ABORT_ALL) doesn't stop vehicles | `MissionControlRequestSystem` clears the queue but not `BehaviorState` |
 | Shift+right-click waypoints disappear in 1 frame | Brain is still active; `NavigationIntentBridgeSystem` overwrites `NavState` on the next tick |
 | Vehicles don't avoid each other (RVO broken) | `WithPhysics` and `SpawnEntityLocal` don't add `PhysicsCollider`; `SpatialHashSystem` ignores them |
 | "Center on entity" teleports to top-left | `MapCanvas.Camera.Offset` defaults to `Vector2.Zero` in SimHost |
@@ -39,10 +39,10 @@ All three files live in `docs/brain-death/`.
 
 | File | Task |
 |---|---|
-| *(new)* `FDP/Toolkits/FDP.Toolkit.Behavior/Events/DoctrineFinishedEvent.cs` | BD1-P1T0a |
+| *(new)* `FDP/Toolkits/FDP.Toolkit.Behavior/Events/BehaviorFinishedEvent.cs` | BD1-P1T0a |
 | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/LocomotionDispatcherSystem.cs` | BD1-P1T0a |
-| *(new)* `FDP/Toolkits/FDP.Toolkit.Behavior/Events/ClearDoctrineEvent.cs` | BD1-P1T0b |
-| `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs` | BD1-P1T0b |
+| *(new)* `FDP/Toolkits/FDP.Toolkit.Behavior/Events/ClearBehaviorEvent.cs` | BD1-P1T0b |
+| `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs` | BD1-P1T0b |
 | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/ChannelArbitrationSystem.cs` | BD1-P1T1 |
 | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs` | BD1-P1T2 |
 | `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` | BD1-P1T3 |
@@ -59,11 +59,11 @@ All three files live in `docs/brain-death/`.
 
 | File | Why |
 |---|---|
-| `FDP/Toolkits/FDP.Toolkit.Behavior/Components/BehaviorComponents.cs` | `DoctrineState` struct definition |
+| `FDP/Toolkits/FDP.Toolkit.Behavior/Components/BehaviorComponents.cs` | `BehaviorState` struct definition |
 | `FDP/Toolkits/FDP.Toolkit.Behavior/Components/ChannelComponents.cs` | `LocomotionChannel`, `WeaponChannel`, `InteractionChannel` structs |
-| `FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineIds.cs` | `DoctrineIds.None = 0` and doctrine constants |
-| `FDP/Toolkits/FDP.Toolkit.Behavior/Events/AssignDoctrineEvent.cs` | Pattern to follow for both new events |
-| `FDP/Toolkits/FDP.Toolkit.Navigation/Executors/MoveToExecutor.cs` | Sets `channel.Status = NodeStatus.Success` — the source of `DoctrineFinishedEvent` |
+| `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorIds.cs` | `BehaviorIds.None = 0` and behavior constants |
+| `FDP/Toolkits/FDP.Toolkit.Behavior/Events/AssignBehaviorEvent.cs` | Pattern to follow for both new events |
+| `FDP/Toolkits/FDP.Toolkit.Navigation/Executors/MoveToExecutor.cs` | Sets `channel.Status = NodeStatus.Success` — the source of `BehaviorFinishedEvent` |
 | `FDP/Toolkits/FDP.Toolkit.Navigation/Systems/NavigationIntentBridgeSystem.cs` | Bridge between brain intent and muscle NavState |
 | `FDP/Toolkits/FDP.Toolkit.CarKinem/Systems/SpatialHashSystem.cs` | Spatial hash / RVO broadphase |
 | `Fdp.Kernel/DISEntityType.cs` (or equivalent) | Engine-side DIS type with `ulong Value` overlay — do NOT modify |

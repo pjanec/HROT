@@ -207,10 +207,10 @@ public sealed class MissionEditorServiceGetBehaviorsTests
         return (new MissionEditorService(repo, gateway.Object, TestTimeoutMs), repo);
     }
 
-    // ── Test 9: Entity with Insurgent TKB type returns insurgent doctrines ────
+    // ── Test 9: Entity with Insurgent TKB type returns insurgent behaviors ────
 
     [Fact]
-    public void GetAvailableBehaviors_InsurgentEntity_ReturnsInsurgentDoctrines()
+    public void GetAvailableBehaviors_InsurgentEntity_ReturnsInsurgentBehaviors()
     {
         var (svc, repo) = CreateSut();
         var entity = repo.CreateEntity(1, TkbEntityTypes.Insurgent);
@@ -235,10 +235,10 @@ public sealed class MissionEditorServiceGetBehaviorsTests
         Assert.Empty(behaviors);
     }
 
-    // ── Test 11: Infantry soldier entity returns infantry doctrines ───────────
+    // ── Test 11: Infantry soldier entity returns infantry behaviors ───────────
 
     [Fact]
-    public void GetAvailableBehaviors_InfantryEntity_ReturnsInfantryDoctrines()
+    public void GetAvailableBehaviors_InfantryEntity_ReturnsInfantryBehaviors()
     {
         var (svc, repo) = CreateSut();
         repo.CreateEntity(5, TkbEntityTypes.InfantrySoldier);

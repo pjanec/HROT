@@ -17,7 +17,7 @@ The developer successfully addressed the structural ECS memory leaks from BATCH-
 
 No issues found. Ready to merge.
 
-*Note: The one-frame delay observed with `AssignDoctrineHashEvent` is correctly noted and added to the debt tracker for a later targeted refinement.*
+*Note: The one-frame delay observed with `AssignBehaviorHashEvent` is correctly noted and added to the debt tracker for a later targeted refinement.*
 
 ---
 
@@ -36,9 +36,9 @@ feat: Right-Click UX routing and zero-alloc ECS events (BD1-BATCH-02)
 
 Completes BD1-P2T1, CORRECTIVE-0, CORRECTIVE-1, CORRECTIVE-2
 
-- Converted `DoctrineFinishedEvent` and `ClearDoctrineEvent` to zero-allocation structs.
+- Converted `BehaviorFinishedEvent` and `ClearBehaviorEvent` to zero-allocation structs.
 - Added event deduplication memory leak pruning in `BTreeTickSystem`.
-- Factored out doctrine reassignment in `MissionDirectorSystem` using `AssignDoctrineHashEvent`.
+- Factored out behavior reassignment in `MissionDirectorSystem` using `AssignBehaviorHashEvent`.
 - Extracted and implemented brain-aware right-click handling in `SimHostVisualization`, appropriately routing to the ECS muscle or mission command pipeline dependent on context.
 
 Tests: 12 tests verified including new coverage for the right click UX handler.

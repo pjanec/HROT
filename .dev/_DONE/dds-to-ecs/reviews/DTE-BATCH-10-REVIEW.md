@@ -14,7 +14,7 @@ SimHost mission execution now uses `MissionDirectorSystem` with compiled BTree i
 
 ## Code Quality & Design Adherence
 - `SimulationLogicModule` registers `MissionDirectorSystem` ahead of the behavior pipeline, matching Phase 16 sequencing.
-- `SimHostApp` registers doctrine interpreters via `RegisterDoctrines`, aligning with the UrbanCombat pattern.
+- `SimHostApp` registers behavior interpreters via `RegisterBehaviors`, aligning with the UrbanCombat pattern.
 - `SimHostNodes` writes locomotion channels from blackboard memory with defensive component checks.
 
 **Design gap:** Follow-route behavior still writes a default `TrajectoryId` (no mapping from JSON to a concrete trajectory). Logged as debt.
@@ -29,7 +29,7 @@ SimHost mission execution now uses `MissionDirectorSystem` with compiled BTree i
 ---
 
 ## Suggested Commit Message
-`Replace mission adapter with director system and wire doctrine interpreters`
+`Replace mission adapter with director system and wire behavior interpreters`
 
 ---
 

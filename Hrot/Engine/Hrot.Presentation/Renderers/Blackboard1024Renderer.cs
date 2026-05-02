@@ -12,7 +12,7 @@ namespace Hrot.Presentation.Renderers;
 
 /// <summary>
 /// Entity-aware ImGui renderer for <see cref="Blackboard1024"/>.
-/// When the active doctrine has a <see cref="DoctrineDefinition.HeavyDtoType"/>,
+/// When the active behavior has a <see cref="BehaviorDefinition.HeavyDtoType"/>,
 /// interprets <see cref="Blackboard1024.Memory"/> as that typed struct and renders
 /// it via <see cref="ImGuiPropertyTree.Render"/>.  Falls back to a raw-byte summary
 /// when no DTO type is registered.
@@ -22,16 +22,16 @@ public sealed class Blackboard1024Renderer : IEntityAwareImGuiRenderer
 {
     /// <summary>
     /// Set once at startup (e.g., in CgfSubsystem or EditorSubsystem initialization).
-    /// Required for doctrine lookup.
+    /// Required for behavior lookup.
     /// </summary>
-    public static DoctrineRegistry? DoctrineRegistryAccessor { get; set; }
+    public static BehaviorRegistry? BehaviorRegistryAccessor { get; set; }
 
     // ---- IImGuiRenderer ----
 
     public string? GetSummary(object value) => "Heavy Blackboard (1024 bytes)";
 
     /// <summary>
-    /// Non-entity-aware fallback — cannot look up doctrine without an entity.
+    /// Non-entity-aware fallback — cannot look up behavior without an entity.
     /// Always falls through to default rendering.
     /// </summary>
     public bool RenderValue(object value) => false;
@@ -44,15 +44,15 @@ public sealed class Blackboard1024Renderer : IEntityAwareImGuiRenderer
 
         if (value is not Blackboard1024 bb) return false;
 
-        var registry = DoctrineRegistryAccessor;
+        var registry = BehaviorRegistryAccessor;
         if (registry == null) return false;
 
-        if (!session.HasComponent(entity, typeof(DoctrineState))) return false;
+        if (!session.HasComponent(entity, typeof(BehaviorState))) return false;
 
-        var doctrineStateObj = session.GetComponent(entity, typeof(DoctrineState));
-        if (doctrineStateObj is not DoctrineState ds) return false;
+        var behaviorStateObj = session.GetComponent(entity, typeof(BehaviorState));
+        if (behaviorStateObj is not BehaviorState ds) return false;
 
-        if (!registry.TryGetDefinition(ds.ActiveDoctrineHash, out var def)) return false;
+        if (!registry.TryGetDefinition(ds.ActiveBehaviorHash, out var def)) return false;
 
         if (def.HeavyDtoType != null)
         {
@@ -63,7 +63,7 @@ public sealed class Blackboard1024Renderer : IEntityAwareImGuiRenderer
         }
         else
         {
-            ImGui.TextDisabled("Raw data (no HeavyDtoType registered for this doctrine)");
+            ImGui.TextDisabled("Raw data (no HeavyDtoType registered for this behavior)");
         }
 
         return true;

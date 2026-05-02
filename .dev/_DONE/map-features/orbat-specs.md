@@ -18,14 +18,14 @@ The system allows distributed components (GUI, CGF) to interact asynchronously v
 
 ### MAIN PARTS
 1.  ORBAT parent id stored in `EntityInfo` descriptor
-2.  Missions stored in `EntityMission` descriptor, holding list of `MissionTasks` (each having triggers and a doctrine)
+2.  Missions stored in `EntityMission` descriptor, holding list of `MissionTasks` (each having triggers and a behavior)
 3.  Specific mission editing message `MissionControlRequest` allowing to add a task, reset to specific task etc.
 4.  Generic entity state change request via `UpdateEntityDescriptorRequest`  for changing any entity descriptor (similar to SendDescriptorAsMessage as in GBB). Acknowledged by `UpdateEntityDescriptorAck`.
 5.  Generic entity creation request via `CreateEntityRequest` carrying set of desriptors. Acknowledged by `CreateEntityAck` carrying the newly created entity id.
 
 ### MISSING PARTS (to be designed)
 1. JSON schema for most commonly used task trigger parameters
-2. JSON schema for most commonly used doctrine parameters
+2. JSON schema for most commonly used behavior parameters
 
 ## 2. Architectural Concepts
 
@@ -63,7 +63,7 @@ Since DDS data arrives asynchronously and flatly, the GUI must reconstruct the t
 
 ## 4. Data Model: Mission System
 
-A Mission is a linear sequence of Tasks. A Task defines a specific Doctrine (behavior) and conditions (Triggers).
+A Mission is a linear sequence of Tasks. A Task defines a specific Behavior (behavior) and conditions (Triggers).
 
 ### 4.1. Task Identification
 
@@ -76,7 +76,7 @@ The system introduces a specialized descriptor: **`EntityMission`**.
 
 - **Owner:** CGF (Computer Generated Forces).
 - **Content:** Contains the `MissionPlan`—the list of tasks and the pointer to the currently active task.
-- **Payloads:** Doctrines and Triggers use JSON strings for parameters. This allows flexibility without changing the IDL, but requires strict Schema validation at runtime.
+- **Payloads:** Behaviors and Triggers use JSON strings for parameters. This allows flexibility without changing the IDL, but requires strict Schema validation at runtime.
 
 ## 5. Command Interface (GUI to CGF)
 
@@ -161,8 +161,8 @@ struct MissionTrigger {
 struct MissionTask {
     CorrelationId TaskId;        // Unique stringified GUID
     string ExecutingEngine;      // who is going to execute the behavior "CGFX" etc.
-    string BehaviorId;           // e.g., "MoveToLocation", could be also bkbId od the doctrine (for CGFX)
-    string BehaviorParams;       // JSON string (Schema validated) for the doctrine
+    string BehaviorId;           // e.g., "MoveToLocation", could be also bkbId od the behavior (for CGFX)
+    string BehaviorParams;       // JSON string (Schema validated) for the behavior
     
     sequence<MissionTrigger> Triggers; 
     

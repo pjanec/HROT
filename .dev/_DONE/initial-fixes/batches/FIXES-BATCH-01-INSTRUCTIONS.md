@@ -36,11 +36,11 @@ This batch covers all critical architectural deviations and UI wiring issues in 
 
 ## Context
 
-The SimHost, IG, and IOS applications have some critical deviations from the FDP engine's golden examples on network ownership, topic publication, and doctrine processing. Additionally, the IG and IOS applications have uncommented or un-hooked ImGui UI panels preventing startup visibility. This batch addresses these issues to make the system fully compliant and usable.
+The SimHost, IG, and IOS applications have some critical deviations from the FDP engine's golden examples on network ownership, topic publication, and behavior processing. Additionally, the IG and IOS applications have uncommented or un-hooked ImGui UI panels preventing startup visibility. This batch addresses these issues to make the system fully compliant and usable.
 
 **Related Tasks:**
 - [TASK-IF001](../../docs/initial-fixes/TASK-DETAIL.md#task-if001-remove-vehiclestate-contamination) - SimHost: Clear DescriptorMapper corruption
-- [TASK-IF002](../../docs/initial-fixes/TASK-DETAIL.md#task-if002-fix-doctrine-preemption) - SimHost: Increment doctrine InstanceId
+- [TASK-IF002](../../docs/initial-fixes/TASK-DETAIL.md#task-if002-fix-behavior-preemption) - SimHost: Increment behavior InstanceId
 - [TASK-IF003](../../docs/initial-fixes/TASK-DETAIL.md#task-if003-publish-entitymaster-dds-topic) - SimHost: Publish EntityMaster DDS Topic
 - [TASK-IF004](../../docs/initial-fixes/TASK-DETAIL.md#task-if004-fix-ghost-ownership-in-entitymastertranslator) - IG: Fix ghost ownership mapping
 - [TASK-IF005](../../docs/initial-fixes/TASK-DETAIL.md#task-if005-register-transformsyncsystem) - IG: Interpolate remote entities
@@ -88,19 +88,19 @@ Make SimHost an authoritative node and IG a compliant ghost node by addressing m
 - ✅ Verify a non-vehicle descriptor results in no `VehicleState` component.
 - ✅ Ensure existing tests for `DescriptorMapper` pass.
 
-### Task 2: Fix Doctrine Preemption (TASK-IF002)
+### Task 2: Fix Behavior Preemption (TASK-IF002)
 
 **File:** `Hrot.SimHost/Systems/MissionAdapterSystem.cs` (UPDATE)  
-**Task Definition:** See [TASK-DETAIL.md - TASK-IF002](../../docs/initial-fixes/TASK-DETAIL.md#task-if002-fix-doctrine-preemption)
+**Task Definition:** See [TASK-DETAIL.md - TASK-IF002](../../docs/initial-fixes/TASK-DETAIL.md#task-if002-fix-behavior-preemption)
 
-**Description:** Add an `unchecked` `InstanceId` increment when doctrine changes to trigger channel preemption.
+**Description:** Add an `unchecked` `InstanceId` increment when behavior changes to trigger channel preemption.
 **Requirements:**
 - Must occur inside the hash change branch before `World.SetComponent`.
 
-**Design Reference:** [DESIGN.md § 1.2](../../docs/initial-fixes/DESIGN.md#12-fix-doctrine-preemption)
+**Design Reference:** [DESIGN.md § 1.2](../../docs/initial-fixes/DESIGN.md#12-fix-behavior-preemption)
 
 **Tests Required:**
-- ✅ Verify `DoctrineState.InstanceId` increments upon doctrine change.
+- ✅ Verify `BehaviorState.InstanceId` increments upon behavior change.
 - ✅ Verify standard byte wrapping (e.g. 255 -> 0) does not throw exceptions.
 
 ### Task 3: Publish EntityMaster DDS Topic (TASK-IF003)

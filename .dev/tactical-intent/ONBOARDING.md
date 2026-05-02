@@ -5,8 +5,8 @@
 This workstream adds a **Group Cognitive Layer** to the HROT simulation engine. It lets
 a Commander AI (or a human scenario author) issue a generic, unit-type-agnostic behavioral
 order such as `"DefendArea"` to a group of mixed subordinates (APCs, infantry, drones).
-A new receiver-side system translates each generic intent into the specific doctrine that
-fits the subordinate's capabilities, then hands off to the existing `DoctrineIngressSystem`
+A new receiver-side system translates each generic intent into the specific behavior that
+fits the subordinate's capabilities, then hands off to the existing `BehaviorIngressSystem`
 unchanged.
 
 The same event pipeline is also wired into the existing `MissionAdapterSystem` so that
@@ -35,21 +35,21 @@ path.
 | `Fdp.Toolkits` | `FDP/Toolkits/Fdp.Toolkits/Behavior/TacticalOrderMapper/ITacticalOrderMapper.cs` | Mapper interface |
 | `Fdp.Toolkits` | `FDP/Toolkits/Fdp.Toolkits/Behavior/TacticalOrderMapper/TacticalIntentMapperRegistry.cs` | Mapper registry |
 | `Hrot.CGF` | `Hrot/Subsystems/Hrot.CGF/Systems/TacticalIntentResolutionSystem.cs` | Receiver resolution system |
-| `Hrot.Core` | `Hrot/Engine/Hrot.Core/MapDefinitions/Doctrine/Intents/DefendAreaIntentDto.cs` | Example intent DTO |
+| `Hrot.Core` | `Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/Intents/DefendAreaIntentDto.cs` | Example intent DTO |
 | `Hrot.Network.NED` | `Hrot/Network/Hrot.Network.NED/TacticalIntentMessages.cs` | DDS wire struct |
 | `Hrot.Network.NED` | `Hrot/Network/Hrot.Network.NED/SimHost/TacticalIntentEgressTranslator.cs` | DDS egress |
 | `Hrot.Network.NED` | `Hrot/Network/Hrot.Network.NED/SimHost/TacticalIntentIngressTranslator.cs` | DDS ingress |
-| `Hrot.AI.Doctrines` | `Hrot/Subsystems/Hrot.AI.Doctrines/Mappers/DefendAreaMapper.cs` | First concrete mapper |
-| `Hrot.AI.Doctrines` | `Hrot/Subsystems/Hrot.AI.Doctrines/Brains/CommanderNodes.cs` | Reference BTree action |
+| `Hrot.AI.Behaviors` | `Hrot/Subsystems/Hrot.AI.Behaviors/Mappers/DefendAreaMapper.cs` | First concrete mapper |
+| `Hrot.AI.Behaviors` | `Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CommanderNodes.cs` | Reference BTree action |
 
 ### Existing files to modify
 
 | Project | File | Change summary |
 |---|---|---|
-| `Hrot.Core` | `Hrot/Engine/Hrot.Core/MapDefinitions/Doctrine/DoctrineCategory.cs` | Add `Commander = 1 << 4` |
-| `Hrot.Core` | `Hrot/Engine/Hrot.Core/MapDefinitions/Doctrine/DoctrineIds.cs` | Add intent ID constants (range 1000+) |
-| `Hrot.Core` | `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/DoctrineCatalog.cs` | Handle `Commander` category in `GetValidDoctrines` |
-| `Hrot.CGF` | `Hrot/Subsystems/Hrot.CGF/Systems/MissionAdapterSystem.cs` | Emit `AssignTacticalIntentEvent`; remove `DoctrineRegistry` dependency |
+| `Hrot.Core` | `Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/BehaviorCategory.cs` | Add `Commander = 1 << 4` |
+| `Hrot.Core` | `Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/BehaviorIds.cs` | Add intent ID constants (range 1000+) |
+| `Hrot.Core` | `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/BehaviorCatalog.cs` | Handle `Commander` category in `GetValidBehaviors` |
+| `Hrot.CGF` | `Hrot/Subsystems/Hrot.CGF/Systems/MissionAdapterSystem.cs` | Emit `AssignTacticalIntentEvent`; remove `BehaviorRegistry` dependency |
 | `Hrot.CGF` | `Hrot/Subsystems/Hrot.CGF/CgfLogicPack.cs` | Add `TacticalIntentResolutionSystem`; add `TacticalIntentMapperRegistry` param |
 | `Hrot.Network.NED` | `Hrot/Network/Hrot.Network.NED/AllDescriptors.cs` | Add `dtTacticalIntentRequest = 92` |
 | `Hrot.Network.NED` | `Hrot/Network/Hrot.Network.NED/SimHost/SimHostAuxiliaryTranslatorPack.cs` | Register egress and ingress translators |
@@ -63,7 +63,7 @@ path.
 - `TacticalIntentResolutionSystem` lives in `Hrot.CGF`, which already depends on
   `Fdp.Toolkits`, `Hrot.Core`, and `Hrot.Common`. No new project references are needed
   for `Hrot.CGF`.
-- `DefendAreaMapper` lives in `Hrot.AI.Doctrines`, which already depends on `Hrot.Core`
+- `DefendAreaMapper` lives in `Hrot.AI.Behaviors`, which already depends on `Hrot.Core`
   and `Fdp.Toolkits`. No new project references are needed.
 - The DDS translator pair lives in `Hrot.Network.NED`, which depends on `Fdp.Toolkits`
   via an existing `ProjectReference`. `AssignTacticalIntentEvent` is therefore reachable

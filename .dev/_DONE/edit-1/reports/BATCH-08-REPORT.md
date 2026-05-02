@@ -17,7 +17,7 @@
 | EDIT1-T001 | ✅ Complete | 3 embarkation tests pass headless in `EditorAuthoringIntegrationTests`. |
 | EDIT1-T002 | ✅ Complete | 3 target memory seeding tests pass headless. |
 | EDIT1-T003 | ✅ Complete | 3 zone authoring tests pass headless, including full save-pipeline round-trip. |
-| EDIT1-T004 | ✅ Complete | 3 doctrine catalog tests pass (2 pure unit + 1 harness-backed). |
+| EDIT1-T004 | ✅ Complete | 3 behavior catalog tests pass (2 pure unit + 1 harness-backed). |
 
 ---
 
@@ -42,9 +42,9 @@
 - [x] `ZoneAuthoring_ObstaclePlacement_SpawnsPhysicsCollider`
 - [x] `ZoneAuthoring_RoadNetworkUpdate_InjectsZoneEnvironmentDataSingleton`
 - [x] `ZoneAuthoring_FullSave_BundlesZoneDtoInEnvelope`
-- [x] `DoctrineCatalog_Insurgent_ReturnsInsurgentDoctrines`
-- [x] `DoctrineCatalog_Civilian_ReturnsCivilianDoctrines`
-- [x] `EditorMissionService_FiltersOutUnregisteredDoctrines`
+- [x] `BehaviorCatalog_Insurgent_ReturnsInsurgentBehaviors`
+- [x] `BehaviorCatalog_Civilian_ReturnsCivilianBehaviors`
+- [x] `EditorMissionService_FiltersOutUnregisteredBehaviors`
 - [x] `Build_AfterAddItemAndSeparator_ReturnsTwoItems`
 - [x] `GetCallbackRegistry_AfterAddItem_ContainsOneInvokableCallback`
 - [x] `ContextMenuLogic_EntityWithMapVisualOverlay_JsonContainsEditShape`

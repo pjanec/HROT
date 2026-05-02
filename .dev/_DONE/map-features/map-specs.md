@@ -40,7 +40,7 @@ Right-clicking an existing entity offers three main sub-menus:
     
 *   **Follow in 3D / Map:** Locks the camera to follow the moving entity.
     
-*   **Show on Timeline:** Displays the entity's doctrine/status on the IOS timeline.
+*   **Show on Timeline:** Displays the entity's behavior/status on the IOS timeline.
     
 *   **Show Subordinates:** Toggles visibility of member units within a squad/aggregate.
     
@@ -115,7 +115,7 @@ These settings are often controlled via the IOS "Display" tab but affect the map
 *   **Entity Decluttering (Detail Level):**
     *   _None:_ Shows only the tactical symbol.
         
-    *   _Detailed:_ Shows Symbol + Name + Attrition + Speed + Doctrine.
+    *   _Detailed:_ Shows Symbol + Name + Attrition + Speed + Behavior.
         
     *   _Zoom Logic:_ As you zoom out, details automatically disappear to reduce clutter.
     
@@ -414,7 +414,7 @@ Several constraints shape the design:
     Styling, layers, tools, and menus change often. JSON is used where flexibility matters; IDL where performance matters.
     
 4.  **Clear responsibility split**
-    *   IG handles interaction mechanics and entity-creation dispatch, parametrised by IOS intent; it does not make scenario-level policy decisions (e.g., which units are valid, whether doctrine allows placement)
+    *   IG handles interaction mechanics and entity-creation dispatch, parametrised by IOS intent; it does not make scenario-level policy decisions (e.g., which units are valid, whether behavior allows placement)
         
     *   IOS never renders pixels; it never needs to understand IDL descriptor structures for standard creation workflows
         
@@ -3827,7 +3827,7 @@ IOS and IG teams agree on a static mapping of Strings to logical categories.
 An entity can belong to **multiple layers**.
 *   _Example:_ A "Fire Support Line" might belong to both `"tactical_graphics"` AND `"fire_support"`.
     
-*   _Example:_ An "Amphibious Tank" might technically belong to `"units_ground"` AND `"units_naval"` (depending on doctrine).
+*   _Example:_ An "Amphibious Tank" might technically belong to `"units_ground"` AND `"units_naval"` (depending on behavior).
     
 If an entity maps to multiple layer names, it should be visible if **at least one** of those layers is set to `true` in the config.
 

@@ -1,7 +1,7 @@
 # BATCH-08: Tech-debt burndown + DEM1 follow-ups + DEM1-D009 start
 
 **Batch Number:** BATCH-08  
-**Tasks:** P3 performance (ComponentReflector) · P3 naming (`DemoDoctrineIds`) · DEM1-D008 test/doc hardening · **DEM1-D009** (DistributedTank) scoping  
+**Tasks:** P3 performance (ComponentReflector) · P3 naming (`DemoBehaviorIds`) · DEM1-D008 test/doc hardening · **DEM1-D009** (DistributedTank) scoping  
 **Phase:** Cross-cutting debt + DEM1 Phase 5  
 **Estimated Effort:** 10–14 hours  
 **Priority:** HIGH  
@@ -31,7 +31,7 @@
 ### Paths (repo root)
 
 - `FDP/Toolkits/FDP.Toolkit.ImGui/Utils/ComponentReflector.cs`
-- `FDP/Examples/Fdp.Examples.Scenarios/DemoDoctrineIds.cs` / `FDP/Examples/Fdp.Examples.Common/Constants/DemoDoctrineIds.cs`
+- `FDP/Examples/Fdp.Examples.Scenarios/DemoBehaviorIds.cs` / `FDP/Examples/Fdp.Examples.Common/Constants/DemoBehaviorIds.cs`
 - `FDP/Examples/Fdp.Examples.Scenarios/Replay/ParallelStoriesScenario.cs`
 - `FDP/Examples/Fdp.Examples.Scenarios.Tests/ScenarioTests.cs`
 - `FDP/ModuleHost/ModuleHost.Core/ModuleHostKernel.cs`
@@ -59,13 +59,13 @@ Sequence: Task 1 → green tests; Task 2 → green tests; Task 3 → green tests
 
 ---
 
-### Task 2: [DEBT] Examples doctrine IDs + `MissionTriggerHelper` CS0618
+### Task 2: [DEBT] Examples behavior IDs + `MissionTriggerHelper` CS0618
 
-**2a — `DemoDoctrineIds` duplication**
+**2a — `DemoBehaviorIds` duplication**
 
 **Debt:** BATCH-06 naming row (Target BATCH-08)
 
-**Problem:** `Fdp.Examples.Scenarios.DemoDoctrineIds` shadows `Fdp.Examples.Common.Constants.DemoDoctrineIds` for nested test namespaces.
+**Problem:** `Fdp.Examples.Scenarios.DemoBehaviorIds` shadows `Fdp.Examples.Common.Constants.DemoBehaviorIds` for nested test namespaces.
 
 **Options (pick one, document in report):** rename scenarios-local type; merge into Common; avoid `global using` unless unavoidable.
 
@@ -129,7 +129,7 @@ Add other projects touched by Task 1 / 4.
 ## 🎯 Success Criteria
 
 - [ ] Task 1: ComponentReflector no longer allocates native heap per frame on the hot path (verify with test or profiler note in report).  
-- [ ] Task 2: Single clear doctrine-ID story for Examples scenarios; no accidental shadowing.  
+- [ ] Task 2: Single clear behavior-ID story for Examples scenarios; no accidental shadowing.  
 - [ ] Task 3: ParallelStories “no kinematics” test reflects **actual** kernel registration; D008 docs/XML aligned.  
 - [ ] Task 4: D009 progress documented; tests green for delivered slice.  
 - [ ] `DEBT-TRACKER.md` rows closed or re-targeted by lead after review.  

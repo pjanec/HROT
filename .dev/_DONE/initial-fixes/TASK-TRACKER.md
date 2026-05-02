@@ -7,10 +7,10 @@
 
 ## Phase 1: SimHost Architecture Fixes
 
-**Goal:** Correct physics component assignment, doctrine preemption signalling, and EntityMaster DDS publication so SimHost is a fully compliant FDP authority node.
+**Goal:** Correct physics component assignment, behavior preemption signalling, and EntityMaster DDS publication so SimHost is a fully compliant FDP authority node.
 
 - [x] **TASK-IF001** Remove VehicleState Contamination — [details](./TASK-DETAIL.md#task-if001-remove-vehiclestate-contamination)
-- [x] **TASK-IF002** Fix Doctrine Preemption — [details](./TASK-DETAIL.md#task-if002-fix-doctrine-preemption)
+- [x] **TASK-IF002** Fix Behavior Preemption — [details](./TASK-DETAIL.md#task-if002-fix-behavior-preemption)
 - [x] **TASK-IF003** Publish EntityMaster DDS Topic — [details](./TASK-DETAIL.md#task-if003-publish-entitymaster-dds-topic)
 
 ---

@@ -26,7 +26,7 @@ namespace Hrot.SimHost.UI
     /// <c>NetworkSpawningSystem</c> creates entities with the full network component set and
     /// publishes them over DDS, making them visible on the IG map.</para>
     ///
-    /// <para>Each spawned entity carries a <see cref="DoctrineState"/> and
+    /// <para>Each spawned entity carries a <see cref="BehaviorState"/> and
     /// <see cref="BrainBlackboard"/> so the BTree cognitive tier drives its behaviour
     /// autonomously from the first frame.</para>
     /// </summary>
@@ -76,7 +76,7 @@ namespace Hrot.SimHost.UI
         // ── Tick ─────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// No-op: autonomous wandering/routing is driven by each entity's BTree doctrine
+        /// No-op: autonomous wandering/routing is driven by each entity's BTree behavior
         /// (e.g. <c>WanderMilitary_BT</c>); the UI layer no longer polls entity state.
         /// </summary>
         public void Update() { }
@@ -179,7 +179,7 @@ namespace Hrot.SimHost.UI
         /// <summary>
         /// Spawns <paramref name="count"/> road-user vehicles. When a road network is available
         /// entities are placed at random road nodes; otherwise at random world positions.
-        /// All use the <c>WanderMilitary_BT</c> doctrine for autonomous roaming and are
+        /// All use the <c>WanderMilitary_BT</c> behavior for autonomous roaming and are
         /// visible on the IG map.
         /// </summary>
         public void SpawnRoadUsers(int count, VehicleClass cls)
@@ -230,7 +230,7 @@ namespace Hrot.SimHost.UI
 
         /// <summary>
         /// Spawns a formation of <paramref name="count"/> vehicles: one leader and
-        /// <c>count-1</c> followers. The CGF node assigns doctrines (WanderMilitary for
+        /// <c>count-1</c> followers. The CGF node assigns behaviors (WanderMilitary for
         /// leader, JoinFormation for followers) via MissionControlRequest after spawn.
         /// Requires an <see cref="INetworkIdAllocator"/> (supplied at construction time) to
         /// pre-allocate the leader ID so followers can reference it at spawn time.
@@ -315,7 +315,7 @@ namespace Hrot.SimHost.UI
                 Rotation = SimMath.FromYaw(angle),
             };
 
-            // Use NavigationIntent directly (FollowRoute mode) instead of doctrine + blackboard.
+            // Use NavigationIntent directly (FollowRoute mode) instead of behavior + blackboard.
             // This is the architecturally-correct Muscle-tier mechanism: receive navigation
             // commands as pure data, not as Brain-tier AI directives.
             var intent = new NavigationIntent

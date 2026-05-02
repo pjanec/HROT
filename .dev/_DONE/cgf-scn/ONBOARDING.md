@@ -51,7 +51,7 @@ rejected.
 | `Hrot/Engine/Hrot.Core/Network/` | `ScenarioEntityCreationRequestSource` (C001), `CompositeEntityCreationRequestSource` (C002) |
 | `Hrot/Subsystems/Hrot.CGF/Systems/` | `CgfLogicPack.cs` — wired with composite source (C003); `CreateEntityRequestSystem.cs` — unchanged |
 | `Hrot/Subsystems/Hrot.CGF/Orchestration/Handlers/` | `CgfScenarioLoadHandler.cs` (C006), `CgfEpisodeLoadHandler.cs` (C007) |
-| `Hrot/Subsystems/Hrot.CGF/` | `CgfApplication.cs` — registration changes (C003, C006, C007, C011), `CgfDoctrineSetup.cs` — remapper/UI registry setup (C011) |
+| `Hrot/Subsystems/Hrot.CGF/` | `CgfApplication.cs` — registration changes (C003, C006, C007, C011), `CgfBehaviorSetup.cs` — remapper/UI registry setup (C011) |
 | `Hrot/Subsystems/Hrot.CGF/Orchestration/` | `StagingEntityExtractor.cs` (C004) |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Attributes/` | `RemapNetworkIdAttribute.cs` (C005a), `MapPickableWorldLocationAttribute.cs` (C008), `MapPickableEntityAttribute.cs` (C008) |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Params/` | `FireAtTargetParamsJsonDto.cs`, `FollowRouteParamsJsonDto.cs`, `MoveToLocationParamsJsonDto.cs` (C005b + C008) |
@@ -72,7 +72,7 @@ rejected.
 | `FDP/Toolkits/Fdp.Toolkits/Scenario/IEntityScenarioTranslator.cs` | How translators handle cross-entity references |
 | `FDP/Engine/Fdp.Core/GlobalComponentIds.cs` | Component type ID constants used to build the exclusion mask |
 | `FDP/Engine/Fdp.Core/IComponentTable.cs` | `GetRawObject(int index)` used for boxing-based component extraction |
-| `Hrot/Subsystems/Hrot.CGF/Configuration/CgfDoctrineSetup.cs` | Where doctrines are registered; registration site for remapper and UI registry |
+| `Hrot/Subsystems/Hrot.CGF/Configuration/CgfBehaviorSetup.cs` | Where behaviors are registered; registration site for remapper and UI registry |
 | `Hrot/Engine/Hrot.Presentation/Panels/MissionPanel.cs` | Current hardcoded mission param UI being replaced |
 
 ---

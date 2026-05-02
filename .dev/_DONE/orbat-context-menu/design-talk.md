@@ -27,7 +27,7 @@ Here is exactly how the IOS can implement each of these actions, and how to brid
 
 4\. Abort Mission
 
-**Mechanism:** `MissionControlRequest` via `IMissionEditorService`. The IOS already has this fully wired up. When the user clicks "Abort Mission", you simply call `logic.MissionEditorService.SendControlCommandAsync(entityId, eMissionCommandType.CMD_ABORT_ALL, Guid.Empty)`. This publishes the `MissionControlRequest` with the `CMD_ABORT_ALL` payload, which the SimHost catches to clear the entity's doctrine.
+**Mechanism:** `MissionControlRequest` via `IMissionEditorService`. The IOS already has this fully wired up. When the user clicks "Abort Mission", you simply call `logic.MissionEditorService.SendControlCommandAsync(entityId, eMissionCommandType.CMD_ABORT_ALL, Guid.Empty)`. This publishes the `MissionControlRequest` with the `CMD_ABORT_ALL` payload, which the SimHost catches to clear the entity's behavior.
 
 5\. Edit Route (The Personal Route Challenge)
 
@@ -127,10 +127,10 @@ public static unsafe NodeStatus Action_WriteFollowRouteChannel(
     if (targetTrajectoryId <= 0) return NodeStatus.Failure;
 
     ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
-    if (ctx.World.HasComponent<DoctrineState>(ctx.Self))
+    if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
     {
-        var doctrine = ctx.World.GetComponent<DoctrineState>(ctx.Self);
-        channel.DoctrineInstanceId = doctrine.InstanceId;
+        var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
+        channel.BehaviorInstanceId = behavior.InstanceId;
     }
 
     bool needsActivation = channel.ActiveAction != NavigationConstants.ActionIdFollowRoute
@@ -401,7 +401,7 @@ Here is exactly what the IOS needs to do for each context menu action:
 
 **4\. Edit Route (Create Personal Route)** _(Note: This also relies on the orchestrator pattern we designed in our conversation history, which is outside the provided sources)._ To keep the IOS "dumb" and strictly separated from map-authoring state machines, the IOS does no orchestration here. It simply generates a unique `ContextId` and publishes a `MapCommandRequest` with the newly proposed `CommandType.CMD_DRAW_PERSONAL_ROUTE`. The `CommandArgsJson` payload must include both the `contextId` and the vehicle's `entityId`. The IG intercepts this command, activates the map drawing tools, creates the route entity, and sends the mission assignment to the SimHost automatically.
 
-**5\. Abort Mission** The IOS is already perfectly equipped for this out of the box. The ORBAT menu simply needs to invoke the existing `IMissionEditorService` by calling `SendControlCommandAsync` and passing the entity ID along with `eMissionCommandType.CMD_ABORT_ALL`. This natively publishes a `MissionControlRequest` to the SimHost, which safely intercepts it, clears the active doctrine, and halts the vehicle in the simulation.
+**5\. Abort Mission** The IOS is already perfectly equipped for this out of the box. The ORBAT menu simply needs to invoke the existing `IMissionEditorService` by calling `SendControlCommandAsync` and passing the entity ID along with `eMissionCommandType.CMD_ABORT_ALL`. This natively publishes a `MissionControlRequest` to the SimHost, which safely intercepts it, clears the active behavior, and halts the vehicle in the simulation.
 
 CMD\_SET\_VIEW seems wrong. IG must support centering the map on concrete entity ID, IOS should not orchestrate
 
@@ -509,7 +509,7 @@ Here is the architectural breakdown of the mechanisms required for each menu act
 
 **4\. Edit Route (Create Personal Route)** To guarantee the IOS remains a "dumb" terminal, it avoids managing multi-step drawing state machines. Instead, it generates a unique `ContextId` and fires the newly proposed `CMD_DRAW_PERSONAL_ROUTE` map command containing both the context and the vehicle's `entityId`. The IG takes over as the smart orchestrator, activating the drawing tools, creating the route entity, and assigning the mission via its internal `BdcCommandGateway`.
 
-**5\. Abort Mission** The IOS utilizes its existing `IMissionEditorService` abstraction, which provides a clean API for mission mutations. The panel simply invokes `SendControlCommandAsync`, targeting the vehicle's ID and passing the `CMD_ABORT_ALL` command type. This natively publishes a `MissionControlRequest` to the DDS bus, which the SimHost safely processes to halt the entity and clear its active doctrine.
+**5\. Abort Mission** The IOS utilizes its existing `IMissionEditorService` abstraction, which provides a clean API for mission mutations. The panel simply invokes `SendControlCommandAsync`, targeting the vehicle's ID and passing the `CMD_ABORT_ALL` command type. This natively publishes a `MissionControlRequest` to the DDS bus, which the SimHost safely processes to halt the entity and clear its active behavior.
 
 ad "IOS also calls its internal SelectEntity " - shouldn't the IOS wait for selection changed notification from IOS to stay in sync with IG using same single mechanism always, not taking local shortcuts?
 

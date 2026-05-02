@@ -9,7 +9,7 @@
 
 ## Summary
 
-Verified against source (not only `.dev-workstream/reports/BATCH-08-REPORT.md`). **Tasks 1–3 match the batch instructions and design intent.** **`MissionTriggerHelper`** maps legacy `"ReachedDestination"` to **`DoctrineFinished`** without touching the obsolete enum; **`ParallelStoriesScenario`** topology is asserted via **`ModuleHostKernel.GetRegisteredModuleTypeNames()`**; **DEM1-TASK-DETAIL** § D008 and scenario XML describe **`LiveKinematicsModule`** + blocking **`AsyncRecorder`**. **Task 4 (DEM1-D009)** was correctly scoped out of this batch.
+Verified against source (not only `.dev-workstream/reports/BATCH-08-REPORT.md`). **Tasks 1–3 match the batch instructions and design intent.** **`MissionTriggerHelper`** maps legacy `"ReachedDestination"` to **`BehaviorFinished`** without touching the obsolete enum; **`ParallelStoriesScenario`** topology is asserted via **`ModuleHostKernel.GetRegisteredModuleTypeNames()`**; **DEM1-TASK-DETAIL** § D008 and scenario XML describe **`LiveKinematicsModule`** + blocking **`AsyncRecorder`**. **Task 4 (DEM1-D009)** was correctly scoped out of this batch.
 
 **Tests run locally:** `Fdp.Examples.Scenarios.Tests` **51/51** passed; `FDP.Toolkit.ImGui.Tests` **43/43** passed (report listed 42 — count drift, harmless); `Hrot.Map.Common.Tests` **94/94** passed.
 
@@ -25,19 +25,19 @@ Verified against source (not only `.dev-workstream/reports/BATCH-08-REPORT.md`).
 
 **Tests:** `UnmanagedComponent_ThreeFrameCycle_InPlaceCacheDetectsAllChanges` exercises the in-place cache path; aligns with the optimisation.
 
-### Task 2a — Doctrine ID naming
+### Task 2a — Behavior ID naming
 
-**Expected:** Eliminate confusing duplicate `DemoDoctrineIds` type name in `Fdp.Examples.Scenarios`.
+**Expected:** Eliminate confusing duplicate `DemoBehaviorIds` type name in `Fdp.Examples.Scenarios`.
 
-**Found:** Class renamed to **`BehaviorValidationDoctrineIds`** in `FDP/Examples/Fdp.Examples.Scenarios/DemoDoctrineIds.cs`. **`BehaviorValidationScenario`** references the new name. Values unchanged (`Combat = 2900`).
+**Found:** Class renamed to **`BehaviorValidationBehaviorIds`** in `FDP/Examples/Fdp.Examples.Scenarios/DemoBehaviorIds.cs`. **`BehaviorValidationScenario`** references the new name. Values unchanged (`Combat = 2900`).
 
-**Nit:** The **file** is still named `DemoDoctrineIds.cs`, which is mildly confusing for navigation — log as small hygiene for BATCH-09 (optional).
+**Nit:** The **file** is still named `DemoBehaviorIds.cs`, which is mildly confusing for navigation — log as small hygiene for BATCH-09 (optional).
 
 ### Task 2b — `MissionTriggerHelper` CS0618
 
-**Expected:** Map wire `"ReachedDestination"` to **`DoctrineFinished`** at ingress; tests updated.
+**Expected:** Map wire `"ReachedDestination"` to **`BehaviorFinished`** at ingress; tests updated.
 
-**Found:** Switch arm and XML in `Hrot.Map.Common/Helpers/MissionTriggerHelper.cs`; `EntityMissionIngressTranslatorTests.ResolveTrigger_ReachedDestination_MapsToDoctrineFinished` asserts **`DoctrineFinished`**.
+**Found:** Switch arm and XML in `Hrot.Map.Common/Helpers/MissionTriggerHelper.cs`; `EntityMissionIngressTranslatorTests.ResolveTrigger_ReachedDestination_MapsToBehaviorFinished` asserts **`BehaviorFinished`**.
 
 ### Task 3a — ParallelStories kernel proof
 
@@ -57,7 +57,7 @@ Verified against source (not only `.dev-workstream/reports/BATCH-08-REPORT.md`).
 
 ## Design alignment
 
-- **BS1-T022 / ingress:** Legacy string → **`DoctrineFinished`** is consistent with **`SimHostInstance`** egress semantics from BATCH-07.
+- **BS1-T022 / ingress:** Legacy string → **`BehaviorFinished`** is consistent with **`SimHostInstance`** egress semantics from BATCH-07.
 - **DEM1-D008:** Live/replay split, deterministic capture, and topology proof align with **DEM1-DESIGN** §6.3 and updated task detail.
 - **`GetRegisteredModuleTypeNames`:** Documented as diagnostics-only; O(n) alloc is appropriate for tests and admin-style use.
 
@@ -81,11 +81,11 @@ Verified against source (not only `.dev-workstream/reports/BATCH-08-REPORT.md`).
 ## Suggested commit message
 
 ```
-BATCH-08: Pooled reflector buffers; doctrine IDs rename; ingress ReachedDestination→DoctrineFinished; kernel module introspection + D008 doc sync
+BATCH-08: Pooled reflector buffers; behavior IDs rename; ingress ReachedDestination→BehaviorFinished; kernel module introspection + D008 doc sync
 
 - ComponentReflector: replace AllocHGlobal with ArrayPool + pinned buffer; add three-frame cache test
-- Rename scenarios-local DemoDoctrineIds to BehaviorValidationDoctrineIds
-- MissionTriggerHelper: map legacy ReachedDestination wire string to DoctrineFinished; extend ingress tests
+- Rename scenarios-local DemoBehaviorIds to BehaviorValidationBehaviorIds
+- MissionTriggerHelper: map legacy ReachedDestination wire string to BehaviorFinished; extend ingress tests
 - ModuleHostKernel: add GetRegisteredModuleTypeNames for diagnostics/tests
 - ParallelStories: expose ReplayKernelModuleTypeNames; test asserts replay kernel has no kinematics modules
 - DEM1-TASK-DETAIL D008: align with LiveKinematicsModule + blocking AsyncRecorder
@@ -97,4 +97,4 @@ BATCH-08: Pooled reflector buffers; doctrine IDs rename; ingress ReachedDestinat
 
 1. **DEM1-D009** Phase A (DistributedTank): two kernels, Cyclone loopback, minimal handshake test, registry entry.  
 2. **DEBT:** `LocalGridBuilderSystem` incremental grid; `PerceptionScopedView` consumption semantics; optional **`RecordingModule` blocking** flag.  
-3. **Hygiene:** Rename `DemoDoctrineIds.cs` → `BehaviorValidationDoctrineIds.cs` if desired.
+3. **Hygiene:** Rename `DemoBehaviorIds.cs` → `BehaviorValidationBehaviorIds.cs` if desired.

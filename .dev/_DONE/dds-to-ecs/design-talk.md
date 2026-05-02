@@ -731,7 +731,7 @@ The IG currently **does not** use ORBAT (`CommanderId`) to draw hierarchical lin
 The IOS uses `MissionEditorService.cs`. It tracks optimistic concurrency (`BaseVersion`) to prevent conflicts. It exposes methods to send `MissionControlRequest` messages (like `CMD_REPLACE_MISSION`, `CMD_JUMP_TO_TASK`, `CMD_ABORT_ALL`) and asynchronously awaits a `MissionControlAck` from the SimHost.
 
 **In the SimHost (Execution):**
-SimHost has a `MissionAdapterSystem.cs`. It reads the `EntityMissionHolder` component, finds the active task (`ActiveTaskId`), maps the string `BehaviorId` (e.g., "MoveToLocation") to an internal `DoctrineHash`, and pushes the JSON `BehaviorParams` directly into the entity's `BrainBlackboard` so the AI BTree or HSM can execute it.
+SimHost has a `MissionAdapterSystem.cs`. It reads the `EntityMissionHolder` component, finds the active task (`ActiveTaskId`), maps the string `BehaviorId` (e.g., "MoveToLocation") to an internal `BehaviorHash`, and pushes the JSON `BehaviorParams` directly into the entity's `BrainBlackboard` so the AI BTree or HSM can execute it.
 
 🚨 **CRITICAL MISSING LINK IN SIMHOST:**
 While SimHost can *execute* a mission, **it cannot currently receive mission commands.** 
@@ -1062,17 +1062,17 @@ In `HeadlessDemoApp.cs`, `UrbanCombat` actually builds and compiles the behavior
 ```csharp
 // UrbanCombat actually compiles the tree logic
 var ambushBlob = TreeCompiler.CompileFromJson(AmbushJson);
-_doctrineRegistry.Register(DoctrineIds.Ambush, "Ambush", new DoctrineDefinition {
+_behaviorRegistry.Register(BehaviorIds.Ambush, "Ambush", new BehaviorDefinition {
     BrainTier = BehaviorConstants.BrainTierBTree,
     BTreeInterpreter = new Interpreter<...>(ambushBlob, ambushReg) // <-- THE ACTUAL BRAIN
 });
 ```
 
 **What `SimHost` Does:**
-In `SimHostApp.cs`, it registers the names of the doctrines, but **leaves the actual logic empty (null)**:
+In `SimHostApp.cs`, it registers the names of the behaviors, but **leaves the actual logic empty (null)**:
 ```csharp
-doctrineRegistry.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
-    new DoctrineDefinition { 
+behaviorRegistry.Register(SimHostBehaviorIds.MoveTo_BT, "MoveToLocation",
+    new BehaviorDefinition { 
         Name = "MoveToLocation", 
         BrainTier = BehaviorConstants.BrainTierBTree 
         // MISSING: BTreeInterpreter = ...
@@ -1083,7 +1083,7 @@ Because `BTreeInterpreter` is `null`, when the `BTreeTickSystem` runs, it silent
 ### 3. The Mission Progression Deviation (Ignored Triggers)
 
 **The Golden Standard (`UrbanCombat`):**
-Uses the toolkit's built-in `MissionDirectorSystem`. This system evaluates strict ECS triggers (`MissionTrigger.TimerElapsed`, `ReachedDestination`, `HealthCritical`). When a trigger fires, it automatically advances the `MissionPlanQueue` to the next phase and swaps the active doctrine.
+Uses the toolkit's built-in `MissionDirectorSystem`. This system evaluates strict ECS triggers (`MissionTrigger.TimerElapsed`, `ReachedDestination`, `HealthCritical`). When a trigger fires, it automatically advances the `MissionPlanQueue` to the next phase and swaps the active behavior.
 
 **What `SimHost` Does:**
 `SimHost` uses a custom, hacked-together `MissionAdapterSystem`. 
@@ -1110,13 +1110,13 @@ protected override void Decode(in EntityMission ddsMission, IEntityCommandBuffer
     foreach (var task in ddsMission.Plan.Tasks)
     {
         // 1. Resolve String "MoveToLocation" to int ID (3001)
-        int doctrineId = ResolveDoctrineId(task.BehaviorId);
+        int behaviorId = ResolveBehaviorId(task.BehaviorId);
         
         // 2. Resolve String Trigger to Enum
         MissionTrigger trigger = ResolveTrigger(task.Triggers);
 
         ecsQueue.Phases[ecsQueue.PhaseCount++] = new MissionPhase {
-            DoctrineId = doctrineId,
+            BehaviorId = behaviorId,
             Trigger = trigger,
             TriggerParam = ParseParam(task.Triggers)
         };
@@ -1142,7 +1142,7 @@ For example, a simple "Move To" behavior tree just needs a single Action Node th
     }
 }
 ```
-You compile this using `TreeCompiler.CompileFromJson()` and pass it into the `DoctrineRegistry`, exactly as `UrbanCombat` does.
+You compile this using `TreeCompiler.CompileFromJson()` and pass it into the `BehaviorRegistry`, exactly as `UrbanCombat` does.
 
 ### Summary
 Currently, `SimHost` is acting purely as a UI/Network router. It receives mission strings but has no actual AI or behavior execution pipeline wired up behind those strings. Bridging this gap by translating DDS Missions to ECS `MissionPlanQueue`s, and hooking up compiled `FastBTree` interpreters, is the missing link to make it work.
@@ -1155,7 +1155,7 @@ To answer your question directly: **No, the `SimHost` absolutely does NOT suppor
 
 Right now, `SimHost` is a skeletal, "driving-only" shell. It runs `CarKinematicsSystem` so vehicles can move, but it is completely **blind, deaf, and unarmed**. It lacks the Perception, Physics (Raycasting), and Combat toolkits entirely. 
 
-If you were to port an `UrbanCombat` doctrine (like "Ambush" or "ConvoyEscort") into `SimHost` right now, it would crash or do nothing, because the underlying ECS machinery to handle vision, hearing, shooting, and taking damage does not exist in the `SimHost` pipeline.
+If you were to port an `UrbanCombat` behavior (like "Ambush" or "ConvoyEscort") into `SimHost` right now, it would crash or do nothing, because the underlying ECS machinery to handle vision, hearing, shooting, and taking damage does not exist in the `SimHost` pipeline.
 
 Here is the exact blueprint of what is missing and what you must add to bring `SimHost` up to the `UrbanCombat` golden standard.
 
@@ -1264,5 +1264,5 @@ To achieve full parity with `UrbanCombat`, `SimHost` must stop being just a "tra
 2. **Register the Components** in `SimHostApp`.
 3. **Register the Systems** into the execution pipeline so vision, memory, and damage actually compute every frame.
 4. **Wire the TKB** to attach real ECS components (`WeaponState`, `PerceptionReceptor`, `PhysicsCollider`), not just UI data definitions. 
-5. **Compile the BTrees/HSMs** into `DoctrineRegistry` so the AI actually has logic to execute.
+5. **Compile the BTrees/HSMs** into `BehaviorRegistry` so the AI actually has logic to execute.
 ---

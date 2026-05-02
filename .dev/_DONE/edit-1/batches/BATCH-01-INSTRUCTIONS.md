@@ -1,4 +1,4 @@
-# BATCH-01: Foundation — `Hrot.UI.Common` Project + `DoctrineCatalog` + `DoctrineRegistry` Extension
+# BATCH-01: Foundation — `Hrot.UI.Common` Project + `BehaviorCatalog` + `BehaviorRegistry` Extension
 
 **Batch Number:** BATCH-01  
 **Tasks:** EDIT1-L001, EDIT1-L002, EDIT1-L003  
@@ -27,11 +27,11 @@ Nothing else can be built until these three tasks are complete and compiling cle
 ### Source Code Locations
 
 - **New project (create):** `Hrot.UI.Common/` (root of repo)
-- **Existing project (modify):** `Hrot.Map.Definitions/` — add `DoctrineCatalog.cs`
-- **Existing file (modify):** `FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineRegistry.cs` — add `GetRegisteredNames()`
+- **Existing project (modify):** `Hrot.Map.Definitions/` — add `BehaviorCatalog.cs`
+- **Existing file (modify):** `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs` — add `GetRegisteredNames()`
 - **FDP submodule root:** `FDP/` (this is a git submodule; changes to it require their own submodule commit on the dev branch)
 - **Solution file:** `IOS-IG-SimHost.sln` — add `Hrot.UI.Common` project reference
-- **Test project for Map.Definitions:** `Hrot.Map.Common.Tests/` — add `DoctrineCatalogTests.cs`
+- **Test project for Map.Definitions:** `Hrot.Map.Common.Tests/` — add `BehaviorCatalogTests.cs`
 - **Test project for FDP.Toolkit.Behavior:** No dedicated test project exists yet; use `Hrot.ClusterRunner.Tests/` or create `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/` if needed. Check how other FDP toolkit tests are structured first.
 
 ### Run tests with
@@ -52,7 +52,7 @@ dotnet test Hrot.ClusterRunner.Tests --no-build
   Current entries do NOT include `CivilianPedestrian`, `CivilianCar`, `MilitaryApc`, `InfantrySoldier`, `Insurgent`.
   **You must add these constants** — see DESIGN.md §0.B for the required names.
   Choose non-colliding `long` values (existing values: 100–on, 200–on, 301–on, 8801–on).
-- `DoctrineRegistry.TryGetId(string, out int)` already exists in `FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineRegistry.cs`.
+- `BehaviorRegistry.TryGetId(string, out int)` already exists in `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs`.
   Only `GetRegisteredNames()` is missing.
 - The `Hrot.UI.Common` project must NOT reference `Hrot.ExCon`, `CycloneDDS`, or `ModuleHost`.
 - `Hrot.ExCon` already has `IMapPickService.cs` and `IMissionEditorService.cs` in its `Services/` folder.
@@ -82,8 +82,8 @@ No panel or adapter implementations go in this batch.
 ## 🎯 Batch Objectives
 
 1. **EDIT1-L001** — Create `Hrot.UI.Common` project with all nine Port interfaces and three shared DTOs.
-2. **EDIT1-L002** — Add `DoctrineCatalog` static class to `Hrot.Map.Definitions` and add missing `TkbEntityTypes` constants.
-3. **EDIT1-L003** — Add `GetRegisteredNames()` to `DoctrineRegistry` in FDP.Toolkit.Behavior.
+2. **EDIT1-L002** — Add `BehaviorCatalog` static class to `Hrot.Map.Definitions` and add missing `TkbEntityTypes` constants.
+3. **EDIT1-L003** — Add `GetRegisteredNames()` to `BehaviorRegistry` in FDP.Toolkit.Behavior.
 
 ---
 
@@ -118,7 +118,7 @@ No panel or adapter implementations go in this batch.
 
 ---
 
-### Task 2: EDIT1-L002 — `DoctrineCatalog` in `Hrot.Map.Definitions`
+### Task 2: EDIT1-L002 — `BehaviorCatalog` in `Hrot.Map.Definitions`
 
 **Full task spec:** `.dev/edit-1/TASK-DETAIL.md` §EDIT1-L002  
 **Design reference:** `.dev/edit-1/DESIGN.md` §0.B
@@ -127,26 +127,26 @@ No panel or adapter implementations go in this batch.
 - Add missing TKB type constants to `Hrot.Map.Definitions/TkbEntityTypes.cs`:
   `CivilianPedestrian`, `CivilianCar`, `MilitaryApc`, `InfantrySoldier`, `Insurgent`  
   (choose non-colliding long values, e.g. 501–505 range)
-- Create `Hrot.Map.Definitions/Tkb/DoctrineCatalog.cs` — `public static class DoctrineCatalog`
-- Implement `GetValidDoctrines(long tkbType) → IReadOnlyList<string>` using a C# 12 switch expression
+- Create `Hrot.Map.Definitions/Tkb/BehaviorCatalog.cs` — `public static class BehaviorCatalog`
+- Implement `GetValidBehaviors(long tkbType) → IReadOnlyList<string>` using a C# 12 switch expression
 - Back each returned list with a `private static readonly` field to avoid per-call allocation
 - Cover all entity types specified in TASK-DETAIL §EDIT1-L002
 
 **Tests required (write in `Hrot.Map.Common.Tests/`):**
-1. `DoctrineCatalog.GetValidDoctrines(TkbEntityTypes.Insurgent)` returns list containing `"Ambush"` and NOT containing `"WanderCivil"`
-2. `DoctrineCatalog.GetValidDoctrines(TkbEntityTypes.CivilianPedestrian)` returns list containing `"WanderCivil"` and NOT containing `"Ambush"`
-3. `DoctrineCatalog.GetValidDoctrines(-999L)` returns fallback list containing `"MoveToLocation"`
+1. `BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.Insurgent)` returns list containing `"Ambush"` and NOT containing `"WanderCivil"`
+2. `BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.CivilianPedestrian)` returns list containing `"WanderCivil"` and NOT containing `"Ambush"`
+3. `BehaviorCatalog.GetValidBehaviors(-999L)` returns fallback list containing `"MoveToLocation"`
 4. Same list instance is returned on repeated calls (no per-call allocation — verify with `object.ReferenceEquals`)
 
 ---
 
-### Task 3: EDIT1-L003 — `DoctrineRegistry.GetRegisteredNames()`
+### Task 3: EDIT1-L003 — `BehaviorRegistry.GetRegisteredNames()`
 
 **Full task spec:** `.dev/edit-1/TASK-DETAIL.md` §EDIT1-L003  
 **Design reference:** `.dev/edit-1/DESIGN.md` §0.C
 
 **Summary of scope:**
-- File: `FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineRegistry.cs`
+- File: `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs`
 - Add single public method: `public IReadOnlyList<string> GetRegisteredNames()`
 - Implementation: `_nameToId.Keys.ToList()` (snapshot — cannot mutate the registry)
 - `TryGetId` already exists — no change needed
@@ -157,7 +157,7 @@ No panel or adapter implementations go in this batch.
 top-level repo. Both commits are needed.
 
 **Tests required (write in `Hrot.ClusterRunner.Tests/` or a new toolkit test project):**
-1. Register two doctrines with different names → `GetRegisteredNames()` returns both names
+1. Register two behaviors with different names → `GetRegisteredNames()` returns both names
 2. Empty registry → `GetRegisteredNames()` returns empty list (not null)
 
 ---
@@ -210,7 +210,7 @@ Your report must answer ALL of the following:
 **Q1:** What issues did you encounter during implementation? How did you resolve each one?
 
 **Q2:** Did you spot any weak points in the existing codebase structure  
-(e.g. in `DoctrineRegistry`, `TkbEntityTypes`, or the FDP submodule workflow)?  
+(e.g. in `BehaviorRegistry`, `TkbEntityTypes`, or the FDP submodule workflow)?  
 What would you improve?
 
 **Q3:** What design decisions did you make beyond the instructions?  
@@ -233,8 +233,8 @@ This batch is DONE when:
 - [ ] All nine Port interfaces compile with correct signatures
 - [ ] All three DTOs compile as records
 - [ ] `TkbEntityTypes` has constants for `CivilianPedestrian`, `CivilianCar`, `MilitaryApc`, `InfantrySoldier`, `Insurgent`
-- [ ] `DoctrineCatalog.GetValidDoctrines` returns correct doctrine lists per TKB type
-- [ ] `DoctrineRegistry.GetRegisteredNames()` returns a snapshot of registered doctrine names
+- [ ] `BehaviorCatalog.GetValidBehaviors` returns correct behavior lists per TKB type
+- [ ] `BehaviorRegistry.GetRegisteredNames()` returns a snapshot of registered behavior names
 - [ ] All unit tests pass (minimum 7 tests covering Tasks 2 and 3)
 - [ ] No regressions in existing test suites
 - [ ] Report submitted to `.dev/edit-1/reports/BATCH-01-REPORT.md`
@@ -246,7 +246,7 @@ This batch is DONE when:
 - **Task Specs:** `.dev/edit-1/TASK-DETAIL.md` — §EDIT1-L001, §EDIT1-L002, §EDIT1-L003
 - **Design:** `.dev/edit-1/DESIGN.md` — §Phase 0, §0.A, §0.B, §0.C, Component Map
 - **Existing TKB types:** `Hrot.Map.Definitions/TkbEntityTypes.cs`
-- **Existing DoctrineRegistry:** `FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineRegistry.cs`
+- **Existing BehaviorRegistry:** `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs`
 - **Existing BehaviorConstants:** `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorConstants.cs`
 - **Pattern reference for interfaces:** `Hrot.ExCon/Services/IMapPickService.cs`, `Hrot.ExCon/Services/IMissionEditorService.cs`
 - **Solution file:** `IOS-IG-SimHost.sln`

@@ -1,4 +1,4 @@
-# BATCH-01: Phases 1, 2, 3 + DoctrineIngressSystem HSM reset
+# BATCH-01: Phases 1, 2, 3 + BehaviorIngressSystem HSM reset
 
 **Batch Number:** BATCH-01
 **Tasks:** BHU-001, BHU-002, BHU-003, BHU-004, BHU-005, BHU-006, BHU-007, BHU-008, BHU-009, BHU-010, BHU-015, BHU-016
@@ -21,12 +21,12 @@
 
 | File | Task |
 |------|------|
-| `Hrot/Subsystems/Hrot.AI.Doctrines/Hrot.AI.Doctrines.csproj` | BHU-001 |
-| `Hrot/Subsystems/Hrot.AI.Doctrines/Brains/CgfHsmNodes.cs` (NEW) | BHU-001 |
+| `Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj` | BHU-001 |
+| `Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CgfHsmNodes.cs` (NEW) | BHU-001 |
 | `FDP/ExtDeps/FastHSM/src/Fhsm.SourceGen/HsmActionGenerator.cs` | BHU-002 |
 | `Hrot/Subsystems/Hrot.Editor/AiHotReloadCoordinator.cs` (NEW) | BHU-003 |
 | `Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs` | BHU-004 |
-| `Hrot/Subsystems/Hrot.AI.Doctrines/AiDoctrineFactory.cs` | BHU-004 |
+| `Hrot/Subsystems/Hrot.AI.Behaviors/AiBehaviorFactory.cs` | BHU-004 |
 | `FDP/ExtDeps/FastHSM/src/Fhsm.Compiler/Graph/StateNode.cs` | BHU-005 |
 | `FDP/ExtDeps/FastHSM/src/Fhsm.Compiler/HsmBuilder.cs` | BHU-005 |
 | `FDP/ExtDeps/FastHSM/src/Fhsm.Compiler/HsmFlattener.cs` | BHU-005 |
@@ -36,7 +36,7 @@
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/CognitiveCleanupSystem.cs` (NEW) | BHU-015 |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Modules/CognitiveRuntimeModule.cs` | BHU-010 |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/HsmDamageBridgeSystem.cs` (DELETE) | BHU-010 |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/DoctrineIngressSystem.cs` | BHU-016 |
+| `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BehaviorIngressSystem.cs` | BHU-016 |
 
 ### Test projects you will run
 
@@ -75,29 +75,29 @@ Do not stop to ask permission for obvious actions (running tests, fixing compile
 
 ## Context
 
-This batch implements the core BTree+HSM unification: the unified hot-reload coordinator, full HSM terminal state routing (so HSM doctrines emit `DoctrineFinishedEvent` just like BTree), cognitive interrupt decoupling (replacing `HsmDamageBridgeSystem` with a paradigm-agnostic blackboard byte approach), and the defensive `DoctrineIngressSystem` HSM reset.
+This batch implements the core BTree+HSM unification: the unified hot-reload coordinator, full HSM terminal state routing (so HSM behaviors emit `BehaviorFinishedEvent` just like BTree), cognitive interrupt decoupling (replacing `HsmDamageBridgeSystem` with a paradigm-agnostic blackboard byte approach), and the defensive `BehaviorIngressSystem` HSM reset.
 
 After this batch:
-- HSM doctrines can hot-reload through the same path as BTree doctrines.
-- An HSM that enters a `.Final()` state publishes `DoctrineFinishedEvent` exactly once.
+- HSM behaviors can hot-reload through the same path as BTree behaviors.
+- An HSM that enters a `.Final()` state publishes `BehaviorFinishedEvent` exactly once.
 - `CanMove→false` edge triggers byte 126 in the shared blackboard, consumed by both HSM and BTree tiers in the same frame, then cleared.
 
 ---
 
 ## Tasks
 
-### BHU-001 — Add Fhsm references to `Hrot.AI.Doctrines.csproj`
+### BHU-001 — Add Fhsm references to `Hrot.AI.Behaviors.csproj`
 
 Full spec: `.dev/btree-hsm-unif/TASK-DETAIL.md` — section "BHU-001".
 
 Key points:
 - Add three `ProjectReference` entries (Fhsm.Kernel, Fhsm.Compiler, Fhsm.SourceGen as Analyzer).
-- Create `Hrot/Subsystems/Hrot.AI.Doctrines/Brains/CgfHsmNodes.cs` with one stub `[HsmAction]` static method (empty body, correct unmanaged signature: `static unsafe void StubIdle(void* instance, void* ctx, HsmCommandWriter* writer)`). Namespace must be `Hrot.AI.Doctrines`.
+- Create `Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CgfHsmNodes.cs` with one stub `[HsmAction]` static method (empty body, correct unmanaged signature: `static unsafe void StubIdle(void* instance, void* ctx, HsmCommandWriter* writer)`). Namespace must be `Hrot.AI.Behaviors`.
 - After build, confirm `obj/` contains `HsmActionRegistrar.g.cs`.
 
 **Tests required:**
-- `dotnet build Hrot/Subsystems/Hrot.AI.Doctrines/Hrot.AI.Doctrines.csproj` — zero errors.
-- All existing BTree tests for `Hrot.AI.Doctrines` continue to pass (run via solution build).
+- `dotnet build Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj` — zero errors.
+- All existing BTree tests for `Hrot.AI.Behaviors` continue to pass (run via solution build).
 
 ---
 
@@ -128,12 +128,12 @@ Full spec: `.dev/btree-hsm-unif/TASK-DETAIL.md` — section "BHU-003". Read the 
 Create `Hrot/Subsystems/Hrot.Editor/AiHotReloadCoordinator.cs` in namespace `Hrot.Editor`.
 
 Critical design constraints (MUST follow exactly):
-- Background thread: loads new ALC, reflects `AiDoctrineFactory.BuildRegistrationAction`, builds staging registry, enqueues `(stagingRegistry, newAlc, oldAlc)` via `ConcurrentQueue`. Does NOT touch `HsmActionDispatcher` here.
+- Background thread: loads new ALC, reflects `AiBehaviorFactory.BuildRegistrationAction`, builds staging registry, enqueues `(stagingRegistry, newAlc, oldAlc)` via `ConcurrentQueue`. Does NOT touch `HsmActionDispatcher` here.
 - Main-thread `DrainPendingCallbacks()`: **step order is mandatory**:
   1. `HsmActionDispatcher.ClearAll()`
-  2. Reflect `Hrot.AI.Doctrines.Generated.HsmActionRegistrar.RegisterAll()` from newAlc assembly and invoke.
-  3. Apply staging registry to live `DoctrineRegistry`.
-  4. For each HSM doctrine in staging: iterate `world.GetComponentTable<BrainHsmNN>().GetSpan(chunkIndex)` over all chunks (use `world.GetComponentTable<BrainHsm64/128>().GetChunkTable().TotalChunks`) and call `HotReloadManager.TryReload()` per-chunk span.
+  2. Reflect `Hrot.AI.Behaviors.Generated.HsmActionRegistrar.RegisterAll()` from newAlc assembly and invoke.
+  3. Apply staging registry to live `BehaviorRegistry`.
+  4. For each HSM behavior in staging: iterate `world.GetComponentTable<BrainHsmNN>().GetSpan(chunkIndex)` over all chunks (use `world.GetComponentTable<BrainHsm64/128>().GetChunkTable().TotalChunks`) and call `HotReloadManager.TryReload()` per-chunk span.
   5. Store `PreviousAlcRef = new WeakReference<AssemblyLoadContext>(oldAlc)` then null out old ALC field.
 - `TriggerInitialLoad()` method.
 - `IDisposable` — dispose `FileSystemWatcher`, debounce timer.
@@ -157,14 +157,14 @@ Two files:
 - Replace the `FbtAssemblyHotReloader` constructor call (around line 367) with `AiHotReloadCoordinator` constructor.
 - Replace `_aiHotReloader.DrainPendingCallbacks()` (around line 730) with `_aiCoordinator.DrainPendingCallbacks()`.
 - Wire `OnReloadCompleted`/`OnReloadFailed` events to existing log source.
-- Remove `_pendingDoctrineApply` field and the `Interlocked.Exchange` staging lambda (now inside coordinator).
+- Remove `_pendingBehaviorApply` field and the `Interlocked.Exchange` staging lambda (now inside coordinator).
 - Keep `_aiHotReloader.TriggerInitialLoad()` call as `_aiCoordinator.TriggerInitialLoad()`.
 - Dispose in `Shutdown()`.
 
-**`Hrot/Subsystems/Hrot.AI.Doctrines/AiDoctrineFactory.cs`:**
+**`Hrot/Subsystems/Hrot.AI.Behaviors/AiBehaviorFactory.cs`:**
 - Extend `BuildRegistrationAction(...)` returned lambda to build a real `HsmDefinitionBlob` for `Idle_HSM` using `HsmBuilder` + `HsmCompiler.Compile()`:
   - Single state `"Idle"` marked `.Initial()` (no transitions, no final state — it's a steady-state idle).
-  - Register via `registry.Register(DoctrineIds.Idle_HSM, "Idle_HSM", new DoctrineDefinition { Name="Idle_HSM", BrainTier=BehaviorConstants.BrainTierHsm, HsmDefinition=blob })`.
+  - Register via `registry.Register(BehaviorIds.Idle_HSM, "Idle_HSM", new BehaviorDefinition { Name="Idle_HSM", BrainTier=BehaviorConstants.BrainTierHsm, HsmDefinition=blob })`.
 
 **Tests required:**
 - `dotnet build Hrot/Subsystems/Hrot.Editor/Hrot.Editor.csproj` — zero errors.
@@ -220,7 +220,7 @@ if ((header->Flags & InstanceFlags.Terminated) != 0)
 
 ---
 
-### BHU-007 — `HsmTickSystem<T>`: detect Terminated + publish `DoctrineFinishedEvent`
+### BHU-007 — `HsmTickSystem<T>`: detect Terminated + publish `BehaviorFinishedEvent`
 
 Full spec: `.dev/btree-hsm-unif/TASK-DETAIL.md` — section "BHU-007". Read all 6 steps in the spec carefully.
 
@@ -244,13 +244,13 @@ ref var hdr = ref Unsafe.As<T, InstanceHeader>(ref component);
 if ((hdr.Flags & InstanceFlags.Terminated) != 0)
 {
     int  entityIdx  = entity.Index;
-    uint instanceId = doctrine.InstanceId;
+    uint instanceId = behavior.InstanceId;
     if (!_publishedTerminalForInstanceId.TryGetValue(entityIdx, out uint prev)
         || prev != instanceId)
     {
         _publishedTerminalForInstanceId[entityIdx] = instanceId;
-        repo.Bus.Publish(new DoctrineFinishedEvent { Entity = entity });
-        // Terminal latch fix: clear flag so new doctrine doesn't fire spurious event
+        repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity });
+        // Terminal latch fix: clear flag so new behavior doesn't fire spurious event
         hdr.Flags &= (InstanceFlags)(~(byte)InstanceFlags.Terminated);
         hdr.Phase  = InstancePhase.Idle;
     }
@@ -268,9 +268,9 @@ foreach (var key in _staleKeys) _publishedTerminalForInstanceId.Remove(key);
 The `_eventBus` / `repo.Bus` pattern: `BTreeTickSystem` uses `repo.Bus.Publish` directly inside the Execute method, passing `repo` which comes from the `ISimulationView view` cast. Follow the exact same pattern — do not add a constructor parameter for the bus.
 
 **Tests required** (add to `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/`):
-- Entity with `BrainHsm64` advances to final state: assert exactly one `DoctrineFinishedEvent` published.
+- Entity with `BrainHsm64` advances to final state: assert exactly one `BehaviorFinishedEvent` published.
 - Second tick on same entity (Terminated cleared): assert no second event.
-- Assign new doctrine (InstanceId bumped): assert a new event fires for the new doctrine's terminal.
+- Assign new behavior (InstanceId bumped): assert a new event fires for the new behavior's terminal.
 - Destroyed entity: `_publishedTerminalForInstanceId` no longer contains that key after one tick without the entity.
 
 ---
@@ -375,13 +375,13 @@ Update `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/Modules/CognitiveRuntimeModuleT
 
 ---
 
-### BHU-016 — `DoctrineIngressSystem`: reset `BrainHsm64`/`BrainHsm128` on HSM doctrine assignment
+### BHU-016 — `BehaviorIngressSystem`: reset `BrainHsm64`/`BrainHsm128` on HSM behavior assignment
 
 Full spec: `.dev/btree-hsm-unif/TASK-DETAIL.md` — section "BHU-016".
 
-File: `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/DoctrineIngressSystem.cs`
+File: `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BehaviorIngressSystem.cs`
 
-In the `AssignDoctrineEvent` handler, after the BTree reset (`btState.State = default`), add HSM reset for both sizes. Use `Unsafe.As` to get the `InstanceHeader*` from the component ref and manually apply the same reset that `HotReloadManager.HardReset` performs:
+In the `AssignBehaviorEvent` handler, after the BTree reset (`btState.State = default`), add HSM reset for both sizes. Use `Unsafe.As` to get the `InstanceHeader*` from the component ref and manually apply the same reset that `HotReloadManager.HardReset` performs:
 
 ```csharp
 // Reset HSM instance if present
@@ -434,11 +434,11 @@ if (def.BrainTier == BehaviorConstants.BrainTierHsm)
 }
 ```
 
-Also apply the same reset in the `AssignDoctrineHashEvent` handler (same pattern, look at existing handler around line 155 of `DoctrineIngressSystem.cs`).
+Also apply the same reset in the `AssignBehaviorHashEvent` handler (same pattern, look at existing handler around line 155 of `BehaviorIngressSystem.cs`).
 
 **Tests required** (add to `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/`):
-- Assign doctrine A (HSM, reaches final state → `Terminated` set). Then assign doctrine B. Assert `Terminated` is cleared and `Phase == InstancePhase.Idle`.
-- Assign two consecutive HSM doctrines. Assert `ActiveLeafIds[0] == 0xFFFF` after second assignment.
+- Assign behavior A (HSM, reaches final state → `Terminated` set). Then assign behavior B. Assert `Terminated` is cleared and `Phase == InstancePhase.Idle`.
+- Assign two consecutive HSM behaviors. Assert `ActiveLeafIds[0] == 0xFFFF` after second assignment.
 
 ---
 
@@ -456,17 +456,17 @@ Also apply the same reset in the `AssignDoctrineHashEvent` handler (same pattern
 ## Success Criteria
 
 This batch is DONE when:
-- [ ] BHU-001: `Hrot.AI.Doctrines` builds with Fhsm references; `HsmActionRegistrar.g.cs` generated
+- [ ] BHU-001: `Hrot.AI.Behaviors` builds with Fhsm references; `HsmActionRegistrar.g.cs` generated
 - [ ] BHU-002: `HsmActionDispatcher` has `ClearAll()`; test proves it empties tables
 - [ ] BHU-003: `AiHotReloadCoordinator` built; ALC unload test passes
 - [ ] BHU-004: `EditorSubsystem` uses coordinator; `Hrot.Editor.Tests` all pass
 - [ ] BHU-005: `IsFinal` in compiler; test proves `StateFlags.IsFinal` emitted
 - [ ] BHU-006: `Terminated` set on final state entry; second `Update` is no-op
-- [ ] BHU-007: `DoctrineFinishedEvent` published once; dedup + latch clear confirmed
+- [ ] BHU-007: `BehaviorFinishedEvent` published once; dedup + latch clear confirmed
 - [ ] BHU-008: `CognitiveInterruptSystem` edge-triggers byte 126
 - [ ] BHU-009: `HsmTickSystem` reads byte 126 → injects event; does NOT clear it
 - [ ] BHU-010 + BHU-015: 6-system order confirmed; `HsmDamageBridgeSystem` deleted
-- [ ] BHU-016: HSM state reset on doctrine reassignment; `Terminated` cleared
+- [ ] BHU-016: HSM state reset on behavior reassignment; `Terminated` cleared
 - [ ] `dotnet build IOS-IG-SimHost.sln --no-restore -v quiet` — zero `error CS` lines
 
 ---
@@ -482,5 +482,5 @@ This batch is DONE when:
 - **InstanceHeader layout:** `FDP/ExtDeps/FastHSM/src/Fhsm.Kernel/Data/InstanceHeader.cs`
 - **Enums (StateFlags, InstanceFlags, InstancePhase):** `FDP/ExtDeps/FastHSM/src/Fhsm.Kernel/Data/Enums.cs`
 - **TestWorldFactory:** `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/TestWorldFactory.cs`
-- **DoctrineRegistry:** `FDP/Toolkits/Fdp.Toolkits/Behavior/DoctrineRegistry.cs`
+- **BehaviorRegistry:** `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorRegistry.cs`
 - **BehaviorConstants (EventId_MobilityLost = 1):** `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorConstants.cs`

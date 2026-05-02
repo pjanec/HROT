@@ -10,13 +10,13 @@
 
 ## 1. Executive Summary
 
-The current SimHost is a **monolithic all-in-one process**: it runs the AI brain (doctrine assignment, BTree evaluation, LocomotionDispatcher) and the physics muscles (CarKinematics, collision avoidance) in the same executable, wired together through shared ECS components.
+The current SimHost is a **monolithic all-in-one process**: it runs the AI brain (behavior assignment, BTree evaluation, LocomotionDispatcher) and the physics muscles (CarKinematics, collision avoidance) in the same executable, wired together through shared ECS components.
 
 This workstream refactors the architecture into a set of **composable, independently-deployable modules** that snap together at configuration time to form any desired deployment topology:
 
 | Node Role          | What it does                                                                         |
 |--------------------|--------------------------------------------------------------------------------------|
-| `Brain`            | Mission planning, doctrine evaluation, BTree/HSM ticks, intent output                |
+| `Brain`            | Mission planning, behavior evaluation, BTree/HSM ticks, intent output                |
 | `MuscleGround`     | Ground vehicle kinematics and collision avoidance                                    |
 | `Perception`       | Autonomous smart sensors (vision broadphase, threat evaluation) + raycast solver     |
 | `NavigationSolver` | On-demand pathfinding; returns lightweight Route Handles to the Brain                |
@@ -37,7 +37,7 @@ Understanding the _current_ clean data-flow is essential before splitting it acr
 Brain layer                        Nervous system              Muscle layer
 ──────────────────────────────   ─────────────────────────   ────────────────────
 MissionDirectorSystem              LocomotionDispatcher         CarKinematicsSystem
-DoctrineIngressSystem     ────►   MoveToExecutor        ────►  SpatialHashSystem
+BehaviorIngressSystem     ────►   MoveToExecutor        ────►  SpatialHashSystem
 BTreeTickSystem                                                 LinearKinemat...
                   ▲ observes                       ▼ writes
               SimTransform                        NavState
@@ -218,25 +218,25 @@ These are in `FDP\Toolkits\Fdp.Toolkit.Geographic\Systems\`.
 
 #### 3.2.1  Current State
 
-`SimulationLogicModule` is **not** an `IModule`; it exposes a `RegisterSystems(inputGroup, simGroup, postSimGroup)` method called directly from `SimHostApp.OnLoad`. It registers in a single call: mission direction, doctrine ingress, channel arbitration, BTree ticks, HSM ticks, weapon dispatch, perception, damage, locomotion dispatch, car kinematics, linear kinematics, ballistics, and formation systems.
+`SimulationLogicModule` is **not** an `IModule`; it exposes a `RegisterSystems(inputGroup, simGroup, postSimGroup)` method called directly from `SimHostApp.OnLoad`. It registers in a single call: mission direction, behavior ingress, channel arbitration, BTree ticks, HSM ticks, weapon dispatch, perception, damage, locomotion dispatch, car kinematics, linear kinematics, ballistics, and formation systems.
 
 #### 3.2.2  `MissionControlModule` (The Higher Brain)
 
-**Responsibility:** Top-down command processing — doctrine assignment, multi-phase mission plan advancement.  
+**Responsibility:** Top-down command processing — behavior assignment, multi-phase mission plan advancement.  
 **Systems registered (in order):**
-1. `DoctrineIngressSystem(_doctrineRegistry)` — input phase
+1. `BehaviorIngressSystem(_behaviorRegistry)` — input phase
 2. `MissionDirectorSystem()` — simulation phase
 
 #### 3.2.3  `CognitiveRuntimeModule` (The Core Brain)
 
 **Responsibility:** Per-frame AI evaluation; behavior tree and HSM stepping.  
 **Systems registered (in order):**
-1. `ChannelArbitrationSystem()` — clears stale channels when doctrine changes
-2. `BTreeTickSystem(_doctrineRegistry)`
-3. `HsmTickSystem<BrainHsm128>(_doctrineRegistry)`
-4. `HsmTickSystem<BrainHsm64>(_doctrineRegistry)`
+1. `ChannelArbitrationSystem()` — clears stale channels when behavior changes
+2. `BTreeTickSystem(_behaviorRegistry)`
+3. `HsmTickSystem<BrainHsm128>(_behaviorRegistry)`
+4. `HsmTickSystem<BrainHsm64>(_behaviorRegistry)`
 
-The `DoctrineRegistry` is injected via constructor.
+The `BehaviorRegistry` is injected via constructor.
 
 #### 3.2.4  `ActionDispatchModule` (The Nervous System)
 
@@ -302,7 +302,7 @@ Complement the existing `HrotSharedComponentRegistry` with domain-scoped registr
 
 ```
 HrotSharedComponentRegistry   — SimTransform, SimVelocity, network identity, lifecycle
-CognitiveComponentRegistry       — DoctrineState, BrainBlackboard, BrainBTreeState, BrainHsm128/64, LocomotionChannel, WeaponChannel, MissionPlanQueue, NavigationIntent
+CognitiveComponentRegistry       — BehaviorState, BrainBlackboard, BrainBTreeState, BrainHsm128/64, LocomotionChannel, WeaponChannel, MissionPlanQueue, NavigationIntent
 KinematicComponentRegistry       — VehicleState, VehicleParams, NavState, FormationMember, FormationRoster, FormationTarget, NavigationStatus
 CombatComponentRegistry          — Faction, PerceptionReceptor, TargetMemory, WeaponState, Health, HealthData, BallisticProjectile, PhysicsCollider
 ```
@@ -332,8 +332,8 @@ public class NodeBootstrapper
         if (role is NodeRole.Brain or NodeRole.AllInOne)
         {
             CognitiveComponentRegistry.RegisterAll(world);
-            kernel.RegisterModule(new MissionControlModule(doctrineRegistry));
-            kernel.RegisterModule(new CognitiveRuntimeModule(doctrineRegistry));
+            kernel.RegisterModule(new MissionControlModule(behaviorRegistry));
+            kernel.RegisterModule(new CognitiveRuntimeModule(behaviorRegistry));
             kernel.RegisterModule(new ActionDispatchModule(vehicleApi, entityMap));
             translators.AddRange(CognitiveTranslatorPack.Create(dds, entityMap));
         }
@@ -496,7 +496,7 @@ public record NodeConfiguration
     public string  CycloneDdsConfigPath  { get; init; } = "config/dds-allinone.xml";
     public int     DdsDomainId           { get; init; } = 42;
     public string  RoadNetworkBlobPath   { get; init; }
-    public string  DoctrineRegistryPath  { get; init; }
+    public string  BehaviorRegistryPath  { get; init; }
     public string  EntityTemplatePath    { get; init; }
 }
 ```

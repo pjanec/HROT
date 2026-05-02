@@ -198,16 +198,16 @@ namespace Hrot.Map.Definitions.Tkb
 
         /// <summary>
         /// Stamps the navigation and behavior-brain components required for the
-        /// CarKinem locomotion and FDP BTree doctrine systems to process this entity.
+        /// CarKinem locomotion and FDP BTree behavior systems to process this entity.
         ///
         /// Must be called for every vehicle that should accept mission assignments
-        /// (e.g. WanderMilitary doctrine via <c>MissionControlRequest</c>).
+        /// (e.g. WanderMilitary behavior via <c>MissionControlRequest</c>).
         ///
         /// Components added (all zero-initialised; systems populate them at runtime):
         /// <list type="bullet">
         ///   <item><see cref="VehicleState"/> / <see cref="NavState"/> — CarKinem kinematics.</item>
         ///   <item><see cref="SimVelocity"/> — world-space velocity written by locomotion.</item>
-        ///   <item><see cref="DoctrineState"/> (BrainTier = BTree) — active doctrine hash.</item>
+        ///   <item><see cref="BehaviorState"/> (BrainTier = BTree) — active behavior hash.</item>
         ///   <item><see cref="MissionPlanQueue"/> — phase queue maintained by MissionAdapterSystem.</item>
         ///   <item><see cref="BrainBTreeState"/> / <see cref="BrainBlackboard"/> — brain execution state.</item>
         ///   <item><see cref="LocomotionChannel"/> / <see cref="WeaponChannel"/> / <see cref="InteractionChannel"/> — action dispatch channels.</item>
@@ -225,8 +225,8 @@ namespace Hrot.Map.Definitions.Tkb
             template.AddComponent(new NavState());
             template.AddComponent(new SimVelocity());
 
-            // Doctrine / mission
-            template.AddComponent(new DoctrineState
+            // Behavior / mission
+            template.AddComponent(new BehaviorState
             {
                 BrainTier = BehaviorConstants.BrainTierBTree
             });

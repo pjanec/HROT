@@ -31,7 +31,7 @@ namespace Hrot.SimHost.Tests
             var world = new EntityRepository();
 
             // Behavior toolkit components
-            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.DoctrineState>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.InteractionChannel>();
@@ -93,11 +93,11 @@ namespace Hrot.SimHost.Tests
         public void CgfLogicPack_EmptyWorld_AllSystemsRegisterAndRunWithoutException()
         {
             using var world   = CreateEmptyWorld();
-            var doctrineRegistry = new DoctrineRegistry();
+            var behaviorRegistry = new BehaviorRegistry();
             var entityMap        = new NetworkEntityMap();
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
-            var pack    = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource,
+            var pack    = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
                 new TacticalIntentMapperRegistry());
             var view = (ISimulationView)world;
             var ex = Record.Exception(() =>
@@ -107,7 +107,7 @@ namespace Hrot.SimHost.Tests
             });
             Assert.Null(ex);
 
-            // InputSystems: MissionControlExecutionSystem (1), DoctrineIngressSystem (1) = 2
+            // InputSystems: MissionControlExecutionSystem (1), BehaviorIngressSystem (1) = 2
             // SimulationSystems: 15 + TacticalIntentResolutionSystem = 16
             Assert.Equal(2,  pack.InputSystems.Count);
             Assert.Equal(16, pack.SimulationSystems.Count);
@@ -121,14 +121,14 @@ namespace Hrot.SimHost.Tests
         public void CgfLogicPack_ContainsSystemsFromAllThreeSubModules()
         {
             using var world      = CreateEmptyWorld();
-            var doctrineRegistry = new DoctrineRegistry();
+            var behaviorRegistry = new BehaviorRegistry();
             var entityMap        = new NetworkEntityMap();
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
-            var pack     = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource,
+            var pack     = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
                 new TacticalIntentMapperRegistry());
             // MissionControlModule systems in InputSystems + SimulationSystems
-            Assert.Contains(pack.InputSystems,      s => s is DoctrineIngressSystem);
+            Assert.Contains(pack.InputSystems,      s => s is BehaviorIngressSystem);
             Assert.Contains(pack.SimulationSystems, s => s is MissionDirectorSystem);
 
             // CognitiveRuntimeModule systems
@@ -147,7 +147,7 @@ namespace Hrot.SimHost.Tests
         public void CgfLogicPack_Name_IsCgfLogicPack()
         {
             var pack = new CgfLogicPack(
-                new DoctrineRegistry(),
+                new BehaviorRegistry(),
                 new NetworkEntityMap(),
                 new ScenarioEntityCreationRequestSource(),
                 new TacticalIntentMapperRegistry());
@@ -164,7 +164,7 @@ namespace Hrot.SimHost.Tests
         {
             var ex = Assert.Throws<ArgumentNullException>(() =>
                 new CgfLogicPack(
-                    new DoctrineRegistry(),
+                    new BehaviorRegistry(),
                     new NetworkEntityMap(),
                     scenarioSource: null!,
                     mapperRegistry: new TacticalIntentMapperRegistry()));
@@ -261,29 +261,29 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// S306-SC1/SC2/SC3: The two-group overload places <see cref="MissionControlExecutionSystem"/>
-        /// and <see cref="DoctrineIngressSystem"/> in the Input group, and all remaining
+        /// and <see cref="BehaviorIngressSystem"/> in the Input group, and all remaining
         /// systems in the Simulation group.
         /// </summary>
         [Fact]
         public void CgfLogicPack_TwoGroupOverload_RoutesSystemsCorrectly()
         {
             using var world      = CreateEmptyWorld();
-            var doctrineRegistry = new DoctrineRegistry();
+            var behaviorRegistry = new BehaviorRegistry();
             var entityMap        = new NetworkEntityMap();
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
-            var pack       = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource,
+            var pack       = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
                 new TacticalIntentMapperRegistry());
             // SC1: MissionControlExecutionSystem is in InputSystems.
             Assert.Contains(pack.InputSystems, s => s is MissionControlExecutionSystem);
-            // SC2: DoctrineIngressSystem is in InputSystems.
-            Assert.Contains(pack.InputSystems, s => s is DoctrineIngressSystem);
+            // SC2: BehaviorIngressSystem is in InputSystems.
+            Assert.Contains(pack.InputSystems, s => s is BehaviorIngressSystem);
             // SC3: MissionDirectorSystem is in SimulationSystems.
             Assert.Contains(pack.SimulationSystems, s => s is MissionDirectorSystem);
             // MissionAdapterSystem stays in SimulationSystems.
             Assert.Contains(pack.SimulationSystems, s => s is MissionAdapterSystem);
 
-            // InputSystems: MissionControlExecutionSystem + DoctrineIngressSystem = 2
+            // InputSystems: MissionControlExecutionSystem + BehaviorIngressSystem = 2
             Assert.Equal(2,  pack.InputSystems.Count);
             // SimulationSystems: total 18 - 2 = 16
             Assert.Equal(16, pack.SimulationSystems.Count);
@@ -297,11 +297,11 @@ namespace Hrot.SimHost.Tests
         public void CgfLogicPack_SingleGroupOverload_StillAddsAllSystemsToOneGroup()
         {
             using var world      = CreateEmptyWorld();
-            var doctrineRegistry = new DoctrineRegistry();
+            var behaviorRegistry = new BehaviorRegistry();
             var entityMap        = new NetworkEntityMap();
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
-            var pack     = new CgfLogicPack(doctrineRegistry, entityMap, scenarioSource,
+            var pack     = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
                 new TacticalIntentMapperRegistry());
             // Total systems across both phases equals 18 (split: 2 input + 16 sim).
             Assert.Equal(18, pack.InputSystems.Count + pack.SimulationSystems.Count);

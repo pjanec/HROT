@@ -15,7 +15,7 @@
 | DEM1-F002 | ✅ Complete | IScenario, ScenarioFailureException, ScenarioSubsystem in new Fdp.Examples.Common project |
 | DEM1-F003 | ✅ Complete | fdp-demo-runner CLI with DemoRunnerOptions, ScenarioRegistry, Program.cs |
 | DEM1-F004 | ✅ Complete | Programmatic NLog setup in Program.cs — file + console targets, log path printed to stdout |
-| DEM1-F005 | ✅ Complete | ScenarioNames/DemoTemplateIds/DemoDoctrineIds constants, ScenarioTestHarness, Fdp.Examples.Scenarios.Tests project |
+| DEM1-F005 | ✅ Complete | ScenarioNames/DemoTemplateIds/DemoBehaviorIds constants, ScenarioTestHarness, Fdp.Examples.Scenarios.Tests project |
 
 **Related projects created:**
 - `FDP/Framework/FDP.Framework.Runner.Tests/` — DEM1-F001 deterministic orchestrator tests

@@ -91,7 +91,7 @@ namespace Hrot.SimHost.Tests
 
             var entityMap   = new NetworkEntityMap();
             using var participant = new DdsParticipant();
-            var translator  = new EntityMissionIngressTranslator(participant, entityMap, new DoctrineRegistry(), new GhostCreationSystem(entityMap));
+            var translator  = new EntityMissionIngressTranslator(participant, entityMap, new BehaviorRegistry(), new GhostCreationSystem(entityMap));
 
             translator.ApplyToEntity(entity, mission, world);
 
@@ -114,7 +114,7 @@ namespace Hrot.SimHost.Tests
 
             var entityMap   = new NetworkEntityMap();
             using var participant = new DdsParticipant();
-            var translator  = new EntityMissionIngressTranslator(participant, entityMap, new DoctrineRegistry(), new GhostCreationSystem(entityMap));
+            var translator  = new EntityMissionIngressTranslator(participant, entityMap, new BehaviorRegistry(), new GhostCreationSystem(entityMap));
 
             var ex = Record.Exception(() => translator.ApplyToEntity(entity, "not_a_mission", world));
             Assert.Null(ex);
@@ -159,7 +159,7 @@ namespace Hrot.SimHost.Tests
             // Do NOT register entity 99 in the map.
 
             using var participant = new DdsParticipant();
-            var translator  = new EntityMissionIngressTranslator(participant, entityMap, new DoctrineRegistry(), new GhostCreationSystem(entityMap));
+            var translator  = new EntityMissionIngressTranslator(participant, entityMap, new BehaviorRegistry(), new GhostCreationSystem(entityMap));
 
             // PollIngress will Take() from an empty DDS reader, so there is nothing
             // to process â€” this test confirms construction and polling do not throw

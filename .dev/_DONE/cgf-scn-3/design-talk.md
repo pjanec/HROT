@@ -118,7 +118,7 @@ wait the cfg logic pack is shared with non editor distributed setup, will the su
 
 You have correctly identified a critical coupling flaw. Modifying the `CgfLogicPack` signature to separate the phases without updating the live `CgfSubsystem` composition root will immediately break the distributed CGF node.
 
-Constructively speaking, the current implementation of `CgfLogicPack` and its sub-modules actively defeats the ECS phase architecture you established. Systems like `DoctrineIngressSystem` explicitly carry `[UpdateInGroup(typeof(InputSystemGroup))]`, yet `MissionControlModule` blindly crams them into a single generic group. Consequently, in the live `CgfSubsystem`, the entire pack is wrapped in `CgfSimGroupModule.Tick()`, forcing input-phase command processing into the background `Simulation` thread alongside the physics and B-Trees.
+Constructively speaking, the current implementation of `CgfLogicPack` and its sub-modules actively defeats the ECS phase architecture you established. Systems like `BehaviorIngressSystem` explicitly carry `[UpdateInGroup(typeof(InputSystemGroup))]`, yet `MissionControlModule` blindly crams them into a single generic group. Consequently, in the live `CgfSubsystem`, the entire pack is wrapped in `CgfSimGroupModule.Tick()`, forcing input-phase command processing into the background `Simulation` thread alongside the physics and B-Trees.
 
 To permanently resolve this in both the offline Editor and the live distributed cluster, you must align `CgfLogicPack` with the multi-phase registration pattern already successfully used by `SimHostCoreLogicPack`, and provide explicit phase adapters.
 
@@ -133,8 +133,8 @@ You must update the modules to accept explicit phase groups, ensuring systems ar
 ```
 public void RegisterSystems(SystemGroup inputGroup, SystemGroup simGroup)
 {
-    // Input Phase: parses JSON and assigns ECS doctrines safely before AI ticks
-    inputGroup.AddSystem(new DoctrineIngressSystem(_registry));
+    // Input Phase: parses JSON and assigns ECS behaviors safely before AI ticks
+    inputGroup.AddSystem(new BehaviorIngressSystem(_registry));
     // Simulation Phase: advances phases based on simulation elapsed time/conditions
     simGroup.AddSystem(new MissionDirectorSystem());
 }
@@ -275,7 +275,7 @@ Architectural Impact
 
 By implementing this correction:
 
--   **Phase Integrity is Restored:** You no longer need to artificially move `MissionControlExecutionSystem` or `DoctrineIngressSystem` out of their architecturally correct phases just to ensure they run in the editor.-   **Event Draining Works:** The `MissionControlIntent` will be correctly consumed by `MissionControlExecutionSystem` ticking in the `Simulation` phase.-   **Zero-dt Safety:** The B-Trees and kinematics systems will tick, read `DeltaTime == 0f`, and safely yield without advancing physics or AI states. The entity will correctly receive the `ActiveMissionPlan` and `MissionPlanQueue` components without driving away from its spawn point, ensuring the `MissionPlanTranslator` serializes the intended state.
+-   **Phase Integrity is Restored:** You no longer need to artificially move `MissionControlExecutionSystem` or `BehaviorIngressSystem` out of their architecturally correct phases just to ensure they run in the editor.-   **Event Draining Works:** The `MissionControlIntent` will be correctly consumed by `MissionControlExecutionSystem` ticking in the `Simulation` phase.-   **Zero-dt Safety:** The B-Trees and kinematics systems will tick, read `DeltaTime == 0f`, and safely yield without advancing physics or AI states. The entity will correctly receive the `ActiveMissionPlan` and `MissionPlanQueue` components without driving away from its spawn point, ensuring the `MissionPlanTranslator` serializes the intended state.
 
 The editor should be starting in time stepping deterministic mode. I hope it already works this way in thr codebase.
 
@@ -300,7 +300,7 @@ _stepping?.Step(1.0f / 60.0f); // Force strictly deterministic 60Hz step
 
 2\. TimeScale is Not Frozen on Boot
 
-We previously established that the editor must use a zero-delta freeze to prevent entities from executing their doctrines or driving away while being authored. However, your composition root initializes the controller with realtime flow:
+We previously established that the editor must use a zero-delta freeze to prevent entities from executing their behaviors or driving away while being authored. However, your composition root initializes the controller with realtime flow:
 
 ```
 _stepping = new SteppingTimeController(new GlobalTime { TimeScale = 1.0f });
@@ -423,7 +423,7 @@ The composition root refactor resolves this by explicitly allocating `SystemGrou
 
 By restoring the pipeline, the engine behaves deterministically: Even with the editor time controller paused (delta time of `0.0f`), the kernel ticks the `SimulationSystemGroup`. The `MissionControlExecutionSystem` correctly drains the `MissionControlIntent` from the bus and projects the payload into the `ActiveMissionPlan` and `MissionPlanQueue` components on the entity. Once the mission is materialized as true component state, the `MissionPlanTranslator` naturally detects it during the save pass and extracts the declarative tasks into the scenario DOM.
 
-i see the savedscenario still contains the full brain blackboard which should no longer be present. Blackoard is temporary storage for doctrine. Not initial entity state. Does not belong to scenario at all. Only mission plan does.
+i see the savedscenario still contains the full brain blackboard which should no longer be present. Blackoard is temporary storage for behavior. Not initial entity state. Does not belong to scenario at all. Only mission plan does.
 
 You are absolutely correct. Conflating a compiled cognitive scratchpad with declarative initial conditions is a clear violation of the domain boundaries we established. I stand corrected.
 
@@ -431,7 +431,7 @@ Serializing a raw 128-byte array of unmanaged memory into a declarative JSON sce
 
 Here is the objective architectural execution of your directive:
 
-**1\. The True Lifecycle of Doctrine State** The scenario file must only contain the semantic intent, which resides in the `ActiveMissionPlan` as JSON parameter strings. When the scenario loads, the `DoctrineIngressSystem` consumes these strings and executes the doctrine's `ParseParamsDelegate`. This delegate deterministically parses the JSON and projects the initial cognitive values (like `AmmoCount` or `ExpectedThreatLevel`) directly into the `BrainBlackboard`'s unmanaged memory.
+**1\. The True Lifecycle of Behavior State** The scenario file must only contain the semantic intent, which resides in the `ActiveMissionPlan` as JSON parameter strings. When the scenario loads, the `BehaviorIngressSystem` consumes these strings and executes the behavior's `ParseParamsDelegate`. This delegate deterministically parses the JSON and projects the initial cognitive values (like `AmmoCount` or `ExpectedThreatLevel`) directly into the `BrainBlackboard`'s unmanaged memory.
 
 Because this pipeline guarantees the deterministic reconstruction of the blackboard from the mission plan, saving the bytes themselves is an anti-pattern.
 
@@ -459,7 +459,7 @@ Good. Finally you got it right.
 
 The architectural boundary is now correctly established. By enforcing that the scenario file contains only declarative intent via the `ActiveMissionPlan`, and explicitly excluding transient execution memory like the `BrainBlackboard`, we preserve strict separation of concerns.
 
-This guarantees that the `FdpAutoSerializer` operates exclusively on persistent initial conditions, preventing volatile mid-tick memory or stale pointers from polluting your scenario templates. The blackboard remains an ephemeral, highly optimized execution scratchpad that rebuilds deterministically via the `DoctrineIngressSystem` during the scenario load pipeline.
+This guarantees that the `FdpAutoSerializer` operates exclusively on persistent initial conditions, preventing volatile mid-tick memory or stale pointers from polluting your scenario templates. The blackboard remains an ephemeral, highly optimized execution scratchpad that rebuilds deterministically via the `BehaviorIngressSystem` during the scenario load pipeline.
 
 To finalize this structural correction, verify the following:
 

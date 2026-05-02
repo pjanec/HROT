@@ -69,7 +69,7 @@ before touching any code.
 
 | Path | Relevance |
 |---|---|
-| `Hrot.ExCon/Panels/MissionPanel.cs` | `HandleAddTask` (inject `DoctrineFinished`), `HandleAbort`/`HandleJump` (async fix) |
+| `Hrot.ExCon/Panels/MissionPanel.cs` | `HandleAddTask` (inject `BehaviorFinished`), `HandleAbort`/`HandleJump` (async fix) |
 | `Hrot.ExCon/Services/MissionEditorService.cs` | Add `SendControlCommandAsync` |
 | `Hrot.ExCon/Services/IMissionEditorService.cs` | Add method to interface |
 | `Hrot.ExCon/Logic/ContextMenuLogic.cs` | Context menu strategies (Delete already in Standard — no change) |

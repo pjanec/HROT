@@ -64,7 +64,7 @@ namespace Hrot.Common.Systems
         private const int MaxEntityWaitFrames = 10;
 
         private readonly NetworkEntityMap _entityMap;
-        private readonly DoctrineRegistry _doctrineRegistry;
+        private readonly BehaviorRegistry _behaviorRegistry;
         private readonly TacticalIntentMapperRegistry _mapperRegistry;
 
         private readonly Dictionary<long, long> _missionVersions = new();
@@ -74,11 +74,11 @@ namespace Hrot.Common.Systems
         /// <summary>Production constructor — creates from ambient services.</summary>
         public MissionControlExecutionSystem(
             NetworkEntityMap entityMap,
-            DoctrineRegistry doctrineRegistry,
+            BehaviorRegistry behaviorRegistry,
             TacticalIntentMapperRegistry mapperRegistry)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _doctrineRegistry = doctrineRegistry ?? throw new ArgumentNullException(nameof(doctrineRegistry));
+            _behaviorRegistry = behaviorRegistry ?? throw new ArgumentNullException(nameof(behaviorRegistry));
             _mapperRegistry = mapperRegistry ?? throw new ArgumentNullException(nameof(mapperRegistry));
         }
 
@@ -170,7 +170,7 @@ namespace Hrot.Common.Systems
                         {
                             TaskId = t.TaskId,
                             ExecutingEngine = t.ExecutingEngine ?? string.Empty,
-                            BehaviorId = t.BehaviorId ?? string.Empty,
+                            BehaviorName = t.BehaviorId ?? string.Empty,
                             BehaviorParams = t.BehaviorParams ?? string.Empty,
                             Triggers = t.Triggers?.ConvertAll(st => new DomainMissionTrigger
                             {
@@ -231,7 +231,7 @@ namespace Hrot.Common.Systems
 
                     _taskOrder[intent.TargetEntityId] = new List<Guid>();
 
-                    repo.Bus.Publish(new ClearDoctrineEvent { Entity = entity });
+                    repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity });
 
                     currentVersion++;
                     _missionVersions[intent.TargetEntityId] = currentVersion;
@@ -296,12 +296,12 @@ namespace Hrot.Common.Systems
                     tasks[i] = task;
                 }
 
-                int doctrineId = ResolveDoctrineId(task.BehaviorId);
+                int behaviorId = ResolveBehaviorId(task.BehaviorId);
                 var (trigger, param) = ResolveTrigger(task.Triggers);
 
                 phases[i] = new MissionPhase
                 {
-                    DoctrineId = doctrineId,
+                    BehaviorId = behaviorId,
                     Trigger = trigger,
                     TriggerParam = param
                 };
@@ -311,24 +311,24 @@ namespace Hrot.Common.Systems
             return true;
         }
 
-        private int ResolveDoctrineId(string? behaviorId)
+        private int ResolveBehaviorId(string? behaviorName)
         {
-            if (string.IsNullOrWhiteSpace(behaviorId))
+            if (string.IsNullOrWhiteSpace(behaviorName))
                 return 0;
 
-            if (_doctrineRegistry.TryGetId(behaviorId, out int doctrineId))
-                return doctrineId;
+            if (_behaviorRegistry.TryGetId(behaviorName, out int behaviorId))
+                return behaviorId;
 
             // Tactical intents (handled by TacticalIntentResolutionSystem) are not in the
-            // concrete DoctrineRegistry. Falling back to 0 is correct; suppress the warning.
-            if (_mapperRegistry.TryGetMapper(behaviorId, out _))
+            // concrete BehaviorRegistry. Falling back to 0 is correct; suppress the warning.
+            if (_mapperRegistry.TryGetMapper(behaviorName, out _) )
                 return 0;
 
             // Also suppress for pass-through intents (no mapper needed; TacticalIntentResolutionSystem
-            // uses the intent ID directly as the doctrine name via its fallback path).
+            // uses the intent ID directly as the behavior name via its fallback path).
             // We cannot enumerate all valid intent names here, so warn only for truly unknown IDs.
             FdpLog<MissionControlExecutionSystem>.Warn(
-                "[MissionControl] Unknown BehaviorId '{0}'; using doctrine 0 (Idle).",
+                "[MissionControl] Unknown BehaviorId '{0}'; using behavior 0 (Idle).",
                 behaviorId);
             return 0;
         }

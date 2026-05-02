@@ -30,7 +30,7 @@ public class MissionControlRequestSystemFollowRouteTests
     {
         var repo = new EntityRepository();
         repo.RegisterComponent<MissionPlanQueue>();
-        repo.RegisterComponent<DoctrineState>();
+        repo.RegisterComponent<BehaviorState>();
         repo.RegisterComponent<BrainBTreeState>();
         repo.RegisterManagedComponent<ActiveMissionPlan>();
         repo.RegisterComponent<NetworkIdentity>();
@@ -41,11 +41,11 @@ public class MissionControlRequestSystemFollowRouteTests
         return repo;
     }
 
-    private static DoctrineRegistry CreateDoctrineRegistry()
+    private static BehaviorRegistry CreateBehaviorRegistry()
     {
-        var registry = new DoctrineRegistry();
+        var registry = new BehaviorRegistry();
         registry.Register(42, "FollowRoute",
-            new DoctrineDefinition { Name = "FollowRoute", BrainTier = BehaviorConstants.BrainTierBTree });
+            new BehaviorDefinition { Name = "FollowRoute", BrainTier = BehaviorConstants.BrainTierBTree });
         return registry;
     }
 
@@ -104,7 +104,7 @@ public class MissionControlRequestSystemFollowRouteTests
     {
         using var repo = CreateWorld();
         var entityMap  = new NetworkEntityMap();
-        var registry   = CreateDoctrineRegistry();
+        var registry   = CreateBehaviorRegistry();
         var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, registry, new TacticalIntentMapperRegistry());
 
         var (vehicle, _) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 5);
@@ -133,7 +133,7 @@ public class MissionControlRequestSystemFollowRouteTests
     {
         using var repo = CreateWorld();
         var entityMap  = new NetworkEntityMap();
-        var registry   = CreateDoctrineRegistry();
+        var registry   = CreateBehaviorRegistry();
         var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, registry, new TacticalIntentMapperRegistry());
 
         // Register only the vehicle; no route entity.
@@ -156,7 +156,7 @@ public class MissionControlRequestSystemFollowRouteTests
     {
         using var repo = CreateWorld();
         var entityMap  = new NetworkEntityMap();
-        var registry   = CreateDoctrineRegistry();
+        var registry   = CreateBehaviorRegistry();
         var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, registry, new TacticalIntentMapperRegistry());
 
         var (_, routeEntity) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 0);
@@ -175,7 +175,7 @@ public class MissionControlRequestSystemFollowRouteTests
     {
         using var repo = CreateWorld();
         var entityMap  = new NetworkEntityMap();
-        var registry   = CreateDoctrineRegistry();
+        var registry   = CreateBehaviorRegistry();
         var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, registry, new TacticalIntentMapperRegistry());
 
         var (vehicle, routeEntity) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 0);
@@ -207,9 +207,9 @@ public class MissionControlRequestSystemFollowRouteTests
         using var repo = CreateWorld();
         var entityMap  = new NetworkEntityMap();
 
-        var registry = new DoctrineRegistry();
+        var registry = new BehaviorRegistry();
         registry.Register(1, "Wander",
-            new DoctrineDefinition { Name = "Wander", BrainTier = BehaviorConstants.BrainTierBTree });
+            new BehaviorDefinition { Name = "Wander", BrainTier = BehaviorConstants.BrainTierBTree });
 
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, registry, new TacticalIntentMapperRegistry());
 

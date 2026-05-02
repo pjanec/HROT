@@ -18,22 +18,22 @@ result.Add(new VehicleState { Speed = 0, SteerAngle = 0 });
 **Why it violates FDP rules:** Phase 0 strictly dictates that non-wheeled entities (like infantry or aircraft) must *not* have a `VehicleState`. Adding it unconditionally breaks `LinearKinematicsSystem` (which filters out entities with `VehicleState`) and causes crashes/stuck entities for non-vehicles. The TKB template already correctly adds `VehicleState` only to vehicles.
 **Fix:** **Delete** the `result.Add(new VehicleState...);` line from `DescriptorMapper.MapToComponents`. `SimTransform` alone is sufficient for the spatial data.
 
-### 2. SimHost: Missing Doctrine Preemption (Behavior Bug)
-**Issue:** In `Hrot.SimHost/Systems/MissionAdapterSystem.cs`, when applying a new doctrine, you set the hash but fail to increment the instance ID.
+### 2. SimHost: Missing Behavior Preemption (Behavior Bug)
+**Issue:** In `Hrot.SimHost/Systems/MissionAdapterSystem.cs`, when applying a new behavior, you set the hash but fail to increment the instance ID.
 ```csharp
 // In MissionAdapterSystem.cs
-if (doctrine.ActiveDoctrineHash != doctrineId) {
-    doctrine.ActiveDoctrineHash = doctrineId;
-    World.SetComponent(entity, doctrine);
+if (behavior.ActiveBehaviorHash != behaviorId) {
+    behavior.ActiveBehaviorHash = behaviorId;
+    World.SetComponent(entity, behavior);
     // ...
 ```
-**Why it violates FDP rules:** The `ChannelArbitrationSystem` from the Behavior toolkit relies on `DoctrineState.InstanceId` changing to know that it must preempt and clear stale locomotion/weapon channels (as seen in `UrbanCombat`'s `DoctrineIngressSystem`).
-**Fix:** Increment the instance ID using an unchecked wrap when changing doctrines:
+**Why it violates FDP rules:** The `ChannelArbitrationSystem` from the Behavior toolkit relies on `BehaviorState.InstanceId` changing to know that it must preempt and clear stale locomotion/weapon channels (as seen in `UrbanCombat`'s `BehaviorIngressSystem`).
+**Fix:** Increment the instance ID using an unchecked wrap when changing behaviors:
 ```csharp
-if (doctrine.ActiveDoctrineHash != doctrineId) {
-    doctrine.ActiveDoctrineHash = doctrineId;
-    unchecked { doctrine.InstanceId++; } // ADD THIS LINE
-    World.SetComponent(entity, doctrine);
+if (behavior.ActiveBehaviorHash != behaviorId) {
+    behavior.ActiveBehaviorHash = behaviorId;
+    unchecked { behavior.InstanceId++; } // ADD THIS LINE
+    World.SetComponent(entity, behavior);
 ```
 
 ### 3. SimHost: Invisible Entities (Network Egress Bug)

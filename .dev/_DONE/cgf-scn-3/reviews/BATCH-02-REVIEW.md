@@ -11,11 +11,11 @@
 All four tasks (S305–S308) are correctly implemented:
 
 - **S305** — `MissionControlModule.RegisterSystems(inputGroup, simGroup)` correctly routes
-  `DoctrineIngressSystem` to `inputGroup` and `MissionDirectorSystem` to `simGroup`, with null
+  `BehaviorIngressSystem` to `inputGroup` and `MissionDirectorSystem` to `simGroup`, with null
   checks on both parameters. Existing single-group overload is unchanged.
 
 - **S306** — `CgfLogicPack.RegisterSystems(inputGroup, simGroup)` correctly routes
-  `MissionControlExecutionSystem` and `DoctrineIngressSystem` to `inputGroup` (2 systems), and
+  `MissionControlExecutionSystem` and `BehaviorIngressSystem` to `inputGroup` (2 systems), and
   all 13 remaining systems to `simGroup`. Null checks present. Four new tests cover all success
   conditions. Regression test for single-group overload passes.
 
@@ -37,10 +37,10 @@ Test results: 455/455 pass (0 failures, 3 skipped — pre-existing).
 feat: Phase 2 CGF multi-phase system group split (BATCH-02) -- Completes S305-S308
 
 S305: Add MissionControlModule.RegisterSystems(inputGroup, simGroup) overload.
-      DoctrineIngressSystem -> inputGroup, MissionDirectorSystem -> simGroup.
+      BehaviorIngressSystem -> inputGroup, MissionDirectorSystem -> simGroup.
 
 S306: Add CgfLogicPack.RegisterSystems(inputGroup, simGroup) overload.
-      MissionControlExecutionSystem + DoctrineIngressSystem -> inputGroup (2).
+      MissionControlExecutionSystem + BehaviorIngressSystem -> inputGroup (2).
       All other Brain-tier systems -> simGroup (13). Existing single-group
       overload unchanged. Tests updated and 4 new tests added.
 

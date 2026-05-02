@@ -17,7 +17,7 @@ This is the **final batch**. It covers:
 1. **W001** — Wire all Editor adapters/panels/systems into `EditorApplication` composition root
 2. **X004** — ExCon composition root: replace shim adapters with real ones; wire new panels
 3. **X005** — ExCon `ContextMenuLogic` refactor to use `SharedContextMenuPopulator`
-4. **T001–T004** — Headless integration tests (cargo, perception, zone authoring, doctrine catalog)
+4. **T001–T004** — Headless integration tests (cargo, perception, zone authoring, behavior catalog)
 
 Work task-by-task. Prioritize getting everything building cleanly before writing tests.
 
@@ -259,16 +259,16 @@ For test #2: the `sample_road.json` might not exist. Create a minimal valid road
 
 ---
 
-### Task 7: EDIT1-T004 — Doctrine Catalog Filtering Tests
+### Task 7: EDIT1-T004 — Behavior Catalog Filtering Tests
 
 **Full spec:** `.dev/edit-1/TASK-DETAIL.md` §EDIT1-T004
 
 These can be pure unit tests (no harness needed):
-1. `DoctrineCatalog_Insurgent_ReturnsInsurgentDoctrines` — call `DoctrineCatalog.GetValidDoctrines(TkbEntityTypes.Insurgent)` and assert expected doctrines
-2. `DoctrineCatalog_Civilian_ReturnsCivilianDoctrines`
-3. `EditorMissionService_FiltersOutUnregisteredDoctrines` — create minimal ECS world, spawn entity with `TkbIdentity`, construct `EditorMissionService`, assert doctrine filtering
+1. `BehaviorCatalog_Insurgent_ReturnsInsurgentBehaviors` — call `BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.Insurgent)` and assert expected behaviors
+2. `BehaviorCatalog_Civilian_ReturnsCivilianBehaviors`
+3. `EditorMissionService_FiltersOutUnregisteredBehaviors` — create minimal ECS world, spawn entity with `TkbIdentity`, construct `EditorMissionService`, assert behavior filtering
 
-Place these in `Hrot.Map.Common.Tests/DoctrineCatalogTests.cs` OR `Hrot.ClusterRunner.Integration.Tests/EditorAuthoringIntegrationTests.cs` — whichever is more convenient.
+Place these in `Hrot.Map.Common.Tests/BehaviorCatalogTests.cs` OR `Hrot.ClusterRunner.Integration.Tests/EditorAuthoringIntegrationTests.cs` — whichever is more convenient.
 
 ---
 
@@ -280,7 +280,7 @@ Place these in `Hrot.Map.Common.Tests/DoctrineCatalogTests.cs` OR `Hrot.ClusterR
 4. **X005:** Create JsonContextMenuBuilder + ExConEntityActionAdapter → update ContextMenuLogic → build → unit tests pass → regression (388) still pass
 5. **T001–T002:** Create EditorAuthoringIntegrationTests.cs → 6 cargo+perception tests pass
 6. **T003:** Add 3 zone tests → all pass
-7. **T004:** Add 3 doctrine tests → all pass
+7. **T004:** Add 3 behavior tests → all pass
 8. Final run: full solution build + all test suites
 
 ---
@@ -333,6 +333,6 @@ dotnet test Hrot.ClusterRunner.Integration.Tests --filter "EditorAuthoring"
 - [ ] `JsonContextMenuBuilder` + `ExConEntityActionAdapter` created
 - [ ] `ContextMenuLogic.BuildMenu` refactored to use `SharedContextMenuPopulator`
 - [ ] 9 integration tests in `EditorAuthoringIntegrationTests.cs`
-- [ ] 3 doctrine catalog tests
+- [ ] 3 behavior catalog tests
 - [ ] All test suites passing: `Hrot.ExCon.Tests` (≥388), `Hrot.Editor.Tests` (≥58), `Hrot.ClusterRunner.Integration.Tests` (existing + new)
 - [ ] Report written to `.dev/edit-1/reports/BATCH-08-REPORT.md`

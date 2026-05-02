@@ -106,7 +106,7 @@ namespace Hrot.Network.NED.IG
                 {
                     TaskId          = t.TaskId,
                     ExecutingEngine = t.ExecutingEngine ?? string.Empty,
-                    BehaviorId      = t.BehaviorId      ?? string.Empty,
+                    BehaviorName      = t.BehaviorId      ?? string.Empty,
                     BehaviorParams  = t.BehaviorParams  ?? string.Empty,
                 }) ?? new List<DomainMissionTask>()
             };

@@ -52,7 +52,7 @@ This final batch acts as a dedicated tech-debt burndown block. You will be addre
 
 ### Task 3: MissionDirectorSystem Frame Delay Documentation (DEBT-3)
 **File:** `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs`
-**Description:** `AssignDoctrineHashEvent` currently suffers a one-tick delay before taking effect. Detail the exact timing consequence via xml-docs, or adjust the Event bus firing group to execute this synchronously before `InputSystemGroup` takes over.
+**Description:** `AssignBehaviorHashEvent` currently suffers a one-tick delay before taking effect. Detail the exact timing consequence via xml-docs, or adjust the Event bus firing group to execute this synchronously before `InputSystemGroup` takes over.
 
 ### Task 4: ImGui Tests Isolation Config (DEBT-4)
 **File:** `FDP/Toolkits/FDP.Toolkit.ImGui.Tests/xunit.runner.json` (or `.csproj`)

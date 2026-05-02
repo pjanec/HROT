@@ -76,19 +76,19 @@ IExConLogic.  Without this project the panels cannot be shared between Hrot.Edit
 
 ---
 
-### EDIT1-L002 — `DoctrineCatalog` in `Hrot.Map.Definitions`
+### EDIT1-L002 — `BehaviorCatalog` in `Hrot.Map.Definitions`
 
 **Design Reference:** DESIGN.md §0.B
 
 **Context:**
-Doctrine filtering per entity type must not live in the FDP engine and must not be duplicated
+Behavior filtering per entity type must not live in the FDP engine and must not be duplicated
 between the Editor adapter and the ExCon adapter.  `Hrot.Map.Definitions` is already shared by
 all subsystems.
 
 **Scope:**
 
-- Create `Hrot.Map.Definitions/Tkb/DoctrineCatalog.cs` — `public static class`.
-- Implement `GetValidDoctrines(long tkbType) → IReadOnlyList<string>` using C# 12 switch
+- Create `Hrot.Map.Definitions/Tkb/BehaviorCatalog.cs` — `public static class`.
+- Implement `GetValidBehaviors(long tkbType) → IReadOnlyList<string>` using C# 12 switch
   expression with collection literals.
 - Entries must cover at minimum:
   - `TkbEntityTypes.CivilianPedestrian` → `["WanderCivil", "PanicFlee"]`
@@ -103,31 +103,31 @@ all subsystems.
 
 | File | Change |
 |------|--------|
-| `Hrot.Map.Definitions/Tkb/DoctrineCatalog.cs` | New |
+| `Hrot.Map.Definitions/Tkb/BehaviorCatalog.cs` | New |
 
 **Success Conditions:**
 
-1. *(Unit test)* `DoctrineCatalog.GetValidDoctrines(TkbEntityTypes.Insurgent)` returns a list
+1. *(Unit test)* `BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.Insurgent)` returns a list
    containing `"Ambush"` and not containing `"WanderCivil"`.
-2. *(Unit test)* `DoctrineCatalog.GetValidDoctrines(TkbEntityTypes.CivilianPedestrian)` returns
+2. *(Unit test)* `BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.CivilianPedestrian)` returns
    a list containing `"WanderCivil"` and not containing `"Ambush"`.
-3. *(Unit test)* `DoctrineCatalog.GetValidDoctrines(-999)` (unknown TKB) returns the fallback
+3. *(Unit test)* `BehaviorCatalog.GetValidBehaviors(-999)` (unknown TKB) returns the fallback
    list containing `"MoveToLocation"`.
 4. *(Compile)* Zero allocation per call — lists are backed by static readonly fields.
 
 ---
 
-### EDIT1-L003 — `DoctrineRegistry.GetRegisteredNames()`
+### EDIT1-L003 — `BehaviorRegistry.GetRegisteredNames()`
 
 **Design Reference:** DESIGN.md §0.C
 
 **Context:**
-`EditorMissionService` needs to cross-check the `DoctrineCatalog` result against doctrines
+`EditorMissionService` needs to cross-check the `BehaviorCatalog` result against behaviors
 actually registered in the live engine to avoid presenting inaccessible options.
 
 **Scope:**
 
-- In `FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineRegistry.cs`:
+- In `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs`:
   - Add `public IReadOnlyList<string> GetRegisteredNames()`.
   - Implementation: `_nameToId.Keys.ToList()` (or equivalent snapshot).
 - Additionally add `public bool TryGetId(string name, out int id)` if not already present
@@ -137,11 +137,11 @@ actually registered in the live engine to avoid presenting inaccessible options.
 
 | File | Change |
 |------|--------|
-| `FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineRegistry.cs` | Add two methods |
+| `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs` | Add two methods |
 
 **Success Conditions:**
 
-1. *(Unit test)* Register two doctrines, call `GetRegisteredNames()`, assert both names are
+1. *(Unit test)* Register two behaviors, call `GetRegisteredNames()`, assert both names are
    returned.
 2. *(Unit test)* Empty registry → `GetRegisteredNames()` returns empty list (not null).
 3. *(Compile)* `TryGetId` is accessible to `EditorMissionService` without reflection.
@@ -196,13 +196,13 @@ the shared library and rewired to `ISpawnController`.
 
 ---
 
-### EDIT1-P002 — Migrate `MissionPanel` with Dynamic Doctrine Catalog
+### EDIT1-P002 — Migrate `MissionPanel` with Dynamic Behavior Catalog
 
 **Design Reference:** DESIGN.md §1.B
 
 **Context:**
 `MissionPanel` is hardcoded with 4 behaviour IDs and depends on `IExConLogic`.  After
-migration, it must be data-driven: the doctrine dropdown is populated by
+migration, it must be data-driven: the behavior dropdown is populated by
 `IMissionEditorService.GetAvailableBehaviors(entityId)`.
 
 **Scope:**
@@ -210,7 +210,7 @@ migration, it must be data-driven: the doctrine dropdown is populated by
 - Move to `Hrot.UI.Common/Panels/MissionPanel.cs`.
 - `DrawContent(IMissionEditorService service, IMapPickService pick)` replaces the old
   `DrawContent(IExConLogic logic)` signature.
-- Remove the hardcoded `string[]` constants and the dummy `DoctrineRegistry` constructor call.
+- Remove the hardcoded `string[]` constants and the dummy `BehaviorRegistry` constructor call.
 - In the task-behaviour combo box, call `service.GetAvailableBehaviors(_selectedEntityId)` to
   populate the dropdown items dynamically.
 - The "Pick Location" button calls `pick.PickLocationAsync()` and stores the pending `Task`.
@@ -226,7 +226,7 @@ migration, it must be data-driven: the doctrine dropdown is populated by
 
 **Success Conditions:**
 
-1. *(Compile)* `MissionPanel` has zero references to `IExConLogic`, `DoctrineRegistry`
+1. *(Compile)* `MissionPanel` has zero references to `IExConLogic`, `BehaviorRegistry`
    constructor calls, or hardcoded behavior name arrays.
 2. *(Unit test)* Construct `MissionPanel`, call `DrawContent` with a mock
    `IMissionEditorService` that returns `["Ambush"]`; assert the combo box items list matches.
@@ -625,12 +625,12 @@ exist before they can be registered).
 **Scope:**
 
 - Create `Hrot.Editor/Adapters/EditorMissionService.cs`.
-- Constructor: `(FdpEventBus bus, EntityRepository repo, DoctrineRegistry registry)`.
+- Constructor: `(FdpEventBus bus, EntityRepository repo, BehaviorRegistry registry)`.
 - `GetAvailableBehaviors(long entityId)`:
   1. Get ECS entity by index (cast `entityId` to `int`).
   2. Guard: alive + has `TkbIdentity`; else return `Array.Empty<string>()`.
   3. `long tkbType = repo.GetComponentRO<TkbIdentity>(e).TkbType`.
-  4. `var catalog = DoctrineCatalog.GetValidDoctrines(tkbType)`.
+  4. `var catalog = BehaviorCatalog.GetValidBehaviors(tkbType)`.
   5. Return `catalog.Where(n => registry.TryGetId(n, out _)).ToList()`.
 - `GetMissionSnapshot(entityId)` → read `ActiveMissionPlan` managed component; map to
   `(MissionPlan?, long)`.  Return `(null, 0)` if not present.
@@ -650,9 +650,9 @@ exist before they can be registered).
 **Success Conditions:**
 
 1. *(Compile)* No DDS, no `IExConLogic`, no `IDerRepo` imports.
-2. *(Integration test — EDIT1-T004)* Binding tested via doctrine filtering test.
+2. *(Integration test — EDIT1-T004)* Binding tested via behavior filtering test.
 3. *(Unit test)* Spawn`TkbInsurgent` entity; `GetAvailableBehaviors` returns list containing
-   `"Ambush"` (requires DoctrineRegistry with `"Ambush"` registered).
+   `"Ambush"` (requires BehaviorRegistry with `"Ambush"` registered).
 4. *(Unit test)* `CommitMissionAsync` → pump 1 frame → `MissionControlAckEvent` consumed →
    returned `Task` completes.
 
@@ -1064,7 +1064,7 @@ in `EditorApplication.cs` (or equivalent initialisation entry point).
      `EditorZoneAuthoringSystem`.
   2. **Instantiate adapters**:
      - `EditorSpawnAdapter(mapCanvas, world.Bus)`
-     - `EditorMissionService(world.Bus, world, doctrineRegistry)`
+     - `EditorMissionService(world.Bus, world, behaviorRegistry)`
      - `EditorOrbatAdapter(world, world.Bus, editorLogic)`
      - `EditorMapPickAdapter(mapCanvas, geoTransform, simulationView)`
      - `EditorZoneAdapter(mapCanvas, world.Bus)`
@@ -1184,7 +1184,7 @@ in `EditorApplication.cs` (or equivalent initialisation entry point).
 
 ---
 
-### EDIT1-X003 — `MissionEditorService` NED Adapter — Dynamic Doctrine Filter
+### EDIT1-X003 — `MissionEditorService` NED Adapter — Dynamic Behavior Filter
 
 **Design Reference:** DESIGN.md §6.C
 
@@ -1195,7 +1195,7 @@ in `EditorApplication.cs` (or equivalent initialisation entry point).
   - Implement `GetAvailableBehaviors(long entityId)`:
     1. `var entity = _repo.GetEntity((int)entityId)`.
     2. If entity is null → `Array.Empty<string>()`.
-    3. `return DoctrineCatalog.GetValidDoctrines(entity.TkbType)`.
+    3. `return BehaviorCatalog.GetValidBehaviors(entity.TkbType)`.
   - Remove any existing hardcoded `_knownBehaviors` list (if present).
 
 **Files:**
@@ -1436,31 +1436,31 @@ Add three test methods to `EditorAuthoringIntegrationTests`:
 
 ---
 
-### EDIT1-T004 — Doctrine Catalog Filtering Tests
+### EDIT1-T004 — Behavior Catalog Filtering Tests
 
 **Design Reference:** DESIGN.md §7.D
 
 **Scope:**
 
 Add three test methods to `EditorAuthoringIntegrationTests` (or a separate
-`DoctrineCatalogTests` unit test class in `Hrot.Map.Common.Tests` / `Hrot.IG.Tests`):
+`BehaviorCatalogTests` unit test class in `Hrot.Map.Common.Tests` / `Hrot.IG.Tests`):
 
-  **`DoctrineCatalog_Insurgent_ReturnsInsurgentDoctrines`**
+  **`BehaviorCatalog_Insurgent_ReturnsInsurgentBehaviors`**
   ```
-  Act:    DoctrineCatalog.GetValidDoctrines(TkbEntityTypes.Insurgent).
+  Act:    BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.Insurgent).
   Assert: Contains "Ambush"; DoesNotContain "WanderCivil".
   ```
 
-  **`DoctrineCatalog_Civilian_ReturnsCivilianDoctrines`**
+  **`BehaviorCatalog_Civilian_ReturnsCivilianBehaviors`**
   ```
-  Act:    DoctrineCatalog.GetValidDoctrines(TkbEntityTypes.CivilianPedestrian).
+  Act:    BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.CivilianPedestrian).
   Assert: Contains "WanderCivil"; DoesNotContain "Ambush".
   ```
 
-  **`EditorMissionService_FiltersOutUnregisteredDoctrines`**
+  **`EditorMissionService_FiltersOutUnregisteredBehaviors`**
   ```
   Setup:  EditorHarness; spawn Insurgent entity with TkbIdentity.TkbType = Insurgent;
-          construct DoctrineRegistry; register "Ambush" only (not "MoveToLocation").
+          construct BehaviorRegistry; register "Ambush" only (not "MoveToLocation").
           Construct EditorMissionService(..., registry).
   Act:    service.GetAvailableBehaviors(insurgent.Index).
   Assert: Contains "Ambush"; DoesNotContain "MoveToLocation" (not in registry).

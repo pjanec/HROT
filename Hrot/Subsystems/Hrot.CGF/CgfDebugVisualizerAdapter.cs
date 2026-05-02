@@ -20,15 +20,15 @@ namespace Hrot.CGF;
 ///
 /// <para>Renders each entity as a colour-coded oriented silhouette (shape driven
 /// by <see cref="DefaultEntityShapeLibrary"/> and the entity's DIS type) with a
-/// compact doctrine label, and provides a rich brain-state hover tooltip for
+/// compact behavior label, and provides a rich brain-state hover tooltip for
 /// rapid diagnostics without opening the entity inspector.</para>
 ///
 /// <para>Colour coding:
 /// <list type="bullet">
-///   <item><b>Gray</b>   — no doctrine / idle.</item>
-///   <item><b>Blue</b>   — BTree doctrine active (Brain tier 2).</item>
-///   <item><b>Teal</b>   — HSM doctrine active (Brain tier 1).</item>
-///   <item><b>Amber</b>  — Traffic doctrine active (Brain tier 0).</item>
+///   <item><b>Gray</b>   — no behavior / idle.</item>
+///   <item><b>Blue</b>   — BTree behavior active (Brain tier 2).</item>
+///   <item><b>Teal</b>   — HSM behavior active (Brain tier 1).</item>
+///   <item><b>Amber</b>  — Traffic behavior active (Brain tier 0).</item>
 ///   <item><b>Yellow</b> — selected by user.</item>
 /// </list>
 /// </para>
@@ -51,22 +51,22 @@ public sealed class CgfDebugVisualizerAdapter : PerspectiveEntityVisualizerBase
     private static readonly Color ColHsm     = new(0,   180, 120, 255); // teal
     private static readonly Color ColTraffic = new(200, 140,  30, 255); // amber
 
-    // ── CGF brain registry for doctrine name resolution ───────────────────────
-    private readonly DoctrineRegistry? _doctrineRegistry;
+    // ── CGF brain registry for behavior name resolution ───────────────────────
+    private readonly BehaviorRegistry? _behaviorRegistry;
 
     // ── Construction ──────────────────────────────────────────────────────────
 
     /// <param name="shapeLibrary">Shared entity shape library (injected by the composition root).</param>
-    /// <param name="doctrineRegistry">
-    /// Optional registry; when provided, doctrine hashes are resolved to human-readable
+    /// <param name="behaviorRegistry">
+    /// Optional registry; when provided, behavior hashes are resolved to human-readable
     /// names in the hover label and the compact map annotation.
     /// </param>
     public CgfDebugVisualizerAdapter(
         IEntityShapeLibrary shapeLibrary,
-        DoctrineRegistry? doctrineRegistry = null)
+        BehaviorRegistry? behaviorRegistry = null)
         : base(shapeLibrary)
     {
-        _doctrineRegistry = doctrineRegistry;
+        _behaviorRegistry = behaviorRegistry;
     }
 
     // ── Position: prefer NetworkTransform ────────────────────────────────────
@@ -127,9 +127,9 @@ public sealed class CgfDebugVisualizerAdapter : PerspectiveEntityVisualizerBase
     /// <inheritdoc/>
     protected override Color ResolveColor(ISimulationView view, Entity entity)
     {
-        if (!view.HasComponent<DoctrineState>(entity)) return ColIdle;
-        ref readonly var ds = ref view.GetComponentRO<DoctrineState>(entity);
-        if (ds.ActiveDoctrineHash == 0) return ColIdle;
+        if (!view.HasComponent<BehaviorState>(entity)) return ColIdle;
+        ref readonly var ds = ref view.GetComponentRO<BehaviorState>(entity);
+        if (ds.ActiveBehaviorHash == 0) return ColIdle;
 
         return ds.BrainTier switch
         {
@@ -177,7 +177,7 @@ public sealed class CgfDebugVisualizerAdapter : PerspectiveEntityVisualizerBase
         // Delegate shape geometry to base class.
         base.Render(view, entity, position, ctx, isSelected, isHovered);
 
-        // Compact doctrine label to the right of the symbol.
+        // Compact behavior label to the right of the symbol.
         string label = ResolveShortLabel(view, entity);
         if (label.Length > 0)
         {
@@ -193,7 +193,7 @@ public sealed class CgfDebugVisualizerAdapter : PerspectiveEntityVisualizerBase
     /// <inheritdoc/>
     /// <remarks>
     /// Builds a multi-line diagnostic summary shown as a tooltip when the user
-    /// hovers over an entity on the CGF map.  Covers: net-id, doctrine + tier,
+    /// hovers over an entity on the CGF map.  Covers: net-id, behavior + tier,
     /// locomotion channel, weapon channel, perceived targets, mission plan phase,
     /// and any lost capabilities.
     /// </remarks>
@@ -207,10 +207,10 @@ public sealed class CgfDebugVisualizerAdapter : PerspectiveEntityVisualizerBase
             sb.AppendLine($"NetId: {netId.Value}");
         }
 
-        if (view.HasComponent<DoctrineState>(entity))
+        if (view.HasComponent<BehaviorState>(entity))
         {
-            ref readonly var ds = ref view.GetComponentRO<DoctrineState>(entity);
-            string docName = ResolveDoctrineLabel(ds.ActiveDoctrineHash);
+            ref readonly var ds = ref view.GetComponentRO<BehaviorState>(entity);
+            string docName = ResolveBehaviorLabel(ds.ActiveBehaviorHash);
             string tierStr = ds.BrainTier switch
             {
                 0 => "T0-Traffic",
@@ -218,7 +218,7 @@ public sealed class CgfDebugVisualizerAdapter : PerspectiveEntityVisualizerBase
                 2 => "T2-BTree",
                 _ => $"T{ds.BrainTier}",
             };
-            sb.AppendLine($"Doctrine: {docName} ({tierStr})");
+            sb.AppendLine($"Behavior: {docName} ({tierStr})");
         }
 
         if (view.HasComponent<MissionPlanQueue>(entity))
@@ -276,11 +276,11 @@ public sealed class CgfDebugVisualizerAdapter : PerspectiveEntityVisualizerBase
 
     private string ResolveShortLabel(ISimulationView view, Entity entity)
     {
-        if (view.HasComponent<DoctrineState>(entity))
+        if (view.HasComponent<BehaviorState>(entity))
         {
-            ref readonly var ds = ref view.GetComponentRO<DoctrineState>(entity);
-            if (ds.ActiveDoctrineHash != 0)
-                return ResolveDoctrineLabel(ds.ActiveDoctrineHash);
+            ref readonly var ds = ref view.GetComponentRO<BehaviorState>(entity);
+            if (ds.ActiveBehaviorHash != 0)
+                return ResolveBehaviorLabel(ds.ActiveBehaviorHash);
         }
 
         if (view.HasComponent<NetworkIdentity>(entity))
@@ -292,11 +292,11 @@ public sealed class CgfDebugVisualizerAdapter : PerspectiveEntityVisualizerBase
         return string.Empty;
     }
 
-    private string ResolveDoctrineLabel(int hash)
+    private string ResolveBehaviorLabel(int hash)
     {
         if (hash == 0)
             return "idle";
-        if (_doctrineRegistry != null && _doctrineRegistry.TryGetName(hash, out string? name))
+        if (_behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out string? name))
             return name;
         return $"#{hash}";
     }

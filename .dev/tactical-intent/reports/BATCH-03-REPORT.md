@@ -32,10 +32,10 @@ TASK-TI007:
 - [x] SC-2: `TacticalIntentRequest` struct can be instantiated; all three fields accessible
 
 TASK-TI008 (TacticalIntentEgressTranslator):
-- [x] SC-1: Entity in map, no `DoctrineState` authority → `TacticalIntentRequest` written to DDS
+- [x] SC-1: Entity in map, no `BehaviorState` authority → `TacticalIntentRequest` written to DDS
 - [x] SC-2: Entity NOT in `NetworkEntityMap` → no DDS write, `SentSampleCount` stays 0
 - [x] SC-3: Two events, no authority for either → two DDS writes, `SentSampleCount` == 2
-- [x] SC-4: Entity HAS `DoctrineState` authority (locally owned) → no DDS write
+- [x] SC-4: Entity HAS `BehaviorState` authority (locally owned) → no DDS write
 
 TASK-TI009 (TacticalIntentIngressTranslator):
 - [x] SC-1: Entity in map → `AssignTacticalIntentEvent` published on bus with correct fields
@@ -73,7 +73,7 @@ The instructions template specified `using CycloneDDS.Runtime;` for `IDdsWriter<
 
 **Q2: Were there any ambiguities in the batch instructions?**
 
-None. The instructions were precise. The authority-check comment in the egress translator was accurate: `repo.HasAuthority<DoctrineState>(evt.Entity)` returns `true` for locally-owned entities, so skipping on `true` and writing DDS on `false` is the correct gate.
+None. The instructions were precise. The authority-check comment in the egress translator was accurate: `repo.HasAuthority<BehaviorState>(evt.Entity)` returns `true` for locally-owned entities, so skipping on `true` and writing DDS on `false` is the correct gate.
 
 **Q3: Are there any risks or follow-up concerns?**
 

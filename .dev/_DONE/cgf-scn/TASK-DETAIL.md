@@ -696,7 +696,7 @@ No runtime logic — attributes are metadata only.
 
 **Scope — NOT included:**
 - The `BehaviorUiDrawDelegate` type (defined in this task as a public delegate)
-- Wiring into `CgfDoctrineSetup` (TASK-C011)
+- Wiring into `CgfBehaviorSetup` (TASK-C011)
 
 **Constraints:**
 - All reflection (`GetProperties`, `GetCustomAttributes`) must happen at
@@ -803,7 +803,7 @@ No runtime logic — attributes are metadata only.
 **Design Reference:** DESIGN.md § Phase 5 — Task C011
 
 **Scope — IS included:**
-- Modify `CgfDoctrineSetup.cs` to construct and populate `ScenarioBehaviorRemapper`
+- Modify `CgfBehaviorSetup.cs` to construct and populate `ScenarioBehaviorRemapper`
   and `BehaviorUiRegistry`
 - Register DTO types for `FireAtTarget`, `FollowRoute`, and `MoveToLocation`
 - Pass `ScenarioBehaviorRemapper` through to `CgfScenarioLoadHandler` and
@@ -814,10 +814,10 @@ No runtime logic — attributes are metadata only.
   task for when the editor adopts the generic UI)
 
 **Constraints:**
-- Registration must happen before any scene is loaded but after the doctrine
+- Registration must happen before any scene is loaded but after the behavior
   registry is fully built.
-- `BehaviorId` strings must match exactly what `DoctrineRegistry` uses
-  (e.g., `"FireAtTarget"` — verified from `CgfDoctrineSetup`).
+- `BehaviorId` strings must match exactly what `BehaviorRegistry` uses
+  (e.g., `"FireAtTarget"` — verified from `CgfBehaviorSetup`).
 - `ScenarioBehaviorRemapper` instance is shared between `CgfScenarioLoadHandler`
   and `CgfEpisodeLoadHandler`.
 
@@ -826,7 +826,7 @@ No runtime logic — attributes are metadata only.
 1. **End-to-end remapping in integration test:**
    Setup: create a minimal scenario JSON with one entity carrying `ActiveMissionPlan`
    with a `FireAtTarget` task referencing old network ID 999.
-   Wire up `CgfDoctrineSetup`, `ScenarioBehaviorRemapper`, `StagingEntityExtractor`,
+   Wire up `CgfBehaviorSetup`, `ScenarioBehaviorRemapper`, `StagingEntityExtractor`,
    and `CgfScenarioLoadHandler` with a stub allocator ( 999 → 1999 ).
    Action: commit the handler.
    Assert: enqueued request's `ActiveMissionPlan.Plan.Tasks[0].BehaviorParams`
@@ -834,9 +834,9 @@ No runtime logic — attributes are metadata only.
 
 2. **All expected BehaviorIds are registered:**
    Assert: `ScenarioBehaviorRemapper` has delegates for `"FireAtTarget"` and
-   `"FollowRoute"` after `CgfDoctrineSetup` runs.
+   `"FollowRoute"` after `CgfBehaviorSetup` runs.
 
-3. **BehaviorUiRegistry has entries for all doctrine types with non-trivial params:**
+3. **BehaviorUiRegistry has entries for all behavior types with non-trivial params:**
    Assert `"FireAtTarget"`, `"FollowRoute"`, `"MoveToLocation"` are registered
    in `BehaviorUiRegistry`.
 

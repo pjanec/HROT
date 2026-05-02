@@ -47,7 +47,7 @@ CGF's `ReferenceEpisodeLoadHandler` with a staging-pipeline-based handler.
 
 ## Phase 5 — Generic Mission Editor UI
 
-**Goal:** Replace hardcoded doctrine param UI in `MissionPanel` with a
+**Goal:** Replace hardcoded behavior param UI in `MissionPanel` with a
 generic, DTO-attribute-driven rendering mechanism.
 
 - [x] **TASK-C008** Presentation attributes (MapPickable*) [details](./TASK-DETAIL.md#task-c008--presentation-attributes)

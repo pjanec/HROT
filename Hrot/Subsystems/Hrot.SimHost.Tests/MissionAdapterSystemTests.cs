@@ -20,7 +20,7 @@ namespace Hrot.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<MissionPlanQueue>();
-            repo.RegisterComponent<DoctrineState>();
+            repo.RegisterComponent<BehaviorState>();
             repo.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
             repo.RegisterManagedComponent<ActiveMissionPlan>();
             return repo;
@@ -33,10 +33,10 @@ namespace Hrot.SimHost.Tests
             // Add the struct components
             var queue = new MissionPlanQueue { PhaseCount = 1, CurrentPhase = 0 };
             Span<MissionPhase> phases = queue.Phases;
-            phases[0] = new MissionPhase { DoctrineId = 0 };
+            phases[0] = new MissionPhase { BehaviorId = 0 };
             repo.AddComponent(entity, queue);
 
-            repo.AddComponent(entity, new DoctrineState());
+            repo.AddComponent(entity, new BehaviorState());
 
             // Set the managed ActiveMissionPlan
             repo.SetManagedComponent(entity, new ActiveMissionPlan
@@ -47,7 +47,7 @@ namespace Hrot.SimHost.Tests
                     {
                         new DomainMissionTask
                         {
-                            BehaviorId     = behaviorId,
+                            BehaviorName     = behaviorId,
                             BehaviorParams = behaviorParams,
                         }
                     }
@@ -62,7 +62,7 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// SC-1: Entity with a valid BehaviorId.
         /// After Execute, one <see cref="AssignTacticalIntentEvent"/> is published with the
-        /// correct IntentId and Entity; no <see cref="AssignDoctrineEvent"/> is emitted.
+        /// correct IntentId and Entity; no <see cref="AssignBehaviorEvent"/> is emitted.
         /// </summary>
         [Fact]
         public void Execute_ValidBehaviorId_PublishesAssignTacticalIntentEvent()
@@ -75,12 +75,12 @@ namespace Hrot.SimHost.Tests
             repo.Bus.SwapBuffers();
 
             var intentEvents   = repo.Bus.ReadManaged<AssignTacticalIntentEvent>();
-            var doctrineEvents = repo.Bus.ReadManaged<AssignDoctrineEvent>();
+            var behaviorEvents = repo.Bus.ReadManaged<AssignBehaviorEvent>();
 
             Assert.Single(intentEvents);
             Assert.Equal("WanderMilitary", intentEvents[0].IntentId);
             Assert.Equal(entity, intentEvents[0].Entity);
-            Assert.Empty(doctrineEvents);
+            Assert.Empty(behaviorEvents);
         }
 
         // -- SC-3: empty BehaviorId -> no event published ----------------------

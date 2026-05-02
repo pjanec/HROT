@@ -12,7 +12,7 @@ Replay is supposed to hermetically seal Brain and Muscle nodes from live network
 `SimHostApp.OnLoad` creates `var simulationSystemGroup = new SimulationSystemGroup()` (empty, no systems ever added) and passes it to `NodeBootstrapper.BuildOrchestration`. The actual simulation systems live in `_kernelGroup` (a plain `SystemGroup` created right after). When the replay handler flips `simulationSystemGroup.Enabled = false`, it stops nothing because the group is empty. The real simulation systems keep running on top of replayed ECS data.
 
 **Gap B — Input phase is never disabled during replay.**
-The design requires that all input-phase systems (network ingress, doctrine ingress, fire-processing queries, etc.) be suspended during replay so live operator commands and live DDS traffic cannot corrupt the historical state being played back. No code currently disables the input phase for any node.
+The design requires that all input-phase systems (network ingress, behavior ingress, fire-processing queries, etc.) be suspended during replay so live operator commands and live DDS traffic cannot corrupt the historical state being played back. No code currently disables the input phase for any node.
 
 **Gap C — CgfSubsystem passes `simGroup: null` to its replay handler.**
 In `CgfSubsystem.Initialize`, the `ReferenceReplayLoadHandler` is constructed with `simGroup: null, lifecycleGroup: null`. This means the CGF node's replay handler disables nothing when replay begins.
@@ -62,7 +62,7 @@ IG/ExCon nodes use `ListenerRecordReplayController` (a no-op): they are not affe
 
 Systems that go into `TogglableInputGroup` on the CGF (Brain) node:
 - `MissionControlExecutionSystem` (currently in inputGroup in CgfLogicPack two-group overload)
-- `DoctrineIngressSystem` (from `MissionControlModule`, currently in inputGroup)
+- `BehaviorIngressSystem` (from `MissionControlModule`, currently in inputGroup)
 
 Systems that go into `TogglableInputGroup` on the SimHost (Muscle) node:
 - `FireProcessingSystem`, `RaycastSolverSystem`, `HitResolutionSystem` (from `CombatModule`, currently in inputGroup)
@@ -414,7 +414,7 @@ For each sub-module below, the change is:
 | `CombatModule` | `Hrot.SimHost` | FireProcessingSystem (Input), RaycastSolverSystem (Input), HitResolutionSystem (Input), BallisticsSystem (PostSim) |
 | `GroundKinematicsModule` | `Hrot.SimHost` | SpatialHashSystem (Sim), CarKinematicsSystem (PostSim), FormationTargetSystem (Sim), VehicleCommandSystem (Sim), NavigationExecutionSystem (Sim), LinearKinematicsSystem (PostSim) |
 | `DamageAssessmentModule` | `Hrot.SimHost` or toolkit | Systems delivering authoritative damage |
-| `MissionControlModule` | CGF toolkit | DoctrineIngressSystem (Input), MissionDirectorSystem (Sim) |
+| `MissionControlModule` | CGF toolkit | BehaviorIngressSystem (Input), MissionDirectorSystem (Sim) |
 | `CognitiveRuntimeModule` | CGF toolkit | BTreeTickSystem (Sim), HsmTickSystem (Sim), ChannelArbitrationSystem (Sim), HsmDamageBridgeSystem (Sim) |
 | `ActionDispatchModule` | CGF toolkit | LocomotionDispatcherSystem (Sim), WeaponDispatcherSystem (Sim) |
 | Standalone CGF systems | `Hrot.CGF` | MissionControlExecutionSystem (Input), MissionAdapterSystem (Sim), HealthApplicationSystem (Sim), CgfThreatEvaluationSystem (Sim), RouteContextSystem (Sim) |

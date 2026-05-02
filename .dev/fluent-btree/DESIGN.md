@@ -8,9 +8,9 @@
 
 ## 1. Overview
 
-FastBTree doctrines in CGF are currently authored as raw JSON strings embedded inside
+FastBTree behaviors in CGF are currently authored as raw JSON strings embedded inside
 `CgfNodes.cs`, compiled at startup by `TreeCompiler.CompileFromJson`, and registered
-manually in `CgfDoctrineSetup.RegisterAll`. This approach:
+manually in `CgfBehaviorSetup.RegisterAll`. This approach:
 
 - Has no compile-time safety (typos in action/method names are runtime errors).
 - Prevents blackboard DTO field references from being type-checked.
@@ -80,7 +80,7 @@ class. At engine startup, `FbtAutoDiscovery.ScanAndRegister` reflects over all l
 assemblies to find these classes and invoke their `RegisterAll` method.
 
 This pattern is already used for `ImGuiRendererRegistry.ScanAllAssemblies()` and for
-`DoctrineSchemaDiscovery.AutoRegister` in HROT.
+`BehaviorSchemaDiscovery.AutoRegister` in HROT.
 
 ### 2.5 Hot Reload Mirroring FastHSM
 
@@ -93,7 +93,7 @@ and `ParamHash` to determine:
   instance to restart the tree from scratch.
 
 In both non-`NoChange` cases, `BTreeHotReloadManager.TryReload` immediately patches the
-`DoctrineRegistry` by replacing the active `BehaviorTreeBlob` inside the `DoctrineDefinition`,
+`BehaviorRegistry` by replacing the active `BehaviorTreeBlob` inside the `BehaviorDefinition`,
 so live entities execute the new logic starting on the very next tick.
 
 The stub comment `// === HOT RELOAD CHECK (Stub for now) ===` in `Interpreter.Tick` is
@@ -132,7 +132,7 @@ Simple renderers implementing only `IImGuiRenderer` continue to work unchanged.
 
 ### 2.8 BrainBlackboard Typed DTO Rendering
 
-`DoctrineDefinition` receives an optional `Type? ParamsDtoType` property. When set, the
+`BehaviorDefinition` receives an optional `Type? ParamsDtoType` property. When set, the
 `BrainBlackboardRenderer` (implementing `IEntityAwareImGuiRenderer`) uses it to marshal
 the 128-byte `BrainBlackboard.Memory` as the registered DTO and render its fields via
 `ImGuiPropertyTree`, completely replacing the raw hex byte display.
@@ -140,8 +140,8 @@ the 128-byte `BrainBlackboard.Memory` as the registered DTO and render its field
 ### 2.9 BTree Live Visualizer in Entity Inspector
 
 `BTreeVisualizerRenderer` implements `IEntityAwareImGuiRenderer` for `BrainBTreeState`.
-Using `IInspectableSession` it reads the sibling `DoctrineState` to look up the active
-`BehaviorTreeBlob` from the `DoctrineRegistry`. It then renders a recursive ImGui tree
+Using `IInspectableSession` it reads the sibling `BehaviorState` to look up the active
+`BehaviorTreeBlob` from the `BehaviorRegistry`. It then renders a recursive ImGui tree
 with:
 - Active execution path highlighted (green for current leaf, yellow for active composites)
   using `RunningNodeIndex` and `NodeIndexStack`.
@@ -229,7 +229,7 @@ References: `Microsoft.CodeAnalysis.CSharp` (analyzer reference, like `Fhsm.Sour
 - New file: `Fbt.Kernel/HotReload/BTreeHotReloadManager.cs`
 
 #### Tasks
-- **FBT-020** Implement `BTreeHotReloadManager` with `TryReload(string treeName, BehaviorTreeBlob newBlob, Span<BrainBTreeState> liveInstances)`, `ReloadResult` enum (NewTree / NoChange / SoftReload / HardReset), and `DoctrineRegistry` patching before returning.
+- **FBT-020** Implement `BTreeHotReloadManager` with `TryReload(string treeName, BehaviorTreeBlob newBlob, Span<BrainBTreeState> liveInstances)`, `ReloadResult` enum (NewTree / NoChange / SoftReload / HardReset), and `BehaviorRegistry` patching before returning.
 - **FBT-021** Implement the hot reload check in `Interpreter.Tick` — compare `_blob.StructureHash` vs stored hash in state; call `state.Reset()` on structure change.
 - **FBT-022** Tests for hot reload — SoftReload preserves state, HardReset clears state, NoChange is a no-op, old ALC GC'd after reload.
 - **FBT-023** `FbtAssemblyHotReloader` — `FileSystemWatcher`-driven ALC load/unload orchestrator with `OnReloadCompleted`/`OnReloadFailed` events and thread-safe debounced reload queue.
@@ -242,18 +242,18 @@ in the Entity Inspector.
 **Files modified:**
 - `Fdp.Presentation/ImGui/Renderers/IImGuiRenderer.cs` — add `IEntityAwareImGuiRenderer`.
 - `Fdp.Presentation/ImGui/Utils/ComponentReflector.cs` — check for extended interface.
-- `Fdp.Toolkits/Behavior/DoctrineDefinition.cs` — add `ParamsDtoType`.
+- `Fdp.Toolkits/Behavior/BehaviorDefinition.cs` — add `ParamsDtoType`.
 
-**New files in `Hrot.Presentation`** (or a suitable location with access to `DoctrineRegistry`):
+**New files in `Hrot.Presentation`** (or a suitable location with access to `BehaviorRegistry`):
 - `Behavior/BrainBlackboardRenderer.cs`
 - `Behavior/BTreeVisualizerRenderer.cs`
 
 #### Tasks
 - **FBT-030** Define `IEntityAwareImGuiRenderer` extending `IImGuiRenderer` with `bool RenderValue(IInspectableSession, Entity, object)`.
 - **FBT-031** Update `ComponentReflector.DrawComponents` to prefer `IEntityAwareImGuiRenderer` when available (pass `session` and `entity` to it).
-- **FBT-032** Add `Type? ParamsDtoType` to `DoctrineDefinition`.
-- **FBT-033** Implement `BrainBlackboardRenderer : IEntityAwareImGuiRenderer` for `BrainBlackboard` — reads `DoctrineState`, looks up `ParamsDtoType`, marshals blackboard memory to typed DTO, renders via `ImGuiPropertyTree`.
-- **FBT-034** Implement `BTreeVisualizerRenderer : IEntityAwareImGuiRenderer` for `BrainBTreeState` — reads sibling `DoctrineState`, retrieves `BehaviorTreeBlob`, renders color-coded recursive tree.
+- **FBT-032** Add `Type? ParamsDtoType` to `BehaviorDefinition`.
+- **FBT-033** Implement `BrainBlackboardRenderer : IEntityAwareImGuiRenderer` for `BrainBlackboard` — reads `BehaviorState`, looks up `ParamsDtoType`, marshals blackboard memory to typed DTO, renders via `ImGuiPropertyTree`.
+- **FBT-034** Implement `BTreeVisualizerRenderer : IEntityAwareImGuiRenderer` for `BrainBTreeState` — reads sibling `BehaviorState`, retrieves `BehaviorTreeBlob`, renders color-coded recursive tree.
 - **FBT-035** Tests for `ComponentReflector` extended renderer dispatch.
 - **FBT-036** Tests for `BrainBlackboardRenderer` — verifies DTO field rendering with a mock session.
 - **FBT-037** Tests for `BTreeVisualizerRenderer` — verifies correct node coloring and metadata display.
@@ -329,7 +329,7 @@ No circular dependencies introduced. `Fbt.SourceGen` is consumed only as an anal
 | **Created** | `FDP/ExtDeps/FastBTree/examples/Fbt.Examples.FluentBTree/` — new project |
 | **Modified** | `FDP/Engine/Fdp.Presentation/ImGui/Renderers/IImGuiRenderer.cs` — add `IEntityAwareImGuiRenderer` |
 | **Modified** | `FDP/Engine/Fdp.Presentation/ImGui/Utils/ComponentReflector.cs` — dispatch extended renderer |
-| **Modified** | `FDP/Toolkits/Fdp.Toolkits/Behavior/DoctrineRegistry.cs` — add `ParamsDtoType` to `DoctrineDefinition` |
+| **Modified** | `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorRegistry.cs` — add `ParamsDtoType` to `BehaviorDefinition` |
 | **Created** | `Hrot/Engine/Hrot.Presentation/Behavior/BrainBlackboardRenderer.cs` |
 | **Created** | `Hrot/Engine/Hrot.Presentation/Behavior/BTreeVisualizerRenderer.cs` |
 | **Modified** | `FDP/ExtDeps/FastBTree/FastBTree.sln` — add new projects |

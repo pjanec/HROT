@@ -25,7 +25,7 @@ namespace Hrot.CGF;
 ///     <description><see cref="HrotSharedComponentRegistry.RegisterAll"/> — network
 ///     replication, geographic primitives, lifecycle events.</description></item>
 ///   <item><term>Cognitive + Kinematic</term>
-///     <description>Brain-tier AI components (doctrine, channels, BTree/HSM state),
+///     <description>Brain-tier AI components (behavior, channels, BTree/HSM state),
 ///     locomotion and vehicle physics components.</description></item>
 ///   <item><term>IG Presentation</term>
 ///     <description>Components written by <c>EntityStatesIngressPack</c> translators
@@ -52,7 +52,7 @@ public static class CgfComponentRegistry
         HrotSharedComponentRegistry.RegisterAll(world);
 
         // ── Tier 2: Cognitive (Brain-tier AI) ─────────────────────────────────
-        world.RegisterComponent<DoctrineState>();
+        world.RegisterComponent<BehaviorState>();
         world.RegisterComponent<LocomotionChannel>();
         world.RegisterComponent<WeaponChannel>();
         world.RegisterComponent<InteractionChannel>();

@@ -55,7 +55,7 @@ Currently, `SimulationLogicModule` in SimHost does not register the logic proces
 
 ## 🎯 Batch Objectives
 - Fully configure `SimulationLogicModule.RegisterSystems()` with all behavior and physics update loops.
-- Pass required shared data parameters like `DoctrineRegistry` and `NetworkEntityMap` into the constructor.
+- Pass required shared data parameters like `BehaviorRegistry` and `NetworkEntityMap` into the constructor.
 - Add an empty world test proving all systems load without exception.
 
 ---
@@ -72,9 +72,9 @@ Wire the `FDP.Toolkit.Behavior` and `FDP.Toolkit.Navigation` systems into `Simul
 
 **Requirements:**
 In `SimulationLogicModule.RegisterSystems()`, register in **strict order**:
-1. `new MissionAdapterSystem(_doctrineRegistry, _entityMap)` — runs first each frame. *(Note: Leave this commented out or as a dummy stub for now, since it is implemented in S4.3. You can create an empty stub `MissionAdapterSystem : ComponentSystem` to satisfy compilation.)*
+1. `new MissionAdapterSystem(_behaviorRegistry, _entityMap)` — runs first each frame. *(Note: Leave this commented out or as a dummy stub for now, since it is implemented in S4.3. You can create an empty stub `MissionAdapterSystem : ComponentSystem` to satisfy compilation.)*
 2. `new ChannelArbitrationSystem()`
-3. `new BTreeTickSystem(_doctrineRegistry)`
+3. `new BTreeTickSystem(_behaviorRegistry)`
 4. `new LocomotionDispatcherSystem()`
 5. `new MoveToExecutor()`
 6. `new FollowRouteExecutor()`
@@ -84,7 +84,7 @@ In `SimulationLogicModule.RegisterSystems()`, register in **strict order**:
 
 *Requirement Updates*: Some systems may not yet exist in `Hrot.SimHost` directly or may require external APIs. For `MissionAdapterSystem` and `JoinFormationExecutor`, create empty class stubs extending `ComponentSystem` or using `IActionExecutor` if needed, so it compiles. 
 
-You must also update `SimulationLogicModule` constructor to accept `DoctrineRegistry` and `NetworkEntityMap` parameters.
+You must also update `SimulationLogicModule` constructor to accept `BehaviorRegistry` and `NetworkEntityMap` parameters.
 
 **Tests Required:**
 - ✅ Unit test instantiating `SimulationLogicModule` with dummy parameters, registering to an empty `EntityRepository`, and calling `kernel.Update()` once ensuring it runs without throwing exception.

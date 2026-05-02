@@ -49,7 +49,7 @@ public sealed class NedNetworkFactory : INetworkFactory
     private readonly NodeRole             _role;
     private readonly ITkbDatabase?        _tkbDb;
     private readonly EntityLifecycleModule? _lifecycleModule;
-    private readonly DoctrineRegistry?    _doctrineRegistry;
+    private readonly BehaviorRegistry?    _behaviorRegistry;
 
     public NedNetworkFactory(
         DdsParticipant?       participant,
@@ -60,7 +60,7 @@ public sealed class NedNetworkFactory : INetworkFactory
         NodeRole              role,
         ITkbDatabase?         tkbDb            = null,
         EntityLifecycleModule? lifecycleModule  = null,
-        DoctrineRegistry?     doctrineRegistry = null,
+        BehaviorRegistry?     behaviorRegistry = null,
         FdpEventBus?          worldBus          = null)
     {
         _participant      = participant;
@@ -72,7 +72,7 @@ public sealed class NedNetworkFactory : INetworkFactory
         _role             = role;
         _tkbDb            = tkbDb;
         _lifecycleModule  = lifecycleModule;
-        _doctrineRegistry = doctrineRegistry;
+        _behaviorRegistry = behaviorRegistry;
     }
 
     /// <inheritdoc/>
@@ -94,7 +94,7 @@ public sealed class NedNetworkFactory : INetworkFactory
                domainId:          0,
                tkbDb:             _tkbDb,
                lifecycleModule:   _lifecycleModule,
-               doctrineRegistry:  _doctrineRegistry);
+               behaviorRegistry:  _behaviorRegistry);
 
     /// <inheritdoc/>
     public ICommandGateway CreateCommandGateway()
@@ -199,7 +199,7 @@ public sealed class NedNetworkFactory : INetworkFactory
     }
 
     /// <inheritdoc/>
-    public INetworkFactory ConfigureForNode(HrotNodeContext context, NodeRole role, DoctrineRegistry? doctrineRegistry = null)
+    public INetworkFactory ConfigureForNode(HrotNodeContext context, NodeRole role, BehaviorRegistry? behaviorRegistry = null)
     {
         EntityLifecycleModule? elm = null;
         foreach (var m in context.BaseModules)
@@ -216,7 +216,7 @@ public sealed class NedNetworkFactory : INetworkFactory
             role:             role,
             tkbDb:            context.TkbDb,
             lifecycleModule:  elm,
-            doctrineRegistry: doctrineRegistry ?? _doctrineRegistry,
+            behaviorRegistry: behaviorRegistry ?? _behaviorRegistry,
             worldBus:         context.World.Bus);
     }
 
@@ -232,7 +232,7 @@ public sealed class NedNetworkFactory : INetworkFactory
             role:             role,
             tkbDb:            _tkbDb,
             lifecycleModule:  _lifecycleModule,
-            doctrineRegistry: _doctrineRegistry);
+            behaviorRegistry: _behaviorRegistry);
     }
 
     /// <inheritdoc/>

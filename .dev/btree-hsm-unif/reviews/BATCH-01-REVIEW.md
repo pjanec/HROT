@@ -46,8 +46,8 @@ updated. Correct.
 **AiHotReloadCoordinator.cs** — `DrainPendingCallbacks` step order: `ClearAll()` BEFORE
 `RegisterAll()` BEFORE staging apply BEFORE hot-reload. Correct.
 
-**DoctrineIngressSystem.cs** — `ResetHsmComponents` private static helper called in both
-`AssignDoctrineEvent` and `AssignDoctrineHashEvent` handlers. Resets `Terminated`,
+**BehaviorIngressSystem.cs** — `ResetHsmComponents` private static helper called in both
+`AssignBehaviorEvent` and `AssignBehaviorHashEvent` handlers. Resets `Terminated`,
 `Phase`, queue state, and `ActiveLeafIds`. Correct.
 
 **Test quality** — all new tests verify actual runtime values (flag bits, phase enum,
@@ -60,7 +60,7 @@ byte values, event counts). No shallow assertions or string-presence-only tests.
 ```
 feat(bhu-01): Phases 1-3 + BHU-016 -- HSM hot-reload, terminal routing, cognitive interrupts
 
-BHU-001: Add Fhsm.Kernel/Compiler/SourceGen refs to Hrot.AI.Doctrines.csproj.
+BHU-001: Add Fhsm.Kernel/Compiler/SourceGen refs to Hrot.AI.Behaviors.csproj.
          Create CgfHsmNodes.cs with stub [HsmAction].
 
 BHU-002: HsmActionGenerator emits ClearAll() in GenerateKernelDispatcher.
@@ -72,7 +72,7 @@ BHU-003: New AiHotReloadCoordinator -- unified BTree+HSM reload coordinator.
          PreviousAlcRef WeakReference exposed for GC-unload verification.
 
 BHU-004: EditorSubsystem uses AiHotReloadCoordinator (replaces FbtAssemblyHotReloader).
-         AiDoctrineFactory.BuildRegistrationAction builds real HsmDefinitionBlob
+         AiBehaviorFactory.BuildRegistrationAction builds real HsmDefinitionBlob
          for Idle_HSM using HsmBuilder + HsmCompiler.Compile.
 
 BHU-005: StateNode.IsFinal, StateBuilder.Final(), HsmFlattener emits StateFlags.IsFinal.
@@ -82,10 +82,10 @@ BHU-006: HsmKernelCore sets InstanceFlags.Terminated on final-state entry.
          Guard at top of event-dispatch: early-return when Terminated.
          Tests: flag set after entering final; second Update is no-op.
 
-BHU-007: HsmTickSystem<T> detects Terminated, publishes DoctrineFinishedEvent once
-         per doctrine instance (dedup via _publishedTerminalForInstanceId).
+BHU-007: HsmTickSystem<T> detects Terminated, publishes BehaviorFinishedEvent once
+         per behavior instance (dedup via _publishedTerminalForInstanceId).
          Terminal latch cleared after publish. Stale-key pruning each frame.
-         Tests: single event; dedup; new doctrine fires new event; entity removal.
+         Tests: single event; dedup; new behavior fires new event; entity removal.
 
 BHU-008: New CognitiveInterruptSystem -- edge-triggered CanMove->false writes bb[126].
          Two-pass: init PreviousCapabilities for new entities; then edge detection.
@@ -103,8 +103,8 @@ BHU-010: CognitiveRuntimeModule updated to 6-system order:
 BHU-015: New CognitiveCleanupSystem -- zeroes bb[126] and bb[127] each frame.
          Tests: cleanup zeros byte; does not affect unrelated bytes.
 
-BHU-016: DoctrineIngressSystem.ResetHsmComponents resets BrainHsm64 and BrainHsm128
-         (Terminated, Phase, queue, ActiveLeafIds) on both AssignDoctrine event paths.
+BHU-016: BehaviorIngressSystem.ResetHsmComponents resets BrainHsm64 and BrainHsm128
+         (Terminated, Phase, queue, ActiveLeafIds) on both AssignBehavior event paths.
          Tests: Terminated cleared + Phase=Idle after reassign; ActiveLeafIds=0xFFFF.
 
 Build: 0 errors. Fhsm.Tests 241/241. Fdp.Toolkits.Tests 769/782 (13 pre-existing).

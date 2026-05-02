@@ -49,7 +49,7 @@ Task 1 (egress + test harness trigger mapping), Task 2 (DEM1-D007 bootstrap docs
 
 **File:** `Hrot.Map.Common/Replication/Egress/EntityMissionEgressTranslator.cs`
 
-**Note:** The `switch` no longer maps `EcsMissionTrigger.ReachedDestination`; it falls through to `"TimerElapsed"`. If any **in-memory** `MissionPlanQueue` still carries the obsolete enum value (not the `DoctrineFinished` path), DDS egress would be wrong. Acceptable if all live data paths are migrated; if not, add explicit compat arm mapping legacy enum to `"DoctrineFinished"` for wire compatibility.
+**Note:** The `switch` no longer maps `EcsMissionTrigger.ReachedDestination`; it falls through to `"TimerElapsed"`. If any **in-memory** `MissionPlanQueue` still carries the obsolete enum value (not the `BehaviorFinished` path), DDS egress would be wrong. Acceptable if all live data paths are migrated; if not, add explicit compat arm mapping legacy enum to `"BehaviorFinished"` for wire compatibility.
 
 ---
 
@@ -70,10 +70,10 @@ Task 1 (egress + test harness trigger mapping), Task 2 (DEM1-D007 bootstrap docs
 ## Commit Message
 
 ```
-feat(dem1): ParallelStories AAR replay, mission egress DoctrineFinished, D007 docs (BATCH-07)
+feat(dem1): ParallelStories AAR replay, mission egress BehaviorFinished, D007 docs (BATCH-07)
 
-- Map EcsMissionTrigger.DoctrineFinished to DDS "DoctrineFinished" in EntityMissionEgressTranslator.
-- SimHostInstance: legacy "ReachedDestination" string resolves to MissionTrigger.DoctrineFinished.
+- Map EcsMissionTrigger.BehaviorFinished to DDS "BehaviorFinished" in EntityMissionEgressTranslator.
+- SimHostInstance: legacy "ReachedDestination" string resolves to MissionTrigger.BehaviorFinished.
 - DEM1-D008: live phase records 50 ticks via LiveKinematicsModule + blocking AsyncRecorder;
   replay via ReplayModule; position checks at logical frames 25/50.
 - DEM1-D007: document IgAltitudeBaselineEstablished spawn/bootstrap in DEM1-TASK-DETAIL.

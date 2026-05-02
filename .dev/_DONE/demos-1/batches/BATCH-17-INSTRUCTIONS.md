@@ -20,7 +20,7 @@ Complete **at least two** items; record in **`BATCH-17-REPORT.md`**:
 | 1 | **Decouple `Fdp.Examples.Scenarios` from `Fdp.Examples.NetworkDemo`:** move or duplicate **`TransformSyncSystem`** (and minimal deps) into **`FDP.Toolkit.Replication`**, **`Fdp.Examples.Common`**, or another **non–NetworkDemo** home; update **`TerrainClampingScenario`**; then remove **`ProjectReference`** if nothing else needs it. Verify **Scenarios** + **Runner** + **`Fdp.Examples.Scenarios.Tests`**. | DEBT-TRACKER (NetworkDemo row) |
 | 2 | **`DistributedTankScenario`** class **`<summary>`:** consolidate redundant Phase B + Phase C locomotion paragraphs into one DDS narrative. | DEBT-TRACKER |
 | 3 | **P3** RVO lateral (**BATCH-03**) **or** FastBTree **`Selector`** doc (**BATCH-04**) — pick one **open** row. | DEBT-TRACKER |
-| 4 | **P3** **`MissionDirectorSystem`** one-frame **`AssignDoctrineHashEvent`** delay (**BD1-BATCH-04**) — document or unify. | DEBT-TRACKER |
+| 4 | **P3** **`MissionDirectorSystem`** one-frame **`AssignBehaviorHashEvent`** delay (**BD1-BATCH-04**) — document or unify. | DEBT-TRACKER |
 | 5 | **`UrbanAmbushIntegrationTests` flake** (`ScenarioDirector_SpawnsExpectedEntityCount`): reproduce; consider assembly **`CollectionBehavior`**, teardown order, or isolation. | DEBT-TRACKER |
 
 ---

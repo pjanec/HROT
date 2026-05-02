@@ -9,7 +9,7 @@
 
 ## Summary
 
-Implemented `MissionAdapterSystem` and `JoinFormationExecutor`, completing Phase S4. Translated abstract behavior strings to C# doctrines, safely handled unstructured lists, updated task execution states properly back into the ECS managed `EntityMissionHolder` component, and hooked up formation execution.
+Implemented `MissionAdapterSystem` and `JoinFormationExecutor`, completing Phase S4. Translated abstract behavior strings to C# behaviors, safely handled unstructured lists, updated task execution states properly back into the ECS managed `EntityMissionHolder` component, and hooked up formation execution.
 
 ---
 
@@ -40,14 +40,14 @@ feat: mission translation to behavior states and formation executor (SIM-BATCH-0
 Completes TASK-S4.3 and TASK-S4.4 (phase completion)
 
 - Replaces `MissionAdapterSystem` stub with full translation.
-- Evaluates string identifier mapping via `DoctrineRegistry`.
+- Evaluates string identifier mapping via `BehaviorRegistry`.
 - Implements safe value-struct list modification inside managed ECS components.
 - Resolves task success/failure node responses, advancing underlying mission step states safely.
 - Implements `JoinFormationExecutor` for locomotion action routing, and links it via `VehicleAPI` logic.
 
 Testing:
 - 9 tests handling behavior success flow, graceful failing tasks, and executor status states correctly. 
-- `SimHostDoctrineIds` statically defines the engine constants.
+- `SimHostBehaviorIds` statically defines the engine constants.
 
 Related: TASK-DETAILS-SIMHOST.md, TASK-S4.3, TASK-S4.4
 ```

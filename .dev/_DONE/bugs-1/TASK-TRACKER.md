@@ -42,5 +42,5 @@ developers can observe network latency in real time.
 **Goal:** Fix entity stopping at the first waypoint due to an absent trigger, and fix the OCC
 version conflict that occurs after clicking ABORT then COMMIT.
 
-- [x] **BUG1-M001** Default `DoctrineFinished` Trigger on Task Creation [details](./TASK-DETAIL.md#bug1-m001-default-doctrinefinished-trigger-on-task-creation)
+- [x] **BUG1-M001** Default `BehaviorFinished` Trigger on Task Creation [details](./TASK-DETAIL.md#bug1-m001-default-behaviorfinished-trigger-on-task-creation)
 - [x] **BUG1-M002** Track Control Commands for OCC Version Sync [details](./TASK-DETAIL.md#bug1-m002-track-control-commands-for-occ-version-sync)

@@ -39,11 +39,11 @@ TASK-TI002:
 - [x] Empty registry TryGetMapper returns false, out-param null
 
 TASK-TI003:
-- [x] SC-1: Mapper found → translated doctrine name published
-- [x] SC-2: Empty registry → IntentId passed through as DoctrineName (fallback)
-- [x] SC-3: Deleted entity → no AssignDoctrineEvent, no exception
-- [x] SC-4: Mapper registered but TryMap returns false → fallback publishes IntentId as DoctrineName
-- [x] SC-5: Entity without DoctrineState authority → no AssignDoctrineEvent, no exception
+- [x] SC-1: Mapper found → translated behavior name published
+- [x] SC-2: Empty registry → IntentId passed through as BehaviorName (fallback)
+- [x] SC-3: Deleted entity → no AssignBehaviorEvent, no exception
+- [x] SC-4: Mapper registered but TryMap returns false → fallback publishes IntentId as BehaviorName
+- [x] SC-5: Entity without BehaviorState authority → no AssignBehaviorEvent, no exception
 
 ---
 
@@ -54,9 +54,9 @@ TASK-TI003:
 | File | Purpose |
 |------|---------|
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/AssignTacticalIntentEvent.cs` | Managed event for intent distribution (TASK-TI001) |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/TacticalOrderMapper/ITacticalOrderMapper.cs` | Interface for intent-to-doctrine translation (TASK-TI002) |
+| `FDP/Toolkits/Fdp.Toolkits/Behavior/TacticalOrderMapper/ITacticalOrderMapper.cs` | Interface for intent-to-behavior translation (TASK-TI002) |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/TacticalOrderMapper/TacticalIntentMapperRegistry.cs` | Dictionary-backed mapper registry (TASK-TI002) |
-| `Hrot/Subsystems/Hrot.CGF/Systems/TacticalIntentResolutionSystem.cs` | ECS system translating intent events to doctrine events (TASK-TI003) |
+| `Hrot/Subsystems/Hrot.CGF/Systems/TacticalIntentResolutionSystem.cs` | ECS system translating intent events to behavior events (TASK-TI003) |
 | `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/AssignTacticalIntentEventTests.cs` | Tests for TASK-TI001 (2 tests) |
 | `FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/TacticalIntentMapperRegistryTests.cs` | Tests for TASK-TI002 (3 tests) |
 | `Hrot/Subsystems/Hrot.SimHost.Tests/TacticalIntentResolutionSystemTests.cs` | Tests for TASK-TI003 (5 tests) |
@@ -97,17 +97,17 @@ Two issues arose during build verification:
 
 - **`null` check on `mapperRegistry` in `CgfLogicPack` constructor**: Consistent with the existing `ArgumentNullException` guard on `scenarioSource`, a null check was added for `mapperRegistry` to fail fast and clearly.
 
-- **Authority gate before mapper lookup**: The authority check (`HasAuthority<DoctrineState>`) is performed before attempting to look up a mapper. This ensures the registry is never consulted for events that will be discarded, keeping the hot path fast.
+- **Authority gate before mapper lookup**: The authority check (`HasAuthority<BehaviorState>`) is performed before attempting to look up a mapper. This ensures the registry is never consulted for events that will be discarded, keeping the hot path fast.
 
 **Q4: What edge cases did you discover that weren't mentioned in the spec?**
 
-- **`AlwaysFailMapper` / fallback path**: SC-4 tests that when a mapper is registered but its `TryMap` returns false, the system falls back to treating `IntentId` as the doctrine name. This edge case (mapper registered but mapping fails) is distinct from "no mapper registered" and exercises a different code path. The spec implied this behaviour but did not explicitly call it out as a test case; it is included to prevent future regressions if the fallback logic is accidentally removed.
+- **`AlwaysFailMapper` / fallback path**: SC-4 tests that when a mapper is registered but its `TryMap` returns false, the system falls back to treating `IntentId` as the behavior name. This edge case (mapper registered but mapping fails) is distinct from "no mapper registered" and exercises a different code path. The spec implied this behaviour but did not explicitly call it out as a test case; it is included to prevent future regressions if the fallback logic is accidentally removed.
 
 - **`null` event in `ReadManaged` stream**: `TacticalIntentResolutionSystem.Execute` includes a `if (evt == null) continue;` guard. In practice `FdpEventBus.ReadManaged<T>()` does not return null entries, but the guard costs nothing and matches defensive patterns used elsewhere in the codebase (see `MissionAdapterSystem`).
 
 **Q5: Are there any performance concerns or optimization opportunities you noticed?**
 
-- None specific to this batch. The registry lookup is a single `Dictionary<string, ITacticalOrderMapper>` lookup per event — O(1) and allocation-free. The system is inserted before `MissionControlModule.SimulationSystems` in the tick order, which is the correct ordering (intent events from this tick must be translated before the doctrine assignment is consumed by the cognitive pipeline in the same tick).
+- None specific to this batch. The registry lookup is a single `Dictionary<string, ITacticalOrderMapper>` lookup per event — O(1) and allocation-free. The system is inserted before `MissionControlModule.SimulationSystems` in the tick order, which is the correct ordering (intent events from this tick must be translated before the behavior assignment is consumed by the cognitive pipeline in the same tick).
 
 ---
 
@@ -132,8 +132,8 @@ TASK-TI003: Add TacticalIntentResolutionSystem wired into CgfLogicPack
 - TacticalIntentMapperRegistry maps IntentId strings to ITacticalOrderMapper instances;
   throws InvalidOperationException on duplicate registration
 - TacticalIntentResolutionSystem translates AssignTacticalIntentEvent to
-  AssignDoctrineEvent via mapper lookup, with IntentId pass-through fallback;
-  authority-gated on DoctrineState to skip remote-owned entities
+  AssignBehaviorEvent via mapper lookup, with IntentId pass-through fallback;
+  authority-gated on BehaviorState to skip remote-owned entities
 - CgfLogicPack now takes TacticalIntentMapperRegistry as required 4th constructor
   parameter; TacticalIntentResolutionSystem inserted after MissionAdapterSystem
 - All CgfLogicPack call sites updated (CgfSubsystem, EditorSubsystem, EditorHarness,

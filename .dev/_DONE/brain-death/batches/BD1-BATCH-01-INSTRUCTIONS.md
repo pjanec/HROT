@@ -12,7 +12,7 @@
 ## 📋 Onboarding & Workflow
 
 ### Developer Instructions
-This batch addresses the core ECS lifecycle for doctrine and channel cleanup. When a mission ends, is aborted, or is replaced, the entity must cleanly reach a "brain death" state (no active doctrine, no stimulated channels). You will implement two new events to orchestrate this and fix the arbitration/mission systems to properly transition entities out of active cognitive states.
+This batch addresses the core ECS lifecycle for behavior and channel cleanup. When a mission ends, is aborted, or is replaced, the entity must cleanly reach a "brain death" state (no active behavior, no stimulated channels). You will implement two new events to orchestrate this and fix the arbitration/mission systems to properly transition entities out of active cognitive states.
 
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md` - How to work with batches
@@ -56,57 +56,57 @@ This batch addresses the core ECS lifecycle for doctrine and channel cleanup. Wh
 
 ## Context
 
-The core cognitive teardown flow is incomplete. We are introducing two explicit events: a bottom-up `DoctrineFinishedEvent` acting as a notification from the cognitive layer, and a top-down `ClearDoctrineEvent` acting as a mandatory imperative signal to halt operations. We will modify `BTreeTickSystem`, `DoctrineIngressSystem`, `ChannelArbitrationSystem`, `MissionDirectorSystem`, and `MissionControlRequestSystem` to guarantee `OnExit` teardown is executed on the muscle layer.
+The core cognitive teardown flow is incomplete. We are introducing two explicit events: a bottom-up `BehaviorFinishedEvent` acting as a notification from the cognitive layer, and a top-down `ClearBehaviorEvent` acting as a mandatory imperative signal to halt operations. We will modify `BTreeTickSystem`, `BehaviorIngressSystem`, `ChannelArbitrationSystem`, `MissionDirectorSystem`, and `MissionControlRequestSystem` to guarantee `OnExit` teardown is executed on the muscle layer.
 
 **Related Tasks:**
-- **BD1-P1T0a:** `DoctrineFinishedEvent` — Bottom-Up Notification from BTreeTickSystem
-- **BD1-P1T0b:** `ClearDoctrineEvent` — Top-Down Imperative via DoctrineIngressSystem
+- **BD1-P1T0a:** `BehaviorFinishedEvent` — Bottom-Up Notification from BTreeTickSystem
+- **BD1-P1T0b:** `ClearBehaviorEvent` — Top-Down Imperative via BehaviorIngressSystem
 - **BD1-P1T1:** `ChannelArbitrationSystem` — OnExit Guarantee
-- **BD1-P1T2:** `MissionDirectorSystem` — DoctrineFinished Trigger + End-of-Mission Clear
-- **BD1-P1T3:** `MissionControlRequestSystem` — CMD_ABORT_ALL Doctrine Clear
+- **BD1-P1T2:** `MissionDirectorSystem` — BehaviorFinished Trigger + End-of-Mission Clear
+- **BD1-P1T3:** `MissionControlRequestSystem` — CMD_ABORT_ALL Behavior Clear
 
 ---
 
 ## 🎯 Batch Objectives
-Ensure doctrine is explicitly cleared to `DoctrineIds.None` when a mission ends or is aborted, and that `ChannelArbitrationSystem` always triggers `OnExit` so the muscle layer is cleanly shut down. 
+Ensure behavior is explicitly cleared to `BehaviorIds.None` when a mission ends or is aborted, and that `ChannelArbitrationSystem` always triggers `OnExit` so the muscle layer is cleanly shut down. 
 
 ---
 
 ## ✅ Tasks
 
-### Task 1: DoctrineFinishedEvent — Bottom-Up Notification (BD1-P1T0a)
+### Task 1: BehaviorFinishedEvent — Bottom-Up Notification (BD1-P1T0a)
 
 **Files:** 
-- `FDP/Toolkits/FDP.Toolkit.Behavior/Events/DoctrineFinishedEvent.cs` (NEW FILE)
+- `FDP/Toolkits/FDP.Toolkit.Behavior/Events/BehaviorFinishedEvent.cs` (NEW FILE)
 - `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BTreeTickSystem.cs`
-**Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p1t0a-doctrinefinishedevent--bottom-up-notification-from-btreeticksystem)
-**Design Reference:** [BD1-DESIGN.md](docs/brain-death/BD1-DESIGN.md#10a-doctrinefinishedevent-notification-bottom-up)
+**Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p1t0a-behaviorfinishedevent--bottom-up-notification-from-btreeticksystem)
+**Design Reference:** [BD1-DESIGN.md](docs/brain-death/BD1-DESIGN.md#10a-behaviorfinishedevent-notification-bottom-up)
 
 **Description:**
-Create the `DoctrineFinishedEvent` and fire it from `BTreeTickSystem` when the root evaluates to `NodeStatus.Success` or `NodeStatus.Failure`. Do NOT publish from `LocomotionDispatcherSystem`. Ensure it only publishes once per terminal transition.
+Create the `BehaviorFinishedEvent` and fire it from `BTreeTickSystem` when the root evaluates to `NodeStatus.Success` or `NodeStatus.Failure`. Do NOT publish from `LocomotionDispatcherSystem`. Ensure it only publishes once per terminal transition.
 
 **Tests Required:**
-- ✅ `DoctrineRoot_Success_PublishesDoctrineFinishedEvent`
-- ✅ `DoctrineRoot_Failure_PublishesDoctrineFinishedEvent`
-- ✅ `DoctrineRoot_Running_DoesNotPublishEvent`
-- ✅ `DoctrineRoot_Success_PublishedOnlyOnce`
-- ✅ `DoctrineFinished_NotPublishedByLocomotionDispatcher`
+- ✅ `BehaviorRoot_Success_PublishesBehaviorFinishedEvent`
+- ✅ `BehaviorRoot_Failure_PublishesBehaviorFinishedEvent`
+- ✅ `BehaviorRoot_Running_DoesNotPublishEvent`
+- ✅ `BehaviorRoot_Success_PublishedOnlyOnce`
+- ✅ `BehaviorFinished_NotPublishedByLocomotionDispatcher`
 
-### Task 2: ClearDoctrineEvent — Top-Down Imperative (BD1-P1T0b)
+### Task 2: ClearBehaviorEvent — Top-Down Imperative (BD1-P1T0b)
 
 **Files:** 
-- `FDP/Toolkits/FDP.Toolkit.Behavior/Events/ClearDoctrineEvent.cs` (NEW FILE)
-- `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs`
-**Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p1t0b-cleardoctrineevent--top-down-imperative-via-doctrineingresssystem)
-**Design Reference:** [BD1-DESIGN.md](docs/brain-death/BD1-DESIGN.md#10b-cleardoctrineevent-imperative-top-down)
+- `FDP/Toolkits/FDP.Toolkit.Behavior/Events/ClearBehaviorEvent.cs` (NEW FILE)
+- `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs`
+**Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p1t0b-clearbehaviorevent--top-down-imperative-via-behavioringresssystem)
+**Design Reference:** [BD1-DESIGN.md](docs/brain-death/BD1-DESIGN.md#10b-clearbehaviorevent-imperative-top-down)
 
 **Description:**
-Create the `ClearDoctrineEvent` class. Consume it in `DoctrineIngressSystem.OnUpdate`. It must clear `ActiveDoctrineHash`, increment `InstanceId`, set `BrainTier = 0`, and default `BrainBTreeState.State`.
+Create the `ClearBehaviorEvent` class. Consume it in `BehaviorIngressSystem.OnUpdate`. It must clear `ActiveBehaviorHash`, increment `InstanceId`, set `BrainTier = 0`, and default `BrainBTreeState.State`.
 
 **Tests Required:**
-- ✅ `ClearDoctrineEvent_SetsDoctrineToNone`
-- ✅ `ClearDoctrineEvent_NoDoctrineState_IsIgnored`
-- ✅ `ClearDoctrineEvent_DoesNotAffectOtherEntities`
+- ✅ `ClearBehaviorEvent_SetsBehaviorToNone`
+- ✅ `ClearBehaviorEvent_NoBehaviorState_IsIgnored`
+- ✅ `ClearBehaviorEvent_DoesNotAffectOtherEntities`
 - ✅ `ClearVsAssign_AreIndependent`
 
 ### Task 3: ChannelArbitrationSystem — OnExit Guarantee (BD1-P1T1)
@@ -120,38 +120,38 @@ Fix preemption checks. Instead of `channel = default;`, you must set `channel.Ac
 
 **Tests Required:**
 - ✅ `ChannelClear_ShouldNotZeroActionInstanceId` (Locomotion)
-- ✅ `NoPreemption_WhenDoctrineMatches`
+- ✅ `NoPreemption_WhenBehaviorMatches`
 - ✅ `WeaponChannel_ReceivesOnExitSignal`
 - ✅ `InteractionChannel_ReceivesOnExitSignal`
 
 ### Task 4: MissionDirectorSystem — End-of-Mission Clear (BD1-P1T2)
 
 **File:** `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs`  
-**Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p1t2-missiondirectorsystem--doctrinefinished-trigger--end-of-mission-clear)
-**Design Reference:** [BD1-DESIGN.md](docs/brain-death/BD1-DESIGN.md#12-missiondirectorsystem--end-of-mission-doctrine-clear)
+**Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p1t2-missiondirectorsystem--behaviorfinished-trigger--end-of-mission-clear)
+**Design Reference:** [BD1-DESIGN.md](docs/brain-death/BD1-DESIGN.md#12-missiondirectorsystem--end-of-mission-behavior-clear)
 
 **Description:**
-Add `DoctrineFinished` trigger logic to consume `DoctrineFinishedEvent`. When the trigger fires and the plan is exhausted (`queue.CurrentPhase >= queue.PhaseCount`), publish `ClearDoctrineEvent`. Do NOT mutate `DoctrineState` directly here.
+Add `BehaviorFinished` trigger logic to consume `BehaviorFinishedEvent`. When the trigger fires and the plan is exhausted (`queue.CurrentPhase >= queue.PhaseCount`), publish `ClearBehaviorEvent`. Do NOT mutate `BehaviorState` directly here.
 
 **Tests Required:**
-- ✅ `DoctrineFinishedTrigger_AdvancesPhase`
-- ✅ `DoctrineFinishedTrigger_MultiPhase_SetsNextDoctrine`
-- ✅ `DoctrineFinishedTrigger_WrongEntity_DoesNotFire`
-- ✅ `MissionComplete_PublishesClearDoctrineEvent`
-- ✅ `MissionComplete_ViaDoctrineIngress_SetsDoctrineToNone`
+- ✅ `BehaviorFinishedTrigger_AdvancesPhase`
+- ✅ `BehaviorFinishedTrigger_MultiPhase_SetsNextBehavior`
+- ✅ `BehaviorFinishedTrigger_WrongEntity_DoesNotFire`
+- ✅ `MissionComplete_PublishesClearBehaviorEvent`
+- ✅ `MissionComplete_ViaBehaviorIngress_SetsBehaviorToNone`
 
-### Task 5: MissionControlRequestSystem — CMD_ABORT_ALL Doctrine Clear (BD1-P1T3)
+### Task 5: MissionControlRequestSystem — CMD_ABORT_ALL Behavior Clear (BD1-P1T3)
 
 **File:** `Hrot.SimHost/Systems/MissionControlRequestSystem.cs`  
-**Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p1t3-missioncontrolrequestsystem--cmd_abort_all-doctrine-clear)
-**Design Reference:** [BD1-DESIGN.md](docs/brain-death/BD1-DESIGN.md#13-missioncontrolrequestsystem--cmd_abort_all-doctrine-clear)
+**Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p1t3-missioncontrolrequestsystem--cmd_abort_all-behavior-clear)
+**Design Reference:** [BD1-DESIGN.md](docs/brain-death/BD1-DESIGN.md#13-missioncontrolrequestsystem--cmd_abort_all-behavior-clear)
 
 **Description:**
-When a `CMD_ABORT_ALL` request is processed, after zeroing the `MissionPlanQueue`, publish a `ClearDoctrineEvent`. Ensure the existing ACK writing still happens.
+When a `CMD_ABORT_ALL` request is processed, after zeroing the `MissionPlanQueue`, publish a `ClearBehaviorEvent`. Ensure the existing ACK writing still happens.
 
 **Tests Required:**
-- ✅ `AbortAll_PublishesClearDoctrineEvent`
-- ✅ `AbortAll_NoDoctrineState_DoesNotThrow`
+- ✅ `AbortAll_PublishesClearBehaviorEvent`
+- ✅ `AbortAll_NoBehaviorState_DoesNotThrow`
 - ✅ `AbortAll_WritesSuccessAck`
 
 ---
@@ -183,7 +183,7 @@ In your `.dev-workstream/reports/BD1-BATCH-01-REPORT.md`, please provide insight
 
 **Q3:** What design decisions did you make beyond the instructions? What alternatives did you consider?
 
-**Q4:** What edge cases did you discover regarding the zero-allocation `ClearDoctrineEvent` publish that weren't mentioned in the spec?
+**Q4:** What edge cases did you discover regarding the zero-allocation `ClearBehaviorEvent` publish that weren't mentioned in the spec?
 
 **Q5:** Are there any observed performance concerns or allocation issues you noticed during the BTreeTickSystem modifications?
 
