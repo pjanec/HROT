@@ -102,7 +102,7 @@ public struct MissionPlanQueue
 }
 ```
 
-`MissionPhase` layout: `int DoctrineId` (4) + `MissionTrigger Trigger` (1) + 3 pad + `float TriggerParam` (4) = 12 bytes.
+`MissionPhase` layout: `int BehaviorId` (4) + `MissionTrigger Trigger` (1) + 3 pad + `float TriggerParam` (4) = 12 bytes.
 
 ### MissionDirectorSystem.cs
 
@@ -114,7 +114,7 @@ public class MissionDirectorSystem : ComponentSystem
 
 Handles `TimerElapsed`, `ReachedDestination`, `UnderAttack` triggers. `HealthCritical` is stubbed with a `TODO (DEBT)` comment (circular dependency: Behavior cannot reference Combat).
 
-On trigger: `queue.CurrentPhase++`, `queue.PhaseElapsedSeconds = 0f`, `unchecked { doctrine.InstanceId++; }`, `doctrine.ActiveDoctrineHash = nextPhase.DoctrineId`.
+On trigger: `queue.CurrentPhase++`, `queue.PhaseElapsedSeconds = 0f`, `unchecked { behavior.InstanceId++; }`, `behavior.ActiveBehaviorHash = nextPhase.BehaviorId`.
 
 **+4 tests** in `MissionDirectorSystemTests.cs`:
 1. `MissionDirector_AdvancesPhase_WhenTimerElapses` — 31 ticks @ 60 Hz ≥ 0.5 s threshold
@@ -154,18 +154,18 @@ Together, Part A proves stripping is tied to the lethal code path only, and Part
 
 ## Q3 — ChannelArbitrationSystem preemption mechanism
 
-**Question:** Does `ChannelArbitrationSystem` read `DoctrineState.InstanceId` or compare it differently?
+**Question:** Does `ChannelArbitrationSystem` read `BehaviorState.InstanceId` or compare it differently?
 
 **Answer:** Confirmed match. In `ChannelArbitrationSystem.OnUpdate()` (source: `ChannelArbitrationSystem.cs`), for each channel type (`LocomotionChannel`, `WeaponChannel`, `InteractionChannel`), the system executes:
 
 ```csharp
-if (channel.ActiveAction != 0 && channel.DoctrineInstanceId != doctrine.InstanceId)
+if (channel.ActiveAction != 0 && channel.BehaviorInstanceId != behavior.InstanceId)
 {
     channel = default;
 }
 ```
 
-When `MissionDirectorSystem` increments `doctrine.InstanceId` via `unchecked { doctrine.InstanceId++; }`, the stored `channel.DoctrineInstanceId` (which still holds the old value) will no longer equal `doctrine.InstanceId`. On the next tick (when `ChannelArbitrationSystem` runs after `MissionDirectorSystem` within the same `SimulationSystemGroup` frame), all active channels on the affected entity are reset to `default`, clearing their `ActiveAction` and `DoctrineInstanceId`. This is exactly the preemption mechanism the spec describes.
+When `MissionDirectorSystem` increments `behavior.InstanceId` via `unchecked { behavior.InstanceId++; }`, the stored `channel.BehaviorInstanceId` (which still holds the old value) will no longer equal `behavior.InstanceId`. On the next tick (when `ChannelArbitrationSystem` runs after `MissionDirectorSystem` within the same `SimulationSystemGroup` frame), all active channels on the affected entity are reset to `default`, clearing their `ActiveAction` and `BehaviorInstanceId`. This is exactly the preemption mechanism the spec describes.
 
 ---
 

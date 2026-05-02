@@ -37,7 +37,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
             _app = new HeadlessDemoApp();
             _app.Initialize();
             _director = new ScenarioDirector(
-                _app.World, _app.Tkb, _app.Road, _app.DoctrineRegistry,
+                _app.World, _app.Tkb, _app.Road, _app.BehaviorRegistry,
                 entityMap: _app.EntityMap);
         }
 
@@ -192,7 +192,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
             var log = output.ToString();
 
             // ── Phase 1 milestones (T001–T004) ────────────────────────────────
-            Assert.Contains("DOCTRINE ASSIGNED", log);   // Frame 1 — initial doctrines applied
+            Assert.Contains("BEHAVIOR ASSIGNED", log);   // Frame 1 — initial behaviors applied
             Assert.Contains("GUNFIRE",           log);   // ~Frame 181 — insurgent fires (WeaponFireIntent)
 
             // ── Bullet-dependent milestones restored after BS1-T007 ───────────

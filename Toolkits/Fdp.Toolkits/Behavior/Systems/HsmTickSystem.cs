@@ -27,7 +27,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
     /// <summary>
     /// Generic system that steps FastHSM instances of type <typeparamref name="T"/> for
-    /// every entity whose <see cref="DoctrineState.BrainTier"/> equals
+    /// every entity whose <see cref="BehaviorState.BrainTier"/> equals
     /// <see cref="BehaviorConstants.BrainTierHsm"/>.
     ///
     /// Register twice in the world:
@@ -50,12 +50,12 @@ namespace Fdp.Toolkit.Behavior.Systems
     public class HsmTickSystem<T> : IEcsModuleSystem, IProfiledSystem 
         where T : unmanaged
     {
-        private readonly DoctrineRegistry _registry;
+        private readonly BehaviorRegistry _registry;
 
         /// <summary>
-        /// Tracks the <see cref="DoctrineState.InstanceId"/> for which a terminal
-        /// <see cref="DoctrineFinishedEvent"/> was last published, keyed by entity index.
-        /// Prevents repeated publication when the same HSM doctrine stays terminated
+        /// Tracks the <see cref="BehaviorState.InstanceId"/> for which a terminal
+        /// <see cref="BehaviorFinishedEvent"/> was last published, keyed by entity index.
+        /// Prevents repeated publication when the same HSM behavior stays terminated
         /// across consecutive ticks.
         /// </summary>
         private readonly Dictionary<int, uint> _publishedTerminalForInstanceId = new();
@@ -67,11 +67,11 @@ namespace Fdp.Toolkit.Behavior.Systems
         public string ProfileName => $"HsmTickSystem<{typeof(T).Name}>";
 
         // Exposed for unit-testing: number of entities currently being tracked for
-        // deduplication of DoctrineFinishedEvent. Should drop to zero after an entity
+        // deduplication of BehaviorFinishedEvent. Should drop to zero after an entity
         // is destroyed and one additional Execute() tick has elapsed (stale pruning).
         internal int TrackedEntityCount => _publishedTerminalForInstanceId.Count;
 
-        public HsmTickSystem(DoctrineRegistry registry)
+        public HsmTickSystem(BehaviorRegistry registry)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
@@ -84,7 +84,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
             var q = repo.Query()
-                .With<DoctrineState>()
+                .With<BehaviorState>()
                 .With<T>()
                 .Build();
 
@@ -104,14 +104,14 @@ namespace Fdp.Toolkit.Behavior.Systems
             {
                 _seenThisFrame.Add(entity.Index);
 
-                var doctrine = repo.GetComponent<DoctrineState>(entity);
+                var behavior = repo.GetComponent<BehaviorState>(entity);
 
                 // Only process HSM-tier entities.
-                if (doctrine.BrainTier != BehaviorConstants.BrainTierHsm)
+                if (behavior.BrainTier != BehaviorConstants.BrainTierHsm)
                     continue;
 
-                // Skip if doctrine is unknown or has no HSM definition.
-                if (!_registry.TryGetDefinition(doctrine.ActiveDoctrineHash, out var def)
+                // Skip if behavior is unknown or has no HSM definition.
+                if (!_registry.TryGetDefinition(behavior.ActiveBehaviorHash, out var def)
                     || def.HsmDefinition == null)
                     continue;
 
@@ -141,20 +141,20 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // sizeof(T) determines the tier (64 / 128 / 256) inside HsmKernelCore.
                 HsmKernel.Update(def.HsmDefinition, ref component, bridge, deltaTime);
 
-                // BHU-007: Detect terminal state and publish DoctrineFinishedEvent exactly once
-                // per doctrine instance. The Terminated flag is cleared so new doctrine
+                // BHU-007: Detect terminal state and publish BehaviorFinishedEvent exactly once
+                // per behavior instance. The Terminated flag is cleared so new behavior
                 // assignments don't fire a spurious second event.
                 ref var hdr = ref Unsafe.As<T, InstanceHeader>(ref component);
                 if ((hdr.Flags & InstanceFlags.Terminated) != 0)
                 {
                     int  entityIdx  = entity.Index;
-                    uint instanceId = doctrine.InstanceId;
+                    uint instanceId = behavior.InstanceId;
                     if (!_publishedTerminalForInstanceId.TryGetValue(entityIdx, out uint prev)
                         || prev != instanceId)
                     {
                         _publishedTerminalForInstanceId[entityIdx] = instanceId;
-                        repo.Bus.Publish(new DoctrineFinishedEvent { Entity = entity });
-                        // Terminal latch fix: clear flag so a re-assigned doctrine won't
+                        repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity });
+                        // Terminal latch fix: clear flag so a re-assigned behavior won't
                         // inherit the Terminated state from the previous one.
                         hdr.Flags &= unchecked((InstanceFlags)(byte)~(byte)InstanceFlags.Terminated);
                         hdr.Phase  = InstancePhase.Idle;

@@ -40,13 +40,13 @@ These are exactly the same concrete types referenced in `[UpdateInGroup(...)]` a
 
 ## Q2: BTree interpreter registration
 
-Each BTree doctrine was built with:
+Each BTree behavior was built with:
 
 1. **`TreeCompiler.CompileFromJson(json)`** → produces an `FbtBlob` (the compiled tree bytecode).  
 2. **`ActionRegistry<BrainBlackboard, BTreeContext>`** with named delegates registered for each node label.  
-3. **`new Interpreter<BrainBlackboard, BTreeContext>(blob, registry)`** stored as `DoctrineDefinition.BTreeInterpreter`.
+3. **`new Interpreter<BrainBlackboard, BTreeContext>(blob, registry)`** stored as `BehaviorDefinition.BTreeInterpreter`.
 
-`DoctrineRegistry.Register(int id, string name, DoctrineDefinition def)` accepts the pre-built `Interpreter<BrainBlackboard, BTreeContext>` inside the `DoctrineDefinition`; no separate `FbtBlob` property exists on `DoctrineDefinition`. The doctrines registered were:
+`BehaviorRegistry.Register(int id, string name, BehaviorDefinition def)` accepts the pre-built `Interpreter<BrainBlackboard, BTreeContext>` inside the `BehaviorDefinition`; no separate `FbtBlob` property exists on `BehaviorDefinition`. The behaviors registered were:
 
 | ID | Name | BrainTier | Notes |
 |---|---|---|---|
@@ -81,15 +81,15 @@ This forced the canonical ordering: ChannelArb → BTree → WeaponDispatcher, g
 
 ### Defect 3 — FLEE never appeared (TrafficBrainSystem / ChannelArb stamp mismatch)
 
-**Root cause:** `TrafficBrainSystem` (with `[UpdateBefore(ChannelArbitrationSystem)]`) wrote `LocomotionChannel.ActiveAction = ActionIdFlee` for civilian[0] whose `TargetMemory.Count = 1`. However it left `channel.DoctrineInstanceId = 0` (default). `ChannelArbitrationSystem` then evaluated `channel.ActiveAction != 0 && channel.DoctrineInstanceId (0) != doctrine.InstanceId (1)` → cleared the channel to `default` in the same frame. `TelemetryReporterSystem` (Export group, same frame, after Sim group) saw `ActiveAction = 0` → no FLEE.
+**Root cause:** `TrafficBrainSystem` (with `[UpdateBefore(ChannelArbitrationSystem)]`) wrote `LocomotionChannel.ActiveAction = ActionIdFlee` for civilian[0] whose `TargetMemory.Count = 1`. However it left `channel.BehaviorInstanceId = 0` (default). `ChannelArbitrationSystem` then evaluated `channel.ActiveAction != 0 && channel.BehaviorInstanceId (0) != behavior.InstanceId (1)` → cleared the channel to `default` in the same frame. `TelemetryReporterSystem` (Export group, same frame, after Sim group) saw `ActiveAction = 0` → no FLEE.
 
-**Fix:** `TrafficBrainSystem.OnUpdate()` now additionally stamps `channel.DoctrineInstanceId = doctrine.InstanceId` when `HasComponent<DoctrineState>(entity)` is true. This is checked with `HasComponent` (not a query filter) so existing unit tests that create test entities without `DoctrineState` continue to pass.
+**Fix:** `TrafficBrainSystem.OnUpdate()` now additionally stamps `channel.BehaviorInstanceId = behavior.InstanceId` when `HasComponent<BehaviorState>(entity)` is true. This is checked with `HasComponent` (not a query filter) so existing unit tests that create test entities without `BehaviorState` continue to pass.
 
 ---
 
 ## Q4: TelemetryReporterSystem HSM transition detection
 
-Shadow **dictionary** — `_prevHsmState : Dictionary<int, ushort>` keyed by `entity.Index`. On each `OnUpdate()` call, the system queries all entities `.With<BrainHsm128>()`, reads `brain.State.ActiveLeafIds[0]` (via `unsafe` context), and compares against the previous-frame value stored in the dictionary. A change triggers the `HSM TRANSITION` log line. No ECS component is added; the dictionary lives entirely inside the system class. The same pattern is used for `_prevDoctrineInstanceId` (doctrine change detection) and `_prevCapabilities` (capability loss detection).
+Shadow **dictionary** — `_prevHsmState : Dictionary<int, ushort>` keyed by `entity.Index`. On each `OnUpdate()` call, the system queries all entities `.With<BrainHsm128>()`, reads `brain.State.ActiveLeafIds[0]` (via `unsafe` context), and compares against the previous-frame value stored in the dictionary. A change triggers the `HSM TRANSITION` log line. No ECS component is added; the dictionary lives entirely inside the system class. The same pattern is used for `_prevBehaviorInstanceId` (behavior change detection) and `_prevCapabilities` (capability loss detection).
 
 ---
 
@@ -103,7 +103,7 @@ Shadow **dictionary** — `_prevHsmState : Dictionary<int, ushort>` keyed by `en
 
 4. **`SpatialHashSystem` / `CarKinematicsSystem` belong in `SimulationSystemGroup`** — The BATCH-16 instructions suggested `PostSimulationSystemGroup` for these, but both carry `[UpdateInGroup(typeof(SimulationSystemGroup))]` (verified from source). Moving them would require removing their `[UpdateInGroup]` attributes and adding `[UpdateInGroup(typeof(PostSimulationSystemGroup))]` — a toolkit change deferred as a DEBT item. They work correctly in `SimGroup` for the current scenario.
 
-5. **`ChannelArbitrationSystem` never sets `channel.DoctrineInstanceId`** — The system only clears channels; it does not update `DoctrineInstanceId` after the guard check. This means any system that writes to a channel but does not also set `DoctrineInstanceId` will have its work undone every frame. The intended contract is: the BTree/HSM that owns the channel is responsible for stamping `DoctrineInstanceId` (the BTree does this implicitly through `ActionInstanceId` signalling; TrafficBrainSystem needed an explicit stamp added in this batch).
+5. **`ChannelArbitrationSystem` never sets `channel.BehaviorInstanceId`** — The system only clears channels; it does not update `BehaviorInstanceId` after the guard check. This means any system that writes to a channel but does not also set `BehaviorInstanceId` will have its work undone every frame. The intended contract is: the BTree/HSM that owns the channel is responsible for stamping `BehaviorInstanceId` (the BTree does this implicitly through `ActionInstanceId` signalling; TrafficBrainSystem needed an explicit stamp added in this batch).
 
 ---
 
@@ -114,8 +114,8 @@ Shadow **dictionary** — `_prevHsmState : Dictionary<int, ushort>` keyed by `en
 | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/WeaponDispatcherSystem.cs` | Added `[UpdateAfter(typeof(BTreeTickSystem))]` |
 | `FDP/Toolkits/FDP.Toolkit.CarKinem/Spatial/SpatialHashGrid.cs` | Added `OriginX`/`OriginY` fields; updated `Create()`, `Add()`, `QueryNeighbors()` |
 | `FDP/Toolkits/FDP.Toolkit.CarKinem/Systems/SpatialHashSystem.cs` | `OnCreate()` uses `originX: -375f, originY: -375f` |
-| `FDP/Examples/Fdp.Examples.UrbanCombat/Systems/TrafficBrainSystem.cs` | Stamps `channel.DoctrineInstanceId` when entity has `DoctrineState` |
-| `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs` | Full rewrite: RegisterComponents, RegisterDoctrines, RegisterSystems, RunSimulation loop, DoctrineRegistry property |
+| `FDP/Examples/Fdp.Examples.UrbanCombat/Systems/TrafficBrainSystem.cs` | Stamps `channel.BehaviorInstanceId` when entity has `BehaviorState` |
+| `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs` | Full rewrite: RegisterComponents, RegisterBehaviors, RegisterSystems, RunSimulation loop, BehaviorRegistry property |
 | `FDP/Examples/Fdp.Examples.UrbanCombat/ScenarioDirector.cs` | Created; 4-param constructor, SetupAmbushScenario, SpawnEntity, EmbarkSoldiers |
 | `FDP/Examples/Fdp.Examples.UrbanCombat/Systems/TelemetryReporterSystem.cs` | Created; 7 milestones, shadow dictionaries |
 | `FDP/Examples/Fdp.Examples.UrbanCombat/Systems/ApcBrainOutputSystem.cs` | Added `unsafe` to `OnUpdate()` |

@@ -21,16 +21,16 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             // Process Locomotion Channels
             var qLoco = repo.Query()
-                .With<DoctrineState>()
+                .With<BehaviorState>()
                 .With<LocomotionChannel>()
                 .Build();
 
             foreach (var entity in qLoco)
             {
-                var doctrine = repo.GetComponent<DoctrineState>(entity);
+                var behavior = repo.GetComponent<BehaviorState>(entity);
                 ref var channel = ref repo.GetComponentRW<LocomotionChannel>(entity);
 
-                if (channel.ActiveAction != 0 && channel.DoctrineInstanceId != doctrine.InstanceId)
+                if (channel.ActiveAction != 0 && channel.BehaviorInstanceId != behavior.InstanceId)
                 {
                     channel.ActiveAction = 0;
                     unchecked { channel.ActionInstanceId++; }
@@ -39,16 +39,16 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             // Process Weapon Channels
             var qWpn = repo.Query()
-                .With<DoctrineState>()
+                .With<BehaviorState>()
                 .With<WeaponChannel>()
                 .Build();
 
             foreach (var entity in qWpn)
             {
-                var doctrine = repo.GetComponent<DoctrineState>(entity);
+                var behavior = repo.GetComponent<BehaviorState>(entity);
                 ref var channel = ref repo.GetComponentRW<WeaponChannel>(entity);
 
-                if (channel.ActiveAction != 0 && channel.DoctrineInstanceId != doctrine.InstanceId)
+                if (channel.ActiveAction != 0 && channel.BehaviorInstanceId != behavior.InstanceId)
                 {
                     channel.ActiveAction = 0;
                     unchecked { channel.ActionInstanceId++; }
@@ -57,16 +57,16 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             // Process Interaction Channels
             var qInt = repo.Query()
-                .With<DoctrineState>()
+                .With<BehaviorState>()
                 .With<InteractionChannel>()
                 .Build();
 
             foreach (var entity in qInt)
             {
-                var doctrine = repo.GetComponent<DoctrineState>(entity);
+                var behavior = repo.GetComponent<BehaviorState>(entity);
                 ref var channel = ref repo.GetComponentRW<InteractionChannel>(entity);
 
-                if (channel.ActiveAction != 0 && channel.DoctrineInstanceId != doctrine.InstanceId)
+                if (channel.ActiveAction != 0 && channel.BehaviorInstanceId != behavior.InstanceId)
                 {
                     channel.ActiveAction = 0;
                     unchecked { channel.ActionInstanceId++; }

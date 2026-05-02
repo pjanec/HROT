@@ -127,6 +127,6 @@ The formula is **slightly asymmetric for even counts** (for Count=2, slots are â
 
 4. **`HsmDamageBridgeSystem` ordering**: Marked `[UpdateBefore(typeof(HsmTickSystem<BrainHsm128>))]` and `[UpdateBefore(typeof(HsmTickSystem<BrainHsm64>))]` to guarantee the MobilityLost event is in the queue before the HSM ticks, so the state machine can react within the same simulation frame.
 
-5. **`PassengerBuffer.Capacity = 8`**: Encoded as a `const int` so `[InlineArray(PassengerBuffer.Capacity)]` resolves at compile time (C# 12 constraint). Maximum of 8 passengers per vehicle is consistent with squad-size transport doctrine.
+5. **`PassengerBuffer.Capacity = 8`**: Encoded as a `const int` so `[InlineArray(PassengerBuffer.Capacity)]` resolves at compile time (C# 12 constraint). Maximum of 8 passengers per vehicle is consistent with squad-size transport behavior.
 
 6. **Test isolation**: `EmbarkExecutorTests` and `EjectPassengersExecutorTests` use a plain `new EntityRepository()` and register only the components they need (following the `AimAndFireExecutorTests` pattern), rather than going through `TestWorldFactory`. This keeps each test class self-contained and free from unrelated system registrations.

@@ -19,12 +19,12 @@ namespace Fdp.Toolkit.Behavior
         public const int BrainBlackboardByteSize = 128;
 
         /// <summary>
-        /// Maximum byte size for a doctrine parameter DTO projected onto the blackboard at offset 0.
+        /// Maximum byte size for a behavior parameter DTO projected onto the blackboard at offset 0.
         /// Enforced by <c>BTreeBuilder</c> at tree-compile time.
         /// Keeps parameter payloads clear of the soft-advice region (bytes 60-125) and the
         /// interrupt registers (bytes 126-127).
         /// </summary>
-        public const int MaxDoctrineParamByteSize = 60;
+        public const int MaxBehaviorParamByteSize = 60;
 
         /// <summary>Byte count of the soft-advice region (bytes 60-125).</summary>
         public const int SoftAdviceByteSize = 66;
@@ -56,7 +56,7 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>
         /// HSM event ID injected by <c>HsmDamageBridgeSystem</c> when <c>CanMove</c> is cleared.
-        /// Must match the event ID registered in doctrine HSM definitions (by convention: 1).
+        /// Must match the event ID registered in behavior HSM definitions (by convention: 1).
         /// </summary>
         public const ushort EventId_MobilityLost = 1;
 
@@ -67,15 +67,15 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public const ushort ActionIdEjectPassengers = 3;
 
-        // ── Unmanaged event IDs (Behavior doctrine range: 3100–3199) ─────────────
-        /// <summary>EventId for <c>ClearDoctrineEvent</c>.</summary>
-        public const int EventId_ClearDoctrine = 3100;
+        // ── Unmanaged event IDs (Behavior behavior range: 3100–3199) ─────────────
+        /// <summary>EventId for <c>ClearBehaviorEvent</c>.</summary>
+        public const int EventId_ClearBehavior = 3100;
 
-        /// <summary>EventId for <c>DoctrineFinishedEvent</c>.</summary>
-        public const int EventId_DoctrineFinished = 3101;
+        /// <summary>EventId for <c>BehaviorFinishedEvent</c>.</summary>
+        public const int EventId_BehaviorFinished = 3101;
 
-        /// <summary>EventId for <c>AssignDoctrineHashEvent</c>.</summary>
-        public const int EventId_AssignDoctrineHash = 3102;
+        /// <summary>EventId for <c>AssignBehaviorHashEvent</c>.</summary>
+        public const int EventId_AssignBehaviorHash = 3102;
 
         // ── Embarkation command IDs (edit-1/EDIT1-E001) ──────────────────────
         /// <summary>EventId for <c>EmbarkEntityCommand</c>.</summary>

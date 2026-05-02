@@ -94,9 +94,9 @@ This is the most important question to address carefully.
 **Q3 Defect 2 — `SpatialHashGrid` negative-coordinate blind spot:** `OriginX`/`OriginY` fields added. `Add()` and `QueryNeighbors()` subtract origin before dividing. `SpatialHashSystem.OnCreate()` uses `originX: -375f, originY: -375f`. Backward-compatible (`Create(...)` defaults remain 0). ✅  
 > Minor follow-up: `SpatialHashSystem.cs` line 24–25 still uses literals `150`, `150`, `5.0f`, `-375f`, `-375f`. These should be named constants. Low urgency (P3 — add to debt tracker).
 
-**Q3 Defect 3 — `TrafficBrainSystem` `DoctrineInstanceId` stamp:** `channel.DoctrineInstanceId = doctrine.InstanceId` stamped when `HasComponent<DoctrineState>`. The existing T4 unit tests still pass (they create entities without `DoctrineState`). ✅
+**Q3 Defect 3 — `TrafficBrainSystem` `BehaviorInstanceId` stamp:** `channel.BehaviorInstanceId = behavior.InstanceId` stamped when `HasComponent<BehaviorState>`. The existing T4 unit tests still pass (they create entities without `BehaviorState`). ✅
 
-**Q5 `ChannelArbitrationSystem` contract clarification:** The system never *sets* `DoctrineInstanceId` — it only uses it as a staleness guard. The brain (BTree/HSM/TrafficBrainSystem) is responsible for stamping. This is now explicitly documented in the report. ✅
+**Q5 `ChannelArbitrationSystem` contract clarification:** The system never *sets* `BehaviorInstanceId` — it only uses it as a staleness guard. The brain (BTree/HSM/TrafficBrainSystem) is responsible for stamping. This is now explicitly documented in the report. ✅
 
 ---
 
@@ -108,7 +108,7 @@ This is the most important question to address carefully.
 - ✅ **BCS-P7-T8** — `TelemetryReporterSystem`: 7 event types; shadow dictionaries; `Console.Out.WriteLine` (not `Console.WriteLine`); 3 tests pass.
 - ✅ **BCS-P7-T9** — Full 600-frame run; all 7 milestones appear in log; APC northward test passes. Three systematic defects discovered and fixed during T9 (see above).
 - ✅ **ExportSystemGroup** added to `StandardSystemGroups.cs`.
-- ✅ **HeadlessDemoApp** fully wired: 4 system groups, all 20 systems registered, doctrine registration, `RunSimulation` real loop.
+- ✅ **HeadlessDemoApp** fully wired: 4 system groups, all 20 systems registered, behavior registration, `RunSimulation` real loop.
 
 ---
 
@@ -152,9 +152,9 @@ BCS-P7-T7 — ScenarioDirector
   +4 tests: entity count, embark count, red faction, APC passenger count
 
 BCS-P7-T8 — TelemetryReporterSystem (ExportSystemGroup)
-  7 milestones: DOCTRINE ASSIGNED, GUNFIRE, HIT, CAPABILITY LOST,
+  7 milestones: BEHAVIOR ASSIGNED, GUNFIRE, HIT, CAPABILITY LOST,
     HSM TRANSITION, INTERACTION: EjectPassengers, FLEE
-  Shadow dicts: prevDoctrineInstanceId, prevHsmState, prevCapabilities
+  Shadow dicts: prevBehaviorInstanceId, prevHsmState, prevCapabilities
   Console.Out.WriteLine throughout (not Console.WriteLine) for StringWriter capture
   +3 tests: gunfire, hit, flee
 
@@ -166,10 +166,10 @@ T9 defects fixed during integration:
   WeaponDispatcherSystem: [UpdateAfter(BTreeTickSystem)] — eliminates HashSet ordering race
   SpatialHashGrid: OriginX/OriginY fields; Add() and QueryNeighbors() subtract origin
   SpatialHashSystem.OnCreate: originX=-375f, originY=-375f (750×750m centred on world 0)
-  TrafficBrainSystem: stamps channel.DoctrineInstanceId = doctrine.InstanceId
+  TrafficBrainSystem: stamps channel.BehaviorInstanceId = behavior.InstanceId
 
 ExportSystemGroup added to StandardSystemGroups.cs
-HeadlessDemoApp: full RegisterComponents/RegisterDoctrines/RegisterSystems/RunSimulation
+HeadlessDemoApp: full RegisterComponents/RegisterBehaviors/RegisterSystems/RunSimulation
 
 Total new tests (BATCH-16): 9 + 9 previously passing = 26 green; 0 failures
 DEBT-007: BTree path resolved; HSM action delegates still stubbed → see BATCH-17

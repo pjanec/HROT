@@ -248,10 +248,10 @@ namespace Fdp.Examples.UrbanCombat.Brains
             var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
 
             ref var loco    = ref repo.GetComponentRW<LocomotionChannel>(bridge->Self);
-            var     doctrine = repo.GetComponent<DoctrineState>(bridge->Self);
+            var     behavior = repo.GetComponent<BehaviorState>(bridge->Self);
 
             loco.ActiveAction       = NavigationConstants.ActionIdFollowRoute;
-            loco.DoctrineInstanceId = doctrine.InstanceId;
+            loco.BehaviorInstanceId = behavior.InstanceId;
         }
 
         /// <summary>
@@ -265,7 +265,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
             var bridge = (HsmKernelBridge*)context;
             var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
 
-            var doctrine = repo.GetComponent<DoctrineState>(bridge->Self);
+            var behavior = repo.GetComponent<BehaviorState>(bridge->Self);
 
             // Stop movement
             ref var loco = ref repo.GetComponentRW<LocomotionChannel>(bridge->Self);
@@ -276,7 +276,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
             {
                 ref var interact = ref repo.GetComponentRW<InteractionChannel>(bridge->Self);
                 interact.ActiveAction       = BehaviorConstants.ActionIdEjectPassengers;
-                interact.DoctrineInstanceId = doctrine.InstanceId;
+                interact.BehaviorInstanceId = behavior.InstanceId;
                 unchecked { interact.ActionInstanceId++; }
             }
         }
@@ -284,7 +284,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
 }
 ```
 
-> ⚠️ Before writing: verify the exact field names (`DoctrineInstanceId`, `ActionInstanceId`, `ActiveAction`) on `LocomotionChannel` and `InteractionChannel` from their actual struct definitions. The names above are inferred from `TrafficBrainSystem` and test helpers but must be confirmed.
+> ⚠️ Before writing: verify the exact field names (`BehaviorInstanceId`, `ActionInstanceId`, `ActiveAction`) on `LocomotionChannel` and `InteractionChannel` from their actual struct definitions. The names above are inferred from `TrafficBrainSystem` and test helpers but must be confirmed.
 
 ---
 
@@ -311,7 +311,7 @@ Also remove its registration from `HeadlessDemoApp.RegisterSystems()`.
 [Fact]
 public void HsmAction_ActivityCruise_WritesFollowRoute_ToLocomotionChannel()
 {
-    // Arrange: entity with LocomotionChannel, DoctrineState, BrainHsm128 in Cruising state
+    // Arrange: entity with LocomotionChannel, BehaviorState, BrainHsm128 in Cruising state
     // Wire the GCHandle: bridge.WorldHandle = _app.World.UnmanagedHandle
     // Call: ApcHsmActions.Activity_Cruise(null, &bridge, null)
     // Assert: LocomotionChannel.ActiveAction == NavigationConstants.ActionIdFollowRoute
@@ -321,7 +321,7 @@ public void HsmAction_ActivityCruise_WritesFollowRoute_ToLocomotionChannel()
 public void HsmAction_OnEnterDisabled_ClearsLocomotion_AndWritesEject()
 {
     // Arrange: entity with LocomotionChannel (ActiveAction = ActionIdFollowRoute),
-    //          InteractionChannel, DoctrineState
+    //          InteractionChannel, BehaviorState
     //          bridge.WorldHandle = _app.World.UnmanagedHandle
     // Call: ApcHsmActions.OnEnter_Disabled(null, &bridge, null)
     // Assert: LocomotionChannel.ActiveAction == 0

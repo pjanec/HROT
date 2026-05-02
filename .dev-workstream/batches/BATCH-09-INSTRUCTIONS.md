@@ -275,7 +275,7 @@ public struct WeaponState
     public int Ammo;
     /// <summary>Remaining cooldown ticks before the next shot is allowed.</summary>
     public int CooldownTicksRemaining;
-    /// <summary>Muzzle velocity in m/s (copied from doctrine at init time).</summary>
+    /// <summary>Muzzle velocity in m/s (copied from behavior at init time).</summary>
     public float MuzzleVelocity;
 }
 

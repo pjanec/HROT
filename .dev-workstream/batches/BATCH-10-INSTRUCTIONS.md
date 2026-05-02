@@ -78,7 +78,7 @@ dotnet test Toolkits/FDP.Toolkit.Combat.Tests/    # must gain 12+ new tests
 2. Compute bullet initial velocity: `direction * WeaponState.MuzzleVelocity` from the shooter's `WeaponState`. Direction comes from `FireRequestEvent.Direction`.
 3. `AddComponent<SimTransform>` with `Position = evt.Origin`, `Rotation = Quaternion.Identity`.
 4. `AddComponent<SimVelocity>` with `Linear = direction * muzzleVelocity`, `Angular = Vector3.Zero`.
-5. `AddComponent<BallisticProjectile>` with `Shooter = evt.Shooter`, `PreviousPosition = evt.Origin`, `Damage = [from doctrine/config — use a constant for now: CombatConstants.DefaultBulletDamage]`, `SpawnTick = world.CurrentTick`.
+5. `AddComponent<BallisticProjectile>` with `Shooter = evt.Shooter`, `PreviousPosition = evt.Origin`, `Damage = [from behavior/config — use a constant for now: CombatConstants.DefaultBulletDamage]`, `SpawnTick = world.CurrentTick`.
 6. `AddComponent<PhysicsCollider>` with `Radius = CombatConstants.BulletColliderRadius`, `CollisionLayer = CombatConstants.BulletCollisionLayer`.
 
 Add to `CombatConstants.cs`:

@@ -1,10 +1,10 @@
 namespace Fdp.Examples.Common.Constants
 {
     /// <summary>
-    /// Doctrine hash constants used in demo scenarios.
-    /// These IDs are referenced when assigning doctrine to AI entities.
+    /// Behavior hash constants used in demo scenarios.
+    /// These IDs are referenced when assigning behavior to AI entities.
     /// </summary>
-    public static class DemoDoctrineIds
+    public static class DemoBehaviorIds
     {
         public const uint Patrol       = 100;
         public const uint Combat       = 200;

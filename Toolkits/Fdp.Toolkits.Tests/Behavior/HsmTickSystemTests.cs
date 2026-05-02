@@ -68,14 +68,14 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             // Arrange.
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
+            var registry = new BehaviorRegistry();
 
             var blob = BuildTwoStateBlob();
-            const string doctrineName = "TestHsm";
+            const string behaviorName = "TestHsm";
             const int TestHsmId = 9001;
-            registry.Register(TestHsmId, doctrineName, new DoctrineDefinition
+            registry.Register(TestHsmId, behaviorName, new BehaviorDefinition
             {
-                Name          = doctrineName,
+                Name          = behaviorName,
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
@@ -83,9 +83,9 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys = new HsmTickSystem<BrainHsm128>(registry);
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState
+            world.AddComponent(e, new BehaviorState
             {
-                ActiveDoctrineHash = TestHsmId,
+                ActiveBehaviorHash = TestHsmId,
                 BrainTier          = BehaviorConstants.BrainTierHsm,
             });
 
@@ -150,15 +150,15 @@ namespace Fdp.Toolkit.Behavior.Tests
             // Arrange — entity A has BrainHsm64 only; entity B has BrainHsm128 only.
             var world = TestWorldFactory.Create();
 
-            // Empty registries — neither entity has a registered doctrine, so both
+            // Empty registries — neither entity has a registered behavior, so both
             // systems will skip them. What we're testing is that each system only
             // queries the component it owns and never touches the other type.
-            var sys128 = new HsmTickSystem<BrainHsm128>(new DoctrineRegistry());
-            var sys64  = new HsmTickSystem<BrainHsm64>(new DoctrineRegistry());
+            var sys128 = new HsmTickSystem<BrainHsm128>(new BehaviorRegistry());
+            var sys64  = new HsmTickSystem<BrainHsm64>(new BehaviorRegistry());
 
             // Entity A — only BrainHsm64.
             var entityA = world.CreateEntity();
-            world.AddComponent(entityA, new DoctrineState { BrainTier = BehaviorConstants.BrainTierHsm });
+            world.AddComponent(entityA, new BehaviorState { BrainTier = BehaviorConstants.BrainTierHsm });
             var brainA = new BrainHsm64();
             brainA.State.Header.Phase = InstancePhase.Idle;
             world.AddComponent(entityA, brainA);
@@ -166,7 +166,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Entity B — only BrainHsm128.
             var entityB = world.CreateEntity();
-            world.AddComponent(entityB, new DoctrineState { BrainTier = BehaviorConstants.BrainTierHsm });
+            world.AddComponent(entityB, new BehaviorState { BrainTier = BehaviorConstants.BrainTierHsm });
             var brainB = new BrainHsm128();
             brainB.State.Header.Phase = InstancePhase.Idle;
             world.AddComponent(entityB, brainB);

@@ -46,7 +46,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
         ///
         /// <para>Uses the fluent <see cref="HsmBuilder"/> API, then normalises,
         /// validates, flattens, and emits the blob in one call.  The blob is
-        /// stored in the <see cref="DoctrineRegistry"/> at startup and consumed
+        /// stored in the <see cref="BehaviorRegistry"/> at startup and consumed
         /// by <c>HsmTickSystem&lt;BrainHsm128&gt;</c> each frame.</para>
         /// </summary>
         public static HsmDefinitionBlob Build()

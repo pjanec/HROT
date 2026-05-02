@@ -10,28 +10,28 @@ namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
     /// Steps the <see cref="BrainBTreeState"/> for every entity whose
-    /// <see cref="DoctrineState.BrainTier"/> equals <see cref="BehaviorConstants.BrainTierBTree"/>.
+    /// <see cref="BehaviorState.BrainTier"/> equals <see cref="BehaviorConstants.BrainTierBTree"/>.
     ///
     /// Ordering: must run AFTER <see cref="ChannelArbitrationSystem"/> so that stale
     /// channels are cleared before the BTree writes new actions.
     ///
     /// Zero allocation per tick: <see cref="BTreeContext"/> is a stack-allocated struct.
     ///
-    /// Publishes <see cref="DoctrineFinishedEvent"/> exactly once per terminal doctrine
-    /// transition (Success or Failure). A secondary tick on an already-terminal doctrine
-    /// does not re-publish; the event is suppressed until the doctrine's
-    /// <see cref="DoctrineState.InstanceId"/> changes (i.e. a new doctrine is assigned).
+    /// Publishes <see cref="BehaviorFinishedEvent"/> exactly once per terminal behavior
+    /// transition (Success or Failure). A secondary tick on an already-terminal behavior
+    /// does not re-publish; the event is suppressed until the behavior's
+    /// <see cref="BehaviorState.InstanceId"/> changes (i.e. a new behavior is assigned).
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     // [UpdateAfter(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in CognitiveRuntimeModule.
     public class BTreeTickSystem : IEcsModuleSystem
     {
-        private readonly DoctrineRegistry _registry;
+        private readonly BehaviorRegistry _registry;
 
         /// <summary>
-        /// Tracks the <see cref="DoctrineState.InstanceId"/> for which a terminal
-        /// <see cref="DoctrineFinishedEvent"/> was last published, keyed by entity index.
-        /// Prevents repeated publication when the same doctrine evaluation stays terminal
+        /// Tracks the <see cref="BehaviorState.InstanceId"/> for which a terminal
+        /// <see cref="BehaviorFinishedEvent"/> was last published, keyed by entity index.
+        /// Prevents repeated publication when the same behavior evaluation stays terminal
         /// across consecutive ticks.
         /// </summary>
         private readonly Dictionary<int, uint> _publishedTerminalForInstanceId = new();
@@ -46,7 +46,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         internal int TrackedEntityCount => _publishedTerminalForInstanceId.Count;
 
-        public BTreeTickSystem(DoctrineRegistry registry)
+        public BTreeTickSystem(BehaviorRegistry registry)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
@@ -59,7 +59,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
             var q = repo.Query()
-                .With<DoctrineState>()
+                .With<BehaviorState>()
                 .With<BrainBTreeState>()
                 .With<BrainBlackboard>()
                 .Build();
@@ -70,19 +70,19 @@ namespace Fdp.Toolkit.Behavior.Systems
             {
                 _seenThisFrame.Add(entity.Index);
 
-                var doctrine = repo.GetComponent<DoctrineState>(entity);
+                var behavior = repo.GetComponent<BehaviorState>(entity);
 
                 // Only process BTree-tier entities.
-                if (doctrine.BrainTier != BehaviorConstants.BrainTierBTree)
+                if (behavior.BrainTier != BehaviorConstants.BrainTierBTree)
                     continue;
 
-                // If the doctrine is not registered, skip silently.
-                if (!_registry.TryGetDefinition(doctrine.ActiveDoctrineHash, out var def)
+                // If the behavior is not registered, skip silently.
+                if (!_registry.TryGetDefinition(behavior.ActiveBehaviorHash, out var def)
                     || def.BTreeInterpreter == null)
                 {
 #if DEBUG
                     System.Diagnostics.Debug.WriteLine(
-                        $"[BTreeTickSystem] Doctrine hash {doctrine.ActiveDoctrineHash} not registered; entity {entity.Index} skipped.");
+                        $"[BTreeTickSystem] Behavior hash {behavior.ActiveBehaviorHash} not registered; entity {entity.Index} skipped.");
 #endif
                     continue;
                 }
@@ -102,20 +102,20 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                 var rootResult = def.BTreeInterpreter!.Tick(ref blackboard, ref btState.State, ref context);
 
-                // Publish DoctrineFinishedEvent exactly once per terminal transition per
-                // doctrine instance. Suppress re-publication when the same InstanceId has
+                // Publish BehaviorFinishedEvent exactly once per terminal transition per
+                // behavior instance. Suppress re-publication when the same InstanceId has
                 // already triggered the event (e.g. the BTree stays at Success across ticks).
                 if (rootResult == NodeStatus.Success || rootResult == NodeStatus.Failure)
                 {
                     if (!_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint prevInstanceId)
-                        || prevInstanceId != doctrine.InstanceId)
+                        || prevInstanceId != behavior.InstanceId)
                     {
-                        repo.Bus.Publish(new DoctrineFinishedEvent
+                        repo.Bus.Publish(new BehaviorFinishedEvent
                         {
                             Entity = entity,
                             Result = rootResult
                         });
-                        _publishedTerminalForInstanceId[entity.Index] = doctrine.InstanceId;
+                        _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
                     }
                 }
             }

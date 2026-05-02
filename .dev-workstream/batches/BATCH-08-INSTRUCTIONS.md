@@ -80,7 +80,7 @@ dotnet test Toolkits/FDP.Toolkit.Navigation.Tests/   # must stay green after DEB
 **Step:** Read the dispatching logic. Find the path where `OnExit` is called.
 
 Confirm: Is `OnExit` called in **all** of these cases?
-- `a)` When a new action preempts the current one (new `ActiveAction` / `DoctrineInstanceId` mismatch)
+- `a)` When a new action preempts the current one (new `ActiveAction` / `BehaviorInstanceId` mismatch)
 - `b)` When an entity is destroyed while an action is Running (if this case is even handled)
 
 **Expected finding:** Case (a) should be guaranteed by design. Case (b) depends on whether the world has an "entity destroyed" hook that triggers OnExit. If not, `MoveToExecutor._stuckTicks` will leak one `int` per entity that dies mid-action.

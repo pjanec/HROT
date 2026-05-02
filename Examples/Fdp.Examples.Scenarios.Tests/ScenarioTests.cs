@@ -723,7 +723,7 @@ namespace Fdp.Examples.Scenarios.Tests
     {
         /// <summary>
         /// Full scenario run — all 4 phases pass (MoveTo written, enemy injected,
-        /// director advances phase + doctrine switch, channel arbitration clears stale
+        /// director advances phase + behavior switch, channel arbitration clears stale
         /// command) and exit code is 0 (CI SUCCESS).
         /// </summary>
         [Fact]
@@ -737,8 +737,8 @@ namespace Fdp.Examples.Scenarios.Tests
         /// <summary>
         /// At tick 11 MissionDirectorSystem must have incremented
         /// <c>MissionPlanQueue.CurrentPhase</c> to 1 (transitioned from Patrol to Combat)
-        /// and DoctrineIngressSystem must have applied the Combat doctrine hash (200) to
-        /// <c>DoctrineState.ActiveDoctrineHash</c>. Removing MissionDirectorSystem or
+        /// and BehaviorIngressSystem must have applied the Combat behavior hash (200) to
+        /// <c>BehaviorState.ActiveBehaviorHash</c>. Removing MissionDirectorSystem or
         /// breaking the manual-pipeline double-SwapBuffers pattern would cause one or both
         /// assertions to fail.
         /// </summary>
@@ -752,17 +752,17 @@ namespace Fdp.Examples.Scenarios.Tests
 
             Assert.Equal(1, scenario.Phase3CurrentPhase);
             // Must use Common constants: Fdp.Examples.Scenarios.Tests is nested under
-            // Fdp.Examples.Scenarios in namespace lookup, so unqualified DemoDoctrineIds
-            // would bind to Fdp.Examples.Scenarios.DemoDoctrineIds (Combat=2900).
-            Assert.Equal((int)Fdp.Examples.Common.Constants.DemoDoctrineIds.Combat, scenario.Phase3DoctrineHash);
+            // Fdp.Examples.Scenarios in namespace lookup, so unqualified DemoBehaviorIds
+            // would bind to Fdp.Examples.Scenarios.DemoBehaviorIds (Combat=2900).
+            Assert.Equal((int)Fdp.Examples.Common.Constants.DemoBehaviorIds.Combat, scenario.Phase3BehaviorHash);
         }
 
         /// <summary>
         /// At tick 12 ChannelArbitrationSystem must have cleared the stale MoveTo command
-        /// written at tick 5 (its <c>DoctrineInstanceId</c> no longer matches the active
-        /// doctrine). <c>LocomotionChannel.ActiveAction</c> must equal 0. Removing
-        /// <see cref="ChannelArbitrationSystem"/> or keeping the channel's DoctrineInstanceId
-        /// in sync with the new doctrine would cause this to fail.
+        /// written at tick 5 (its <c>BehaviorInstanceId</c> no longer matches the active
+        /// behavior). <c>LocomotionChannel.ActiveAction</c> must equal 0. Removing
+        /// <see cref="ChannelArbitrationSystem"/> or keeping the channel's BehaviorInstanceId
+        /// in sync with the new behavior would cause this to fail.
         /// </summary>
         [Fact]
         public void MissionCommand_Phase4_ArbitrationPreemptsStaleLocoCommand()
@@ -1142,7 +1142,7 @@ namespace Fdp.Examples.Scenarios.Tests
         /// <summary>
         /// Within 100 ticks the Insurgent must have set its WeaponChannel.ActiveAction to
         /// <c>ActionIdAimAndFire</c> (Latch 1: AmbushFired).
-        /// Confirms that DoctrineIngressSystem, BTreeTickSystem and the Ambush BTree's
+        /// Confirms that BehaviorIngressSystem, BTreeTickSystem and the Ambush BTree's
         /// Condition_HasTarget → Action_AimAndFire branch are all wired correctly, and
         /// that the Insurgent's TargetMemory was pre-seeded with the APC.
         /// </summary>

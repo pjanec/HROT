@@ -140,7 +140,7 @@ New: FDP.Toolkit.Perception.Tests (15 tests)
 
 Correctives from BATCH-04:
 - HsmTickSystemTests: named EventXId const + nameof anchor
-- DoctrineIngressSystemTests Test 4: added DoctrineInstanceId == 0 assertion
+- BehaviorIngressSystemTests Test 4: added BehaviorInstanceId == 0 assertion
 - StandardSystemGroups.cs: InputSystemGroup ordering doc comment + TODO
 
 Full solution: 0 build errors; all tests green

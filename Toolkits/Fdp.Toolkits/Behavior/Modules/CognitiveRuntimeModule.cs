@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Behavior.Modules
     ///
     /// <para><b>Systems registered (in order):</b></para>
     /// <list type="number">
-    ///   <item><see cref="ChannelArbitrationSystem"/> — clears stale channels on doctrine change</item>
+    ///   <item><see cref="ChannelArbitrationSystem"/> — clears stale channels on behavior change</item>
     ///   <item><see cref="CognitiveInterruptSystem"/> — edge-triggered blackboard interrupt bytes (paradigm-agnostic)</item>
     ///   <item><see cref="BTreeTickSystem"/> — zero-alloc BTree tick per entity</item>
     ///   <item><see cref="HsmTickSystem{BrainHsm128}"/> — HSM tick for 128-byte HSM instances</item>
@@ -23,12 +23,12 @@ namespace Fdp.Toolkit.Behavior.Modules
     /// </summary>
     public sealed class CognitiveRuntimeModule
     {
-        private readonly DoctrineRegistry _registry;
+        private readonly BehaviorRegistry _registry;
 
         /// <summary>Systems that run in the Simulation phase.</summary>
         public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
 
-        public CognitiveRuntimeModule(DoctrineRegistry registry)
+        public CognitiveRuntimeModule(BehaviorRegistry registry)
         {
             _registry = registry;
             SimulationSystems = new IEcsModuleSystem[]

@@ -141,4 +141,4 @@ if (!view.IsAlive(params.Threat))
 
 `view.IsAlive(entity)` performs a generational check (`repo.Entities[index].Generation == entity.Generation`), which is O(1) and safe to call every tick. Without this guard, `view.GetComponentRO<SimTransform>(params.Threat)` would throw on a recycled or dead slot, or silently read stale data from a newly spawned entity that reused the same index — the exact bug DEBT-009 was designed to prevent.
 
-**What the executor should report:** `BTreeStatus.Success` (threat eliminated → mission accomplished) or `BTreeStatus.Failure` (threat lost → parent BTree decides whether to re-acquire). The choice depends on doctrine; the architectural requirement is that the check is made **every tick**, not just on entry.
+**What the executor should report:** `BTreeStatus.Success` (threat eliminated → mission accomplished) or `BTreeStatus.Failure` (threat lost → parent BTree decides whether to re-acquire). The choice depends on behavior; the architectural requirement is that the check is made **every tick**, not just on entry.

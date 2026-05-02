@@ -21,16 +21,16 @@
 
 ## Phase 1: FDP.Toolkit.Behavior – Core Infrastructure
 
-**Goal:** Define all behavior components, channels, dispatcher infrastructure, Brain VM adapters, and doctrine lifecycle management.  
+**Goal:** Define all behavior components, channels, dispatcher infrastructure, Brain VM adapters, and behavior lifecycle management.  
 **New project:** `Toolkits/FDP.Toolkit.Behavior/`
 
-- [x] **BCS-P1-T1** Behavior component types (DoctrineState, BrainBlackboard, Channels, BrainBTreeState, BrainHsm64/128, SimTier, ActorCapabilityState, IActionExecutor interface) [details](./TASK-DETAIL.md#bcs-p1-t1--behavior-component-types)
+- [x] **BCS-P1-T1** Behavior component types (BehaviorState, BrainBlackboard, Channels, BrainBTreeState, BrainHsm64/128, SimTier, ActorCapabilityState, IActionExecutor interface) [details](./TASK-DETAIL.md#bcs-p1-t1--behavior-component-types)
 - [x] **BCS-P1-T2** ChannelArbitrationSystem [details](./TASK-DETAIL.md#bcs-p1-t2--channelarbitrationsystem)
 - [x] **BCS-P1-T3** LocomotionDispatcherSystem [details](./TASK-DETAIL.md#bcs-p1-t3--locomotiondispatchersystem)
 - [x] **BCS-P1-T4** WeaponDispatcherSystem + InteractionDispatcherSystem [details](./TASK-DETAIL.md#bcs-p1-t4--weapondispatchersystem--interactiondispatchersystem)
 - [x] **BCS-P1-T5** BTreeTickSystem (FastBTree adapter) [details](./TASK-DETAIL.md#bcs-p1-t5--btreeticksystem-fastbtree-adapter)
 - [x] **BCS-P1-T6** HsmTickSystem\<T\> (FastHSM adapter) [details](./TASK-DETAIL.md#bcs-p1-t6--hsmticksystemt-fasthsm-adapter)
-- [x] **BCS-P1-T7** DoctrineRegistry + DoctrineIngressSystem [details](./TASK-DETAIL.md#bcs-p1-t7--doctrineregistry--doctrineingresssystem)
+- [x] **BCS-P1-T7** BehaviorRegistry + BehaviorIngressSystem [details](./TASK-DETAIL.md#bcs-p1-t7--behaviorregistry--behavioringresssystem)
 
 ---
 

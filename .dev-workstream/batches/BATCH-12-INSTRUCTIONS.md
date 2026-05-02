@@ -19,7 +19,7 @@
 4. **CODE-STANDARDS.md:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\guides\CODE-STANDARDS.md`
 5. **DEBT-TRACKER.md:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\DEBT-TRACKER.md` — particularly DEBT-033 (HealthCritical), DEBT-024 (OnExit entity-death gap).
 6. **Existing code to read before writing:**
-   - `FDP/Toolkits/FDP.Toolkit.Behavior/Components/BehaviorComponents.cs` — `ActorCapabilityState`, `ActorCapabilities`, `BrainHsm128`, `BrainHsm64`, `DoctrineState`
+   - `FDP/Toolkits/FDP.Toolkit.Behavior/Components/BehaviorComponents.cs` — `ActorCapabilityState`, `ActorCapabilities`, `BrainHsm128`, `BrainHsm64`, `BehaviorState`
    - `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DamageSystem.cs` ← understand the capability stripping added in BATCH-11
    - `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/ChannelArbitrationSystem.cs` — understand the dispatcher lifecycle
    - CarKinem Core — confirm `NavState`, `VehicleState` field names: `FDP/Toolkits/FDP.Toolkit.CarKinem/Core/`

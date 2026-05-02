@@ -53,7 +53,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
         {
             // Arrange
             var entity = _app.World.CreateEntity();
-            _app.World.AddComponent(entity, new DoctrineState { InstanceId = 1, ActiveDoctrineHash = 1 });
+            _app.World.AddComponent(entity, new BehaviorState { InstanceId = 1, ActiveBehaviorHash = 1 });
             _app.World.AddComponent(entity, new LocomotionChannel());
 
             var bridge = new HsmKernelBridge
@@ -77,7 +77,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
         {
             // Arrange
             var entity = _app.World.CreateEntity();
-            _app.World.AddComponent(entity, new DoctrineState { InstanceId = 2, ActiveDoctrineHash = 1 });
+            _app.World.AddComponent(entity, new BehaviorState { InstanceId = 2, ActiveBehaviorHash = 1 });
             _app.World.AddComponent(entity, new LocomotionChannel
             {
                 ActiveAction = NavigationConstants.ActionIdFollowRoute,

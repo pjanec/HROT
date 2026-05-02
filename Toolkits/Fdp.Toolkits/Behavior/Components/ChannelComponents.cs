@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Behavior.Components
     public unsafe struct LocomotionChannel
     {
         public ushort ActiveAction;
-        public uint DoctrineInstanceId;
+        public uint BehaviorInstanceId;
         public uint ActionInstanceId;
         public uint DispatchedInstanceId;
         public NodeStatus Status;
@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Behavior.Components
     public unsafe struct WeaponChannel
     {
         public ushort ActiveAction;
-        public uint DoctrineInstanceId;
+        public uint BehaviorInstanceId;
         public uint ActionInstanceId;
         public uint DispatchedInstanceId;
         public NodeStatus Status;
@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Behavior.Components
     public unsafe struct InteractionChannel
     {
         public ushort ActiveAction;
-        public uint DoctrineInstanceId;
+        public uint BehaviorInstanceId;
         public uint ActionInstanceId;
         public uint DispatchedInstanceId;
         public NodeStatus Status;

@@ -10,7 +10,7 @@
 
 | Task | Status | Notes |
 |---|---|---|
-| Corrective-0 (DEBT-035) | ✅ | `DoctrineIngressSystem` was already correctly fixed in a prior partial run; `stackalloc` moved outside loop (CA2014); test already present. |
+| Corrective-0 (DEBT-035) | ✅ | `BehaviorIngressSystem` was already correctly fixed in a prior partial run; `stackalloc` moved outside loop (CA2014); test already present. |
 | BCS-P7-T1 Scaffold | ✅ | `Fdp.Examples.UrbanCombat` builds (0 errors); `HeadlessDemoApp.Run()` stub wired correctly. |
 | BCS-P7-T2 Blueprints | ✅ | 5 blueprint methods; 4 component assertion tests (all pass). |
 | BCS-P7-T3 Road Graph | ✅ | `DemoEnvironmentSetup.CreateCityIntersection()` returns 5 nodes + 8 segments; 4 geometry tests pass. |
@@ -23,7 +23,7 @@
 
 The actual memory size is **128 bytes**, defined as `BehaviorConstants.BrainBlackboardByteSize = 128` in `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorConstants.cs`.
 
-`BrainBlackboard` declares `public fixed byte Memory[BehaviorConstants.BrainBlackboardByteSize]` — so the constant is authoritative and already eliminates any hardcoding. In `DoctrineIngressSystem.cs`, all buffer copy calls use `BehaviorConstants.BrainBlackboardByteSize` exclusively — **no literal `128` appears anywhere in the shadow-copy logic**.
+`BrainBlackboard` declares `public fixed byte Memory[BehaviorConstants.BrainBlackboardByteSize]` — so the constant is authoritative and already eliminates any hardcoding. In `BehaviorIngressSystem.cs`, all buffer copy calls use `BehaviorConstants.BrainBlackboardByteSize` exclusively — **no literal `128` appears anywhere in the shadow-copy logic**.
 
 Additionally, the `stackalloc` was moved **outside the `foreach` loop** (`Span<byte> shadow = stackalloc byte[BehaviorConstants.BrainBlackboardByteSize];` appears once before the loop), eliminating the CA2014 "potential stack overflow in loop" warning that was present in the prior version.
 
@@ -90,8 +90,8 @@ New tests added in this batch (minimum 6 required, 9 delivered):
 
 | Test | Task |
 |---|---|
-| `DoctrineIngress_DoctrineStateUnchanged_WhenParseParamsFails` | Corrective-0 |
-| `DoctrineIngress_DoesNotThrow_WhenParseParamsFails` | Corrective-0 (pre-existing from prior partial run) |
+| `BehaviorIngress_BehaviorStateUnchanged_WhenParseParamsFails` | Corrective-0 |
+| `BehaviorIngress_DoesNotThrow_WhenParseParamsFails` | Corrective-0 (pre-existing from prior partial run) |
 | `Blueprint_CivilianPedestrian_HasAllRequiredComponents` | T2 |
 | `Blueprint_MilitaryAPC_HasAllRequiredComponents` | T2 |
 | `Blueprint_InfantrySoldier_HasAllRequiredComponents` | T2 (bonus) |

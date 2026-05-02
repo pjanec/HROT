@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Behavior.Components
     {
         public Guid   TaskId          { get; set; }
         public string ExecutingEngine { get; set; } = string.Empty;
-        public string BehaviorId      { get; set; } = string.Empty;
+        public string BehaviorName      { get; set; } = string.Empty;
         public string BehaviorParams  { get; set; } = string.Empty;
         public List<DomainMissionTrigger> Triggers { get; set; } = new();
     }

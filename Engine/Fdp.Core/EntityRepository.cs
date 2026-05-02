@@ -764,7 +764,7 @@ namespace Fdp.Core
         /// <list type="bullet">
         ///   <item>
         ///     <b>Flat-struct components</b> (<c>SimTransform</c>, <c>SimVelocity</c>,
-        ///     <c>DoctrineState</c>, etc.) — use <c>GetComponentRW</c> freely; no inline
+        ///     <c>BehaviorState</c>, etc.) — use <c>GetComponentRW</c> freely; no inline
         ///     arrays, no risk.
         ///   </item>
         ///   <item>

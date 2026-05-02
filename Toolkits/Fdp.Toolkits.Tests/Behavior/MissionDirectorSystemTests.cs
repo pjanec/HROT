@@ -13,18 +13,18 @@ namespace Fdp.Toolkit.Behavior.Tests
     /// <summary>
     /// Unit tests for <see cref="MissionDirectorSystem"/> (BCS-P6-T1).
     /// Tests set up a <see cref="MissionPlanQueue"/> directly and verify that the system
-    /// correctly evaluates trigger conditions and advances doctrine state.
+    /// correctly evaluates trigger conditions and advances behavior state.
     /// </summary>
     public class MissionDirectorSystemTests : IDisposable
     {
         private readonly EntityRepository _world;
         private readonly MissionDirectorSystem _sys;
-        private readonly DoctrineIngressSystem _ingressSys;
+        private readonly BehaviorIngressSystem _ingressSys;
 
         public MissionDirectorSystemTests()
         {
             _world = new EntityRepository();
-            _world.RegisterComponent<DoctrineState>();
+            _world.RegisterComponent<BehaviorState>();
             _world.RegisterComponent<MissionPlanQueue>();
             _world.RegisterComponent<NavState>();
             _world.RegisterComponent<Health>();
@@ -33,9 +33,9 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             _sys = new MissionDirectorSystem();
 
-            // DoctrineIngressSystem owns DoctrineState writes; required for CORRECTIVE-2
-            // tests that verify AssignDoctrineHashEvent delegation.
-            _ingressSys = new DoctrineIngressSystem(new DoctrineRegistry());
+            // BehaviorIngressSystem owns BehaviorState writes; required for CORRECTIVE-2
+            // tests that verify AssignBehaviorHashEvent delegation.
+            _ingressSys = new BehaviorIngressSystem(new BehaviorRegistry());
         }
 
         public void Dispose()
@@ -51,16 +51,16 @@ namespace Fdp.Toolkit.Behavior.Tests
             => _world.SetSingleton(new GlobalTime { DeltaTime = dt, TimeScale = 1f });
 
         /// <summary>
-        /// Flushes pending <c>AssignDoctrineHashEvent</c>s into <see cref="DoctrineIngressSystem"/>
-        /// so that <see cref="DoctrineState.ActiveDoctrineHash"/> reflects the result of a
+        /// Flushes pending <c>AssignBehaviorHashEvent</c>s into <see cref="BehaviorIngressSystem"/>
+        /// so that <see cref="BehaviorState.ActiveBehaviorHash"/> reflects the result of a
         /// phase transition in the same test step.
         /// <para>
-        /// Required because CORRECTIVE-2 delegates doctrine writes through the event bus:
-        /// <see cref="MissionDirectorSystem"/> publishes the event; <c>DoctrineIngressSystem</c>
+        /// Required because CORRECTIVE-2 delegates behavior writes through the event bus:
+        /// <see cref="MissionDirectorSystem"/> publishes the event; <c>BehaviorIngressSystem</c>
         /// applies it on the next logical frame (after <c>SwapBuffers</c>).
         /// </para>
         /// </summary>
-        private void FlushDoctrineEvents()
+        private void FlushBehaviorEvents()
         {
             _world.Bus.SwapBuffers();
             _ingressSys.Execute(_world, Dt60Hz);
@@ -68,8 +68,8 @@ namespace Fdp.Toolkit.Behavior.Tests
 
         /// <summary>
         /// Creates an entity with a two-phase timer-based mission plan.
-        /// Phase 0: doctrine=<paramref name="docA"/>, TimerElapsed(<paramref name="phase0Duration"/>s).
-        /// Phase 1: doctrine=<paramref name="docB"/>, TimerElapsed(1000s — effectively infinite).
+        /// Phase 0: behavior=<paramref name="docA"/>, TimerElapsed(<paramref name="phase0Duration"/>s).
+        /// Phase 1: behavior=<paramref name="docB"/>, TimerElapsed(1000s — effectively infinite).
         /// </summary>
         private Entity CreateTimerEntity(int docA, int docB, float phase0Duration)
         {
@@ -79,18 +79,18 @@ namespace Fdp.Toolkit.Behavior.Tests
             queue.PhaseCount = 2;
             queue.Phases[0] = new MissionPhase
             {
-                DoctrineId   = docA,
+                BehaviorId   = docA,
                 Trigger      = MissionTrigger.TimerElapsed,
                 TriggerParam = phase0Duration,
             };
             queue.Phases[1] = new MissionPhase
             {
-                DoctrineId   = docB,
+                BehaviorId   = docB,
                 Trigger      = MissionTrigger.TimerElapsed,
                 TriggerParam = 1000f,  // effectively never fires in these tests
             };
             _world.AddComponent(entity, queue);
-            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = docA, InstanceId = 0 });
+            _world.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = docA, InstanceId = 0 });
 
             return entity;
         }
@@ -99,7 +99,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
         /// <summary>
         /// After 31 ticks at 60 Hz (≈ 0.517 s &gt; 0.5 s), a TimerElapsed(0.5 s) phase must fire:
-        /// <c>ActiveDoctrineHash</c> must switch to the Phase 1 doctrine and
+        /// <c>ActiveBehaviorHash</c> must switch to the Phase 1 behavior and
         /// <c>CurrentPhase</c> must equal 1.
         /// </summary>
         [Fact]
@@ -114,14 +114,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             // Run 31 ticks: 31 × (1/60) ≈ 0.517 s ≥ 0.5 s → phase should advance.
             for (int i = 0; i < 31; i++) _sys.Execute(_world, Dt60Hz);
 
-            // Flush AssignDoctrineHashEvent so DoctrineIngressSystem applies the new hash.
-            FlushDoctrineEvents();
+            // Flush AssignBehaviorHashEvent so BehaviorIngressSystem applies the new hash.
+            FlushBehaviorEvents();
 
             ref var queue   = ref _world.GetComponentRW<MissionPlanQueue>(entity);
-            var     doctrine = _world.GetComponent<DoctrineState>(entity);
+            var     behavior = _world.GetComponent<BehaviorState>(entity);
 
             Assert.Equal(1, queue.CurrentPhase);
-            Assert.Equal(DocB, doctrine.ActiveDoctrineHash);
+            Assert.Equal(DocB, behavior.ActiveBehaviorHash);
         }
 
         // ── Test 2 ────────────────────────────────────────────────────────────
@@ -142,17 +142,17 @@ namespace Fdp.Toolkit.Behavior.Tests
             for (int i = 0; i < 10; i++) _sys.Execute(_world, Dt60Hz);
 
             ref var queue   = ref _world.GetComponentRW<MissionPlanQueue>(entity);
-            var     doctrine = _world.GetComponent<DoctrineState>(entity);
+            var     behavior = _world.GetComponent<BehaviorState>(entity);
 
             Assert.Equal(0, queue.CurrentPhase);
-            Assert.Equal(DocA, doctrine.ActiveDoctrineHash);
+            Assert.Equal(DocA, behavior.ActiveBehaviorHash);
         }
 
         // ── Test 3 ────────────────────────────────────────────────────────────
 
         /// <summary>
         /// A <see cref="MissionTrigger.ReachedDestination"/> phase must advance when a
-        /// <see cref="DoctrineFinishedEvent"/> is published for the entity (BS1-T022).
+        /// <see cref="BehaviorFinishedEvent"/> is published for the entity (BS1-T022).
         /// It must NOT advance while no event has arrived, regardless of any
         /// <c>NavState</c> component present on the entity.
         /// </summary>
@@ -171,41 +171,41 @@ namespace Fdp.Toolkit.Behavior.Tests
             queue.PhaseCount = 2;
             queue.Phases[0] = new MissionPhase
             {
-                DoctrineId   = DocA,
+                BehaviorId   = DocA,
                 Trigger      = MissionTrigger.ReachedDestination,
                 TriggerParam = 0f,
             };
             queue.Phases[1] = new MissionPhase
             {
-                DoctrineId   = DocB,
+                BehaviorId   = DocB,
                 Trigger      = MissionTrigger.TimerElapsed,
                 TriggerParam = 1000f,
             };
             _world.AddComponent(entity, queue);
-            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
+            _world.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = DocA, InstanceId = 0 });
             // NavState present but HasArrived=1 must no longer be sufficient (BS1-T022).
             _world.AddComponent(entity, new NavState { HasArrived = 1 });
 
-            // First tick — no DoctrineFinishedEvent; phase must stay at 0.
+            // First tick — no BehaviorFinishedEvent; phase must stay at 0.
             _sys.Execute(_world, Dt60Hz);
 
             ref var q1 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             Assert.Equal(0, q1.CurrentPhase);
 
-            // Publish DoctrineFinishedEvent so the ReachedDestination path fires.
-            PublishDoctrineFinished(entity);
+            // Publish BehaviorFinishedEvent so the ReachedDestination path fires.
+            PublishBehaviorFinished(entity);
 
             // Second tick — event arrived; phase must advance.
             _sys.Execute(_world, Dt60Hz);
 
-            // Flush AssignDoctrineHashEvent so DoctrineIngressSystem applies the new hash.
-            FlushDoctrineEvents();
+            // Flush AssignBehaviorHashEvent so BehaviorIngressSystem applies the new hash.
+            FlushBehaviorEvents();
 
             ref var q2      = ref _world.GetComponentRW<MissionPlanQueue>(entity);
-            var     doctrine = _world.GetComponent<DoctrineState>(entity);
+            var     behavior = _world.GetComponent<BehaviorState>(entity);
 
             Assert.Equal(1, q2.CurrentPhase);
-            Assert.Equal(DocB, doctrine.ActiveDoctrineHash);
+            Assert.Equal(DocB, behavior.ActiveBehaviorHash);
         }
 #pragma warning restore CS0618
 
@@ -231,18 +231,18 @@ namespace Fdp.Toolkit.Behavior.Tests
             queue.PhaseCount = 2;
             queue.Phases[0] = new MissionPhase
             {
-                DoctrineId   = DocA,
+                BehaviorId   = DocA,
                 Trigger      = MissionTrigger.TimerElapsed,
                 TriggerParam = 0.5f,   // fires after 1 tick (dt=1.0 ≥ 0.5)
             };
             queue.Phases[1] = new MissionPhase
             {
-                DoctrineId   = DocB,
+                BehaviorId   = DocB,
                 Trigger      = MissionTrigger.TimerElapsed,
                 TriggerParam = 0.5f,   // fires after 1 tick
             };
             _world.AddComponent(entity, queue);
-            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
+            _world.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = DocA, InstanceId = 0 });
 
             // Tick 1 — Phase 0 fires, advances to Phase 1.
             _sys.Execute(_world, 1.0f);
@@ -282,29 +282,29 @@ namespace Fdp.Toolkit.Behavior.Tests
             queue.PhaseCount = 2;
             queue.Phases[0] = new MissionPhase
             {
-                DoctrineId   = DocA,
+                BehaviorId   = DocA,
                 Trigger      = MissionTrigger.HealthCritical,
                 TriggerParam = 0.10f,   // 10 % threshold
             };
             queue.Phases[1] = new MissionPhase
             {
-                DoctrineId   = DocB,
+                BehaviorId   = DocB,
                 Trigger      = MissionTrigger.TimerElapsed,
                 TriggerParam = 1000f,
             };
             _world.AddComponent(entity, queue);
-            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
+            _world.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = DocA, InstanceId = 0 });
             // 5 / 100 = 0.05 ≤ 0.10  →  trigger must fire.
             _world.AddComponent(entity, new Health { Current = 5f, Max = 100f });
 
             _sys.Execute(_world, Dt60Hz);
-            // Flush AssignDoctrineHashEvent so DoctrineIngressSystem applies the new hash.
-            FlushDoctrineEvents();
+            // Flush AssignBehaviorHashEvent so BehaviorIngressSystem applies the new hash.
+            FlushBehaviorEvents();
             ref var q  = ref _world.GetComponentRW<MissionPlanQueue>(entity);
-            var doctrine = _world.GetComponent<DoctrineState>(entity);
+            var behavior = _world.GetComponent<BehaviorState>(entity);
 
             Assert.Equal(1, q.CurrentPhase);
-            Assert.Equal(DocB, doctrine.ActiveDoctrineHash);
+            Assert.Equal(DocB, behavior.ActiveBehaviorHash);
         }
 
         // ── Test 6 ─────────────────────────────────────────────────────────────
@@ -327,79 +327,79 @@ namespace Fdp.Toolkit.Behavior.Tests
             queue.PhaseCount = 2;
             queue.Phases[0] = new MissionPhase
             {
-                DoctrineId   = DocA,
+                BehaviorId   = DocA,
                 Trigger      = MissionTrigger.HealthCritical,
                 TriggerParam = 0.10f,
             };
             queue.Phases[1] = new MissionPhase
             {
-                DoctrineId   = DocB,
+                BehaviorId   = DocB,
                 Trigger      = MissionTrigger.TimerElapsed,
                 TriggerParam = 1000f,
             };
             _world.AddComponent(entity, queue);
-            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
+            _world.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = DocA, InstanceId = 0 });
             // 50 / 100 = 0.50 > 0.10  →  trigger must NOT fire.
             _world.AddComponent(entity, new Health { Current = 50f, Max = 100f });
 
             _sys.Execute(_world, Dt60Hz);
 
             ref var q  = ref _world.GetComponentRW<MissionPlanQueue>(entity);
-            var doctrine = _world.GetComponent<DoctrineState>(entity);
+            var behavior = _world.GetComponent<BehaviorState>(entity);
 
             Assert.Equal(0, q.CurrentPhase);
-            Assert.Equal(DocA, doctrine.ActiveDoctrineHash);
+            Assert.Equal(DocA, behavior.ActiveBehaviorHash);
         }
 
-        // ── Task-4 Tests: DoctrineFinished Trigger + End-of-Mission Clear ─────────────────
+        // ── Task-4 Tests: BehaviorFinished Trigger + End-of-Mission Clear ─────────────────
 
-        // Helper: publish DoctrineFinishedEvent and swap so system can consume it.
-        private void PublishDoctrineFinished(Entity entity, NodeStatus result = NodeStatus.Success)
+        // Helper: publish BehaviorFinishedEvent and swap so system can consume it.
+        private void PublishBehaviorFinished(Entity entity, NodeStatus result = NodeStatus.Success)
         {
-            _world.Bus.Publish(new DoctrineFinishedEvent { Entity = entity, Result = result });
+            _world.Bus.Publish(new BehaviorFinishedEvent { Entity = entity, Result = result });
             _world.Bus.SwapBuffers();
         }
 
-        // Helper: build a single-phase mission with DoctrineFinished trigger.
-        private Entity CreateDoctrineFinishedEntity(int docId)
+        // Helper: build a single-phase mission with BehaviorFinished trigger.
+        private Entity CreateBehaviorFinishedEntity(int docId)
         {
             var entity = _world.CreateEntity();
             var queue  = new MissionPlanQueue();
             queue.PhaseCount = 1;
             queue.Phases[0]  = new MissionPhase
             {
-                DoctrineId   = docId,
-                Trigger      = MissionTrigger.DoctrineFinished,
+                BehaviorId   = docId,
+                Trigger      = MissionTrigger.BehaviorFinished,
                 TriggerParam = 0f,
             };
             _world.AddComponent(entity, queue);
-            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = docId, InstanceId = 0 });
+            _world.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = docId, InstanceId = 0 });
             return entity;
         }
 
         [Fact]
-        public void DoctrineFinishedTrigger_AdvancesPhase()
+        public void BehaviorFinishedTrigger_AdvancesPhase()
         {
             SetDeltaTime(Dt60Hz);
             const int DocA  = 1100;
-            var entity = CreateDoctrineFinishedEntity(DocA);
+            var entity = CreateBehaviorFinishedEntity(DocA);
 
-            PublishDoctrineFinished(entity);
+            PublishBehaviorFinished(entity);
             _sys.Execute(_world, Dt60Hz);
 
             var q = _world.GetComponent<MissionPlanQueue>(entity);
             Assert.Equal(1, q.CurrentPhase); // advanced past the only phase
 
-            // Plan exhausted → ClearDoctrineEvent must be on write buffer.
+            // Plan exhausted → ClearBehaviorEvent must be on write buffer.
             _world.Bus.SwapBuffers();
             bool clearPublished = false;
-            foreach (var evt in _world.Bus.Read<ClearDoctrineEvent>())
+            foreach (var evt in _world.Bus.Read<ClearBehaviorEvent>())
                 if (evt.Entity.Index == entity.Index) clearPublished = true;
             Assert.True(clearPublished);
         }
 
         [Fact]
-        public void DoctrineFinishedTrigger_MultiPhase_SetsNextDoctrine()
+        public void BehaviorFinishedTrigger_MultiPhase_SetsNextBehavior()
         {
             SetDeltaTime(Dt60Hz);
             const int DocA = 1200, DocB = 1201;
@@ -407,39 +407,39 @@ namespace Fdp.Toolkit.Behavior.Tests
             var entity = _world.CreateEntity();
             var queue  = new MissionPlanQueue();
             queue.PhaseCount = 2;
-            queue.Phases[0]  = new MissionPhase { DoctrineId = DocA, Trigger = MissionTrigger.DoctrineFinished };
-            queue.Phases[1]  = new MissionPhase { DoctrineId = DocB, Trigger = MissionTrigger.TimerElapsed, TriggerParam = 1000f };
+            queue.Phases[0]  = new MissionPhase { BehaviorId = DocA, Trigger = MissionTrigger.BehaviorFinished };
+            queue.Phases[1]  = new MissionPhase { BehaviorId = DocB, Trigger = MissionTrigger.TimerElapsed, TriggerParam = 1000f };
             _world.AddComponent(entity, queue);
-            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
+            _world.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = DocA, InstanceId = 0 });
 
-            PublishDoctrineFinished(entity);
+            PublishBehaviorFinished(entity);
             _sys.Execute(_world, Dt60Hz);
 
-            // Phase advance: still in plan, so no ClearDoctrineEvent.
+            // Phase advance: still in plan, so no ClearBehaviorEvent.
             _world.Bus.SwapBuffers();
             bool clearPublished = false;
-            foreach (var evt in _world.Bus.Read<ClearDoctrineEvent>())
+            foreach (var evt in _world.Bus.Read<ClearBehaviorEvent>())
                 if (evt.Entity.Index == entity.Index) clearPublished = true;
             Assert.False(clearPublished);
 
-            // Flush AssignDoctrineHashEvent so DoctrineIngressSystem applies DocB.
+            // Flush AssignBehaviorHashEvent so BehaviorIngressSystem applies DocB.
             _ingressSys.Execute(_world, Dt60Hz);
 
-            var doctrine = _world.GetComponent<DoctrineState>(entity);
-            Assert.Equal(DocB, doctrine.ActiveDoctrineHash);
+            var behavior = _world.GetComponent<BehaviorState>(entity);
+            Assert.Equal(DocB, behavior.ActiveBehaviorHash);
         }
 
         [Fact]
-        public void DoctrineFinishedTrigger_WrongEntity_DoesNotFire()
+        public void BehaviorFinishedTrigger_WrongEntity_DoesNotFire()
         {
             SetDeltaTime(Dt60Hz);
             const int DocA = 1300;
 
-            var entityA = CreateDoctrineFinishedEntity(DocA); // phase trigger matches this entity
+            var entityA = CreateBehaviorFinishedEntity(DocA); // phase trigger matches this entity
             var entityB = _world.CreateEntity(); // unrelated entity (no queue component)
 
             // Publish event for entityB — should NOT trigger phase advance on entityA.
-            PublishDoctrineFinished(entityB);
+            PublishBehaviorFinished(entityB);
             _sys.Execute(_world, Dt60Hz);
 
             var q = _world.GetComponent<MissionPlanQueue>(entityA);
@@ -447,53 +447,53 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         [Fact]
-        public void MissionComplete_PublishesClearDoctrineEvent()
+        public void MissionComplete_PublishesClearBehaviorEvent()
         {
             SetDeltaTime(Dt60Hz);
             const int DocA = 1400;
-            var entity = CreateDoctrineFinishedEntity(DocA);
+            var entity = CreateBehaviorFinishedEntity(DocA);
 
-            PublishDoctrineFinished(entity);
+            PublishBehaviorFinished(entity);
             _sys.Execute(_world, Dt60Hz);
 
-            // ClearDoctrineEvent goes to write buffer; swap to read it.
+            // ClearBehaviorEvent goes to write buffer; swap to read it.
             _world.Bus.SwapBuffers();
             bool found = false;
-            foreach (var evt in _world.Bus.Read<ClearDoctrineEvent>())
+            foreach (var evt in _world.Bus.Read<ClearBehaviorEvent>())
                 if (evt.Entity.Index == entity.Index) found = true;
 
             Assert.True(found);
         }
 
         [Fact]
-        public void MissionComplete_ViaDoctrineIngress_SetsDoctrineToNone()
+        public void MissionComplete_ViaBehaviorIngress_SetsBehaviorToNone()
         {
-            // Integration: MissionDirectorSystem publishes ClearDoctrineEvent; on the NEXT
-            // frame DoctrineIngressSystem consumes it and sets ActiveDoctrineHash = 0.
+            // Integration: MissionDirectorSystem publishes ClearBehaviorEvent; on the NEXT
+            // frame BehaviorIngressSystem consumes it and sets ActiveBehaviorHash = 0.
             SetDeltaTime(Dt60Hz);
             const int DocA = 1500;
 
-            // Build world with BrainBlackboard so DoctrineIngressSystem can process.
+            // Build world with BrainBlackboard so BehaviorIngressSystem can process.
             _world.RegisterComponent<BrainBlackboard>();
 
-            var registry   = new DoctrineRegistry();
-            var ingressSys = new DoctrineIngressSystem(registry);
+            var registry   = new BehaviorRegistry();
+            var ingressSys = new BehaviorIngressSystem(registry);
 
-            var entity = CreateDoctrineFinishedEntity(DocA);
+            var entity = CreateBehaviorFinishedEntity(DocA);
             _world.AddComponent(entity, new BrainBlackboard());
 
-            // Frame 1: MissionDirector consumes DoctrineFinishedEvent → publishes ClearDoctrineEvent.
-            PublishDoctrineFinished(entity);
+            // Frame 1: MissionDirector consumes BehaviorFinishedEvent → publishes ClearBehaviorEvent.
+            PublishBehaviorFinished(entity);
             _sys.Execute(_world, Dt60Hz);
 
-            // Swap: ClearDoctrineEvent now in read buffer for DoctrineIngressSystem.
+            // Swap: ClearBehaviorEvent now in read buffer for BehaviorIngressSystem.
             _world.Bus.SwapBuffers();
 
-            // Frame 2: DoctrineIngressSystem consumes ClearDoctrineEvent → sets hash to None.
+            // Frame 2: BehaviorIngressSystem consumes ClearBehaviorEvent → sets hash to None.
             ingressSys.Execute(_world, 0.016f);
 
-            var doctrine = _world.GetComponent<DoctrineState>(entity);
-            Assert.Equal(DoctrineIds.None, doctrine.ActiveDoctrineHash);
+            var behavior = _world.GetComponent<BehaviorState>(entity);
+            Assert.Equal(BehaviorIds.None, behavior.ActiveBehaviorHash);
         }
 
         // ── BUG2-A001: HealthCritical reads Health directly ───────────────────
@@ -516,38 +516,38 @@ namespace Fdp.Toolkit.Behavior.Tests
             queue.PhaseCount = 2;
             queue.Phases[0] = new MissionPhase
             {
-                DoctrineId   = DocA,
+                BehaviorId   = DocA,
                 Trigger      = MissionTrigger.HealthCritical,
                 TriggerParam = 0.25f,   // 25 % threshold
             };
             queue.Phases[1] = new MissionPhase
             {
-                DoctrineId   = DocB,
+                BehaviorId   = DocB,
                 Trigger      = MissionTrigger.TimerElapsed,
                 TriggerParam = 1000f,
             };
             _world.AddComponent(entity, queue);
-            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
+            _world.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = DocA, InstanceId = 0 });
             // 20 / 100 = 0.20 ≤ 0.25 → trigger must fire with Health component only (no HealthData).
             _world.AddComponent(entity, new Health { Current = 20f, Max = 100f });
 
             _sys.Execute(_world, Dt60Hz);
-            FlushDoctrineEvents();
+            FlushBehaviorEvents();
 
             ref var q = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             Assert.Equal(1, q.CurrentPhase);
         }
 
-        // ── BS1-T022: ReachedDestination delegates to DoctrineFinished path ──────────────────
+        // ── BS1-T022: ReachedDestination delegates to BehaviorFinished path ──────────────────
 
         /// <summary>
         /// BS1-T022 SC1: A <see cref="MissionTrigger.ReachedDestination"/> phase must advance
-        /// when a <see cref="DoctrineFinishedEvent"/> is published for the entity.
+        /// when a <see cref="BehaviorFinishedEvent"/> is published for the entity.
         /// No <c>NavState</c> component is needed (Brain-only world).
         /// </summary>
         [Fact]
 #pragma warning disable CS0618 // ReachedDestination obsolete — intentional backward-compat test
-        public void ReachedDestination_AdvancesPhase_ViaDoctrineFinishedEvent()
+        public void ReachedDestination_AdvancesPhase_ViaBehaviorFinishedEvent()
         {
             SetDeltaTime(Dt60Hz);
 
@@ -559,42 +559,42 @@ namespace Fdp.Toolkit.Behavior.Tests
             queue.PhaseCount = 2;
             queue.Phases[0] = new MissionPhase
             {
-                DoctrineId   = DocA,
+                BehaviorId   = DocA,
                 Trigger      = MissionTrigger.ReachedDestination,
                 TriggerParam = 0f,
             };
             queue.Phases[1] = new MissionPhase
             {
-                DoctrineId   = DocB,
+                BehaviorId   = DocB,
                 Trigger      = MissionTrigger.TimerElapsed,
                 TriggerParam = 1000f,
             };
             _world.AddComponent(entity, queue);
-            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
+            _world.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = DocA, InstanceId = 0 });
             // No NavState component — Brain-only entity.
 
-            // First tick: no DoctrineFinishedEvent — phase must NOT advance.
+            // First tick: no BehaviorFinishedEvent — phase must NOT advance.
             _sys.Execute(_world, Dt60Hz);
             ref var q0 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             Assert.Equal(0, q0.CurrentPhase);
 
-            // Publish DoctrineFinishedEvent and run — phase must advance.
-            PublishDoctrineFinished(entity);
+            // Publish BehaviorFinishedEvent and run — phase must advance.
+            PublishBehaviorFinished(entity);
             _sys.Execute(_world, Dt60Hz);
-            FlushDoctrineEvents();
+            FlushBehaviorEvents();
 
             ref var q1      = ref _world.GetComponentRW<MissionPlanQueue>(entity);
-            var     doctrine = _world.GetComponent<DoctrineState>(entity);
+            var     behavior = _world.GetComponent<BehaviorState>(entity);
 
             Assert.Equal(1, q1.CurrentPhase);
-            Assert.Equal(DocB, doctrine.ActiveDoctrineHash);
+            Assert.Equal(DocB, behavior.ActiveBehaviorHash);
         }
 #pragma warning restore CS0618
 
         /// <summary>
         /// BS1-T022 SC2: <c>NavState.HasArrived == 1</c> alone must NOT advance a
         /// <see cref="MissionTrigger.ReachedDestination"/> phase.  The runtime evaluation now
-        /// requires a <see cref="DoctrineFinishedEvent"/>, not a physics-layer flag.
+        /// requires a <see cref="BehaviorFinishedEvent"/>, not a physics-layer flag.
         /// </summary>
         [Fact]
 #pragma warning disable CS0618 // ReachedDestination obsolete — intentional backward-compat test
@@ -610,29 +610,29 @@ namespace Fdp.Toolkit.Behavior.Tests
             queue.PhaseCount = 2;
             queue.Phases[0] = new MissionPhase
             {
-                DoctrineId   = DocA,
+                BehaviorId   = DocA,
                 Trigger      = MissionTrigger.ReachedDestination,
                 TriggerParam = 0f,
             };
             queue.Phases[1] = new MissionPhase
             {
-                DoctrineId   = DocB,
+                BehaviorId   = DocB,
                 Trigger      = MissionTrigger.TimerElapsed,
                 TriggerParam = 1000f,
             };
             _world.AddComponent(entity, queue);
-            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
+            _world.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = DocA, InstanceId = 0 });
             // Add NavState with HasArrived=1 — should have no effect after BS1-T022.
             _world.AddComponent(entity, new NavState { HasArrived = 1 });
 
-            // Run one tick: no DoctrineFinishedEvent, so the trigger must NOT fire.
+            // Run one tick: no BehaviorFinishedEvent, so the trigger must NOT fire.
             _sys.Execute(_world, Dt60Hz);
 
             ref var q       = ref _world.GetComponentRW<MissionPlanQueue>(entity);
-            var     doctrine = _world.GetComponent<DoctrineState>(entity);
+            var     behavior = _world.GetComponent<BehaviorState>(entity);
 
             Assert.Equal(0, q.CurrentPhase);
-            Assert.Equal(DocA, doctrine.ActiveDoctrineHash);
+            Assert.Equal(DocA, behavior.ActiveBehaviorHash);
         }
 #pragma warning restore CS0618
     }

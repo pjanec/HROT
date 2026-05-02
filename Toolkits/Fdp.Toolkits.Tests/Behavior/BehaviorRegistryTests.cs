@@ -4,28 +4,28 @@ using Xunit;
 namespace Fdp.Toolkit.Behavior.Tests
 {
     /// <summary>
-    /// Unit tests for <see cref="DoctrineRegistry"/> (DEBT-006).
+    /// Unit tests for <see cref="BehaviorRegistry"/> (DEBT-006).
     /// Verifies that registry uses stable assigned <c>int</c> IDs rather than
     /// process-randomised <c>string.GetHashCode()</c>.
     /// </summary>
-    public class DoctrineRegistryTests
+    public class BehaviorRegistryTests
     {
         // ── Test 1 ────────────────────────────────────────────────────────────
         /// <summary>
-        /// Registering a doctrine with id=42 and then looking up id=42 must
+        /// Registering a behavior with id=42 and then looking up id=42 must
         /// return the exact definition that was registered.
         /// </summary>
         [Fact]
-        public void DoctrineRegistry_LookupById_ReturnsCorrectEntry()
+        public void BehaviorRegistry_LookupById_ReturnsCorrectEntry()
         {
-            var registry = new DoctrineRegistry();
-            var definition = new DoctrineDefinition
+            var registry = new BehaviorRegistry();
+            var definition = new BehaviorDefinition
             {
-                Name      = "TestDoctrine",
+                Name      = "TestBehavior",
                 BrainTier = BehaviorConstants.BrainTierBTree,
             };
 
-            registry.Register(42, "TestDoctrine", definition);
+            registry.Register(42, "TestBehavior", definition);
 
             bool found = registry.TryGetDefinition(42, out var result);
 
@@ -35,21 +35,21 @@ namespace Fdp.Toolkit.Behavior.Tests
 
         // ── Test 2 ────────────────────────────────────────────────────────────
         /// <summary>
-        /// The same integer ID registered in two separate <see cref="DoctrineRegistry"/>
+        /// The same integer ID registered in two separate <see cref="BehaviorRegistry"/>
         /// instances must resolve to equal definitions — confirming that the integer
         /// constant (not a process-random hash) is the stable identity.
         /// </summary>
         [Fact]
-        public void DoctrineRegistry_LookupById_IsStableAcrossInstances()
+        public void BehaviorRegistry_LookupById_IsStableAcrossInstances()
         {
             const int StableId = 42;
-            const string Name  = "StableDoctrine";
+            const string Name  = "StableBehavior";
 
-            var defA = new DoctrineDefinition { Name = Name, BrainTier = BehaviorConstants.BrainTierBTree };
-            var defB = new DoctrineDefinition { Name = Name, BrainTier = BehaviorConstants.BrainTierBTree };
+            var defA = new BehaviorDefinition { Name = Name, BrainTier = BehaviorConstants.BrainTierBTree };
+            var defB = new BehaviorDefinition { Name = Name, BrainTier = BehaviorConstants.BrainTierBTree };
 
-            var registryA = new DoctrineRegistry();
-            var registryB = new DoctrineRegistry();
+            var registryA = new BehaviorRegistry();
+            var registryB = new BehaviorRegistry();
 
             registryA.Register(StableId, Name, defA);
             registryB.Register(StableId, Name, defB);
@@ -71,12 +71,12 @@ namespace Fdp.Toolkit.Behavior.Tests
         /// Looking up an ID that was never registered must return <c>false</c>.
         /// </summary>
         [Fact]
-        public void DoctrineRegistry_ReturnsNull_ForUnregisteredId()
+        public void BehaviorRegistry_ReturnsNull_ForUnregisteredId()
         {
-            var registry = new DoctrineRegistry();
-            registry.Register(1, "SomeDoctrine", new DoctrineDefinition
+            var registry = new BehaviorRegistry();
+            registry.Register(1, "SomeBehavior", new BehaviorDefinition
             {
-                Name      = "SomeDoctrine",
+                Name      = "SomeBehavior",
                 BrainTier = BehaviorConstants.BrainTierBTree,
             });
 
@@ -86,17 +86,17 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Null(result);
         }
 
-        // ── Test 4 — GetRegisteredNames: two doctrines ──────────────────────
+        // ── Test 4 — GetRegisteredNames: two behaviors ──────────────────────
         /// <summary>
-        /// After registering two doctrines with different names, <see cref="DoctrineRegistry.GetRegisteredNames"/>
+        /// After registering two behaviors with different names, <see cref="BehaviorRegistry.GetRegisteredNames"/>
         /// must return a list containing both names (order is unspecified).
         /// </summary>
         [Fact]
         public void GetRegisteredNames_AfterTwoRegistrations_ReturnsBothNames()
         {
-            var registry = new DoctrineRegistry();
-            registry.Register(1, "Alpha", new DoctrineDefinition { Name = "Alpha", BrainTier = BehaviorConstants.BrainTierBTree });
-            registry.Register(2, "Bravo", new DoctrineDefinition { Name = "Bravo", BrainTier = BehaviorConstants.BrainTierBTree });
+            var registry = new BehaviorRegistry();
+            registry.Register(1, "Alpha", new BehaviorDefinition { Name = "Alpha", BrainTier = BehaviorConstants.BrainTierBTree });
+            registry.Register(2, "Bravo", new BehaviorDefinition { Name = "Bravo", BrainTier = BehaviorConstants.BrainTierBTree });
 
             var names = registry.GetRegisteredNames();
 
@@ -108,12 +108,12 @@ namespace Fdp.Toolkit.Behavior.Tests
         // ── Test 5 — GetRegisteredNames: empty registry ─────────────────────
         /// <summary>
         /// An empty registry must return an empty (non-null) list from
-        /// <see cref="DoctrineRegistry.GetRegisteredNames"/>.
+        /// <see cref="BehaviorRegistry.GetRegisteredNames"/>.
         /// </summary>
         [Fact]
         public void GetRegisteredNames_EmptyRegistry_ReturnsEmptyList_NotNull()
         {
-            var registry = new DoctrineRegistry();
+            var registry = new BehaviorRegistry();
 
             var names = registry.GetRegisteredNames();
 

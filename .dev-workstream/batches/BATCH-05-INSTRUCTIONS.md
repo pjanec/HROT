@@ -15,7 +15,7 @@
 
 Two parts:
 
-1. **Corrective (1 h):** Three small fixes from BATCH-04 review: fix the HSM event injection to not rely on a magic field offset, add one missing assertion to a Doctrine test, document cross-group ordering.
+1. **Corrective (1 h):** Three small fixes from BATCH-04 review: fix the HSM event injection to not rely on a magic field offset, add one missing assertion to a Behavior test, document cross-group ordering.
 2. **Phase 2 — Perception (9–12 h):** Create `FDP.Toolkit.Perception` project with components, events, and all four perception systems — one main-thread, one async module, and two integration bridges.
 
 This is the first batch that introduces a **`SlowBackground` async module** (`PerceptionModule`). Read the async/SoD rules in `ONBOARDING.md` carefully before writing the module. The read-only snapshot + command-buffer contract is non-negotiable.
@@ -33,7 +33,7 @@ This is the first batch that introduces a **`SlowBackground` async module** (`Pe
 | Area | Path |
 |---|---|
 | **Corrective** — HSM test | `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/HsmTickSystemTests.cs` |
-| **Corrective** — Doctrine test | `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/DoctrineIngressSystemTests.cs` |
+| **Corrective** — Behavior test | `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/BehaviorIngressSystemTests.cs` |
 | **Corrective** — Group ordering | `FDP/Kernel/Fdp.Kernel/StandardSystemGroups.cs` |
 | **New toolkit project** | `FDP/Toolkits/FDP.Toolkit.Perception/` ← **create** |
 | **New test project** | `FDP/Toolkits/FDP.Toolkit.Perception.Tests/` ← **create** |
@@ -63,7 +63,7 @@ Questions: `.dev-workstream/questions/BATCH-05-QUESTIONS.md`
 
 **Related tasks:**
 - Corrective: HSM event injection — see [BATCH-04-REVIEW.md](../reviews/BATCH-04-REVIEW.md) Issue 1  
-- Corrective: Doctrine test gap — see [BATCH-04-REVIEW.md](../reviews/BATCH-04-REVIEW.md) Issue 2  
+- Corrective: Behavior test gap — see [BATCH-04-REVIEW.md](../reviews/BATCH-04-REVIEW.md) Issue 2  
 - Corrective: cross-group ordering doc — see [BATCH-04-REVIEW.md](../reviews/BATCH-04-REVIEW.md) Issue 4  
 - [BCS-P2-T1](../../../FDP/Docs/projects/behavior-control/TASK-DETAIL.md#bcs-p2-t1--perception-component-types)  
 - [BCS-P2-T2](../../../FDP/Docs/projects/behavior-control/TASK-DETAIL.md#bcs-p2-t2--audioperceptionsystem-main-thread)  
@@ -110,11 +110,11 @@ private const string HsmCurrentEventFieldName = nameof(HsmInstance128.Reserved1)
 ```
 And leave a comment explaining the mapping. The test must still assert `ActiveLeafIds[0] == 1` after the tick.
 
-**Fix B — Missing assertion in DoctrineIngress integration test** (`DoctrineIngressSystemTests.cs` Test 4):
+**Fix B — Missing assertion in BehaviorIngress integration test** (`BehaviorIngressSystemTests.cs` Test 4):
 
 After `arbitrationSys.Run()`, add:
 ```csharp
-Assert.Equal(0u, channel.DoctrineInstanceId); // full channel = default, not selective clear
+Assert.Equal(0u, channel.BehaviorInstanceId); // full channel = default, not selective clear
 ```
 
 **Fix C — Cross-group ordering documentation** (`StandardSystemGroups.cs`):
@@ -122,9 +122,9 @@ Assert.Equal(0u, channel.DoctrineInstanceId); // full channel = default, not sel
 Add an XML comment to `InputSystemGroup` and `SimulationSystemGroup` explaining the required registration order and the constraint that until cross-group attribute ordering is supported, host applications must register groups manually in `Input → Simulation` order:
 ```csharp
 /// <summary>
-/// System group for input processing (doctrine ingress, command buffering).
+/// System group for input processing (behavior ingress, command buffering).
 /// Must be registered before <see cref="SimulationSystemGroup"/> in the world setup
-/// so that doctrine changes take effect within the same frame.
+/// so that behavior changes take effect within the same frame.
 /// TODO: add [UpdateBefore(typeof(SimulationSystemGroup))] when cross-group sorting is supported.
 /// </summary>
 public class InputSystemGroup : SystemGroup { }
@@ -340,7 +340,7 @@ Submit `.dev-workstream/reports/BATCH-05-REPORT.md`:
 
 - **Test results:** `dotnet test FDP.sln` summary.
 - **Q1:** Did `HsmKernel` / `HsmInstance128` expose a typed event push API, or did you have to use `Reserved1`? What exactly is the field mapping and how did you document it?
-- **Q2:** When implementing `VisionBroadphaseSystem` in the async module, how did you access `SpatialHashGrid`? Is it part of the snapshot, or does the module receive it via constructor injection like `DoctrineRegistry`?
+- **Q2:** When implementing `VisionBroadphaseSystem` in the async module, how did you access `SpatialHashGrid`? Is it part of the snapshot, or does the module receive it via constructor injection like `BehaviorRegistry`?
 - **Q3:** The `ThreatEvaluationSystem` uses `ECB.SetComponent<TargetMemory>` — walk through the read-modify-write: where does the read happen (snapshot), where does the write happen (ECB), and at what point during the frame does the ECB flush?
 - **Q4:** Was the `LOS_MOCK_MODE` a compile flag or a constructor parameter? What trade-offs did you consider?
 
@@ -349,7 +349,7 @@ Submit `.dev-workstream/reports/BATCH-05-REPORT.md`:
 ## 🎯 Success Criteria
 
 - [ ] **Corrective A** — `HsmTick_TransitionsState` uses named constant or proper API for event injection; no raw `Reserved1 = 10`
-- [ ] **Corrective B** — `DoctrineIngress_Stale...` Test 4 asserts `channel.DoctrineInstanceId == 0`
+- [ ] **Corrective B** — `BehaviorIngress_Stale...` Test 4 asserts `channel.BehaviorInstanceId == 0`
 - [ ] **Corrective C** — `InputSystemGroup` has XML comment documenting required registration order
 - [ ] **BCS-P2-T1** — `PerceptionConstants.cs`; all fixed arrays use `MaxTrackedTargets`; `AddOrUpdateTarget` implemented; 5 component tests pass
 - [ ] **BCS-P2-T2** — `AudioPerceptionSystem`; 3 hearing-range tests pass with specific entity assertions

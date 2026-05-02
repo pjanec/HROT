@@ -68,10 +68,10 @@ namespace Fdp.Examples.Scenarios.Integrated
             var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
 
             ref var loco     = ref repo.GetComponentRW<LocomotionChannel>(bridge->Self);
-            var     doctrine =     repo.GetComponent<DoctrineState>(bridge->Self);
+            var     behavior =     repo.GetComponent<BehaviorState>(bridge->Self);
 
             loco.ActiveAction       = NavigationConstants.ActionIdFollowRoute;
-            loco.DoctrineInstanceId = doctrine.InstanceId;
+            loco.BehaviorInstanceId = behavior.InstanceId;
         }
 
         /// <summary>
@@ -85,7 +85,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             var bridge = (HsmKernelBridge*)context;
             var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
 
-            var doctrine = repo.GetComponent<DoctrineState>(bridge->Self);
+            var behavior = repo.GetComponent<BehaviorState>(bridge->Self);
 
             if (repo.HasComponent<LocomotionChannel>(bridge->Self))
             {
@@ -97,7 +97,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             {
                 ref var interact = ref repo.GetComponentRW<InteractionChannel>(bridge->Self);
                 interact.ActiveAction       = BehaviorConstants.ActionIdEjectPassengers;
-                interact.DoctrineInstanceId = doctrine.InstanceId;
+                interact.BehaviorInstanceId = behavior.InstanceId;
                 unchecked { interact.ActionInstanceId++; }
             }
         }
@@ -116,7 +116,7 @@ namespace Fdp.Examples.Scenarios.Integrated
     ///   <item><term>MissionResumed</term><description>Log emitted, EvaluateTick returns true.</description></item>
     /// </list>
     ///
-    /// <para><b>System pipeline order:</b> DoctrineIngress → FireProcessing → RaycastSolver →
+    /// <para><b>System pipeline order:</b> BehaviorIngress → FireProcessing → RaycastSolver →
     /// HitResolution → MissionDirector → ChannelArbitration → BTreeTick → HsmTick →
     /// Damage → HsmDamageBridge → AudioPerception →
     /// WeaponDispatcher → InteractionDispatcher → LocomotionDispatcher →
@@ -153,11 +153,11 @@ namespace Fdp.Examples.Scenarios.Integrated
         private const int TkbInfantrySoldier    = 2002;
         private const int TkbInsurgent          = 2003;
 
-        // ── Doctrine IDs (must match DoctrineIds in FDP.Toolkit.Behavior) ────
-        private const int DoctrineWanderCivil   = 1001;
-        private const int DoctrineConvoyEscort  = 2001;
-        private const int DoctrineInfantryCombat = 2002;
-        private const int DoctrineAmbush        = 2003;
+        // ── Behavior IDs (must match BehaviorIds in FDP.Toolkit.Behavior) ────
+        private const int BehaviorWanderCivil   = 1001;
+        private const int BehaviorConvoyEscort  = 2001;
+        private const int BehaviorInfantryCombat = 2002;
+        private const int BehaviorAmbush        = 2003;
 
         // ── Faction IDs ───────────────────────────────────────────────────────
         // FactionNeutral/Blue/Red constants removed; use ForceId.Neutral/Friend/Hostile directly.
@@ -273,7 +273,7 @@ namespace Fdp.Examples.Scenarios.Integrated
         // ── Infrastructure ────────────────────────────────────────────────────
 
         private readonly TkbDatabase        _tkb             = new TkbDatabase();
-        private readonly DoctrineRegistry   _doctrineRegistry = new DoctrineRegistry();
+        private readonly BehaviorRegistry   _behaviorRegistry = new BehaviorRegistry();
         private readonly NetworkEntityMap   _entityMap        = new NetworkEntityMap();
 
         private PhysicsToolkitModule? _physicsModule;
@@ -298,8 +298,8 @@ namespace Fdp.Examples.Scenarios.Integrated
             // 2. Register TKB entity blueprints.
             RegisterTkbTemplates();
 
-            // 3. Register doctrine definitions.
-            RegisterDoctrines();
+            // 3. Register behavior definitions.
+            RegisterBehaviors();
 
             // 4. Create road network.
             _road = DemoRoadGraphFactory.CreateCityIntersection();
@@ -355,7 +355,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             world.RegisterComponent<TkbIdentity>();
 
             // FDP.Toolkit.Behavior
-            world.RegisterComponent<DoctrineState>();
+            world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<SimTier>();
             world.RegisterComponent<BrainBlackboard>();
             world.RegisterComponent<BrainBTreeState>();
@@ -409,7 +409,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             t.AddComponent(new SimTransform());
             t.AddComponent(new SimVelocity());
             t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierCivilian });
-            t.AddComponent(new DoctrineState());
+            t.AddComponent(new BehaviorState());
             t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             t.AddComponent(new LocomotionChannel());
             t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
@@ -436,7 +436,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             t.AddComponent(new SimTransform());
             t.AddComponent(new SimVelocity());
             t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierCivilian });
-            t.AddComponent(new DoctrineState());
+            t.AddComponent(new BehaviorState());
             t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             t.AddComponent(new LocomotionChannel());
             t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
@@ -456,7 +456,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             t.AddComponent(new SimTransform());
             t.AddComponent(new SimVelocity());
             t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierTactical });
-            t.AddComponent(new DoctrineState { BrainTier = BehaviorConstants.BrainTierHsm });
+            t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierHsm });
             t.AddComponent(new BrainHsm128());
             t.AddComponent(new BrainBlackboard());
             t.AddComponent(new PreviousCapabilities
@@ -493,7 +493,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             t.AddComponent(new SimTransform());
             t.AddComponent(new SimVelocity());
             t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierTactical });
-            t.AddComponent(new DoctrineState { BrainTier = BehaviorConstants.BrainTierBTree });
+            t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierBTree });
             t.AddComponent(new BrainBTreeState());
             t.AddComponent(new BrainBlackboard());
             t.AddComponent(new PreviousCapabilities
@@ -543,7 +543,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             t.AddComponent(new SimTransform());
             t.AddComponent(new SimVelocity());
             t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierTactical });
-            t.AddComponent(new DoctrineState { BrainTier = BehaviorConstants.BrainTierBTree });
+            t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierBTree });
             t.AddComponent(new BrainBTreeState());
             t.AddComponent(new BrainBlackboard());
             t.AddComponent(new PreviousCapabilities
@@ -587,31 +587,31 @@ namespace Fdp.Examples.Scenarios.Integrated
             _tkb.Register(t);
         }
 
-        // ── Private helpers — doctrines ───────────────────────────────────────
+        // ── Private helpers — behaviors ───────────────────────────────────────
 
-        private void RegisterDoctrines()
+        private void RegisterBehaviors()
         {
-            RegisterUrbanCombatDoctrines(_doctrineRegistry);
+            RegisterUrbanCombatBehaviors(_behaviorRegistry);
         }
 
         /// <summary>
-        /// Registers all UrbanCombat narrative doctrines into <paramref name="registry"/>.
+        /// Registers all UrbanCombat narrative behaviors into <paramref name="registry"/>.
         ///
         /// <para>Call this from any host (e.g. a cluster SimHostApp) that needs to execute
         /// UrbanCombat entities loaded from a scenario file.  The instance-method overload
-        /// <c>RegisterDoctrines()</c> delegates here.</para>
+        /// <c>RegisterBehaviors()</c> delegates here.</para>
         /// </summary>
-        public static void RegisterUrbanCombatDoctrines(DoctrineRegistry registry)
+        public static void RegisterUrbanCombatBehaviors(BehaviorRegistry registry)
         {
             if (registry == null) throw new ArgumentNullException(nameof(registry));
 
-            // ── Civilian doctrines (BrainTier=0; TrafficBrainSystem absent — civilians static) ──
-            registry.Register(DoctrineWanderCivil, "WanderCivil",
-                new DoctrineDefinition { Name = "WanderCivil", BrainTier = 0 });
+            // ── Civilian behaviors (BrainTier=0; TrafficBrainSystem absent — civilians static) ──
+            registry.Register(BehaviorWanderCivil, "WanderCivil",
+                new BehaviorDefinition { Name = "WanderCivil", BrainTier = 0 });
 
             // ── APC: HSM ConvoyEscort ─────────────────────────────────────────
-            registry.Register(DoctrineConvoyEscort, "ConvoyEscort",
-                new DoctrineDefinition
+            registry.Register(BehaviorConvoyEscort, "ConvoyEscort",
+                new BehaviorDefinition
                 {
                     Name          = "ConvoyEscort",
                     BrainTier     = BehaviorConstants.BrainTierHsm,
@@ -624,8 +624,8 @@ namespace Fdp.Examples.Scenarios.Integrated
             infantryReg.Register("Action_AimAndFire",   BTreeNodes.Action_AimAndFire);
             infantryReg.Register("Action_HoldPosition", BTreeNodes.Action_HoldPosition);
             var infantryBlob = TreeCompiler.CompileFromJson(InfantryCombatJson);
-            registry.Register(DoctrineInfantryCombat, "InfantryCombat",
-                new DoctrineDefinition
+            registry.Register(BehaviorInfantryCombat, "InfantryCombat",
+                new BehaviorDefinition
                 {
                     Name             = "InfantryCombat",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
@@ -638,8 +638,8 @@ namespace Fdp.Examples.Scenarios.Integrated
             ambushReg.Register("Action_AimAndFire",   BTreeNodes.Action_AimAndFire);
             ambushReg.Register("Action_HoldPosition", BTreeNodes.Action_HoldPosition);
             var ambushBlob = TreeCompiler.CompileFromJson(AmbushJson);
-            registry.Register(DoctrineAmbush, "Ambush",
-                new DoctrineDefinition
+            registry.Register(BehaviorAmbush, "Ambush",
+                new BehaviorDefinition
                 {
                     Name             = "Ambush",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
@@ -665,7 +665,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 t.AddComponent(new SimTransform());
                 t.AddComponent(new SimVelocity());
                 t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierCivilian });
-                t.AddComponent(new DoctrineState());
+                t.AddComponent(new BehaviorState());
                 t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
                 t.AddComponent(new LocomotionChannel());
                 t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
@@ -683,7 +683,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 t.AddComponent(new SimTransform());
                 t.AddComponent(new SimVelocity());
                 t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierCivilian });
-                t.AddComponent(new DoctrineState());
+                t.AddComponent(new BehaviorState());
                 t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
                 t.AddComponent(new LocomotionChannel());
                 t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
@@ -699,7 +699,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 t.AddComponent(new SimTransform());
                 t.AddComponent(new SimVelocity());
                 t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierTactical });
-                t.AddComponent(new DoctrineState { BrainTier = BehaviorConstants.BrainTierHsm });
+                t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierHsm });
                 t.AddComponent(new BrainHsm128());
                 t.AddComponent(new BrainBlackboard());
                 t.AddComponent(new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanInteract });
@@ -722,7 +722,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 t.AddComponent(new SimTransform());
                 t.AddComponent(new SimVelocity());
                 t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierTactical });
-                t.AddComponent(new DoctrineState { BrainTier = BehaviorConstants.BrainTierBTree });
+                t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierBTree });
                 t.AddComponent(new BrainBTreeState());
                 t.AddComponent(new BrainBlackboard());
                 t.AddComponent(new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
@@ -748,7 +748,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 t.AddComponent(new SimTransform());
                 t.AddComponent(new SimVelocity());
                 t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierTactical });
-                t.AddComponent(new DoctrineState { BrainTier = BehaviorConstants.BrainTierBTree });
+                t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierBTree });
                 t.AddComponent(new BrainBTreeState());
                 t.AddComponent(new BrainBlackboard());
                 t.AddComponent(new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
@@ -813,7 +813,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             var modSystems = new IEcsModuleSystem[]
             {
                 // -- Input equivalent --
-                new DoctrineIngressSystem(_doctrineRegistry),
+                new BehaviorIngressSystem(_behaviorRegistry),
                 new FireProcessingSystem(),
                 new RaycastSolverSystem(),
                 new HitResolutionSystem(),
@@ -821,8 +821,8 @@ namespace Fdp.Examples.Scenarios.Integrated
                 // -- Simulation --------
                 new MissionDirectorSystem(),
                 new ChannelArbitrationSystem(),
-                new BTreeTickSystem(_doctrineRegistry),
-                new HsmTickSystem<BrainHsm128>(_doctrineRegistry),
+                new BTreeTickSystem(_behaviorRegistry),
+                new HsmTickSystem<BrainHsm128>(_behaviorRegistry),
                 weaponSys,
                 interactSys,
                 new LocomotionDispatcherSystem(),
@@ -849,18 +849,18 @@ namespace Fdp.Examples.Scenarios.Integrated
         {
             // 1. Civilian pedestrians
             for (int i = 0; i < 5; i++)
-                SpawnEntity(world, TkbCivilianPedestrian, CivilianPositions[i], 0f, DoctrineWanderCivil);
+                SpawnEntity(world, TkbCivilianPedestrian, CivilianPositions[i], 0f, BehaviorWanderCivil);
 
             // 2. Civilian cars
             for (int i = 0; i < 3; i++)
-                SpawnEntity(world, TkbCivilianCar, CarPositions[i], 0f, DoctrineWanderCivil);
+                SpawnEntity(world, TkbCivilianCar, CarPositions[i], 0f, BehaviorWanderCivil);
 
             // 3. Military APC (heading north — π/2 yaw in ENU XY)
-            _apc = SpawnEntity(world, TkbMilitaryApc, ApcSpawnPos, MathF.PI / 2f, DoctrineConvoyEscort);
+            _apc = SpawnEntity(world, TkbMilitaryApc, ApcSpawnPos, MathF.PI / 2f, BehaviorConvoyEscort);
 
             // Pre-initialise the APC HSM brain so HsmKernel.Update processes it correctly.
             // Without this, BrainHsm128.Header.MachineId == 0 and ValidateInstance rejects it.
-            if (_doctrineRegistry.TryGetDefinition(DoctrineConvoyEscort, out var convoyDef)
+            if (_behaviorRegistry.TryGetDefinition(BehaviorConvoyEscort, out var convoyDef)
                 && convoyDef.HsmDefinition != null)
             {
                 ref var brain = ref world.GetComponentRW<BrainHsm128>(_apc);
@@ -872,12 +872,12 @@ namespace Fdp.Examples.Scenarios.Integrated
             // 4. Infantry soldiers — spawn co-located with APC, then embark
             _soldiers = new Entity[4];
             for (int i = 0; i < 4; i++)
-                _soldiers[i] = SpawnEntity(world, TkbInfantrySoldier, ApcSpawnPos, 0f, DoctrineInfantryCombat);
+                _soldiers[i] = SpawnEntity(world, TkbInfantrySoldier, ApcSpawnPos, 0f, BehaviorInfantryCombat);
 
             EmbarkSoldiers(world, _apc, _soldiers);
 
             // 5. Insurgent (south-east corner, stationary)
-            _insurgent = SpawnEntity(world, TkbInsurgent, InsurgentSpawnPos, 0f, DoctrineAmbush);
+            _insurgent = SpawnEntity(world, TkbInsurgent, InsurgentSpawnPos, 0f, BehaviorAmbush);
 
             // 6. Pre-seed insurgent TargetMemory with APC
             if (world.HasComponent<TargetMemory>(_insurgent))
@@ -915,7 +915,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             int tkbTypeId,
             Vector3 position,
             float yawRadians,
-            int doctrineId)
+            int behaviorId)
         {
             var template = _tkb.GetByType(tkbTypeId)
                 ?? throw new InvalidOperationException($"TKB type {tkbTypeId} not registered.");
@@ -929,12 +929,12 @@ namespace Fdp.Examples.Scenarios.Integrated
             tf.Position  = position;
             tf.Rotation  = SimMath.FromYaw(yawRadians);
 
-            ref var doctrine = ref world.GetComponentRW<DoctrineState>(entity);
-            doctrine.ActiveDoctrineHash = doctrineId;
-            unchecked { doctrine.InstanceId++; }
+            ref var behavior = ref world.GetComponentRW<BehaviorState>(entity);
+            behavior.ActiveBehaviorHash = behaviorId;
+            unchecked { behavior.InstanceId++; }
 
-            if (_doctrineRegistry.TryGetDefinition(doctrineId, out var def))
-                doctrine.BrainTier = def.BrainTier;
+            if (_behaviorRegistry.TryGetDefinition(behaviorId, out var def))
+                behavior.BrainTier = def.BrainTier;
 
             _entityMap.Register(_nextNetId++, entity);
 

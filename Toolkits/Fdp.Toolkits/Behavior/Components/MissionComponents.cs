@@ -18,20 +18,20 @@ namespace Fdp.Toolkit.Behavior.Components
         /// </summary>
         /// <remarks>
         /// <b>BS1-T022:</b> Runtime evaluation now delegates to the
-        /// <see cref="DoctrineFinished"/> path so that <c>MissionDirectorSystem</c> does not
+        /// <see cref="BehaviorFinished"/> path so that <c>MissionDirectorSystem</c> does not
         /// need to read <c>NavState</c> on a Brain node.  This enum value is retained for
         /// backward compatibility with serialised mission plans received over DDS.
         /// </remarks>
-        [Obsolete("BS1-T022: ReachedDestination is evaluated via the DoctrineFinished path. " +
-                  "Use MissionTrigger.DoctrineFinished for new mission plans.")]
+        [Obsolete("BS1-T022: ReachedDestination is evaluated via the BehaviorFinished path. " +
+                  "Use MissionTrigger.BehaviorFinished for new mission plans.")]
         ReachedDestination = 1,
         /// <summary>Advances when the entity's <c>TargetMemory</c> contains at least one entry with ThreatScore > 0.</summary>
         UnderAttack        = 2,
         /// <summary>Advances when <c>Health.Current / Health.Max</c> &lt;= <see cref="MissionPhase.TriggerParam"/>.</summary>
         HealthCritical     = 3,
-        /// <summary>Advances when a <see cref="Events.DoctrineFinishedEvent"/> is received for this entity,
-        /// indicating the doctrine's BTree root evaluated to Success or Failure.</summary>
-        DoctrineFinished   = 4,
+        /// <summary>Advances when a <see cref="Events.BehaviorFinishedEvent"/> is received for this entity,
+        /// indicating the behavior's BTree root evaluated to Success or Failure.</summary>
+        BehaviorFinished   = 4,
     }
 
     /// <summary>
@@ -41,8 +41,8 @@ namespace Fdp.Toolkit.Behavior.Components
     [StructLayout(LayoutKind.Sequential)]
     public struct MissionPhase
     {
-        /// <summary>Doctrine hash to activate when this phase becomes current.</summary>
-        public int DoctrineId;
+        /// <summary>Behavior hash to activate when this phase becomes current.</summary>
+        public int BehaviorId;
 
         /// <summary>Condition that must be met to advance to the next phase.</summary>
         public MissionTrigger Trigger;

@@ -34,15 +34,15 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void BTreeTick_DoesNotThrow_WhenBlobNotRegistered()
         {
-            // Arrange — entity with a doctrine hash that is NOT in the registry.
+            // Arrange — entity with a behavior hash that is NOT in the registry.
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
+            var registry = new BehaviorRegistry();
             var sys      = new BTreeTickSystem(registry);
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState
+            world.AddComponent(e, new BehaviorState
             {
-                ActiveDoctrineHash = 999,                          // not registered
+                ActiveBehaviorHash = 999,                          // not registered
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
             world.AddComponent(e, new BrainBTreeState());
@@ -66,7 +66,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             // Arrange — entity with HSM tier; register a tree that counts invocations.
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
+            var registry = new BehaviorRegistry();
 
             int tickCount = 0;
             var blob      = BuildSingleActionBlob("CountTick");
@@ -78,11 +78,11 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
             var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
 
-            const string doctrineName = "CountTick";
-            const int   doctrineId   = 9001;
-            registry.Register(doctrineId, doctrineName, new DoctrineDefinition
+            const string behaviorName = "CountTick";
+            const int   behaviorId   = 9001;
+            registry.Register(behaviorId, behaviorName, new BehaviorDefinition
             {
-                Name             = doctrineName,
+                Name             = behaviorName,
                 BrainTier        = BehaviorConstants.BrainTierBTree,
                 BTreeInterpreter = interpreter,
             });
@@ -90,9 +90,9 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys = new BTreeTickSystem(registry);
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState
+            world.AddComponent(e, new BehaviorState
             {
-                ActiveDoctrineHash = doctrineId,
+                ActiveBehaviorHash = behaviorId,
                 BrainTier          = BehaviorConstants.BrainTierHsm, // WRONG tier
             });
             world.AddComponent(e, new BrainBTreeState());
@@ -114,7 +114,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             // Arrange — minimal one-node tree that writes LocomotionChannel.
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
+            var registry = new BehaviorRegistry();
 
             var blob      = BuildSingleActionBlob("SetLocomotion");
             var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
@@ -128,11 +128,11 @@ namespace Fdp.Toolkit.Behavior.Tests
                 });
             var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
 
-            const string doctrineName = "SetLocomotion";
-            const int   doctrineId   = 9002;
-            registry.Register(doctrineId, doctrineName, new DoctrineDefinition
+            const string behaviorName = "SetLocomotion";
+            const int   behaviorId   = 9002;
+            registry.Register(behaviorId, behaviorName, new BehaviorDefinition
             {
-                Name             = doctrineName,
+                Name             = behaviorName,
                 BrainTier        = BehaviorConstants.BrainTierBTree,
                 BTreeInterpreter = interpreter,
             });
@@ -140,9 +140,9 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys = new BTreeTickSystem(registry);
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState
+            world.AddComponent(e, new BehaviorState
             {
-                ActiveDoctrineHash = doctrineId,
+                ActiveBehaviorHash = behaviorId,
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
             world.AddComponent(e, new BrainBTreeState());
@@ -161,21 +161,21 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
-        // ── Task-1 Tests: DoctrineFinishedEvent ──────────────────────────────────
+        // ── Task-1 Tests: BehaviorFinishedEvent ──────────────────────────────────
 
         // Helper: build a one-node tree that always returns the given status.
-        private static (DoctrineRegistry registry, BTreeTickSystem sys) BuildTerminalSystem(
-            EntityRepository world, int doctrineId, string doctrineName, NodeStatus status)
+        private static (BehaviorRegistry registry, BTreeTickSystem sys) BuildTerminalSystem(
+            EntityRepository world, int behaviorId, string behaviorName, NodeStatus status)
         {
-            var registry  = new DoctrineRegistry();
-            var blob      = BuildSingleActionBlob(doctrineName);
+            var registry  = new BehaviorRegistry();
+            var blob      = BuildSingleActionBlob(behaviorName);
             var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
-            actionReg.Register(doctrineName,
+            actionReg.Register(behaviorName,
                 (ref BrainBlackboard _, ref BehaviorTreeState _, ref BTreeContext _, int _) => status);
             var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
-            registry.Register(doctrineId, doctrineName, new DoctrineDefinition
+            registry.Register(behaviorId, behaviorName, new BehaviorDefinition
             {
-                Name             = doctrineName,
+                Name             = behaviorName,
                 BrainTier        = BehaviorConstants.BrainTierBTree,
                 BTreeInterpreter = interpreter,
             });
@@ -184,14 +184,14 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         [Fact]
-        public void DoctrineRoot_Success_PublishesDoctrineFinishedEvent()
+        public void BehaviorRoot_Success_PublishesBehaviorFinishedEvent()
         {
             var world = TestWorldFactory.Create();
-            const int doctrineId = 8001;
-            var (_, sys) = BuildTerminalSystem(world, doctrineId, "SuccessDoc", NodeStatus.Success);
+            const int behaviorId = 8001;
+            var (_, sys) = BuildTerminalSystem(world, behaviorId, "SuccessDoc", NodeStatus.Success);
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = doctrineId, BrainTier = BehaviorConstants.BrainTierBTree });
+            world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = behaviorId, BrainTier = BehaviorConstants.BrainTierBTree });
             world.AddComponent(e, new BrainBTreeState());
             world.AddComponent(e, new BrainBlackboard());
 
@@ -199,10 +199,10 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Events published by the system land in the write buffer; swap to read them.
             world.Bus.SwapBuffers();
-            var events = world.Bus.Read<DoctrineFinishedEvent>();
+            var events = world.Bus.Read<BehaviorFinishedEvent>();
 
             int count = 0;
-            DoctrineFinishedEvent? found = null;
+            BehaviorFinishedEvent? found = null;
             foreach (var evt in events)
             {
                 if (evt.Entity.Index == e.Index) { found = evt; count++; }
@@ -216,23 +216,23 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         [Fact]
-        public void DoctrineRoot_Failure_PublishesDoctrineFinishedEvent()
+        public void BehaviorRoot_Failure_PublishesBehaviorFinishedEvent()
         {
             var world = TestWorldFactory.Create();
-            const int doctrineId = 8002;
-            var (_, sys) = BuildTerminalSystem(world, doctrineId, "FailureDoc", NodeStatus.Failure);
+            const int behaviorId = 8002;
+            var (_, sys) = BuildTerminalSystem(world, behaviorId, "FailureDoc", NodeStatus.Failure);
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = doctrineId, BrainTier = BehaviorConstants.BrainTierBTree });
+            world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = behaviorId, BrainTier = BehaviorConstants.BrainTierBTree });
             world.AddComponent(e, new BrainBTreeState());
             world.AddComponent(e, new BrainBlackboard());
 
             sys.Execute(world, 0.016f);
 
             world.Bus.SwapBuffers();
-            var events = world.Bus.Read<DoctrineFinishedEvent>();
+            var events = world.Bus.Read<BehaviorFinishedEvent>();
 
-            DoctrineFinishedEvent? found = null;
+            BehaviorFinishedEvent? found = null;
             foreach (var evt in events)
                 if (evt.Entity.Index == e.Index) found = evt;
 
@@ -243,21 +243,21 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         [Fact]
-        public void DoctrineRoot_Running_DoesNotPublishEvent()
+        public void BehaviorRoot_Running_DoesNotPublishEvent()
         {
             var world = TestWorldFactory.Create();
-            const int doctrineId = 8003;
-            var (_, sys) = BuildTerminalSystem(world, doctrineId, "RunningDoc", NodeStatus.Running);
+            const int behaviorId = 8003;
+            var (_, sys) = BuildTerminalSystem(world, behaviorId, "RunningDoc", NodeStatus.Running);
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = doctrineId, BrainTier = BehaviorConstants.BrainTierBTree });
+            world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = behaviorId, BrainTier = BehaviorConstants.BrainTierBTree });
             world.AddComponent(e, new BrainBTreeState());
             world.AddComponent(e, new BrainBlackboard());
 
             sys.Execute(world, 0.016f);
 
             world.Bus.SwapBuffers();
-            var events = world.Bus.Read<DoctrineFinishedEvent>();
+            var events = world.Bus.Read<BehaviorFinishedEvent>();
 
             bool anyForEntity = false;
             foreach (var evt in events)
@@ -269,16 +269,16 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         [Fact]
-        public void DoctrineRoot_Success_PublishedOnlyOnce()
+        public void BehaviorRoot_Success_PublishedOnlyOnce()
         {
             // BTree always returns Success. Event must be published on frame 1 but NOT frame 2
             // (same InstanceId — suppressed by _publishedTerminalForInstanceId guard).
             var world = TestWorldFactory.Create();
-            const int doctrineId = 8004;
-            var (_, sys) = BuildTerminalSystem(world, doctrineId, "AlwaysSuccessDoc", NodeStatus.Success);
+            const int behaviorId = 8004;
+            var (_, sys) = BuildTerminalSystem(world, behaviorId, "AlwaysSuccessDoc", NodeStatus.Success);
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = doctrineId, BrainTier = BehaviorConstants.BrainTierBTree });
+            world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = behaviorId, BrainTier = BehaviorConstants.BrainTierBTree });
             world.AddComponent(e, new BrainBTreeState());
             world.AddComponent(e, new BrainBlackboard());
 
@@ -286,14 +286,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             sys.Execute(world, 0.016f);
             world.Bus.SwapBuffers();
             int frame1Count = 0;
-            foreach (var evt in world.Bus.Read<DoctrineFinishedEvent>())
+            foreach (var evt in world.Bus.Read<BehaviorFinishedEvent>())
                 if (evt.Entity.Index == e.Index) frame1Count++;
 
             // Frame 2: same InstanceId — must NOT re-publish.
             sys.Execute(world, 0.016f);
             world.Bus.SwapBuffers();
             int frame2Count = 0;
-            foreach (var evt in world.Bus.Read<DoctrineFinishedEvent>())
+            foreach (var evt in world.Bus.Read<BehaviorFinishedEvent>())
                 if (evt.Entity.Index == e.Index) frame2Count++;
 
             Assert.Equal(1, frame1Count);
@@ -303,10 +303,10 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         [Fact]
-        public void DoctrineFinished_NotPublishedByLocomotionDispatcher()
+        public void BehaviorFinished_NotPublishedByLocomotionDispatcher()
         {
             // Running LocomotionDispatcherSystem alone (no BTreeTickSystem) must NOT
-            // produce a DoctrineFinishedEvent even when the executor sets channel status.
+            // produce a BehaviorFinishedEvent even when the executor sets channel status.
             var world = TestWorldFactory.Create();
 
             var dispatcher = new LocomotionDispatcherSystem();
@@ -314,22 +314,22 @@ namespace Fdp.Toolkit.Behavior.Tests
             dispatcher.RegisterExecutor(1, spy);
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = 1, BrainTier = BehaviorConstants.BrainTierBTree, InstanceId = 1 });
+            world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = 1, BrainTier = BehaviorConstants.BrainTierBTree, InstanceId = 1 });
             world.AddComponent(e, new LocomotionChannel
             {
                 ActiveAction         = 1,
                 ActionInstanceId     = 1,
-                DoctrineInstanceId   = 1,
+                BehaviorInstanceId   = 1,
                 DispatchedInstanceId = 0, // triggers OnEnter + Execute
             });
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
 
             dispatcher.Execute(world, 0.016f);
 
-            // No DoctrineFinishedEvent should appear on the bus.
+            // No BehaviorFinishedEvent should appear on the bus.
             world.Bus.SwapBuffers();
             bool anyEvent = false;
-            foreach (var evt in world.Bus.Read<DoctrineFinishedEvent>())
+            foreach (var evt in world.Bus.Read<BehaviorFinishedEvent>())
                 if (evt.Entity.Index != 0) anyEvent = true;
 
             Assert.False(anyEvent);
@@ -342,15 +342,15 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void DestroyedEntity_PrunedFromTerminalTrackingDictionary()
         {
-            // Arrange: terminal doctrine so the deduplication dictionary gets an entry.
+            // Arrange: terminal behavior so the deduplication dictionary gets an entry.
             var world = TestWorldFactory.Create();
-            const int doctrineId = 8010;
-            var (_, sys) = BuildTerminalSystem(world, doctrineId, "PruneDoc", NodeStatus.Success);
+            const int behaviorId = 8010;
+            var (_, sys) = BuildTerminalSystem(world, behaviorId, "PruneDoc", NodeStatus.Success);
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState
+            world.AddComponent(e, new BehaviorState
             {
-                ActiveDoctrineHash = doctrineId,
+                ActiveBehaviorHash = behaviorId,
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
             world.AddComponent(e, new BrainBTreeState());

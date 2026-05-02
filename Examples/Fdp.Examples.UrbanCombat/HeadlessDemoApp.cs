@@ -33,7 +33,7 @@ namespace Fdp.Examples.UrbanCombat
     /// <summary>
     /// Orchestrator for the headless "Urban Ambush" demo simulation.
     /// <para>
-    /// Call <see cref="Initialize"/> once to register all components, build the doctrine
+    /// Call <see cref="Initialize"/> once to register all components, build the behavior
     /// registry and system pipeline, then call <see cref="RunSimulation"/> to execute
     /// the simulation loop.
     /// </para>
@@ -92,10 +92,10 @@ namespace Fdp.Examples.UrbanCombat
         public ITkbDatabase Tkb => _tkb;
 
         /// <summary>
-        /// The doctrine registry: maps doctrine IDs to their definitions (BrainTier, HSM blob, BTree interpreter).
+        /// The behavior registry: maps behavior IDs to their definitions (BrainTier, HSM blob, BTree interpreter).
         /// Populated during <see cref="Initialize"/>; read-only thereafter.
         /// </summary>
-        public DoctrineRegistry DoctrineRegistry => _doctrineRegistry;
+        public BehaviorRegistry BehaviorRegistry => _behaviorRegistry;
 
         /// <summary>
         /// The road network blob for the city intersection.
@@ -104,7 +104,7 @@ namespace Fdp.Examples.UrbanCombat
         public RoadNetworkBlob Road { get; private set; }
 
         private readonly TkbDatabase        _tkb              = new TkbDatabase();
-        private readonly DoctrineRegistry   _doctrineRegistry = new DoctrineRegistry();
+        private readonly BehaviorRegistry   _behaviorRegistry = new BehaviorRegistry();
         private readonly NetworkEntityMap   _entityMap        = new NetworkEntityMap();
         private TrajectoryPoolManager?      _trajectoryPool;
 
@@ -136,7 +136,7 @@ namespace Fdp.Examples.UrbanCombat
         }
 
         /// <summary>
-        /// Registers all ECS component types, builds the doctrine registry, allocates
+        /// Registers all ECS component types, builds the behavior registry, allocates
         /// the physics singleton and system pipeline.
         /// Must be called exactly once before any simulation.
         /// </summary>
@@ -165,8 +165,8 @@ namespace Fdp.Examples.UrbanCombat
             _physicsModule = new PhysicsToolkitModule();
             _physicsModule.Initialize(World);
 
-            // 5. Register all doctrines.
-            RegisterDoctrines();
+            // 5. Register all behaviors.
+            RegisterBehaviors();
 
             // 6. Build the system pipeline.
             RegisterSystems();
@@ -234,7 +234,7 @@ namespace Fdp.Examples.UrbanCombat
             World.RegisterComponent<Health>();
 
             // FDP.Toolkit.Behavior
-            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.DoctrineState>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.SimTier>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBlackboard>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBTreeState>();
@@ -268,18 +268,18 @@ namespace Fdp.Examples.UrbanCombat
             World.RegisterComponent<CarKinem.Core.NavState>();
         }
 
-        private void RegisterDoctrines()
+        private void RegisterBehaviors()
         {
             // ── Civilian (no BTree / HSM needed — TrafficBrainSystem handles tier-1) ──
-            _doctrineRegistry.Register(DoctrineIds.WanderCivil, "WanderCivil",
-                new DoctrineDefinition { Name = "WanderCivil", BrainTier = 0 });
+            _behaviorRegistry.Register(BehaviorIds.WanderCivil, "WanderCivil",
+                new BehaviorDefinition { Name = "WanderCivil", BrainTier = 0 });
 
-            _doctrineRegistry.Register(DoctrineIds.PanicFlee, "PanicFlee",
-                new DoctrineDefinition { Name = "PanicFlee", BrainTier = 0 });
+            _behaviorRegistry.Register(BehaviorIds.PanicFlee, "PanicFlee",
+                new BehaviorDefinition { Name = "PanicFlee", BrainTier = 0 });
 
             // ── APC: HSM ConvoyEscort ─────────────────────────────────────────────────
-            _doctrineRegistry.Register(DoctrineIds.ConvoyEscort, "ConvoyEscort",
-                new DoctrineDefinition
+            _behaviorRegistry.Register(BehaviorIds.ConvoyEscort, "ConvoyEscort",
+                new BehaviorDefinition
                 {
                     Name          = "ConvoyEscort",
                     BrainTier     = BehaviorConstants.BrainTierHsm,
@@ -290,8 +290,8 @@ namespace Fdp.Examples.UrbanCombat
             var holdReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
             holdReg.Register("HoldPosition", InsurgentNodes.Action_HoldPosition);
             var holdBlob = TreeCompiler.CompileFromJson(InfantryCombatJson);
-            _doctrineRegistry.Register(DoctrineIds.InfantryCombat, "InfantryCombat",
-                new DoctrineDefinition
+            _behaviorRegistry.Register(BehaviorIds.InfantryCombat, "InfantryCombat",
+                new BehaviorDefinition
                 {
                     Name             = "InfantryCombat",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
@@ -304,8 +304,8 @@ namespace Fdp.Examples.UrbanCombat
             ambushReg.Register("Action_AimAndFire",   InsurgentNodes.Action_AimAndFire);
             ambushReg.Register("Action_HoldPosition", InsurgentNodes.Action_HoldPosition);
             var ambushBlob = TreeCompiler.CompileFromJson(AmbushJson);
-            _doctrineRegistry.Register(DoctrineIds.Ambush, "Ambush",
-                new DoctrineDefinition
+            _behaviorRegistry.Register(BehaviorIds.Ambush, "Ambush",
+                new BehaviorDefinition
                 {
                     Name             = "Ambush",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
@@ -318,7 +318,7 @@ namespace Fdp.Examples.UrbanCombat
             _trajectoryPool = new TrajectoryPoolManager();
 
             // ── Input phase ────────────────────────────────────────────
-            _inputModuleSystems.Add(new DoctrineIngressSystem(_doctrineRegistry));
+            _inputModuleSystems.Add(new BehaviorIngressSystem(_behaviorRegistry));
             _inputModuleSystems.Add(new FireProcessingSystem());
             _inputModuleSystems.Add(new RaycastSolverSystem());
             _inputModuleSystems.Add(new HitResolutionSystem());
@@ -327,8 +327,8 @@ namespace Fdp.Examples.UrbanCombat
             _simModuleSystems.Add(new MissionDirectorSystem());
             _simModuleSystems.Add(new TrafficBrainSystem());
             _simModuleSystems.Add(new ChannelArbitrationSystem());
-            _simModuleSystems.Add(new BTreeTickSystem(_doctrineRegistry));
-            _simModuleSystems.Add(new HsmTickSystem<BrainHsm128>(_doctrineRegistry));
+            _simModuleSystems.Add(new BTreeTickSystem(_behaviorRegistry));
+            _simModuleSystems.Add(new HsmTickSystem<BrainHsm128>(_behaviorRegistry));
             _simModuleSystems.Add(new DamageSystem());
             _simModuleSystems.Add(new AudioPerceptionSystem());
 

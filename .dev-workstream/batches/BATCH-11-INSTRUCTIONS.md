@@ -231,8 +231,8 @@ public enum MissionTrigger : byte
 [StructLayout(LayoutKind.Sequential)]
 public struct MissionPhase
 {
-    /// <summary>Doctrine to activate when this phase becomes current.</summary>
-    public int   DoctrineId;
+    /// <summary>Behavior to activate when this phase becomes current.</summary>
+    public int   BehaviorId;
     /// <summary>Condition that must be met to advance to the next phase.</summary>
     public MissionTrigger Trigger;
     /// <summary>
@@ -247,7 +247,7 @@ public struct MissionPhase
 
 /// <summary>
 /// Fixed queue of up to 8 mission phases. CurrentPhase is the index into Phases
-/// of the active phase. Phases[CurrentPhase].DoctrineId is loaded into DoctrineState
+/// of the active phase. Phases[CurrentPhase].BehaviorId is loaded into BehaviorState
 /// when the phase starts.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
@@ -261,7 +261,7 @@ public unsafe struct MissionPlanQueue
 }
 ```
 
-> ⚠️ `sizeof(MissionPhase)` must fit the fixed buffer. `MissionPhase` has `int DoctrineId` (4) + `MissionTrigger` byte (1) + 3 pad + `float TriggerParam` (4) = 12 bytes. Adjust `_phases` buffer to `MaxPhases * 12` or use a Sequential layout verified by a unit test. Alternatively use a simple `fixed MissionPhase[MaxPhases]` if the compiler allows fixed buffers of unmanaged types (C# 7.3+).
+> ⚠️ `sizeof(MissionPhase)` must fit the fixed buffer. `MissionPhase` has `int BehaviorId` (4) + `MissionTrigger` byte (1) + 3 pad + `float TriggerParam` (4) = 12 bytes. Adjust `_phases` buffer to `MaxPhases * 12` or use a Sequential layout verified by a unit test. Alternatively use a simple `fixed MissionPhase[MaxPhases]` if the compiler allows fixed buffers of unmanaged types (C# 7.3+).
 
 **Preferred approach:** Use `fixed MissionPhase Phases[8]` directly (C# 7.3 allows this for unmanaged structs).
 
@@ -270,7 +270,7 @@ public unsafe struct MissionPlanQueue
 **File:** `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs` ← NEW  
 **Phase:** `SimulationSystemGroup`, before `ChannelArbitrationSystem`.
 
-**Logic per entity with `MissionPlanQueue` + `DoctrineState`:**
+**Logic per entity with `MissionPlanQueue` + `BehaviorState`:**
 
 1. If `queue.CurrentPhase >= queue.PhaseCount`: nothing to do (mission complete).
 2. Retrieve current phase: `ref var phase = ref queue.Phases[queue.CurrentPhase]`.
@@ -282,21 +282,21 @@ public unsafe struct MissionPlanQueue
 4. If trigger fires:
    - `queue.CurrentPhase++`
    - `queue.PhaseElapsedSeconds = 0f`
-   - If `queue.CurrentPhase < queue.PhaseCount`: load next phase's doctrine into `DoctrineState.InstanceId++`, `DoctrineState.ActiveDoctrineId = queue.Phases[queue.CurrentPhase].DoctrineId`. This causes `ChannelArbitrationSystem` to preempt the old action channels naturally.
-5. Write back `queue` and `doctrineState`.
+   - If `queue.CurrentPhase < queue.PhaseCount`: load next phase's behavior into `BehaviorState.InstanceId++`, `BehaviorState.ActiveBehaviorId = queue.Phases[queue.CurrentPhase].BehaviorId`. This causes `ChannelArbitrationSystem` to preempt the old action channels naturally.
+5. Write back `queue` and `behaviorState`.
 
 **Tests (new file `MissionDirectorSystemTests.cs`):**
 
 ```csharp
 [Fact] void MissionDirector_AdvancesPhase_WhenTimerElapses()
-// Phase 0: DoctrineA, Trigger=TimerElapsed(0.5s).
+// Phase 0: BehaviorA, Trigger=TimerElapsed(0.5s).
 // Run at 60Hz (dt=1/60). After 31 ticks (≥0.5s elapsed):
-// Assert: DoctrineState.ActiveDoctrineId == DoctrineB (phase 1's doctrine).
+// Assert: BehaviorState.ActiveBehaviorId == BehaviorB (phase 1's behavior).
 // Assert: queue.CurrentPhase == 1.
 
 [Fact] void MissionDirector_DoesNotAdvance_WhenTimerNotElapsed()
 // Same setup. Run 10 ticks (≈0.167s < 0.5s).
-// Assert: DoctrineState still DoctrineA. CurrentPhase still 0.
+// Assert: BehaviorState still BehaviorA. CurrentPhase still 0.
 
 [Fact] void MissionDirector_AdvancesPhase_WhenReachedDestination()
 // Phase trigger = ReachedDestination. NavState.HasArrived = 0 initially.
@@ -342,7 +342,7 @@ public unsafe struct MissionPlanQueue
 
 **Q2:** For the `ActorCapabilityState` stripping in `DamageSystem` — if the entity is destroyed in the same frame, can a subsequent system still read the capability state? Or is it undefined? How did you write the test to avoid testing against undefined behavior?
 
-**Q3:** `MissionDirectorSystem` increments `DoctrineState.InstanceId` to trigger preemption. Does the current `ChannelArbitrationSystem` implementation read `DoctrineState.InstanceId` or compare it differently? Confirm the preemption mechanism matches.
+**Q3:** `MissionDirectorSystem` increments `BehaviorState.InstanceId` to trigger preemption. Does the current `ChannelArbitrationSystem` implementation read `BehaviorState.InstanceId` or compare it differently? Confirm the preemption mechanism matches.
 
 **Q4:** Any design decisions or edge cases beyond the spec?
 

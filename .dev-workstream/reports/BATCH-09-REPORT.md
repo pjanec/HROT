@@ -101,7 +101,7 @@ Combat→Physics would create a cycle, but that direction was never needed: `Hit
 public unsafe struct WeaponChannel
 {
     public byte  ActiveAction;
-    public byte  DoctrineInstanceId;
+    public byte  BehaviorInstanceId;
     public byte  ActionInstanceId;
     public byte  DispatchedInstanceId;
     public NodeStatus Status;

@@ -2,7 +2,7 @@
 
 **Batch Number:** BATCH-14  
 **Tasks:**
-- **Corrective-0 (DEBT-035):** `DoctrineIngressSystem` partial-transition bug
+- **Corrective-0 (DEBT-035):** `BehaviorIngressSystem` partial-transition bug
 - **BCS-P7-T1:** Project scaffold + `HeadlessDemoApp` shell
 - **BCS-P7-T2:** TKB Blueprints (5 entity templates)
 - **BCS-P7-T3:** `DemoEnvironmentSetup` (city intersection road graph)
@@ -23,14 +23,14 @@
 3. **DESIGN.md §9 (Demo Application):** `FDP/Docs/projects/behavior-control/DESIGN.md` — §9.1 (scenario), §9.2 (TKB blueprints), §9.3 (road graph), §9.5 (TelemetryReporterSystem output format).
 4. **TASK-DETAIL.md §BCS-P7-T1, T2, T3:** `FDP/Docs/projects/behavior-control/TASK-DETAIL.md` — read all three sections in full.
 5. **CODE-STANDARDS.md:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\guides\CODE-STANDARDS.md`
-6. **`DoctrineIngressSystem.cs`** — read the current (broken) code before fixing it.
+6. **`BehaviorIngressSystem.cs`** — read the current (broken) code before fixing it.
 
 ### Source Locations
 
 | Area | Path |
 |---|---|
-| **Corrective-0** | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs` |
-| **Corrective-0 test** | `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/DoctrineIngressSystemTests.cs` |
+| **Corrective-0** | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs` |
+| **Corrective-0 test** | `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/BehaviorIngressSystemTests.cs` |
 | **New project** | `FDP/Examples/Fdp.Examples.UrbanCombat/` ← CREATE directory |
 | **New project file** | `FDP/Examples/Fdp.Examples.UrbanCombat/Fdp.Examples.UrbanCombat.csproj` ← CREATE |
 | **Demo shell** | `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs` ← CREATE |
@@ -56,7 +56,7 @@ dotnet test Toolkits/FDP.Toolkit.Behavior.Tests/    # Corrective-0 test
 
 ## 🔄 MANDATORY WORKFLOW
 
-1. **Corrective-0 first** — fix `DoctrineIngressSystem` + add test → all existing tests green ✅
+1. **Corrective-0 first** — fix `BehaviorIngressSystem` + add test → all existing tests green ✅
 2. Create demo project scaffold (T1) ✅
 3. TKB Blueprints (T2) ✅
 4. Road graph setup (T3) ✅
@@ -66,18 +66,18 @@ dotnet test Toolkits/FDP.Toolkit.Behavior.Tests/    # Corrective-0 test
 
 ## ✅ Tasks
 
-### Task 0 (Corrective-0): `DoctrineIngressSystem` partial-transition fix (DEBT-035)
+### Task 0 (Corrective-0): `BehaviorIngressSystem` partial-transition fix (DEBT-035)
 
-**File:** `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs`  
+**File:** `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs`  
 **Issue:** Read BATCH-13-REVIEW Issue 1 in full before coding.
 
-**Root cause:** `DoctrineState` and `BrainBTreeState` writes happen BEFORE `ParseParams` is called inside the try/catch. A `ParseParams` failure leaves the entity with:
-- New `ActiveDoctrineHash` (points to the new doctrine)
+**Root cause:** `BehaviorState` and `BrainBTreeState` writes happen BEFORE `ParseParams` is called inside the try/catch. A `ParseParams` failure leaves the entity with:
+- New `ActiveBehaviorHash` (points to the new behavior)
 - Bumped `InstanceId` (channels have been preempted)
 - Zeroed `BrainBTreeState`
 - But an un-parsed / partially zeroed blackboard
 
-This is a **partial doctrine transition** — the brain will try to run the new doctrine with all-zero blackboard parameters.
+This is a **partial behavior transition** — the brain will try to run the new behavior with all-zero blackboard parameters.
 
 **Fix:** Restructure so that all ECS component writes happen **after** `ParseParams` succeeds. Because `ParseParams` writes directly into the live blackboard memory, use one of:
 
@@ -107,7 +107,7 @@ if (def.ParseParams != null && World.HasComponent<BrainBlackboard>(evt.Entity))
             catch { ok = false; }
         }
     }
-    if (!ok) continue;  // ParseParams failed — abort, entity stays on old doctrine.
+    if (!ok) continue;  // ParseParams failed — abort, entity stays on old behavior.
 
     // Write shadow back to live blackboard.
     ref var bbW = ref World.GetComponentRW<BrainBlackboard>(evt.Entity);
@@ -123,11 +123,11 @@ else if (def.ParseParams != null)
     continue;
 }
 
-// ParseParams succeeded (or not required). Now commit doctrine transition.
-ref var doctrine = ref World.GetComponentRW<DoctrineState>(evt.Entity);
-doctrine.ActiveDoctrineHash = doctrineId;
-unchecked { doctrine.InstanceId++; }
-doctrine.BrainTier = def.BrainTier;
+// ParseParams succeeded (or not required). Now commit behavior transition.
+ref var behavior = ref World.GetComponentRW<BehaviorState>(evt.Entity);
+behavior.ActiveBehaviorHash = behaviorId;
+unchecked { behavior.InstanceId++; }
+behavior.BrainTier = def.BrainTier;
 if (World.HasComponent<BrainBTreeState>(evt.Entity))
 {
     ref var btState = ref World.GetComponentRW<BrainBTreeState>(evt.Entity);
@@ -142,13 +142,13 @@ if (World.HasComponent<BrainBTreeState>(evt.Entity))
 **New required test:**
 ```csharp
 [Fact]
-public void DoctrineIngress_DoctrineStateUnchanged_WhenParseParamsFails()
-// Entity: DoctrineState(ActiveDoctrineHash=OldId, InstanceId=0).
-// Register new doctrine (NewId) with a ParseParams delegate that throws.
-// Publish AssignDoctrineEvent(entity, "NewDoctrineName", "{}").
-// Run DoctrineIngressSystem.
-// Assert: doctrine.ActiveDoctrineHash == OldId (NOT switched to NewId).
-// Assert: doctrine.InstanceId == 0 (NOT bumped).
+public void BehaviorIngress_BehaviorStateUnchanged_WhenParseParamsFails()
+// Entity: BehaviorState(ActiveBehaviorHash=OldId, InstanceId=0).
+// Register new behavior (NewId) with a ParseParams delegate that throws.
+// Publish AssignBehaviorEvent(entity, "NewBehaviorName", "{}").
+// Run BehaviorIngressSystem.
+// Assert: behavior.ActiveBehaviorHash == OldId (NOT switched to NewId).
+// Assert: behavior.InstanceId == 0 (NOT bumped).
 ```
 
 ---
@@ -219,10 +219,10 @@ Implement the 5 blueprint factory methods (static methods, each returning `Entit
 
 | Blueprint | ID | Key Components |
 |---|---|---|
-| `CivilianPedestrian` | 1001 | SimTransform, SimVelocity, SimTier(1), DoctrineState, ActorCapabilityState(CanMove), LocomotionChannel, VehicleState, VehicleParams(Pedestrian), NavState, PerceptionReceptor(vision=30, hear=100), TargetMemory, PhysicsCollider(r=0.4, layer=1) |
-| `CivilianCar` | 1002 | SimTransform, SimVelocity, SimTier(1), DoctrineState, ActorCapabilityState(CanMove), LocomotionChannel, VehicleState, VehicleParams(PersonalCar), NavState, PhysicsCollider(r=2, layer=1) |
-| `MilitaryAPC` | 2001 | SimTransform, SimVelocity, SimTier(2), DoctrineState(BrainTier=2), BrainHsm128, BrainBlackboard, PreviousCapabilities, ActorCapabilityState(CanMove|CanInteract), LocomotionChannel, InteractionChannel, VehicleState, VehicleParams(Tank), NavState, Health(500), HealthData(500,500), PhysicsCollider(r=3.5, layer=1), PassengerBuffer, Faction(TeamId=1) |
-| `InfantrySoldier` | 2002 | SimTransform, SimVelocity, SimTier(2), DoctrineState, BrainBTreeState, BrainBlackboard, PreviousCapabilities, ActorCapabilityState(CanMove|CanShoot), LocomotionChannel, WeaponChannel, InteractionChannel, VehicleState, VehicleParams(Pedestrian), NavState, Health(100), HealthData(100,100), WeaponState(ammo=30, rate=5Hz, range=200, damage=25), PerceptionReceptor(vision=150, hear=200), TargetMemory, PhysicsCollider(r=0.4, layer=1), Faction(TeamId=1) |
+| `CivilianPedestrian` | 1001 | SimTransform, SimVelocity, SimTier(1), BehaviorState, ActorCapabilityState(CanMove), LocomotionChannel, VehicleState, VehicleParams(Pedestrian), NavState, PerceptionReceptor(vision=30, hear=100), TargetMemory, PhysicsCollider(r=0.4, layer=1) |
+| `CivilianCar` | 1002 | SimTransform, SimVelocity, SimTier(1), BehaviorState, ActorCapabilityState(CanMove), LocomotionChannel, VehicleState, VehicleParams(PersonalCar), NavState, PhysicsCollider(r=2, layer=1) |
+| `MilitaryAPC` | 2001 | SimTransform, SimVelocity, SimTier(2), BehaviorState(BrainTier=2), BrainHsm128, BrainBlackboard, PreviousCapabilities, ActorCapabilityState(CanMove|CanInteract), LocomotionChannel, InteractionChannel, VehicleState, VehicleParams(Tank), NavState, Health(500), HealthData(500,500), PhysicsCollider(r=3.5, layer=1), PassengerBuffer, Faction(TeamId=1) |
+| `InfantrySoldier` | 2002 | SimTransform, SimVelocity, SimTier(2), BehaviorState, BrainBTreeState, BrainBlackboard, PreviousCapabilities, ActorCapabilityState(CanMove|CanShoot), LocomotionChannel, WeaponChannel, InteractionChannel, VehicleState, VehicleParams(Pedestrian), NavState, Health(100), HealthData(100,100), WeaponState(ammo=30, rate=5Hz, range=200, damage=25), PerceptionReceptor(vision=150, hear=200), TargetMemory, PhysicsCollider(r=0.4, layer=1), Faction(TeamId=1) |
 | `Insurgent` | 2003 | Same as InfantrySoldier but Faction(TeamId=2), WeaponState(ammo=1, range=300, damage=500, rate=0.1Hz) |
 
 > All positions are set to `Vector3.Zero` in blueprints — actual spawn positions are set by `ScenarioDirector` (T7).
@@ -274,7 +274,7 @@ public static class DemoEnvironmentSetup
 
 ## 🧪 Testing Requirements
 
-- **Minimum 6 new tests:** 1 Corrective-0 (DoctrineIngress unchanged-state) + 2 blueprint component assertions + 3 road graph geometry.
+- **Minimum 6 new tests:** 1 Corrective-0 (BehaviorIngress unchanged-state) + 2 blueprint component assertions + 3 road graph geometry.
 - **All 50 existing `FDP.Toolkit.Behavior.Tests` remain green** (incl. DEBT-008 test from BATCH-13).
 - **`Fdp.Examples.UrbanCombat` builds with 0 errors.**
 
@@ -310,7 +310,7 @@ public static class DemoEnvironmentSetup
 
 ## 🎯 Success Criteria
 
-- [ ] **Corrective-0** — `DoctrineIngressSystem` reordered; DoctrineState writes after ParseParams; duplicate `using System` removed; test `DoctrineIngress_DoctrineStateUnchanged_WhenParseParamsFails` passes.
+- [ ] **Corrective-0** — `BehaviorIngressSystem` reordered; BehaviorState writes after ParseParams; duplicate `using System` removed; test `BehaviorIngress_BehaviorStateUnchanged_WhenParseParamsFails` passes.
 - [ ] **BCS-P7-T1** — `Fdp.Examples.UrbanCombat` project builds (0 errors); `HeadlessDemoApp.Run()` exists with correct stub architecture.
 - [ ] **BCS-P7-T2** — `EntityBlueprints` has 5 methods; minimum 2 blueprint component tests pass.
 - [ ] **BCS-P7-T3** — `DemoEnvironmentSetup.CreateCityIntersection()` returns 5 nodes + 8 segments; 3 geometry tests pass.
@@ -325,7 +325,7 @@ public static class DemoEnvironmentSetup
 - **BATCH-13 Review:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\reviews\BATCH-13-REVIEW.md`
 - **TASK-DETAIL.md §BCS-P7-T1, T2, T3:** `FDP/Docs/projects/behavior-control/TASK-DETAIL.md`
 - **DESIGN.md §9:** `FDP/Docs/projects/behavior-control/DESIGN.md`
-- **DoctrineIngressSystem.cs:** `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs`
+- **BehaviorIngressSystem.cs:** `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs`
 - **BrainBlackboard / BehaviorConstants:** `FDP/Toolkits/FDP.Toolkit.Behavior/Components/BehaviorComponents.cs`; `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorConstants.cs`
 - **RoadNetworkBlob builder:** `FDP/Toolkits/FDP.Toolkit.CarKinem/` — find the road network construction API before writing T3
 - **CODE-STANDARDS.md:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\guides\CODE-STANDARDS.md`

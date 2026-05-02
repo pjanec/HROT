@@ -9,7 +9,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         public static EntityRepository Create()
         {
             var world = new EntityRepository();
-            world.RegisterComponent<DoctrineState>();
+            world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();

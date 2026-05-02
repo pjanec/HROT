@@ -83,7 +83,7 @@ Both delegates fully implemented:
 **`Activity_Cruise`:**
 ```csharp
 loco.ActiveAction       = NavigationConstants.ActionIdFollowRoute;
-loco.DoctrineInstanceId = doctrine.InstanceId;
+loco.BehaviorInstanceId = behavior.InstanceId;
 ```
 Runs every tick while Cruising — correct for a continuous Activity. ✅  
 No `HasComponent` guard on `LocomotionChannel` — correct, since this delegate is only registered
@@ -97,7 +97,7 @@ if (repo.HasComponent<LocomotionChannel>(bridge->Self))
 if (repo.HasComponent<InteractionChannel>(bridge->Self))
 {
     interact.ActiveAction       = BehaviorConstants.ActionIdEjectPassengers;
-    interact.DoctrineInstanceId = doctrine.InstanceId;
+    interact.BehaviorInstanceId = behavior.InstanceId;
     unchecked { interact.ActionInstanceId++; }
 }
 ```
@@ -139,7 +139,7 @@ confirms HSM delegates are correctly driving both channels. ✅
 
 **`HsmKernelBridge_WorldHandle_RoundTrip_RecoversSameInstance`** (toolkit test): Uses `Assert.Same` — correct equivalent of `ReferenceEquals`. Validates the exact round-trip pattern used by every HSM action delegate in production. ✅
 
-One observation (P3, not blocking): T2 could additionally verify `LocomotionChannel.DoctrineInstanceId == 1` (matching the `DoctrineState.InstanceId = 1` set in Arrange). The current assertion only checks `ActiveAction`. Not a defect, but the invariant is undocumented. Log as minor gap — add a comment, no new test needed.
+One observation (P3, not blocking): T2 could additionally verify `LocomotionChannel.BehaviorInstanceId == 1` (matching the `BehaviorState.InstanceId = 1` set in Arrange). The current assertion only checks `ActiveAction`. Not a defect, but the invariant is undocumented. Log as minor gap — add a comment, no new test needed.
 
 ---
 

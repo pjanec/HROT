@@ -197,7 +197,7 @@ public static unsafe void Activity_Cruise(
     // Full ECS access — write locomotion intent every tick while Cruising
     ref var loco = ref repo.GetComponentRW<LocomotionChannel>(bridge->Self);
     loco.ActiveAction       = NavigationConstants.ActionIdFollowRoute;
-    loco.DoctrineInstanceId = repo.GetComponent<DoctrineState>(bridge->Self).InstanceId;
+    loco.BehaviorInstanceId = repo.GetComponent<BehaviorState>(bridge->Self).InstanceId;
 }
 
 public static unsafe void OnEnter_Disabled(
@@ -214,7 +214,7 @@ public static unsafe void OnEnter_Disabled(
     // (this is the OnEntry guarantee that ApcBrainOutputSystem cannot provide)
     ref var interact = ref repo.GetComponentRW<InteractionChannel>(bridge->Self);
     interact.ActiveAction      = BehaviorConstants.ActionIdEjectPassengers;
-    interact.DoctrineInstanceId = repo.GetComponent<DoctrineState>(bridge->Self).InstanceId;
+    interact.BehaviorInstanceId = repo.GetComponent<BehaviorState>(bridge->Self).InstanceId;
     unchecked { interact.ActionInstanceId++; }
 }
 ```

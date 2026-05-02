@@ -159,11 +159,11 @@ Logic, query pattern, reset fields, and system group attribute are fully describ
 
 **Tests required** (new file `FDP.Toolkit.Behavior.Tests/ChannelArbitrationTests.cs`):  
 See TASK-DETAIL.md lines 316–333. Required scenarios:
-- Channel is cleared when `DoctrineInstanceId` mismatches `DoctrineState.InstanceId`.
+- Channel is cleared when `BehaviorInstanceId` mismatches `BehaviorState.InstanceId`.
 - A matching channel is **not** touched.
 - A channel with `ActiveAction == 0` is skipped (no redundant writes).
 
-A `TestWorldFactory.Create()` helper should be introduced in the test project to avoid boilerplate component registration in every test. Minimum registrations: `DoctrineState`, `LocomotionChannel`, `WeaponChannel`, `InteractionChannel`, `ActorCapabilityState`.
+A `TestWorldFactory.Create()` helper should be introduced in the test project to avoid boilerplate component registration in every test. Minimum registrations: `BehaviorState`, `LocomotionChannel`, `WeaponChannel`, `InteractionChannel`, `ActorCapabilityState`.
 
 ---
 

@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.Navigation.Executors
 
     /// <summary>
     /// Parameters for the <c>JoinFormation</c> behavior.
-    /// Written into <see cref="BrainBlackboard.Memory"/> by <c>DoctrineDefinition.ParseParams</c>
+    /// Written into <see cref="BrainBlackboard.Memory"/> by <c>BehaviorDefinition.ParseParams</c>
     /// and read by <see cref="JoinFormationExecutor.OnEnter"/>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
@@ -85,7 +85,7 @@ namespace Fdp.Toolkit.Navigation.Executors
         /// <inheritdoc/>
         public unsafe void OnEnter(Entity entity, ref LocomotionChannel channel, EntityRepository world)
         {
-            // Read params written into BrainBlackboard.Memory by DoctrineDefinition.ParseParams.
+            // Read params written into BrainBlackboard.Memory by BehaviorDefinition.ParseParams.
             // Use ref to avoid stack-copying the struct (fixed buffer must stay on heap).
             ref var bbRW = ref world.GetComponentRW<BrainBlackboard>(entity);
             JoinFormationParams p;

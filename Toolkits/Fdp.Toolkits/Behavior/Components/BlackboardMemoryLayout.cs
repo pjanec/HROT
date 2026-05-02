@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// <para>
     /// Memory regions:
     /// <list type="table">
-    ///   <item><term>0-59</term><description>Polymorphic doctrine parameters (projected via Unsafe.As from caller DTO)</description></item>
+    ///   <item><term>0-59</term><description>Polymorphic behavior parameters (projected via Unsafe.As from caller DTO)</description></item>
     ///   <item><term>60-125</term><description>Soft-advice / contextual routing data</description></item>
     ///   <item><term>126</term><description>MobilityLost edge-triggered interrupt (set/cleared within a single frame)</description></item>
     ///   <item><term>127</term><description>Reserved hardware-level interrupt slot</description></item>
@@ -28,20 +28,20 @@ namespace Fdp.Toolkit.Behavior.Components
     public unsafe struct BlackboardMemoryLayout
     {
         /// <summary>
-        /// Bytes 0-59: polymorphic doctrine parameter payload.
+        /// Bytes 0-59: polymorphic behavior parameter payload.
         /// AI developers project their specific DTO (e.g. <c>FireAtTargetParams</c>) onto
         /// this region using <c>Unsafe.As</c>. Must not exceed
-        /// <see cref="BehaviorConstants.MaxDoctrineParamByteSize"/> bytes.
+        /// <see cref="BehaviorConstants.MaxBehaviorParamByteSize"/> bytes.
         /// </summary>
         [FieldOffset(0)]
-        public fixed byte DoctrineParameters[BehaviorConstants.MaxDoctrineParamByteSize];
+        public fixed byte BehaviorParameters[BehaviorConstants.MaxBehaviorParamByteSize];
 
         /// <summary>
         /// Bytes 60-125: soft-advice / contextual routing data written by engine subsystems
         /// such as <c>RouteContextSystem</c>. Kept well clear of the interrupt registers
-        /// so doctrine parameter overruns cannot corrupt them.
+        /// so behavior parameter overruns cannot corrupt them.
         /// </summary>
-        [FieldOffset(BehaviorConstants.MaxDoctrineParamByteSize)]
+        [FieldOffset(BehaviorConstants.MaxBehaviorParamByteSize)]
         public fixed byte SoftAdvice[BehaviorConstants.SoftAdviceByteSize];
 
         /// <summary>

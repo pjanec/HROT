@@ -282,8 +282,8 @@ namespace Fdp.Toolkit.Scenario.Tests
                 PhaseElapsedSeconds = 3.14f,
             };
             Span<MissionPhase> phases = queue.Phases;
-            phases[0] = new MissionPhase { DoctrineId = 42, Trigger = MissionTrigger.DoctrineFinished, TriggerParam = 0f };
-            phases[1] = new MissionPhase { DoctrineId = 99, Trigger = MissionTrigger.TimerElapsed,      TriggerParam = 5f };
+            phases[0] = new MissionPhase { BehaviorId = 42, Trigger = MissionTrigger.BehaviorFinished, TriggerParam = 0f };
+            phases[1] = new MissionPhase { BehaviorId = 99, Trigger = MissionTrigger.TimerElapsed,      TriggerParam = 5f };
             _repo.SetComponent(entity, queue);
 
             var serializer = BuildSerializer();
@@ -303,9 +303,9 @@ namespace Fdp.Toolkit.Scenario.Tests
             Assert.Equal(2,    restored.PhaseCount);
             Assert.Equal(3.14f, restored.PhaseElapsedSeconds, precision: 5);
             Span<MissionPhase> rPhases = restored.Phases;
-            Assert.Equal(42,                           rPhases[0].DoctrineId);
-            Assert.Equal(MissionTrigger.DoctrineFinished, rPhases[0].Trigger);
-            Assert.Equal(99,                           rPhases[1].DoctrineId);
+            Assert.Equal(42,                           rPhases[0].BehaviorId);
+            Assert.Equal(MissionTrigger.BehaviorFinished, rPhases[0].Trigger);
+            Assert.Equal(99,                           rPhases[1].BehaviorId);
             Assert.Equal(MissionTrigger.TimerElapsed,  rPhases[1].Trigger);
             Assert.Equal(5f, rPhases[1].TriggerParam,  precision: 5);
 

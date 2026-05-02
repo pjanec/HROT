@@ -12,49 +12,49 @@ using Xunit;
 namespace Fdp.Toolkit.Behavior.Tests
 {
     /// <summary>
-    /// Tests for BHU-016: <see cref="DoctrineIngressSystem"/> resets HSM instance state
-    /// on doctrine assignment so the new doctrine always starts clean.
+    /// Tests for BHU-016: <see cref="BehaviorIngressSystem"/> resets HSM instance state
+    /// on behavior assignment so the new behavior always starts clean.
     /// </summary>
-    public unsafe class DoctrineIngressSystemHsmResetTests
+    public unsafe class BehaviorIngressSystemHsmResetTests
     {
-        private static (EntityRepository world, DoctrineIngressSystem sys, DoctrineRegistry registry)
+        private static (EntityRepository world, BehaviorIngressSystem sys, BehaviorRegistry registry)
             CreateFixture()
         {
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
-            var sys      = new DoctrineIngressSystem(registry);
+            var registry = new BehaviorRegistry();
+            var sys      = new BehaviorIngressSystem(registry);
             return (world, sys, registry);
         }
 
         /// <summary>
-        /// Helper: publish an AssignDoctrineEvent, swap buffers, then run the ingress system.
+        /// Helper: publish an AssignBehaviorEvent, swap buffers, then run the ingress system.
         /// </summary>
-        private static void AssignDoctrine(
+        private static void AssignBehavior(
             EntityRepository world,
-            DoctrineIngressSystem sys,
+            BehaviorIngressSystem sys,
             Entity entity,
-            string doctrineName)
+            string behaviorName)
         {
-            world.Bus.PublishManaged(new AssignDoctrineEvent
+            world.Bus.PublishManaged(new AssignBehaviorEvent
             {
                 Entity       = entity,
-                DoctrineName = doctrineName,
+                BehaviorName = behaviorName,
             });
             world.Bus.SwapBuffers();
             sys.Execute(world, 0.016f);
         }
 
-        // Helper: publish an AssignDoctrineHashEvent, swap buffers, then run the ingress system.
-        private static void AssignDoctrineHash(
+        // Helper: publish an AssignBehaviorHashEvent, swap buffers, then run the ingress system.
+        private static void AssignBehaviorHash(
             EntityRepository world,
-            DoctrineIngressSystem sys,
+            BehaviorIngressSystem sys,
             Entity entity,
-            int doctrineHash)
+            int behaviorHash)
         {
-            world.Bus.Publish(new AssignDoctrineHashEvent
+            world.Bus.Publish(new AssignBehaviorHashEvent
             {
                 Entity       = entity,
-                DoctrineHash = doctrineHash,
+                BehaviorHash = behaviorHash,
             });
             world.Bus.SwapBuffers();
             sys.Execute(world, 0.016f);
@@ -80,30 +80,30 @@ namespace Fdp.Toolkit.Behavior.Tests
         // ---- Tests ----
 
         [Fact]
-        public void DoctrineIngress_HsmReset_ClearsTerminatedFlagAndSetsPhaseIdle()
+        public void BehaviorIngress_HsmReset_ClearsTerminatedFlagAndSetsPhaseIdle()
         {
             var (world, sys, registry) = CreateFixture();
 
-            const string doctrineName = "HsmResetDoc";
-            registry.Register(9300, doctrineName, new DoctrineDefinition
+            const string behaviorName = "HsmResetDoc";
+            registry.Register(9300, behaviorName, new BehaviorDefinition
             {
-                Name          = doctrineName,
+                Name          = behaviorName,
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = BuildMinimalBlob(0x9300),
             });
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState());
+            world.AddComponent(e, new BehaviorState());
             world.AddComponent(e, new BrainHsm64());
 
             // Manually set Terminated flag and a non-Idle phase to simulate
-            // an HSM that ended its previous doctrine in a terminal state.
+            // an HSM that ended its previous behavior in a terminal state.
             ref var brain = ref world.GetComponentRW<BrainHsm64>(e);
             brain.State.Header.Flags |= InstanceFlags.Terminated;
             brain.State.Header.Phase  = InstancePhase.RTC;
 
-            // Assign a new doctrine -- ingress system must reset the HSM.
-            AssignDoctrine(world, sys, e, doctrineName);
+            // Assign a new behavior -- ingress system must reset the HSM.
+            AssignBehavior(world, sys, e, behaviorName);
 
             var brainAfter = world.GetComponent<BrainHsm64>(e);
             Assert.Equal(0, (int)(brainAfter.State.Header.Flags & InstanceFlags.Terminated));
@@ -113,20 +113,20 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         [Fact]
-        public void DoctrineIngress_HsmReset_ClearsActiveLeafIds()
+        public void BehaviorIngress_HsmReset_ClearsActiveLeafIds()
         {
             var (world, sys, registry) = CreateFixture();
 
-            const string doctrineName = "HsmResetDoc2";
-            registry.Register(9301, doctrineName, new DoctrineDefinition
+            const string behaviorName = "HsmResetDoc2";
+            registry.Register(9301, behaviorName, new BehaviorDefinition
             {
-                Name          = doctrineName,
+                Name          = behaviorName,
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = BuildMinimalBlob(0x9301),
             });
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState());
+            world.AddComponent(e, new BehaviorState());
             world.AddComponent(e, new BrainHsm64());
 
             // Simulate a machine that was mid-run: set ActiveLeafIds to non-sentinel values.
@@ -134,8 +134,8 @@ namespace Fdp.Toolkit.Behavior.Tests
             brain.State.ActiveLeafIds[0] = 2;
             brain.State.ActiveLeafIds[1] = 5;
 
-            // Assign doctrine -- ingress system resets leaf IDs to 0xFFFF (uninitialized).
-            AssignDoctrine(world, sys, e, doctrineName);
+            // Assign behavior -- ingress system resets leaf IDs to 0xFFFF (uninitialized).
+            AssignBehavior(world, sys, e, behaviorName);
 
             var brainAfter = world.GetComponent<BrainHsm64>(e);
             Assert.Equal(0xFFFF, brainAfter.State.ActiveLeafIds[0]);
@@ -145,14 +145,14 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         // BHU-016 / CRITICAL FIX: Proves that transitioning an entity between two different
-        // HSM doctrines overwrites InstanceHeader.MachineId to match the new StructureHash,
+        // HSM behaviors overwrites InstanceHeader.MachineId to match the new StructureHash,
         // preventing HsmKernelCore.ValidateInstance from soft-locking the entity.
         [Fact]
-        public unsafe void DoctrineIngressSystem_UpdatesMachineId_OnDoctrineReassignment()
+        public unsafe void BehaviorIngressSystem_UpdatesMachineId_OnBehaviorReassignment()
         {
-            // 1. Arrange: two distinct blobs, two distinct doctrine registrations.
+            // 1. Arrange: two distinct blobs, two distinct behavior registrations.
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
+            var registry = new BehaviorRegistry();
 
             const uint HashA = 0xAAAAu;
             const uint HashB = 0xBBBBu;
@@ -162,36 +162,36 @@ namespace Fdp.Toolkit.Behavior.Tests
             var blobA = BuildMinimalBlob(HashA);
             var blobB = BuildMinimalBlob(HashB);
 
-            registry.Register(DocA, "DoctrineA", new DoctrineDefinition
+            registry.Register(DocA, "BehaviorA", new BehaviorDefinition
             {
-                Name          = "DoctrineA",
+                Name          = "BehaviorA",
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blobA,
             });
-            registry.Register(DocB, "DoctrineB", new DoctrineDefinition
+            registry.Register(DocB, "BehaviorB", new BehaviorDefinition
             {
-                Name          = "DoctrineB",
+                Name          = "BehaviorB",
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blobB,
             });
 
-            var ingressSystem = new DoctrineIngressSystem(registry);
+            var ingressSystem = new BehaviorIngressSystem(registry);
             var tickSystem    = new HsmTickSystem<BrainHsm128>(registry);
 
             var entity = world.CreateEntity();
-            world.AddComponent(entity, new DoctrineState());
+            world.AddComponent(entity, new BehaviorState());
             world.AddComponent(entity, new BrainHsm128());
 
-            // 2. Act: assign Doctrine A.
-            AssignDoctrineHash(world, ingressSystem, entity, DocA);
+            // 2. Act: assign Behavior A.
+            AssignBehaviorHash(world, ingressSystem, entity, DocA);
 
             // 3. Assert: MachineId must equal blobA.StructureHash.
             ref var brainA = ref world.GetComponentRW<BrainHsm128>(entity);
             InstanceHeader* headerA = (InstanceHeader*)Unsafe.AsPointer(ref brainA);
             Assert.Equal(HashA, headerA->MachineId);
 
-            // 4. Act: reassign to Doctrine B.
-            AssignDoctrineHash(world, ingressSystem, entity, DocB);
+            // 4. Act: reassign to Behavior B.
+            AssignBehaviorHash(world, ingressSystem, entity, DocB);
 
             // 5. Assert: MachineId must now reflect blobB.StructureHash (the bug fix).
             ref var brainB = ref world.GetComponentRW<BrainHsm128>(entity);

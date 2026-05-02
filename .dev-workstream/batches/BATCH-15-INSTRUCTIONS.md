@@ -93,7 +93,7 @@ public static class DemoTkbSetup
         t.AddComponent(new SimTransform());
         t.AddComponent(new SimVelocity());
         t.AddComponent(new SimTier { Value = 1 });
-        t.AddComponent(new DoctrineState());
+        t.AddComponent(new BehaviorState());
         t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
         t.AddComponent(new LocomotionChannel());
         t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });  // Phase 0 note: no Position/Forward

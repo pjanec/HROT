@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Combat.Components
         /// <summary>Remaining cooldown in seconds before the next shot is allowed.</summary>
         public float CooldownSecondsRemaining;
 
-        /// <summary>Muzzle velocity in m/s (copied from doctrine at init time).</summary>
+        /// <summary>Muzzle velocity in m/s (copied from behavior at init time).</summary>
         public float MuzzleVelocity;
     }
 

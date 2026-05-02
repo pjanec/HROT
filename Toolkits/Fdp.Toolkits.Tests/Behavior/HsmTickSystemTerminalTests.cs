@@ -12,7 +12,7 @@ using Xunit;
 namespace Fdp.Toolkit.Behavior.Tests
 {
     /// <summary>
-    /// BHU-007: terminal-state detection and <see cref="DoctrineFinishedEvent"/> publication.
+    /// BHU-007: terminal-state detection and <see cref="BehaviorFinishedEvent"/> publication.
     /// BHU-009: interrupt-inject path (blackboard byte 126 -> MobilityLost enqueue).
     /// </summary>
     public unsafe class HsmTickSystemTerminalTests
@@ -86,14 +86,14 @@ namespace Fdp.Toolkit.Behavior.Tests
 
         private static Entity CreateHsmEntity(
             EntityRepository world,
-            int doctrineId,
+            int behaviorId,
             HsmDefinitionBlob blob,
             uint instanceId = 0)
         {
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState
+            world.AddComponent(e, new BehaviorState
             {
-                ActiveDoctrineHash = doctrineId,
+                ActiveBehaviorHash = behaviorId,
                 BrainTier          = BehaviorConstants.BrainTierHsm,
                 InstanceId         = instanceId,
             });
@@ -108,7 +108,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         private static int CountEventsForEntity(EntityRepository world, Entity e)
         {
             int count = 0;
-            foreach (var evt in world.Bus.Read<DoctrineFinishedEvent>())
+            foreach (var evt in world.Bus.Read<BehaviorFinishedEvent>())
                 if (evt.Entity.Index == e.Index) count++;
             return count;
         }
@@ -116,20 +116,20 @@ namespace Fdp.Toolkit.Behavior.Tests
         // ---- BHU-007 Tests ----
 
         [Fact]
-        public void HsmTerminal_FirstTick_PublishesDoctrineFinishedEvent()
+        public void HsmTerminal_FirstTick_PublishesBehaviorFinishedEvent()
         {
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
-            const int doctrineId = 9100;
+            var registry = new BehaviorRegistry();
+            const int behaviorId = 9100;
             var blob = BuildFinalStateBlob(0xBEEF0001);
-            registry.Register(doctrineId, "FinalDoc1", new DoctrineDefinition
+            registry.Register(behaviorId, "FinalDoc1", new BehaviorDefinition
             {
                 Name          = "FinalDoc1",
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
             var sys = new HsmTickSystem<BrainHsm64>(registry);
-            var e   = CreateHsmEntity(world, doctrineId, blob, instanceId: 0);
+            var e   = CreateHsmEntity(world, behaviorId, blob, instanceId: 0);
 
             sys.Execute(world, 0.016f);
             world.Bus.SwapBuffers();
@@ -143,17 +143,17 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void HsmTerminal_SecondTick_SameInstanceId_DoesNotRepublish()
         {
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
-            const int doctrineId = 9101;
+            var registry = new BehaviorRegistry();
+            const int behaviorId = 9101;
             var blob = BuildFinalStateBlob(0xBEEF0002);
-            registry.Register(doctrineId, "FinalDoc2", new DoctrineDefinition
+            registry.Register(behaviorId, "FinalDoc2", new BehaviorDefinition
             {
                 Name          = "FinalDoc2",
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
             var sys = new HsmTickSystem<BrainHsm64>(registry);
-            var e   = CreateHsmEntity(world, doctrineId, blob, instanceId: 0);
+            var e   = CreateHsmEntity(world, behaviorId, blob, instanceId: 0);
 
             // Frame 1: event published, Terminated cleared by system.
             sys.Execute(world, 0.016f);
@@ -175,26 +175,26 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void HsmTerminal_NewInstanceId_PublishesNewEvent()
         {
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
-            const int doctrineId = 9102;
+            var registry = new BehaviorRegistry();
+            const int behaviorId = 9102;
             var blob = BuildFinalStateBlob(0xBEEF0003);
-            registry.Register(doctrineId, "FinalDoc3", new DoctrineDefinition
+            registry.Register(behaviorId, "FinalDoc3", new BehaviorDefinition
             {
                 Name          = "FinalDoc3",
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
             var sys = new HsmTickSystem<BrainHsm64>(registry);
-            var e   = CreateHsmEntity(world, doctrineId, blob, instanceId: 0);
+            var e   = CreateHsmEntity(world, behaviorId, blob, instanceId: 0);
 
-            // Frame 1: initial doctrine terminates -- event fires.
+            // Frame 1: initial behavior terminates -- event fires.
             sys.Execute(world, 0.016f);
             world.Bus.SwapBuffers();
             Assert.Equal(1, CountEventsForEntity(world, e));
 
-            // Simulate doctrine re-assignment: bump InstanceId and re-initialise HSM.
-            ref var doctrine = ref world.GetComponentRW<DoctrineState>(e);
-            unchecked { doctrine.InstanceId++; }
+            // Simulate behavior re-assignment: bump InstanceId and re-initialise HSM.
+            ref var behavior = ref world.GetComponentRW<BehaviorState>(e);
+            unchecked { behavior.InstanceId++; }
             ref var brain = ref world.GetComponentRW<BrainHsm64>(e);
             brain.State.Header.MachineId    = blob.Header.StructureHash;
             brain.State.Header.Phase        = InstancePhase.Entry;
@@ -212,17 +212,17 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void HsmTerminal_DestroyedEntity_PrunedFromTrackingDict()
         {
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
-            const int doctrineId = 9103;
+            var registry = new BehaviorRegistry();
+            const int behaviorId = 9103;
             var blob = BuildFinalStateBlob(0xBEEF0004);
-            registry.Register(doctrineId, "FinalDoc4", new DoctrineDefinition
+            registry.Register(behaviorId, "FinalDoc4", new BehaviorDefinition
             {
                 Name          = "FinalDoc4",
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
             var sys = new HsmTickSystem<BrainHsm64>(registry);
-            var e   = CreateHsmEntity(world, doctrineId, blob, instanceId: 0);
+            var e   = CreateHsmEntity(world, behaviorId, blob, instanceId: 0);
 
             // Frame 1: entity terminates -- system starts tracking it.
             sys.Execute(world, 0.016f);
@@ -247,17 +247,17 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void HsmInterruptInject_BlackboardByte126Set_EnqueuesEvent()
         {
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
-            const int doctrineId = 9200;
+            var registry = new BehaviorRegistry();
+            const int behaviorId = 9200;
             var blob = BuildTwoStateBlob(0xAA001122);
-            registry.Register(doctrineId, "TwoStateDoc1", new DoctrineDefinition
+            registry.Register(behaviorId, "TwoStateDoc1", new BehaviorDefinition
             {
                 Name          = "TwoStateDoc1",
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
             var sys = new HsmTickSystem<BrainHsm64>(registry);
-            var e   = CreateHsmEntity(world, doctrineId, blob);
+            var e   = CreateHsmEntity(world, behaviorId, blob);
             world.AddComponent(e, new BrainBlackboard());
 
             // Signal interrupt: set byte 126.
@@ -280,17 +280,17 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void HsmInterruptInject_BlackboardByte126Clear_NoEventEnqueued()
         {
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
-            const int doctrineId = 9201;
+            var registry = new BehaviorRegistry();
+            const int behaviorId = 9201;
             var blob = BuildTwoStateBlob(0xAA003344);
-            registry.Register(doctrineId, "TwoStateDoc2", new DoctrineDefinition
+            registry.Register(behaviorId, "TwoStateDoc2", new BehaviorDefinition
             {
                 Name          = "TwoStateDoc2",
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
             var sys = new HsmTickSystem<BrainHsm64>(registry);
-            var e   = CreateHsmEntity(world, doctrineId, blob);
+            var e   = CreateHsmEntity(world, behaviorId, blob);
             world.AddComponent(e, new BrainBlackboard());
             // byte 126 is 0 by default.
 

@@ -3,7 +3,7 @@ using System.Numerics;
 using Fdp.Examples.Common;
 using Fdp.Examples.Common.Constants;
 using Fdp.Core;
-using CommonDoctrineIds = Fdp.Examples.Common.Constants.DemoDoctrineIds;
+using CommonBehaviorIds = Fdp.Examples.Common.Constants.DemoBehaviorIds;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
@@ -21,7 +21,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
     /// and <see cref="ChannelArbitrationSystem"/> preempts stale locomotion commands.
     ///
     /// <para><b>Topology:</b> <see cref="MissionControlModule"/> systems
-    /// (<see cref="DoctrineIngressSystem"/>, <see cref="MissionDirectorSystem"/>)
+    /// (<see cref="BehaviorIngressSystem"/>, <see cref="MissionDirectorSystem"/>)
     /// and <see cref="CognitiveRuntimeModule"/> system
     /// (<see cref="ChannelArbitrationSystem"/>). No physics or executors.</para>
     ///
@@ -29,25 +29,25 @@ namespace Fdp.Examples.Scenarios.Cognitive
     /// <list type="table">
     ///   <item><term>Phase 1 (tick 5)</term><description>Script writes MoveTo command to LocomotionChannel.</description></item>
     ///   <item><term>Phase 2 (tick 10)</term><description>Enemy injected into TargetMemory; MissionDirector detects UnderAttack.</description></item>
-    ///   <item><term>Phase 3 (tick 11)</term><description>MissionPlanQueue.CurrentPhase==1, DoctrineState.ActiveDoctrineHash==200 (Combat).</description></item>
+    ///   <item><term>Phase 3 (tick 11)</term><description>MissionPlanQueue.CurrentPhase==1, BehaviorState.ActiveBehaviorHash==200 (Combat).</description></item>
     ///   <item><term>Phase 4 (tick 12)</term><description>ChannelArbitration clears stale MoveTo command; LocomotionChannel.ActiveAction==0.</description></item>
     /// </list>
     ///
     /// <para><b>Design note — manual pipeline driving:</b>
-    /// The mission pipeline (DoctrineIngress → MissionDirector → DoctrineIngress → ChannelArbitration)
+    /// The mission pipeline (BehaviorIngress → MissionDirector → BehaviorIngress → ChannelArbitration)
     /// is stepped manually in <see cref="EvaluateTick"/> rather than via a kernel module.
     /// This follows the <c>SensorGridScenario</c> pattern and allows exact-tick assertions
     /// by flushing <see cref="FdpEventBus.SwapBuffers"/> between
-    /// <c>MissionDirectorSystem</c> and <c>DoctrineIngressSystem</c> so that
-    /// <c>DoctrineState.ActiveDoctrineHash</c> is updated in the same tick as the phase advance.</para>
+    /// <c>MissionDirectorSystem</c> and <c>BehaviorIngressSystem</c> so that
+    /// <c>BehaviorState.ActiveBehaviorHash</c> is updated in the same tick as the phase advance.</para>
     /// </summary>
     public sealed class MissionCommandScenario : IScenario
     {
-        // ── Doctrine IDs (from DemoDoctrineIds.Patrol/Combat) ─────────────────
-        private const int PatrolDoctrineId = (int)CommonDoctrineIds.Patrol; // 100
-        private const int CombatDoctrineId = (int)CommonDoctrineIds.Combat; // 200
+        // ── Behavior IDs (from DemoBehaviorIds.Patrol/Combat) ─────────────────
+        private const int PatrolBehaviorId = (int)CommonBehaviorIds.Patrol; // 100
+        private const int CombatBehaviorId = (int)CommonBehaviorIds.Combat; // 200
 
-        private const uint InitialDoctrineInstanceId = 1;
+        private const uint InitialBehaviorInstanceId = 1;
         private const long DummyEnemyId = 999L;
 
         // ── Observable state for test assertions ──────────────────────────────
@@ -55,8 +55,8 @@ namespace Fdp.Examples.Scenarios.Cognitive
         /// <summary>MissionPlanQueue.CurrentPhase captured at tick 11 (Phase 3).</summary>
         public int Phase3CurrentPhase { get; private set; }
 
-        /// <summary>DoctrineState.ActiveDoctrineHash captured at tick 11 (Phase 3).</summary>
-        public int Phase3DoctrineHash { get; private set; }
+        /// <summary>BehaviorState.ActiveBehaviorHash captured at tick 11 (Phase 3).</summary>
+        public int Phase3BehaviorHash { get; private set; }
 
         /// <summary>LocomotionChannel.ActiveAction captured at tick 12 (Phase 4).</summary>
         public ushort Phase4LocoAction { get; private set; }
@@ -73,7 +73,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
 
         // ── Mission pipeline systems (manually driven) ────────────────────────
 
-        private DoctrineIngressSystem? _doctrineIngress;
+        private BehaviorIngressSystem? _behaviorIngress;
         private MissionDirectorSystem? _missionDirector;
         private ChannelArbitrationSystem? _channelArbitration;
 
@@ -86,32 +86,32 @@ namespace Fdp.Examples.Scenarios.Cognitive
         public void Configure(EntityRepository world, ModuleHostKernel kernel)
         {
             // ── Component registration ─────────────────────────────────────────
-            world.RegisterComponent<DoctrineState>();
+            world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<MissionPlanQueue>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<TargetMemory>();
 
             // ── Event registration ─────────────────────────────────────────────
-            world.RegisterEvent<AssignDoctrineHashEvent>();
-            world.RegisterEvent<ClearDoctrineEvent>();
-            world.RegisterEvent<DoctrineFinishedEvent>();
+            world.RegisterEvent<AssignBehaviorHashEvent>();
+            world.RegisterEvent<ClearBehaviorEvent>();
+            world.RegisterEvent<BehaviorFinishedEvent>();
 
-            // ── Doctrine registry (dummy definitions — no BTree/HSM needed) ──
-            var registry = new DoctrineRegistry();
-            registry.Register(PatrolDoctrineId, "Patrol", new DoctrineDefinition
+            // ── Behavior registry (dummy definitions — no BTree/HSM needed) ──
+            var registry = new BehaviorRegistry();
+            registry.Register(PatrolBehaviorId, "Patrol", new BehaviorDefinition
             {
                 Name      = "Patrol",
                 BrainTier = 0,
             });
-            registry.Register(CombatDoctrineId, "Combat", new DoctrineDefinition
+            registry.Register(CombatBehaviorId, "Combat", new BehaviorDefinition
             {
                 Name      = "Combat",
                 BrainTier = 0,
             });
 
             // ── Mission pipeline systems ───────────────────────────────────────
-            _doctrineIngress   = new DoctrineIngressSystem(registry);
+            _behaviorIngress   = new BehaviorIngressSystem(registry);
             _missionDirector   = new MissionDirectorSystem();
             _channelArbitration = new ChannelArbitrationSystem();
 
@@ -122,8 +122,8 @@ namespace Fdp.Examples.Scenarios.Cognitive
         /// <inheritdoc/>
         /// <remarks>
         /// The mission pipeline is driven manually each tick with a double bus-swap pattern
-        /// (MissionDirector publishes → SwapBuffers → DoctrineIngress applies) so that
-        /// doctrine hash changes are visible in the same tick as the phase advance.
+        /// (MissionDirector publishes → SwapBuffers → BehaviorIngress applies) so that
+        /// behavior hash changes are visible in the same tick as the phase advance.
         /// </remarks>
         public bool EvaluateTick(uint tick, EntityRepository world)
         {
@@ -133,7 +133,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
                 // Phase 1: script writes MoveTo to LocomotionChannel.
                 ref var loco = ref world.GetComponentRW<LocomotionChannel>(_commander);
                 loco.ActiveAction       = NavigationConstants.ActionIdMoveTo;
-                loco.DoctrineInstanceId = InitialDoctrineInstanceId;
+                loco.BehaviorInstanceId = InitialBehaviorInstanceId;
                 _passedPhase1 = true;
             }
 
@@ -153,33 +153,33 @@ namespace Fdp.Examples.Scenarios.Cognitive
             // ── Manual mission pipeline ────────────────────────────────────────
             // 1. Swap so any events published in the previous kernel cycle are readable.
             world.Bus.SwapBuffers();
-            // 2. DoctrineIngress: apply any pending AssignDoctrineHashEvent from prev tick.
-            _doctrineIngress!.Execute(world, 0.016f);
-            // 3. MissionDirector: evaluate phase triggers; publishes AssignDoctrineHashEvent.
+            // 2. BehaviorIngress: apply any pending AssignBehaviorHashEvent from prev tick.
+            _behaviorIngress!.Execute(world, 0.016f);
+            // 3. MissionDirector: evaluate phase triggers; publishes AssignBehaviorHashEvent.
             _missionDirector!.Execute(world, 0.016f);
             // 4. Swap so MissionDirector's events are now in the read buffer.
             world.Bus.SwapBuffers();
-            // 5. DoctrineIngress again: apply doctrine changes from this tick's MissionDirector.
-            _doctrineIngress!.Execute(world, 0.016f);
-            // 6. ChannelArbitration: clear channels whose DoctrineInstanceId lags behind InstanceId.
+            // 5. BehaviorIngress again: apply behavior changes from this tick's MissionDirector.
+            _behaviorIngress!.Execute(world, 0.016f);
+            // 6. ChannelArbitration: clear channels whose BehaviorInstanceId lags behind InstanceId.
             _channelArbitration!.Execute(world, 0.016f);
 
             // ── Phase 3 assertions (tick 11) ──────────────────────────────────
             if (tick == 11 && !_passedPhase3)
             {
                 ref var queue   = ref world.GetComponentRW<MissionPlanQueue>(_commander);
-                var     doctrine = world.GetComponent<DoctrineState>(_commander);
+                var     behavior = world.GetComponent<BehaviorState>(_commander);
 
                 Phase3CurrentPhase = queue.CurrentPhase;
-                Phase3DoctrineHash = doctrine.ActiveDoctrineHash;
+                Phase3BehaviorHash = behavior.ActiveBehaviorHash;
 
                 if (queue.CurrentPhase != 1)
                     throw new ScenarioFailureException(3,
                         $"Phase 3 FAILED at tick {tick}: CurrentPhase={queue.CurrentPhase} expected 1");
 
-                if (doctrine.ActiveDoctrineHash != CombatDoctrineId)
+                if (behavior.ActiveBehaviorHash != CombatBehaviorId)
                     throw new ScenarioFailureException(3,
-                        $"Phase 3 FAILED at tick {tick}: ActiveDoctrineHash={doctrine.ActiveDoctrineHash} expected {CombatDoctrineId}");
+                        $"Phase 3 FAILED at tick {tick}: ActiveBehaviorHash={behavior.ActiveBehaviorHash} expected {CombatBehaviorId}");
 
                 _passedPhase3 = true;
             }
@@ -215,10 +215,10 @@ namespace Fdp.Examples.Scenarios.Cognitive
         {
             var e = world.CreateEntity();
 
-            world.AddComponent(e, new DoctrineState
+            world.AddComponent(e, new BehaviorState
             {
-                ActiveDoctrineHash = PatrolDoctrineId,
-                InstanceId         = InitialDoctrineInstanceId,
+                ActiveBehaviorHash = PatrolBehaviorId,
+                InstanceId         = InitialBehaviorInstanceId,
                 BrainTier          = 0,
             });
 
@@ -228,13 +228,13 @@ namespace Fdp.Examples.Scenarios.Cognitive
             Span<MissionPhase> phases = queue.Phases;
             phases[0] = new MissionPhase
             {
-                DoctrineId   = PatrolDoctrineId,
+                BehaviorId   = PatrolBehaviorId,
                 Trigger      = MissionTrigger.UnderAttack,
                 TriggerParam = 0f,
             };
             phases[1] = new MissionPhase
             {
-                DoctrineId   = CombatDoctrineId,
+                BehaviorId   = CombatBehaviorId,
                 Trigger      = MissionTrigger.TimerElapsed,
                 TriggerParam = 5.0f,
             };

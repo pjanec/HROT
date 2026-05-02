@@ -18,13 +18,13 @@ namespace Fdp.Examples.UrbanCombat.Systems
     public class TelemetryReporterSystem : IEcsModuleSystem
     {
         // Shadow state for change detection.
-        private readonly Dictionary<int, uint> _prevDoctrineInstanceId = new Dictionary<int, uint>();
+        private readonly Dictionary<int, uint> _prevBehaviorInstanceId = new Dictionary<int, uint>();
         private readonly Dictionary<int, ActorCapabilities> _prevCapabilities = new Dictionary<int, ActorCapabilities>();
 
         private int _frame;
 
         // Cached queries (lazy-initialised on first Execute).
-        private EntityQuery? _qDoctrine;
+        private EntityQuery? _qBehavior;
         private EntityQuery? _qCaps;
         private EntityQuery? _qInteract;
         private EntityQuery? _qLoco;
@@ -51,20 +51,20 @@ namespace Fdp.Examples.UrbanCombat.Systems
                 System.Console.Out.WriteLine($"{frameTag} HIT: target {evt.HitEntity.Index}");
             }
 
-            // -- DOCTRINE ASSIGNED: DoctrineState.InstanceId changed --
+            // -- BEHAVIOR ASSIGNED: BehaviorState.InstanceId changed --
 
-            _qDoctrine ??= repo.Query().With<DoctrineState>().Build();
-            foreach (var entity in _qDoctrine)
+            _qBehavior ??= repo.Query().With<BehaviorState>().Build();
+            foreach (var entity in _qBehavior)
             {
-                ref readonly var doctrine = ref view.GetComponentRO<DoctrineState>(entity);
+                ref readonly var behavior = ref view.GetComponentRO<BehaviorState>(entity);
                 int key = entity.Index;
 
-                if (!_prevDoctrineInstanceId.TryGetValue(key, out uint prevId)
-                    || prevId != doctrine.InstanceId)
+                if (!_prevBehaviorInstanceId.TryGetValue(key, out uint prevId)
+                    || prevId != behavior.InstanceId)
                 {
-                    if (doctrine.ActiveDoctrineHash != 0)
-                        System.Console.Out.WriteLine($"{frameTag} DOCTRINE ASSIGNED: entity {key}");
-                    _prevDoctrineInstanceId[key] = doctrine.InstanceId;
+                    if (behavior.ActiveBehaviorHash != 0)
+                        System.Console.Out.WriteLine($"{frameTag} BEHAVIOR ASSIGNED: entity {key}");
+                    _prevBehaviorInstanceId[key] = behavior.InstanceId;
                 }
             }
 

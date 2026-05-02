@@ -147,10 +147,10 @@ HitEvent → DamageSystem → clears ActorCapabilityState.CanMove
 → HSM transitions [Cruising] → [Disabled]
 ```
 
-### Doctrine preemption (Doctrine version token)
+### Behavior preemption (Behavior version token)
 ```
-AssignDoctrineEvent → DoctrineIngressSystem → DoctrineState.InstanceId++
-→ ChannelArbitrationSystem → clears any channel whose DoctrineInstanceId is stale
+AssignBehaviorEvent → BehaviorIngressSystem → BehaviorState.InstanceId++
+→ ChannelArbitrationSystem → clears any channel whose BehaviorInstanceId is stale
 → Old executor OnExit is called by Dispatcher on next tick
 ```
 

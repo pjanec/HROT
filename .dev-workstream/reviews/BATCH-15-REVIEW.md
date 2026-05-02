@@ -9,7 +9,7 @@
 
 ## Issues Found
 
-### Issue 1: `MilitaryAPC` template sets `DoctrineState { BrainTier = 2 }` (BTree tier) but carries `BrainHsm128` (P2)
+### Issue 1: `MilitaryAPC` template sets `BehaviorState { BrainTier = 2 }` (BTree tier) but carries `BrainHsm128` (P2)
 
 **File:** `FDP/Examples/Fdp.Examples.UrbanCombat/Setup/DemoTkbSetup.cs` (line 125)
 
@@ -17,23 +17,23 @@
 
 ```csharp
 // Line 125 — WRONG
-t.AddComponent(new DoctrineState { BrainTier = 2 });  // 2 = BrainTierBTree
+t.AddComponent(new BehaviorState { BrainTier = 2 });  // 2 = BrainTierBTree
 ```
 
 `BehaviorConstants.BrainTierBTree = 2`, `BehaviorConstants.BrainTierHsm = 1` (confirmed by the test helper on line 358 of `BlueprintTests.cs`, which correctly uses `BrainTierHsm`).
 
-**Effect:** Every APC entity spawned from the TKB template will have `DoctrineState.BrainTier = 2`. `HsmTickSystem<BrainHsm128>` filters on `BrainTierHsm (= 1)` — so it will **skip the APC**. The BTree tick system will attempt to drive the APC instead (matching `BrainTier=2`) but the APC has no `BrainBTreeState`, so nothing runs. The APC's state machine never executes.
+**Effect:** Every APC entity spawned from the TKB template will have `BehaviorState.BrainTier = 2`. `HsmTickSystem<BrainHsm128>` filters on `BrainTierHsm (= 1)` — so it will **skip the APC**. The BTree tick system will attempt to drive the APC instead (matching `BrainTier=2`) but the APC has no `BrainBTreeState`, so nothing runs. The APC's state machine never executes.
 
 **Fix:** Change line 125 to:
 ```csharp
-t.AddComponent(new DoctrineState { BrainTier = BehaviorConstants.BrainTierHsm });
+t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierHsm });
 ```
 
 **Also add a test** verifying the stamped value is correct:
 ```csharp
 [Fact] void APC_Template_HasHsmBrainTier()
 // template.ApplyTo(world, e);
-// var ds = world.GetComponent<DoctrineState>(e);
+// var ds = world.GetComponent<BehaviorState>(e);
 // Assert.Equal(BehaviorConstants.BrainTierHsm, ds.BrainTier);
 ```
 
@@ -51,7 +51,7 @@ Complete audit of violations (all in `DemoTkbSetup.cs`):
 |---|---|---|---|---|
 | 62, 97 | `SimTier { Value = 1 }` | Civilian tier | `BehaviorConstants.SimTierCivilian` | `BehaviorConstants.cs` (add) |
 | 124, 173, 238 | `SimTier { Value = 2 }` | Tactical tier | `BehaviorConstants.SimTierTactical` | `BehaviorConstants.cs` (add) |
-| 125 | `DoctrineState { BrainTier = 2 }` | BTree tier (also P2 bug) | `BehaviorConstants.BrainTierBTree` | Already exists ✅ |
+| 125 | `BehaviorState { BrainTier = 2 }` | BTree tier (also P2 bug) | `BehaviorConstants.BrainTierBTree` | Already exists ✅ |
 | 82, 106, 153, 219, 284 | `CollisionLayer = 1` | Entity physics layer | `PhysicsConstants.EntityCollisionLayer` | `FDP.Toolkit.Physics/PhysicsConstants.cs` (add) |
 | 82, 219, 284 | `Radius = 0.4f` | Humanoid collider radius | `UrbanCombatConstants.HumanoidColliderRadius` | `UrbanCombatConstants.cs` (add in demo project) |
 | 106 | `Radius = 2f` | Car collider radius | `UrbanCombatConstants.CarColliderRadius` | `UrbanCombatConstants.cs` |
@@ -188,7 +188,7 @@ BCS-P7-T6 — ApcHsmSetup + ApcHsmActions (ConvoyEscort_HSM)
 Discovered facts: HsmBuilder→StateMachineGraph pipeline (not direct blob); BTree delegate
   is NodeLogicDelegate<TBlackboard,TContext>; TargetMemory field is Count not ThreatCount
 
-To fix in BATCH-16 Corrective-0a: DoctrineState { BrainTier = 2 } → BrainTierHsm + APC_Template_HasHsmBrainTier test
+To fix in BATCH-16 Corrective-0a: BehaviorState { BrainTier = 2 } → BrainTierHsm + APC_Template_HasHsmBrainTier test
 To fix in BATCH-16 Corrective-0b: UrbanCombatConstants.cs + SimTierCivilian/Tactical + EntityCollisionLayer + sweep DemoTkbSetup.cs + update 4 test assertions
 ```
 

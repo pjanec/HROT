@@ -23,9 +23,9 @@ Before starting, read each file touched by a debt item:
 
 | Debt | File(s) to read |
 |---|---|
-| DEBT-006 | `FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineRegistry.cs` |
+| DEBT-006 | `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs` |
 | DEBT-007 | `FDP/Toolkits/FDP.Toolkit.Behavior/FdpHsmContext.cs` (if exists); `BehaviorComponents.cs`; `HsmTickSystem.cs` |
-| DEBT-008 | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs` |
+| DEBT-008 | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs` |
 | DEBT-022 | `FDP/Toolkits/FDP.Toolkit.Physics/Math/Intersection2D.cs`; `Intersection2DTests.cs` |
 | DEBT-024 | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DispatcherSystemBase.cs` |
 | DEBT-031 | `Kernel/Fdp.Kernel/Events/HitEvent.cs`; `FDP.Toolkit.Physics.csproj`; `FDP.Toolkit.Combat.csproj` |
@@ -54,24 +54,24 @@ Work through debts in priority order (P2 first, P3 second). After each fix, run 
 
 ## ✅ Debt Items (P2 — Required)
 
-### DEBT-006: `DoctrineRegistry` unstable hash key
+### DEBT-006: `BehaviorRegistry` unstable hash key
 
 **Source:** BATCH-04-REVIEW  
-**File:** `FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineRegistry.cs`
+**File:** `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs`
 
-**Problem:** `DoctrineRegistry` keys doctrines on `string.GetHashCode()`. In .NET, `string.GetHashCode()` is process-randomised (changed at startup for security). This means:
-- Doctrine IDs are different every run.
-- Any serialised or logged doctrine ID cannot be reproduced.
-- Cross-process or network-replicated doctrine identity is impossible.
+**Problem:** `BehaviorRegistry` keys behaviors on `string.GetHashCode()`. In .NET, `string.GetHashCode()` is process-randomised (changed at startup for security). This means:
+- Behavior IDs are different every run.
+- Any serialised or logged behavior ID cannot be reproduced.
+- Cross-process or network-replicated behavior identity is impossible.
 
 **Fix:** Replace the key with a **stable assigned `int` ID**. The simplest correct approach:
-1. Add a `Id` field to the registration call: `DoctrineRegistry.Register(int id, string name, ...)`.
-2. The registry stores `Dictionary<int, DoctrineEntry>` keyed by the assigned `int`.
-3. Change `DoctrineState.ActiveDoctrineHash` from whatever it currently is to an `int` (if not already).
-4. Update all existing `Register(...)` call sites with a unique `int` constant. Define these in a new `DoctrineIds` static class in the Behavior toolkit:
+1. Add a `Id` field to the registration call: `BehaviorRegistry.Register(int id, string name, ...)`.
+2. The registry stores `Dictionary<int, BehaviorEntry>` keyed by the assigned `int`.
+3. Change `BehaviorState.ActiveBehaviorHash` from whatever it currently is to an `int` (if not already).
+4. Update all existing `Register(...)` call sites with a unique `int` constant. Define these in a new `BehaviorIds` static class in the Behavior toolkit:
 
 ```csharp
-public static class DoctrineIds
+public static class BehaviorIds
 {
     public const int None         = 0;
     public const int WanderCivil  = 1001;
@@ -84,18 +84,18 @@ public static class DoctrineIds
 
 **Tests required:**
 ```csharp
-[Fact] void DoctrineRegistry_LookupById_ReturnsCorrectEntry()
+[Fact] void BehaviorRegistry_LookupById_ReturnsCorrectEntry()
 // Register(id=42, ...) → Lookup(42) returns the registered entry.
 
-[Fact] void DoctrineRegistry_LookupById_IsStableAcrossInstances()
+[Fact] void BehaviorRegistry_LookupById_IsStableAcrossInstances()
 // Registered id=42 in instance A matches id=42 in instance B.
-// (Just verifies int key — two separate DoctrineRegistry instances)
+// (Just verifies int key — two separate BehaviorRegistry instances)
 
-[Fact] void DoctrineRegistry_ReturnsNull_ForUnregisteredId()
+[Fact] void BehaviorRegistry_ReturnsNull_ForUnregisteredId()
 // Lookup(9999) returns null / false.
 ```
 
-> ⚠️ **Migration required:** If `MissionDirectorSystem` compares `doctrine.ActiveDoctrineHash` against `DoctrineId` values in `MissionPhase`, confirm those int values already align. Update `MissionDirectorSystemTests` to use `DoctrineIds` constants if available.
+> ⚠️ **Migration required:** If `MissionDirectorSystem` compares `behavior.ActiveBehaviorHash` against `BehaviorId` values in `MissionPhase`, confirm those int values already align. Update `MissionDirectorSystemTests` to use `BehaviorIds` constants if available.
 
 ---
 
@@ -215,11 +215,11 @@ public struct HealthData
 
 ## ✅ Debt Items (P3 — Required before Phase 7)
 
-### DEBT-008: `DoctrineIngressSystem` — no try/catch around `ParseParams`
+### DEBT-008: `BehaviorIngressSystem` — no try/catch around `ParseParams`
 
-**File:** `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs`
+**File:** `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs`
 
-**Fix:** Wrap the `ParseParams` delegate invocation in a try/catch. On exception: log the doctrine name and entity index, set `DoctrineState` to a known-safe default (e.g., clear `ActiveDoctrineHash`), skip the entity.
+**Fix:** Wrap the `ParseParams` delegate invocation in a try/catch. On exception: log the behavior name and entity index, set `BehaviorState` to a known-safe default (e.g., clear `ActiveBehaviorHash`), skip the entity.
 
 ```csharp
 try
@@ -228,20 +228,20 @@ try
 }
 catch (Exception ex)
 {
-    // Log: $"DoctrineIngressSystem: ParseParams failed for entity {entity.Index}, doctrine '{entry.Name}': {ex.Message}"
-    // Fail safe: leave DoctrineState unchanged (do not bump InstanceId).
+    // Log: $"BehaviorIngressSystem: ParseParams failed for entity {entity.Index}, behavior '{entry.Name}': {ex.Message}"
+    // Fail safe: leave BehaviorState unchanged (do not bump InstanceId).
     continue;
 }
 ```
 
 **Tests required:**
 ```csharp
-[Fact] void DoctrineIngress_DoesNotThrow_WhenParseParamsFails()
-// Register a doctrine with a ParseParams delegate that throws.
-// Publish a DoctrineChangeEvent for that doctrine.
-// Run DoctrineIngressSystem.
+[Fact] void BehaviorIngress_DoesNotThrow_WhenParseParamsFails()
+// Register a behavior with a ParseParams delegate that throws.
+// Publish a BehaviorChangeEvent for that behavior.
+// Run BehaviorIngressSystem.
 // Assert: Record.Exception() returns null.
-// Assert: entity's DoctrineState is unchanged (did not advance InstanceId).
+// Assert: entity's BehaviorState is unchanged (did not advance InstanceId).
 ```
 
 ---
@@ -305,7 +305,7 @@ No logic change. No new tests.
 
 ## 🧪 Testing Requirements
 
-- **Minimum 9 new tests:** 3 DoctrineRegistry + 1 FdpHsmContext + 1 Dispatcher OnExit + 2 MissionDirector HealthCritical + 1 DoctrineIngress + 1 Intersection2D boundary.
+- **Minimum 9 new tests:** 3 BehaviorRegistry + 1 FdpHsmContext + 1 Dispatcher OnExit + 2 MissionDirector HealthCritical + 1 BehaviorIngress + 1 Intersection2D boundary.
 - **All existing tests must remain green** (no regressions).
 - **DEBT-031 (HitEvent move) must have zero test failures** — existing tests cover it; just confirm they still pass.
 
@@ -313,7 +313,7 @@ No logic change. No new tests.
 
 ## ⚠️ Quality Standards
 
-**❗ DEBT-006 fix must not use `string.GetHashCode()`** anywhere for doctrine ID computation. The integer constant is the identity. If you see a `GetHashCode()` call in the doctrine lookup path, it must be removed.
+**❗ DEBT-006 fix must not use `string.GetHashCode()`** anywhere for behavior ID computation. The integer constant is the identity. If you see a `GetHashCode()` call in the behavior lookup path, it must be removed.
 
 **❗ DEBT-007 fix** — do not use static/thread-local ambient state for `World` access. The `FdpHsmContext` field approach is the only acceptable pattern.
 
@@ -333,7 +333,7 @@ No logic change. No new tests.
 
 **Q1:** For DEBT-007 (`FdpHsmContext`), what was the constraint that made Option A/B/C the correct choice? Show the actual `FdpHsmContext` struct before and after.
 
-**Q2:** For DEBT-006 (`DoctrineRegistry`), how many existing call sites used `string.GetHashCode()`-based lookup and needed updating? Did `MissionDirectorSystem` need any changes due to this?
+**Q2:** For DEBT-006 (`BehaviorRegistry`), how many existing call sites used `string.GetHashCode()`-based lookup and needed updating? Did `MissionDirectorSystem` need any changes due to this?
 
 **Q3:** For DEBT-031 (`HitEvent` move), list the exact files that changed and which direction each reference flowed before and after. Confirm the final dependency graph for `Physics`, `Combat`, and `Combat.Contracts`.
 
@@ -345,9 +345,9 @@ No logic change. No new tests.
 
 ## 🎯 Success Criteria
 
-- [ ] **DEBT-006** — `DoctrineRegistry` uses stable `int` key; `DoctrineIds` constants class exists; 3 tests pass.
+- [ ] **DEBT-006** — `BehaviorRegistry` uses stable `int` key; `BehaviorIds` constants class exists; 3 tests pass.
 - [ ] **DEBT-007** — `FdpHsmContext` exposes `EntityRepository World`; 1 structural test passes.
-- [ ] **DEBT-008** — `DoctrineIngressSystem` try/catch around `ParseParams`; 1 test passes.
+- [ ] **DEBT-008** — `BehaviorIngressSystem` try/catch around `ParseParams`; 1 test passes.
 - [ ] **DEBT-022** — `Intersection2DTests` t=0 boundary test added and passes.
 - [ ] **DEBT-024** — `DispatcherSystemBase` dead-entity OnExit guard; 1 test passes.
 - [ ] **DEBT-031** — `HitEvent` in `FDP.Toolkit.Combat.Contracts`; `Fdp.Kernel` clean; 0 new test failures.
@@ -362,5 +362,5 @@ No logic change. No new tests.
 
 - **DEBT-TRACKER.md:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\DEBT-TRACKER.md`
 - **BATCH-12 Review:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\reviews\BATCH-12-REVIEW.md`
-- **DESIGN.md §3.2:** `FDP/Docs/projects/behavior-control/DESIGN.md` — DoctrineRegistry, dispatcher system
+- **DESIGN.md §3.2:** `FDP/Docs/projects/behavior-control/DESIGN.md` — BehaviorRegistry, dispatcher system
 - **CODE-STANDARDS.md:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\guides\CODE-STANDARDS.md`

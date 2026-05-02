@@ -36,8 +36,8 @@
 - [x] **Corrective A — HSM magic offset** (`HsmTickSystemTests.cs`)  
   Added `private const int EventXId = 10` and `private const string HsmCurrentEventFieldName = nameof(HsmInstance128.Reserved1)` with a 14-line XML doc comment explaining the layout tie: `HsmKernelCore.CurrentEventId_Offset_128 = 58 == [FieldOffset(58)] of Reserved1`. Injection line now reads `brain.State.Reserved1 = EventXId` with `_ = HsmCurrentEventFieldName` as a documentation anchor.
 
-- [x] **Corrective B — DoctrineIngress assertion gap** (`DoctrineIngressSystemTests.cs`)  
-  Added `Assert.Equal(0u, channel.DoctrineInstanceId)` after the existing `Assert.Equal(0, channel.ActiveAction)` in Test 4 (`DoctrineIngress_StaleReplacement_ClearsOldChannel`), documenting the full-reset invariant.
+- [x] **Corrective B — BehaviorIngress assertion gap** (`BehaviorIngressSystemTests.cs`)  
+  Added `Assert.Equal(0u, channel.BehaviorInstanceId)` after the existing `Assert.Equal(0, channel.ActiveAction)` in Test 4 (`BehaviorIngress_StaleReplacement_ClearsOldChannel`), documenting the full-reset invariant.
 
 - [x] **Corrective C — Cross-group ordering doc** (`StandardSystemGroups.cs`)  
   Replaced the 3-line `InputSystemGroup` XML doc with a 14-line block covering: registration-order requirement (Input must run before Simulation), cross-group `[UpdateBefore]` limitation in the current scheduler, and a TODO for future attribute support.

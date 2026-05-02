@@ -15,13 +15,13 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
         public void MissionControlModule_RegistersSystems()
         {
             // Arrange
-            var registry = new DoctrineRegistry();
+            var registry = new BehaviorRegistry();
             var module   = new MissionControlModule(registry);
 
             // Assert
             Assert.Single(module.InputSystems);
             Assert.Single(module.SimulationSystems);
-            Assert.IsType<DoctrineIngressSystem>(module.InputSystems[0]);
+            Assert.IsType<BehaviorIngressSystem>(module.InputSystems[0]);
             Assert.IsType<MissionDirectorSystem>(module.SimulationSystems[0]);
         }
     }

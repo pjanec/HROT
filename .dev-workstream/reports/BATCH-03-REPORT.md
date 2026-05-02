@@ -84,7 +84,7 @@ The base class initialises `_previousAction` at `OnCreate` time to a capacity of
 
 **Yes, there is an implicit ordering dependency** that is not yet enforced by `[UpdateAfter]` attributes:
 
-`ChannelArbitrationSystem` must run *before* the dispatcher systems so that a stale channel (mismatched `DoctrineInstanceId`) is cleared to `default` before the dispatcher sees it. If a dispatcher ran first, it would attempt to dispatch the stale action, potentially call `OnEnter` on an executor for a doctrine that has already been preempted, then have the arbitration clear the channel one frame later — a one-frame ghost execution.
+`ChannelArbitrationSystem` must run *before* the dispatcher systems so that a stale channel (mismatched `BehaviorInstanceId`) is cleared to `default` before the dispatcher sees it. If a dispatcher ran first, it would attempt to dispatch the stale action, potentially call `OnEnter` on an executor for a behavior that has already been preempted, then have the arbitration clear the channel one frame later — a one-frame ghost execution.
 
 Currently both systems have `[UpdateInGroup(typeof(SimulationSystemGroup))]` with no explicit ordering. In a single-system registration scenario (tests, demos) execution order follows registration order, which happens to be correct today. However this is fragile.
 

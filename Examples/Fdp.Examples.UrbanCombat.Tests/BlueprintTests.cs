@@ -116,14 +116,14 @@ namespace Fdp.Examples.UrbanCombat.Tests
             Assert.Equal(ForceId.Friend, info.ForceId);   // FactionBlue = Friend
         }
 
-        /// <summary>The MilitaryAPC template must stamp DoctrineState with BrainTierHsm (=1), not BrainTierBTree (=2).</summary>
+        /// <summary>The MilitaryAPC template must stamp BehaviorState with BrainTierHsm (=1), not BrainTierBTree (=2).</summary>
         [Fact]
         public void APC_Template_HasHsmBrainTier()
         {
             var template = _app.Tkb.GetByType(2001)!;
             var e = _app.World.CreateEntity();
             template.ApplyTo(_app.World, e);
-            var ds = _app.World.GetComponent<DoctrineState>(e);
+            var ds = _app.World.GetComponent<BehaviorState>(e);
             Assert.Equal(BehaviorConstants.BrainTierHsm, ds.BrainTier);  // must be 1, not 2
         }
 
@@ -350,16 +350,16 @@ namespace Fdp.Examples.UrbanCombat.Tests
         private static EntityRepository BuildHsmWorld()
         {
             var world = new EntityRepository();
-            world.RegisterComponent<DoctrineState>();
+            world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<BrainBlackboard>();
             return world;
         }
 
-        private static DoctrineRegistry BuildHsmRegistry(HsmDefinitionBlob blob, int docId)
+        private static BehaviorRegistry BuildHsmRegistry(HsmDefinitionBlob blob, int docId)
         {
-            var registry = new DoctrineRegistry();
-            registry.Register(docId, "ConvoyEscort_HSM", new DoctrineDefinition
+            var registry = new BehaviorRegistry();
+            registry.Register(docId, "ConvoyEscort_HSM", new BehaviorDefinition
             {
                 Name          = "ConvoyEscort_HSM",
                 BrainTier     = BehaviorConstants.BrainTierHsm,
@@ -371,9 +371,9 @@ namespace Fdp.Examples.UrbanCombat.Tests
         private static Entity CreateApcEntity(EntityRepository world, int docId)
         {
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState
+            world.AddComponent(e, new BehaviorState
             {
-                ActiveDoctrineHash = docId,
+                ActiveBehaviorHash = docId,
                 BrainTier          = BehaviorConstants.BrainTierHsm,
             });
             world.AddComponent(e, new BrainBlackboard());

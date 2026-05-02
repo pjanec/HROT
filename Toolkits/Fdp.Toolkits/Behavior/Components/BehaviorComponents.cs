@@ -34,11 +34,11 @@ namespace Fdp.Toolkit.Behavior.Components
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.DoctrineState)]
+    [ComponentId(GlobalComponentIds.BehaviorState)]
     [DataPolicy(DataPolicy.NoSave)]
-    public struct DoctrineState
+    public struct BehaviorState
     {
-        public int ActiveDoctrineHash;
+        public int ActiveBehaviorHash;
         public uint InstanceId; // Preemption token
         public byte BrainTier;
     }
@@ -59,9 +59,9 @@ namespace Fdp.Toolkit.Behavior.Components
     }
 
     /// <summary>
-    /// Generic 1024-byte heavy blackboard component, reusable across different doctrines.
+    /// Generic 1024-byte heavy blackboard component, reusable across different behaviors.
     /// Avoids exhausting the 256 component-type limit by sharing one component type for
-    /// large doctrine-specific payloads.  Project <see cref="Memory"/> into a concrete
+    /// large behavior-specific payloads.  Project <see cref="Memory"/> into a concrete
     /// unmanaged DTO via <c>Unsafe.As</c> (generated automatically when using
     /// <c>[SharedAiHeavyAction]</c>).  Because this holds transient execution state,
     /// it is excluded from scenario serialisation.

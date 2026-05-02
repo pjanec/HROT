@@ -49,10 +49,10 @@ namespace Fdp.Examples.UrbanCombat.Brains
             var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
 
             ref var loco    = ref repo.GetComponentRW<LocomotionChannel>(bridge->Self);
-            var     doctrine = repo.GetComponent<DoctrineState>(bridge->Self);
+            var     behavior = repo.GetComponent<BehaviorState>(bridge->Self);
 
             loco.ActiveAction       = NavigationConstants.ActionIdFollowRoute;
-            loco.DoctrineInstanceId = doctrine.InstanceId;
+            loco.BehaviorInstanceId = behavior.InstanceId;
         }
 
         /// <summary>
@@ -67,7 +67,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
             var bridge = (HsmKernelBridge*)context;
             var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
 
-            var doctrine = repo.GetComponent<DoctrineState>(bridge->Self);
+            var behavior = repo.GetComponent<BehaviorState>(bridge->Self);
 
             // Stop movement (guard: minimal test worlds may not register LocomotionChannel)
             if (repo.HasComponent<LocomotionChannel>(bridge->Self))
@@ -81,7 +81,7 @@ namespace Fdp.Examples.UrbanCombat.Brains
             {
                 ref var interact = ref repo.GetComponentRW<InteractionChannel>(bridge->Self);
                 interact.ActiveAction       = BehaviorConstants.ActionIdEjectPassengers;
-                interact.DoctrineInstanceId = doctrine.InstanceId;
+                interact.BehaviorInstanceId = behavior.InstanceId;
                 unchecked { interact.ActionInstanceId++; }
             }
         }

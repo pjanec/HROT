@@ -76,12 +76,12 @@ feat: behavior component types + channel arbitration (BATCH-02)
 Completes BCS-P1-T1, BCS-P1-T2; fixes BATCH-01 UnitX regression
 
 FDP.Toolkit.Behavior (new project):
-- BehaviorComponents.cs: DoctrineState, ActorCapabilityState, SimTier, BrainBlackboard (128b)
+- BehaviorComponents.cs: BehaviorState, ActorCapabilityState, SimTier, BrainBlackboard (128b)
 - ChannelComponents.cs: LocomotionChannel, WeaponChannel, InteractionChannel (≤96b each)
 - BrainComponents.cs: BrainBTreeState (wraps BehaviorTreeState), BrainHsm64, BrainHsm128
 - MissionComponents.cs: MissionPlanQueue, MissionPhase, MissionTrigger
 - IActionExecutor<TChannel>: OnEnter/Execute/OnExit interface
-- ChannelArbitrationSystem: clears stale channels on DoctrineInstanceId mismatch
+- ChannelArbitrationSystem: clears stale channels on BehaviorInstanceId mismatch
 
 Corrective (BATCH-01 Issue 1):
 - CarKinematicsSystem.GetFormationTarget: UnitY → UnitX

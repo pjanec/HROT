@@ -14,27 +14,27 @@ namespace Fdp.Toolkit.Behavior.Tests
         // ── Stub ─────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Minimal stub mapper for testing — returns a fixed doctrine name.
+        /// Minimal stub mapper for testing — returns a fixed behavior name.
         /// </summary>
         private sealed class StubMapper : ITacticalOrderMapper
         {
-            private readonly string _resultDoctrine;
+            private readonly string _resultBehavior;
 
             public string TargetIntentId { get; }
 
-            public StubMapper(string targetIntentId, string resultDoctrine)
+            public StubMapper(string targetIntentId, string resultBehavior)
             {
                 TargetIntentId = targetIntentId;
-                _resultDoctrine = resultDoctrine;
+                _resultBehavior = resultBehavior;
             }
 
             public bool TryMap(Entity self, EntityRepository repo, string jsonParams,
-                               out AssignDoctrineEvent assignment)
+                               out AssignBehaviorEvent assignment)
             {
-                assignment = new AssignDoctrineEvent
+                assignment = new AssignBehaviorEvent
                 {
                     Entity       = self,
-                    DoctrineName = _resultDoctrine,
+                    BehaviorName = _resultBehavior,
                     JsonParams   = jsonParams,
                 };
                 return true;
@@ -77,8 +77,8 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void Register_DuplicateTargetIntentId_ThrowsInvalidOperationException()
         {
             var registry = new TacticalIntentMapperRegistry();
-            var mapper1  = new StubMapper("DefendArea", "DoctrineA");
-            var mapper2  = new StubMapper("DefendArea", "DoctrineB");
+            var mapper1  = new StubMapper("DefendArea", "BehaviorA");
+            var mapper2  = new StubMapper("DefendArea", "BehaviorB");
 
             registry.Register(mapper1);
 

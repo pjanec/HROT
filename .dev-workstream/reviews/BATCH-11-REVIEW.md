@@ -31,7 +31,7 @@ None.
 Test 2 (`DoesNotMove_EntityWithVehicleState`) is the most important: entity has all three components including `VehicleState(Speed=10f)`, runs system at dt=1.0, asserts position unchanged. If `Without<VehicleState>()` were missing, this would fail with position=(10,0,0). Clean negative test. ✅
 
 **`MissionDirectorSystemTests` (4 tests):**  
-Test 1 runs exactly 31 ticks at 1/60s = 0.5167s — above the 0.5s threshold. Checks both `CurrentPhase == 1` AND `ActiveDoctrineHash == DocB`. ✅  
+Test 1 runs exactly 31 ticks at 1/60s = 0.5167s — above the 0.5s threshold. Checks both `CurrentPhase == 1` AND `ActiveBehaviorHash == DocB`. ✅  
 Test 3 (ReachedDestination) runs one tick with `HasArrived=0` (no advance), then sets `HasArrived=1` and runs again — clean two-tick state transition. ✅  
 Test 4 (StopsAtEndOfQueue) checks tick-by-tick: phase 0 fires → phase 1 → mission complete. Third tick wrapped in `Record.Exception()` to assert no IndexOutOfRange. Final assert: `CurrentPhase` stays at 2. ✅
 
@@ -45,7 +45,7 @@ Test 4 (StopsAtEndOfQueue) checks tick-by-tick: phase 0 fires → phase 1 → mi
 
 **`[InlineArray(8)]` for MissionPhaseBuffer (Q4 #1):** Correct solution. C# fixed buffers only accept blittable primitives; `[InlineArray]` (C# 12 / .NET 8) gives the same `Phases[i]` syntax without requiring `unsafe`. ✅
 
-**`MissionDirectorSystem` preemption mechanism confirmed (Q3):** `ChannelArbitrationSystem` compares `channel.DoctrineInstanceId != doctrine.InstanceId` — an `unchecked { doctrine.InstanceId++ }` in `MissionDirectorSystem` is all that's needed. Documented in report. ✅
+**`MissionDirectorSystem` preemption mechanism confirmed (Q3):** `ChannelArbitrationSystem` compares `channel.BehaviorInstanceId != behavior.InstanceId` — an `unchecked { behavior.InstanceId++ }` in `MissionDirectorSystem` is all that's needed. Documented in report. ✅
 
 ---
 
@@ -78,12 +78,12 @@ PostSimulationSystemGroup added to StandardSystemGroups.cs
   Canonical home: LinearKinematicsSystem, BallisticsSystem, CarKinematicsSystem, SpatialHashSystem
 
 BCS-P6-T1 — MissionPlanQueue + MissionDirectorSystem
-  MissionPhase: DoctrineId(int), Trigger(MissionTrigger), TriggerParam(float) — 12 bytes
+  MissionPhase: BehaviorId(int), Trigger(MissionTrigger), TriggerParam(float) — 12 bytes
   MissionPlanQueue: [InlineArray(8)] MissionPhaseBuffer, CurrentPhase, PhaseCount, PhaseElapsedSeconds
   MissionDirectorSystem: Simulation, [UpdateBefore(ChannelArbitrationSystem)]
     Triggers: TimerElapsed, ReachedDestination, UnderAttack (TargetMemory)
     HealthCritical: TODO (DEBT-033) — circular dependency (Combat→Behavior) blocks implementation
-    On trigger: queue.CurrentPhase++, doctrine.InstanceId++ → ChannelArbitrationSystem preempts
+    On trigger: queue.CurrentPhase++, behavior.InstanceId++ → ChannelArbitrationSystem preempts
   +4 tests: timer advance, no-advance, destination flip, queue exhaustion guard
 
 Tests: +10 new (1 Combat, 5 Physics, 4 Behavior); full solution 0 errors, all green

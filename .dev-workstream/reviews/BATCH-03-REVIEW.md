@@ -17,7 +17,7 @@ Excellent batch. All correctives delivered cleanly. Three dispatcher systems wit
 
 ### Issue 1: `ChannelArbitrationSystem` lacks `[UpdateBefore]` ordering declaration (P1 — fix in BATCH-04)
 
-**Problem (from Q4):** `ChannelArbitrationSystem` must run before all three dispatcher systems — if a dispatcher runs first against a stale channel it fires a ghost `OnEnter` for a preempted doctrine. Currently both have only `[UpdateInGroup(typeof(SimulationSystemGroup))]` and rely on incidental registration order. This is fragile.
+**Problem (from Q4):** `ChannelArbitrationSystem` must run before all three dispatcher systems — if a dispatcher runs first against a stale channel it fires a ghost `OnEnter` for a preempted behavior. Currently both have only `[UpdateInGroup(typeof(SimulationSystemGroup))]` and rely on incidental registration order. This is fragile.
 
 **Fix in BATCH-04:** Add to `ChannelArbitrationSystem`:
 ```csharp
@@ -94,4 +94,4 @@ Related: FDP/Docs/projects/behavior-control/DESIGN.md §3.1–3.2
 
 ---
 
-**Next Batch:** BATCH-04 (ordering fix + BCS-P1-T5 BTreeTickSystem + BCS-P1-T6 HsmTickSystem + BCS-P1-T7 DoctrineRegistry/DoctrineIngress)
+**Next Batch:** BATCH-04 (ordering fix + BCS-P1-T5 BTreeTickSystem + BCS-P1-T6 HsmTickSystem + BCS-P1-T7 BehaviorRegistry/BehaviorIngress)

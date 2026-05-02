@@ -1,4 +1,4 @@
-# BATCH-04: Ordering Fix + BTreeTickSystem + HsmTickSystem + DoctrineRegistry
+# BATCH-04: Ordering Fix + BTreeTickSystem + HsmTickSystem + BehaviorRegistry
 
 **Batch Number:** BATCH-04  
 **Tasks:** CORRECTIVE (UpdateBefore ordering + OnExit doc), BCS-P1-T5, BCS-P1-T6, BCS-P1-T7  
@@ -17,7 +17,7 @@ Three parts:
 
 1. **Corrective (2 h):** Add ordering attributes + doc comments + fix three weak existing tests.
 2. **Brain VM adapters (4–5 h):** `BTreeTickSystem` (FastBTree) and `HsmTickSystem<T>` (FastHSM).
-3. **Doctrine lifecycle (3–4 h):** `DoctrineRegistry` + `DoctrineIngressSystem`.
+3. **Behavior lifecycle (3–4 h):** `BehaviorRegistry` + `BehaviorIngressSystem`.
 
 This batch **completes Phase 1**. After it, all behavior infrastructure is in place and Phase 2 (Perception) can begin.
 
@@ -28,7 +28,7 @@ This batch **completes Phase 1**. After it, all behavior infrastructure is in pl
 3. **Task details BCS-P1-T5, T6, T7:** `FDP/Docs/projects/behavior-control/TASK-DETAIL.md` — lines 396–484
 4. **FastBTree IAIContext:** `FDP/ExtDeps/FastBTree/src/Fbt.Kernel/IAIContext.cs` — what BTree nodes receive; you must implement this interface as `BTreeContext`
 5. **FastHSM HsmKernel:** `FDP/ExtDeps/FastHSM/src/Fhsm.Kernel/HsmKernel.cs` — `UpdateBatch` signature
-6. **Design §3.2–3.3:** `FDP/Docs/projects/behavior-control/DESIGN.md` — system ordering table (lines 172–204), doctrine parameter flow (lines 205–240)
+6. **Design §3.2–3.3:** `FDP/Docs/projects/behavior-control/DESIGN.md` — system ordering table (lines 172–204), behavior parameter flow (lines 205–240)
 
 ### Source Code Locations
 
@@ -41,9 +41,9 @@ This batch **completes Phase 1**. After it, all behavior infrastructure is in pl
 | New: BTreeTickSystem | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BTreeTickSystem.cs` |
 | New: BTreeContext | `FDP/Toolkits/FDP.Toolkit.Behavior/BTreeContext.cs` |
 | New: HsmTickSystem | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/HsmTickSystem.cs` |
-| New: DoctrineRegistry | `FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineRegistry.cs` |
-| New: DoctrineIngressSystem | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs` |
-| New: AssignDoctrineEvent | `FDP/Toolkits/FDP.Toolkit.Behavior/Events/AssignDoctrineEvent.cs` |
+| New: BehaviorRegistry | `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs` |
+| New: BehaviorIngressSystem | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs` |
+| New: AssignBehaviorEvent | `FDP/Toolkits/FDP.Toolkit.Behavior/Events/AssignBehaviorEvent.cs` |
 | Behavior test project | `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/` |
 | TestWorldFactory | `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/TestWorldFactory.cs` |
 | BehaviorConstants | `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorConstants.cs` |
@@ -71,7 +71,7 @@ Questions: `.dev-workstream/questions/BATCH-04-QUESTIONS.md`
 - Corrective: executor contract doc — see [BATCH-03-REVIEW.md](../reviews/BATCH-03-REVIEW.md) Issue 2 + 3
 - [BCS-P1-T5](../../../FDP/Docs/projects/behavior-control/TASK-DETAIL.md#bcs-p1-t5--btreeticksystem-fastbtree-adapter)
 - [BCS-P1-T6](../../../FDP/Docs/projects/behavior-control/TASK-DETAIL.md#bcs-p1-t6--hsmticksystemt-fasthsm-adapter)
-- [BCS-P1-T7](../../../FDP/Docs/projects/behavior-control/TASK-DETAIL.md#bcs-p1-t7--doctrineregistry--doctrineingresssystem)
+- [BCS-P1-T7](../../../FDP/Docs/projects/behavior-control/TASK-DETAIL.md#bcs-p1-t7--behaviorregistry--behavioringresssystem)
 
 ---
 
@@ -81,7 +81,7 @@ Questions: `.dev-workstream/questions/BATCH-04-QUESTIONS.md`
 2. **Corrective 0b:** Add ordering attributes + doc comments → all existing tests still pass ✅
 3. **BCS-P1-T5:** `BTreeTickSystem` + `BTreeContext` → 3 tests pass ✅
 4. **BCS-P1-T6:** `HsmTickSystem<T>` → 2 tests pass ✅
-5. **BCS-P1-T7:** `DoctrineRegistry` + `DoctrineIngressSystem` + `AssignDoctrineEvent` → 4 tests pass (3 unit + 1 integration chain) ✅
+5. **BCS-P1-T7:** `BehaviorRegistry` + `BehaviorIngressSystem` + `AssignBehaviorEvent` → 4 tests pass (3 unit + 1 integration chain) ✅
 
 ---
 
@@ -91,7 +91,7 @@ Questions: `.dev-workstream/questions/BATCH-04-QUESTIONS.md`
 - `IActionExecutor<T>` XML comments clearly document the `Status`-write contract and the field state during `OnExit`.
 - `BTreeTickSystem` steps each entity's BTree brain once per frame when `BrainTier == BrainTierValues.BTree`.
 - `HsmTickSystem<T>` is registered twice — once for `BrainHsm64`, once for `BrainHsm128` — and steps HSM instances.
-- `DoctrineIngressSystem` consumes `AssignDoctrineEvent`, updates `DoctrineState`, resets brain state, writes initial blackboard params.
+- `BehaviorIngressSystem` consumes `AssignBehaviorEvent`, updates `BehaviorState`, resets brain state, writes initial blackboard params.
 - All brain systems respect `[UpdateAfter(typeof(ChannelArbitrationSystem))]`.
 
 ---
@@ -103,9 +103,9 @@ Questions: `.dev-workstream/questions/BATCH-04-QUESTIONS.md`
 **Part A — Fix three weak existing tests:**
 
 **Fix 1 — `Arbitration_ClearsStaleChannel`** (`ChannelArbitrationTests.cs`):  
-Add assertion that `DoctrineInstanceId` was also reset:
+Add assertion that `BehaviorInstanceId` was also reset:
 ```csharp
-Assert.Equal(0u, channel.DoctrineInstanceId); // channel = default resets entire struct
+Assert.Equal(0u, channel.BehaviorInstanceId); // channel = default resets entire struct
 ```
 Without this, a selective-clear regression would go undetected.
 
@@ -140,7 +140,7 @@ Same as previously specified — see task text below.
 ```
 
 **Ordering integration test** — add to `ChannelArbitrationTests.cs`:  
-Register all four systems in the world. Give the entity a stale channel (`DoctrineInstanceId = 1`, `channel.ActiveAction = 1`) and a doctrine at `InstanceId = 2`. Register a `SpyExecutor` on the dispatcher. Call `world.RunAll()` (or equivalent that runs all registered systems). Assert:
+Register all four systems in the world. Give the entity a stale channel (`BehaviorInstanceId = 1`, `channel.ActiveAction = 1`) and a behavior at `InstanceId = 2`. Register a `SpyExecutor` on the dispatcher. Call `world.RunAll()` (or equivalent that runs all registered systems). Assert:
 ```csharp
 assert(spy.OnEnterCallCount == 0); // arbitration cleared it BEFORE dispatcher ran
 assert(world.GetComponent<LocomotionChannel>(e).ActiveAction == 0); // confirmed cleared
@@ -179,7 +179,7 @@ In `IActionExecutor.cs`, update the `Execute` XML doc:
 
 Key notes not repeated in the task doc:
 
-**BTree tier constant:** `DoctrineState.BrainTier` must be compared against a named constant. Add to `BehaviorConstants`:
+**BTree tier constant:** `BehaviorState.BrainTier` must be compared against a named constant. Add to `BehaviorConstants`:
 ```csharp
 public const byte BrainTierBTree = 2;
 public const byte BrainTierHsm   = 1;
@@ -187,7 +187,7 @@ public const byte BrainTierHsm   = 1;
 
 **`BTreeContext` implements `IAIContext`** from `Fbt.Kernel`. Study that interface before designing the context — it defines what BTree action nodes can call. At minimum it needs the current `Entity` and a way to access `EntityRepository` (for reading/writing components from inside a node). Do not capture `EntityRepository*` as an unsafe pointer unless FastBTree's threading model makes it necessary — check the IAIContext contract first.
 
-**DoctrineRegistry dependency:** `BTreeTickSystem` receives a `DoctrineRegistry` reference via constructor injection (same pattern as `CarKinematicsSystem` receives `RoadNetworkBlob`). The registry maps `ActiveDoctrineId → BTreeBlobAsset`. If the ID is not registered, skip that entity silently (log once in debug builds if possible, don't throw).
+**BehaviorRegistry dependency:** `BTreeTickSystem` receives a `BehaviorRegistry` reference via constructor injection (same pattern as `CarKinematicsSystem` receives `RoadNetworkBlob`). The registry maps `ActiveBehaviorId → BTreeBlobAsset`. If the ID is not registered, skip that entity silently (log once in debug builds if possible, don't throw).
 
 **`[UpdateAfter(typeof(ChannelArbitrationSystem))]` is mandatory.** Missing it is the same class of bug as the one fixed in Task 0.
 
@@ -195,13 +195,13 @@ public const byte BrainTierHsm   = 1;
 
 ```csharp
 [Fact] void BTreeTick_DoesNotThrow_WhenBlobNotRegistered()
-// Entity has DoctrineState.ActiveDoctrineId = 999 (not in registry).
+// Entity has BehaviorState.ActiveBehaviorId = 999 (not in registry).
 // sys.Run() must not throw. Entity's BrainBTreeState must be unchanged.
 // Assert: sys.Run() completes without exception AND
 //         btState.State.RunningNodeIndex == 0 (untouched)
 
 [Fact] void BTreeTick_DoesNotTick_WhenBrainTierIsNotBTree()
-// Entity has DoctrineState.BrainTier = BehaviorConstants.BrainTierHsm (not BTree tier).
+// Entity has BehaviorState.BrainTier = BehaviorConstants.BrainTierHsm (not BTree tier).
 // Register a spy BTree blob that tracks if it was called.
 // Assert: spy blob was NOT invoked (tick count == 0)
 
@@ -209,7 +209,7 @@ public const byte BrainTierHsm   = 1;
 // Register a minimal one-node BTree that unconditionally sets:
 //   LocomotionChannel.ActiveAction = 1
 //   LocomotionChannel.ActionInstanceId++ (or any non-zero value)
-// Give entity BrainTier = BehaviorConstants.BrainTierBTree, a registered doctrine.
+// Give entity BrainTier = BehaviorConstants.BrainTierBTree, a registered behavior.
 // sys.Run() one tick.
 // Assert:
 //   channel.ActiveAction == 1           // BTree wrote the action
@@ -268,61 +268,61 @@ Both must have `[UpdateAfter(typeof(ChannelArbitrationSystem))]`.
 
 ---
 
-### Task 3: DoctrineRegistry + DoctrineIngressSystem (BCS-P1-T7)
+### Task 3: BehaviorRegistry + BehaviorIngressSystem (BCS-P1-T7)
 
 **Files:**
-- `FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineRegistry.cs`
-- `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs`
-- `FDP/Toolkits/FDP.Toolkit.Behavior/Events/AssignDoctrineEvent.cs`
+- `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs`
+- `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs`
+- `FDP/Toolkits/FDP.Toolkit.Behavior/Events/AssignBehaviorEvent.cs`
 
-**Task Definition:** [TASK-DETAIL.md §BCS-P1-T7](../../../FDP/Docs/projects/behavior-control/TASK-DETAIL.md#bcs-p1-t7--doctrineregistry--doctrineingresssystem) — lines 455–484
+**Task Definition:** [TASK-DETAIL.md §BCS-P1-T7](../../../FDP/Docs/projects/behavior-control/TASK-DETAIL.md#bcs-p1-t7--behaviorregistry--behavioringresssystem) — lines 455–484
 
 Key notes not repeated in the task doc:
 
-**`AssignDoctrineEvent`** is a managed class (it carries a `string JsonParams`). It is dispatched through the kernel event bus (`World.PublishEvent<AssignDoctrineEvent>(...)`) and consumed synchronously in `DoctrineIngressSystem.OnUpdate` via `World.ReadEvents<AssignDoctrineEvent>()`. Do not make it a struct.
+**`AssignBehaviorEvent`** is a managed class (it carries a `string JsonParams`). It is dispatched through the kernel event bus (`World.PublishEvent<AssignBehaviorEvent>(...)`) and consumed synchronously in `BehaviorIngressSystem.OnUpdate` via `World.ReadEvents<AssignBehaviorEvent>()`. Do not make it a struct.
 
-**`DoctrineRegistry`** is a plain C# class, not a component. It holds:
-- A `Dictionary<int, DoctrineDefinition>` keyed on `DoctrineName.GetHashCode()` (or an explicit `int DoctrineId`).
-- `DoctrineDefinition` contains: `string Name`, `byte BrainTier`, `int BTreeBlobId` (for BTree brains), `Action<string, unsafe byte*> ParseParams` (a delegate that writes JSON parameters into the `BrainBlackboard.Memory` buffer).
+**`BehaviorRegistry`** is a plain C# class, not a component. It holds:
+- A `Dictionary<int, BehaviorDefinition>` keyed on `BehaviorName.GetHashCode()` (or an explicit `int BehaviorId`).
+- `BehaviorDefinition` contains: `string Name`, `byte BrainTier`, `int BTreeBlobId` (for BTree brains), `Action<string, unsafe byte*> ParseParams` (a delegate that writes JSON parameters into the `BrainBlackboard.Memory` buffer).
 
-**`DoctrineIngressSystem` must:**
-1. Increment `DoctrineState.InstanceId` — this triggers `ChannelArbitrationSystem` to clear stale channels on the next frame.
+**`BehaviorIngressSystem` must:**
+1. Increment `BehaviorState.InstanceId` — this triggers `ChannelArbitrationSystem` to clear stale channels on the next frame.
 2. Zero `BrainBTreeState.State` (reset BTree execution pointer).
 3. Call `ParseParams(event.JsonParams, blackboard.Memory)` — use `unsafe` block with `fixed`.
-4. Run in the `InputSystemGroup` (before `SimulationSystemGroup`) so doctrine changes take effect within the same frame as they are signalled. Use `[UpdateInGroup(typeof(InputSystemGroup))]`.
+4. Run in the `InputSystemGroup` (before `SimulationSystemGroup`) so behavior changes take effect within the same frame as they are signalled. Use `[UpdateInGroup(typeof(InputSystemGroup))]`.
 
-**`InstanceId` counter:** `DoctrineState.InstanceId` is a `uint`. Use `unchecked { doctrine.InstanceId++; }` so wrapping is deliberate and safe. Add a named constant or a comment if you feel wrapping needs documenting.
+**`InstanceId` counter:** `BehaviorState.InstanceId` is a `uint`. Use `unchecked { behavior.InstanceId++; }` so wrapping is deliberate and safe. Add a named constant or a comment if you feel wrapping needs documenting.
 
-**Tests required** (new file `DoctrineIngressSystemTests.cs`):
+**Tests required** (new file `BehaviorIngressSystemTests.cs`):
 
 ```csharp
-[Fact] void DoctrineIngress_ParsesFleeBlackboard_FromJson()
+[Fact] void BehaviorIngress_ParsesFleeBlackboard_FromJson()
 // Define in-test: struct FleeBlackboard { float SafeDistance; }
-// Register "FleeToSafety" doctrine with a ParseParams that does:
+// Register "FleeToSafety" behavior with a ParseParams that does:
 //   unsafe void Parse(string json, byte* mem) { *(float*)mem = float.Parse(json); }
-// PublishEvent: AssignDoctrineEvent { Entity=e, DoctrineName="FleeToSafety", JsonParams="50.0" }
+// PublishEvent: AssignBehaviorEvent { Entity=e, BehaviorName="FleeToSafety", JsonParams="50.0" }
 // sys.Run()
 // Read BrainBlackboard.Memory as FleeBlackboard (unsafe reinterpret).
 // Assert: FleeBlackboard.SafeDistance == 50.0f
 
-[Fact] void DoctrineIngress_IncrementsInstanceId_MonotonicallyAcrossMultipleAssignments()
-// Start: entity with DoctrineState.InstanceId = 0
-// Assignment 1 → sys.Run() → capture instanceId1 = DoctrineState.InstanceId
-// Assignment 2 → sys.Run() → capture instanceId2 = DoctrineState.InstanceId
+[Fact] void BehaviorIngress_IncrementsInstanceId_MonotonicallyAcrossMultipleAssignments()
+// Start: entity with BehaviorState.InstanceId = 0
+// Assignment 1 → sys.Run() → capture instanceId1 = BehaviorState.InstanceId
+// Assignment 2 → sys.Run() → capture instanceId2 = BehaviorState.InstanceId
 // Assert: instanceId1 > 0            // was incremented from 0
 // Assert: instanceId2 > instanceId1  // strictly increasing each assignment
 // NOT just checking "it changed once" — must verify monotonic increase.
 
-[Fact] void DoctrineIngress_ResetsBTreeState_OnNewDoctrine()
+[Fact] void BehaviorIngress_ResetsBTreeState_OnNewBehavior()
 // Give entity BrainBTreeState with RunningNodeIndex = 5 (mid-execution)
-// Assign new doctrine via DoctrineIngressSystem
+// Assign new behavior via BehaviorIngressSystem
 // Assert: BrainBTreeState.State.RunningNodeIndex == 0 (reset to start)
 
-[Fact] void DoctrineIngress_StaleSetsNewInstanceId_ArbitrationClearsOldAction()
-// Integration test — runs arbitration + doctrine ingress together:
-// Setup: entity has LocomotionChannel with ActiveAction=1, DoctrineInstanceId=1
-//        DoctrineState.InstanceId = 1 (matching, so arbitration leaves it alone)
-// Step 1: PublishEvent(AssignDoctrineEvent) → DoctrineIngressSystem.Run() → InstanceId becomes 2
+[Fact] void BehaviorIngress_StaleSetsNewInstanceId_ArbitrationClearsOldAction()
+// Integration test — runs arbitration + behavior ingress together:
+// Setup: entity has LocomotionChannel with ActiveAction=1, BehaviorInstanceId=1
+//        BehaviorState.InstanceId = 1 (matching, so arbitration leaves it alone)
+// Step 1: PublishEvent(AssignBehaviorEvent) → BehaviorIngressSystem.Run() → InstanceId becomes 2
 // Step 2: ChannelArbitrationSystem.Run()
 // Assert: channel.ActiveAction == 0  // arbitration cleared the now-stale channel
 // This is the full preemption chain. Without it we only tested the parts, not the contract.
@@ -332,10 +332,10 @@ Key notes not repeated in the task doc:
 
 ## 🧪 Testing Requirements
 
-- Minimum **11 new tests:** 1 ordering (corrective) + 3 weak-test fixes (corrective) + 3 BTree + 2 HSM + 4 Doctrine Ingress (3 unit + 1 integration chain).
+- Minimum **11 new tests:** 1 ordering (corrective) + 3 weak-test fixes (corrective) + 3 BTree + 2 HSM + 4 Behavior Ingress (3 unit + 1 integration chain).
 - `SpyExecutor` stays as-is (call counter only). Add `WritingSpyExecutor<TChannel>` to `TestHelpers.cs` — it sets `channel.Status = NodeStatus.Running` in `Execute` so tests can verify the write-back path.
 - All pre-existing tests must remain green (they will, once the three weak ones are corrected).
-- The doctrine integration test (`DoctrineIngress_StaleSetsNewInstanceId_ArbitrationClearsOldAction`) must run arbitration and ingress as separate systems, sequenced by calling each `.Run()` explicitly — do not rely on `world.RunAll()` ordering for this test.
+- The behavior integration test (`BehaviorIngress_StaleSetsNewInstanceId_ArbitrationClearsOldAction`) must run arbitration and ingress as separate systems, sequenced by calling each `.Run()` explicitly — do not rely on `world.RunAll()` ordering for this test.
 
 ---
 
@@ -347,9 +347,9 @@ See `.dev-workstream/guides/CODE-STANDARDS.md` — all rules apply.
 
 **❗ `[UpdateAfter(typeof(ChannelArbitrationSystem))]` on every brain tick system** — missing this is the same class of bug fixed in Task 0.
 
-**❗ `DoctrineIngressSystem` runs in `InputSystemGroup`, not `SimulationSystemGroup`** — a doctrine change this frame must be visible to brain tick systems this same frame.
+**❗ `BehaviorIngressSystem` runs in `InputSystemGroup`, not `SimulationSystemGroup`** — a behavior change this frame must be visible to brain tick systems this same frame.
 
-**❗ `AssignDoctrineEvent` is managed (class)** — do not make it a struct, do not try to register it as an ECS component.
+**❗ `AssignBehaviorEvent` is managed (class)** — do not make it a struct, do not try to register it as an ECS component.
 
 **❗ No `new` allocation in `BTreeTickSystem.OnUpdate` or `HsmTickSystem.OnUpdate`** — context structs must be stack-allocated.
 
@@ -362,7 +362,7 @@ Submit `.dev-workstream/reports/BATCH-04-REPORT.md`:
 - **Test results:** `dotnet test FDP.sln` summary.
 - **Q1:** How did you implement `BTreeContext`? What methods does `IAIContext` require, and which of them touch the ECS world? Did you hit any friction with the unsafe/managed boundary?
 - **Q2:** How did you handle the generic constraint for `HsmTickSystem<T>`? Did FastHSM's `HsmKernel` accept a plain struct context or does it require an interface?
-- **Q3:** `DoctrineIngressSystem` must call `ParseParams` with a pointer into `BrainBlackboard.Memory`. Walk through the exact `unsafe` + `fixed` pattern you used, and explain why it's safe.
+- **Q3:** `BehaviorIngressSystem` must call `ParseParams` with a pointer into `BrainBlackboard.Memory`. Walk through the exact `unsafe` + `fixed` pattern you used, and explain why it's safe.
 - **Q4:** Did the ordering test reveal any surprises about how `SimulationSystemGroup` resolves `[UpdateBefore]`/`[UpdateAfter]` when multiple constraints exist?
 
 ---
@@ -374,7 +374,7 @@ Submit `.dev-workstream/reports/BATCH-04-REPORT.md`:
 - [ ] **Documentation** — `DispatcherSystemBase` `OnExit` call site commented; `IActionExecutor.Execute` XML doc updated; `WritingSpyExecutor<TChannel>` added to `TestHelpers.cs`
 - [ ] **BCS-P1-T5** — `BTreeTickSystem` + `BTreeContext` exist; 3 tests with specific field assertions pass; no magic BrainTier literals
 - [ ] **BCS-P1-T6** — `HsmTickSystem<T>` exists; registered twice; 2 tests with state-transition assertions pass
-- [ ] **BCS-P1-T7** — `DoctrineRegistry` + `DoctrineIngressSystem` + `AssignDoctrineEvent` exist; 4 tests pass including the end-to-end preemption chain test
+- [ ] **BCS-P1-T7** — `BehaviorRegistry` + `BehaviorIngressSystem` + `AssignBehaviorEvent` exist; 4 tests pass including the end-to-end preemption chain test
 - [ ] **Full solution** — `dotnet build FDP.sln` zero errors; `dotnet test FDP.sln` all green
 - [ ] **Report submitted**
 
@@ -385,7 +385,7 @@ Submit `.dev-workstream/reports/BATCH-04-REPORT.md`:
 - **BATCH-03 Review:** `.dev-workstream/reviews/BATCH-03-REVIEW.md`
 - **CODE-STANDARDS.md:** `.dev-workstream/guides/CODE-STANDARDS.md`
 - **Task Details (BCS-P1-T5, T6, T7):** `FDP/Docs/projects/behavior-control/TASK-DETAIL.md` — lines 396–484
-- **Design §3.2–3.3:** `FDP/Docs/projects/behavior-control/DESIGN.md` — system ordering + doctrine flow
+- **Design §3.2–3.3:** `FDP/Docs/projects/behavior-control/DESIGN.md` — system ordering + behavior flow
 - **FastBTree IAIContext:** `FDP/ExtDeps/FastBTree/src/Fbt.Kernel/IAIContext.cs`
 - **FastHSM HsmKernel:** `FDP/ExtDeps/FastHSM/src/Fhsm.Kernel/HsmKernel.cs`
 - **BehaviorConstants (to extend):** `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorConstants.cs`

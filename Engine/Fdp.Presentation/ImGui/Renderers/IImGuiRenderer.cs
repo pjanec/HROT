@@ -44,7 +44,7 @@ public interface IImGuiRenderer
 /// <summary>
 /// Extended ImGui renderer that receives entity and session context.
 /// Implement this in addition to <see cref="IImGuiRenderer"/> when the renderer
-/// needs to read sibling ECS components (e.g., DoctrineState alongside BrainBlackboard).
+/// needs to read sibling ECS components (e.g., BehaviorState alongside BrainBlackboard).
 /// </summary>
 public interface IEntityAwareImGuiRenderer : IImGuiRenderer
 {

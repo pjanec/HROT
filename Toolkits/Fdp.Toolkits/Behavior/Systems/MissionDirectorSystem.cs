@@ -12,31 +12,31 @@ namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
     /// Evaluates the trigger condition of the current <see cref="MissionPhase"/> for every entity
-    /// that has a <see cref="MissionPlanQueue"/> and a <see cref="DoctrineState"/>.
+    /// that has a <see cref="MissionPlanQueue"/> and a <see cref="BehaviorState"/>.
     /// When a trigger fires the system advances <see cref="MissionPlanQueue.CurrentPhase"/>,
     /// resets <see cref="MissionPlanQueue.PhaseElapsedSeconds"/>, and updates
-    /// <see cref="DoctrineState.ActiveDoctrineHash"/> + increments
-    /// <see cref="DoctrineState.InstanceId"/> so that <see cref="ChannelArbitrationSystem"/>
+    /// <see cref="BehaviorState.ActiveBehaviorHash"/> + increments
+    /// <see cref="BehaviorState.InstanceId"/> so that <see cref="ChannelArbitrationSystem"/>
     /// preempts stale action channels naturally.
     /// <para>
     /// <b>Execution phase:</b> <see cref="SimulationSystemGroup"/>, before
-    /// <see cref="ChannelArbitrationSystem"/> so the new doctrine takes effect within the
+    /// <see cref="ChannelArbitrationSystem"/> so the new behavior takes effect within the
     /// same frame.
     /// </para>
     /// <para>
     /// <b>One-frame activation delay (BD1-BATCH-02):</b>
-    /// When a phase trigger fires this system publishes <see cref="AssignDoctrineHashEvent"/>
-    /// to the event bus.  <see cref="DoctrineIngressSystem"/> — the sole owner of
-    /// <see cref="DoctrineState"/> writes — runs in <see cref="InputSystemGroup"/>, which
+    /// When a phase trigger fires this system publishes <see cref="AssignBehaviorHashEvent"/>
+    /// to the event bus.  <see cref="BehaviorIngressSystem"/> — the sole owner of
+    /// <see cref="BehaviorState"/> writes — runs in <see cref="InputSystemGroup"/>, which
     /// executes <em>before</em> <see cref="SimulationSystemGroup"/> each frame.  Therefore
-    /// <c>DoctrineState.ActiveDoctrineHash</c> is updated on the frame <em>after</em> the
+    /// <c>BehaviorState.ActiveBehaviorHash</c> is updated on the frame <em>after</em> the
     /// trigger fires, and <see cref="ChannelArbitrationSystem"/> preempts stale action
     /// channels one tick later.
     /// This one-frame gap is by design: it preserves single-owner semantics for
-    /// <see cref="DoctrineState"/> and ensures atomic blackboard parameter parsing in
-    /// <see cref="DoctrineIngressSystem"/> (DEBT-035).  Callers that require same-frame
-    /// doctrine application (e.g. tests) must manually trigger
-    /// <see cref="DoctrineIngressSystem.OnUpdate"/> after <see cref="MissionDirectorSystem"/>
+    /// <see cref="BehaviorState"/> and ensures atomic blackboard parameter parsing in
+    /// <see cref="BehaviorIngressSystem"/> (DEBT-035).  Callers that require same-frame
+    /// behavior application (e.g. tests) must manually trigger
+    /// <see cref="BehaviorIngressSystem.OnUpdate"/> after <see cref="MissionDirectorSystem"/>
     /// in their tick loop.
     /// </para>
     /// <para>
@@ -44,7 +44,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// <list type="bullet">
     ///   <item><see cref="MissionTrigger.TimerElapsed"/> — accumulates delta time.</item>
     ///   <item><see cref="MissionTrigger.ReachedDestination"/> — delegated to the
-    ///         <see cref="MissionTrigger.DoctrineFinished"/> path (BS1-T022); retained for
+    ///         <see cref="MissionTrigger.BehaviorFinished"/> path (BS1-T022); retained for
     ///         backward compatibility with serialised mission plans.</item>
     ///   <item><see cref="MissionTrigger.UnderAttack"/> — checks <c>TargetMemory</c> for entries
     ///         with ThreatScore &gt; 0.</item>
@@ -53,9 +53,9 @@ namespace Fdp.Toolkit.Behavior.Systems
     ///         a <c>Health</c> component (from <c>FDP.Toolkit.Combat.Contracts</c>);
     ///         if absent the trigger never fires.
     ///         <b>BUG2-A001.</b></item>
-    ///   <item><see cref="MissionTrigger.DoctrineFinished"/> — fires when a
-    ///         <see cref="DoctrineFinishedEvent"/> is received for this entity, indicating
-    ///         the doctrine's BTree root evaluated to terminal (Success or Failure).</item>
+    ///   <item><see cref="MissionTrigger.BehaviorFinished"/> — fires when a
+    ///         <see cref="BehaviorFinishedEvent"/> is received for this entity, indicating
+    ///         the behavior's BTree root evaluated to terminal (Success or Failure).</item>
     /// </list>
     /// </para>
     /// </summary>
@@ -64,10 +64,10 @@ namespace Fdp.Toolkit.Behavior.Systems
     public class MissionDirectorSystem : IEcsModuleSystem
     {
         /// <summary>
-        /// Entities for which a <see cref="DoctrineFinishedEvent"/> arrived this frame,
+        /// Entities for which a <see cref="BehaviorFinishedEvent"/> arrived this frame,
         /// built once per <see cref="OnUpdate"/> call to allow O(1) per-entity lookup.
         /// </summary>
-        private readonly HashSet<int> _doctrineFinishedThisFrame = new();
+        private readonly HashSet<int> _behaviorFinishedThisFrame = new();
 
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
@@ -78,25 +78,25 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             float dt = deltaTime;
 
-            // -- Build DoctrineFinished lookup for this frame --
-            // Consume all DoctrineFinishedEvents once, cache the entity indices, then
+            // -- Build BehaviorFinished lookup for this frame --
+            // Consume all BehaviorFinishedEvents once, cache the entity indices, then
             // look them up in O(1) during the entity query loop below.
-            _doctrineFinishedThisFrame.Clear();
-            var doctrineFinishedEvents = repo.Bus.Read<DoctrineFinishedEvent>();
-            foreach (var finishedEvt in doctrineFinishedEvents)
+            _behaviorFinishedThisFrame.Clear();
+            var behaviorFinishedEvents = repo.Bus.Read<BehaviorFinishedEvent>();
+            foreach (var finishedEvt in behaviorFinishedEvents)
             {
-                _doctrineFinishedThisFrame.Add(finishedEvt.Entity.Index);
+                _behaviorFinishedThisFrame.Add(finishedEvt.Entity.Index);
             }
 
             var query = repo.Query()
                 .With<MissionPlanQueue>()
-                .With<DoctrineState>()
+                .With<BehaviorState>()
                 .Build();
 
             foreach (var entity in query)
             {
                 ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
-                var doctrine  = repo.GetComponent<DoctrineState>(entity);
+                var behavior  = repo.GetComponent<BehaviorState>(entity);
 
                 // Mission complete — nothing left to do.
                 if (queue.CurrentPhase >= queue.PhaseCount) continue;
@@ -120,12 +120,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                     case MissionTrigger.ReachedDestination:
                         // BS1-T022: Previously polled NavState.HasArrived (Muscle-tier physics
                         // component not available on a Brain node).  Now evaluated identically
-                        // to DoctrineFinished so that MissionDirectorSystem remains CQRS-clean.
+                        // to BehaviorFinished so that MissionDirectorSystem remains CQRS-clean.
                         // The enum value is kept for backward compatibility with serialised
-                        // mission plans; new UI code should emit DoctrineFinished instead.
+                        // mission plans; new UI code should emit BehaviorFinished instead.
 #pragma warning restore CS0618
 #pragma warning disable CS0618 // intentional use of obsolete enum value for backward compat
-                        if (_doctrineFinishedThisFrame.Contains(entity.Index))
+                        if (_behaviorFinishedThisFrame.Contains(entity.Index))
                             triggered = true;
 #pragma warning restore CS0618
                         break;
@@ -157,11 +157,11 @@ namespace Fdp.Toolkit.Behavior.Systems
                         }
                         break;
 
-                    case MissionTrigger.DoctrineFinished:
-                        // DoctrineFinishedEvent is consumed once per frame into
-                        // _doctrineFinishedThisFrame (built at the top of OnUpdate),
+                    case MissionTrigger.BehaviorFinished:
+                        // BehaviorFinishedEvent is consumed once per frame into
+                        // _behaviorFinishedThisFrame (built at the top of OnUpdate),
                         // so this lookup is O(1).
-                        if (_doctrineFinishedThisFrame.Contains(entity.Index))
+                        if (_behaviorFinishedThisFrame.Contains(entity.Index))
                             triggered = true;
                         break;
                 }

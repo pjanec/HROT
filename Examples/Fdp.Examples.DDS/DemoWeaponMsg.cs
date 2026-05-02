@@ -16,8 +16,8 @@ namespace Fdp.Examples.DDS
         /// <summary>Currently active weapon action identifier.</summary>
         public ushort ActiveAction;
 
-        /// <summary>Doctrine instance governing this weapon command.</summary>
-        public uint DoctrineInstanceId;
+        /// <summary>Behavior instance governing this weapon command.</summary>
+        public uint BehaviorInstanceId;
 
         /// <summary>Unique ID of the current action instance (for preemption).</summary>
         public uint ActionInstanceId;

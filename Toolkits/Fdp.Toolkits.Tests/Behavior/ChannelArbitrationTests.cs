@@ -17,12 +17,12 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys = new ChannelArbitrationSystem();
             
             var e = world.CreateEntity();
-            // Doctrine at version 2 (preempted version 1)
-            world.AddComponent(e, new DoctrineState { InstanceId = 2 });
+            // Behavior at version 2 (preempted version 1)
+            world.AddComponent(e, new BehaviorState { InstanceId = 2 });
             // Channel still has action from version 1
             world.AddComponent(e, new LocomotionChannel { 
                 ActiveAction = 1, 
-                DoctrineInstanceId = 1,
+                BehaviorInstanceId = 1,
                 Status = NodeStatus.Running
             });
             
@@ -31,9 +31,9 @@ namespace Fdp.Toolkit.Behavior.Tests
             var channel = world.GetComponent<LocomotionChannel>(e);
             Assert.Equal(0, channel.ActiveAction);
             // Selective-clear: only ActiveAction is zeroed and ActionInstanceId is bumped.
-            // Status and DoctrineInstanceId are NOT reset (differs from `channel = default`).
+            // Status and BehaviorInstanceId are NOT reset (differs from `channel = default`).
             Assert.Equal(NodeStatus.Running, channel.Status);  // unchanged
-            Assert.Equal(1u, channel.DoctrineInstanceId);      // unchanged (selective-clear, not full reset)
+            Assert.Equal(1u, channel.BehaviorInstanceId);      // unchanged (selective-clear, not full reset)
             
             world.Dispose();
         }
@@ -46,10 +46,10 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys = new ChannelArbitrationSystem();
             
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { InstanceId = 2 });
+            world.AddComponent(e, new BehaviorState { InstanceId = 2 });
             world.AddComponent(e, new LocomotionChannel { 
                 ActiveAction = 1, 
-                DoctrineInstanceId = 2, // Matches
+                BehaviorInstanceId = 2, // Matches
                 Status = NodeStatus.Running
             });
             
@@ -70,10 +70,10 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys = new ChannelArbitrationSystem();
             
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { InstanceId = 2 });
+            world.AddComponent(e, new BehaviorState { InstanceId = 2 });
             world.AddComponent(e, new LocomotionChannel { 
                 ActiveAction = 0, // None
-                DoctrineInstanceId = 1, // Stale ID
+                BehaviorInstanceId = 1, // Stale ID
                 Status = NodeStatus.Success // Old status
             });
             
@@ -103,13 +103,13 @@ namespace Fdp.Toolkit.Behavior.Tests
             dispatcher.RegisterExecutor(1, spy);
 
             var e = world.CreateEntity();
-            // Doctrine at version 2; channel still thinks version 1 is current.
-            world.AddComponent(e, new DoctrineState { InstanceId = 2 });
+            // Behavior at version 2; channel still thinks version 1 is current.
+            world.AddComponent(e, new BehaviorState { InstanceId = 2 });
             world.AddComponent(e, new LocomotionChannel
             {
                 ActiveAction       = 1,
                 ActionInstanceId   = 1,
-                DoctrineInstanceId = 1,   // stale — mismatches DoctrineState.InstanceId
+                BehaviorInstanceId = 1,   // stale — mismatches BehaviorState.InstanceId
                 DispatchedInstanceId = 0,
                 Status             = NodeStatus.Running
             });
@@ -139,11 +139,11 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys   = new ChannelArbitrationSystem();
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { InstanceId = 1 });
+            world.AddComponent(e, new BehaviorState { InstanceId = 1 });
             world.AddComponent(e, new LocomotionChannel
             {
                 ActiveAction         = 5,
-                DoctrineInstanceId   = 0,  // stale: 0 != 1
+                BehaviorInstanceId   = 0,  // stale: 0 != 1
                 ActionInstanceId     = 7,
                 DispatchedInstanceId = 7,
             });
@@ -159,17 +159,17 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         [Fact]
-        public void NoPreemption_WhenDoctrineMatches()
+        public void NoPreemption_WhenBehaviorMatches()
         {
             var world = TestWorldFactory.Create();
             var sys   = new ChannelArbitrationSystem();
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { InstanceId = 3 });
+            world.AddComponent(e, new BehaviorState { InstanceId = 3 });
             world.AddComponent(e, new LocomotionChannel
             {
                 ActiveAction       = 2,
-                DoctrineInstanceId = 3,  // matches — must not be preempted
+                BehaviorInstanceId = 3,  // matches — must not be preempted
                 ActionInstanceId   = 1,
             });
 
@@ -189,11 +189,11 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys   = new ChannelArbitrationSystem();
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { InstanceId = 1 });
+            world.AddComponent(e, new BehaviorState { InstanceId = 1 });
             world.AddComponent(e, new WeaponChannel
             {
                 ActiveAction         = 5,
-                DoctrineInstanceId   = 0,   // stale
+                BehaviorInstanceId   = 0,   // stale
                 ActionInstanceId     = 7,
                 DispatchedInstanceId = 7,
             });
@@ -215,11 +215,11 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys   = new ChannelArbitrationSystem();
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { InstanceId = 1 });
+            world.AddComponent(e, new BehaviorState { InstanceId = 1 });
             world.AddComponent(e, new InteractionChannel
             {
                 ActiveAction         = 5,
-                DoctrineInstanceId   = 0,   // stale
+                BehaviorInstanceId   = 0,   // stale
                 ActionInstanceId     = 7,
                 DispatchedInstanceId = 7,
             });

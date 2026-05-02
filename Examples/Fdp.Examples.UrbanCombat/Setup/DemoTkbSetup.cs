@@ -59,7 +59,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
 
             // Behaviour
             t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierCivilian });
-            t.AddComponent(new DoctrineState());
+            t.AddComponent(new BehaviorState());
             t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             t.AddComponent(new LocomotionChannel());
 
@@ -94,7 +94,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(new SimVelocity());
 
             t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierCivilian });
-            t.AddComponent(new DoctrineState());
+            t.AddComponent(new BehaviorState());
             t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             t.AddComponent(new LocomotionChannel());
 
@@ -121,7 +121,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(new SimVelocity());
 
             t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierTactical });
-            t.AddComponent(new DoctrineState { BrainTier = BehaviorConstants.BrainTierHsm });
+            t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierHsm });
 
             // HSM brain
             t.AddComponent(new BrainHsm128());
@@ -169,7 +169,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(new SimVelocity());
 
             t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierTactical });
-            t.AddComponent(new DoctrineState { BrainTier = BehaviorConstants.BrainTierBTree });
+            t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierBTree });
 
             // BTree brain
             t.AddComponent(new BrainBTreeState());
@@ -233,7 +233,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(new SimVelocity());
 
             t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierTactical });
-            t.AddComponent(new DoctrineState { BrainTier = BehaviorConstants.BrainTierBTree });
+            t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierBTree });
 
             // BTree brain
             t.AddComponent(new BrainBTreeState());

@@ -9,26 +9,26 @@ namespace Fdp.Toolkit.Behavior.Analyzers
     /// Enforces FDP blackboard memory layout constraints at compile time.
     ///
     /// Any method annotated with [SharedAiAction] or [SharedAiCondition] that binds a DTO
-    /// whose unmanaged size exceeds <see cref="MaxDoctrineParamByteSize"/> bytes will be
+    /// whose unmanaged size exceeds <see cref="MaxBehaviorParamByteSize"/> bytes will be
     /// flagged as a compiler error (FDP_001).
     ///
     /// This analyzer is intentionally part of the FDP Behavior domain and must never be
     /// moved into the generic FastBTree/FastHSM libraries, which have no knowledge of the
-    /// 128-byte BrainBlackboard layout or its partitioning into DoctrineParameters,
+    /// 128-byte BrainBlackboard layout or its partitioning into BehaviorParameters,
     /// SoftAdvice, and Interrupt regions.
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
-    public class DoctrineParameterSizeAnalyzer : DiagnosticAnalyzer
+    public class BehaviorParameterSizeAnalyzer : DiagnosticAnalyzer
     {
-        // Mirrors BehaviorConstants.MaxDoctrineParamByteSize.
+        // Mirrors BehaviorConstants.MaxBehaviorParamByteSize.
         // Intentionally inlined here because this analyzer targets netstandard2.0
         // and cannot reference the net8.0 Fdp.Toolkits runtime assembly.
-        private const int MaxDoctrineParamByteSize = 60;
+        private const int MaxBehaviorParamByteSize = 60;
 
         private static readonly DiagnosticDescriptor FDP001_DtoTooLarge = new DiagnosticDescriptor(
             id: "FDP_001",
-            title: "Doctrine parameter DTO exceeds BlackboardMemoryLayout capacity",
-            messageFormat: "Method '{0}': DTO type '{1}' requires {2} bytes, exceeding the {3}-byte DoctrineParameters region. This would corrupt the SoftAdvice and Interrupt registers in BrainBlackboard.",
+            title: "Behavior parameter DTO exceeds BlackboardMemoryLayout capacity",
+            messageFormat: "Method '{0}': DTO type '{1}' requires {2} bytes, exceeding the {3}-byte BehaviorParameters region. This would corrupt the SoftAdvice and Interrupt registers in BrainBlackboard.",
             category: "Fdp.Memory",
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 int structSize = ComputeStructSize(dtoTypeSymbol);
                 if (structSize < 0) continue; // unknown layout, skip safely
 
-                if (structSize > MaxDoctrineParamByteSize)
+                if (structSize > MaxBehaviorParamByteSize)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         FDP001_DtoTooLarge,
@@ -69,7 +69,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         method.Name,
                         dtoTypeSymbol.ToDisplayString(),
                         structSize,
-                        MaxDoctrineParamByteSize));
+                        MaxBehaviorParamByteSize));
                 }
             }
         }

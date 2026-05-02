@@ -9,7 +9,7 @@ namespace Fdp.Toolkit.Behavior.TacticalOrderMapper
     /// implementations, keyed by <see cref="ITacticalOrderMapper.TargetIntentId"/>.
     ///
     /// <para>
-    /// Analogous to the existing <c>DoctrineRegistry</c>: all registrations must
+    /// Analogous to the existing <c>BehaviorRegistry</c>: all registrations must
     /// complete before the simulation loop starts; the registry is read-only during
     /// simulation frames.
     /// </para>

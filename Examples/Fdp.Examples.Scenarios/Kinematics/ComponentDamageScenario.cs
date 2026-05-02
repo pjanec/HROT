@@ -286,7 +286,7 @@ namespace Fdp.Examples.Scenarios.Kinematics
 
         /// <summary>
         /// Clears <see cref="LocomotionChannel.ActiveAction"/> when an entity no longer
-        /// has <see cref="ActorCapabilities.CanMove"/>. Emulates the HSM doctrine response
+        /// has <see cref="ActorCapabilities.CanMove"/>. Emulates the HSM behavior response
         /// to a MobilityLost event without requiring a full HSM state-machine definition.
         /// Must run after <see cref="HsmDamageBridgeSystem"/>.
         /// </summary>

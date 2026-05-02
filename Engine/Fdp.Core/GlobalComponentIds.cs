@@ -68,8 +68,8 @@ namespace Fdp.Core
         /// <summary><c>GeoVelocity</c> — geodetic velocity and acceleration (ENU frame).</summary>
         public const byte GeoVelocity             = 21;
 
-        /// <summary><c>DoctrineState</c> — active doctrine (behavior tree / HSM) for an entity.</summary>
-        public const byte DoctrineState           = 22;
+        /// <summary><c>BehaviorState</c> — active behavior (behavior tree / HSM) for an entity.</summary>
+        public const byte BehaviorState           = 22;
 
         /// <summary><c>BrainBlackboard</c> — shared blackboard memory for behavior execution.</summary>
         public const byte BrainBlackboard         = 23;
@@ -239,9 +239,9 @@ namespace Fdp.Core
         /// <summary><c>TargetMemory</c> — fixed-size threat table for perceived targets (FDP.Toolkit.Perception).</summary>
         public const byte TargetMemory            = 73;
 
-        /// <summary><c>Blackboard1024</c> — 1024-byte generic heavy blackboard for doctrine-specific large payloads.
-        /// Reusable across different doctrines to avoid exhausting the 256 component-type limit.
-        /// Projected into doctrine-specific DTOs via <c>Unsafe.As</c> inside generated action thunks.</summary>
+        /// <summary><c>Blackboard1024</c> — 1024-byte generic heavy blackboard for behavior-specific large payloads.
+        /// Reusable across different behaviors to avoid exhausting the 256 component-type limit.
+        /// Projected into behavior-specific DTOs via <c>Unsafe.As</c> inside generated action thunks.</summary>
         public const byte Blackboard1024          = 74;
 
         /// <summary><c>PathfindingBatchData</c> — zero-allocation singleton for batched pathfinding requests/results (FDP.Toolkit.Navigation).</summary>

@@ -61,13 +61,13 @@ namespace Fdp.Examples.UrbanCombat.Systems
                     ? NavigationConstants.ActionIdFlee    // 2 — flee from nearest threat
                     : NavigationConstants.ActionIdMoveTo; // 1 — wander / follow road graph
 
-                // Stamp DoctrineInstanceId so ChannelArbitrationSystem does not clear
-                // this frame's intent (ChannelArb guards on DoctrineInstanceId mismatch).
-                // Only applied when the entity has a DoctrineState component.
-                if (view.HasComponent<DoctrineState>(entity))
+                // Stamp BehaviorInstanceId so ChannelArbitrationSystem does not clear
+                // this frame's intent (ChannelArb guards on BehaviorInstanceId mismatch).
+                // Only applied when the entity has a BehaviorState component.
+                if (view.HasComponent<BehaviorState>(entity))
                 {
-                    var doctrine = view.GetComponentRO<DoctrineState>(entity);
-                    channel.DoctrineInstanceId = doctrine.InstanceId;
+                    var behavior = view.GetComponentRO<BehaviorState>(entity);
+                    channel.BehaviorInstanceId = behavior.InstanceId;
                 }
             }
         }

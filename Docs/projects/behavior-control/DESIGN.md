@@ -102,7 +102,7 @@ The subsystem spans **five new toolkits** and one demo application:
 
 | Package | Responsibility |
 |---|---|
-| `FDP.Toolkit.Behavior` | Brain orchestration: doctrine lifecycle, BT/HSM adapters, universal action channels, dispatchers |
+| `FDP.Toolkit.Behavior` | Brain orchestration: behavior lifecycle, BT/HSM adapters, universal action channels, dispatchers |
 | `FDP.Toolkit.Perception` | Senses: audio events, async vision broadphase, target memory |
 | `FDP.Toolkit.Navigation` | Locomotion executor bridge: translates `LocomotionChannel` intents to `CarKinem.NavState` |
 | `FDP.Toolkit.Combat` | Weapons: aim/fire executor, ballistics, damage |
@@ -122,7 +122,7 @@ All components are unmanaged (`struct`) to satisfy the zero-alloc hot-path requi
 **Brain Identity**
 
 ```
-DoctrineState    – active doctrine hash, version/preemption token, brain tier
+BehaviorState    – active behavior hash, version/preemption token, brain tier
 BrainBlackboard  – 128 bytes of raw unmanaged AI memory (parameters + runtime state)
 BrainBTreeState  – wraps FastBTree's BehaviorTreeState (64 bytes, one cache line)
 BrainHsm64       – wraps Fhsm HsmInstance64
@@ -148,7 +148,7 @@ Each channel holds exactly one active action at a time, using fixed byte buffers
 // Shared layout for LocomotionChannel, WeaponChannel, InteractionChannel
 unsafe struct XxxChannel {
     ushort  ActiveAction;         // ActionKind enum cast to ushort (0 = None)
-    uint    DoctrineInstanceId;   // Must match DoctrineState.InstanceId (stale = preempt)
+    uint    BehaviorInstanceId;   // Must match BehaviorState.InstanceId (stale = preempt)
     uint    ActionInstanceId;     // Set by Brain on each new action request
     uint    DispatchedInstanceId; // Tracked by Dispatcher for OnEnter/OnExit detection
     NodeStatus Status;            // Running | Success | Failure
@@ -164,18 +164,18 @@ Separate concrete channels: `LocomotionChannel`, `WeaponChannel`, `InteractionCh
 **Mission Planning**
 
 ```
-MissionPlanQueue  – fixed array of up to 8 MissionPhase items; each has DoctrineId + MissionTrigger
+MissionPlanQueue  – fixed array of up to 8 MissionPhase items; each has BehaviorId + MissionTrigger
 ```
 
-> Design talk reference: lines 4050–4130 (gap 1: queued doctrines)
+> Design talk reference: lines 4050–4130 (gap 1: queued behaviors)
 
 ### 3.2 Systems
 
 | System | Phase | Key Responsibility |
 |---|---|---|
-| `DoctrineIngressSystem` | BeforeSync | Parses JSON params, writes `BrainBlackboard`, bumps `DoctrineState.InstanceId` |
-| `MissionDirectorSystem` | Simulation | Evaluates `MissionPlanQueue` triggers; advances queue and replaces doctrine when met |
-| `ChannelArbitrationSystem` | Simulation (before brain tick) | Clears channels whose `DoctrineInstanceId` is stale |
+| `BehaviorIngressSystem` | BeforeSync | Parses JSON params, writes `BrainBlackboard`, bumps `BehaviorState.InstanceId` |
+| `MissionDirectorSystem` | Simulation | Evaluates `MissionPlanQueue` triggers; advances queue and replaces behavior when met |
+| `ChannelArbitrationSystem` | Simulation (before brain tick) | Clears channels whose `BehaviorInstanceId` is stale |
 | `TrafficBrainSystem` (demo) | Simulation | Hardcoded C# for `SimTier=1` entities (writes LocomotionChannel directly, no VM) |
 | `BTreeTickSystem` | Simulation | Steps `BrainBTreeState` for all `SimTier=2` entities with BTree brain |
 | `HsmTickSystem<T>` | Simulation | Generic; instantiated for `BrainHsm64` and `BrainHsm128` separately |
@@ -193,11 +193,11 @@ DispatcherSystem holds IActionExecutor<T>[] _executors  (indexed by ActionKind)
 
 > Design talk reference: lines 602–700 (dispatcher architecture), lines 1700–1800 (full system implementations)
 
-### 3.3 Doctrine Registry & Parameter Flow
+### 3.3 Behavior Registry & Parameter Flow
 
-- `DoctrineRegistry.Register(name, BrainTier, assetId, ParseParamsDelegate)` – at startup, cold path.
+- `BehaviorRegistry.Register(name, BrainTier, assetId, ParseParamsDelegate)` – at startup, cold path.
 - `ParseParamsDelegate(string json, byte* blackboardMemory)` – parses JSON and writes into the appropriate blackboard struct layout.
-- Each doctrine has a paired blackboard struct, e.g., `AssaultBlackboard`, `ConvoyBlackboard`.
+- Each behavior has a paired blackboard struct, e.g., `AssaultBlackboard`, `ConvoyBlackboard`.
 - BTree/HSM nodes reinterpret the raw bytes via `Unsafe.As<byte, XxxBlackboard>` – zero copies, zero alloc.
 
 > Design talk reference: lines 4540–4720 (parameter flow, JSON cold path, unsafe cast in hot path)
@@ -358,11 +358,11 @@ Reads spatial grid built in previous `PostSimulation` phase → deterministic on
 `MissionPlanQueue` component stores up to 8 `MissionPhase` items inline:
 
 ```
-MissionPhase { DoctrineId, MissionTrigger, TriggerParam }
+MissionPhase { BehaviorId, MissionTrigger, TriggerParam }
 MissionTrigger : TimerElapsed | ReachedDestination | UnderAttack | HealthCritical
 ```
 
-`MissionDirectorSystem` runs before `ChannelArbitrationSystem`. When trigger fires → `DoctrineState.InstanceId++` → existing preemption pipeline triggers naturally.
+`MissionDirectorSystem` runs before `ChannelArbitrationSystem`. When trigger fires → `BehaviorState.InstanceId++` → existing preemption pipeline triggers naturally.
 
 > Design talk reference: lines 4058–4135 (gap 1 detail)
 
@@ -386,7 +386,7 @@ InteractionActions { EmbarkVehicle=1, DisembarkVehicle=2, EjectPassengers=3 }
 Headless, single-node, deterministic 10-second (600-frame) simulation.
 
 **Actors:**
-| Entity | Count | Brain | Doctrine |
+| Entity | Count | Brain | Behavior |
 |---|---|---|---|
 | `CivilianPedestrian` | 5 | Tier 1 hardcoded | "Wander" (MoveTo random) → "Panic" (Flee) on noise |
 | `CivilianCar` | 3 | Tier 1 hardcoded | FollowRoadGraph loop |
@@ -408,16 +408,16 @@ Headless, single-node, deterministic 10-second (600-frame) simulation.
 ### 9.2 TKB Blueprints
 
 **CivilianPedestrian (ID 1001):**  
-`SimTransform`, `SimVelocity`, `SimTier(1)`, `DoctrineState`, `ActorCapabilityState(CanMove)`, `LocomotionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(Pedestrian)`, `NavState`, `PerceptionReceptor(vision=30, hear=100)`, `TargetMemory`, `PhysicsCollider(r=0.4, layer=1)`
+`SimTransform`, `SimVelocity`, `SimTier(1)`, `BehaviorState`, `ActorCapabilityState(CanMove)`, `LocomotionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(Pedestrian)`, `NavState`, `PerceptionReceptor(vision=30, hear=100)`, `TargetMemory`, `PhysicsCollider(r=0.4, layer=1)`
 
 **CivilianCar (ID 1002):**  
-`SimTransform`, `SimVelocity`, `SimTier(1)`, `DoctrineState`, `ActorCapabilityState(CanMove)`, `LocomotionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(PersonalCar)`, `NavState`, `PhysicsCollider(r=2, layer=1)`
+`SimTransform`, `SimVelocity`, `SimTier(1)`, `BehaviorState`, `ActorCapabilityState(CanMove)`, `LocomotionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(PersonalCar)`, `NavState`, `PhysicsCollider(r=2, layer=1)`
 
 **MilitaryAPC (ID 2001):**  
-`SimTransform`, `SimVelocity`, `SimTier(2)`, `DoctrineState(BrainTier=2)`, `BrainHsm128`, `BrainBlackboard`, `ActorCapabilityState(CanMove|CanInteract)`, `LocomotionChannel`, `InteractionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(Tank)`, `NavState`, `Health(500)`, `PhysicsCollider(r=3.5, layer=1)`, `PassengerBuffer`, `Faction(TeamId=1)`
+`SimTransform`, `SimVelocity`, `SimTier(2)`, `BehaviorState(BrainTier=2)`, `BrainHsm128`, `BrainBlackboard`, `ActorCapabilityState(CanMove|CanInteract)`, `LocomotionChannel`, `InteractionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(Tank)`, `NavState`, `Health(500)`, `PhysicsCollider(r=3.5, layer=1)`, `PassengerBuffer`, `Faction(TeamId=1)`
 
 **InfantrySoldier (ID 2002):**  
-`SimTransform`, `SimVelocity`, `SimTier(2)`, `DoctrineState(BrainTier=2)`, `BrainBTreeState`, `BrainBlackboard`, `ActorCapabilityState(CanMove|CanShoot)`, `LocomotionChannel`, `WeaponChannel`, `InteractionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(Pedestrian)`, `NavState`, `Health(100)`, `WeaponState(ammo=30, rate=5Hz, range=200, damage=25)`, `PerceptionReceptor(vision=150, hear=200)`, `TargetMemory`, `PhysicsCollider(r=0.4, layer=1)`, `Faction(TeamId=1)`
+`SimTransform`, `SimVelocity`, `SimTier(2)`, `BehaviorState(BrainTier=2)`, `BrainBTreeState`, `BrainBlackboard`, `ActorCapabilityState(CanMove|CanShoot)`, `LocomotionChannel`, `WeaponChannel`, `InteractionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(Pedestrian)`, `NavState`, `Health(100)`, `WeaponState(ammo=30, rate=5Hz, range=200, damage=25)`, `PerceptionReceptor(vision=150, hear=200)`, `TargetMemory`, `PhysicsCollider(r=0.4, layer=1)`, `Faction(TeamId=1)`
 
 **Insurgent (ID 2003):**  
 Same as `InfantrySoldier` but `Faction(TeamId=2)`, `WeaponState(ammo=1, range=300, damage=500, rate=0.1Hz)` (RPG)
@@ -475,7 +475,7 @@ FRAME START
 │   └── HitResolutionSystem        ← Combat: destroys bullets, emits HitEvent
 │
 ├── [BeforeSync]
-│   ├── DoctrineIngressSystem      ← Behavior: JSON → BrainBlackboard
+│   ├── BehaviorIngressSystem      ← Behavior: JSON → BrainBlackboard
 │   └── LosRequestBatchingSystem   ← Perception: bus LosCheckRequestEvents → RaycastBatch
 │
 ├── [SYNC: EventAccumulator swap, SoD snapshot]
@@ -514,8 +514,8 @@ FRAME START
 ## 11. Key Architectural Constraints
 
 1. **256-component limit**: Addressed by fixed byte buffers in channels (`Params[32]`, `State[32]`). Action parameters live inside the channel, not as separate components.
-2. **Zero allocation on hot path**: All structs, fixed buffers, `Unsafe.As` reinterpretation casts. JSON parsing only on doctrine assignment (cold path).
-3. **Preemption via version token**: `DoctrineState.InstanceId` is the single source of truth. `ChannelArbitrationSystem` enforces coherence every frame.
+2. **Zero allocation on hot path**: All structs, fixed buffers, `Unsafe.As` reinterpretation casts. JSON parsing only on behavior assignment (cold path).
+3. **Preemption via version token**: `BehaviorState.InstanceId` is the single source of truth. `ChannelArbitrationSystem` enforces coherence every frame.
 4. **Capability-driven gating**: `ActorCapabilityState` bits are checked at dispatcher level – individual executor classes never query capabilities.
 5. **Executor lifecycle**: `OnEnter`/`OnExit` called by dispatcher on `ActionInstanceId` change, preventing dangling async state in `channel.State` bytes.
 6. **Deferred physics**: `RaycastSolverSystem` runs in `Input` phase of _next_ frame, resolving bullet path data from previous-frame `PostSimulation` positions. One-frame lag is acceptable.

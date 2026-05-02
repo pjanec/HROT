@@ -61,7 +61,7 @@ The UrbanCombat blueprints must follow this pattern. The current implementation:
 
 **BCS-P7-T3 Road Graph:** `RoadNetworkBuilder` API used correctly; 5 nodes + 8 directed segments; `NativeArray` disposed correctly via `IDisposable`. 4 geometry tests confirm topology. ✅
 
-**DEBT-035 test:** `DoctrineIngress_DoctrineStateUnchanged_WhenParseParamsFails` — asserts both `ActiveDoctrineHash == OldId` AND `InstanceId == 0` (neither was bumped). ✅
+**DEBT-035 test:** `BehaviorIngress_BehaviorStateUnchanged_WhenParseParamsFails` — asserts both `ActiveBehaviorHash == OldId` AND `InstanceId == 0` (neither was bumped). ✅
 
 **Component additions vs DESIGN.md §9.2:** `PreviousCapabilities` and `HealthData` correctly back-ported to the three damageable blueprints. Well-documented in both XML comments and Q2. ✅
 
@@ -88,10 +88,10 @@ The UrbanCombat blueprints must follow this pattern. The current implementation:
 feat(BATCH-14): Corrective-0 + Phase 7 scaffold, road graph; blueprints need TKB rework
 
 Corrective-0 (DEBT-035):
-  DoctrineIngressSystem: stackalloc shadow moved outside foreach (CA2014 fix)
-  ParseParams attempted on shadow before any DoctrineState write
-  DoctrineState/BrainBTreeState mutated only on successful parse
-  +1 test: DoctrineIngress_DoctrineStateUnchanged_WhenParseParamsFails (InstanceId + hash unchanged)
+  BehaviorIngressSystem: stackalloc shadow moved outside foreach (CA2014 fix)
+  ParseParams attempted on shadow before any BehaviorState write
+  BehaviorState/BrainBTreeState mutated only on successful parse
+  +1 test: BehaviorIngress_BehaviorStateUnchanged_WhenParseParamsFails (InstanceId + hash unchanged)
   DEBT-008 now fully resolved via DEBT-035
 
 BCS-P7-T1 — Fdp.Examples.UrbanCombat project scaffold

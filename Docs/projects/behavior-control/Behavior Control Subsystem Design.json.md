@@ -19,11 +19,11 @@ We will map the conceptual design directly into Unmanaged FDP Components (`IComp
 // Identifies the actor's intelligence level (0=Decorative, 1=Traffic, 2=Tactical)
 public struct SimTier { public byte Level; }
 
-// The overarching doctrine state
-public struct DoctrineState
+// The overarching behavior state
+public struct BehaviorState
 {
-    public long ActiveDoctrineId; // Hash of doctrine name (e.g., "Patrol", "Panic")
-    public uint InstanceId;       // Increments when doctrine changes (Preemption)
+    public long ActiveBehaviorId; // Hash of behavior name (e.g., "Patrol", "Panic")
+    public uint InstanceId;       // Increments when behavior changes (Preemption)
     public byte BrainType;        // 0=None, 1=BTree, 2=HSM, 3=HardcodedTraffic
 }
 
@@ -40,7 +40,7 @@ public enum LocomotionKind : byte { Idle, MoveTo, FollowRoad, TakeCover, Flee }
 public struct LocomotionChannel
 {
     public LocomotionKind ActiveKind;
-    public uint ParentDoctrineInstanceId; // For Doctrine-level preemption
+    public uint ParentBehaviorInstanceId; // For Behavior-level preemption
     public uint ActionInstanceId;         // For Channel-level preemption
     
     // Status feedback for the Brain (Running, Success, Failed)
@@ -52,7 +52,7 @@ public enum WeaponKind : byte { Idle, AimAndFire, Suppress }
 public struct WeaponChannel
 {
     public WeaponKind ActiveKind;
-    public uint ParentDoctrineInstanceId;
+    public uint ParentBehaviorInstanceId;
     public uint ActionInstanceId;
     public Entity Target;
     public NodeStatus Status;
@@ -127,15 +127,15 @@ Let's put this all together in a ModuleHost scenario.
 #### The Actors
 1. **Background Traffic (Cars)**
    * `SimTier` = 1
-   * `Doctrine` = "TrafficCruise" (Hardcoded C# logic, very cheap).
+   * `Behavior` = "TrafficCruise" (Hardcoded C# logic, very cheap).
    * Brain simply sets `LocomotionChannel = FollowRoad`, picking random nodes in `RoadNetworkBlob`.
 2. **Pedestrians (Civilians)**
    * `SimTier` = 1
-   * `Doctrine` = "Wander" (Hardcoded).
+   * `Behavior` = "Wander" (Hardcoded).
    * Locomotion: Walks slowly along road edges (sidewalks).
 3. **Military Units (Soldiers/APCs)**
    * `SimTier` = 2
-   * `Doctrine` = "PatrolAndEngage" (Driven by **FastBTree**).
+   * `Behavior` = "PatrolAndEngage" (Driven by **FastBTree**).
    * Uses `BrainBTreeState`.
 
 #### The Interaction Loop (The "Panic" Scenario)
@@ -151,7 +151,7 @@ Let's put this all together in a ModuleHost scenario.
    * Pedestrian `PerceptionSystem` hears noise. Updates their `LocalKnowledge`.
 5. **Next Frame Brain Phase:**
    * A `CivilianReactionSystem` (or a very simple BTree) sees the threat.
-   * It preempts the "Wander" doctrine and assigns the **"Panic"** doctrine.
+   * It preempts the "Wander" behavior and assigns the **"Panic"** behavior.
    * "Panic" sets `LocomotionChannel = Flee` (Threat = APC).
 6. **Next Frame Execution Phase:**
    * `FleeExecutorSystem` picks a point 50m away from the APC.
@@ -186,12 +186,12 @@ To fit this into your `ModuleHostKernel`, the execution order in `SystemPhase.Si
 
 To implement this without breaking your zero-alloc rules, I suggest we tackle it in this order:
 
-1. **Define the Core Components**: Create `DoctrineState`, `LocomotionChannel`, and the basic task structs.
+1. **Define the Core Components**: Create `BehaviorState`, `LocomotionChannel`, and the basic task structs.
 2. **Bridge FastBTree**: Write the 2-3 custom Action Nodes for FastBTree (e.g., `Node_RequestLocomotion`) that write to the `LocomotionChannel`.
 3. **Implement the Executors**: Write a `FleeExecutorSystem` that translates `TaskFleeState` into `CarKinem`'s `NavState`.
 4. **Wire the Demo**: Set up the `EntityFactory` to spawn the civilians and the APCs with these new components.
 
-Which piece would you like me to write the actual FDP-compliant C# code for first? I can start with the **Channel & Doctrine Components** and the **Arbitration System**, or we can dive straight into the **FastBTree Bridge**.
+Which piece would you like me to write the actual FDP-compliant C# code for first? I can start with the **Channel & Behavior Components** and the **Arbitration System**, or we can dive straight into the **FastBTree Bridge**.
 
 --- user ---------------------------------------------------
 we must support both road graph as well as dynamic waypoint based locomotion.  The demo should not be in an ad-hoc all-mixed-in-one style. The infrastructure should go to FDP shared areas like toolkits and frameworks, in a generic way (as much as possible to allow different kind of projects - some pragamtism allowed) and only the highest level logic should go to the demo app, making the demo app relatively thin layer on top of well engineered generic FDP infrastructure. The necessary generic new components should be defined in their respective toolkits. The demo app specific (if any at all) should be defined locally in the demo. Also the perception systems and weapon systems etc., even if mocked and simplistic, should be implemented as generic infrastructure toolkits (as much as possible - some pragmatism allowed). let's keep discussing on conceptual level (interfaces, relations, data structures, class skeletons with responsibilities well defined etc.), the concrete detailed implementation not needed now. Stil the strict compatibility with existing FDP sources is mandatory. Let's start with how to separate the stuff to the toolkits and/or frameworks. Remember - the emphasis is on nice well separated elegant architecture even at the cost of slighly higher complexity (NOT a compact ad-hoc demo), allowing for extensions in the future (i.e. assuming a large system in the future, supporting complex weapon systems, navmesh path planning, complex perception system, features like people entering vehicles, using much more complex AI combining the HSM with BTrees, scripted AI, group/ccoperative AI behaviors etc. etc.), but implementing just the necessary parts for the beginning (what is needed for the demo).
@@ -209,7 +209,7 @@ Here is the conceptual breakdown of how to structure these generic toolkits, the
 
 We will organize the infrastructure into four primary domains (Toolkits). Each toolkit provides its own `IModule` and registers its specific `ComponentSystem`s into the FDP `ModuleHostKernel`.
 
-1.  **`FDP.Toolkit.Behavior`**: The generic "Brain". Handles Doctrine assignment, FastBTree/FastHSM execution, and writing to Channels. It knows *nothing* about cars, pedestrians, or weapons.
+1.  **`FDP.Toolkit.Behavior`**: The generic "Brain". Handles Behavior assignment, FastBTree/FastHSM execution, and writing to Channels. It knows *nothing* about cars, pedestrians, or weapons.
 2.  **`FDP.Toolkit.Perception`**: The "Senses". A generic framework for spatial queries, line-of-sight (LOS) batching, and stimulus events (sight, sound).
 3.  **`FDP.Toolkit.Navigation`**: The "Planner". Translates high-level movement intents (Flee, MoveTo, FollowRoute) into the specific actuator states. (Sits directly on top of the existing `CarKinem` toolkit).
 4.  **`FDP.Toolkit.Combat`**: The "Weapons". Handles ballistics, aiming intent, damage calculation, and weapon states.
@@ -222,11 +222,11 @@ This toolkit defines how entities *think*. It introduces **Channels** as the uni
 
 #### Data Structures (Unmanaged Components)
 ```csharp
-// Identifies the active doctrine and handles preemption
-public struct DoctrineState
+// Identifies the active behavior and handles preemption
+public struct BehaviorState
 {
-    public long ActiveDoctrineId; // Hash/ID of the current doctrine
-    public uint InstanceId;       // Increments when doctrine changes (Preemption token)
+    public long ActiveBehaviorId; // Hash/ID of the current behavior
+    public uint InstanceId;       // Increments when behavior changes (Preemption token)
     public byte BrainTier;        // 0=Decorative, 1=Traffic (C# logic), 2=Tactical (BT/HSM)
 }
 
@@ -239,7 +239,7 @@ public enum LocomotionActionKind : byte { None, MoveToPoint, FollowRoute, Follow
 public struct LocomotionChannel
 {
     public LocomotionActionKind RequestedAction;
-    public uint DoctrineInstanceId; // Matches DoctrineState.InstanceId to prevent stale commands
+    public uint BehaviorInstanceId; // Matches BehaviorState.InstanceId to prevent stale commands
     public NodeStatus Status;       // Running, Success, Failure (Read by BT/HSM)
 }
 
@@ -248,7 +248,7 @@ public enum WeaponActionKind : byte { None, Aim, AimAndFire, Suppress }
 public struct WeaponChannel
 {
     public WeaponActionKind RequestedAction;
-    public uint DoctrineInstanceId;
+    public uint BehaviorInstanceId;
     public Entity Target;
     public NodeStatus Status;
 }
@@ -258,9 +258,9 @@ public struct WeaponChannel
 ```
 
 #### Systems
-*   **`DoctrineIngressSystem`**: Listens for networked `AssignDoctrineEvent`. Updates `DoctrineState` and increments `InstanceId`.
-*   **`ChannelArbitrationSystem`**: Runs before Executors. If a channel's `DoctrineInstanceId` doesn't match the entity's `DoctrineState.InstanceId`, it clears the channel (Free Preemption).
-*   **`FastBTreeAdapterSystem` / `FastHSMAdapterSystem`**: Reads `DoctrineState`. If it's a BT/HSM, it steps the VM. The custom BT Nodes (e.g., `Node_RequestMove`) simply write to `LocomotionChannel`.
+*   **`BehaviorIngressSystem`**: Listens for networked `AssignBehaviorEvent`. Updates `BehaviorState` and increments `InstanceId`.
+*   **`ChannelArbitrationSystem`**: Runs before Executors. If a channel's `BehaviorInstanceId` doesn't match the entity's `BehaviorState.InstanceId`, it clears the channel (Free Preemption).
+*   **`FastBTreeAdapterSystem` / `FastHSMAdapterSystem`**: Reads `BehaviorState`. If it's a BT/HSM, it steps the VM. The custom BT Nodes (e.g., `Node_RequestMove`) simply write to `LocomotionChannel`.
 
 ---
 
@@ -375,7 +375,7 @@ public struct DamageEvent
 When the Demo App registers these Toolkits, they naturally order themselves into the `SystemPhase` attributes provided by FDP:
 
 1. **`SystemPhase.Input`**:
-   * `DoctrineIngressSystem` (Network sets doctrines)
+   * `BehaviorIngressSystem` (Network sets behaviors)
 2. **`SystemPhase.Simulation`**:
    * *[Perception]* `AudioPerceptionSystem`, `VisionPerceptionSystem`
    * *[Behavior]* `ChannelArbitrationSystem`
@@ -502,7 +502,7 @@ If the "Brain" is a **FastBTree**, the BTree itself *is* the queue. A `Sequence`
     return NodeStatus.Running;
     ```
 
-*(Note: If you need external systems to force an action without changing the Doctrine, they can push to a `LocomotionQueue` component—a fixed-size unmanaged ring buffer. A `ChannelArbitrationSystem` would pop from this queue and write to the `LocomotionChannel`).*
+*(Note: If you need external systems to force an action without changing the Behavior, they can push to a `LocomotionQueue` component—a fixed-size unmanaged ring buffer. A `ChannelArbitrationSystem` would pop from this queue and write to the `LocomotionChannel`).*
 
 #### C. Execution (The Brawn's Job)
 The Executors are highly specialized systems that only care about the Channel. They don't know if a BTree, an HSM, or a script issued the command.
@@ -539,11 +539,11 @@ You create two systems:
 *   `PedestrianRouteExecutorSystem` queries: `[LocomotionChannel(FollowRoute), IsPedestrianTag]` -> Uses simple lerping/steering.
 *   `VehicleRouteExecutorSystem` queries: `[LocomotionChannel(FollowRoute), IsVehicleTag]` -> Uses pure-pursuit algorithms and road-graph constraints.
 
-The Brain (Doctrine) just says "Follow Route X". The ECS naturally routes this to the correct mathematical actuator based on the entity's physical tags.
+The Brain (Behavior) just says "Follow Route X". The ECS naturally routes this to the correct mathematical actuator based on the entity's physical tags.
 
 ### Summary of the Workflow
 
-1.  **Doctrine** (via FastBTree) decides: "I need to shoot."
+1.  **Behavior** (via FastBTree) decides: "I need to shoot."
 2.  **FastBTree** writes to `WeaponChannel(AimAndFire)` and `ActionData_Aim(Target=42)`.
 3.  **WeaponExecutorSystem** reads Channel. Checks `WeaponState` and `TargetMemory`. If ready, emits `FireRequestEvent`.
 4.  **BallisticsSystem** creates a bullet. Enqueues a `BatchRaycastRequest`.
@@ -562,7 +562,7 @@ I would also like to incorporate the HSM in the demo in order to have all the in
 
 I do not think  each action type requires its own executor system in terms of FDP systems. That seems to be an overkill as all the system needs registration, sorting, ticking every frame etc.? Maybe action could have an executor class (subsystem?) activated from a factory on demand, all action executors handled by single executor system?
 
-Pls explain how Fastbtree invokes actions and how FastHSM invokes actions (i.e. what their intergration with actions look like in more details). Also how the "doctrine with name and parameters" translates to a concrete BTree or a concrete HSM.
+Pls explain how Fastbtree invokes actions and how FastHSM invokes actions (i.e. what their intergration with actions look like in more details). Also how the "behavior with name and parameters" translates to a concrete BTree or a concrete HSM.
 
 --- model --------------------------------------------------
 You are absolutely right. Burning through the hard limit of 256 component types for individual action parameters (e.g., `MoveToParams`, `FleeParams`) and creating hundreds of `ComponentSystem` instances is an anti-pattern in high-performance ECS. It leads to fragmented memory, bloated system registries, and excessive scheduling overhead.
@@ -646,14 +646,14 @@ public class LocomotionDispatcherSystem : ComponentSystem
 
 ---
 
-### 3. How "Doctrines" Translate to BTs and HSMs
+### 3. How "Behaviors" Translate to BTs and HSMs
 
-When the network or mission planner says: *"Assign Doctrine 'AssaultArea' with JSON params { 'radius': 500 }"*, how does that become an executing behavior?
+When the network or mission planner says: *"Assign Behavior 'AssaultArea' with JSON params { 'radius': 500 }"*, how does that become an executing behavior?
 
-#### A. The Doctrine Registry (Startup)
-During application startup, you register Doctrine Definitions:
+#### A. The Behavior Registry (Startup)
+During application startup, you register Behavior Definitions:
 ```csharp
-DoctrineRegistry.Register("AssaultArea", new DoctrineDefinition
+BehaviorRegistry.Register("AssaultArea", new BehaviorDefinition
 {
     BrainType = BrainType.FastBTree,
     AssetId = "BT_AssaultArea", // The compiled BTree blob
@@ -661,12 +661,12 @@ DoctrineRegistry.Register("AssaultArea", new DoctrineDefinition
 });
 ```
 
-#### B. The Doctrine Ingress (Runtime)
-When the assignment event arrives, the `DoctrineInitializationSystem` executes:
+#### B. The Behavior Ingress (Runtime)
+When the assignment event arrives, the `BehaviorInitializationSystem` executes:
 1. Looks up `"AssaultArea"` in the registry.
 2. Parses the JSON into an unmanaged struct (e.g., `AssaultParams`).
-3. Writes the params into a `DoctrineBlackboard` component.
-4. Initializes the `DoctrineState` component (`BrainType = FastBTree`, increments `InstanceId`).
+3. Writes the params into a `BehaviorBlackboard` component.
+4. Initializes the `BehaviorState` component (`BrainType = FastBTree`, increments `InstanceId`).
 5. **Initializes the Brain:** If it's a BTree, it zeroes out the `BrainBTreeState` component. If it's an HSM, it calls `HsmInstanceManager.Initialize` on the `BrainHsmState` component.
 
 ---
@@ -679,7 +679,7 @@ The "Brain" (BT or HSM) is responsible for decision-making. It does **not** move
 In `FastBTree`, you define an Action Node.
 ```csharp
 // This is called by the BTree Interpreter
-public static NodeStatus Node_MoveTo(ref DoctrineBlackboard bb, ref BehaviorTreeState state, ref BTreeContext ctx, int paramIndex)
+public static NodeStatus Node_MoveTo(ref BehaviorBlackboard bb, ref BehaviorTreeState state, ref BTreeContext ctx, int paramIndex)
 {
     Entity entity = ctx.Self;
     ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(entity);
@@ -697,7 +697,7 @@ public static NodeStatus Node_MoveTo(ref DoctrineBlackboard bb, ref BehaviorTree
         unsafe {
             fixed (byte* p = channel.Params) {
                 var args = (ActionData_MoveTo*)p;
-                args->Target = bb.AssaultTarget; // Read from Doctrine blackboard
+                args->Target = bb.AssaultTarget; // Read from Behavior blackboard
                 args->Radius = 5.0f;
             }
         }
@@ -747,7 +747,7 @@ public static unsafe void OnEnterFlee(void* instance, void* context, HsmCommandW
 To showcase this elegantly, we split the logic into our Toolkits and assemble the Demo App on top.
 
 #### Toolkit Layers
-1. **`FDP.Toolkit.Behavior`**: Contains `LocomotionChannel`, `WeaponChannel`, `DoctrineState`, the `LocomotionDispatcherSystem`, and the `FastBTree` / `FastHSM` adapter systems.
+1. **`FDP.Toolkit.Behavior`**: Contains `LocomotionChannel`, `WeaponChannel`, `BehaviorState`, the `LocomotionDispatcherSystem`, and the `FastBTree` / `FastHSM` adapter systems.
 2. **`FDP.Toolkit.CarKinem`**: Contains `VehicleState`, `NavState`, and the pure physics/math systems (`CarKinematicsSystem`, `SpatialHashSystem`).
 3. **`FDP.Toolkit.Combat`** (Mocked): Contains `WeaponState`, `BallisticsSystem` (creates raycast bullets, destroys them, lowers target health).
 4. **`FDP.Toolkit.Perception`** (Mocked): Contains `TargetMemory`, `AudioStimulusEvent`.
@@ -761,12 +761,12 @@ The Demo App simply wires these toolkits together and defines the content.
 
 **2. The Infantry (The Soldiers)**
 *   **Brain:** `BrainType.FastBTree`.
-*   **Doctrine:** "PatrolAndDefend".
+*   **Behavior:** "PatrolAndDefend".
 *   **Flow:** The BTree tells the `LocomotionChannel` to `MoveTo`. If the `PerceptionSystem` hears a gunshot, the BTree aborts `MoveTo`, writes `TakeCover` to the `LocomotionChannel`, and writes `AimAndFire` to the `WeaponChannel`.
 
 **3. The APC (The Showcase for FastHSM)**
 *   **Brain:** `BrainType.FastHSM`.
-*   **Doctrine:** "ConvoyEscort".
+*   **Behavior:** "ConvoyEscort".
 *   **Flow:** The HSM manages complex states: `[Cruising] -> [UnderFire] -> [Disabled]`. 
     *   In `[Cruising]`, it sends `FollowRoute` to Locomotion.
     *   If Health drops below 50%, the HSM transitions to `[Disabled]`. The `OnEnter_Disabled` HSM Action sets `LocomotionChannel.ActiveAction = None` and triggers a smoke particle event.
@@ -779,7 +779,7 @@ The Demo App simply wires these toolkits together and defines the content.
 4. **Demo Readiness:** The demo cleanly showcases hundreds of cars driven by a cheap hardcoded brain, and complex military units driven by BT/HSMs, all utilizing the exact same underlying Locomotion and Combat pipelines.
 
 --- user ---------------------------------------------------
-pls detail the doctrine blackboard component. how does it relate to the blackboards in the btree? or to the HSM?
+pls detail the behavior blackboard component. how does it relate to the blackboards in the btree? or to the HSM?
 How the btree and the HSM get initialized? where (what component) do they live to be saveable? 
 Pls sketch also the physics system/module that performs the raycasts. What toolkit is it part of? I guess a new one.
 How the disabled APC prevents a new movement action to be issued? Or making it failed immediately? Or maybe changing the capabilities by removing the locomotion ability (flagging mobility kill)? Similarly if a wepon gets damaged or ammo depleted, the capability should indicate 'firepower kill' so the AI no more assigns targets for disabled weapons.
@@ -792,7 +792,7 @@ Here is the detailed architectural breakdown for each of your points.
 
 ---
 
-### 1. The Doctrine Blackboard & Brain Initialization
+### 1. The Behavior Blackboard & Brain Initialization
 
 In traditional OOP, a "Blackboard" is a string-to-object dictionary. In FDP, that violates zero-allocation and snapshot constraints. Instead, the Blackboard is just an unmanaged struct (a fixed byte buffer) mapped to the entity.
 
@@ -807,7 +807,7 @@ public unsafe struct BrainBlackboard
     public fixed byte Memory[128]; 
 }
 
-// BT/HSM Nodes cast this memory into specific structs based on the active doctrine
+// BT/HSM Nodes cast this memory into specific structs based on the active behavior
 public struct PatrolBlackboard 
 {
     public Vector2 AnchorPoint;
@@ -825,15 +825,15 @@ public struct BrainBTreeState { public BehaviorTreeState State; }
 public struct BrainHsmState   { public HsmInstance128 State; }
 ```
 
-#### C. Initialization (The Doctrine Assignment Workflow)
-When the `DoctrineIngressSystem` receives the command to assign a new doctrine (e.g., "DefendBase"), it does the following using an `EntityCommandBuffer`:
+#### C. Initialization (The Behavior Assignment Workflow)
+When the `BehaviorIngressSystem` receives the command to assign a new behavior (e.g., "DefendBase"), it does the following using an `EntityCommandBuffer`:
 
-1. Looks up "DefendBase" in the `DoctrineRegistry`. 
+1. Looks up "DefendBase" in the `BehaviorRegistry`. 
 2. The registry says: *Requires FastBTree, BlobAsset ID: "BT_Defend", Blackboard: DefendBlackboard*.
 3. **Initialization:**
    * It zeros out the `BrainBlackboard` component and copies the initial parameters (from the assignment JSON/Command) into it.
    * It resets `BrainBTreeState.State` (sets `RunningNodeIndex = 0`, clears stacks).
-   * It updates `DoctrineState.ActiveDoctrineId` and increments `DoctrineState.InstanceId`.
+   * It updates `BehaviorState.ActiveBehaviorId` and increments `BehaviorState.InstanceId`.
 
 When saving a snapshot, FDP just copies the raw bytes of `BrainBTreeState` and `BrainBlackboard`. When loading, it's restored instantly. The BTree resumes exactly on the node it was evaluating!
 
@@ -945,7 +945,7 @@ public struct RaycastHit
 
 This is the ultimate showcase of the architecture. An APC Convoy is moving (Strategic HSM). It gets ambushed. It switches to a tactical combat mode (BTree).
 
-#### The Doctrine Setup
+#### The Behavior Setup
 *   **BrainType:** `Hybrid` (Both HSM and BTree active).
 *   **HSM Blob:** "ConvoyStrategic_HSM"
 *   **BTree Blob:** "APC_Tactical_BT"
@@ -995,7 +995,7 @@ You are absolutely spot-on. Your architectural instincts here are pointing direc
 Let's address your two brilliant observations first, and then map out the entire ecosystem with block and sequence diagrams.
 
 ### 1. The "Implementation Detail" (HSM ticking a BTree)
-You are completely correct. The overarching `DoctrineState` should **not** care if the brain is a "Hybrid". The Doctrine simply assigns an HSM to the actor. 
+You are completely correct. The overarching `BehaviorState` should **not** care if the brain is a "Hybrid". The Behavior simply assigns an HSM to the actor. 
 
 If State A of that HSM requires a complex tactical BTree, that is purely an **implementation detail of that specific HSM State**.
 
@@ -1021,7 +1021,7 @@ public static unsafe void Activity_CombatTactics(void* instance, void* context, 
     FastBTree.Interpreter.Tick(ref blackboard, ref btState, ctx, btBlob);
 }
 ```
-**Conclusion:** The Doctrine is just "ConvoyEscort" (an HSM). The HSM seamlessly transitions between executing C# logic in `[Cruising]` and evaluating a full FastBTree in `[Combat]`.
+**Conclusion:** The Behavior is just "ConvoyEscort" (an HSM). The HSM seamlessly transitions between executing C# logic in `[Cruising]` and evaluating a full FastBTree in `[Combat]`.
 
 ### 2. Tailoring HSM/BTree Sizes to Entity Types
 Again, you are perfectly aligned with the FDP data-oriented philosophy. `FastHSM` provides `HsmInstance64`, `HsmInstance128`, and `HsmInstance256`. We should **never** force a pedestrian to carry 128 bytes if 64 will do.
@@ -1070,7 +1070,7 @@ This diagram shows how the generic Toolkits (`Behavior`, `Combat`, `Navigation`)
 ```mermaid
 graph TD
     subgraph FDP.Toolkit.Behavior
-        DS[DoctrineState]
+        DS[BehaviorState]
         BB[BrainBlackboard]
         H64[BrainHsm64 / 128]
         BT[BrainBTreeState]
@@ -1133,7 +1133,7 @@ graph TD
     CKS -- updates --> VS
 ```
 
-#### B. Sequence Diagram: Initialization (Spawning & Doctrine Assignment)
+#### B. Sequence Diagram: Initialization (Spawning & Behavior Assignment)
 How an entity is born from a Network Command to a fully functioning AI.
 
 ```mermaid
@@ -1145,7 +1145,7 @@ sequenceDiagram
     participant ECS as EntityRepository
     participant ELM as EntityLifecycleModule
 
-    Net->>Bus: Publish SpawnEntityCommand (TkbType: "APC", Doctrine: "Convoy")
+    Net->>Bus: Publish SpawnEntityCommand (TkbType: "APC", Behavior: "Convoy")
     Bus->>SpawnSys: Consume SpawnEntityCommand
     
     SpawnSys->>ECS: CreateEntity() (Returns ID: 42)
@@ -1154,8 +1154,8 @@ sequenceDiagram
     TKB-->>SpawnSys: Returns Template (BrainHsm128, NavState, VehicleState)
     SpawnSys->>ECS: ApplyTemplate(42)
     
-    Note over SpawnSys, ECS: The command includes the initial Doctrine params
-    SpawnSys->>ECS: SetComponent(DoctrineState { ActiveDoctrine = "Convoy" })
+    Note over SpawnSys, ECS: The command includes the initial Behavior params
+    SpawnSys->>ECS: SetComponent(BehaviorState { ActiveBehavior = "Convoy" })
     
     SpawnSys->>ELM: BeginConstruction(42)
     
@@ -1163,7 +1163,7 @@ sequenceDiagram
     
     ELM->>ECS: Add IsActiveTag (Entity is now alive!)
     
-    Note over ECS: Next Frame: DoctrineInitializationSystem sees new DoctrineState
+    Note over ECS: Next Frame: BehaviorInitializationSystem sees new BehaviorState
     ECS->>ECS: Initialize BrainHsm128 with "Convoy" Blob Asset
 ```
 
@@ -1198,7 +1198,7 @@ sequenceDiagram
     BT->>ECS: Write WeaponChannel (AimAndFire, Target: 99, InstanceId++)
     BT->>ECS: Write LocomotionChannel (Flee, InstanceId++)
     
-    Arb->>ECS: Validates Channels (Instance IDs match Doctrine)
+    Arb->>ECS: Validates Channels (Instance IDs match Behavior)
     
     WepEx->>ECS: Read WeaponChannel. Check WeaponState (Cooldown OK)
     WepEx-->>Bus: Publish FireRequestEvent!
@@ -1374,7 +1374,7 @@ Let's look at the whole system from multiple perspectives to find what we missed
 ### Summary: Are we ready for the Demo?
 
 We have successfully covered:
-1.  **High-Level Strategy:** Network assigns a Doctrine (string + JSON).
+1.  **High-Level Strategy:** Network assigns a Behavior (string + JSON).
 2.  **Initialization:** Ingress parses JSON to unmanaged `BrainBlackboard` and initializes `BrainHsm128` or `BrainBTreeState`.
 3.  **Decision Making:** The VM (FastBTree/FastHSM) ticks, reads the Blackboard & Perception, and writes `ActionKind.Flee` to the `LocomotionChannel`.
 4.  **Arbitration:** `LocomotionDispatcher` checks `ActorCapabilities.CanMove`. It detects a new action, calls `OnExit` on the old executor, and `OnEnter` on the new one.
@@ -1412,7 +1412,7 @@ Here is the design for the ultimate FDP Behavior Demo. It exercises every concep
    * FDP's existing `CarKinematicsSystem` runs RVO to ensure cars don't hit pedestrians.
 2. **Phase 2: The Convoy Arrives (HSM in Action)**
    * Node A spawns an APC (`MilitaryAPC`) with 4 `InfantrySoldier` entities inside (`IsEmbarkedTag`).
-   * The APC's Doctrine is "ConvoyEscort". Its `BrainHsm128` is in the `[Cruising]` state. It navigates through the city.
+   * The APC's Behavior is "ConvoyEscort". Its `BrainHsm128` is in the `[Cruising]` state. It navigates through the city.
 3. **Phase 3: The Ambush (Perception & Combat)**
    * An `Insurgent` (spawned by Node A in an alley) has an "Ambush" BTree.
    * The Insurgent's `PerceptionModule` (running asynchronously via SoD) spots the APC. It updates the Insurgent's `TargetMemory`.
@@ -1443,7 +1443,7 @@ To keep the architecture "clean" and prevent a messy ad-hoc demo, we divide the 
 
 **Components:**
 *   `SimTier` (byte): Defines update frequency/LOD.
-*   `DoctrineState`: Active doctrine ID and preemption tokens.
+*   `BehaviorState`: Active behavior ID and preemption tokens.
 *   `BrainBlackboard`: 128-byte raw buffer for AI memory.
 *   `BrainHsm64`, `BrainHsm128`: FastHSM state storage.
 *   `BrainBTreeState`: FastBTree state storage.
@@ -1451,8 +1451,8 @@ To keep the architecture "clean" and prevent a messy ad-hoc demo, we divide the 
 *   `LocomotionChannel`, `WeaponChannel`, `InteractionChannel`: The universal actuator APIs (containing 32-byte `Params` and `State` buffers).
 
 **Systems:**
-*   `DoctrineIngressSystem`: Converts network requests into ECS Doctrine initialization.
-*   `ChannelArbitrationSystem`: Handles preemption (clears channels if Doctrine ID changes).
+*   `BehaviorIngressSystem`: Converts network requests into ECS Behavior initialization.
+*   `ChannelArbitrationSystem`: Handles preemption (clears channels if Behavior ID changes).
 *   `HsmTickSystem<T>` & `BTreeTickSystem`: Steps the virtual machines.
 *   `LocomotionDispatcherSystem`, `WeaponDispatcherSystem`, `InteractionDispatcherSystem`: Routes active channels to stateless executor classes.
 
@@ -1583,11 +1583,11 @@ namespace FDP.Toolkit.Behavior
         public ActorCapabilities Current;
     }
 
-    // Tracks the current overarching instruction (Doctrine) assigned to the actor
-    public struct DoctrineState
+    // Tracks the current overarching instruction (Behavior) assigned to the actor
+    public struct BehaviorState
     {
-        public int ActiveDoctrineId;  // Hashed ID of the doctrine (e.g., Hash("ConvoyEscort"))
-        public uint InstanceId;       // Increments every time a new Doctrine is assigned
+        public int ActiveBehaviorId;  // Hashed ID of the behavior (e.g., Hash("ConvoyEscort"))
+        public uint InstanceId;       // Increments every time a new Behavior is assigned
         public byte BrainTier;        // 0 = Disabled, 1 = Hardcoded/Traffic, 2 = VM (BT/HSM)
     }
 
@@ -1612,7 +1612,7 @@ namespace FDP.Toolkit.Behavior
     public unsafe struct LocomotionChannel
     {
         public ushort ActiveAction;        // Enum cast to ushort (e.g., MoveTo, Flee)
-        public uint DoctrineInstanceId;    // Must match DoctrineState.InstanceId
+        public uint BehaviorInstanceId;    // Must match BehaviorState.InstanceId
         
         public uint ActionInstanceId;      // Set by the Brain when requesting an action
         public uint DispatchedInstanceId;  // Tracked by the Dispatcher to detect changes
@@ -1628,7 +1628,7 @@ namespace FDP.Toolkit.Behavior
     public unsafe struct WeaponChannel
     {
         public ushort ActiveAction;
-        public uint DoctrineInstanceId;
+        public uint BehaviorInstanceId;
         public uint ActionInstanceId;
         public uint DispatchedInstanceId;
         public NodeStatus Status;
@@ -1664,7 +1664,7 @@ namespace FDP.Toolkit.Behavior
 These systems are executed in `SystemPhase.Simulation` sequentially.
 
 #### System A: Channel Arbitration (Preemption)
-This system ensures that if a new Doctrine is assigned, old actions are immediately aborted.
+This system ensures that if a new Behavior is assigned, old actions are immediately aborted.
 
 ```csharp
 [UpdateInPhase(SystemPhase.Simulation)]
@@ -1673,18 +1673,18 @@ public class ChannelArbitrationSystem : ComponentSystem
     protected override void OnUpdate()
     {
         var query = World.Query()
-            .With<DoctrineState>()
+            .With<BehaviorState>()
             .With<LocomotionChannel>()
             // .With<WeaponChannel>() ... normally we'd do this per channel type
             .Build();
 
         foreach (var entity in query)
         {
-            ref readonly var doctrine = ref World.GetComponentRO<DoctrineState>(entity);
+            ref readonly var behavior = ref World.GetComponentRO<BehaviorState>(entity);
             ref var loco = ref World.GetComponentRW<LocomotionChannel>(entity);
 
-            // PREEMPTION: If the channel's doctrine token is stale, kill it.
-            if (loco.DoctrineInstanceId != doctrine.InstanceId && loco.ActiveAction != 0)
+            // PREEMPTION: If the channel's behavior token is stale, kill it.
+            if (loco.BehaviorInstanceId != behavior.InstanceId && loco.ActiveAction != 0)
             {
                 // Force it to an Idle/None state. 
                 // The Dispatcher will notice the ID change and call OnExit.
@@ -1708,18 +1708,18 @@ public class BTreeTickSystem : ComponentSystem
     protected override void OnUpdate()
     {
         // Only tick entities that actually use BTrees
-        var query = World.Query().With<DoctrineState>().With<BrainBTreeState>().Build();
+        var query = World.Query().With<BehaviorState>().With<BrainBTreeState>().Build();
 
         foreach (var entity in query)
         {
-            ref readonly var doctrine = ref World.GetComponentRO<DoctrineState>(entity);
-            if (doctrine.BrainTier != 2) continue; // Not active
+            ref readonly var behavior = ref World.GetComponentRO<BehaviorState>(entity);
+            if (behavior.BrainTier != 2) continue; // Not active
 
             ref var btState = ref World.GetComponentRW<BrainBTreeState>(entity);
             ref var blackboard = ref World.GetComponentRW<BrainBlackboard>(entity);
 
             // Look up the immutable behavior tree definition
-            var btBlob = BTreeRegistry.GetTree(doctrine.ActiveDoctrineId);
+            var btBlob = BTreeRegistry.GetTree(behavior.ActiveBehaviorId);
             
             // The tick executes nodes. Custom nodes will write to LocomotionChannel/WeaponChannel.
             FastBTree.Interpreter.Tick(ref blackboard, ref btState.State, World, entity, btBlob);
@@ -2725,7 +2725,7 @@ Let's look at how beautifully interconnected and decoupled this entire engine is
 ### The Result:
 * **Zero Garbage Collection** on the hot path. Everything is `struct`, `ref`, and `fixed` buffers.
 * **Massively Parallel:** The heavy vision math and threat sorting happen entirely on a background CPU core.
-* **Save/Load Ready:** If you hit "Save", FDP serializes `DoctrineState`, `LocomotionChannel`, `TargetMemory`, and `Position`. If you load the save file, the civilian resumes fleeing perfectly because the BTree's `ActionInstanceId` matches the Channel's `ActionInstanceId`.
+* **Save/Load Ready:** If you hit "Save", FDP serializes `BehaviorState`, `LocomotionChannel`, `TargetMemory`, and `Position`. If you load the save file, the civilian resumes fleeing perfectly because the BTree's `ActionInstanceId` matches the Channel's `ActionInstanceId`.
 * **Highly Extensible:** If you want to add a "Sniper", you don't rewrite code. You just add a `TkbTemplate` that has a `PerceptionReceptor` with a massive `VisionRange` and a narrower `FieldOfViewCos`. 
 
 You now have a fully architected, military-grade distributed simulation engine design that strictly obeys Data-Oriented paradigms.
@@ -3023,7 +3023,7 @@ Here is the roadmap of what we need to build, one by one:
 1. **The Application Shell & Pipeline Wiring:** Setting up the `EntityRepository`, `ModuleHostKernel`, Standalone Time Controller, and registering all our new Toolkits (`Behavior`, `Perception`, `Navigation`, `Combat`, `Physics`) in the correct execution order.
 2. **The Telemetry & Debug Reporter:** A dedicated system whose *only* job is to consume events (`HitEvent`, `AudioStimulusEvent`, `DeathEvent`) and print them to the console in a structured format so the AI agent can read the timeline of the battle.
 3. **The Data Setup (TKB & Environment):** Programmatically creating a simple `RoadNetworkBlob` (a crossroad) and defining the `TkbTemplate` blueprints (`CivilianCar`, `Pedestrian`, `APC`, `Insurgent`).
-4. **The Brain Authoring (FastBTree & FastHSM):** Writing the actual tree/machine definitions (using FastBTree's JSON or builder, and FastHSM's fluent builder) for the Doctrines: "TrafficCruise", "Wander", "ConvoyEscort", "Ambush", and "Panic".
+4. **The Brain Authoring (FastBTree & FastHSM):** Writing the actual tree/machine definitions (using FastBTree's JSON or builder, and FastHSM's fluent builder) for the Behaviors: "TrafficCruise", "Wander", "ConvoyEscort", "Ambush", and "Panic".
 5. **The Scenario Director:** A simple startup script that spawns the cars, the pedestrians, the APC, and the hidden insurgent, and kicks off the simulation loop.
 
 Let's tackle **Piece 1 & Piece 2** right now to establish the skeleton of the application.
@@ -3086,7 +3086,7 @@ namespace FDP.Demo.UrbanCombat
         private void RegisterComponents()
         {
             // Registering components ensures FDP allocates memory tables for them
-            World.RegisterComponent<FDP.Toolkit.Behavior.DoctrineState>();
+            World.RegisterComponent<FDP.Toolkit.Behavior.BehaviorState>();
             World.RegisterComponent<FDP.Toolkit.Behavior.LocomotionChannel>();
             World.RegisterComponent<FDP.Toolkit.Behavior.WeaponChannel>();
             World.RegisterComponent<FDP.Toolkit.Behavior.ActorCapabilityState>();
@@ -3175,7 +3175,7 @@ namespace FDP.Demo.UrbanCombat
                 }
             }
 
-            // 4. Report Doctrine/Action changes
+            // 4. Report Behavior/Action changes
             var channelQuery = view.Query().With<LocomotionChannel>().Build();
             foreach (var entity in channelQuery)
             {
@@ -3262,7 +3262,7 @@ namespace FDP.Demo.UrbanCombat
             
             // 1. Brain & Capabilities (Tier 1 = Traffic/Simple AI)
             t.AddComponent(new SimTier { Level = 1 });
-            t.AddComponent(new DoctrineState { BrainTier = 1 }); 
+            t.AddComponent(new BehaviorState { BrainTier = 1 }); 
             t.AddComponent(new ActorCapabilityState { Current = ActorCapabilities.CanMove });
             
             // 2. Channels
@@ -3286,7 +3286,7 @@ namespace FDP.Demo.UrbanCombat
             var t = new TkbTemplate("CivilianCar", 1002);
             
             t.AddComponent(new SimTier { Level = 1 });
-            t.AddComponent(new DoctrineState { BrainTier = 1 });
+            t.AddComponent(new BehaviorState { BrainTier = 1 });
             t.AddComponent(new ActorCapabilityState { Current = ActorCapabilities.CanMove });
             
             t.AddComponent(new LocomotionChannel());
@@ -3307,7 +3307,7 @@ namespace FDP.Demo.UrbanCombat
             
             // 1. Brain (Tier 2 = HSM)
             t.AddComponent(new SimTier { Level = 2 });
-            t.AddComponent(new DoctrineState { BrainTier = 2 });
+            t.AddComponent(new BehaviorState { BrainTier = 2 });
             t.AddComponent(new BrainHsm128()); // 128 bytes for HSM state
             t.AddComponent(new BrainBlackboard()); // 128 bytes for variables
             t.AddComponent(new ActorCapabilityState { Current = ActorCapabilities.CanMove | ActorCapabilities.CanInteract });
@@ -3337,7 +3337,7 @@ namespace FDP.Demo.UrbanCombat
             
             // 1. Brain (Tier 2 = FastBTree)
             t.AddComponent(new SimTier { Level = 2 });
-            t.AddComponent(new DoctrineState { BrainTier = 2 });
+            t.AddComponent(new BehaviorState { BrainTier = 2 });
             t.AddComponent(new BrainBTreeState()); 
             t.AddComponent(new BrainBlackboard());
             t.AddComponent(new ActorCapabilityState { Current = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
@@ -3467,9 +3467,9 @@ namespace FDP.Demo.UrbanCombat
             ref var insFaction = ref _world.GetComponentRW<Faction>(insurgent);
             insFaction.TeamId = 2; // Enemy Red Team
 
-            ref var insDoc = ref _world.GetComponentRW<DoctrineState>(insurgent);
+            ref var insDoc = ref _world.GetComponentRW<BehaviorState>(insurgent);
             // We'll define "Ambush_BT" in the next step
-            insDoc.ActiveDoctrineId = "Ambush_BT".GetHashCode(); 
+            insDoc.ActiveBehaviorId = "Ambush_BT".GetHashCode(); 
             insDoc.InstanceId = 1;
 
             // 3. Spawn the APC Convoy (Driving into the trap)
@@ -3480,8 +3480,8 @@ namespace FDP.Demo.UrbanCombat
             apcState.Position = new System.Numerics.Vector2(0, -90); // Approaching from the South
             apcState.Forward = new System.Numerics.Vector2(0, 1);    // Facing North
             
-            ref var apcDoc = ref _world.GetComponentRW<DoctrineState>(apc);
-            apcDoc.ActiveDoctrineId = "ConvoyEscort_HSM".GetHashCode();
+            ref var apcDoc = ref _world.GetComponentRW<BehaviorState>(apc);
+            apcDoc.ActiveBehaviorId = "ConvoyEscort_HSM".GetHashCode();
             apcDoc.InstanceId = 1;
 
             // Optional: Give APC an initial destination via its blackboard
@@ -3865,14 +3865,14 @@ Let's do the **Architectural Review** first to identify the gaps, and then write
 
 Looking back at your original prompt, there are **three distinct gaps** we haven't fully closed in our concrete implementation:
 
-#### Gap 1: The "Mission Plan Executor" (Queued Doctrines)
-*   **Your Requirement:** *"A custom mission plan executor where each plan item contains an instruction what high-level behavior (doctrine) to set... and under what condition."*
-*   **What we built:** We built `DoctrineState`, which holds exactly *one* active doctrine.
+#### Gap 1: The "Mission Plan Executor" (Queued Behaviors)
+*   **Your Requirement:** *"A custom mission plan executor where each plan item contains an instruction what high-level behavior (behavior) to set... and under what condition."*
+*   **What we built:** We built `BehaviorState`, which holds exactly *one* active behavior.
 *   **The Fix:** We need a `MissionPlanQueue` component. It acts as the macro-brain above the BT/HSM.
     ```csharp
     public struct MissionPlanItem 
     { 
-        public int DoctrineId; 
+        public int BehaviorId; 
         public int TriggerConditionId; // e.g., "Wait 10s", "Reach Point X"
     }
 
@@ -3884,7 +3884,7 @@ Looking back at your original prompt, there are **three distinct gaps** we haven
         public fixed byte Items[16 * sizeof(MissionPlanItem)]; // Up to 16 queued phases
     }
     ```
-    A lightweight `MissionDirectorSystem` would evaluate the `TriggerConditionId` of the current item. When met, it pops the queue, updates `DoctrineState.ActiveDoctrineId`, and increments `InstanceId` (triggering the preemption pipeline we already built!).
+    A lightweight `MissionDirectorSystem` would evaluate the `TriggerConditionId` of the current item. When met, it pops the queue, updates `BehaviorState.ActiveBehaviorId`, and increments `InstanceId` (triggering the preemption pipeline we already built!).
 
 #### Gap 2: The Animation/Kinematics Coupling
 *   **Your Requirement:** *"How to combine these motion/weapon control with avatar animations as the available character skeleton animation often affects the resulting movement."*
@@ -3986,10 +3986,10 @@ namespace FDP.Demo.UrbanCombat
                 interactDispatcher.RegisterExecutor(InteractionActions.EjectPassengers, new EjectPassengersExecutor());
             }
 
-            // Register Doctrines (Mapping string names to compiled behavior graphs)
-            DoctrineRegistry.Register("Ambush_BT", BrainType.FastBTree, "Assets/Ambush.json");
-            DoctrineRegistry.Register("ConvoyEscort_HSM", BrainType.FastHSM, "Assets/Convoy.hsm");
-            DoctrineRegistry.Register("TrafficCruise", BrainType.Hardcoded, null);
+            // Register Behaviors (Mapping string names to compiled behavior graphs)
+            BehaviorRegistry.Register("Ambush_BT", BrainType.FastBTree, "Assets/Ambush.json");
+            BehaviorRegistry.Register("ConvoyEscort_HSM", BrainType.FastHSM, "Assets/Convoy.hsm");
+            BehaviorRegistry.Register("TrafficCruise", BrainType.Hardcoded, null);
         }
     }
 }
@@ -4006,9 +4006,9 @@ When the AI runs `dotnet run`, thanks to our `TelemetryReporterSystem` (Piece 2)
 Scenario initialized: Pedestrian, Insurgent, and APC spawned.
 Executing Simulation Loop...
 --------------------------------------------------
-[FRAME 0001] 🚦 DOCTRINE ASSIGNED: Entity 3 (APC) began ConvoyEscort_HSM. State: [Cruising].
-[FRAME 0001] 🚶 DOCTRINE ASSIGNED: Entity 1 (Pedestrian) began Wander.
-[FRAME 0001] 🥷 DOCTRINE ASSIGNED: Entity 2 (Insurgent) began Ambush_BT.
+[FRAME 0001] 🚦 BEHAVIOR ASSIGNED: Entity 3 (APC) began ConvoyEscort_HSM. State: [Cruising].
+[FRAME 0001] 🚶 BEHAVIOR ASSIGNED: Entity 1 (Pedestrian) began Wander.
+[FRAME 0001] 🥷 BEHAVIOR ASSIGNED: Entity 2 (Insurgent) began Ambush_BT.
 [FRAME 0180] 👀 PERCEPTION: Entity 2 (Insurgent) spotted Entity 3 (APC) at Vector2(0, -10).
 [FRAME 0181] 🎯 ACTION: Entity 2 (Insurgent) executing AimAndFire at Entity 3.
 [FRAME 0181] 🔫 GUNFIRE: Entity 2 fired at Vector2(0, -1).
@@ -4030,7 +4030,7 @@ You have successfully engineered a **Military-Grade Distributed Simulation Archi
 
 1.  **It is infinitely scalable:** We can add helicopters, snipers, and naval ships by simply creating new unmanaged parameters, registering a stateless `IActionExecutor`, and authoring a JSON Behavior Tree.
 2.  **It is heavily optimized:** By strictly dividing the logic into *Brain (Intent)* $\rightarrow$ *Channel (Memory)* $\rightarrow$ *Dispatcher (Routing)* $\rightarrow$ *Executor (Math)*, we keep everything inside tightly packed 64KB arrays, maximizing CPU cache lines and avoiding the .NET Garbage Collector completely.
-3.  **It is network-native:** FDP's CycloneDDS layer can trivially slice this simulation up. Node A can own the `VehicleState` components (Physics), Node B can own the `TargetMemory` components (Sensor simulation), and Node C can own the `DoctrineState` and `LocomotionChannel` components (AI). They will interoperate perfectly without knowing they are on different machines.
+3.  **It is network-native:** FDP's CycloneDDS layer can trivially slice this simulation up. Node A can own the `VehicleState` components (Physics), Node B can own the `TargetMemory` components (Sensor simulation), and Node C can own the `BehaviorState` and `LocomotionChannel` components (AI). They will interoperate perfectly without knowing they are on different machines.
 
 This design document, combined with these structural code blocks, provides a flawless roadmap for your AI Coding Agent to flesh out the granular math inside the executors.
 
@@ -4044,11 +4044,11 @@ We will design the unmanaged memory layouts, the system logic, and the execution
 
 ---
 
-### Gap 1: The "Mission Plan Executor" (Queued Doctrines)
+### Gap 1: The "Mission Plan Executor" (Queued Behaviors)
 
-Right now, an entity has one `DoctrineState`. But a real military simulation tasks units with a sequence of orders: *"Move to Checkpoint Alpha. If taking fire, hold and defend. Otherwise, proceed to Bravo."* 
+Right now, an entity has one `BehaviorState`. But a real military simulation tasks units with a sequence of orders: *"Move to Checkpoint Alpha. If taking fire, hold and defend. Otherwise, proceed to Bravo."* 
 
-We need a **Macro-Brain** that sits above the BT/HSM and orchestrates the Doctrines.
+We need a **Macro-Brain** that sits above the BT/HSM and orchestrates the Behaviors.
 
 #### 1. The Data Structure (Unmanaged Queue)
 We create a fixed-size queue component to hold the mission phases. If a mission needs more than (e.g.) 8 phases, the parameters simply point to a `BlobAsset` handle containing the full route.
@@ -4071,7 +4071,7 @@ namespace FDP.Toolkit.Behavior
     [StructLayout(LayoutKind.Sequential)]
     public struct MissionPhase
     {
-        public int DoctrineId;          // The Doctrine to execute (e.g., Hash("ConvoyEscort"))
+        public int BehaviorId;          // The Behavior to execute (e.g., Hash("ConvoyEscort"))
         public MissionTrigger Trigger;  // What ends this phase?
         public float TriggerParam;      // E.g., Timer duration, or Distance threshold
     }
@@ -4090,7 +4090,7 @@ namespace FDP.Toolkit.Behavior
 ```
 
 #### 2. The Mission Director System
-This system evaluates the current phase's trigger. If the trigger fires, it advances the queue and overwrites the `DoctrineState` component, which kicks off our already-built preemption pipeline!
+This system evaluates the current phase's trigger. If the trigger fires, it advances the queue and overwrites the `BehaviorState` component, which kicks off our already-built preemption pipeline!
 
 ```csharp
 [UpdateInPhase(SystemPhase.Simulation)]
@@ -4102,7 +4102,7 @@ public unsafe class MissionDirectorSystem : ComponentSystem
         float dt = DeltaTime;
         var query = World.Query()
             .With<MissionPlanQueue>()
-            .With<DoctrineState>()
+            .With<BehaviorState>()
             // Assume we have access to Health, NavState, etc. to evaluate triggers
             .Build();
 
@@ -4152,12 +4152,12 @@ public unsafe class MissionDirectorSystem : ComponentSystem
                         ref mission.Phases[mission.CurrentPhaseIndex * sizeof(MissionPhase)]
                     );
 
-                    // THIS IS THE MAGIC: We just overwrite the DoctrineState.
+                    // THIS IS THE MAGIC: We just overwrite the BehaviorState.
                     // The ChannelArbitrationSystem will notice the InstanceId change, 
-                    // abort old actions, and initialize the new Doctrine!
-                    ref var doctrine = ref World.GetComponentRW<DoctrineState>(entity);
-                    doctrine.ActiveDoctrineId = nextPhase.DoctrineId;
-                    doctrine.InstanceId++; 
+                    // abort old actions, and initialize the new Behavior!
+                    ref var behavior = ref World.GetComponentRW<BehaviorState>(entity);
+                    behavior.ActiveBehaviorId = nextPhase.BehaviorId;
+                    behavior.InstanceId++; 
                 }
             }
         }
@@ -4341,27 +4341,27 @@ namespace FDP.Toolkit.Behavior.Executors
 
 ### Architectural Review of the Fixes
 
-1. **Mission Plans:** By placing the `MissionPlanQueue` *above* the Doctrine state, we can seamlessly string together multiple AI behaviors. A mission is just a list of Doctrine Hashes and Triggers.
+1. **Mission Plans:** By placing the `MissionPlanQueue` *above* the Behavior state, we can seamlessly string together multiple AI behaviors. A mission is just a list of Behavior Hashes and Triggers.
 2. **Animation Coupling:** By using `AnimationState` to intercept the movement pipeline, we allow artists to drive the physical displacement of characters (Root Motion) without creating a nightmare dependency for the Navigation AI. The AI just says "Move", the Animation dictates the Delta, and the Physics validates it.
 3. **Interactions:** The `EjectPassengersExecutor` beautifully handles the "Ambush" scenario. When the APC's HSM transitions to `[Disabled]`, it simply fires the Eject action. The soldiers pop out, regain their `CanShoot` capability, their own FastBTrees wake up, and they begin returning fire immediately. 
 
 We have successfully covered the complete spectrum of the engine's behavior requirements. From the high-level macro-strategy (Mission Plans) to the lowest-level micro-tactics (Root Motion & Raycasts).
 
 --- user ---------------------------------------------------
-how do we pass parameters to doctrines? where do we evaluate the json and write to parameter blobs? How the doctrine accesses the parameters? how do we pass them to btrees and hsms?
+how do we pass parameters to behaviors? where do we evaluate the json and write to parameter blobs? How the behavior accesses the parameters? how do we pass them to btrees and hsms?
 
 --- model --------------------------------------------------
 This is a crucial architectural boundary. We must strictly separate the **"Cold Path"** (parsing strings, allocating memory, heavy network parsing) from the **"Hot Path"** (60Hz AI evaluation, zero-allocation memory reads).
 
 In FDP, JSON is **never** evaluated during the simulation loop. 
 
-Here is the exact lifecycle of a Doctrine Parameter: from a JSON string on the network to an unmanaged struct read by a FastBTree node.
+Here is the exact lifecycle of a Behavior Parameter: from a JSON string on the network to an unmanaged struct read by a FastBTree node.
 
 ---
 
 ### 1. The Data Structure (The Blackboard)
 
-We use the 128-byte `BrainBlackboard` component to hold the doctrine's memory. We define a specific C# `struct` for each doctrine that maps perfectly into those 128 bytes. This struct contains both the **Inputs** (Params from JSON) and the **State** (Runtime variables).
+We use the 128-byte `BrainBlackboard` component to hold the behavior's memory. We define a specific C# `struct` for each behavior that maps perfectly into those 128 bytes. This struct contains both the **Inputs** (Params from JSON) and the **State** (Runtime variables).
 
 ```csharp
 using System.Numerics;
@@ -4376,7 +4376,7 @@ namespace FDP.Toolkit.Behavior
         public fixed byte Memory[128];
     }
 
-    // The Specific View for the "AssaultArea" Doctrine
+    // The Specific View for the "AssaultArea" Behavior
     // MUST be < 128 bytes.
     [StructLayout(LayoutKind.Sequential)]
     public struct AssaultBlackboard
@@ -4397,26 +4397,26 @@ namespace FDP.Toolkit.Behavior
 
 ### 2. The Registry & The Parser (App Startup)
 
-At application startup, you register your doctrines. You provide a delegate that knows how to take a JSON string and safely write the parsed values into the `BrainBlackboard`.
+At application startup, you register your behaviors. You provide a delegate that knows how to take a JSON string and safely write the parsed values into the `BrainBlackboard`.
 
 ```csharp
 using System.Text.Json;
 
-public static class DoctrineRegistry
+public static class BehaviorRegistry
 {
     // Delegate signature for parsing
     public unsafe delegate void ParseParamsDelegate(string json, byte* blackboardMemory);
 
-    public class DoctrineDef
+    public class BehaviorDef
     {
         public byte BrainTier; // 1=Traffic, 2=VM
         public string AssetId; // BT or HSM filename
         public ParseParamsDelegate ParseFunc;
     }
 
-    private static Dictionary<int, DoctrineDef> _registry = new();
+    private static Dictionary<int, BehaviorDef> _registry = new();
 
-    public static void Register(string name, DoctrineDef def) 
+    public static void Register(string name, BehaviorDef def) 
     {
         _registry[name.GetHashCode()] = def;
     }
@@ -4424,7 +4424,7 @@ public static class DoctrineRegistry
     // Setup called at boot:
     public static void Initialize()
     {
-        Register("AssaultArea", new DoctrineDef
+        Register("AssaultArea", new BehaviorDef
         {
             BrainTier = 2,
             AssetId = "BT_Assault",
@@ -4456,30 +4456,30 @@ public static class DoctrineRegistry
 
 ### 3. The Ingress System (The Cold Path)
 
-When the mission planner (or network) wants to assign a doctrine, it publishes a managed event. The `DoctrineIngressSystem` catches it, parses it, and writes the unmanaged bytes to the ECS.
+When the mission planner (or network) wants to assign a behavior, it publishes a managed event. The `BehaviorIngressSystem` catches it, parses it, and writes the unmanaged bytes to the ECS.
 
 ```csharp
 // Event published by the network or mission director
-public class AssignDoctrineEvent
+public class AssignBehaviorEvent
 {
     public Entity TargetEntity;
-    public string DoctrineName;
+    public string BehaviorName;
     public string JsonParams;
 }
 
 [UpdateInPhase(SystemPhase.BeforeSync)]
-public class DoctrineIngressSystem : ComponentSystem
+public class BehaviorIngressSystem : ComponentSystem
 {
     protected override void OnUpdate()
     {
-        var events = World.Bus.ConsumeManaged<AssignDoctrineEvent>();
+        var events = World.Bus.ConsumeManaged<AssignBehaviorEvent>();
         
         foreach (var evt in events)
         {
             if (!World.IsAlive(evt.TargetEntity)) continue;
 
-            int doctrineId = evt.DoctrineName.GetHashCode();
-            var def = DoctrineRegistry.Get(doctrineId);
+            int behaviorId = evt.BehaviorName.GetHashCode();
+            var def = BehaviorRegistry.Get(behaviorId);
 
             // 1. Get the Blackboard Component
             ref var blackboard = ref World.GetComponentRW<BrainBlackboard>(evt.TargetEntity);
@@ -4491,9 +4491,9 @@ public class DoctrineIngressSystem : ComponentSystem
                 }
             }
 
-            // 3. Update Doctrine State (Triggers Preemption!)
-            ref var state = ref World.GetComponentRW<DoctrineState>(evt.TargetEntity);
-            state.ActiveDoctrineId = doctrineId;
+            // 3. Update Behavior State (Triggers Preemption!)
+            ref var state = ref World.GetComponentRW<BehaviorState>(evt.TargetEntity);
+            state.ActiveBehaviorId = behaviorId;
             state.BrainTier = def.BrainTier;
             state.InstanceId++; 
 
@@ -4532,7 +4532,7 @@ public static unsafe class AssaultBTreeNodes
             fixed (byte* p = channel.Params) {
                 ref MoveToParams actionArgs = ref System.Runtime.CompilerServices.Unsafe.As<byte, MoveToParams>(ref p[0]);
                 
-                // Read directly from the Doctrine Blackboard
+                // Read directly from the Behavior Blackboard
                 actionArgs.Destination = ab.TargetZone; 
                 actionArgs.ArrivalRadius = ab.EngageRadius;
             }
@@ -4590,7 +4590,7 @@ What if the mission is `"PatrolRoute"` and the JSON contains a list of 500 GPS c
 **The Solution:** The `BlobAsset` Pattern.
 
 1. You create a singleton `TrajectoryPoolManager` (just like in the `CarKinem` toolkit).
-2. During the **Cold Path** (`DoctrineIngressSystem`), the `ParseFunc` parses the 500 coordinates.
+2. During the **Cold Path** (`BehaviorIngressSystem`), the `ParseFunc` parses the 500 coordinates.
 3. The parser registers those 500 coordinates into the `TrajectoryPoolManager`, which returns an `int TrajectoryId`.
 4. The parser writes *only* the `int TrajectoryId` into the `BrainBlackboard`.
 5. During the **Hot Path**, the BTree passes the `TrajectoryId` into the `LocomotionChannel`, and the `FollowRouteExecutor` asks the `TrajectoryPoolManager` for the math.
@@ -4600,7 +4600,7 @@ What if the mission is `"PatrolRoute"` and the JSON contains a list of 500 GPS c
 1. **Parameters are strings** *only* when traveling over the network.
 2. **Parameters become unmanaged structs** immediately upon entering the engine, handled by a centralized Registry parser.
 3. **VMs (BTree/HSM) cast byte arrays** to access parameters seamlessly.
-4. **Zero Garbage** is generated after the initial Doctrine Assignment event is processed.
+4. **Zero Garbage** is generated after the initial Behavior Assignment event is processed.
 
 ----
 
@@ -4620,7 +4620,7 @@ graph TD
     end
 
     subgraph TBehavior [FDP.Toolkit.Behavior]
-        DIS[DoctrineIngressSystem]
+        DIS[BehaviorIngressSystem]
         MDS[MissionDirectorSystem]
         CAS[ChannelArbitrationSystem]
         VM[HsmTickSystem / BTreeTickSystem]
@@ -4628,7 +4628,7 @@ graph TD
         WD[WeaponDispatcher]
         ID[InteractionDispatcher]
         
-        comp1[(DoctrineState<br/>BrainBlackboard<br/>ActorCapabilities)]
+        comp1[(BehaviorState<br/>BrainBlackboard<br/>ActorCapabilities)]
         comp2[(LocomotionChannel<br/>WeaponChannel<br/>InteractionChannel)]
     end
 
@@ -4727,8 +4727,8 @@ sequenceDiagram
 
     rect rgb(40, 50, 60)
         Note right of Main: SYSTEM PHASE: BEFORE SYNC
-        Main->>Main: DoctrineIngressSystem
-        note right of Main: Parses AssignDoctrine JSON to BrainBlackboard
+        Main->>Main: BehaviorIngressSystem
+        note right of Main: Parses AssignBehavior JSON to BrainBlackboard
     end
 
     Note over BG, Bus: <<< MODULE HOST KERNEL SYNC POINT >>>
@@ -4750,7 +4750,7 @@ sequenceDiagram
             note right of Main: Reads AudioStimulusEvent -> updates TargetMemory
             
             Main->>Main: MissionDirectorSystem
-            note right of Main: Evaluates queues, updates DoctrineState
+            note right of Main: Evaluates queues, updates BehaviorState
             
             Main->>Main: ChannelArbitrationSystem
             note right of Main: Preempts stale Locomotion/Weapon Channels

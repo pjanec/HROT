@@ -21,7 +21,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
     /// DEM1-D004 — BehaviorValidation: prove the BTree executor shifts decision nodes
     /// strictly through <see cref="BrainBlackboard"/> state writes, without any physics.
     ///
-    /// <para>A single Commander agent runs a synthetic <em>MockCombat_BT</em> doctrine.
+    /// <para>A single Commander agent runs a synthetic <em>MockCombat_BT</em> behavior.
     /// The scenario script acts as the perception layer, directly writing
     /// <c>ThreatVisible</c> and <c>AmmoCount</c> into the agent's inline blackboard memory.
     /// Only <see cref="CognitiveRuntimeModule"/> systems are active — no physics, no kinematics,
@@ -120,15 +120,15 @@ namespace Fdp.Examples.Scenarios.Cognitive
         public void Configure(EntityRepository world, ModuleHostKernel kernel)
         {
             // ── Component registration ─────────────────────────────────────────
-            world.RegisterComponent<DoctrineState>();
+            world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<BrainBlackboard>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<ActorCapabilityState>();
 
-            // ── Doctrine registry and BTree setup ─────────────────────────────
-            var registry = new DoctrineRegistry();
+            // ── Behavior registry and BTree setup ─────────────────────────────
+            var registry = new BehaviorRegistry();
 
             var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
             actionReg.Register("Condition_ThreatVisible", Condition_ThreatVisible);
@@ -139,8 +139,8 @@ namespace Fdp.Examples.Scenarios.Cognitive
             var blob        = TreeCompiler.CompileFromJson(CombatBTreeJson);
             var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
 
-            registry.Register(BehaviorValidationDoctrineIds.Combat, "MockCombat",
-                new DoctrineDefinition
+            registry.Register(BehaviorValidationBehaviorIds.Combat, "MockCombat",
+                new BehaviorDefinition
                 {
                     Name             = "MockCombat",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
@@ -249,9 +249,9 @@ namespace Fdp.Examples.Scenarios.Cognitive
         {
             var e = world.CreateEntity();
 
-            world.AddComponent(e, new DoctrineState
+            world.AddComponent(e, new BehaviorState
             {
-                ActiveDoctrineHash = BehaviorValidationDoctrineIds.Combat,
+                ActiveBehaviorHash = BehaviorValidationBehaviorIds.Combat,
                 InstanceId         = 1,
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
@@ -320,15 +320,15 @@ namespace Fdp.Examples.Scenarios.Cognitive
             ref BTreeContext ctx,
             int payloadIndex)
         {
-            var doctrine = ctx.World.GetComponent<DoctrineState>(ctx.Self);
+            var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
 
             ref var wpn  = ref ctx.World.GetComponentRW<WeaponChannel>(ctx.Self);
             wpn.ActiveAction       = CombatConstants.ActionIdAimAndFire;
-            wpn.DoctrineInstanceId = doctrine.InstanceId;
+            wpn.BehaviorInstanceId = behavior.InstanceId;
 
             ref var loco = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
             loco.ActiveAction       = 0;
-            loco.DoctrineInstanceId = doctrine.InstanceId;
+            loco.BehaviorInstanceId = behavior.InstanceId;
 
             return NodeStatus.Running;
         }
@@ -343,15 +343,15 @@ namespace Fdp.Examples.Scenarios.Cognitive
             ref BTreeContext ctx,
             int payloadIndex)
         {
-            var doctrine = ctx.World.GetComponent<DoctrineState>(ctx.Self);
+            var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
 
             ref var loco = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
             loco.ActiveAction       = NavigationConstants.ActionIdFlee;
-            loco.DoctrineInstanceId = doctrine.InstanceId;
+            loco.BehaviorInstanceId = behavior.InstanceId;
 
             ref var wpn = ref ctx.World.GetComponentRW<WeaponChannel>(ctx.Self);
             wpn.ActiveAction       = 0;
-            wpn.DoctrineInstanceId = doctrine.InstanceId;
+            wpn.BehaviorInstanceId = behavior.InstanceId;
 
             return NodeStatus.Running;
         }

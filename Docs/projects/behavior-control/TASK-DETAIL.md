@@ -255,14 +255,14 @@ References: `Fdp.Kernel`, `Fdp.Interfaces`, `FastBTree (Fbt.Kernel)`, `FastHSM (
 **Goal:** Define all unmanaged ECS component structs, action ID constants, and the `IActionExecutor<T>` interface used throughout the Behavior toolkit.
 
 **Files to create:**
-- `Toolkits/FDP.Toolkit.Behavior/Components/BehaviorComponents.cs` — `DoctrineState`, `BrainBlackboard`, `SimTier`, `ActorCapabilityState`
+- `Toolkits/FDP.Toolkit.Behavior/Components/BehaviorComponents.cs` — `BehaviorState`, `BrainBlackboard`, `SimTier`, `ActorCapabilityState`
 - `Toolkits/FDP.Toolkit.Behavior/Components/ChannelComponents.cs` — `LocomotionChannel`, `WeaponChannel`, `InteractionChannel`
 - `Toolkits/FDP.Toolkit.Behavior/Components/BrainComponents.cs` — `BrainBTreeState`, `BrainHsm64`, `BrainHsm128`
 - `Toolkits/FDP.Toolkit.Behavior/Components/MissionComponents.cs` — `MissionPlanQueue`, `MissionPhase`, `MissionTrigger`
 - `Toolkits/FDP.Toolkit.Behavior/Executors/IActionExecutor.cs` — `IActionExecutor<TChannel>` interface
 
 **Key implementation notes:**
-- `LocomotionChannel`, `WeaponChannel`, `InteractionChannel` must share the same memory layout: `ushort ActiveAction`, `uint DoctrineInstanceId`, `uint ActionInstanceId`, `uint DispatchedInstanceId`, `NodeStatus Status`, `fixed byte Params[32]`, `fixed byte State[32]` — total ≤ 96 bytes.
+- `LocomotionChannel`, `WeaponChannel`, `InteractionChannel` must share the same memory layout: `ushort ActiveAction`, `uint BehaviorInstanceId`, `uint ActionInstanceId`, `uint DispatchedInstanceId`, `NodeStatus Status`, `fixed byte Params[32]`, `fixed byte State[32]` — total ≤ 96 bytes.
 - All structs decorated with `[StructLayout(LayoutKind.Sequential)]`.
 - `BrainBTreeState` wraps `Fbt.BehaviorTreeState` (64 bytes).
 - `BrainHsm64` wraps `Fhsm.Kernel.Data.HsmInstance64`, `BrainHsm128` wraps `HsmInstance128`.
@@ -299,13 +299,13 @@ References: `Fdp.Kernel`, `Fdp.Interfaces`, `FastBTree (Fbt.Kernel)`, `FastHSM (
 
 ### BCS-P1-T2 — ChannelArbitrationSystem
 
-**Goal:** Detect stale channels (whose `DoctrineInstanceId` no longer matches `DoctrineState.InstanceId`) and reset them so the dispatcher won't invoke a dead executor.
+**Goal:** Detect stale channels (whose `BehaviorInstanceId` no longer matches `BehaviorState.InstanceId`) and reset them so the dispatcher won't invoke a dead executor.
 
 **File:** `Toolkits/FDP.Toolkit.Behavior/Systems/ChannelArbitrationSystem.cs`
 
 **Logic:**
-- Query: `(DoctrineState, LocomotionChannel)`, same for `WeaponChannel` and `InteractionChannel`.
-- For each entity: if `channel.DoctrineInstanceId != doctrine.InstanceId` and `channel.ActiveAction != 0`, reset: `channel.ActiveAction = 0`, `channel.ActionInstanceId++`, `channel.Status = NodeStatus.Failure`.
+- Query: `(BehaviorState, LocomotionChannel)`, same for `WeaponChannel` and `InteractionChannel`.
+- For each entity: if `channel.BehaviorInstanceId != behavior.InstanceId` and `channel.ActiveAction != 0`, reset: `channel.ActiveAction = 0`, `channel.ActionInstanceId++`, `channel.Status = NodeStatus.Failure`.
 - Register with `[UpdateInGroup(typeof(SimulationSystemGroup))]`.
 
 **Reference:** [DESIGN.md §3.2](./DESIGN.md#32-systems), design talk lines 1665–1710
@@ -313,11 +313,11 @@ References: `Fdp.Kernel`, `Fdp.Interfaces`, `FastBTree (Fbt.Kernel)`, `FastHSM (
 **Success conditions:**
 ```csharp
 // ChannelArbitrationTests.cs
-[Fact] void Arbitration_ClearsChannel_WhenDoctrineInstanceIdMismatch() {
+[Fact] void Arbitration_ClearsChannel_WhenBehaviorInstanceIdMismatch() {
     var world = TestWorldFactory.Create();
     var e = world.CreateEntity();
-    world.AddComponent(e, new DoctrineState { InstanceId = 2 });
-    world.AddComponent(e, new LocomotionChannel { DoctrineInstanceId = 1, ActiveAction = 3 });
+    world.AddComponent(e, new BehaviorState { InstanceId = 2 });
+    world.AddComponent(e, new LocomotionChannel { BehaviorInstanceId = 1, ActiveAction = 3 });
     
     var sys = new ChannelArbitrationSystem();
     sys.World = world;
@@ -329,7 +329,7 @@ References: `Fdp.Kernel`, `Fdp.Interfaces`, `FastBTree (Fbt.Kernel)`, `FastHSM (
 }
 
 [Fact] void Arbitration_DoesNotClearValidChannel() {
-    // DoctrineInstanceId matches → channel untouched
+    // BehaviorInstanceId matches → channel untouched
 }
 ```
 
@@ -395,15 +395,15 @@ References: `Fdp.Kernel`, `Fdp.Interfaces`, `FastBTree (Fbt.Kernel)`, `FastHSM (
 
 ### BCS-P1-T5 — BTreeTickSystem (FastBTree Adapter)
 
-**Goal:** Step `BrainBTreeState` for all entities with `DoctrineState.BrainTier == 2` that have a BTree brain; provide a concrete `BTreeContext` that exposes `EntityRepository` + entity to BTree node methods.
+**Goal:** Step `BrainBTreeState` for all entities with `BehaviorState.BrainTier == 2` that have a BTree brain; provide a concrete `BTreeContext` that exposes `EntityRepository` + entity to BTree node methods.
 
 **Files:**
 - `Toolkits/FDP.Toolkit.Behavior/Systems/BTreeTickSystem.cs`
 - `Toolkits/FDP.Toolkit.Behavior/BTreeContext.cs`
 
 **Logic:**
-- Query: `(DoctrineState, BrainBTreeState, BrainBlackboard)`.
-- For each: look up `BTreeBlobAsset` from `DoctrineRegistry` by `doctrine.ActiveDoctrineId`.
+- Query: `(BehaviorState, BrainBTreeState, BrainBlackboard)`.
+- For each: look up `BTreeBlobAsset` from `BehaviorRegistry` by `behavior.ActiveBehaviorId`.
 - Call `FastBTree.Interpreter.Tick(ref blackboard, ref btState.State, context, entity, btBlob)` — adapt IAIContext from source.
 - `[UpdateAfter(typeof(ChannelArbitrationSystem))]`.
 
@@ -412,7 +412,7 @@ References: `Fdp.Kernel`, `Fdp.Interfaces`, `FastBTree (Fbt.Kernel)`, `FastHSM (
 **Success conditions:**
 ```csharp
 [Fact] void BTreeTick_DoesNotThrow_WhenBlobNotRegistered() {
-    // Missing doctrine ID → skip gracefully, no exception
+    // Missing behavior ID → skip gracefully, no exception
 }
 [Fact] void BTreeTick_DoesNotTick_WhenBrainTierIsNotTwo() {
     // SimTier=1 entities skipped
@@ -452,33 +452,33 @@ References: `Fdp.Kernel`, `Fdp.Interfaces`, `FastBTree (Fbt.Kernel)`, `FastHSM (
 
 ---
 
-### BCS-P1-T7 — DoctrineRegistry + DoctrineIngressSystem
+### BCS-P1-T7 — BehaviorRegistry + BehaviorIngressSystem
 
-**Goal:** At startup, register doctrine definitions (name → BrainTier, blob asset ID, JSON parser). At runtime, consume `AssignDoctrineEvent` to update `BrainBlackboard` and `DoctrineState`.
+**Goal:** At startup, register behavior definitions (name → BrainTier, blob asset ID, JSON parser). At runtime, consume `AssignBehaviorEvent` to update `BrainBlackboard` and `BehaviorState`.
 
 **Files:**
-- `Toolkits/FDP.Toolkit.Behavior/DoctrineRegistry.cs`
-- `Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs`
-- `Toolkits/FDP.Toolkit.Behavior/Events/AssignDoctrineEvent.cs`
+- `Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs`
+- `Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs`
+- `Toolkits/FDP.Toolkit.Behavior/Events/AssignBehaviorEvent.cs`
 
-**Logic in `DoctrineIngressSystem`:**
-- Consumes managed `AssignDoctrineEvent { Entity, DoctrineName, JsonParams }`.
-- Looks up registry by `DoctrineName.GetHashCode()`.
+**Logic in `BehaviorIngressSystem`:**
+- Consumes managed `AssignBehaviorEvent { Entity, BehaviorName, JsonParams }`.
+- Looks up registry by `BehaviorName.GetHashCode()`.
 - Calls `def.ParseParams(json, *blackboard.Memory)`.
-- Updates `DoctrineState.ActiveDoctrineId`, increments `InstanceId`, sets `BrainTier`.
+- Updates `BehaviorState.ActiveBehaviorId`, increments `InstanceId`, sets `BrainTier`.
 - Resets `BrainBTreeState` or HSM instance to zero-state.
 
-**Reference:** [DESIGN.md §3.3](./DESIGN.md#33-doctrine-registry--parameter-flow), design talk lines 4540–4620 (parameter flow)
+**Reference:** [DESIGN.md §3.3](./DESIGN.md#33-behavior-registry--parameter-flow), design talk lines 4540–4620 (parameter flow)
 
 **Success conditions:**
 ```csharp
-[Fact] void DoctrineIngress_ParsesFleeBlackboard_FromJson() {
-    // Register "FleeToSafety" doctrine with FleeBlackboard parser
-    // Publish AssignDoctrineEvent with { safeDist: 50.0 }
+[Fact] void BehaviorIngress_ParsesFleeBlackboard_FromJson() {
+    // Register "FleeToSafety" behavior with FleeBlackboard parser
+    // Publish AssignBehaviorEvent with { safeDist: 50.0 }
     // Run system → verify BrainBlackboard bytes match FleeBlackboard { SafeDistance=50.0 }
 }
-[Fact] void DoctrineIngress_IncrementsInstanceId() { ... }
-[Fact] void DoctrineIngress_ResetsBTreeState_OnNewDoctrine() {
+[Fact] void BehaviorIngress_IncrementsInstanceId() { ... }
+[Fact] void BehaviorIngress_ResetsBTreeState_OnNewBehavior() {
     // BrainBTreeState.State.RunningNodeIndex → 0 after assignment
 }
 ```
@@ -1019,7 +1019,7 @@ Events: `FireRequestEvent [EventId 5001]`, `HitEvent [EventId 5002]`.
 
 ### BCS-P6-T1 — MissionPlanQueue + MissionDirectorSystem
 
-**Goal:** Fixed-size mission phase queue. System evaluates trigger condition of current phase each frame; advances queue and updates `DoctrineState` when trigger fires.
+**Goal:** Fixed-size mission phase queue. System evaluates trigger condition of current phase each frame; advances queue and updates `BehaviorState` when trigger fires.
 
 **Files:**
 - `Toolkits/FDP.Toolkit.Behavior/Components/MissionComponents.cs` (add `MissionPlanQueue`, `MissionPhase`, `MissionTrigger`)
@@ -1030,8 +1030,8 @@ Events: `FireRequestEvent [EventId 5001]`, `HitEvent [EventId 5002]`.
 **Success conditions:**
 ```csharp
 [Fact] void MissionDirector_AdvancesPhase_WhenTimerElapses() {
-    // Phase0: DoctrineA, TimerElapsed(0.5s)
-    // Run 31 ticks at 60Hz → DoctrineState.ActiveDoctrineId == DoctrineB
+    // Phase0: BehaviorA, TimerElapsed(0.5s)
+    // Run 31 ticks at 60Hz → BehaviorState.ActiveBehaviorId == BehaviorB
 }
 [Fact] void MissionDirector_AdvancesPhase_WhenReachedDestination() {
     // NavState.HasArrived=1 triggers transition
@@ -1250,7 +1250,7 @@ References: All five new toolkits, `FDP.Toolkit.CarKinem`, `FDP.Toolkit.Tkb`, `F
 
 ### BCS-P7-T7 — ScenarioDirector (Entity Spawning)
 
-**Goal:** `ScenarioDirector.SetupAmbushScenario()` spawns all actors at their correct positions with correct initial doctrines and component values.
+**Goal:** `ScenarioDirector.SetupAmbushScenario()` spawns all actors at their correct positions with correct initial behaviors and component values.
 
 **File:** `Examples/Fdp.Examples.UrbanCombat/ScenarioDirector.cs`
 
@@ -1285,7 +1285,7 @@ References: All five new toolkits, `FDP.Toolkit.CarKinem`, `FDP.Toolkit.Tkb`, `F
 
 ### BCS-P7-T8 — TelemetryReporterSystem
 
-**Goal:** `Export`-phase system that prints structured `[FRAME NNNN] EVENT: ...` lines to `Console.Out`. Covers: gunfire, hits, doctrine changes, capability losses, flee starts.
+**Goal:** `Export`-phase system that prints structured `[FRAME NNNN] EVENT: ...` lines to `Console.Out`. Covers: gunfire, hits, behavior changes, capability losses, flee starts.
 
 **File:** `Examples/Fdp.Examples.UrbanCombat/Systems/TelemetryReporterSystem.cs`
 
@@ -1328,7 +1328,7 @@ References: All five new toolkits, `FDP.Toolkit.CarKinem`, `FDP.Toolkit.Tkb`, `F
     var log = output.ToString();
     
     // Key milestones must appear in order
-    Assert.Contains("DOCTRINE ASSIGNED", log);              // Frame 1
+    Assert.Contains("BEHAVIOR ASSIGNED", log);              // Frame 1
     Assert.Contains("GUNFIRE", log);                        // Frame ~181
     Assert.Contains("HIT", log);                            // Frame ~182
     Assert.Contains("CAPABILITY LOST", log);                // Frame ~182

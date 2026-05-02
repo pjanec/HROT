@@ -2,7 +2,7 @@
 
 **Batch Number:** BATCH-16  
 **Tasks:**
-- **Corrective-0 (P2):** `MilitaryAPC` template `DoctrineState.BrainTier` fix
+- **Corrective-0 (P2):** `MilitaryAPC` template `BehaviorState.BrainTier` fix
 - **BCS-P7-T7:** `ScenarioDirector` (entity spawning + initial state)
 - **BCS-P7-T8:** `TelemetryReporterSystem` (console output)
 - **BCS-P7-T9:** End-to-end 10-second integration test
@@ -73,10 +73,10 @@ dotnet test Examples/Fdp.Examples.UrbanCombat.Tests/
 
 ```csharp
 // BEFORE (wrong):
-t.AddComponent(new DoctrineState { BrainTier = 2 });
+t.AddComponent(new BehaviorState { BrainTier = 2 });
 
 // AFTER (correct):
-t.AddComponent(new DoctrineState { BrainTier = BehaviorConstants.BrainTierHsm });
+t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierHsm });
 ```
 
 `BehaviorConstants.BrainTierHsm = 1`. This ensures `HsmTickSystem<BrainHsm128>` processes the APC (it filters on `BrainTier == BrainTierHsm`).
@@ -90,7 +90,7 @@ public void APC_Template_HasHsmBrainTier()
     var template = _app.Tkb.GetByType(2001)!;
     var e = _app.World.CreateEntity();
     template.ApplyTo(_app.World, e);
-    var ds = _app.World.GetComponent<DoctrineState>(e);
+    var ds = _app.World.GetComponent<BehaviorState>(e);
     Assert.Equal(BehaviorConstants.BrainTierHsm, ds.BrainTier);  // must be 1, not 2
 }
 ```
@@ -205,7 +205,7 @@ Replace every magic literal. Complete replacement table:
 |---|---|
 | `SimTier { Value = 1 }` (×2) | `SimTier { Value = BehaviorConstants.SimTierCivilian }` |
 | `SimTier { Value = 2 }` (×3) | `SimTier { Value = BehaviorConstants.SimTierTactical }` |
-| `DoctrineState { BrainTier = 2 }` | `DoctrineState { BrainTier = BehaviorConstants.BrainTierBTree }` *(also required for BTree entities — APC must still use `BrainTierHsm`, see Task 0a)* |
+| `BehaviorState { BrainTier = 2 }` | `BehaviorState { BrainTier = BehaviorConstants.BrainTierBTree }` *(also required for BTree entities — APC must still use `BrainTierHsm`, see Task 0a)* |
 | `CollisionLayer = 1` (×5) | `CollisionLayer = PhysicsConstants.EntityCollisionLayer` *(or `CombatConstants.EntityCollisionLayer` — use wherever the constant was placed in Step 2)* |
 | `Radius = 0.4f` (×3) | `Radius = UrbanCombatConstants.HumanoidColliderRadius` |
 | `Radius = 2f` | `Radius = UrbanCombatConstants.CarColliderRadius` |
@@ -274,7 +274,7 @@ public class ScenarioDirector
 
 **Spawn manifest (DESIGN.md §9.1):**
 
-| Count | TKB ID | Archetype | Spawn positions | Initial doctrine | Notes |
+| Count | TKB ID | Archetype | Spawn positions | Initial behavior | Notes |
 |---|---|---|---|---|---|
 | 5 | 1001 | CivilianPedestrian | Scattered around intersection (±30–50 m from centre) | `WanderCivil` | No embark |
 | 3 | 1002 | CivilianCar | On road arms N/S/E | `WanderCivil` | No embark |
@@ -294,11 +294,11 @@ ref var tf = ref _world.GetComponentRW<SimTransform>(entity);
 tf.Position = spawnPos;
 tf.Rotation = Quaternion.CreateFromYawPitchRoll(yaw, 0f, 0f);
 
-// Assign initial doctrine:
-ref var doctrine = ref _world.GetComponentRW<DoctrineState>(entity);
-doctrine.ActiveDoctrineHash = DoctrineIds.[DoctrineId];
-unchecked { doctrine.InstanceId++; }   // trigger ChannelArbitrationSystem preemption
-doctrine.BrainTier = BehaviorConstants.BrainTierBTree; // or Hsm/None depending on archetype
+// Assign initial behavior:
+ref var behavior = ref _world.GetComponentRW<BehaviorState>(entity);
+behavior.ActiveBehaviorHash = BehaviorIds.[BehaviorId];
+unchecked { behavior.InstanceId++; }   // trigger ChannelArbitrationSystem preemption
+behavior.BrainTier = BehaviorConstants.BrainTierBTree; // or Hsm/None depending on archetype
 ```
 
 **Embark setup (4 soldiers in APC):**
@@ -336,7 +336,7 @@ foreach (var soldier in soldiers)
 // Query entity with PassengerBuffer → buffer.Count == 4
 ```
 
-> ⚠️ Verify `DoctrineIds` constants from `FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineIds.cs` before using them. The IDs defined there (e.g. `WanderCivil = 1001`, `ConvoyEscort = 2001`, `Ambush = 2003`) must be registered with the `DoctrineRegistry` in `HeadlessDemoApp.Initialize()` — add any missing registrations there.
+> ⚠️ Verify `BehaviorIds` constants from `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorIds.cs` before using them. The IDs defined there (e.g. `WanderCivil = 1001`, `ConvoyEscort = 2001`, `Ambush = 2003`) must be registered with the `BehaviorRegistry` in `HeadlessDemoApp.Initialize()` — add any missing registrations there.
 
 ---
 
@@ -355,7 +355,7 @@ public class TelemetryReporterSystem : ComponentSystem
 
 | Event | Trigger | Output |
 |---|---|---|
-| `DOCTRINE ASSIGNED` | `DoctrineState.InstanceId` changes | `[FRAME 0001] DOCTRINE ASSIGNED: entity {idx} → {doctrineName}` |
+| `BEHAVIOR ASSIGNED` | `BehaviorState.InstanceId` changes | `[FRAME 0001] BEHAVIOR ASSIGNED: entity {idx} → {behaviorName}` |
 | `GUNFIRE` | `FireRequestEvent` on bus | `[FRAME NNNN] GUNFIRE: entity {shooter}` |
 | `HIT` | `HitEvent` on bus | `[FRAME NNNN] HIT: target {target}, damage {dmg}` |
 | `CAPABILITY LOST` | `CanMove` cleared (compare vs prev frame) | `[FRAME NNNN] CAPABILITY LOST: entity {idx} CanMove` |
@@ -363,7 +363,7 @@ public class TelemetryReporterSystem : ComponentSystem
 | `INTERACTION: EjectPassengers` | `InteractionChannel.ActiveAction == 3` | `[FRAME NNNN] INTERACTION: EjectPassengers on entity {idx}` |
 | `FLEE` | `LocomotionChannel.ActiveAction == NavigationConstants.ActionIdFlee` | `[FRAME NNNN] FLEE: entity {idx}` |
 
-**State tracking:** The system must track previous-frame values for `DoctrineState.InstanceId`, `BrainHsm128.State.ActiveLeafIds[0]`, and `ActorCapabilityState.Capabilities`. Use the same per-entity shadow pattern used elsewhere in the codebase (`PreviousCapabilities` exists already; may need additional shadow components or a `Dictionary<Entity, ...>` for the reporter — the latter is acceptable since this is a telemetry/debug-only system).
+**State tracking:** The system must track previous-frame values for `BehaviorState.InstanceId`, `BrainHsm128.State.ActiveLeafIds[0]`, and `ActorCapabilityState.Capabilities`. Use the same per-entity shadow pattern used elsewhere in the codebase (`PreviousCapabilities` exists already; may need additional shadow components or a `Dictionary<Entity, ...>` for the reporter — the latter is acceptable since this is a telemetry/debug-only system).
 
 **Tests:**
 ```csharp
@@ -391,7 +391,7 @@ public class TelemetryReporterSystem : ComponentSystem
 **Test strategy:** Run the full 600-frame simulation via `HeadlessDemoApp`. Redirect `Console.Out` to a `StringWriter`. Assert that key scenario milestone strings appear in the output log.
 
 The test must wire up:
-1. `HeadlessDemoApp.Initialize()` — registers components, systems, TKB, doctrines.
+1. `HeadlessDemoApp.Initialize()` — registers components, systems, TKB, behaviors.
 2. `ScenarioDirector.SetupAmbushScenario()` — spawns all 14 entities.
 3. `app.RunSimulation(600)` — 600 ticks at 1/60s = 10 seconds.
 4. Assert log milestones (order-dependent).
@@ -416,7 +416,7 @@ public void UrbanAmbush_SimulationRunsToCompletion_WithExpectedMilestones()
 
     // Every milestone in order (Assert.Contains does not enforce order —
     // use IndexOf for strict ordering if needed):
-    Assert.Contains("DOCTRINE ASSIGNED", log);       // Frame 1 — initial doctrines applied
+    Assert.Contains("BEHAVIOR ASSIGNED", log);       // Frame 1 — initial behaviors applied
     Assert.Contains("GUNFIRE",           log);       // ~Frame 181 — insurgent fires
     Assert.Contains("HIT",               log);       // ~Frame 182 — APC hit
     Assert.Contains("CAPABILITY LOST",   log);       // ~Frame 182 — APC mobility lost
@@ -449,8 +449,8 @@ public void UrbanAmbush_ApcMovesNorthward_BeforeAmbush()
 
 > ⚠️ **T9 is the hardest test to pass** because it requires the full system pipeline to be correctly registered in `HeadlessDemoApp.Initialize()`. If T9 fails, diagnose via:
 > 1. Check `TelemetryReporterSystem` is registered in the correct group (`ExportSystemGroup`).
-> 2. Check doctrine registrations match the `DoctrineIds` constants.
-> 3. Check the APC's `DoctrineState.BrainTier` is `BrainTierHsm` (Corrective-0).
+> 2. Check behavior registrations match the `BehaviorIds` constants.
+> 3. Check the APC's `BehaviorState.BrainTier` is `BrainTierHsm` (Corrective-0).
 > 4. Check `HsmDamageBridgeSystem` and `DamageSystem` are registered so the MobilityLost chain fires.
 
 **`HeadlessDemoApp` changes for T7/T8 wiring:**
@@ -479,31 +479,31 @@ public void UrbanAmbush_ApcMovesNorthward_BeforeAmbush()
 **❗ `HeadlessDemoApp.RunSimulation(int)` must be a real loop** — `World.SetSimulationTime(frame * Dt); World.Tick();`. The BATCH-14 stub must be replaced with an actual loop before T9 can pass.
 
 **❗ System registration order** in `HeadlessDemoApp.Initialize()`:
-- Input group: `DoctrineIngressSystem`
+- Input group: `BehaviorIngressSystem`
 - Simulation group: `TrafficBrainSystem`, `BTreeTickSystem`, `HsmTickSystem<BrainHsm128>`, `HsmDamageBridgeSystem`, `ChannelArbitrationSystem`, `LocomotionDispatcherSystem`, `WeaponDispatcherSystem`, `InteractionDispatcherSystem`, `MissionDirectorSystem`, `FireProcessingSystem`, `DamageSystem`, `VisionBroadphaseSystem`, `ThreatEvaluationSystem`, `AudioPerceptionSystem`
 - PostSimulation group: `BallisticsSystem`, `LinearKinematicsSystem`, `SpatialHashSystem`, `CarKinematicsSystem`
 - Export group: `TelemetryReporterSystem`
 
 > Verify actual group type names from `Fdp.Kernel.StandardSystemGroups` before registering. Confirm that `PostSimulationSystemGroup` was added in BATCH-11.
 
-**❗ Doctrine registration in `HeadlessDemoApp.Initialize()`:**
+**❗ Behavior registration in `HeadlessDemoApp.Initialize()`:**
 
-Register doctrines with `DoctrineRegistry` using the correct `DoctrineIds` constants and matching `DoctrineDefinition` specs (BrainTier, HSM blob for APC, BTree interpreters built from JSON for soldiers and insurgent):
+Register behaviors with `BehaviorRegistry` using the correct `BehaviorIds` constants and matching `BehaviorDefinition` specs (BrainTier, HSM blob for APC, BTree interpreters built from JSON for soldiers and insurgent):
 
 ```csharp
-// HSM doctrine for APC:
-_doctrineRegistry.Register(DoctrineIds.ConvoyEscort, "ConvoyEscort", new DoctrineDefinition
+// HSM behavior for APC:
+_behaviorRegistry.Register(BehaviorIds.ConvoyEscort, "ConvoyEscort", new BehaviorDefinition
 {
     Name          = "ConvoyEscort",
     BrainTier     = BehaviorConstants.BrainTierHsm,
     HsmDefinition = ApcHsmSetup.Build(),
 });
 
-// BTree doctrines (soldiers, civilians, insurgent):
+// BTree behaviors (soldiers, civilians, insurgent):
 // Use TreeCompiler.CompileFromJson + ActionRegistry pattern (see T5 tests)
 ```
 
-**❗ `ScenarioDirector` must use `DoctrineIds` constants** — no raw integer literals for doctrine IDs.
+**❗ `ScenarioDirector` must use `BehaviorIds` constants** — no raw integer literals for behavior IDs.
 
 **❗ `TelemetryReporterSystem` console writes** — use `Console.Out.WriteLine(...)` not `Console.WriteLine(...)` directly, so the `StringWriter` redirect in T9 captures everything.
 
@@ -517,7 +517,7 @@ _doctrineRegistry.Register(DoctrineIds.ConvoyEscort, "ConvoyEscort", new Doctrin
 
 **Q1:** What system group names does `HeadlessDemoApp.Initialize()` use? Are they the same types used in `[UpdateInGroup]` attributes (e.g. `ExportSystemGroup`), and if not, how does the registration differ?
 
-**Q2:** How did you register BTree interpreters (for soldiers and insurgents) with the `DoctrineRegistry`? Did the `DoctrineDefinition` take a pre-built `Interpreter<BrainBlackboard, BTreeContext>` or a `FbtBlob`?
+**Q2:** How did you register BTree interpreters (for soldiers and insurgents) with the `BehaviorRegistry`? Did the `BehaviorDefinition` take a pre-built `Interpreter<BrainBlackboard, BTreeContext>` or a `FbtBlob`?
 
 **Q3:** For T9, which milestones in the expected log actually appeared in the 600-frame run? Were any missing, and if so, what was the root cause?
 
@@ -547,7 +547,7 @@ _doctrineRegistry.Register(DoctrineIds.ConvoyEscort, "ConvoyEscort", new Doctrin
 - **`DemoTkbSetup.cs`:** `FDP/Examples/Fdp.Examples.UrbanCombat/Setup/DemoTkbSetup.cs`
 - **`DemoEnvironmentSetup.cs`:** `FDP/Examples/Fdp.Examples.UrbanCombat/Setup/DemoEnvironmentSetup.cs`
 - **`HeadlessDemoApp.cs`:** `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs`
-- **`DoctrineIds.cs`:** `FDP/Toolkits/FDP.Toolkit.Behavior/DoctrineIds.cs`
+- **`BehaviorIds.cs`:** `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorIds.cs`
 - **`ApcHsmSetup.cs`:** `FDP/Examples/Fdp.Examples.UrbanCombat/Brains/ApcHsmSetup.cs`
 - **`InsurgentNodes.cs`:** `FDP/Examples/Fdp.Examples.UrbanCombat/Brains/InsurgentNodes.cs`
 - **`StandardSystemGroups.cs`:** `FDP/Kernel/Fdp.Kernel/` (system group types)

@@ -51,10 +51,10 @@ namespace Fdp.Toolkit.Behavior.Tests
             return new HsmDefinitionBlob(header, states, transitions, Array.Empty<RegionDef>(), Array.Empty<GlobalTransitionDef>(), Array.Empty<ushort>(), Array.Empty<ushort>());
         }
 
-        private static int CountDoctrineFinishedEvents(EntityRepository world, Entity e)
+        private static int CountBehaviorFinishedEvents(EntityRepository world, Entity e)
         {
             int count = 0;
-            foreach (var evt in world.Bus.Read<DoctrineFinishedEvent>())
+            foreach (var evt in world.Bus.Read<BehaviorFinishedEvent>())
                 if (evt.Entity.Index == e.Index) count++;
             return count;
         }
@@ -85,22 +85,22 @@ namespace Fdp.Toolkit.Behavior.Tests
             return brain;
         }
 
-        // IT-BHU-A1: HSM reaches final state, DoctrineFinishedEvent published.
+        // IT-BHU-A1: HSM reaches final state, BehaviorFinishedEvent published.
         // Proves BHU-005 (IsFinal flag emitted) + BHU-006 (Terminated set in kernel)
         // + BHU-007 (HsmTickSystem publishes event and clears latch).
         [Fact]
-        public void A1_HsmReachesFinalState_DoctrineFinishedEventPublished()
+        public void A1_HsmReachesFinalState_BehaviorFinishedEventPublished()
         {
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
+            var registry = new BehaviorRegistry();
             const int    docId = 99001;
             var blob = Build3StateBlob(0xA1000001);
 
-            registry.Register(docId, "A1Doc", new DoctrineDefinition { Name = "A1Doc", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
+            registry.Register(docId, "A1Doc", new BehaviorDefinition { Name = "A1Doc", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
 
             var sys = new HsmTickSystem<BrainHsm128>(registry);
             var e   = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
+            world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(blob));
             world.AddComponent(e, new BrainBlackboard());
 
@@ -116,7 +116,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             world.Bus.SwapBuffers();
 
-            Assert.Equal(1, CountDoctrineFinishedEvents(world, e));
+            Assert.Equal(1, CountBehaviorFinishedEvents(world, e));
 
             var brainAfter = world.GetComponent<BrainHsm128>(e);
             ref var hdr = ref Unsafe.As<BrainHsm128, InstanceHeader>(ref brainAfter);
@@ -132,15 +132,15 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void A2_SecondTick_SameInstanceId_DoesNotRepublish()
         {
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
+            var registry = new BehaviorRegistry();
             const int    docId = 99002;
             var blob = Build3StateBlob(0xA2000001);
 
-            registry.Register(docId, "A2Doc", new DoctrineDefinition { Name = "A2Doc", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
+            registry.Register(docId, "A2Doc", new BehaviorDefinition { Name = "A2Doc", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
 
             var sys = new HsmTickSystem<BrainHsm128>(registry);
             var e   = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
+            world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(blob));
             world.AddComponent(e, new BrainBlackboard());
 
@@ -151,63 +151,63 @@ namespace Fdp.Toolkit.Behavior.Tests
             for (int i = 0; i < 20; i++)
                 sys.Execute(world, 0.016f);
             world.Bus.SwapBuffers();
-            Assert.Equal(1, CountDoctrineFinishedEvents(world, e));
+            Assert.Equal(1, CountBehaviorFinishedEvents(world, e));
 
             // Frame 2: same InstanceId -- dedup must suppress re-publication.
             for (int i = 0; i < 5; i++)
                 sys.Execute(world, 0.016f);
             world.Bus.SwapBuffers();
-            Assert.Equal(0, CountDoctrineFinishedEvents(world, e));
+            Assert.Equal(0, CountBehaviorFinishedEvents(world, e));
 
             world.Dispose();
         }
 
-        // IT-BHU-A3: Doctrine reassignment clears terminal latch and allows a new event.
+        // IT-BHU-A3: Behavior reassignment clears terminal latch and allows a new event.
         // Proves BHU-016 (HSM reset on ingress) and dedup key bump on InstanceId change.
         [Fact]
-        public void A3_DoctrineReassignment_AllowsNewEvent_ActiveLeafIdsResetToFfffBeforeFirstTick()
+        public void A3_BehaviorReassignment_AllowsNewEvent_ActiveLeafIdsResetToFfffBeforeFirstTick()
         {
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
+            var registry = new BehaviorRegistry();
             const int    docIdA = 99003;
             const int    docIdB = 99004;
-            // Both doctrines share the same blob hash so that the MachineId written by
-            // DoctrineIngressSystem.ResetHsmComponents remains valid for the shared blob.
-            // What we test here is that the InstanceId bump causes a fresh DoctrineFinishedEvent.
+            // Both behaviors share the same blob hash so that the MachineId written by
+            // BehaviorIngressSystem.ResetHsmComponents remains valid for the shared blob.
+            // What we test here is that the InstanceId bump causes a fresh BehaviorFinishedEvent.
             var sharedBlob = Build3StateBlob(0xA3000001);
 
-            registry.Register(docIdA, "A3DocA", new DoctrineDefinition { Name = "A3DocA", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = sharedBlob });
-            registry.Register(docIdB, "A3DocB", new DoctrineDefinition { Name = "A3DocB", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = sharedBlob });
+            registry.Register(docIdA, "A3DocA", new BehaviorDefinition { Name = "A3DocA", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = sharedBlob });
+            registry.Register(docIdB, "A3DocB", new BehaviorDefinition { Name = "A3DocB", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = sharedBlob });
 
             var sys        = new HsmTickSystem<BrainHsm128>(registry);
-            var ingressSys = new DoctrineIngressSystem(registry);
+            var ingressSys = new BehaviorIngressSystem(registry);
             var e          = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = docIdA, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
+            world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docIdA, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(sharedBlob));
             world.AddComponent(e, new BrainBlackboard());
 
-            // Drive doctrine A to terminal.
+            // Drive behavior A to terminal.
             InjectEvents<BrainHsm128>(world, e,
                 new HsmEvent { EventId = EventX, Priority = EventPriority.Interrupt },
                 new HsmEvent { EventId = EventY });
             for (int i = 0; i < 20; i++)
                 sys.Execute(world, 0.016f);
             world.Bus.SwapBuffers();
-            Assert.Equal(1, CountDoctrineFinishedEvents(world, e));
+            Assert.Equal(1, CountBehaviorFinishedEvents(world, e));
 
-            // Assign doctrine B via AssignDoctrineHashEvent.
-            world.Bus.Publish(new AssignDoctrineHashEvent { Entity = e, DoctrineHash = docIdB });
+            // Assign behavior B via AssignBehaviorHashEvent.
+            world.Bus.Publish(new AssignBehaviorHashEvent { Entity = e, BehaviorHash = docIdB });
             world.Bus.SwapBuffers();
             ingressSys.Execute(world, 0.016f);
 
-            // BHU-016: ActiveLeafIds must be 0xFFFF before the first tick of doctrine B.
+            // BHU-016: ActiveLeafIds must be 0xFFFF before the first tick of behavior B.
             var brainBeforeTick = world.GetComponent<BrainHsm128>(e);
             Assert.Equal((ushort)0xFFFF, brainBeforeTick.State.ActiveLeafIds[0]);
 
-            var doctrine = world.GetComponent<DoctrineState>(e);
-            Assert.Equal(2u, doctrine.InstanceId);
+            var behavior = world.GetComponent<BehaviorState>(e);
+            Assert.Equal(2u, behavior.InstanceId);
 
-            // Drive doctrine B to terminal (same blob, so MachineId still valid).
+            // Drive behavior B to terminal (same blob, so MachineId still valid).
             InjectEvents<BrainHsm128>(world, e,
                 new HsmEvent { EventId = EventX, Priority = EventPriority.Interrupt },
                 new HsmEvent { EventId = EventY });
@@ -216,26 +216,26 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Bus.SwapBuffers();
 
             // New event published (dedup key == InstanceId 2).
-            Assert.Equal(1, CountDoctrineFinishedEvents(world, e));
+            Assert.Equal(1, CountBehaviorFinishedEvents(world, e));
 
             world.Dispose();
         }
 
-        // IT-BHU-A4: BrainHsm64 also publishes DoctrineFinishedEvent (covers both instance sizes).
+        // IT-BHU-A4: BrainHsm64 also publishes BehaviorFinishedEvent (covers both instance sizes).
         // Uses a 2-state blob because BrainHsm64 Tier1 queue capacity is one event.
         [Fact]
-        public void A4_BrainHsm64_PublishesDoctrineFinishedEvent_LatchCleared()
+        public void A4_BrainHsm64_PublishesBehaviorFinishedEvent_LatchCleared()
         {
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
+            var registry = new BehaviorRegistry();
             const int    docId = 99005;
             var blob = Build2StateFinalBlob(0xA4000001);
 
-            registry.Register(docId, "A4Doc", new DoctrineDefinition { Name = "A4Doc", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
+            registry.Register(docId, "A4Doc", new BehaviorDefinition { Name = "A4Doc", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
 
             var sys = new HsmTickSystem<BrainHsm64>(registry);
             var e   = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
+            world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain64(blob));
             world.AddComponent(e, new BrainBlackboard());
 
@@ -247,7 +247,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             world.Bus.SwapBuffers();
 
-            Assert.Equal(1, CountDoctrineFinishedEvents(world, e));
+            Assert.Equal(1, CountBehaviorFinishedEvents(world, e));
 
             var brainAfter = world.GetComponent<BrainHsm64>(e);
             ref var hdr = ref Unsafe.As<BrainHsm64, InstanceHeader>(ref brainAfter);
@@ -264,18 +264,18 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void B1_MobilityLostEdge_WritesByte126_HsmTransitionsToStopped()
         {
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
+            var registry = new BehaviorRegistry();
             const int    docId = 99010;
             var blob = BuildPatrolStoppedBlob(0xB1000001);
 
-            registry.Register(docId, "PatrolDoc", new DoctrineDefinition { Name = "PatrolDoc", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
+            registry.Register(docId, "PatrolDoc", new BehaviorDefinition { Name = "PatrolDoc", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
 
             var interruptSys = new CognitiveInterruptSystem();
             var hsmSys       = new HsmTickSystem<BrainHsm128>(registry);
             var cleanupSys   = new CognitiveCleanupSystem();
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
+            world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(blob));
             world.AddComponent(e, new BrainBlackboard());
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
@@ -326,18 +326,18 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void B2_NoRetrigger_SecondFrame_CanMoveStillFalse()
         {
             var world    = TestWorldFactory.Create();
-            var registry = new DoctrineRegistry();
+            var registry = new BehaviorRegistry();
             const int    docId = 99011;
             var blob = BuildPatrolStoppedBlob(0xB2000001);
 
-            registry.Register(docId, "PatrolDoc2", new DoctrineDefinition { Name = "PatrolDoc2", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
+            registry.Register(docId, "PatrolDoc2", new BehaviorDefinition { Name = "PatrolDoc2", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
 
             var interruptSys = new CognitiveInterruptSystem();
             var hsmSys       = new HsmTickSystem<BrainHsm128>(registry);
             var cleanupSys   = new CognitiveCleanupSystem();
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
+            world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(blob));
             world.AddComponent(e, new BrainBlackboard());
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });

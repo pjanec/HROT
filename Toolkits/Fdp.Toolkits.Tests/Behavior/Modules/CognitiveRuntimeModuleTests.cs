@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
         public void CognitiveRuntimeModule_RegistersAllTickSystems()
         {
             // Arrange
-            var registry = new DoctrineRegistry();
+            var registry = new BehaviorRegistry();
             var module   = new CognitiveRuntimeModule(registry);
 
             // Assert — 6 systems: arbitration, CognitiveInterrupt, BTree, HsmHsm128, HsmHsm64, CognitiveCleanup

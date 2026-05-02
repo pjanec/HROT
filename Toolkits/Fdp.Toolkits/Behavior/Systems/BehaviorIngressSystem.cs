@@ -9,33 +9,33 @@ using Fdp.Toolkit.Behavior.Events;
 namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
-    /// Consumes <see cref="AssignDoctrineEvent"/>s and applies them to the relevant entities:
+    /// Consumes <see cref="AssignBehaviorEvent"/>s and applies them to the relevant entities:
     /// <list type="number">
-    ///   <item>Sets <see cref="DoctrineState.ActiveDoctrineHash"/> and <see cref="DoctrineState.BrainTier"/>.</item>
-    ///   <item>Increments <see cref="DoctrineState.InstanceId"/> (deliberate wrapping via <c>unchecked</c>).
+    ///   <item>Sets <see cref="BehaviorState.ActiveBehaviorHash"/> and <see cref="BehaviorState.BrainTier"/>.</item>
+    ///   <item>Increments <see cref="BehaviorState.InstanceId"/> (deliberate wrapping via <c>unchecked</c>).
     ///         This bumps the preemption token so <see cref="ChannelArbitrationSystem"/> clears stale
     ///         channels on the next simulation tick.</item>
     ///   <item>Resets <see cref="BrainBTreeState.State"/> to <c>default</c> (execution pointer → 0).</item>
-    ///   <item>Calls <see cref="DoctrineDefinition.ParseParams"/> to write blackboard parameters.</item>
+    ///   <item>Calls <see cref="BehaviorDefinition.ParseParams"/> to write blackboard parameters.</item>
     /// </list>
     ///
-    /// Runs in <see cref="InputSystemGroup"/> so doctrine changes are visible to all brain tick
+    /// Runs in <see cref="InputSystemGroup"/> so behavior changes are visible to all brain tick
     /// systems (which run in <see cref="SimulationSystemGroup"/>) within the same frame.
     ///
     /// <para>
-    /// DEBT-035 fix: all ECS component writes (<see cref="DoctrineState"/>, <see cref="BrainBTreeState"/>)
-    /// now happen AFTER <see cref="DoctrineDefinition.ParseParams"/> succeeds.  A parse failure leaves
-    /// the entity entirely on its previous doctrine — no partial transition.
+    /// DEBT-035 fix: all ECS component writes (<see cref="BehaviorState"/>, <see cref="BrainBTreeState"/>)
+    /// now happen AFTER <see cref="BehaviorDefinition.ParseParams"/> succeeds.  A parse failure leaves
+    /// the entity entirely on its previous behavior — no partial transition.
     /// A stackalloc shadow copy of the blackboard is used so the live component is only updated
     /// when parsing succeeds, keeping the operation atomic from the ECS perspective.
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
-    public class DoctrineIngressSystem : IEcsModuleSystem
+    public class BehaviorIngressSystem : IEcsModuleSystem
     {
-        private readonly DoctrineRegistry _registry;
+        private readonly BehaviorRegistry _registry;
 
-        public DoctrineIngressSystem(DoctrineRegistry registry)
+        public BehaviorIngressSystem(BehaviorRegistry registry)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
@@ -44,10 +44,10 @@ namespace Fdp.Toolkit.Behavior.Systems
         {
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
-                    $"{nameof(DoctrineIngressSystem)} requires direct EntityRepository access " +
+                    $"{nameof(BehaviorIngressSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            var events = repo.Bus.ReadManaged<AssignDoctrineEvent>();
+            var events = repo.Bus.ReadManaged<AssignBehaviorEvent>();
 
             // Shadow buffer allocated once per OnUpdate call (outside the loop) to avoid
             // CA2014 stack-overflow risk. BrainBlackboardByteSize is a compile-time constant.
@@ -56,21 +56,21 @@ namespace Fdp.Toolkit.Behavior.Systems
             foreach (var evt in events)
             {
                 if (evt == null) continue;
-                if (!repo.HasComponent<DoctrineState>(evt.Entity)) continue;
+                if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
 
                 // DEBT-006: use stable int ID from registry — no GetHashCode().
-                if (!_registry.TryGetId(evt.DoctrineName, out int doctrineId)) continue;
-                if (!_registry.TryGetDefinition(doctrineId, out var def)) continue;
+                if (!_registry.TryGetId(evt.BehaviorName, out int behaviorId)) continue;
+                if (!_registry.TryGetDefinition(behaviorId, out var def)) continue;
 
-                // DEBT-035 fix: attempt ParseParams BEFORE writing DoctrineState/BrainBTreeState.
+                // DEBT-035 fix: attempt ParseParams BEFORE writing BehaviorState/BrainBTreeState.
                 // Strategy: shadow-copy the live blackboard into stack memory, attempt parse on the
-                // shadow, and only on success write the shadow back + commit the doctrine transition.
-                // This ensures a ParseParams failure leaves the entity 100% on the old doctrine.
+                // shadow, and only on success write the shadow back + commit the behavior transition.
+                // This ensures a ParseParams failure leaves the entity 100% on the old behavior.
                 if (def.ParseParams != null)
                 {
                     if (!repo.HasComponent<BrainBlackboard>(evt.Entity))
                     {
-                        // Doctrine requires params but entity has no blackboard — skip.
+                        // Behavior requires params but entity has no blackboard — skip.
                         continue;
                     }
 
@@ -100,7 +100,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                         }
                     }
 
-                    if (!parseOk) continue; // ParseParams failed — entity stays on old doctrine entirely.
+                    if (!parseOk) continue; // ParseParams failed — entity stays on old behavior entirely.
 
                     // Parse succeeded: commit shadow back to the live blackboard.
                     ref var bbW = ref repo.GetComponentRW<BrainBlackboard>(evt.Entity);
@@ -111,23 +111,23 @@ namespace Fdp.Toolkit.Behavior.Systems
                     }
                 }
 
-                // ParseParams succeeded (or was not required). Commit doctrine transition.
+                // ParseParams succeeded (or was not required). Commit behavior transition.
 
-                // 1. Update DoctrineState.
-                ref var doctrine = ref repo.GetComponentRW<DoctrineState>(evt.Entity);
-                doctrine.ActiveDoctrineHash = doctrineId;
+                // 1. Update BehaviorState.
+                ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
+                behavior.ActiveBehaviorHash = behaviorId;
                 // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
-                unchecked { doctrine.InstanceId++; }
-                doctrine.BrainTier = def.BrainTier;
+                unchecked { behavior.InstanceId++; }
+                behavior.BrainTier = def.BrainTier;
 
-                // 2. Reset BTree execution pointer so the new doctrine starts from the root.
+                // 2. Reset BTree execution pointer so the new behavior starts from the root.
                 if (repo.HasComponent<BrainBTreeState>(evt.Entity))
                 {
                     ref var btState = ref repo.GetComponentRW<BrainBTreeState>(evt.Entity);
                     btState.State = default;
                 }
 
-                // 3. BHU-016 / CRITICAL FIX: Reset HSM instance bound to the new doctrine's topology.
+                // 3. BHU-016 / CRITICAL FIX: Reset HSM instance bound to the new behavior's topology.
                 // Supplying the StructureHash keeps InstanceHeader.MachineId in sync with the new
                 // HsmDefinitionBlob so HsmKernelCore.ValidateInstance passes on the very next tick.
                 if (def.BrainTier == BehaviorConstants.BrainTierHsm && def.HsmDefinition != null)
@@ -136,49 +136,49 @@ namespace Fdp.Toolkit.Behavior.Systems
                 }
             }
 
-            // ── ClearDoctrineEvent handler ────────────────────────────────────────────────
-            // Forcibly resets the active doctrine to DoctrineIds.None (brain-death).
+            // ── ClearBehaviorEvent handler ────────────────────────────────────────────────
+            // Forcibly resets the active behavior to BehaviorIds.None (brain-death).
             // Published top-down by MissionDirectorSystem (plan exhausted) and
             // MissionControlRequestSystem (CMD_ABORT_ALL).
-            var clearEvents = repo.Bus.Read<ClearDoctrineEvent>();
+            var clearEvents = repo.Bus.Read<ClearBehaviorEvent>();
             foreach (var evt in clearEvents)
             {
-                if (!repo.HasComponent<DoctrineState>(evt.Entity)) continue;
+                if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
 
-                ref var doctrine = ref repo.GetComponentRW<DoctrineState>(evt.Entity);
-                doctrine.ActiveDoctrineHash = DoctrineIds.None;
-                unchecked { doctrine.InstanceId++; }
-                doctrine.BrainTier = 0;
+                ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
+                behavior.ActiveBehaviorHash = BehaviorIds.None;
+                unchecked { behavior.InstanceId++; }
+                behavior.BrainTier = 0;
 
                 if (repo.HasComponent<BrainBTreeState>(evt.Entity))
                     repo.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
             }
 
-            // ── AssignDoctrineHashEvent handler ──────────────────────────────────────────
-            // Activates a doctrine by integer hash — published by MissionDirectorSystem
+            // ── AssignBehaviorHashEvent handler ──────────────────────────────────────────
+            // Activates a behavior by integer hash — published by MissionDirectorSystem
             // during phase transitions where only the hash (not the name) is known.
             // Increments InstanceId so ChannelArbitrationSystem preempts stale channels.
-            var hashEvents = repo.Bus.Read<AssignDoctrineHashEvent>();
+            var hashEvents = repo.Bus.Read<AssignBehaviorHashEvent>();
             foreach (var evt in hashEvents)
             {
-                if (!repo.HasComponent<DoctrineState>(evt.Entity)) continue;
+                if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
 
-                ref var doctrine = ref repo.GetComponentRW<DoctrineState>(evt.Entity);
-                doctrine.ActiveDoctrineHash = evt.DoctrineHash;
-                unchecked { doctrine.InstanceId++; }
+                ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
+                behavior.ActiveBehaviorHash = evt.BehaviorHash;
+                unchecked { behavior.InstanceId++; }
 
                 // Resolve the definition from the registry and restore the BrainTier.
-                // Without this, entities remain brain-dead (BrainTier = 0) after a ClearDoctrineEvent.
-                if (_registry.TryGetDefinition(evt.DoctrineHash, out var def))
+                // Without this, entities remain brain-dead (BrainTier = 0) after a ClearBehaviorEvent.
+                if (_registry.TryGetDefinition(evt.BehaviorHash, out var def))
                 {
-                    doctrine.BrainTier = def.BrainTier;
+                    behavior.BrainTier = def.BrainTier;
                 }
 
                 // Reset BTree execution pointer so the new phase starts from the root.
                 if (repo.HasComponent<BrainBTreeState>(evt.Entity))
                     repo.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
 
-                // BHU-016 / CRITICAL FIX: Reset HSM instance bound to the new doctrine's topology.
+                // BHU-016 / CRITICAL FIX: Reset HSM instance bound to the new behavior's topology.
                 // Supplying the StructureHash keeps InstanceHeader.MachineId in sync with the new
                 // HsmDefinitionBlob so HsmKernelCore.ValidateInstance passes on the very next tick.
                 if (def != null && def.BrainTier == BehaviorConstants.BrainTierHsm && def.HsmDefinition != null)

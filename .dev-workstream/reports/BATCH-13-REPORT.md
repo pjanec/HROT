@@ -1,7 +1,7 @@
 # BATCH-13 Report
 
 **Batch:** BATCH-13
-**Tasks:** DEBT-006 (DoctrineRegistry stable int key) · DEBT-007 (FdpHsmContext world access) · DEBT-008 (DoctrineIngressSystem try/catch) · DEBT-022 (Intersection2D t=0 boundary test) · DEBT-024 (Dispatcher dead-entity OnExit guard) · DEBT-031 (HitEvent → Combat.Contracts) · DEBT-033 (HealthCritical trigger via HealthData) · DEBT-034 (EjectPassengersExecutor XML doc fix)
+**Tasks:** DEBT-006 (BehaviorRegistry stable int key) · DEBT-007 (FdpHsmContext world access) · DEBT-008 (BehaviorIngressSystem try/catch) · DEBT-022 (Intersection2D t=0 boundary test) · DEBT-024 (Dispatcher dead-entity OnExit guard) · DEBT-031 (HitEvent → Combat.Contracts) · DEBT-033 (HealthCritical trigger via HealthData) · DEBT-034 (EjectPassengersExecutor XML doc fix)
 **Status:** ✅ COMPLETE
 **Build:** `dotnet build FDP.sln` → 0 errors, 0 new warnings
 **Tests:** 9 new tests added; all pass. Two pre-existing flaky failures (`Fdp.Examples.NetworkDemo.Tests.DistributedReplayTests.FullScenario_TwoNodes_RecordAndReplay` and `ModuleHost.Core.Tests.ReactiveSchedulingTests.ReactiveScheduling_AsyncModule_TracksVersionCorrectly`) are unrelated to this batch and unchanged.
@@ -20,11 +20,11 @@
 
 | Class | Test | Description |
 |---|---|---|
-| `DoctrineRegistryTests` | `LookupById_ReturnsCorrectEntry` | Registered entry is retrievable by stable int id |
-| `DoctrineRegistryTests` | `LookupById_IsStableAcrossInstances` | Same id returns same definition across registry instances |
-| `DoctrineRegistryTests` | `ReturnsNull_ForUnregisteredId` | Unregistered id returns `false` from `TryGetDefinition` |
+| `BehaviorRegistryTests` | `LookupById_ReturnsCorrectEntry` | Registered entry is retrievable by stable int id |
+| `BehaviorRegistryTests` | `LookupById_IsStableAcrossInstances` | Same id returns same definition across registry instances |
+| `BehaviorRegistryTests` | `ReturnsNull_ForUnregisteredId` | Unregistered id returns `false` from `TryGetDefinition` |
 | `HsmTickSystemTests` | `FdpHsmContext_ExposesWorldAccess` | `FdpHsmContext.World` is non-null when an HSM tick runs |
-| `DoctrineIngressSystemTests` | `DoctrineIngress_DoesNotThrow_WhenParseParamsFails` | Exception in `ParseParams` delegate does not propagate; entity is skipped |
+| `BehaviorIngressSystemTests` | `BehaviorIngress_DoesNotThrow_WhenParseParamsFails` | Exception in `ParseParams` delegate does not propagate; entity is skipped |
 | `Intersection2DTests` | `RaycastCircle_ReturnsZero_WhenRayStartsOnCircleEdge` | t=0 boundary: ray origin on circle edge → hit=true, t≈0 |
 | `LocomotionDispatcherTests` | `Dispatcher_CallsOnExit_WhenEntityDestroyedMidAction` | Entity destroyed inside `Execute` → `OnExit` called, no crash on subsequent query |
 | `MissionDirectorSystemTests` | `MissionDirector_AdvancesPhase_WhenHealthCritical` | HealthData.Fraction (0.05) ≤ TriggerParam (0.10) → phase advances |
@@ -36,8 +36,8 @@
 
 | File | Description |
 |---|---|
-| `Toolkits/FDP.Toolkit.Behavior/DoctrineIds.cs` | Compile-time stable `int` constants for all registered doctrines (None=0, WanderCivil=1001, …) |
-| `Toolkits/FDP.Toolkit.Behavior.Tests/DoctrineRegistryTests.cs` | 3 tests verifying stable-id registry API |
+| `Toolkits/FDP.Toolkit.Behavior/BehaviorIds.cs` | Compile-time stable `int` constants for all registered behaviors (None=0, WanderCivil=1001, …) |
+| `Toolkits/FDP.Toolkit.Behavior.Tests/BehaviorRegistryTests.cs` | 3 tests verifying stable-id registry API |
 | `Toolkits/FDP.Toolkit.Combat.Contracts/FDP.Toolkit.Combat.Contracts.csproj` | New thin assembly; references only `Fdp.Kernel` |
 | `Toolkits/FDP.Toolkit.Combat.Contracts/HitEvent.cs` | `HitEvent` struct in namespace `FDP.Toolkit.Combat.Contracts`; `[EventId(5001)]` unchanged |
 
@@ -47,8 +47,8 @@
 
 | File | Change |
 |---|---|
-| `Toolkits/FDP.Toolkit.Behavior/DoctrineRegistry.cs` | DEBT-006: API changed to `Register(int id, string name, def)`; two-dict internals; `StringComparer.Ordinal` name→id dict; `GetHashCode` eliminated |
-| `Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs` | DEBT-006+008: uses `TryGetId()` → `TryGetDefinition()`; `ParseParams` wrapped in try/catch |
+| `Toolkits/FDP.Toolkit.Behavior/BehaviorRegistry.cs` | DEBT-006: API changed to `Register(int id, string name, def)`; two-dict internals; `StringComparer.Ordinal` name→id dict; `GetHashCode` eliminated |
+| `Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs` | DEBT-006+008: uses `TryGetId()` → `TryGetDefinition()`; `ParseParams` wrapped in try/catch |
 | `Toolkits/FDP.Toolkit.Behavior/Systems/HsmTickSystem.cs` | DEBT-007: `FdpHsmContext` gains `EntityRepository World`; new internal `HsmKernelBridge` (unmanaged) for `HsmKernel.Update` call |
 | `Toolkits/FDP.Toolkit.Behavior/Systems/LocomotionDispatcherSystem.cs` | DEBT-024: dead-entity guard after `Execute()` |
 | `Toolkits/FDP.Toolkit.Behavior/Systems/WeaponDispatcherSystem.cs` | DEBT-024: dead-entity guard after `Execute()` |
@@ -62,7 +62,7 @@
 | `Kernel/Fdp.Kernel/CoreComponents/SimComponents.cs` | DEBT-033: `HealthData` struct added (Current, Max, Fraction computed property) |
 | `Kernel/Fdp.Kernel/Events/HitEvent.cs` | DEBT-031: struct body removed; tombstone comment only |
 | `FDP.sln` | DEBT-031: `FDP.Toolkit.Combat.Contracts` project added (GUID `{3A4B5C6D-…}`) |
-| `Toolkits/FDP.Toolkit.Behavior.Tests/DoctrineIngressSystemTests.cs` | DEBT-006+008: `Register()` API updated; Test 5 added |
+| `Toolkits/FDP.Toolkit.Behavior.Tests/BehaviorIngressSystemTests.cs` | DEBT-006+008: `Register()` API updated; Test 5 added |
 | `Toolkits/FDP.Toolkit.Behavior.Tests/HsmTickSystemTests.cs` | DEBT-006+007: `GetHashCode()` → stable `TestHsmId = 9001`; Test 3 added |
 | `Toolkits/FDP.Toolkit.Behavior.Tests/BTreeTickSystemTests.cs` | DEBT-006: `Register()` API updated; stable test ids 9001/9002; `GetHashCode()` removed |
 | `Toolkits/FDP.Toolkit.Behavior.Tests/LocomotionDispatcherTests.cs` | DEBT-024: `SelfDestroyingExecutor` inner class; Test 5 added |
@@ -122,15 +122,15 @@ internal struct HsmKernelBridge    // passed to HsmKernel.Update
 
 | File | Change |
 |---|---|
-| `DoctrineRegistry.cs` | Internal key storage changed from `name.GetHashCode()` → assigned `int id` |
-| `DoctrineIngressSystem.cs` | `evt.DoctrineName.GetHashCode()` → `TryGetId(evt.DoctrineName, out id)` |
-| `DoctrineIngressSystemTests.cs` | `Register("name", def)` → `Register(id, "name", def)` × 4 tests |
-| `HsmTickSystemTests.cs` | `doctrineName.GetHashCode()` → `TestHsmId = 9001` |
+| `BehaviorRegistry.cs` | Internal key storage changed from `name.GetHashCode()` → assigned `int id` |
+| `BehaviorIngressSystem.cs` | `evt.BehaviorName.GetHashCode()` → `TryGetId(evt.BehaviorName, out id)` |
+| `BehaviorIngressSystemTests.cs` | `Register("name", def)` → `Register(id, "name", def)` × 4 tests |
+| `HsmTickSystemTests.cs` | `behaviorName.GetHashCode()` → `TestHsmId = 9001` |
 | `BTreeTickSystemTests.cs` | `Register("name", def)` → `Register(id, "name", def)`; `GetHashCode()` → stable id |
 
 Total: **5 call sites** updated across 4 files.
 
-**MissionDirectorSystem:** No changes were needed. `MissionDirectorSystem` reads `queue.Phases[i].DoctrineId` (an `int` constant already stored at plan-build time) and writes it directly to `DoctrineState.ActiveDoctrineHash`. It never calls `GetHashCode()` and never touches `DoctrineRegistry`. ✅ Unaffected.
+**MissionDirectorSystem:** No changes were needed. `MissionDirectorSystem` reads `queue.Phases[i].BehaviorId` (an `int` constant already stored at plan-build time) and writes it directly to `BehaviorState.ActiveBehaviorHash`. It never calls `GetHashCode()` and never touches `BehaviorRegistry`. ✅ Unaffected.
 
 ---
 
@@ -192,7 +192,7 @@ The `HasComponent` guard keeps `HealthData` optional — only entities with it w
 
 1. **`HsmKernel.Update` unmanaged constraint (DEBT-007):** The constraint was not documented in the debt item and was discovered when the compiler rejected `FdpHsmContext` containing `EntityRepository`. The `HsmKernelBridge` bridge pattern emerged as the minimal-invasive fix; no library changes required.
 
-2. **`StringComparer` missing using (DEBT-006):** `DoctrineRegistry.cs` already imported `System.Collections.Generic` but not `System`. Adding `new(StringComparer.Ordinal)` required adding `using System;` — a one-line fix caught by the first post-DEBT-031 build.
+2. **`StringComparer` missing using (DEBT-006):** `BehaviorRegistry.cs` already imported `System.Collections.Generic` but not `System`. Adding `new(StringComparer.Ordinal)` required adding `using System;` — a one-line fix caught by the first post-DEBT-031 build.
 
 3. **`BTreeTickSystemTests.cs` not in prior audit (DEBT-006):** The initial call-site audit (from the conversation summary) identified 4 files. `BTreeTickSystemTests.cs` was a fifth file using the old `Register(string, def)` API, caught only by the build. All 5 were updated.
 

@@ -18,11 +18,11 @@ namespace Fdp.Examples.UrbanCombat
     /// <para>
     /// <b>Spawn manifest (DESIGN.md §9.1):</b>
     /// <list type="table">
-    ///   <item><term>5 × CivilianPedestrian (TKB 1001)</term><description>Scattered ±30–50 m from intersection centre. WanderCivil doctrine.</description></item>
-    ///   <item><term>3 × CivilianCar (TKB 1002)</term><description>On N, S, and E road arms. WanderCivil doctrine.</description></item>
-    ///   <item><term>1 × MilitaryAPC (TKB 2001)</term><description>South arm at (0,−80,0), heading north. ConvoyEscort doctrine.</description></item>
-    ///   <item><term>4 × InfantrySoldier (TKB 2002)</term><description>Co-located with APC. InfantryCombat doctrine. Pre-embarked in APC.</description></item>
-    ///   <item><term>1 × Insurgent (TKB 2003)</term><description>Building corner at (60,20,0). Ambush doctrine. TargetMemory seeded with APC.</description></item>
+    ///   <item><term>5 × CivilianPedestrian (TKB 1001)</term><description>Scattered ±30–50 m from intersection centre. WanderCivil behavior.</description></item>
+    ///   <item><term>3 × CivilianCar (TKB 1002)</term><description>On N, S, and E road arms. WanderCivil behavior.</description></item>
+    ///   <item><term>1 × MilitaryAPC (TKB 2001)</term><description>South arm at (0,−80,0), heading north. ConvoyEscort behavior.</description></item>
+    ///   <item><term>4 × InfantrySoldier (TKB 2002)</term><description>Co-located with APC. InfantryCombat behavior. Pre-embarked in APC.</description></item>
+    ///   <item><term>1 × Insurgent (TKB 2003)</term><description>Building corner at (60,20,0). Ambush behavior. TargetMemory seeded with APC.</description></item>
     /// </list>
     /// </para>
     ///
@@ -58,7 +58,7 @@ namespace Fdp.Examples.UrbanCombat
         private readonly EntityRepository  _world;
         private readonly ITkbDatabase      _tkb;
         private readonly RoadNetworkBlob   _road;
-        private readonly DoctrineRegistry  _registry;
+        private readonly BehaviorRegistry  _registry;
         private readonly NetworkEntityMap? _entityMap;
 
         // Auto-incrementing network ID counter used when _entityMap is provided.
@@ -81,7 +81,7 @@ namespace Fdp.Examples.UrbanCombat
             EntityRepository world,
             ITkbDatabase tkb,
             RoadNetworkBlob road,
-            DoctrineRegistry registry,
+            BehaviorRegistry registry,
             NetworkEntityMap? entityMap = null)
         {
             _world     = world    ?? throw new ArgumentNullException(nameof(world));
@@ -91,7 +91,7 @@ namespace Fdp.Examples.UrbanCombat
             _entityMap = entityMap;
 
             // Pre-build the APC HSM blob to extract the StructureHash for brain initialization.
-            // The blob is also registered independently in HeadlessDemoApp.RegisterDoctrines();
+            // The blob is also registered independently in HeadlessDemoApp.RegisterBehaviors();
             // both calls produce the same deterministic hash.
             _apcHsmStructureHash = Brains.ApcHsmSetup.Build().Header.StructureHash;
         }
@@ -115,7 +115,7 @@ namespace Fdp.Examples.UrbanCombat
                     tkbTypeId:  1001,
                     position:   CivilianPositions[i],
                     yawRadians: 0f,
-                    doctrineId: DoctrineIds.WanderCivil);
+                    behaviorId: BehaviorIds.WanderCivil);
             }
 
             // ── 2. CivilianCars ───────────────────────────────────────────────────
@@ -125,7 +125,7 @@ namespace Fdp.Examples.UrbanCombat
                     tkbTypeId:  1002,
                     position:   CarPositions[i],
                     yawRadians: 0f,
-                    doctrineId: DoctrineIds.WanderCivil);
+                    behaviorId: BehaviorIds.WanderCivil);
             }
 
             // ── 3. MilitaryAPC (heading north, π/2 yaw = north in ENU XY) ────────
@@ -133,7 +133,7 @@ namespace Fdp.Examples.UrbanCombat
                 tkbTypeId:  2001,
                 position:   new Vector3(0f, -80f, 0f),
                 yawRadians: MathF.PI / 2f,   // north
-                doctrineId: DoctrineIds.ConvoyEscort);
+                behaviorId: BehaviorIds.ConvoyEscort);
 
             // ── 4. InfantrySoldiers — spawn then embark in APC ────────────────────
             var soldiers = new Entity[4];
@@ -143,7 +143,7 @@ namespace Fdp.Examples.UrbanCombat
                     tkbTypeId:  2002,
                     position:   new Vector3(0f, -80f, 0f),
                     yawRadians: 0f,
-                    doctrineId: DoctrineIds.InfantryCombat);
+                    behaviorId: BehaviorIds.InfantryCombat);
             }
 
             EmbarkSoldiers(apc, soldiers);
@@ -153,7 +153,7 @@ namespace Fdp.Examples.UrbanCombat
                 tkbTypeId:  2003,
                 position:   new Vector3(60f, 20f, 0f),
                 yawRadians: 0f,
-                doctrineId: DoctrineIds.Ambush);
+                behaviorId: BehaviorIds.Ambush);
 
             // ── 6. Seed TargetMemory — insurgent targets the APC ─────────────────
             // Pre-populates the insurgent's threat table so that Condition_HasTarget
@@ -192,9 +192,9 @@ namespace Fdp.Examples.UrbanCombat
 
         /// <summary>
         /// Spawns a single entity from the TKB, sets its spawn position and rotation,
-        /// and assigns the initial doctrine.
+        /// and assigns the initial behavior.
         /// </summary>
-        private unsafe Entity SpawnEntity(int tkbTypeId, Vector3 position, float yawRadians, int doctrineId)
+        private unsafe Entity SpawnEntity(int tkbTypeId, Vector3 position, float yawRadians, int behaviorId)
         {
             var template = _tkb.GetByType(tkbTypeId)
                 ?? throw new InvalidOperationException($"TKB template not found for type {tkbTypeId}.");
@@ -207,14 +207,14 @@ namespace Fdp.Examples.UrbanCombat
             tf.Position = position;
             tf.Rotation = SimMath.FromYaw(yawRadians);
 
-            // Assign initial doctrine.
-            ref var doctrine = ref _world.GetComponentRW<DoctrineState>(entity);
-            doctrine.ActiveDoctrineHash = doctrineId;
-            unchecked { doctrine.InstanceId++; }   // trigger ChannelArbitrationSystem preemption
+            // Assign initial behavior.
+            ref var behavior = ref _world.GetComponentRW<BehaviorState>(entity);
+            behavior.ActiveBehaviorHash = behaviorId;
+            unchecked { behavior.InstanceId++; }   // trigger ChannelArbitrationSystem preemption
 
             // Set BrainTier from registry so BTreeTickSystem / HsmTickSystem processes this entity.
-            if (_registry.TryGetDefinition(doctrineId, out var def))
-                doctrine.BrainTier = def.BrainTier;
+            if (_registry.TryGetDefinition(behaviorId, out var def))
+                behavior.BrainTier = def.BrainTier;
 
             // Pre-initialise the APC HSM brain so HsmKernel.Update processes it correctly.
             // Without this, BrainHsm128.Header.MachineId = 0 and ValidateInstance rejects it.

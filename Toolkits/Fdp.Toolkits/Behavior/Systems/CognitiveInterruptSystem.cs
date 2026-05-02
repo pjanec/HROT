@@ -9,7 +9,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// <summary>
     /// Edge-triggered system that writes interrupt bytes into <see cref="BrainBlackboard"/>
     /// when capability transitions are detected.  Uses a paradigm-agnostic blackboard byte
-    /// (index 126) rather than injecting HSM events directly, so that BTree doctrines can
+    /// (index 126) rather than injecting HSM events directly, so that BTree behaviors can
     /// also react to the same signal without coupling to the HSM event queue.
     ///
     /// <para>
