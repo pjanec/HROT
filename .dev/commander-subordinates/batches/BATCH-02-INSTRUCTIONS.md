@@ -23,6 +23,59 @@ Read these files FIRST before writing any code:
 
 ## Task List (in implementation order)
 
+### CT-1 — Move Command Hierarchy Types to Fdp.Core (BLOCKING ARCHITECTURAL FIX, P0)
+
+**Why this is needed:** `Hrot.Core.csproj` depends on `Fdp.Toolkits.csproj`. Adding the reverse
+reference (so `VehicleCommandSystem` and `FormationTargetSystem` in `Fdp.Toolkits` could use
+types from `Hrot.Core`) would create a circular dependency. The command hierarchy types must
+therefore live in `Fdp.Core`, which sits below both layers.
+
+**What to move:**
+Move these four files from `Hrot/Engine/Hrot.Core/CommandHierarchy/` to
+`FDP/Engine/Fdp.Core/CommandHierarchy/` (create the folder):
+
+1. `TacticalDesignation.cs` — change namespace to `Fdp.Core.CommandHierarchy`
+2. `CommandHierarchyEvents.cs` — change namespace to `Fdp.Core.CommandHierarchy`
+3. `UnitSubordinate.cs` — change namespace to `Fdp.Core.CommandHierarchy`;
+   replace `[ComponentId(HrotComponentIds.UnitSubordinate)]` with `[ComponentId(183)]`
+   (the constant value — `HrotComponentIds` is in `Hrot.Core` and can't be referenced from `Fdp.Core`)
+4. `UnitRoster.cs` — change namespace to `Fdp.Core.CommandHierarchy`;
+   replace `[ComponentId(HrotComponentIds.UnitRoster)]` with `[ComponentId(182)]`
+
+**Add to GlobalComponentIds** (`FDP/Engine/Fdp.Core/GlobalComponentIds.cs`):
+```csharp
+// Commander-Subordinate hierarchy components (AI tier, IDs 182-184 reserved in HrotComponentIds)
+public const byte UnitRoster                    = 182;
+public const byte UnitSubordinate               = 183;
+public const byte InitialUnitSubordinateIntent  = 184;
+```
+
+**Update all existing consumers** of `Hrot.Core.CommandHierarchy.*` to use
+`Fdp.Core.CommandHierarchy.*` instead. At minimum update these files:
+- `Hrot/Subsystems/Hrot.SimHost/SimHostComponentRegistry.cs` — change using
+- `Hrot/Subsystems/Hrot.SimHost/KinematicComponentRegistry.cs` — change using
+- `Hrot/Network/Hrot.Network.NED/Replication/Map/TacticalDesignationMapper.cs` — change using
+- `Hrot/Engine/Hrot.Core.Tests/CommandHierarchyTests.cs` — change using
+- `Hrot/Network/Hrot.Network.NED.Tests/TacticalDesignationMapperTests.cs` — change using
+- `Hrot/Subsystems/Hrot.SimHost.Tests/SimHostCoreLogicPackTests.cs` — change using
+
+**In `HrotComponentIds.cs`**: the constants 182/183/184 may remain as they are (they're the same
+numeric values — keeping them avoids breaking any code that uses `HrotComponentIds.UnitRoster`
+by name). They now serve as documentation aliases for the `GlobalComponentIds` values.
+
+**After the move, delete the old folder** `Hrot/Engine/Hrot.Core/CommandHierarchy/`
+(the four files are now in `Fdp.Core`). The Hrot.Core project file may need updating to remove
+the old file references if it was listed explicitly.
+
+**Success conditions for CT-1:**
+- Build succeeds with 0 errors.
+- All 26 existing CommandHierarchy tests still pass.
+- `UnitSubordinate` and `UnitRoster` are in `Fdp.Core.CommandHierarchy` namespace.
+- `VehicleCommandSystem.cs` can reference `CmdAssignSubordinate` via `using Fdp.Core.CommandHierarchy;`
+  without adding a new `ProjectReference` to `Fdp.Toolkits.csproj`.
+
+---
+
 ### CT-0 — Fix CS006: Remove `FormationFollower.LeaderEntity` (CORRECTIVE TASK, P1)
 
 **What is wrong:** `FormationFollower` currently has `public Entity LeaderEntity;` field. This was kept
@@ -317,11 +370,12 @@ Check which registry currently registers the other intent DTO components (e.g.
 
 ## Implementation Order
 
-1. **CT-0** — remove `LeaderEntity` field first (unblocks CS007)
-2. **CS007** — update VehicleCommandSystem + FormationTargetSystem (depends on CT-0)
-3. **CS012** — add InitialUnitSubordinateIntent class (independent, simple)
-4. **CS022** — TkbChildSlot replacement (depends on CS012 for InitialUnitSubordinateIntent)
-5. **CS016** — UnitHierarchySystem (complex, can be done in parallel with CS012 + CS022)
+1. **CT-1** — move command hierarchy types to Fdp.Core (unblocks everything — do this FIRST)
+2. **CT-0** — remove `LeaderEntity` field from FormationFollower (depends on CT-1)
+3. **CS007** — update VehicleCommandSystem + FormationTargetSystem (depends on CT-0 and CT-1)
+4. **CS012** — add InitialUnitSubordinateIntent class (independent, can be done after CT-1)
+5. **CS022** — TkbChildSlot replacement (depends on CS012 for InitialUnitSubordinateIntent)
+6. **CS016** — UnitHierarchySystem (depends on CT-1; complex, can be done in parallel with CS012 + CS022)
 
 ---
 
