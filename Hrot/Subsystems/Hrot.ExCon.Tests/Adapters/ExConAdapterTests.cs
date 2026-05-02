@@ -30,10 +30,11 @@ public sealed class ExConOrbatAdapterTests
         return mock;
     }
 
-    private static ExConOrbatAdapter CreateAdapter(IDerRepo repo, IExConLogic? logic = null)
+    private static ExConOrbatAdapter CreateAdapter(IDerRepo repo, IExConLogic? logic = null, ICommandGateway? gateway = null)
     {
-        logic ??= CreateLogicMock().Object;
-        return new ExConOrbatAdapter(repo, logic);
+        logic   ??= CreateLogicMock().Object;
+        gateway ??= Mock.Of<ICommandGateway>();
+        return new ExConOrbatAdapter(repo, logic, gateway);
     }
 
     // ── Test 1: Empty repo returns empty list ─────────────────────────────────

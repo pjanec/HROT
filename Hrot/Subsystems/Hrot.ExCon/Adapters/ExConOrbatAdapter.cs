@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.DER;
+using Fdp.Toolkit.Replication.Events;
 using Hrot.Core.Network;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
@@ -24,19 +25,22 @@ namespace Hrot.ExCon.Adapters;
 /// </summary>
 public sealed class ExConOrbatAdapter : IOrbatDataProvider, IOrbatController
 {
-    private readonly IDerRepo     _repo;
-    private readonly IExConLogic  _logic;
-    private readonly HashSet<int> _expandedNodes = new();
+    private readonly IDerRepo      _repo;
+    private readonly IExConLogic   _logic;
+    private readonly ICommandGateway _gateway;
+    private readonly HashSet<int>  _expandedNodes = new();
 
     /// <summary>
     /// Creates an <see cref="ExConOrbatAdapter"/>.
     /// </summary>
     /// <param name="repo">DER entity repository from which the ORBAT tree is built.</param>
     /// <param name="logic">ExCon application-logic facade used for selection and placement commands.</param>
-    public ExConOrbatAdapter(IDerRepo repo, IExConLogic logic)
+    /// <param name="gateway">Command gateway for dispatching hierarchy changes over DDS.</param>
+    public ExConOrbatAdapter(IDerRepo repo, IExConLogic logic, ICommandGateway gateway)
     {
-        _repo  = repo  ?? throw new ArgumentNullException(nameof(repo));
-        _logic = logic ?? throw new ArgumentNullException(nameof(logic));
+        _repo    = repo     ?? throw new ArgumentNullException(nameof(repo));
+        _logic   = logic    ?? throw new ArgumentNullException(nameof(logic));
+        _gateway = gateway  ?? throw new ArgumentNullException(nameof(gateway));
     }
 
     // ── IOrbatDataProvider ────────────────────────────────────────────────────
@@ -101,7 +105,7 @@ public sealed class ExConOrbatAdapter : IOrbatDataProvider, IOrbatController
                     Depth:           depth,
                     HasChildren:     hasChildren,
                     IsPendingDelete: _logic.IsEntityPendingDelete(entityId),
-                    CanAcceptSubordinates: false));
+                    CanAcceptSubordinates: IsCompositeType(entity.TkbType)));
             }
 
             // Recurse into children when filter is active (scan full subtree) or node is expanded.
@@ -158,20 +162,28 @@ public sealed class ExConOrbatAdapter : IOrbatDataProvider, IOrbatController
     }
 
     /// <inheritdoc/>
-    /// <remarks>Subordination assignment is not yet implemented in ExCon; see CS021.</remarks>
     public void RequestAssignSubordinate(int subordinateEntityId, int commanderEntityId)
     {
-        FdpLog<ExConOrbatAdapter>.Warn(
-            "[ExConOrbatAdapter] RequestAssignSubordinate not yet implemented over DDS " +
-            "(subordinate={0}, commander={1}).", subordinateEntityId, commanderEntityId);
+        _ = _gateway.SendUpdateAttributeAsync(new UpdateEntityAttributeCommand
+        {
+            NetworkId          = subordinateEntityId,
+            AttributePatchJson = $"{{\"CommanderId\":{commanderEntityId}}}",
+        });
     }
 
     /// <inheritdoc/>
-    /// <remarks>Subordination removal is not yet implemented in ExCon; see CS021.</remarks>
     public void RequestRemoveSubordinate(int subordinateEntityId)
     {
-        FdpLog<ExConOrbatAdapter>.Warn(
-            "[ExConOrbatAdapter] RequestRemoveSubordinate not yet implemented over DDS " +
-            "(subordinate={0}).", subordinateEntityId);
+        _ = _gateway.SendUpdateAttributeAsync(new UpdateEntityAttributeCommand
+        {
+            NetworkId          = subordinateEntityId,
+            AttributePatchJson = "{\"CommanderId\":0}",
+        });
+    }
+
+    private static bool IsCompositeType(long tkbType)
+    {
+        // 0 = unknown/not yet resolved; treat as non-composite.
+        return tkbType != 0;
     }
 }

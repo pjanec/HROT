@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Json;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
+using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Replication.Patching;
 using CycloneDDS.Runtime;
 using Fdp.Core.Logging;
@@ -193,6 +197,18 @@ namespace Hrot.Map.Common.Systems
                 return;
             }
 
+            // 3a. Pre-intercept "CommanderId" from the JSON patch.
+            //     This key was removed from EntityInfo (CS009) so the reflection compiler
+            //     would silently drop it. We must handle it explicitly.
+            //     Runs even when no JsonAttributeCompiler is present.
+            bool commanderIntercepted = false;
+            if (!string.IsNullOrEmpty(req.AttributePatchJson))
+            {
+                req.AttributePatchJson = InterceptCommanderId(
+                    req.AttributePatchJson, req.EntityId, entity, repo,
+                    out commanderIntercepted);
+            }
+
             // 3. No compiler — acknowledge no-op only when explicitly requested.
             if (_jsonCompiler == null)
             {
@@ -201,7 +217,13 @@ namespace Hrot.Map.Common.Systems
                     "EntityId={0}, RequestId={1}",
                     req.EntityId, req.RequestId);
                 if (req.RequireAck)
-                    _ackSink.WriteErrorAck(req.RequestId, (int)NedStatusCode.Success);
+                {
+                    // If CommanderId was the only payload, send a success ACK.
+                    if (commanderIntercepted)
+                        _ackSink.WriteAck(req.RequestId, (int)NedStatusCode.Success, _localNodeId, ReadOnlySpan<byte>.Empty);
+                    else
+                        _ackSink.WriteErrorAck(req.RequestId, (int)NedStatusCode.Success);
+                }
                 return;
             }
 
@@ -219,8 +241,17 @@ namespace Hrot.Map.Common.Systems
             context.FlushDirtyMarks();
 
             // 7. SILENT BYSTANDER RULE — if this node applied nothing, leave quietly.
-            if (!context.HasAppliedAny)
+            if (!context.HasAppliedAny && !commanderIntercepted)
                 return;
+
+            // 7a. CommanderId-only patch: applied via event bus but no ECS mutations.
+            //     Send ACK with empty mask to confirm receipt.
+            if (!context.HasAppliedAny && commanderIntercepted)
+            {
+                if (req.RequireAck)
+                    _ackSink.WriteAck(req.RequestId, (int)NedStatusCode.Success, _localNodeId, ReadOnlySpan<byte>.Empty);
+                return;
+            }
 
             // 8. OPT-IN ACK — send only when the requester asked for a response.
             if (req.RequireAck)
@@ -232,6 +263,79 @@ namespace Hrot.Map.Common.Systems
 
                 _ackSink.WriteAck(req.RequestId, (int)NedStatusCode.Success, _localNodeId, opaqueMask);
             }
+        }
+
+        /// <summary>
+        /// Scans <paramref name="json"/> for a "CommanderId" property.
+        /// If found: resolves the entity, publishes
+        /// <see cref="CmdAssignSubordinate"/> or <see cref="CmdRemoveSubordinate"/>, then returns
+        /// a sanitized JSON string without the "CommanderId" key.
+        /// </summary>
+        private string InterceptCommanderId(
+            string json, int entityNetId, Entity entity, EntityRepository repo,
+            out bool intercepted)
+        {
+            intercepted = false;
+            try
+            {
+                using var doc  = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                if (!root.TryGetProperty("CommanderId", out var cmdIdProp))
+                    return json;
+
+                intercepted = true;
+                long commanderNetId = cmdIdProp.GetInt64();
+
+                if (commanderNetId != 0)
+                {
+                    if (_entityMap.TryGetEntity(commanderNetId, out var commander))
+                    {
+                        repo.Bus.Publish(new CmdAssignSubordinate
+                        {
+                            Subordinate = entity,
+                            Commander   = commander,
+                            Designation = TacticalDesignation.Undefined,
+                        });
+                    }
+                    else
+                    {
+                        FdpLog<UpdateEntityAttributeRequestSystem>.Warn(
+                            "[UpdAttrReq] CommanderId {0} not found in entity map for entity {1}.",
+                            commanderNetId, entityNetId);
+                    }
+                }
+                else
+                {
+                    // Zero = remove subordination.
+                    if (repo.HasComponent<UnitSubordinate>(entity))
+                        repo.Bus.Publish(new CmdRemoveSubordinate { Subordinate = entity });
+                }
+
+                // Rebuild JSON without "CommanderId".
+                return RebuildJsonWithout(root, "CommanderId");
+            }
+            catch (JsonException ex)
+            {
+                FdpLog<UpdateEntityAttributeRequestSystem>.Warn(
+                    "[UpdAttrReq] Failed to parse AttributePatchJson for CommanderId intercept: {0}", ex.Message);
+                return json;
+            }
+        }
+
+        private static string RebuildJsonWithout(JsonElement root, string excludeProperty)
+        {
+            using var ms = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(ms))
+            {
+                writer.WriteStartObject();
+                foreach (var prop in root.EnumerateObject())
+                {
+                    if (prop.Name == excludeProperty) continue;
+                    prop.WriteTo(writer);
+                }
+                writer.WriteEndObject();
+            }
+            return Encoding.UTF8.GetString(ms.ToArray());
         }
     }
 

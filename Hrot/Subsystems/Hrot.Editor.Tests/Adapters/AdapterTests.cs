@@ -330,6 +330,88 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Single(events);
             Assert.Equal(passenger, events[0].Passenger);
         }
+
+        // CS020-T01
+        [Fact]
+        public void GetVisibleNodes_CommanderWithRoster_CanAcceptSubordinatesTrue()
+        {
+            _world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+            _world.CreateEntity(); // burn index 0
+            var commander = _world.CreateEntity();
+            _world.AddComponent(commander, new EntityInfo { Name = new Fdp.Core.FixedString64("CMD") });
+            _world.AddComponent(commander, new Fdp.Core.CommandHierarchy.UnitRoster());  // has roster
+
+            var subordinate = _world.CreateEntity();
+            _world.AddComponent(subordinate, new EntityInfo { Name = new Fdp.Core.FixedString64("SUB") });
+            _world.AddComponent(subordinate, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+
+            var adapter = CreateAdapter();
+            var nodes   = adapter.GetVisibleNodes("", new HashSet<int>());
+
+            var cmdNode = nodes.Single(n => n.EntityId == commander.Index);
+            var subNode = nodes.Single(n => n.EntityId == subordinate.Index);
+
+            Assert.True(cmdNode.CanAcceptSubordinates);
+            Assert.False(subNode.CanAcceptSubordinates);
+            Assert.Equal(1, subNode.Depth);
+        }
+
+        // CS020-T02
+        [Fact]
+        public void RequestAssignSubordinate_ValidEntities_PublishesCmdAssignSubordinate()
+        {
+            _world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>();
+            _world.CreateEntity(); // burn index 0
+            var commander  = _world.CreateEntity();
+            var subordinate = _world.CreateEntity();
+            _world.AddComponent(commander,   new EntityInfo { Name = new Fdp.Core.FixedString64("CMD") });
+            _world.AddComponent(subordinate, new EntityInfo { Name = new Fdp.Core.FixedString64("SUB") });
+
+            var adapter = CreateAdapter();
+            adapter.GetVisibleNodes("", new HashSet<int>()); // populate cache
+
+            adapter.RequestAssignSubordinate(subordinate.Index, commander.Index);
+
+            _bus.SwapBuffers();
+            var events = _bus.Read<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>().ToArray();
+            Assert.Single(events);
+            Assert.Equal(subordinate, events[0].Subordinate);
+            Assert.Equal(commander,   events[0].Commander);
+        }
+
+        // CS020-T03
+        [Fact]
+        public void RequestAssignSubordinate_UnknownEntity_DoesNotThrow()
+        {
+            _world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>();
+            var adapter = CreateAdapter();
+
+            // No exception; no event.
+            adapter.RequestAssignSubordinate(999, 888);
+
+            _bus.SwapBuffers();
+            Assert.Empty(_bus.Read<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>().ToArray());
+        }
+
+        // CS020-T04
+        [Fact]
+        public void RequestRemoveSubordinate_ValidEntity_PublishesCmdRemoveSubordinate()
+        {
+            _world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdRemoveSubordinate>();
+            _world.CreateEntity(); // burn index 0
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new EntityInfo { Name = new Fdp.Core.FixedString64("SUB") });
+
+            var adapter = CreateAdapter();
+            adapter.GetVisibleNodes("", new HashSet<int>()); // populate cache
+
+            adapter.RequestRemoveSubordinate(entity.Index);
+
+            _bus.SwapBuffers();
+            var events = _bus.Read<Fdp.Core.CommandHierarchy.CmdRemoveSubordinate>().ToArray();
+            Assert.Single(events);
+            Assert.Equal(entity, events[0].Subordinate);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

@@ -49,6 +49,9 @@ public class DrawPersonalRouteCommandTests : IDisposable
             MissionCalls.Add(cmd);
             return Task.FromResult(new MissionCommitResult { Success = true });
         }
+
+        public Task SendUpdateAttributeAsync(Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand cmd, CancellationToken ct = default)
+            => Task.CompletedTask;
     }
 
     private sealed class MockNetworkAdapter : IIgNetworkAdapter

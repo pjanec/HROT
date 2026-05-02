@@ -62,8 +62,8 @@
 - [x] **TASK-CS017** OrbatNodeViewModel: CanAcceptSubordinates flag [details](./TASK-DETAIL.md#task-cs017--orbatnodeviewmodel-canacceptsubordinates-flag)
 - [x] **TASK-CS018** IOrbatController: subordination methods [details](./TASK-DETAIL.md#task-cs018--iorbatcontroller-subordination-methods)
 - [x] **TASK-CS019** SharedOrbatPanel: subordination drag-drop [details](./TASK-DETAIL.md#task-cs019--sharedorbatpanel-subordination-drag-drop)
-- [ ] **TASK-CS020** EditorOrbatAdapter full implementation [details](./TASK-DETAIL.md#task-cs020--editororbatadapter-full-implementation)
-- [ ] **TASK-CS021** ExConOrbatAdapter full implementation [details](./TASK-DETAIL.md#task-cs021--exconorbatadapter-full-implementation)
+- [x] **TASK-CS020** EditorOrbatAdapter full implementation [details](./TASK-DETAIL.md#task-cs020--editororbatadapter-full-implementation)
+- [x] **TASK-CS021** ExConOrbatAdapter full implementation [details](./TASK-DETAIL.md#task-cs021--exconorbatadapter-full-implementation)
 
 ---
 
@@ -71,7 +71,7 @@
 
 **Goal:** Ensure the ExCon's JSON `CommanderId` patch reaches `UnitHierarchySystem` after the ECS field is removed.
 
-- [ ] **TASK-CS024** EntityDataAttributeInstaller CommanderId interception [details](./TASK-DETAIL.md#task-cs024--entitydataattributeinstaller-commanderid-interception)
+- [x] **TASK-CS024** EntityDataAttributeInstaller CommanderId interception [details](./TASK-DETAIL.md#task-cs024--entitydataattributeinstaller-commanderid-interception)
 
 ---
 
@@ -97,4 +97,4 @@
 **Goal:** Keep the test suite green throughout the refactor and validate distributed boundary correctness.
 
 - [x] **TASK-CS023** Component registry integration test update [details](./TASK-DETAIL.md#task-cs023--component-registry-integration-test-update)
-- [ ] **TASK-CS025** Integration tests: distributed boundary validation [details](./TASK-DETAIL.md#task-cs025--integration-tests-distributed-boundary-validation)
+- [x] **TASK-CS025** Integration tests: distributed boundary validation [details](./TASK-DETAIL.md#task-cs025--integration-tests-distributed-boundary-validation)

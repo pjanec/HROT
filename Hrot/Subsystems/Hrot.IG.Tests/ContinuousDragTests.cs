@@ -46,6 +46,8 @@ public class ContinuousDragTests
         public Task SendUpdateDescriptorAsync(UpdateEntityDescriptorCommand cmd, CancellationToken ct = default) { Calls++; return Task.CompletedTask; }
         public Task<MissionCommitResult> SendMissionControlRequestAsync(MissionControlCommand cmd, CancellationToken ct = default)
             => Task.FromResult(new MissionCommitResult { Success = true });
+        public Task SendUpdateAttributeAsync(Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand cmd, CancellationToken ct = default)
+            => Task.CompletedTask;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

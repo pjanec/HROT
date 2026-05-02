@@ -1,3 +1,5 @@
+using Fdp.Toolkit.Replication.Events;
+
 namespace Hrot.Core.Network;
 
 /// <summary>
@@ -17,4 +19,10 @@ public interface ICommandGateway : IDisposable
     /// returns the commit result including success, new version, and error code.
     /// </summary>
     Task<MissionCommitResult> SendMissionControlRequestAsync(MissionControlCommand cmd, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sends an attribute-level JSON patch request for a specific entity.
+    /// Used by the ExCon to push <c>CommanderId</c> hierarchy changes over DDS.
+    /// </summary>
+    Task SendUpdateAttributeAsync(UpdateEntityAttributeCommand cmd, CancellationToken ct = default);
 }

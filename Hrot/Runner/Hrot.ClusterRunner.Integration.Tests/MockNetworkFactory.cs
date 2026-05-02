@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning;
+using Fdp.Toolkit.Replication.Events;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Hrot.Common.Abstractions;
@@ -141,6 +142,8 @@ internal class MockNetworkFactory : INetworkFactory
             => Task.CompletedTask;
         public Task<MissionCommitResult> SendMissionControlRequestAsync(MissionControlCommand cmd, CancellationToken ct = default)
             => Task.FromResult(new MissionCommitResult { Success = false, ErrorMessage = "No gateway" });
+        public Task SendUpdateAttributeAsync(UpdateEntityAttributeCommand cmd, CancellationToken ct = default)
+            => Task.CompletedTask;
         public void Dispose() { }
     }
 

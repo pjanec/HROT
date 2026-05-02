@@ -113,7 +113,7 @@ namespace Hrot.Editor.Adapters
                         Depth:          depth,
                         HasChildren:    hasChildren,
                         IsPendingDelete: false,
-                        CanAcceptSubordinates: false));
+                        CanAcceptSubordinates: _world.HasComponent<UnitRoster>(entity)));
                 }
 
                 // Expand children only if this node is expanded (or no expand filter is active)
@@ -176,21 +176,37 @@ namespace Hrot.Editor.Adapters
         }
 
         /// <inheritdoc/>
-        /// <remarks>Subordination assignment is not yet implemented in the Editor; see CS020.</remarks>
         public void RequestAssignSubordinate(int subordinateEntityId, int commanderEntityId)
         {
-            FdpLog<EditorOrbatAdapter>.Warn(
-                "[EditorOrbatAdapter] RequestAssignSubordinate not yet implemented " +
-                "(subordinate={0}, commander={1}).", subordinateEntityId, commanderEntityId);
+            if (!_indexCache.TryGetValue(subordinateEntityId, out var sub) ||
+                !_indexCache.TryGetValue(commanderEntityId,   out var cmd))
+            {
+                FdpLog<EditorOrbatAdapter>.Warn(
+                    "[EditorOrbatAdapter] RequestAssignSubordinate: entity not in cache " +
+                    "(subordinate={0}, commander={1}).", subordinateEntityId, commanderEntityId);
+                return;
+            }
+
+            _bus.Publish(new CmdAssignSubordinate
+            {
+                Subordinate = sub,
+                Commander   = cmd,
+                Designation = TacticalDesignation.Undefined,
+            });
         }
 
         /// <inheritdoc/>
-        /// <remarks>Subordination removal is not yet implemented in the Editor; see CS020.</remarks>
         public void RequestRemoveSubordinate(int subordinateEntityId)
         {
-            FdpLog<EditorOrbatAdapter>.Warn(
-                "[EditorOrbatAdapter] RequestRemoveSubordinate not yet implemented " +
-                "(subordinate={0}).", subordinateEntityId);
+            if (!_indexCache.TryGetValue(subordinateEntityId, out var sub))
+            {
+                FdpLog<EditorOrbatAdapter>.Warn(
+                    "[EditorOrbatAdapter] RequestRemoveSubordinate: entity not in cache " +
+                    "(subordinate={0}).", subordinateEntityId);
+                return;
+            }
+
+            _bus.Publish(new CmdRemoveSubordinate { Subordinate = sub });
         }
     }
 }

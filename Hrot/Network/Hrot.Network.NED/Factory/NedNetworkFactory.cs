@@ -413,6 +413,8 @@ internal sealed class NullCommandGateway : ICommandGateway
         => Task.CompletedTask;
     public Task<MissionCommitResult> SendMissionControlRequestAsync(MissionControlCommand cmd, CancellationToken ct = default)
         => Task.FromResult(new MissionCommitResult { Success = false, ErrorMessage = "No gateway" });
+        public Task SendUpdateAttributeAsync(Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand cmd, CancellationToken ct = default)
+        => Task.CompletedTask;
     public void Dispose() { }
 }
 

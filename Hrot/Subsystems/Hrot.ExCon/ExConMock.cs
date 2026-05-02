@@ -87,7 +87,8 @@ public sealed class ExConMock : IDisposable
         SpawnerPanel               spawnerPanel,
         DiagnosticsPanel?          diagnosticsPanel        = null,
         DerEntityInspectorPanel?   derEntityInspectorPanel = null,
-        bool                       useDockSpace            = true)
+        bool                       useDockSpace            = true,
+        ICommandGateway?           gateway                 = null)
     {
         _logic                   = logic            ?? throw new ArgumentNullException(nameof(logic));
         _configPanel             = configPanel      ?? throw new ArgumentNullException(nameof(configPanel));
@@ -105,7 +106,7 @@ public sealed class ExConMock : IDisposable
 
         // Phase 6 proper adapters.
         _mapConfigAdapter = new ExConMapConfigAdapter(_logic);
-        _orbatAdapter     = new ExConOrbatAdapter(_logic.Repo, _logic);
+        _orbatAdapter     = new ExConOrbatAdapter(_logic.Repo, _logic, gateway ?? new NullCommandGateway());
         _sharedOrbatPanel = new SharedOrbatPanel();
 
         // Register the Hrot-specific "Edit Overlay" context menu action.

@@ -2,6 +2,7 @@ using Hrot.NED.Messages;
 using Hrot.Core.Network;
 using Hrot.Network.NED.ExCon;
 using Fdp.Toolkit.Commands;
+using Fdp.Toolkit.Replication.Events;
 using CycloneDDS.Core;
 using CycloneDDS.Runtime;
 using Fdp.Core.Logging;
@@ -42,6 +43,7 @@ namespace Hrot.Map.Common.Commands
         private readonly DdsCommandClient<CreateEntityRequest, CreateUpdateDeleteEntityAck>    _createEntityClient;
         private readonly DdsCommandClient<MissionControlRequest, MissionControlAck>            _missionControlClient;
         private readonly DdsWriter<UpdateEntityDescriptorRequest>                              _updateWriter;
+        private readonly DdsWriter<UpdateEntityAttributeRequest>                               _attributeWriter;
         private readonly long _localNodeId;
 
         /// <summary>
@@ -74,6 +76,8 @@ namespace Hrot.Map.Common.Commands
 
             // Fire-and-forget writer for UpdateEntityDescriptorRequest (drag-end position updates).
             _updateWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
+
+            _attributeWriter = new DdsWriter<UpdateEntityAttributeRequest>(participant, "UpdateEntityAttributeRequest");
         }
 
         /// <summary>
@@ -176,11 +180,25 @@ namespace Hrot.Map.Common.Commands
             };
         }
 
+        /// <inheritdoc/>
+        Task ICommandGateway.SendUpdateAttributeAsync(UpdateEntityAttributeCommand cmd, CancellationToken ct)
+        {
+            _attributeWriter.Write(new UpdateEntityAttributeRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                EntityId           = (int)cmd.NetworkId,
+                AttributePatchJson = cmd.AttributePatchJson,
+                RequireAck         = false,
+            });
+            return Task.CompletedTask;
+        }
+
         public void Dispose()
         {
             _createEntityClient?.Dispose();
             _missionControlClient?.Dispose();
             _updateWriter?.Dispose();
+            _attributeWriter?.Dispose();
         }
     }
 }

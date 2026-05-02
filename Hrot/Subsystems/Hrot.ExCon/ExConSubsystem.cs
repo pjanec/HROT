@@ -433,6 +433,8 @@ namespace Hrot.ExCon
             => System.Threading.Tasks.Task.CompletedTask;
         public System.Threading.Tasks.Task<MissionCommitResult> SendMissionControlRequestAsync(MissionControlCommand cmd, System.Threading.CancellationToken ct = default)
             => System.Threading.Tasks.Task.FromResult(new MissionCommitResult { Success = false, ErrorMessage = "No gateway" });
+        public System.Threading.Tasks.Task SendUpdateAttributeAsync(Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand cmd, System.Threading.CancellationToken ct = default)
+            => System.Threading.Tasks.Task.CompletedTask;
         public void Dispose() { }
     }
 
