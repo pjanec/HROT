@@ -73,6 +73,15 @@ public static class SimHostComponentRegistry
         world.RegisterEvent<CmdJoinFormation>();
         world.RegisterEvent<CmdLeaveFormation>();
 
+        // ── Commander-Subordinate hierarchy components (commander-subordinates workstream) ─
+        world.RegisterComponent<Hrot.Core.CommandHierarchy.UnitRoster>();
+        world.RegisterComponent<Hrot.Core.CommandHierarchy.UnitSubordinate>();
+
+        // ── Commander-Subordinate hierarchy events (commander-subordinates workstream) ─
+        world.RegisterEvent<Hrot.Core.CommandHierarchy.CmdAssignSubordinate>();
+        world.RegisterEvent<Hrot.Core.CommandHierarchy.CmdRemoveSubordinate>();
+        world.RegisterEvent<Hrot.Core.CommandHierarchy.CmdAssignSubordinateRejected>();
+
         // ── Presentation tier ─────────────────────────────────────────────────
         // ActivePerspective singleton selects the active view (string-based, dynamic).
         world.RegisterManagedComponent<Hrot.Common.ActivePerspective>();

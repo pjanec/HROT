@@ -16,6 +16,7 @@ using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Systems;
 using Fdp.Toolkit.Replication.Services;
+using Hrot.SimHost;
 using Hrot.SimHost.Systems;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
@@ -65,7 +66,7 @@ namespace Hrot.SimHost.Tests
             world.RegisterComponent<VehicleState>();
             world.RegisterComponent<VehicleParams>();
             world.RegisterComponent<NavState>();
-            world.RegisterComponent<FormationRoster>();
+            world.RegisterComponent<FormationController>();
 
             // Navigation CQRS
             world.RegisterComponent<NavigationIntent>();
@@ -194,6 +195,30 @@ namespace Hrot.SimHost.Tests
 
             Assert.NotNull(pack.TrajectoryPool);
             Assert.NotNull(pack.FormationTemplates);
+        }
+
+        /// <summary>
+        /// TASK-CS004 integration test: SimHostComponentRegistry.RegisterAll registers
+        /// UnitRoster and UnitSubordinate so their component tables are available.
+        /// </summary>
+        [Fact]
+        public void SimHostComponentRegistry_RegisterAll_ProvidesUnitHierarchyComponentTables()
+        {
+            var world = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(world);
+
+            Assert.NotNull(world.GetComponentTable<Hrot.Core.CommandHierarchy.UnitRoster>());
+            Assert.NotNull(world.GetComponentTable<Hrot.Core.CommandHierarchy.UnitSubordinate>());
+
+            // Dispose NativeArrays allocated by SimHostComponentRegistry (PathfindingBatchData, RaycastBatchData)
+            if (world.HasSingleton<PathfindingBatchData>())
+            {
+                ref var batch = ref world.GetSingleton<PathfindingBatchData>();
+                if (batch.Requests.IsCreated) batch.Requests.Dispose();
+                if (batch.Results.IsCreated)  batch.Results.Dispose();
+            }
+            DisposeRaycastBatchData(world);
+            world.Dispose();
         }
     }
 }
