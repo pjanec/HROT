@@ -190,14 +190,6 @@ public sealed class NedReplicationModule : INedReplicationModule
         var lifecycleInnerSystems = new List<IEcsModuleSystem> { GhostCreationSystem };
 
 
-        // ── Ghost Destruction (Pure-Brain Only) ──
-        // Pure Brains receive remote entities as ghosts and must purge them instantly on DISPOSE.
-        // If this ran on Muscle/AllInOne, it would consume DestroyEntityCommand instantly and
-        // bypass the NetworkSpawningSystem's TearDown phase, preventing EntityMaster DISPOSE 
-        // packets from being sent to the IG (leaving zombie entities).
-        if (_roleHasBrain && !_roleHasMuscle && !_roleHasIG)
-            lifecycleInnerSystems.Add(new GhostDestructionSystem(_entityMap));
-
         // ── Deferred Takeover (Muscle / AllInOne Only) ──
         // Executes the split-authority handover. When a Brain creates an entity and delegates 
         // physics to the Muscle, this system claims the local ECS authority bits (e.g., SimTransform) 
@@ -472,31 +464,4 @@ public sealed class NedReplicationModule : INedReplicationModule
         }
     }
 
-    [UpdateInPhase(SystemPhase.PostSimulation)]
-    private sealed class GhostDestructionSystem : IEcsModuleSystem
-    {
-        private readonly NetworkEntityMap _entityMap;
-
-        public GhostDestructionSystem(NetworkEntityMap entityMap)
-            => _entityMap = entityMap;
-
-        public void Execute(ISimulationView view, float dt)
-        {
-            var world = view as EntityRepository;
-            if (world == null) return;
-
-            foreach (var cmd in view.ReadManagedEvents<DestroyEntityCommand>())
-            {
-                if (!cmd.IsRemote)
-                    continue;
-
-                if (_entityMap.TryGetEntity(cmd.NetworkId, out var entity))
-                {
-                    _entityMap.Unregister(cmd.NetworkId, view.Tick);
-                    if (world.IsAlive(entity))
-                        world.DestroyEntity(entity);
-                }
-            }
-        }
-    }
 }
