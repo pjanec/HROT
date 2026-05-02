@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Core.Logging;
@@ -14,13 +16,25 @@ namespace Hrot.SimHost.Serializers
     /// Custom scenario translator for <see cref="UnitSubordinate"/>.
     ///
     /// Serialises the commander entity as a stable GUID reference and the tactical
-    /// designation as an integer.  On inject, resolves the GUID to a network ID and
+    /// designation as a string.  On inject, resolves the GUID to a network ID and
     /// attaches <see cref="InitialUnitSubordinateIntent"/> for deferred materialisation
     /// by <c>GenesisMaterializationSystem</c>.
     /// </summary>
     public sealed class UnitSubordinateTranslator : IEntityScenarioTranslator
     {
         private const string Key = "UnitSubordinate";
+
+        private sealed class UnitSubordinateDto
+        {
+            public string? CommanderGuid { get; set; }
+            public string? Designation { get; set; }
+        }
+
+        private static readonly JsonSerializerOptions s_jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
 
         // ── IEntityScenarioTranslator ─────────────────────────────────────────
 
@@ -43,16 +57,15 @@ namespace Hrot.SimHost.Serializers
             if (sub.Commander.IsNull)
                 return new Dictionary<string, object>();
 
-            string commanderGuid = resolver.Resolve(sub.Commander);
-            int designation = (int)sub.Designation;
+            var dto = new UnitSubordinateDto
+            {
+                CommanderGuid = resolver.Resolve(sub.Commander),
+                Designation   = sub.Designation.ToString()
+            };
 
             return new Dictionary<string, object>
             {
-                [Key] = new JsonObject
-                {
-                    ["commanderGuid"] = commanderGuid,
-                    ["designation"]   = designation,
-                }
+                [Key] = JsonSerializer.SerializeToNode(dto, s_jsonOptions)!
             };
         }
 
@@ -60,21 +73,19 @@ namespace Hrot.SimHost.Serializers
             EntityRepository repo, Entity entity,
             Dictionary<string, object> scenarioData, IGuidResolver resolver)
         {
-            if (!scenarioData.TryGetValue(Key, out var raw)) return;
-            if (raw is not JsonObject obj) return;
+            if (!scenarioData.TryGetValue(Key, out var raw) || raw is not JsonObject obj) return;
 
-            string? commanderGuidStr = obj["commanderGuid"]?.GetValue<string>();
-            int designation = obj["designation"]?.GetValue<int>() ?? 0;
+            var dto = obj.Deserialize<UnitSubordinateDto>(s_jsonOptions);
+            if (dto == null || string.IsNullOrEmpty(dto.CommanderGuid)) return;
+            Enum.TryParse<TacticalDesignation>(dto.Designation, out var designation);
 
-            if (string.IsNullOrEmpty(commanderGuidStr)) return;
-
-            Entity resolved = resolver.Resolve(commanderGuidStr);
+            Entity resolved = resolver.Resolve(dto.CommanderGuid);
             long networkId;
             if (resolved.IsNull || !repo.IsAlive(resolved))
             {
                 FdpLog<UnitSubordinateTranslator>.Warn(
                     "[UnitSubordinateTranslator] Commander GUID '{0}' could not be resolved; " +
-                    "attaching intent with CommanderNetworkId = 0.", commanderGuidStr);
+                    "attaching intent with CommanderNetworkId = 0.", dto.CommanderGuid);
                 networkId = 0;
             }
             else if (!repo.HasComponent<NetworkIdentity>(resolved))
@@ -92,7 +103,7 @@ namespace Hrot.SimHost.Serializers
             repo.SetManagedComponent(entity, new InitialUnitSubordinateIntent
             {
                 CommanderNetworkId = networkId,
-                Designation        = (TacticalDesignation)designation,
+                Designation        = designation,
             });
         }
 

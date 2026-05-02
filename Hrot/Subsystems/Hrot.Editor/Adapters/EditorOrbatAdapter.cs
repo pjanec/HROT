@@ -68,17 +68,19 @@ namespace Hrot.Editor.Adapters
             foreach (var (idx, _) in _indexCache)
             {
                 var entity = _indexCache[idx];
-                var info   = _world.GetComponent<EntityInfo>(entity);
-                int cmdId  = _world.HasComponent<UnitSubordinate>(entity)
-                    ? _world.GetComponent<UnitSubordinate>(entity).Commander.Index
-                    : 0;
+                Entity commander = Entity.Null;
+                if (_world.HasComponent<UnitSubordinate>(entity))
+                {
+                    commander = _world.GetComponent<UnitSubordinate>(entity).Commander;
+                }
 
-                if (cmdId == 0)
+                if (commander.IsNull || !_world.IsAlive(commander))
                 {
                     rootIndices.Add(idx);
                 }
                 else
                 {
+                    int cmdId = commander.Index;
                     if (!children.ContainsKey(cmdId))
                         children[cmdId] = new List<int>();
                     children[cmdId].Add(idx);

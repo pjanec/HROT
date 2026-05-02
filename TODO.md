@@ -13,6 +13,7 @@ because of fixed array limitations...
 BTW when i double click one item in the SubordinateEntities list showing value 4294967297, 
 the StructEdit editor opens but showing 2147483647. Inconsistent!
 ---------------------------------------
+[BUG] ECS key is closing the editor. It should not!
 ---------------------------------------
 ---------------------------------------
 ---------------------------------------
