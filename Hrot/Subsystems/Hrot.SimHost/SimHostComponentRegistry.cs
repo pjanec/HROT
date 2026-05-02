@@ -66,6 +66,7 @@ public static class SimHostComponentRegistry
         world.RegisterManagedComponent<Hrot.Common.Serializers.InitialHierarchyIntent>();
         world.RegisterManagedComponent<Hrot.Common.Serializers.InitialRouteIntent>();
         world.RegisterManagedComponent<Hrot.Common.Serializers.InitialTargetsIntent>();
+        world.RegisterManagedComponent<Hrot.Common.Serializers.InitialUnitSubordinateIntent>();
 
         // ── CarKinem command events ───────────────────────────────────────────
         world.RegisterEvent<CmdSpawnVehicle>();
@@ -74,13 +75,13 @@ public static class SimHostComponentRegistry
         world.RegisterEvent<CmdLeaveFormation>();
 
         // ── Commander-Subordinate hierarchy components (commander-subordinates workstream) ─
-        world.RegisterComponent<Hrot.Core.CommandHierarchy.UnitRoster>();
-        world.RegisterComponent<Hrot.Core.CommandHierarchy.UnitSubordinate>();
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
 
         // ── Commander-Subordinate hierarchy events (commander-subordinates workstream) ─
-        world.RegisterEvent<Hrot.Core.CommandHierarchy.CmdAssignSubordinate>();
-        world.RegisterEvent<Hrot.Core.CommandHierarchy.CmdRemoveSubordinate>();
-        world.RegisterEvent<Hrot.Core.CommandHierarchy.CmdAssignSubordinateRejected>();
+        world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>();
+        world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdRemoveSubordinate>();
+        world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdAssignSubordinateRejected>();
 
         // ── Presentation tier ─────────────────────────────────────────────────
         // ActivePerspective singleton selects the active view (string-based, dynamic).

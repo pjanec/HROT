@@ -16,6 +16,7 @@ using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Systems;
 using Fdp.Toolkit.Replication.Services;
+using Hrot.Common.Systems;
 using Hrot.SimHost;
 using Hrot.SimHost.Systems;
 using Fdp.ModuleHost;
@@ -132,8 +133,9 @@ namespace Hrot.SimHost.Tests
             // Navigation bridges: NavigationIntentBridgeSystem, RouteTrajectorySyncSystem (sim=2)
             // GroundKinematicsModule.SimulationSystems: SpatialHashSystem, FormationTargetSystem,
             //   VehicleCommandSystem, NavigationExecutionSystem (sim=4)
-            // total sim = 7
-            Assert.Equal(7, pack.SimulationSystems.Count);
+            // UnitHierarchySystem (sim=1)
+            // total sim = 8
+            Assert.Equal(8, pack.SimulationSystems.Count);
 
             // CombatModule: BallisticsSystem (postSim=1)
             // GroundKinematicsModule.PostSimulationSystems: CarKinematicsSystem, LinearKinematicsSystem (postSim=2)
@@ -173,6 +175,8 @@ namespace Hrot.SimHost.Tests
 
             // GroundKinematicsModule sim systems
             Assert.Contains(simSystems, s => s is SpatialHashSystem);
+            // UnitHierarchySystem (CS016)
+            Assert.Contains(simSystems, s => s is UnitHierarchySystem);
             // GroundKinematicsModule post-sim systems
             Assert.Contains(postSimSystems, s => s is CarKinematicsSystem);
             Assert.Contains(postSimSystems, s => s is LinearKinematicsSystem);
@@ -207,8 +211,8 @@ namespace Hrot.SimHost.Tests
             var world = new EntityRepository();
             SimHostComponentRegistry.RegisterAll(world);
 
-            Assert.NotNull(world.GetComponentTable<Hrot.Core.CommandHierarchy.UnitRoster>());
-            Assert.NotNull(world.GetComponentTable<Hrot.Core.CommandHierarchy.UnitSubordinate>());
+            Assert.NotNull(world.GetComponentTable<Fdp.Core.CommandHierarchy.UnitRoster>());
+            Assert.NotNull(world.GetComponentTable<Fdp.Core.CommandHierarchy.UnitSubordinate>());
 
             // Dispose NativeArrays allocated by SimHostComponentRegistry (PathfindingBatchData, RaycastBatchData)
             if (world.HasSingleton<PathfindingBatchData>())

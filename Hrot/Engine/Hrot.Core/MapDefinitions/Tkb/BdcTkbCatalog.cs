@@ -1,3 +1,4 @@
+using Fdp.Core.CommandHierarchy;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.Tkb;
@@ -186,7 +187,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(TkbEntityTypes.Unit_TankPlatoon, 1)
                 .AsComposite(TkbEntityTypes.Unit_TankPlatoon, comp =>
                 {
-                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Tank_M1Abrams, Count = 4, RoleTag = "Tank" });
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Tank_M1Abrams, Count = 4, Designation = TacticalDesignation.Wingman });
                     comp.Echelon = "Platoon";
                     comp.AutoCreateChildren = false; // Manual creation
                 })
@@ -204,8 +205,8 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(TkbEntityTypes.Unit_InfantrySquad, 1)
                 .AsComposite(TkbEntityTypes.Unit_InfantrySquad, comp =>
                 {
-                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Infantry_Officer, Count = 1, RoleTag = "SquadLeader" });
-                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Infantry_Rifleman, Count = 9, RoleTag = "Rifleman" });
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Infantry_Officer, Count = 1, Designation = TacticalDesignation.SquadLeader });
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Infantry_Rifleman, Count = 9, Designation = TacticalDesignation.Wingman });
                     comp.Echelon = "Squad";
                     comp.AutoCreateChildren = false;
                 })
@@ -223,7 +224,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(TkbEntityTypes.Unit_TankPlatoon_Auto, 1)
                 .AsComposite(TkbEntityTypes.Unit_TankPlatoon_Auto, comp =>
                 {
-                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Tank_M1Abrams, Count = 4, RoleTag = "Tank" });
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Tank_M1Abrams, Count = 4, Designation = TacticalDesignation.Wingman });
                     comp.Echelon = "Platoon";
                     comp.AutoCreateChildren = true; // The engine will now auto-spawn 4x M1 Abrams when this is created
                 })

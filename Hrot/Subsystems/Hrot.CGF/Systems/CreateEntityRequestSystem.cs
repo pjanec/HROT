@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Fdp.Core.CommandHierarchy;
 using Hrot.Core.Network;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Core.Logging;
@@ -357,6 +358,16 @@ namespace Hrot.CGF.Systems
                                     CommanderId = (int)pending.NetworkId
                                 }
                             };
+
+                            // Attach subordinate intent when the blueprint slot carries a designation
+                            if (childDef.Designation != TacticalDesignation.Undefined)
+                            {
+                                childComponents.Add(new Hrot.Common.Serializers.InitialUnitSubordinateIntent
+                                {
+                                    CommanderNetworkId = pending.NetworkId,
+                                    Designation        = childDef.Designation,
+                                });
+                            }
 
                             // Merge component overrides for this child instance (when present).
                             if (pending.Request.ChildComponentOverrides != null

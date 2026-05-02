@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Hrot.Map.Definitions;
 
 namespace Hrot.Common.Serializers
@@ -115,5 +116,25 @@ namespace Hrot.Common.Serializers
     {
         /// <summary>Target entries stored at scenario load time.</summary>
         public List<TargetEntry> Entries { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Managed Intent DTO component that stores the network commander ID and tactical
+    /// designation for a subordinate entity during scenario genesis.
+    ///
+    /// <para>Written by the genesis pipeline when a child entity has a known parent unit;
+    /// resolved to live <see cref="Fdp.Core.CommandHierarchy.UnitSubordinate"/> and
+    /// <see cref="Fdp.Core.CommandHierarchy.UnitRoster"/> entries by
+    /// <c>GenesisMaterializationSystem</c> (Phase 4).</para>
+    /// </summary>
+    [DataPolicy(DataPolicy.Transient)]
+    [ComponentId(HrotComponentIds.InitialUnitSubordinateIntent)]
+    public sealed class InitialUnitSubordinateIntent
+    {
+        /// <summary>Network ID of the commander entity (0 = unassigned).</summary>
+        public long CommanderNetworkId { get; set; }
+
+        /// <summary>Tactical role of this entity within the commander's unit.</summary>
+        public TacticalDesignation Designation { get; set; }
     }
 }

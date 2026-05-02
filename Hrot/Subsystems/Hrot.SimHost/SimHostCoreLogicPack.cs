@@ -7,6 +7,7 @@ using Fdp.Toolkit.CarKinem.Modules;
 using Fdp.Toolkit.Combat.Modules;
 using Fdp.Toolkit.Navigation.Systems;
 using Fdp.Toolkit.Replication.Services;
+using Hrot.Common.Systems;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems.Routing;
 using Fdp.ModuleHost.Abstractions;
@@ -54,6 +55,9 @@ namespace Hrot.SimHost
         private readonly NavigationIntentBridgeSystem _navIntentBridge;
         private readonly RouteTrajectorySyncSystem    _routeTrajSync;
         private readonly PersonalRouteAuthoringSystem _personalRouteAuthoring;
+
+        // ── Hierarchy system ──────────────────────────────────────────────────
+        private readonly UnitHierarchySystem          _unitHierarchySystem;
 
         // ── Public accessors (mirroring SimulationLogicModule) ────────────────
 
@@ -114,6 +118,9 @@ namespace Hrot.SimHost
             _routeTrajSync          = new RouteTrajectorySyncSystem(_groundKinematicsModule.TrajectoryPool);
             _personalRouteAuthoring = new PersonalRouteAuthoringSystem();
 
+            // Hierarchy system
+            _unitHierarchySystem    = new UnitHierarchySystem();
+
             // Phase arrays
             var inputList   = new List<IEcsModuleSystem>();
             var simList     = new List<IEcsModuleSystem>();
@@ -126,6 +133,7 @@ namespace Hrot.SimHost
             simList.Add(_navIntentBridge);
             simList.Add(_routeTrajSync);
             foreach (var s in _groundKinematicsModule.SimulationSystems) simList.Add(s);
+            simList.Add(_unitHierarchySystem);
 
             foreach (var s in _combatModule.PostSimulationSystems)             postSimList.Add(s);
             foreach (var s in _groundKinematicsModule.PostSimulationSystems)   postSimList.Add(s);

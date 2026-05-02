@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Hrot.Common</RootNamespace>
     <AssemblyName>Hrot.Common</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

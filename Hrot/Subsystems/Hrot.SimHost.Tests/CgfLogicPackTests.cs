@@ -108,9 +108,9 @@ namespace Hrot.SimHost.Tests
             Assert.Null(ex);
 
             // InputSystems: MissionControlExecutionSystem (1), BehaviorIngressSystem (1) = 2
-            // SimulationSystems: 15 + TacticalIntentResolutionSystem = 16
+            // SimulationSystems: 15 + TacticalIntentResolutionSystem + UnitHierarchySystem = 17
             Assert.Equal(2,  pack.InputSystems.Count);
-            Assert.Equal(16, pack.SimulationSystems.Count);
+            Assert.Equal(17, pack.SimulationSystems.Count);
         }
 
         /// <summary>
@@ -285,8 +285,8 @@ namespace Hrot.SimHost.Tests
 
             // InputSystems: MissionControlExecutionSystem + BehaviorIngressSystem = 2
             Assert.Equal(2,  pack.InputSystems.Count);
-            // SimulationSystems: total 18 - 2 = 16
-            Assert.Equal(16, pack.SimulationSystems.Count);
+            // SimulationSystems: total 19 - 2 = 17
+            Assert.Equal(17, pack.SimulationSystems.Count);
         }
 
         /// <summary>
@@ -303,8 +303,8 @@ namespace Hrot.SimHost.Tests
 
             var pack     = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
                 new TacticalIntentMapperRegistry());
-            // Total systems across both phases equals 18 (split: 2 input + 16 sim).
-            Assert.Equal(18, pack.InputSystems.Count + pack.SimulationSystems.Count);
+            // Total systems across both phases equals 19 (split: 2 input + 17 sim).
+            Assert.Equal(19, pack.InputSystems.Count + pack.SimulationSystems.Count);
         }
     }
 }

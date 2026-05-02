@@ -285,8 +285,9 @@ namespace Hrot.Map.Definitions.Tkb
                     for (int i = 0; i < slot.Count; i++)
                     {
                         template.ChildBlueprints.Add(new ChildBlueprintDefinition(
-                            instanceId: template.ChildBlueprints.Count + 1,
-                            childTkbType: slot.TkbType
+                            instanceId:   template.ChildBlueprints.Count + 1,
+                            childTkbType: slot.TkbType,
+                            designation:  slot.Designation
                         ));
                     }
                 }

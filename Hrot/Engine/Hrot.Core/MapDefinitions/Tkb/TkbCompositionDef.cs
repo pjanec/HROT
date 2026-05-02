@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 
 namespace Hrot.Map.Definitions.Tkb
 {
@@ -15,9 +16,10 @@ namespace Hrot.Map.Definitions.Tkb
         public int Count { get; set; }
         
         /// <summary>
-        /// Role tag for identification ("Tank", "Infantry", "Artillery").
+        /// Tactical designation of child entities within the parent unit.
+        /// <c>Undefined</c> means no commander-subordinate link is created for this slot.
         /// </summary>
-        public string RoleTag { get; set; }
+        public TacticalDesignation Designation { get; set; }
     }
     
     /// <summary>

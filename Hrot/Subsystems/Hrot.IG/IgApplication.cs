@@ -933,6 +933,9 @@ public class IgApplication : IDisposable
         // GhostDestructionSystem tears down those ghosts on EntityMaster DISPOSE.
         _kernel.RegisterGlobalSystem(new GhostDestructionSystem(_entityMap));
 
+        // UnitHierarchySystem — maintains ECS commander-subordinate hierarchy on the IG node (CS016).
+        _kernel.RegisterModule(new IgUnitHierarchyModule(new UnitHierarchySystem()));
+
 
 
         // E. StyleResolutionModule ÔÇö writes ResolvedStyle each Simulation tick
@@ -4051,6 +4054,18 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
                 }
             }
         }
+    }
+
+    // IEcsModule wrapper that routes UnitHierarchySystem into the Simulation phase slot.
+    // RegisterGlobalSystem rejects SystemPhase.Simulation; it must be registered via RegisterModule.
+    private sealed class IgUnitHierarchyModule : Fdp.ModuleHost.Abstractions.IEcsModule
+    {
+        private readonly Fdp.ModuleHost.Abstractions.IEcsModuleSystem _system;
+        public string Name => "IgUnitHierarchy";
+        public Fdp.ModuleHost.Abstractions.ExecutionPolicy Policy => Fdp.ModuleHost.Abstractions.ExecutionPolicy.Synchronous();
+        public IgUnitHierarchyModule(Fdp.ModuleHost.Abstractions.IEcsModuleSystem system) => _system = system;
+        public void RegisterSystems(Fdp.ModuleHost.Abstractions.ISystemRegistry registry) => registry.RegisterSystem(_system);
+        public void Tick(Fdp.ModuleHost.Abstractions.ISimulationView view, float deltaTime) { }
     }
 }
 
