@@ -33,8 +33,8 @@ access into headless services shared by UI panels and the cluster dump handler.
 
 **Goal:** Allow operators to select and copy multiple events or entities as JSON arrays.
 
-- [ ] **DD-P3-T01** EventBrowserPanel Multi-Select [details](./TASK-DETAIL.md#dd-p3-t01--eventbrowserpanel-multi-select)
-- [ ] **DD-P3-T02** EntityInspectorPanel Multi-Select [details](./TASK-DETAIL.md#dd-p3-t02--entityinspectorpanel-multi-select)
+- [x] **DD-P3-T01** EventBrowserPanel Multi-Select [details](./TASK-DETAIL.md#dd-p3-t01--eventbrowserpanel-multi-select)
+- [x] **DD-P3-T02** EntityInspectorPanel Multi-Select [details](./TASK-DETAIL.md#dd-p3-t02--entityinspectorpanel-multi-select)
 
 ---
 
@@ -43,11 +43,11 @@ access into headless services shared by UI panels and the cluster dump handler.
 **Goal:** Wire DumpDiagnostics into the existing 2PC pipeline from ExCon through the Orchestrator
 to each node and back.
 
-- [ ] **DD-P4-T01** Enum Extensions and DiagnosticDumpPayloadDto [details](./TASK-DETAIL.md#dd-p4-t01--enum-extensions-and-diagnosticdumppayloaddto)
-- [ ] **DD-P4-T02** ExecuteDiagnosticDumpIntent [details](./TASK-DETAIL.md#dd-p4-t02--executediagnosticdumpintent)
-- [ ] **DD-P4-T03** ClusterOpEgressTranslator and ClusterOpMasterTranslator [details](./TASK-DETAIL.md#dd-p4-t03--clusteropegress-translator-and-clusteropmastertranslator)
-- [ ] **DD-P4-T04** DiagnosticsConsensusAggregator [details](./TASK-DETAIL.md#dd-p4-t04--diagnosticsconsensusaggregator)
-- [ ] **DD-P4-T05** DiagnosticsDumpProcessManager [details](./TASK-DETAIL.md#dd-p4-t05--diagnosticsdumpprocessmanager)
+- [x] **DD-P4-T01** Enum Extensions and DiagnosticDumpPayloadDto [details](./TASK-DETAIL.md#dd-p4-t01--enum-extensions-and-diagnosticdumppayloaddto)
+- [x] **DD-P4-T02** ExecuteDiagnosticDumpIntent [details](./TASK-DETAIL.md#dd-p4-t02--executediagnosticdumpintent)
+- [x] **DD-P4-T03** ClusterOpEgressTranslator and ClusterOpMasterTranslator [details](./TASK-DETAIL.md#dd-p4-t03--clusteropegress-translator-and-clusteropmastertranslator)
+- [x] **DD-P4-T04** DiagnosticsConsensusAggregator [details](./TASK-DETAIL.md#dd-p4-t04--diagnosticsconsensusaggregator)
+- [x] **DD-P4-T05** DiagnosticsDumpProcessManager [details](./TASK-DETAIL.md#dd-p4-t05--diagnosticsdumpprocessmanager)
 
 ---
 
@@ -55,11 +55,11 @@ to each node and back.
 
 **Goal:** Each node produces its local dump files in response to the cluster-wide dump command.
 
-- [ ] **DD-P5-T01** NLog File Target, Layout, and Auto-Rotation [details](./TASK-DETAIL.md#dd-p5-t01--nlog-file-target-layout-and-auto-rotation)
-- [ ] **DD-P5-T02** HrotRunnerConfiguration `--log-dir` Option [details](./TASK-DETAIL.md#dd-p5-t02--hrotrunnerconfiguration----log-dir-option)
+- [x] **DD-P5-T01** NLog File Target, Layout, and Auto-Rotation [details](./TASK-DETAIL.md#dd-p5-t01--nlog-file-target-layout-and-auto-rotation)
+- [x] **DD-P5-T02** HrotRunnerConfiguration `--log-dir` Option [details](./TASK-DETAIL.md#dd-p5-t02--hrotrunnerconfiguration----log-dir-option)
 - [x] **DD-P5-T03** HrotNodeConfig.LogDirectory [details](./TASK-DETAIL.md#dd-p5-t03--hrotnodeconfiglogdirectory)
-- [ ] **DD-P5-T04** DiagnosticsDumpClusterOpHandler [details](./TASK-DETAIL.md#dd-p5-t04--diagnosticsdumpclusterophandler)
-- [ ] **DD-P5-T05** Node LocalTempRoot Isolation and ClusterConfiguration NasBasePath [details](./TASK-DETAIL.md#dd-p5-t05--node-localtemproot-isolation-and-clusterconfiguration-nasbasepath)
+- [x] **DD-P5-T04** DiagnosticsDumpClusterOpHandler [details](./TASK-DETAIL.md#dd-p5-t04--diagnosticsdumpclusterophandler)
+- [x] **DD-P5-T05** Node LocalTempRoot Isolation and ClusterConfiguration NasBasePath [details](./TASK-DETAIL.md#dd-p5-t05--node-localtemproot-isolation-and-clusterconfiguration-nasbasepath)
 
 ---
 
@@ -68,9 +68,9 @@ to each node and back.
 **Goal:** Operator-facing panel in ExCon and Orchestrator for triggering, monitoring, and
 accessing dump results.
 
-- [ ] **DD-P6-T01** ClusterDiagnosticsPanel — Configuration and Execution [details](./TASK-DETAIL.md#dd-p6-t01--clusterdiagnosticspanel-configuration--execution)
-- [ ] **DD-P6-T02** ClusterDiagnosticsPanel — Results Tree and Context Menus [details](./TASK-DETAIL.md#dd-p6-t02--clusterdiagnosticspanel-results-tree--context-menus)
-- [ ] **DD-P6-T03** Register Panel in OrchestratorSubsystem and ExConSubsystem [details](./TASK-DETAIL.md#dd-p6-t03--register-clusterdiagnosticspanel-in-orchestratorsubsystem-and-exconsubsystem)
+- [x] **DD-P6-T01** ClusterDiagnosticsPanel — Configuration and Execution [details](./TASK-DETAIL.md#dd-p6-t01--clusterdiagnosticspanel-configuration--execution)
+- [x] **DD-P6-T02** ClusterDiagnosticsPanel — Results Tree and Context Menus [details](./TASK-DETAIL.md#dd-p6-t02--clusterdiagnosticspanel-results-tree--context-menus)
+- [x] **DD-P6-T03** Register Panel in OrchestratorSubsystem and ExConSubsystem [details](./TASK-DETAIL.md#dd-p6-t03--register-clusterdiagnosticspanel-in-orchestratorsubsystem-and-exconsubsystem)
 
 ---
 
@@ -79,9 +79,9 @@ accessing dump results.
 **Goal:** Provide a domain-agnostic ImGui file save dialog following the IMapPickService bridge
 pattern.
 
-- [ ] **DD-P7-T01** IFileDialogService Interface [details](./TASK-DETAIL.md#dd-p7-t01--ifiledialogservice-interface)
-- [ ] **DD-P7-T02** ImGuiFileDialogService Implementation [details](./TASK-DETAIL.md#dd-p7-t02--imguifiledialogservice-implementation)
-- [ ] **DD-P7-T03** Wire ImGuiFileDialogService into WindowManager [details](./TASK-DETAIL.md#dd-p7-t03--wire-imguifiledialogservice-into-windowmanager)
+- [x] **DD-P7-T01** IFileDialogService Interface [details](./TASK-DETAIL.md#dd-p7-t01--ifiledialogservice-interface)
+- [x] **DD-P7-T02** ImGuiFileDialogService Implementation [details](./TASK-DETAIL.md#dd-p7-t02--imguifiledialogservice-implementation)
+- [x] **DD-P7-T03** Wire ImGuiFileDialogService into WindowManager [details](./TASK-DETAIL.md#dd-p7-t03--wire-imguifiledialogservice-into-windowmanager)
 
 ---
 
@@ -89,6 +89,6 @@ pattern.
 
 **Goal:** Optional post-process that merges all per-node log files into one chronological stream.
 
-- [ ] **DD-P8-T01** DiagnosticLogMergeWorker [details](./TASK-DETAIL.md#dd-p8-t01--diagnosticlogmergeworker)
-- [ ] **DD-P8-T02** MergeLogsIntent and LogMergeCompletedEvent [details](./TASK-DETAIL.md#dd-p8-t02--mergelogsentent-and-logmergecompletedelement)
-- [ ] **DD-P8-T03** Merged Log Entry in ClusterDiagnosticsPanel [details](./TASK-DETAIL.md#dd-p8-t03--merged-log-entry-in-clusterdiagnosticspanel)
+- [x] **DD-P8-T01** DiagnosticLogMergeWorker [details](./TASK-DETAIL.md#dd-p8-t01--diagnosticlogmergeworker)
+- [x] **DD-P8-T02** MergeLogsIntent and LogMergeCompletedEvent [details](./TASK-DETAIL.md#dd-p8-t02--mergelogsentent-and-logmergecompletedelement)
+- [x] **DD-P8-T03** Merged Log Entry in ClusterDiagnosticsPanel [details](./TASK-DETAIL.md#dd-p8-t03--merged-log-entry-in-clusterdiagnosticspanel)

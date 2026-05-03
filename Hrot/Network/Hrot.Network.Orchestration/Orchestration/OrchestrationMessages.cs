@@ -38,6 +38,7 @@ namespace Hrot.NED.Descriptors.Orchestration
         CancelOperation = 13,
         StepTime        = 14,
         SetTimeScale    = 15,
+        DumpDiagnostics = 16,
     }
 
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="ClusterOpType.ReplaySeek"/>.</summary>
@@ -60,6 +61,7 @@ namespace Hrot.NED.Descriptors.Orchestration
         CleanupTempFiles = 16,
         PrepareEdit = 26,
         FinalizeEdit = 27,
+        CollectDiagnostics = 28,
         StartEpisode = 20,
         StopEpisode = 21,
         ReplayEpisode = 22,

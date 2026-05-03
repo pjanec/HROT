@@ -141,3 +141,43 @@ public sealed record FileManifestEntry
     /// </summary>
     public string RelativeDest { get; init; } = string.Empty;
 }
+
+/// <summary>
+/// Payload DTO for <c>ClusterOpType.DumpDiagnostics</c> DDS requests.
+/// Controls which diagnostic data each node collects and how it is packaged.
+/// </summary>
+public record DiagnosticDumpPayloadDto
+{
+    [JsonPropertyName("transaction_id")]
+    public Guid TransactionId { get; init; }
+
+    [JsonPropertyName("requested_at")]
+    public DateTime RequestedAt { get; init; }
+
+    [JsonPropertyName("target_node_ids")]
+    public int[]? TargetNodeIds { get; init; }
+
+    [JsonPropertyName("dump_events")]
+    public bool DumpEvents { get; init; }
+
+    [JsonPropertyName("dump_entities")]
+    public bool DumpEntities { get; init; }
+
+    [JsonPropertyName("dump_architecture")]
+    public bool DumpArchitecture { get; init; }
+
+    [JsonPropertyName("dump_logs")]
+    public bool DumpLogs { get; init; }
+
+    [JsonPropertyName("event_providers")]
+    public string[]? EventProviders { get; init; }
+
+    [JsonPropertyName("use_markdown")]
+    public bool UseMarkdownWrapper { get; init; }
+
+    [JsonPropertyName("max_age_hours")]
+    public float MaxAgeHours { get; init; } = 24f;
+
+    [JsonPropertyName("severity_threshold")]
+    public int SeverityThreshold { get; init; }
+}

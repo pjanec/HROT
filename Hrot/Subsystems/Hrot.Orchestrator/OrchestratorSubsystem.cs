@@ -35,6 +35,10 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     private GlobalContextProcessManager? _globalContextProcessManager;
     private AssetPrefetchProcessManager? _assetPrefetchProcessManager;
     private AssetInventoryProcessManager? _assetInventoryProcessManager;
+    private DiagnosticsDumpProcessManager? _diagnosticsDumpProcessManager;
+    private DiagnosticLogMergeWorker?      _mergeWorker;
+    private ClusterDiagnosticsPanel?       _diagnosticsPanel;
+    private Fdp.Presentation.Panels.ImGuiFileDialogService? _fileDialogService;
     private ClusterConfiguration _config = ClusterConfiguration.Default;
     private ClusterUiCache?        _uiCache;
     private ClusterScenarioPanel?  _scenarioPanel;
@@ -136,6 +140,10 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _clusterMaster.RegisterAggregator(new EpisodeConsensusAggregator(Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode));
         _clusterMaster.RegisterAggregator(new EpisodeConsensusAggregator(Fdp.Toolkit.Orchestration.NodeOpType.StopEpisode));
 
+        // Register DiagnosticsConsensusAggregator for DumpDiagnostics cluster ops.
+        var diagnosticsAggregator = new DiagnosticsConsensusAggregator();
+        _clusterMaster.RegisterAggregator(diagnosticsAggregator);
+
         // CGF1-S0307: Create the global-context handler, subscribe to OnContextLoaded so the
         // MasterSyncController is seeded with the scenario's saved timeline on every load.
         // In headless mode (_networkFactory?.Participant == null) no DDS writer is available;
@@ -168,14 +176,14 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _storageProcessManager = new StorageProcessManager(
             _bus!,
             storageGateway,
-            OrchestrationConstants.DefaultStagingDirectory);
+            _config.NasBasePath);
 
         // CGF1-S0506: Wire the asset inventory process manager.
         // Polls the storage gateway every 5 seconds and publishes AssetInventoryUpdateEvent.
         _assetInventoryProcessManager = new AssetInventoryProcessManager(
             _bus!,
             storageGateway,
-            OrchestrationConstants.DefaultStagingDirectory);
+            _config.NasBasePath);
 
         // TASK-S003: Wire the episode process manager.
         _episodeProcessManager = new EpisodeProcessManager(_bus);
@@ -197,7 +205,25 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _assetPrefetchProcessManager = new AssetPrefetchProcessManager(
             _bus!,
             storageGateway,
-            OrchestrationConstants.DefaultStagingDirectory);
+            _config.NasBasePath);
+
+        // Wire the diagnostics dump process manager for DumpDiagnostics cluster ops.
+        _diagnosticsDumpProcessManager = new DiagnosticsDumpProcessManager(
+            _bus!,
+            storageGateway,
+            _config.NasBasePath,
+            diagnosticsAggregator);
+
+        // Wire the diagnostic log merge worker (K-way merge on MergeLogsIntent).
+        _mergeWorker = new DiagnosticLogMergeWorker(_bus!);
+
+        // Wire the diagnostics panel (reads from _uiCache, publishes via _bus).
+        _fileDialogService = new Fdp.Presentation.Panels.ImGuiFileDialogService();
+        _diagnosticsPanel = new ClusterDiagnosticsPanel(
+            _uiCache!,
+            _bus!,
+            _fileDialogService,
+            _config.NasBasePath);
 
         // Drain the read buffer locally so the cache captures the bootstrapped state
         // before the first frame's Phase 2 SwapBuffers wipes it out.
@@ -232,6 +258,8 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _storageProcessManager?.Tick();
         _assetInventoryProcessManager?.Tick();
         _episodeProcessManager?.Tick();
+        _diagnosticsDumpProcessManager?.Tick();
+        _mergeWorker?.Tick();
 
         // CGF1-A.1: Consume PendingTimeMode and drive MasterSyncController.
         var pendingMode = _clusterMaster?.PendingTimeMode;
@@ -269,6 +297,14 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     {
         if (_scenarioPanel == null) return;
         windowManager.RegisterWindow(new OrchestratorWindow(_scenarioPanel));
+
+        // Register shared file dialog service so it draws each frame.
+        if (_fileDialogService != null)
+            windowManager.SetFileDialogService(_fileDialogService);
+
+        // Register diagnostics window.
+        if (_diagnosticsPanel != null)
+            windowManager.RegisterWindow(new DiagnosticsWindow(_diagnosticsPanel));
     }
 
     public void Shutdown()
@@ -290,6 +326,11 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _clusterMaster?.Dispose();
         _clusterMaster = null;
         _assetInventoryProcessManager = null;
+        _diagnosticsDumpProcessManager = null;
+        _mergeWorker?.Dispose();
+        _mergeWorker = null;
+        _diagnosticsPanel = null;
+        _fileDialogService = null;
         _masterSync?.Dispose();
         _masterSync = null;
         _lastProcessedTimeMode = null;

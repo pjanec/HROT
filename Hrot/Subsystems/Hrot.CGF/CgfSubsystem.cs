@@ -388,6 +388,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
 
         // ── Initialize ─────────────────────────────────────────────────────────
+        _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
+        _context.Kernel.RegisterGlobalSystem(
+            new EventHistoryCaptureSystem("World", _fdpEventHistory, _context.World.Bus));
+        _context.Kernel.RegisterGlobalSystem(
+            new EventHistoryCaptureSystem("Orchestration", _fdpEventHistory, _context.EventBus));
         _context.Kernel.Initialize();
         // ── Visualization (non-headless only) ─────────────────────────────────────
         if (!_headless)
@@ -402,10 +407,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 new Fdp.Toolkit.Vis2D.Shapes.DefaultEntityShapeLibrary(),
                 _behaviorRegistry);
             _fdpRepoAdapter    = new FdpRepositoryAdapter(_context.World);
-
-            _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
-            _context.Kernel.RegisterGlobalSystem(
-                new EventHistoryCaptureSystem(_fdpEventHistory, _context.World.Bus));
 
             var renderLayer = new EntityRenderLayer(
                 "CGF Entities", -1, _context.World, _entityQuery, _visualizerAdapter, _selectionState)

@@ -26,6 +26,10 @@ namespace Hrot.ClusterRunner.Configuration
         [Option("network", Default = "ned", HelpText = "Network protocol: ned (default) or bdc")]
         public string NetworkProtocol { get; set; } = "ned";
 
+        /// <summary>Directory for NLog file target output. Defaults to <c>AppContext.BaseDirectory\logs</c>.</summary>
+        [Option("log-dir", Required = false, HelpText = "Directory for log file output. Defaults to <AppBase>\\logs.")]
+        public string LogDirectory { get; set; } = string.Empty;
+
         /// <summary>Optional JSON config file that overrides CLI defaults.</summary>
         [Option('c', "config", HelpText = "JSON config file path")]
         public string ConfigFile { get; set; } = string.Empty;

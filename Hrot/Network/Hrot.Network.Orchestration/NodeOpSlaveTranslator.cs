@@ -208,6 +208,16 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 catch { return null; }
             }
 
+            case NedNodeOpType.CollectDiagnostics:
+            {
+                if (!hasPayload) return null;
+                try
+                {
+                    return JsonSerializer.Deserialize<DiagnosticDumpPayloadDto>(payloadJson!, DefaultOptions);
+                }
+                catch { return null; }
+            }
+
             default:
                 return null;
         }

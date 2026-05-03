@@ -56,7 +56,6 @@ class Program
         };
         logConfig.AddRule(LogLevel.Debug, LogLevel.Fatal, logConsole);
         logConfig.AddRule(LogLevel.Trace, LogLevel.Fatal, NLogMessageLogTarget.SharedInstance);
-        LogManager.Configuration = logConfig;
 
         // Parse CLI args
         HrotRunnerConfiguration? config = null;
@@ -94,6 +93,30 @@ class Program
         }
 
         Console.WriteLine($"[Runner] Starting – mode={string.Join(",", config.RequestedSubsystems)}, domain={config.DomainId}, headless={config.Headless}");
+
+        // Add NLog file target when LogDirectory is configured
+        string resolvedLogDir = string.IsNullOrWhiteSpace(config.LogDirectory)
+            ? Path.Combine(AppContext.BaseDirectory, "logs")
+            : Path.GetFullPath(config.LogDirectory);
+        Directory.CreateDirectory(resolvedLogDir);
+        NLog.ScopeContext.PushProperty("nodeId", config.NodeId.ToString());
+
+        string subsystemTag = config.RequestedSubsystems.Count > 0
+            ? string.Join("_", config.RequestedSubsystems)
+            : "Hrot";
+        var fileTarget = new FileTarget("logFile")
+        {
+            Layout           = "[${longdate}] [${level:uppercase=true}] [${logger:shortName=true}] [Node-${scopeproperty:nodeId}] ${message} ${exception:format=tostring}",
+            FileName         = Path.Combine(resolvedLogDir, $"{subsystemTag}_{config.NodeId}.log"),
+            ArchiveFileName  = Path.Combine(resolvedLogDir, $"{subsystemTag}_{config.NodeId}.{{#}}.log"),
+            ArchiveNumbering = NLog.Targets.ArchiveNumberingMode.Rolling,
+            MaxArchiveFiles  = 10,
+            ArchiveAboveSize = 50 * 1024 * 1024,
+            KeepFileOpen     = true,
+            ConcurrentWrites = false,
+        };
+        logConfig.AddRule(LogLevel.Debug, LogLevel.Fatal, fileTarget);
+        LogManager.Configuration = logConfig;
 
         // ── CI mode: headless deterministic scenario run ──────────────────
         if (config.RequestedSubsystems.Contains("ci"))

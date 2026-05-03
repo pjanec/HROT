@@ -642,7 +642,9 @@ public class IgApplication : IDisposable
 
         _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
         _context.Kernel.RegisterGlobalSystem(
-            new EventHistoryCaptureSystem(_fdpEventHistory, _context.World.Bus));
+            new EventHistoryCaptureSystem("World", _fdpEventHistory, _context.World.Bus));
+        _context.Kernel.RegisterGlobalSystem(
+            new EventHistoryCaptureSystem("Orchestration", _fdpEventHistory, _context.EventBus));
 
         //  Shared foundation 
         // Registers network replication, geographic, shared definitions, and

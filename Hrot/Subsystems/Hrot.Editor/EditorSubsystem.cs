@@ -430,7 +430,9 @@ namespace Hrot.Editor
 
             // Register the event history service and its capture system.
             _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
-            _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem(_fdpEventHistory, _world.Bus));
+            _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("World", _fdpEventHistory, _world.Bus));
+            if (_orchestrationBus != null)
+                _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Orchestration", _fdpEventHistory, _orchestrationBus));
 
             // ── 4a. Multi-phase system registration for SimHostCorePack and CgfLogicPack ──
             // CGF Brain systems -- register directly (no toggling needed in the editor)

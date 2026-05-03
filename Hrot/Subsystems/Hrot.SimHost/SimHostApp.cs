@@ -28,6 +28,7 @@ using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.NetworkSpawning.Systems;
+using Fdp.Core.Diagnostics;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
@@ -43,6 +44,7 @@ using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Scenario;
 using Fdp.ModuleHost;
+using Fdp.ModuleHost.Diagnostics;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication;
 using Fdp.ModuleHost.Scheduling;
@@ -157,6 +159,7 @@ namespace Hrot.SimHost
         private INetworkFactory? _networkFactory;
         // ── Perception module (stored to expose ScopedBus to the event browser) ───
         private Fdp.Toolkit.Perception.Modules.AutonomousPerceptionModule? _perceptionMod;
+        private readonly DiagnosticEventHistoryService _eventHistoryService = new();
 
         // ── Constructor ───────────────────────────────────────────────────────
 
@@ -284,7 +287,12 @@ namespace Hrot.SimHost
                 NodeId              = localNodeId,
                 Headless            = false,  // SimHostApp always creates DDS; _headless only controls Raylib window
                 ExternalParticipant = shellParticipant,
-                LocalTempRoot       = nodeConfig.LocalTempRoot,
+                LocalTempRoot       = Path.Combine(
+                    string.IsNullOrEmpty(nodeConfig.LocalTempRoot)
+                        ? Fdp.Toolkit.Orchestration.OrchestrationConstants.DefaultStagingDirectory
+                        : nodeConfig.LocalTempRoot,
+                    "nodes",
+                    $"node-{localNodeId}"),
                 SubsystemName       = "SimHost",
             };
             var baseContext = new HrotNodeBuilder(hrotConfig)
@@ -481,6 +489,9 @@ namespace Hrot.SimHost
             }
 
             // ── 11. Kernel init ───────────────────────────────────────────────
+            _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("World", _eventHistoryService, _world.Bus));
+            if (_eventBus != null)
+                _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Orchestration", _eventHistoryService, _eventBus));
             _kernel.Initialize();
             Logger.Info($"[Node-{localNodeId}] Kernel initialized.");
 
@@ -495,6 +506,7 @@ namespace Hrot.SimHost
                     _simCorePack!.TrajectoryPool,
                     _simCorePack!.FormationTemplates,
                     nodeFactory?.CreateSimHostMissionSender() ?? new NullSimHostMissionSender(),
+                    _eventHistoryService,
                     idAllocator: _idAllocator,
                     localNodeId: localNodeId,
                     worldPosDescriptorId: _networkFactory?.WorldPosDescriptorId ?? 0);

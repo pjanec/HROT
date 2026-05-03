@@ -96,6 +96,8 @@ namespace Hrot.ExCon
         private IOrchestrationObserver?               _observer;
         private ClusterUiCache?                   _uiCache;
         private ClusterScenarioPanel?             _clusterPanel;
+        private Hrot.Orchestrator.Panels.ClusterDiagnosticsPanel? _clusterDiagnosticsPanel;
+        private Fdp.Presentation.Panels.ImGuiFileDialogService?   _exConFileDialogService;
 
         // ── TC2-P3: Slave time sync ─────────────────────────────────────────────────
         private SlaveSyncController?   _slaveSyncController;
@@ -257,6 +259,14 @@ namespace Hrot.ExCon
             // ── Cluster control wiring (S0507 / PACK-C002) ────────────────────────────
             _uiCache     = new ClusterUiCache(_observerBus, _slaveSyncController);
             _clusterPanel = new ClusterScenarioPanel(_bus, _uiCache);
+
+            // Wire the cluster diagnostics panel (reads UICache on observerBus; publishes via bus).
+            _exConFileDialogService  = new Fdp.Presentation.Panels.ImGuiFileDialogService();
+            _clusterDiagnosticsPanel = new Hrot.Orchestrator.Panels.ClusterDiagnosticsPanel(
+                _uiCache,
+                _bus,
+                _exConFileDialogService,
+                nasBasePath: string.Empty);
             // HEXAG2-S012: factory-based slave orchestration handles.
             _slaveTranslator = nodeFactory?.CreateSlaveOrchestratorTranslators(_bus!, iosNodeId)
                                ?? new NullSlaveOrchestrationTranslator();
@@ -368,6 +378,14 @@ namespace Hrot.ExCon
         {
             windowManager.RegisterWindow(new ClusterControlWindow(_clusterPanel, _uiCache));
 
+            // Register file dialog service so it draws each frame.
+            if (_exConFileDialogService != null)
+                windowManager.SetFileDialogService(_exConFileDialogService);
+
+            // Register diagnostics window.
+            if (_clusterDiagnosticsPanel != null)
+                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.DiagnosticsWindow(_clusterDiagnosticsPanel));
+
             if (_mock != null)
             {
                 var logic = _mock.Logic;
@@ -387,6 +405,8 @@ namespace Hrot.ExCon
             _clusterSlave?.Dispose();
             _clusterSlave = null;
             _clusterPanel = null;
+            _clusterDiagnosticsPanel = null;
+            _exConFileDialogService = null;
             _uiCache?.Dispose();
             _uiCache = null;
             _observer?.Dispose();

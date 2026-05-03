@@ -144,6 +144,14 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 OperationType = NedClusterOpType.CancelOperation,
                 PayloadJson   = string.Empty,
             });
+
+        foreach (var intent in _bus.ReadManaged<ExecuteDiagnosticDumpIntent>())
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.DumpDiagnostics,
+                PayloadJson   = intent.PayloadJson ?? string.Empty,
+            });
     }
 
     /// <inheritdoc/>

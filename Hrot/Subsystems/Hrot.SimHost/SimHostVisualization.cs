@@ -25,7 +25,6 @@ using CarKinem.Core;
 using CarKinem.Trajectory;
 using Fdp.Core.Diagnostics;
 using Fdp.ModuleHost;
-using Fdp.ModuleHost.Diagnostics;
 using Hrot.SimHost.UI;
 using Hrot.SimHost.Visualization;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -73,7 +72,6 @@ namespace Hrot.SimHost
         // ── FDP framework panels (Task 16) ─────────────────────────────────────
         private FdpEntityInspectorPanel              _fdpEntityInspector = new();
         private FdpEventBrowserPanel                 _fdpEventBrowser    = null!;
-        private DiagnosticEventHistoryService        _fdpEventHistory    = new();
         private FdpRepositoryAdapter?                _fdpRepoAdapter;
         private FdpInspectorState       _fdpInspectorState  = new();
         private uint                    _fdpFrameCount;
@@ -138,6 +136,7 @@ namespace Hrot.SimHost
             TrajectoryPoolManager    trajectoryPool,
             CarKinem.Formation.FormationTemplateManager formationTemplates,
             ISimHostMissionSender missionSender,
+            IDiagnosticEventHistoryService eventHistoryService,
             INetworkIdAllocator?    idAllocator = null,
             int                     localNodeId = 0,
             long                    worldPosDescriptorId = 0)
@@ -151,8 +150,7 @@ namespace Hrot.SimHost
             _selection = new SimHostSelectionManager();
             _inspector = new SimHostInspectorAdapter(_selection, repo);
             _fdpRepoAdapter   = new FdpRepositoryAdapter(repo);
-            _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
-            kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem(_fdpEventHistory, repo.Bus));
+            _fdpEventBrowser = new FdpEventBrowserPanel(eventHistoryService);
 
             // Task 47: register context menu handlers for the FDP entity inspector.
             _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>

@@ -143,7 +143,8 @@ namespace Hrot.SimHost
             Fdp.ModuleHost.Scheduling.NetworkLifecycleSystemGroup?  lifecycleGroup = null,
             Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null,
             Fdp.Core.EventAccumulator? eventAccumulator = null,
-            Action? afterSeek = null)
+            Action? afterSeek = null,
+            Hrot.Common.Diagnostics.DiagnosticsDumpClusterOpHandler? diagnosticsDumpHandler = null)
         {
             if (participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
@@ -232,6 +233,10 @@ namespace Hrot.SimHost
             // FinalizeLive and cold PrepareLive (when no scenario serializer was registered).
             clusterSlave.RegisterHandler(new ReferenceLiveLoadHandler(
                 checkpointWorker, controller, localTempRoot));
+
+            // Wire DiagnosticsDumpClusterOpHandler for cluster-wide diagnostic dumps.
+            if (diagnosticsDumpHandler != null)
+                clusterSlave.RegisterHandler(diagnosticsDumpHandler);
 
             return clusterSlave;
         }

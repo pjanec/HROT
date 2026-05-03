@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using Hrot.NED.Descriptors.Orchestration;
+using Hrot.Network.Orchestration;
 using Hrot.Orchestrator;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
@@ -51,6 +52,14 @@ public sealed class ClusterUiCache : IDisposable
 
     public IReadOnlyDictionary<int, NodeHeartbeat> ActiveNodes => _activeNodes;
     public IReadOnlyList<DistributedTransaction>   TxHistory   => _txHistory;
+
+    /// <summary>
+    /// The stripped file manifest from the most recent successful diagnostic dump.
+    /// Contains only <see cref="FileManifestEntry.RelativeDest"/> (SourceUnc is empty).
+    /// Remains <see cref="Array.Empty{T}"/> until the first successful dump completes.
+    /// </summary>
+    public IReadOnlyList<FileManifestEntry> LastDiagnosticManifest { get; private set; }
+        = Array.Empty<FileManifestEntry>();
 
     /// <summary>
     /// Duration in seconds of the currently loaded replay, aggregated as the maximum
@@ -267,6 +276,30 @@ public sealed class ClusterUiCache : IDisposable
                 _inFlight.Clear();
             }
             HasInFlightTransaction = _inFlight.Count > 0;
+
+            // Update the diagnostic manifest when a DumpDiagnostics operation completes.
+            // Orchestrator path: ResultPayload is List<FileManifestEntry> (after NAS pull).
+            // ExCon path: ResultPayload is a JSON string (from DDS observer).
+            if (success)
+            {
+                if (ev.ResultPayload is List<FileManifestEntry> directManifest && directManifest.Count > 0)
+                {
+                    LastDiagnosticManifest = directManifest;
+                }
+                else if (ev.ResultPayload is string json
+                         && json.Length > 0
+                         && json.TrimStart().StartsWith('['))
+                {
+                    try
+                    {
+                        var parsed = System.Text.Json.JsonSerializer.Deserialize<List<FileManifestEntry>>(
+                            json, PayloadJsonOptions);
+                        if (parsed != null && parsed.Count > 0)
+                            LastDiagnosticManifest = parsed;
+                    }
+                    catch { /* Malformed JSON — keep previous manifest. */ }
+                }
+            }
         }
     }
 

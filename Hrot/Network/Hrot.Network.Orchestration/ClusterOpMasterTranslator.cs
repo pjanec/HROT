@@ -254,6 +254,16 @@ public sealed class ClusterOpMasterTranslator
                 break;
             }
 
+            case NedClusterOpType.DumpDiagnostics:
+            {
+                _bus.PublishManaged(new ExecuteDiagnosticDumpIntent
+                {
+                    RequestId   = req.RequestId,
+                    PayloadJson = req.PayloadJson ?? string.Empty,
+                });
+                break;
+            }
+
             default:
                 break;
         }

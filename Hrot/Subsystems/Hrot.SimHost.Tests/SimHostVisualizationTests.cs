@@ -200,7 +200,8 @@ namespace Hrot.SimHost.Tests
 
             var vis = new SimHostVisualization();
             using var missionSender = new StubMissionSender();
-            vis.Initialize(repo, kernel, road, traj, formations, missionSender);
+            var eventHistoryService = new Fdp.Core.Diagnostics.DiagnosticEventHistoryService();
+            vis.Initialize(repo, kernel, road, traj, formations, missionSender, eventHistoryService);
 
             var camera = vis.GetMapCamera();
             Assert.NotNull(camera);

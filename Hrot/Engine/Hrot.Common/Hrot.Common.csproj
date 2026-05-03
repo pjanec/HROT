@@ -28,6 +28,10 @@
     <ProjectReference Include="..\..\Network\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
     <!-- Fdp.Core for EntityRepository, ModuleHost.* (used by HrotNodeBuilder) -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <!-- Fdp.ModuleHost for IArchitectureDiagnosticsService (used by DiagnosticsDumpClusterOpHandler) -->
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />
+    <!-- Fdp.Toolkits for IEntityStateExtractionService, JsonAestheticFormatter (used by DiagnosticsDumpClusterOpHandler) -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <!-- Fdp.Network.Cyclone for DdsIdAllocator (used by HrotNodeBuilder) -->
     <ProjectReference Include="..\..\..\FDP\Network\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
     <!-- CycloneDDS.Runtime for DdsParticipant, DdsReader, DdsWriter (used by HrotNodeBuilder) -->

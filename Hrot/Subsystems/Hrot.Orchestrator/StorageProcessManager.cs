@@ -132,12 +132,23 @@ public sealed class StorageProcessManager
                                 StatusCode = OrchestrationStatusCode.Rejected,
                             });
                         }
-                        else
+                        else if (pullTask.Result.IsFullSuccess)
                         {
                             _bus.PublishManaged(new ClusterOpCompletedEvent
                             {
                                 RequestId  = archRequestId,
                                 StatusCode = OrchestrationStatusCode.Success,
+                            });
+                        }
+                        else
+                        {
+                            FdpLog<StorageProcessManager>.Error(
+                                "[StorageProcessManager] ExportArchive NAS pull partial failure: {0} file(s) failed",
+                                pullTask.Result.FailureCount);
+                            _bus.PublishManaged(new ClusterOpCompletedEvent
+                            {
+                                RequestId  = archRequestId,
+                                StatusCode = OrchestrationStatusCode.Rejected,
                             });
                         }
                     }, System.Threading.Tasks.TaskScheduler.Default);
@@ -157,7 +168,7 @@ public sealed class StorageProcessManager
             _ = _gateway.PullToNasAsync(fullManifest, _nasBasePath)
                 .ContinueWith(pullTask =>
                 {
-                    if (pullTask.IsCompletedSuccessfully)
+                    if (pullTask.IsCompletedSuccessfully && pullTask.Result.IsFullSuccess)
                     {
                         _ = _gateway.WriteScenarioManifestAsync(fullManifest, _nasBasePath);
                     }
@@ -166,6 +177,12 @@ public sealed class StorageProcessManager
                         FdpLog<StorageProcessManager>.Error(
                             "[StorageProcessManager] NAS pull failed: {0}",
                             pullTask.Exception?.GetBaseException().Message ?? "unknown error");
+                    }
+                    else if (pullTask.IsCompletedSuccessfully)
+                    {
+                        FdpLog<StorageProcessManager>.Error(
+                            "[StorageProcessManager] NAS pull partial failure: {0} file(s) failed",
+                            pullTask.Result.FailureCount);
                     }
                 }, System.Threading.Tasks.TaskScheduler.Default);
         }
