@@ -214,27 +214,15 @@ namespace Fdp.Toolkit.Scenario
                 .GetGenericMethodDefinition();
 
         /// <summary>
-        /// JsonSerializerOptions that includes public fields in addition to properties.
-        /// Required for System.Numerics types (Vector3, Quaternion) which use public fields
-        /// rather than properties — the default System.Text.Json options skip fields entirely.
-        /// Custom array converters are registered here so that Vector2/Vector3/Quaternion-typed
-        /// fields are written as compact single-line arrays (e.g. <c>[x, y, z]</c>) across
-        /// the entire scenario without modifying any component definitions.
+        /// Canonical JSON options for scenario field serialisation — sourced from
+        /// <see cref="Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed"/>.
+        /// Includes <c>IncludeFields = true</c> (required for System.Numerics types),
+        /// compact array converters for Vector2/3/4 and Quaternion, FixedString converters,
+        /// and <see cref="Fdp.Core.Serialization.Converters.StrictStringEnumConverter"/>
+        /// to reject silent integer-as-enum parsing.
         /// </summary>
-        private static readonly JsonSerializerOptions _fieldAwareOptions = new JsonSerializerOptions
-        {
-            IncludeFields = true,
-            Converters    =
-            {
-                new Vector3ArrayConverter(),
-                new QuaternionArrayConverter(),
-                new Vector2ArrayConverter(),
-                new Vector4ArrayConverter(),
-                new FixedString32Converter(),
-                new FixedString64Converter(),
-                new System.Text.Json.Serialization.JsonStringEnumConverter(),
-            },
-        };
+        private static readonly JsonSerializerOptions _fieldAwareOptions =
+            Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
 
         /// <summary>
         /// Serializes a value of type <typeparamref name="T"/> to a <see cref="JsonNode"/>

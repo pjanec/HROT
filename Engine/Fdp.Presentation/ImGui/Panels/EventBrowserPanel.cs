@@ -1,11 +1,14 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
 using Fdp.Core;
+using Fdp.Core.Diagnostics;
+using Fdp.Core.Serialization;
 using Fdp.Presentation.Renderers;
 using Fdp.Presentation.Utils;
+using Fdp.Toolkit.Serialization;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
@@ -13,99 +16,18 @@ namespace Fdp.Presentation.Panels;
 
 public class EventBrowserPanel
 {
-    private class CapturedEvent
-    {
-        public uint   Frame;
-        public string TypeName  = "";
-        public Type   EventType = typeof(object);
-        public bool   IsManaged;
-        public string Summary   = "";
-        public object? RawEvent;   // kept for property-tree rendering
-    }
+    private readonly IDiagnosticEventHistoryService _historyService;
 
-    // ── Per-bus filter state ──────────────────────────────────────────────────
-    // Each registered bus gets its own KnownTypes / DisabledTypes so that filter
-    // settings survive a bus switch and never bleed between buses.
-    private class BusFilterState
-    {
-        public HashSet<string> KnownTypes    { get; } = new();
-        public HashSet<string> DisabledTypes { get; } = new();
-    }
+    // ── Per-type filter state ─────────────────────────────────────────────
+    private readonly HashSet<string> _knownTypes    = new();
+    private readonly HashSet<string> _disabledTypes = new();
 
-    // ── Bus registry ──────────────────────────────────────────────────────────
-    private readonly Dictionary<string, FdpEventBus>    _registeredBuses  = new();
-    private readonly Dictionary<string, BusFilterState> _busFilterStates  = new();
-    private string?        _selectedBusName;
-    private BusFilterState? _activeFilterState;
-
-    private readonly List<CapturedEvent> _history = new();
-    private CapturedEvent? _selectedEvent;
+    private CapturedEventDto? _selectedEvent;
     private bool _paused;
-    private int  _capacity = 500;
 
-    /// <summary>
-    /// Registers an event bus under a display name for the UI combo box.
-    /// The first bus registered becomes the default selection.
-    /// </summary>
-    public void RegisterBus(string displayName, FdpEventBus bus)
+    public EventBrowserPanel(IDiagnosticEventHistoryService historyService)
     {
-        if (bus == null) return;
-        _registeredBuses[displayName] = bus;
-        if (!_busFilterStates.ContainsKey(displayName))
-            _busFilterStates[displayName] = new BusFilterState();
-        if (_selectedBusName == null)
-        {
-            _selectedBusName   = displayName;
-            _activeFilterState = _busFilterStates[displayName];
-        }
-    }
-
-    public void Update(uint currentFrame)
-    {
-        if (_paused || _selectedBusName == null || _activeFilterState == null) return;
-        if (!_registeredBuses.TryGetValue(_selectedBusName, out var activeBus)) return;
-
-        foreach (var inspector in activeBus.GetDebugInspectors())
-        {
-            if (inspector.Count == 0) continue;
-
-            bool isManaged = !inspector.EventType.IsValueType;
-
-            foreach (var evt in inspector.InspectReadBuffer())
-            {
-                string typeName = inspector.EventType.Name;
-                _activeFilterState.KnownTypes.Add(typeName);
-
-                // Compute summary using a custom renderer if registered
-                var renderer = ImGuiRendererRegistry.GetRenderer(inspector.EventType);
-                string summary = renderer?.GetSummary(evt)
-                              ?? GetGenericEventSummary(evt, inspector.EventType);
-
-                var record = new CapturedEvent
-                {
-                    Frame     = currentFrame,
-                    TypeName  = typeName,
-                    EventType = inspector.EventType,
-                    IsManaged = isManaged,
-                    Summary   = summary,
-                    RawEvent  = evt,
-                };
-
-                _history.Add(record);
-            }
-        }
-
-        // Trim history
-        if (_history.Count > _capacity)
-        {
-            int removeCount = _history.Count - _capacity;
-            if (removeCount > 0)
-            {
-                if (_selectedEvent != null && _history.IndexOf(_selectedEvent) < removeCount)
-                    _selectedEvent = null;
-                _history.RemoveRange(0, removeCount);
-            }
-        }
+        _historyService = historyService ?? throw new ArgumentNullException(nameof(historyService));
     }
 
     /// <param name="title">Optional window title override. Default: "Event Browser".</param>
@@ -123,18 +45,27 @@ public class EventBrowserPanel
     /// </summary>
     public void DrawContent()
     {
-        DrawToolbar();
+        // Fetch a snapshot from the service each frame (copy-under-lock is O(N) only).
+        CapturedEventDto[] snapshot = _paused
+            ? Array.Empty<CapturedEventDto>()
+            : _historyService.GetHistory();
+
+        // Update known types for the filter popup.
+        foreach (var e in snapshot)
+            _knownTypes.Add(e.TypeName);
+
+        DrawToolbar(snapshot);
         ImGuiApi.Separator();
 
         if (ImGuiApi.BeginTable("EventBrowserLayout", 2, ImGuiTableFlags.Resizable | ImGuiTableFlags.BordersInner))
         {
             ImGuiApi.TableSetupColumn("Event List", ImGuiTableColumnFlags.WidthFixed, 400);
             ImGuiApi.TableSetupColumn("Details", ImGuiTableColumnFlags.WidthStretch);
-            
+
             ImGuiApi.TableNextRow();
-            
+
             ImGuiApi.TableSetColumnIndex(0);
-            DrawEventList();
+            DrawEventList(snapshot);
 
             ImGuiApi.TableSetColumnIndex(1);
             DrawEventDetails();
@@ -143,36 +74,13 @@ public class EventBrowserPanel
         }
     }
 
-    private void DrawToolbar()
+    private void DrawToolbar(CapturedEventDto[] snapshot)
     {
-        // ── Bus selector combo ─────────────────────────────────────────────
-        if (_registeredBuses.Count > 0)
-        {
-            var names = _registeredBuses.Keys.ToArray();
-            int selectedIdx = _selectedBusName != null ? Array.IndexOf(names, _selectedBusName) : 0;
-            if (selectedIdx < 0) selectedIdx = 0;
-
-            ImGuiApi.SetNextItemWidth(150);
-            if (ImGuiApi.Combo("##Bus", ref selectedIdx, names, names.Length))
-            {
-                string newName = names[selectedIdx];
-                if (newName != _selectedBusName)
-                {
-                    _selectedBusName   = newName;
-                    _activeFilterState = _busFilterStates[_selectedBusName];
-                    // Clear history and selection to prevent cross-contamination
-                    // between buses; filter state for each bus is preserved.
-                    _history.Clear();
-                    _selectedEvent = null;
-                }
-            }
-            ImGuiApi.SameLine();
-        }
-
         if (ImGuiApi.Button("Clear"))
         {
-            _history.Clear();
+            _historyService.ClearHistory();
             _selectedEvent = null;
+            _knownTypes.Clear();
         }
 
         ImGuiApi.SameLine();
@@ -180,7 +88,7 @@ public class EventBrowserPanel
 
         // ── Event-type filter ─────────────────────────────────────────────
         ImGuiApi.SameLine();
-        int hiddenCount = _activeFilterState?.DisabledTypes.Count ?? 0;
+        int hiddenCount = _disabledTypes.Count;
         string filterLabel = hiddenCount > 0
             ? $"Filter [{hiddenCount} hidden]###FilterBtn"
             : "Filter###FilterBtn";
@@ -194,10 +102,8 @@ public class EventBrowserPanel
         DrawFilterPopup();
 
         ImGuiApi.SameLine();
-        int visible = _activeFilterState != null
-            ? _history.Count(e => !_activeFilterState.DisabledTypes.Contains(e.TypeName))
-            : _history.Count;
-        ImGuiApi.Text($"| Showing: {visible} / {_history.Count}");
+        int visible = snapshot.Count(e => !_disabledTypes.Contains(e.TypeName));
+        ImGuiApi.Text($"| Showing: {visible} / {snapshot.Length}");
 
         if (_selectedEvent != null)
         {
@@ -209,39 +115,38 @@ public class EventBrowserPanel
     private void DrawFilterPopup()
     {
         if (!ImGuiApi.BeginPopup("##EventTypeFilter")) return;
-        if (_activeFilterState == null) { ImGuiApi.EndPopup(); return; }
 
         ImGuiApi.TextDisabled("Show / hide event types:");
         ImGuiApi.Separator();
 
         if (ImGuiApi.SmallButton("Enable All"))
-            _activeFilterState.DisabledTypes.Clear();
+            _disabledTypes.Clear();
         ImGuiApi.SameLine();
         if (ImGuiApi.SmallButton("Disable All"))
         {
-            foreach (var t in _activeFilterState.KnownTypes)
-                _activeFilterState.DisabledTypes.Add(t);
+            foreach (var t in _knownTypes)
+                _disabledTypes.Add(t);
         }
         ImGuiApi.Separator();
 
-        foreach (var typeName in _activeFilterState.KnownTypes.OrderBy(n => n))
+        foreach (var typeName in _knownTypes.OrderBy(n => n))
         {
-            bool visible = !_activeFilterState.DisabledTypes.Contains(typeName);
+            bool visible = !_disabledTypes.Contains(typeName);
             if (ImGuiApi.Checkbox(typeName, ref visible))
             {
-                if (visible) _activeFilterState.DisabledTypes.Remove(typeName);
-                else         _activeFilterState.DisabledTypes.Add(typeName);
+                if (visible) _disabledTypes.Remove(typeName);
+                else         _disabledTypes.Add(typeName);
             }
         }
 
         ImGuiApi.EndPopup();
     }
 
-    private void DrawEventList()
+    private void DrawEventList(CapturedEventDto[] snapshot)
     {
         if (ImGuiApi.BeginChild("EventListScroll", new Vector2(0, 0)))
         {
-            if (_history.Count == 0)
+            if (snapshot.Length == 0)
             {
                 ImGuiApi.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1), "No events captured.");
             }
@@ -252,13 +157,13 @@ public class EventBrowserPanel
                     ImGuiApi.TableSetupColumn("Frame/Type", ImGuiTableColumnFlags.WidthFixed, 180);
                     ImGuiApi.TableSetupColumn("Summary", ImGuiTableColumnFlags.WidthStretch);
 
-                    for (int i = _history.Count - 1; i >= 0; i--)
+                    for (int i = snapshot.Length - 1; i >= 0; i--)
                     {
-                        var evt = _history[i];
+                        var evt = snapshot[i];
                         // Apply event type filter (disabled types are hidden but not deleted)
-                        if (_activeFilterState != null && _activeFilterState.DisabledTypes.Contains(evt.TypeName)) continue;
+                        if (_disabledTypes.Contains(evt.TypeName)) continue;
 
-                        bool isSelected = (evt == _selectedEvent);
+                        bool isSelected = (_selectedEvent != null && evt == _selectedEvent);
 
                         ImGuiApi.TableNextRow();
                         ImGuiApi.TableSetColumnIndex(0);
@@ -273,7 +178,7 @@ public class EventBrowserPanel
                             ImGuiApi.PushStyleColor(ImGuiCol.Text, color);
 
                         string label = $"[{evt.Frame}] {evt.TypeName}##{i}";
-                        
+
                         // Use SpanAllColumns to make the whole row clickable if possible, or just the first cell
                         if (ImGuiApi.Selectable(label, isSelected, ImGuiSelectableFlags.SpanAllColumns))
                         {
@@ -281,7 +186,7 @@ public class EventBrowserPanel
                         }
 
                         ImGuiApi.PopStyleColor();
-                        
+
                         if (ImGuiApi.IsItemHovered())
                         {
                             ImGuiApi.SetTooltip(evt.Summary);
@@ -309,7 +214,7 @@ public class EventBrowserPanel
             else
             {
                 var evt = _selectedEvent;
-                
+
                 ImGuiApi.TextColored(new Vector4(0, 1, 1, 1), evt.TypeName);
 
                 // ── Copy JSON button ───────────────────────────────────
@@ -318,17 +223,12 @@ public class EventBrowserPanel
                 {
                     var dumpDict = new System.Collections.Generic.Dictionary<string, object?>
                     {
-                        ["EventType"] = evt.EventType.FullName ?? evt.EventType.Name,
+                        ["EventType"] = evt.TypeName,
                         ["Frame"]     = evt.Frame,
                         ["Payload"]   = evt.RawEvent,
                     };
-                    var jsonOpts = new System.Text.Json.JsonSerializerOptions
-                    {
-                        WriteIndented = true,
-                        IncludeFields = true,
-                    };
-                    string json = System.Text.Json.JsonSerializer.Serialize(dumpDict, jsonOpts);
-                    ImGuiApi.SetClipboardText(json);
+                    string rawJson = System.Text.Json.JsonSerializer.Serialize(dumpDict, FdpJsonOptionsRegistry.Indented);
+                    ImGuiApi.SetClipboardText(JsonAestheticFormatter.FlattenNumericArrays(rawJson));
                 }
                 if (ImGuiApi.IsItemHovered())
                     ImGuiApi.SetTooltip("Copy exact event state to clipboard as JSON");
@@ -336,7 +236,7 @@ public class EventBrowserPanel
 
                 ImGuiApi.Text($"Frame: {evt.Frame} | {(evt.IsManaged ? "Managed" : "Unmanaged")}");
                 ImGuiApi.Separator();
-                
+
                 ImGuiApi.TextDisabled(evt.Summary);
                 ImGuiApi.Spacing();
                 ImGuiApi.Separator();
@@ -349,39 +249,5 @@ public class EventBrowserPanel
             }
         }
         ImGuiApi.EndChild();
-    }
-
-    // ── Summary helpers ───────────────────────────────────────────────────────
-
-    private static string GetGenericEventSummary(object evt, Type type)
-    {
-        if (evt == null) return "null";
-
-        // Try primitive fields first (struct events)
-        var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance)
-            .Where(f => f.FieldType.IsPrimitive || f.FieldType == typeof(string) || f.FieldType.IsEnum)
-            .Take(3)
-            .Select(f => $"{f.Name}:{ImGuiPropertyTree.FormatLeaf(f.GetValue(evt))}")
-            .ToList();
-
-        if (fields.Count > 0)
-            return string.Join("  ", fields);
-
-        // Fall back to non-indexed public properties (managed events)
-        var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.GetIndexParameters().Length == 0 &&
-                       (p.PropertyType.IsPrimitive || p.PropertyType == typeof(string) || p.PropertyType.IsEnum))
-            .Take(3)
-            .Select(p =>
-            {
-                try   { return $"{p.Name}:{ImGuiPropertyTree.FormatLeaf(p.GetValue(evt))}"; }
-                catch { return $"{p.Name}:<err>"; }
-            })
-            .ToList();
-
-        if (props.Count > 0)
-            return string.Join("  ", props);
-
-        return evt.ToString() ?? "null";
     }
 }

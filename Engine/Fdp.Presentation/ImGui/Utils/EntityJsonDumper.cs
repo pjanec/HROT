@@ -7,7 +7,9 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Fdp.Core;
+using Fdp.Core.Serialization;
 using Fdp.Presentation.Abstractions;
+using Fdp.Toolkit.Serialization;
 
 namespace Fdp.Presentation.Utils;
 
@@ -34,8 +36,9 @@ public static class EntityJsonDumper
 
         dict["Components"] = componentsDict;
 
-        var options = new JsonSerializerOptions { WriteIndented = true };
-        return JsonSerializer.Serialize(dict, options);
+        var options = FdpJsonOptionsRegistry.Indented;
+        string rawJson = JsonSerializer.Serialize(dict, options);
+        return JsonAestheticFormatter.FlattenNumericArrays(rawJson);
     }
 
     private static object? MapObject(object? obj, Type type, HashSet<object> visited)

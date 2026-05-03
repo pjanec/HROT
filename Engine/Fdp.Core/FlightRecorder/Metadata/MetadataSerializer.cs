@@ -1,20 +1,15 @@
 using System;
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using Fdp.Core.Serialization;
 
 namespace Fdp.Core.FlightRecorder.Metadata
 {
     public static class MetadataSerializer
     {
-        private static readonly JsonSerializerOptions _options = new JsonSerializerOptions
-        {
-            WriteIndented = true,
-            PropertyNameCaseInsensitive = true,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            AllowTrailingCommas = true
-            // By default System.Text.Json ignores JSON properties that don't map to class members,
-            // providing forward compatibility (new fields in JSON from newer versions are ignored).
-        };
+        // Use the registry's DefaultRelaxed options for flight recorder metadata.
+        // WriteIndented is not required for programmatic metadata files.
+        private static readonly JsonSerializerOptions _options =
+            FdpJsonOptionsRegistry.DefaultRelaxed;
 
         public static string Serialize(RecordingMetadata metadata)
         {

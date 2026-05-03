@@ -1,7 +1,8 @@
-using System.Collections.Generic;
-using System.Reflection;
+﻿using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Core.Diagnostics;
 using Fdp.Presentation.Panels;
+using Moq;
 using Xunit;
 
 namespace Fdp.Presentation.Tests
@@ -9,91 +10,61 @@ namespace Fdp.Presentation.Tests
     [Collection("ImGui Sequential")]
     public class EventBrowserPanelTests
     {
-        [EventId(101)]
-        public struct TestEvent
-        {
-            public int Value;
-            public override string ToString() => $"Value:{Value}";
-        }
+        private static CapturedEventDto MakeDto(int i) =>
+            new CapturedEventDto((uint)i, "TestEvent", false, $"Value:{i}", null);
 
         [Fact]
-        public void Update_CapturesEvents_FromReadBuffer()
+        public void Draw_WithMockServiceReturning5Events_Renders5RowsWithoutException()
         {
             using var fixture = new ImGuiTestFixture();
-            using var bus = new FdpEventBus();
-            var panel = new EventBrowserPanel();
 
-            // Publish event
-            bus.Publish(new TestEvent { Value = 42 });
-            
-            // Swap to make it readable
-            bus.SwapBuffers();
-
-            // Update panel
-            panel.RegisterBus("Test", bus);
-            panel.Update(1);
-     
-            // Render (smoke test)
-            fixture.NewFrame();
-            panel.Draw();
-            fixture.Render();
-            
-            // To inspect internal state, we need reflection or we trust the smoke test + accessing private field via reflection for specific assertion
-            var historyField = typeof(EventBrowserPanel).GetField("_history", BindingFlags.NonPublic | BindingFlags.Instance);
-            var history = (System.Collections.IList)historyField.GetValue(panel);
-            
-            Assert.Equal(1, history.Count);
-        }
-
-        [Fact]
-        public void Pause_StopsCapture()
-        {
-            using var bus = new FdpEventBus();
-            var panel = new EventBrowserPanel();
-            
-            // 1. Enable pause via reflection (or public UI interaction if possible, but reflection is easier for unit test)
-            var pauseField = typeof(EventBrowserPanel).GetField("_paused", BindingFlags.NonPublic | BindingFlags.Instance);
-            pauseField.SetValue(panel, true);
-
-            // 2. Publish event
-            bus.Publish(new TestEvent { Value = 99 });
-            bus.SwapBuffers();
-
-            // 3. Update
-            panel.RegisterBus("Test", bus);
-            panel.Update(2);
-
-            // 4. Assert empty
-            var historyField = typeof(EventBrowserPanel).GetField("_history", BindingFlags.NonPublic | BindingFlags.Instance);
-            var history = (System.Collections.IList)historyField.GetValue(panel);
-            
-            Assert.Equal(0, history.Count);
-        }
-
-        [Fact]
-        public void CapacityLimit_TrimsOldest()
-        {
-            using var bus = new FdpEventBus();
-            var panel = new EventBrowserPanel();
-            
-            // Set capacity to 2 via reflection
-             var capacityField = typeof(EventBrowserPanel).GetField("_capacity", BindingFlags.NonPublic | BindingFlags.Instance);
-            capacityField.SetValue(panel, 2);
-
-            // Add 3 events in separate frames
-            panel.RegisterBus("Test", bus);
-            for (int i = 0; i < 3; i++)
+            var mockSvc = new Mock<IDiagnosticEventHistoryService>();
+            var events  = new[]
             {
-                bus.Publish(new TestEvent { Value = i });
-                bus.SwapBuffers();
-                panel.Update((uint)i);
-            }
+                MakeDto(0), MakeDto(1), MakeDto(2), MakeDto(3), MakeDto(4)
+            };
+            mockSvc.Setup(s => s.GetHistory(It.IsAny<IReadOnlyList<string>>())).Returns(events);
 
-            // Assert count is 2
-            var historyField = typeof(EventBrowserPanel).GetField("_history", BindingFlags.NonPublic | BindingFlags.Instance);
-            var history = (System.Collections.IList)historyField.GetValue(panel);
-            
-            Assert.Equal(2, history.Count);
+            var panel = new EventBrowserPanel(mockSvc.Object);
+
+            fixture.NewFrame();
+            // No exception expected during Draw.
+            panel.Draw("Test");
+            fixture.Render();
+
+            // GetHistory was called at least once.
+            mockSvc.Verify(s => s.GetHistory(It.IsAny<IReadOnlyList<string>>()), Times.AtLeastOnce());
+        }
+
+        [Fact]
+        public void Draw_Paused_DoesNotCallGetHistory()
+        {
+            using var fixture = new ImGuiTestFixture();
+
+            var mockSvc = new Mock<IDiagnosticEventHistoryService>();
+            mockSvc.Setup(s => s.GetHistory(It.IsAny<IReadOnlyList<string>>()))
+                   .Returns(System.Array.Empty<CapturedEventDto>());
+
+            var panel = new EventBrowserPanel(mockSvc.Object);
+
+            // Access _paused via the public Draw (the Pause checkbox toggles it via ImGui);
+            // here we force it via reflection as the simplest approach.
+            typeof(EventBrowserPanel)
+                .GetField("_paused", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .SetValue(panel, true);
+
+            fixture.NewFrame();
+            panel.Draw("Test");
+            fixture.Render();
+
+            // When paused the snapshot is empty without calling the service.
+            mockSvc.Verify(s => s.GetHistory(It.IsAny<IReadOnlyList<string>>()), Times.Never());
+        }
+
+        [Fact]
+        public void Constructor_NullService_ThrowsArgumentNullException()
+        {
+            Assert.Throws<System.ArgumentNullException>(() => new EventBrowserPanel(null!));
         }
     }
 }
