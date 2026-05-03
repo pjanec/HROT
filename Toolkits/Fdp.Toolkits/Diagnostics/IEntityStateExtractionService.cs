@@ -7,9 +7,8 @@ namespace Fdp.Toolkit.Diagnostics
     /// </summary>
     public sealed class EntityStateDumpDto
     {
+        public int[] EntityId { get; init; } = System.Array.Empty<int>();
         public long NetworkId { get; init; }
-        public int LocalIndex { get; init; }
-        public int LocalGeneration { get; init; }
 
         /// <summary>
         /// Component data, keyed by component type short name.

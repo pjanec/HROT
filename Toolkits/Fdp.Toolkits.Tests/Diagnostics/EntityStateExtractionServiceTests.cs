@@ -129,15 +129,15 @@ namespace Fdp.Toolkit.Diagnostics.Tests
         }
 
         [Fact]
-        public void ExtractEntities_LocalIndexAndGenerationPopulated()
+        public void ExtractEntities_EntityIdPopulated()
         {
             var e      = CreateLiveEntity(networkId: 7);
             var svc    = new EntityStateExtractionService(_repo);
             var result = svc.ExtractEntities();
 
             Assert.Single(result);
-            Assert.Equal(e.Index,      result[0].LocalIndex);
-            Assert.Equal(e.Generation, result[0].LocalGeneration);
+            Assert.Equal(e.Index,      result[0].EntityId[0]);
+            Assert.Equal(e.Generation, result[0].EntityId[1]);
         }
 
         [Fact]

@@ -73,10 +73,9 @@ namespace Fdp.Toolkit.Diagnostics
 
                 result.Add(new EntityStateDumpDto
                 {
-                    NetworkId       = networkId,
-                    LocalIndex      = entity.Index,
-                    LocalGeneration = entity.Generation,
-                    Components      = components,
+                    EntityId   = new[] { entity.Index, entity.Generation },
+                    NetworkId  = networkId,
+                    Components = components,
                 });
             }
 

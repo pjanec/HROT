@@ -27,7 +27,7 @@ public class EntityInspectorPanel
     internal readonly HashSet<Entity> _selectedEntities = new();
     internal int _lastClickedIndex = -1;
 
-    private readonly IEntityStateExtractionService? _extractionService;
+    public IEntityStateExtractionService? ExtractionService { get; set; }
 
     /// <summary>
     /// Creates an <see cref="EntityInspectorPanel"/>.
@@ -39,7 +39,7 @@ public class EntityInspectorPanel
     /// </param>
     public EntityInspectorPanel(IEntityStateExtractionService? extractionService = null)
     {
-        _extractionService = extractionService;
+        ExtractionService = extractionService;
     }
 
     /// <summary>
@@ -131,7 +131,22 @@ public class EntityInspectorPanel
         ImGuiApi.SameLine();
         ImGuiApi.InputTextWithHint("##search", "Search ID...", ref _searchFilter, 20);
         
-        if (context.SelectedEntity != null)
+        int selCount = _selectedEntities.Count;
+        if (selCount > 1)
+        {
+            if (ExtractionService != null)
+            {
+                ImGuiApi.SameLine();
+                if (ImGuiApi.Button($"Copy JSON ({selCount} items)"))
+                {
+                    var json = BuildMultiEntityJson(_selectedEntities);
+                    ImGuiApi.SetClipboardText(json);
+                }
+                if (ImGuiApi.IsItemHovered())
+                    ImGuiApi.SetTooltip("Copy selected entities to clipboard as a JSON array");
+            }
+        }
+        else if (context.SelectedEntity != null)
         {
             ImGuiApi.SameLine();
             if (ImGuiApi.Button("Copy JSON"))
@@ -301,7 +316,7 @@ public class EntityInspectorPanel
                 }
 
                 // Add "Copy to JSON (N items)" when extraction service available.
-                if (_extractionService != null)
+                if (ExtractionService != null)
                 {
                     builder.AddSeparator();
                     builder.AddItem($"Copy to JSON ({selCount} items)", () =>
@@ -362,7 +377,7 @@ public class EntityInspectorPanel
 
     private string BuildMultiEntityJson(IEnumerable<Entity> entities)
     {
-        if (_extractionService == null) return "[]";
+        if (ExtractionService == null) return "[]";
         // Collect NetworkIdentity IDs from entity list (non-null only).
         var networkIds = entities
             .Select(e => {
@@ -375,9 +390,9 @@ public class EntityInspectorPanel
             .ToList();
 
         // Extract all entities and filter by local index (safe fallback).
-        var all = _extractionService.ExtractEntities(null);
+        var all = ExtractionService.ExtractEntities(null);
         var matchingIndices = entities.Select(e => e.Index).ToHashSet();
-        var filtered = all.Where(dto => matchingIndices.Contains(dto.LocalIndex)).ToList();
+        var filtered = all.Where(dto => dto.EntityId.Length > 0 && matchingIndices.Contains(dto.EntityId[0])).ToList();
 
         return JsonSerializer.Serialize(filtered, FdpJsonOptionsRegistry.Indented);
     }
