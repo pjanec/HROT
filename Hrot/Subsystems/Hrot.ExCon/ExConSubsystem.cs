@@ -241,6 +241,7 @@ namespace Hrot.ExCon
                     NodeId = iosNodeId,
                     SubsystemName = SubsystemName,
                     LocalTempRoot = OrchestrationConstants.DefaultStagingDirectory,
+                    LogDirectory = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs"),
                 }));
 
             // ── Construct services ─────────────────────────────────────────────

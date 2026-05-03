@@ -63,6 +63,7 @@ public sealed class ClusterDiagnosticsPanel
     // ── Static colours ────────────────────────────────────────────────────────
     private static readonly Vector4 ColRed    = new(1f, 0.3f, 0.3f, 1f);
     private static readonly Vector4 ColYellow = new(1f, 0.9f, 0.1f, 1f);
+    private static readonly string[] s_severityNames = Enum.GetNames<Fdp.Core.Logging.LogSeverity>();
 
     /// <param name="uiCache">CQRS read-side: cluster node state and dump manifests.</param>
     /// <param name="bus">Event bus for publishing intents and reading local events.</param>
@@ -161,7 +162,7 @@ public sealed class ClusterDiagnosticsPanel
             512);
 
         ImGui.SliderFloat("Max log age (hours)##maxage", ref _maxAgeHours, 0f, 168f);
-        ImGui.SliderInt("Severity threshold##sev",       ref _severityThreshold, 0, 5);
+        ImGui.Combo("Severity threshold##sev", ref _severityThreshold, s_severityNames, s_severityNames.Length);
 
         ImGui.Separator();
         RenderSubsystemMatrix();

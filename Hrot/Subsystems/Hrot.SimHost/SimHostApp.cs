@@ -293,6 +293,7 @@ namespace Hrot.SimHost
                         : nodeConfig.LocalTempRoot,
                     "nodes",
                     $"node-{localNodeId}"),
+                LogDirectory        = Path.Combine(System.AppContext.BaseDirectory, "logs"),
                 SubsystemName       = "SimHost",
             };
             var baseContext = new HrotNodeBuilder(hrotConfig)
