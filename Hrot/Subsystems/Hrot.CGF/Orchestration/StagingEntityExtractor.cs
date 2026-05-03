@@ -48,7 +48,6 @@ namespace Hrot.CGF.Orchestration
         private static BitMask256 BuildStaticMask()
         {
             var mask = new BitMask256();
-            mask.SetBit(GlobalComponentIds.LifecycleDescriptor);  // 5
             mask.SetBit(GlobalComponentIds.NetworkIdentity);       // 50
             mask.SetBit(GlobalComponentIds.NetworkAuthority);      // 51
             mask.SetBit(GlobalComponentIds.DescriptorOwnership);   // 59

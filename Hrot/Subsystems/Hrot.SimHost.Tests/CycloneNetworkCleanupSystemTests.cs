@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Interfaces;
 using Fdp.Core;
+using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Network.Cyclone.Systems;
@@ -23,7 +24,20 @@ namespace Hrot.SimHost.Tests
             var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterComponent<NetworkOwnership>();
+            repo.RegisterEvent<DestructionOrder>();
             return repo;
+        }
+
+        /// <summary>
+        /// Publishes a DestructionOrder and swaps the bus buffer so the event is
+        /// visible to systems that run next — mirrors the ELM "publish then swap" step.
+        /// The entity is NOT destroyed here; the caller should destroy it AFTER the
+        /// cleanup system has run (matching the real ELM 1-frame delay guarantee).
+        /// </summary>
+        private static void PublishDestructionOrder(EntityRepository repo, Entity entity)
+        {
+            repo.Bus.Publish(new DestructionOrder { Entity = entity });
+            repo.Bus.SwapBuffers();
         }
 
         /// <summary>
@@ -82,11 +96,14 @@ namespace Hrot.SimHost.Tests
             // First tick: system tracks the entity.
             system.Execute(repo, 0f);
 
-            // Delete the entity so the system detects it as dead.
-            repo.DestroyEntity(entity);
+            // Simulate ELM: publish DestructionOrder and swap so it's readable next tick.
+            PublishDestructionOrder(repo, entity);
 
-            // Second tick: system detects dead entity and calls Dispose on all translators.
+            // Second tick: system reads DestructionOrder (entity still alive) and calls Dispose.
             system.Execute(repo, 0f);
+
+            // ELM hard-deletes the entity after all systems have run.
+            repo.DestroyEntity(entity);
 
             Assert.Contains(100L, t1.DisposedIds);
             Assert.Contains(100L, t2.DisposedIds);
@@ -105,8 +122,9 @@ namespace Hrot.SimHost.Tests
             var entity = CreateAuthoritativeEntity(repo, netId: 200L);
 
             system.Execute(repo, 0f);
-            repo.DestroyEntity(entity);
+            PublishDestructionOrder(repo, entity);
             system.Execute(repo, 0f);
+            repo.DestroyEntity(entity);
 
             // t1 threw, but t2 and t3 must still have been called
             Assert.Contains(200L, t2.DisposedIds);
@@ -124,8 +142,9 @@ namespace Hrot.SimHost.Tests
             var entity = CreateAuthoritativeEntity(repo, netId: 300L, primaryOwner: 2, localNode: 1);
 
             system.Execute(repo, 0f);
-            repo.DestroyEntity(entity);
+            PublishDestructionOrder(repo, entity);
             system.Execute(repo, 0f);
+            repo.DestroyEntity(entity);
 
             Assert.Empty(t1.DisposedIds);
         }
@@ -159,10 +178,13 @@ namespace Hrot.SimHost.Tests
 
             system.Execute(repo, 0f);
 
+            // Publish both destruction orders in the same frame before swapping.
+            repo.Bus.Publish(new DestructionOrder { Entity = e1 });
+            repo.Bus.Publish(new DestructionOrder { Entity = e2 });
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0f);
             repo.DestroyEntity(e1);
             repo.DestroyEntity(e2);
-
-            system.Execute(repo, 0f);
 
             Assert.Contains(500L, t1.DisposedIds);
             Assert.Contains(501L, t1.DisposedIds);

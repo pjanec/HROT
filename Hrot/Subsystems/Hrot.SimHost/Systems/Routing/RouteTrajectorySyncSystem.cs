@@ -5,6 +5,7 @@ using Hrot.Map.Common.Components;
 using CarKinem.Trajectory;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Lifecycle.Events;
 
 namespace Hrot.SimHost.Systems.Routing;
 
@@ -61,9 +62,19 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
                 $"{nameof(RouteTrajectorySyncSystem)} requires direct EntityRepository access " +
                 $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-        // -- 1. Sync all living route entities --
+        // Free trajectory pool entries for entities entering TearDown.
+        // Relies on the 1-frame ELM guarantee that the entity is still intact when the order fires.
+        foreach (var evt in view.ReadEvents<DestructionOrder>())
+        {
+            if (_knownTrajectories.TryGetValue(evt.Entity, out int trajId))
+            {
+                if (trajId > 0)
+                    _pool.RemoveTrajectory(trajId);
+                _knownTrajectories.Remove(evt.Entity);
+            }
+        }
 
-        var currentEntities = new HashSet<Entity>();
+        // -- 1. Sync all living route entities --
 
         var query = repo.Query()
             .WithManaged<RoutePlan>()
@@ -71,8 +82,6 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
 
         foreach (var entity in query)
         {
-            currentEntities.Add(entity);
-
             var routePlan = view.GetManagedComponentRO<RoutePlan>(entity);
 
             bool hasCache = repo.HasComponent<RouteTrajectoryCache>(entity);
@@ -118,28 +127,6 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
 
             // Track so we can free the pool entry on entity destruction.
             _knownTrajectories[entity] = newId;
-        }
-
-        // -- 2. Free trajectories for entities that were destroyed --
-
-        List<Entity>? toRemove = null;
-
-        foreach (var (trackedEntity, trajId) in _knownTrajectories)
-        {
-            if (!currentEntities.Contains(trackedEntity))
-            {
-                if (trajId > 0)
-                    _pool.RemoveTrajectory(trajId);
-
-                toRemove ??= new List<Entity>();
-                toRemove.Add(trackedEntity);
-            }
-        }
-
-        if (toRemove != null)
-        {
-            foreach (var e in toRemove)
-                _knownTrajectories.Remove(e);
         }
     }
 }

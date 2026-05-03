@@ -4,6 +4,7 @@ using Hrot.Map.Common.Components;
 using Hrot.SimHost.Systems.Routing;
 using CarKinem.Trajectory;
 using Fdp.Core;
+using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.Replication.Components;
 using Xunit;
 
@@ -34,6 +35,7 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         repo.RegisterManagedComponent<RoutePlan>();
         repo.RegisterComponent<RouteTrajectoryCache>();
         repo.RegisterComponent<TkbIdentity>();
+        repo.RegisterEvent<DestructionOrder>();
         return repo;
     }
 
@@ -133,9 +135,12 @@ public class RouteTrajectorySyncSystemTests : IDisposable
         var cachedId = _repo.GetComponent<RouteTrajectoryCache>(entity).TrajectoryId;
         Assert.True(_pool.TryGetTrajectory(cachedId, out _));
 
+        // Simulate ELM: publish DestructionOrder and swap so the system can read it.
+        _repo.Bus.Publish(new DestructionOrder { Entity = entity });
+        _repo.Bus.SwapBuffers();
         _repo.DestroyEntity(entity);
 
-        // Second tick: system detects entity gone and frees pool entry.
+        // Second tick: system reads DestructionOrder event and frees the pool entry.
         _system.Execute(_repo, 0.016f);
 
         Assert.False(_pool.TryGetTrajectory(cachedId, out _),
