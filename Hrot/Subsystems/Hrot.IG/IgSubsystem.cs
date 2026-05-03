@@ -133,8 +133,8 @@ namespace Hrot.IG
                 IgWindowColor.TitleBar));
             windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
                 "ig_architecture_diagnostics", "IG Architecture Diagnostics", "IG",
-                new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(),
-                () => _app.Kernel,
+                new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
+                    new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _app.Kernel)),
                 IgWindowColor.TitleBar));
             // Signal IgApplication that these panels must not be double-rendered.
             _app.SetPanelsWindowManaged();

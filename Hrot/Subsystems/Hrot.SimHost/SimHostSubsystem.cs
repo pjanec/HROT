@@ -6,6 +6,7 @@ using Hrot.SimHost;
 using Hrot.SimHost.Utilities;
 using Fdp.Presentation.Panels;
 using Fdp.Presentation.Utils;
+using Fdp.ModuleHost.Diagnostics;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Components;
@@ -235,8 +236,8 @@ namespace Hrot.SimHost
 
             windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
                 "simhost_architecture_diagnostics", "SimHost Architecture Diagnostics", "SimHost",
-                new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(),
-                () => _app?.Kernel,
+                new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
+                    new ArchitectureDiagnosticsService(() => _app?.Kernel)),
                 SimHostWindowColor.TitleBar));
 
             vis.SetPanelsWindowManaged();

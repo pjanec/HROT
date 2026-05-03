@@ -1,5 +1,5 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using Fdp.Core.Serialization;
 
 namespace Hrot.Map.Common;
 
@@ -17,17 +17,27 @@ namespace Hrot.Map.Common;
 ///   <item>Human-readable indentation for source-control friendliness.</item>
 /// </list>
 /// </para>
+/// <para>
+/// Built on top of <see cref="FdpJsonOptionsRegistry.Indented"/> (which provides
+/// <c>IncludeFields</c>, custom converters and strict enum parsing) with the
+/// camelCase naming policy layered on top for scenario file compatibility.
+/// </para>
 /// </summary>
 public static class HrotSerializerOptions
 {
     /// <summary>
     /// Pre-built <see cref="JsonSerializerOptions"/> instance for scenario DTO round-trips.
     /// </summary>
-    public static readonly JsonSerializerOptions HrotJsonOptions = new JsonSerializerOptions
+    public static readonly JsonSerializerOptions HrotJsonOptions;
+
+    static HrotSerializerOptions()
     {
-        PropertyNameCaseInsensitive  = true,
-        PropertyNamingPolicy         = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition       = JsonIgnoreCondition.WhenWritingNull,
-        WriteIndented                = true,
-    };
+        // Base on registry Indented options (frozen), then extend with camelCase policy.
+        // A new (non-frozen) instance is required to add PropertyNamingPolicy.
+        var opts = new JsonSerializerOptions(FdpJsonOptionsRegistry.Indented)
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        };
+        HrotJsonOptions = opts;
+    }
 }

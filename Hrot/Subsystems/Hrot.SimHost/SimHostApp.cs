@@ -500,12 +500,6 @@ namespace Hrot.SimHost
                     worldPosDescriptorId: _networkFactory?.WorldPosDescriptorId ?? 0);
 
                 Logger.Info($"[Node-{localNodeId}] Visualization ready. Window open.");
-
-                // Register extra buses so the event browser combo box can monitor them.
-                if (_eventBus != null)
-                    _vis.FdpEventBrowser.RegisterBus("Orchestration", _eventBus);
-                if (_perceptionMod != null)
-                    _vis.FdpEventBrowser.RegisterBus("Perception", _perceptionMod.ScopedBus);
             }
 
             _initialized = true;

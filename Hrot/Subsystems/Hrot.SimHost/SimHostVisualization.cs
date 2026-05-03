@@ -23,7 +23,9 @@ using Hrot.UI.Common.Menus;
 using CarKinem.Commands;
 using CarKinem.Core;
 using CarKinem.Trajectory;
+using Fdp.Core.Diagnostics;
 using Fdp.ModuleHost;
+using Fdp.ModuleHost.Diagnostics;
 using Hrot.SimHost.UI;
 using Hrot.SimHost.Visualization;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -69,9 +71,10 @@ namespace Hrot.SimHost
         private SimHostScenarioManager? _scenario;
 
         // ── FDP framework panels (Task 16) ─────────────────────────────────────
-        private FdpEntityInspectorPanel _fdpEntityInspector = new();
-        private FdpEventBrowserPanel    _fdpEventBrowser    = new();
-        private FdpRepositoryAdapter?   _fdpRepoAdapter;
+        private FdpEntityInspectorPanel              _fdpEntityInspector = new();
+        private FdpEventBrowserPanel                 _fdpEventBrowser    = null!;
+        private DiagnosticEventHistoryService        _fdpEventHistory    = new();
+        private FdpRepositoryAdapter?                _fdpRepoAdapter;
         private FdpInspectorState       _fdpInspectorState  = new();
         private uint                    _fdpFrameCount;
         private MapPickServiceBridge?   _mapPickBridge;
@@ -147,8 +150,9 @@ namespace Hrot.SimHost
             // ── Selection & inspector ─────────────────────────────────────────
             _selection = new SimHostSelectionManager();
             _inspector = new SimHostInspectorAdapter(_selection, repo);
-            _fdpRepoAdapter = new FdpRepositoryAdapter(repo);
-            _fdpEventBrowser.RegisterBus("World (Main Simulation)", repo.Bus);
+            _fdpRepoAdapter   = new FdpRepositoryAdapter(repo);
+            _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
+            kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem(_fdpEventHistory, repo.Bus));
 
             // Task 47: register context menu handlers for the FDP entity inspector.
             _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
@@ -403,7 +407,6 @@ namespace Hrot.SimHost
             _map.Update(dt);
 
             _fdpFrameCount++;
-            _fdpEventBrowser.Update(_fdpFrameCount);
         }
 
         /// <summary>Renders the 2-D map canvas.  Must be called inside Raylib BeginDrawing.</summary>

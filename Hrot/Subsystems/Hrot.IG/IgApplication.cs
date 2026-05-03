@@ -109,6 +109,10 @@ using Fdp.ModuleHost;
 
 using Fdp.ModuleHost.Abstractions;
 
+using Fdp.Core.Diagnostics;
+
+using Fdp.ModuleHost.Diagnostics;
+
 
 using Fdp.Network.Cyclone.Modules;
 
@@ -367,11 +371,13 @@ public class IgApplication : IDisposable
 
     // ── FDP framework panels (Task 16) ────────────────────────────────────────────
 
-    private FdpEntityInspectorPanel _fdpEntityInspector = new();
+    private FdpEntityInspectorPanel              _fdpEntityInspector = new();
 
-    private FdpEventBrowserPanel    _fdpEventBrowser    = new();
+    private FdpEventBrowserPanel                 _fdpEventBrowser    = null!;
 
-    private FdpRepositoryAdapter?   _fdpRepoAdapter;
+    private DiagnosticEventHistoryService        _fdpEventHistory    = new();
+
+    private FdpRepositoryAdapter?                _fdpRepoAdapter;
 
     private FdpInspectorState       _fdpInspectorState  = new();
 
@@ -634,8 +640,9 @@ public class IgApplication : IDisposable
         _entityMap = _context.EntityMap;
         _kernel    = _context.Kernel;
 
-        _fdpEventBrowser.RegisterBus("World", _context.World.Bus);
-        _fdpEventBrowser.RegisterBus("Orchestration", _context.EventBus);
+        _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
+        _context.Kernel.RegisterGlobalSystem(
+            new EventHistoryCaptureSystem(_fdpEventHistory, _context.World.Bus));
 
         //  Shared foundation 
         // Registers network replication, geographic, shared definitions, and
@@ -1255,7 +1262,6 @@ public class IgApplication : IDisposable
         _context?.EventBus.SwapBuffers();
 
         _fdpFrameCount++;
-        _fdpEventBrowser.Update(_fdpFrameCount);
 
 
 

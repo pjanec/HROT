@@ -9,10 +9,10 @@
 **Goal:** Centralise JSON options, move converters to Fdp.Core, extract the aesthetic formatter,
 fix the FixedString64 bug.
 
-- [ ] **DD-P1-T01** Move FixedString/Vector Converters to Fdp.Core [details](./TASK-DETAIL.md#dd-p1-t01--move-fixedstring-converters-to-fdpcore)
-- [ ] **DD-P1-T02** FdpJsonOptionsRegistry [details](./TASK-DETAIL.md#dd-p1-t02--fdpjsonoptionsregistry)
-- [ ] **DD-P1-T03** JsonAestheticFormatter [details](./TASK-DETAIL.md#dd-p1-t03--jsonaestheticformatter)
-- [ ] **DD-P1-T04** Refactor Existing JSON Callers [details](./TASK-DETAIL.md#dd-p1-t04--refactor-existing-json-callers)
+- [x] **DD-P1-T01** Move FixedString/Vector Converters to Fdp.Core [details](./TASK-DETAIL.md#dd-p1-t01--move-fixedstring-converters-to-fdpcore)
+- [x] **DD-P1-T02** FdpJsonOptionsRegistry [details](./TASK-DETAIL.md#dd-p1-t02--fdpjsonoptionsregistry)
+- [x] **DD-P1-T03** JsonAestheticFormatter [details](./TASK-DETAIL.md#dd-p1-t03--jsonaestheticformatter)
+- [x] **DD-P1-T04** Refactor Existing JSON Callers [details](./TASK-DETAIL.md#dd-p1-t04--refactor-existing-callers)
 
 ---
 
@@ -21,11 +21,11 @@ fix the FixedString64 bug.
 **Goal:** Extract event history, architecture diagnostics, entity extraction, and log archive
 access into headless services shared by UI panels and the cluster dump handler.
 
-- [ ] **DD-P2-T01** IDiagnosticEventHistoryService and CapturedEventDto [details](./TASK-DETAIL.md#dd-p2-t01--idiagnosticeventhistoryservice-and-capturedeventdto)
-- [ ] **DD-P2-T02** Refactor EventBrowserPanel to Use IDiagnosticEventHistoryService [details](./TASK-DETAIL.md#dd-p2-t02--refactor-eventbrowserpanel-to-use-idiagnosticeventhistoryservice)
-- [ ] **DD-P2-T03** IArchitectureDiagnosticsService [details](./TASK-DETAIL.md#dd-p2-t03--iarchitecturediagnosticsservice)
-- [ ] **DD-P2-T04** IEntityStateExtractionService [details](./TASK-DETAIL.md#dd-p2-t04--ientitystateextractionservice)
-- [ ] **DD-P2-T05** ILogArchiveExtractionService [details](./TASK-DETAIL.md#dd-p2-t05--ilogarchiveextractionservice)
+- [x] **DD-P2-T01** IDiagnosticEventHistoryService and CapturedEventDto [details](./TASK-DETAIL.md#dd-p2-t01--idiagnosticeventhistoryservice-and-capturedeventdto)
+- [x] **DD-P2-T02** Refactor EventBrowserPanel to Use IDiagnosticEventHistoryService [details](./TASK-DETAIL.md#dd-p2-t02--refactor-eventbrowserpanel-to-use-idiagnosticeventhistoryservice)
+- [x] **DD-P2-T03** IArchitectureDiagnosticsService [details](./TASK-DETAIL.md#dd-p2-t03--iarchitecturediagnosticsservice)
+- [x] **DD-P2-T04** IEntityStateExtractionService [details](./TASK-DETAIL.md#dd-p2-t04--ientitystateextractionservice)
+- [x] **DD-P2-T05** ILogArchiveExtractionService [details](./TASK-DETAIL.md#dd-p2-t05--ilogarchiveextractionservice)
 
 ---
 
@@ -57,7 +57,7 @@ to each node and back.
 
 - [ ] **DD-P5-T01** NLog File Target, Layout, and Auto-Rotation [details](./TASK-DETAIL.md#dd-p5-t01--nlog-file-target-layout-and-auto-rotation)
 - [ ] **DD-P5-T02** HrotRunnerConfiguration `--log-dir` Option [details](./TASK-DETAIL.md#dd-p5-t02--hrotrunnerconfiguration----log-dir-option)
-- [ ] **DD-P5-T03** HrotNodeConfig.LogDirectory [details](./TASK-DETAIL.md#dd-p5-t03--hrotnodeconfiglogdirectory)
+- [x] **DD-P5-T03** HrotNodeConfig.LogDirectory [details](./TASK-DETAIL.md#dd-p5-t03--hrotnodeconfiglogdirectory)
 - [ ] **DD-P5-T04** DiagnosticsDumpClusterOpHandler [details](./TASK-DETAIL.md#dd-p5-t04--diagnosticsdumpclusterophandler)
 - [ ] **DD-P5-T05** Node LocalTempRoot Isolation and ClusterConfiguration NasBasePath [details](./TASK-DETAIL.md#dd-p5-t05--node-localtemproot-isolation-and-clusterconfiguration-nasbasepath)
 

@@ -67,6 +67,8 @@ using Hrot.UI.Common.Panels;
 using Hrot.Core.Network;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Core.Diagnostics;
+using Fdp.ModuleHost.Diagnostics;
 // Disambiguate IMapCameraProvider: Hrot.SimHost.Modules also defines this interface.
 using IMapCameraProvider = Fdp.Toolkit.Runner.IMapCameraProvider;
 using FdpEntityInspectorPanel = Fdp.Presentation.Panels.EntityInspectorPanel;
@@ -151,7 +153,8 @@ namespace Hrot.Editor
         // ── FDP framework panels ──────────────────────────────────────────────
 
         private FdpEntityInspectorPanel _fdpEntityInspector = new();
-        private FdpEventBrowserPanel    _fdpEventBrowser    = new();
+        private FdpEventBrowserPanel                 _fdpEventBrowser    = null!;
+        private DiagnosticEventHistoryService        _fdpEventHistory    = new();
         private FdpRepositoryAdapter?   _fdpRepoAdapter;
         private FdpInspectorState       _fdpInspectorState  = new();
         private uint                    _fdpFrameCount;
@@ -425,10 +428,9 @@ namespace Hrot.Editor
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
 
-            // Register all known buses so the event browser combo box shows them.
-            _fdpEventBrowser.RegisterBus("World", _world.Bus);
-            _fdpEventBrowser.RegisterBus("Orchestration", _orchestrationBus!);
-            _fdpEventBrowser.RegisterBus("Perception", perceptionMod.ScopedBus);
+            // Register the event history service and its capture system.
+            _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
+            _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem(_fdpEventHistory, _world.Bus));
 
             // ── 4a. Multi-phase system registration for SimHostCorePack and CgfLogicPack ──
             // CGF Brain systems -- register directly (no toggling needed in the editor)
@@ -741,7 +743,6 @@ namespace Hrot.Editor
             if (!_headless && _world != null)
             {
                 _fdpFrameCount++;
-                _fdpEventBrowser.Update(_fdpFrameCount);
             }
         }
 
@@ -981,8 +982,8 @@ namespace Hrot.Editor
             {
                 windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
                     "editor_architecture_diagnostics", "Editor Architecture Diagnostics", "Editor",
-                    new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(),
-                    () => _kernel,
+                    new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
+                        new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_kernel)),
                     EditorWindowColor.TitleBar));
             }
 

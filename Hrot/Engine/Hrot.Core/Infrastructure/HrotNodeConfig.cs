@@ -45,4 +45,11 @@ public sealed class HrotNodeConfig
     /// calling <c>HrotEnvironment.CreateParticipant</c>.
     /// </summary>
     public CycloneDDS.Runtime.DdsParticipant? ExternalParticipant { get; set; }
+
+    /// <summary>
+    /// Directory where this node writes its log files.
+    /// Used by <c>LogArchiveExtractionService</c> to locate and archive matching logs.
+    /// Defaults to an empty string (feature disabled when empty).
+    /// </summary>
+    public string LogDirectory { get; set; } = string.Empty;
 }

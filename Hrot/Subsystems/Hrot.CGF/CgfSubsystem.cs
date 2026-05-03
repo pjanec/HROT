@@ -1,7 +1,10 @@
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using Fdp.Core;
+using Fdp.Core.Diagnostics;
+using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Diagnostics;
 using Fdp.ModuleHost.Scheduling;
 using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Behavior;
@@ -84,9 +87,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private EntityQuery?               _entityQuery;
 
     // ── FDP panels ────────────────────────────────────────────────────────────
-    private FdpEntityInspectorPanel _fdpEntityInspector = new();
-    private FdpEventBrowserPanel    _fdpEventBrowser    = new();
-    private FdpRepositoryAdapter?   _fdpRepoAdapter;
+    private FdpEntityInspectorPanel              _fdpEntityInspector = new();
+    private FdpEventBrowserPanel                 _fdpEventBrowser    = null!;
+    private DiagnosticEventHistoryService        _fdpEventHistory    = new();
+    private FdpRepositoryAdapter?                _fdpRepoAdapter;
     private FdpInspectorState       _fdpInspectorState  = new();
     private uint                    _fdpFrameCount;
 
@@ -399,8 +403,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 _behaviorRegistry);
             _fdpRepoAdapter    = new FdpRepositoryAdapter(_context.World);
 
-            _fdpEventBrowser.RegisterBus("World", _context.World.Bus);
-            _fdpEventBrowser.RegisterBus("Orchestration", _context.EventBus);
+            _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
+            _context.Kernel.RegisterGlobalSystem(
+                new EventHistoryCaptureSystem(_fdpEventHistory, _context.World.Bus));
 
             var renderLayer = new EntityRenderLayer(
                 "CGF Entities", -1, _context.World, _entityQuery, _visualizerAdapter, _selectionState)
@@ -493,7 +498,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         if (!_headless && _context != null)
         {
             _fdpFrameCount++;
-            _fdpEventBrowser.Update(_fdpFrameCount);
             _canvas?.Update(deltaTime);
         }
         _context?.EventBus.SwapBuffers();
@@ -629,8 +633,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
             "cgf_architecture_diagnostics", "CGF Architecture Diagnostics", "CGF",
-            new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(),
-            () => _context?.Kernel,
+            new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
+                new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _context?.Kernel)),
             TitleBarColor));
 
         // ── Time transport controls in status bar ─────────────────────────

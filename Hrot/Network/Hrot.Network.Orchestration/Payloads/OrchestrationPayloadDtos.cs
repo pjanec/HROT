@@ -5,20 +5,24 @@ using Hrot.NED.Descriptors.Orchestration;
 namespace Hrot.Network.Orchestration;
 
 /// <summary>
-/// A <see cref="JsonStringEnumConverter"/> variant that rejects numeric enum values,
-/// throwing <see cref="System.Text.Json.JsonException"/> when an integer is encountered.
-/// This prevents the silent integer-as-enum parsing bug in the wire protocol.
+/// A <see cref="System.Text.Json.Serialization.JsonStringEnumConverter"/> variant that rejects numeric enum values.
+/// Thin forwarding wrapper — the canonical implementation is
+/// <see cref="Fdp.Core.Serialization.Converters.StrictStringEnumConverter"/>.
+/// Retained here so that existing <c>[JsonConverter(typeof(StrictStringEnumConverter))]</c>
+/// attributes on payload DTOs compile without change.
 /// </summary>
-public sealed class StrictStringEnumConverter : JsonStringEnumConverter
+public sealed class StrictStringEnumConverter : Fdp.Core.Serialization.Converters.StrictStringEnumConverter
 {
     /// <summary>Initialises the converter with <c>allowIntegerValues = false</c>.</summary>
-    public StrictStringEnumConverter() : base(allowIntegerValues: false) { }
+    public StrictStringEnumConverter() : base() { }
 }
 
 /// <summary>
 /// Shared <see cref="System.Text.Json.JsonSerializerOptions"/> for all orchestration
-/// payload DTOs.  Enums are serialised as strings; numeric enum values are rejected;
-/// null properties are omitted.
+/// payload DTOs.  Delegates to <see cref="Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed"/>
+/// which enforces string-based enum serialisation, rejects integer enum values, and
+/// suppresses null values.  Use these for all DDS payload round-trips to avoid silent
+/// integer-as-enum bugs.
 /// </summary>
 public static class OrchestrationJsonOptions
 {
@@ -27,13 +31,8 @@ public static class OrchestrationJsonOptions
     /// and suppress null values.
     /// Use these for all DDS payload round-trips to avoid silent integer-as-enum bugs.
     /// </summary>
-    public static readonly System.Text.Json.JsonSerializerOptions Default = new()
-    {
-        Converters = { new StrictStringEnumConverter() },
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        PropertyNameCaseInsensitive = true,
-        IncludeFields = true,
-    };
+    public static System.Text.Json.JsonSerializerOptions Default
+        => Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
 }
 
 /// <summary>Payload DTO for <c>ClusterOpType.TransitionState</c> DDS requests.</summary>
