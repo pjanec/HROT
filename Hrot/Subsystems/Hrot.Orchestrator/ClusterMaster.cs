@@ -255,6 +255,7 @@ public sealed class ClusterMaster : IDisposable
         ProcessTakeCheckpointIntents();
         ProcessSeekReplayIntents();
         ProcessCancelOperationIntents();
+        ProcessDiagnosticDumpIntents();
 
         ConsumeNodeOpStatuses();
     }
@@ -609,6 +610,58 @@ public sealed class ClusterMaster : IDisposable
     {
         foreach (var intent in _eventBus.ReadManaged<CancelOperationIntent>())
             ProcessCancelOperationIntent(intent);
+    }
+
+    private void ProcessDiagnosticDumpIntents()
+    {
+        foreach (var intent in _eventBus.ReadManaged<ExecuteDiagnosticDumpIntent>())
+        {
+            if (!_bootstrapLatch)
+            {
+                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
+                continue;
+            }
+
+            DiagnosticDumpPayloadDto? dto = null;
+            try
+            {
+                dto = JsonSerializer.Deserialize<DiagnosticDumpPayloadDto>(
+                    intent.PayloadJson, OrchestrationJsonOptions.Default);
+            }
+            catch (Exception ex)
+            {
+                FdpLog<ClusterMaster>.Warn("[Orchestrator] Failed to parse diagnostic dump payload: {0}", ex.Message);
+            }
+
+            if (dto == null)
+            {
+                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
+                continue;
+            }
+
+            var targetNodes = dto.TargetNodeIds != null && dto.TargetNodeIds.Length > 0
+                ? new List<int>(dto.TargetNodeIds)
+                : new List<int>(_roster.ActiveNodes.Keys);
+
+            if (targetNodes.Count == 0)
+            {
+                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
+                continue;
+            }
+
+            FanOutNodeOp(NodeOpType.CollectDiagnostics, intent.RequestId, dto, targetNodes);
+
+            _pendingTransactions[intent.RequestId] = new GenericTransactionTracker
+            {
+                RequestId = intent.RequestId,
+                Expected  = targetNodes.Count,
+                BroadcastClusterStateOnComplete = false,
+            };
+
+            FdpLog<ClusterMaster>.Info(
+                "[Orchestrator] Diagnostic Dump {0} fanned out to {1} node(s).",
+                intent.RequestId, targetNodes.Count);
+        }
     }
 
     // ── Typed intent handlers (shared by bus and legacy DDS paths) ────────

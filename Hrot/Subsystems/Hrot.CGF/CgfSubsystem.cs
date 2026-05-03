@@ -167,13 +167,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <inheritdoc/>
     public void Initialize(SubsystemConfig config)
     {        _headless = config.Headless;
+        int cgfNodeId = config.NodeId != 0 ? config.NodeId : 400;
+        string baseTempRoot = OrchestrationConstants.DefaultStagingDirectory;
+        string isolatedTempRoot = System.IO.Path.Combine(baseTempRoot, "nodes", $"node-{cgfNodeId}");
+        string resolvedLogDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
         // ── Create DDS participant in the Application Shell (Composition Root) ───
         // Rule: only the outermost executable may instantiate DdsParticipant.
         // HrotNodeBuilder no longer has a fallback.
         var shellParticipant = _networkFactory?.Participant;
         if (shellParticipant == null)
         {
-            int cgfNodeId = config.NodeId != 0 ? config.NodeId : 400;
             shellParticipant = HrotEnvironment.CreateParticipant(config.DomainId);
             shellParticipant.EnableSenderTracking(new SenderIdentityConfig
             {
@@ -185,12 +188,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var nodeConfig = new HrotNodeConfig
         {
             DomainId            = config.DomainId,
-            NodeId              = config.NodeId != 0 ? config.NodeId : 400,
+            NodeId              = cgfNodeId,
             // CgfSubsystem always creates a DDS participant — Headless here controls only
             // the Raylib/ImGui window (UI), not the network layer.
             // This mirrors SimHostApp which also hardcodes Headless = false for HrotNodeConfig.
             Headless            = false,
             ExternalParticipant = shellParticipant,
+            LocalTempRoot       = isolatedTempRoot,
+            LogDirectory        = resolvedLogDir,
             SubsystemName       = "CGF",
         };
         _context = new HrotNodeBuilder(nodeConfig)
@@ -378,6 +383,20 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         newClusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
         newClusterSlave.RegisterHandler(new ReferenceArchiveHandler(
             OrchestrationConstants.DefaultStagingDirectory, _context.NodeId));
+        var cgfArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_context.Kernel);
+        var cgfEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_context.World, _context.EntityMap);
+        var cgfLogService = new Hrot.Core.Diagnostics.LogArchiveExtractionService(
+            string.IsNullOrWhiteSpace(nodeConfig.LogDirectory)
+                ? System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs")
+                : nodeConfig.LogDirectory,
+            nodeConfig.SubsystemName,
+            nodeConfig.NodeId);
+        newClusterSlave.RegisterHandler(new Hrot.Common.Diagnostics.DiagnosticsDumpClusterOpHandler(
+            _fdpEventHistory,
+            cgfArchService,
+            cgfEntityService,
+            cgfLogService,
+            nodeConfig));
 
         _context = _context with
         {

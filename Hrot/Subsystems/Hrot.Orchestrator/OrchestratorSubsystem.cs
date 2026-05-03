@@ -13,9 +13,14 @@ using Fdp.Toolkit.Time.Messages;
 using ImGuiNET;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Time;
+using Fdp.ModuleHost.Diagnostics;
+using Fdp.Toolkit.Diagnostics;
+using Fdp.Core.Diagnostics;
 using Hrot.Orchestrator.Windows;
 using Hrot.Orchestrator.Panels;
 using Hrot.Core.Network;
+using Hrot.Core.Diagnostics;
+using Hrot.Common.Diagnostics;
 
 namespace Hrot.Orchestrator;
 
@@ -42,6 +47,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     private ClusterConfiguration _config = ClusterConfiguration.Default;
     private ClusterUiCache?        _uiCache;
     private ClusterScenarioPanel?  _scenarioPanel;
+    private ClusterSlave? _clusterSlave;
 
     // ── Unified event bus (HEXAG2-S001) ─────────────────────────────────────
     private FdpEventBus?                   _bus;
@@ -103,6 +109,27 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // ── Single unified event bus (HEXAG2-S001) ────────────────────────────────
         _bus          = new FdpEventBus();
         _clusterMaster = new ClusterMaster(_bus, _config);
+        int orchestratorNodeId = config.NodeId != 0 ? config.NodeId : 300;
+        _clusterSlave = new ClusterSlave(orchestratorNodeId, "Orchestrator", _bus);
+        string isolatedTempRoot = System.IO.Path.Combine(
+            OrchestrationConstants.DefaultStagingDirectory, "nodes", $"node-{orchestratorNodeId}");
+        string resolvedLogDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
+        var orchestratorLogService = new LogArchiveExtractionService(
+            resolvedLogDir,
+            "Orchestrator",
+            orchestratorNodeId);
+        _clusterSlave.RegisterHandler(new DiagnosticsDumpClusterOpHandler(
+            new OrchestratorNullDiagnosticEventHistoryService(),
+            new ArchitectureDiagnosticsService(() => null),
+            new OrchestratorNullEntityStateExtractionService(),
+            orchestratorLogService,
+            new Hrot.Common.Infrastructure.HrotNodeConfig
+            {
+                NodeId = orchestratorNodeId,
+                SubsystemName = "Orchestrator",
+                LocalTempRoot = isolatedTempRoot,
+                LogDirectory = resolvedLogDir,
+            }));
         // FIX: Wire the storage gateway so the cluster master can scan local/NAS scenarios
         // and publish AssetInventoryUpdateEvent to populate the UI combo box.
         var storageGateway = new StorageGatewayModule();
@@ -260,6 +287,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _episodeProcessManager?.Tick();
         _diagnosticsDumpProcessManager?.Tick();
         _mergeWorker?.Tick();
+        _clusterSlave?.Tick();
 
         // CGF1-A.1: Consume PendingTimeMode and drive MasterSyncController.
         var pendingMode = _clusterMaster?.PendingTimeMode;
@@ -325,6 +353,8 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _replayProcessManager = null;
         _clusterMaster?.Dispose();
         _clusterMaster = null;
+        _clusterSlave?.Dispose();
+        _clusterSlave = null;
         _assetInventoryProcessManager = null;
         _diagnosticsDumpProcessManager = null;
         _mergeWorker?.Dispose();
@@ -373,4 +403,20 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         catch { }
         return fallback;
     }
+}
+
+internal sealed class OrchestratorNullEntityStateExtractionService : IEntityStateExtractionService
+{
+    public IReadOnlyList<EntityStateDumpDto> ExtractEntities(IReadOnlyList<long>? networkIds = null)
+        => Array.Empty<EntityStateDumpDto>();
+}
+
+internal sealed class OrchestratorNullDiagnosticEventHistoryService : IDiagnosticEventHistoryService
+{
+    public void Capture(string providerName, FdpEventBus eventBus, uint currentFrame) { }
+
+    public CapturedEventDto[] GetHistory(IReadOnlyList<string>? providerFilter = null)
+        => Array.Empty<CapturedEventDto>();
+
+    public void ClearHistory() { }
 }

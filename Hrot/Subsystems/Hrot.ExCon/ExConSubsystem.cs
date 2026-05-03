@@ -17,12 +17,19 @@ using Fdp.Toolkit.DER;
 using Hrot.ExCon.Windows;
 using Hrot.Orchestrator.Panels;
 using Hrot.Orchestrator.Windows;
+using Hrot.Orchestrator;
 using Fdp.Toolkit.Runner;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.ModuleHost.Time;
+using Fdp.Core.Diagnostics;
+using Fdp.ModuleHost.Diagnostics;
+using Fdp.Toolkit.Diagnostics;
+using Hrot.Core.Diagnostics;
+using Hrot.Common.Diagnostics;
+using Hrot.Common.Infrastructure;
 
 namespace Hrot.ExCon
 {
@@ -97,6 +104,7 @@ namespace Hrot.ExCon
         private ClusterUiCache?                   _uiCache;
         private ClusterScenarioPanel?             _clusterPanel;
         private Hrot.Orchestrator.Panels.ClusterDiagnosticsPanel? _clusterDiagnosticsPanel;
+        private DiagnosticLogMergeWorker?         _mergeWorker;
         private Fdp.Presentation.Panels.ImGuiFileDialogService?   _exConFileDialogService;
 
         // ── TC2-P3: Slave time sync ─────────────────────────────────────────────────
@@ -215,6 +223,26 @@ namespace Hrot.ExCon
             // CGF1-S0309: wire dry-run snapshot/rewind handler (ExCon carries no ECS state).
             _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
 
+            // Diagnostic dumps: ExCon contributes logs and ACKs CollectDiagnostics.
+            var exConArchService = new ArchitectureDiagnosticsService(() => null);
+            var exConEntityService = new NullEntityStateExtractionService();
+            var exConEventHistoryService = new NullDiagnosticEventHistoryService();
+            var exConLogService = new LogArchiveExtractionService(
+                System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs"),
+                SubsystemName,
+                iosNodeId);
+            _clusterSlave.RegisterHandler(new DiagnosticsDumpClusterOpHandler(
+                exConEventHistoryService,
+                exConArchService,
+                exConEntityService,
+                exConLogService,
+                new HrotNodeConfig
+                {
+                    NodeId = iosNodeId,
+                    SubsystemName = SubsystemName,
+                    LocalTempRoot = OrchestrationConstants.DefaultStagingDirectory,
+                }));
+
             // ── Construct services ─────────────────────────────────────────────
             // DerRepo takes no external dependencies; node ID uses a fixed default.
             var repo              = new DerRepo();
@@ -266,7 +294,8 @@ namespace Hrot.ExCon
                 _uiCache,
                 _bus,
                 _exConFileDialogService,
-                nasBasePath: string.Empty);
+                nasBasePath: Hrot.Orchestrator.ClusterConfiguration.Default.NasBasePath);
+            _mergeWorker = new DiagnosticLogMergeWorker(_bus);
             // HEXAG2-S012: factory-based slave orchestration handles.
             _slaveTranslator = nodeFactory?.CreateSlaveOrchestratorTranslators(_bus!, iosNodeId)
                                ?? new NullSlaveOrchestrationTranslator();
@@ -349,6 +378,7 @@ namespace Hrot.ExCon
             // read events published in Phase 1 and observe cluster state changes.
             _slaveTranslator?.Tick();  // HEXAG2-S012: NodeOpCommand ingress + heartbeat/status egress + ClusterOp egress
             _clusterSlave?.Tick();
+            _mergeWorker?.Tick();
             // HEXAG2-S012: translate DDS orchestration observations -> bus events, then update the cache
             _observer?.Tick();
             _uiCache?.Update();
@@ -406,6 +436,8 @@ namespace Hrot.ExCon
             _clusterSlave = null;
             _clusterPanel = null;
             _clusterDiagnosticsPanel = null;
+            _mergeWorker?.Dispose();
+            _mergeWorker = null;
             _exConFileDialogService = null;
             _uiCache?.Dispose();
             _uiCache = null;
@@ -474,5 +506,21 @@ namespace Hrot.ExCon
         public void RequestResume() { }
         public void RequestStep() { }
         public void SetTimeScale(float scale) { }
+    }
+
+    internal sealed class NullEntityStateExtractionService : IEntityStateExtractionService
+    {
+        public IReadOnlyList<EntityStateDumpDto> ExtractEntities(IReadOnlyList<long>? networkIds = null)
+            => Array.Empty<EntityStateDumpDto>();
+    }
+
+    internal sealed class NullDiagnosticEventHistoryService : IDiagnosticEventHistoryService
+    {
+        public void Capture(string providerName, FdpEventBus eventBus, uint currentFrame) { }
+
+        public CapturedEventDto[] GetHistory(IReadOnlyList<string>? providerFilter = null)
+            => Array.Empty<CapturedEventDto>();
+
+        public void ClearHistory() { }
     }
 }

@@ -930,6 +930,31 @@ public class IgApplication : IDisposable
                 // CGF1-S0309: wire dry-run snapshot/rewind handler (IG carries no ECS state in ClusterSlave).
                 _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
 
+                // Diagnostics dump support: IG must ACK CollectDiagnostics in cluster 2PC.
+                var igArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _kernel);
+                var igEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap);
+                string igResolvedLogDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
+                var igLogService = new Hrot.Core.Diagnostics.LogArchiveExtractionService(
+                    igResolvedLogDir,
+                    "IG",
+                    igNodeId);
+                string igIsolatedTempRoot = System.IO.Path.Combine(
+                    Fdp.Toolkit.Orchestration.OrchestrationConstants.DefaultStagingDirectory,
+                    "nodes",
+                    $"node-{igNodeId}");
+                _clusterSlave.RegisterHandler(new Hrot.Common.Diagnostics.DiagnosticsDumpClusterOpHandler(
+                    _fdpEventHistory,
+                    igArchService,
+                    igEntityService,
+                    igLogService,
+                    new Hrot.Common.Infrastructure.HrotNodeConfig
+                    {
+                        NodeId = igNodeId,
+                        SubsystemName = "IG",
+                        LocalTempRoot = igIsolatedTempRoot,
+                        LogDirectory = igResolvedLogDir,
+                    }));
+
         } // end else (participant != null)
 
         } // end if (enableNetwork)

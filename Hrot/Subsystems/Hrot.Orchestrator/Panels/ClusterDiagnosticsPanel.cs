@@ -332,7 +332,10 @@ public sealed class ClusterDiagnosticsPanel
     private void RenderFileEntry(FileManifestEntry entry)
     {
         string fileName = Path.GetFileName(entry.RelativeDest);
-        ImGui.Selectable(fileName + "##file_" + entry.RelativeDest.GetHashCode());
+        ImGui.Selectable(
+            fileName + "##file_" + entry.RelativeDest.GetHashCode(),
+            false,
+            ImGuiSelectableFlags.AllowDoubleClick);
 
         if (ImGui.BeginPopupContextItem("##ctx_file_" + entry.RelativeDest.GetHashCode()))
         {
@@ -340,8 +343,10 @@ public sealed class ClusterDiagnosticsPanel
             ImGui.EndPopup();
         }
 
-        if (ImGui.IsItemHovered())
-            ImGui.OpenPopup("##ctx_file_" + entry.RelativeDest.GetHashCode());
+        if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+        {
+            OpenFileFromNas(entry);
+        }
     }
 
     private void RenderFileContextMenu(FileManifestEntry entry)
@@ -379,19 +384,7 @@ public sealed class ClusterDiagnosticsPanel
 
         if (ImGui.MenuItem("Open from NAS"))
         {
-            if (File.Exists(fullPath))
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName       = fullPath,
-                    UseShellExecute = true,
-                });
-                _inlineError = null;
-            }
-            else
-            {
-                _inlineError = "File not found: " + fullPath;
-            }
+            OpenFileFromNas(entry);
         }
 
         if (ImGui.MenuItem("Save Local Copy As"))
@@ -437,9 +430,6 @@ public sealed class ClusterDiagnosticsPanel
             }
             ImGui.EndPopup();
         }
-
-        if (ImGui.IsItemHovered())
-            ImGui.OpenPopup(popupId);
     }
 
     // ── Merge logs section ────────────────────────────────────────────────────
@@ -643,5 +633,26 @@ public sealed class ClusterDiagnosticsPanel
         return manifest
             .Where(e => ExtractSubsystemFromPath(e.RelativeDest) == subsystemName)
             .ToList();
+    }
+
+    private void OpenFileFromNas(FileManifestEntry entry)
+    {
+        string fullPath = string.IsNullOrEmpty(_nasBasePath)
+            ? entry.RelativeDest
+            : Path.Combine(_nasBasePath, entry.RelativeDest);
+
+        if (File.Exists(fullPath))
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName       = fullPath,
+                UseShellExecute = true,
+            });
+            _inlineError = null;
+        }
+        else
+        {
+            _inlineError = "File not found: " + fullPath;
+        }
     }
 }

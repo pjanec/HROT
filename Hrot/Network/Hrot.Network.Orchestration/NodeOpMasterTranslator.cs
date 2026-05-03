@@ -109,6 +109,9 @@ public sealed class NodeOpMasterTranslator
     {
         if (domainPayload is null) return string.Empty;
 
+        if (operation == FdpNodeOpType.CollectDiagnostics)
+            return JsonSerializer.Serialize(domainPayload, _jsonOptions);
+
         return domainPayload switch
         {
             CommitStatePayload      csp => JsonSerializer.Serialize(csp, _jsonOptions),
@@ -165,6 +168,20 @@ public sealed class NodeOpMasterTranslator
                         resultJson!,
                         new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
                     return entries;
+                }
+                catch
+                {
+                    return resultJson;
+                }
+            }
+
+            case FdpNodeOpType.CollectDiagnostics:
+            {
+                try
+                {
+                    return JsonSerializer.Deserialize<List<FileManifestEntry>>(
+                        resultJson!,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true });
                 }
                 catch
                 {

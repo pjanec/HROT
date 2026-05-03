@@ -394,6 +394,20 @@ namespace Hrot.SimHost
             // GhostCreationSystem and NetworkLifecycleGroup come from the replication module.
             // The same instances are used for both orchestration replay control and the
             // replication module itself, ensuring a single source of truth.
+            var simHostArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_kernel);
+            var simHostEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap);
+            var simHostLogService = new Hrot.Core.Diagnostics.LogArchiveExtractionService(
+                string.IsNullOrWhiteSpace(hrotConfig.LogDirectory)
+                    ? System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs")
+                    : hrotConfig.LogDirectory,
+                hrotConfig.SubsystemName,
+                localNodeId);
+            var diagnosticsDumpHandler = new Hrot.Common.Diagnostics.DiagnosticsDumpClusterOpHandler(
+                _eventHistoryService,
+                simHostArchService,
+                simHostEntityService,
+                simHostLogService,
+                hrotConfig);
             var ghostCreationSystem   = replicationModule.GhostCreationSystem;
             var networkLifecycleGroup = replicationModule.NetworkLifecycleGroup;
             var nedModule = replicationModule as Hrot.Common.Abstractions.INedReplicationModule;
@@ -411,7 +425,8 @@ namespace Hrot.SimHost
                 lifecycleGroup: networkLifecycleGroup,
                 ghostCreationSystem: ghostCreationSystem,
                 eventAccumulator: _context.EventAccumulator,
-                afterSeek: nedModule?.AfterSeekCallback);
+                afterSeek: nedModule?.AfterSeekCallback,
+                diagnosticsDumpHandler: diagnosticsDumpHandler);
             _slaveTranslator = bootstrapper.SlaveTranslator;
 
             // Seed GlobalTime singleton.

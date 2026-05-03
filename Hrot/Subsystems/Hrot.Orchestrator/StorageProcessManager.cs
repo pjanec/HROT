@@ -31,6 +31,7 @@ public sealed class StorageProcessManager
     // Set via ExportArchiveBegunEvent; consumed when the matching ClusterOpCompletedEvent arrives.
     private readonly Dictionary<Guid, (Guid ArchiveRequestId, CancellationTokenSource Cts)>
         _pendingArchiveExports = new();
+    private readonly HashSet<Guid> _pendingSaveScenarios = new();
 
     /// <param name="bus">Shared event bus.</param>
     /// <param name="gateway">Storage gateway for NAS pull operations.</param>
@@ -59,6 +60,13 @@ public sealed class StorageProcessManager
         // Capture archive export contexts so we can route ClusterOpCompletedEvent correctly.
         foreach (var aev in _bus.ReadManaged<ExportArchiveBegunEvent>())
             _pendingArchiveExports[aev.TransactionId] = (aev.ArchiveRequestId, aev.Cts);
+
+        // Track SaveScenario lifecycles so unrelated manifest payloads are not misrouted.
+        foreach (var sev in _bus.ReadManaged<ExecuteStorageOpIntent>())
+        {
+            if (sev.Operation == StorageOpType.SaveScenario)
+                _pendingSaveScenarios.Add(sev.RequestId);
+        }
 
         // ImportArchive: prefetch files from NAS to per-node staging directories.
         foreach (var iev in _bus.ReadManaged<ImportArchiveBegunEvent>())
@@ -155,7 +163,10 @@ public sealed class StorageProcessManager
                 continue;
             }
 
-            // SaveScenario path: prepend orchestrator entry if available and pull to NAS.
+            // SaveScenario path only: prepend orchestrator entry if available and pull to NAS.
+            if (!_pendingSaveScenarios.Remove(ev.RequestId))
+                continue;
+
             var fullManifest = new List<FileManifestEntry>(manifest);
             if (_pendingOrchestratorEntry != null)
             {
