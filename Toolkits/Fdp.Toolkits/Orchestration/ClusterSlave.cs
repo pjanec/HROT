@@ -188,6 +188,10 @@ namespace Fdp.Toolkit.Orchestration
             {
                 foreach (var intent in _eventBus.ReadManaged<ExecuteNodeOpIntent>())
                 {
+                    // Drop intents targeted at other nodes (0 = broadcast).
+                    if (intent.TargetNodeId != 0 && intent.TargetNodeId != _nodeId)
+                        continue;
+
                     if (_pendingPrepare.HasValue)
                     {
                         // Async prepare in progress — buffer unseen intents for next tick.
