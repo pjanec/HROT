@@ -16,3 +16,4 @@ by the DESIGN and TASKS. Fix it if not. the DESIGN must cover each and every fin
 Also verify the design if it really matches the current codebase.
 Check for potential project dependecy issues.
 
+create empty sample debt tracker (take inspiration from others)

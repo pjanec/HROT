@@ -1,0 +1,17 @@
+# Technical Debt Tracker — Cluster-Wide Diagnostic Dump
+
+This document tracks P2 and P3 technical debt, refactoring opportunities, and deferred minor
+issues discovered during development and reviews of the dump-diag workstream.
+P1 critical issues are fixed immediately in the next batch.
+
+| Status | Priority | Category | Source Batch | Description | Target Fix |
+|---|---|---|---|---|---|
+|   | P3 | Architecture | (initial) | `ScenarioJsonConverters.cs` keeps `[Obsolete]` forwarders for the moved converter types after DD-P1-T01. Remove the forwarders once all call sites have been migrated to the new `Fdp.Core.Serialization.Converters` types. | Opportunistic |
+|   | P3 | Architecture | (initial) | `HrotSerializerOptions.HrotJsonOptions` and `OrchestrationJsonOptions.Default` become thin wrappers or aliases once DD-P1-T04 migrates callers to `FdpJsonOptionsRegistry`. Consider deleting these wrapper types in a follow-up. | Opportunistic |
+|   | P3 | Testing | (initial) | `DiagnosticEventHistoryService` is updated by a `PostSimulation`/`Export`-phase `IEcsModuleSystem`. No automated integration test verifies that the system actually fires each frame in a real kernel run and that the buffer reflects post-simulation state. | Opportunistic |
+|   | P3 | UX | (initial) | "Copy Content" in the Diagnostics Panel results tree reads the NAS file synchronously on the render thread. For large files this could stall the UI. Cap at 10 MB and show an error; consider async read with a progress indicator for a later iteration. | Opportunistic |
+|   | P2 | Correctness | (initial) | `LogArchiveExtractionService` filters lines by file `LastWriteTimeUtc` at the file level before doing per-line age filtering. Files modified recently but containing mostly old entries will be scanned in full. Full per-line filtering is the correct behaviour but is already the final filtering stage; the file-level pre-filter is a valid approximation. If a precision issue is observed, remove the file-level skip and rely solely on per-line timestamp filtering. | Opportunistic |
+|   | P3 | Architecture | (initial) | `DiagnosticsDumpClusterOpHandler` lives in `Hrot.Common` but relies on a transitive reference to `Fdp.Toolkits` via `Hrot.Network.Orchestration`. If the build system is changed to non-transitive references, add a direct `Fdp.Toolkits` reference to `Hrot.Common.csproj`. | Opportunistic |
+|   | P3 | UX | (initial) | The `IFileDialogService` implementation (`ImGuiFileDialogService`) starts navigation from `Directory.GetCurrentDirectory()`. A future improvement would remember the last-used directory per dialog context (e.g. diagnostics vs. scenarios). | Opportunistic |
+|   | P3 | Architecture | (review-1) | DD-P5-T05 namespaces `HrotNodeConfig.LocalTempRoot` in each subsystem bootstrapper individually. If a new subsystem is added later, developers must remember to apply the same node-ID namespacing. Consider extracting the pattern into a shared helper (`NodeConfigBuilder.WithIsolatedTempRoot(baseDir, nodeId)`) so the convention is enforced in one place. | Opportunistic |
+|   | P2 | Configuration | (review-1) | `ClusterConfiguration.NasBasePath` defaults to `C:\FDP_Temp\shared`. In production environments the NAS path must be set explicitly via configuration; the default is only valid for single-machine development runs. Add a validation step at orchestrator startup that warns (or fails) if `NasBasePath` still equals the default constant in a non-development profile. | Opportunistic |
