@@ -79,13 +79,14 @@ namespace Fdp.Toolkit.Physics.Systems
                 if (PhysicsConstants.IsBulletRay(hit.RayId))
                 {
                     int bulletIndex = (int)(hit.RayId & 0x7FFF_FFFF_FFFF_FFFFL);
+                    var bulletEntity = repo.GetEntityByIndex(bulletIndex);
 
                     // Bullet hit â†’ emit HitEvent (Combat toolkit will consume in Phase 5).
                     repo.Bus.Publish(new HitEvent
                     {
-                        HitEntity   = hit.HitEntity,
-                        BulletIndex = bulletIndex,
-                        HitT        = hit.T,
+                        HitEntity    = hit.HitEntity,
+                        BulletEntity = bulletEntity,
+                        HitT         = hit.T,
                     });
 
                     // PACK-P003: Always emit DetonationNotification with local ECS Entity handles.
@@ -107,7 +108,6 @@ namespace Fdp.Toolkit.Physics.Systems
 
                     // Always consume the bullet on first impact so repeated ray hits do not
                     // re-emit detonation/damage every frame when DamageSystem is not present.
-                    var bulletEntity = repo.GetEntityByIndex(bulletIndex);
                     if (repo.IsAlive(bulletEntity))
                     {
                         repo.DestroyEntity(bulletEntity);
@@ -115,11 +115,11 @@ namespace Fdp.Toolkit.Physics.Systems
                 }
                 else
                 {
-                    // LOS hit › emit TargetVisibleEvent (Perception toolkit consumes it).
-                    // Full Entity handles propagated from RaycastRequest — no index-only recovery needed.
+                    // LOS hit ï¿½ emit TargetVisibleEvent (Perception toolkit consumes it).
+                    // Full Entity handles propagated from RaycastRequest ï¿½ no index-only recovery needed.
                     // IsAlive checks are intentionally deferred to ThreatEvaluationSystem (the consumer),
                     // since a one-frame entity destruction between solve and emit is possible but does not
-                    // warrant a check here — the consumer applies the generational guard.
+                    // warrant a check here ï¿½ the consumer applies the generational guard.
                     repo.Bus.Publish(new TargetVisibleEvent
                     {
                         Observer = hit.Observer,
@@ -128,7 +128,7 @@ namespace Fdp.Toolkit.Physics.Systems
                 }
             }
 
-            // Reset for next frame — verified by HitResolution_ClearsCount_AfterProcessing test.
+            // Reset for next frame ï¿½ verified by HitResolution_ClearsCount_AfterProcessing test.
             batch.Count = 0;
         }
     }

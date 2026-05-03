@@ -2,6 +2,7 @@ using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Lifecycle.Events;
 using Fbt;
 
 namespace Fdp.Toolkit.Behavior.Systems
@@ -22,6 +23,21 @@ namespace Fdp.Toolkit.Behavior.Systems
                 throw new InvalidOperationException(
                     $"{nameof(LocomotionDispatcherSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            // Cleanly terminate active actions for entities entering TearDown.
+            // The 1-frame ELM delay guarantees the entity and its channel are still intact.
+            foreach (var evt in view.ReadEvents<DestructionOrder>())
+            {
+                if (repo.HasComponent<LocomotionChannel>(evt.Entity))
+                {
+                    ref var ch = ref repo.GetComponentRW<LocomotionChannel>(evt.Entity);
+                    if (ch.ActiveAction != 0)
+                    {
+                        _executors[ch.ActiveAction]?.OnExit(evt.Entity, ref ch, repo);
+                        ch.ActiveAction = 0;
+                    }
+                }
+            }
 
             var q = repo.Query()
                 .With<LocomotionChannel>()
@@ -72,19 +88,6 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (channel.ActiveAction != 0 && channel.Status == NodeStatus.Running)
                 {
                     _executors[channel.ActiveAction]?.Execute(entity, ref channel, repo, deltaTime);
-
-                    // Guard: if Execute() destroyed the entity (e.g. lethal damage applied
-                    // by the executor itself), call OnExit to avoid state leaks.
-                    // Note: there is still a one-frame gap where OnExit is not called when
-                    // the entity is destroyed by a DIFFERENT system -- the entity won't appear
-                    // in this query on the next tick (DEBT-024 partial mitigation).
-                    if (!repo.IsAlive(entity))
-                    {
-                        if (channel.ActiveAction != 0)
-                            _executors[channel.ActiveAction]?.OnExit(entity, ref channel, repo);
-                        // Cannot write back -- entity is dead.
-                        continue;
-                    }
                 }
             }
         }

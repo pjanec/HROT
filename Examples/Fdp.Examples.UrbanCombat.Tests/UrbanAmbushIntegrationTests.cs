@@ -149,9 +149,9 @@ namespace Fdp.Examples.UrbanCombat.Tests
             // Publish a HitEvent (bullet entity does not need to exist — damage will be 0).
             _app.World.Bus.Publish(new HitEvent
             {
-                HitEntity   = new Entity(),
-                BulletIndex = 0,
-                HitT        = 0.5f,
+                HitEntity    = new Entity(),
+                BulletEntity = new Entity(),
+                HitT         = 0.5f,
             });
 
             _app.RunSimulation(1);

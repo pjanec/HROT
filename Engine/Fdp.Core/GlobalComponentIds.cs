@@ -45,10 +45,10 @@ namespace Fdp.Core
         /// <summary><see cref="GlobalTime"/> — simulation time singleton.</summary>
         public const byte GlobalTime          = 3;
 
-        /// <summary><see cref="IsActiveTag"/> — tag marking a fully initialised entity.</summary>
+        /// <summary>Reserved (was <c>IsActiveTag</c>, removed). ID preserved for serialization compatibility.</summary>
         public const byte IsActiveTag         = 4;
 
-        /// <summary><see cref="LifecycleDescriptor"/> — entity initialisation state machine.</summary>
+        /// <summary>Reserved (was <c>LifecycleDescriptor</c>, removed). ID preserved for serialization compatibility.</summary>
         public const byte LifecycleDescriptor = 5;
 
         /// <summary><see cref="HierarchyNode"/> — parent/child linked-list node.</summary>

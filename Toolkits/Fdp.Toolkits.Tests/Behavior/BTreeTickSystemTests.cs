@@ -6,6 +6,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Lifecycle.Events;
 using Xunit;
 
 namespace Fdp.Toolkit.Behavior.Tests
@@ -344,6 +345,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             // Arrange: terminal behavior so the deduplication dictionary gets an entry.
             var world = TestWorldFactory.Create();
+            world.RegisterEvent<DestructionOrder>();
             const int behaviorId = 8010;
             var (_, sys) = BuildTerminalSystem(world, behaviorId, "PruneDoc", NodeStatus.Success);
 
@@ -360,10 +362,12 @@ namespace Fdp.Toolkit.Behavior.Tests
             sys.Execute(world, 0.016f);
             Assert.Equal(1, sys.TrackedEntityCount);
 
-            // Destroy the entity — no longer in query.
+            // Simulate ELM publishing DestructionOrder, then destroy the entity.
+            world.Bus.Publish(new DestructionOrder { Entity = e });
+            world.Bus.SwapBuffers();
             world.DestroyEntity(e);
 
-            // Frame 2: entity absent from query → entry pruned from dictionary.
+            // Frame 2: DestructionOrder in read buffer → entry pruned from dictionary.
             sys.Execute(world, 0.016f);
             Assert.Equal(0, sys.TrackedEntityCount);
 

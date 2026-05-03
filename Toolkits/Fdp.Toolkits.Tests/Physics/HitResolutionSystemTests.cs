@@ -76,7 +76,7 @@ namespace Fdp.Toolkit.Physics.Tests
 
         /// <summary>
         /// A hit with a bullet RayId (bit 63 = 1) must cause the system to publish a
-        /// <see cref="HitEvent"/> with the correct <c>BulletIndex</c>.
+        /// <see cref="HitEvent"/> with the correct <c>BulletEntity</c>.
         /// </summary>
         [Fact]
         public void HitResolution_EmitsHitEvent_ForBulletHit()
@@ -85,12 +85,14 @@ namespace Fdp.Toolkit.Physics.Tests
             const int bulletIdx = 42;
 
             var entity = _world.CreateEntity();
+            // Create a bullet entity so GetEntityByIndex returns a valid entity.
+            var bulletEntity = _world.CreateEntity();
 
             ref var batch = ref _world.GetSingleton<RaycastBatchData>();
             batch.Hits[0] = new RaycastHit
             {
                 HasHit    = 1,
-                RayId     = PhysicsConstants.PackBulletRayId(bulletIdx),
+                RayId     = PhysicsConstants.PackBulletRayId(bulletEntity.Index),
                 HitEntity = entity,
                 T         = 0.3f,
             };
@@ -103,8 +105,8 @@ namespace Fdp.Toolkit.Physics.Tests
             // Assert
             var events = _world.Bus.Read<HitEvent>();
             Assert.Equal(1, events.Length);
-            Assert.Equal(bulletIdx, events[0].BulletIndex);
-            Assert.Equal(entity,    events[0].HitEntity);
+            Assert.Equal(bulletEntity, events[0].BulletEntity);
+            Assert.Equal(entity,       events[0].HitEntity);
         }
 
         // ── Test 3 ────────────────────────────────────────────────────────────────

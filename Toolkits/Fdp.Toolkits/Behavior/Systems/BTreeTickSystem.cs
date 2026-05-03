@@ -5,6 +5,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fbt;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Lifecycle.Events;
 
 namespace Fdp.Toolkit.Behavior.Systems
 {
@@ -36,10 +37,6 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         private readonly Dictionary<int, uint> _publishedTerminalForInstanceId = new();
 
-        // Reusable collections for dead-entity pruning — pre-allocated to avoid per-frame heap pressure.
-        private readonly HashSet<int> _seenThisFrame = new();
-        private readonly List<int>    _staleKeys     = new();
-
         /// <summary>
         /// Number of entity indices currently tracked in the terminal-event deduplication
         /// dictionary. Exposed for test verification only.
@@ -64,12 +61,14 @@ namespace Fdp.Toolkit.Behavior.Systems
                 .With<BrainBlackboard>()
                 .Build();
 
-            _seenThisFrame.Clear();
+            // Prune deduplication cache using reliable lifecycle events.
+            foreach (var evt in repo.Bus.Read<DestructionOrder>())
+                _publishedTerminalForInstanceId.Remove(evt.Entity.Index);
+            foreach (var evt in repo.Bus.Read<ClearBehaviorEvent>())
+                _publishedTerminalForInstanceId.Remove(evt.Entity.Index);
 
             foreach (var entity in q)
             {
-                _seenThisFrame.Add(entity.Index);
-
                 var behavior = repo.GetComponent<BehaviorState>(entity);
 
                 // Only process BTree-tier entities.
@@ -119,16 +118,6 @@ namespace Fdp.Toolkit.Behavior.Systems
                     }
                 }
             }
-
-            // Prune entries for entities that were not seen in this frame (destroyed or
-            // their required components removed). Uses pre-allocated collections to avoid
-            // per-frame heap allocations.
-            _staleKeys.Clear();
-            foreach (var key in _publishedTerminalForInstanceId.Keys)
-                if (!_seenThisFrame.Contains(key))
-                    _staleKeys.Add(key);
-            foreach (var key in _staleKeys)
-                _publishedTerminalForInstanceId.Remove(key);
         }
     }
 }

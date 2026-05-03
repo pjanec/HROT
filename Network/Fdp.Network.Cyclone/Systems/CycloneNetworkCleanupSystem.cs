@@ -8,6 +8,7 @@ using Fdp.ModuleHost.Scheduling;
 using Fdp.Interfaces;
 using Fdp.Network.Cyclone.Topics;
 using Fdp.Core.Logging;
+using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.Replication.Components;
 
 namespace Fdp.Network.Cyclone.Systems
@@ -59,22 +60,17 @@ namespace Fdp.Network.Cyclone.Systems
                      _trackedEntities[netId] = entity;
                  }
             }
-            
-            // 2. Scan tracked entities for deleted ones
-            List<long>? toRemove = null;
 
-            foreach (var kvp in _trackedEntities)
+            // 2. Dispose translators for entities entering TearDown via DestructionOrder.
+            foreach (var evt in view.ReadEvents<DestructionOrder>())
             {
-                if (!view.IsAlive(kvp.Value)) // Entity is effectively dead if IsAlive returns false
-                {
-                    if (toRemove == null) toRemove = new List<long>();
-                    toRemove.Add(kvp.Key);
-                }
-            }
+                if (!view.HasComponent<NetworkIdentity>(evt.Entity))
+                    continue;
 
-            if (toRemove != null)
-            {
-                foreach (var netId in toRemove)
+                ref readonly var identity = ref view.GetComponentRO<NetworkIdentity>(evt.Entity);
+                long netId = identity.Value;
+
+                if (_trackedEntities.Remove(netId))
                 {
                     FdpLog<CycloneNetworkCleanupSystem>.Info(
                         "Detected entity destruction {0}, sending dispose.",
@@ -104,8 +100,6 @@ namespace Fdp.Network.Cyclone.Systems
                             }
                         }
                     }
-
-                    _trackedEntities.Remove(netId);
                 }
             }
         }

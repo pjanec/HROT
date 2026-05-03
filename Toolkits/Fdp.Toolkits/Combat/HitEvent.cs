@@ -22,13 +22,13 @@ namespace Fdp.Toolkit.Combat.Contracts
         public Entity HitEntity;
 
         /// <summary>
-        /// Index of the bullet entity that caused the hit.
-        /// Extracted from the low 31 bits of <c>RaycastHit.RayId</c>
-        /// when <c>PhysicsConstants.IsBulletRay</c> is true.
+        /// The bullet entity that caused the hit.
+        /// Valid for reading damage and other ballistic data during the Simulation phase,
+        /// because the bullet's lifecycle transitions through TearDown before memory is reclaimed.
         /// </summary>
-        public int BulletIndex;
+        public Entity BulletEntity;
 
-        /// <summary>Hit parameter ∈ [0, 1] along the bullet's Start→End segment.</summary>
+        /// <summary>Hit parameter in [0, 1] along the bullet's Start-End segment.</summary>
         public float HitT;
     }
 }

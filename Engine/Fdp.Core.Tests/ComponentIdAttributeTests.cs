@@ -141,8 +141,6 @@ namespace Fdp.Tests
             Assert.InRange<byte>(GlobalComponentIds.SimVelocity,         0,  19);
             Assert.InRange<byte>(GlobalComponentIds.HealthData,          0,  19);
             Assert.InRange<byte>(GlobalComponentIds.GlobalTime,          0,  19);
-            Assert.InRange<byte>(GlobalComponentIds.IsActiveTag,         0,  19);
-            Assert.InRange<byte>(GlobalComponentIds.LifecycleDescriptor, 0,  19);
             Assert.InRange<byte>(GlobalComponentIds.HierarchyNode,       0,  19);
             Assert.InRange<byte>(GlobalComponentIds.PartDescriptor,      0,  19);
 

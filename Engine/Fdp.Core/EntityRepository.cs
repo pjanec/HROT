@@ -257,32 +257,6 @@ namespace Fdp.Core
         }
 
         /// <summary>
-        /// Creates an entity in the 'Constructing' state, waiting for modules to attach components.
-        /// </summary>
-        /// <param name="requiredModulesMask">Bitmask of modules that must ACK before entity is Active.</param>
-        /// <param name="authorityMask">Bitmask of components this peer has authority over.</param>
-        public Entity CreateStagedEntity(ulong requiredModulesMask, BitMask256 authorityMask)
-        {
-            // 1. Create Entity (Allocates + Emits 'Created' Event)
-            var entity = CreateEntity();
-
-            // 2. Add Lifecycle Descriptor (Constructing)
-            AddUnmanagedComponent(entity, new LifecycleDescriptor {
-                State = EntityState.Constructing,
-                RequiredModulesMask = requiredModulesMask,
-                AckedModulesMask = 0,
-                CreatedTime = 0 // Caller responsible or external system logic
-            });
-
-            // 3. Set Authority Mask (Directly in header for speed)
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
-            header.AuthorityMask = authorityMask;
-            header.LifecycleState = EntityLifecycle.Constructing; // Override to Constructing
-
-            return entity;
-        }
-
-        /// <summary>
         /// Sets the lifecycle state of an entity.
         /// Used by ELM to transition from Constructing -> Active -> TearDown.
         /// </summary>

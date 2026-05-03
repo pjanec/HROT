@@ -2,6 +2,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Executors;
 using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Lifecycle.Events;
 using Fbt;
 using Xunit;
 
@@ -139,24 +140,22 @@ namespace Fdp.Toolkit.Behavior.Tests
 
         // ── DEBT-024 test ─────────────────────────────────────────────────────
         /// <summary>
-        /// When an entity is destroyed inside an executor's Execute() callback
-        /// (e.g. lethal self-damage), the dispatcher must call OnExit to clean
-        /// up executor state, and must not throw.
+        /// When a DestructionOrder is on the bus (entity entering TearDown, e.g. killed
+        /// by DamageSystem in the previous frame), the dispatcher must call OnExit cleanly
+        /// at the start of the next Execute() and must not throw.
+        /// The 1-frame ELM delay guarantees the entity and its channel are intact when
+        /// the order is read.
         /// </summary>
         [Fact]
-        public void Dispatcher_CallsOnExit_WhenEntityDestroyedMidAction()
+        public void Dispatcher_CallsOnExit_WhenDestructionOrderReceived()
         {
             var world = TestWorldFactory.Create();
+            world.RegisterEvent<DestructionOrder>();
             var sys = new LocomotionDispatcherSystem();
-
-            // Spy executor that destroys the entity inside Execute() and records
-            // whether OnExit was subsequently called by the dispatcher guard.
-            var spy = new SelfDestroyingExecutor();
+            var spy = new SpyExecutor<LocomotionChannel>();
             sys.RegisterExecutor(1, spy);
 
             var e = world.CreateEntity();
-            // Set ActionInstanceId == DispatchedInstanceId so the lifecycle block
-            // doesn't fire OnEnter on this tick — we only want Execute() to run.
             world.AddComponent(e, new LocomotionChannel
             {
                 ActiveAction         = 1,
@@ -169,35 +168,17 @@ namespace Fdp.Toolkit.Behavior.Tests
                 Capabilities = ActorCapabilities.CanMove,
             });
 
-            // Act: Execute() destroys the entity; the post-Execute guard should
-            // call OnExit and not throw.
+            // Publish DestructionOrder (simulating what the ELM emits when teardown begins).
+            world.Bus.Publish(new DestructionOrder { Entity = e });
+            // Swap so the order is in the read buffer when the dispatcher runs next tick.
+            world.Bus.SwapBuffers();
+
+            // Act: dispatcher reads DestructionOrder at the top of Execute, calls OnExit.
             var exception = Record.Exception(() => sys.Execute(world, 0.016f));
             Assert.Null(exception);
-            Assert.Equal(1, spy.ExecuteCallCount);
-            Assert.Equal(1, spy.OnExitCallCount); // guard called OnExit
+            Assert.Equal(1, spy.OnExitCallCount);
 
             world.Dispose();
         }
-    }
-
-    /// <summary>
-    /// Test executor whose Execute() call destroys the entity, simulating
-    /// an in-action lethal event (DEBT-024).
-    /// </summary>
-    internal sealed class SelfDestroyingExecutor : IActionExecutor<LocomotionChannel>
-    {
-        public int ExecuteCallCount { get; private set; }
-        public int OnExitCallCount  { get; private set; }
-
-        public void OnEnter(Entity entity, ref LocomotionChannel channel, EntityRepository world) { }
-
-        public void Execute(Entity entity, ref LocomotionChannel channel, EntityRepository world, float dt)
-        {
-            ExecuteCallCount++;
-            world.DestroyEntity(entity);
-        }
-
-        public void OnExit(Entity entity, ref LocomotionChannel channel, EntityRepository world)
-            => OnExitCallCount++;
     }
 }
