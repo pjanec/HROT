@@ -13,20 +13,23 @@ namespace Fdp.ModuleHost.Diagnostics
     [UpdateInPhase(SystemPhase.PostSimulation)]
     public sealed class EventHistoryCaptureSystem : IEcsModuleSystem
     {
+        private readonly string _providerName;
         private readonly IDiagnosticEventHistoryService _historyService;
         private readonly FdpEventBus _eventBus;
 
         public EventHistoryCaptureSystem(
+            string providerName,
             IDiagnosticEventHistoryService historyService,
             FdpEventBus eventBus)
         {
+            _providerName  = providerName;
             _historyService = historyService;
             _eventBus       = eventBus;
         }
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            _historyService.Capture(_eventBus, view.Tick);
+            _historyService.Capture(_providerName, _eventBus, view.Tick);
         }
     }
 }

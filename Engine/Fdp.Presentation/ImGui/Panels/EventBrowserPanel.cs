@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
+using System.Text.Json;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
 using Fdp.Core.Serialization;
@@ -21,9 +22,15 @@ public class EventBrowserPanel
     // ── Per-type filter state ─────────────────────────────────────────────
     private readonly HashSet<string> _knownTypes    = new();
     private readonly HashSet<string> _disabledTypes = new();
+    private readonly HashSet<string> _knownProviders = new();
+    private string _selectedProvider = "World";
 
-    private CapturedEventDto? _selectedEvent;
+    // ── Multi-select state ────────────────────────────────────────────────
+    internal readonly HashSet<CapturedEventDto> _selectedEvents = new();
+    internal int _lastClickedIndex = -1;
+
     private bool _paused;
+    private CapturedEventDto[] _cachedSnapshot = Array.Empty<CapturedEventDto>();
 
     public EventBrowserPanel(IDiagnosticEventHistoryService historyService)
     {
@@ -45,14 +52,18 @@ public class EventBrowserPanel
     /// </summary>
     public void DrawContent()
     {
-        // Fetch a snapshot from the service each frame (copy-under-lock is O(N) only).
-        CapturedEventDto[] snapshot = _paused
-            ? Array.Empty<CapturedEventDto>()
-            : _historyService.GetHistory();
+        // Fetch a snapshot from the service each frame unless paused.
+        if (!_paused)
+            _cachedSnapshot = _historyService.GetHistory();
+
+        CapturedEventDto[] snapshot = _cachedSnapshot;
 
         // Update known types for the filter popup.
         foreach (var e in snapshot)
+        {
             _knownTypes.Add(e.TypeName);
+            _knownProviders.Add(e.ProviderName);
+        }
 
         DrawToolbar(snapshot);
         ImGuiApi.Separator();
@@ -79,8 +90,12 @@ public class EventBrowserPanel
         if (ImGuiApi.Button("Clear"))
         {
             _historyService.ClearHistory();
-            _selectedEvent = null;
+            _selectedEvents.Clear();
+            _lastClickedIndex = -1;
             _knownTypes.Clear();
+            _knownProviders.Clear();
+            _selectedProvider = "World";
+            _cachedSnapshot = Array.Empty<CapturedEventDto>();
         }
 
         ImGuiApi.SameLine();
@@ -102,13 +117,41 @@ public class EventBrowserPanel
         DrawFilterPopup();
 
         ImGuiApi.SameLine();
-        int visible = snapshot.Count(e => !_disabledTypes.Contains(e.TypeName));
+        ImGuiApi.SetNextItemWidth(150f);
+        if (ImGuiApi.BeginCombo("Provider", _selectedProvider))
+        {
+            if (ImGuiApi.Selectable("All", _selectedProvider == "All"))
+                _selectedProvider = "All";
+
+            var providerOptions = new HashSet<string>(_knownProviders, StringComparer.OrdinalIgnoreCase)
+            {
+                "World",
+                "Orchestration"
+            };
+            foreach (var provider in providerOptions.OrderBy(p => p))
+            {
+                if (ImGuiApi.Selectable(provider, _selectedProvider == provider))
+                    _selectedProvider = provider;
+            }
+            ImGuiApi.EndCombo();
+        }
+
+        ImGuiApi.SameLine();
+        int visible = snapshot.Count(e =>
+            (_selectedProvider == "All" || e.ProviderName == _selectedProvider)
+            && !_disabledTypes.Contains(e.TypeName));
         ImGuiApi.Text($"| Showing: {visible} / {snapshot.Length}");
 
-        if (_selectedEvent != null)
+        int selCount = _selectedEvents.Count;
+        if (selCount == 1)
         {
             ImGuiApi.SameLine();
-            ImGuiApi.TextColored(new Vector4(1, 1, 0, 1), $"| {_selectedEvent.TypeName}");
+            ImGuiApi.TextColored(new Vector4(1, 1, 0, 1), $"| {_selectedEvents.First().TypeName}");
+        }
+        else if (selCount > 1)
+        {
+            ImGuiApi.SameLine();
+            ImGuiApi.TextColored(new Vector4(1, 1, 0, 1), $"| {selCount} selected");
         }
     }
 
@@ -157,13 +200,24 @@ public class EventBrowserPanel
                     ImGuiApi.TableSetupColumn("Frame/Type", ImGuiTableColumnFlags.WidthFixed, 180);
                     ImGuiApi.TableSetupColumn("Summary", ImGuiTableColumnFlags.WidthStretch);
 
+                    // Build the filtered view list (newest first), preserving index semantics
+                    // for Shift+Click range selection.
+                    var viewList = new List<CapturedEventDto>();
                     for (int i = snapshot.Length - 1; i >= 0; i--)
                     {
                         var evt = snapshot[i];
-                        // Apply event type filter (disabled types are hidden but not deleted)
-                        if (_disabledTypes.Contains(evt.TypeName)) continue;
+                        if ((_selectedProvider == "All" || evt.ProviderName == _selectedProvider)
+                            && !_disabledTypes.Contains(evt.TypeName))
+                            viewList.Add(evt);
+                    }
 
-                        bool isSelected = (_selectedEvent != null && evt == _selectedEvent);
+                    bool ctrl  = ImGuiApi.GetIO().KeyCtrl;
+                    bool shift = ImGuiApi.GetIO().KeyShift;
+
+                    for (int vi = 0; vi < viewList.Count; vi++)
+                    {
+                        var evt = viewList[vi];
+                        bool isSelected = _selectedEvents.Contains(evt);
 
                         ImGuiApi.TableNextRow();
                         ImGuiApi.TableSetColumnIndex(0);
@@ -177,12 +231,11 @@ public class EventBrowserPanel
                         else
                             ImGuiApi.PushStyleColor(ImGuiCol.Text, color);
 
-                        string label = $"[{evt.Frame}] {evt.TypeName}##{i}";
+                        string label = $"[{evt.Frame}] [{evt.ProviderName}] {evt.TypeName}##{vi}";
 
-                        // Use SpanAllColumns to make the whole row clickable if possible, or just the first cell
                         if (ImGuiApi.Selectable(label, isSelected, ImGuiSelectableFlags.SpanAllColumns))
                         {
-                            _selectedEvent = evt;
+                            HandleRowClick(viewList, vi, ctrl, shift);
                         }
 
                         ImGuiApi.PopStyleColor();
@@ -203,17 +256,97 @@ public class EventBrowserPanel
         ImGuiApi.EndChild();
     }
 
+    /// <summary>
+    /// Applies multi-select click logic for a row in the event list.
+    /// Exposed as internal for unit testing.
+    /// </summary>
+    internal void HandleRowClick(List<CapturedEventDto> viewList, int clickedIndex, bool ctrl, bool shift)
+    {
+        if (clickedIndex < 0 || clickedIndex >= viewList.Count) return;
+
+        if (shift && _lastClickedIndex >= 0 && _lastClickedIndex < viewList.Count)
+        {
+            // Shift+Click: add inclusive range; do NOT update _lastClickedIndex.
+            int lo = Math.Min(_lastClickedIndex, clickedIndex);
+            int hi = Math.Max(_lastClickedIndex, clickedIndex);
+            for (int i = lo; i <= hi; i++)
+                _selectedEvents.Add(viewList[i]);
+        }
+        else if (ctrl)
+        {
+            // Ctrl+Click: toggle item; update _lastClickedIndex.
+            var item = viewList[clickedIndex];
+            if (!_selectedEvents.Remove(item))
+                _selectedEvents.Add(item);
+            _lastClickedIndex = clickedIndex;
+        }
+        else
+        {
+            // Plain click: clear selection, add item, update _lastClickedIndex.
+            _selectedEvents.Clear();
+            _selectedEvents.Add(viewList[clickedIndex]);
+            _lastClickedIndex = clickedIndex;
+        }
+    }
+
+    /// <summary>
+    /// Builds the copy-to-clipboard JSON string for the given events.
+    /// Single event → JSON object; multiple events → JSON array sorted by Frame ascending.
+    /// Exposed as internal for unit testing.
+    /// </summary>
+    internal static string BuildCopyJson(IReadOnlyList<CapturedEventDto> events)
+    {
+        if (events.Count == 1)
+        {
+            var evt = events[0];
+            var dumpDict = new Dictionary<string, object?>
+            {
+                ["EventType"] = evt.TypeName,
+                ["Frame"]     = evt.Frame,
+                ["Payload"]   = evt.RawEvent,
+            };
+            string raw = JsonSerializer.Serialize(dumpDict, FdpJsonOptionsRegistry.Indented);
+            return JsonAestheticFormatter.FlattenNumericArrays(raw);
+        }
+        else
+        {
+            var sorted = events.OrderBy(e => e.Frame).Select(evt => new Dictionary<string, object?>
+            {
+                ["EventType"] = evt.TypeName,
+                ["Frame"]     = evt.Frame,
+                ["Payload"]   = evt.RawEvent,
+            }).ToList();
+            string raw = JsonSerializer.Serialize(sorted, FdpJsonOptionsRegistry.Indented);
+            return JsonAestheticFormatter.FlattenNumericArrays(raw);
+        }
+    }
+
     private void DrawEventDetails()
     {
         if (ImGuiApi.BeginChild("EventDetailsScroll", new Vector2(0, 0)))
         {
-            if (_selectedEvent == null)
+            int selCount = _selectedEvents.Count;
+
+            if (selCount == 0)
             {
                 ImGuiApi.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1), "Select an event to view details.");
             }
+            else if (selCount > 1)
+            {
+                ImGuiApi.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1), "Multiple events selected.");
+
+                // ── Copy JSON array for multi-select ──────────────────────
+                ImGuiApi.SameLine();
+                if (ImGuiApi.Button($"Copy JSON ({selCount} items)"))
+                {
+                    ImGuiApi.SetClipboardText(BuildCopyJson(_selectedEvents.ToList()));
+                }
+                if (ImGuiApi.IsItemHovered())
+                    ImGuiApi.SetTooltip("Copy selected events as a JSON array (sorted by Frame)");
+            }
             else
             {
-                var evt = _selectedEvent;
+                var evt = _selectedEvents.First();
 
                 ImGuiApi.TextColored(new Vector4(0, 1, 1, 1), evt.TypeName);
 
@@ -221,14 +354,7 @@ public class EventBrowserPanel
                 ImGuiApi.SameLine();
                 if (ImGuiApi.Button("Copy JSON"))
                 {
-                    var dumpDict = new System.Collections.Generic.Dictionary<string, object?>
-                    {
-                        ["EventType"] = evt.TypeName,
-                        ["Frame"]     = evt.Frame,
-                        ["Payload"]   = evt.RawEvent,
-                    };
-                    string rawJson = System.Text.Json.JsonSerializer.Serialize(dumpDict, FdpJsonOptionsRegistry.Indented);
-                    ImGuiApi.SetClipboardText(JsonAestheticFormatter.FlattenNumericArrays(rawJson));
+                    ImGuiApi.SetClipboardText(BuildCopyJson(new[] { evt }));
                 }
                 if (ImGuiApi.IsItemHovered())
                     ImGuiApi.SetTooltip("Copy exact event state to clipboard as JSON");

@@ -22,5 +22,6 @@ namespace Fdp.Toolkit.Orchestration
         CancelOperation = 13,
         StepTime = 14,
         SetTimeScale = 15,
+        DumpDiagnostics = 16,
     }
 }

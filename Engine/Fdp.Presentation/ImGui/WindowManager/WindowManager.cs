@@ -2,7 +2,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Icons;
+using Fdp.Presentation.Panels;
 
 namespace Fdp.Presentation.WindowManager;
 
@@ -18,6 +20,7 @@ public class WindowManager
     private readonly Dictionary<string, ManagedWindow> _windows = new();
     private readonly IconAtlas _atlas;
     private bool _openAboutModal;
+    private IFileDialogService? _fileDialogService;
 
     // ── Construction ───────────────────────────────────────────────────────────
 
@@ -342,6 +345,17 @@ public class WindowManager
         }
 
         _statusBar.Render(CurrentPerspective);
+
+        // Draw file dialog service last so the modal overlays all other windows.
+        (_fileDialogService as ImGuiFileDialogService)?.Draw();
+    }
+
+    /// <summary>
+    /// Registers the file dialog service to be drawn each frame AFTER all other windows.
+    /// </summary>
+    public void SetFileDialogService(IFileDialogService service)
+    {
+        _fileDialogService = service;
     }
 
     // ── Private render helpers ─────────────────────────────────────────────────

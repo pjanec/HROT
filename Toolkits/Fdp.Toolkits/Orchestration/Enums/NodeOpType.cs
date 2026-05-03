@@ -30,5 +30,6 @@ namespace Fdp.Toolkit.Orchestration
         PrefetchFiles = 25,
         PrepareEdit = 26,
         FinalizeEdit = 27,
+        CollectDiagnostics = 28,
     }
 }

@@ -2,6 +2,7 @@ using ImGuiNET;
 using System.Numerics;
 using Fdp.Examples.CarKinem.Core;
 using Fdp.Core;
+using Fdp.Core.Diagnostics;
 using Fdp.Presentation.Panels;
 using Fdp.Core.FlightRecorder;
 using Fdp.Presentation.Abstractions;
@@ -15,9 +16,14 @@ namespace Fdp.Examples.CarKinem.UI
         private SpawnControlsPanel _spawnControls = new();
         private SimulationControlsPanel _simControls = new();
         private EntityInspectorPanel _entityInspector = new(); // Framework Panel
-        private EventBrowserPanel _eventInspector = new();     // Framework Panel
+        private readonly EventBrowserPanel _eventInspector;   // Framework Panel
         private PerformancePanel _perfPanel = new();
         private SystemPerformanceWindow _sysPerfWindow = new();
+
+        public MainUI(IDiagnosticEventHistoryService historyService)
+        {
+            _eventInspector = new EventBrowserPanel(historyService);
+        }
         
         public UIState UIState { get; } = new();
         
@@ -101,9 +107,6 @@ namespace Fdp.Examples.CarKinem.UI
             _entityInspector.Draw(new RepositoryAdapter(repository), inspectorCtx);
             
             // Event Inspector
-            // Capture events from bus
-            _eventInspector.RegisterBus("World", repository.Bus);
-            _eventInspector.Update(repository.GlobalVersion);
             _eventInspector.Draw();
             
             // System Performance Profiler

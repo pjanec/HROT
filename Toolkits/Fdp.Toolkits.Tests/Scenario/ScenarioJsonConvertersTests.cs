@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
-using Fdp.Toolkit.Scenario;
+using Fdp.Core.Serialization.Converters;
 using Xunit;
 
 // ── Test-only components with System.Numerics fields ────────────────────────

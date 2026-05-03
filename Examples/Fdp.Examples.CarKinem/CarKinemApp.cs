@@ -3,6 +3,7 @@ using System.Numerics;
 using Raylib_cs;
 using ImGuiNET;
 using Fdp.Core;
+using Fdp.Core.Diagnostics;
 using Fdp.Presentation.Raylib;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Layers;
@@ -67,6 +68,7 @@ public class CarKinemApp : FdpApplication
     
     // UI Panels (Restored)
     private MainUI _legacyUI = null!;
+    private DiagnosticEventHistoryService _historyService = null!;
     
     // Systems List for Profiling
     private List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> _systems = new();
@@ -164,7 +166,8 @@ public class CarKinemApp : FdpApplication
         _map.AddLayer(trajectoryLayer);
         
         // 3. UI & Input
-        _legacyUI = new MainUI();
+        _historyService = new DiagnosticEventHistoryService();
+        _legacyUI = new MainUI(_historyService);
         
         // --- Tool Setup ---
         _interactionTool = new StandardInteractionTool(_repository, _vehicleQuery, _vehicleVisualizer);
@@ -511,6 +514,9 @@ public class CarKinemApp : FdpApplication
 
         // 5. Map Update (Camera/Zoom/Layers)
         _map.Update(dt);
+
+        // Capture event history for EventBrowserPanel (PostSimulation equivalent).
+        _historyService.Capture("World", _repository.Bus, (uint)_kernel.GetTimeController().GetCurrentState().FrameNumber);
     }
 
     protected override void OnDrawWorld()

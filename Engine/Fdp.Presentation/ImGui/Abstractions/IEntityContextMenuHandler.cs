@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Fdp.Core;
 
 namespace Fdp.Presentation.Abstractions;
@@ -26,6 +27,14 @@ public interface IEntityContextMenuHandler
     /// <param name="entity">The entity that was right-clicked.</param>
     /// <param name="builder">Builder used to add items / sub-menus.</param>
     void PopulateMenu(Entity entity, IContextMenuBuilder builder);
+
+    /// <summary>
+    /// Called when the user right-clicks with multiple entities selected.
+    /// Default implementation does nothing, preserving existing handler compatibility.
+    /// </summary>
+    /// <param name="entities">All currently selected entities.</param>
+    /// <param name="builder">Builder used to add items / sub-menus.</param>
+    void PopulateMenu(IReadOnlyCollection<Entity> entities, IContextMenuBuilder builder) { }
 }
 
 /// <summary>

@@ -117,4 +117,19 @@ namespace Fdp.Toolkit.Orchestration
         public Guid RequestId;
         public string? ZoneId;
     }
+
+    /// <summary>
+    /// Published by <c>ClusterOpMasterTranslator</c> when a DDS <c>ClusterOpRequest</c>
+    /// with <c>OperationType == DumpDiagnostics</c> arrives. Consumed by
+    /// <c>DiagnosticsDumpProcessManager</c> which orchestrates the per-node collection.
+    /// <para><c>PayloadJson</c> is a JSON-serialised <c>DiagnosticDumpPayloadDto</c>.</para>
+    /// </summary>
+    [EventId(9058)]
+    [DataPolicy(DataPolicy.NoRecord)]
+    public struct ExecuteDiagnosticDumpIntent
+    {
+        public Guid   RequestId;
+        /// <summary>JSON-serialised <c>DiagnosticDumpPayloadDto</c> from the ExCon.</summary>
+        public string PayloadJson;
+    }
 }

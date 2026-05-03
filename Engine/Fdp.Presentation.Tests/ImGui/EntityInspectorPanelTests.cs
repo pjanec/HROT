@@ -131,6 +131,92 @@ namespace Fdp.Presentation.Tests
         }
     }
 
+    // ── DD-P3-T02 multi-select tests ──────────────────────────────────────────
+
+    [Collection("ImGui Sequential")]
+    public class EntityInspectorPanelMultiSelectTests
+    {
+        private static List<Entity> MakeViewList(int count)
+        {
+            var list = new List<Entity>(count);
+            for (int i = 0; i < count; i++)
+                list.Add(new Entity(i, 0));
+            return list;
+        }
+
+        [Fact]
+        public void CtrlClick_TwoRows_SelectsBoth()
+        {
+            var panel = new EntityInspectorPanel();
+            var view  = MakeViewList(5);
+
+            panel.HandleRowClick(view, 1, ctrl: true,  shift: false);
+            panel.HandleRowClick(view, 3, ctrl: true,  shift: false);
+
+            Assert.Equal(2, panel._selectedEntities.Count);
+            Assert.Contains(view[1], panel._selectedEntities);
+            Assert.Contains(view[3], panel._selectedEntities);
+        }
+
+        [Fact]
+        public void ShiftClick_Range_SelectsInclusiveRange_AndPreservesLastClickedIndex()
+        {
+            var panel = new EntityInspectorPanel();
+            var view  = MakeViewList(8);
+
+            // Plain-click index 2.
+            panel.HandleRowClick(view, 2, ctrl: false, shift: false);
+            Assert.Equal(2, panel._lastClickedIndex);
+
+            // Shift+Click index 5 → select 2,3,4,5; _lastClickedIndex stays 2.
+            panel.HandleRowClick(view, 5, ctrl: false, shift: true);
+
+            Assert.Equal(4, panel._selectedEntities.Count);
+            for (int i = 2; i <= 5; i++)
+                Assert.Contains(view[i], panel._selectedEntities);
+            Assert.Equal(2, panel._lastClickedIndex);
+        }
+
+        [Fact]
+        public void PlainClick_ClearsOtherSelections()
+        {
+            var panel = new EntityInspectorPanel();
+            var view  = MakeViewList(4);
+
+            // Select two via ctrl.
+            panel.HandleRowClick(view, 0, ctrl: true, shift: false);
+            panel.HandleRowClick(view, 2, ctrl: true, shift: false);
+            Assert.Equal(2, panel._selectedEntities.Count);
+
+            // Plain click → only one.
+            panel.HandleRowClick(view, 1, ctrl: false, shift: false);
+
+            Assert.Single(panel._selectedEntities);
+            Assert.Contains(view[1], panel._selectedEntities);
+        }
+
+        [Fact]
+        public void MultiSelectShowsCorrectDetailPaneMessage_InDrawContent()
+        {
+            using var fixture = new ImGuiTestFixture();
+            using var repo = new EntityRepository();
+            var panel = new EntityInspectorPanel();
+            var context = new FakeInspectorContext();
+            var session = new RepositoryAdapter(repo);
+
+            // Force 2 entities into _selectedEntities via ctrl-click helpers.
+            var e1 = repo.CreateEntity();
+            var e2 = repo.CreateEntity();
+            panel._selectedEntities.Add(e1);
+            panel._selectedEntities.Add(e2);
+
+            // Draw must not throw even with multiple entities selected.
+            fixture.NewFrame();
+            panel.DrawContent(session, context);
+            fixture.Render();
+        }
+    }
+
     /// <summary>Null-object implementation of <see cref="IContextMenuBuilder"/> for test isolation.</summary>
     internal sealed class NullContextMenuBuilder : IContextMenuBuilder
     {

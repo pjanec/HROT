@@ -1,8 +1,13 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
+using System.Text.Json;
 using Fdp.Core;
+using Fdp.Core.Serialization;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Adapters;
 using Fdp.Presentation.Utils;
+using Fdp.Toolkit.Diagnostics;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
@@ -17,6 +22,25 @@ public class EntityInspectorPanel
     private string _searchFilter = "";
     private readonly ComponentReflector _reflector = new();
     private static readonly Vector4 ExConViolet = new Vector4(0.7f, 0.45f, 0.8f, 1f);
+
+    // ── Multi-select state (DD-P3-T02) ────────────────────────────────────────
+    internal readonly HashSet<Entity> _selectedEntities = new();
+    internal int _lastClickedIndex = -1;
+
+    private readonly IEntityStateExtractionService? _extractionService;
+
+    /// <summary>
+    /// Creates an <see cref="EntityInspectorPanel"/>.
+    /// </summary>
+    /// <param name="extractionService">
+    /// Optional service used for multi-entity copy-to-JSON.
+    /// When <c>null</c> the "Copy to JSON (N items)" context menu item is omitted.
+    /// Existing callers that use the parameterless form remain unaffected.
+    /// </param>
+    public EntityInspectorPanel(IEntityStateExtractionService? extractionService = null)
+    {
+        _extractionService = extractionService;
+    }
 
     /// <summary>
     /// The <see cref="ComponentReflector"/> used to draw component details.
@@ -188,32 +212,43 @@ public class EntityInspectorPanel
     private void DrawEntityList(IInspectableSession session, IInspectorContext context)
     {
         ImGuiApi.BeginChild("EntityList_Scroll");
-        
+
         var entities = GetFilteredEntities(session, _searchFilter);
         int count = 0;
-        
-        foreach (var entity in entities)
+
+        bool ctrl  = ImGuiApi.GetIO().KeyCtrl;
+        bool shift = ImGuiApi.GetIO().KeyShift;
+
+        for (int vi = 0; vi < entities.Count; vi++)
         {
+            var entity = entities[vi];
             count++;
-            bool isSelected = context.SelectedEntity == entity;
             bool isSingleton = entity == RepositoryAdapter.SingletonEntity;
             long? netId = isSingleton ? null : GetNetworkId(session, entity);
             string baseLabel = isSingleton ? "[Singletons]" : $"[{entity.Index}, v{entity.Generation}]";
 
+            // Single-select backward compat: also highlight from IInspectorContext.
+            bool isSelected = _selectedEntities.Contains(entity) || context.SelectedEntity == entity;
+
             var style = ImGuiApi.GetStyle();
             var drawList = ImGuiApi.GetWindowDrawList();
-    
-            // 1. Capture the position BEFORE drawing the selectable
+
+            // 1. Capture the position BEFORE drawing the selectable.
             Vector2 screenPos = ImGuiApi.GetCursorScreenPos();
 
-            // 2. Draw the Selectable
+            // 2. Draw the Selectable.
             if (ImGuiApi.Selectable($"##sel_{entity.Index}_{entity.Generation}", isSelected))
             {
-                context.SelectedEntity = entity;
-                if (ChainToMap) OnEntitySelected?.Invoke(entity);
+                HandleRowClick(entities, vi, ctrl, shift);
+                // Keep single-select compat: if exactly one selected, update context.
+                if (_selectedEntities.Count == 1)
+                {
+                    context.SelectedEntity = _selectedEntities.First();
+                    if (ChainToMap) OnEntitySelected?.Invoke(context.SelectedEntity.Value);
+                }
             }
 
-            // Context Menu logic (Restored)
+            // Context Menu logic.
             if (_contextMenuHandlers.Count > 0 && ImGuiApi.IsItemHovered() &&
                 ImGuiApi.IsMouseClicked(ImGuiMouseButton.Right))
             {
@@ -221,13 +256,11 @@ public class EntityInspectorPanel
                 ImGuiApi.OpenPopup("##EntityCtxMenu");
             }
 
-            // 3. DRAWING WITH MANUAL NUDGE
-            // If it's still too low, we subtract pixels from Y. 
-            // Let's try pulling it up by 2 or 3 pixels.
-            float verticalNudge = 4.0f; 
+            // 3. Draw label text with manual vertical nudge.
+            float verticalNudge = 4.0f;
             Vector2 textPos = new Vector2(
-                screenPos.X + style.FramePadding.X, 
-                screenPos.Y + style.FramePadding.Y - verticalNudge 
+                screenPos.X + style.FramePadding.X,
+                screenPos.Y + style.FramePadding.Y - verticalNudge
             );
 
             drawList.AddText(textPos, ImGuiApi.GetColorU32(ImGuiCol.Text), baseLabel);
@@ -240,16 +273,15 @@ public class EntityInspectorPanel
             }
         }
 
-
         bool hasFilter = !string.IsNullOrWhiteSpace(_searchFilter);
-        
+
         if (count == 0)
         {
-             ImGuiApi.TextDisabled(hasFilter ? "No match." : "No entities.");
+            ImGuiApi.TextDisabled(hasFilter ? "No match." : "No entities.");
         }
         else if (count >= 1000 && !hasFilter)
         {
-             ImGuiApi.TextDisabled($"... (limit 1000 reached)");
+            ImGuiApi.TextDisabled($"... (limit 1000 reached)");
         }
 
         // Draw the popup (must be called in the same child window as OpenPopup).
@@ -257,28 +289,117 @@ public class EntityInspectorPanel
             ImGuiApi.BeginPopup("##EntityCtxMenu"))
         {
             var builder = new ContextMenuBuilder();
-            for (int i = 0; i < _contextMenuHandlers.Count; i++)
+            int selCount = _selectedEntities.Count;
+
+            if (selCount > 1)
             {
-                if (i > 0) builder.AddSeparator();
-                _contextMenuHandlers[i].PopulateMenu(_contextMenuEntity, builder);
+                // Multi-select overload.
+                for (int i = 0; i < _contextMenuHandlers.Count; i++)
+                {
+                    if (i > 0) builder.AddSeparator();
+                    _contextMenuHandlers[i].PopulateMenu((IReadOnlyCollection<Entity>)_selectedEntities, builder);
+                }
+
+                // Add "Copy to JSON (N items)" when extraction service available.
+                if (_extractionService != null)
+                {
+                    builder.AddSeparator();
+                    builder.AddItem($"Copy to JSON ({selCount} items)", () =>
+                    {
+                        var json = BuildMultiEntityJson(_selectedEntities);
+                        ImGuiApi.SetClipboardText(json);
+                    });
+                }
             }
+            else
+            {
+                // Single-entity overload.
+                for (int i = 0; i < _contextMenuHandlers.Count; i++)
+                {
+                    if (i > 0) builder.AddSeparator();
+                    _contextMenuHandlers[i].PopulateMenu(_contextMenuEntity, builder);
+                }
+            }
+
             ImGuiApi.EndPopup();
         }
-        
+
         ImGuiApi.EndChild();
+    }
+
+    /// <summary>
+    /// Applies multi-select click logic for a row in the entity list.
+    /// Exposed as internal for unit testing.
+    /// </summary>
+    internal void HandleRowClick(List<Entity> viewList, int clickedIndex, bool ctrl, bool shift)
+    {
+        if (clickedIndex < 0 || clickedIndex >= viewList.Count) return;
+
+        if (shift && _lastClickedIndex >= 0 && _lastClickedIndex < viewList.Count)
+        {
+            // Shift+Click: add inclusive range; do NOT update _lastClickedIndex.
+            int lo = Math.Min(_lastClickedIndex, clickedIndex);
+            int hi = Math.Max(_lastClickedIndex, clickedIndex);
+            for (int i = lo; i <= hi; i++)
+                _selectedEntities.Add(viewList[i]);
+        }
+        else if (ctrl)
+        {
+            // Ctrl+Click: toggle item; update _lastClickedIndex.
+            var item = viewList[clickedIndex];
+            if (!_selectedEntities.Remove(item))
+                _selectedEntities.Add(item);
+            _lastClickedIndex = clickedIndex;
+        }
+        else
+        {
+            // Plain click: clear selection, add item, update _lastClickedIndex.
+            _selectedEntities.Clear();
+            _selectedEntities.Add(viewList[clickedIndex]);
+            _lastClickedIndex = clickedIndex;
+        }
+    }
+
+    private string BuildMultiEntityJson(IEnumerable<Entity> entities)
+    {
+        if (_extractionService == null) return "[]";
+        // Collect NetworkIdentity IDs from entity list (non-null only).
+        var networkIds = entities
+            .Select(e => {
+                // Re-use the existing helper; we need the session in scope here.
+                // Since we are inside DrawEntityList context → no session here.
+                // The extraction service will extract all entities and we filter by index.
+                return (long)e.Index; // placeholder; actual netId lookup deferred to service.
+            })
+            .Distinct()
+            .ToList();
+
+        // Extract all entities and filter by local index (safe fallback).
+        var all = _extractionService.ExtractEntities(null);
+        var matchingIndices = entities.Select(e => e.Index).ToHashSet();
+        var filtered = all.Where(dto => matchingIndices.Contains(dto.LocalIndex)).ToList();
+
+        return JsonSerializer.Serialize(filtered, FdpJsonOptionsRegistry.Indented);
     }
 
     private void DrawEntityDetails(IInspectableSession session, IInspectorContext context)
     {
         ImGuiApi.BeginChild("EntityDetails_Scroll");
 
-        if (context.SelectedEntity == null)
+        int selCount = _selectedEntities.Count;
+
+        if (selCount > 1)
+        {
+            ImGuiApi.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1),
+                $"Multiple entities selected ({selCount}) - details not available.");
+        }
+        else if (selCount == 0 && context.SelectedEntity == null)
         {
             ImGuiApi.TextDisabled("Select an entity to view components.");
         }
         else
         {
-            Entity e = context.SelectedEntity.Value;
+            Entity e = selCount == 1 ? _selectedEntities.First() : context.SelectedEntity!.Value;
             bool isSingleton = e == RepositoryAdapter.SingletonEntity;
 
             if (isSingleton)

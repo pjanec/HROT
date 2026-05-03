@@ -21,7 +21,7 @@ namespace Fdp.Core.Diagnostics
         private readonly object _lock = new();
 
         /// <inheritdoc/>
-        public void Capture(FdpEventBus eventBus, uint currentFrame)
+        public void Capture(string providerName, FdpEventBus eventBus, uint currentFrame)
         {
             if (eventBus == null) return;
 
@@ -36,7 +36,7 @@ namespace Fdp.Core.Diagnostics
                     string typeName = inspector.EventType.Name;
                     string summary  = GetGenericEventSummary(evt, inspector.EventType);
 
-                    var dto = new CapturedEventDto(currentFrame, typeName, isManaged, summary, evt);
+                    var dto = new CapturedEventDto(currentFrame, providerName, typeName, isManaged, summary, evt);
 
                     lock (_lock)
                     {
@@ -65,11 +65,11 @@ namespace Fdp.Core.Diagnostics
                     snapshot[i] = _buffer[(start + i) % Capacity];
             }
 
-            // Apply optional prefix filter outside the lock (no stalling the writer).
+            // Apply optional provider filter outside the lock (no stalling the writer).
             if (providerFilter != null && providerFilter.Count > 0)
             {
                 snapshot = snapshot
-                    .Where(e => providerFilter.Any(p => e.TypeName.StartsWith(p, StringComparison.Ordinal)))
+                    .Where(e => providerFilter.Contains(e.ProviderName, StringComparer.OrdinalIgnoreCase))
                     .ToArray();
             }
 

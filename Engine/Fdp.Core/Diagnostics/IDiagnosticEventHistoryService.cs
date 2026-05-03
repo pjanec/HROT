@@ -8,6 +8,7 @@ namespace Fdp.Core.Diagnostics
     /// </summary>
     public record CapturedEventDto(
         uint Frame,
+        string ProviderName,
         string TypeName,
         bool IsManaged,
         string Summary,
@@ -25,7 +26,7 @@ namespace Fdp.Core.Diagnostics
         /// captured events to the circular buffer. Intended to be called once per simulation
         /// tick from a <c>PostSimulation</c> system.
         /// </summary>
-        void Capture(FdpEventBus eventBus, uint currentFrame);
+        void Capture(string providerName, FdpEventBus eventBus, uint currentFrame);
 
         /// <summary>
         /// Returns a stable snapshot of the current buffer contents.
@@ -33,8 +34,8 @@ namespace Fdp.Core.Diagnostics
         /// serialise the result without stalling the simulation writer thread.
         /// </summary>
         /// <param name="providerFilter">
-        /// When non-null and non-empty, only events whose <see cref="CapturedEventDto.TypeName"/>
-        /// starts with one of the provided strings are included.
+        /// When non-null and non-empty, only events from matching provider names
+        /// are included.
         /// </param>
         CapturedEventDto[] GetHistory(IReadOnlyList<string>? providerFilter = null);
 

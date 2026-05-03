@@ -37,7 +37,7 @@ namespace Fdp.Core.Tests.Diagnostics
                     bus.Publish(new OtherEvent { Value = i });
 
                 bus.SwapBuffers();
-                svc.Capture(bus, (uint)i);
+                svc.Capture(eventName, bus, (uint)i);
             }
         }
 
@@ -57,7 +57,7 @@ namespace Fdp.Core.Tests.Diagnostics
         }
 
         [Fact]
-        public void GetHistory_WithProviderFilter_ReturnsOnlyMatchingPrefix()
+        public void GetHistory_WithProviderFilter_ReturnsOnlyMatchingProvider()
         {
             using var bus = new FdpEventBus();
             var svc = new DiagnosticEventHistoryService();
@@ -68,13 +68,14 @@ namespace Fdp.Core.Tests.Diagnostics
                 bus.Publish(new WorldEvent { Value = i });
                 bus.Publish(new OtherEvent { Value = i });
                 bus.SwapBuffers();
-                svc.Capture(bus, (uint)i);
+                svc.Capture("World", bus, (uint)i);
+                svc.Capture("Other", bus, (uint)i);
             }
 
             var filtered = svc.GetHistory(new[] { "World" });
 
             Assert.True(filtered.Length > 0);
-            Assert.All(filtered, e => Assert.StartsWith("World", e.TypeName));
+            Assert.All(filtered, e => Assert.Equal("World", e.ProviderName));
         }
 
         [Fact]
@@ -95,7 +96,7 @@ namespace Fdp.Core.Tests.Diagnostics
                     {
                         bus.Publish(new WorldEvent { Value = 1 });
                         bus.SwapBuffers();
-                        svc.Capture(bus, 0);
+                        svc.Capture("World", bus, 0);
                     }
                 }
                 catch (Exception ex)
