@@ -345,6 +345,7 @@ namespace Hrot.Editor
             _geoTransform = geoTransform;
             var entityMap        = new NetworkEntityMap();
             _entityMap = entityMap;
+            _fdpEntityInspector.ExtractionService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap);
             var behaviorRegistry = new BehaviorRegistry();
             _behaviorRegistry = behaviorRegistry;
             // Register Urban Combat behaviors so MissionAdapterSystem can resolve Ambush

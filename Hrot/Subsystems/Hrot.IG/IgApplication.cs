@@ -933,6 +933,7 @@ public class IgApplication : IDisposable
                 // Diagnostics dump support: IG must ACK CollectDiagnostics in cluster 2PC.
                 var igArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _kernel);
                 var igEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap);
+                _fdpEntityInspector.ExtractionService = igEntityService;
                 string igResolvedLogDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
                 var igLogService = new Hrot.Core.Diagnostics.LogArchiveExtractionService(
                     igResolvedLogDir,

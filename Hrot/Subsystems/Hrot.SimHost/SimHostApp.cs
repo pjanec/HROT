@@ -526,6 +526,7 @@ namespace Hrot.SimHost
                     idAllocator: _idAllocator,
                     localNodeId: localNodeId,
                     worldPosDescriptorId: _networkFactory?.WorldPosDescriptorId ?? 0);
+                _vis.FdpEntityInspector.ExtractionService = simHostEntityService;
 
                 Logger.Info($"[Node-{localNodeId}] Visualization ready. Window open.");
             }

@@ -385,6 +385,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             OrchestrationConstants.DefaultStagingDirectory, _context.NodeId));
         var cgfArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_context.Kernel);
         var cgfEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_context.World, _context.EntityMap);
+        _fdpEntityInspector.ExtractionService = cgfEntityService;
         var cgfLogService = new Hrot.Core.Diagnostics.LogArchiveExtractionService(
             string.IsNullOrWhiteSpace(nodeConfig.LogDirectory)
                 ? System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs")
