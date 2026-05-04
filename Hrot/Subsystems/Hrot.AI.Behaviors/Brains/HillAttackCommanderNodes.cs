@@ -10,6 +10,7 @@ using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
@@ -506,8 +507,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// Parses a JSON string authored in the scenario editor and writes a
         /// <see cref="PlatoonHillAttackParams"/> value into the blackboard memory pointer.
         /// Converts geodetic coordinates to ENU Cartesian via
-        /// <paramref name="geoTransform"/> when available; falls back to the JSON
-        /// <c>x/y</c> fields in Cartesian-only contexts.
+        /// <paramref name="geoTransform"/> when available; falls back to
+        /// longitude/latitude as X/Y in Cartesian-only contexts.
         /// The attack direction is computed as the left-hand perpendicular of the
         /// normalised firing-line vector — it is not authored directly.
         /// </summary>
@@ -548,66 +549,25 @@ namespace Hrot.AI.Behaviors.Brains
             // Resolve firing-line and baseline positions.
             if (geoTransform != null)
             {
-                if (dto.FiringLineStart != null)
-                {
-                    if (dto.FiringLineStart.Lat != 0 || dto.FiringLineStart.Lon != 0)
-                    {
-                        var c = geoTransform.ToCartesian(dto.FiringLineStart.Lat, dto.FiringLineStart.Lon, 0.0);
-                        result.StartX = c.X; result.StartY = c.Y;
-                    }
-                    else
-                    {
-                        result.StartX = dto.FiringLineStart.X;
-                        result.StartY = dto.FiringLineStart.Y;
-                    }
-                }
-                if (dto.FiringLineEnd != null)
-                {
-                    if (dto.FiringLineEnd.Lat != 0 || dto.FiringLineEnd.Lon != 0)
-                    {
-                        var c = geoTransform.ToCartesian(dto.FiringLineEnd.Lat, dto.FiringLineEnd.Lon, 0.0);
-                        result.EndX = c.X; result.EndY = c.Y;
-                    }
-                    else
-                    {
-                        result.EndX = dto.FiringLineEnd.X;
-                        result.EndY = dto.FiringLineEnd.Y;
-                    }
-                }
-                if (dto.BaselineStart != null)
-                {
-                    if (dto.BaselineStart.Lat != 0 || dto.BaselineStart.Lon != 0)
-                    {
-                        var c = geoTransform.ToCartesian(dto.BaselineStart.Lat, dto.BaselineStart.Lon, 0.0);
-                        result.BaselineStartX = c.X; result.BaselineStartY = c.Y;
-                    }
-                    else
-                    {
-                        result.BaselineStartX = dto.BaselineStart.X;
-                        result.BaselineStartY = dto.BaselineStart.Y;
-                    }
-                }
-                if (dto.BaselineEnd != null)
-                {
-                    if (dto.BaselineEnd.Lat != 0 || dto.BaselineEnd.Lon != 0)
-                    {
-                        var c = geoTransform.ToCartesian(dto.BaselineEnd.Lat, dto.BaselineEnd.Lon, 0.0);
-                        result.BaselineEndX = c.X; result.BaselineEndY = c.Y;
-                    }
-                    else
-                    {
-                        result.BaselineEndX = dto.BaselineEnd.X;
-                        result.BaselineEndY = dto.BaselineEnd.Y;
-                    }
-                }
+                var start = geoTransform.ToCartesian(dto.FiringLineStart.Latitude, dto.FiringLineStart.Longitude, 0.0);
+                result.StartX = start.X; result.StartY = start.Y;
+
+                var end = geoTransform.ToCartesian(dto.FiringLineEnd.Latitude, dto.FiringLineEnd.Longitude, 0.0);
+                result.EndX = end.X; result.EndY = end.Y;
+
+                var baselineStart = geoTransform.ToCartesian(dto.BaselineStart.Latitude, dto.BaselineStart.Longitude, 0.0);
+                result.BaselineStartX = baselineStart.X; result.BaselineStartY = baselineStart.Y;
+
+                var baselineEnd = geoTransform.ToCartesian(dto.BaselineEnd.Latitude, dto.BaselineEnd.Longitude, 0.0);
+                result.BaselineEndX = baselineEnd.X; result.BaselineEndY = baselineEnd.Y;
             }
             else
             {
                 // Cartesian-only fallback (tests / offline contexts).
-                if (dto.FiringLineStart != null) { result.StartX = dto.FiringLineStart.X; result.StartY = dto.FiringLineStart.Y; }
-                if (dto.FiringLineEnd   != null) { result.EndX   = dto.FiringLineEnd.X;   result.EndY   = dto.FiringLineEnd.Y; }
-                if (dto.BaselineStart   != null) { result.BaselineStartX = dto.BaselineStart.X; result.BaselineStartY = dto.BaselineStart.Y; }
-                if (dto.BaselineEnd     != null) { result.BaselineEndX   = dto.BaselineEnd.X;   result.BaselineEndY   = dto.BaselineEnd.Y; }
+                result.StartX = (float)dto.FiringLineStart.Longitude; result.StartY = (float)dto.FiringLineStart.Latitude;
+                result.EndX = (float)dto.FiringLineEnd.Longitude; result.EndY = (float)dto.FiringLineEnd.Latitude;
+                result.BaselineStartX = (float)dto.BaselineStart.Longitude; result.BaselineStartY = (float)dto.BaselineStart.Latitude;
+                result.BaselineEndX = (float)dto.BaselineEnd.Longitude; result.BaselineEndY = (float)dto.BaselineEnd.Latitude;
             }
 
             // Compute attack direction as left-hand perpendicular of firing-line direction.
@@ -641,19 +601,10 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     internal sealed class PlatoonHillAttackParamsJsonDto
     {
-        /// <summary>Inner geo/ENU point used for firing-line and baseline positions.</summary>
-        public sealed class GeoPoint
-        {
-            public double Lat { get; set; }
-            public double Lon { get; set; }
-            public float  X   { get; set; }
-            public float  Y   { get; set; }
-        }
-
-        public GeoPoint? FiringLineStart    { get; set; }
-        public GeoPoint? FiringLineEnd      { get; set; }
-        public GeoPoint? BaselineStart      { get; set; }
-        public GeoPoint? BaselineEnd        { get; set; }
+        public PickableGeoPoint FiringLineStart    { get; set; }
+        public PickableGeoPoint FiringLineEnd      { get; set; }
+        public PickableGeoPoint BaselineStart      { get; set; }
+        public PickableGeoPoint BaselineEnd        { get; set; }
         public float     TankSpacing        { get; set; }
         public long      TargetAreaNetworkId { get; set; }
     }

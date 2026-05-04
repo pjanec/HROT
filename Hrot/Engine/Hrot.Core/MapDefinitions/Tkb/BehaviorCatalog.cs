@@ -28,6 +28,7 @@ public static class BehaviorCatalog
     private static readonly IReadOnlyList<string> s_militaryApcBehaviors;
     private static readonly IReadOnlyList<string> s_infantryBehaviors;
     private static readonly IReadOnlyList<string> s_insurgentBehaviors;
+    private static readonly IReadOnlyList<string> s_commanderBehaviors;
 
     private static readonly IReadOnlyList<string> s_defaultBehaviors =
         ["MoveToLocation", "FollowRoute", "JoinFormation", "Idle", "FireAtTarget"];
@@ -38,11 +39,12 @@ public static class BehaviorCatalog
         s_militaryApcBehaviors = map.GetValueOrDefault(BehaviorCategory.MilitaryApc, s_defaultBehaviors);
         s_infantryBehaviors    = map.GetValueOrDefault(BehaviorCategory.Infantry,    s_defaultBehaviors);
         s_insurgentBehaviors   = map.GetValueOrDefault(BehaviorCategory.Insurgent,   s_defaultBehaviors);
+        s_commanderBehaviors   = map.GetValueOrDefault(BehaviorCategory.Commander,   s_defaultBehaviors);
     }
 
     private static Dictionary<BehaviorCategory, IReadOnlyList<string>> BuildMap()
     {
-        var categories = new[] { BehaviorCategory.MilitaryApc, BehaviorCategory.Infantry, BehaviorCategory.Insurgent };
+        var categories = new[] { BehaviorCategory.MilitaryApc, BehaviorCategory.Infantry, BehaviorCategory.Insurgent, BehaviorCategory.Commander };
         var lists = categories.ToDictionary(c => c, _ => new List<string>());
 
         foreach (var type in typeof(BehaviorContractAttribute).Assembly.GetTypes())
@@ -74,6 +76,9 @@ public static class BehaviorCatalog
         TkbEntityTypes.MilitaryApc        => s_militaryApcBehaviors,
         TkbEntityTypes.InfantrySoldier    => s_infantryBehaviors,
         TkbEntityTypes.Insurgent          => s_insurgentBehaviors,
+        TkbEntityTypes.Unit_TankPlatoon      => s_commanderBehaviors,
+        TkbEntityTypes.Unit_TankPlatoon_Auto => s_commanderBehaviors,
+        TkbEntityTypes.Unit_InfantrySquad    => s_commanderBehaviors,
         _                                 => s_defaultBehaviors,
     };
 }

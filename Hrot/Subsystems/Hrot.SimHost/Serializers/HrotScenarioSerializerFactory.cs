@@ -16,6 +16,7 @@ namespace Hrot.SimHost.Serializers
                 .RegisterTranslator(new IsEmbarkedTagTranslator())
                 .RegisterTranslator(new PersonalRouteRefTranslator())
                 .RegisterTranslator(new UnitSubordinateTranslator())
+                .RegisterTranslator(new EditablePolylineTranslator())
                 .Build();
         }
     }

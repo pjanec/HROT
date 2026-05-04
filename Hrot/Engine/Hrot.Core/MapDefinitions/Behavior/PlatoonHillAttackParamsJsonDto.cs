@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
+using Fdp.Toolkit.Behavior.Params;
 
 namespace Hrot.Map.Definitions.Behavior
 {
@@ -15,49 +16,29 @@ namespace Hrot.Map.Definitions.Behavior
     {
         public const string BehaviorId = "PlatoonHillAttack";
 
-        /// <summary>
-        /// Nested geo/ENU point used for firing-line and baseline coordinates.
-        /// Either <c>lat</c>/<c>lon</c> (geodetic, converted via IGeographicTransform)
-        /// or <c>x</c>/<c>y</c> (ENU Cartesian fallback).
-        /// </summary>
-        public sealed class GeoPoint
-        {
-            /// <summary>Latitude in degrees (geodetic path).</summary>
-            [JsonPropertyName("lat")]
-            public double Lat { get; set; }
-
-            /// <summary>Longitude in degrees (geodetic path).</summary>
-            [JsonPropertyName("lon")]
-            public double Lon { get; set; }
-
-            /// <summary>X coordinate in ENU metres (Cartesian fallback).</summary>
-            [JsonPropertyName("x")]
-            public float X { get; set; }
-
-            /// <summary>Y coordinate in ENU metres (Cartesian fallback).</summary>
-            [JsonPropertyName("y")]
-            public float Y { get; set; }
-        }
-
         /// <summary>Start of the firing-line segment.</summary>
         [JsonPropertyName("firingLineStart")]
-        public GeoPoint? FiringLineStart { get; set; }
+        [MapPickableWorldLocation]
+        public PickableGeoPoint FiringLineStart { get; set; }
 
         /// <summary>End of the firing-line segment.</summary>
         [JsonPropertyName("firingLineEnd")]
-        public GeoPoint? FiringLineEnd { get; set; }
+        [MapPickableWorldLocation]
+        public PickableGeoPoint FiringLineEnd { get; set; }
 
         /// <summary>Start of the baseline retreat segment.</summary>
         [JsonPropertyName("baselineStart")]
-        public GeoPoint? BaselineStart { get; set; }
+        [MapPickableWorldLocation]
+        public PickableGeoPoint BaselineStart { get; set; }
 
         /// <summary>End of the baseline retreat segment.</summary>
         [JsonPropertyName("baselineEnd")]
-        public GeoPoint? BaselineEnd { get; set; }
+        [MapPickableWorldLocation]
+        public PickableGeoPoint BaselineEnd { get; set; }
 
         /// <summary>Spacing (metres) between adjacent firing-line slots. Defaults to 30 m.</summary>
         [JsonPropertyName("tankSpacing")]
-        public float TankSpacing { get; set; }
+        public float TankSpacing { get; set; } = 30f;
 
         /// <summary>
         /// Network-stable ID of the target area polygon entity.
