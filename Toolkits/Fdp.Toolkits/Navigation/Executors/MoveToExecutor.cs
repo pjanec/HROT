@@ -52,6 +52,7 @@ namespace Fdp.Toolkit.Navigation.Executors
             intent.FinalDestination = p.Destination;   // raw Cartesian copy — no geo conversion
             intent.TargetSpeed      = p.Speed;
             intent.ArrivalRadius    = p.ArrivalRadius;
+            intent.ReverseAllowed   = p.ReverseAllowed;
             world.SetComponent(entity, intent);
 
             channel.Status = NodeStatus.Running;

@@ -84,10 +84,16 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Active navigation mode; <see cref="NavigationMode.None"/> = inactive.</summary>
         public NavigationMode Mode;
 
-        // 3 bytes padding (sequential layout; not blittable as a union anyway)
+        // 2 bytes padding (sequential layout).
         private byte _pad0;
         private byte _pad1;
-        private byte _pad2;
+
+        /// <summary>
+        /// When 1, the muscle tier is allowed to drive in reverse to reach the destination.
+        /// Written by <c>MoveToExecutor.OnEnter</c> from <see cref="MoveToParams.ReverseAllowed"/>
+        /// and applied to <c>NavState.ReverseAllowed</c> by <c>NavigationIntentBridgeSystem</c>.
+        /// </summary>
+        public byte ReverseAllowed;
 
         /// <summary>Target position in FDP Cartesian metres (XY ground plane).</summary>
         public Vector2 FinalDestination;

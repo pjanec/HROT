@@ -80,6 +80,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                         nav.FinalDestination = intent.FinalDestination;
                         nav.TargetSpeed      = intent.TargetSpeed;
                         nav.ArrivalRadius    = intent.ArrivalRadius;
+                        nav.ReverseAllowed   = intent.ReverseAllowed;
                         nav.HasArrived       = 0;
                         break;
 

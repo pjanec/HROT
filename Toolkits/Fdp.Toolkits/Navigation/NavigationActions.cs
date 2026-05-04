@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Navigation
     /// Instructs the executor to navigate to a fixed 2-D destination.
     /// </summary>
     /// <remarks>
-    /// <b>Size:</b> Vector2 (8 bytes) + float (4) + float (4) = 16 bytes.
+    /// <b>Size:</b> Vector2 (8 bytes) + float (4) + float (4) + byte (1) + padding (3) = 20 bytes.
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     public struct MoveToParams
@@ -37,6 +37,18 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>Desired travel speed (m/s).</summary>
         public float Speed;
+
+        /// <summary>
+        /// When 1, the muscle tier is allowed to drive in reverse to reach the destination.
+        /// Forwarded by <c>MoveToExecutor</c> into <see cref="NavigationIntent"/> and
+        /// applied to <c>NavState.ReverseAllowed</c> by <c>NavigationIntentBridgeSystem</c>.
+        /// </summary>
+        public byte ReverseAllowed;
+
+        // 3 bytes of explicit padding to keep the struct naturally aligned.
+        private byte _pad0;
+        private byte _pad1;
+        private byte _pad2;
     }
 
     /// <summary>
