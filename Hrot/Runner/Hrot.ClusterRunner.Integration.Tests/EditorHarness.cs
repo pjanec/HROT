@@ -7,7 +7,6 @@ using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Orchestration;
-using Fdp.Toolkit.Perception.Modules;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Common.Orchestration.Handlers;
@@ -165,7 +164,7 @@ public sealed class EditorHarness : IDisposable
         var scenarioMod      = new ScenarioEditorModule(fileService);
         var simHostMod       = new SimHostModule(spawnSys);
 
-        Kernel.RegisterModule(new AutonomousPerceptionModule());
+        Kernel.RegisterModule(new CognitiveSpatialModule(Repo));
         Kernel.RegisterModule(scenarioMod);
         Kernel.RegisterModule(elm);
         Kernel.RegisterModule(simHostMod);

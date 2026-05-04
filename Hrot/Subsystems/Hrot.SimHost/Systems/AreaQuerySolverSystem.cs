@@ -15,7 +15,7 @@ namespace Hrot.SimHost.Systems
     /// Resolves pending <see cref="AreaQueryRequestEvent"/>s consumed from the event bus
     /// against the spatial hash grid and polygon areas.
     ///
-    /// <para><b>Execution context:</b> runs inside <see cref="Modules.EqsModule"/> at
+    /// <para><b>Execution context:</b> runs inside <see cref="Modules.CognitiveSpatialModule"/> at
     /// 10 Hz on a background thread (SoD snapshot).  The <see cref="EqsTargetPool"/>
     /// <c>Targets</c> NativeArray shares its native memory pointer with the live world,
     /// so target handle writes from the background thread are immediately visible.
@@ -25,7 +25,7 @@ namespace Hrot.SimHost.Systems
     /// </para>
     ///
     /// <para><b>Result availability:</b> results become available within one
-    /// EqsModule tick cycle (nominally 100 ms at 10 Hz) plus one materialization frame.
+    /// CognitiveSpatialModule tick cycle (nominally 100 ms at 10 Hz) plus one materialization frame.
     /// Brain BTree nodes must poll <c>AreaQueryBatchData.Results[slot].IsReady</c> each
     /// frame until <c>true</c>.</para>
     /// </summary>
@@ -37,6 +37,21 @@ namespace Hrot.SimHost.Systems
 
         // Broad-phase query radius expansion beyond the polygon bounding circle (metres).
         private const float BroadphaseExpansion = 10f;
+        private readonly SpatialHashGrid _grid;
+        private readonly EntityRepository? _liveWorld;
+        private readonly bool _hasInjectedContext;
+
+        public AreaQuerySolverSystem()
+        {
+            _hasInjectedContext = false;
+        }
+
+        public AreaQuerySolverSystem(SpatialHashGrid grid, EntityRepository liveWorld)
+        {
+            _grid = grid;
+            _liveWorld = liveWorld;
+            _hasInjectedContext = true;
+        }
 
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
@@ -45,17 +60,23 @@ namespace Hrot.SimHost.Systems
             var requests = view.ReadEvents<AreaQueryRequestEvent>();
             if (requests.IsEmpty) return;
 
-            if (view is not EntityRepository repo)
-                throw new InvalidOperationException(
-                    $"{nameof(AreaQuerySolverSystem)} requires direct EntityRepository access " +
-                    $"and cannot run on a non-EntityRepository view ({view.GetType().Name}).");
+            SpatialHashGrid grid;
+            EntityRepository liveWorld;
+            if (_hasInjectedContext)
+            {
+                grid = _grid;
+                liveWorld = _liveWorld!;
+            }
+            else
+            {
+                if (view is not EntityRepository repo) return;
+                if (!repo.HasSingleton<SpatialGridData>()) return;
+                grid = repo.GetSingleton<SpatialGridData>().Grid;
+                liveWorld = repo;
+            }
 
-            if (!repo.HasSingleton<SpatialGridData>()) return;
-            var gridData = repo.GetSingleton<SpatialGridData>();
-            var grid = gridData.Grid;
-
-            if (!repo.HasSingleton<EqsTargetPool>()) return;
-            ref var pool = ref repo.GetSingleton<EqsTargetPool>();
+            if (!liveWorld.HasSingleton<EqsTargetPool>()) return;
+            ref var pool = ref liveWorld.GetSingleton<EqsTargetPool>();
 
             var cmd = view.GetCommandBuffer();
 
@@ -67,7 +88,7 @@ namespace Hrot.SimHost.Systems
                 ref readonly var req = ref requests[r];
 
                 // Resolve the polygon area entity.
-                if (!repo.IsAlive(req.TargetAreaEntity))
+                if (!view.IsAlive(req.TargetAreaEntity))
                 {
                     PublishEmptyResult(cmd, in req, localPoolNext);
                     continue;
@@ -116,11 +137,11 @@ namespace Hrot.SimHost.Systems
                     for (int j = 0; j < nc && targetCount < maxTargets; j++)
                     {
                         Entity candidate = candidates[j].entity;
-                        if (!repo.IsAlive(candidate)) continue;
+                        if (!view.IsAlive(candidate)) continue;
 
                         // Force-affiliation filter.
-                        if (!repo.HasComponent<EntityInfo>(candidate)) continue;
-                        var info = repo.GetComponent<EntityInfo>(candidate);
+                        if (!view.HasComponent<EntityInfo>(candidate)) continue;
+                        var info = view.GetComponentRO<EntityInfo>(candidate);
                         if (info.ForceId != req.TargetForce) continue;
 
                         // Precise point-in-polygon test (ray casting algorithm).

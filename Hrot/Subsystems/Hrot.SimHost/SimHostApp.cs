@@ -32,7 +32,6 @@ using Fdp.Core.Diagnostics;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
-using Fdp.Toolkit.Perception.Modules;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
@@ -158,7 +157,7 @@ namespace Hrot.SimHost
         // ── Network factory (injected from composition root) ───────────────────
         private INetworkFactory? _networkFactory;
         // ── Perception module (stored to expose ScopedBus to the event browser) ───
-        private Fdp.Toolkit.Perception.Modules.AutonomousPerceptionModule? _perceptionMod;
+        private Hrot.SimHost.Modules.CognitiveSpatialModule? _perceptionMod;
         private readonly DiagnosticEventHistoryService _eventHistoryService = new();
 
         // ── Constructor ───────────────────────────────────────────────────────
@@ -482,9 +481,9 @@ namespace Hrot.SimHost
 
             // Register the core simulation logic pack.
             _kernel.RegisterModule(_simCorePack!);
-            _kernel.RegisterModule(new EqsModule());
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.AreaQueryResultMaterializationSystem());
-            _perceptionMod = new AutonomousPerceptionModule(
+            _perceptionMod = new CognitiveSpatialModule(
+                _world!,
                 colliderRadiusReader: (view, e) => view.HasComponent<PhysicsCollider>(e)
                     ? view.GetComponentRO<PhysicsCollider>(e).Radius
                     : 0f);

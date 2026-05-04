@@ -21,7 +21,6 @@ using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Orchestration;
-using Fdp.Toolkit.Perception.Modules;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
@@ -159,7 +158,7 @@ namespace Hrot.Editor
         private FdpRepositoryAdapter?   _fdpRepoAdapter;
         private FdpInspectorState       _fdpInspectorState  = new();
         private uint                    _fdpFrameCount;
-        private Fdp.Toolkit.Perception.Modules.AutonomousPerceptionModule? _perceptionMod;
+        private Hrot.SimHost.Modules.CognitiveSpatialModule? _perceptionMod;
 
         // ── Offline orchestrator (single-node scenario listing) ───────────────────
 
@@ -441,7 +440,8 @@ namespace Hrot.Editor
 
             // ── 4. Module registration (offline — no translator packs) ────────
             var simHostCorePack  = new SimHostCoreLogicPack(entityMap);
-            var perceptionMod    = new AutonomousPerceptionModule(
+            var perceptionMod    = new CognitiveSpatialModule(
+                _world,
                 colliderRadiusReader: (view, e) => view.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e)
                     ? view.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius
                     : 0f);
@@ -453,7 +453,6 @@ namespace Hrot.Editor
             var scenarioMod      = new ScenarioEditorModule(fileService);
 
             _kernel.RegisterModule(perceptionMod);
-            _kernel.RegisterModule(new EqsModule());
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.AreaQueryResultMaterializationSystem());
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
