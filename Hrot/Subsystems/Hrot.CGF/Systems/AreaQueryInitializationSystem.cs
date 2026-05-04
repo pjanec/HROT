@@ -17,10 +17,11 @@ namespace Hrot.CGF.Systems
     ///   handles) so the Muscle-tier solver can write fresh results into clean slots.</item>
     /// </list>
     ///
-    /// <para><b>Execution phase:</b> <see cref="SystemPhase.Input"/> — runs before
-    /// <c>BTreeTickSystem</c> by virtue of being the first element in
-    /// <c>CgfLogicPack.InputSystems</c>, so a clean state is guaranteed at the start
-    /// of every Brain frame.</para>
+    /// <para><b>Execution phase:</b> <see cref="SystemPhase.Input"/> — registered as the
+    /// first element in <c>CgfLogicPack.InputSystems</c>, so it runs before
+    /// <c>BTreeTickSystem</c> and any Brain-tier translators, guaranteeing a clean EQS
+    /// state at the start of every frame. (Note: <c>SystemPhase.PreInput</c> does not
+    /// exist in this engine; explicit list ordering achieves the equivalent guarantee.)</para>
     ///
     /// <para>If <see cref="AreaQueryBatchData"/> is not present (singleton not yet
     /// initialized), the system does nothing.</para>

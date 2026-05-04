@@ -62,6 +62,12 @@ namespace Hrot.AI.Behaviors.Brains
             System.Runtime.CompilerServices.Unsafe.As<byte, T>(ref ch.Params[0]) = value;
         }
 
+        private static unsafe T ReadLocomotionParams<T>(ref LocomotionChannel ch)
+            where T : unmanaged
+        {
+            return System.Runtime.CompilerServices.Unsafe.As<byte, T>(ref ch.Params[0]);
+        }
+
         private static unsafe void WriteToWeaponParams<T>(ref WeaponChannel ch, T value)
             where T : unmanaged
         {
@@ -195,22 +201,24 @@ namespace Hrot.AI.Behaviors.Brains
                 loco.BehaviorInstanceId = behav.InstanceId;
             }
 
-            // Only re-issue the command when the action changes or speed changes (avoid
-            // spamming the dispatcher with identical intents each frame).
+            // Only re-issue the command when the action changes, status is Failure, or
+            // the speed changes (approach->creep phase transition).  Read back the last
+            // written speed from the channel's param buffer to detect the transition.
             bool needsWrite = loco.ActiveAction != desiredAction
                 || loco.Status == NodeStatus.Failure;
 
-            // Also re-issue when the phase changed (approach vs creep), detected by
-            // comparing the destination against the slot position tolerance.
             if (!needsWrite && loco.ActiveAction == desiredAction)
             {
-                // Destination change detected: phase switched if we were in far-phase and
-                // now the speed in params differs from what the channel last received.
-                // The simplest guard: re-issue whenever the target speed disagrees.
-                // We cannot easily read back params from fixed byte array here, so track
-                // phase changes implicitly through the slot arrival threshold.
-                // The channel write is cheap; a small redundancy on the threshold boundary
-                // is acceptable for correctness.
+                // Detect approach-to-creep phase change: if the speed in the channel
+                // differs from the intended speed the muscle tier is still running the
+                // old command.  Incrementing ActionInstanceId signals a new intent so
+                // LocomotionDispatcherSystem picks up the updated CreepSpeed.
+                unsafe
+                {
+                    var lastParams = ReadLocomotionParams<MoveToParams>(ref loco);
+                    if (MathF.Abs(lastParams.Speed - speed) > 0.001f)
+                        needsWrite = true;
+                }
             }
 
             if (needsWrite)
@@ -302,9 +310,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// Commands the tank to reverse to its assigned baseline slot.
         ///
         /// <para>Writes <c>ActionIdMoveTo</c> to <c>LocomotionChannel</c> with
-        /// <c>Destination = (BaselineX, BaselineY)</c>. Note: the <c>MoveToParams</c>
-        /// struct does not have a reverse flag in v1; <c>NavState.ReverseAllowed</c> is
-        /// not yet implemented. The tank will navigate forward to the baseline.</para>
+        /// <c>Destination = (BaselineX, BaselineY)</c> and
+        /// <c>ReverseAllowed = 1</c> so the muscle tier resolves a reverse-velocity
+        /// trajectory back to the baseline slot.</para>
         ///
         /// <list type="bullet">
         ///   <item>Returns <see cref="NodeStatus.Running"/> while locomotion is active.</item>
@@ -348,11 +356,10 @@ namespace Hrot.AI.Behaviors.Brains
                 loco.ActiveAction = NavigationConstants.ActionIdMoveTo;
                 WriteToLocomotionParams(ref loco, new MoveToParams
                 {
-                    Destination   = new Vector2(p.BaselineX, p.BaselineY),
-                    ArrivalRadius = 5f,
-                    // NOTE: MoveToParams does not carry a reverse flag in v1.
-                    // NavState.ReverseAllowed is not yet implemented in the muscle tier.
-                    Speed = 10f,
+                    Destination    = new Vector2(p.BaselineX, p.BaselineY),
+                    ArrivalRadius  = 5f,
+                    Speed          = 10f,
+                    ReverseAllowed = 1,
                 });
             }
 

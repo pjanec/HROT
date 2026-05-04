@@ -35,6 +35,19 @@ namespace Hrot.SimHost.Tests
     /// <summary>
     /// Integration tests for the PlatoonHillAttack / HullDownAttack pipeline
     /// (SC-HA015-1 through SC-HA015-6).
+    ///
+    /// <para>
+    /// All SC-HA015-1…4 tests exercise the commander behavior exclusively via
+    /// <see cref="BTreeTickSystem"/> — no BTree node methods are called directly.
+    /// The EQS solver (<see cref="AreaQuerySolverSystem"/>) is invoked in the same
+    /// simulated tick as the BTree (collapsing the production 10-Hz EqsModule latency
+    /// to zero for deterministic in-process testing).
+    /// <see cref="AreaQueryInitializationSystem"/> is intentionally excluded from the
+    /// per-tick helper so that EQS results written by the solver in tick N remain
+    /// readable when the BTree resumes in tick N+1.  In production the results become
+    /// visible within one EqsModule cycle (~100 ms); the test collapses that window
+    /// to a single-frame solver call.
+    /// </para>
     /// </summary>
     public sealed class HillAttackIntegrationTests : IDisposable
     {
@@ -133,9 +146,33 @@ namespace Hrot.SimHost.Tests
             return registry;
         }
 
-        // Runs one frame: swaps event buffers then executes all systems in order.
-        // NOTE: AreaQueryInitializationSystem is intentionally omitted so that EQS
-        // results submitted in a previous tick remain readable via batch.Count.
+        // Builds the reusable pipeline tuple for BTree-based tests.
+        private static (BehaviorIngressSystem ingress,
+                        TacticalIntentResolutionSystem resolution,
+                        BTreeTickSystem btree,
+                        AreaQuerySolverSystem eqs)
+            BuildPipeline(NetworkEntityMap entityMap)
+        {
+            var registry       = BuildRegistry(entityMap);
+            var mapperRegistry = new TacticalIntentMapperRegistry();
+            mapperRegistry.Register(new HullDownAttackMapper());
+            return (
+                new BehaviorIngressSystem(registry),
+                new TacticalIntentResolutionSystem(mapperRegistry),
+                new BTreeTickSystem(registry),
+                new AreaQuerySolverSystem()
+            );
+        }
+
+        // Runs one simulation tick through the full Brain pipeline.
+        //
+        // AreaQueryInitializationSystem is intentionally EXCLUDED from this helper.
+        // In production the EqsModule fires asynchronously at 10 Hz; in the test we
+        // collapse that latency by calling eqsSolver in the same tick.  Excluding
+        // AreaQueryInitializationSystem prevents the next tick from resetting the EQS
+        // batch before BTreeTickSystem can read the result.  The omission is safe
+        // because each test calls this helper at most a handful of times and the
+        // singletons are already initialised by SimHostComponentRegistry.RegisterAll.
         private static void TickOnce(EntityRepository repo,
             BehaviorIngressSystem behaviorIngress,
             TacticalIntentResolutionSystem tacticalResolution,
@@ -265,119 +302,136 @@ namespace Hrot.SimHost.Tests
         // ── SC-HA015-4 ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// SC-HA015-4: With 3 tanks and 2 EQS targets, Action_DispatchWaveWithTargets
-        /// assigns targets in round-robin order: tank0 gets target[0], tank1 gets
-        /// target[1], tank2 gets target[0] again.
+        /// SC-HA015-4: With 3 tanks and 2 EQS targets, the BTree orchestrator
+        /// assigns targets in round-robin order via <see cref="BTreeTickSystem"/>:
+        /// the first and third dispatched tank receive the same target, while the
+        /// second receives the other.
         /// </summary>
         [Fact]
-        public unsafe void SC_HA015_4_DispatchWaveWithTargets_AssignsTargetsRoundRobin()
+        public void SC_HA015_4_DispatchWaveWithTargets_AssignsTargetsRoundRobin_ViaBTreeSystem()
         {
-            // Arrange
-            const long netId1 = 101L;
-            const long netId2 = 202L;
+            // Arrange — 90 m firing line (3 slots at 30 m spacing), 2 hostiles inside polygon.
+            const long areaNetId = 9004L;
+            const long netId1    = 101L;
+            const long netId2    = 202L;
 
             var areaEntity = CreateAreaEntity(new List<Vector2>
             {
                 new(10f, 10f), new(80f, 10f), new(80f, 80f), new(10f, 80f),
             });
 
-            var enemy1 = _repo.CreateEntity();
-            var enemy2 = _repo.CreateEntity();
-            _repo.AddComponent(enemy1, new NetworkIdentity { Value = netId1 });
-            _repo.AddComponent(enemy2, new NetworkIdentity { Value = netId2 });
+            var entityMap = new NetworkEntityMap();
+            entityMap.Register(areaNetId, areaEntity);
+            _repo.SetSingletonManaged<NetworkEntityMap>(entityMap);
 
-            // Populate pool: slot 0 = enemy1, slot 1 = enemy2.
-            ref var pool = ref _repo.GetSingleton<EqsTargetPool>();
-            pool.Targets[0] = (long)enemy1.PackedValue;
-            pool.Targets[1] = (long)enemy2.PackedValue;
-            pool.NextFreeIndex = 2;
+            // Two hostile entities inside the polygon — visible to the EQS solver.
+            var hostile1 = CreateHostileAt(40f, 40f);
+            var hostile2 = CreateHostileAt(60f, 60f);
+            _repo.AddComponent(hostile1, new NetworkIdentity { Value = netId1 });
+            _repo.AddComponent(hostile2, new NetworkIdentity { Value = netId2 });
+
+            var (ingress, resolution, btree, eqs) = BuildPipeline(entityMap);
 
             var commander = _repo.CreateEntity();
+            _repo.AddComponent<BehaviorState>(commander, default);
+            _repo.AddComponent<BrainBTreeState>(commander, default);
+            _repo.AddComponent<BrainBlackboard>(commander, default);
             _repo.AddComponent<Blackboard1024>(commander, default);
 
-            // 3 tanks: allParticipate = (3 <= 3) = true → all participate.
+            // 3 subs already at baseline — AreAllAtBaseline returns Success immediately.
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
             {
                 subs[i] = _repo.CreateEntity();
                 _repo.AddComponent(subs[i], new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
                 _repo.AddComponent<BehaviorState>(subs[i], default);
+                _repo.AddComponent(subs[i], new NavigationStatus { Result = NavigationResult.Arrived });
             }
             AddRoster(_repo, commander, subs);
 
-            // Pre-set mutable state: 3 slots (line 0..90, spacing 30), pool at handle 0.
-            ref var s = ref GetHeavyState(_repo, commander);
-            s.CachedEqsRequestId      = -1;   // use pool fallback
-            s.CachedTargetGroupHandle = 0;
-            s.TotalSlots              = 3;
-            s.BurnedSlotsMask         = 0;
-            s.WaveUsedSlotsMask       = 0;
-            s.ActiveAttackerCount     = 0;
-            s.CurrentWave             = 0;
+            // Publish AssignBehaviorEvent with a 90 m firing line (3 slots @ 30 m).
+            string json = "{\"firingLineStart\":{\"x\":0,\"y\":0},"
+                        + "\"firingLineEnd\":{\"x\":90,\"y\":0},"
+                        + "\"baselineStart\":{\"x\":0,\"y\":50},"
+                        + "\"baselineEnd\":{\"x\":90,\"y\":50},"
+                        + "\"tankSpacing\":30,"
+                        + $"\"targetAreaNetworkId\":{areaNetId}}}";
 
-            var p = new PlatoonHillAttackParams
+            _repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
-                StartX         = 0f,  StartY         = 0f,
-                EndX           = 90f, EndY           = 0f,
-                BaselineStartX = 0f,  BaselineStartY = 50f,
-                BaselineEndX   = 90f, BaselineEndY   = 50f,
-                AttackDirX     = 0f,  AttackDirY     = 1f,
-                TankSpacing    = 30f,
-                TargetAreaEntity = areaEntity,
-            };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = commander, World = _repo };
+                Entity       = commander,
+                BehaviorName = "PlatoonHillAttack",
+                JsonParams   = json,
+            });
 
-            // Act
-            var result = HillAttackCommanderNodes.Action_DispatchWaveWithTargets(
-                ref p, ref state, ref ctx);
+            // Tick 1: BehaviorIngress activates PlatoonHillAttack.
+            //         BTree runs: CalculateSegments → DispatchAllToBaseline →
+            //         AreAllAtBaseline (arrived) → RequestAreaQuery (submits, returns
+            //         Success) → IsAreaQueryResolved (not ready yet, returns Running).
+            //         EQS solver resolves the query: TargetCount = 2.
+            TickOnce(_repo, ingress, resolution, btree, eqs);
 
+            // Tick 2: BTree resumes at IsAreaQueryResolved (result ready, TargetCount=2
+            //         → Success) → Action_DispatchWaveWithTargets publishes one
+            //         "HullDownAttack" AssignTacticalIntentEvent per tank →
+            //         Condition_IsWaveCompleted returns Running (wave active).
+            TickOnce(_repo, ingress, resolution, btree, eqs);
+
+            // Move the HullDownAttack events from the write buffer to the read buffer.
             _repo.Bus.SwapBuffers();
 
-            // Assert — 3 HullDownAttack intent events in roster order.
-            Assert.Equal(NodeStatus.Success, result);
-
+            // Assert — exactly 3 HullDownAttack events, one per tank.
             var events = _repo.Bus.ReadManaged<AssignTacticalIntentEvent>()
                 .Where(e => e.IntentId == "HullDownAttack")
                 .ToList();
 
             Assert.Equal(3, events.Count);
 
-            long assigned0 = ParseTargetNetworkId(events[0].JsonParams);
-            long assigned1 = ParseTargetNetworkId(events[1].JsonParams);
-            long assigned2 = ParseTargetNetworkId(events[2].JsonParams);
+            long t0 = ParseTargetNetworkId(events[0].JsonParams);
+            long t1 = ParseTargetNetworkId(events[1].JsonParams);
+            long t2 = ParseTargetNetworkId(events[2].JsonParams);
 
-            Assert.Equal(netId1, assigned0);  // tank 0 → target[0%2=0] = enemy1
-            Assert.Equal(netId2, assigned1);  // tank 1 → target[1%2=1] = enemy2
-            Assert.Equal(netId1, assigned2);  // tank 2 → target[2%2=0] = enemy1
+            // Round-robin: tank 0 and tank 2 must share the same target,
+            // tank 1 must get the other.  The assertion is pool-order-agnostic
+            // (we don't hard-code which network ID is "first" in the EQS result).
+            Assert.NotEqual(t0, t1);        // tank 0 ≠ tank 1
+            Assert.Equal(t0, t2);           // tank 2 wraps round to tank 0's target
+            Assert.NotEqual(t1, t2);        // tank 1 ≠ tank 2
         }
 
         // ── SC-HA015-2 ────────────────────────────────────────────────────────────
 
         /// <summary>
         /// SC-HA015-2: No two tanks dispatched in the same wave receive the same
-        /// firing-line slot.
+        /// firing-line slot.  The test drives the commander through
+        /// <see cref="BTreeTickSystem"/> — no BTree node methods are called directly.
         /// </summary>
         [Fact]
-        public unsafe void SC_HA015_2_DispatchWaveWithTargets_AssignsUniqueSlots()
+        public void SC_HA015_2_DispatchWaveWithTargets_AssignsUniqueSlots_ViaBTreeSystem()
         {
-            // Arrange — 3 tanks, 2 targets in pool, 3-slot firing line.
+            // Arrange — 3 tanks, 2 hostiles inside a 90 m polygon.
+            const long areaNetId = 9002L;
+
             var areaEntity = CreateAreaEntity(new List<Vector2>
             {
                 new(10f, 10f), new(80f, 10f), new(80f, 80f), new(10f, 80f),
             });
 
-            var enemy1 = _repo.CreateEntity();
-            var enemy2 = _repo.CreateEntity();
-            _repo.AddComponent(enemy1, new NetworkIdentity { Value = 101L });
-            _repo.AddComponent(enemy2, new NetworkIdentity { Value = 202L });
+            var entityMap = new NetworkEntityMap();
+            entityMap.Register(areaNetId, areaEntity);
+            _repo.SetSingletonManaged<NetworkEntityMap>(entityMap);
 
-            ref var pool = ref _repo.GetSingleton<EqsTargetPool>();
-            pool.Targets[0] = (long)enemy1.PackedValue;
-            pool.Targets[1] = (long)enemy2.PackedValue;
-            pool.NextFreeIndex = 2;
+            var hostile1 = CreateHostileAt(40f, 40f);
+            var hostile2 = CreateHostileAt(60f, 60f);
+            _repo.AddComponent(hostile1, new NetworkIdentity { Value = 101L });
+            _repo.AddComponent(hostile2, new NetworkIdentity { Value = 202L });
+
+            var (ingress, resolution, btree, eqs) = BuildPipeline(entityMap);
 
             var commander = _repo.CreateEntity();
+            _repo.AddComponent<BehaviorState>(commander, default);
+            _repo.AddComponent<BrainBTreeState>(commander, default);
+            _repo.AddComponent<BrainBlackboard>(commander, default);
             _repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[3];
@@ -386,54 +440,51 @@ namespace Hrot.SimHost.Tests
                 subs[i] = _repo.CreateEntity();
                 _repo.AddComponent(subs[i], new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
                 _repo.AddComponent<BehaviorState>(subs[i], default);
+                _repo.AddComponent(subs[i], new NavigationStatus { Result = NavigationResult.Arrived });
             }
             AddRoster(_repo, commander, subs);
 
-            ref var s = ref GetHeavyState(_repo, commander);
-            s.CachedEqsRequestId      = -1;
-            s.CachedTargetGroupHandle = 0;
-            s.TotalSlots              = 3;
-            s.BurnedSlotsMask         = 0;
-            s.WaveUsedSlotsMask       = 0;
-            s.ActiveAttackerCount     = 0;
-            s.CurrentWave             = 0;
+            string json = "{\"firingLineStart\":{\"x\":0,\"y\":0},"
+                        + "\"firingLineEnd\":{\"x\":90,\"y\":0},"
+                        + "\"baselineStart\":{\"x\":0,\"y\":50},"
+                        + "\"baselineEnd\":{\"x\":90,\"y\":50},"
+                        + "\"tankSpacing\":30,"
+                        + $"\"targetAreaNetworkId\":{areaNetId}}}";
 
-            var p = new PlatoonHillAttackParams
+            _repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
-                StartX         = 0f,  StartY         = 0f,
-                EndX           = 90f, EndY           = 0f,
-                BaselineStartX = 0f,  BaselineStartY = 50f,
-                BaselineEndX   = 90f, BaselineEndY   = 50f,
-                AttackDirX     = 0f,  AttackDirY     = 1f,
-                TankSpacing    = 30f,
-                TargetAreaEntity = areaEntity,
-            };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = commander, World = _repo };
+                Entity       = commander,
+                BehaviorName = "PlatoonHillAttack",
+                JsonParams   = json,
+            });
 
-            // Act
-            HillAttackCommanderNodes.Action_DispatchWaveWithTargets(
-                ref p, ref state, ref ctx);
+            // Tick 1: activates behavior, BTree submits EQS request, solver resolves.
+            TickOnce(_repo, ingress, resolution, btree, eqs);
+
+            // Tick 2: BTree reads EQS result (2 targets) → DispatchWaveWithTargets
+            //         publishes 3 "HullDownAttack" events → IsWaveCompleted Running.
+            TickOnce(_repo, ingress, resolution, btree, eqs);
 
             _repo.Bus.SwapBuffers();
 
-            // Assert — all dispatched (SlotX, SlotY) pairs are unique.
+            // Assert — all (SlotX, SlotY) pairs are distinct.
             var events = _repo.Bus.ReadManaged<AssignTacticalIntentEvent>()
                 .Where(e => e.IntentId == "HullDownAttack")
                 .ToList();
 
-            Assert.True(events.Count >= 2, $"Expected at least 2 tanks dispatched, got {events.Count}.");
+            Assert.True(events.Count >= 2,
+                $"Expected ≥2 HullDownAttack dispatch events, got {events.Count}.");
 
-            var slotPairs = events.Select(e => ParseSlot(e.JsonParams)).ToList();
-            for (int i = 0; i < slotPairs.Count; i++)
+            var slots = events.Select(e => ParseSlot(e.JsonParams)).ToList();
+            for (int i = 0; i < slots.Count; i++)
             {
-                for (int j = i + 1; j < slotPairs.Count; j++)
+                for (int j = i + 1; j < slots.Count; j++)
                 {
-                    bool sameX = MathF.Abs(slotPairs[i].SlotX - slotPairs[j].SlotX) < 0.01f;
-                    bool sameY = MathF.Abs(slotPairs[i].SlotY - slotPairs[j].SlotY) < 0.01f;
-                    Assert.False(sameX && sameY,
-                        $"Tank {i} and tank {j} share the same firing-line slot "
-                        + $"({slotPairs[i].SlotX:G4}, {slotPairs[i].SlotY:G4}).");
+                    bool same = MathF.Abs(slots[i].SlotX - slots[j].SlotX) < 0.01f
+                             && MathF.Abs(slots[i].SlotY - slots[j].SlotY) < 0.01f;
+                    Assert.False(same,
+                        $"Tank {i} and tank {j} share firing-line slot "
+                        + $"({slots[i].SlotX:G4}, {slots[i].SlotY:G4}).");
                 }
             }
         }
@@ -441,65 +492,105 @@ namespace Hrot.SimHost.Tests
         // ── SC-HA015-3 ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// SC-HA015-3: When a tank is killed mid-wave, Condition_IsWaveCompleted
-        /// burns its firing-line slot in BurnedSlotsMask. The wave still completes
-        /// when the surviving tank finishes its run.
+        /// SC-HA015-3: When a tank is killed mid-wave, <c>Condition_IsWaveCompleted</c>
+        /// (invoked via <see cref="BTreeTickSystem"/>) permanently burns that tank's
+        /// firing-line slot into <c>BurnedSlotsMask</c>.  The wave still completes
+        /// once the surviving tank finishes its run.
         /// </summary>
         [Fact]
-        public unsafe void SC_HA015_3_IsWaveCompleted_BurnsSlotOfKilledTank()
+        public unsafe void SC_HA015_3_IsWaveCompleted_BurnsSlotOfKilledTank_ViaBTreeSystem()
         {
-            // Arrange — 2 active attackers in slots 0 and 1.
+            // Arrange — 2 subs, 2 hostiles inside polygon.
+            const long areaNetId = 9003L;
+
+            var areaEntity = CreateAreaEntity(new List<Vector2>
+            {
+                new(10f, 10f), new(80f, 10f), new(80f, 80f), new(10f, 80f),
+            });
+
+            var entityMap = new NetworkEntityMap();
+            entityMap.Register(areaNetId, areaEntity);
+            _repo.SetSingletonManaged<NetworkEntityMap>(entityMap);
+
+            var hostile1 = CreateHostileAt(40f, 40f);
+            var hostile2 = CreateHostileAt(60f, 60f);
+            _repo.AddComponent(hostile1, new NetworkIdentity { Value = 301L });
+            _repo.AddComponent(hostile2, new NetworkIdentity { Value = 302L });
+
+            var (ingress, resolution, btree, eqs) = BuildPipeline(entityMap);
+
             var commander = _repo.CreateEntity();
+            _repo.AddComponent<BehaviorState>(commander, default);
+            _repo.AddComponent<BrainBTreeState>(commander, default);
+            _repo.AddComponent<BrainBlackboard>(commander, default);
             _repo.AddComponent<Blackboard1024>(commander, default);
 
-            var tank0 = _repo.CreateEntity();
-            var tank1 = _repo.CreateEntity();
-            _repo.AddComponent<BehaviorState>(tank0, default);
-            _repo.AddComponent<BehaviorState>(tank1, default);
+            // 2 subs at baseline.
+            var subs = new Entity[2];
+            for (int i = 0; i < 2; i++)
+            {
+                subs[i] = _repo.CreateEntity();
+                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+                _repo.AddComponent<BehaviorState>(subs[i], default);
+                _repo.AddComponent(subs[i], new NavigationStatus { Result = NavigationResult.Arrived });
+            }
+            AddRoster(_repo, commander, subs);
 
-            // Mark both as having started HullDownAttackRun.
-            ref var beh0 = ref _repo.GetComponentRW<BehaviorState>(tank0);
-            beh0.ActiveBehaviorHash = HullDownAttackRun_BT;
-            ref var beh1 = ref _repo.GetComponentRW<BehaviorState>(tank1);
-            beh1.ActiveBehaviorHash = HullDownAttackRun_BT;
+            string json = "{\"firingLineStart\":{\"x\":0,\"y\":0},"
+                        + "\"firingLineEnd\":{\"x\":60,\"y\":0},"
+                        + "\"baselineStart\":{\"x\":0,\"y\":50},"
+                        + "\"baselineEnd\":{\"x\":60,\"y\":50},"
+                        + "\"tankSpacing\":30,"
+                        + $"\"targetAreaNetworkId\":{areaNetId}}}";
 
+            _repo.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity       = commander,
+                BehaviorName = "PlatoonHillAttack",
+                JsonParams   = json,
+            });
+
+            // Tick 1: behavior activated, EQS query submitted and resolved (2 targets).
+            TickOnce(_repo, ingress, resolution, btree, eqs);
+
+            // Tick 2: IsAreaQueryResolved → Success → DispatchWaveWithTargets dispatches
+            //         2 "HullDownAttack" events → IsWaveCompleted Running.
+            TickOnce(_repo, ingress, resolution, btree, eqs);
+
+            // Post-dispatch: read mutable state to locate the dispatched tanks.
             ref var s = ref GetHeavyState(_repo, commander);
-            s.ActiveAttackerCount       = 2;
-            s.ActiveEntityPacked[0]     = (long)tank0.PackedValue;
-            s.ActiveEntityPacked[1]     = (long)tank1.PackedValue;
-            s.ActiveSlotIndex[0]        = 0;
-            s.ActiveSlotIndex[1]        = 1;
-            s.ReturnBaselineSlotIndex[0] = 0;
-            s.ReturnBaselineSlotIndex[1] = 1;
-            s.HasStartedRun[0]          = 1;
-            s.HasStartedRun[1]          = 1;
-            s.BurnedSlotsMask           = 0;
+            Assert.Equal(2, s.ActiveAttackerCount);
 
-            var p     = new PlatoonHillAttackParams();
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = commander, World = _repo };
-
-            // Kill tank0 mid-wave.
+            // Kill the first dispatched attacker mid-wave.
+            // HasStartedRun[i] is left at 0 (set by DispatchWaveWithTargets) so that
+            // Condition_IsWaveCompleted handles the dead-tank and the alive-tank checks
+            // independently: the dead tank is burned immediately; the alive tank is kept
+            // Running because its behavior has not yet transitioned to HullDownAttackRun.
+            var tank0 = new Entity((ulong)s.ActiveEntityPacked[0]);
+            byte burnedSlot = s.ActiveSlotIndex[0];
             _repo.DestroyEntity(tank0);
 
-            // Act 1 — removes dead tank and burns its slot; tank1 is still running.
-            var status1 = HillAttackCommanderNodes.Condition_IsWaveCompleted(
-                ref p, ref state, ref ctx);
+            // Tick 3: BTreeTickSystem resumes at Condition_IsWaveCompleted.
+            //         Dead tank0 → its slot is burned into BurnedSlotsMask (independent
+            //         of HasStartedRun).
+            //         Alive tank1 → HasStartedRun=0, behavior not yet HullDownAttackRun
+            //         (TacticalResolution delivers that event in the next tick) → Running.
+            TickOnce(_repo, ingress, resolution, btree, eqs);
 
-            // Assert intermediate state.
-            Assert.Equal(NodeStatus.Running, status1);
-            Assert.Equal((ushort)1, s.BurnedSlotsMask);  // bit 0 = slot 0 burned
+            Assert.Equal((ushort)(1 << burnedSlot), s.BurnedSlotsMask);
             Assert.Equal(1, s.ActiveAttackerCount);
 
-            // Simulate tank1 completing its run (behavior cleared by MissionAdapterSystem).
-            ref var beh1After = ref _repo.GetComponentRW<BehaviorState>(tank1);
-            beh1After.ActiveBehaviorHash = 0;
+            // Surviving tank is now at index 0 after SwapRemove.
+            // Advance HasStartedRun so the next IsWaveCompleted check treats the run as
+            // started, and clear the behavior hash to signal the run is done.
+            s.HasStartedRun[0] = 1;
+            var tank1 = new Entity((ulong)s.ActiveEntityPacked[0]);
+            ref var beh1 = ref _repo.GetComponentRW<BehaviorState>(tank1);
+            beh1.ActiveBehaviorHash = 0;  // run finished
 
-            // Act 2 — tank1 is done; wave completes.
-            var status2 = HillAttackCommanderNodes.Condition_IsWaveCompleted(
-                ref p, ref state, ref ctx);
+            // Tick 4: Condition_IsWaveCompleted sees surviving tank done → Success.
+            TickOnce(_repo, ingress, resolution, btree, eqs);
 
-            Assert.Equal(NodeStatus.Success, status2);
             Assert.Equal(0, s.ActiveAttackerCount);
         }
 
