@@ -40,8 +40,7 @@ namespace Hrot.SimHost.Tests
             if (world.HasSingleton<AreaQueryBatchData>())
             {
                 ref var batch = ref world.GetSingleton<AreaQueryBatchData>();
-                if (batch.Requests.IsCreated) batch.Requests.Dispose();
-                if (batch.Results.IsCreated)  batch.Results.Dispose();
+                if (batch.Results.IsCreated) batch.Results.Dispose();
             }
             if (world.HasSingleton<EqsTargetPool>())
             {
@@ -697,10 +696,10 @@ namespace Hrot.SimHost.Tests
             }
         }
 
-        /// <summary>SC-HA011-2: Action_RequestAreaQuery returns Running when batch is full.
-        /// Does not modify CachedEqsRequestId on failed submission.</summary>
+        /// <summary>SC-HA011-2: Action_RequestAreaQuery returns Running when a request is
+        /// already in-flight (CachedEqsRequestId set and result is not yet ready).</summary>
         [Fact]
-        public void SC_HA011_2_RequestAreaQuery_ReturnsRunning_WhenBatchFull()
+        public void SC_HA011_2_RequestAreaQuery_ReturnsRunning_WhenRequestInFlight()
         {
             using var repo = CreateWorld();
 
@@ -709,14 +708,15 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent<Blackboard1024>(commander, default);
 
             ref var s = ref GetHeavyState(repo, commander);
-            s.CachedEqsRequestId = -1;
 
             try
             {
-                // Fill the batch to capacity.
-                ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-                batch.Count = AreaQueryBatchData.DefaultCapacity;
+                // Submit an initial request to place a valid ID in-flight.
+                long requestId = AreaQueryBatchHelper.RequestAreaQuery(
+                    repo, commander, areaEntity, ForceId.Hostile);
+                s.CachedEqsRequestId = requestId;
 
+                // The result ring-buffer slot is primed with IsReady == false by RequestAreaQuery.
                 var p     = new PlatoonHillAttackParams { TargetAreaEntity = areaEntity };
                 var state = new BehaviorTreeState();
                 var ctx   = new BTreeContext { Self = commander, World = repo };
@@ -724,7 +724,7 @@ namespace Hrot.SimHost.Tests
                 var result = HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref state, ref ctx);
 
                 Assert.Equal(NodeStatus.Running, result);
-                Assert.Equal(-1L, s.CachedEqsRequestId);
+                Assert.Equal(requestId, s.CachedEqsRequestId);
             }
             finally
             {

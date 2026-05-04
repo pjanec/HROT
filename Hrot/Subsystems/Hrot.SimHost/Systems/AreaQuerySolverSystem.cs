@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Core;
+using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Spatial.Eqs;
@@ -11,19 +12,22 @@ using Hrot.IG.Components;
 namespace Hrot.SimHost.Systems
 {
     /// <summary>
-    /// Resolves pending <see cref="AreaQueryRequest"/>s in <see cref="AreaQueryBatchData"/>
+    /// Resolves pending <see cref="AreaQueryRequestEvent"/>s consumed from the event bus
     /// against the spatial hash grid and polygon areas.
     ///
     /// <para><b>Execution context:</b> runs inside <see cref="Modules.EqsModule"/> at
-    /// 10 Hz on a background thread (SoD snapshot).  The <see cref="AreaQueryBatchData"/>
-    /// singleton's <see cref="AreaQueryBatchData.Results"/> NativeArray shares its native
-    /// memory pointer with the live world, so writes from the background thread are
-    /// visible to the Brain BTree tick immediately after <c>IsReady</c> is set to <c>true</c>.
+    /// 10 Hz on a background thread (SoD snapshot).  The <see cref="EqsTargetPool"/>
+    /// <c>Targets</c> NativeArray shares its native memory pointer with the live world,
+    /// so target handle writes from the background thread are immediately visible.
+    /// Struct fields (<c>NextFreeIndex</c>) and ring-buffer results are published as
+    /// <see cref="AreaQueryResultEvent"/> via <see cref="IEntityCommandBuffer"/> and
+    /// materialized on the main thread by <c>AreaQueryResultMaterializationSystem</c>.
     /// </para>
     ///
     /// <para><b>Result availability:</b> results become available within one
-    /// EqsModule tick cycle (nominally 100 ms at 10 Hz).  Brain BTree nodes must poll
-    /// <c>AreaQueryBatchData.Results[i].IsReady</c> each frame until <c>true</c>.</para>
+    /// EqsModule tick cycle (nominally 100 ms at 10 Hz) plus one materialization frame.
+    /// Brain BTree nodes must poll <c>AreaQueryBatchData.Results[slot].IsReady</c> each
+    /// frame until <c>true</c>.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     public sealed class AreaQuerySolverSystem : IEcsModuleSystem
@@ -37,19 +41,16 @@ namespace Hrot.SimHost.Systems
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
+            // Read all accumulated request events since the last solver tick.
+            var requests = view.ReadEvents<AreaQueryRequestEvent>();
+            if (requests.IsEmpty) return;
+
+            // Access live singletons. NativeArray fields share native pointers with the
+            // live world, so writes to Targets[] are immediately visible to the Brain tick.
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(AreaQuerySolverSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a non-EntityRepository view ({view.GetType().Name}).");
-
-            if (!repo.HasSingleton<AreaQueryBatchData>()) return;
-
-            // NativeArray value-copies share the same native memory pointers as the live
-            // world — writes through these copies are visible to the Brain tick immediately.
-            ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-            int requestCount = batch.Count;
-            if (requestCount == 0) return;
-            batch.Count = 0;
 
             if (!repo.HasSingleton<SpatialGridData>()) return;
             var gridData = repo.GetSingleton<SpatialGridData>();
@@ -58,24 +59,26 @@ namespace Hrot.SimHost.Systems
             if (!repo.HasSingleton<EqsTargetPool>()) return;
             ref var pool = ref repo.GetSingleton<EqsTargetPool>();
 
-            for (int i = 0; i < requestCount; i++)
-            {
-                // Skip already resolved slots to avoid re-processing within the same solver cycle.
-                if (batch.Results[i].IsReady) continue;
+            var cmd = view.GetCommandBuffer();
 
-                var req = batch.Requests[i];
+            // Track pool cursor locally across iterations within this solver tick.
+            int localPoolNext = pool.NextFreeIndex;
+
+            for (int r = 0; r < requests.Length; r++)
+            {
+                ref readonly var req = ref requests[r];
 
                 // Resolve the polygon area entity.
                 if (!repo.IsAlive(req.TargetAreaEntity))
                 {
-                    WriteEmptyResult(ref batch, i, req);
+                    PublishEmptyResult(cmd, in req, localPoolNext);
                     continue;
                 }
 
                 var polyline = view.GetManagedComponentRO<EditablePolyline>(req.TargetAreaEntity);
                 if (polyline == null || polyline.Points == null || polyline.Points.Count < 3)
                 {
-                    WriteEmptyResult(ref batch, i, req);
+                    PublishEmptyResult(cmd, in req, localPoolNext);
                     continue;
                 }
 
@@ -104,11 +107,11 @@ namespace Hrot.SimHost.Systems
                         stackalloc (Entity, Vector2)[MaxCandidates];
                     int nc = grid.QueryNeighbors(centroid, queryRadius, candidates);
 
-                    // Allocate pool chunk for this request.
-                    int maxTargets = AreaQueryBatchData.DefaultCapacity; // max per request
-                    if (pool.NextFreeIndex + maxTargets > pool.Targets.Length)
-                        pool.NextFreeIndex = 0;
-                    int groupHandle = pool.NextFreeIndex;
+                    // Allocate pool chunk for this request using ring-buffer semantics.
+                    int maxTargets = AreaQueryBatchData.DefaultCapacity;
+                    if (localPoolNext + maxTargets > pool.Targets.Length)
+                        localPoolNext = 0;
+                    int groupHandle = localPoolNext;
 
                     int targetCount = 0;
 
@@ -127,48 +130,46 @@ namespace Hrot.SimHost.Systems
                         if (!PointInPolygon(pos2d, points, nVerts)) continue;
 
                         // Guard: check pool capacity before writing.
-                        int poolIdx = pool.NextFreeIndex + targetCount;
+                        int poolIdx = localPoolNext + targetCount;
                         if (poolIdx >= pool.Targets.Length)
                         {
                             // Pool full — stop adding targets; result will be partial.
                             break;
                         }
 
+                        // Write directly to shared native memory (safe: NativeArray shares pointer).
                         pool.Targets[poolIdx] = (long)candidate.PackedValue;
                         targetCount++;
                     }
 
-                    // Advance pool free index by the number of targets stored.
-                    pool.NextFreeIndex += targetCount;
+                    localPoolNext += targetCount;
 
-                    // Write result. Set IsReady last so the Brain reader sees a consistent result.
-                    batch.Results[i] = new AreaQueryResult
+                    // Publish result event — the materialization system writes it into the ring buffer.
+                    cmd.PublishEvent(new AreaQueryResultEvent
                     {
-                        RequestId         = req.RequestId,
-                        TargetCount       = targetCount,
-                        TargetGroupHandle = targetCount > 0 ? groupHandle : -1,
-                        SourceNodeId      = req.SourceNodeId,
-                        IsReady           = true,
-                    };
+                        RequestId           = req.RequestId,
+                        TargetCount         = targetCount,
+                        TargetGroupHandle   = targetCount > 0 ? groupHandle : -1,
+                        SourceNodeId        = req.SourceNodeId,
+                        NewPoolNextFreeIndex = localPoolNext,
+                    });
                 }
             }
-
-            // Write back the updated pool free index (the struct itself is a value copy;
-            // write it back via SetSingleton so the next iteration starts from the correct offset).
         }
 
         // ── Helpers ──────────────────────────────────────────────────────────────
 
-        private static void WriteEmptyResult(ref AreaQueryBatchData batch, int slot, in AreaQueryRequest req)
+        private static void PublishEmptyResult(
+            IEntityCommandBuffer cmd, in AreaQueryRequestEvent req, int poolNext)
         {
-            batch.Results[slot] = new AreaQueryResult
+            cmd.PublishEvent(new AreaQueryResultEvent
             {
-                RequestId         = req.RequestId,
-                TargetCount       = 0,
-                TargetGroupHandle = -1,
-                SourceNodeId      = req.SourceNodeId,
-                IsReady           = true,
-            };
+                RequestId            = req.RequestId,
+                TargetCount          = 0,
+                TargetGroupHandle    = -1,
+                SourceNodeId         = req.SourceNodeId,
+                NewPoolNextFreeIndex = poolNext,
+            });
         }
 
         /// <summary>

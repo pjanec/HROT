@@ -95,19 +95,29 @@ public static class SimHostComponentRegistry
         // ── Navigation batch singleton (MOD1-P6T3) ───────────────────────────
         world.SetSingleton(new PathfindingBatchData
         {
-            Requests = new NativeArray<PathRequest>(PathfindingBatchData.DefaultCapacity, Allocator.Persistent),
             Results  = new NativeArray<PathResult>(PathfindingBatchData.DefaultCapacity, Allocator.Persistent),
         });
+
+        // ── Pathfinding events ────────────────────────────────────────────────
+        world.RegisterEvent<Fdp.Toolkit.Navigation.PathfindingRequestEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Navigation.PathfindingResultEvent>();
 
         // ── EQS batch singletons (TASK-HA001) ────────────────────────────────
         world.SetSingleton(new AreaQueryBatchData
         {
-            Requests = new NativeArray<AreaQueryRequest>(AreaQueryBatchData.DefaultCapacity, Allocator.Persistent),
             Results  = new NativeArray<AreaQueryResult>(AreaQueryBatchData.DefaultCapacity, Allocator.Persistent),
         });
         world.SetSingleton(new EqsTargetPool
         {
             Targets = new NativeArray<long>(EqsTargetPool.PoolCapacity, Allocator.Persistent),
         });
+
+        // ── EQS events ────────────────────────────────────────────────────────
+        world.RegisterEvent<Fdp.Toolkit.Spatial.Eqs.AreaQueryRequestEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Spatial.Eqs.AreaQueryResultEvent>();
+
+        // ── Raycast events ────────────────────────────────────────────────────
+        world.RegisterEvent<Fdp.Toolkit.Physics.RaycastRequestEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Physics.RaycastResultEvent>();
     }
 }

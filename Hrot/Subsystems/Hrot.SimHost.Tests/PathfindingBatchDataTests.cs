@@ -12,7 +12,7 @@ namespace Hrot.SimHost.Tests
     {
         /// <summary>
         /// After allocating with <see cref="PathfindingBatchData.DefaultCapacity"/>, the
-        /// <see cref="PathfindingBatchData.Requests"/> array length should equal that capacity.
+        /// <see cref="PathfindingBatchData.Results"/> array length should equal that capacity.
         /// </summary>
         [Fact]
         public void PathfindingBatchData_Allocation_CapacityMatchesDefault()
@@ -20,20 +20,16 @@ namespace Hrot.SimHost.Tests
             // Arrange + Act
             var data = new PathfindingBatchData
             {
-                Requests = new NativeArray<PathRequest>(PathfindingBatchData.DefaultCapacity, Allocator.Persistent),
                 Results  = new NativeArray<PathResult>(PathfindingBatchData.DefaultCapacity, Allocator.Persistent),
             };
 
             try
             {
                 // Assert
-                Assert.Equal(PathfindingBatchData.DefaultCapacity, data.Requests.Length);
                 Assert.Equal(PathfindingBatchData.DefaultCapacity, data.Results.Length);
-                Assert.Equal(0, data.Count);
             }
             finally
             {
-                if (data.Requests.IsCreated) data.Requests.Dispose();
                 if (data.Results.IsCreated)  data.Results.Dispose();
             }
         }
@@ -60,7 +56,7 @@ namespace Hrot.SimHost.Tests
             var ex = Record.Exception(() =>
             {
                 ref var batch = ref world.GetSingleton<PathfindingBatchData>();
-                Assert.Equal(PathfindingBatchData.DefaultCapacity, batch.Requests.Length);
+                Assert.Equal(PathfindingBatchData.DefaultCapacity, batch.Results.Length);
             });
             Assert.Null(ex);
         }

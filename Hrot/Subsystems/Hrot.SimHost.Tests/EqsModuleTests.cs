@@ -39,7 +39,7 @@ namespace Hrot.SimHost.Tests
             _grid.Dispose();
         }
 
-        // ── Helpers ───────────────────────────────────────────────────────────────
+        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private Entity CreateAreaEntity(IList<Vector2> polygon)
         {
@@ -71,12 +71,25 @@ namespace Hrot.SimHost.Tests
             return entity;
         }
 
+        // Runs the full event pipeline: swap (requests now readable) -> solve -> playback
+        // -> swap (results now readable) -> materialize.
+        private void RunSolverPipeline(float dt = 0.016f)
+        {
+            var view = (ISimulationView)_world;
+            _world.Bus.SwapBuffers();
+            var solver = new AreaQuerySolverSystem();
+            solver.Execute(view, dt);
+            var ecb = (EntityCommandBuffer)view.GetCommandBuffer();
+            ecb.Playback(_world);
+            _world.Bus.SwapBuffers();
+            new AreaQueryResultMaterializationSystem().Execute(view, dt);
+        }
+
         private static void DisposeEqsSingletons(EntityRepository world)
         {
             if (world.HasSingleton<AreaQueryBatchData>())
             {
                 ref var b = ref world.GetSingleton<AreaQueryBatchData>();
-                if (b.Requests.IsCreated) b.Requests.Dispose();
                 if (b.Results.IsCreated)  b.Results.Dispose();
             }
             if (world.HasSingleton<EqsTargetPool>())
@@ -86,30 +99,24 @@ namespace Hrot.SimHost.Tests
             }
         }
 
-        // ── SC-HA002-3 ────────────────────────────────────────────────────────────
+        // â”€â”€ SC-HA002-3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
-        /// The solver must return early without modifying any state when the batch
-        /// contains zero requests.
+        /// When no AreaQueryRequestEvent has been published, running the full pipeline
+        /// must leave all result slots in their default (not-ready) state.
         /// </summary>
         [Fact]
         public void Solver_DoesNothing_WhenNoPendingRequests()
         {
-            // Arrange — fresh world, batch.Count == 0 (default from registry)
-            var solver = new AreaQuerySolverSystem();
+            // Act â€” pipeline with no events published
+            RunSolverPipeline();
 
-            ref var batch = ref _world.GetSingleton<AreaQueryBatchData>();
-            int countBefore = batch.Count;
-            Assert.Equal(0, countBefore);
-
-            // Act
-            solver.Execute(_world, 0.1f);
-
-            // Assert — count unchanged
-            Assert.Equal(0, _world.GetSingleton<AreaQueryBatchData>().Count);
+            // Assert â€” no result slot should have IsReady set
+            ref readonly var batch = ref _world.GetSingleton<AreaQueryBatchData>();
+            Assert.False(batch.Results[0].IsReady);
         }
 
-        // ── SC-HA002-1 ────────────────────────────────────────────────────────────
+        // â”€â”€ SC-HA002-1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// When a request targets a polygon with no hostile entities inside, the solver
@@ -118,21 +125,20 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Solver_SetsIsReadyTrue_WhenNoViableTargetsFound()
         {
-            // Arrange — create a small square polygon with no entities inside
+            // Arrange â€” create a small square polygon with no entities inside
             var polygon = new List<Vector2>
             {
                 new(10f, 10f), new(20f, 10f), new(20f, 20f), new(10f, 20f),
             };
-            var areaEntity      = CreateAreaEntity(polygon);
+            var areaEntity       = CreateAreaEntity(polygon);
             var requestingEntity = _world.CreateEntity();
 
             long requestId = AreaQueryBatchHelper.RequestAreaQuery(
                 _world, requestingEntity, areaEntity, ForceId.Hostile);
-            Assert.True(requestId >= 0);
+            Assert.True(requestId != 0);
 
             // Act
-            var solver = new AreaQuerySolverSystem();
-            solver.Execute(_world, 0.016f);
+            RunSolverPipeline();
 
             // Assert
             var result = AreaQueryBatchHelper.GetAreaQueryResult(_world, requestId);
@@ -140,7 +146,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, result.TargetCount);
         }
 
-        // ── SC-HA002-2 ────────────────────────────────────────────────────────────
+        // â”€â”€ SC-HA002-2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// The solver must include entities within the polygon and exclude entities outside.
@@ -148,7 +154,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Solver_FindsEntitiesInsidePolygon()
         {
-            // Arrange — 30x30 m polygon centred at (50,50)
+            // Arrange â€” 30x30 m polygon centred at (50,50)
             var polygon = new List<Vector2>
             {
                 new(35f, 35f), new(65f, 35f), new(65f, 65f), new(35f, 65f),
@@ -174,8 +180,7 @@ namespace Hrot.SimHost.Tests
                 _world, requestingEntity, areaEntity, ForceId.Hostile);
 
             // Act
-            var solver = new AreaQuerySolverSystem();
-            solver.Execute(_world, 0.016f);
+            RunSolverPipeline();
 
             // Assert
             var result = AreaQueryBatchHelper.GetAreaQueryResult(_world, requestId);
@@ -187,7 +192,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((long)inside1.PackedValue, storedHandle);
         }
 
-        // ── SC-HA002-4 ────────────────────────────────────────────────────────────
+        // â”€â”€ SC-HA002-4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// <see cref="EqsModule.Policy"/> must return <see cref="ExecutionPolicy.SlowBackground"/>

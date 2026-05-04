@@ -36,9 +36,9 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public unsafe void AreaQueryStructs_HaveDeterministicSize()
         {
-            // AreaQueryRequest: long(8) + Entity(8) + ForceId(1) + _pad0(1) + _pad1(1) + _pad2(1) + int(4) = 24
-            int reqSize = sizeof(AreaQueryRequest);
-            Assert.True(reqSize > 0, $"sizeof(AreaQueryRequest) = {reqSize}");
+            // AreaQueryRequestEvent: long(8) + Entity(8) + ForceId(1) + _pad0(1) + _pad1(1) + _pad2(1) + int(4) = 24
+            int reqSize = sizeof(AreaQueryRequestEvent);
+            Assert.True(reqSize > 0, $"sizeof(AreaQueryRequestEvent) = {reqSize}");
 
             // AreaQueryResult: long(8) + bool(1) + _pad0(1) + _pad1(1) + _pad2(1) + int(4) + int(4) + int(4) = 24
             int resSize = sizeof(AreaQueryResult);
@@ -90,11 +90,11 @@ namespace Hrot.SimHost.Tests
         // ── SC-HA001-2 ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// After calling <see cref="AreaQueryBatchHelper.ResetBatch"/>, the batch count
-        /// is zero and the pool's next-free index is reset to zero with zeroed entries.
+        /// On initial world creation the <see cref="EqsTargetPool"/> must have
+        /// <c>NextFreeIndex == 0</c> and all target slots zeroed.
         /// </summary>
         [Fact]
-        public void ResetBatch_ZeroesCountAndPool()
+        public void EqsTargetPool_InitialState_IsZero()
         {
             // Arrange
             var world = new EntityRepository();
@@ -102,24 +102,7 @@ namespace Hrot.SimHost.Tests
 
             try
             {
-                Entity requestingEntity = world.CreateEntity();
-                Entity areaEntity       = world.CreateEntity();
-
-                // Submit a few requests to make the batch non-empty.
-                for (int i = 0; i < 5; i++)
-                {
-                    AreaQueryBatchHelper.RequestAreaQuery(
-                        world, requestingEntity, areaEntity, ForceId.Hostile, sourceNodeId: i);
-                }
-
-                // Act
-                AreaQueryBatchHelper.ResetBatch(world);
-
-                // Assert batch
-                ref var batch = ref world.GetSingleton<AreaQueryBatchData>();
-                Assert.Equal(0, batch.Count);
-
-                // Assert pool
+                // Assert pool starts at zero
                 var pool = world.GetSingleton<EqsTargetPool>();
                 Assert.Equal(0, pool.NextFreeIndex);
                 for (int i = 0; i < 10; i++)
@@ -138,7 +121,6 @@ namespace Hrot.SimHost.Tests
             if (world.HasSingleton<AreaQueryBatchData>())
             {
                 ref var batch = ref world.GetSingleton<AreaQueryBatchData>();
-                if (batch.Requests.IsCreated) batch.Requests.Dispose();
                 if (batch.Results.IsCreated)  batch.Results.Dispose();
             }
             if (world.HasSingleton<EqsTargetPool>())

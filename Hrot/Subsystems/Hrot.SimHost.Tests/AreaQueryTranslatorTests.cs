@@ -26,7 +26,7 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public class AreaQueryTranslatorTests : IDisposable
     {
-        // ── Stub writer captures all published DDS samples ────────────────────────
+        // â”€â”€ Stub writer captures all published DDS samples â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private sealed class CapturingWriter<T> : IDdsWriter<T>
         {
@@ -35,7 +35,7 @@ namespace Hrot.SimHost.Tests
             public void DisposeInstance(T key) { }
         }
 
-        // ── Helpers ───────────────────────────────────────────────────────────────
+        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private static EntityRepository CreateWorld()
         {
@@ -49,7 +49,6 @@ namespace Hrot.SimHost.Tests
             if (world.HasSingleton<AreaQueryBatchData>())
             {
                 ref var b = ref world.GetSingleton<AreaQueryBatchData>();
-                if (b.Requests.IsCreated) b.Requests.Dispose();
                 if (b.Results.IsCreated)  b.Results.Dispose();
             }
             if (world.HasSingleton<EqsTargetPool>())
@@ -58,9 +57,6 @@ namespace Hrot.SimHost.Tests
                 if (p.Targets.IsCreated) p.Targets.Dispose();
             }
         }
-
-        private static SpatialHashGrid _sharedGrid;
-        private static bool _gridCreated;
 
         private static EntityRepository CreateMuscleWorld(out SpatialHashGrid grid)
         {
@@ -98,7 +94,21 @@ namespace Hrot.SimHost.Tests
             return e;
         }
 
-        // ── Shared world instances (disposed in Dispose) ──────────────────────────
+        // Runs the full Muscle-side solver pipeline starting from events already in the WRITE buffer.
+        // After this call, Results ring buffer is populated and AreaQueryResultEvents are in READ buffer.
+        private static void RunMuscleSolverPipeline(EntityRepository repo, float dt = 0.016f)
+        {
+            var view = (ISimulationView)repo;
+            repo.Bus.SwapBuffers();   // move request events to READ
+            var solver = new AreaQuerySolverSystem();
+            solver.Execute(view, dt);
+            var ecb = (EntityCommandBuffer)view.GetCommandBuffer();
+            ecb.Playback(repo);
+            repo.Bus.SwapBuffers();   // move result events to READ
+            new AreaQueryResultMaterializationSystem().Execute(view, dt);
+        }
+
+        // â”€â”€ Shared world instances (disposed in Dispose) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private readonly EntityRepository _brainRepo;
         private readonly EntityRepository _muscleRepo;
@@ -119,7 +129,7 @@ namespace Hrot.SimHost.Tests
             _muscleRepo.Dispose();
         }
 
-        // ── SC-HA004-1: End-to-end pipeline (single process, stub DDS) ───────────
+        // â”€â”€ SC-HA004-1: End-to-end pipeline (single process, stub DDS) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// Full round-trip test: Brain egress -> Muscle ingress -> AreaQuerySolverSystem
@@ -129,7 +139,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void SC_HA004_1_AreaQueryPipeline_BrainRequestReachesBack_WithTargets()
         {
-            const long areaNetworkId  = 5000L;
+            const long areaNetworkId   = 5000L;
             const long enemy1NetworkId = 6001L;
             const long enemy2NetworkId = 6002L;
             const int  brainNodeId    = 1;
@@ -138,7 +148,7 @@ namespace Hrot.SimHost.Tests
             var brainEntityMap  = new NetworkEntityMap();
             var muscleEntityMap = new NetworkEntityMap();
 
-            // ── Muscle-side setup ─────────────────────────────────────────────────
+            // â”€â”€ Muscle-side setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
             // Area polygon: (-10,-50) -> (100,-50) -> (100,10) -> (-10,10)
             var polygon = new List<Vector2>
@@ -155,55 +165,53 @@ namespace Hrot.SimHost.Tests
             muscleEntityMap.Register(enemy1NetworkId, muscleEnemy1);
             muscleEntityMap.Register(enemy2NetworkId, muscleEnemy2);
 
-            // ── Brain-side setup ──────────────────────────────────────────────────
+            // â”€â”€ Brain-side setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
             // Area entity on the Brain side (different entity, same network ID).
             var brainAreaEntity = _brainRepo.CreateEntity();
             brainEntityMap.Register(areaNetworkId, brainAreaEntity);
 
-            // Commander entity submits the area query.
+            // Commander entity submits the area query (publishes AreaQueryRequestEvent to WRITE).
             var commander = _brainRepo.CreateEntity();
             long requestId = AreaQueryBatchHelper.RequestAreaQuery(
                 _brainRepo, commander, brainAreaEntity, ForceId.Hostile, sourceNodeId: brainNodeId);
-            Assert.True(requestId >= 0, "RequestAreaQuery must succeed");
+            Assert.True(requestId != 0, "RequestAreaQuery must succeed");
 
-            // Manually stamp SourceNodeId so the Brain egress authority check passes.
-            ref var batch = ref _brainRepo.GetSingleton<AreaQueryBatchData>();
-            ref var req   = ref batch.Requests[0];
-            req.SourceNodeId = brainNodeId;
+            // Swap so BrainEgress can read the request event.
+            _brainRepo.Bus.SwapBuffers();
 
-            // ── Step 1: Brain egress publishes to stub writer ─────────────────────
-            var brainEgressWriter  = new CapturingWriter<AreaQueryRequestBatch>();
-            var brainEgressTrans   = new AreaQueryBrainEgressTranslator(brainEgressWriter, brainEntityMap, brainNodeId);
+            // â”€â”€ Step 1: Brain egress publishes to stub writer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            var brainEgressWriter = new CapturingWriter<AreaQueryRequestBatch>();
+            var brainEgressTrans  = new AreaQueryBrainEgressTranslator(brainEgressWriter, brainEntityMap, brainNodeId);
 
-            brainEgressTrans.ScanAndPublish(_brainRepo);
+            brainEgressTrans.ScanAndPublish((ISimulationView)_brainRepo);
 
             Assert.Equal(1, brainEgressWriter.Written.Count);
             Assert.Equal(1, brainEgressTrans.SentSampleCount);
             var publishedRequest = brainEgressWriter.Written[0];
             Assert.Equal(1, publishedRequest.Requests?.Count ?? 0);
-            Assert.Equal(1, brainEgressTrans.SentSampleCount);
 
-            // ── Step 2: Muscle ingress receives the request ───────────────────────
+            // â”€â”€ Step 2: Muscle ingress receives the request and queues request event â”€â”€
+            var muscleView = (ISimulationView)_muscleRepo;
+            var muscleEcb  = (EntityCommandBuffer)muscleView.GetCommandBuffer();
             var muscleIngressTrans = new AreaQueryMuscleIngressTranslator(null, muscleEntityMap);
-            muscleIngressTrans.ProcessBatch(publishedRequest, _muscleRepo);
+            muscleIngressTrans.ProcessBatch(publishedRequest, muscleEcb, muscleView);
+            muscleEcb.Playback(_muscleRepo);
 
-            ref var muscleBatch = ref _muscleRepo.GetSingleton<AreaQueryBatchData>();
-            Assert.Equal(1, muscleBatch.Count);
+            // â”€â”€ Step 3: Run Muscle solver pipeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            RunMuscleSolverPipeline(_muscleRepo);
 
-            // ── Step 3: AreaQuerySolverSystem resolves the request ────────────────
-            var solver = new AreaQuerySolverSystem();
-            solver.Execute(_muscleRepo, 0.016f);
+            // Verify ring buffer was populated.
+            int muscleSlot = (int)((uint)requestId % (uint)AreaQueryBatchData.DefaultCapacity);
+            ref readonly var muscleBatch = ref _muscleRepo.GetSingleton<AreaQueryBatchData>();
+            Assert.True(muscleBatch.Results[muscleSlot].IsReady, "Solver must mark result IsReady");
+            Assert.Equal(2, muscleBatch.Results[muscleSlot].TargetCount);
 
-            ref var muscleBatchAfterSolve = ref _muscleRepo.GetSingleton<AreaQueryBatchData>();
-            Assert.True(muscleBatchAfterSolve.Results[0].IsReady, "Solver must mark result IsReady");
-            Assert.Equal(2, muscleBatchAfterSolve.Results[0].TargetCount);
-
-            // ── Step 4: Muscle egress publishes response ──────────────────────────
+            // â”€â”€ Step 4: Muscle egress reads result events (still in READ) and publishes â”€â”€
             var muscleEgressWriter = new CapturingWriter<AreaQueryResponseBatch>();
             var muscleEgressTrans  = new AreaQueryMuscleEgressTranslator(muscleEgressWriter, muscleEntityMap);
 
-            muscleEgressTrans.ScanAndPublish(_muscleRepo);
+            muscleEgressTrans.ScanAndPublish(muscleView);
 
             Assert.True(muscleEgressWriter.Written.Count > 0, "Muscle egress must publish a response");
             var publishedResponse = muscleEgressWriter.Written[0];
@@ -212,7 +220,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, publishedResponse.Responses[0].TargetCount);
             Assert.Equal(1, muscleEgressTrans.SentSampleCount);
 
-            // ── Step 5: Brain ingress receives the response ───────────────────────
+            // â”€â”€ Step 5: Brain ingress receives the response â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // Register brain-side enemy entities before the ingress processes them.
             var brainEnemy1 = _brainRepo.CreateEntity();
             var brainEnemy2 = _brainRepo.CreateEntity();
@@ -220,25 +228,6 @@ namespace Hrot.SimHost.Tests
             brainEntityMap.Register(enemy2NetworkId, brainEnemy2);
 
             var brainIngressTrans = new AreaQueryBrainIngressTranslator(null, brainEntityMap, brainNodeId);
-
-            // Re-set AreaQueryBatchData on Brain so there is a valid request slot.
-            // BrainEgress cleared batch.Count; restore it for ingress correlation.
-            ref var brainBatch = ref _brainRepo.GetSingleton<AreaQueryBatchData>();
-            brainBatch.Requests[0] = new AreaQueryRequest
-            {
-                RequestId        = requestId,
-                TargetAreaEntity = brainAreaEntity,
-                TargetForce      = ForceId.Hostile,
-                SourceNodeId     = brainNodeId,
-            };
-            brainBatch.Results[0] = new AreaQueryResult
-            {
-                RequestId   = requestId,
-                IsReady     = false,
-                TargetCount = 0,
-                TargetGroupHandle = -1,
-            };
-            brainBatch.Count = 1;
 
             // Target batch addressed to this Brain node.
             var targetedResponse = new AreaQueryResponseBatch
@@ -248,18 +237,18 @@ namespace Hrot.SimHost.Tests
             };
             brainIngressTrans.ProcessBatch(targetedResponse, _brainRepo);
 
-            ref var brainFinalBatch = ref _brainRepo.GetSingleton<AreaQueryBatchData>();
-            int slot = (int)(requestId & 0xFFFF_FFFF);
-            Assert.True(brainFinalBatch.Results[slot].IsReady, "Brain ingress must mark result IsReady");
-            Assert.Equal(2, brainFinalBatch.Results[slot].TargetCount);
+            int brainSlot = (int)((uint)requestId % (uint)AreaQueryBatchData.DefaultCapacity);
+            ref readonly var brainFinalBatch = ref _brainRepo.GetSingleton<AreaQueryBatchData>();
+            Assert.True(brainFinalBatch.Results[brainSlot].IsReady, "Brain ingress must mark result IsReady");
+            Assert.Equal(2, brainFinalBatch.Results[brainSlot].TargetCount);
         }
 
-        // ── SC-HA004-2: Unresolved area entity on Muscle -> TargetCount == 0 ─────
+        // â”€â”€ SC-HA004-2: Unresolved area entity on Muscle -> TargetCount == 0 â”€â”€â”€â”€â”€
 
         /// <summary>
         /// When the Muscle cannot resolve the area entity network ID, the MuscleIngress
-        /// translator must write an immediate ready result with TargetCount == 0 and
-        /// must not throw an exception.
+        /// translator must publish an immediate ready result event with TargetCount == 0
+        /// and must not throw an exception.
         /// </summary>
         [Fact]
         public void SC_HA004_2_MuscleIngress_UnresolvedAreaEntity_WritesZeroTargetResponse()
@@ -287,19 +276,27 @@ namespace Hrot.SimHost.Tests
                 },
             };
 
+            var view = (ISimulationView)_muscleRepo;
+            var ecb  = (EntityCommandBuffer)view.GetCommandBuffer();
+
             // ProcessBatch must not throw.
-            var exception = Record.Exception(() => muscleIngress.ProcessBatch(batch, _muscleRepo));
+            var exception = Record.Exception(() => muscleIngress.ProcessBatch(batch, ecb, view));
             Assert.Null(exception);
 
-            // The Muscle batch must contain 1 entry with IsReady=true and TargetCount=0.
-            ref var muscleBatch = ref _muscleRepo.GetSingleton<AreaQueryBatchData>();
-            Assert.Equal(1, muscleBatch.Count);
-            Assert.True(muscleBatch.Results[0].IsReady, "Result must be immediately ready when area entity is unresolved");
-            Assert.Equal(0, muscleBatch.Results[0].TargetCount);
-            Assert.Equal(42L, muscleBatch.Results[0].RequestId);
+            // Playback and run pipeline to materialize the immediate result event.
+            ecb.Playback(_muscleRepo);
+            _muscleRepo.Bus.SwapBuffers();
+            new AreaQueryResultMaterializationSystem().Execute(view, 0.016f);
+
+            // The result for RequestId=42 must be immediately ready with TargetCount=0.
+            int slot = (int)((uint)42L % (uint)AreaQueryBatchData.DefaultCapacity);
+            ref readonly var muscleBatch = ref _muscleRepo.GetSingleton<AreaQueryBatchData>();
+            Assert.True(muscleBatch.Results[slot].IsReady, "Result must be immediately ready when area entity is unresolved");
+            Assert.Equal(0, muscleBatch.Results[slot].TargetCount);
+            Assert.Equal(42L, muscleBatch.Results[slot].RequestId);
         }
 
-        // ── SC-HA004-3: Unresolved target entity silently skipped ─────────────────
+        // â”€â”€ SC-HA004-3: Unresolved target entity silently skipped â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// When one of the 3 solver-resolved target entities is NOT in the Muscle's
@@ -331,29 +328,24 @@ namespace Hrot.SimHost.Tests
             pool.NextFreeIndex = 3;
             _muscleRepo.SetSingleton(pool);
 
-            // Populate AreaQueryBatchData with 1 solved result spanning 3 targets.
-            ref var batch = ref _muscleRepo.GetSingleton<AreaQueryBatchData>();
-            batch.Requests[0] = new AreaQueryRequest
+            // Publish a result event directly to the bus WRITE buffer.
+            const long resultRequestId = 100L;
+            _muscleRepo.Bus.Publish(new AreaQueryResultEvent
             {
-                RequestId    = 100L,
-                TargetForce  = ForceId.Hostile,
-                SourceNodeId = 1,
-            };
-            batch.Results[0] = new AreaQueryResult
-            {
-                RequestId         = 100L,
-                IsReady           = true,
+                RequestId         = resultRequestId,
                 TargetCount       = 3,
                 TargetGroupHandle = 0,    // starts at pool index 0
                 SourceNodeId      = 1,
-            };
-            batch.Count = 1;
+                NewPoolNextFreeIndex = 3,
+            });
+            // Swap so the egress translator can read it from the READ buffer.
+            _muscleRepo.Bus.SwapBuffers();
 
             // Run MuscleEgressTranslator.
             var egressWriter = new CapturingWriter<AreaQueryResponseBatch>();
             var egress       = new AreaQueryMuscleEgressTranslator(egressWriter, entityMap);
 
-            var exception = Record.Exception(() => egress.ScanAndPublish(_muscleRepo));
+            var exception = Record.Exception(() => egress.ScanAndPublish((ISimulationView)_muscleRepo));
             Assert.Null(exception);
 
             // Exactly 1 batch published.

@@ -85,7 +85,6 @@ namespace Hrot.SimHost.Tests
             if (repo.HasSingleton<AreaQueryBatchData>())
             {
                 ref var b = ref repo.GetSingleton<AreaQueryBatchData>();
-                if (b.Requests.IsCreated) b.Requests.Dispose();
                 if (b.Results.IsCreated)  b.Results.Dispose();
             }
             if (repo.HasSingleton<EqsTargetPool>())
@@ -166,13 +165,12 @@ namespace Hrot.SimHost.Tests
 
         // Runs one simulation tick through the full Brain pipeline.
         //
-        // AreaQueryInitializationSystem is intentionally EXCLUDED from this helper.
-        // In production the EqsModule fires asynchronously at 10 Hz; in the test we
-        // collapse that latency by calling eqsSolver in the same tick.  Excluding
-        // AreaQueryInitializationSystem prevents the next tick from resetting the EQS
-        // batch before BTreeTickSystem can read the result.  The omission is safe
-        // because each test calls this helper at most a handful of times and the
-        // singletons are already initialised by SimHostComponentRegistry.RegisterAll.
+        // The EQS solver is driven within the SAME tick to collapse the production 10-Hz
+        // EqsModule latency to zero for deterministic in-process testing.
+        // Extra SwapBuffers calls are needed because events published in the BTree phase
+        // are in the WRITE buffer and must be swapped to the READ buffer before the solver
+        // can consume them; similarly, result events must be swapped to READ before
+        // materialization can write them to the ring buffer.
         private static void TickOnce(EntityRepository repo,
             BehaviorIngressSystem behaviorIngress,
             TacticalIntentResolutionSystem tacticalResolution,
@@ -180,11 +178,22 @@ namespace Hrot.SimHost.Tests
             AreaQuerySolverSystem eqsSolver,
             float dt = 0.1f)
         {
+            // Begin frame: swap previous write->read so ingress systems can see last frame's events.
             repo.Bus.SwapBuffers();
             behaviorIngress.Execute(repo, dt);
             tacticalResolution.Execute(repo, dt);
+            // BTree runs: may publish AreaQueryRequestEvent to WRITE buffer.
             btreeTick.Execute(repo, dt);
+
+            // Collapse EQS latency: swap so solver can read the request events just published.
+            repo.Bus.SwapBuffers();
+            var ecb = (Fdp.Core.EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer();
             eqsSolver.Execute(repo, dt);
+            ecb.Playback(repo);
+
+            // Swap again so the result events published by the solver are readable by materialization.
+            repo.Bus.SwapBuffers();
+            new AreaQueryResultMaterializationSystem().Execute(repo, dt);
         }
 
         private static long ParseTargetNetworkId(string json)
@@ -238,8 +247,15 @@ namespace Hrot.SimHost.Tests
 
             var solver = new AreaQuerySolverSystem();
 
-            // Act
+            // Act: swap so solver sees the request events, run solver, playback cmd,
+            // swap so materialization sees the result events, then materialize.
+            var ecb = (Fdp.Core.EntityCommandBuffer)((ISimulationView)_repo).GetCommandBuffer();
+            var materialization = new AreaQueryResultMaterializationSystem();
+            _repo.Bus.SwapBuffers();
             solver.Execute(_repo, 0.1f);
+            ecb.Playback(_repo);
+            _repo.Bus.SwapBuffers();
+            materialization.Execute(_repo, 0.1f);
 
             // Assert
             var result = AreaQueryBatchHelper.GetAreaQueryResult(_repo, requestId);

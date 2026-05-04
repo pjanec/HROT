@@ -88,7 +88,6 @@ namespace Hrot.SimHost.Tests
             if (world.HasSingleton<RaycastBatchData>())
             {
                 ref var batch = ref world.GetSingleton<RaycastBatchData>();
-                if (batch.Requests.IsCreated) batch.Requests.Dispose();
                 if (batch.Hits.IsCreated) batch.Hits.Dispose();
             }
         }
@@ -218,8 +217,7 @@ namespace Hrot.SimHost.Tests
             if (world.HasSingleton<PathfindingBatchData>())
             {
                 ref var batch = ref world.GetSingleton<PathfindingBatchData>();
-                if (batch.Requests.IsCreated) batch.Requests.Dispose();
-                if (batch.Results.IsCreated)  batch.Results.Dispose();
+                if (batch.Results.IsCreated) batch.Results.Dispose();
             }
             DisposeRaycastBatchData(world);
             world.Dispose();

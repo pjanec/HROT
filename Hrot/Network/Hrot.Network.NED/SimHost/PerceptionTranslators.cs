@@ -130,21 +130,19 @@ namespace Hrot.Network.NED.SimHost
         public void ScanAndPublish(ISimulationView view)
         {
             if (_writer is null) return;
-            if (view is not EntityRepository repo) return;
-            if (!repo.HasSingleton<RaycastBatchData>()) return;
 
-            ref var batch = ref repo.GetSingleton<RaycastBatchData>();
-            if (batch.Count == 0) return;
+            var events = view.ReadEvents<RaycastRequestEvent>();
+            if (events.IsEmpty) return;
 
             // Spatial precision anchor: convert first ray origin to WGS-84 GeoPoint.
-            var anchorCartesian = batch.Requests[0].Start;
+            var anchorCartesian = events[0].Start;
             var (lat, lon, alt) = _geoTransform.ToGeodetic(anchorCartesian);
             var batchOrigin = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt };
 
-            var ddsRequests = new List<DdsRaycastRequest>(batch.Count);
-            for (int i = 0; i < batch.Count; i++)
+            var ddsRequests = new List<DdsRaycastRequest>(events.Length);
+            for (int i = 0; i < events.Length; i++)
             {
-                var req = batch.Requests[i];
+                ref readonly var req = ref events[i];
 
                 // Network firewall: map local ECS entity handle to network ID.
                 long ignoreNetId = 0;
@@ -179,9 +177,6 @@ namespace Hrot.Network.NED.SimHost
                 Requests           = ddsRequests,
             });
             SentSampleCount++;
-
-            // Brain does not run HitResolutionSystem; clear queue after publishing.
-            batch.Count = 0;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
@@ -288,8 +283,6 @@ namespace Hrot.Network.NED.SimHost
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (_reader is null) return;
-            if (view is not EntityRepository repo) return;
-            if (!repo.HasSingleton<RaycastBatchData>()) return;
 
             using var loan = _reader.Take();
             foreach (var sample in loan)
@@ -302,32 +295,23 @@ namespace Hrot.Network.NED.SimHost
                 if (data.TargetNodeId != _localNodeId && data.TargetNodeId != 0) continue;
                 if (data.Hits == null || data.Hits.Count == 0) continue;
 
-                ref var batch = ref repo.GetSingleton<RaycastBatchData>();
-
                 foreach (var ddsHit in data.Hits)
                 {
-                    if (batch.Count >= PhysicsConstants.RaycastBatchCapacity) break;
-
                     // Memory index firewall: map network IDs back to generational ECS handles.
                     Entity hitEntity = Entity.Null;
                     if (ddsHit.HasHit && ddsHit.HitEntityId != 0)
                         _entityMap.TryGetEntity(ddsHit.HitEntityId, out hitEntity);
 
-                    int idx = batch.Count;
-
-                    batch.Hits[idx] = new RaycastHit
+                    cmd.PublishEvent(new RaycastResultEvent
                     {
-                        RayId     = ddsHit.RayId,
-                        HasHit    = (byte)(ddsHit.HasHit ? 1 : 0),
-                        HitEntity = hitEntity,
-                        T         = ddsHit.HitT,
-                    };
-
-                    // Zero out the parallel request slot to prevent the egress translator
-                    // from re-transmitting stale requests on the next frame.
-                    batch.Requests[idx] = default;
-
-                    batch.Count++;
+                        Hit = new RaycastHit
+                        {
+                            RayId     = ddsHit.RayId,
+                            HasHit    = (byte)(ddsHit.HasHit ? 1 : 0),
+                            HitEntity = hitEntity,
+                            T         = ddsHit.HitT,
+                        }
+                    });
                 }
             }
         }
@@ -621,19 +605,17 @@ namespace Hrot.Network.NED.SimHost
         public void ScanAndPublish(ISimulationView view)
         {
             if (_writer is null) return;
-            if (view is not EntityRepository repo) return;
-            if (!repo.HasSingleton<RaycastBatchData>()) return;
 
-            ref var batch = ref repo.GetSingleton<RaycastBatchData>();
-            if (batch.Count == 0) return;
+            var events = view.ReadEvents<RaycastResultEvent>();
+            if (events.IsEmpty) return;
 
             // Demultiplex LOS hits by originating Brain node.
             // Bullet rays stay local -- filtered out here.
             var batchesByNode = new Dictionary<int, List<DdsRaycastHit>>();
 
-            for (int i = 0; i < batch.Count; i++)
+            for (int i = 0; i < events.Length; i++)
             {
-                var hit = batch.Hits[i];
+                ref readonly var hit = ref events[i].Hit;
 
                 // Do not route bullet rays back to Brain -- damage stays on SimHost.
                 if (PhysicsConstants.IsBulletRay(hit.RayId)) continue;
@@ -669,9 +651,6 @@ namespace Hrot.Network.NED.SimHost
                 });
                 SentSampleCount++;
             }
-
-            // Terminal sink: Solver does not run HitResolutionSystem; flush the queue.
-            batch.Count = 0;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }

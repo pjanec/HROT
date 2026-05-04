@@ -571,7 +571,6 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             if (_world.HasSingleton<RaycastBatchData>())
             {
                 ref var batch = ref _world.GetSingleton<RaycastBatchData>();
-                if (batch.Requests.IsCreated) batch.Requests.Dispose();
                 if (batch.Hits.IsCreated) batch.Hits.Dispose();
             }
             _world.Dispose();

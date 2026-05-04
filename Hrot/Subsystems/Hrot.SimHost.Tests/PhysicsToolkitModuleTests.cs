@@ -20,7 +20,6 @@ namespace Hrot.SimHost.Tests
             if (world.HasSingleton<RaycastBatchData>())
             {
                 ref var batch = ref world.GetSingleton<RaycastBatchData>();
-                if (batch.Requests.IsCreated) batch.Requests.Dispose();
                 if (batch.Hits.IsCreated) batch.Hits.Dispose();
             }
         }

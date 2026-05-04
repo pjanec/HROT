@@ -15,11 +15,12 @@ namespace Hrot.Network.NED.SimHost
     // ── Brain-side EQS translators (Brain -> Muscle, Muscle -> Brain) ────────────
 
     /// <summary>
-    /// Brain egress translator: reads pending <see cref="AreaQueryRequest"/>s from the
-    /// local <see cref="AreaQueryBatchData"/> singleton, converts each to a
+    /// Brain egress translator: reads <see cref="AreaQueryRequestEvent"/>s published by
+    /// Brain BTree nodes onto the <see cref="FdpEventBus"/>, converts each to a
     /// <see cref="DdsAreaQueryRequest"/> and publishes a single
     /// <see cref="AreaQueryRequestBatch"/> to the Muscle node via DDS.
-    /// Clears <c>batch.Count</c> after publishing (Brain does not run the solver locally).
+    /// Reads from the previous frame's event buffer (1-frame latency is negligible
+    /// given the 100 ms solver cycle on the Muscle).
     /// Only forwards requests whose <c>SourceNodeId</c> matches <c>_localNodeId</c>.
     /// </summary>
     public sealed class AreaQueryBrainEgressTranslator : IDescriptorTranslator
@@ -56,16 +57,14 @@ namespace Hrot.Network.NED.SimHost
         /// <inheritdoc/>
         public void ScanAndPublish(ISimulationView view)
         {
-            if (view is not EntityRepository repo) return;
-            if (!repo.HasSingleton<AreaQueryBatchData>()) return;
+            // Read accumulated request events from the previous frame's write buffer.
+            var requests = view.ReadEvents<AreaQueryRequestEvent>();
+            if (requests.IsEmpty) return;
 
-            ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-            if (batch.Count == 0) return;
-
-            var ddsRequests = new List<DdsAreaQueryRequest>(batch.Count);
-            for (int i = 0; i < batch.Count; i++)
+            var ddsRequests = new List<DdsAreaQueryRequest>(requests.Length);
+            for (int i = 0; i < requests.Length; i++)
             {
-                var req = batch.Requests[i];
+                ref readonly var req = ref requests[i];
 
                 // Authority filter: only forward requests originating from this node.
                 if (req.SourceNodeId != _localNodeId) continue;
@@ -89,9 +88,6 @@ namespace Hrot.Network.NED.SimHost
                 Requests     = ddsRequests,
             });
             SentSampleCount++;
-
-            // Brain does not run AreaQuerySolverSystem; clear queue after publishing.
-            batch.Count = 0;
         }
 
         /// <inheritdoc/>
@@ -104,14 +100,15 @@ namespace Hrot.Network.NED.SimHost
         public void Dispose(long networkEntityId) { }
     }
 
-    // ── Muscle-side ingress: receives requests from Brain, fills batch for solver ──
+    // ── Muscle-side ingress: receives requests from Brain, publishes request events ──
 
     /// <summary>
     /// Muscle ingress translator: receives <see cref="AreaQueryRequestBatch"/> from Brain
-    /// nodes via DDS and populates the local <see cref="AreaQueryBatchData"/> so
-    /// <c>AreaQuerySolverSystem</c> can resolve them.
+    /// nodes via DDS and publishes <see cref="AreaQueryRequestEvent"/>s via
+    /// <see cref="IEntityCommandBuffer"/> so <c>AreaQuerySolverSystem</c> can resolve them
+    /// on its next background tick.
     /// If the area polygon entity cannot be resolved via <see cref="NetworkEntityMap"/>,
-    /// writes an immediate ready result with <c>TargetCount = 0</c>.
+    /// publishes an immediate <see cref="AreaQueryResultEvent"/> with <c>TargetCount = 0</c>.
     /// </summary>
     public sealed class AreaQueryMuscleIngressTranslator : IDescriptorTranslator
     {
@@ -142,15 +139,13 @@ namespace Hrot.Network.NED.SimHost
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (_reader is null) return;
-            if (view is not EntityRepository repo) return;
 
             using var loan = _reader.Take();
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
                 ReceivedSampleCount++;
-                var data = sample.Data;
-                ProcessBatch(data, repo);
+                ProcessBatch(sample.Data, cmd, view);
             }
         }
 
@@ -158,52 +153,40 @@ namespace Hrot.Network.NED.SimHost
         /// Processes a single <see cref="AreaQueryRequestBatch"/> sample.
         /// Exposed as <c>internal</c> for unit test injection.
         /// </summary>
-        internal void ProcessBatch(in AreaQueryRequestBatch batch, EntityRepository repo)
+        internal void ProcessBatch(in AreaQueryRequestBatch batch, IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (batch.Requests == null || batch.Requests.Count == 0) return;
-            if (!repo.HasSingleton<AreaQueryBatchData>()) return;
 
-            ref var localBatch = ref repo.GetSingleton<AreaQueryBatchData>();
+            if (view is not EntityRepository repo) return;
 
             foreach (var ddsReq in batch.Requests)
             {
-                if (localBatch.Count >= AreaQueryBatchData.DefaultCapacity) break;
-
-                int slot = localBatch.Count;
-
                 // Resolve the area polygon entity on this Muscle node.
                 if (!_entityMap.TryGetEntity(ddsReq.TargetAreaNetworkId, out var areaEntity))
                 {
-                    // Area entity not known on this Muscle — emit an immediate empty result.
-                    localBatch.Results[slot] = new AreaQueryResult
+                    // Area entity not known on this Muscle — emit an immediate empty result event
+                    // so the Brain BTree does not stall waiting for a response that will never come.
+                    if (!repo.HasSingleton<EqsTargetPool>()) continue;
+                    var pool = repo.GetSingleton<EqsTargetPool>();
+                    cmd.PublishEvent(new AreaQueryResultEvent
                     {
-                        RequestId         = ddsReq.RequestId,
-                        TargetCount       = 0,
-                        TargetGroupHandle = -1,
-                        SourceNodeId      = ddsReq.SourceNodeId,
-                        IsReady           = true,
-                    };
-                    localBatch.Count = slot + 1;
+                        RequestId            = ddsReq.RequestId,
+                        TargetCount          = 0,
+                        TargetGroupHandle    = -1,
+                        SourceNodeId         = ddsReq.SourceNodeId,
+                        NewPoolNextFreeIndex = pool.NextFreeIndex,
+                    });
                     continue;
                 }
 
-                localBatch.Requests[slot] = new AreaQueryRequest
+                // Queue the request for the background solver.
+                cmd.PublishEvent(new AreaQueryRequestEvent
                 {
                     RequestId        = ddsReq.RequestId,
                     TargetAreaEntity = areaEntity,
                     TargetForce      = (ForceId)ddsReq.ForceId,
                     SourceNodeId     = ddsReq.SourceNodeId,
-                };
-                // Pre-initialize result slot so the solver writes IsReady=true correctly.
-                localBatch.Results[slot] = new AreaQueryResult
-                {
-                    RequestId         = ddsReq.RequestId,
-                    IsReady           = false,
-                    TargetCount       = 0,
-                    TargetGroupHandle = -1,
-                    SourceNodeId      = ddsReq.SourceNodeId,
-                };
-                localBatch.Count = slot + 1;
+                });
             }
         }
 
@@ -217,14 +200,13 @@ namespace Hrot.Network.NED.SimHost
         public void Dispose(long networkEntityId) { }
     }
 
-    // ── Muscle-side egress: reads solved results, sends responses to Brain ────────
+    // ── Muscle-side egress: reads result events, sends responses to Brain ─────────
 
     /// <summary>
-    /// Muscle egress translator: reads resolved <see cref="AreaQueryResult"/>s from the
-    /// local <see cref="AreaQueryBatchData"/> singleton, extracts entity handles from
-    /// <see cref="EqsTargetPool"/>, resolves them to network IDs, and publishes
-    /// <see cref="AreaQueryResponseBatch"/> messages grouped by <c>SourceNodeId</c>.
-    /// Clears <c>batch.Count</c> after publishing.
+    /// Muscle egress translator: reads resolved <see cref="AreaQueryResultEvent"/>s from the
+    /// <see cref="FdpEventBus"/>, extracts entity handles from <see cref="EqsTargetPool"/>,
+    /// resolves them to network IDs, and publishes <see cref="AreaQueryResponseBatch"/>
+    /// messages grouped by <c>SourceNodeId</c> to the Brain node via DDS.
     /// </summary>
     public sealed class AreaQueryMuscleEgressTranslator : IDescriptorTranslator
     {
@@ -258,30 +240,25 @@ namespace Hrot.Network.NED.SimHost
         public void ScanAndPublish(ISimulationView view)
         {
             if (view is not EntityRepository repo) return;
-            if (!repo.HasSingleton<AreaQueryBatchData>()) return;
             if (!repo.HasSingleton<EqsTargetPool>()) return;
 
-            ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-            if (batch.Count == 0) return;
+            var results = view.ReadEvents<AreaQueryResultEvent>();
+            if (results.IsEmpty) return;
 
             var pool = repo.GetSingleton<EqsTargetPool>();
 
-            // Group ready results by originating Brain node.
-            var responsesByNode = new Dictionary<int, List<DdsAreaQueryResponse>>();
-            bool anyReady = false;
+            // Group results by originating Brain node.
+            var responsesByNode = new Dictionary<int, List<DdsAreaQueryResponse>>(results.Length);
 
-            for (int i = 0; i < batch.Count; i++)
+            for (int i = 0; i < results.Length; i++)
             {
-                var result = batch.Results[i];
-                if (!result.IsReady) continue;
-                anyReady = true;
+                ref readonly var evt = ref results[i];
+                var response = BuildResponse(in evt, in pool);
 
-                var response = BuildResponse(result, in pool);
-
-                if (!responsesByNode.TryGetValue(result.SourceNodeId, out var list))
+                if (!responsesByNode.TryGetValue(evt.SourceNodeId, out var list))
                 {
                     list = new List<DdsAreaQueryResponse>();
-                    responsesByNode[result.SourceNodeId] = list;
+                    responsesByNode[evt.SourceNodeId] = list;
                 }
                 list.Add(response);
             }
@@ -295,23 +272,17 @@ namespace Hrot.Network.NED.SimHost
                 });
                 SentSampleCount++;
             }
-
-            if (anyReady)
-            {
-                // Muscle is done with this batch; reset for the next ingress cycle.
-                batch.Count = 0;
-            }
         }
 
-        private DdsAreaQueryResponse BuildResponse(in AreaQueryResult result, in EqsTargetPool pool)
+        private DdsAreaQueryResponse BuildResponse(in AreaQueryResultEvent evt, in EqsTargetPool pool)
         {
-            var networkIds = new List<long>(result.TargetCount);
+            var networkIds = new List<long>(evt.TargetCount);
 
-            if (result.TargetGroupHandle >= 0)
+            if (evt.TargetGroupHandle >= 0)
             {
-                for (int t = 0; t < result.TargetCount; t++)
+                for (int t = 0; t < evt.TargetCount; t++)
                 {
-                    int poolIdx = result.TargetGroupHandle + t;
+                    int poolIdx = evt.TargetGroupHandle + t;
                     if (poolIdx >= pool.Targets.Length) break;
 
                     long packed = pool.Targets[poolIdx];
@@ -326,7 +297,7 @@ namespace Hrot.Network.NED.SimHost
 
             return new DdsAreaQueryResponse
             {
-                RequestId        = result.RequestId,
+                RequestId        = evt.RequestId,
                 TargetCount      = networkIds.Count,
                 TargetNetworkIds = networkIds,
             };
@@ -342,15 +313,15 @@ namespace Hrot.Network.NED.SimHost
         public void Dispose(long networkEntityId) { }
     }
 
-    // ── Brain-side ingress: receives responses from Muscle, fills local results ───
+    // ── Brain-side ingress: receives responses from Muscle, writes local results ───
 
     /// <summary>
     /// Brain ingress translator: receives <see cref="AreaQueryResponseBatch"/> from the
     /// Muscle node via DDS, resolves network IDs back to local <see cref="Entity"/>
     /// handles, writes them into the Brain's <see cref="EqsTargetPool"/>, and sets
-    /// <c>batch.Results[slot].IsReady = true</c> for the requesting BTree node.
-    /// The result slot is decoded directly from the lower 32 bits of <c>RequestId</c>
-    /// (which encodes the batch slot at submission time).
+    /// <see cref="AreaQueryResult.IsReady"/> in the <see cref="AreaQueryBatchData"/> ring
+    /// buffer directly (runs on the main thread so direct writes are safe).
+    /// The ring-buffer slot is derived from <c>requestId % DefaultCapacity</c>.
     /// </summary>
     public sealed class AreaQueryBrainIngressTranslator : IDescriptorTranslator
     {
@@ -402,6 +373,7 @@ namespace Hrot.Network.NED.SimHost
         /// <summary>
         /// Processes a single <see cref="AreaQueryResponseBatch"/> sample.
         /// Exposed as <c>internal</c> for unit test injection.
+        /// Runs on the main thread — direct writes to NativeArray and struct singletons are safe.
         /// </summary>
         internal void ProcessBatch(in AreaQueryResponseBatch batch, EntityRepository repo)
         {
@@ -414,9 +386,8 @@ namespace Hrot.Network.NED.SimHost
 
             foreach (var response in batch.Responses)
             {
-                // Decode the batch slot from the lower 32 bits of the RequestId.
-                int slot = (int)(response.RequestId & 0xFFFFFFFF);
-                if (slot < 0 || slot >= AreaQueryBatchData.DefaultCapacity) continue;
+                // Use modulo ring-buffer indexing (consistent with AreaQueryBatchHelper.RequestAreaQuery).
+                int slot = (int)((uint)response.RequestId % (uint)AreaQueryBatchData.DefaultCapacity);
 
                 int groupHandle = -1;
                 int resolvedCount = 0;
