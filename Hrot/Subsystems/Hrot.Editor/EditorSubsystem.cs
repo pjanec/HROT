@@ -454,6 +454,7 @@ namespace Hrot.Editor
 
             _kernel.RegisterModule(perceptionMod);
             _kernel.RegisterModule(new EqsModule());
+            _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.AreaQueryResultMaterializationSystem());
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
 

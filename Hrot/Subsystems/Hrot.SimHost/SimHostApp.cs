@@ -483,6 +483,7 @@ namespace Hrot.SimHost
             // Register the core simulation logic pack.
             _kernel.RegisterModule(_simCorePack!);
             _kernel.RegisterModule(new EqsModule());
+            _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.AreaQueryResultMaterializationSystem());
             _perceptionMod = new AutonomousPerceptionModule(
                 colliderRadiusReader: (view, e) => view.HasComponent<PhysicsCollider>(e)
                     ? view.GetComponentRO<PhysicsCollider>(e).Radius

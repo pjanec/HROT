@@ -45,8 +45,6 @@ namespace Hrot.SimHost.Systems
             var requests = view.ReadEvents<AreaQueryRequestEvent>();
             if (requests.IsEmpty) return;
 
-            // Access live singletons. NativeArray fields share native pointers with the
-            // live world, so writes to Targets[] are immediately visible to the Brain tick.
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(AreaQuerySolverSystem)} requires direct EntityRepository access " +

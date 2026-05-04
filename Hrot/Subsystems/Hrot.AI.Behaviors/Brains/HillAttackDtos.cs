@@ -126,9 +126,14 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Wave index (0 or 1); toggles between waves.</summary>
         public byte CurrentWave;                      // 1, offset 26
 
-        // Padding to reach 8-byte alignment boundary before the fixed long array.
+        // Consume trailing padding for EQS timeout tracking.
         private byte _pad0;                           // 1, offset 27
-        private int _pad1;                            // 4, offset 28
+
+        /// <summary>
+        /// Simulation time at which the current EQS request was submitted.
+        /// Used by commander timeout recovery in Condition_IsAreaQueryResolved.
+        /// </summary>
+        public float EqsRequestTime;                  // 4, offset 28
 
         // offset 32 — 8-byte aligned, required for fixed long array.
 

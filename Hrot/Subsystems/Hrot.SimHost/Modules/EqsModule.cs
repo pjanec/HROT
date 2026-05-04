@@ -10,10 +10,6 @@ namespace Hrot.SimHost.Modules
     /// <c>SpatialGridData</c> singleton and the entity spatial hash grid for
     /// polygon-area entity queries submitted by Brain BTree nodes.</para>
     ///
-    /// <para>Also registers <see cref="Systems.AreaQueryResultMaterializationSystem"/>
-    /// so that result events published by the solver are materialized into the
-    /// <see cref="Fdp.Toolkit.Spatial.Eqs.AreaQueryBatchData"/> ring buffer on the
-    /// main thread before the Brain Simulation phase each frame.</para>
     /// </summary>
     public sealed class EqsModule : IEcsModule
     {
@@ -27,15 +23,7 @@ namespace Hrot.SimHost.Modules
         private readonly Systems.AreaQuerySolverSystem _solver = new();
 
         /// <inheritdoc/>
-        /// <remarks>
-        /// Registers <see cref="Systems.AreaQueryResultMaterializationSystem"/> so the
-        /// module host runs it each frame on the main thread, materializing results before
-        /// the BTree Simulation phase.
-        /// </remarks>
-        public void RegisterSystems(ISystemRegistry registry)
-        {
-            registry.RegisterSystem(new Systems.AreaQueryResultMaterializationSystem());
-        }
+        public void RegisterSystems(ISystemRegistry registry) { }
 
         /// <inheritdoc/>
         public void Tick(ISimulationView view, float deltaTime)

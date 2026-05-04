@@ -62,6 +62,7 @@ namespace Hrot.AI.Behaviors.Brains
             s.CurrentWave         = 0;
             s.CachedEqsRequestId  = -1;
             s.CachedTargetGroupHandle = -1;
+            s.EqsRequestTime      = 0f;
             if (BehaviorLog.IsDebugEnabled)
                 BehaviorLog.Debug(ref ctx, "Calculated slots=" + totalSlots + " spacing=" + spacing.ToString("G6", System.Globalization.CultureInfo.InvariantCulture) + "m.");
             return NodeStatus.Success;
@@ -218,6 +219,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             s.CachedEqsRequestId = id;
+            s.EqsRequestTime = ctx.World.SimulationTime;
             if (BehaviorLog.IsDebugEnabled)
                 BehaviorLog.Debug(ref ctx, "Submitted EQS area query. RequestId=" + id + ".");
             return NodeStatus.Success;
@@ -244,6 +246,13 @@ namespace Hrot.AI.Behaviors.Brains
             var result = AreaQueryBatchHelper.GetAreaQueryResult(ctx.World, s.CachedEqsRequestId);
             if (!result.IsReady)
             {
+                if (ctx.World.SimulationTime - s.EqsRequestTime > 5.0f)
+                {
+                    BehaviorLog.Error(ref ctx, "EQS area query timed out after 5.0s. RequestId=" + s.CachedEqsRequestId + ".");
+                    s.CachedEqsRequestId = -1;
+                    s.CachedTargetGroupHandle = -1;
+                    return NodeStatus.Failure;
+                }
                 if (BehaviorLog.IsTraceEnabled)
                     BehaviorLog.Trace(ref ctx, "Waiting EQS result. RequestId=" + s.CachedEqsRequestId + ".");
                 return NodeStatus.Running;
@@ -254,6 +263,7 @@ namespace Hrot.AI.Behaviors.Brains
                 // Area cleared: break out of the Repeater so the BTree can finish.
                 s.CachedEqsRequestId      = -1;
                 s.CachedTargetGroupHandle = -1;
+                s.EqsRequestTime          = 0f;
                 if (BehaviorLog.IsDebugEnabled)
                     BehaviorLog.Debug(ref ctx, "EQS resolved clear area. RequestId=" + result.RequestId + " targets=0.");
                 return NodeStatus.Failure;
@@ -262,6 +272,7 @@ namespace Hrot.AI.Behaviors.Brains
             // Targets found: cache the pool handle for Action_DispatchWaveWithTargets.
             // CachedEqsRequestId is intentionally NOT cleared here (SC-HA011-5).
             s.CachedTargetGroupHandle = result.TargetGroupHandle;
+            s.EqsRequestTime = 0f;
             if (BehaviorLog.IsDebugEnabled)
                 BehaviorLog.Debug(ref ctx, "EQS resolved targets. RequestId=" + result.RequestId + " targets=" + result.TargetCount + " handle=" + result.TargetGroupHandle + ".");
             return NodeStatus.Success;
@@ -310,6 +321,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 s.CachedTargetGroupHandle = -1;
                 s.CachedEqsRequestId      = -1;
+                s.EqsRequestTime          = 0f;
                 s.CurrentWave             = (byte)(1 - s.CurrentWave);
                 return NodeStatus.Success;
             }
@@ -398,6 +410,7 @@ namespace Hrot.AI.Behaviors.Brains
 
             s.CachedTargetGroupHandle = -1;
             s.CachedEqsRequestId      = -1;
+            s.EqsRequestTime          = 0f;
             s.CurrentWave             = (byte)(1 - s.CurrentWave);
             if (BehaviorLog.IsDebugEnabled)
                 BehaviorLog.Debug(ref ctx, "Wave dispatched. Wave=" + dispatchWave + " attackers=" + s.ActiveAttackerCount + " targets=" + targetCount + " nextWave=" + s.CurrentWave + ".");
