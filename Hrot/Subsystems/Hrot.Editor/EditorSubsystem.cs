@@ -453,6 +453,7 @@ namespace Hrot.Editor
             var scenarioMod      = new ScenarioEditorModule(fileService);
 
             _kernel.RegisterModule(perceptionMod);
+            _kernel.RegisterModule(new EqsModule());
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
 

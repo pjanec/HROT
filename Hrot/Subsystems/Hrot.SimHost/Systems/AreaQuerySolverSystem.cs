@@ -46,18 +46,19 @@ namespace Hrot.SimHost.Systems
 
             // NativeArray value-copies share the same native memory pointers as the live
             // world — writes through these copies are visible to the Brain tick immediately.
-            var batch = repo.GetSingleton<AreaQueryBatchData>();
-            int count = batch.Count;
-            if (count == 0) return;
+            ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
+            int requestCount = batch.Count;
+            if (requestCount == 0) return;
+            batch.Count = 0;
 
             if (!repo.HasSingleton<SpatialGridData>()) return;
             var gridData = repo.GetSingleton<SpatialGridData>();
             var grid = gridData.Grid;
 
             if (!repo.HasSingleton<EqsTargetPool>()) return;
-            var pool = repo.GetSingleton<EqsTargetPool>();
+            ref var pool = ref repo.GetSingleton<EqsTargetPool>();
 
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < requestCount; i++)
             {
                 // Skip already resolved slots to avoid re-processing within the same solver cycle.
                 if (batch.Results[i].IsReady) continue;
@@ -104,8 +105,10 @@ namespace Hrot.SimHost.Systems
                     int nc = grid.QueryNeighbors(centroid, queryRadius, candidates);
 
                     // Allocate pool chunk for this request.
-                    int groupHandle = pool.NextFreeIndex;
                     int maxTargets = AreaQueryBatchData.DefaultCapacity; // max per request
+                    if (pool.NextFreeIndex + maxTargets > pool.Targets.Length)
+                        pool.NextFreeIndex = 0;
+                    int groupHandle = pool.NextFreeIndex;
 
                     int targetCount = 0;
 
@@ -152,7 +155,6 @@ namespace Hrot.SimHost.Systems
 
             // Write back the updated pool free index (the struct itself is a value copy;
             // write it back via SetSingleton so the next iteration starts from the correct offset).
-            repo.SetSingleton(pool);
         }
 
         // ── Helpers ──────────────────────────────────────────────────────────────

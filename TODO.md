@@ -1,3 +1,35 @@
+[IDEA] merged diagnostic snapshot
+The cross-cluster diagnostics could support merging all the partial information info one big text file with the following structure
+using markdown chapter marking
+
+    # Node-400 (CGF)
+
+    ## Events
+    ``` json
+    [here the the event json file gathered from node 400]
+    ```
+
+    ## Entities
+    ``` json
+    [here the entities json file gathered from node 400]
+    ```
+
+    ## Logs
+    ```
+    [here the log lines gathered from node 400]
+    ```
+
+
+---------------------------------------
+[IDEA] mark entity component fields with attributes specifying the meaning allowing debug visualization.
+For example in a component is expanded in entity inspector and it has fields marked with attribute like geopoint,
+the map shows the location of the point whenever the field is selected
+ [DbgVis(DbgVisType.GeoPoint2)] ... point in geographical coordinate system, lat/lon
+ [DbgVis(DbgVisType.GeoPoint3)] ... point in geographical coordinate system, lat/lon/alt
+ [DbgVis(DbgVisType.LocalPoint2)] .. point in local coordinate system, [x,y]
+ [DbgVis(DbgVisType.LocalPoint3)] .. point in local coordinate system, [x,y,z]
+
+
 ---------------------------------------
 [BUG]
 You have just uncovered a severe memory-misalignment bug in the FDP engine's `DeltaQueryEnumerator` optimization. Your intuition is 100% correct: **the component version is being written perfectly, but `QueryDelta` is looking at the wrong chunk of memory.**

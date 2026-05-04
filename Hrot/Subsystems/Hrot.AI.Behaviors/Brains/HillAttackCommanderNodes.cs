@@ -142,8 +142,12 @@ namespace Hrot.AI.Behaviors.Brains
                     return NodeStatus.Running;
 
                 ref readonly var nav = ref ctx.World.GetComponentRO<NavigationStatus>(sub);
-                if (nav.Result != NavigationResult.Arrived)
+
+                // Treat Arrived, FailedBlocked, and FailedUnreachable as completion.
+                // Only block the sequence if the tank is actively still trying to move.
+                if (nav.Result == NavigationResult.InProgress)
                     return NodeStatus.Running;
+
             }
             return NodeStatus.Success;
         }
