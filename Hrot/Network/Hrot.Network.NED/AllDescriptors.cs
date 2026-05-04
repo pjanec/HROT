@@ -38,6 +38,9 @@ namespace Hrot.NED.Descriptors
         dtMissionControlAck     = 91,
         // Tactical intent (Brain-to-Brain)
         dtTacticalIntentRequest = 92,
+        // EQS area-query pipeline (Brain <-> Muscle)
+        dtAreaQueryRequestBatch  = 93,
+        dtAreaQueryResponseBatch = 94,
         // etc., all known descriptor types here
     }
 
