@@ -37,7 +37,7 @@ public sealed class ClusterDiagnosticsPanel
     private bool   _dumpEntities     = true;
     private bool   _dumpArchitecture = true;
     private bool   _dumpLogs         = true;
-    private string _eventProvidersInput = string.Empty;
+    private string _eventProvidersInput = "World";
     private float  _maxAgeHours      = 24f;
     private int    _severityThreshold = 0;
 
