@@ -371,7 +371,13 @@ namespace Fdp.Core
         /// </summary>
         public const byte ZoneEnvironmentData = 201;
 
-        // IDs 202–255 are reserved for future toolkit/zone components.
+        /// <summary><c>AreaQueryBatchData</c> — ECS singleton for batched area query requests and results (EQS pipeline).</summary>
+        public const byte AreaQueryBatchData = 202;
+
+        /// <summary><c>EqsTargetPool</c> — ECS singleton native array pool for packed entity handles returned by area queries.</summary>
+        public const byte EqsTargetPool = 203;
+
+        // IDs 204–255 are reserved for future toolkit/zone components.
 
     }
 }
