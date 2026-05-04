@@ -34,7 +34,7 @@ namespace Hrot.Editor.UI
         public bool IsPlayPauseEnabled => true;
 
         /// <inheritdoc/>
-        public bool IsStepEnabled => InPreview && Paused;
+        public bool IsStepEnabled => true;
 
         /// <inheritdoc/>
         public bool IsStopEnabled => InPreview;
@@ -67,7 +67,11 @@ namespace Hrot.Editor.UI
         /// <inheritdoc/>
         public void Step()
         {
-            if (InPreview && Paused)
+            if (!InPreview)
+                _preview.EnterPreviewMode(startPaused: true);
+            else if (!Paused)
+                _timeCtrl.SwitchToDeterministic(new HashSet<int>());
+            else
                 _timeCtrl.Step(1f / 60f);
         }
 

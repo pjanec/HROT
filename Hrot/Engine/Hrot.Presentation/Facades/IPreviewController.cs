@@ -11,7 +11,7 @@ public interface IPreviewController
     bool IsInPreviewMode { get; }
 
     /// <summary>Enters preview mode, pausing authoring interactions and starting scenario simulation.</summary>
-    void EnterPreviewMode();
+    void EnterPreviewMode(bool startPaused = false);
 
     /// <summary>Exits preview mode, restoring authoring interactions.</summary>
     void ExitPreviewMode();

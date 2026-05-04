@@ -75,7 +75,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     public bool IsPlayPauseEnabled => _currentState == ClusterState.Idle || IsOperating;
 
     /// <inheritdoc/>
-    public bool IsStepEnabled => IsPlayPauseEnabled && _isPaused;
+    public bool IsStepEnabled => IsPlayPauseEnabled;
 
     /// <inheritdoc/>
     public bool IsStopEnabled => IsOperating;
@@ -99,7 +99,26 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     }
 
     /// <inheritdoc/>
-    public void Step() => _bus.PublishManaged(new StepTimeIntent { DeltaSeconds = 1f / 60f });
+    public void Step()
+    {
+        if (_currentState == ClusterState.OperatingEdit)
+        {
+            _bus.PublishManaged(new TransitionStateIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetState   = ClusterState.OperatingPreview,
+                TimeMode      = "Deterministic",
+            });
+        }
+        else if (!_isPaused)
+        {
+            _bus.PublishManaged(new PauseTimeIntent());
+        }
+        else
+        {
+            _bus.PublishManaged(new StepTimeIntent { DeltaSeconds = 1f / 60f });
+        }
+    }
 
     /// <inheritdoc/>
     public void Stop() => _bus.PublishManaged(new TransitionStateIntent

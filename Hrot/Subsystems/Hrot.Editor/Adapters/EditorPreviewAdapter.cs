@@ -51,7 +51,7 @@ namespace Hrot.Editor.Adapters
         /// Captures an in-memory ECS snapshot so the simulation can run in dry-run mode
         /// without modifying the authoritative editor state.
         /// </remarks>
-        public void EnterPreviewMode()
+        public void EnterPreviewMode(bool startPaused = false)
         {
             _handler.TriggerLoadingPreview();
         }

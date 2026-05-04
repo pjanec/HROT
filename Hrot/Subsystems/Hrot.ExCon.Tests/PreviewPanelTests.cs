@@ -21,7 +21,7 @@ public class PreviewPanelTests
 
         panel.HandleEnterPreview(ctrl.Object);
 
-        ctrl.Verify(c => c.EnterPreviewMode(), Times.Once);
+        ctrl.Verify(c => c.EnterPreviewMode(false), Times.Once);
     }
 
     [Fact]
@@ -57,6 +57,6 @@ public class PreviewPanelTests
 
         panel.HandleExitPreview(ctrl.Object);
 
-        ctrl.Verify(c => c.EnterPreviewMode(), Times.Never);
+        ctrl.Verify(c => c.EnterPreviewMode(false), Times.Never);
     }
 }

@@ -228,10 +228,11 @@ namespace Hrot.Editor
 
             public bool IsInPreviewMode => _inPreview;
 
-            public void EnterPreviewMode()
+            public void EnterPreviewMode(bool startPaused = false)
             {
                 _handler.TriggerLoadingPreview();
-                _timeController.SwitchToContinuous();
+                if (!startPaused)
+                    _timeController.SwitchToContinuous();
                 _inPreview = true;
             }
 

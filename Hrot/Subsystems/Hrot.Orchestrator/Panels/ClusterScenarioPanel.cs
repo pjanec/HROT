@@ -231,6 +231,7 @@ public sealed class ClusterScenarioPanel
     // ── Asset combo state (S0504 / S0506) ────────────────────────────────
     private int _selectedLoadScenarioIdx = -1;
     private int _selectedExerciseIdx        = -1;
+    private bool _startPaused = false;
     private int _selectedEpisodeIdx        = -1;
 
     // ── Replay section state ──────────────────────────────────────────────
@@ -589,6 +590,8 @@ public sealed class ClusterScenarioPanel
         if (ImGui.BeginChild("##OrcClusterControl", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
             if (disableAll) ImGui.BeginDisabled();
+            ImGui.Checkbox("Start Paused (Live/Preview)##OrcStartPaused", ref _startPaused);
+            ImGui.Spacing();
 
             var reachable = EffectiveReachable;
             if (reachable.Count == 0)
@@ -599,13 +602,17 @@ public sealed class ClusterScenarioPanel
             {
                 foreach (var target in reachable)
                 {
+                    string? timeMode = null;
+                    if (_startPaused && (target == ClusterState.OperatingLive || target == ClusterState.OperatingPreview))
+                        timeMode = "Deterministic";
+
                     if (ImGui.Button(target.ToString()))
                         SendRequest(new ClusterOpRequest
                         {
                             RequestId     = Guid.NewGuid(),
                             OperationType = ClusterOpType.TransitionState,
                             PayloadJson   = JsonSerializer.Serialize(
-                                new TransitionPayloadDto(TargetState: target, ScenarioId: null, ExerciseId: Guid.NewGuid(), TimeMode: null),
+                                new TransitionPayloadDto(TargetState: target, ScenarioId: null, ExerciseId: Guid.NewGuid(), TimeMode: timeMode),
                                 OrchestrationJsonOptions.Default),
                         });
                     ImGui.SameLine();
@@ -697,7 +704,7 @@ public sealed class ClusterScenarioPanel
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.TransitionState,
                     PayloadJson   = JsonSerializer.Serialize(
-                        new TransitionPayloadDto(TargetState: ClusterState.OperatingLive, ScenarioId: scenId, ExerciseId: Guid.NewGuid(), TimeMode: null),
+                        new TransitionPayloadDto(TargetState: ClusterState.OperatingLive, ScenarioId: scenId, ExerciseId: Guid.NewGuid(), TimeMode: _startPaused ? "Deterministic" : null),
                         OrchestrationJsonOptions.Default),
                 });
             }

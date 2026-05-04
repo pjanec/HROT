@@ -708,11 +708,11 @@ public sealed class ClusterMaster : IDisposable
             }
         }
 
-        // CGF1-S0205: Capture TimeMode when trajectory passes through LoadingLive.
-        bool passesLoadingLive = trajectory.OfType<TransitionStep>()
-            .Any(ts => ts.TargetState == ClusterState.LoadingLive);
+        // CGF1-S0205: Capture TimeMode when trajectory passes through simulation bootstrap.
+        bool passesSimulationStart = trajectory.OfType<TransitionStep>()
+            .Any(ts => ts.TargetState == ClusterState.LoadingLive || ts.TargetState == ClusterState.LoadingPreview);
 
-        if (passesLoadingLive && !string.IsNullOrWhiteSpace(intent.TimeMode))
+        if (passesSimulationStart && !string.IsNullOrWhiteSpace(intent.TimeMode))
             PendingTimeMode = intent.TimeMode;
         if (resolvedTarget == ClusterState.Idle)
             PendingTimeMode = null;
