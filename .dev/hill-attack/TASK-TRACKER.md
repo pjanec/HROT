@@ -13,7 +13,7 @@ patterns.
 - [x] **TASK-HA001** AreaQueryBatchData Types and Component Registration [details](./TASK-DETAIL.md#task-ha001-areaquerybatchdata-types-and-component-registration) *(BATCH-01)*
 - [x] **TASK-HA002** AreaQuerySolverSystem (Muscle Tier, SoD Module) [details](./TASK-DETAIL.md#task-ha002-areaquerysolversystem-muscle-tier-sod-module) *(BATCH-01)*
 - [x] **TASK-HA003** AreaQueryInitializationSystem (Brain Tier, per-frame reset) [details](./TASK-DETAIL.md#task-ha003-areaqueryinitializationsystem-brain-tier-cgf) *(BATCH-01)*
-- [ ] **TASK-HA004** EQS Network Translators [details](./TASK-DETAIL.md#task-ha004-eqs-network-translators)
+- [x] **TASK-HA004** EQS Network Translators [details](./TASK-DETAIL.md#task-ha004-eqs-network-translators)
 
 ---
 
@@ -56,7 +56,7 @@ slot management, and register it.
 scenario.
 
 - [x] **TASK-HA014** TKB Blueprint Updates [details](./TASK-DETAIL.md#task-ha014-tkb-blueprint-updates) *(BATCH-02)*
-- [ ] **TASK-HA015** Integration Test (Scenario-based) [details](./TASK-DETAIL.md#task-ha015-integration-test-scenario-based)
+- [x] **TASK-HA015** Integration Test (Scenario-based) [details](./TASK-DETAIL.md#task-ha015-integration-test-scenario-based)
 
 ---
 
