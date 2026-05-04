@@ -1,6 +1,8 @@
 using System;
+using NLog;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
@@ -50,7 +52,10 @@ namespace Hrot.CGF.Systems
     [UpdateInPhase(SystemPhase.Simulation)]
     public sealed class TacticalIntentResolutionSystem : IEcsModuleSystem
     {
+        private static readonly Logger s_aiLog = LogManager.GetLogger("AI.Behavior.TacticalIntent");
+
         private readonly TacticalIntentMapperRegistry _mapperRegistry;
+        private readonly BehaviorRegistry _behaviorRegistry;
 
         /// <summary>
         /// Creates the system with the supplied mapper registry.
@@ -59,10 +64,14 @@ namespace Hrot.CGF.Systems
         /// Registry of intent-to-behavior mappers.  May be empty (all intents fall
         /// through to the pass-through path).  Must not be <c>null</c>.
         /// </param>
-        public TacticalIntentResolutionSystem(TacticalIntentMapperRegistry mapperRegistry)
+        public TacticalIntentResolutionSystem(
+            TacticalIntentMapperRegistry mapperRegistry,
+            BehaviorRegistry behaviorRegistry)
         {
             _mapperRegistry = mapperRegistry
                 ?? throw new ArgumentNullException(nameof(mapperRegistry));
+            _behaviorRegistry = behaviorRegistry
+                ?? throw new ArgumentNullException(nameof(behaviorRegistry));
         }
 
         /// <inheritdoc/>
@@ -99,6 +108,15 @@ namespace Hrot.CGF.Systems
                 // A new instance is always allocated (pooling/reuse is not permitted).
                 if (behaviorEvent == null)
                 {
+                    if (!_behaviorRegistry.TryGetId(evt.IntentId, out _) && s_aiLog.IsWarnEnabled)
+                    {
+                        int behaviorHash = repo.HasComponent<BehaviorState>(evt.Entity)
+                            ? repo.GetComponent<BehaviorState>(evt.Entity).ActiveBehaviorHash : 0;
+                        s_aiLog.Warn(
+                            "Entity:[{EntityId}] Behavior:[{BehaviorHash}] Node:[TacticalIntentResolutionSystem] | Intent [{IntentId}] not found in mapper registry AND not found in behavior registry. Check for authoring typos.",
+                            evt.Entity.Index, behaviorHash, evt.IntentId);
+                    }
+
                     behaviorEvent = new AssignBehaviorEvent
                     {
                         Entity       = evt.Entity,

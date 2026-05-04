@@ -116,6 +116,8 @@ class Program
             ConcurrentWrites = false,
         };
         logConfig.AddRule(LogLevel.Debug, LogLevel.Fatal, fileTarget);
+        // Route AI behavior logs to the dedicated UI tab (also captured by file/console rules above).
+        logConfig.AddRule(LogLevel.Debug, LogLevel.Fatal, AiBehaviorLogTarget.SharedInstance, "AI.Behavior*");
         LogManager.Configuration = logConfig;
 
         // ── CI mode: headless deterministic scenario run ──────────────────

@@ -123,7 +123,7 @@ namespace Hrot.CGF
             _cognitiveRuntimeModule = new CognitiveRuntimeModule(behaviorRegistry);
             _missionExecutionSystem              = new MissionControlExecutionSystem(entityMap, behaviorRegistry, mapperRegistry);
             _missionAdapterSystem                = new MissionAdapterSystem();
-            _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry);
+            _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry, behaviorRegistry);
             _actionDispatchModule   = new ActionDispatchModule(
                 locoExecutors: new (ushort, IActionExecutor<LocomotionChannel>)[]
                 {

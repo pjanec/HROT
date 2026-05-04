@@ -10,6 +10,7 @@ using Fbt.Serialization;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Navigation;
+using Hrot.AI.Behaviors.Logging;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -211,6 +212,7 @@ namespace Hrot.AI.Behaviors.Brains
             var dto = JsonSerializer.Deserialize<FireAtTargetParamsJsonDto>(json, JsonOptions);
             if (dto == null)
             {
+                BehaviorLog.ParseWarn("FireAtTarget JSON deserialized to null; using default params.");
                 Unsafe.Write(ptr, default(FireAtTargetParams));
                 return;
             }
@@ -220,6 +222,10 @@ namespace Hrot.AI.Behaviors.Brains
                 && entityMap.TryGetEntity(dto.TargetNetworkId, out var entity))
             {
                 targetPacked = (long)entity.PackedValue;
+            }
+            else if (dto.TargetNetworkId != 0)
+            {
+                BehaviorLog.ParseWarn("FireAtTarget TargetNetworkId=" + dto.TargetNetworkId + " not found in entity map; target will not fire.");
             }
 
             Unsafe.Write(ptr, new FireAtTargetParams
@@ -249,7 +255,10 @@ namespace Hrot.AI.Behaviors.Brains
             ref BTreeContext ctx)
         {
             if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            {
+                BehaviorLog.Error(ref ctx, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
                 return NodeStatus.Failure;
+            }
 
             ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
             if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
@@ -294,7 +303,10 @@ namespace Hrot.AI.Behaviors.Brains
             ref BTreeContext ctx)
         {
             if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            {
+                BehaviorLog.Error(ref ctx, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
                 return NodeStatus.Failure;
+            }
 
             ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
             if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
@@ -327,7 +339,10 @@ namespace Hrot.AI.Behaviors.Brains
             ref BTreeContext ctx)
         {
             if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            {
+                BehaviorLog.Error(ref ctx, "Entity is missing LocomotionChannel; blueprint may be misconfigured.");
                 return NodeStatus.Failure;
+            }
 
             ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
             if (ctx.World.HasComponent<BehaviorState>(ctx.Self))

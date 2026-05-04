@@ -158,7 +158,7 @@ namespace Hrot.SimHost.Tests
             mapperRegistry.Register(new HullDownAttackMapper());
             return (
                 new BehaviorIngressSystem(registry),
-                new TacticalIntentResolutionSystem(mapperRegistry),
+                new TacticalIntentResolutionSystem(mapperRegistry, registry),
                 new BTreeTickSystem(registry),
                 new AreaQuerySolverSystem()
             );
@@ -624,7 +624,7 @@ namespace Hrot.SimHost.Tests
             mapperRegistry.Register(new HullDownAttackMapper());
 
             var behaviorIngress    = new BehaviorIngressSystem(registry);
-            var tacticalResolution = new TacticalIntentResolutionSystem(mapperRegistry);
+            var tacticalResolution = new TacticalIntentResolutionSystem(mapperRegistry, registry);
             var btreeTick          = new BTreeTickSystem(registry);
             var eqsSolver          = new AreaQuerySolverSystem();
 

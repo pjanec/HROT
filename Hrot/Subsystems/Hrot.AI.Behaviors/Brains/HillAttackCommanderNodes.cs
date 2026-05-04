@@ -15,6 +15,7 @@ using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Spatial.Eqs;
+using Hrot.AI.Behaviors.Logging;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -61,6 +62,8 @@ namespace Hrot.AI.Behaviors.Brains
             s.CurrentWave         = 0;
             s.CachedEqsRequestId  = -1;
             s.CachedTargetGroupHandle = -1;
+            if (BehaviorLog.IsDebugEnabled)
+                BehaviorLog.Debug(ref ctx, "Calculated slots=" + totalSlots + " spacing=" + spacing.ToString("G6", System.Globalization.CultureInfo.InvariantCulture) + "m.");
             return NodeStatus.Success;
         }
 
@@ -84,6 +87,8 @@ namespace Hrot.AI.Behaviors.Brains
 
             s.BaselineReservedMask = 0;
             int count = roster.Count;
+            if (BehaviorLog.IsDebugEnabled)
+                BehaviorLog.Debug(ref ctx, "Dispatching baseline move intents. Subordinates=" + count + ".");
 
             for (int i = 0; i < count; i++)
             {
@@ -111,6 +116,8 @@ namespace Hrot.AI.Behaviors.Brains
 
                 if (i < 16) s.BaselineReservedMask |= (ushort)(1 << i);
             }
+            if (BehaviorLog.IsDebugEnabled)
+                BehaviorLog.Debug(ref ctx, "Baseline dispatch complete. ReservedMask=" + s.BaselineReservedMask + ".");
             return NodeStatus.Success;
         }
 
@@ -130,6 +137,7 @@ namespace Hrot.AI.Behaviors.Brains
 
             ref readonly var roster = ref ctx.World.GetComponentRO<UnitRoster>(ctx.Self);
             int count = roster.Count;
+            int arrivedCount = 0;
 
             for (int i = 0; i < count; i++)
             {
@@ -139,16 +147,27 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!ctx.World.IsAlive(sub)) continue;  // dead = counts as arrived
 
                 if (!ctx.World.HasComponent<NavigationStatus>(sub))
+                {
+                    if (BehaviorLog.IsTraceEnabled)
+                        BehaviorLog.Trace(ref ctx, "Baseline wait: subordinate=" + sub.Index + " missing NavigationStatus.");
                     return NodeStatus.Running;
+                }
 
                 ref readonly var nav = ref ctx.World.GetComponentRO<NavigationStatus>(sub);
 
                 // Treat Arrived, FailedBlocked, and FailedUnreachable as completion.
                 // Only block the sequence if the tank is actively still trying to move.
                 if (nav.Result == NavigationResult.InProgress)
+                {
+                    if (BehaviorLog.IsTraceEnabled)
+                        BehaviorLog.Trace(ref ctx, "Baseline wait: arrived=" + arrivedCount + "/" + count + " blockingSub=" + sub.Index + ".");
                     return NodeStatus.Running;
+                }
+                arrivedCount++;
 
             }
+            if (BehaviorLog.IsDebugEnabled)
+                BehaviorLog.Debug(ref ctx, "All subordinates at baseline. Arrived=" + arrivedCount + "/" + count + ".");
             return NodeStatus.Success;
         }
 
@@ -172,17 +191,35 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 var existing = AreaQueryBatchHelper.GetAreaQueryResult(ctx.World, s.CachedEqsRequestId);
                 if (!existing.IsReady)
+                {
+                    if (BehaviorLog.IsTraceEnabled)
+                        BehaviorLog.Trace(ref ctx, "EQS request in flight. RequestId=" + s.CachedEqsRequestId + ".");
                     return NodeStatus.Running;
+                }
                 // Result is ready; advance sequence so next node can consume it.
+                if (BehaviorLog.IsDebugEnabled)
+                    BehaviorLog.Debug(ref ctx, "EQS request already resolved. RequestId=" + s.CachedEqsRequestId + ".");
                 return NodeStatus.Success;
+            }
+
+            // Guard: TargetAreaEntity must be alive before submitting a query.
+            if (p.TargetAreaEntity.IsNull || !ctx.World.IsAlive(p.TargetAreaEntity))
+            {
+                BehaviorLog.Error(ref ctx, "TargetAreaEntity is null or dead. Cannot execute area query.");
+                return NodeStatus.Failure;
             }
 
             // Submit fresh request.
             long id = AreaQueryBatchHelper.RequestAreaQuery(ctx.World, ctx.Self, p.TargetAreaEntity, ForceId.Hostile);
             if (id == -1)
+            {
+                BehaviorLog.Warn(ref ctx, "EQS area query batch is full; retrying next frame. Consider increasing DefaultCapacity.");
                 return NodeStatus.Running;  // batch full; retry next frame
+            }
 
             s.CachedEqsRequestId = id;
+            if (BehaviorLog.IsDebugEnabled)
+                BehaviorLog.Debug(ref ctx, "Submitted EQS area query. RequestId=" + id + ".");
             return NodeStatus.Success;
         }
 
@@ -206,19 +243,27 @@ namespace Hrot.AI.Behaviors.Brains
 
             var result = AreaQueryBatchHelper.GetAreaQueryResult(ctx.World, s.CachedEqsRequestId);
             if (!result.IsReady)
+            {
+                if (BehaviorLog.IsTraceEnabled)
+                    BehaviorLog.Trace(ref ctx, "Waiting EQS result. RequestId=" + s.CachedEqsRequestId + ".");
                 return NodeStatus.Running;
+            }
 
             if (result.TargetCount == 0)
             {
                 // Area cleared: break out of the Repeater so the BTree can finish.
                 s.CachedEqsRequestId      = -1;
                 s.CachedTargetGroupHandle = -1;
+                if (BehaviorLog.IsDebugEnabled)
+                    BehaviorLog.Debug(ref ctx, "EQS resolved clear area. RequestId=" + result.RequestId + " targets=0.");
                 return NodeStatus.Failure;
             }
 
             // Targets found: cache the pool handle for Action_DispatchWaveWithTargets.
             // CachedEqsRequestId is intentionally NOT cleared here (SC-HA011-5).
             s.CachedTargetGroupHandle = result.TargetGroupHandle;
+            if (BehaviorLog.IsDebugEnabled)
+                BehaviorLog.Debug(ref ctx, "EQS resolved targets. RequestId=" + result.RequestId + " targets=" + result.TargetCount + " handle=" + result.TargetGroupHandle + ".");
             return NodeStatus.Success;
         }
 
@@ -238,6 +283,7 @@ namespace Hrot.AI.Behaviors.Brains
 
             s.WaveUsedSlotsMask   = 0;
             s.ActiveAttackerCount = 0;
+            byte dispatchWave = s.CurrentWave;
 
             // Resolve target count from the cached EQS result.
             int targetCount = 0;
@@ -286,7 +332,11 @@ namespace Hrot.AI.Behaviors.Brains
 
                 // Pick the first available firing-line slot.
                 int firingSlot = GetFirstAvailableSlot((ushort)(s.BurnedSlotsMask | s.WaveUsedSlotsMask), s.TotalSlots);
-                if (firingSlot < 0) continue;  // no slots left; skip tank
+                if (firingSlot < 0)
+                {
+                    BehaviorLog.Warn(ref ctx, "No firing-line slots available for subordinate Entity:" + sub.Index + "; skipping this wave assignment.");
+                    continue;  // no slots left; skip tank
+                }
 
                 // Interpolate firing-slot world position.
                 float ft = s.TotalSlots > 1 ? (float)firingSlot / (s.TotalSlots - 1) : 0.5f;
@@ -349,6 +399,8 @@ namespace Hrot.AI.Behaviors.Brains
             s.CachedTargetGroupHandle = -1;
             s.CachedEqsRequestId      = -1;
             s.CurrentWave             = (byte)(1 - s.CurrentWave);
+            if (BehaviorLog.IsDebugEnabled)
+                BehaviorLog.Debug(ref ctx, "Wave dispatched. Wave=" + dispatchWave + " attackers=" + s.ActiveAttackerCount + " targets=" + targetCount + " nextWave=" + s.CurrentWave + ".");
             return NodeStatus.Success;
         }
 
@@ -409,7 +461,16 @@ namespace Hrot.AI.Behaviors.Brains
                 }
             }
 
-            return s.ActiveAttackerCount == 0 ? NodeStatus.Success : NodeStatus.Running;
+            if (s.ActiveAttackerCount == 0)
+            {
+                if (BehaviorLog.IsDebugEnabled)
+                    BehaviorLog.Debug(ref ctx, "Wave completed.");
+                return NodeStatus.Success;
+            }
+
+            if (BehaviorLog.IsTraceEnabled)
+                BehaviorLog.Trace(ref ctx, "Waiting wave completion. ActiveAttackers=" + s.ActiveAttackerCount + ".");
+            return NodeStatus.Running;
         }
 
         // ── BTree definition ──────────────────────────────────────────────────────
@@ -533,14 +594,16 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 dto = JsonSerializer.Deserialize<PlatoonHillAttackParamsJsonDto>(json, JsonOptions);
             }
-            catch
+            catch (Exception ex)
             {
+                BehaviorLog.ParseError("Failed to deserialize PlatoonHillAttack JSON: " + ex.Message);
                 Unsafe.Write(ptr, default(PlatoonHillAttackParams));
                 return;
             }
 
             if (dto == null)
             {
+                BehaviorLog.ParseError("PlatoonHillAttack JSON deserialized to null.");
                 Unsafe.Write(ptr, default(PlatoonHillAttackParams));
                 return;
             }
@@ -586,9 +649,15 @@ namespace Hrot.AI.Behaviors.Brains
 
             // Resolve target area entity.
             if (dto.TargetAreaNetworkId != 0 && entityMap.TryGetEntity(dto.TargetAreaNetworkId, out var areaEntity))
+            {
                 result.TargetAreaEntity = areaEntity;
+            }
             else
+            {
+                if (dto.TargetAreaNetworkId != 0)
+                    BehaviorLog.ParseWarn("TargetAreaNetworkId=" + dto.TargetAreaNetworkId + " not found in entity map; area entity set to null.");
                 result.TargetAreaEntity = Entity.Null;
+            }
 
             Unsafe.Write(ptr, result);
         }

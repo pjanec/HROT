@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
@@ -108,7 +109,7 @@ namespace Hrot.SimHost.Tests
             var registry = new TacticalIntentMapperRegistry();
             registry.Register(new SuccessMapper("DefendArea", "InfantryDefend"));
 
-            var system = new TacticalIntentResolutionSystem(registry);
+            var system = new TacticalIntentResolutionSystem(registry, new BehaviorRegistry());
 
             repo.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
@@ -140,7 +141,7 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateTestWorld();
             var entity = CreateAuthorityEntity(repo);
 
-            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry());
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), new BehaviorRegistry());
 
             repo.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
@@ -171,7 +172,7 @@ namespace Hrot.SimHost.Tests
             var entity = CreateAuthorityEntity(repo);
             repo.DestroyEntity(entity);
 
-            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry());
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), new BehaviorRegistry());
 
             repo.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
@@ -205,7 +206,7 @@ namespace Hrot.SimHost.Tests
             var registry = new TacticalIntentMapperRegistry();
             registry.Register(new FailingMapper("DefendArea"));
 
-            var system = new TacticalIntentResolutionSystem(registry);
+            var system = new TacticalIntentResolutionSystem(registry, new BehaviorRegistry());
 
             repo.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
@@ -242,7 +243,7 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(entity, new BehaviorState());
             // Authority bit deliberately NOT set.
 
-            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry());
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), new BehaviorRegistry());
 
             repo.Bus.PublishManaged(new AssignTacticalIntentEvent
             {

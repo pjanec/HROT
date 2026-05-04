@@ -2,6 +2,7 @@ using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
+using Fdp.Core.Logging;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Diagnostics;
@@ -673,6 +674,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 renderDelegate: timeSection.Render,
                 perspective:    "CGF");
         }
+
+        // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).
+        windowManager.MessageLogRegistry?.RegisterSource(AiBehaviorLogTarget.SharedInstance);
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────

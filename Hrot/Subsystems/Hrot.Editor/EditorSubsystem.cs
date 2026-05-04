@@ -1033,6 +1033,8 @@ namespace Hrot.Editor
             // appear as a second tab in the shared Message Log window.
             if (_hotReloadSource != null)
                 windowManager.MessageLogRegistry?.RegisterSource(_hotReloadSource);
+            // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).
+            windowManager.MessageLogRegistry?.RegisterSource(AiBehaviorLogTarget.SharedInstance);
 
             if (_kernel != null)
             {
