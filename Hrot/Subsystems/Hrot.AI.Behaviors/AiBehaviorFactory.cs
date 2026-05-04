@@ -157,6 +157,7 @@ namespace Hrot.AI.Behaviors
                     {
                         Name             = "PlatoonHillAttack",
                         BrainTier        = BehaviorConstants.BrainTierBTree,
+                        ParamsDtoType    = typeof(PlatoonHillAttackParams),
                         HeavyDtoType     = typeof(HillAttackMutableState),
                         ParseParams      = (json, ptr) => HillAttackCommanderNodes.ParsePlatoonHillAttackParams(
                             json, ptr, geoTransform, entityMap),

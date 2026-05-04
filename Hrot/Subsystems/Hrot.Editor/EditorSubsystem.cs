@@ -345,7 +345,6 @@ namespace Hrot.Editor
             _geoTransform = geoTransform;
             var entityMap        = new NetworkEntityMap();
             _entityMap = entityMap;
-            _fdpEntityInspector.ExtractionService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap);
             var behaviorRegistry = new BehaviorRegistry();
             _behaviorRegistry = behaviorRegistry;
             // Register Urban Combat behaviors so MissionAdapterSystem can resolve Ambush
@@ -391,6 +390,11 @@ namespace Hrot.Editor
             // Build the serializer with custom translators AFTER component registration
             // so FdpAutoSerializer compiles extraction delegates for all registered types.
             var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
+
+            // Wire the unified serialization path so the entity inspector Copy JSON
+            // buttons produce readable DTO output for BrainBlackboard and Blackboard1024.
+            _fdpEntityInspector.Serializer = scenarioSerializer;
+            _fdpEntityInspector.ExtractionService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap, scenarioSerializer);
 
             // Inject bus and zoneService so file ops trigger WorldResetEvent and persist zone data.
             var fileService = new ScenarioFileService(scenarioSerializer, _world.Bus, zoneService);

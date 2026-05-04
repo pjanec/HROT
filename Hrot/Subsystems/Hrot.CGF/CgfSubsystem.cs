@@ -384,8 +384,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         newClusterSlave.RegisterHandler(new ReferenceArchiveHandler(
             OrchestrationConstants.DefaultStagingDirectory, _context.NodeId));
         var cgfArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_context.Kernel);
-        var cgfEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_context.World, _context.EntityMap);
+        var cgfEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_context.World, _context.EntityMap, scenarioSerializer);
         _fdpEntityInspector.ExtractionService = cgfEntityService;
+        _fdpEntityInspector.Serializer        = scenarioSerializer;
         var cgfLogService = new Hrot.Core.Diagnostics.LogArchiveExtractionService(
             string.IsNullOrWhiteSpace(nodeConfig.LogDirectory)
                 ? System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs")
