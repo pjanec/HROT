@@ -60,6 +60,7 @@ namespace Hrot.CGF
         private readonly ActionDispatchModule   _actionDispatchModule;
         private readonly MissionControlExecutionSystem _missionExecutionSystem;
         private readonly MissionAdapterSystem   _missionAdapterSystem;
+        private readonly AreaQueryInitializationSystem _areaQueryInitSystem;
 
         // ── Standalone systems (moved from RegisterSystems overloads) ──────────
         private readonly HealthApplicationSystem      _healthApplicationSystem;        private readonly ActiveSensorTracksUpdateSystem _activeSensorTracksUpdateSystem;        private readonly CgfThreatEvaluationSystem    _cgfThreatEvaluationSystem;
@@ -119,6 +120,7 @@ namespace Hrot.CGF
 
             ScenarioSource = scenarioSource;
 
+            _areaQueryInitSystem    = new AreaQueryInitializationSystem();
             _missionControlModule   = new MissionControlModule(behaviorRegistry);
             _cognitiveRuntimeModule = new CognitiveRuntimeModule(behaviorRegistry);
             _missionExecutionSystem              = new MissionControlExecutionSystem(entityMap, behaviorRegistry, mapperRegistry);
@@ -145,6 +147,7 @@ namespace Hrot.CGF
             var inputList = new List<IEcsModuleSystem>();
             var simList   = new List<IEcsModuleSystem>();
 
+            inputList.Add(_areaQueryInitSystem);
             inputList.Add(_missionExecutionSystem);
             foreach (var s in _missionControlModule.InputSystems) inputList.Add(s);
 

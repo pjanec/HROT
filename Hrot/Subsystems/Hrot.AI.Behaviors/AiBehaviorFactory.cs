@@ -33,7 +33,9 @@ namespace Hrot.AI.Behaviors
         private const int JoinFormation_BT  = 3003;
         private const int Idle_HSM          = 3010;
         private const int WanderMilitary_BT = 3011;
-        private const int FireAtTarget_BT   = 3012;
+        private const int FireAtTarget_BT       = 3012;
+        private const int HullDownAttackRun_BT   = 3013;
+        private const int PlatoonHillAttack_BT   = 3014;
 
         /// <summary>
         /// Compiles all BTree interpreters and wires all action delegates for this
@@ -67,6 +69,8 @@ namespace Hrot.AI.Behaviors
             var joinFormationBlob = FbtTreeCatalog.GetJoinFormation();
             var wanderBlob        = FbtTreeCatalog.GetWanderMilitary();
             var fireAtTargetBlob  = FbtTreeCatalog.GetFireAtTarget();
+            var hullDownBlob      = FbtTreeCatalog.GetHullDownAttackRun();
+            var platoonHillBlob   = FbtTreeCatalog.GetPlatoonHillAttack();
 
             // Pre-compile HSM blob for Idle_HSM: a single "Idle" state with no transitions.
             var idleHsmBuilder = new HsmBuilder("Idle_HSM");
@@ -137,6 +141,27 @@ namespace Hrot.AI.Behaviors
                         ParamsDtoType    = typeof(CgfNodes.FireAtTargetParams),
                         BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
                             fireAtTargetBlob, actionRegistry),
+                    });
+
+                registry.Register(HullDownAttackRun_BT, "HullDownAttackRun",
+                    new BehaviorDefinition
+                    {
+                        Name             = "HullDownAttackRun",
+                        BrainTier        = BehaviorConstants.BrainTierBTree,
+                        BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
+                            hullDownBlob, actionRegistry),
+                    });
+
+                registry.Register(PlatoonHillAttack_BT, "PlatoonHillAttack",
+                    new BehaviorDefinition
+                    {
+                        Name             = "PlatoonHillAttack",
+                        BrainTier        = BehaviorConstants.BrainTierBTree,
+                        HeavyDtoType     = typeof(HillAttackMutableState),
+                        ParseParams      = (json, ptr) => HillAttackCommanderNodes.ParsePlatoonHillAttackParams(
+                            json, ptr, geoTransform, entityMap),
+                        BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
+                            platoonHillBlob, actionRegistry),
                     });
             };
         }

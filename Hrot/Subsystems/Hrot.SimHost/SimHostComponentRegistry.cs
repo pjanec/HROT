@@ -10,6 +10,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Spatial.Eqs;
 
 namespace Hrot.SimHost;
 
@@ -96,6 +97,17 @@ public static class SimHostComponentRegistry
         {
             Requests = new NativeArray<PathRequest>(PathfindingBatchData.DefaultCapacity, Allocator.Persistent),
             Results  = new NativeArray<PathResult>(PathfindingBatchData.DefaultCapacity, Allocator.Persistent),
+        });
+
+        // ── EQS batch singletons (TASK-HA001) ────────────────────────────────
+        world.SetSingleton(new AreaQueryBatchData
+        {
+            Requests = new NativeArray<AreaQueryRequest>(AreaQueryBatchData.DefaultCapacity, Allocator.Persistent),
+            Results  = new NativeArray<AreaQueryResult>(AreaQueryBatchData.DefaultCapacity, Allocator.Persistent),
+        });
+        world.SetSingleton(new EqsTargetPool
+        {
+            Targets = new NativeArray<long>(EqsTargetPool.PoolCapacity, Allocator.Persistent),
         });
     }
 }

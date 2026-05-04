@@ -258,6 +258,23 @@ namespace Hrot.Map.Definitions.Tkb
 
             return this;
         }
+
+        /// <summary>
+        /// Adds the <see cref="Blackboard1024"/> heavy working-memory component to the
+        /// template.  Required for commander entities that project
+        /// <c>Blackboard1024.Memory</c> onto a behavior-specific mutable-state struct
+        /// (e.g., <c>HillAttackMutableState</c>).
+        /// </summary>
+        public NedTkbBuilder WithHeavyMemory(long tkbId)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+
+            template.AddComponent(new Blackboard1024());
+
+            return this;
+        }
         
         /// <summary>
         /// Add composite (ORBAT) definition.

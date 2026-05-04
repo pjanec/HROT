@@ -17,10 +17,12 @@ namespace Hrot.Map.Definitions.Behavior
         public const int WanderMilitary_BT = 3011;
 
         // Combat BTree (3012-3019)
-        public const int FireAtTarget_BT   = 3012;
-        public const int ConvoyEscort_BT   = 3013;
-        public const int InfantryCombat_BT = 3014;
-        public const int Ambush_BT         = 3015;
+        public const int FireAtTarget_BT       = 3012;
+        public const int HullDownAttackRun_BT  = 3013;
+        public const int PlatoonHillAttack_BT  = 3014;
+        public const int InfantryCombat_BT     = 3016;
+        public const int Ambush_BT             = 3017;
+        public const int ConvoyEscort_BT       = 3018;
 
         // Tactical Intent DTOs (1000-1099) — generic intents resolved by mappers
         public const int DefendArea_Intent = 1000;

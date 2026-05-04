@@ -34,6 +34,7 @@ namespace Hrot.SimHost
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<BrainBlackboard>();
+            world.RegisterComponent<Blackboard1024>();
             world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<BrainHsm64>();
             world.RegisterComponent<MissionPlanQueue>();
