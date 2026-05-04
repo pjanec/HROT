@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Physics.Systems;
 using Fdp.ModuleHost.Abstractions;
@@ -28,25 +27,20 @@ namespace Fdp.Toolkit.Physics.Modules
         /// <inheritdoc/>
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
 
-        private readonly RaycastSolverSystem  _raycastSolver  = new();
-        private readonly HitResolutionSystem  _hitResolution  = new();
+        private readonly RaycastSolverSystem _raycastSolver = new();
+        private readonly HitResolutionSystem  _hitResolution = new();
 
-        /// <summary>Systems that run in the Input phase.</summary>
-        public IReadOnlyList<IEcsModuleSystem> InputSystems { get; }
-
-        public PhysicsQueryModule()
+        /// <inheritdoc/>
+        public void RegisterSystems(ISystemRegistry registry)
         {
-            InputSystems = new IEcsModuleSystem[] { _raycastSolver, _hitResolution };
+            registry.RegisterSystem(new RaycastResultMaterializationSystem());
         }
 
         /// <inheritdoc/>
-        /// <remarks>
-        /// No-op — use <see cref="InputSystems"/> to wire the systems into a
-        /// <see cref="SystemGroup"/> or the modern kernel.
-        /// </remarks>
-        public void RegisterSystems(ISystemRegistry registry) { }
-
-        /// <inheritdoc/>
-        public void Tick(ISimulationView view, float dt) { }
+        public void Tick(ISimulationView view, float dt)
+        {
+            _raycastSolver.Execute(view, dt);
+            _hitResolution.Execute(view, dt);
+        }
     }
 }

@@ -1,5 +1,7 @@
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Physics.Modules;
 using Fdp.Toolkit.Physics.Systems;
+using Moq;
 using Xunit;
 
 namespace Fdp.Toolkit.Physics.Tests
@@ -7,14 +9,14 @@ namespace Fdp.Toolkit.Physics.Tests
     public class PhysicsQueryModuleTests
     {
         [Fact]
-        public void PhysicsQueryModule_RegistersRaycastAndHitSystems()
+        public void PhysicsQueryModule_RegistersMaterializationSystem()
         {
-            var module = new PhysicsQueryModule();
+            var module       = new PhysicsQueryModule();
+            var mockRegistry = new Mock<ISystemRegistry>();
 
-            // Assert -- exactly two IEcsModuleSystem instances are exposed.
-            Assert.Equal(2, module.InputSystems.Count);
-            Assert.Contains(module.InputSystems, s => s is RaycastSolverSystem);
-            Assert.Contains(module.InputSystems, s => s is HitResolutionSystem);
+            module.RegisterSystems(mockRegistry.Object);
+
+            mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<RaycastResultMaterializationSystem>()), Times.Once);
         }
     }
 }

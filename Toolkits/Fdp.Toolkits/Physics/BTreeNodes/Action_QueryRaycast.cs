@@ -27,17 +27,17 @@ namespace Fdp.Toolkit.Physics.BTreeNodes
         public float MaxDistance { get; set; }
 
         /// <summary>
-        /// Appends the configured ray to <see cref="RaycastBatchData"/> and returns the
-        /// assigned ray ID (≥ 0), or -1 if the batch is full.
+        /// Publishes a <see cref="RaycastRequestEvent"/> for the configured ray and returns the
+        /// assigned ray ID, or 0 if the singleton is absent.
         /// </summary>
-        public int Execute(EntityRepository world)
+        public long Execute(EntityRepository world)
             => RaycastBatchHelper.RequestRaycast(world, EntityIndex, EntityGeneration, Origin, Direction, MaxDistance);
 
         /// <summary>
         /// Retrieves the <see cref="RaycastHit"/> matching <paramref name="rayId"/>,
         /// or <c>default</c> if not yet resolved or not found.
         /// </summary>
-        public RaycastHit QueryResult(EntityRepository world, int rayId)
+        public RaycastHit QueryResult(EntityRepository world, long rayId)
             => RaycastBatchHelper.GetRaycastResult(world, rayId);
     }
 }

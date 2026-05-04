@@ -2,6 +2,7 @@ using CarKinem.Spatial;
 using Fdp.Core;
 using Fdp.Core.Collections;
 using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Perception.Events;
 
@@ -21,7 +22,6 @@ namespace Fdp.Toolkit.Physics.Tests
     /// finally
     /// {
     ///     ref var b = ref world.GetSingleton&lt;RaycastBatchData&gt;();
-    ///     b.Requests.Dispose();
     ///     b.Hits.Dispose();
     /// }
     /// </code>
@@ -43,16 +43,16 @@ namespace Fdp.Toolkit.Physics.Tests
 
             // Events exchanged within and across the Physics pipeline.
             // HitEvent was migrated to FDP.Toolkit.Combat in BATCH-09 (DEBT-023),
-            // then moved to Fdp.Core in BATCH-10 to break the Combat↔Physics circular dep.
+            // then moved to Fdp.Core in BATCH-10 to break the Combat<->Physics circular dep.
             world.RegisterEvent<HitEvent>();
             world.RegisterEvent<TargetVisibleEvent>();
+            world.RegisterEvent<RaycastRequestEvent>();
+            world.RegisterEvent<RaycastResultEvent>();
 
             // Initialize RaycastBatchData singleton with Persistent allocator.
             var batch = new RaycastBatchData
             {
-                Requests = new NativeArray<RaycastRequest>(PhysicsConstants.RaycastBatchCapacity, Allocator.Persistent),
-                Hits     = new NativeArray<RaycastHit>(PhysicsConstants.RaycastBatchCapacity, Allocator.Persistent),
-                Count    = 0,
+                Hits = new NativeArray<RaycastHit>(PhysicsConstants.RaycastBatchCapacity, Allocator.Persistent),
             };
             world.SetSingleton(batch);
 
@@ -64,8 +64,7 @@ namespace Fdp.Toolkit.Physics.Tests
         {
             if (!world.HasSingleton<RaycastBatchData>()) return;
             ref var b = ref world.GetSingleton<RaycastBatchData>();
-            if (b.Requests.IsCreated) b.Requests.Dispose();
-            if (b.Hits.IsCreated)     b.Hits.Dispose();
+            if (b.Hits.IsCreated) b.Hits.Dispose();
         }
 
         /// <summary>

@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Core;
-using Fdp.Core.Collections;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Core
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Systems;
@@ -13,9 +13,10 @@ namespace Fdp.Toolkit.Combat.Tests
 {
     /// <summary>
     /// Unit tests for <see cref="BallisticsSystem"/> (BCS-P5-T4, second half).
-    /// Tests isolate the system by seeding <see cref="RaycastBatchData"/> and
-    /// <see cref="BallisticProjectile"/> components directly, then running the system and
-    /// asserting post-run state.
+    /// Tests isolate the system by seeding <see cref="BallisticProjectile"/> components
+    /// directly, running the system, and asserting post-run state.
+    /// BallisticsSystem now publishes <see cref="RaycastRequestEvent"/> via the cmd buffer
+    /// instead of writing to <see cref="RaycastBatchData.Requests"/> directly.
     /// </summary>
     public class BallisticsSystemTests : IDisposable
     {
@@ -30,15 +31,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.RegisterComponent<BallisticProjectile>();
             _world.RegisterComponent<PhysicsCollider>();
             _world.RegisterEvent<HitEvent>();
-
-            // Initialise the RaycastBatchData singleton with persistent native arrays.
-            var batch = new RaycastBatchData
-            {
-                Requests = new NativeArray<RaycastRequest>(PhysicsConstants.RaycastBatchCapacity, Allocator.Persistent),
-                Hits     = new NativeArray<RaycastHit>(PhysicsConstants.RaycastBatchCapacity, Allocator.Persistent),
-                Count    = 0,
-            };
-            _world.SetSingleton(batch);
+            _world.RegisterEvent<RaycastRequestEvent>();
 
             // Initialise GlobalTime singleton so CurrentTick reads are valid.
             _world.SetSingleton(new GlobalTime { FrameNumber = 0, TimeScale = 1f });
@@ -48,14 +41,6 @@ namespace Fdp.Toolkit.Combat.Tests
 
         public void Dispose()
         {
-            // Free the persistent native arrays allocated in the constructor.
-            if (_world.HasSingleton<RaycastBatchData>())
-            {
-                ref var b = ref _world.GetSingleton<RaycastBatchData>();
-                if (b.Requests.IsCreated) b.Requests.Dispose();
-                if (b.Hits.IsCreated)     b.Hits.Dispose();
-            }
-
             _world.Dispose();
         }
 
@@ -86,23 +71,37 @@ namespace Fdp.Toolkit.Combat.Tests
             return bullet;
         }
 
+        /// <summary>
+        /// Runs the system, flushes the cmd buffer, and swaps buffers so that the
+        /// published <see cref="RaycastRequestEvent"/>s become readable.
+        /// Returns a snapshot array of the published events.
+        /// </summary>
+        private RaycastRequestEvent[] RunAndReadEvents()
+        {
+            ISimulationView view = _world;
+            _sys.Execute(view, 0.016f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            var span = _world.Bus.Read<RaycastRequestEvent>();
+            var arr  = new RaycastRequestEvent[span.Length];
+            span.CopyTo(arr);
+            return arr;
+        }
+
         // ── Test 1 ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Two live bullet entities must each contribute one entry to
-        /// <see cref="RaycastBatchData.Count"/>.
+        /// Two live bullet entities must each publish one <see cref="RaycastRequestEvent"/>.
         /// </summary>
         [Fact]
         public void Ballistics_SubmitsRaycastRequest_ForEachLiveBullet()
         {
             SetCurrentTick(0);
-            SpawnBullet(new Vector3(5f, 0f, 0f),  spawnTick: 0);
+            SpawnBullet(new Vector3(5f,  0f, 0f), spawnTick: 0);
             SpawnBullet(new Vector3(10f, 0f, 0f), spawnTick: 0);
 
-            _sys.Execute(_world, 0.016f);
-
-            ref var batch = ref _world.GetSingleton<RaycastBatchData>();
-            Assert.Equal(2, batch.Count);
+            var events = RunAndReadEvents();
+            Assert.Equal(2, events.Length);
         }
 
         // ── Test 2 ────────────────────────────────────────────────────────────
@@ -133,7 +132,7 @@ namespace Fdp.Toolkit.Combat.Tests
         [Fact]
         public void Ballistics_DestroysEntity_WhenLifetimeExpired()
         {
-            // SpawnTick=0, CurrentTick=121 → age = 121 >= BulletLifetimeTicks(120) → destroy.
+            // SpawnTick=0, CurrentTick=121 -> age = 121 >= BulletLifetimeTicks(120) -> destroy.
             SetCurrentTick(121);
             var bullet = SpawnBullet(new Vector3(1f, 0f, 0f), spawnTick: 0);
 
@@ -145,8 +144,8 @@ namespace Fdp.Toolkit.Combat.Tests
         // ── Test 4 ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// An expired bullet must NOT contribute a raycast request — it is destroyed before
-        /// the batch is written, so <see cref="RaycastBatchData.Count"/> remains 0.
+        /// An expired bullet must NOT publish a <see cref="RaycastRequestEvent"/> — it is
+        /// destroyed before the event is published.
         /// </summary>
         [Fact]
         public void Ballistics_DoesNotSubmitRaycast_WhenLifetimeExpired()
@@ -154,16 +153,14 @@ namespace Fdp.Toolkit.Combat.Tests
             SetCurrentTick(121);
             SpawnBullet(new Vector3(1f, 0f, 0f), spawnTick: 0);
 
-            _sys.Execute(_world, 0.016f);
-
-            ref var batch = ref _world.GetSingleton<RaycastBatchData>();
-            Assert.Equal(0, batch.Count);
+            var events = RunAndReadEvents();
+            Assert.Equal(0, events.Length);
         }
 
         // ── Test 5 ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// The <see cref="RaycastRequest.IgnoreEntity"/> field must be set to
+        /// The <see cref="RaycastRequestEvent.IgnoreEntity"/> field must be set to
         /// <see cref="BallisticProjectile.Shooter"/> to prevent self-hits.
         /// </summary>
         [Fact]
@@ -174,38 +171,11 @@ namespace Fdp.Toolkit.Combat.Tests
             var shooter = _world.CreateEntity();
             _world.AddComponent(shooter, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
 
-            var bullet = SpawnBullet(new Vector3(5f, 0f, 0f), spawnTick: 0, shooter: shooter);
+            SpawnBullet(new Vector3(5f, 0f, 0f), spawnTick: 0, shooter: shooter);
 
-            _sys.Execute(_world, 0.016f);
-
-            ref var batch = ref _world.GetSingleton<RaycastBatchData>();
-            Assert.Equal(1, batch.Count);
-            Assert.Equal(shooter, batch.Requests[0].IgnoreEntity);
-        }
-
-        // ── Test 6 ────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// When the batch is already full (<c>Count == RaycastBatchCapacity</c>), the system
-        /// must not increment <c>Count</c> further and must not throw.
-        /// Confirms the DEBT-021 capacity guard at the fill site.
-        /// </summary>
-        [Fact]
-        public void Ballistics_RespectsCapacity_WhenBatchFull()
-        {
-            SetCurrentTick(0);
-
-            // Fill the batch to capacity.
-            ref var batch = ref _world.GetSingleton<RaycastBatchData>();
-            batch.Count = PhysicsConstants.RaycastBatchCapacity;
-
-            // Spawn one bullet — system should detect batch is full and skip writing.
-            SpawnBullet(new Vector3(5f, 0f, 0f), spawnTick: 0);
-
-            _sys.Execute(_world, 0.016f);
-
-            ref var batchAfter = ref _world.GetSingleton<RaycastBatchData>();
-            Assert.Equal(PhysicsConstants.RaycastBatchCapacity, batchAfter.Count);
+            var events = RunAndReadEvents();
+            Assert.Equal(1, events.Length);
+            Assert.Equal(shooter, events[0].IgnoreEntity);
         }
     }
 }

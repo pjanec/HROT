@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Threading.Tasks;
 using CarKinem.Spatial;
 using Fdp.Core;
+using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Math;
@@ -10,31 +11,29 @@ using Fdp.Toolkit.Physics.Math;
 namespace Fdp.Toolkit.Physics.Systems
 {
     /// <summary>
-    /// Main-thread system that resolves all pending <see cref="RaycastRequest"/>s in
-    /// <see cref="RaycastBatchData"/> using a broad-phase spatial-hash query followed by
-    /// per-entity <see cref="Intersection2D.RaycastCircle"/> narrow-phase checks.
-    /// <para>
-    /// <b>Execution phase:</b> <see cref="InputSystemGroup"/> — runs before the simulation
-    /// group so that hit results are available to downstream systems within the same frame.
-    /// </para>
-    /// <para>
-    /// <b>Parallelism:</b> The narrow-phase loop uses <see cref="System.Threading.Tasks.Parallel.For"/>
-    /// so that each ray is resolved independently. Each iteration <c>i</c> writes
-    /// <em>only</em> to <c>batch.Hits[i]</c> — there is no shared write target across
-    /// iterations, making the writes inherently thread-safe.
-    /// </para>
-    /// <para>
-    /// <b>Thread-safety of <c>World.GetComponent&lt;T&gt;</c> inside Parallel.For:</b>
+    /// Background-capable system that resolves all pending <see cref="RaycastRequestEvent"/>s
+    /// using a broad-phase spatial-hash query followed by per-entity
+    /// <see cref="Intersection2D.RaycastCircle"/> narrow-phase checks.
+    ///
+    /// <para><b>Execution model:</b> reads <see cref="RaycastRequestEvent"/>s accumulated in
+    /// the <see cref="FdpEventBus"/> (from the previous frame, via
+    /// <see cref="ISimulationView.ReadEvents{T}"/>), resolves each cast, then publishes one
+    /// <see cref="RaycastResultEvent"/> per request via
+    /// <see cref="IEntityCommandBuffer.PublishEvent{T}"/>.
+    /// <see cref="RaycastResultMaterializationSystem"/> (main thread) writes the results into
+    /// the <see cref="RaycastBatchData"/> ring buffer so BTree consumers can poll them.</para>
+    ///
+    /// <para><b>Parallelism:</b> The narrow-phase loop uses <see cref="Parallel.For"/> so that
+    /// each ray is resolved independently. Results are collected into a temporary array and then
+    /// published serially after the parallel loop to keep cmd-buffer access on one thread.</para>
+    ///
+    /// <para><b>Thread safety of <c>World.GetComponent&lt;T&gt;</c> inside Parallel.For:</b>
     /// <see cref="EntityRepository"/> states that component access is not formally thread-safe.
     /// In practice the reads here are safe because:
-    /// (a) No other system in <c>InputSystemGroup</c> writes to <c>SimTransform</c> or
-    ///     <c>PhysicsCollider</c> concurrently.
+    /// (a) No other system writes to <c>SimTransform</c> or <c>PhysicsCollider</c> concurrently.
     /// (b) <c>Dictionary&lt;Type, IComponentTable&gt;</c> (.NET) allows concurrent reads when no
-    ///     write is in progress — the table lookup is read-only once all components are registered.
-    /// (c) The underlying <c>ComponentTable&lt;T&gt;</c> storage is a contiguous native array;
-    ///     different threads read different indices, so no cache-line sharing issues arise.
-    /// See BATCH-08 report Q2 for the full analysis.
-    /// </para>
+    ///     write is in progress.
+    /// See BATCH-08 report Q2 for the full analysis.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
     public class RaycastSolverSystem : IEcsModuleSystem
@@ -46,48 +45,37 @@ namespace Fdp.Toolkit.Physics.Systems
                     $"{nameof(RaycastSolverSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            if (!repo.HasSingleton<RaycastBatchData>()) return;
-            ref var batch = ref repo.GetSingleton<RaycastBatchData>();
-            if (batch.Count == 0) return;
+            var requests = view.ReadEvents<RaycastRequestEvent>();
+            if (requests.IsEmpty) return;
 
             if (!repo.HasSingleton<SpatialGridData>()) return;
             // Value-copy of the SpatialGridData struct — carries native pointers to grid arrays.
-            // Reading grid data from multiple threads is safe: the grid is written only by
-            // SpatialHashSystem which runs in a different group (SimulationSystemGroup).
             var gridData = repo.GetSingleton<SpatialGridData>();
             var grid     = gridData.Grid;
 
-            // Cap to array size — prevents IndexOutOfRangeException if upstream overflows the batch.
-            // The capacity is capped rather than thrown so excess rays are silently dropped rather than
-            // crashing. A Debug.Assert at the fill site would alert during development.
-            int count = System.Math.Min(batch.Count, PhysicsConstants.RaycastBatchCapacity);
+            int count = requests.Length;
 
-            // Extract NativeArray structs (value copies that share native pointers) so they
-            // can be captured by the Parallel.For lambda without capturing the ref local 'batch'.
-            // CS8175: ref locals cannot be used inside lambdas.
-            var requests = batch.Requests;
-            var hits     = batch.Hits;
+            // Snapshot events to a plain array so the lambda can safely capture it
+            // (ReadEvents returns a ref-backed buffer that cannot be captured in closures).
+            var requestsSnapshot = new RaycastRequestEvent[count];
+            for (int k = 0; k < count; k++)
+                requestsSnapshot[k] = requests[k];
 
-            // ── Parallel broad + narrow phase ────────────────────────────────────────────────
-            // Each iteration i:
-            //   1. Queries the spatial grid for candidate entities near the ray's midpoint.
-            //   2. Filters by layer mask and entity validity.
-            //   3. Runs Intersection2D.RaycastCircle for each candidate.
-            //   4. Writes the closest hit (if any) to hits[i].
+            // Resolve all casts in parallel into a local hit-result array, then publish serially.
+            var results = new RaycastHit[count];
+
             Parallel.For(0, count, i =>
             {
-                var req = requests[i];   // value-copy; NativeArray[i] returns ref T, copy for lambda safety
+                var req = requestsSnapshot[i];
 
                 var start2D = new Vector2(req.Start.X, req.Start.Y);
                 var end2D   = new Vector2(req.End.X,   req.End.Y);
 
                 // Broad-phase: AABB query centred on the ray's midpoint.
-                Vector2 midpoint     = (start2D + end2D) * 0.5f;
-                float   queryRadius  = Vector2.Distance(start2D, end2D) * 0.5f
-                                       + PhysicsConstants.QueryExpansionRadius;
+                Vector2 midpoint    = (start2D + end2D) * 0.5f;
+                float   queryRadius = Vector2.Distance(start2D, end2D) * 0.5f
+                                      + PhysicsConstants.QueryExpansionRadius;
 
-                // stackalloc: stack-allocates the candidate buffer (no GC pressure per ray).
-                // Requires unsafe context (AllowUnsafeBlocks = true in the project).
                 unsafe
                 {
                 Span<(Entity entity, Vector2 pos)> candidates = stackalloc (Entity, Vector2)[PhysicsConstants.MaxBroadphaseCandidates];
@@ -102,21 +90,14 @@ namespace Fdp.Toolkit.Physics.Systems
                 {
                     Entity candidate = candidates[j].entity;
 
-                    // Generational validity check (guards against stale grid entries from
-                    // entities destroyed earlier this frame before SpatialHashSystem rebuilt).
                     if (!repo.IsAlive(candidate)) continue;
 
-                    // Self-exclusion: skip the ignore entity (e.g. the shooter).
-                    // Full generational check: both Index AND Generation must match, so a
-                    // re-used entity slot is never accidentally excluded.  Entity.Null.IsNull
-                    // is true (Generation == 0), making the struct-zero-default safe.
                     if (!req.IgnoreEntity.IsNull && candidate == req.IgnoreEntity) continue;
 
                     if (!repo.HasComponent<PhysicsCollider>(candidate)) continue;
 
                     var collider = repo.GetComponent<PhysicsCollider>(candidate);
 
-                    // Layer-mask check (bitmask AND must be non-zero to hit).
                     if ((req.LayerMask & collider.CollisionLayer) == 0) continue;
 
                     var tf  = repo.GetComponent<SimTransform>(candidate);
@@ -133,19 +114,26 @@ namespace Fdp.Toolkit.Physics.Systems
                     }
                 }
 
-                // Write result — exclusive write to index i (thread-safe by construction).
-                hits[i] = new RaycastHit
+                results[i] = new RaycastHit
                 {
-                    T          = bestT,
-                    HitEntity  = bestEnt,
-                    RayId      = req.RayId,
-                    Observer   = req.Observer,
-                    Target     = req.Target,
-                    HasHit     = (byte)(anyHit ? 1 : 0),
+                    T            = bestT,
+                    HitEntity    = bestEnt,
+                    RayId        = req.RayId,
+                    Observer     = req.Observer,
+                    Target       = req.Target,
+                    HasHit       = (byte)(anyHit ? 1 : 0),
                     SourceNodeId = req.SourceNodeId,
+                    Start        = req.Start,
+                    End          = req.End,
+                    IgnoreEntity = req.IgnoreEntity,
                 };
                 } // end unsafe
             });
+
+            // Publish results serially via the command buffer (keeps cmd-buffer access on one thread).
+            var cmd = view.GetCommandBuffer();
+            for (int i = 0; i < count; i++)
+                cmd.PublishEvent(new RaycastResultEvent { Hit = results[i] });
         }
     }
 }

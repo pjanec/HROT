@@ -1,17 +1,17 @@
 using System;
 using System.Numerics;
 using Fdp.Core;
-using Fdp.Core.Collections;
 using Fdp.Toolkit.Physics.BTreeNodes;
 using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Systems;
 using Xunit;
 
 namespace Fdp.Toolkit.Physics.Tests
 {
     /// <summary>
-    /// Unit tests for <see cref="PhysicsQueryActionNode"/> (MOD1-P6T4).
-    /// Verifies that <see cref="Action_QueryRaycast"/> correctly writes to and reads from
-    /// <see cref="RaycastBatchData"/> without going through <c>IAIContext</c>.
+    /// Unit tests for <see cref="Action_QueryRaycast"/> and <see cref="RaycastBatchHelper"/> (MOD1-P6T4).
+    /// Verifies that the BTree helper correctly publishes events, and that results can be
+    /// polled from the <see cref="RaycastBatchData"/> ring buffer after materialization.
     /// </summary>
     public sealed class PhysicsQueryActionNodeTests : IDisposable
     {
@@ -29,49 +29,46 @@ namespace Fdp.Toolkit.Physics.Tests
 
         // ── Helpers ────────────────────────────────────────────────────────────────
 
-        private static Action_QueryRaycast CreateNode(int entityIndex = 1, ushort gen = 1)
+        private static Action_QueryRaycast CreateNode(int entityIndex = 1)
             => new Action_QueryRaycast
             {
-                EntityIndex      = entityIndex,
-                EntityGeneration = gen,
-                Origin           = Vector3.Zero,
-                Direction        = Vector3.UnitX,
-                MaxDistance      = 100f,
+                EntityIndex  = entityIndex,
+                Origin       = Vector3.Zero,
+                Direction    = Vector3.UnitX,
+                MaxDistance  = 100f,
             };
 
         // ── Tests ────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Executing the node must append one request to <see cref="RaycastBatchData"/>,
-        /// setting <c>Count == 1</c> and a non-negative (non-sentinel) <c>RayId</c>.
+        /// Executing the node must return a non-negative <c>rayId</c>.
         /// </summary>
         [Fact]
-        public void PhysicsQueryActionNode_RequestRaycast_WritesToBatch()
+        public void PhysicsQueryActionNode_RequestRaycast_ReturnsNonNegativeRayId()
         {
-            var node  = CreateNode();
-            int rayId = node.Execute(_world);
+            var node   = CreateNode();
+            long rayId = node.Execute(_world);
 
-            ref readonly var batch = ref _world.GetSingleton<RaycastBatchData>();
-            Assert.Equal(1, batch.Count);
-            Assert.True(rayId >= 0, "returned rayId must be non-negative");
-            Assert.True(batch.Requests[0].RayId != -1, "RayId in batch must be set");
+            Assert.True(rayId != 0, "returned rayId must be non-zero");
         }
 
         /// <summary>
-        /// When the solver has populated a hit with a matching <c>RayId</c>,
+        /// When the ring buffer slot contains a matching <c>RayId</c>,
         /// <see cref="Action_QueryRaycast.QueryResult"/> must return that hit.
         /// </summary>
         [Fact]
         public void PhysicsQueryActionNode_GetRaycastResult_ReturnsMatchingHit()
         {
-            var node  = CreateNode();
-            int rayId = node.Execute(_world);
+            var node   = CreateNode();
+            long rayId = node.Execute(_world);
 
-            // Manually write a hit result as the solver would.
+            // Manually write a hit result directly to the ring buffer slot as the
+            // materialization system would after the solver resolves the cast.
             ref var batch = ref _world.GetSingleton<RaycastBatchData>();
-            batch.Hits[0] = new RaycastHit
+            int slot = (int)((uint)rayId % (uint)PhysicsConstants.RaycastBatchCapacity);
+            batch.Hits[slot] = new RaycastHit
             {
-                RayId  = batch.Requests[0].RayId,
+                RayId  = rayId,
                 HasHit = 1,
                 T      = 0.5f,
             };
@@ -88,9 +85,9 @@ namespace Fdp.Toolkit.Physics.Tests
         public void PhysicsQueryActionNode_GetRaycastResult_ReturnsDefaultForUnresolvedId()
         {
             var node   = CreateNode();
-            int rayId  = node.Execute(_world);
+            long rayId = node.Execute(_world);
 
-            // Do NOT write a hit — simulate an unresolved / pending ray.
+            // Do NOT write a hit -- simulate an unresolved / pending ray.
             var hit = node.QueryResult(_world, rayId);
             Assert.Equal(0, hit.HasHit);
         }

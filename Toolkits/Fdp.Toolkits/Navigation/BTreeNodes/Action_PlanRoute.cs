@@ -28,16 +28,16 @@ namespace Fdp.Toolkit.Navigation.BTreeNodes
 
         /// <summary>
         /// Appends the configured path request to <see cref="PathfindingBatchData"/>
-        /// and returns the assigned request ID (≥ 0), or -1 if the batch is full.
+        /// and returns the assigned request ID (long), or -1 if the batch is full.
         /// </summary>
-        public int Execute(EntityRepository world)
-            => PathfindingBatchHelper.RequestPath(world, EntityIndex, EntityGeneration, From, To, MobilityProfile);
+        public long Execute(EntityRepository world)
+            => PathfindingBatchHelper.RequestPath(world, EntityIndex, From, To, MobilityProfile);
 
         /// <summary>
         /// Retrieves the <see cref="PathResult"/> matching <paramref name="requestId"/>,
         /// or <c>default</c> if not yet resolved or not found.
         /// </summary>
-        public PathResult QueryResult(EntityRepository world, int requestId)
+        public PathResult QueryResult(EntityRepository world, long requestId)
             => PathfindingBatchHelper.GetPathResult(world, requestId);
     }
 }

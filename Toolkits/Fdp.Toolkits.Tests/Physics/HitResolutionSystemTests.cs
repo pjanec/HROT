@@ -12,11 +12,12 @@ namespace Fdp.Toolkit.Physics.Tests
     /// <summary>
     /// Unit tests for <see cref="HitResolutionSystem"/> (BCS-P4-T4).
     ///
-    /// Test pattern (ComponentSystem):
-    ///   1. Seed <see cref="RaycastBatchData"/> directly (bypass the solver for isolation).
-    ///   2. <c>sys.Run()</c>.
-    ///   3. <c>world.Bus.SwapBuffers()</c> to expose events published by the system.
-    ///   4. Assert consumed events.
+    /// Test pattern (event-based):
+    ///   1. Publish <see cref="RaycastResultEvent"/> to the bus.
+    ///   2. <c>world.Bus.SwapBuffers()</c> so the event is visible to the system.
+    ///   3. <c>sys.Execute(world, dt)</c> — reads events and publishes domain events.
+    ///   4. <c>world.Bus.SwapBuffers()</c> to expose events published by the system.
+    ///   5. Assert consumed events.
     /// </summary>
     public class HitResolutionSystemTests : IDisposable
     {
@@ -44,22 +45,22 @@ namespace Fdp.Toolkit.Physics.Tests
         public void HitResolution_EmitsTargetVisibleEvent_ForLosHit()
         {
             // Arrange
-            // Use Entity constructors to build full handles (Index + Generation).
-            // HitResolutionSystem reads hit.Observer / hit.Target directly — no world lookup needed.
             var observerEntity = new Entity(10, 1);
             var targetEntity   = new Entity(20, 1);
 
-            ref var batch = ref _world.GetSingleton<RaycastBatchData>();
-            batch.Hits[0] = new RaycastHit
+            _world.Bus.Publish(new RaycastResultEvent
             {
-                HasHit    = 1,
-                RayId     = PhysicsConstants.PackLosRayId(observerEntity.Index, targetEntity.Index),
-                Observer  = observerEntity,
-                Target    = targetEntity,
-                HitEntity = default,
-                T         = 0.5f,
-            };
-            batch.Count = 1;
+                Hit = new RaycastHit
+                {
+                    HasHit    = 1,
+                    RayId     = PhysicsConstants.PackLosRayId(observerEntity.Index, targetEntity.Index),
+                    Observer  = observerEntity,
+                    Target    = targetEntity,
+                    HitEntity = default,
+                    T         = 0.5f,
+                }
+            });
+            _world.Bus.SwapBuffers();
 
             // Act
             _sys.Execute(_world, 0.016f);
@@ -82,21 +83,20 @@ namespace Fdp.Toolkit.Physics.Tests
         public void HitResolution_EmitsHitEvent_ForBulletHit()
         {
             // Arrange
-            const int bulletIdx = 42;
-
-            var entity = _world.CreateEntity();
-            // Create a bullet entity so GetEntityByIndex returns a valid entity.
             var bulletEntity = _world.CreateEntity();
+            var hitEntity    = _world.CreateEntity();
 
-            ref var batch = ref _world.GetSingleton<RaycastBatchData>();
-            batch.Hits[0] = new RaycastHit
+            _world.Bus.Publish(new RaycastResultEvent
             {
-                HasHit    = 1,
-                RayId     = PhysicsConstants.PackBulletRayId(bulletEntity.Index),
-                HitEntity = entity,
-                T         = 0.3f,
-            };
-            batch.Count = 1;
+                Hit = new RaycastHit
+                {
+                    HasHit    = 1,
+                    RayId     = PhysicsConstants.PackBulletRayId(bulletEntity.Index),
+                    HitEntity = hitEntity,
+                    T         = 0.3f,
+                }
+            });
+            _world.Bus.SwapBuffers();
 
             // Act
             _sys.Execute(_world, 0.016f);
@@ -106,30 +106,31 @@ namespace Fdp.Toolkit.Physics.Tests
             var events = _world.Bus.Read<HitEvent>();
             Assert.Equal(1, events.Length);
             Assert.Equal(bulletEntity, events[0].BulletEntity);
-            Assert.Equal(entity,       events[0].HitEntity);
+            Assert.Equal(hitEntity,    events[0].HitEntity);
         }
 
         // ── Test 3 ────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// After <see cref="HitResolutionSystem.OnUpdate"/> runs, <see cref="RaycastBatchData.Count"/>
-        /// must be reset to zero so the next frame starts with a clean batch.
+        /// A ray with <c>HasHit == 0</c> must not emit any domain events.
         /// </summary>
         [Fact]
-        public void HitResolution_ClearsCount_AfterProcessing()
+        public void HitResolution_SkipsMissedRays()
         {
-            // Arrange: seed 3 hits (mix of hit/miss to cover both branches).
-            ref var batch = ref _world.GetSingleton<RaycastBatchData>();
-            batch.Hits[0] = new RaycastHit { HasHit = 1, RayId = PhysicsConstants.PackLosRayId(1, 2) };
-            batch.Hits[1] = new RaycastHit { HasHit = 0 };
-            batch.Hits[2] = new RaycastHit { HasHit = 1, RayId = PhysicsConstants.PackBulletRayId(7) };
-            batch.Count   = 3;
+            // Arrange: publish a miss.
+            _world.Bus.Publish(new RaycastResultEvent
+            {
+                Hit = new RaycastHit { HasHit = 0, RayId = PhysicsConstants.PackLosRayId(1, 2) }
+            });
+            _world.Bus.SwapBuffers();
 
             // Act
             _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
 
-            // Assert: count reset regardless of how many hits were processed.
-            Assert.Equal(0, _world.GetSingleton<RaycastBatchData>().Count);
+            // Assert: no TargetVisibleEvent or HitEvent emitted.
+            Assert.Equal(0, _world.Bus.Read<TargetVisibleEvent>().Length);
+            Assert.Equal(0, _world.Bus.Read<HitEvent>().Length);
         }
     }
 }

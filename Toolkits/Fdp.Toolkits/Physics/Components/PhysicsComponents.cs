@@ -138,33 +138,31 @@ namespace Fdp.Toolkit.Physics.Components
         /// Propagated from <see cref="RaycastRequest.SourceNodeId"/> by <c>RaycastSolverSystem</c>.
         /// Used by the egress translator to route the result back to the originating Brain.
         /// </summary>
-        public int SourceNodeId;    }
+        public int SourceNodeId;
+        /// <summary>World-space ray start point propagated from the original request. Used by <c>HitResolutionSystem</c> to compute detonation position.</summary>
+        public Vector3 Start;
+        /// <summary>World-space ray end point propagated from the original request.</summary>
+        public Vector3 End;
+        /// <summary>Entity to ignore propagated from the original request (e.g. the shooter). Used by <c>HitResolutionSystem</c> to populate <c>DetonationNotification.Shooter</c>.</summary>
+        public Entity IgnoreEntity;
+    }
 
     // ── RaycastBatchData ──────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Singleton. Pre-allocated on module init. Filled each frame by upstream systems
-    /// (e.g. <c>LosRequestBatchingSystem</c>, Combat bullet systems) and resolved by
-    /// <see cref="Systems.RaycastSolverSystem"/>. Reset (Count = 0) by
-    /// <see cref="Systems.HitResolutionSystem"/> after all hits are dispatched.
+    /// Singleton. Pre-allocated on module init. Holds the ring buffer of raycast hit results.
+    /// Requests are submitted as <see cref="RaycastRequestEvent"/> events via <see cref="FdpEventBus"/>;
+    /// results are written here by <c>RaycastResultMaterializationSystem</c> after the solver resolves them.
+    /// Indexed by <c>RayId % RaycastBatchCapacity</c> (modulo ring buffer).
     /// </summary>
     [ComponentId(GlobalComponentIds.RaycastBatchData)]
     public struct RaycastBatchData
     {
-        /// <summary>Number of valid entries in <see cref="Requests"/> and <see cref="Hits"/> this frame.</summary>
-        public int Count;
-
         /// <summary>
-        /// Pre-allocated request array.
+        /// Pre-allocated hit-result ring buffer.
         /// Length == <see cref="PhysicsConstants.RaycastBatchCapacity"/>.
         /// Allocated with <c>Allocator.Persistent</c>; owned by <see cref="PhysicsToolkitModule"/>.
-        /// </summary>
-        public NativeArray<RaycastRequest> Requests;
-
-        /// <summary>
-        /// Pre-allocated hit-result array, parallel to <see cref="Requests"/>.
-        /// Length == <see cref="PhysicsConstants.RaycastBatchCapacity"/>.
-        /// Allocated with <c>Allocator.Persistent</c>; owned by <see cref="PhysicsToolkitModule"/>.
+        /// Indexed via <c>RayId % RaycastBatchCapacity</c>.
         /// </summary>
         public NativeArray<RaycastHit> Hits;
     }

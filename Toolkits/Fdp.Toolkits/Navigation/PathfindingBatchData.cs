@@ -1,40 +1,10 @@
-using System;
-using System.Numerics;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Core.Collections;
 
 namespace Fdp.Toolkit.Navigation
 {
-    // ── Path request / result structs ─────────────────────────────────────────────
-
-    /// <summary>
-    /// A single pathfinding request submitted by a Brain-tier entity.
-    /// Stored in <see cref="PathfindingBatchData.Requests"/>.
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    public struct PathRequest
-    {
-        /// <summary>Monotonically increasing identifier echoed in the matching <see cref="PathResult"/>.</summary>
-        public long    RequestId;
-
-        /// <summary>Start position in FDP Cartesian metres. Translators convert to/from WGS-84 when publishing.</summary>
-        public Vector3 Start;
-
-        /// <summary>Goal position in FDP Cartesian metres.</summary>
-        public Vector3 End;
-
-        /// <summary>Mobility type: 0 = Wheeled, 1 = Tracked, 2 = Infantry.</summary>
-        public byte    MobilityProfile;
-
-        /// <summary>
-        /// Originating Brain node ID stamped by the network ingress translator.
-        /// Propagated through the solver to <see cref="PathResult.SourceNodeId"/> so that
-        /// the egress translator can demultiplex results back to the requesting Brain node.
-        /// 0 = local-only (no distributed routing required).
-        /// </summary>
-        public int     SourceNodeId;
-    }
+    // ── Path result struct ────────────────────────────────────────────────────────
 
     /// <summary>
     /// Computed path result written by the Muscle (Navigation Solver) tier.
@@ -67,26 +37,19 @@ namespace Fdp.Toolkit.Navigation
     // ── Singleton ECS component ───────────────────────────────────────────────────
 
     /// <summary>
-    /// Zero-allocation singleton ECS component that batches pathfinding requests and results
-    /// each frame, mirroring the existing <c>RaycastBatchData</c> pattern.
-    ///
-    /// <para>Registered by <c>NavigationComponentRegistry.RegisterAll</c> (or
-    /// <c>SimHostComponentRegistry.RegisterAll</c>) via
-    /// <c>world.RegisterSingleton&lt;PathfindingBatchData&gt;</c>.</para>
+    /// Zero-allocation singleton ECS component that holds the ring buffer of pathfinding results.
+    /// Requests are submitted as <see cref="PathfindingRequestEvent"/> events via <see cref="FdpEventBus"/>;
+    /// results are written here by <c>PathfindingResultMaterializationSystem</c> after the solver resolves them.
+    /// Indexed by <c>requestId % DefaultCapacity</c> (modulo ring buffer).
     /// </summary>
     [ComponentId(GlobalComponentIds.PathfindingBatchData)]
     public struct PathfindingBatchData
     {
-        /// <summary>Default pre-allocated capacity for requests and results per frame.</summary>
+        /// <summary>Default pre-allocated capacity for concurrent pathfinding results.</summary>
         public const int DefaultCapacity = 64;
 
-        /// <summary>Number of valid request entries in <see cref="Requests"/> for the current frame.</summary>
-        public int Count;
-
-        /// <summary>Pre-allocated request buffer. Length == <see cref="DefaultCapacity"/>.</summary>
-        public NativeArray<PathRequest> Requests;
-
-        /// <summary>Pre-allocated result buffer. Length == <see cref="DefaultCapacity"/>.</summary>
+        /// <summary>Ring-buffer of results written by <c>PathfindingResultMaterializationSystem</c>.
+        /// Indexed via <c>requestId % DefaultCapacity</c>.</summary>
         public NativeArray<PathResult>  Results;
     }
 }

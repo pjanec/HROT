@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using CarKinem.Spatial;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Systems;
 using Xunit;
@@ -11,6 +12,8 @@ namespace Fdp.Toolkit.Physics.Tests
     /// <summary>
     /// Unit tests for <see cref="RaycastSolverSystem"/> (BCS-P4-T3).
     /// Each test uses a real <see cref="SpatialHashGrid"/> to exercise the broadphase path.
+    /// Tests use the full event pipeline: publish RaycastRequestEvent, swap, solve, playback,
+    /// swap, materialize — then check the ring buffer slot.
     /// </summary>
     public class RaycastSolverSystemTests : IDisposable
     {
@@ -57,15 +60,37 @@ namespace Fdp.Toolkit.Physics.Tests
             return entity;
         }
 
-        /// <summary>Queues a single <see cref="RaycastRequest"/> and runs the solver.</summary>
-        private void RunSolver(RaycastRequest req)
+        /// <summary>
+        /// Publishes a <see cref="RaycastRequestEvent"/>, runs the full solver pipeline,
+        /// and returns the <see cref="RaycastHit"/> from the ring buffer slot for this request.
+        /// </summary>
+        private RaycastHit RunSolver(RaycastRequestEvent req)
         {
-            ref var batch = ref _world.GetSingleton<RaycastBatchData>();
-            batch.Requests[0] = req;
-            batch.Count       = 1;
+            var view = (ISimulationView)_world;
 
+            // Publish request to the write buffer.
+            _world.Bus.Publish(req);
+
+            // Swap: requests are now in the read buffer for the solver.
+            _world.Bus.SwapBuffers();
+
+            // Solve: reads events, writes results to cmd buffer.
             var sys = new RaycastSolverSystem();
-            sys.Execute(_world, 0.016f);
+            sys.Execute(view, 0.016f);
+
+            // Playback: result events move from cmd buffer to the bus write buffer.
+            var ecb = (EntityCommandBuffer)view.GetCommandBuffer();
+            ecb.Playback(_world);
+
+            // Swap: result events are now in the read buffer for materialization.
+            _world.Bus.SwapBuffers();
+
+            // Materialize: writes results into the RaycastBatchData ring buffer.
+            new RaycastResultMaterializationSystem().Execute(view, 0.016f);
+
+            // Return the ring buffer slot for this request.
+            int slot = (int)((uint)req.RayId % (uint)PhysicsConstants.RaycastBatchCapacity);
+            return _world.GetSingleton<RaycastBatchData>().Hits[slot];
         }
 
         // ── Test 1 ────────────────────────────────────────────────────────────────
@@ -80,7 +105,7 @@ namespace Fdp.Toolkit.Physics.Tests
             // Arrange: entity at (5,0), radius 1, layer bit 0.
             var entity = SpawnCollider(new Vector2(5f, 0f), radius: 1f, layer: 1);
 
-            RunSolver(new RaycastRequest
+            var hit = RunSolver(new RaycastRequestEvent
             {
                 Start     = new Vector3(-5f, 0f, 0f),
                 End       = new Vector3(10f, 0f, 0f),
@@ -88,7 +113,6 @@ namespace Fdp.Toolkit.Physics.Tests
                 LayerMask = 1,
             });
 
-            var hit = _world.GetSingleton<RaycastBatchData>().Hits[0];
             Assert.Equal(1, hit.HasHit);
             Assert.Equal(entity, hit.HitEntity);
         }
@@ -101,10 +125,10 @@ namespace Fdp.Toolkit.Physics.Tests
         [Fact]
         public void RaycastSolver_ReturnsNoHit_WhenNoEntitiesInPath()
         {
-            // No entities — just publish an empty grid singleton.
+            // No entities -- just publish an empty grid singleton.
             _world.SetSingleton(new SpatialGridData { Grid = _grid });
 
-            RunSolver(new RaycastRequest
+            var hit = RunSolver(new RaycastRequestEvent
             {
                 Start     = new Vector3(-5f, 0f, 0f),
                 End       = new Vector3( 5f, 0f, 0f),
@@ -112,7 +136,7 @@ namespace Fdp.Toolkit.Physics.Tests
                 LayerMask = 1,
             });
 
-            Assert.Equal(0, _world.GetSingleton<RaycastBatchData>().Hits[0].HasHit);
+            Assert.Equal(0, hit.HasHit);
         }
 
         // ── Test 3 ────────────────────────────────────────────────────────────────
@@ -124,41 +148,41 @@ namespace Fdp.Toolkit.Physics.Tests
         [Fact]
         public void RaycastSolver_RespectsLayerMask()
         {
-            // Entity on layer 2 (bit 1). Ray uses mask 1 (bit 0) — no shared bits.
+            // Entity on layer 2 (bit 1). Ray uses mask 1 (bit 0) -- no shared bits.
             SpawnCollider(new Vector2(5f, 0f), radius: 1f, layer: 2);
 
-            RunSolver(new RaycastRequest
+            var hit = RunSolver(new RaycastRequestEvent
             {
                 Start     = new Vector3(-5f, 0f, 0f),
                 End       = new Vector3(10f, 0f, 0f),
                 RayId     = PhysicsConstants.PackBulletRayId(1),
-                LayerMask = 1,  // bit 0 — does not overlap with CollisionLayer=2 (bit 1)
+                LayerMask = 1,  // bit 0 -- does not overlap with CollisionLayer=2 (bit 1)
             });
 
-            Assert.Equal(0, _world.GetSingleton<RaycastBatchData>().Hits[0].HasHit);
+            Assert.Equal(0, hit.HasHit);
         }
 
         // ── Test 4 ────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Setting <c>IgnoreEntityId</c> to the spawned entity's index must cause the
+        /// Setting <c>IgnoreEntity</c> to the spawned entity must cause the
         /// solver to skip that entity (no hit), simulating a shooter ignoring itself.
         /// </summary>
         [Fact]
-        public void RaycastSolver_IgnoresIgnoreEntityIndex()
+        public void RaycastSolver_IgnoresIgnoreEntity()
         {
             var entity = SpawnCollider(new Vector2(5f, 0f), radius: 1f, layer: 1);
 
-            RunSolver(new RaycastRequest
+            var hit = RunSolver(new RaycastRequestEvent
             {
-                Start          = new Vector3(-5f, 0f, 0f),
-                End            = new Vector3(10f, 0f, 0f),
-                RayId          = PhysicsConstants.PackBulletRayId(2),
-                LayerMask      = 1,
+                Start        = new Vector3(-5f, 0f, 0f),
+                End          = new Vector3(10f, 0f, 0f),
+                RayId        = PhysicsConstants.PackBulletRayId(2),
+                LayerMask    = 1,
                 IgnoreEntity = entity,  // exclude the only entity in the world
             });
 
-            Assert.Equal(0, _world.GetSingleton<RaycastBatchData>().Hits[0].HasHit);
+            Assert.Equal(0, hit.HasHit);
         }
 
         // ── Test 5 ────────────────────────────────────────────────────────────────
@@ -174,9 +198,7 @@ namespace Fdp.Toolkit.Physics.Tests
             var nearEntity = SpawnCollider(new Vector2(3f, 0f), radius: 0.5f, layer: 1);
             var farEntity  = SpawnCollider(new Vector2(7f, 0f), radius: 0.5f, layer: 1);
 
-            // Both entities are already added via SpawnCollider.
-
-            RunSolver(new RaycastRequest
+            var hit = RunSolver(new RaycastRequestEvent
             {
                 Start     = new Vector3(0f, 0f, 0f),
                 End       = new Vector3(10f, 0f, 0f),
@@ -184,24 +206,18 @@ namespace Fdp.Toolkit.Physics.Tests
                 LayerMask = 1,
             });
 
-            var hit = _world.GetSingleton<RaycastBatchData>().Hits[0];
             Assert.Equal(1, hit.HasHit);
             // Closest entity (at x=3) must be selected, not the farther one (x=7).
             Assert.Equal(nearEntity, hit.HitEntity);
             Assert.NotEqual(farEntity, hit.HitEntity);
         }
 
-        // ── Test 7: SourceNodeId propagation ─────────────────────────────────────
+        // ── Test 6: SourceNodeId propagation ─────────────────────────────────────
 
         /// <summary>
         /// Verifies that <see cref="RaycastSolverSystem"/> copies
-        /// <see cref="RaycastRequest.SourceNodeId"/> verbatim into the corresponding
+        /// <see cref="RaycastRequestEvent.SourceNodeId"/> verbatim into the corresponding
         /// <see cref="RaycastHit.SourceNodeId"/>.
-        ///
-        /// <para>
-        /// The Distributed Perception Pipeline relies on this field to demultiplex
-        /// raycast responses back to the originating Brain node.
-        /// </para>
         /// </summary>
         [Fact]
         public void RaycastSolver_PropagatesSourceNodeId_ToHit()
@@ -209,7 +225,7 @@ namespace Fdp.Toolkit.Physics.Tests
             // Arrange: entity at (5,0) so we get a real hit; SourceNodeId = 7.
             SpawnCollider(new Vector2(5f, 0f), radius: 1f, layer: 1);
 
-            RunSolver(new RaycastRequest
+            var hit = RunSolver(new RaycastRequestEvent
             {
                 Start        = new Vector3(-5f, 0f, 0f),
                 End          = new Vector3(10f, 0f, 0f),
@@ -218,7 +234,6 @@ namespace Fdp.Toolkit.Physics.Tests
                 SourceNodeId = 7,
             });
 
-            var hit = _world.GetSingleton<RaycastBatchData>().Hits[0];
             Assert.Equal(7, hit.SourceNodeId);
         }
 
@@ -229,10 +244,10 @@ namespace Fdp.Toolkit.Physics.Tests
         [Fact]
         public void RaycastSolver_PropagatesSourceNodeId_OnMiss()
         {
-            // No entities — ray will miss.
+            // No entities -- ray will miss.
             _world.SetSingleton(new SpatialGridData { Grid = _grid });
 
-            RunSolver(new RaycastRequest
+            var hit = RunSolver(new RaycastRequestEvent
             {
                 Start        = new Vector3(-5f, 0f, 0f),
                 End          = new Vector3(5f, 0f, 0f),
@@ -241,7 +256,6 @@ namespace Fdp.Toolkit.Physics.Tests
                 SourceNodeId = 42,
             });
 
-            var hit = _world.GetSingleton<RaycastBatchData>().Hits[0];
             Assert.Equal(0, hit.HasHit);
             Assert.Equal(42, hit.SourceNodeId);
         }

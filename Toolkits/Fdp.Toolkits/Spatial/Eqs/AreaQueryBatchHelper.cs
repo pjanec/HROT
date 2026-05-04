@@ -3,23 +3,25 @@ using Fdp.Core;
 namespace Fdp.Toolkit.Spatial.Eqs
 {
     /// <summary>
-    /// Static helpers for submitting and polling area query requests against the
-    /// <see cref="AreaQueryBatchData"/> singleton. Mirrors the style of
-    /// <c>PathfindingBatchHelper</c> in <c>Fdp.Toolkit.Navigation</c>.
+    /// Static helpers for submitting and polling area query requests.
+    /// Requests are published as <see cref="AreaQueryRequestEvent"/> events on the
+    /// <see cref="FdpEventBus"/>; the solver consumes them asynchronously and publishes
+    /// <see cref="AreaQueryResultEvent"/> back via <see cref="IEntityCommandBuffer"/>.
+    /// Results are materialized into the <see cref="AreaQueryBatchData"/> ring buffer by
+    /// <c>AreaQueryResultMaterializationSystem</c> running on the main thread.
     /// </summary>
     public static class AreaQueryBatchHelper
     {
         /// <summary>
-        /// Appends an area query request to the <see cref="AreaQueryBatchData"/> singleton.
+        /// Publishes an <see cref="AreaQueryRequestEvent"/> and primes the corresponding ring-buffer
+        /// slot so the BTree does not read stale results from an earlier query.
         /// </summary>
         /// <param name="repo">The live ECS world.</param>
         /// <param name="requestingEntity">The entity submitting the query (used to build the request ID).</param>
         /// <param name="targetAreaEntity">The area polygon entity whose <c>EditablePolyline</c> bounds the query.</param>
         /// <param name="targetForce">Force affiliation filter for the query.</param>
         /// <param name="sourceNodeId">Originating Brain node ID for distributed routing.</param>
-        /// <returns>
-        /// The non-negative <c>RequestId</c> on success, or <c>-1</c> if the batch is full.
-        /// </returns>
+        /// <returns>The non-negative <c>RequestId</c> that the BTree must hold to poll the result.</returns>
         public static long RequestAreaQuery(
             EntityRepository repo,
             Entity requestingEntity,
@@ -27,48 +29,44 @@ namespace Fdp.Toolkit.Spatial.Eqs
             ForceId targetForce,
             int sourceNodeId = 0)
         {
-            if (!repo.HasSingleton<AreaQueryBatchData>())
-                return -1;
+            // Generate a monotonically driven ID using entity index + current world version.
+            // Cast to long before shifting to prevent silent 32-bit truncation.
+            long requestId = ((long)requestingEntity.Index << 32) | repo.GlobalVersion;
 
-            ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
+            // Prime the ring-buffer slot to prevent reading stale data from a previous query.
+            if (repo.HasSingleton<AreaQueryBatchData>())
+            {
+                ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
+                int slot = (int)((uint)requestId % (uint)AreaQueryBatchData.DefaultCapacity);
+                batch.Results[slot] = new AreaQueryResult
+                {
+                    RequestId         = requestId,
+                    IsReady           = false,
+                    TargetCount       = 0,
+                    TargetGroupHandle = -1,
+                    SourceNodeId      = sourceNodeId,
+                };
+            }
 
-            int batchSlot = batch.Count;
-            if (batchSlot >= AreaQueryBatchData.DefaultCapacity)
-                return -1;
-
-            // Cast entityIndex to long BEFORE shifting to avoid silent 32-bit truncation
-            // for entity indices above 4095.
-            long requestId = ((long)requestingEntity.Index << 32) | (uint)batchSlot;
-
-            batch.Requests[batchSlot] = new AreaQueryRequest
+            // Fire-and-forget: the solver will pick this up on its next background tick.
+            repo.Bus.Publish(new AreaQueryRequestEvent
             {
                 RequestId        = requestId,
                 TargetAreaEntity = targetAreaEntity,
                 TargetForce      = targetForce,
                 SourceNodeId     = sourceNodeId,
-            };
+            });
 
-            // Initialize the result slot so the Brain does not read stale data.
-            batch.Results[batchSlot] = new AreaQueryResult
-            {
-                RequestId   = requestId,
-                IsReady     = false,
-                TargetCount = 0,
-                TargetGroupHandle = -1,
-                SourceNodeId      = sourceNodeId,
-            };
-
-            batch.Count = batchSlot + 1;
             return requestId;
         }
 
         /// <summary>
-        /// Polls the <see cref="AreaQueryBatchData"/> for a result matching
+        /// Polls the <see cref="AreaQueryBatchData"/> ring buffer for a result matching
         /// <paramref name="requestId"/>.
         /// </summary>
         /// <returns>
-        /// The matching <see cref="AreaQueryResult"/> if <c>IsReady == true</c>;
-        /// <c>default</c> otherwise.
+        /// The matching <see cref="AreaQueryResult"/> if <c>IsReady == true</c> and the
+        /// <c>RequestId</c> matches; <c>default</c> otherwise.
         /// </returns>
         public static AreaQueryResult GetAreaQueryResult(EntityRepository repo, long requestId)
         {
@@ -102,30 +100,6 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 return 0L;
 
             return pool.Targets[poolIndex];
-        }
-
-        /// <summary>
-        /// Resets <see cref="AreaQueryBatchData.Count"/> to zero and clears the
-        /// <see cref="EqsTargetPool"/> free list. Called by <c>AreaQueryInitializationSystem</c>
-        /// at the start of each Brain frame.
-        /// </summary>
-        public static void ResetBatch(EntityRepository repo)
-        {
-            if (repo.HasSingleton<AreaQueryBatchData>())
-            {
-                ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-                batch.Count = 0;
-            }
-
-            if (repo.HasSingleton<EqsTargetPool>())
-            {
-                ref var pool = ref repo.GetSingleton<EqsTargetPool>();
-                pool.NextFreeIndex = 0;
-
-                // Zero the entire pool so stale packed entity handles do not escape.
-                for (int i = 0; i < pool.Targets.Length; i++)
-                    pool.Targets[i] = 0L;
-            }
         }
     }
 }

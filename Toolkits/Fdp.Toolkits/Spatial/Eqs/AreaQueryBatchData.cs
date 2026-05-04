@@ -6,27 +6,6 @@ using Fdp.Toolkit.Perception;
 namespace Fdp.Toolkit.Spatial.Eqs
 {
     /// <summary>
-    /// A single area query request submitted by a Brain-tier behavior node.
-    /// Cleared at the start of each Brain frame by <c>AreaQueryInitializationSystem</c>.
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    public struct AreaQueryRequest
-    {
-        /// <summary>Stable request identifier: ((long)entityIndex &lt;&lt; 32) | (uint)batchSlot.</summary>
-        public long RequestId;
-        /// <summary>ECS entity referencing the area boundary (must have <c>EditablePolyline</c>).</summary>
-        public Entity TargetAreaEntity;
-        /// <summary>Only entities with this force affiliation are counted.</summary>
-        public ForceId TargetForce;
-        /// <summary>Padding to maintain natural alignment.</summary>
-        public byte _pad0;
-        public byte _pad1;
-        public byte _pad2;
-        /// <summary>Originating Brain node ID for routing responses back.</summary>
-        public int SourceNodeId;
-    }
-
-    /// <summary>
     /// Result of a resolved area query, written by <c>AreaQuerySolverSystem</c>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
@@ -49,23 +28,20 @@ namespace Fdp.Toolkit.Spatial.Eqs
     }
 
     /// <summary>
-    /// ECS singleton that holds the current-frame area query batch.
-    /// Allocated once at startup via <c>SimHostComponentRegistry.RegisterAll</c>.
-    /// Cleared each Brain frame by <c>AreaQueryInitializationSystem</c>.
+    /// ECS singleton that holds the ring buffer of area query results.
+    /// Requests are submitted as <see cref="AreaQueryRequestEvent"/> events via
+    /// <see cref="FdpEventBus"/>; results are written here by
+    /// <c>AreaQueryResultMaterializationSystem</c> after the solver resolves them.
+    /// Indexed by <c>requestId % DefaultCapacity</c> (modulo ring buffer).
     /// </summary>
     [ComponentId(GlobalComponentIds.AreaQueryBatchData)]
     public struct AreaQueryBatchData
     {
-        /// <summary>Maximum number of concurrent area queries per Brain frame.</summary>
+        /// <summary>Ring-buffer capacity for concurrent area query results.</summary>
         public const int DefaultCapacity = 64;
 
-        /// <summary>Number of valid entries currently in <see cref="Requests"/>.</summary>
-        public int Count;
-
-        /// <summary>Pending requests submitted by Brain behavior nodes.</summary>
-        public NativeArray<AreaQueryRequest> Requests;
-
-        /// <summary>Results written by <c>AreaQuerySolverSystem</c> on the Muscle node.</summary>
+        /// <summary>Results written by <c>AreaQueryResultMaterializationSystem</c>.
+        /// Indexed via <c>requestId % DefaultCapacity</c>.</summary>
         public NativeArray<AreaQueryResult> Results;
     }
 

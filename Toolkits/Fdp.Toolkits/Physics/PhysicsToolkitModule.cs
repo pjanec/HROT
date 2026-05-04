@@ -41,9 +41,7 @@ namespace Fdp.Toolkit.Physics
 
             _batchData = new RaycastBatchData
             {
-                Requests = new NativeArray<RaycastRequest>(PhysicsConstants.RaycastBatchCapacity, Allocator.Persistent),
-                Hits     = new NativeArray<RaycastHit>(PhysicsConstants.RaycastBatchCapacity, Allocator.Persistent),
-                Count    = 0,
+                Hits = new NativeArray<RaycastHit>(PhysicsConstants.RaycastBatchCapacity, Allocator.Persistent),
             };
 
             // SetSingleton copies the struct value (including native array pointers) into the world.
@@ -64,8 +62,7 @@ namespace Fdp.Toolkit.Physics
             if (_disposed) return;
             _disposed = true;
 
-            if (_batchData.Requests.IsCreated) _batchData.Requests.Dispose();
-            if (_batchData.Hits.IsCreated)     _batchData.Hits.Dispose();
+            if (_batchData.Hits.IsCreated) _batchData.Hits.Dispose();
         }
     }
 }

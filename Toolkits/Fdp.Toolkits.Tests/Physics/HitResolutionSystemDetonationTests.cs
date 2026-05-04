@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Numerics;
 using Fdp.Core;
-using Fdp.Core.Collections;
 using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Systems;
@@ -56,26 +55,24 @@ namespace Fdp.Toolkit.Physics.Tests
             var hitEntity     = _world.CreateEntity();
             var shooterEntity = _world.CreateEntity();
 
-            // Build the ray: start at (0,0,0), end at (10,0,0), hit at T=0.5 → world pos (5,0,0).
+            // Build the ray: start at (0,0,0), end at (10,0,0), hit at T=0.5 -> world pos (5,0,0).
             var rayStart = new Vector3(0f, 0f, 0f);
             var rayEnd   = new Vector3(10f, 0f, 0f);
 
-            ref var batch = ref _world.GetSingleton<RaycastBatchData>();
-            batch.Requests[0] = new RaycastRequest
+            _world.Bus.Publish(new RaycastResultEvent
             {
-                Start        = rayStart,
-                End          = rayEnd,
-                RayId        = PhysicsConstants.PackBulletRayId(bulletIdx),
-                IgnoreEntity = shooterEntity,  // BallisticsSystem sets IgnoreEntity = bullet's Shooter
-            };
-            batch.Hits[0] = new RaycastHit
-            {
-                HasHit    = 1,
-                RayId     = PhysicsConstants.PackBulletRayId(bulletIdx),
-                HitEntity = hitEntity,
-                T         = 0.5f,
-            };
-            batch.Count = 1;
+                Hit = new RaycastHit
+                {
+                    HasHit       = 1,
+                    RayId        = PhysicsConstants.PackBulletRayId(bulletIdx),
+                    HitEntity    = hitEntity,
+                    IgnoreEntity = shooterEntity,  // BallisticsSystem sets IgnoreEntity = bullet's Shooter
+                    Start        = rayStart,
+                    End          = rayEnd,
+                    T            = 0.5f,
+                }
+            });
+            _world.Bus.SwapBuffers();
 
             // Act
             _sys.Execute(_world, 0.016f);
@@ -113,24 +110,18 @@ namespace Fdp.Toolkit.Physics.Tests
             var observer = _world.CreateEntity();
             var target   = _world.CreateEntity();
 
-            ref var batch = ref _world.GetSingleton<RaycastBatchData>();
-            batch.Requests[0] = new RaycastRequest
+            _world.Bus.Publish(new RaycastResultEvent
             {
-                Start    = Vector3.Zero,
-                End      = new Vector3(10f, 0f, 0f),
-                RayId    = PhysicsConstants.PackLosRayId(observer.Index, target.Index),
-                Observer = observer,
-                Target   = target,
-            };
-            batch.Hits[0] = new RaycastHit
-            {
-                HasHit   = 1,
-                RayId    = PhysicsConstants.PackLosRayId(observer.Index, target.Index),
-                Observer = observer,
-                Target   = target,
-                T        = 0.3f,
-            };
-            batch.Count = 1;
+                Hit = new RaycastHit
+                {
+                    HasHit   = 1,
+                    RayId    = PhysicsConstants.PackLosRayId(observer.Index, target.Index),
+                    Observer = observer,
+                    Target   = target,
+                    T        = 0.3f,
+                }
+            });
+            _world.Bus.SwapBuffers();
 
             _sys.Execute(_world, 0.016f);
             _world.Bus.SwapBuffers();
@@ -153,22 +144,20 @@ namespace Fdp.Toolkit.Physics.Tests
             var hitEntity     = _world.CreateEntity();
             var shooterEntity = _world.CreateEntity();
 
-            ref var batch = ref _world.GetSingleton<RaycastBatchData>();
-            batch.Requests[0] = new RaycastRequest
+            _world.Bus.Publish(new RaycastResultEvent
             {
-                Start        = Vector3.Zero,
-                End          = new Vector3(5f, 0f, 0f),
-                RayId        = PhysicsConstants.PackBulletRayId(hitEntity.Index),
-                IgnoreEntity = shooterEntity,
-            };
-            batch.Hits[0] = new RaycastHit
-            {
-                HasHit    = 1,
-                RayId     = PhysicsConstants.PackBulletRayId(hitEntity.Index),
-                HitEntity = hitEntity,
-                T         = 1f,
-            };
-            batch.Count = 1;
+                Hit = new RaycastHit
+                {
+                    HasHit       = 1,
+                    RayId        = PhysicsConstants.PackBulletRayId(hitEntity.Index),
+                    HitEntity    = hitEntity,
+                    IgnoreEntity = shooterEntity,
+                    Start        = Vector3.Zero,
+                    End          = new Vector3(5f, 0f, 0f),
+                    T            = 1f,
+                }
+            });
+            _world.Bus.SwapBuffers();
 
             var ex = Record.Exception(() =>
             {

@@ -9,19 +9,18 @@ using Fdp.ModuleHost.Abstractions;
 namespace Fdp.Toolkit.Navigation.Systems
 {
     /// <summary>
-    /// Simulation-phase system that resolves all pending <see cref="PathRequest"/>s in
-    /// <see cref="PathfindingBatchData"/> using a node-graph Dijkstra search over the
+    /// Simulation-phase system that resolves pending <see cref="PathfindingRequestEvent"/>s
+    /// accumulated from the event bus using a node-graph Dijkstra search over the
     /// supplied <see cref="RoadNetworkBlob"/>.
     ///
-    /// <para><b>Result contract:</b>
-    /// When a path is found, the waypoints are registered into the shared
-    /// <see cref="TrajectoryPoolManager"/> and the resulting handle is stored in
-    /// <see cref="PathResult.RouteHandle"/>. The batch's <see cref="PathfindingBatchData.Count"/>
-    /// is reset to 0 after all requests are processed.</para>
+    /// <para><b>Execution context:</b> runs inside <see cref="Modules.NavigationSolverModule"/> at
+    /// 10 Hz on a background thread (SoD snapshot).  Results are published back as
+    /// <see cref="PathfindingResultEvent"/> via <see cref="IEntityCommandBuffer"/> and
+    /// materialized on the main thread by <c>PathfindingResultMaterializationSystem</c>.</para>
     ///
     /// <para><b>Empty / default network:</b>
     /// If <see cref="RoadNetworkBlob.Nodes"/> is not created or has no nodes, every
-    /// request returns <see cref="PathResult.IsReachable"/> = <c>false</c>.</para>
+    /// request returns <see cref="PathfindingResultEvent.IsReachable"/> = <c>false</c>.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     public class PathfindingSolverSystem : IEcsModuleSystem
@@ -47,44 +46,35 @@ namespace Fdp.Toolkit.Navigation.Systems
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
-            var world = (EntityRepository)view;
+            // Read all accumulated request events since the last solver tick.
+            var requests = view.ReadEvents<PathfindingRequestEvent>();
+            if (requests.IsEmpty) return;
 
-            if (!world.HasSingleton<PathfindingBatchData>()) return;
-            ref var batch = ref world.GetSingleton<PathfindingBatchData>();
-
-            int count = batch.Count;
-            if (count == 0) return;
-
+            var cmd = view.GetCommandBuffer();
             bool networkEmpty = !_roadNetwork.Nodes.IsCreated || _roadNetwork.Nodes.Length == 0;
 
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < requests.Length; i++)
             {
-                ref readonly var req = ref batch.Requests[i];
+                ref readonly var req = ref requests[i];
 
-                if (networkEmpty)
+                var result = networkEmpty ? Unreachable(in req) : SolvePath(in req);
+
+                cmd.PublishEvent(new PathfindingResultEvent
                 {
-                    batch.Results[i] = new PathResult
-                    {
-                        RequestId          = req.RequestId,
-                        IsReachable        = false,
-                        TotalDistanceMeters = 0f,
-                        RouteHandle        = -1,
-                        SourceNodeId       = req.SourceNodeId,
-                    };
-                    continue;
-                }
-
-                batch.Results[i] = SolvePath(req);
+                    RequestId           = result.RequestId,
+                    IsReachable         = result.IsReachable,
+                    TotalDistanceMeters = result.TotalDistanceMeters,
+                    RouteHandle         = result.RouteHandle,
+                    SourceNodeId        = result.SourceNodeId,
+                });
             }
-
-            batch.Count = 0;
         }
 
         // ── Private helpers ──────────────────────────────────────────────────────
 
         /// <summary>Runs Dijkstra from the road node nearest to <c>req.Start</c> to the node
         /// nearest to <c>req.End</c>, then registers the resulting waypoints.</summary>
-        private PathResult SolvePath(in PathRequest req)
+        private PathfindingResultEvent SolvePath(in PathfindingRequestEvent req)
         {
             var start2D = new Vector2(req.Start.X, req.Start.Y);
             var end2D   = new Vector2(req.End.X,   req.End.Y);
@@ -104,7 +94,7 @@ namespace Fdp.Toolkit.Navigation.Systems
             for (int i = 0; i < nodeCount; i++) { dist[i] = float.MaxValue; prev[i] = -1; }
             dist[startNode] = 0f;
 
-            // Simple O(N²) Dijkstra — road graphs are small (hundreds of nodes).
+            // Simple O(N^2) Dijkstra — road graphs are small (hundreds of nodes).
             for (int iter = 0; iter < nodeCount; iter++)
             {
                 // Pick unvisited node with smallest distance
@@ -160,7 +150,7 @@ namespace Fdp.Toolkit.Navigation.Systems
 
             int handle = _trajectoryPool.RegisterTrajectory(waypoints);
 
-            return new PathResult
+            return new PathfindingResultEvent
             {
                 RequestId           = req.RequestId,
                 IsReachable         = true,
@@ -172,7 +162,7 @@ namespace Fdp.Toolkit.Navigation.Systems
 
         private int FindNearestNode(Vector2 pos)
         {
-            int   best    = -1;
+            int   best     = -1;
             float bestDist = float.MaxValue;
 
             for (int i = 0; i < _roadNetwork.Nodes.Length; i++)
@@ -183,7 +173,14 @@ namespace Fdp.Toolkit.Navigation.Systems
             return best;
         }
 
-        private static PathResult Unreachable(in PathRequest req) =>
-            new PathResult { RequestId = req.RequestId, IsReachable = false, TotalDistanceMeters = 0f, RouteHandle = -1, SourceNodeId = req.SourceNodeId };
+        private static PathfindingResultEvent Unreachable(in PathfindingRequestEvent req) =>
+            new PathfindingResultEvent
+            {
+                RequestId           = req.RequestId,
+                IsReachable         = false,
+                TotalDistanceMeters = 0f,
+                RouteHandle         = -1,
+                SourceNodeId        = req.SourceNodeId,
+            };
     }
 }

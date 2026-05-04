@@ -55,7 +55,7 @@ public sealed class PathfindingBatchDataRenderer : IImGuiRenderer
     public string? GetSummary(object value)
     {
         var b = (PathfindingBatchData)value;
-        return $"{b.Count} active  /  {b.Requests.Length} capacity";
+        return $"Results capacity: {(b.Results.IsCreated ? b.Results.Length : 0)}";
     }
 
     public bool RenderValue(object value)
@@ -63,9 +63,7 @@ public sealed class PathfindingBatchDataRenderer : IImGuiRenderer
         var b = (PathfindingBatchData)value;
         ImGuiApi.TextDisabled("Unmanaged Batch Buffers (read-only)");
         ImGuiApi.Separator();
-        ImGuiApi.TextUnformatted($"Active this frame    : {b.Count}");
-        ImGuiApi.TextUnformatted($"Requests capacity    : {b.Requests.Length}");
-        ImGuiApi.TextUnformatted($"Results  capacity    : {b.Results.Length}");
+        ImGuiApi.TextUnformatted($"Results  capacity    : {(b.Results.IsCreated ? b.Results.Length : 0)}");
         return true;
     }
 }
@@ -107,7 +105,7 @@ public sealed class RaycastBatchDataRenderer : IImGuiRenderer
     public string? GetSummary(object value)
     {
         var b = (RaycastBatchData)value;
-        return $"{b.Count} active  /  {b.Requests.Length} capacity";
+        return $"Hits capacity: {(b.Hits.IsCreated ? b.Hits.Length : 0)}";
     }
 
     public bool RenderValue(object value)
@@ -115,9 +113,7 @@ public sealed class RaycastBatchDataRenderer : IImGuiRenderer
         var b = (RaycastBatchData)value;
         ImGuiApi.TextDisabled("Unmanaged Batch Buffers (read-only)");
         ImGuiApi.Separator();
-        ImGuiApi.TextUnformatted($"Active this frame    : {b.Count}");
-        ImGuiApi.TextUnformatted($"Requests capacity    : {b.Requests.Length}");
-        ImGuiApi.TextUnformatted($"Hits     capacity    : {b.Hits.Length}");
+        ImGuiApi.TextUnformatted($"Hits     capacity    : {(b.Hits.IsCreated ? b.Hits.Length : 0)}");
         return true;
     }
 }

@@ -23,8 +23,7 @@ namespace Fdp.Toolkit.Physics.Tests
             if (_world.HasSingleton<RaycastBatchData>())
             {
                 ref var b = ref _world.GetSingleton<RaycastBatchData>();
-                if (b.Requests.IsCreated) b.Requests.Dispose();
-                if (b.Hits.IsCreated)     b.Hits.Dispose();
+                if (b.Hits.IsCreated) b.Hits.Dispose();
             }
         }
 
@@ -50,7 +49,7 @@ namespace Fdp.Toolkit.Physics.Tests
         // ── Test 2 ────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// After <see cref="PhysicsToolkitModule.Initialize"/>, both arrays in the singleton
+        /// After <see cref="PhysicsToolkitModule.Initialize"/>, the Hits array in the singleton
         /// must be sized to <see cref="PhysicsConstants.RaycastBatchCapacity"/> (4096).
         /// </summary>
         [Fact]
@@ -63,7 +62,6 @@ namespace Fdp.Toolkit.Physics.Tests
 
             ref var batch = ref _world.GetSingleton<RaycastBatchData>();
 
-            Assert.Equal(PhysicsConstants.RaycastBatchCapacity, batch.Requests.Length);
             Assert.Equal(PhysicsConstants.RaycastBatchCapacity, batch.Hits.Length);
         }
 

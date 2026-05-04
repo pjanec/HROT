@@ -4,7 +4,6 @@ using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Systems;
-
 namespace Fdp.Toolkit.Combat.Systems
 {
     /// <summary>
@@ -50,15 +49,11 @@ namespace Fdp.Toolkit.Combat.Systems
                     $"{nameof(BallisticsSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            // Guard: if the RaycastBatchData singleton has not been initialised by
-            // PhysicsToolkitModule, skip silently — bullets will not be tested this frame.
-            if (!repo.HasSingleton<RaycastBatchData>()) return;
-
             uint currentTick = repo.HasSingleton<GlobalTime>()
                 ? (uint)repo.GetSingleton<GlobalTime>().FrameNumber
                 : 0u;
 
-            ref var batch = ref repo.GetSingleton<RaycastBatchData>();
+            var cmd = view.GetCommandBuffer();
 
             var query = repo.Query()
                 .With<BallisticProjectile>()
@@ -77,21 +72,17 @@ namespace Fdp.Toolkit.Combat.Systems
                     continue;   // do NOT submit a raycast for a just-destroyed bullet
                 }
 
-                // ── 2. Submit swept-segment raycast ──────────────────────────────
+                // ── 2. Submit swept-segment raycast via event bus ─────────────────
                 var tf = repo.GetComponent<SimTransform>(entity);
 
-                // Capacity guard: silently drop if the batch is already full.
-                if (batch.Count < PhysicsConstants.RaycastBatchCapacity)
+                cmd.PublishEvent(new RaycastRequestEvent
                 {
-                    batch.Requests[batch.Count++] = new RaycastRequest
-                    {
-                        Start        = proj.PreviousPosition,
-                        End          = tf.Position,
-                        RayId        = PhysicsConstants.PackBulletRayId(entity.Index),
-                        LayerMask    = ~CombatConstants.BulletCollisionLayer,  // hit everything except other bullets
-                        IgnoreEntity = proj.Shooter,
-                    };
-                }
+                    Start        = proj.PreviousPosition,
+                    End          = tf.Position,
+                    RayId        = PhysicsConstants.PackBulletRayId(entity.Index),
+                    LayerMask    = ~CombatConstants.BulletCollisionLayer,  // hit everything except other bullets
+                    IgnoreEntity = proj.Shooter,
+                });
 
                 // ── 3. Update PreviousPosition ───────────────────────────────────
                 // Record the bullet's current position so the next frame's raycast

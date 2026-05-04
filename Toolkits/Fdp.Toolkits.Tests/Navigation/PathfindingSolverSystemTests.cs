@@ -4,6 +4,8 @@ using CarKinem.Road;
 using CarKinem.Trajectory;
 using Fdp.Core;
 using Fdp.Core.Collections;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation.BTreeNodes;
 using Fdp.Toolkit.Navigation.Modules;
 using Fdp.Toolkit.Navigation.Systems;
 using Moq;
@@ -15,6 +17,8 @@ namespace Fdp.Toolkit.Navigation.Tests
     /// <summary>
     /// Unit tests for <see cref="PathfindingSolverSystem"/> and
     /// <see cref="NavigationSolverModule"/> (MOD1-P6T7).
+    /// Tests use the full event pipeline: publish PathfindingRequestEvent, swap, solve,
+    /// playback, swap, materialize -- then check the ring buffer slot.
     /// </summary>
     public sealed class PathfindingSolverSystemTests : IDisposable
     {
@@ -23,11 +27,14 @@ namespace Fdp.Toolkit.Navigation.Tests
         public PathfindingSolverSystemTests()
         {
             _world = new EntityRepository();
+
+            // Register the events consumed by the solver and materialization system.
+            _world.RegisterEvent<PathfindingRequestEvent>();
+            _world.RegisterEvent<PathfindingResultEvent>();
+
             var batch = new PathfindingBatchData
             {
-                Count    = 0,
-                Requests = new NativeArray<PathRequest>(PathfindingBatchData.DefaultCapacity, Allocator.Persistent),
-                Results  = new NativeArray<PathResult>(PathfindingBatchData.DefaultCapacity,  Allocator.Persistent),
+                Results = new NativeArray<PathResult>(PathfindingBatchData.DefaultCapacity, Allocator.Persistent),
             };
             _world.SetSingleton(batch);
         }
@@ -36,8 +43,28 @@ namespace Fdp.Toolkit.Navigation.Tests
         {
             if (!_world.HasSingleton<PathfindingBatchData>()) return;
             ref var b = ref _world.GetSingleton<PathfindingBatchData>();
-            if (b.Requests.IsCreated) b.Requests.Dispose();
-            if (b.Results.IsCreated)  b.Results.Dispose();
+            if (b.Results.IsCreated) b.Results.Dispose();
+        }
+
+        // ── Helpers ────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Runs the full event pipeline: swap (requests now readable) -> solve -> playback
+        /// -> swap (results now readable) -> materialize.
+        /// Returns the ring buffer result for <paramref name="requestId"/>.
+        /// </summary>
+        private PathResult RunSolverPipeline(PathfindingSolverSystem solver, long requestId, float dt = 0f)
+        {
+            var view = (ISimulationView)_world;
+            _world.Bus.SwapBuffers();
+            solver.Execute(view, dt);
+            var ecb = (EntityCommandBuffer)view.GetCommandBuffer();
+            ecb.Playback(_world);
+            _world.Bus.SwapBuffers();
+            new PathfindingResultMaterializationSystem().Execute(view, dt);
+
+            int slot = (int)((uint)requestId % (uint)PathfindingBatchData.DefaultCapacity);
+            return _world.GetSingleton<PathfindingBatchData>().Results[slot];
         }
 
         // ── Test 1: route found ───────────────────────────────────────────────────
@@ -45,7 +72,7 @@ namespace Fdp.Toolkit.Navigation.Tests
         [Fact]
         public void PathfindingSolverSystem_WritesRouteHandle()
         {
-            // Arrange — two-node road network: node 0 at origin, node 1 at (100,0).
+            // Arrange -- two-node road network: node 0 at origin, node 1 at (100,0).
             var builder = new RoadNetworkBuilder();
             builder.AddNode(new Vector2(0f, 0f));
             builder.AddNode(new Vector2(100f, 0f));
@@ -55,27 +82,14 @@ namespace Fdp.Toolkit.Navigation.Tests
                 startNodeIdx: 0, endNodeIdx: 1);
             var roadNet = builder.Build(cellSize: 20f, gridWidth: 10, gridHeight: 10);
 
-            var pool = new TrajectoryPoolManager();
-            var view = (ISimulationView)_world;
-
-            ref var batch = ref _world.GetSingleton<PathfindingBatchData>();
-            batch.Requests[0] = new PathRequest
-            {
-                RequestId      = 1L,
-                Start          = Vector3.Zero,
-                End            = new Vector3(100f, 0f, 0f),
-                MobilityProfile = 0,
-            };
-            batch.Count = 1;
-
-            var system = new PathfindingSolverSystem(roadNet, pool);
+            var pool      = new TrajectoryPoolManager();
+            long requestId = PathfindingBatchHelper.RequestPath(_world, entityIndex: 1, from: Vector3.Zero, to: new Vector3(100f, 0f, 0f));
+            var system    = new PathfindingSolverSystem(roadNet, pool);
 
             // Act
-            system.Execute(view, 0f);
+            var r = RunSolverPipeline(system, requestId);
 
             // Assert
-            ref readonly var result = ref _world.GetSingleton<PathfindingBatchData>();
-            var r = result.Results[0];
             Assert.True(r.IsReachable);
             Assert.True(r.RouteHandle >= 0);
 
@@ -84,41 +98,29 @@ namespace Fdp.Toolkit.Navigation.Tests
             pool.Dispose();
         }
 
-        // ── Test 2: empty network → unreachable ──────────────────────────────────
+        // ── Test 2: empty network -> unreachable ──────────────────────────────────
 
         [Fact]
         public void PathfindingSolverSystem_WritesUnreachable_WhenNoPath()
         {
-            // Arrange — empty (default) road network has no nodes.
-            var pool = new TrajectoryPoolManager();
-            var view = (ISimulationView)_world;
-
-            ref var batch = ref _world.GetSingleton<PathfindingBatchData>();
-            batch.Requests[0] = new PathRequest
-            {
-                RequestId      = 2L,
-                Start          = Vector3.Zero,
-                End            = new Vector3(500f, 500f, 0f),
-                MobilityProfile = 0,
-            };
-            batch.Count = 1;
-
-            var system = new PathfindingSolverSystem(default(RoadNetworkBlob), pool);
+            // Arrange -- empty (default) road network has no nodes.
+            var pool      = new TrajectoryPoolManager();
+            long requestId = PathfindingBatchHelper.RequestPath(_world, entityIndex: 2, from: Vector3.Zero, to: new Vector3(500f, 500f, 0f));
+            var system    = new PathfindingSolverSystem(default(RoadNetworkBlob), pool);
 
             // Act
-            system.Execute(view, 0f);
+            var r = RunSolverPipeline(system, requestId);
 
             // Assert
-            ref readonly var result = ref _world.GetSingleton<PathfindingBatchData>();
-            Assert.False(result.Results[0].IsReachable);
+            Assert.False(r.IsReachable);
 
             pool.Dispose();
         }
 
-        // ── Test 3: NavigationSolverModule registers PathfindingSolverSystem ─────
+        // ── Test 3: NavigationSolverModule registers materialization system ───────
 
         [Fact]
-        public void NavigationSolverModule_RegistersPathfindingSystem()
+        public void NavigationSolverModule_RegistersMaterializationSystem()
         {
             // Arrange
             var module       = new NavigationSolverModule(default(RoadNetworkBlob));
@@ -128,25 +130,15 @@ namespace Fdp.Toolkit.Navigation.Tests
             module.RegisterSystems(mockRegistry.Object);
 
             // Assert
-            mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<PathfindingSolverSystem>()), Times.Once);
+            mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<PathfindingResultMaterializationSystem>()), Times.Once);
         }
 
         // ── Test 4: SourceNodeId propagation ─────────────────────────────────────
 
-        /// <summary>
-        /// Verifies that <see cref="PathfindingSolverSystem"/> copies
-        /// <see cref="PathRequest.SourceNodeId"/> verbatim into the corresponding
-        /// <see cref="PathResult.SourceNodeId"/>.
-        ///
-        /// <para>
-        /// The Distributed Pathfinding Pipeline relies on this field to route
-        /// path responses back to the originating Brain node.
-        /// </para>
-        /// </summary>
         [Fact]
         public void PathfindingSolverSystem_PropagatesSourceNodeId_ToResult()
         {
-            // Arrange — two-node network so the solver can find a route.
+            // Arrange -- two-node network so the solver can find a route.
             var builder = new RoadNetworkBuilder();
             builder.AddNode(new Vector2(0f, 0f));
             builder.AddNode(new Vector2(100f, 0f));
@@ -156,64 +148,35 @@ namespace Fdp.Toolkit.Navigation.Tests
                 startNodeIdx: 0, endNodeIdx: 1);
             var roadNet = builder.Build(cellSize: 20f, gridWidth: 10, gridHeight: 10);
 
-            var pool = new TrajectoryPoolManager();
-            var view = (ISimulationView)_world;
-
-            ref var batch = ref _world.GetSingleton<PathfindingBatchData>();
-            batch.Requests[0] = new PathRequest
-            {
-                RequestId       = 10L,
-                Start           = Vector3.Zero,
-                End             = new Vector3(100f, 0f, 0f),
-                MobilityProfile = 0,
-                SourceNodeId    = 5,
-            };
-            batch.Count = 1;
-
-            var system = new PathfindingSolverSystem(roadNet, pool);
+            var pool      = new TrajectoryPoolManager();
+            long requestId = PathfindingBatchHelper.RequestPath(_world, entityIndex: 3, from: Vector3.Zero, to: new Vector3(100f, 0f, 0f), sourceNodeId: 5);
+            var system    = new PathfindingSolverSystem(roadNet, pool);
 
             // Act
-            system.Execute(view, 0f);
+            var r = RunSolverPipeline(system, requestId);
 
             // Assert
-            ref readonly var result = ref _world.GetSingleton<PathfindingBatchData>();
-            Assert.Equal(5, result.Results[0].SourceNodeId);
+            Assert.Equal(5, r.SourceNodeId);
 
             roadNet.Dispose();
             pool.Dispose();
         }
 
-        /// <summary>
-        /// SourceNodeId is propagated even when the solver cannot find a path
-        /// (IsReachable == false), so the egress translator can still route the
-        /// "unreachable" result back to the originating Brain node.
-        /// </summary>
+        // ── Test 5: SourceNodeId on unreachable path ──────────────────────────────
+
         [Fact]
         public void PathfindingSolverSystem_PropagatesSourceNodeId_WhenUnreachable()
         {
-            var pool = new TrajectoryPoolManager();
-            var view = (ISimulationView)_world;
-
-            ref var batch = ref _world.GetSingleton<PathfindingBatchData>();
-            batch.Requests[0] = new PathRequest
-            {
-                RequestId       = 11L,
-                Start           = Vector3.Zero,
-                End             = new Vector3(500f, 500f, 0f),
-                MobilityProfile = 0,
-                SourceNodeId    = 99,
-            };
-            batch.Count = 1;
-
-            var system = new PathfindingSolverSystem(default(RoadNetworkBlob), pool);
+            var pool      = new TrajectoryPoolManager();
+            long requestId = PathfindingBatchHelper.RequestPath(_world, entityIndex: 4, from: Vector3.Zero, to: new Vector3(500f, 500f, 0f), sourceNodeId: 99);
+            var system    = new PathfindingSolverSystem(default(RoadNetworkBlob), pool);
 
             // Act
-            system.Execute(view, 0f);
+            var r = RunSolverPipeline(system, requestId);
 
             // Assert
-            ref readonly var result = ref _world.GetSingleton<PathfindingBatchData>();
-            Assert.False(result.Results[0].IsReachable);
-            Assert.Equal(99, result.Results[0].SourceNodeId);
+            Assert.False(r.IsReachable);
+            Assert.Equal(99, r.SourceNodeId);
 
             pool.Dispose();
         }

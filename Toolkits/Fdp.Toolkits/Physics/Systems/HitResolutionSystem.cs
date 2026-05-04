@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Core to Combat.Contracts
-// BATCH-10: HitEvent moved from FDP.Toolkit.Combat.Events to Fdp.Core — no extra using needed.
+// BATCH-10: HitEvent moved from FDP.Toolkit.Combat.Events to Fdp.Core -- no extra using needed.
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Perception.Events;
 
@@ -52,10 +52,6 @@ namespace Fdp.Toolkit.Physics.Systems
     /// simply not consumed and causes no side-effects.  Network-ID resolution was moved to
     /// the egress translator layer.
     /// </para>
-    /// <para>
-    /// <b>Count reset:</b> After all hits are dispatched <see cref="RaycastBatchData.Count"/>
-    /// is set to zero so the next frame starts with a clean batch.
-    /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
     public class HitResolutionSystem : IEcsModuleSystem
@@ -67,13 +63,12 @@ namespace Fdp.Toolkit.Physics.Systems
                     $"{nameof(HitResolutionSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            if (!repo.HasSingleton<RaycastBatchData>()) return;
-            ref var batch = ref repo.GetSingleton<RaycastBatchData>();
+            var events = view.ReadEvents<RaycastResultEvent>();
+            if (events.IsEmpty) return;
 
-            for (int i = 0; i < batch.Count; i++)
+            for (int i = 0; i < events.Length; i++)
             {
-                ref readonly var hit     = ref batch.Hits[i];
-                ref readonly var request = ref batch.Requests[i];
+                ref readonly var hit = ref events[i].Hit;
                 if (hit.HasHit == 0) continue;
 
                 if (PhysicsConstants.IsBulletRay(hit.RayId))
@@ -81,7 +76,7 @@ namespace Fdp.Toolkit.Physics.Systems
                     int bulletIndex = (int)(hit.RayId & 0x7FFF_FFFF_FFFF_FFFFL);
                     var bulletEntity = repo.GetEntityByIndex(bulletIndex);
 
-                    // Bullet hit → emit HitEvent (Combat toolkit will consume in Phase 5).
+                    // Bullet hit -> emit HitEvent (Combat toolkit will consume in Phase 5).
                     repo.Bus.Publish(new HitEvent
                     {
                         HitEntity    = hit.HitEntity,
@@ -90,16 +85,16 @@ namespace Fdp.Toolkit.Physics.Systems
                     });
 
                     // PACK-P003: Always emit DetonationNotification with local ECS Entity handles.
-                    // The shooter entity is request.IgnoreEntity (set to the bullet's Shooter by
-                    // BallisticsSystem — see BallisticsSystem.cs for the convention).
+                    // The shooter entity is hit.IgnoreEntity (set to the bullet's Shooter by
+                    // BallisticsSystem -- see BallisticsSystem.cs for the convention).
                     // Network-ID resolution is performed by MunitionDetonationEgressTranslator
                     // on the egress boundary; this system and FDP.Toolkit.Physics have zero
                     // NetworkEntityMap dependency.
-                    var hitPos = request.Start + hit.T * (request.End - request.Start);
+                    var hitPos = hit.Start + hit.T * (hit.End - hit.Start);
 
                     repo.Bus.Publish(new DetonationNotification
                     {
-                        Shooter = request.IgnoreEntity,
+                        Shooter = hit.IgnoreEntity,
                         Target  = hit.HitEntity,
                         HitX    = hitPos.X,
                         HitY    = hitPos.Y,
@@ -115,11 +110,11 @@ namespace Fdp.Toolkit.Physics.Systems
                 }
                 else
                 {
-                    // LOS hit � emit TargetVisibleEvent (Perception toolkit consumes it).
-                    // Full Entity handles propagated from RaycastRequest � no index-only recovery needed.
+                    // LOS hit -- emit TargetVisibleEvent (Perception toolkit consumes it).
+                    // Full Entity handles propagated from RaycastRequest -- no index-only recovery needed.
                     // IsAlive checks are intentionally deferred to ThreatEvaluationSystem (the consumer),
                     // since a one-frame entity destruction between solve and emit is possible but does not
-                    // warrant a check here � the consumer applies the generational guard.
+                    // warrant a check here -- the consumer applies the generational guard.
                     repo.Bus.Publish(new TargetVisibleEvent
                     {
                         Observer = hit.Observer,
@@ -127,9 +122,6 @@ namespace Fdp.Toolkit.Physics.Systems
                     });
                 }
             }
-
-            // Reset for next frame � verified by HitResolution_ClearsCount_AfterProcessing test.
-            batch.Count = 0;
         }
     }
 }
