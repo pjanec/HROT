@@ -759,6 +759,7 @@ namespace Hrot.Editor
             _diagnosticsDumpProcessManager?.Tick();
             _logMergeWorker?.Tick();
             _uiCache?.Update();
+            _editorLogic?.Update();
             _clusterPanel?.Update(deltaTime);
 
             // Drain ActivateEditorToolEvent — published by toolbar / context menu.

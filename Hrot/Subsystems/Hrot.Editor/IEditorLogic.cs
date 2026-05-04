@@ -12,6 +12,9 @@ namespace Hrot.Editor;
 /// </summary>
 public interface IEditorLogic
 {
+    /// <summary>Updates the editor logic state machine.</summary>
+    void Update();
+
     /// <summary>Clears the world and resets time to zero.</summary>
     void NewScenario();
 

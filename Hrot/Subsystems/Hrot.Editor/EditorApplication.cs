@@ -40,6 +40,9 @@ public sealed class EditorApplication : IEditorLogic
     private readonly HotReloadMessageLogSource? _hotReloadSource;
     private readonly string[]                   _aiProjectPathSegments;
     private SimHostMode _currentMode = SimHostMode.Internal;
+    private Fdp.Toolkit.Orchestration.ClusterState _currentClusterState = Fdp.Toolkit.Orchestration.ClusterState.Idle;
+    private string? _pendingScenarioLoad;
+    private bool _waitingForIdle;
 
     // ── Scenario tracking ─────────────────────────────────────────────────────
 
@@ -61,6 +64,36 @@ public sealed class EditorApplication : IEditorLogic
     /// <inheritdoc/>
     public IReadOnlyList<string> AvailableScenarios =>
         _availableScenariosSource?.Invoke() ?? Array.Empty<string>();
+
+    /// <inheritdoc/>
+    public void Update()
+    {
+        foreach (var ev in _orchestrationBus.ReadManaged<Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent>())
+            _currentClusterState = ev.CurrentState;
+
+        if (!_waitingForIdle || string.IsNullOrEmpty(_pendingScenarioLoad)) return;
+        if (_currentClusterState != Fdp.Toolkit.Orchestration.ClusterState.Idle) return;
+
+        _waitingForIdle = false;
+        var scenarioName = _pendingScenarioLoad;
+        _pendingScenarioLoad = null;
+
+        // 1. Safely wipe the existing state (fires WorldResetEvent and SoftClears the repo)
+        //    so the new scenario starts on a blank slate.
+        NewScenario();
+
+        // 2. Dispatch a cluster transition intent to route the load through the orchestrator.
+        //    This triggers HrotEditLoadHandler -> StagingEntityExtractor -> NetworkSpawningSystem
+        _orchestrationBus.PublishManaged(new Fdp.Toolkit.Orchestration.TransitionStateIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit,
+            ScenarioId    = scenarioName,
+            ExerciseId    = Guid.NewGuid()
+        });
+
+        _loadedScenarioName = scenarioName;
+    }
 
     public EditorApplication(
         ScenarioFileService fileService,
@@ -111,25 +144,14 @@ public sealed class EditorApplication : IEditorLogic
     public void LoadScenarioByName(string scenarioName)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
+        _pendingScenarioLoad = scenarioName;
+        _waitingForIdle = true;
 
-        // 1. Safely wipe the existing state (fires WorldResetEvent and SoftClears the repo)
-        //    so the new scenario starts on a blank slate.
-        NewScenario();
-
-        // 2. Dispatch a cluster transition intent to route the load through the orchestrator.
-        //    This triggers HrotEditLoadHandler -> StagingEntityExtractor -> NetworkSpawningSystem
         _orchestrationBus.PublishManaged(new Fdp.Toolkit.Orchestration.TransitionStateIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit,
-            ScenarioId    = scenarioName,
-
-            // Provide a fresh ExerciseId to break the Orchestrator's same-state deduplication
-            // and force the cluster to cycle through the LoadingEdit phase again.
-            ExerciseId    = Guid.NewGuid() 
+            TargetState   = Fdp.Toolkit.Orchestration.ClusterState.Idle
         });
-
-        _loadedScenarioName = scenarioName;
     }
 
     /// <inheritdoc/>
