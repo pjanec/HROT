@@ -402,6 +402,10 @@ public class EntityInspectorPanel
 
     private string BuildSingleEntityJson(IInspectableSession session, Entity entity)
     {
+        // Singletons is a UI pseudo-entity, not a real ECS row in EntityRepository.
+        if (entity == RepositoryAdapter.SingletonEntity)
+            return EntityJsonDumper.Dump(session, entity);
+
         if (Serializer != null && session is RepositoryAdapter adapter)
         {
             var resolver = new DiagnosticGuidResolver();
@@ -430,6 +434,16 @@ public class EntityInspectorPanel
 
             foreach (var entity in entities)
             {
+                // Singletons is a UI pseudo-entity, not a real ECS row in EntityRepository.
+                if (entity == RepositoryAdapter.SingletonEntity)
+                {
+                    var singletonJson = EntityJsonDumper.Dump(session, entity);
+                    var singletonNode = JsonNode.Parse(singletonJson);
+                    if (singletonNode != null)
+                        jsonArray.Add(singletonNode);
+                    continue;
+                }
+
                 var mask = adapter.Repo.GetHeader(entity.Index).ComponentMask;
                 mask.BitwiseAnd(snapshotable);
 
