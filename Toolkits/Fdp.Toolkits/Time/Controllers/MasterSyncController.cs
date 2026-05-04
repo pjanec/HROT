@@ -34,6 +34,8 @@ namespace Fdp.Toolkit.Time.Controllers
         private double _unscaledTotalTime;
         private float  _timeScale = 1.0f;
         private long   _totalWallTicks;
+        private float  _pendingStepDelta;
+        private float  _pendingUnscaledStepDelta;
 
         // ── Infrastructure ───────────────────────────────────────────────────
         private readonly FdpEventBus _eventBus;
@@ -196,6 +198,8 @@ namespace Fdp.Toolkit.Time.Controllers
             _totalTime             += scaledDelta;
             _unscaledTotalTime     += fixedDelta;
             _totalWallTicks        += (long)(fixedDelta * TimeSpan.TicksPerSecond);
+            _pendingStepDelta      += scaledDelta;
+            _pendingUnscaledStepDelta += fixedDelta;
 
             _eventBus.PublishManaged(new AdvanceFrameIntent
             {
@@ -416,7 +420,12 @@ namespace Fdp.Toolkit.Time.Controllers
                     TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"));
             }
 
-            return BuildGlobalTime(0.0f, 0.0f);
+            float dt = _pendingStepDelta;
+            float unscaledDt = _pendingUnscaledStepDelta;
+            _pendingStepDelta = 0f;
+            _pendingUnscaledStepDelta = 0f;
+
+            return BuildGlobalTime(dt, unscaledDt);
         }
 
         private GlobalTime BuildGlobalTime(float deltaTime, float unscaledDelta) =>
