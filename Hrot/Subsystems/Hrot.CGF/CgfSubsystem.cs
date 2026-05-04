@@ -225,6 +225,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         BrainBlackboardRenderer.BehaviorRegistryAccessor = behaviorRegistry;
         Hrot.Presentation.Renderers.Blackboard1024Renderer.BehaviorRegistryAccessor = behaviorRegistry;
         BTreeVisualizerRenderer.BehaviorRegistryAccessor = behaviorRegistry;
+        Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor = behaviorRegistry;
 
         // Configure network factory for this node so auxiliary translators can be created.
         var nodeFactory = _networkFactory?.ConfigureForNode(_context, NodeRole.Brain, behaviorRegistry);

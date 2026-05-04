@@ -37,6 +37,24 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
 
     // ---- IEntityAwareImGuiRenderer ----
 
+    public string? GetSummary(IInspectableSession session, Entity entity, object value)
+    {
+        string baseSummary = GetSummary(value) ?? "Blackboard Memory";
+
+        var registry = BehaviorRegistryAccessor;
+        if (registry == null) return baseSummary;
+        if (!session.HasComponent(entity, typeof(BehaviorState))) return baseSummary;
+
+        var behaviorStateObj = session.GetComponent(entity, typeof(BehaviorState));
+        if (behaviorStateObj is not BehaviorState ds) return baseSummary;
+        if (ds.ActiveBehaviorHash == 0) return baseSummary;
+
+        if (registry.TryGetName(ds.ActiveBehaviorHash, out string? name))
+            return $"{baseSummary} | {name}";
+
+        return baseSummary;
+    }
+
     public bool RenderValue(IInspectableSession session, Entity entity, object value, out string? doubleClickedPath)
     {
         doubleClickedPath = null;

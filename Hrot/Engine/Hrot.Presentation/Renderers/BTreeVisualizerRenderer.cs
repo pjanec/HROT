@@ -39,6 +39,24 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
 
     // ---- IEntityAwareImGuiRenderer ----
 
+    public string? GetSummary(IInspectableSession session, Entity entity, object value)
+    {
+        string baseSummary = GetSummary(value) ?? string.Empty;
+
+        var registry = BehaviorRegistryAccessor;
+        if (registry != null && session.HasComponent(entity, typeof(BehaviorState)))
+        {
+            if (session.GetComponent(entity, typeof(BehaviorState)) is BehaviorState state
+                && state.ActiveBehaviorHash != 0
+                && registry.TryGetName(state.ActiveBehaviorHash, out string? name))
+            {
+                return $"{name} | {baseSummary}";
+            }
+        }
+
+        return baseSummary;
+    }
+
     public bool RenderValue(IInspectableSession session, Entity entity, object value, out string? doubleClickedPath)
     {
         doubleClickedPath = null;
