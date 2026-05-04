@@ -122,7 +122,11 @@ public sealed class EditorApplication : IEditorLogic
         {
             TransactionId = Guid.NewGuid(),
             TargetState   = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit,
-            ScenarioId    = scenarioName
+            ScenarioId    = scenarioName,
+
+            // Provide a fresh ExerciseId to break the Orchestrator's same-state deduplication
+            // and force the cluster to cycle through the LoadingEdit phase again.
+            ExerciseId    = Guid.NewGuid() 
         });
 
         _loadedScenarioName = scenarioName;

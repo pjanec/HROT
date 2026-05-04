@@ -38,6 +38,7 @@ using Hrot.Editor.Windows;
 using Hrot.Orchestrator.Panels;
 using Hrot.Presentation.Windows;
 using Hrot.Common.Orchestration.Handlers;
+using Hrot.Common.Diagnostics;
 using Hrot.Common.Scenario;
 using Hrot.Editor;
 using Hrot.Editor.Adapters;
@@ -167,6 +168,11 @@ namespace Hrot.Editor
         private AssetInventoryProcessManager?  _assetInventoryProcessManager;
         private StorageGatewayModule?          _storageGateway;
         private ClusterUiCache?                _uiCache;
+        private ClusterScenarioPanel?          _clusterPanel;
+        private ClusterDiagnosticsPanel?       _clusterDiagnosticsPanel;
+        private ImGuiFileDialogService?        _fileDialogService;
+        private DiagnosticsDumpProcessManager? _diagnosticsDumpProcessManager;
+        private DiagnosticLogMergeWorker?      _logMergeWorker;
 
         // ── Selection state ───────────────────────────────────────────────────────
 
@@ -415,6 +421,21 @@ namespace Hrot.Editor
             var scenarioLoader  = new HrotScenarioLoader(storageProvider, "Hrot.Scenario");
             clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
                 scenarioSerializer, scenarioLoader, zoneService, extractor, scenarioLoadSource, idAllocator, _world));
+            clusterSlave.RegisterHandler(new DiagnosticsDumpClusterOpHandler(
+                _fdpEventHistory,
+                new ArchitectureDiagnosticsService(() => _kernel),
+                new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap, scenarioSerializer),
+                new Hrot.Core.Diagnostics.LogArchiveExtractionService(
+                    System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs"),
+                    "Editor",
+                    0),
+                new Hrot.Common.Infrastructure.HrotNodeConfig
+                {
+                    NodeId = 0,
+                    SubsystemName = "Editor",
+                    LocalTempRoot = EditorBootstrap.ScenariosRoot,
+                    LogDirectory = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs"),
+                }));
 
             // ── 4. Module registration (offline — no translator packs) ────────
             var simHostCorePack  = new SimHostCoreLogicPack(entityMap);
@@ -506,6 +527,21 @@ namespace Hrot.Editor
                 _storageGateway,
                 EditorBootstrap.ScenariosRoot);
             _uiCache = new ClusterUiCache(_orchestrationBus);
+            _clusterPanel = new ClusterScenarioPanel(_orchestrationBus, _uiCache);
+            _fileDialogService = new ImGuiFileDialogService();
+            _clusterDiagnosticsPanel = new ClusterDiagnosticsPanel(
+                _uiCache,
+                _orchestrationBus,
+                _fileDialogService,
+                EditorBootstrap.ScenariosRoot);
+            var diagnosticsAggregator = new DiagnosticsConsensusAggregator();
+            _clusterMaster.RegisterAggregator(diagnosticsAggregator);
+            _diagnosticsDumpProcessManager = new DiagnosticsDumpProcessManager(
+                _orchestrationBus,
+                _storageGateway,
+                EditorBootstrap.ScenariosRoot,
+                diagnosticsAggregator);
+            _logMergeWorker = new DiagnosticLogMergeWorker(_orchestrationBus);
             app.SetAvailableScenariosSource(() => _uiCache?.AvailableScenarios ?? Array.Empty<string>());
 
             // ── 7. Map canvas + camera (skipped in headless) ──────────────────
@@ -720,7 +756,10 @@ namespace Hrot.Editor
             _orchestrationBus?.SwapBuffers();
             _clusterMaster?.Tick();
             _assetInventoryProcessManager?.Tick();
+            _diagnosticsDumpProcessManager?.Tick();
+            _logMergeWorker?.Tick();
             _uiCache?.Update();
+            _clusterPanel?.Update(deltaTime);
 
             // Drain ActivateEditorToolEvent — published by toolbar / context menu.
             if (!_headless)
@@ -905,6 +944,12 @@ namespace Hrot.Editor
             // ── Legacy editor-specific windows ────────────────────────────────
             windowManager.RegisterWindow(new EditorToolbarWindow(_toolbarPanel!, _editorLogic));
             windowManager.RegisterWindow(new EditorBrowserWindow(_browserPanel!, _editorLogic));
+            if (_clusterPanel != null && _uiCache != null)
+                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.ClusterControlWindow(_clusterPanel, _uiCache));
+            if (_fileDialogService != null)
+                windowManager.SetFileDialogService(_fileDialogService);
+            if (_clusterDiagnosticsPanel != null)
+                windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.DiagnosticsWindow(_clusterDiagnosticsPanel));
 
             if (_headless) return;
 
@@ -1054,8 +1099,14 @@ namespace Hrot.Editor
             _clusterMaster?.Dispose();
             _clusterMaster  = null;
             _assetInventoryProcessManager = null;
+            _diagnosticsDumpProcessManager = null;
+            _logMergeWorker?.Dispose();
+            _logMergeWorker = null;
             _uiCache?.Dispose();
             _uiCache        = null;
+            _clusterPanel = null;
+            _clusterDiagnosticsPanel = null;
+            _fileDialogService = null;
             _storageGateway = null;
         }
 
