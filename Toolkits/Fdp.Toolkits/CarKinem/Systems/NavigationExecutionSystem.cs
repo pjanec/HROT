@@ -124,11 +124,10 @@ namespace CarKinem.Systems
                 }
 
                 // ── Arrival check ─────────────────────────────────────────────────────────────────
-                // DirectPoint: use Cartesian distance from intent.FinalDestination.
-                // RoadGraph and FollowRoute: delegate to NavState.HasArrived (set by CarKinematicsSystem).
+                // Trust NavState.HasArrived whenever NavState is present (set by CarKinematicsSystem).
+                // Fallback to Cartesian check only for entities without NavState.
                 bool arrived;
-                if ((intent.Mode == NavMode.RoadGraph || intent.Mode == NavMode.FollowRoute)
-                    && repo.HasComponent<NavState>(entity))
+                if (repo.HasComponent<NavState>(entity))
                 {
                     var nav = repo.GetComponent<NavState>(entity);
                     arrived = nav.HasArrived != 0;

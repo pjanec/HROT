@@ -76,13 +76,10 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 return default;
 
             ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-
-            for (int i = 0; i < batch.Count; i++)
-            {
-                ref var result = ref batch.Results[i];
-                if (result.RequestId == requestId && result.IsReady)
-                    return result;
-            }
+            int slot = (int)((uint)requestId % (uint)AreaQueryBatchData.DefaultCapacity);
+            ref var result = ref batch.Results[slot];
+            if (result.RequestId == requestId && result.IsReady)
+                return result;
             return default;
         }
 
