@@ -2,12 +2,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Core.Serialization;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Adapters;
 using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Diagnostics;
+using Fdp.Toolkit.Scenario;
+using Fdp.Toolkit.Serialization;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
@@ -28,6 +31,13 @@ public class EntityInspectorPanel
     internal int _lastClickedIndex = -1;
 
     public IEntityStateExtractionService? ExtractionService { get; set; }
+
+    /// <summary>
+    /// When set, the "Copy JSON" and "Copy JSON (N items)" buttons use the unified
+    /// scenario serialization path instead of the legacy <see cref="EntityJsonDumper"/>.
+    /// Wire this up at subsystem initialization alongside the renderer registrations.
+    /// </summary>
+    public ScenarioSerializer? Serializer { get; set; }
 
     /// <summary>
     /// Creates an <see cref="EntityInspectorPanel"/>.
@@ -131,15 +141,30 @@ public class EntityInspectorPanel
         ImGuiApi.SameLine();
         ImGuiApi.InputTextWithHint("##search", "Search ID...", ref _searchFilter, 20);
         
+        // Select All button — populates selection with all currently visible entities.
+        ImGuiApi.SameLine();
+        if (ImGuiApi.Button("Select All"))
+        {
+            _selectedEntities.Clear();
+            var visibleEntities = GetFilteredEntities(session, _searchFilter);
+            foreach (var e in visibleEntities)
+                _selectedEntities.Add(e);
+            _lastClickedIndex = -1;
+            if (_selectedEntities.Count == 1)
+                context.SelectedEntity = _selectedEntities.First();
+        }
+        if (ImGuiApi.IsItemHovered())
+            ImGuiApi.SetTooltip("Select all visible entities (respects current search filter)");
+
         int selCount = _selectedEntities.Count;
         if (selCount > 1)
         {
-            if (ExtractionService != null)
+            if (Serializer != null || ExtractionService != null)
             {
                 ImGuiApi.SameLine();
                 if (ImGuiApi.Button($"Copy JSON ({selCount} items)"))
                 {
-                    var json = BuildMultiEntityJson(_selectedEntities);
+                    var json = BuildMultiEntityJson(session, _selectedEntities);
                     ImGuiApi.SetClipboardText(json);
                 }
                 if (ImGuiApi.IsItemHovered())
@@ -151,7 +176,7 @@ public class EntityInspectorPanel
             ImGuiApi.SameLine();
             if (ImGuiApi.Button("Copy JSON"))
             {
-                var json = EntityJsonDumper.Dump(session, context.SelectedEntity.Value);
+                var json = BuildSingleEntityJson(session, context.SelectedEntity.Value);
                 ImGuiApi.SetClipboardText(json);
             }
             if (ImGuiApi.IsItemHovered())
@@ -316,12 +341,12 @@ public class EntityInspectorPanel
                 }
 
                 // Add "Copy to JSON (N items)" when extraction service available.
-                if (ExtractionService != null)
+                if (Serializer != null || ExtractionService != null)
                 {
                     builder.AddSeparator();
                     builder.AddItem($"Copy to JSON ({selCount} items)", () =>
                     {
-                        var json = BuildMultiEntityJson(_selectedEntities);
+                        var json = BuildMultiEntityJson(session, _selectedEntities);
                         ImGuiApi.SetClipboardText(json);
                     });
                 }
@@ -375,27 +400,64 @@ public class EntityInspectorPanel
         }
     }
 
-    private string BuildMultiEntityJson(IEnumerable<Entity> entities)
+    private string BuildSingleEntityJson(IInspectableSession session, Entity entity)
     {
+        if (Serializer != null && session is RepositoryAdapter adapter)
+        {
+            var resolver = new DiagnosticGuidResolver();
+            var mask     = adapter.Repo.GetHeader(entity.Index).ComponentMask;
+            mask.BitwiseAnd(adapter.Repo.GetSnapshotableMask());
+            var node = Serializer.SerializeEntity(adapter.Repo, entity, resolver, mask);
+            var wrapper = new JsonObject
+            {
+                ["EntityId"]   = new JsonArray(entity.Index, entity.Generation),
+                ["Components"] = node
+            };
+            string rawJson = wrapper.ToJsonString(FdpJsonOptionsRegistry.Indented);
+            return JsonAestheticFormatter.FlattenNumericArrays(rawJson);
+        }
+        // Fallback to legacy reflection-based dumper when Serializer is not wired.
+        return EntityJsonDumper.Dump(session, entity);
+    }
+
+    private string BuildMultiEntityJson(IInspectableSession session, IEnumerable<Entity> entities)
+    {
+        if (Serializer != null && session is RepositoryAdapter adapter)
+        {
+            var resolver        = new DiagnosticGuidResolver();
+            var snapshotable    = adapter.Repo.GetSnapshotableMask();
+            var jsonArray       = new JsonArray();
+
+            foreach (var entity in entities)
+            {
+                var mask = adapter.Repo.GetHeader(entity.Index).ComponentMask;
+                mask.BitwiseAnd(snapshotable);
+
+                var componentsNode = Serializer.SerializeEntity(adapter.Repo, entity, resolver, mask);
+                var entityWrapper  = new JsonObject
+                {
+                    ["EntityId"]   = new JsonArray(entity.Index, entity.Generation),
+                    ["Components"] = componentsNode
+                };
+                jsonArray.Add(entityWrapper);
+            }
+
+            string rawJson = jsonArray.ToJsonString(FdpJsonOptionsRegistry.Indented);
+            return JsonAestheticFormatter.FlattenNumericArrays(rawJson);
+        }
+
+        // Fallback to legacy extraction service path.
         if (ExtractionService == null) return "[]";
-        // Collect NetworkIdentity IDs from entity list (non-null only).
-        var networkIds = entities
-            .Select(e => {
-                // Re-use the existing helper; we need the session in scope here.
-                // Since we are inside DrawEntityList context → no session here.
-                // The extraction service will extract all entities and we filter by index.
-                return (long)e.Index; // placeholder; actual netId lookup deferred to service.
-            })
-            .Distinct()
-            .ToList();
-
-        // Extract all entities and filter by local index (safe fallback).
-        var all = ExtractionService.ExtractEntities(null);
+        var all            = ExtractionService.ExtractEntities(null);
         var matchingIndices = entities.Select(e => e.Index).ToHashSet();
-        var filtered = all.Where(dto => dto.EntityId.Length > 0 && matchingIndices.Contains(dto.EntityId[0])).ToList();
-
+        var filtered       = all.Where(dto => dto.EntityId.Length > 0 && matchingIndices.Contains(dto.EntityId[0])).ToList();
         return JsonSerializer.Serialize(filtered, FdpJsonOptionsRegistry.Indented);
     }
+
+    /// <summary>
+    // ClipboardGuidResolver removed: replaced by the shared DiagnosticGuidResolver
+    // from Fdp.Toolkit.Diagnostics, which is already imported above.
+    /// </summary>
 
     private void DrawEntityDetails(IInspectableSession session, IInspectorContext context)
     {

@@ -140,6 +140,26 @@ public class EventBrowserPanel
         int visible = snapshot.Count(e =>
             (_selectedProvider == "All" || e.ProviderName == _selectedProvider)
             && !_disabledTypes.Contains(e.TypeName));
+
+        // Select All button — populates selection with all currently visible events.
+        ImGuiApi.SameLine();
+        if (ImGuiApi.Button("Select All"))
+        {
+            _selectedEvents.Clear();
+            foreach (var evt in snapshot)
+            {
+                if ((_selectedProvider == "All" || evt.ProviderName == _selectedProvider)
+                    && !_disabledTypes.Contains(evt.TypeName))
+                {
+                    _selectedEvents.Add(evt);
+                }
+            }
+            _lastClickedIndex = -1;
+        }
+        if (ImGuiApi.IsItemHovered())
+            ImGuiApi.SetTooltip("Select all visible events (respects provider and type filters)");
+
+        ImGuiApi.SameLine();
         ImGuiApi.Text($"| Showing: {visible} / {snapshot.Length}");
 
         int selCount = _selectedEvents.Count;

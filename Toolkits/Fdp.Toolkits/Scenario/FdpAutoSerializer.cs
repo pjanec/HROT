@@ -90,7 +90,7 @@ namespace Fdp.Toolkit.Scenario
         {
             _entries.Clear();
 
-            foreach (int typeId in ComponentTypeRegistry.GetSaveableTypeIds())
+            foreach (int typeId in ComponentTypeRegistry.GetSnapshotableTypeIds())
             {
                 var type = ComponentTypeRegistry.GetType(typeId);
                 if (type == null || !type.IsValueType || type.IsEnum) continue;

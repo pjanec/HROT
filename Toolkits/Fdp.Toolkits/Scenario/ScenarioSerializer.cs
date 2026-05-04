@@ -194,6 +194,75 @@ namespace Fdp.Toolkit.Scenario
             };
         }
 
+        // ── SerializeEntity (single entity, caller-supplied mask) ─────────────────
+
+        /// <summary>
+        /// Serializes a single entity's components into a <see cref="JsonObject"/> using
+        /// the provided <paramref name="componentMask"/> to select which components to
+        /// include.  Custom translators run first; <see cref="FdpAutoSerializer"/> handles
+        /// the remaining bits.
+        /// </summary>
+        /// <remarks>
+        /// Use this for clipboard / diagnostic dumps.  Pass
+        /// <c>repo.GetSnapshotableMask()</c> to include <c>NoSave</c> execution-state
+        /// components (e.g. <see cref="Fdp.Toolkit.Behavior.Components.BrainBlackboard"/>),
+        /// or <c>repo.GetSaveableMask()</c> to limit output to persistable components.
+        /// </remarks>
+        public JsonObject SerializeEntity(
+            EntityRepository repo,
+            Entity entity,
+            IGuidResolver resolver,
+            BitMask256 componentMask)
+        {
+            var entityNode    = new JsonObject();
+            var remainingMask = componentMask; // mutable copy
+
+            // Run custom translators first.
+            foreach (var translator in _translators)
+            {
+                if (!translator.CanTranslate(repo, entity)) continue;
+
+                var entries = translator.Extract(repo, entity, resolver);
+                foreach (var kv in entries)
+                {
+                    var rawValue = kv.Value;
+                    JsonNode? node = rawValue switch
+                    {
+                        JsonNode jn => jn,
+                        string  s  => JsonValue.Create(s),
+                        int     i  => JsonValue.Create(i),
+                        float   f  => JsonValue.Create(f),
+                        double  d  => JsonValue.Create(d),
+                        bool    b  => JsonValue.Create(b),
+                        null       => throw new InvalidOperationException(
+                            $"[ScenarioSerializer] Translator '{translator.GetType().Name}' returned null for key '{kv.Key}'."),
+                        _          => throw new InvalidOperationException(
+                            $"[ScenarioSerializer] Translator '{translator.GetType().Name}' returned unsupported payload type " +
+                            $"'{rawValue.GetType().Name}' for key '{kv.Key}'.")
+                    };
+                    entityNode.Add(kv.Key, node);
+                }
+
+                ClearConsumed(ref remainingMask, translator.GetConsumedComponentsMask());
+            }
+
+            // Auto-serializer handles all remaining bits.
+            for (int bit = 0; bit < 256; bit++)
+            {
+                if (!remainingMask.IsSet(bit)) continue;
+
+                var fieldObj = AutoSerializer.TryExtract(repo, entity, bit, resolver);
+                if (fieldObj == null) continue;
+
+                var compName = AutoSerializer.GetComponentName(bit);
+                if (compName == null) continue;
+
+                entityNode.Add(compName, fieldObj);
+            }
+
+            return entityNode;
+        }
+
         // ── Deserialize ──────────────────────────────────────────────────────────
 
         /// <summary>
