@@ -206,7 +206,7 @@ public class ComponentReflector
             else if (ForceCollapseAll)
                 ImGuiApi.SetNextItemOpen(false, ImGuiCond.Always);
 
-            string label = BuildHeaderLabel(type, data);
+            string label = BuildHeaderLabel(session, e, type, data);
             int popColors = 0;
 
             // 1. Text colour: yellow when the component was mutated since last frame.
@@ -395,12 +395,16 @@ public class ComponentReflector
         _inPlaceEditErrorMessage = null;
     }
 
-    private static string BuildHeaderLabel(Type type, object? data)
+    private static string BuildHeaderLabel(IInspectableSession session, Entity entity, Type type, object? data)
     {
         if (data == null) return type.Name;
 
         var renderer = ImGuiRendererRegistry.GetRenderer(type);
-        string? summary = renderer?.GetSummary(data);
+        string? summary = null;
+        if (renderer is IEntityAwareImGuiRenderer entityRenderer)
+            summary = entityRenderer.GetSummary(session, entity, data);
+        else if (renderer != null)
+            summary = renderer.GetSummary(data);
 
         if (!string.IsNullOrEmpty(summary))
             // Append ###{type.Name} to lock the ID

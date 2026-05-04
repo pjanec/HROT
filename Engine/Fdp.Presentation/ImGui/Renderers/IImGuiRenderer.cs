@@ -49,6 +49,13 @@ public interface IImGuiRenderer
 public interface IEntityAwareImGuiRenderer : IImGuiRenderer
 {
     /// <summary>
+    /// Produces a short inline summary string for <paramref name="value"/> with
+    /// entity/session context available.
+    /// Return <c>null</c> to use the default reflection-based summary.
+    /// </summary>
+    string? GetSummary(IInspectableSession session, Entity entity, object value) => GetSummary(value);
+
+    /// <summary>
     /// Renders a custom detail view using entity and session context.
     /// Return <c>true</c> if rendering was handled; <c>false</c> to fall through
     /// to the default hierarchical tree rendering.
