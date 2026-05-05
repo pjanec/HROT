@@ -33,8 +33,8 @@ lifecycles and drives their execution O(K) in active instances.
 **Goal:** Zero-allocation, hash-keyed global settings registry with disk persistence and
 event-based cache invalidation for stateful gizmos.
 
-- [ ] **TASK-GZ007** `GizmoSettingValue` tagged union and `GizmoSettingsRegistry` managed singleton [details](./TASK-DETAIL.md#task-gz007--gizmosettingvalue-and-gizmosettingsregistry)
-- [ ] **TASK-GZ008** Settings persistence (disk save/load) and `GizmoSettingChangedEvent` [details](./TASK-DETAIL.md#task-gz008--settings-persistence-and-change-events)
+- [x] **TASK-GZ007** `GizmoSettingValue` tagged union and `GizmoSettingsRegistry` managed singleton [details](./TASK-DETAIL.md#task-gz007--gizmosettingvalue-and-gizmosettingsregistry)
+- [x] **TASK-GZ008** Settings persistence (disk save/load) and `GizmoSettingChangedEvent` [details](./TASK-DETAIL.md#task-gz008--settings-persistence-and-change-events)
 
 ---
 
