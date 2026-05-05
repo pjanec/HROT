@@ -360,7 +360,7 @@ namespace Hrot.AI.Behaviors.Brains
                 WriteToWeaponParams(ref weapon, new AimAndFireParams
                 {
                     Target          = targetEntity,
-                    CooldownSeconds = 0f,
+                    CooldownSeconds = 10f,
                 });
                 unchecked { weapon.ActionInstanceId++; }
                 weapon.ActiveAction = CombatConstants.ActionIdAimAndFire;
