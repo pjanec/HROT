@@ -205,6 +205,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             .Build();
 
         _entityMap = _context.EntityMap;
+        _context.World.SetSingletonManaged<NetworkEntityMap>(_entityMap!);
         CgfComponentRegistry.RegisterAll(_context.World);
 
         // ── Register base infrastructure modules ───────────────────────────────
@@ -255,6 +256,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ── Register CGF simulation logic (Brain-specific) ─────────────────────
         var mapperRegistry = new TacticalIntentMapperRegistry();
         mapperRegistry.Register(new DefendAreaMapper());
+        mapperRegistry.Register(new HullDownAttackMapper());
         var cgfLogicPack = new CgfLogicPack(behaviorRegistry, _entityMap, _scenarioSource,
             mapperRegistry);
         _context.Kernel.RegisterModule(cgfLogicPack);

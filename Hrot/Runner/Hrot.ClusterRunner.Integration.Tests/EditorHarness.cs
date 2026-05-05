@@ -159,8 +159,11 @@ public sealed class EditorHarness : IDisposable
 
         // ── Module registration (offline — no translator packs) ───────────────
         var simHostCorePack  = new SimHostCoreLogicPack(EntityMap);
+        var mapperRegistry = new TacticalIntentMapperRegistry();
+        mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.DefendAreaMapper());
+        mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
         var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, EntityMap,
-            new ScenarioEntityCreationRequestSource(), new TacticalIntentMapperRegistry());
+            new ScenarioEntityCreationRequestSource(), mapperRegistry);
         var scenarioMod      = new ScenarioEditorModule(fileService);
         var simHostMod       = new SimHostModule(spawnSys);
 

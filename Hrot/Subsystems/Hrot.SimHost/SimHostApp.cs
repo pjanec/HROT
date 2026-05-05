@@ -317,6 +317,7 @@ namespace Hrot.SimHost
             _eventBus    = _context.EventBus;
             _entityMap   = _context.EntityMap;
             _idAllocator = _context.IdAllocator;
+            _world.SetSingletonManaged<NetworkEntityMap>(_entityMap!);
             var ddsParticipant = _context.Participant;  // null in headless mode
             var entityMap      = _entityMap;            // alias used by downstream code
             base.World  = _world;

@@ -273,9 +273,12 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             // Use dedicated packs instead of SimulationLogicModule to get IEcsModuleSystem lists.
             var musclePack = new SimHostCoreLogicPack(_entityMap, roadNetwork, trajectoryPool);
+            var mapperRegistry = new TacticalIntentMapperRegistry();
+            mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.DefendAreaMapper());
+            mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
             var brainPack  = new CgfLogicPack(_behaviorRegistry, _entityMap,
                 new ScenarioEntityCreationRequestSource(),
-                new TacticalIntentMapperRegistry());
+                mapperRegistry);
 
             var inputList   = new List<IEcsModuleSystem>();
             var simList     = new List<IEcsModuleSystem>();

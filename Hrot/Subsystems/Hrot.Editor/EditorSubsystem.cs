@@ -351,6 +351,7 @@ namespace Hrot.Editor
             _geoTransform = geoTransform;
             var entityMap        = new NetworkEntityMap();
             _entityMap = entityMap;
+            _world.SetSingletonManaged<NetworkEntityMap>(entityMap);
             var behaviorRegistry = new BehaviorRegistry();
             _behaviorRegistry = behaviorRegistry;
             // Register Urban Combat behaviors so MissionAdapterSystem can resolve Ambush
@@ -446,9 +447,12 @@ namespace Hrot.Editor
                     ? view.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius
                     : 0f);
             _perceptionMod = perceptionMod;
+            var mapperRegistry = new TacticalIntentMapperRegistry();
+            mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.DefendAreaMapper());
+            mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
             var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, entityMap,
                 new ScenarioEntityCreationRequestSource(),
-                new TacticalIntentMapperRegistry());
+                mapperRegistry);
             var orchPack         = new OrchestrationLogicPack(clusterSlave);
             var scenarioMod      = new ScenarioEditorModule(fileService);
 

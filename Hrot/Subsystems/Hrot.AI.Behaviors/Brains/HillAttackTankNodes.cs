@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using Fbt;
 using Fbt.Compiler;
 using Fbt.Runtime;
@@ -55,6 +56,23 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     public static class HillAttackTankNodes
     {
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
+        private sealed class HullDownAttackParamsJsonDto
+        {
+            public float SlotX { get; set; }
+            public float SlotY { get; set; }
+            public float BaselineX { get; set; }
+            public float BaselineY { get; set; }
+            public float AttackDirX { get; set; }
+            public float AttackDirY { get; set; }
+            public float ApproachSpeed { get; set; }
+            public float CreepSpeed { get; set; }
+            public long TargetNetworkId { get; set; }
+        }
         // ── Channel write helpers ─────────────────────────────────────────────────
 
         private static unsafe void WriteToLocomotionParams<T>(ref LocomotionChannel ch, T value)
@@ -96,7 +114,7 @@ namespace Hrot.AI.Behaviors.Brains
             ref BTreeContext ctx)
         {
             // Resolve the network-stable target ID to a local entity.
-            if (!ctx.World.HasSingleton<NetworkEntityMap>())
+            if (!ctx.World.HasSingletonManaged<NetworkEntityMap>())
             {
                 BehaviorLog.Warn(ref ctx, "NetworkEntityMap singleton not found; cannot resolve TargetNetworkId.");
                 return NodeStatus.Failure;
@@ -294,7 +312,7 @@ namespace Hrot.AI.Behaviors.Brains
             ref BehaviorTreeState state,
             ref BTreeContext ctx)
         {
-            if (!ctx.World.HasSingleton<NetworkEntityMap>())
+            if (!ctx.World.HasSingletonManaged<NetworkEntityMap>())
             {
                 BehaviorLog.Warn(ref ctx, "NetworkEntityMap singleton not found; cannot resolve TargetNetworkId.");
                 return NodeStatus.Failure;
@@ -426,6 +444,44 @@ namespace Hrot.AI.Behaviors.Brains
             ref BTreeContext ctx)
         {
             return NodeStatus.Success;
+        }
+
+        public static unsafe void ParseHullDownAttackParams(string json, byte* ptr)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                System.Runtime.CompilerServices.Unsafe.Write(ptr, default(HullDownAttackParams));
+                return;
+            }
+
+            try
+            {
+                var dto = JsonSerializer.Deserialize<HullDownAttackParamsJsonDto>(json, JsonOptions);
+                if (dto != null)
+                {
+                    var p = new HullDownAttackParams
+                    {
+                        SlotX = dto.SlotX,
+                        SlotY = dto.SlotY,
+                        BaselineX = dto.BaselineX,
+                        BaselineY = dto.BaselineY,
+                        AttackDirX = dto.AttackDirX,
+                        AttackDirY = dto.AttackDirY,
+                        ApproachSpeed = dto.ApproachSpeed,
+                        CreepSpeed = dto.CreepSpeed,
+                        TargetNetworkId = dto.TargetNetworkId
+                    };
+
+                    System.Runtime.CompilerServices.Unsafe.Write(ptr, p);
+                    return;
+                }
+            }
+            catch (System.Exception ex)
+            {
+                BehaviorLog.ParseError("Failed to parse HullDownAttackParams JSON: " + ex.Message);
+            }
+
+            System.Runtime.CompilerServices.Unsafe.Write(ptr, default(HullDownAttackParams));
         }
 
         // ── BTree definition ──────────────────────────────────────────────────────

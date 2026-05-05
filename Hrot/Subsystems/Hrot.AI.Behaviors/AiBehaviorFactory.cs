@@ -148,6 +148,8 @@ namespace Hrot.AI.Behaviors
                     {
                         Name             = "HullDownAttackRun",
                         BrainTier        = BehaviorConstants.BrainTierBTree,
+                        ParseParams      = (json, ptr) => HillAttackTankNodes.ParseHullDownAttackParams(json, ptr),
+                        ParamsDtoType    = typeof(HullDownAttackParams),
                         BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
                             hullDownBlob, actionRegistry),
                     });
