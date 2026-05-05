@@ -54,10 +54,10 @@ go through `IEntityCommandBuffer` after interaction commits.
 culling, Painter's Algorithm sort, spatial projection (World/Screen/EntityLocal), and entity
 badge rich text.
 
-- [ ] **TASK-GZ011** `DebugPrimitiveRenderer2D` — Raylib shape dispatch with layer filtering [details](./TASK-DETAIL.md#task-gz011--debugprimitiverenderer2d)
-- [ ] **TASK-GZ012** Spatial projection — `CoordinateSpace` resolution and `SizeMode` thickness scaling [details](./TASK-DETAIL.md#task-gz012--spatial-projection-coordinatespace--sizemode)
-- [ ] **TASK-GZ013** `DebugGizmoLayer` integration — wire renderer and hit-testing [details](./TASK-DETAIL.md#task-gz013--debuggizmolayer-integration)
-- [ ] **TASK-GZ014** Entity badge and rich text rendering [details](./TASK-DETAIL.md#task-gz014--entity-badge-and-rich-text-rendering)
+- [x] **TASK-GZ011** `DebugPrimitiveRenderer2D` — Raylib shape dispatch with layer filtering [details](./TASK-DETAIL.md#task-gz011--debugprimitiverenderer2d)
+- [x] **TASK-GZ012** Spatial projection — `CoordinateSpace` resolution and `SizeMode` thickness scaling [details](./TASK-DETAIL.md#task-gz012--spatial-projection-coordinatespace--sizemode)
+- [x] **TASK-GZ013** `DebugGizmoLayer` integration — wire renderer and hit-testing [details](./TASK-DETAIL.md#task-gz013--debuggizmolayer-integration)
+- [x] **TASK-GZ014** Entity badge and rich text rendering [details](./TASK-DETAIL.md#task-gz014--entity-badge-and-rich-text-rendering)
 
 ---
 
