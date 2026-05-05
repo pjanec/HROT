@@ -88,5 +88,11 @@ namespace Hrot.Map.Definitions
 
         /// <summary><c>InitialUnitSubordinateIntent</c> — genesis intent DTO storing network commander ID at scenario load; resolved to <c>UnitSubordinate</c> by <c>GenesisMaterializationSystem</c> (Phase 4).</summary>
         public const byte InitialUnitSubordinateIntent = 184;
+
+
+        // ── IG debug visualization components (GZ015) ────────────────────────
+
+        /// <summary><c>GlobalDebugSettings</c> — singleton struct controlling global gizmo visibility and layer mask for the IG subsystem.</summary>
+        public const byte GlobalDebugSettings = 185;
     }
 }
