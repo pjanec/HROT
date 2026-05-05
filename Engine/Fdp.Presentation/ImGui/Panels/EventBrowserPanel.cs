@@ -87,18 +87,6 @@ public class EventBrowserPanel
 
     private void DrawToolbar(CapturedEventDto[] snapshot)
     {
-        if (ImGuiApi.Button("Clear"))
-        {
-            _historyService.ClearHistory();
-            _selectedEvents.Clear();
-            _lastClickedIndex = -1;
-            _knownTypes.Clear();
-            _knownProviders.Clear();
-            _selectedProvider = "World";
-            _cachedSnapshot = Array.Empty<CapturedEventDto>();
-        }
-
-        ImGuiApi.SameLine();
         ImGuiApi.Checkbox("Pause", ref _paused);
 
         // ── Event-type filter ─────────────────────────────────────────────
@@ -118,7 +106,7 @@ public class EventBrowserPanel
 
         ImGuiApi.SameLine();
         ImGuiApi.SetNextItemWidth(150f);
-        if (ImGuiApi.BeginCombo("Provider", _selectedProvider))
+        if (ImGuiApi.BeginCombo("##Provider", _selectedProvider))
         {
             if (ImGuiApi.Selectable("All", _selectedProvider == "All"))
                 _selectedProvider = "All";
@@ -134,6 +122,18 @@ public class EventBrowserPanel
                     _selectedProvider = provider;
             }
             ImGuiApi.EndCombo();
+        }
+
+        ImGuiApi.SameLine();
+        if (ImGuiApi.Button("Clear"))
+        {
+            _historyService.ClearHistory();
+            _selectedEvents.Clear();
+            _lastClickedIndex = -1;
+            _knownTypes.Clear();
+            _knownProviders.Clear();
+            _selectedProvider = "World";
+            _cachedSnapshot = Array.Empty<CapturedEventDto>();
         }
 
         ImGuiApi.SameLine();
@@ -251,7 +251,9 @@ public class EventBrowserPanel
                         else
                             ImGuiApi.PushStyleColor(ImGuiCol.Text, color);
 
-                        string label = $"[{evt.Frame}] [{evt.ProviderName}] {evt.TypeName}##{vi}";
+                        // Only show the provider name tag if we are viewing "All" providers
+                        string providerTag = _selectedProvider == "All" ? $" [{evt.ProviderName}]" : "";
+                        string label = $"[{evt.Frame}]{providerTag} {evt.TypeName}##{vi}";
 
                         if (ImGuiApi.Selectable(label, isSelected, ImGuiSelectableFlags.SpanAllColumns))
                         {

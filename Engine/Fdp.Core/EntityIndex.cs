@@ -305,10 +305,10 @@ namespace Fdp.Core
             // Sync global counters
             _activeCount = source._activeCount;
             _maxIssuedIndex = source._maxIssuedIndex;
-            
-            // Note: We do NOT sync the free list. 
-            // The replica is expected to be Read-Only or synced fully from source.
-            // Rebuilding the free list (if ever needed) is expensive and unnecessary for pure replication.
+
+            // Clear local free-list to prevent stale recycled indices from surviving a rewind/sync.
+            // Rebuilding is intentionally skipped here for performance.
+            _freeCount = 0;
         }
 
         public void ApplyComponentFilter(BitMask256 mask)
