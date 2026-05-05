@@ -43,8 +43,8 @@ event-based cache invalidation for stateful gizmos.
 **Goal:** Safe, exclusive input capture with zero ECS mutation from gizmo draw code. All mutations
 go through `IEntityCommandBuffer` after interaction commits.
 
-- [ ] **TASK-GZ009** Backend-neutral interaction events (`GizmoInteractionStartedEvent`, `GizmoDragUpdateEvent`, `GizmoInteractionCommitEvent`, `GizmoInteractionCancelEvent`) [details](./TASK-DETAIL.md#task-gz009--backend-neutral-interaction-events)
-- [ ] **TASK-GZ010** `GizmoInteractionProxyTool` — `IMapTool` adapter for 2D map input capture [details](./TASK-DETAIL.md#task-gz010--gizmointeractionproxytool)
+- [x] **TASK-GZ009** Backend-neutral interaction events (`GizmoInteractionStartedEvent`, `GizmoDragUpdateEvent`, `GizmoInteractionCommitEvent`, `GizmoInteractionCancelEvent`) [details](./TASK-DETAIL.md#task-gz009--backend-neutral-interaction-events)
+- [x] **TASK-GZ010** `GizmoInteractionProxyTool` — `IMapTool` adapter for 2D map input capture [details](./TASK-DETAIL.md#task-gz010--gizmointeractionproxytool)
 
 ---
 
