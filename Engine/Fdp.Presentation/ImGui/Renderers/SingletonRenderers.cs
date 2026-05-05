@@ -8,6 +8,7 @@ using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Spatial.Eqs;
 
 using ImGuiApi = ImGuiNET.ImGui;
 
@@ -287,6 +288,101 @@ public sealed class ISerializationRegistryRenderer : IImGuiRenderer
         ImGuiApi.Separator();
         ImGuiApi.TextUnformatted($"Type : {value.GetType().Name}");
         ImGuiApi.TextDisabled("(No enumeration API available on ISerializationRegistry)");
+        return true;
+    }
+}
+
+[ImGuiRenderer(typeof(NetworkEntityMap))]
+public sealed class NetworkEntityMapRenderer : IImGuiRenderer
+{
+    public string? GetSummary(object value)
+    {
+        var map = (NetworkEntityMap)value;
+        return $"{map.Entries.Count} mapped entities";
+    }
+
+    public bool RenderValue(object value)
+    {
+        var map = (NetworkEntityMap)value;
+
+        ImGuiApi.TextDisabled("Network Entity Map (read-only)");
+        ImGuiApi.Separator();
+
+        if (map.Entries.Count == 0)
+        {
+            ImGuiApi.TextDisabled("Map is empty.");
+            return true;
+        }
+
+        if (ImGuiApi.BeginTable("NetworkEntityMapTable", 2,
+            ImGuiNET.ImGuiTableFlags.Borders | ImGuiNET.ImGuiTableFlags.RowBg |
+            ImGuiNET.ImGuiTableFlags.Resizable | ImGuiNET.ImGuiTableFlags.SizingFixedFit))
+        {
+            ImGuiApi.TableSetupColumn("Network ID", ImGuiNET.ImGuiTableColumnFlags.WidthFixed, 140f);
+            ImGuiApi.TableSetupColumn("Entity", ImGuiNET.ImGuiTableColumnFlags.WidthStretch);
+            ImGuiApi.TableHeadersRow();
+
+            foreach (var entry in map.Entries.OrderBy(e => e.Key))
+            {
+                ImGuiApi.TableNextRow();
+                ImGuiApi.TableSetColumnIndex(0);
+                ImGuiApi.TextUnformatted(entry.Key.ToString());
+                ImGuiApi.TableSetColumnIndex(1);
+                ImGuiApi.TextUnformatted($"[{entry.Value.Index}, v{entry.Value.Generation}]");
+            }
+
+            ImGuiApi.EndTable();
+        }
+
+        return true;
+    }
+}
+
+[ImGuiRenderer(typeof(AreaQueryBatchData))]
+public sealed class AreaQueryBatchDataRenderer : IImGuiRenderer
+{
+    public string? GetSummary(object value)
+    {
+        var b = (AreaQueryBatchData)value;
+        int capacity = b.Results.IsCreated ? b.Results.Length : 0;
+        return $"Results capacity: {capacity}";
+    }
+
+    public bool RenderValue(object value)
+    {
+        var b = (AreaQueryBatchData)value;
+        int capacity = b.Results.IsCreated ? b.Results.Length : 0;
+
+        ImGuiApi.TextDisabled("Unmanaged Area Query Buffers (read-only)");
+        ImGuiApi.Separator();
+        ImGuiApi.TextUnformatted($"Results capacity    : {capacity}");
+        return true;
+    }
+}
+
+[ImGuiRenderer(typeof(EqsTargetPool))]
+public sealed class EqsTargetPoolRenderer : IImGuiRenderer
+{
+    public string? GetSummary(object value)
+    {
+        var p = (EqsTargetPool)value;
+        int capacity = p.Targets.IsCreated ? p.Targets.Length : 0;
+        return $"{p.NextFreeIndex} / {capacity} slots used";
+    }
+
+    public bool RenderValue(object value)
+    {
+        var p = (EqsTargetPool)value;
+        int capacity = p.Targets.IsCreated ? p.Targets.Length : 0;
+
+        ImGuiApi.TextDisabled("Live EQS Target Pool (read-only)");
+        ImGuiApi.Separator();
+
+        float fraction = capacity > 0 ? (float)p.NextFreeIndex / capacity : 0f;
+        ImGuiApi.ProgressBar(fraction, new System.Numerics.Vector2(-1, 0), $"{p.NextFreeIndex} / {capacity}");
+
+        ImGuiApi.TextUnformatted($"Next Free Index     : {p.NextFreeIndex}");
+        ImGuiApi.TextUnformatted($"Total Capacity      : {capacity}");
         return true;
     }
 }

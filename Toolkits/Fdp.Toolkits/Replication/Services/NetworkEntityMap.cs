@@ -31,6 +31,8 @@ namespace Fdp.Toolkit.Replication.Services
             _graveyardDurationFrames = graveyardDurationFrames;
         }
 
+        public IReadOnlyDictionary<long, Entity> Entries => _netToEntity;
+
         public void Register(long netId, Entity entity)
         {
             if (_netToEntity.ContainsKey(netId))
