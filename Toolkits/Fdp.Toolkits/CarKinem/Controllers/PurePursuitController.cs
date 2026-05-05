@@ -67,6 +67,11 @@ namespace CarKinem.Controllers
             // 5. Convert curvature to steering angle
             // tan(delta) = k * L
             float steerAngle = MathF.Atan(kappa * wheelBase);
+
+            if (isReversing)
+            {
+                steerAngle = -steerAngle;
+            }
             
             // 6. Clamp to vehicle limits
             return Math.Clamp(steerAngle, -maxSteerAngle, maxSteerAngle);

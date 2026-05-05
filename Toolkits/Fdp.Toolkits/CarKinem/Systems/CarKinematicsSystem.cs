@@ -206,7 +206,7 @@ namespace CarKinem.Systems
 
             if (nav.ReverseAllowed == 1 && targetSpeedAfterAvoidance > 0.01f)
             {
-                if (Vector2.Dot(fwd2D, avoidanceVelocity) < 0f)
+                if (Vector2.Dot(fwd2D, targetHeading) < 0f)
                 {
                     speedSign = -1f;
                 }
