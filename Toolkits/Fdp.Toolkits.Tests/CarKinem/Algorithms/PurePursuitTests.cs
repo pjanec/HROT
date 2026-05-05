@@ -20,7 +20,8 @@ namespace CarKinem.Tests.Algorithms
                 wheelBase: 2.7f,
                 lookaheadMin: 2f,
                 lookaheadMax: 10f,
-                maxSteerAngle: 0.6f
+                maxSteerAngle: 0.6f,
+                isReversing: false
             );
             
             Assert.Equal(0f, steer, precision: 3);
@@ -39,7 +40,8 @@ namespace CarKinem.Tests.Algorithms
                 wheelBase: 2.7f,
                 lookaheadMin: 2f,
                 lookaheadMax: 10f,
-                maxSteerAngle: 0.6f
+                maxSteerAngle: 0.6f,
+                isReversing: false
             );
             
             Assert.True(steer > 0f, "Left turn should produce positive steering");
@@ -59,7 +61,8 @@ namespace CarKinem.Tests.Algorithms
                 wheelBase: 2.7f,
                 lookaheadMin: 2f,
                 lookaheadMax: 10f,
-                maxSteerAngle: maxSteer
+                maxSteerAngle: maxSteer,
+                isReversing: false
             );
             
             Assert.InRange(steer, -maxSteer, maxSteer);
@@ -78,7 +81,8 @@ namespace CarKinem.Tests.Algorithms
                 wheelBase: 2.7f,
                 lookaheadMin: 2f,
                 lookaheadMax: 10f,
-                maxSteerAngle: 0.6f
+                maxSteerAngle: 0.6f,
+                isReversing: false
             );
              Assert.True(steer < 0f, "Right turn should produce negative steering");
         }
@@ -98,7 +102,8 @@ namespace CarKinem.Tests.Algorithms
                 wheelBase: 2.7f,
                 lookaheadMin: 2f,
                 lookaheadMax: 10f,
-                maxSteerAngle: 0.6f
+                maxSteerAngle: 0.6f,
+                isReversing: false
             );
 
              Assert.Equal(0f, steer, precision: 3);

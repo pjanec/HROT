@@ -30,9 +30,9 @@ namespace CarKinem.Controllers
             float wheelBase,
             float lookaheadMin,
             float lookaheadMax,
-            float maxSteerAngle)
+            float maxSteerAngle,
+            bool isReversing)
         {
-            bool isReversing = desiredVelocity.LengthSquared() > 0.01f && Vector2.Dot(currentForward, desiredVelocity) < 0f;
             Vector2 referenceForward = isReversing ? -currentForward : currentForward;
 
             // 1. Calculate dynamic lookahead distance

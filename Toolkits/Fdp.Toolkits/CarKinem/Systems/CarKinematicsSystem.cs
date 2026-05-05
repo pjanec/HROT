@@ -200,27 +200,6 @@ namespace CarKinem.Systems
                 desiredVelocity, pos2D, fwd2D * state.Speed, 
                 spatialGrid, @params, repo);
             
-            // Pure Pursuit steering
-            float steerAngle = PurePursuitController.CalculateSteering(
-                pos2D,
-                fwd2D,
-                avoidanceVelocity,
-                state.Speed,
-                @params.WheelBase,
-                @params.LookaheadTimeMin,
-                @params.LookaheadTimeMax,
-                @params.MaxSteerAngle);
-            
-            // Cornering speed limit
-            float maxCorneringSpeed = float.MaxValue;
-            if (MathF.Abs(steerAngle) > 0.01f)
-            {
-                // Radius = L / sin(delta)
-                float turnRadius = @params.WheelBase / MathF.Abs(MathF.Sin(steerAngle));
-                // V_max = sqrt(a_lat_max * R)
-                maxCorneringSpeed = MathF.Sqrt(@params.MaxLatAccel * turnRadius);
-            }
-            
             // Speed control
             float targetSpeedAfterAvoidance = avoidanceVelocity.Length();
             float speedSign = 1f;
@@ -231,6 +210,28 @@ namespace CarKinem.Systems
                 {
                     speedSign = -1f;
                 }
+            }
+
+            // Pure Pursuit steering
+            float steerAngle = PurePursuitController.CalculateSteering(
+                pos2D,
+                fwd2D,
+                avoidanceVelocity,
+                state.Speed,
+                @params.WheelBase,
+                @params.LookaheadTimeMin,
+                @params.LookaheadTimeMax,
+                @params.MaxSteerAngle,
+                speedSign < 0f);
+
+            // Cornering speed limit
+            float maxCorneringSpeed = float.MaxValue;
+            if (MathF.Abs(steerAngle) > 0.01f)
+            {
+                // Radius = L / sin(delta)
+                float turnRadius = @params.WheelBase / MathF.Abs(MathF.Sin(steerAngle));
+                // V_max = sqrt(a_lat_max * R)
+                maxCorneringSpeed = MathF.Sqrt(@params.MaxLatAccel * turnRadius);
             }
 
             float finalTargetSpeed = MathF.Min(targetSpeedAfterAvoidance, maxCorneringSpeed) * speedSign;

@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Navigation.Systems
     /// <b>Mapping rules:</b>
     /// <list type="bullet">
     ///   <item>If <see cref="NavigationIntent.Mode"/> is <see cref="NavigationMode.None"/> →
-    ///     skip (no active intent; physics layer retains its current <see cref="NavState"/>).</item>
+    ///     halt navigation by setting <c>Mode=None</c> and <c>TargetSpeed=0</c> on <see cref="NavState"/>.</item>
     ///   <item><see cref="NavigationMode.DirectPoint"/> → <c>KinematicsMode.Direct</c>:
     ///     copy <c>FinalDestination</c>, <c>TargetSpeed</c>, <c>ArrivalRadius</c>.</item>
     ///   <item><see cref="NavigationMode.RoadGraph"/> → <c>KinematicsMode.RoadGraph</c>:
@@ -72,8 +72,12 @@ namespace Fdp.Toolkit.Navigation.Systems
                 switch (intent.Mode)
                 {
                     case NavigationMode.None:
-                        // No active intent — retain current NavState unchanged.
-                        continue;
+                        // Explicit cancel/stop intent from cognitive tier.
+                        nav.Mode        = KinematicsMode.None;
+                        nav.TargetSpeed = 0f;
+                        nav.HasArrived  = 0;
+                        nav.ReverseAllowed = 0;
+                        break;
 
                     case NavigationMode.DirectPoint:
                         nav.Mode             = KinematicsMode.Direct;
