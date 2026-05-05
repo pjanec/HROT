@@ -93,6 +93,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         // Reconstructs the entity anchor from its split index + generation fields.
         public Entity Anchor => new Entity(AnchorIndex, AnchorGeneration);
 
+        // Computed pick token that uses the Anchor entity as the hit-test target.
+        // IsValid returns true when AnchorIndex >= 0 and AnchorGeneration != 0, i.e. the
+        // anchor entity is non-null. EntityLocal primitives produced by DrawEntityLocal always
+        // populate these fields, making them inherently pickable.
+        public PickToken Token => new PickToken { Target = Anchor, SubElementId = 0 };
+
         // BadgeRichText aliases TextContent (same physical offset 32).
         public FixedString32 BadgeRichText
         {

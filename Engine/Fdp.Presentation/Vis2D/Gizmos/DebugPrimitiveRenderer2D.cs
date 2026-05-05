@@ -1,0 +1,235 @@
+using System.Collections.Generic;
+using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using Raylib_cs;
+
+namespace Fdp.Toolkit.Vis2D.Gizmos
+{
+    /// <summary>
+    /// Raylib-based renderer that iterates a span of <see cref="DebugPrimitive"/> and issues
+    /// draw calls. Filtering, LOD culling and painter's-algorithm sorting are done in
+    /// <see cref="Render"/>; actual draw calls are in <see cref="DispatchShape"/> so that
+    /// test subclasses can override the latter to capture dispatched primitives without
+    /// invoking Raylib.
+    /// </summary>
+    public class DebugPrimitiveRenderer2D
+    {
+        private ushort _activeLayerMask = 0xFFFF; // All 16 debug layers visible by default.
+        protected readonly ISimulationView? _view;
+
+        public DebugPrimitiveRenderer2D(ISimulationView? view = null)
+        {
+            _view = view;
+        }
+
+        /// <summary>Overrides the 16-bit layer visibility mask.</summary>
+        public void SetLayerMask(ushort mask) => _activeLayerMask = mask;
+
+        /// <summary>
+        /// Filters, resolves coordinate spaces, sorts by (DebugLayer, ZIndex) and dispatches
+        /// each surviving primitive to <see cref="DispatchShape"/>.
+        /// </summary>
+        public void Render(ReadOnlySpan<DebugPrimitive> primitives, RenderContext ctx)
+        {
+            float zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;
+            var sortBuffer = new List<DebugPrimitive>(primitives.Length);
+
+            foreach (ref readonly var prim in primitives)
+            {
+                // Filter: must target the 2-D map pipeline.
+                if ((prim.TargetView & PipelineTarget.Map2D) == 0) continue;
+
+                // Filter: layer mask (only layers 0-15 are valid).
+                if (prim.DebugLayer >= 16 || (_activeLayerMask & (1u << prim.DebugLayer)) == 0)
+                    continue;
+
+                // Filter: LOD zoom culling.
+                if (prim.MinZoomLod != 0 && zoom < prim.MinZoomLod * 0.25f) continue;
+                if (prim.MaxZoomLod != 0 && zoom > prim.MaxZoomLod * 0.25f) continue;
+
+                // Coordinate-space resolution for EntityLocal.
+                if (prim.Space == CoordinateSpace.EntityLocal)
+                {
+                    var anchor = prim.Anchor;
+                    if (_view == null
+                        || !_view.IsAlive(anchor)
+                        || !_view.HasComponent<SimTransform>(anchor))
+                        continue; // Unresolvable: skip.
+
+                    ref readonly var tf = ref _view.GetComponentRO<SimTransform>(anchor);
+                    DebugPrimitive resolved = prim;
+
+                    if (prim.Shape == DebugPrimitiveShape.Line)
+                    {
+                        resolved.LineStart = tf.Position + Vector3.Transform(prim.LineStart, tf.Rotation);
+                        resolved.LineEnd   = tf.Position + Vector3.Transform(prim.LineEnd,   tf.Rotation);
+                    }
+                    // Arrow/Text EntityLocal: deferred (not yet supported).
+                    resolved.Space = CoordinateSpace.World;
+                    sortBuffer.Add(resolved);
+                }
+                else
+                {
+                    sortBuffer.Add(prim);
+                }
+            }
+
+            // Stable painter's-algorithm sort: DebugLayer ascending, ZIndex ascending.
+            sortBuffer.Sort(static (a, b) =>
+            {
+                int layerCmp = a.DebugLayer.CompareTo(b.DebugLayer);
+                return layerCmp != 0 ? layerCmp : a.ZIndex.CompareTo(b.ZIndex);
+            });
+
+            foreach (var prim in sortBuffer)
+                DispatchShape(in prim, ctx);
+        }
+
+        /// <summary>
+        /// Issues the actual Raylib draw call(s) for one primitive.
+        /// Override in test subclasses to capture dispatches without Raylib.
+        /// </summary>
+        protected virtual void DispatchShape(in DebugPrimitive prim, RenderContext ctx)
+        {
+            float zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;
+            var color = ToRaylibColor(prim.Color);
+
+            float thickness = prim.SizeMode == SizeMode.ScreenPixels
+                ? prim.Thickness / zoom
+                : prim.Thickness;
+
+            // Screen-space primitives: bracket with EndMode2D / BeginMode2D.
+            bool screenSpace = prim.Space == CoordinateSpace.Screen;
+            if (screenSpace) Raylib.EndMode2D();
+
+            switch (prim.Shape)
+            {
+                case DebugPrimitiveShape.Line:
+                {
+                    var startPos = new Vector2(prim.LineStart.X, prim.LineStart.Y);
+                    var endPos   = new Vector2(prim.LineEnd.X,   prim.LineEnd.Y);
+
+                    // Gradient line: start color != end color.
+                    if (prim.EndColor.R != prim.Color.R
+                        || prim.EndColor.G != prim.Color.G
+                        || prim.EndColor.B != prim.Color.B
+                        || prim.EndColor.A != prim.Color.A)
+                    {
+                        DrawGradientLine(startPos, endPos, thickness, color, ToRaylibColor(prim.EndColor));
+                    }
+                    else
+                    {
+                        Raylib.DrawLineEx(startPos, endPos, thickness, color);
+                    }
+                    break;
+                }
+
+                case DebugPrimitiveShape.Sphere:
+                {
+                    var center = new Vector2(prim.SphereCenter.X, prim.SphereCenter.Y);
+                    Raylib.DrawCircleV(center, prim.SphereRadius, color);
+                    break;
+                }
+
+                case DebugPrimitiveShape.Arrow:
+                {
+                    var from = new Vector2(prim.ArrowFrom.X, prim.ArrowFrom.Y);
+                    var to   = new Vector2(prim.ArrowTo.X,   prim.ArrowTo.Y);
+                    DrawArrow(from, to, prim.ArrowHeadSize, color, thickness);
+                    break;
+                }
+
+                case DebugPrimitiveShape.Text:
+                {
+                    int tx = (int)prim.TextX;
+                    int ty = (int)prim.TextY;
+                    string str = prim.TextContent.ToString();
+                    Raylib.DrawText(str, tx, ty, 12, color);
+                    break;
+                }
+
+                case DebugPrimitiveShape.EntityBadge:
+                    DrawEntityBadge(in prim, ctx);
+                    break;
+
+                default:
+                    // Unknown / unsupported shape: silently skip.
+                    break;
+            }
+
+            if (screenSpace) Raylib.BeginMode2D(ctx.Camera);
+        }
+
+        // ---- Private helpers ------------------------------------------------
+
+        private static void DrawGradientLine(
+            Vector2 from, Vector2 to,
+            float thickness,
+            Color startColor, Color endColor)
+        {
+            var dir  = to - from;
+            float len = dir.Length();
+            if (len < float.Epsilon) return;
+
+            var unit  = dir / len;
+            var perp  = new Vector2(-unit.Y, unit.X) * (thickness * 0.5f);
+
+            // Four vertices of the quad.
+            var v0 = from + perp;
+            var v1 = from - perp;
+            var v2 = to   - perp;
+            var v3 = to   + perp;
+
+            Rlgl.Begin((int)DrawMode.Quads);
+            Rlgl.Color4ub(startColor.R, startColor.G, startColor.B, startColor.A); Rlgl.Vertex2f(v0.X, v0.Y);
+            Rlgl.Color4ub(startColor.R, startColor.G, startColor.B, startColor.A); Rlgl.Vertex2f(v1.X, v1.Y);
+            Rlgl.Color4ub(endColor.R,   endColor.G,   endColor.B,   endColor.A);   Rlgl.Vertex2f(v2.X, v2.Y);
+            Rlgl.Color4ub(endColor.R,   endColor.G,   endColor.B,   endColor.A);   Rlgl.Vertex2f(v3.X, v3.Y);
+            Rlgl.End();
+        }
+
+        private static void DrawArrow(
+            Vector2 from, Vector2 to,
+            float headSize, Color color, float thickness)
+        {
+            Raylib.DrawLineEx(from, to, thickness, color);
+
+            var dir  = to - from;
+            float len = dir.Length();
+            if (len < float.Epsilon) return;
+
+            var unit = dir / len;
+            var perp = new Vector2(-unit.Y, unit.X);
+
+            var tip   = to;
+            var baseL = to - unit * headSize + perp * (headSize * 0.4f);
+            var baseR = to - unit * headSize - perp * (headSize * 0.4f);
+
+            Raylib.DrawTriangle(tip, baseL, baseR, color);
+        }
+
+        private void DrawEntityBadge(in DebugPrimitive prim, RenderContext ctx)
+        {
+            if (_view == null) return;
+            var badgeEntity = new Entity(prim.BadgeTargetIndex, prim.BadgeTargetGen);
+            if (!_view.IsAlive(badgeEntity) || !_view.HasComponent<SimTransform>(badgeEntity))
+                return; // Silently skip when no transform available.
+
+            ref readonly var tf = ref _view.GetComponentRO<SimTransform>(badgeEntity);
+            var worldPos  = new Vector2(tf.Position.X, tf.Position.Y);
+            var screenPos = Raylib.GetWorldToScreen2D(worldPos, ctx.Camera);
+
+            var richText = prim.BadgeRichText;
+            RichTextRenderer.DrawRichTextBadge(ref richText, (int)screenPos.X, (int)screenPos.Y, 12);
+        }
+
+        /// <summary>Converts an <see cref="Rgba32"/> to a Raylib <see cref="Color"/>.</summary>
+        protected static Color ToRaylibColor(Rgba32 c)
+            => new Color(c.R, c.G, c.B, c.A);
+    }
+}
