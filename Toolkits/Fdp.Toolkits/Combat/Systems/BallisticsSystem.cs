@@ -44,6 +44,8 @@ namespace Fdp.Toolkit.Combat.Systems
     {
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (deltaTime <= 0f) return;
+
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(BallisticsSystem)} requires direct EntityRepository access " +

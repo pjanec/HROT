@@ -25,8 +25,8 @@ namespace CarKinem.Systems
         public SpatialHashSystem()
         {
             // Grid dimensions and origin are defined in SpatialHashConstants.
-            // GridWidth x CellSizeMeters = 750 m X coverage; origin at (-375,-375)
-            // centres the grid on world origin, accommodating the Urban Ambush APC spawn at y=-80.
+            // GridWidth x CellSizeMeters = 1500 m X coverage; origin at (-750,-750)
+            // centres the grid on world origin and covers larger scenario extents.
             _grid = SpatialHashGrid.Create(
                 SpatialHashConstants.GridWidth,
                 SpatialHashConstants.GridHeight,
