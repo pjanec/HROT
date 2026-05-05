@@ -1636,6 +1636,7 @@ namespace Fdp.ModuleHost
                             && e.Module.Policy.Strategy == DataStrategy.GDB
                             && e.Module.Policy.Mode == policy.Mode
                             && e.Module.Policy.TargetFrequencyHz == policy.TargetFrequencyHz
+                            && e.Module.Policy.Mode != RunMode.Asynchronous
                             && e.Provider is DoubleBufferProvider
                             && !e.HasManualProvider)
                         .ToList();
@@ -1697,6 +1698,7 @@ namespace Fdp.ModuleHost
                             && e.Module.Policy.Strategy == DataStrategy.SoD
                             && e.Module.Policy.Mode == policy.Mode
                             && e.Module.Policy.TargetFrequencyHz == policy.TargetFrequencyHz
+                            && e.Module.Policy.Mode != RunMode.Asynchronous
                             && !e.HasManualProvider)
                         .ToList();
 

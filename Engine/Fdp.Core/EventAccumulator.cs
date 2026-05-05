@@ -13,7 +13,7 @@ namespace Fdp.Core
         private readonly Queue<FrameEventData> _history = new Queue<FrameEventData>();
         private readonly int _maxHistoryFrames;
         
-        public EventAccumulator(int maxHistoryFrames = 10)
+        public EventAccumulator(int maxHistoryFrames = 60)
         {
             _maxHistoryFrames = maxHistoryFrames;
         }

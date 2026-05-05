@@ -37,7 +37,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             if (repo.HasSingleton<AreaQueryBatchData>())
             {
                 ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-                int slot = (int)((uint)requestId % (uint)AreaQueryBatchData.DefaultCapacity);
+                int slot = ComputeSlot(requestId);
                 batch.Results[slot] = new AreaQueryResult
                 {
                     RequestId         = requestId,
@@ -74,12 +74,15 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 return default;
 
             ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-            int slot = (int)((uint)requestId % (uint)AreaQueryBatchData.DefaultCapacity);
+            int slot = ComputeSlot(requestId);
             ref var result = ref batch.Results[slot];
             if (result.RequestId == requestId && result.IsReady)
                 return result;
             return default;
         }
+
+        private static int ComputeSlot(long requestId)
+            => (int)(((ulong)requestId ^ ((ulong)requestId >> 32)) % (uint)AreaQueryBatchData.DefaultCapacity);
 
         /// <summary>
         /// Retrieves the packed entity handle at position <paramref name="index"/> within
