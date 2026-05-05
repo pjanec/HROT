@@ -73,6 +73,7 @@ namespace Fdp.Presentation.Panels
 
             // Original-list indices of selected messages (unsorted during editing)
             public readonly List<int> SelectedIndices = new();
+            public int LastClickedFilteredIndex = -1;
 
             // One-shot flag: set by the "scroll to bottom" button to force a
             // single jump even when the user has scrolled up.
@@ -512,10 +513,13 @@ namespace Fdp.Presentation.Panels
             }
             else
             {
+                bool ctrl  = Gui.GetIO().KeyCtrl;
+                bool shift = Gui.GetIO().KeyShift;
+
                 for (int fi = 0; fi < filtered.Count; fi++)
                 {
                     int msgIdx = filtered[fi];
-                    DrawMessageRow(msgIdx, messages[msgIdx], messages, state);
+                    DrawMessageRow(fi, msgIdx, messages[msgIdx], messages, filtered, state, ctrl, shift);
                 }
             }
 
@@ -534,10 +538,14 @@ namespace Fdp.Presentation.Panels
         // ── Private: individual row ──────────────────────────────────────────
 
         private void DrawMessageRow(
+            int filteredIdx,
             int msgIdx,
             MessageLogEntry msg,
             IReadOnlyList<MessageLogEntry> allMessages,
-            TabState state)
+            List<int> filteredList,
+            TabState state,
+            bool ctrl,
+            bool shift)
         {
             bool isSelected = state.SelectedIndices.Contains(msgIdx);
 
@@ -552,16 +560,7 @@ namespace Fdp.Presentation.Panels
                     isSelected,
                     ImGuiSelectableFlags.AllowOverlap))
             {
-                if (Gui.GetIO().KeyCtrl)
-                {
-                    if (isSelected) state.SelectedIndices.Remove(msgIdx);
-                    else            state.SelectedIndices.Add(msgIdx);
-                }
-                else
-                {
-                    state.SelectedIndices.Clear();
-                    state.SelectedIndices.Add(msgIdx);
-                }
+                HandleRowClick(filteredList, filteredIdx, ctrl, shift, state);
             }
 
             // Right-click context menu on the row
@@ -647,6 +646,36 @@ namespace Fdp.Presentation.Panels
                     sb.AppendLine(messages[idx].Message);
             }
             Gui.SetClipboardText(sb.ToString().TrimEnd('\r', '\n'));
+        }
+
+        private static void HandleRowClick(List<int> viewList, int clickedFilteredIndex, bool ctrl, bool shift, TabState state)
+        {
+            if (clickedFilteredIndex < 0 || clickedFilteredIndex >= viewList.Count) return;
+
+            if (shift && state.LastClickedFilteredIndex >= 0 && state.LastClickedFilteredIndex < viewList.Count)
+            {
+                int lo = Math.Min(state.LastClickedFilteredIndex, clickedFilteredIndex);
+                int hi = Math.Max(state.LastClickedFilteredIndex, clickedFilteredIndex);
+                for (int i = lo; i <= hi; i++)
+                {
+                    int msgIdx = viewList[i];
+                    if (!state.SelectedIndices.Contains(msgIdx))
+                        state.SelectedIndices.Add(msgIdx);
+                }
+            }
+            else if (ctrl)
+            {
+                int msgIdx = viewList[clickedFilteredIndex];
+                if (!state.SelectedIndices.Remove(msgIdx))
+                    state.SelectedIndices.Add(msgIdx);
+                state.LastClickedFilteredIndex = clickedFilteredIndex;
+            }
+            else
+            {
+                state.SelectedIndices.Clear();
+                state.SelectedIndices.Add(viewList[clickedFilteredIndex]);
+                state.LastClickedFilteredIndex = clickedFilteredIndex;
+            }
         }
 
         private static void TryOpenInEditor(string filePath)
