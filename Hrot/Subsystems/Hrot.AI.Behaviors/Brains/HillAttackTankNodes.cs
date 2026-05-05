@@ -489,12 +489,12 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (loco.Status == NodeStatus.Success)
                 {
-                    ctx.World.Bus.PublishManaged(new ClearBehaviorEvent { Entity = ctx.Self });
+                    ctx.World.Bus.Publish(new ClearBehaviorEvent { Entity = ctx.Self });
                     return NodeStatus.Success;
                 }
                 if (loco.Status == NodeStatus.Failure)
                 {
-                    ctx.World.Bus.PublishManaged(new ClearBehaviorEvent { Entity = ctx.Self });
+                    ctx.World.Bus.Publish(new ClearBehaviorEvent { Entity = ctx.Self });
                     return NodeStatus.Failure;
                 }
             }
@@ -514,6 +514,8 @@ namespace Hrot.AI.Behaviors.Brains
                     Speed          = 12f,
                     ReverseAllowed = 1,
                 });
+                if (BehaviorLog.IsDebugEnabled)
+                    BehaviorLog.Debug(ref ctx, "Retreating to baseline. Destination=(" + p.BaselineX + "," + p.BaselineY + ").");
             }
 
             return NodeStatus.Running;
