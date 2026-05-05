@@ -51,7 +51,9 @@ public sealed unsafe class PerceptionMapLayer : IMapLayer
             .With<SimTransform>()
             .Build();
 
-        var linkColor = new Color(255, 60, 60, 160);
+        float zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;
+        float dashLength = 15.0f / zoom;
+        float gapLength = 10.0f / zoom;
 
         foreach (Entity entity in _query)
         {
@@ -59,13 +61,32 @@ public sealed unsafe class PerceptionMapLayer : IMapLayer
             ref readonly var xfm = ref _world.GetComponent<SimTransform>(entity);
 
             var perceiverWorld  = new Vector2(xfm.Position.X, xfm.Position.Y);
-            Vector2 perceiverScreen = Raylib.GetWorldToScreen2D(perceiverWorld, ctx.Camera);
 
             for (int i = 0; i < mem.Count; i++)
             {
                 var targetWorld  = new Vector2(mem.PositionsX[i], mem.PositionsY[i]);
+                Vector2 direction = targetWorld - perceiverWorld;
+                float totalDist = direction.Length();
+                if (totalDist < 0.001f) continue;
 
-                Raylib.DrawLineEx(perceiverWorld, targetWorld, 1.5f, linkColor);
+                Vector2 normDir = direction / totalDist;
+                float currentDist = 0f;
+
+                while (currentDist < totalDist)
+                {
+                    float startT = currentDist / totalDist;
+                    float endDist = MathF.Min(currentDist + dashLength, totalDist);
+
+                    // 255 at source (0% transparent) to 64 at target (75% transparent).
+                    byte currentAlpha = (byte)(255 - (191 * startT));
+                    var dashColor = new Color((byte)255, (byte)60, (byte)60, currentAlpha);
+
+                    Vector2 segStart = perceiverWorld + (normDir * currentDist);
+                    Vector2 segEnd = perceiverWorld + (normDir * endDist);
+                    Raylib.DrawLineEx(segStart, segEnd, 1.5f, dashColor);
+
+                    currentDist += dashLength + gapLength;
+                }
             }
         }
     }
