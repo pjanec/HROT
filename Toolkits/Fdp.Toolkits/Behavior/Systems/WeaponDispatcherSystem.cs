@@ -45,6 +45,15 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             foreach (var entity in q)
             {
+                if (repo.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(entity))
+                {
+                    ref var weaponState = ref repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(entity);
+                    if (weaponState.CooldownSecondsRemaining > 0f)
+                    {
+                        weaponState.CooldownSecondsRemaining -= deltaTime;
+                    }
+                }
+
                 ref var channel = ref repo.GetComponentRW<WeaponChannel>(entity);
                 var caps = repo.GetComponent<ActorCapabilityState>(entity);
 
