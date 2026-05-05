@@ -206,28 +206,6 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Failure;
             }
 
-            if (ctx.World.HasComponent<TargetMemory>(ctx.Self) && ctx.World.HasSingletonManaged<NetworkEntityMap>())
-            {
-                var entityMap = ctx.World.GetSingletonManaged<NetworkEntityMap>();
-                if (entityMap != null && entityMap.TryGetEntity(p.TargetNetworkId, out var targetEntity))
-                {
-                    ref readonly var mem = ref ctx.World.GetComponentRO<TargetMemory>(ctx.Self);
-                    unsafe
-                    {
-                        for (int i = 0; i < mem.Count; i++)
-                        {
-                            if (mem.EntityIds[i] == (long)targetEntity.PackedValue && mem.ThreatScores[i] > 0f)
-                            {
-                                ref var locoChannel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
-                                locoChannel.ActiveAction = 0;
-                                unchecked { locoChannel.ActionInstanceId++; }
-                                return NodeStatus.Success;
-                            }
-                        }
-                    }
-                }
-            }
-
             ref var loco = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
             ref readonly var tf = ref ctx.World.GetComponentRO<SimTransform>(ctx.Self);
 
@@ -261,6 +239,28 @@ namespace Hrot.AI.Behaviors.Brains
 
             // Determine which phase we are in.
             bool isFarPhase = distToSlot > HillAttackConstants.SlotArrivalThresholdMeters && overshootMeters <= 0f;
+
+            if (!isFarPhase && ctx.World.HasComponent<TargetMemory>(ctx.Self) && ctx.World.HasSingletonManaged<NetworkEntityMap>())
+            {
+                var entityMap = ctx.World.GetSingletonManaged<NetworkEntityMap>();
+                if (entityMap != null && entityMap.TryGetEntity(p.TargetNetworkId, out var targetEntity))
+                {
+                    ref readonly var mem = ref ctx.World.GetComponentRO<TargetMemory>(ctx.Self);
+                    unsafe
+                    {
+                        for (int i = 0; i < mem.Count; i++)
+                        {
+                            if (mem.EntityIds[i] == (long)targetEntity.PackedValue && mem.ThreatScores[i] > 0f)
+                            {
+                                ref var locoChannel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
+                                locoChannel.ActiveAction = 0;
+                                unchecked { locoChannel.ActionInstanceId++; }
+                                return NodeStatus.Success;
+                            }
+                        }
+                    }
+                }
+            }
 
             ushort desiredAction = NavigationConstants.ActionIdMoveTo;
             Vector2 destination;
@@ -586,9 +586,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// Sequence
         ///   Selector
         ///     Sequence                              // Engagement path
-        ///       Selector
-        ///         Condition_HasTarget               // success = target visible
-        ///         Action_CreepToAndBeyondSlot       // Running; Failure on overshoot
+        ///       Action_CreepToAndBeyondSlot         // Running; Failure on overshoot
         ///       Action_AimAndFireSpecific            // fire at assigned target
         ///     Action_AbortEngagement                // overshoot fallback; always Success
         ///   Action_ReverseToBaseline                // guaranteed retreat
@@ -601,9 +599,7 @@ namespace Hrot.AI.Behaviors.Brains
                 .Sequence(root => root
                     .Selector(outerSel => outerSel
                         .Sequence(engagementSeq => engagementSeq
-                            .Selector(targetSel => targetSel
-                                .Condition(bb => bb.Params, Condition_HasTarget)
-                                .Action(bb => bb.Params, Action_CreepToAndBeyondSlot))
+                            .Action(bb => bb.Params, Action_CreepToAndBeyondSlot)
                             .Action(bb => bb.Params, Action_AimAndFireSpecific))
                         .Action(bb => bb.Params, Action_AbortEngagement))
                     .Action(bb => bb.Params, Action_ReverseToBaseline));

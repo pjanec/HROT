@@ -342,8 +342,12 @@ namespace Hrot.AI.Behaviors.Brains
                 // Wave parity: use Entity.Index (immutable) NOT roster index i.
                 if (!allParticipate && (sub.Index % 2) != s.CurrentWave) continue;
 
-                // Pick the first available firing-line slot.
-                int firingSlot = GetFirstAvailableSlot((ushort)(s.BurnedSlotsMask | s.WaveUsedSlotsMask), s.TotalSlots);
+                // Prefer natural roster index slot to preserve baseline/firing-line alignment.
+                int firingSlot = i;
+                if (firingSlot >= s.TotalSlots || ((s.BurnedSlotsMask | s.WaveUsedSlotsMask) & (1 << firingSlot)) != 0)
+                {
+                    firingSlot = GetFirstAvailableSlot((ushort)(s.BurnedSlotsMask | s.WaveUsedSlotsMask), s.TotalSlots);
+                }
                 if (firingSlot < 0)
                 {
                     BehaviorLog.Warn(ref ctx, "No firing-line slots available for subordinate Entity:" + sub.Index + "; skipping this wave assignment.");
@@ -468,7 +472,6 @@ namespace Hrot.AI.Behaviors.Brains
                         if (beh.ActiveBehaviorHash != HullDownAttackRunBehaviorId)
                         {
                             // Run complete (returned to baseline or abort path).
-                            s.BaselineReservedMask &= (ushort)~(1 << s.ReturnBaselineSlotIndex[i]);
                             SwapRemove(ref s, i);
                         }
                     }
