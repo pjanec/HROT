@@ -34,6 +34,9 @@ namespace Fdp.Core.Collections
             }
 
             m_Buffer = (void*)Marshal.AllocHGlobal((nint)size);
+            // Marshal.AllocHGlobal does not zero-initialize. Clear the block so that
+            // struct fields (e.g. bool flags, counters) are reliably zero on first use.
+            new System.Span<byte>(m_Buffer, (int)size).Clear();
             m_Length = length;
             m_AllocatorLabel = allocator;
         }

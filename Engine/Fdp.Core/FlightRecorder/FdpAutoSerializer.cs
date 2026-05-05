@@ -212,8 +212,17 @@ namespace Fdp.Core.FlightRecorder
             
             statements.Add(Expression.Assign(cloneVar, Expression.New(constructor)));
             
-            // Clone each field/property
+            // Clone each field/property.
+            // Use [Key]-tagged members when present (MessagePack convention); fall back to
+            // all public readable/writable members for types that carry no [Key] attributes.
             var members = GetSortedMembers(type);
+            if (members.Count == 0)
+            {
+                members = type.GetMembers(BindingFlags.Public | BindingFlags.Instance)
+                    .Where(m => (m is PropertyInfo pi && pi.CanRead && pi.CanWrite)
+                             || m is FieldInfo)
+                    .ToList();
+            }
             
             foreach (var member in members)
             {

@@ -36,9 +36,22 @@ namespace Fdp.Core
         {
             if (value == null)
                 throw new ArgumentNullException(nameof(value));
-            
-            // Fast cast
-            this[index] = (T)value;
+
+            int chunkIndex = index / _chunkSize;
+            int localIndex = index % _chunkSize;
+
+            if (_chunks[chunkIndex] == null)
+                _chunks[chunkIndex] = new T[_chunkSize];
+
+            _chunks[chunkIndex][localIndex] = (T)value;
+
+            // Bump the chunk version so SyncDirtyChunks detects the write on the next
+            // SyncFrom call.  Without this, the version stays at 0 and the version-
+            // equality check (_chunkVersions[i] == srcVer) silently skips the chunk,
+            // leaving managed components absent from SoD snapshots.
+            _chunkVersions[chunkIndex] = _chunkVersions[chunkIndex] == 0
+                ? 1u
+                : _chunkVersions[chunkIndex] + 1u;
         }
         
         // NEW: Type-erased getter

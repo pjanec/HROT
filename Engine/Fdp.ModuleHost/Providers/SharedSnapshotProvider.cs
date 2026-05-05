@@ -41,12 +41,17 @@ namespace Fdp.ModuleHost.Providers
                     // Sync using UNION MASK (critical)
                     _currentSnapshot.SyncFrom(_liveWorld, _unionMask);
                     
-                    // Sync events
+                    // Sync events.
+                    // FlushToReplica -> InjectIntoCurrent writes into the READ buffer of each
+                    // NativeEventStream<T>.  Do NOT call SwapBuffers here: Swap() moves READ to
+                    // WRITE and then CLEARS it, destroying the just-injected events before any
+                    // convoy module can read them.  (ReleaseView -> pool.Return -> SoftClear
+                    // already resets both buffers when the snapshot is returned to the pool.)
                     _eventAccumulator.FlushToReplica(
-                        _currentSnapshot.Bus, 
+                        _currentSnapshot.Bus,
                         _lastSeenTick
                     );
-                    
+
                     _lastSeenTick = _liveWorld.GlobalVersion;
                 }
                 else 

@@ -45,9 +45,7 @@ namespace Fdp.ModuleHost.Providers
         /// </summary>
         public void Update()
         {
-            // SoD: Sync happens on-demand during AcquireView
-            // Update tick for event filtering
-            _lastSeenTick = _liveWorld.GlobalVersion;
+            // SoD: Sync happens on-demand during AcquireView.
         }
         
         /// <summary>
@@ -66,12 +64,15 @@ namespace Fdp.ModuleHost.Providers
             // Sync from live world (with component mask filtering)
             snapshot.SyncFrom(_liveWorld, _componentMask);
             
-            // Flush event history (only events after lastSeenTick)
-            // Note: If multiple modules acquire consecutively, lastSeenTick might need management per module?
-            // The instructions say "FlushToReplica(snapshot.Bus, _lastSeenTick)".
-            // This implies _lastSeenTick is global for the provider (updated at sync point).
-            // This is correct as long as Update() is called every frame before modules run.
+            // Flush event history (only events after lastSeenTick).
+            // FlushToReplica calls InjectIntoCurrent which writes directly into the READ buffer
+            // of each NativeEventStream<T>.  We must NOT call SwapBuffers after this: Swap()
+            // moves READ to WRITE and then CLEARS it, destroying the just-injected events.
+            // ReleaseView calls SoftClear -> Bus.ClearAll() which already resets both buffers
+            // before the snapshot is returned to the pool, so no manual clear is needed here.
             _eventAccumulator.FlushToReplica(snapshot.Bus, _lastSeenTick);
+
+            _lastSeenTick = _liveWorld.GlobalVersion;
             
             return snapshot;
         }
