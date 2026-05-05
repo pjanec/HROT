@@ -36,7 +36,7 @@ namespace Hrot.SimHost.Systems
             for (int i = 0; i < events.Length; i++)
             {
                 ref readonly var evt = ref events[i];
-                int slot = (int)((uint)evt.RequestId % (uint)AreaQueryBatchData.DefaultCapacity);
+                int slot = ComputeSlot(evt.RequestId);
 
                 batch.Results[slot] = new AreaQueryResult
                 {
@@ -54,5 +54,8 @@ namespace Hrot.SimHost.Systems
 
             repo.SetSingleton(pool);
         }
+
+        private static int ComputeSlot(long requestId)
+            => (int)(((ulong)requestId ^ ((ulong)requestId >> 32)) % (uint)AreaQueryBatchData.DefaultCapacity);
     }
 }
