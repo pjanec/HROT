@@ -2,6 +2,7 @@
 
 | ID | Source | Description | Priority | Target Batch | Status |
 |----|--------|-------------|----------|--------------|--------|
+| D-001 | BATCH-01 | StringInternMap uses unsynchronized Dictionary; document single-writer requirement or add lock | P3 | BATCH-03 | OPEN |
 
 Legend:
 - P1 = Critical (never enters tracker; always becomes Corrective Task 0 in next batch)

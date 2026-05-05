@@ -10,10 +10,10 @@
 sole output interface for all gizmos. No gizmo logic; pure data model. Includes the string
 interning side-channel for AI diagnostic text exceeding 31 characters.
 
-- [ ] **TASK-GZ001** Color type and primitive enums (`Rgba32`, `PipelineTarget`, `CoordinateSpace`, `SizeMode`, `PickToken`) [details](./TASK-DETAIL.md#task-gz001--color-type-and-primitive-enums)
-- [ ] **TASK-GZ002** `DebugPrimitive` 64-byte tagged union (with `ThicknessU16`, `MinZoomLod`, `MaxZoomLod`, `StringHash` overlay) [details](./TASK-DETAIL.md#task-gz002--debugprimitive-tagged-union)
-- [ ] **TASK-GZ003** `IDebugDrawBuilder` interface and `DebugPrimitiveBuffer` accumulator (includes `DrawTextLong`) [details](./TASK-DETAIL.md#task-gz003--idebugdrawbuilder-and-debugprimitivebuffer)
-- [ ] **TASK-GZ019** `StringInternMap`, `DrawTextLong` implementation, and `StringInternBatch` DDS topic [details](./TASK-DETAIL.md#task-gz019--stringinternmap-and-drawtextlong)
+- [x] **TASK-GZ001** Color type and primitive enums (`Rgba32`, `PipelineTarget`, `CoordinateSpace`, `SizeMode`, `PickToken`) [details](./TASK-DETAIL.md#task-gz001--color-type-and-primitive-enums)
+- [x] **TASK-GZ002** `DebugPrimitive` 64-byte tagged union (with `ThicknessU16`, `MinZoomLod`, `MaxZoomLod`, `StringHash` overlay) [details](./TASK-DETAIL.md#task-gz002--debugprimitive-tagged-union)
+- [x] **TASK-GZ003** `IDebugDrawBuilder` interface and `DebugPrimitiveBuffer` accumulator (includes `DrawTextLong`) [details](./TASK-DETAIL.md#task-gz003--idebugdrawbuilder-and-debugprimitivebuffer)
+- [x] **TASK-GZ019** `StringInternMap`, `DrawTextLong` implementation, and `StringInternBatch` DDS topic [details](./TASK-DETAIL.md#task-gz019--stringinternmap-and-drawtextlong)
 
 ---
 
