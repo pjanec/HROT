@@ -75,6 +75,8 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
+            if (deltaTime <= 0f) return;
+
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(HsmTickSystem<T>)} requires direct EntityRepository access " +

@@ -50,6 +50,8 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (deltaTime <= 0f) return;
+
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(BTreeTickSystem)} requires direct EntityRepository access " +
