@@ -206,6 +206,28 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Failure;
             }
 
+            if (ctx.World.HasComponent<TargetMemory>(ctx.Self) && ctx.World.HasSingletonManaged<NetworkEntityMap>())
+            {
+                var entityMap = ctx.World.GetSingletonManaged<NetworkEntityMap>();
+                if (entityMap != null && entityMap.TryGetEntity(p.TargetNetworkId, out var targetEntity))
+                {
+                    ref readonly var mem = ref ctx.World.GetComponentRO<TargetMemory>(ctx.Self);
+                    unsafe
+                    {
+                        for (int i = 0; i < mem.Count; i++)
+                        {
+                            if (mem.EntityIds[i] == (long)targetEntity.PackedValue && mem.ThreatScores[i] > 0f)
+                            {
+                                ref var locoChannel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
+                                locoChannel.ActiveAction = 0;
+                                unchecked { locoChannel.ActionInstanceId++; }
+                                return NodeStatus.Success;
+                            }
+                        }
+                    }
+                }
+            }
+
             ref var loco = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
             ref readonly var tf = ref ctx.World.GetComponentRO<SimTransform>(ctx.Self);
 
@@ -238,7 +260,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             // Determine which phase we are in.
-            bool isFarPhase = distToSlot > HillAttackConstants.SlotArrivalThresholdMeters;
+            bool isFarPhase = distToSlot > HillAttackConstants.SlotArrivalThresholdMeters && overshootMeters <= 0f;
 
             ushort desiredAction = NavigationConstants.ActionIdMoveTo;
             Vector2 destination;
