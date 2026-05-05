@@ -3,6 +3,8 @@
 | ID | Source | Description | Priority | Target Batch | Status |
 |----|--------|-------------|----------|--------------|--------|
 | D-001 | BATCH-01 | StringInternMap uses unsynchronized Dictionary; document single-writer requirement or add lock | P3 | BATCH-03 | OPEN |
+| D-002 | BATCH-02 | EntityRepository in tests not disposed — minor test hygiene | P3 | backlog | OPEN |
+| D-003 | BATCH-02 | Selection predicate not yet wired in game-host kernel registration; DataDrivenGizmoSystem/BehaviorGizmoManagerSystem will always draw all (null predicate) until wired | P2 | GZ013 | OPEN |
 
 Legend:
 - P1 = Critical (never enters tracker; always becomes Corrective Task 0 in next batch)

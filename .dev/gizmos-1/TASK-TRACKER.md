@@ -22,9 +22,9 @@ interning side-channel for AI diagnostic text exceeding 31 characters.
 **Goal:** A single generic ECS system that manages all entity-bound and behavior-bound gizmo
 lifecycles and drives their execution O(K) in active instances.
 
-- [ ] **TASK-GZ004** Gizmo contracts (`IStatefulGizmo`, `IGizmoDefinition`, `IGizmoVisibilityPolicy`, `GizmoRegistry`) [details](./TASK-DETAIL.md#task-gz004--gizmo-contracts-interfaces)
-- [ ] **TASK-GZ005** `DataDrivenGizmoSystem` — entity lifecycle driven orchestrator [details](./TASK-DETAIL.md#task-gz005--datadrivengizmosystem-entity-bound)
-- [ ] **TASK-GZ006** `BehaviorGizmoManagerSystem` — behavior lifecycle driven orchestrator [details](./TASK-DETAIL.md#task-gz006--behaviorgizmomanagersystem-behavior-bound)
+- [x] **TASK-GZ004** Gizmo contracts (`IStatefulGizmo`, `IGizmoDefinition`, `IGizmoVisibilityPolicy`, `GizmoRegistry`) [details](./TASK-DETAIL.md#task-gz004--gizmo-contracts-interfaces)
+- [x] **TASK-GZ005** `DataDrivenGizmoSystem` — entity lifecycle driven orchestrator [details](./TASK-DETAIL.md#task-gz005--datadrivengizmosystem-entity-bound)
+- [x] **TASK-GZ006** `BehaviorGizmoManagerSystem` — behavior lifecycle driven orchestrator [details](./TASK-DETAIL.md#task-gz006--behaviorgizmomanagersystem-behavior-bound)
 
 ---
 
