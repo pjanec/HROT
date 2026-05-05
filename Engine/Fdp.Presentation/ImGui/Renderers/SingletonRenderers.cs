@@ -351,11 +351,42 @@ public sealed class AreaQueryBatchDataRenderer : IImGuiRenderer
     public bool RenderValue(object value)
     {
         var b = (AreaQueryBatchData)value;
-        int capacity = b.Results.IsCreated ? b.Results.Length : 0;
+        if (!b.Results.IsCreated)
+        {
+            ImGuiApi.TextDisabled("Buffer not created.");
+            return true;
+        }
 
-        ImGuiApi.TextDisabled("Unmanaged Area Query Buffers (read-only)");
+        int length = b.Results.Length;
+        ImGuiApi.TextDisabled("Live Area Query Results (tearing possible)");
         ImGuiApi.Separator();
-        ImGuiApi.TextUnformatted($"Results capacity    : {capacity}");
+
+        if (ImGuiApi.BeginTable("AreaQueryResultsTable", 6,
+            ImGuiNET.ImGuiTableFlags.Borders | ImGuiNET.ImGuiTableFlags.RowBg |
+            ImGuiNET.ImGuiTableFlags.Resizable | ImGuiNET.ImGuiTableFlags.ScrollY,
+            new System.Numerics.Vector2(0, 220)))
+        {
+            ImGuiApi.TableSetupColumn("Slot", ImGuiNET.ImGuiTableColumnFlags.WidthFixed, 60f);
+            ImGuiApi.TableSetupColumn("RequestId", ImGuiNET.ImGuiTableColumnFlags.WidthFixed, 140f);
+            ImGuiApi.TableSetupColumn("Ready", ImGuiNET.ImGuiTableColumnFlags.WidthFixed, 60f);
+            ImGuiApi.TableSetupColumn("Count", ImGuiNET.ImGuiTableColumnFlags.WidthFixed, 60f);
+            ImGuiApi.TableSetupColumn("Handle", ImGuiNET.ImGuiTableColumnFlags.WidthFixed, 80f);
+            ImGuiApi.TableSetupColumn("Source", ImGuiNET.ImGuiTableColumnFlags.WidthFixed, 80f);
+            ImGuiApi.TableHeadersRow();
+
+            for (int i = 0; i < length; i++)
+            {
+                var res = b.Results[i];
+                ImGuiApi.TableNextRow();
+                ImGuiApi.TableSetColumnIndex(0); ImGuiApi.TextUnformatted(i.ToString());
+                ImGuiApi.TableSetColumnIndex(1); ImGuiApi.TextUnformatted(res.RequestId.ToString());
+                ImGuiApi.TableSetColumnIndex(2); ImGuiApi.TextUnformatted(res.IsReady ? "Y" : "N");
+                ImGuiApi.TableSetColumnIndex(3); ImGuiApi.TextUnformatted(res.TargetCount.ToString());
+                ImGuiApi.TableSetColumnIndex(4); ImGuiApi.TextUnformatted(res.TargetGroupHandle.ToString());
+                ImGuiApi.TableSetColumnIndex(5); ImGuiApi.TextUnformatted(res.SourceNodeId.ToString());
+            }
+            ImGuiApi.EndTable();
+        }
         return true;
     }
 }
@@ -373,8 +404,14 @@ public sealed class EqsTargetPoolRenderer : IImGuiRenderer
     public bool RenderValue(object value)
     {
         var p = (EqsTargetPool)value;
-        int capacity = p.Targets.IsCreated ? p.Targets.Length : 0;
+        if (!p.Targets.IsCreated)
+        {
+            ImGuiApi.TextDisabled("Buffer not created.");
+            return true;
+        }
 
+        int capacity = p.Targets.Length;
+        int safeLimit = System.Math.Min(p.NextFreeIndex, capacity);
         ImGuiApi.TextDisabled("Live EQS Target Pool (read-only)");
         ImGuiApi.Separator();
 
@@ -383,6 +420,25 @@ public sealed class EqsTargetPoolRenderer : IImGuiRenderer
 
         ImGuiApi.TextUnformatted($"Next Free Index     : {p.NextFreeIndex}");
         ImGuiApi.TextUnformatted($"Total Capacity      : {capacity}");
+
+        if (ImGuiApi.BeginTable("EqsTargetPoolTable", 2,
+            ImGuiNET.ImGuiTableFlags.Borders | ImGuiNET.ImGuiTableFlags.RowBg |
+            ImGuiNET.ImGuiTableFlags.Resizable | ImGuiNET.ImGuiTableFlags.ScrollY,
+            new System.Numerics.Vector2(0, 220)))
+        {
+            ImGuiApi.TableSetupColumn("Pool Index", ImGuiNET.ImGuiTableColumnFlags.WidthFixed, 90f);
+            ImGuiApi.TableSetupColumn("Packed Entity Handle", ImGuiNET.ImGuiTableColumnFlags.WidthStretch);
+            ImGuiApi.TableHeadersRow();
+
+            for (int i = 0; i < safeLimit; i++)
+            {
+                long target = p.Targets[i];
+                ImGuiApi.TableNextRow();
+                ImGuiApi.TableSetColumnIndex(0); ImGuiApi.TextUnformatted(i.ToString());
+                ImGuiApi.TableSetColumnIndex(1); ImGuiApi.TextUnformatted(target.ToString());
+            }
+            ImGuiApi.EndTable();
+        }
         return true;
     }
 }
