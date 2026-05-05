@@ -62,20 +62,6 @@ namespace Hrot.AI.Behaviors.Brains
         {
             PropertyNameCaseInsensitive = true
         };
-
-        private sealed class HullDownAttackParamsJsonDto
-        {
-            public float SlotX { get; set; }
-            public float SlotY { get; set; }
-            public float BaselineX { get; set; }
-            public float BaselineY { get; set; }
-            public float AttackDirX { get; set; }
-            public float AttackDirY { get; set; }
-            public float ApproachSpeed { get; set; }
-            public float CreepSpeed { get; set; }
-            public long TargetNetworkId { get; set; }
-            public int MaxRounds { get; set; }
-        }
         // ── Channel write helpers ─────────────────────────────────────────────────
 
         private static unsafe void WriteToLocomotionParams<T>(ref LocomotionChannel ch, T value)
@@ -546,28 +532,12 @@ namespace Hrot.AI.Behaviors.Brains
 
             try
             {
-                var dto = JsonSerializer.Deserialize<HullDownAttackParamsJsonDto>(json, JsonOptions);
-                if (dto != null)
-                {
-                    var p = new HullDownAttackParams
-                    {
-                        SlotX = dto.SlotX,
-                        SlotY = dto.SlotY,
-                        BaselineX = dto.BaselineX,
-                        BaselineY = dto.BaselineY,
-                        AttackDirX = dto.AttackDirX,
-                        AttackDirY = dto.AttackDirY,
-                        ApproachSpeed = dto.ApproachSpeed,
-                        CreepSpeed = dto.CreepSpeed,
-                        TargetNetworkId = dto.TargetNetworkId,
-                        MaxRounds = dto.MaxRounds,
-                        RoundsFired = 0,
-                        LastObservedAmmo = -1
-                    };
+                var p = JsonSerializer.Deserialize<HullDownAttackParams>(json, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+                p.RoundsFired = 0;
+                p.LastObservedAmmo = -1;
 
-                    System.Runtime.CompilerServices.Unsafe.Write(ptr, p);
-                    return;
-                }
+                System.Runtime.CompilerServices.Unsafe.Write(ptr, p);
+                return;
             }
             catch (System.Exception ex)
             {

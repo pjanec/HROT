@@ -1,0 +1,856 @@
+{
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0"
+  },
+  "entities": {
+    "98e75951-8493-4db9-9197-785b9ba470bc": {
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "ede78c84-e735-4e83-aa44-32f2210aa284",
+              "executingEngine": "",
+              "behaviorName": "PlatoonHillAttack",
+              "behaviorParams": "{\"firingLineStart\":[52.523639251909096, 13.413515804487876],\"firingLineEnd\":[52.524897363642268, 13.41360444887701],\"baselineStart\":[52.523603361149867, 13.412705470497283],\"baselineEnd\":[52.524924376555148, 13.412838305005167],\"tankSpacing\":30,\"targetAreaNetworkId\":1005}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "BrainBlackboard": {
+        "TargetAreaEntity": {
+          "Index": 5,
+          "Generation": 1
+        },
+        "StartX": 578.00006,
+        "StartY": 405,
+        "EndX": 584,
+        "EndY": 544.99994,
+        "BaselineStartX": 523.00006,
+        "BaselineStartY": 401,
+        "BaselineEndX": 532.00006,
+        "BaselineEndY": 548,
+        "AttackDirX": 0.99995637,
+        "AttackDirY": 0.009344826,
+        "TankSpacing": 30
+      },
+      "Blackboard1024": {
+        "CachedEqsRequestId": 0,
+        "TotalSlots": 0,
+        "CachedTargetGroupHandle": 0,
+        "ActiveAttackerCount": 0,
+        "BurnedSlotsMask": 0,
+        "WaveUsedSlotsMask": 0,
+        "BaselineReservedMask": 0,
+        "CurrentWave": 0,
+        "EqsRequestTime": 0,
+        "ActiveEntityPacked": [0, 0, 0, 0, 0, 0, 0, 0],
+        "ActiveSlotIndex": [0, 0, 0, 0, 0, 0, 0, 0],
+        "ReturnBaselineSlotIndex": [0, 0, 0, 0, 0, 0, 0, 0],
+        "HasStartedRun": [0, 0, 0, 0, 0, 0, 0, 0]
+      },
+      "SimTransform": {
+        "Position": [427.805817, 457.924866, 0],
+        "Rotation": [0, 0, 0, 1]
+      },
+      "SimVelocity": {
+        "Linear": [0, 0, 0],
+        "Angular": [0, 0, 0]
+      },
+      "ActorCapabilityState": {
+        "Capabilities": "CanMove, CanShoot"
+      },
+      "VehicleState": {
+        "Speed": 0,
+        "SteerAngle": 0,
+        "Accel": 0,
+        "CurrentLaneIndex": 0
+      },
+      "NavState": {
+        "Mode": "None",
+        "RoadPhase": "Approaching",
+        "TrajectoryId": 0,
+        "CurrentSegmentId": 0,
+        "ProgressS": 0,
+        "TargetSpeed": 0,
+        "FinalDestination": [0, 0],
+        "ArrivalRadius": 0,
+        "SpeedErrorInt": 0,
+        "LastSteerCmd": 0,
+        "ReverseAllowed": 0,
+        "HasArrived": 0,
+        "IsBlocked": 0
+      },
+      "NetworkIdentity": {
+        "Value": 1000
+      },
+      "NetworkAuthority": {
+        "PrimaryOwnerId": 0,
+        "LocalNodeId": 0
+      },
+      "NetworkTransform": {
+        "LastPosition": [0, 0, 0],
+        "LastRotation": [0, 0, 0, 0]
+      },
+      "TkbIdentity": {
+        "TkbType": 303
+      },
+      "NavigationIntent": {
+        "Mode": "None",
+        "ReverseAllowed": 0,
+        "FinalDestination": [0, 0],
+        "TargetSpeed": 0,
+        "ArrivalRadius": 0,
+        "IntentId": 0,
+        "TargetNodeId": 0,
+        "TrajectoryId": 0
+      },
+      "MapDisplayComponent": {
+        "LayerMask": 5
+      },
+      "VisualData": {
+        "SymbolCode": "SFGPUCIZ--H----",
+        "ModelPath": "models/default.obj",
+        "ColorHex": "#0000FF",
+        "MapShapeName": ""
+      },
+      "EntityInfo": {
+        "Name": "Tank Platoon (Auto Spawn)",
+        "ForceId": "Friend"
+      }
+    },
+    "4b484443-74d9-42af-9f7d-888d7fa6f822": {
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "98e75951-8493-4db9-9197-785b9ba470bc",
+        "Designation": "Wingman"
+      },
+      "BrainBlackboard": {},
+      "SimTransform": {
+        "Position": [446.316711, 420.903046, 0],
+        "Rotation": [0, 0, 0, 1]
+      },
+      "SimVelocity": {
+        "Linear": [0, 0, 0],
+        "Angular": [0, 0, 0]
+      },
+      "ActorCapabilityState": {
+        "Capabilities": "CanMove, CanShoot"
+      },
+      "VehicleState": {
+        "Speed": 0,
+        "SteerAngle": -0.8,
+        "Accel": 2.5,
+        "CurrentLaneIndex": 0
+      },
+      "VehicleParams": {
+        "Class": "Tank",
+        "Length": 7.93,
+        "Width": 3.66,
+        "WheelBase": 4.758,
+        "MaxSpeedFwd": 20,
+        "MaxSpeedRev": 8,
+        "MaxAccel": 2.5,
+        "MaxDecel": 4,
+        "MaxSteerAngle": 0.8,
+        "MaxSteerRate": 0.2617994,
+        "MaxLatAccel": 6,
+        "AvoidanceRadius": 5,
+        "LookaheadTimeMin": 0.8,
+        "LookaheadTimeMax": 2.5,
+        "AccelGain": 1.8
+      },
+      "NavState": {
+        "Mode": "Direct",
+        "RoadPhase": "Approaching",
+        "TrajectoryId": 0,
+        "CurrentSegmentId": 0,
+        "ProgressS": 0,
+        "TargetSpeed": 15,
+        "FinalDestination": [523, 401],
+        "ArrivalRadius": 5,
+        "SpeedErrorInt": 0,
+        "LastSteerCmd": 0,
+        "ReverseAllowed": 0,
+        "HasArrived": 0,
+        "IsBlocked": 0
+      },
+      "PhysicsCollider": {
+        "Radius": 2.5,
+        "CollisionLayer": 1
+      },
+      "WeaponState": {
+        "Ammo": 42,
+        "CooldownSecondsRemaining": 0,
+        "MuzzleVelocity": 3000
+      },
+      "Health": {
+        "Current": 50,
+        "Max": 50
+      },
+      "NetworkIdentity": {
+        "Value": 1001
+      },
+      "NetworkAuthority": {
+        "PrimaryOwnerId": 0,
+        "LocalNodeId": 0
+      },
+      "NetworkTransform": {
+        "LastPosition": [0, 0, 0],
+        "LastRotation": [0, 0, 0, 0]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "NavigationIntent": {
+        "Mode": "DirectPoint",
+        "ReverseAllowed": 0,
+        "FinalDestination": [523, 401],
+        "TargetSpeed": 15,
+        "ArrivalRadius": 5,
+        "IntentId": 3,
+        "TargetNodeId": 0,
+        "TrajectoryId": 0
+      },
+      "MapDisplayComponent": {
+        "LayerMask": 5
+      },
+      "VisualData": {
+        "SymbolCode": "SFGPUCIZ-------",
+        "ModelPath": "models/m1_abrams.obj",
+        "ColorHex": "#2E4057",
+        "MapShapeName": ""
+      },
+      "EntityInfo": {
+        "Name": "Tank Platoon (Auto Spawn)-1",
+        "ForceId": "Friend"
+      },
+      "PerceptionReceptor": {
+        "HearingRange": 4000,
+        "VisionRange": 100,
+        "FieldOfViewCos": 0
+      }
+    },
+    "7ffac85c-0871-4e12-8c61-b810c0d9faa2": {
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "98e75951-8493-4db9-9197-785b9ba470bc",
+        "Designation": "Wingman"
+      },
+      "BrainBlackboard": {},
+      "SimTransform": {
+        "Position": [447.768555, 442.317627, 0],
+        "Rotation": [0, 0, 0, 1]
+      },
+      "SimVelocity": {
+        "Linear": [0, 0, 0],
+        "Angular": [0, 0, 0]
+      },
+      "ActorCapabilityState": {
+        "Capabilities": "CanMove, CanShoot"
+      },
+      "VehicleState": {
+        "Speed": 0,
+        "SteerAngle": 0.8,
+        "Accel": 2.5,
+        "CurrentLaneIndex": 0
+      },
+      "VehicleParams": {
+        "Class": "Tank",
+        "Length": 7.93,
+        "Width": 3.66,
+        "WheelBase": 4.758,
+        "MaxSpeedFwd": 20,
+        "MaxSpeedRev": 8,
+        "MaxAccel": 2.5,
+        "MaxDecel": 4,
+        "MaxSteerAngle": 0.8,
+        "MaxSteerRate": 0.2617994,
+        "MaxLatAccel": 6,
+        "AvoidanceRadius": 5,
+        "LookaheadTimeMin": 0.8,
+        "LookaheadTimeMax": 2.5,
+        "AccelGain": 1.8
+      },
+      "NavState": {
+        "Mode": "Direct",
+        "RoadPhase": "Approaching",
+        "TrajectoryId": 0,
+        "CurrentSegmentId": 0,
+        "ProgressS": 0,
+        "TargetSpeed": 15,
+        "FinalDestination": [526, 450],
+        "ArrivalRadius": 5,
+        "SpeedErrorInt": 0,
+        "LastSteerCmd": 0,
+        "ReverseAllowed": 0,
+        "HasArrived": 0,
+        "IsBlocked": 0
+      },
+      "PhysicsCollider": {
+        "Radius": 2.5,
+        "CollisionLayer": 1
+      },
+      "WeaponState": {
+        "Ammo": 42,
+        "CooldownSecondsRemaining": 0,
+        "MuzzleVelocity": 3000
+      },
+      "Health": {
+        "Current": 50,
+        "Max": 50
+      },
+      "NetworkIdentity": {
+        "Value": 1002
+      },
+      "NetworkAuthority": {
+        "PrimaryOwnerId": 0,
+        "LocalNodeId": 0
+      },
+      "NetworkTransform": {
+        "LastPosition": [0, 0, 0],
+        "LastRotation": [0, 0, 0, 0]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "NavigationIntent": {
+        "Mode": "DirectPoint",
+        "ReverseAllowed": 0,
+        "FinalDestination": [526, 450],
+        "TargetSpeed": 15,
+        "ArrivalRadius": 5,
+        "IntentId": 3,
+        "TargetNodeId": 0,
+        "TrajectoryId": 0
+      },
+      "MapDisplayComponent": {
+        "LayerMask": 5
+      },
+      "VisualData": {
+        "SymbolCode": "SFGPUCIZ-------",
+        "ModelPath": "models/m1_abrams.obj",
+        "ColorHex": "#2E4057",
+        "MapShapeName": ""
+      },
+      "EntityInfo": {
+        "Name": "Tank Platoon (Auto Spawn)-2",
+        "ForceId": "Friend"
+      },
+      "PerceptionReceptor": {
+        "HearingRange": 4000,
+        "VisionRange": 100,
+        "FieldOfViewCos": 0
+      }
+    },
+    "3c735b11-677c-4c39-a8f1-c33246a83a33": {
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "98e75951-8493-4db9-9197-785b9ba470bc",
+        "Designation": "Wingman"
+      },
+      "BrainBlackboard": {},
+      "SimTransform": {
+        "Position": [448.857422, 468.087708, 0],
+        "Rotation": [0, 0, 0, 1]
+      },
+      "SimVelocity": {
+        "Linear": [0, 0, 0],
+        "Angular": [0, 0, 0]
+      },
+      "ActorCapabilityState": {
+        "Capabilities": "CanMove, CanShoot"
+      },
+      "VehicleState": {
+        "Speed": 0,
+        "SteerAngle": 0.8,
+        "Accel": 2.5,
+        "CurrentLaneIndex": 0
+      },
+      "VehicleParams": {
+        "Class": "Tank",
+        "Length": 7.93,
+        "Width": 3.66,
+        "WheelBase": 4.758,
+        "MaxSpeedFwd": 20,
+        "MaxSpeedRev": 8,
+        "MaxAccel": 2.5,
+        "MaxDecel": 4,
+        "MaxSteerAngle": 0.8,
+        "MaxSteerRate": 0.2617994,
+        "MaxLatAccel": 6,
+        "AvoidanceRadius": 5,
+        "LookaheadTimeMin": 0.8,
+        "LookaheadTimeMax": 2.5,
+        "AccelGain": 1.8
+      },
+      "NavState": {
+        "Mode": "Direct",
+        "RoadPhase": "Approaching",
+        "TrajectoryId": 0,
+        "CurrentSegmentId": 0,
+        "ProgressS": 0,
+        "TargetSpeed": 15,
+        "FinalDestination": [529, 499],
+        "ArrivalRadius": 5,
+        "SpeedErrorInt": 0,
+        "LastSteerCmd": 0,
+        "ReverseAllowed": 0,
+        "HasArrived": 0,
+        "IsBlocked": 0
+      },
+      "PhysicsCollider": {
+        "Radius": 2.5,
+        "CollisionLayer": 1
+      },
+      "WeaponState": {
+        "Ammo": 42,
+        "CooldownSecondsRemaining": 0,
+        "MuzzleVelocity": 3000
+      },
+      "Health": {
+        "Current": 50,
+        "Max": 50
+      },
+      "NetworkIdentity": {
+        "Value": 1003
+      },
+      "NetworkAuthority": {
+        "PrimaryOwnerId": 0,
+        "LocalNodeId": 0
+      },
+      "NetworkTransform": {
+        "LastPosition": [0, 0, 0],
+        "LastRotation": [0, 0, 0, 0]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "NavigationIntent": {
+        "Mode": "DirectPoint",
+        "ReverseAllowed": 0,
+        "FinalDestination": [529, 499],
+        "TargetSpeed": 15,
+        "ArrivalRadius": 5,
+        "IntentId": 3,
+        "TargetNodeId": 0,
+        "TrajectoryId": 0
+      },
+      "MapDisplayComponent": {
+        "LayerMask": 5
+      },
+      "VisualData": {
+        "SymbolCode": "SFGPUCIZ-------",
+        "ModelPath": "models/m1_abrams.obj",
+        "ColorHex": "#2E4057",
+        "MapShapeName": ""
+      },
+      "EntityInfo": {
+        "Name": "Tank Platoon (Auto Spawn)-3",
+        "ForceId": "Friend"
+      },
+      "PerceptionReceptor": {
+        "HearingRange": 4000,
+        "VisionRange": 100,
+        "FieldOfViewCos": 0
+      }
+    },
+    "7a36b131-20ad-4ea7-a519-040ffc55c31f": {
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "98e75951-8493-4db9-9197-785b9ba470bc",
+        "Designation": "Wingman"
+      },
+      "BrainBlackboard": {},
+      "SimTransform": {
+        "Position": [448.857422, 490.591187, 0],
+        "Rotation": [0, 0, 0, 1]
+      },
+      "SimVelocity": {
+        "Linear": [0, 0, 0],
+        "Angular": [0, 0, 0]
+      },
+      "ActorCapabilityState": {
+        "Capabilities": "CanMove, CanShoot"
+      },
+      "VehicleState": {
+        "Speed": 0,
+        "SteerAngle": 0.8,
+        "Accel": 2.5,
+        "CurrentLaneIndex": 0
+      },
+      "VehicleParams": {
+        "Class": "Tank",
+        "Length": 7.93,
+        "Width": 3.66,
+        "WheelBase": 4.758,
+        "MaxSpeedFwd": 20,
+        "MaxSpeedRev": 8,
+        "MaxAccel": 2.5,
+        "MaxDecel": 4,
+        "MaxSteerAngle": 0.8,
+        "MaxSteerRate": 0.2617994,
+        "MaxLatAccel": 6,
+        "AvoidanceRadius": 5,
+        "LookaheadTimeMin": 0.8,
+        "LookaheadTimeMax": 2.5,
+        "AccelGain": 1.8
+      },
+      "NavState": {
+        "Mode": "Direct",
+        "RoadPhase": "Approaching",
+        "TrajectoryId": 0,
+        "CurrentSegmentId": 0,
+        "ProgressS": 0,
+        "TargetSpeed": 15,
+        "FinalDestination": [532, 548],
+        "ArrivalRadius": 5,
+        "SpeedErrorInt": 0,
+        "LastSteerCmd": 0,
+        "ReverseAllowed": 0,
+        "HasArrived": 0,
+        "IsBlocked": 0
+      },
+      "PhysicsCollider": {
+        "Radius": 2.5,
+        "CollisionLayer": 1
+      },
+      "WeaponState": {
+        "Ammo": 42,
+        "CooldownSecondsRemaining": 0,
+        "MuzzleVelocity": 3000
+      },
+      "Health": {
+        "Current": 50,
+        "Max": 50
+      },
+      "NetworkIdentity": {
+        "Value": 1004
+      },
+      "NetworkAuthority": {
+        "PrimaryOwnerId": 0,
+        "LocalNodeId": 0
+      },
+      "NetworkTransform": {
+        "LastPosition": [0, 0, 0],
+        "LastRotation": [0, 0, 0, 0]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "NavigationIntent": {
+        "Mode": "DirectPoint",
+        "ReverseAllowed": 0,
+        "FinalDestination": [532, 548],
+        "TargetSpeed": 15,
+        "ArrivalRadius": 5,
+        "IntentId": 3,
+        "TargetNodeId": 0,
+        "TrajectoryId": 0
+      },
+      "MapDisplayComponent": {
+        "LayerMask": 5
+      },
+      "VisualData": {
+        "SymbolCode": "SFGPUCIZ-------",
+        "ModelPath": "models/m1_abrams.obj",
+        "ColorHex": "#2E4057",
+        "MapShapeName": ""
+      },
+      "EntityInfo": {
+        "Name": "Tank Platoon (Auto Spawn)-4",
+        "ForceId": "Friend"
+      },
+      "PerceptionReceptor": {
+        "HearingRange": 4000,
+        "VisionRange": 100,
+        "FieldOfViewCos": 0
+      }
+    },
+    "5525100c-8237-4b0a-ab47-be43a2b30dce": {
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -53,
+            "Y": -88.5
+          },
+          {
+            "X": -54,
+            "Y": 90.5
+          },
+          {
+            "X": 51,
+            "Y": 85.5
+          },
+          {
+            "X": 56,
+            "Y": -87.5
+          }
+        ],
+        "Version": 0
+      },
+      "SimTransform": {
+        "Position": [670, 473.5, 0],
+        "Rotation": [0, 0, 0, 0]
+      },
+      "NetworkIdentity": {
+        "Value": 1005
+      },
+      "NetworkAuthority": {
+        "PrimaryOwnerId": 0,
+        "LocalNodeId": 0
+      },
+      "NetworkTransform": {
+        "LastPosition": [0, 0, 0],
+        "LastRotation": [0, 0, 0, 0]
+      },
+      "TkbIdentity": {
+        "TkbType": 8803
+      },
+      "MapDisplayComponent": {
+        "LayerMask": 8
+      },
+      "MapOverlayStyle": {
+        "FillColor": [255, 0, 0, 80],
+        "BorderColor": [255, 255, 255, 255],
+        "LineThickness": 2,
+        "IsClosed": true
+      }
+    },
+    "71171612-4f0e-4ead-aad3-881890b9b1e3": {
+      "TargetMemory": {
+        "Entries": []
+      },
+      "BrainBlackboard": {},
+      "SimTransform": {
+        "Position": [668, 427, 0],
+        "Rotation": [0, 0, 0, 1]
+      },
+      "SimVelocity": {
+        "Linear": [0, 0, 0],
+        "Angular": [0, 0, 0]
+      },
+      "ActorCapabilityState": {
+        "Capabilities": "CanMove, CanShoot"
+      },
+      "VehicleState": {
+        "Speed": 0,
+        "SteerAngle": 0,
+        "Accel": 0,
+        "CurrentLaneIndex": 0
+      },
+      "VehicleParams": {
+        "Class": "Tank",
+        "Length": 7.93,
+        "Width": 3.66,
+        "WheelBase": 4.758,
+        "MaxSpeedFwd": 20,
+        "MaxSpeedRev": 8,
+        "MaxAccel": 2.5,
+        "MaxDecel": 4,
+        "MaxSteerAngle": 0.8,
+        "MaxSteerRate": 0.2617994,
+        "MaxLatAccel": 6,
+        "AvoidanceRadius": 5,
+        "LookaheadTimeMin": 0.8,
+        "LookaheadTimeMax": 2.5,
+        "AccelGain": 1.8
+      },
+      "NavState": {
+        "Mode": "None",
+        "RoadPhase": "Approaching",
+        "TrajectoryId": 0,
+        "CurrentSegmentId": 0,
+        "ProgressS": 0,
+        "TargetSpeed": 0,
+        "FinalDestination": [0, 0],
+        "ArrivalRadius": 0,
+        "SpeedErrorInt": 0,
+        "LastSteerCmd": 0,
+        "ReverseAllowed": 0,
+        "HasArrived": 0,
+        "IsBlocked": 0
+      },
+      "PhysicsCollider": {
+        "Radius": 2.5,
+        "CollisionLayer": 1
+      },
+      "WeaponState": {
+        "Ammo": 42,
+        "CooldownSecondsRemaining": 0,
+        "MuzzleVelocity": 3000
+      },
+      "Health": {
+        "Current": 50,
+        "Max": 50
+      },
+      "NetworkIdentity": {
+        "Value": 1006
+      },
+      "NetworkAuthority": {
+        "PrimaryOwnerId": 0,
+        "LocalNodeId": 0
+      },
+      "NetworkTransform": {
+        "LastPosition": [0, 0, 0],
+        "LastRotation": [0, 0, 0, 0]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "NavigationIntent": {
+        "Mode": "None",
+        "ReverseAllowed": 0,
+        "FinalDestination": [0, 0],
+        "TargetSpeed": 0,
+        "ArrivalRadius": 0,
+        "IntentId": 0,
+        "TargetNodeId": 0,
+        "TrajectoryId": 0
+      },
+      "MapDisplayComponent": {
+        "LayerMask": 5
+      },
+      "VisualData": {
+        "SymbolCode": "SFGPUCIZ-------",
+        "ModelPath": "models/m1_abrams.obj",
+        "ColorHex": "#2E4057",
+        "MapShapeName": ""
+      },
+      "EntityInfo": {
+        "Name": "M1 Abrams",
+        "ForceId": "Hostile"
+      },
+      "PerceptionReceptor": {
+        "HearingRange": 4000,
+        "VisionRange": 100,
+        "FieldOfViewCos": 0
+      }
+    },
+    "fd267b0c-72db-400d-8174-3bff96460ae8": {
+      "TargetMemory": {
+        "Entries": []
+      },
+      "BrainBlackboard": {},
+      "SimTransform": {
+        "Position": [668, 522, 0],
+        "Rotation": [0, 0, 0, 1]
+      },
+      "SimVelocity": {
+        "Linear": [0, 0, 0],
+        "Angular": [0, 0, 0]
+      },
+      "ActorCapabilityState": {
+        "Capabilities": "CanMove, CanShoot"
+      },
+      "VehicleState": {
+        "Speed": 0,
+        "SteerAngle": 0,
+        "Accel": 0,
+        "CurrentLaneIndex": 0
+      },
+      "VehicleParams": {
+        "Class": "Tank",
+        "Length": 7.93,
+        "Width": 3.66,
+        "WheelBase": 4.758,
+        "MaxSpeedFwd": 20,
+        "MaxSpeedRev": 8,
+        "MaxAccel": 2.5,
+        "MaxDecel": 4,
+        "MaxSteerAngle": 0.8,
+        "MaxSteerRate": 0.2617994,
+        "MaxLatAccel": 6,
+        "AvoidanceRadius": 5,
+        "LookaheadTimeMin": 0.8,
+        "LookaheadTimeMax": 2.5,
+        "AccelGain": 1.8
+      },
+      "NavState": {
+        "Mode": "None",
+        "RoadPhase": "Approaching",
+        "TrajectoryId": 0,
+        "CurrentSegmentId": 0,
+        "ProgressS": 0,
+        "TargetSpeed": 0,
+        "FinalDestination": [0, 0],
+        "ArrivalRadius": 0,
+        "SpeedErrorInt": 0,
+        "LastSteerCmd": 0,
+        "ReverseAllowed": 0,
+        "HasArrived": 0,
+        "IsBlocked": 0
+      },
+      "PhysicsCollider": {
+        "Radius": 2.5,
+        "CollisionLayer": 1
+      },
+      "WeaponState": {
+        "Ammo": 42,
+        "CooldownSecondsRemaining": 0,
+        "MuzzleVelocity": 3000
+      },
+      "Health": {
+        "Current": 50,
+        "Max": 50
+      },
+      "NetworkIdentity": {
+        "Value": 1007
+      },
+      "NetworkAuthority": {
+        "PrimaryOwnerId": 0,
+        "LocalNodeId": 0
+      },
+      "NetworkTransform": {
+        "LastPosition": [0, 0, 0],
+        "LastRotation": [0, 0, 0, 0]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "NavigationIntent": {
+        "Mode": "None",
+        "ReverseAllowed": 0,
+        "FinalDestination": [0, 0],
+        "TargetSpeed": 0,
+        "ArrivalRadius": 0,
+        "IntentId": 0,
+        "TargetNodeId": 0,
+        "TrajectoryId": 0
+      },
+      "MapDisplayComponent": {
+        "LayerMask": 5
+      },
+      "VisualData": {
+        "SymbolCode": "SFGPUCIZ-------",
+        "ModelPath": "models/m1_abrams.obj",
+        "ColorHex": "#2E4057",
+        "MapShapeName": ""
+      },
+      "EntityInfo": {
+        "Name": "M1 Abrams",
+        "ForceId": "Hostile"
+      },
+      "PerceptionReceptor": {
+        "HearingRange": 4000,
+        "VisionRange": 100,
+        "FieldOfViewCos": 0
+      }
+    }
+  }
+}

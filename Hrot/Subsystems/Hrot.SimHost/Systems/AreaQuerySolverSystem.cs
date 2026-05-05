@@ -153,6 +153,13 @@ namespace Hrot.SimHost.Systems
                         Vector2 localCandidatePos = candidates[j].pos - areaOrigin;
                         if (!PointInPolygon(localCandidatePos, points, nVerts)) continue;
 
+                        // Ignore wrecks (alive entity with depleted HP).
+                        if (view.HasComponent<Fdp.Toolkit.Combat.Components.Health>(candidate))
+                        {
+                            if (view.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(candidate).Current <= 0f)
+                                continue;
+                        }
+
                         // Guard: check pool capacity before writing.
                         int poolIdx = localPoolNext + targetCount;
                         if (poolIdx >= pool.Targets.Length)

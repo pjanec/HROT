@@ -103,10 +103,17 @@ namespace Hrot.AI.Behaviors.Brains
                 float bx = p.BaselineStartX + (p.BaselineEndX - p.BaselineStartX) * t;
                 float by = p.BaselineStartY + (p.BaselineEndY - p.BaselineStartY) * t;
 
-                // Emit JSON matching CgfNodes.MoveToLocationParamsJsonDto {X, Y, Speed}.
-                string json = "{\"X\":" + bx.ToString("G6", System.Globalization.CultureInfo.InvariantCulture)
-                            + ",\"Y\":" + by.ToString("G6", System.Globalization.CultureInfo.InvariantCulture)
-                            + ",\"Speed\":15.0}";
+                var dto = new CgfNodes.MoveToLocationParams
+                {
+                    X = bx,
+                    Y = by,
+                    Speed = 15.0f,
+                    ArrivalRadius = 5.0f
+                };
+
+                string json = JsonSerializer.Serialize(
+                    dto,
+                    Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
 
                 ctx.World.Bus.PublishManaged(new AssignTacticalIntentEvent
                 {
@@ -329,6 +336,7 @@ namespace Hrot.AI.Behaviors.Brains
             ref readonly var roster = ref ctx.World.GetComponentRO<UnitRoster>(ctx.Self);
             int rosterCount  = roster.Count;
             bool allParticipate = rosterCount <= 3;
+            int* avail = stackalloc int[16];
 
             int activeTankIndexInWave = 0;
 
@@ -342,17 +350,19 @@ namespace Hrot.AI.Behaviors.Brains
                 // Wave parity: use Entity.Index (immutable) NOT roster index i.
                 if (!allParticipate && (sub.Index % 2) != s.CurrentWave) continue;
 
-                // Prefer natural roster index slot to preserve baseline/firing-line alignment.
-                int firingSlot = i;
-                if (firingSlot >= s.TotalSlots || ((s.BurnedSlotsMask | s.WaveUsedSlotsMask) & (1 << firingSlot)) != 0)
+                int availCount = 0;
+                ushort blockedMask = (ushort)(s.BurnedSlotsMask | s.WaveUsedSlotsMask);
+                for (int j = 0; j < s.TotalSlots; j++)
                 {
-                    firingSlot = GetFirstAvailableSlot((ushort)(s.BurnedSlotsMask | s.WaveUsedSlotsMask), s.TotalSlots);
+                    if ((blockedMask & (1 << j)) == 0) avail[availCount++] = j;
                 }
-                if (firingSlot < 0)
+
+                if (availCount == 0)
                 {
                     BehaviorLog.Warn(ref ctx, "No firing-line slots available for subordinate Entity:" + sub.Index + "; skipping this wave assignment.");
                     continue;  // no slots left; skip tank
                 }
+                int firingSlot = avail[Random.Shared.Next(0, availCount)];
 
                 // Interpolate firing-slot world position.
                 float ft = s.TotalSlots > 1 ? (float)firingSlot / (s.TotalSlots - 1) : 0.5f;
@@ -392,18 +402,32 @@ namespace Hrot.AI.Behaviors.Brains
                 s.ActiveAttackerCount++;
                 activeTankIndexInWave++;
 
-                // Serialize JSON for HullDownAttackRun.
-                var ic = System.Globalization.CultureInfo.InvariantCulture;
-                string json = "{\"SlotX\":"    + fx.ToString("G6", ic)
-                            + ",\"SlotY\":"    + fy.ToString("G6", ic)
-                            + ",\"BaselineX\":" + bx.ToString("G6", ic)
-                            + ",\"BaselineY\":" + by.ToString("G6", ic)
-                            + ",\"AttackDirX\":" + p.AttackDirX.ToString("G6", ic)
-                            + ",\"AttackDirY\":" + p.AttackDirY.ToString("G6", ic)
-                            + ",\"TargetNetworkId\":" + targetNetId.ToString(ic)
-                            + ",\"ApproachSpeed\":15"
-                            + ",\"CreepSpeed\":5"
-                            + ",\"MaxRounds\":1}";
+                if (BehaviorLog.IsDebugEnabled)
+                {
+                    BehaviorLog.Debug(ref ctx, "Dispatched subordinate Entity:" + sub.Index
+                        + " to FiringSlot=" + firingSlot + " BaselineSlot=" + baselineSlot
+                        + " TargetNetworkId=" + targetNetId + ".");
+                }
+
+                var dto = new HullDownAttackParams
+                {
+                    SlotX = fx,
+                    SlotY = fy,
+                    BaselineX = bx,
+                    BaselineY = by,
+                    AttackDirX = p.AttackDirX,
+                    AttackDirY = p.AttackDirY,
+                    TargetNetworkId = targetNetId,
+                    ApproachSpeed = 15f,
+                    CreepSpeed = 5f,
+                    MaxRounds = 1,
+                    RoundsFired = 0,
+                    LastObservedAmmo = -1
+                };
+
+                string json = JsonSerializer.Serialize(
+                    dto,
+                    Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
 
                 ctx.World.Bus.PublishManaged(new AssignTacticalIntentEvent
                 {
