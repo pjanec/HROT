@@ -54,6 +54,7 @@ public sealed unsafe class PerceptionMapLayer : IMapLayer
         float zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;
         float dashLength = 15.0f / zoom;
         float gapLength = 10.0f / zoom;
+        uint currentTick = _world.GlobalVersion;
 
         foreach (Entity entity in _query)
         {
@@ -64,6 +65,11 @@ public sealed unsafe class PerceptionMapLayer : IMapLayer
 
             for (int i = 0; i < mem.Count; i++)
             {
+                uint ageTicks = currentTick >= mem.LastSeenTick[i] ? currentTick - mem.LastSeenTick[i] : 0u;
+                if (ageTicks > 60 && currentTick > 0u)
+                    continue;
+
+                float ageFade = 1.0f - Math.Clamp(ageTicks / 60.0f, 0f, 1f);
                 var targetWorld  = new Vector2(mem.PositionsX[i], mem.PositionsY[i]);
                 Vector2 direction = targetWorld - perceiverWorld;
                 float totalDist = direction.Length();
@@ -79,7 +85,13 @@ public sealed unsafe class PerceptionMapLayer : IMapLayer
 
                     // 255 at source (0% transparent) to 64 at target (75% transparent).
                     byte currentAlpha = (byte)(255 - (191 * startT));
-                    var dashColor = new Color((byte)255, (byte)60, (byte)60, currentAlpha);
+                    byte finalAlpha = (byte)(currentAlpha * ageFade);
+                    if (finalAlpha == 0)
+                    {
+                        currentDist += dashLength + gapLength;
+                        continue;
+                    }
+                    var dashColor = new Color((byte)255, (byte)60, (byte)60, finalAlpha);
 
                     Vector2 segStart = perceiverWorld + (normDir * currentDist);
                     Vector2 segEnd = perceiverWorld + (normDir * endDist);
