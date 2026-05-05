@@ -89,6 +89,8 @@ using Fdp.Toolkit.Vis2D.Components;
 
 using Fdp.Toolkit.Vis2D.Defaults;
 
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Vis2D.Layers;
 
 using Fdp.Toolkit.Vis2D.Tools;
@@ -225,6 +227,10 @@ public class IgApplication : IDisposable
     // -- Headless flag — set by InitializeEmbedded(); skips all Raylib/ImGui calls in Update/Draw
 
     private bool _headless;
+
+    // -- Gizmo subsystem (GZ020) ---------------------------------------------------
+    private DebugPrimitiveBuffer? _gizmoBuffer;
+    private GizmoRegistry?        _gizmoRegistry;
 
     // -- Optional IG translator provider (injected via InitializeEmbedded; null = no NED translators)
     private Hrot.Core.Network.IIgTranslators? _igTranslatorsProvider;
@@ -432,6 +438,10 @@ public class IgApplication : IDisposable
     public FdpInspectorState     FdpInspectorState    => _fdpInspectorState;
     /// <summary>The module host kernel used by this IG instance.</summary>
     public ModuleHostKernel Kernel => _kernel;
+    /// <summary>Registry of entity-bound gizmo definitions. Available after InitializeEmbedded().</summary>
+    public GizmoRegistry? GizmoRegistry => _gizmoRegistry;
+    /// <summary>Gizmo primitive buffer used for rendering. Available after InitializeEmbedded().</summary>
+    internal DebugPrimitiveBuffer? GizmoBuffer => _gizmoBuffer;
     /// <summary>
     /// Map-pick bridge for component-editor map picking.
     /// Created lazily on first call after <see cref="InitializeEmbedded"/> sets up the canvas.
@@ -1106,6 +1116,12 @@ public class IgApplication : IDisposable
         // ZoneObstacleRenderLayer — draws LOS obstacle circles (always-on overlay).
         _canvas.AddLayer(new Hrot.IG.Layers.ZoneObstacleRenderLayer(_world));
 
+        // Gizmo subsystem (GZ020) — renders entity-bound diagnostic overlays.
+        _gizmoBuffer   = new DebugPrimitiveBuffer(capacity: 4096);
+        _gizmoRegistry = new GizmoRegistry();
+        var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, _world.Bus);
+        _canvas.AddLayer(gizmoLayer);
+
         // Cache SelectionState query once to avoid per-click allocations (CT-2).
         _selectionStateQuery = _world.Query()
             .With<SelectionState>()
@@ -1206,7 +1222,14 @@ public class IgApplication : IDisposable
 
         _kernel.RegisterGlobalSystem(_contextMenuSystem);
 
-
+        // Gizmo system (GZ020) — must be registered before kernel.Initialize().
+        if (_gizmoRegistry != null && _gizmoBuffer != null)
+        {
+            _kernel.RegisterGlobalSystem(new DataDrivenGizmoSystem(
+                _gizmoRegistry,
+                _gizmoBuffer,
+                isSelectedPredicate: null));
+        }
 
         _kernel.Initialize();
 
