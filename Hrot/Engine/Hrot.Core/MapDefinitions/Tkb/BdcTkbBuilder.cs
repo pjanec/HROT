@@ -343,6 +343,8 @@ namespace Hrot.Map.Definitions.Tkb
                 preset.Width = def.Width;
             if (def.MaxSpeed > 0f)
                 preset.MaxSpeedFwd = def.MaxSpeed;
+            if (def.MaxSpeedRev > 0f)
+                preset.MaxSpeedRev = def.MaxSpeedRev;
             if (def.Acceleration > 0f)
                 preset.MaxAccel = def.Acceleration;
             if (def.TurnRate > 0f)

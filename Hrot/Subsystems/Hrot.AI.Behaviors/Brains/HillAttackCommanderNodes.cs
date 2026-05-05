@@ -651,14 +651,25 @@ namespace Hrot.AI.Behaviors.Brains
                 result.BaselineEndX = (float)dto.BaselineEnd.Longitude; result.BaselineEndY = (float)dto.BaselineEnd.Latitude;
             }
 
-            // Compute attack direction as left-hand perpendicular of firing-line direction.
-            var fireVec = new Vector2(result.EndX - result.StartX, result.EndY - result.StartY);
-            float len = fireVec.Length();
+            // Compute attack direction from baseline center to firing-line center.
+            var baselineCenter = new Vector2(
+                (result.BaselineStartX + result.BaselineEndX) * 0.5f,
+                (result.BaselineStartY + result.BaselineEndY) * 0.5f);
+            var firingCenter = new Vector2(
+                (result.StartX + result.EndX) * 0.5f,
+                (result.StartY + result.EndY) * 0.5f);
+            var attackVec = firingCenter - baselineCenter;
+            float len = attackVec.Length();
             if (len > 0.0001f)
             {
-                var norm = fireVec / len;
-                result.AttackDirX = -norm.Y;
-                result.AttackDirY =  norm.X;
+                var norm = attackVec / len;
+                result.AttackDirX = norm.X;
+                result.AttackDirY = norm.Y;
+            }
+            else
+            {
+                result.AttackDirX = 1f;
+                result.AttackDirY = 0f;
             }
 
             // Resolve target area entity.

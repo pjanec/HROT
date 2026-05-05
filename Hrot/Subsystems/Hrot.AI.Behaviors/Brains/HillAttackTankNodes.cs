@@ -7,6 +7,7 @@ using Fbt.Runtime;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Executors;
@@ -93,6 +94,19 @@ namespace Hrot.AI.Behaviors.Brains
             where T : unmanaged
         {
             System.Runtime.CompilerServices.Unsafe.As<byte, T>(ref ch.Params[0]) = value;
+        }
+
+        private static void ClearWeaponActionIfActive(ref BTreeContext ctx)
+        {
+            if (!ctx.World.HasComponent<WeaponChannel>(ctx.Self))
+                return;
+
+            ref var wc = ref ctx.World.GetComponentRW<WeaponChannel>(ctx.Self);
+            if (wc.ActiveAction != 0)
+            {
+                wc.ActiveAction = 0;
+                unchecked { wc.ActionInstanceId++; }
+            }
         }
 
         // ── Conditions ────────────────────────────────────────────────────────────
@@ -329,8 +343,21 @@ namespace Hrot.AI.Behaviors.Brains
             if (!ctx.World.IsAlive(targetEntity))
                 return NodeStatus.Success;
 
+            if (ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            {
+                ref var loco = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
+                if (loco.ActiveAction != 0)
+                {
+                    loco.ActiveAction = 0;
+                    unchecked { loco.ActionInstanceId++; }
+                }
+            }
+
             if (p.MaxRounds > 0 && p.RoundsFired >= p.MaxRounds)
+            {
+                ClearWeaponActionIfActive(ref ctx);
                 return NodeStatus.Success;
+            }
 
             if (!ctx.World.HasComponent<WeaponChannel>(ctx.Self))
             {
@@ -356,7 +383,10 @@ namespace Hrot.AI.Behaviors.Brains
                 p.RoundsFired += (p.LastObservedAmmo - ws.Ammo);
                 p.LastObservedAmmo = ws.Ammo;
                 if (p.MaxRounds > 0 && p.RoundsFired >= p.MaxRounds)
+                {
+                    ClearWeaponActionIfActive(ref ctx);
                     return NodeStatus.Success;
+                }
             }
             else if (ws.Ammo > p.LastObservedAmmo)
             {
@@ -435,8 +465,16 @@ namespace Hrot.AI.Behaviors.Brains
             // Forward executor terminal status.
             if (loco.ActiveAction == NavigationConstants.ActionIdMoveTo)
             {
-                if (loco.Status == NodeStatus.Success) return NodeStatus.Success;
-                if (loco.Status == NodeStatus.Failure) return NodeStatus.Failure;
+                if (loco.Status == NodeStatus.Success)
+                {
+                    ctx.World.Bus.PublishManaged(new ClearBehaviorEvent { Entity = ctx.Self });
+                    return NodeStatus.Success;
+                }
+                if (loco.Status == NodeStatus.Failure)
+                {
+                    ctx.World.Bus.PublishManaged(new ClearBehaviorEvent { Entity = ctx.Self });
+                    return NodeStatus.Failure;
+                }
             }
 
             // Issue the retreat command once.
@@ -451,7 +489,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     Destination    = new Vector2(p.BaselineX, p.BaselineY),
                     ArrivalRadius  = 5f,
-                    Speed          = 10f,
+                    Speed          = 12f,
                     ReverseAllowed = 1,
                 });
             }

@@ -38,6 +38,11 @@ namespace Hrot.Map.Definitions.Tkb
         /// Maximum speed in meters per second.
         /// </summary>
         public float MaxSpeed { get; set; } // m/s
+
+        /// <summary>
+        /// Maximum reverse speed in meters per second.
+        /// </summary>
+        public float MaxSpeedRev { get; set; } // m/s
         
         /// <summary>
         /// Acceleration in meters per second squared.

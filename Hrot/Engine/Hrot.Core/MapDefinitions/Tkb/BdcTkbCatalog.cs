@@ -30,6 +30,7 @@ namespace Hrot.Map.Definitions.Tkb
                     p.Width = 3.66f;
                     p.Height = 2.44f;
                     p.MaxSpeed = 20.0f; // m/s
+                    p.MaxSpeedRev = 12.0f; // m/s
                     p.Acceleration = 2.5f;
                     p.TurnRate = 15.0f;
                     p.Mobility = TerrainMobility.Tracked;
@@ -128,6 +129,7 @@ namespace Hrot.Map.Definitions.Tkb
                     p.Width = 3.59f;
                     p.Height = 2.23f;
                     p.MaxSpeed = 17.0f;
+                    p.MaxSpeedRev = 10.0f;
                     p.Acceleration = 2.0f;
                     p.TurnRate = 12.0f;
                     p.Mobility = TerrainMobility.Tracked;
