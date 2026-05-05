@@ -78,6 +78,7 @@ namespace CarKinem.Core
                     Width = 3.5f,
                     WheelBase = 4.5f,
                     MaxSpeedFwd = 12.0f,
+                    MaxSpeedRev = 8.0f,
                     MaxAccel = 2.0f,
                     MaxDecel = 4.0f,
                     MaxSteerAngle = 0.8f,  // Can turn sharply (tracks)

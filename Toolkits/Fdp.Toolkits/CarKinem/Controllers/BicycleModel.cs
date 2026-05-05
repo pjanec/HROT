@@ -32,10 +32,6 @@ namespace CarKinem.Controllers
             // 1. Update speed
             state.Speed += accel * dt;
             
-            // QA FIX #3: No reverse driving (deadlock prevention)
-            if (state.Speed < 0f)
-                state.Speed = 0f;
-            
             // 2. Calculate angular velocity (yaw rate)
             // omega = (v / L) * tan(delta)
             float angularVel = (state.Speed / wheelBase) * MathF.Tan(steerAngle);

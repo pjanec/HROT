@@ -32,11 +32,14 @@ namespace CarKinem.Controllers
             float lookaheadMax,
             float maxSteerAngle)
         {
+            bool isReversing = desiredVelocity.LengthSquared() > 0.01f && Vector2.Dot(currentForward, desiredVelocity) < 0f;
+            Vector2 referenceForward = isReversing ? -currentForward : currentForward;
+
             // 1. Calculate dynamic lookahead distance
             float lookaheadTime = 0.5f; // Default: 0.5s
             float lookaheadDist = MathF.Max(
                 lookaheadMin,
-                MathF.Min(lookaheadMax, currentSpeed * lookaheadTime)
+                MathF.Min(lookaheadMax, MathF.Abs(currentSpeed) * lookaheadTime)
             );
             
             // 2. Calculate lookahead point
@@ -44,7 +47,7 @@ namespace CarKinem.Controllers
             if (desiredVelocity.LengthSquared() < 0.01f)
             {
                 // Stopped: maintain heading
-                lookaheadPoint = currentPos + currentForward * lookaheadDist;
+                lookaheadPoint = currentPos + referenceForward * lookaheadDist;
             }
             else
             {
@@ -55,7 +58,7 @@ namespace CarKinem.Controllers
             
             // 3. Calculate signed angle to lookahead point
             Vector2 toLookahead = lookaheadPoint - currentPos;
-            float alpha = VectorMath.SignedAngle(currentForward, toLookahead);
+            float alpha = VectorMath.SignedAngle(referenceForward, toLookahead);
             
             // 4. Compute curvature (bicycle model)
             // Curvature k = 2 * sin(alpha) / Ld

@@ -223,8 +223,22 @@ namespace CarKinem.Systems
             
             // Speed control
             float targetSpeedAfterAvoidance = avoidanceVelocity.Length();
-            // Apply cornering limit
-            float finalTargetSpeed = MathF.Min(targetSpeedAfterAvoidance, maxCorneringSpeed);
+            float speedSign = 1f;
+
+            if (nav.ReverseAllowed == 1 && targetSpeedAfterAvoidance > 0.01f)
+            {
+                if (Vector2.Dot(fwd2D, avoidanceVelocity) < 0f)
+                {
+                    speedSign = -1f;
+                }
+            }
+
+            float finalTargetSpeed = MathF.Min(targetSpeedAfterAvoidance, maxCorneringSpeed) * speedSign;
+
+            if (finalTargetSpeed < 0f)
+                finalTargetSpeed = MathF.Max(finalTargetSpeed, -@params.MaxSpeedRev);
+            else
+                finalTargetSpeed = MathF.Min(finalTargetSpeed, @params.MaxSpeedFwd);
             
             float accel = SpeedController.CalculateAcceleration(
                 state.Speed,
@@ -235,6 +249,11 @@ namespace CarKinem.Systems
             
             // Integrate bicycle model
             BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steerAngle, accel, dt, @params.WheelBase);
+
+            if (nav.ReverseAllowed == 0 && state.Speed < 0f)
+            {
+                state.Speed = 0f;
+            }
             
             // Update progress (for trajectory/road modes)
             if (nav.Mode == KinematicsMode.CustomTrajectory || nav.Mode == KinematicsMode.RoadGraph)
