@@ -166,15 +166,17 @@ namespace Hrot.AI.Behaviors.Brains
     /// <summary>
     /// Per-tank parameters for the HullDownAttackRun subordinate behavior.
     ///
-    /// <para><b>Field layout (40 bytes, well within the 60-byte param region):</b></para>
+    /// <para><b>Field layout (52 bytes, well within the 60-byte param region):</b></para>
     /// <list type="bullet">
     ///   <item>Firing slot: <c>SlotX, SlotY</c> (8 bytes) at offset 0.</item>
     ///   <item>Baseline slot: <c>BaselineX, BaselineY</c> (8 bytes) at offset 8.</item>
     ///   <item>Attack direction: <c>AttackDirX, AttackDirY</c> (8 bytes) at offset 16.</item>
     ///   <item>Kinematic limits: <c>ApproachSpeed, CreepSpeed</c> (8 bytes) at offset 24.</item>
     ///   <item>Assigned target: <c>TargetNetworkId</c> (long, 8 bytes) at offset 32.</item>
+    ///   <item>Shot quota: <c>MaxRounds</c> and <c>RoundsFired</c> (8 bytes) at offsets 40 and 44.</item>
+    ///   <item>Tracking: <c>LastObservedAmmo</c> (4 bytes) at offset 48.</item>
     /// </list>
-    /// Total = 40 bytes.
+    /// Total = 52 bytes.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct HullDownAttackParams
@@ -209,7 +211,19 @@ namespace Hrot.AI.Behaviors.Brains
         /// Never stores a local generational entity handle (would become stale across frames).
         /// </summary>
         public long TargetNetworkId;     // 8, offset 32 (8-byte aligned)
-        // Total: 40 bytes
+
+        /// <summary>Maximum rounds to fire before the node returns success. 0 means unlimited.</summary>
+        public int MaxRounds;            // 4, offset 40
+
+        /// <summary>Rounds fired so far during this behavior run.</summary>
+        public int RoundsFired;          // 4, offset 44
+
+        /// <summary>
+        /// Last observed ammo value used to detect discrete shots via ammo drop.
+        /// Initialized to -1 on parse and set on first tick.
+        /// </summary>
+        public int LastObservedAmmo;     // 4, offset 48
+        // Total: 52 bytes
     }
 
     /// <summary>

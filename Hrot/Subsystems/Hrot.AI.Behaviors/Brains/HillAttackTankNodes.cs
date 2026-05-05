@@ -8,6 +8,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
@@ -72,6 +73,7 @@ namespace Hrot.AI.Behaviors.Brains
             public float ApproachSpeed { get; set; }
             public float CreepSpeed { get; set; }
             public long TargetNetworkId { get; set; }
+            public int MaxRounds { get; set; }
         }
         // ── Channel write helpers ─────────────────────────────────────────────────
 
@@ -327,13 +329,39 @@ namespace Hrot.AI.Behaviors.Brains
             if (!ctx.World.IsAlive(targetEntity))
                 return NodeStatus.Success;
 
+            if (p.MaxRounds > 0 && p.RoundsFired >= p.MaxRounds)
+                return NodeStatus.Success;
+
             if (!ctx.World.HasComponent<WeaponChannel>(ctx.Self))
             {
                 BehaviorLog.Error(ref ctx, "Entity is missing WeaponChannel; blueprint may be misconfigured.");
                 return NodeStatus.Failure;
             }
 
+            if (!ctx.World.HasComponent<WeaponState>(ctx.Self))
+            {
+                BehaviorLog.Error(ref ctx, "Entity is missing WeaponState; cannot track rounds fired.");
+                return NodeStatus.Failure;
+            }
+
             ref var weapon = ref ctx.World.GetComponentRW<WeaponChannel>(ctx.Self);
+            var ws = ctx.World.GetComponent<WeaponState>(ctx.Self);
+
+            if (p.LastObservedAmmo < 0)
+            {
+                p.LastObservedAmmo = ws.Ammo;
+            }
+            else if (ws.Ammo < p.LastObservedAmmo)
+            {
+                p.RoundsFired += (p.LastObservedAmmo - ws.Ammo);
+                p.LastObservedAmmo = ws.Ammo;
+                if (p.MaxRounds > 0 && p.RoundsFired >= p.MaxRounds)
+                    return NodeStatus.Success;
+            }
+            else if (ws.Ammo > p.LastObservedAmmo)
+            {
+                p.LastObservedAmmo = ws.Ammo;
+            }
 
             // Sync BehaviorInstanceId to prevent ChannelArbitrationSystem clearing the channel.
             if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
@@ -469,7 +497,10 @@ namespace Hrot.AI.Behaviors.Brains
                         AttackDirY = dto.AttackDirY,
                         ApproachSpeed = dto.ApproachSpeed,
                         CreepSpeed = dto.CreepSpeed,
-                        TargetNetworkId = dto.TargetNetworkId
+                        TargetNetworkId = dto.TargetNetworkId,
+                        MaxRounds = dto.MaxRounds,
+                        RoundsFired = 0,
+                        LastObservedAmmo = -1
                     };
 
                     System.Runtime.CompilerServices.Unsafe.Write(ptr, p);

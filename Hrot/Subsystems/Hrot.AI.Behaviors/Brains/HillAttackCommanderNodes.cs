@@ -398,7 +398,8 @@ namespace Hrot.AI.Behaviors.Brains
                             + ",\"AttackDirY\":" + p.AttackDirY.ToString("G6", ic)
                             + ",\"TargetNetworkId\":" + targetNetId.ToString(ic)
                             + ",\"ApproachSpeed\":15"
-                            + ",\"CreepSpeed\":5}";
+                            + ",\"CreepSpeed\":5"
+                            + ",\"MaxRounds\":1}";
 
                 ctx.World.Bus.PublishManaged(new AssignTacticalIntentEvent
                 {
