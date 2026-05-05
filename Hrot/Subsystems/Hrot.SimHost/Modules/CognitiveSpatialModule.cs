@@ -13,6 +13,7 @@ namespace Hrot.SimHost.Modules
     public sealed class CognitiveSpatialModule : IEcsModule, IDisposable
     {
         public string Name => "CognitiveSpatial";
+
         public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10);
 
         private readonly SpatialHashGrid _localGrid;

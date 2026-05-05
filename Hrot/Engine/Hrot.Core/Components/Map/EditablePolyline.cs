@@ -15,6 +15,7 @@ namespace Hrot.IG.Components;
 /// projects can reference it without introducing circular project dependencies.
 /// Registered via <c>repo.RegisterManagedComponent&lt;EditablePolyline&gt;()</c>.
 /// </summary>
+[DataPolicy(DataPolicy.SnapshotViaClone)]
 [ComponentId(GlobalComponentIds.EditablePolyline)]
 public sealed class EditablePolyline
 {

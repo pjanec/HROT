@@ -16,7 +16,7 @@ namespace Hrot.SimHost.Systems
     /// against the spatial hash grid and polygon areas.
     ///
     /// <para><b>Execution context:</b> runs inside <see cref="Modules.CognitiveSpatialModule"/> at
-    /// 10 Hz on a background thread (SoD snapshot).  The <see cref="EqsTargetPool"/>
+    /// 11 Hz on a background thread (SoD snapshot).  The <see cref="EqsTargetPool"/>
     /// <c>Targets</c> NativeArray shares its native memory pointer with the live world,
     /// so target handle writes from the background thread are immediately visible.
     /// Struct fields (<c>NextFreeIndex</c>) and ring-buffer results are published as
@@ -25,7 +25,7 @@ namespace Hrot.SimHost.Systems
     /// </para>
     ///
     /// <para><b>Result availability:</b> results become available within one
-    /// CognitiveSpatialModule tick cycle (nominally 100 ms at 10 Hz) plus one materialization frame.
+    /// CognitiveSpatialModule tick cycle (nominally ~91 ms at 11 Hz) plus one materialization frame.
     /// Brain BTree nodes must poll <c>AreaQueryBatchData.Results[slot].IsReady</c> each
     /// frame until <c>true</c>.</para>
     /// </summary>
@@ -70,13 +70,13 @@ namespace Hrot.SimHost.Systems
             else
             {
                 if (view is not EntityRepository repo) return;
-                if (!repo.HasSingleton<SpatialGridData>()) return;
-                grid = repo.GetSingleton<SpatialGridData>().Grid;
+                if (!repo.HasSingletonUnmanaged<SpatialGridData>()) return;
+                grid = repo.GetSingletonUnmanaged<SpatialGridData>().Grid;
                 liveWorld = repo;
             }
 
-            if (!liveWorld.HasSingleton<EqsTargetPool>()) return;
-            ref var pool = ref liveWorld.GetSingleton<EqsTargetPool>();
+            if (!liveWorld.HasSingletonUnmanaged<EqsTargetPool>()) return;
+            ref var pool = ref liveWorld.GetSingletonUnmanaged<EqsTargetPool>();
 
             var cmd = view.GetCommandBuffer();
 
@@ -95,28 +95,33 @@ namespace Hrot.SimHost.Systems
                 }
 
                 var polyline = view.GetManagedComponentRO<EditablePolyline>(req.TargetAreaEntity);
-                if (polyline == null || polyline.Points == null || polyline.Points.Count < 3)
+                if (polyline == null || polyline.Points == null || polyline.Points.Count < 3
+                    || !view.HasComponent<SimTransform>(req.TargetAreaEntity))
                 {
                     PublishEmptyResult(cmd, in req, localPoolNext);
                     continue;
                 }
 
+                ref readonly var areaTf = ref view.GetComponentRO<SimTransform>(req.TargetAreaEntity);
+                var areaOrigin = new Vector2(areaTf.Position.X, areaTf.Position.Y);
+
                 IList<Vector2> points = polyline.Points;
                 int nVerts = Math.Min(points.Count, MaxPolyVertices);
 
                 // Compute polygon bounding circle centre and radius for the broad phase.
-                Vector2 centroid = Vector2.Zero;
+                Vector2 localCentroid = Vector2.Zero;
                 for (int v = 0; v < nVerts; v++)
-                    centroid += points[v];
-                centroid /= nVerts;
+                    localCentroid += points[v];
+                localCentroid /= nVerts;
 
                 float maxDistSq = 0f;
                 for (int v = 0; v < nVerts; v++)
                 {
-                    float d = Vector2.DistanceSquared(centroid, points[v]);
+                    float d = Vector2.DistanceSquared(localCentroid, points[v]);
                     if (d > maxDistSq) maxDistSq = d;
                 }
                 float queryRadius = MathF.Sqrt(maxDistSq) + BroadphaseExpansion;
+                Vector2 worldCentroid = localCentroid + areaOrigin;
 
                 // Broad-phase spatial query.
                 unsafe
@@ -124,7 +129,7 @@ namespace Hrot.SimHost.Systems
                     const int MaxCandidates = 256;
                     Span<(Entity entity, Vector2 pos)> candidates =
                         stackalloc (Entity, Vector2)[MaxCandidates];
-                    int nc = grid.QueryNeighbors(centroid, queryRadius, candidates);
+                    int nc = grid.QueryNeighbors(worldCentroid, queryRadius, candidates);
 
                     // Allocate pool chunk for this request using ring-buffer semantics.
                     int maxTargets = AreaQueryBatchData.DefaultCapacity;
@@ -145,8 +150,8 @@ namespace Hrot.SimHost.Systems
                         if (info.ForceId != req.TargetForce) continue;
 
                         // Precise point-in-polygon test (ray casting algorithm).
-                        Vector2 pos2d = candidates[j].pos;
-                        if (!PointInPolygon(pos2d, points, nVerts)) continue;
+                        Vector2 localCandidatePos = candidates[j].pos - areaOrigin;
+                        if (!PointInPolygon(localCandidatePos, points, nVerts)) continue;
 
                         // Guard: check pool capacity before writing.
                         int poolIdx = localPoolNext + targetCount;

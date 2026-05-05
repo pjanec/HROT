@@ -22,5 +22,6 @@
   <ItemGroup>    <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />    <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
     <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
-    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />  </ItemGroup>
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />  </ItemGroup>
 </Project>

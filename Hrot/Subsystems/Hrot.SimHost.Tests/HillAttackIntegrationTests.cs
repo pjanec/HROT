@@ -97,6 +97,13 @@ namespace Hrot.SimHost.Tests
         private Entity CreateAreaEntity(IList<Vector2> polygon)
         {
             var entity = _repo.CreateEntity();
+            // Polygon vertices are relative to the area entity's SimTransform position.
+            // Place the origin at (0,0,0) so local space equals world space in these tests.
+            _repo.AddComponent(entity, new SimTransform
+            {
+                Position = Vector3.Zero,
+                Rotation = Quaternion.Identity,
+            });
             var ecb = (Fdp.Core.EntityCommandBuffer)((ISimulationView)_repo).GetCommandBuffer();
             ecb.AddManagedComponent(entity, new EditablePolyline
             {
