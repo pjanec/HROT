@@ -38,6 +38,9 @@ using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Replication.Utilities;
 using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
+using Hrot.IG.Components;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Defaults;
@@ -101,7 +104,10 @@ namespace Hrot.SimHost
 
         // ── Visualization ─────────────────────────────────────────────────────
         private SimHostVisualization? _vis;
-
+        // ── Gizmo systems (GZ032) ───────────────────────────────────────
+        private DebugPrimitiveBuffer? _gizmoBuffer;
+        private GizmoRegistry? _gizmoRegistry;
+        private StatelessGizmoRegistry? _statelessGizmoRegistry;
         /// <summary>
         /// The visualization layer. Valid after <see cref="InitializeEmbedded"/> in non-headless mode.
         /// Exposed for window-manager panel registration in <c>SimHostSubsystem.RegisterWindows</c>.
@@ -505,7 +511,23 @@ namespace Hrot.SimHost
                 nodeFactory.CreateSimHostPerceptionTranslators(ghostCreationSystem).RegisterOn(_kernel);
                 nodeFactory.CreateSimHostPathfindingTranslators(_simCorePack!.TrajectoryPool).RegisterOn(_kernel);
             }
-
+            // ── Gizmo systems (GZ032) ────────────────────────────────────────
+            // Must be registered before kernel.Initialize().
+            _gizmoBuffer = new DebugPrimitiveBuffer();
+            _gizmoRegistry = new GizmoRegistry();
+            _statelessGizmoRegistry = new StatelessGizmoRegistry();
+            _kernel.RegisterGlobalSystem(new DataDrivenGizmoSystem(
+                _gizmoRegistry,
+                _gizmoBuffer,
+                isSelectedPredicate: static (view, entity) =>
+                    view.HasComponent<SelectionState>(entity) &&
+                    view.GetComponentRO<SelectionState>(entity).IsSelected));
+            _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(
+                _statelessGizmoRegistry,
+                _gizmoBuffer,
+                isSelectedPredicate: static (view, entity) =>
+                    view.HasComponent<SelectionState>(entity) &&
+                    view.GetComponentRO<SelectionState>(entity).IsSelected));
             // ── 11. Kernel init ───────────────────────────────────────────────
             _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("World", _eventHistoryService, _world.Bus));
             if (_eventBus != null)
@@ -527,7 +549,8 @@ namespace Hrot.SimHost
                     _eventHistoryService,
                     idAllocator: _idAllocator,
                     localNodeId: localNodeId,
-                    worldPosDescriptorId: _networkFactory?.WorldPosDescriptorId ?? 0);
+                    worldPosDescriptorId: _networkFactory?.WorldPosDescriptorId ?? 0,
+                    gizmoBuffer: _gizmoBuffer);
                 _vis.FdpEntityInspector.ExtractionService = simHostEntityService;
 
                 Logger.Info($"[Node-{localNodeId}] Visualization ready. Window open.");

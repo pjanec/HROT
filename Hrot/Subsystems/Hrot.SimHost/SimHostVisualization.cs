@@ -17,6 +17,7 @@ using FdpInspectorState = Fdp.Presentation.Abstractions.InspectorState;
 using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Vis2D.Tools;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Hrot.Presentation.Facades;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Menus;
@@ -86,6 +87,9 @@ namespace Hrot.SimHost
         private long _worldPosDescriptorId;
         private bool _initialized;
 
+        // ── Gizmo debug overlay (GZ032) ───────────────────────────────────────
+        private DebugPrimitiveBuffer? _gizmoBuffer;
+
         // ── Map entity context menu ────────────────────────────────────────────
         private Entity _pendingMapContextEntity = Entity.Null;
         private bool   _openMapContextThisFrame;
@@ -115,6 +119,8 @@ namespace Hrot.SimHost
         public FdpInspectorState         FdpInspectorState  => _fdpInspectorState;
         /// <summary>Map-pick bridge for component-editor map picking (available after Initialize).</summary>
         public MapPickServiceBridge?     GetMapPickBridge()  => _mapPickBridge;
+        /// <summary>Gizmo primitive buffer (non-null after Initialize). Exposed for sharing with SimHostApp kernel systems.</summary>
+        public DebugPrimitiveBuffer?     GizmoBuffer         => _gizmoBuffer;
 
         /// <summary>
         /// Signals that panels have been registered with a Window Manager.
@@ -139,7 +145,8 @@ namespace Hrot.SimHost
             IDiagnosticEventHistoryService eventHistoryService,
             INetworkIdAllocator?    idAllocator = null,
             int                     localNodeId = 0,
-            long                    worldPosDescriptorId = 0)
+            long                    worldPosDescriptorId = 0,
+            DebugPrimitiveBuffer?   gizmoBuffer = null)
         {
             _repo                 = repo         ?? throw new ArgumentNullException(nameof(repo));
             _kernel               = kernel        ?? throw new ArgumentNullException(nameof(kernel));
@@ -218,6 +225,10 @@ namespace Hrot.SimHost
             _map.AddLayer(ProjectileLayerFactory.CreateLayer(repo, _inspector, _map));
 
             _map.AddLayer(new SimHostTrajectoryLayer(trajectoryPool, repo, _inspector));
+
+            // Gizmo debug overlay (GZ032).
+            _gizmoBuffer = gizmoBuffer ?? new DebugPrimitiveBuffer();
+            _map.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer, repo.Bus, _map, repo));
 
             // ── Interaction tool ──────────────────────────────────────────────
             _interactionTool = new StandardInteractionTool(repo, _vehicleQuery, _visualizer);

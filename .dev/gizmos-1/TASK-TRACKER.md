@@ -167,9 +167,9 @@ sub-element identity so multi-handle interactive gizmos can function.
 distributively inert: selection predicate, SimHost layer, DDS egress, settings schema, and
 behavior lifecycle safety.
 
-- [ ] **TASK-GZ031** Fix selection filtering — replace `isSelectedPredicate: null` with proper `SelectionState.IsSelected` predicate in `IgApplication` [details](./TASK-DETAIL.md#task-gz031--fix-selection-filtering-in-igapplication)
-- [ ] **TASK-GZ032** Wire `DebugGizmoLayer` into `SimHostVisualization` composition root [details](./TASK-DETAIL.md#task-gz032--wire-debuggizmolayer-into-simhostvisualization)
-- [ ] **TASK-GZ033** Wire `DebugPrimitivesBatch` DDS egress from SimHost (`DebugPrimitivesBatchPublisherSystem`) [details](./TASK-DETAIL.md#task-gz033--wire-debugprimitivesbatch-dds-egress-from-simhost)
+- [x] **TASK-GZ031** Fix selection filtering — replace `isSelectedPredicate: null` with proper `SelectionState.IsSelected` predicate in `IgApplication` [details](./TASK-DETAIL.md#task-gz031--fix-selection-filtering-in-igapplication)
+- [x] **TASK-GZ032** Wire `DebugGizmoLayer` into `SimHostVisualization` composition root [details](./TASK-DETAIL.md#task-gz032--wire-debuggizmolayer-into-simhostvisualization)
+- [x] **TASK-GZ033** Wire `DebugPrimitivesBatch` DDS egress from SimHost (`DebugPrimitivesBatchPublisherSystem`) [details](./TASK-DETAIL.md#task-gz033--wire-debugprimitivesbatch-dds-egress-from-simhost)
 - [ ] **TASK-GZ034** Fix `GizmoSettingsPublisherSystem` to emit StructEdit schema instead of flat JSON [details](./TASK-DETAIL.md#task-gz034--fix-gizmosettingspublishersystem-to-emit-structedit-schema)
 - [ ] **TASK-GZ035** Fix behavior lifecycle leak — ensure `ClearBehaviorEvent` is emitted on B-Tree/HSM behavior interrupt [details](./TASK-DETAIL.md#task-gz035--fix-behavior-lifecycle-leak-on-ai-behavior-abort)
 - [ ] **TASK-GZ036** CPU performance budget — integrate `TimeSliceMetric.WallClockTime` into `DataDrivenGizmoSystem` and `StatelessGizmoSystem` [details](./TASK-DETAIL.md#task-gz036--cpu-performance-budget-for-gizmo-systems)

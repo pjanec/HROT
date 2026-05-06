@@ -1237,7 +1237,9 @@ public class IgApplication : IDisposable
             _kernel.RegisterGlobalSystem(new DataDrivenGizmoSystem(
                 _gizmoRegistry,
                 _gizmoBuffer,
-                isSelectedPredicate: null));
+                isSelectedPredicate: static (view, entity) =>
+                    view.HasComponent<SelectionState>(entity) &&
+                    view.GetComponentRO<SelectionState>(entity).IsSelected));
         }
 
         // Stateless gizmo system (GZ022) — runs projectors for each matching entity.
@@ -1246,7 +1248,9 @@ public class IgApplication : IDisposable
             _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(
                 _statelessGizmoRegistry,
                 _gizmoBuffer,
-                isSelectedPredicate: null));
+                isSelectedPredicate: static (view, entity) =>
+                    view.HasComponent<SelectionState>(entity) &&
+                    view.GetComponentRO<SelectionState>(entity).IsSelected));
         }
 
         _kernel.Initialize();
