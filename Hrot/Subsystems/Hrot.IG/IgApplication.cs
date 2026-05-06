@@ -92,7 +92,9 @@ using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
+using Fdp.Toolkit.Diagnostics.Gizmos.UndoRedo;
 using Hrot.IG.Gizmos;
+using Hrot.ScenarioEditor.Events;
 using Fdp.Toolkit.Vis2D.Layers;
 
 using Fdp.Toolkit.Vis2D.Tools;
@@ -236,6 +238,7 @@ public class IgApplication : IDisposable
     private StatelessGizmoRegistry?     _statelessGizmoRegistry;
     private GizmoSettingsRegistry?      _gizmoSettingsRegistry;
     private MeasureToolGizmoAdapter?    _measureToolGizmoAdapter;
+    private GizmoUndoStack?             _gizmoUndoStack;
 
     // -- Optional IG translator provider (injected via InitializeEmbedded; null = no NED translators)
     private Hrot.Core.Network.IIgTranslators? _igTranslatorsProvider;
@@ -1126,6 +1129,7 @@ public class IgApplication : IDisposable
         _gizmoRegistry         = new GizmoRegistry();
         _statelessGizmoRegistry = new StatelessGizmoRegistry();
         _gizmoSettingsRegistry  = new GizmoSettingsRegistry();
+        _gizmoUndoStack        = new GizmoUndoStack();
         GizmoRegistrar.Register(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
         _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_canvas, _gizmoSettingsRegistry);
         var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, _world.Bus, _canvas);
@@ -1290,6 +1294,8 @@ public class IgApplication : IDisposable
 
             }
 
+            HandleGizmoUndoInput();
+
 
 
             // Project screen corners to world space and feed MapCullingSystem.
@@ -1312,9 +1318,13 @@ public class IgApplication : IDisposable
 
 
 
-        // Always tick ECS/network ÔÇö even in headless mode DDS messages must be processed.
+        // Always tick ECS/network — even in headless mode DDS messages must be processed.
 
         _kernel.Update();
+
+        // Clear gizmo undo stack on world/scenario reset.
+        foreach (var _ in _world.Bus.ReadManaged<WorldResetEvent>())
+            _gizmoUndoStack?.Clear();
 
         // Swap the context event bus so that SlaveSyncController (time controller) sees events
         // published by the time translators (SwitchTimeModeEvent, AdvanceFrameIntent) in the
@@ -1772,7 +1782,39 @@ public class IgApplication : IDisposable
 
     }
 
+    private void HandleGizmoUndoInput()
+    {
+        if (_gizmoUndoStack == null) return;
+        if (ImGui.GetIO().WantCaptureKeyboard) return;
 
+        bool ctrl = Raylib.IsKeyDown(KeyboardKey.LeftControl)
+                 || Raylib.IsKeyDown(KeyboardKey.RightControl);
+        if (!ctrl) return;
+
+        bool shift = Raylib.IsKeyDown(KeyboardKey.LeftShift)
+                  || Raylib.IsKeyDown(KeyboardKey.RightShift);
+
+        if (Raylib.IsKeyPressed(KeyboardKey.Z) && !shift)
+        {
+            if (_gizmoUndoStack.CanUndo)
+            {
+                var cmd = (Fdp.Core.EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetCommandBuffer();
+                _gizmoUndoStack.Undo(cmd);
+                cmd.Playback(_world);
+            }
+            return;
+        }
+
+        if (Raylib.IsKeyPressed(KeyboardKey.Y) || (Raylib.IsKeyPressed(KeyboardKey.Z) && shift))
+        {
+            if (_gizmoUndoStack.CanRedo)
+            {
+                var cmd = (Fdp.Core.EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetCommandBuffer();
+                _gizmoUndoStack.Redo(cmd);
+                cmd.Playback(_world);
+            }
+        }
+    }
 
     // -------------------------------------------------------------------------
 
