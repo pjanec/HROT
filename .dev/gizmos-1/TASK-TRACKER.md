@@ -80,7 +80,7 @@ As an example usage of the gizmo framework, implement and integrate the followin
 
 **TASK-GZ021** Implement gizmos
 
-- [ ] map measure tool
+- [x] map measure tool (BATCH-09 — MeasureToolGizmoAdapter + GizmoSettings Active/Units)
   - same functionality as the current map tool, just implemented as gizmo
   - global settings
     - measurement units
@@ -89,7 +89,7 @@ As an example usage of the gizmo framework, implement and integrate the followin
   - global settings
     - height of the health bar
     - width of the health bar
-- [ ] platoon hill attack behavior bound gizmo
+- [x] platoon hill attack behavior bound gizmo (BATCH-08)
   - shows
     - green base line
     - blue fire line
@@ -97,15 +97,15 @@ As an example usage of the gizmo framework, implement and integrate the followin
     - fire line slots (little numbered circles on the fire line)
   - global settings
     - whether to show slots
-- [ ] spatial grid global gizmo
+- [ ] spatial grid global gizmo (DEFERRED — D-005, requires ISpatialGridView interface in FDP)
   - shows
     - the grid tiles
     - in the upper left corner of each tile little number of entities inside
   - global settings
     - show tiles (otherwise just outer bounds)
     - show number of entities per tile
-- [ ] entity rotation - entity bound interactive gizmo
+- [x] entity rotation - entity bound interactive gizmo (BATCH-08)
   - same functionality as the current implementation (rotating line with heading angle indicator)
-- [ ] visibility cones - entity bound non interactive, entity local space gizmo
+- [x] visibility cones - entity bound non interactive, entity local space gizmo (BATCH-08)
   - shows the visibility cone, as a sector
 
