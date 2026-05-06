@@ -74,6 +74,8 @@ namespace Hrot.ClusterRunner.Tests
             PipelineTarget targetPipeline = PipelineTarget.All) { }
         public void DrawEntityLocal(Entity anchor, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte l = 0) { }
+        public void DrawEntityLocalInteractive(Entity anchor, Vector3 localStart, Vector3 localEnd,
+            Rgba32 color, ushort subElementId, float thickness = 1f, byte layer = 0) { }
     }
 
     // ---- Test class --------------------------------------------------------

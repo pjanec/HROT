@@ -1128,7 +1128,7 @@ public class IgApplication : IDisposable
         _gizmoSettingsRegistry  = new GizmoSettingsRegistry();
         GizmoRegistrar.Register(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
         _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_canvas, _gizmoSettingsRegistry);
-        var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, _world.Bus);
+        var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, _world.Bus, _canvas);
         _canvas.AddLayer(gizmoLayer);
 
         // Cache SelectionState query once to avoid per-click allocations (CT-2).
