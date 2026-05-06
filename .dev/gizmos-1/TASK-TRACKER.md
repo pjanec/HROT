@@ -144,10 +144,10 @@ auto-registration via a Roslyn source generator.
 **Goal:** Repair the interactive activation chain, spatial hit-testing, and coordinate/size-mode
 rendering gaps in `DebugPrimitiveRenderer2D` and `DebugGizmoLayer`.
 
-- [ ] **TASK-GZ025** Fix broken `DebugGizmoLayer` activation chain — inject `MapCanvas` and push `GizmoInteractionProxyTool` [details](./TASK-DETAIL.md#task-gz025--fix-broken-debuggizmolayer-activation-chain)
-- [ ] **TASK-GZ026** Fix spatial hit-testing — geometry-aware (line segment, Box2D, Sphere area), SizeMode-correct, CoordinateSpace.Screen-aware [details](./TASK-DETAIL.md#task-gz026--fix-spatial-hit-testing-in-debuggizmolayer)
-- [ ] **TASK-GZ027** Fix `EntityLocal` rendering for all primitive shapes (Arrow, Sphere, Box2D, Text, Icon) [details](./TASK-DETAIL.md#task-gz027--fix-entitylocal-rendering-for-all-primitive-shapes)
-- [ ] **TASK-GZ028** Fix `SizeMode.ScreenPixels` for shape radii and extents (`SphereRadius`, `ArrowHeadSize`, `Box2D` extents) [details](./TASK-DETAIL.md#task-gz028--fix-sizemodesscreenpixels-for-shape-radii-and-extents)
+- [x] **TASK-GZ025** Fix broken `DebugGizmoLayer` activation chain — inject `MapCanvas` and push `GizmoInteractionProxyTool` [details](./TASK-DETAIL.md#task-gz025--fix-broken-debuggizmolayer-activation-chain)
+- [x] **TASK-GZ026** Fix spatial hit-testing — geometry-aware (line segment, Box2D, Sphere area), SizeMode-correct, CoordinateSpace.Screen-aware [details](./TASK-DETAIL.md#task-gz026--fix-spatial-hit-testing-in-debuggizmolayer)
+- [x] **TASK-GZ027** Fix `EntityLocal` rendering for all primitive shapes (Arrow, Sphere, Box2D, Text, Icon) [details](./TASK-DETAIL.md#task-gz027--fix-entitylocal-rendering-for-all-primitive-shapes)
+- [x] **TASK-GZ028** Fix `SizeMode.ScreenPixels` for shape radii and extents (`SphereRadius`, `ArrowHeadSize`, `Box2D` extents) [details](./TASK-DETAIL.md#task-gz028--fix-sizemodesscreenpixels-for-shape-radii-and-extents)
 
 ---
 
@@ -156,8 +156,8 @@ rendering gaps in `DebugPrimitiveRenderer2D` and `DebugGizmoLayer`.
 **Goal:** Honour the `LifetimeSeconds` persistence contract and restore full `PickToken`
 sub-element identity so multi-handle interactive gizmos can function.
 
-- [ ] **TASK-GZ029** Implement `LifetimeSeconds` persistent primitive re-emission in `DebugPrimitiveBuffer` [details](./TASK-DETAIL.md#task-gz029--implement-lifetimeseconds-persistent-primitive-re-emission)
-- [ ] **TASK-GZ030** Restore `PickToken.SubElementId` storage in interactive primitives [details](./TASK-DETAIL.md#task-gz030--restore-picktoken-subelementid-storage-in-interactive-primitives)
+- [x] **TASK-GZ029** Implement `LifetimeSeconds` persistent primitive re-emission in `DebugPrimitiveBuffer` [details](./TASK-DETAIL.md#task-gz029--implement-lifetimeseconds-persistent-primitive-re-emission)
+- [x] **TASK-GZ030** Restore `PickToken.SubElementId` storage in interactive primitives [details](./TASK-DETAIL.md#task-gz030--restore-picktoken-subelementid-storage-in-interactive-primitives)
 
 ---
 
