@@ -66,30 +66,30 @@ badge rich text.
 **Goal:** Prepare the primitive stream for network transport and establish the DDS topic contract
 for headless/remote viewer scenarios.
 
-- [ ] **TASK-GZ015** `GlobalDebugSettings` ECS singleton (in `Hrot.IG`) [details](./TASK-DETAIL.md#task-gz015--globaldebug-settings-ecs-singleton)
-- [ ] **TASK-GZ016** `DebugPrimitivesBatch` DDS topic definition [details](./TASK-DETAIL.md#task-gz016--debugprimitivesbatch-dds-topic)
-- [ ] **TASK-GZ017** `GizmoSettingsPublisherSystem` and `GizmoUiState` DDS topic (StructEdit JSON side-channel for remote config UI) [details](./TASK-DETAIL.md#task-gz017--gizmosettingspublishersystem-and-gizmouistate-dds-topics)
-- [ ] **TASK-GZ018** `IGCapabilitiesAnnounce` DDS message and publisher system (terminal handshake) [details](./TASK-DETAIL.md#task-gz018--igcapabilitiesannounce-dds-message)
+- [x] **TASK-GZ015** `GlobalDebugSettings` ECS singleton (in `Hrot.IG`) [details](./TASK-DETAIL.md#task-gz015--globaldebug-settings-ecs-singleton)
+- [x] **TASK-GZ016** `DebugPrimitivesBatch` DDS topic definition [details](./TASK-DETAIL.md#task-gz016--debugprimitivesbatch-dds-topic)
+- [x] **TASK-GZ017** `GizmoSettingsPublisherSystem` and `GizmoUiState` DDS topic (StructEdit JSON side-channel for remote config UI) [details](./TASK-DETAIL.md#task-gz017--gizmosettingspublishersystem-and-gizmouistate-dds-topics)
+- [x] **TASK-GZ018** `IGCapabilitiesAnnounce` DDS message and publisher system (terminal handshake) [details](./TASK-DETAIL.md#task-gz018--igcapabilitiesannounce-dds-message)
 
 
 ## Phase 7: Concrete gizmos
 
 As an example usage of the gizmo framework, implement and integrate the following gizmos into clusterrunner, using a local raylib/ImGui based local renderer
 
-**TASK-GZ020** Implement local raylib/ImGui based local gizmo renderer in cluster runner
+- [x] **TASK-GZ020** Implement local raylib/ImGui based local gizmo renderer in cluster runner (BATCH-07)
 
 **TASK-GZ021** Implement gizmos
 
-- map measure tool
+- [ ] map measure tool
   - same functionality as the current map tool, just implemented as gizmo
   - global settings
     - measurement units
-- entity health bar - purely rendering gizmo, entity bound
+- [x] entity health bar - purely rendering gizmo, entity bound (BATCH-07)
   - same functionality as the one rendered in the IG subsystem
   - global settings
     - height of the health bar
     - width of the health bar
-- platoon hill attack behavior bound gizmo
+- [ ] platoon hill attack behavior bound gizmo
   - shows
     - green base line
     - blue fire line
@@ -97,15 +97,15 @@ As an example usage of the gizmo framework, implement and integrate the followin
     - fire line slots (little numbered circles on the fire line)
   - global settings
     - whether to show slots
-- spatial grid global gizmo
+- [ ] spatial grid global gizmo
   - shows
     - the grid tiles
     - in the upper left corner of each tile little number of entities inside
   - global settings
     - show tiles (otherwise just outer bounds)
     - show number of entities per tile
-- entity rotation - entity bound interactive gizmo
+- [ ] entity rotation - entity bound interactive gizmo
   - same functionality as the current implementation (rotating line with heading angle indicator)
-- visibility cones - entity bound non interactive, entity local space gizmo
+- [ ] visibility cones - entity bound non interactive, entity local space gizmo
   - shows the visibility cone, as a sector
 

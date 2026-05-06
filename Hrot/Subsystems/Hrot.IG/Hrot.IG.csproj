@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <ProjectReference Include="..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
 
     <!-- FDP Kernel and Toolkits -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />

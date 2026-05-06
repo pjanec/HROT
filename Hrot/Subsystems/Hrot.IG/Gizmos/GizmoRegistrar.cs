@@ -15,6 +15,17 @@ namespace Hrot.IG.Gizmos
 
             // Register the gizmo definition.
             registry.Register(new HealthBarGizmoDefinition(settings));
+
+            // Entity rotation gizmo.
+            EntityRotationGizmoSettings.Register(settings);
+            registry.Register(new EntityRotationGizmoDefinition(settings));
+
+            // Visibility cone gizmo (no extra settings).
+            registry.Register(new VisibilityConeGizmoDefinition());
+
+            // Hill attack platoon gizmo.
+            HillAttackGizmoSettings.Register(settings);
+            registry.Register(new HillAttackGizmoDefinition(settings));
         }
     }
 }
