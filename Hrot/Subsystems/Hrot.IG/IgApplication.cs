@@ -90,7 +90,9 @@ using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Defaults;
 
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
+using Hrot.IG.Gizmos;
 using Fdp.Toolkit.Vis2D.Layers;
 
 using Fdp.Toolkit.Vis2D.Tools;
@@ -229,8 +231,10 @@ public class IgApplication : IDisposable
     private bool _headless;
 
     // -- Gizmo subsystem (GZ020) ---------------------------------------------------
-    private DebugPrimitiveBuffer? _gizmoBuffer;
-    private GizmoRegistry?        _gizmoRegistry;
+    private DebugPrimitiveBuffer?       _gizmoBuffer;
+    private GizmoRegistry?              _gizmoRegistry;
+    private GizmoSettingsRegistry?      _gizmoSettingsRegistry;
+    private MeasureToolGizmoAdapter?    _measureToolGizmoAdapter;
 
     // -- Optional IG translator provider (injected via InitializeEmbedded; null = no NED translators)
     private Hrot.Core.Network.IIgTranslators? _igTranslatorsProvider;
@@ -1117,8 +1121,11 @@ public class IgApplication : IDisposable
         _canvas.AddLayer(new Hrot.IG.Layers.ZoneObstacleRenderLayer(_world));
 
         // Gizmo subsystem (GZ020) — renders entity-bound diagnostic overlays.
-        _gizmoBuffer   = new DebugPrimitiveBuffer(capacity: 4096);
-        _gizmoRegistry = new GizmoRegistry();
+        _gizmoBuffer          = new DebugPrimitiveBuffer(capacity: 4096);
+        _gizmoRegistry        = new GizmoRegistry();
+        _gizmoSettingsRegistry = new GizmoSettingsRegistry();
+        GizmoRegistrar.Register(_gizmoRegistry, _gizmoSettingsRegistry);
+        _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_canvas, _gizmoSettingsRegistry);
         var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, _world.Bus);
         _canvas.AddLayer(gizmoLayer);
 
@@ -1276,6 +1283,8 @@ public class IgApplication : IDisposable
             {
 
                 HandleCameraInput(dt);
+
+                _measureToolGizmoAdapter?.Update();
 
                 _canvas.Update(dt);
 

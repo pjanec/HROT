@@ -6,6 +6,9 @@ using Raylib_cs;
 
 namespace Hrot.ScenarioEditor.Tools;
 
+/// <summary>Unit system for distance display by <see cref="MeasureTool"/>.</summary>
+public enum MeasureDisplayUnits { Meters = 0, Kilometers = 1 }
+
 /// <summary>
 /// Map tool that measures the Cartesian distance between two operator-clicked
 /// world positions.
@@ -32,6 +35,9 @@ public class MeasureTool : IMapTool
 {
     /// <inheritdoc/>
     public string Name => MeasureToolConstants.ToolName;
+
+    /// <summary>Unit system for distance display. Default is meters.</summary>
+    public MeasureDisplayUnits DisplayUnits { get; set; } = MeasureDisplayUnits.Meters;
 
     private MapCanvas? _canvas;
     private Vector2?   _startPoint;
@@ -168,7 +174,9 @@ public class MeasureTool : IMapTool
         Raylib.DrawLineEx(start, end, MeasureToolConstants.LineThickness, MeasureToolConstants.LineColor);
 
         float  distance = Vector2.Distance(start, end);
-        string label    = $"{distance:F1} m";
+        string label    = DisplayUnits == MeasureDisplayUnits.Kilometers
+            ? $"{distance / 1000f:F3} km"
+            : $"{distance:F1} m";
         var    midpoint = (start + end) * 0.5f;
 
         Raylib.DrawText(

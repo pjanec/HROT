@@ -26,6 +26,9 @@ namespace Hrot.IG.Gizmos
             // Hill attack platoon gizmo.
             HillAttackGizmoSettings.Register(settings);
             registry.Register(new HillAttackGizmoDefinition(settings));
+
+            // Measure tool gizmo adapter settings.
+            MeasureToolGizmoSettings.Register(settings);
         }
     }
 }

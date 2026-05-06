@@ -8,6 +8,7 @@
 | D-004 | BATCH-05 | RichTextRenderer.ParseChunks allocates List<> per call — acceptable now (Raylib.DrawText also allocates), revisit if used in hot path outside rendering | P3 | backlog | OPEN |
 | D-005 | BATCH-05 | HandleInput in DebugGizmoLayer publishes GizmoInteractionStartedEvent but cannot push proxy tool (no canvas/tool-stack reference). Needs higher-level wiring to re-activate proxy tool. | P2 | GZ020 | OPEN |
 | D-006 | BATCH-05 | RichTextRenderer uses Unsafe.As<FixedString32, byte> — brittle if FixedString32 layout changes; add a layout assertion (StructLayout fixed-size check) | P3 | backlog | OPEN |
+| D-007 | BATCH-09 | SpatialHashGrid not exposed via public service interface; SpatialGridGizmo deferred until infrastructure change enables gizmo systems to read grid cells | P2 | backlog | OPEN |
 
 Legend:
 - P1 = Critical (never enters tracker; always becomes Corrective Task 0 in next batch)
