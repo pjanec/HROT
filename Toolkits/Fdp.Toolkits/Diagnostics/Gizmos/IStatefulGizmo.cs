@@ -1,5 +1,7 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Diagnostics.Gizmos.Events;
+using Fdp.Toolkit.Diagnostics.Gizmos.UndoRedo;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos
 {
@@ -16,5 +18,14 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                            IDebugDrawBuilder drawBuilder);
 
         void OnTeardown();
+
+        /// <summary>
+        /// Returns an undo record for the most recent committed interaction, or
+        /// <c>null</c> if this gizmo does not support undo.
+        /// Default implementation returns <c>null</c> (opt-out).
+        /// Called by <see cref="DataDrivenGizmoSystem"/> after processing
+        /// <see cref="GizmoInteractionCommitEvent"/>.
+        /// </summary>
+        virtual IGizmoUndoRecord? CreateUndoRecord(GizmoInteractionCommitEvent commit) => null;
     }
 }

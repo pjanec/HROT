@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Diagnostics.Gizmos.Events;
+using Fdp.Toolkit.Diagnostics.Gizmos.UndoRedo;
 using Fdp.Toolkit.Lifecycle.Events;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
@@ -45,6 +47,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly Func<ISimulationView, Entity, bool>? _isSelectedPredicate;
         private readonly Dictionary<Entity, List<CompiledGizmoInstance>> _activeGizmos;
         private readonly bool[] _globalVisibilityCache;
+        private readonly GizmoUndoStack? _undoStack;
 
         /// <summary>Max wall-clock budget in ms for step 4. 0 = unlimited.</summary>
         public float MaxGizmoFrameMs { get; set; } = 0f;
@@ -78,13 +81,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         public DataDrivenGizmoSystem(
             GizmoRegistry registry,
             IDebugDrawBuilder drawBuilder,
-            Func<ISimulationView, Entity, bool>? isSelectedPredicate = null)
+            Func<ISimulationView, Entity, bool>? isSelectedPredicate = null,
+            GizmoUndoStack? undoStack = null)
         {
             _registry             = registry    ?? throw new ArgumentNullException(nameof(registry));
             _drawBuilder          = drawBuilder ?? throw new ArgumentNullException(nameof(drawBuilder));
             _isSelectedPredicate  = isSelectedPredicate;
             _activeGizmos         = new Dictionary<Entity, List<CompiledGizmoInstance>>();
             _globalVisibilityCache = new bool[registry.Rules.Count];
+            _undoStack            = undoStack;
         }
 
         // ---- IEcsModuleSystem -----------------------------------------------------
@@ -199,6 +204,23 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
                 // Update offset for next frame: resume where we left off.
                 _timeSliceOffset = (startOffset + processed) % count;
+            }
+
+            // 5. Process commit events and push undo records to the stack.
+            if (_undoStack != null)
+            {
+                var commits = view.ReadEvents<GizmoInteractionCommitEvent>();
+                foreach (ref readonly var commit in commits)
+                {
+                    var target = commit.Token.Target;
+                    if (!_activeGizmos.TryGetValue(target, out var gizmoList)) continue;
+                    for (int i = 0; i < gizmoList.Count; i++)
+                    {
+                        var record = gizmoList[i].Instance.CreateUndoRecord(commit);
+                        if (record != null)
+                            _undoStack.Push(record);
+                    }
+                }
             }
         }
 
