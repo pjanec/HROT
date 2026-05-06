@@ -29,6 +29,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly Func<ISimulationView, Entity, bool>? _isSelectedPredicate;
         private readonly bool[] _globalVisibilityCache;
 
+        /// <summary>Max wall-clock budget in ms for entity iteration. 0 = unlimited.</summary>
+        public float MaxGizmoFrameMs { get; set; } = 0f;
+
         /// <summary>
         /// Creates the system. All projectors must be registered in
         /// <paramref name="registry"/> before this constructor is called so that the
@@ -64,12 +67,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             bool alwaysDraw = _isSelectedPredicate == null;
             var entityIndex = repo.GetEntityIndex();
             int maxIndex    = entityIndex.MaxIssuedIndex;
+            float budget = MaxGizmoFrameMs;
+
+            var sw = (budget > 0f) ? System.Diagnostics.Stopwatch.StartNew() : null;
+            bool budgetExceeded = false;
 
             for (int r = 0; r < ruleCount; r++)
             {
                 // Skip rules whose global visibility policy rejects them.
                 if (r < _globalVisibilityCache.Length && !_globalVisibilityCache[r])
                     continue;
+
+                if (budgetExceeded) break;
 
                 var rule = rules[r];
 
@@ -85,6 +94,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         continue;
 
                     rule.Projector.Draw(view, entity, _drawBuilder);
+
+                    // Check budget after each entity (only if budget is active).
+                    if (sw != null && sw.Elapsed.TotalMilliseconds >= budget)
+                    {
+                        budgetExceeded = true;
+                        break;
+                    }
                 }
             }
         }

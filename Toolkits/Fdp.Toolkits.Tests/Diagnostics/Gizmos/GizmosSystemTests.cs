@@ -621,6 +621,34 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Equal(0, rented!.UpdateAndDrawCount);
         }
 
+        [Fact]
+        public void SC_GZ035_5_BehaviorInterrupt_WithoutClear_TearsDownOldGizmo()
+        {
+            // Scenario: B-Tree interrupt assigns new behavior without ClearBehaviorEvent.
+            // The defensive guard in step 3 must tear down the old gizmo.
+            var (repo, behavReg, sys) = CreateFixture(predicate: null);
+            var factoryA = new MockBehaviorFactory("BehaviorA");
+            var factoryB = new MockBehaviorFactory("BehaviorB");
+            behavReg.Register(factoryA);
+            behavReg.Register(factoryB);
+            var entity = repo.CreateEntity();
+
+            // Assign BehaviorA (no ClearBehaviorEvent yet).
+            PublishAssignAndExecute(repo, sys, entity, "BehaviorA");
+            Assert.Equal(1, factoryA.RentCount);
+            Assert.Equal(0, factoryA.ReturnCount);  // not torn down yet
+
+            // Interrupt: assign BehaviorB without first sending ClearBehaviorEvent.
+            // The system's defensive guard must call TeardownEntity for BehaviorA.
+            PublishAssignAndExecute(repo, sys, entity, "BehaviorB");
+
+            // BehaviorA gizmo torn down via defensive guard.
+            Assert.Equal(1, factoryA.ReturnCount);
+            // BehaviorB gizmo is now active.
+            Assert.Equal(1, factoryB.RentCount);
+            Assert.Equal(0, factoryB.ReturnCount);
+        }
+
         // Factory that lets the test inspect the rented gizmo instance.
         private sealed class InspectableFactory : IBehaviorGizmoFactory
         {
@@ -642,6 +670,139 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             }
 
             public void Return(IStatefulGizmo gizmo) { }
+        }
+    }
+
+    // ==========================================================================
+    // SC-GZ036: DataDrivenGizmoSystem CPU frame budget tests
+    // ==========================================================================
+
+    public class DataDrivenGizmoSystemBudgetTests
+    {
+        private static int SumDrawCounts(IReadOnlyList<MockGizmo> instances)
+        {
+            int total = 0;
+            for (int i = 0; i < instances.Count; i++)
+                total += instances[i].UpdateAndDrawCount;
+            return total;
+        }
+
+        private static (EntityRepository repo, MockGizmoDefinition def, DataDrivenGizmoSystem sys)
+            CreateBudgetFixture()
+        {
+            var repo = GizmoTestRepo.Create();
+            var registry = new GizmoRegistry();
+            var def = new MockGizmoDefinition(new[] { typeof(GizmoTestCompA) });
+            registry.Register(def);
+            var buffer = new DebugPrimitiveBuffer();
+            var sys = new DataDrivenGizmoSystem(registry, buffer);
+            return (repo, def, sys);
+        }
+
+        // SC-GZ036-1: Near-zero budget processes only a subset of entities.
+        [Fact]
+        public void SC_GZ036_1_NearZeroBudget_ProcessesOnlySubset()
+        {
+            var (repo, def, sys) = CreateBudgetFixture();
+
+            const int entityCount = 50;
+            for (int i = 0; i < entityCount; i++)
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new GizmoTestCompA { Value = i });
+                repo.Bus.Publish(new Fdp.Toolkit.Lifecycle.Events.ConstructionOrder { Entity = e });
+            }
+            repo.Bus.SwapBuffers();
+            // Construction frame (unlimited budget).
+            sys.Execute(repo, 0f);
+            int countAfterConstruction = SumDrawCounts(def.CreatedInstances);
+
+            // Second frame with near-zero budget.
+            sys.MaxGizmoFrameMs = 0.0001f;
+            repo.Bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+            int drawsThisFrame = SumDrawCounts(def.CreatedInstances) - countAfterConstruction;
+
+            Assert.True(drawsThisFrame < entityCount,
+                $"Expected <{entityCount} draws with near-zero budget, got {drawsThisFrame}");
+        }
+
+        // SC-GZ036-2: Large budget processes all entities.
+        [Fact]
+        public void SC_GZ036_2_LargeBudget_ProcessesAllEntities()
+        {
+            var (repo, def, sys) = CreateBudgetFixture();
+            sys.MaxGizmoFrameMs = 10000f;
+
+            const int entityCount = 20;
+            for (int i = 0; i < entityCount; i++)
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new GizmoTestCompA { Value = i });
+                repo.Bus.Publish(new Fdp.Toolkit.Lifecycle.Events.ConstructionOrder { Entity = e });
+            }
+            repo.Bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+            int countAfterConstruction = SumDrawCounts(def.CreatedInstances);
+
+            repo.Bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+            int drawsThisFrame = SumDrawCounts(def.CreatedInstances) - countAfterConstruction;
+
+            Assert.Equal(entityCount, drawsThisFrame);
+        }
+
+        // SC-GZ036-3: Zero budget means unlimited (all entities processed).
+        [Fact]
+        public void SC_GZ036_3_ZeroBudget_MeansUnlimited()
+        {
+            var (repo, def, sys) = CreateBudgetFixture();
+            sys.MaxGizmoFrameMs = 0f; // unlimited
+
+            const int entityCount = 20;
+            for (int i = 0; i < entityCount; i++)
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new GizmoTestCompA { Value = i });
+                repo.Bus.Publish(new Fdp.Toolkit.Lifecycle.Events.ConstructionOrder { Entity = e });
+            }
+            repo.Bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+            int countAfterConstruction = SumDrawCounts(def.CreatedInstances);
+
+            repo.Bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+            int drawsThisFrame = SumDrawCounts(def.CreatedInstances) - countAfterConstruction;
+
+            Assert.Equal(entityCount, drawsThisFrame);
+        }
+
+        // SC-GZ036-4: Time-slice state maintained across multiple Execute calls (no exception,
+        // draw counts accumulate correctly).
+        [Fact]
+        public void SC_GZ036_4_TimeSliceState_Is_Field_Not_Reallocated()
+        {
+            var (repo, def, sys) = CreateBudgetFixture();
+            sys.MaxGizmoFrameMs = 10000f;
+
+            const int entityCount = 5;
+            for (int i = 0; i < entityCount; i++)
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new GizmoTestCompA { Value = i });
+                repo.Bus.Publish(new Fdp.Toolkit.Lifecycle.Events.ConstructionOrder { Entity = e });
+            }
+            repo.Bus.SwapBuffers();
+
+            // Run 3 frames — no exception is the main check.
+            for (int frame = 0; frame < 3; frame++)
+            {
+                sys.Execute(repo, 0f);
+                repo.Bus.SwapBuffers();
+            }
+
+            int totalDraws = SumDrawCounts(def.CreatedInstances);
+            Assert.True(totalDraws > 0, "Expected at least some gizmo draws across 3 frames");
         }
     }
 }

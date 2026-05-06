@@ -1,7 +1,9 @@
-using System.Text.Json;
+using System.Collections.Generic;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
+using StructEdit.Core;
+using StructEdit.Json;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 {
@@ -35,33 +37,71 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
             _firstFrame = false;
 
-            // Build JSON of all settings (key -> active value).
-            using var ms = new System.IO.MemoryStream();
-            using (var writer = new Utf8JsonWriter(ms))
-            {
-                writer.WriteStartObject();
-                foreach (var (key, active, _) in _registry.EnumerateAll())
-                {
-                    writer.WritePropertyName(key);
-                    WriteSettingValue(writer, active);
-                }
-                writer.WriteEndObject();
-            }
-            string json = System.Text.Encoding.UTF8.GetString(ms.ToArray());
+            var doc = BuildEditDocument();
+            string json = EditDocumentJsonSerializer.Serialize(doc);
 
             _publisher.Publish(new GizmoUiState { GizmoInstanceId = 0, EditDocumentJson = json });
             _registry.ClearDirty();
         }
 
-        private static void WriteSettingValue(Utf8JsonWriter w, GizmoSettingValue v)
+        private EditDocument BuildEditDocument()
         {
-            switch (v.Type)
+            var leafNodes = new List<EditNode>();
+            int nodeId = 1;
+            foreach (var (key, active, _) in _registry.EnumerateAll())
             {
-                case SettingType.Bool:    w.WriteBooleanValue(v.BoolValue);  break;
-                case SettingType.Int32:   w.WriteNumberValue(v.IntValue);    break;
-                case SettingType.Float32: w.WriteNumberValue(v.FloatValue);  break;
-                default:                  w.WriteNullValue();                break;
+                EditNodeKind kind;
+                IValueBinding binding;
+                System.Type clrType;
+                switch (active.Type)
+                {
+                    case SettingType.Bool:
+                        kind = EditNodeKind.Boolean;
+                        binding = new SnapshotValueBinding<bool>(active.BoolValue);
+                        clrType = typeof(bool);
+                        break;
+                    case SettingType.Int32:
+                        kind = EditNodeKind.Scalar;
+                        binding = new SnapshotValueBinding<int>(active.IntValue);
+                        clrType = typeof(int);
+                        break;
+                    case SettingType.Float32:
+                        kind = EditNodeKind.Scalar;
+                        binding = new SnapshotValueBinding<float>(active.FloatValue);
+                        clrType = typeof(float);
+                        break;
+                    default:
+                        continue; // skip unknown types
+                }
+
+                leafNodes.Add(new EditNode(
+                    id:       new EditNodeId(nodeId++),
+                    name:     key,
+                    jsonPath: key,       // Use the setting key as both name and path
+                    kind:     kind,
+                    clrType:  clrType,
+                    binding:  binding));
             }
+
+            var root = new EditNode(
+                id:       new EditNodeId(0),
+                name:     "$",
+                jsonPath: "$",
+                kind:     EditNodeKind.SelectionRoot,
+                clrType:  typeof(object),
+                children: leafNodes);
+
+            return new EditDocument(root, typeof(GizmoSettingValue), EditScope.WholeComponent);
+        }
+
+        private sealed class SnapshotValueBinding<T> : IValueBinding
+        {
+            private readonly T _value;
+            public SnapshotValueBinding(T value) => _value = value;
+            public System.Type ValueType => typeof(T);
+            public object? GetBoxed() => _value;
+            public void SetBoxed(object? value) { /* read-only snapshot, no-op */ }
+            public bool TryGetSpan(out System.Span<byte> bytes) { bytes = default; return false; }
         }
     }
 }

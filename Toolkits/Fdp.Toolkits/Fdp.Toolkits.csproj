@@ -37,6 +37,12 @@
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
+  <!-- StructEdit for GizmoSettingsPublisherSystem -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Core\StructEdit.Core.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Json\StructEdit.Json.csproj" />
+  </ItemGroup>
+
   <!-- CycloneDDS (project references - no PackageReference to CycloneDDS allowed) -->
   <ItemGroup>
     <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />

@@ -46,6 +46,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly Dictionary<Entity, List<CompiledGizmoInstance>> _activeGizmos;
         private readonly bool[] _globalVisibilityCache;
 
+        /// <summary>Max wall-clock budget in ms for step 4. 0 = unlimited.</summary>
+        public float MaxGizmoFrameMs { get; set; } = 0f;
+
+        // Time-slice state: ordered entity list and current offset for carry-over.
+        private readonly List<Entity> _entityList = new();
+        private int _timeSliceOffset = 0;
+
         // ---- Private per-instance gizmo record ------------------------------------
 
         private struct CompiledGizmoInstance
@@ -116,6 +123,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     {
                         list = new List<CompiledGizmoInstance>();
                         _activeGizmos[evt.Entity] = list;
+                        _entityList.Add(evt.Entity);
                     }
 
                     list.Add(new CompiledGizmoInstance
@@ -133,29 +141,64 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             for (int i = 0; i < allRules.Count && i < cacheSize; i++)
                 _globalVisibilityCache[i] = allRules[i].Definition.VisibilityPolicy.IsGloballyEnabled(view);
 
-            // 4. Drive active gizmos.
+            // 4. Drive active gizmos (with optional wall-clock budget).
             bool alwaysDraw = _isSelectedPredicate == null;
-            foreach (var kvp in _activeGizmos)
+            float budget = MaxGizmoFrameMs;
+
+            if (budget <= 0f || _entityList.Count == 0)
             {
-                Entity entity = kvp.Key;
-                if (!view.IsAlive(entity))
-                    continue;
-
-                bool selected = alwaysDraw || _isSelectedPredicate!(view, entity);
-                if (!selected)
-                    continue;
-
-                var instances = kvp.Value;
-                for (int i = 0; i < instances.Count; i++)
+                // Unlimited path: iterate all active gizmos normally.
+                foreach (var kvp in _activeGizmos)
                 {
-                    var gi = instances[i];
-                    if (gi.RuleIndex < cacheSize && !_globalVisibilityCache[gi.RuleIndex])
-                        continue;
-                    if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity))
-                        continue;
-
-                    gi.Instance.UpdateAndDraw(view, entity, deltaTime, _drawBuilder);
+                    Entity entity = kvp.Key;
+                    if (!view.IsAlive(entity)) continue;
+                    bool selected = alwaysDraw || _isSelectedPredicate!(view, entity);
+                    if (!selected) continue;
+                    var instances = kvp.Value;
+                    for (int i = 0; i < instances.Count; i++)
+                    {
+                        var gi = instances[i];
+                        if (gi.RuleIndex < cacheSize && !_globalVisibilityCache[gi.RuleIndex]) continue;
+                        if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity)) continue;
+                        gi.Instance.UpdateAndDraw(view, entity, deltaTime, _drawBuilder);
+                    }
                 }
+            }
+            else
+            {
+                // Time-sliced path: resume from _timeSliceOffset, stop when budget exceeded.
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                int count = _entityList.Count;
+                int processed = 0;
+                int startOffset = _timeSliceOffset;
+
+                while (processed < count)
+                {
+                    int idx = (startOffset + processed) % count;
+                    processed++;
+                    Entity entity = _entityList[idx];
+
+                    if (!view.IsAlive(entity)) continue;
+                    if (!_activeGizmos.TryGetValue(entity, out var instances)) continue;
+
+                    bool selected = alwaysDraw || _isSelectedPredicate!(view, entity);
+                    if (!selected) continue;
+
+                    for (int i = 0; i < instances.Count; i++)
+                    {
+                        var gi = instances[i];
+                        if (gi.RuleIndex < cacheSize && !_globalVisibilityCache[gi.RuleIndex]) continue;
+                        if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity)) continue;
+                        gi.Instance.UpdateAndDraw(view, entity, deltaTime, _drawBuilder);
+                    }
+
+                    // Check budget after each entity.
+                    if (sw.Elapsed.TotalMilliseconds >= budget)
+                        break;
+                }
+
+                // Update offset for next frame: resume where we left off.
+                _timeSliceOffset = (startOffset + processed) % count;
             }
         }
 
@@ -170,6 +213,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 gi.Instance.OnTeardown();
 
             _activeGizmos.Remove(entity);
+            _entityList.Remove(entity);
+            // Reset offset if it would be out of bounds.
+            if (_timeSliceOffset >= _entityList.Count)
+                _timeSliceOffset = 0;
         }
     }
 }
