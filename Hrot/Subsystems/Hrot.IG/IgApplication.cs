@@ -1231,27 +1231,12 @@ public class IgApplication : IDisposable
 
         _kernel.RegisterGlobalSystem(_contextMenuSystem);
 
-        // Gizmo system (GZ020) — must be registered before kernel.Initialize().
-        if (_gizmoRegistry != null && _gizmoBuffer != null)
-        {
-            _kernel.RegisterGlobalSystem(new DataDrivenGizmoSystem(
-                _gizmoRegistry,
-                _gizmoBuffer,
-                isSelectedPredicate: static (view, entity) =>
-                    view.HasComponent<SelectionState>(entity) &&
-                    view.GetComponentRO<SelectionState>(entity).IsSelected));
-        }
+        // DataDrivenGizmoSystem is NOT registered in IG. IG is a dumb terminal.
+        // Primitives arrive via DebugPrimitivesIngressTranslator (see _ingressTranslator).
+        // GZ038: removed DataDrivenGizmoSystem registration.
 
-        // Stateless gizmo system (GZ022) — runs projectors for each matching entity.
-        if (_statelessGizmoRegistry != null && _gizmoBuffer != null)
-        {
-            _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(
-                _statelessGizmoRegistry,
-                _gizmoBuffer,
-                isSelectedPredicate: static (view, entity) =>
-                    view.HasComponent<SelectionState>(entity) &&
-                    view.GetComponentRO<SelectionState>(entity).IsSelected));
-        }
+        // StatelessGizmoSystem is NOT registered in IG. IG is a dumb terminal.
+        // GZ038: removed StatelessGizmoSystem registration.
 
         _kernel.Initialize();
 
