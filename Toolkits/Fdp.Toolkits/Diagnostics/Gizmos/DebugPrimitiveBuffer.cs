@@ -51,6 +51,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         /// <summary>
+        /// Appends a primitive directly into the transient buffer without persistence tracking.
+        /// Used by network ingress (<see cref="DebugPrimitivesIngressTranslator"/>) to restore
+        /// received primitives. Thread-safe (uses Interlocked).
+        /// </summary>
+        public void AppendRaw(in DebugPrimitive primitive)
+        {
+            int slot = Interlocked.Increment(ref _count) - 1;
+            if ((uint)slot < (uint)_primitives.Length)
+                _primitives[slot] = primitive;
+            else
+                Interlocked.Increment(ref _droppedCount);
+        }
+
+        /// <summary>
         /// Advances the persistence clock, evicts expired entries, clears the transient buffer,
         /// and re-injects surviving persistent primitives. Call once per frame BEFORE gizmo
         /// systems execute (owned by DataDrivenGizmoSystem).

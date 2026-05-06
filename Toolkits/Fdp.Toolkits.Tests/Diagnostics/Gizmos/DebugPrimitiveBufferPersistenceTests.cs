@@ -108,5 +108,36 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             Assert.Equal(0, buf.GetFrame().Length);
         }
+
+        // SC-GZ038-5: AppendRaw overflow increments DroppedCount.
+        [Fact]
+        public void SC_GZ038_5_AppendRaw_OverflowIncrements_DroppedCount()
+        {
+            var buffer = new DebugPrimitiveBuffer(capacity: 2); // very small
+            var p = new DebugPrimitive();
+
+            buffer.AppendRaw(in p);
+            buffer.AppendRaw(in p);
+            buffer.AppendRaw(in p); // this one should overflow
+
+            Assert.Equal(1, buffer.DroppedCount);
+            Assert.Equal(2, buffer.GetFrame().Length);
+        }
+
+        // SC-GZ038-7: Buffer populated via AppendRaw has correct frame content.
+        [Fact]
+        public void SC_GZ038_7_DebugGizmoLayer_RendersAppendRawPrimitives()
+        {
+            // Populate buffer via AppendRaw instead of draw methods.
+            var buffer = new DebugPrimitiveBuffer(capacity: 64);
+            var primitive = DebugPrimitive.MakeLine(
+                System.Numerics.Vector3.Zero, System.Numerics.Vector3.UnitX,
+                new Rgba32(255, 0, 0, 255));
+            buffer.AppendRaw(in primitive);
+
+            // Verify buffer has content.
+            Assert.Equal(1, buffer.GetFrame().Length);
+            Assert.Equal(primitive.Shape, buffer.GetFrame()[0].Shape);
+        }
     }
 }
