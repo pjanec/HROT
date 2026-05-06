@@ -191,7 +191,7 @@ into a pure rendering terminal that only renders what the network provides.
 **Goal:** Make committed gizmo interactions reversible. Without undo, a single misplaced drag
 commit permanently corrupts the scenario with no recovery path short of a reload.
 
-- [ ] **TASK-GZ039** Undo/redo stack — `IGizmoUndoRecord`, `GizmoUndoStack`, `DataDrivenGizmoSystem` integration, Ctrl+Z/Y shortcut handling [details](./TASK-DETAIL.md#task-gz039--undoredo-stack-for-gizmo-interactions)
+- [x] **TASK-GZ039** Undo/redo stack — `IGizmoUndoRecord`, `GizmoUndoStack`, `DataDrivenGizmoSystem` integration, Ctrl+Z/Y shortcut handling [details](./TASK-DETAIL.md#task-gz039--undoredo-stack-for-gizmo-interactions)
 
 ---
 
