@@ -181,8 +181,8 @@ behavior lifecycle safety.
 interaction events (IG drag commits reach SimHost), and convert IG from a full ECS evaluator
 into a pure rendering terminal that only renders what the network provides.
 
-- [ ] **TASK-GZ037** Networked `GizmoInteractionEvent` DDS translators — `GizmoInteractionBatch` topic, `GizmoInteractionEgressSystem` (IG side), `GizmoInteractionIngressSystem` (SimHost side) [details](./TASK-DETAIL.md#task-gz037--networked-gizmointeractionevent-dds-translators)
-- [ ] **TASK-GZ038** IG dumb terminal — `DebugPrimitivesIngressTranslator` + remove `DataDrivenGizmoSystem`/`StatelessGizmoSystem` from `IgApplication` [details](./TASK-DETAIL.md#task-gz038--ig-dumb-terminal-ingress-debugprimitivesingresstranslator)
+- [x] **TASK-GZ037** Networked `GizmoInteractionEvent` DDS translators — `GizmoInteractionBatch` topic, `GizmoInteractionEgressSystem` (IG side), `GizmoInteractionIngressSystem` (SimHost side) [details](./TASK-DETAIL.md#task-gz037--networked-gizmointeractionevent-dds-translators)
+- [x] **TASK-GZ038** IG dumb terminal — `DebugPrimitivesIngressTranslator` + remove `DataDrivenGizmoSystem`/`StatelessGizmoSystem` from `IgApplication` [details](./TASK-DETAIL.md#task-gz038--ig-dumb-terminal-ingress-debugprimitivesingresstranslator)
 
 ---
 
