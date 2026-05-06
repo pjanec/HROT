@@ -1,19 +1,21 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Hrot.AI.Behaviors.Brains;
+using Hrot.AI.Behaviors.Gizmos;
 using Hrot.IG.Gizmos;
 using Xunit;
 
 namespace Hrot.IG.Tests.Gizmos
 {
     // ============================================================================
-    // SC-GZ021-HA: Hill attack gizmo unit tests.
+    // SC-GZ021-HA: Hill attack gizmo unit tests (migrated to IStatelessGizmo).
     // ============================================================================
 
     public sealed class HillAttackGizmoTests : IDisposable
@@ -37,19 +39,19 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void SC_GZ021_HA_1_RequiredComponents_ContainsAllThreeTypes()
         {
-            var def = new HillAttackGizmoDefinition(_settings);
+            var attr = typeof(HillAttackGizmo).GetCustomAttribute<GizmoProjectorAttribute>();
 
-            Assert.Contains(typeof(BrainBlackboard), def.RequiredComponents);
-            Assert.Contains(typeof(BehaviorState),   def.RequiredComponents);
-            Assert.Contains(typeof(SimTransform),     def.RequiredComponents);
+            Assert.NotNull(attr);
+            Assert.Contains(typeof(BrainBlackboard), attr!.RequiredComponents);
+            Assert.Contains(typeof(BehaviorState),   attr.RequiredComponents);
+            Assert.Contains(typeof(SimTransform),     attr.RequiredComponents);
         }
 
         [Fact]
-        public unsafe void SC_GZ021_HA_2_UpdateAndDraw_EmitsNoDrawCalls_WhenHashNotPlatoonHillAttack()
+        public unsafe void SC_GZ021_HA_2_Draw_EmitsNoDrawCalls_WhenHashNotPlatoonHillAttack()
         {
-            var def      = new HillAttackGizmoDefinition(_settings);
-            var instance = def.CreateInstance();
-            var draw     = new FullCapturingDrawBuilder();
+            var gizmo = new HillAttackGizmo(_settings);
+            var draw  = new FullCapturingDrawBuilder();
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new BehaviorState
@@ -62,22 +64,21 @@ namespace Hrot.IG.Tests.Gizmos
             _repo.AddComponent(entity, new BrainBlackboard());
             _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
 
-            instance.UpdateAndDraw(_repo, entity, 0f, draw);
+            gizmo.Draw(_repo, entity, draw);
 
             Assert.Empty(draw.LineCalls);
             Assert.Empty(draw.SphereCalls);
         }
 
         [Fact]
-        public unsafe void SC_GZ021_HA_3_UpdateAndDraw_EmitsDrawLineCalls_WhenHashMatches()
+        public unsafe void SC_GZ021_HA_3_Draw_EmitsDrawLineCalls_WhenHashMatches()
         {
-            var def      = new HillAttackGizmoDefinition(_settings);
-            var instance = def.CreateInstance();
-            var draw     = new FullCapturingDrawBuilder();
+            var gizmo  = new HillAttackGizmo(_settings);
+            var draw   = new FullCapturingDrawBuilder();
 
             var entity = CreateEntityWithParams(_repo, buildDefaultParams(), showSlots: false);
 
-            instance.UpdateAndDraw(_repo, entity, 0f, draw);
+            gizmo.Draw(_repo, entity, draw);
 
             // Expect exactly 2 DrawLine calls: one for fire line, one for baseline.
             Assert.True(draw.LineCalls.Count >= 2,
@@ -85,37 +86,35 @@ namespace Hrot.IG.Tests.Gizmos
         }
 
         [Fact]
-        public unsafe void SC_GZ021_HA_4_UpdateAndDraw_EmitsDrawSphereCalls_WhenShowSlotsTrue()
+        public unsafe void SC_GZ021_HA_4_Draw_EmitsDrawSphereCalls_WhenShowSlotsTrue()
         {
             // Override setting to true.
             var settings = new GizmoSettingsRegistry();
             settings.RegisterSetting(HillAttackGizmoSettings.ShowSlots, GizmoSettingValue.From(true));
 
-            var def      = new HillAttackGizmoDefinition(settings);
-            var instance = def.CreateInstance();
-            var draw     = new FullCapturingDrawBuilder();
+            var gizmo  = new HillAttackGizmo(settings);
+            var draw   = new FullCapturingDrawBuilder();
 
             var entity = CreateEntityWithParams(_repo, buildDefaultParams(), showSlots: true);
 
-            instance.UpdateAndDraw(_repo, entity, 0f, draw);
+            gizmo.Draw(_repo, entity, draw);
 
             Assert.NotEmpty(draw.SphereCalls);
         }
 
         [Fact]
-        public unsafe void SC_GZ021_HA_5_UpdateAndDraw_EmitsNoSphereCalls_WhenShowSlotsFalse()
+        public unsafe void SC_GZ021_HA_5_Draw_EmitsNoSphereCalls_WhenShowSlotsFalse()
         {
             // Override setting to false.
             var settings = new GizmoSettingsRegistry();
             settings.RegisterSetting(HillAttackGizmoSettings.ShowSlots, GizmoSettingValue.From(false));
 
-            var def      = new HillAttackGizmoDefinition(settings);
-            var instance = def.CreateInstance();
-            var draw     = new FullCapturingDrawBuilder();
+            var gizmo  = new HillAttackGizmo(settings);
+            var draw   = new FullCapturingDrawBuilder();
 
             var entity = CreateEntityWithParams(_repo, buildDefaultParams(), showSlots: false);
 
-            instance.UpdateAndDraw(_repo, entity, 0f, draw);
+            gizmo.Draw(_repo, entity, draw);
 
             Assert.Empty(draw.SphereCalls);
         }
@@ -123,10 +122,19 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void SC_GZ021_HA_6_GizmoRegistrar_RegistersShowSlotsSetting()
         {
-            var registry = new GizmoRegistry();
-            var settings = new GizmoSettingsRegistry();
+            // Ensure all components required by any registered gizmo are in ComponentTypeRegistry.
+            using var tempRepo = new EntityRepository();
+            tempRepo.RegisterComponent<BrainBlackboard>();
+            tempRepo.RegisterComponent<BehaviorState>();
+            tempRepo.RegisterComponent<SimTransform>();
+            tempRepo.RegisterComponent<Hrot.IG.Components.IgHealthState>();
+            tempRepo.RegisterComponent<Fdp.Toolkit.Perception.Components.PerceptionReceptor>();
 
-            GizmoRegistrar.Register(registry, settings);
+            var registry          = new GizmoRegistry();
+            var statelessRegistry = new StatelessGizmoRegistry();
+            var settings          = new GizmoSettingsRegistry();
+
+            Hrot.IG.Gizmos.GizmoRegistrar.Register(registry, statelessRegistry, settings);
 
             var registeredKeys = new HashSet<string>();
             foreach (var (key, _, _) in settings.EnumerateAll())

@@ -2,7 +2,7 @@
 
 | ID | Source | Description | Priority | Target Batch | Status |
 |----|--------|-------------|----------|--------------|--------|
-| D-001 | BATCH-01 | StringInternMap uses unsynchronized Dictionary. DrawTextLong is called by multiple ECS systems concurrently during parallel ECS iteration; will corrupt internal buckets or throw IndexOutOfRangeException. Must switch to ConcurrentDictionary or add a spinlock around Intern/TryResolve. | **P1** | BATCH-NEXT (blocking) | OPEN |
+| D-001 | BATCH-01 | StringInternMap uses unsynchronized Dictionary. DrawTextLong is called by multiple ECS systems concurrently during parallel ECS iteration; will corrupt internal buckets or throw IndexOutOfRangeException. Must switch to ConcurrentDictionary or add a spinlock around Intern/TryResolve. | **P1** | BATCH-10 | RESOLVED |
 | D-002 | BATCH-02 | EntityRepository in tests not disposed — minor test hygiene | P3 | backlog | OPEN |
 | D-003 | BATCH-02 | Selection predicate not yet wired in game-host kernel registration; DataDrivenGizmoSystem/BehaviorGizmoManagerSystem will always draw all (null predicate) until wired | P2 | superseded by TASK-GZ031 | RESOLVED |
 | D-004 | BATCH-05 | RichTextRenderer.ParseChunks allocates List<> per call — zero-allocation mandate folded into TASK-GZ014 constraints (use stackalloc or ReadOnlySpan, no List<> per draw call) | P3 | TASK-GZ014 | RESOLVED |

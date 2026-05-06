@@ -133,9 +133,9 @@ query ECS state each frame without object instantiation, dictionary lookups, or 
 management. Migrate existing pure-projector gizmos to the new path and establish compile-time
 auto-registration via a Roslyn source generator.
 
-- [ ] **TASK-GZ022** `IStatelessGizmo` contract, `StatelessGizmoRegistry`, and `StatelessGizmoSystem` [details](./TASK-DETAIL.md#task-gz022--istatelessgizmo-contract-and-statelessgizmosystem)
-- [ ] **TASK-GZ023** Migrate pure-projector gizmos to stateless and correct project placement (HealthBar, EntityRotation, VisibilityCone → `Hrot.Common`; HillAttack → `Hrot.AI.Behaviors`) [details](./TASK-DETAIL.md#task-gz023--migrate-pure-projector-gizmos-to-stateless-and-correct-project-placement)
-- [ ] **TASK-GZ024** Unified `[GizmoProjector]` attribute and Roslyn source generator (replaces hand-written `GizmoRegistrar.cs`) [details](./TASK-DETAIL.md#task-gz024--unified-gizmoprojector-attribute-and-roslyn-source-generator)
+- [x] **TASK-GZ022** `IStatelessGizmo` contract, `StatelessGizmoRegistry`, and `StatelessGizmoSystem` [details](./TASK-DETAIL.md#task-gz022--istatelessgizmo-contract-and-statelessgizmosystem)
+- [x] **TASK-GZ023** Migrate pure-projector gizmos to stateless and correct project placement (HealthBar, EntityRotation, VisibilityCone → `Hrot.Common`; HillAttack → `Hrot.AI.Behaviors`) [details](./TASK-DETAIL.md#task-gz023--migrate-pure-projector-gizmos-to-stateless-and-correct-project-placement)
+- [x] **TASK-GZ024** Unified `[GizmoProjector]` attribute and Roslyn source generator (replaces hand-written `GizmoRegistrar.cs`) [details](./TASK-DETAIL.md#task-gz024--unified-gizmoprojector-attribute-and-roslyn-source-generator)
 
 ---
 
@@ -200,7 +200,7 @@ commit permanently corrupts the scenario with no recovery path short of a reload
 **Goal:** Fix D-001 (P1 blocking): `StringInternMap` uses a raw `Dictionary` that will corrupt
 under parallel ECS iteration.
 
-- [ ] **TASK-GZ040** Fix `StringInternMap` concurrency hazard — replace `Dictionary<uint,string>` with `ConcurrentDictionary`, remove false thread-safe comment [details](./TASK-DETAIL.md#task-gz040--fix-stringinternmap-concurrency-hazard-d-001-p1-blocking)
+- [x] **TASK-GZ040** Fix `StringInternMap` concurrency hazard — replace `Dictionary<uint,string>` with `ConcurrentDictionary`, remove false thread-safe comment [details](./TASK-DETAIL.md#task-gz040--fix-stringinternmap-concurrency-hazard-d-001-p1-blocking)
 
 ---
 

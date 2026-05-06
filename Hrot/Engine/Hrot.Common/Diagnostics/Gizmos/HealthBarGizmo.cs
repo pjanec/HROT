@@ -4,26 +4,26 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Hrot.IG.Components;
 
-namespace Hrot.IG.Gizmos
+namespace Hrot.Common.Diagnostics.Gizmos
 {
-    internal sealed class HealthBarGizmoInstance : IStatefulGizmo
+    [GizmoProjector(typeof(IgHealthState))]
+    public sealed class HealthBarGizmo : IStatelessGizmo
     {
         private readonly GizmoSettingsRegistry _settings;
 
-        public HealthBarGizmoInstance(GizmoSettingsRegistry settings)
+        public HealthBarGizmo(GizmoSettingsRegistry settings)
         {
             _settings = settings;
+            HealthBarGizmoSettings.Register(settings);
         }
 
-        public void OnInitialize(ISimulationView view, Entity entity) { }
-
-        public void UpdateAndDraw(ISimulationView view, Entity entity, float deltaTime, IDebugDrawBuilder drawBuilder)
+        public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder)
         {
             if (!view.HasComponent<IgHealthState>(entity)) return;
 
             ref readonly var health = ref view.GetComponentRO<IgHealthState>(entity);
-            float damage     = health.Damage;
-            float healthPct  = 1f - (damage / 100f);
+            float damage    = health.Damage;
+            float healthPct = 1f - (damage / 100f);
 
             // Read settings for bar dimensions (defaults used if not yet written).
             float barWidth  = _settings.Read(GizmoSettingsRegistry.ComputeHash(HealthBarGizmoSettings.BarWidthKey)).FloatValue;
@@ -42,7 +42,5 @@ namespace Hrot.IG.Gizmos
             var text = new FixedString32($"{(int)(healthPct * 100)}%");
             drawBuilder.DrawEntityBadge(entity, text);
         }
-
-        public void OnTeardown() { }
     }
 }

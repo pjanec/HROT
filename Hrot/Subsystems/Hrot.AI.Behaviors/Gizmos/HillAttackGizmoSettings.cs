@@ -1,6 +1,6 @@
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 
-namespace Hrot.IG.Gizmos
+namespace Hrot.AI.Behaviors.Gizmos
 {
     internal static class HillAttackGizmoSettings
     {

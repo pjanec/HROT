@@ -2,6 +2,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Scenario;
 using Hrot.Common.Scenario;
+using Hrot.Orchestrator;
 using Hrot.ScenarioEditor.Services;
 
 namespace Hrot.Editor;
@@ -17,7 +18,7 @@ public static class EditorBootstrap
     /// Root directory used for scenario files.
     /// Scenarios are stored as <c>{ScenariosRoot}\{scenarioName}\scenario.json</c>.
     /// </summary>
-    public static string ScenariosRoot { get; } = OrchestrationConstants.DefaultStagingDirectory;
+    public static string ScenariosRoot => Path.Combine(ClusterConfiguration.Default.NasBasePath, "scenarios");
 
     /// <summary>
     /// Builds a <see cref="ScenarioFileService"/> with an auto-serializer

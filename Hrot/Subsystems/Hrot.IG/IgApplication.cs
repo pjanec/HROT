@@ -233,6 +233,7 @@ public class IgApplication : IDisposable
     // -- Gizmo subsystem (GZ020) ---------------------------------------------------
     private DebugPrimitiveBuffer?       _gizmoBuffer;
     private GizmoRegistry?              _gizmoRegistry;
+    private StatelessGizmoRegistry?     _statelessGizmoRegistry;
     private GizmoSettingsRegistry?      _gizmoSettingsRegistry;
     private MeasureToolGizmoAdapter?    _measureToolGizmoAdapter;
 
@@ -1121,10 +1122,11 @@ public class IgApplication : IDisposable
         _canvas.AddLayer(new Hrot.IG.Layers.ZoneObstacleRenderLayer(_world));
 
         // Gizmo subsystem (GZ020) — renders entity-bound diagnostic overlays.
-        _gizmoBuffer          = new DebugPrimitiveBuffer(capacity: 4096);
-        _gizmoRegistry        = new GizmoRegistry();
-        _gizmoSettingsRegistry = new GizmoSettingsRegistry();
-        GizmoRegistrar.Register(_gizmoRegistry, _gizmoSettingsRegistry);
+        _gizmoBuffer           = new DebugPrimitiveBuffer(capacity: 4096);
+        _gizmoRegistry         = new GizmoRegistry();
+        _statelessGizmoRegistry = new StatelessGizmoRegistry();
+        _gizmoSettingsRegistry  = new GizmoSettingsRegistry();
+        GizmoRegistrar.Register(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
         _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_canvas, _gizmoSettingsRegistry);
         var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, _world.Bus);
         _canvas.AddLayer(gizmoLayer);
@@ -1234,6 +1236,15 @@ public class IgApplication : IDisposable
         {
             _kernel.RegisterGlobalSystem(new DataDrivenGizmoSystem(
                 _gizmoRegistry,
+                _gizmoBuffer,
+                isSelectedPredicate: null));
+        }
+
+        // Stateless gizmo system (GZ022) — runs projectors for each matching entity.
+        if (_statelessGizmoRegistry != null && _gizmoBuffer != null)
+        {
+            _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(
+                _statelessGizmoRegistry,
                 _gizmoBuffer,
                 isSelectedPredicate: null));
         }

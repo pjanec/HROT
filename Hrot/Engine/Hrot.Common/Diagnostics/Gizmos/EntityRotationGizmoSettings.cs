@@ -1,6 +1,6 @@
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 
-namespace Hrot.IG.Gizmos
+namespace Hrot.Common.Diagnostics.Gizmos
 {
     internal static class EntityRotationGizmoSettings
     {

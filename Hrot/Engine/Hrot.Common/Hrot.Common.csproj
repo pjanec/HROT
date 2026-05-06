@@ -19,6 +19,9 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Hrot.Network</_Parameter1>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.IG.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>
@@ -32,6 +35,9 @@
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />
     <!-- Fdp.Toolkits for IEntityStateExtractionService, JsonAestheticFormatter (used by DiagnosticsDumpClusterOpHandler) -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- Roslyn source generator: emits GizmoRegistrar.g.cs for [GizmoProjector] classes. -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <!-- Fdp.Network.Cyclone for DdsIdAllocator (used by HrotNodeBuilder) -->
     <ProjectReference Include="..\..\..\FDP\Network\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
     <!-- CycloneDDS.Runtime for DdsParticipant, DdsReader, DdsWriter (used by HrotNodeBuilder) -->

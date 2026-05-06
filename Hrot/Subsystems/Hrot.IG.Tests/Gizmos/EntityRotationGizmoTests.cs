@@ -1,17 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Reflection;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
+using Hrot.Common.Diagnostics.Gizmos;
 using Hrot.IG.Gizmos;
 using Xunit;
 
 namespace Hrot.IG.Tests.Gizmos
 {
     // ============================================================================
-    // SC-GZ021-ROT: Entity rotation gizmo unit tests.
+    // SC-GZ021-ROT: Entity rotation gizmo unit tests (migrated to IStatelessGizmo).
     // ============================================================================
 
     public sealed class EntityRotationGizmoTests : IDisposable
@@ -31,11 +33,10 @@ namespace Hrot.IG.Tests.Gizmos
         public void Dispose() => _repo.Dispose();
 
         [Fact]
-        public void SC_GZ021_ROT_1_UpdateAndDraw_IdentityRotation_DrawsArrowEast()
+        public void SC_GZ021_ROT_1_Draw_IdentityRotation_DrawsArrowEast()
         {
-            var def      = new EntityRotationGizmoDefinition(_settings);
-            var instance = def.CreateInstance();
-            var draw     = new FullCapturingDrawBuilder();
+            var gizmo = new EntityRotationGizmo(_settings);
+            var draw  = new FullCapturingDrawBuilder();
 
             var entity = _repo.CreateEntity();
             // Identity quaternion: yaw=0 -> facing east (+X).
@@ -45,7 +46,7 @@ namespace Hrot.IG.Tests.Gizmos
                 Rotation = Quaternion.Identity
             });
 
-            instance.UpdateAndDraw(_repo, entity, 0f, draw);
+            gizmo.Draw(_repo, entity, draw);
 
             Assert.NotEmpty(draw.ArrowCalls);
             var (from, to, _) = draw.ArrowCalls[0];
@@ -55,11 +56,10 @@ namespace Hrot.IG.Tests.Gizmos
         }
 
         [Fact]
-        public void SC_GZ021_ROT_2_UpdateAndDraw_EmitsDrawText_WithDegreeValue()
+        public void SC_GZ021_ROT_2_Draw_EmitsDrawText_WithDegreeValue()
         {
-            var def      = new EntityRotationGizmoDefinition(_settings);
-            var instance = def.CreateInstance();
-            var draw     = new FullCapturingDrawBuilder();
+            var gizmo = new EntityRotationGizmo(_settings);
+            var draw  = new FullCapturingDrawBuilder();
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new SimTransform
@@ -68,7 +68,7 @@ namespace Hrot.IG.Tests.Gizmos
                 Rotation = Quaternion.Identity
             });
 
-            instance.UpdateAndDraw(_repo, entity, 0f, draw);
+            gizmo.Draw(_repo, entity, draw);
 
             Assert.NotEmpty(draw.TextCalls);
             // The label must contain a degree value (non-empty text string).
@@ -79,18 +79,28 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void SC_GZ021_ROT_3_RequiredComponents_ContainsSimTransform()
         {
-            var def = new EntityRotationGizmoDefinition(_settings);
+            var attr = typeof(EntityRotationGizmo).GetCustomAttribute<GizmoProjectorAttribute>();
 
-            Assert.Contains(typeof(SimTransform), def.RequiredComponents);
+            Assert.NotNull(attr);
+            Assert.Contains(typeof(SimTransform), attr!.RequiredComponents);
         }
 
         [Fact]
         public void SC_GZ021_ROT_4_GizmoRegistrar_RegistersEntityRotationArrowLengthSetting()
         {
-            var registry = new GizmoRegistry();
-            var settings = new GizmoSettingsRegistry();
+            // Ensure all components required by any registered gizmo are in ComponentTypeRegistry.
+            using var tempRepo = new EntityRepository();
+            tempRepo.RegisterComponent<SimTransform>();
+            tempRepo.RegisterComponent<Fdp.Toolkit.Perception.Components.PerceptionReceptor>();
+            tempRepo.RegisterComponent<Hrot.IG.Components.IgHealthState>();
+            tempRepo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBlackboard>();
+            tempRepo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
 
-            GizmoRegistrar.Register(registry, settings);
+            var registry          = new GizmoRegistry();
+            var statelessRegistry = new StatelessGizmoRegistry();
+            var settings          = new GizmoSettingsRegistry();
+
+            Hrot.IG.Gizmos.GizmoRegistrar.Register(registry, statelessRegistry, settings);
 
             var registeredKeys = new HashSet<string>();
             foreach (var (key, _, _) in settings.EnumerateAll())

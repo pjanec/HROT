@@ -5,20 +5,20 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 
-namespace Hrot.IG.Gizmos
+namespace Hrot.Common.Diagnostics.Gizmos
 {
-    internal sealed class EntityRotationGizmoInstance : IStatefulGizmo
+    [GizmoProjector(typeof(SimTransform))]
+    public sealed class EntityRotationGizmo : IStatelessGizmo
     {
         private readonly GizmoSettingsRegistry _settings;
 
-        public EntityRotationGizmoInstance(GizmoSettingsRegistry settings)
+        public EntityRotationGizmo(GizmoSettingsRegistry settings)
         {
             _settings = settings;
+            EntityRotationGizmoSettings.Register(settings);
         }
 
-        public void OnInitialize(ISimulationView view, Entity entity) { }
-
-        public void UpdateAndDraw(ISimulationView view, Entity entity, float deltaTime, IDebugDrawBuilder draw)
+        public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
             ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
             var pos = tf.Position;
@@ -49,7 +49,5 @@ namespace Hrot.IG.Gizmos
             var label = new FixedString32($"{compassDeg:F0}*");
             draw.DrawText(pos.X, pos.Y, label, new Rgba32(255, 165, 0, 200));
         }
-
-        public void OnTeardown() { }
     }
 }

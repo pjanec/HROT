@@ -8,23 +8,23 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Hrot.AI.Behaviors.Brains;
 
-namespace Hrot.IG.Gizmos
+namespace Hrot.AI.Behaviors.Gizmos
 {
-    internal sealed class HillAttackGizmoInstance : IStatefulGizmo
+    [GizmoProjector(typeof(BrainBlackboard), typeof(BehaviorState), typeof(SimTransform))]
+    public sealed class HillAttackGizmo : IStatelessGizmo
     {
         // Hash value of PlatoonHillAttack_BT from BehaviorIds (= 3014).
         private const int PlatoonHillAttack_BT = 3014;
 
         private readonly GizmoSettingsRegistry _settings;
 
-        public HillAttackGizmoInstance(GizmoSettingsRegistry settings)
+        public HillAttackGizmo(GizmoSettingsRegistry settings)
         {
             _settings = settings;
+            HillAttackGizmoSettings.Register(settings);
         }
 
-        public void OnInitialize(ISimulationView view, Entity entity) { }
-
-        public unsafe void UpdateAndDraw(ISimulationView view, Entity entity, float deltaTime, IDebugDrawBuilder draw)
+        public unsafe void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
             ref readonly var bs = ref view.GetComponentRO<BehaviorState>(entity);
             if (bs.ActiveBehaviorHash != PlatoonHillAttack_BT)
@@ -61,8 +61,6 @@ namespace Hrot.IG.Gizmos
                 DrawSlots(draw, baseStart, baseEnd, p.TankSpacing, baseColor, 'B');
             }
         }
-
-        public void OnTeardown() { }
 
         private static void DrawSlots(IDebugDrawBuilder draw, Vector3 start, Vector3 end,
             float spacing, Rgba32 color, char prefix)

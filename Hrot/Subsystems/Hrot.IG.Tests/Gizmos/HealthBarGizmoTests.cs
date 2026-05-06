@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Reflection;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
+using Hrot.Common.Diagnostics.Gizmos;
 using Hrot.IG.Components;
 using Hrot.IG.Gizmos;
 using Xunit;
@@ -42,7 +44,7 @@ namespace Hrot.IG.Tests.Gizmos
     }
 
     // ========================================================================
-    // SC-GZ021-HB: Health bar gizmo unit tests.
+    // SC-GZ021-HB: Health bar gizmo unit tests (migrated to IStatelessGizmo).
     // ========================================================================
 
     public sealed class HealthBarGizmoTests : System.IDisposable
@@ -53,8 +55,7 @@ namespace Hrot.IG.Tests.Gizmos
         public HealthBarGizmoTests()
         {
             _settings = new GizmoSettingsRegistry();
-            _settings.RegisterSetting(HealthBarGizmoSettings.BarHeightKey, HealthBarGizmoSettings.DefaultBarHeight);
-            _settings.RegisterSetting(HealthBarGizmoSettings.BarWidthKey,  HealthBarGizmoSettings.DefaultBarWidth);
+            HealthBarGizmoSettings.Register(_settings);
 
             _repo = new EntityRepository();
             _repo.RegisterComponent<IgHealthState>();
@@ -65,60 +66,69 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void SC_GZ021_HB_1_RequiredComponents_ContainsIgHealthState()
         {
-            var def = new HealthBarGizmoDefinition(_settings);
+            var attr = typeof(HealthBarGizmo).GetCustomAttribute<GizmoProjectorAttribute>();
 
-            Assert.Contains(typeof(IgHealthState), def.RequiredComponents);
+            Assert.NotNull(attr);
+            Assert.Contains(typeof(IgHealthState), attr!.RequiredComponents);
         }
 
         [Fact]
-        public void SC_GZ021_HB_2_VisibilityPolicy_IsAlwaysVisiblePolicy()
+        public void SC_GZ021_HB_2_DefaultVisibilityPolicy_IsAlwaysVisible()
         {
-            var def = new HealthBarGizmoDefinition(_settings);
+            // StatelessGizmoRegistry.Register uses AlwaysVisiblePolicy.Instance by default.
+            var statelessRegistry = new StatelessGizmoRegistry();
+            var gizmo = new HealthBarGizmo(_settings);
+            var attr  = typeof(HealthBarGizmo).GetCustomAttribute<GizmoProjectorAttribute>()!;
+            statelessRegistry.Register(gizmo, attr.RequiredComponents);
 
-            Assert.Same(AlwaysVisiblePolicy.Instance, def.VisibilityPolicy);
+            Assert.Same(AlwaysVisiblePolicy.Instance, statelessRegistry.Rules[0].VisibilityPolicy);
         }
 
         [Fact]
-        public void SC_GZ021_HB_3_UpdateAndDraw_FullHealth_CallsDrawEntityBadge()
+        public void SC_GZ021_HB_3_Draw_FullHealth_CallsDrawEntityBadge()
         {
-            var def      = new HealthBarGizmoDefinition(_settings);
-            var instance = def.CreateInstance();
-            var draw     = new CapturingDrawBuilder();
+            var gizmo = new HealthBarGizmo(_settings);
+            var draw  = new CapturingDrawBuilder();
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new IgHealthState { Damage = 0f });
 
-            instance.UpdateAndDraw(_repo, entity, 0f, draw);
+            gizmo.Draw(_repo, entity, draw);
 
             Assert.NotEmpty(draw.BadgeCalls);
             Assert.Equal(entity, draw.BadgeCalls[0].Target);
         }
 
         [Fact]
-        public void SC_GZ021_HB_4_OnInitialize_And_OnTeardown_DoNotThrow()
+        public void SC_GZ021_HB_4_Draw_DoesNotThrow()
         {
-            var def      = new HealthBarGizmoDefinition(_settings);
-            var instance = def.CreateInstance();
+            var gizmo = new HealthBarGizmo(_settings);
+            var draw  = new CapturingDrawBuilder();
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new IgHealthState { Damage = 50f });
 
-            var exInit     = Record.Exception(() => instance.OnInitialize(_repo, entity));
-            var exTeardown = Record.Exception(() => instance.OnTeardown());
+            var ex = Record.Exception(() => gizmo.Draw(_repo, entity, draw));
 
-            Assert.Null(exInit);
-            Assert.Null(exTeardown);
+            Assert.Null(ex);
         }
 
         [Fact]
         public void SC_GZ021_HB_5_GizmoRegistrar_RegistersSettingsForBothKeys()
         {
-            var registry = new GizmoRegistry();
-            var settings = new GizmoSettingsRegistry();
+            // Ensure all components required by any registered gizmo are in ComponentTypeRegistry.
+            using var tempRepo = new EntityRepository();
+            tempRepo.RegisterComponent<IgHealthState>();
+            tempRepo.RegisterComponent<SimTransform>();
+            tempRepo.RegisterComponent<Fdp.Toolkit.Perception.Components.PerceptionReceptor>();
+            tempRepo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBlackboard>();
+            tempRepo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
 
-            GizmoRegistrar.Register(registry, settings);
+            var registry          = new GizmoRegistry();
+            var statelessRegistry = new StatelessGizmoRegistry();
+            var settings          = new GizmoSettingsRegistry();
 
-            // Verify both keys are registered via EnumerateAll (IsRegistered is internal).
+            Hrot.IG.Gizmos.GizmoRegistrar.Register(registry, statelessRegistry, settings);
             var registeredKeys = new HashSet<string>();
             foreach (var (key, _, _) in settings.EnumerateAll())
                 registeredKeys.Add(key);

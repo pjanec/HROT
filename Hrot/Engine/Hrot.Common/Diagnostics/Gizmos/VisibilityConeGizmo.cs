@@ -5,15 +5,14 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Perception.Components;
 
-namespace Hrot.IG.Gizmos
+namespace Hrot.Common.Diagnostics.Gizmos
 {
-    internal sealed class VisibilityConeGizmoInstance : IStatefulGizmo
+    [GizmoProjector(typeof(SimTransform), typeof(PerceptionReceptor))]
+    public sealed class VisibilityConeGizmo : IStatelessGizmo
     {
         private const int ArcSegments = 8;
 
-        public void OnInitialize(ISimulationView view, Entity entity) { }
-
-        public void UpdateAndDraw(ISimulationView view, Entity entity, float deltaTime, IDebugDrawBuilder draw)
+        public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
             ref readonly var tf       = ref view.GetComponentRO<SimTransform>(entity);
             ref readonly var receptor = ref view.GetComponentRO<PerceptionReceptor>(entity);
@@ -63,7 +62,5 @@ namespace Hrot.IG.Gizmos
                 draw.DrawLine(p0, p1, color);
             }
         }
-
-        public void OnTeardown() { }
     }
 }

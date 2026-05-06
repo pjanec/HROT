@@ -1,6 +1,6 @@
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 
-namespace Hrot.IG.Gizmos
+namespace Hrot.Common.Diagnostics.Gizmos
 {
     // Keys are FNV-1a hashes of the strings below; computed via GizmoSettingsRegistry.ComputeHash().
     public static class HealthBarGizmoSettings
@@ -10,5 +10,11 @@ namespace Hrot.IG.Gizmos
 
         public static readonly GizmoSettingValue DefaultBarHeight = GizmoSettingValue.From(6f);  // pixels
         public static readonly GizmoSettingValue DefaultBarWidth  = GizmoSettingValue.From(40f); // pixels
+
+        public static void Register(GizmoSettingsRegistry settings)
+        {
+            settings.RegisterSetting(BarHeightKey, DefaultBarHeight);
+            settings.RegisterSetting(BarWidthKey,  DefaultBarWidth);
+        }
     }
 }

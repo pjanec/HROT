@@ -1,8 +1,10 @@
 using System;
 using System.Numerics;
+using System.Reflection;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Perception.Components;
+using Hrot.Common.Diagnostics.Gizmos;
 using Hrot.IG.Gizmos;
 using Xunit;
 
@@ -28,18 +30,18 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void SC_GZ021_VIS_1_RequiredComponents_ContainsBothTypes()
         {
-            var def = VisibilityConeGizmoDefinition.Instance;
+            var attr = typeof(VisibilityConeGizmo).GetCustomAttribute<GizmoProjectorAttribute>();
 
-            Assert.Contains(typeof(SimTransform),      def.RequiredComponents);
-            Assert.Contains(typeof(PerceptionReceptor), def.RequiredComponents);
+            Assert.NotNull(attr);
+            Assert.Contains(typeof(SimTransform),       attr!.RequiredComponents);
+            Assert.Contains(typeof(PerceptionReceptor), attr.RequiredComponents);
         }
 
         [Fact]
-        public void SC_GZ021_VIS_2_UpdateAndDraw_EmitsAtLeastTwoDrawLineCalls_WhenVisionRangePositive()
+        public void SC_GZ021_VIS_2_Draw_EmitsAtLeastTwoDrawLineCalls_WhenVisionRangePositive()
         {
-            var def      = VisibilityConeGizmoDefinition.Instance;
-            var instance = def.CreateInstance();
-            var draw     = new FullCapturingDrawBuilder();
+            var gizmo = new VisibilityConeGizmo();
+            var draw  = new FullCapturingDrawBuilder();
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new SimTransform
@@ -55,18 +57,17 @@ namespace Hrot.IG.Tests.Gizmos
                 HearingRange   = 50f
             });
 
-            instance.UpdateAndDraw(_repo, entity, 0f, draw);
+            gizmo.Draw(_repo, entity, draw);
 
             Assert.True(draw.LineCalls.Count >= 2,
                 $"Expected at least 2 DrawLine calls, got {draw.LineCalls.Count}.");
         }
 
         [Fact]
-        public void SC_GZ021_VIS_3_UpdateAndDraw_EmitsNoDrawCalls_WhenVisionRangeZero()
+        public void SC_GZ021_VIS_3_Draw_EmitsNoDrawCalls_WhenVisionRangeZero()
         {
-            var def      = VisibilityConeGizmoDefinition.Instance;
-            var instance = def.CreateInstance();
-            var draw     = new FullCapturingDrawBuilder();
+            var gizmo = new VisibilityConeGizmo();
+            var draw  = new FullCapturingDrawBuilder();
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new SimTransform
@@ -81,7 +82,7 @@ namespace Hrot.IG.Tests.Gizmos
                 HearingRange   = 50f
             });
 
-            instance.UpdateAndDraw(_repo, entity, 0f, draw);
+            gizmo.Draw(_repo, entity, draw);
 
             Assert.Empty(draw.LineCalls);
             Assert.Empty(draw.ArrowCalls);

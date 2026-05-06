@@ -11,10 +11,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.IG.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- FDP toolkit: BrainBlackboard, BTreeContext, LocomotionChannel, WeaponChannel,
          BehaviorState, NavigationConstants, MoveToParams, TargetMemory, WeaponState,
          CarKinem types, and all other Fdp.Toolkit.* namespaces used by CgfNodes.cs. -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- Roslyn source generator: emits GizmoRegistrar.g.cs for [GizmoProjector] classes. -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <!-- Fdp.Core: Entity type used in Condition_TargetAliveAndVisible and Action_FireAtTarget. -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <!-- Hrot.Core provides: TkbEntityTypes constants used by mapper implementations. -->

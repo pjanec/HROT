@@ -1,6 +1,8 @@
+using System.Reflection;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
+using Hrot.Common.Diagnostics.Gizmos;
 using Hrot.IG.Gizmos;
 using Xunit;
 
@@ -38,11 +40,13 @@ namespace Hrot.IG.Tests.Gizmos
         public void SC_GZ020_3_RegisterHealthBarGizmo_DoesNotThrow()
         {
             // IgHealthState is registered during InitializeEmbedded (world.RegisterComponent<IgHealthState>).
-            // GizmoRegistry.Register resolves the type via ComponentTypeRegistry.GetId — must not throw.
-            var settings = new GizmoSettingsRegistry();
-            var def = new HealthBarGizmoDefinition(settings);
+            // StatelessGizmoRegistry.Register resolves the type via ComponentTypeRegistry.GetId -- must not throw.
+            var settings          = new GizmoSettingsRegistry();
+            var gizmo             = new HealthBarGizmo(settings);
+            var statelessRegistry = new StatelessGizmoRegistry();
+            var attr              = typeof(HealthBarGizmo).GetCustomAttribute<GizmoProjectorAttribute>()!;
 
-            var ex = Record.Exception(() => _app.GizmoRegistry!.Register(def));
+            var ex = Record.Exception(() => statelessRegistry.Register(gizmo, attr.RequiredComponents));
 
             Assert.Null(ex);
         }
