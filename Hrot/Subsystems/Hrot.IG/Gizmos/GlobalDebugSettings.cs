@@ -17,5 +17,10 @@ namespace Hrot.IG.Gizmos
         [MarshalAs(UnmanagedType.I1)] public bool ForceAllGizmosVisible;
         /// <summary>Bitmask for layers 0-15. Bit N set means layer N is visible. Default 0xFFFF (all on).</summary>
         public ushort DebugLayerMask;
+        /// <summary>
+        /// Maximum milliseconds per frame for all gizmo projection work.
+        /// 0 means unlimited. Default: 2.0f.
+        /// </summary>
+        public float MaxGizmoFrameMs;
     }
 }
