@@ -235,5 +235,255 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             Assert.Equal(0, renderer.Dispatched.Count);
         }
     }
+
+    // ── GZ027 — EntityLocal rendering for all shapes ──────────────────────────
+
+    public class DebugPrimitiveRenderer2DEntityLocalAllShapesTests
+    {
+        private static (EntityRepository world, Entity entity) MakeWorld(Vector3 pos)
+        {
+            var world = new EntityRepository();
+            world.RegisterComponent<SimTransform>();
+            var entity = world.CreateEntity();
+            world.SetComponent(entity, new SimTransform
+            {
+                Position = pos,
+                Rotation = Quaternion.Identity,
+            });
+            return (world, entity);
+        }
+
+        // SC-GZ027-1: EntityLocal Sphere at local offset (5,0,0) renders at entity.Position + (5,0,0).
+        [Fact]
+        public void SC_GZ027_1_EntityLocal_Sphere_TranslatesCenter()
+        {
+            var (world, entity) = MakeWorld(new Vector3(10f, 20f, 0f));
+            var renderer = new CapturingRenderer2D(world);
+
+            var p = default(DebugPrimitive);
+            p.Shape            = DebugPrimitiveShape.Sphere;
+            p.Space            = CoordinateSpace.EntityLocal;
+            p.TargetView       = PipelineTarget.Map2D;
+            p.SphereCenter     = new Vector3(5f, 0f, 0f);
+            p.SphereRadius     = 1f;
+            p.AnchorIndex      = entity.Index;
+            p.AnchorGeneration = entity.Generation;
+
+            renderer.Render(new[] { p }, RenderTestHelpers.MakeCtx());
+
+            Assert.Equal(1, renderer.Dispatched.Count);
+            // Expected world center = (10+5, 20+0, 0) = (15, 20, 0)
+            Assert.Equal(15f, renderer.Dispatched[0].SphereCenter.X, precision: 3);
+            Assert.Equal(20f, renderer.Dispatched[0].SphereCenter.Y, precision: 3);
+        }
+
+        // SC-GZ027-2: EntityLocal Arrow rotates with the entity (90 degrees around Z).
+        [Fact]
+        public void SC_GZ027_2_EntityLocal_Arrow_RotatesWithEntity()
+        {
+            var world = new EntityRepository();
+            world.RegisterComponent<SimTransform>();
+            var entity = world.CreateEntity();
+            // 90-degree rotation around Z axis.
+            var rot90 = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);
+            world.SetComponent(entity, new SimTransform
+            {
+                Position = Vector3.Zero,
+                Rotation = rot90,
+            });
+            var renderer = new CapturingRenderer2D(world);
+
+            var p = default(DebugPrimitive);
+            p.Shape            = DebugPrimitiveShape.Arrow;
+            p.Space            = CoordinateSpace.EntityLocal;
+            p.TargetView       = PipelineTarget.Map2D;
+            p.ArrowFrom        = new Vector3(0f, 0f, 0f);
+            p.ArrowTo          = new Vector3(1f, 0f, 0f); // Local +X
+            p.AnchorIndex      = entity.Index;
+            p.AnchorGeneration = entity.Generation;
+
+            renderer.Render(new[] { p }, RenderTestHelpers.MakeCtx());
+
+            Assert.Equal(1, renderer.Dispatched.Count);
+            // After 90-deg rotation around Z: local +X maps to world +Y.
+            var dispatched = renderer.Dispatched[0];
+            Assert.Equal(0f, dispatched.ArrowFrom.X, precision: 3);
+            Assert.Equal(0f, dispatched.ArrowFrom.Y, precision: 3);
+            // To: rotated (1,0,0) => (0,1,0) in world
+            Assert.Equal(0f, dispatched.ArrowTo.X, precision: 3);
+            Assert.Equal(1f, dispatched.ArrowTo.Y, precision: 3);
+        }
+
+        // SC-GZ027-3: EntityLocal Text at local (0,2,0) renders 2 units above entity position.
+        [Fact]
+        public void SC_GZ027_3_EntityLocal_Text_TranslatesAnchor()
+        {
+            var (world, entity) = MakeWorld(new Vector3(0f, 5f, 0f));
+            var renderer = new CapturingRenderer2D(world);
+
+            var p = default(DebugPrimitive);
+            p.Shape            = DebugPrimitiveShape.Text;
+            p.Space            = CoordinateSpace.EntityLocal;
+            p.TargetView       = PipelineTarget.Map2D;
+            p.TextX            = 0f;
+            p.TextY            = 2f;   // local Y offset
+            p.TextContent      = new FixedString32("hi");
+            p.AnchorIndex      = entity.Index;
+            p.AnchorGeneration = entity.Generation;
+
+            renderer.Render(new[] { p }, RenderTestHelpers.MakeCtx());
+
+            Assert.Equal(1, renderer.Dispatched.Count);
+            // world Y = entity.Y + localY = 5 + 2 = 7
+            Assert.Equal(7f, renderer.Dispatched[0].TextY, precision: 3);
+            Assert.Equal(0f, renderer.Dispatched[0].TextX, precision: 3);
+        }
+
+        // SC-GZ027-4: EntityLocal primitive for a dead entity is silently skipped.
+        [Fact]
+        public void SC_GZ027_4_EntityLocal_DeadEntity_Skipped()
+        {
+            var (world, entity) = MakeWorld(Vector3.Zero);
+            world.DestroyEntity(entity);
+            var renderer = new CapturingRenderer2D(world);
+
+            var p = default(DebugPrimitive);
+            p.Shape            = DebugPrimitiveShape.Sphere;
+            p.Space            = CoordinateSpace.EntityLocal;
+            p.TargetView       = PipelineTarget.Map2D;
+            p.SphereCenter     = new Vector3(1f, 0f, 0f);
+            p.AnchorIndex      = entity.Index;
+            p.AnchorGeneration = entity.Generation;
+
+            renderer.Render(new[] { p }, RenderTestHelpers.MakeCtx());
+
+            Assert.Equal(0, renderer.Dispatched.Count);
+        }
+
+        // SC-GZ027-5 (regression): Existing EntityLocal Line behaviour still works.
+        [Fact]
+        public void SC_GZ027_5_EntityLocal_Line_Regression()
+        {
+            var (world, entity) = MakeWorld(new Vector3(3f, 4f, 0f));
+            var renderer = new CapturingRenderer2D(world);
+
+            var p = default(DebugPrimitive);
+            p.Shape            = DebugPrimitiveShape.Line;
+            p.Space            = CoordinateSpace.EntityLocal;
+            p.TargetView       = PipelineTarget.Map2D;
+            p.LineStart        = new Vector3(0f, 0f, 0f);
+            p.LineEnd          = new Vector3(1f, 0f, 0f);
+            p.AnchorIndex      = entity.Index;
+            p.AnchorGeneration = entity.Generation;
+
+            renderer.Render(new[] { p }, RenderTestHelpers.MakeCtx());
+
+            Assert.Equal(1, renderer.Dispatched.Count);
+            Assert.Equal(3f, renderer.Dispatched[0].LineStart.X, precision: 3);
+            Assert.Equal(4f, renderer.Dispatched[0].LineStart.Y, precision: 3);
+            Assert.Equal(4f, renderer.Dispatched[0].LineEnd.X, precision: 3);
+        }
+    }
+
+    // ── GZ028 — SizeMode.ScreenPixels scales geom dimensions ─────────────────
+
+    // Captures the effective geometric parameters (post geomScale) passed to each dispatch.
+    internal sealed class GeomScaleCapturingRenderer2D : DebugPrimitiveRenderer2D
+    {
+        public record DrawRecord(
+            DebugPrimitiveShape Shape,
+            float EffectiveRadius,
+            float EffectiveHeadSize,
+            float EffectiveExtentX,
+            float EffectiveExtentY);
+
+        public readonly List<DrawRecord> Records = new();
+
+        public GeomScaleCapturingRenderer2D(ISimulationView? view = null) : base(view) { }
+
+        protected override void DispatchShape(in DebugPrimitive prim, RenderContext ctx)
+        {
+            float zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;
+            float gs   = prim.SizeMode == SizeMode.ScreenPixels ? 1f / zoom : 1f;
+            Records.Add(new DrawRecord(
+                prim.Shape,
+                prim.SphereRadius   * gs,
+                prim.ArrowHeadSize  * gs,
+                prim.BoxExtentX     * gs,
+                prim.BoxExtentY     * gs));
+        }
+    }
+
+    public class DebugPrimitiveRenderer2DSizeModeTests
+    {
+        // SC-GZ028-1: Sphere with SizeMode.ScreenPixels at zoom=1 keeps radius 10; at zoom=2 -> 5.
+        [Fact]
+        public void SC_GZ028_1_Sphere_ScreenPixels_ScalesRadiusWithZoom()
+        {
+            var p = default(DebugPrimitive);
+            p.Shape        = DebugPrimitiveShape.Sphere;
+            p.SizeMode     = SizeMode.ScreenPixels;
+            p.TargetView   = PipelineTarget.Map2D;
+            p.SphereRadius = 10f;
+
+            var r1 = new GeomScaleCapturingRenderer2D();
+            r1.Render(new[] { p }, RenderTestHelpers.MakeCtx(zoom: 1f));
+            Assert.Equal(10f, r1.Records[0].EffectiveRadius, precision: 3);
+
+            var r2 = new GeomScaleCapturingRenderer2D();
+            r2.Render(new[] { p }, RenderTestHelpers.MakeCtx(zoom: 2f));
+            Assert.Equal(5f, r2.Records[0].EffectiveRadius, precision: 3);
+        }
+
+        // SC-GZ028-2: Sphere with SizeMode.WorldMeters at zoom=2 keeps radius 10 unchanged.
+        [Fact]
+        public void SC_GZ028_2_Sphere_WorldMeters_RadiusUnchangedAtHighZoom()
+        {
+            var p = default(DebugPrimitive);
+            p.Shape        = DebugPrimitiveShape.Sphere;
+            p.SizeMode     = SizeMode.WorldMeters;
+            p.TargetView   = PipelineTarget.Map2D;
+            p.SphereRadius = 10f;
+
+            var r = new GeomScaleCapturingRenderer2D();
+            r.Render(new[] { p }, RenderTestHelpers.MakeCtx(zoom: 2f));
+
+            Assert.Equal(10f, r.Records[0].EffectiveRadius, precision: 3);
+        }
+
+        // SC-GZ028-3: Arrow with SizeMode.ScreenPixels, ArrowHeadSize=8 at zoom=4 -> headSize=2.
+        [Fact]
+        public void SC_GZ028_3_Arrow_ScreenPixels_ScalesHeadSize()
+        {
+            var p = default(DebugPrimitive);
+            p.Shape         = DebugPrimitiveShape.Arrow;
+            p.SizeMode      = SizeMode.ScreenPixels;
+            p.TargetView    = PipelineTarget.Map2D;
+            p.ArrowHeadSize = 8f;
+
+            var r = new GeomScaleCapturingRenderer2D();
+            r.Render(new[] { p }, RenderTestHelpers.MakeCtx(zoom: 4f));
+
+            Assert.Equal(2f, r.Records[0].EffectiveHeadSize, precision: 3);
+        }
+
+        // SC-GZ028-4: Box2D with SizeMode.ScreenPixels, extents (20,15) at zoom=2 -> (10, 7.5).
+        [Fact]
+        public void SC_GZ028_4_Box2D_ScreenPixels_ScalesExtents()
+        {
+            var p = default(DebugPrimitive);
+            p.Shape      = DebugPrimitiveShape.Box2D;
+            p.SizeMode   = SizeMode.ScreenPixels;
+            p.TargetView = PipelineTarget.Map2D;
+            p.BoxExtentX = 20f;
+            p.BoxExtentY = 15f;
+
+            var r = new GeomScaleCapturingRenderer2D();
+            r.Render(new[] { p }, RenderTestHelpers.MakeCtx(zoom: 2f));
+
+            Assert.Equal(10f,  r.Records[0].EffectiveExtentX, precision: 3);
+            Assert.Equal(7.5f, r.Records[0].EffectiveExtentY, precision: 3);
+        }
+    }
 }
 

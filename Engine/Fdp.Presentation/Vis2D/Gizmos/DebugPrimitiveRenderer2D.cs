@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -64,19 +65,52 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
                     ref readonly var tf = ref _view.GetComponentRO<SimTransform>(anchor);
                     DebugPrimitive resolved = prim;
 
-                    if (prim.Shape == DebugPrimitiveShape.Line)
+                    switch (prim.Shape)
                     {
-                        resolved.LineStart = tf.Position + Vector3.Transform(prim.LineStart, tf.Rotation);
-                        resolved.LineEnd   = tf.Position + Vector3.Transform(prim.LineEnd,   tf.Rotation);
+                        case DebugPrimitiveShape.Line:
+                            resolved.LineStart = ApplyTransform(in tf, prim.LineStart);
+                            resolved.LineEnd   = ApplyTransform(in tf, prim.LineEnd);
+                            break;
+                        case DebugPrimitiveShape.Arrow:
+                            resolved.ArrowFrom = ApplyTransform(in tf, prim.ArrowFrom);
+                            resolved.ArrowTo   = ApplyTransform(in tf, prim.ArrowTo);
+                            break;
+                        case DebugPrimitiveShape.Sphere:
+                        {
+                            resolved.SphereCenter = ApplyTransform(in tf, prim.SphereCenter);
+                            break;
+                        }
+                        case DebugPrimitiveShape.Box2D:
+                        {
+                            var c = ApplyTransform2D(in tf, prim.BoxCenterX, prim.BoxCenterY);
+                            resolved.BoxCenterX  = c.X;
+                            resolved.BoxCenterY  = c.Y;
+                            resolved.BoxAngleDeg = prim.BoxAngleDeg + RotationDegrees2D(in tf);
+                            break;
+                        }
+                        case DebugPrimitiveShape.Text:
+                        {
+                            var c = ApplyTransform2D(in tf, prim.TextX, prim.TextY);
+                            resolved.TextX = c.X;
+                            resolved.TextY = c.Y;
+                            break;
+                        }
+                        default:
+                        {
+                            // Icon and other shapes: transform the payload origin (IconWorldPos).
+                            var c = ApplyTransform2D(in tf, prim.IconWorldPosX, prim.IconWorldPosY);
+                            resolved.IconWorldPosX = c.X;
+                            resolved.IconWorldPosY = c.Y;
+                            break;
+                        }
                     }
-                    // Arrow/Text EntityLocal: deferred (not yet supported).
+
                     resolved.Space = CoordinateSpace.World;
                     sortBuffer.Add(resolved);
+                    continue;
                 }
-                else
-                {
-                    sortBuffer.Add(prim);
-                }
+
+                sortBuffer.Add(prim);
             }
 
             // Stable painter's-algorithm sort: DebugLayer ascending, ZIndex ascending.
@@ -102,6 +136,10 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
             float thickness = prim.SizeMode == SizeMode.ScreenPixels
                 ? prim.Thickness / zoom
                 : prim.Thickness;
+
+            // Geometric dimensions (radius, head size, extents) scale inversely with zoom for
+            // SizeMode.ScreenPixels so they remain constant on screen regardless of camera zoom.
+            float geomScale = prim.SizeMode == SizeMode.ScreenPixels ? 1f / zoom : 1f;
 
             // Screen-space primitives: bracket with EndMode2D / BeginMode2D.
             bool screenSpace = prim.Space == CoordinateSpace.Screen;
@@ -132,7 +170,7 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
                 case DebugPrimitiveShape.Sphere:
                 {
                     var center = new Vector2(prim.SphereCenter.X, prim.SphereCenter.Y);
-                    Raylib.DrawCircleV(center, prim.SphereRadius, color);
+                    Raylib.DrawCircleV(center, prim.SphereRadius * geomScale, color);
                     break;
                 }
 
@@ -140,7 +178,19 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
                 {
                     var from = new Vector2(prim.ArrowFrom.X, prim.ArrowFrom.Y);
                     var to   = new Vector2(prim.ArrowTo.X,   prim.ArrowTo.Y);
-                    DrawArrow(from, to, prim.ArrowHeadSize, color, thickness);
+                    DrawArrow(from, to, prim.ArrowHeadSize * geomScale, color, thickness);
+                    break;
+                }
+
+                case DebugPrimitiveShape.Box2D:
+                {
+                    var rect = new Rectangle(
+                        prim.BoxCenterX - prim.BoxExtentX * geomScale,
+                        prim.BoxCenterY - prim.BoxExtentY * geomScale,
+                        prim.BoxExtentX * 2f * geomScale,
+                        prim.BoxExtentY * 2f * geomScale);
+                    var origin = new Vector2(prim.BoxExtentX * geomScale, prim.BoxExtentY * geomScale);
+                    Raylib.DrawRectanglePro(rect, origin, prim.BoxAngleDeg, color);
                     break;
                 }
 
@@ -231,5 +281,25 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
         /// <summary>Converts an <see cref="Rgba32"/> to a Raylib <see cref="Color"/>.</summary>
         protected static Color ToRaylibColor(Rgba32 c)
             => new Color(c.R, c.G, c.B, c.A);
+
+        // ---- EntityLocal transform helpers ----------------------------------
+
+        private static Vector3 ApplyTransform(in SimTransform tf, Vector3 local)
+            => tf.Position + Vector3.Transform(local, tf.Rotation);
+
+        private static Vector2 ApplyTransform2D(in SimTransform tf, float localX, float localY)
+        {
+            var world = ApplyTransform(in tf, new Vector3(localX, localY, 0f));
+            return new Vector2(world.X, world.Y);
+        }
+
+        private static float RotationDegrees2D(in SimTransform tf)
+        {
+            var q = tf.Rotation;
+            return MathF.Atan2(
+                2f * (q.W * q.Z + q.X * q.Y),
+                1f - 2f * (q.Y * q.Y + q.Z * q.Z)
+            ) * (180f / MathF.PI);
+        }
     }
 }

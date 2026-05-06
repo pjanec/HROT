@@ -15,6 +15,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         private int _droppedCount;
         private readonly StringInternMap _internMap;
 
+        // Persistent re-emission: primitives with LifetimeSeconds > 0 survive across frames.
+        private readonly DebugPrimitive[] _persistent;
+        private readonly float[] _remainingLife;
+        private int _persistentCount;
+        private const int PersistentCapacity = 256;
+
         // Number of primitives dropped due to capacity overflow.
         public int DroppedCount => _droppedCount;
 
@@ -23,8 +29,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
         public DebugPrimitiveBuffer(int capacity = 4096, StringInternMap? internMap = null)
         {
-            _primitives = new DebugPrimitive[capacity];
-            _internMap  = internMap ?? new StringInternMap();
+            _primitives    = new DebugPrimitive[capacity];
+            _persistent    = new DebugPrimitive[PersistentCapacity];
+            _remainingLife = new float[PersistentCapacity];
+            _internMap     = internMap ?? new StringInternMap();
         }
 
         // Returns a zero-copy span of all primitives written this frame.
@@ -34,11 +42,49 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             return _primitives.AsSpan(0, count);
         }
 
-        // Resets the write cursor for the next frame. Safe to call from the render thread.
+        // Resets the transient write cursor for the next frame. Persistent entries are NOT affected.
+        // For frame-boundary management call EndFrame(deltaTime) instead.
         public void Clear()
         {
             _count        = 0;
             _droppedCount = 0;
+        }
+
+        /// <summary>
+        /// Advances the persistence clock, evicts expired entries, clears the transient buffer,
+        /// and re-injects surviving persistent primitives. Call once per frame BEFORE gizmo
+        /// systems execute (owned by DataDrivenGizmoSystem).
+        /// </summary>
+        public void EndFrame(float deltaTime)
+        {
+            // Compact persistent array: keep entries whose remaining life exceeds deltaTime.
+            int writeIdx = 0;
+            int count = Math.Min(_persistentCount, _persistent.Length);
+            for (int i = 0; i < count; i++)
+            {
+                float newLife = _remainingLife[i] - deltaTime;
+                if (newLife > 0f)
+                {
+                    _persistent[writeIdx]    = _persistent[i];
+                    _remainingLife[writeIdx] = newLife;
+                    writeIdx++;
+                }
+            }
+            _persistentCount = writeIdx;
+
+            // Reset the transient buffer.
+            _count        = 0;
+            _droppedCount = 0;
+
+            // Re-inject surviving persistent primitives into the start of the transient buffer.
+            for (int i = 0; i < _persistentCount; i++)
+            {
+                int slot = Interlocked.Increment(ref _count) - 1;
+                if ((uint)slot < (uint)_primitives.Length)
+                    _primitives[slot] = _persistent[i];
+                else
+                    Interlocked.Increment(ref _droppedCount);
+            }
         }
 
         // ---- IDebugDrawBuilder implementation --------------------------------
@@ -146,17 +192,53 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             Append(p);
         }
 
+        public void DrawEntityLocalInteractive(
+            Entity anchor, Vector3 localStart, Vector3 localEnd,
+            Rgba32 color, ushort subElementId,
+            float thickness = 1f, byte layer = 0)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape            = DebugPrimitiveShape.Line;
+            p.Space            = CoordinateSpace.EntityLocal;
+            p.Color            = color;
+            p.EndColor         = color;
+            p.TargetView       = PipelineTarget.All;
+            p.DebugLayer       = layer;
+            p.SizeMode         = SizeMode.ScreenPixels;
+            p.ThicknessU16     = (ushort)(thickness * 10f);
+            p.AnchorIndex      = anchor.Index;
+            p.AnchorGeneration = anchor.Generation;
+            p.LineStart        = localStart;
+            p.LineEnd          = localEnd;
+            p.SubElementId     = subElementId;
+            Append(p);
+        }
+
         // ---- Internal helpers -----------------------------------------------
 
-        private void Append(DebugPrimitive p)
+        internal void Append(DebugPrimitive p)
         {
             int slot = Interlocked.Increment(ref _count) - 1;
-            if ((uint)slot >= (uint)_primitives.Length)
-            {
+            if ((uint)slot < (uint)_primitives.Length)
+                _primitives[slot] = p;
+            else
                 Interlocked.Increment(ref _droppedCount);
-                return;
+
+            // Persist primitives with a positive lifetime.
+            if (p.LifetimeSeconds > 0f)
+            {
+                int pSlot = Interlocked.Increment(ref _persistentCount) - 1;
+                if ((uint)pSlot < (uint)_persistent.Length)
+                {
+                    _persistent[pSlot]    = p;
+                    _remainingLife[pSlot] = p.LifetimeSeconds;
+                }
+                else
+                {
+                    Interlocked.Decrement(ref _persistentCount);
+                    Interlocked.Increment(ref _droppedCount);
+                }
             }
-            _primitives[slot] = p;
         }
     }
 }

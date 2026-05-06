@@ -1,20 +1,20 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos
 {
-    // Thread-safe string intern side-channel for DrawTextLong.
+    // Concurrent-safe intern map; TryAdd/TryGetValue are lock-free.
     // Keyed by FNV-1a 32-bit hash. Allows the renderer to resolve full strings
     // from the hash stored in the DebugPrimitive StringHash overlay field.
     public sealed class StringInternMap
     {
-        private readonly Dictionary<uint, string> _map = new();
+        private readonly ConcurrentDictionary<uint, string> _map = new();
 
         // Registers the full text under the given hash.
         // Idempotent: subsequent calls with the same hash are silently ignored.
         public void Intern(uint hash, string fullText)
         {
-            if (!_map.ContainsKey(hash))
-                _map[hash] = fullText;
+            _map.TryAdd(hash, fullText);
         }
 
         // Returns the full string for the hash, or null if not present.

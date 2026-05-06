@@ -13,15 +13,26 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
 
         private readonly PickToken _token;
         private readonly FdpEventBus _eventBus;
+        private readonly Vector3 _worldPos;
         private MapCanvas? _canvas;
 
-        public GizmoInteractionProxyTool(PickToken token, FdpEventBus eventBus)
+        public GizmoInteractionProxyTool(PickToken token, FdpEventBus eventBus, Vector3 worldPos = default)
         {
             _token    = token;
             _eventBus = eventBus;
+            _worldPos = worldPos;
         }
 
-        public void OnEnter(MapCanvas canvas)  => _canvas = canvas;
+        public void OnEnter(MapCanvas canvas)
+        {
+            _canvas = canvas;
+            _eventBus.Publish(new GizmoInteractionStartedEvent
+            {
+                Token    = _token,
+                WorldPos = _worldPos,
+            });
+        }
+
         public void OnExit()                   => _canvas = null;
         public void Update(float dt)           { }
         public void Draw(RenderContext ctx)    { }

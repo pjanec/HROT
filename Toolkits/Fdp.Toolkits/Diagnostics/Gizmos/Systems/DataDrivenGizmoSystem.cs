@@ -89,6 +89,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     $"{nameof(DataDrivenGizmoSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only view ({view.GetType().Name}).");
 
+            // Advance the persistence clock and clear the previous frame's transient primitives.
+            _drawBuilder.EndFrame(deltaTime);
+
             // 1. Teardown destroyed entities first (so same-frame replace works correctly).
             var destructions = view.ReadEvents<DestructionOrder>();
             foreach (ref readonly var evt in destructions)

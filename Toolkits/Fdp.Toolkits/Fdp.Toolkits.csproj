@@ -15,6 +15,8 @@
     <InternalsVisibleTo Include="FDP.Toolkit.Behavior.Tests" />
     <InternalsVisibleTo Include="FDP.Toolkit.Orchestration.Tests" />
     <InternalsVisibleTo Include="FDP.Toolkit.Replication.Tests" />
+    <InternalsVisibleTo Include="Hrot.IG.Tests" />
+    <InternalsVisibleTo Include="Fdp.Presentation.Tests" />
   </ItemGroup>
 
   <!-- Engine kernel -->

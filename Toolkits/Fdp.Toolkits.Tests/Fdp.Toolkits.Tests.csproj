@@ -14,6 +14,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <ProjectReference Include="..\..\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />
+    <!-- Non-analyzer reference: exposes GizmoRegistrarGenerator class for unit testing. -->
+    <ProjectReference Include="..\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj" />
   </ItemGroup>
 
   <!-- Test framework packages (union of all absorbed test projects) -->
@@ -23,6 +25,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="MSTest" Version="3.6.4" />
     <PackageReference Include="xunit" Version="2.9.3" />

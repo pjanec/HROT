@@ -59,6 +59,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         [FieldOffset(24)] public Vector3 ArrowFrom;
         [FieldOffset(36)] public Vector3 ArrowTo;
         [FieldOffset(48)] public float ArrowHeadSize;
+        // SubElementId: used by interactive EntityLocal primitives to distinguish handles.
+        // Offset 52 is free for Line (EndColor at 48-51) and Arrow (ArrowHeadSize at 48-51).
+        // For Text/EntityBadge/Icon, offset 52 overlaps TextContent (FixedString32) — don't-care
+        // since those shapes are never interactive.
+        [FieldOffset(52)] public ushort SubElementId;
 
         // Text payload: 2D position at 24/28, content at 32 (ends at 64 exactly)
         [FieldOffset(24)] public float TextX;
@@ -97,7 +102,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         // IsValid returns true when AnchorIndex >= 0 and AnchorGeneration != 0, i.e. the
         // anchor entity is non-null. EntityLocal primitives produced by DrawEntityLocal always
         // populate these fields, making them inherently pickable.
-        public PickToken Token => new PickToken { Target = Anchor, SubElementId = 0 };
+        public PickToken Token => new PickToken { Target = Anchor, SubElementId = SubElementId };
 
         // BadgeRichText aliases TextContent (same physical offset 32).
         public FixedString32 BadgeRichText

@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -17,6 +18,10 @@ namespace Fdp.Toolkit.Vis2D.Layers
         private DebugPrimitiveBuffer?   _buffer;
         private DebugPrimitiveRenderer2D? _renderer;
         private FdpEventBus?            _eventBus;
+        private MapCanvas?              _canvas;
+
+        // Captures the last RenderContext so HandleInput can use zoom and camera.
+        internal RenderContext _lastCtx;
 
         // Hit radius in world units used by HandleInput pick tests.
         private const float HitRadiusWorld = 5f;
@@ -37,11 +42,13 @@ namespace Fdp.Toolkit.Vis2D.Layers
             int layerBitIndex,
             DebugPrimitiveBuffer buffer,
             FdpEventBus eventBus,
+            MapCanvas? canvas = null,
             ISimulationView? view = null)
         {
             LayerBitIndex = layerBitIndex;
             _buffer   = buffer;
             _eventBus = eventBus;
+            _canvas   = canvas;
             _renderer = new DebugPrimitiveRenderer2D(view);
         }
 
@@ -61,6 +68,24 @@ namespace Fdp.Toolkit.Vis2D.Layers
             _renderer = renderer;
         }
 
+        /// <summary>
+        /// Test constructor: accepts both a canvas (for tool-push verification) and an
+        /// externally supplied renderer (to avoid Raylib calls in headless tests).
+        /// </summary>
+        public DebugGizmoLayer(
+            int layerBitIndex,
+            DebugPrimitiveBuffer buffer,
+            FdpEventBus eventBus,
+            MapCanvas canvas,
+            DebugPrimitiveRenderer2D renderer)
+        {
+            LayerBitIndex = layerBitIndex;
+            _buffer   = buffer;
+            _eventBus = eventBus;
+            _canvas   = canvas;
+            _renderer = renderer;
+        }
+
         // ---- IMapLayer ------------------------------------------------------
 
         public void Update(float dt) { }
@@ -75,6 +100,8 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 var primitives = _buffer.GetFrame();
                 _renderer.Render(primitives, ctx);
             }
+
+            _lastCtx = ctx;
         }
 
         public bool HandleInput(Vector2 worldPos, MouseButton button, bool isPressed)
@@ -83,35 +110,36 @@ namespace Fdp.Toolkit.Vis2D.Layers
             if (!isPressed || button != MouseButton.Left) return false;
 
             var primitives = _buffer.GetFrame();
-            DebugPrimitive? best     = null;
-            float           bestDist = float.MaxValue;
+            DebugPrimitive? best = null;
 
             foreach (ref readonly var prim in primitives)
             {
                 if (!prim.Token.IsValid) continue;
 
-                var primPos = GetPrimitive2DPos(in prim);
-                float dist = Vector2.Distance(worldPos, primPos);
+                if (!HitTest(in prim, worldPos, HitRadiusWorld)) continue;
 
-                // Prefer topmost layer (highest DebugLayer) when within radius.
-                if (dist < HitRadiusWorld
-                    && (dist < bestDist || prim.DebugLayer > (best?.DebugLayer ?? 0)))
-                {
-                    best     = prim;
-                    bestDist = dist;
-                }
+                if (best == null || prim.DebugLayer > best.Value.DebugLayer)
+                    best = prim;
             }
 
             if (best.HasValue)
             {
-                // DEVIATION: canvas is not accessible from a layer, so GizmoInteractionProxyTool
-                // cannot be pushed here. Only the event is published; the caller that listens for
-                // GizmoInteractionStartedEvent is responsible for pushing the proxy tool.
-                _eventBus.Publish(new GizmoInteractionStartedEvent
+                var worldPos3 = new System.Numerics.Vector3(worldPos.X, worldPos.Y, 0f);
+                if (_canvas != null)
                 {
-                    Token    = best.Value.Token,
-                    WorldPos = new System.Numerics.Vector3(worldPos.X, worldPos.Y, 0f),
-                });
+                    var proxy = new GizmoInteractionProxyTool(best.Value.Token, _eventBus!, worldPos3);
+                    _canvas.PushTool(proxy);
+                    // GizmoInteractionStartedEvent is published in proxy.OnEnter.
+                }
+                else
+                {
+                    // Fallback: no canvas (unit test or stub setup); publish directly.
+                    _eventBus!.Publish(new GizmoInteractionStartedEvent
+                    {
+                        Token    = best.Value.Token,
+                        WorldPos = worldPos3,
+                    });
+                }
                 return true;
             }
 
@@ -122,11 +150,67 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         // ---- Private helpers ------------------------------------------------
 
-        private static Vector2 GetPrimitive2DPos(in DebugPrimitive prim) =>
-            prim.Shape switch
+        private bool HitTest(in DebugPrimitive prim, Vector2 testPos, float hitRadius)
+        {
+            // SizeMode.ScreenPixels primitives are rendered at fixed screen size; scale hit radius.
+            float zoom = _lastCtx.Zoom > 0f ? _lastCtx.Zoom : 1f;
+            float effectiveRadius = prim.SizeMode == SizeMode.ScreenPixels
+                ? hitRadius / zoom
+                : hitRadius;
+
+            Vector2 checkPos = testPos;
+
+            // Screen-space primitives use screen-pixel coordinates; convert world pos first.
+            if (prim.Space == CoordinateSpace.Screen)
+                checkPos = Raylib.GetWorldToScreen2D(testPos, _lastCtx.Camera);
+
+            switch (prim.Shape)
             {
-                DebugPrimitiveShape.Sphere => new Vector2(prim.SphereCenter.X, prim.SphereCenter.Y),
-                _                          => new Vector2(prim.LineStart.X,    prim.LineStart.Y),
-            };
+                case DebugPrimitiveShape.Sphere:
+                {
+                    var center = new Vector2(prim.SphereCenter.X, prim.SphereCenter.Y);
+                    return Vector2.Distance(checkPos, center) <= prim.SphereRadius + effectiveRadius;
+                }
+                case DebugPrimitiveShape.Line:
+                {
+                    var p0 = new Vector2(prim.LineStart.X, prim.LineStart.Y);
+                    var p1 = new Vector2(prim.LineEnd.X,   prim.LineEnd.Y);
+                    return PointToSegmentDistance(checkPos, p0, p1) <= effectiveRadius;
+                }
+                case DebugPrimitiveShape.Arrow:
+                {
+                    var p0 = new Vector2(prim.ArrowFrom.X, prim.ArrowFrom.Y);
+                    var p1 = new Vector2(prim.ArrowTo.X,   prim.ArrowTo.Y);
+                    return PointToSegmentDistance(checkPos, p0, p1) <= effectiveRadius;
+                }
+                case DebugPrimitiveShape.Box2D:
+                {
+                    var center = new Vector2(prim.BoxCenterX, prim.BoxCenterY);
+                    return Vector2.Distance(checkPos, center)
+                        <= effectiveRadius + MathF.Max(prim.BoxExtentX, prim.BoxExtentY);
+                }
+                default:
+                {
+                    // Text, Icon, EntityBadge: AABB around the anchor position.
+                    float tx = prim.Shape == DebugPrimitiveShape.Text
+                        ? prim.TextX
+                        : prim.LineStart.X;
+                    float ty = prim.Shape == DebugPrimitiveShape.Text
+                        ? prim.TextY
+                        : prim.LineStart.Y;
+                    return Vector2.Distance(checkPos, new Vector2(tx, ty)) <= effectiveRadius;
+                }
+            }
+        }
+
+        private static float PointToSegmentDistance(Vector2 p, Vector2 a, Vector2 b)
+        {
+            var ab = b - a;
+            float lenSq = ab.LengthSquared();
+            if (lenSq < float.Epsilon) return Vector2.Distance(p, a);
+            float t = MathF.Max(0f, MathF.Min(1f, Vector2.Dot(p - a, ab) / lenSq));
+            var closest = a + ab * t;
+            return Vector2.Distance(p, closest);
+        }
     }
 }

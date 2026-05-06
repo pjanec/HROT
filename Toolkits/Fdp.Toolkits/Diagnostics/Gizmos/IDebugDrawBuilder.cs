@@ -50,5 +50,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         void DrawEntityLocal(
             Entity anchor, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte layer = 0);
+
+        void DrawEntityLocalInteractive(
+            Entity anchor, Vector3 localStart, Vector3 localEnd,
+            Rgba32 color, ushort subElementId,
+            float thickness = 1f, byte layer = 0);
+
+        /// <summary>
+        /// Called once per frame before gizmo systems execute. Advances the persistence clock
+        /// by <paramref name="deltaTime"/>, evicts expired persistent primitives, clears the
+        /// transient buffer, and re-injects surviving persistent primitives.
+        /// Default no-op for implementations that do not support persistence.
+        /// </summary>
+        void EndFrame(float deltaTime) { }
     }
 }
