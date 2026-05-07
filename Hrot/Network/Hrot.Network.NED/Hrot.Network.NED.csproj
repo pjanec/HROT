@@ -32,6 +32,8 @@
     <!-- Fdp engine: ECS, behavioral, geographic -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- Gizmo DDS schema types (GizmoInteractionBatch, GizmoInteractionEventKind, etc.) -->
+    <ProjectReference Include="..\..\..\FDP\Diagnostics\Fdp.Diagnostics.Network\Fdp.Diagnostics.Network.csproj" />
     <!-- DDS runtime -->
     <ProjectReference Include="..\..\..\FDP\Network\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
