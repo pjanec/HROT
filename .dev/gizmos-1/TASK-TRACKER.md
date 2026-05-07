@@ -211,6 +211,6 @@ assembly into two focused standalone projects (`Fdp.Diagnostics.Contracts` and
 `Fdp.Diagnostics.Network`). External tools that need only the diagnostic protocol should not be
 forced to depend on all of `Fdp.Toolkits`.
 
-- [ ] **TASK-GZ041** Create `Fdp.Diagnostics.Contracts` assembly — migrate Phase 1 types (`Rgba32`, `DebugPrimitive`, `IDebugDrawBuilder`, `DebugPrimitiveBuffer`, `StringInternMap`); references only `Fdp.Core` [details](./TASK-DETAIL.md#task-gz041--create-fdpdiagnosticscontracts-assembly-and-migrate-phase-1-types)
-- [ ] **TASK-GZ042** Create `Fdp.Diagnostics.Network` assembly — migrate Phase 6 DDS schemas (`DebugPrimitivesBatch`, `GizmoUiState`, `StringInternBatch`, `GizmoInteractionBatch`); references only `Fdp.Diagnostics.Contracts` + CycloneDDS [details](./TASK-DETAIL.md#task-gz042--create-fdpdiagnosticsnetwork-assembly-and-migrate-phase-6-dds-schemas)
+- [x] **TASK-GZ041** Create `Fdp.Diagnostics.Contracts` assembly — migrate Phase 1 types (`Rgba32`, `DebugPrimitive`, `IDebugDrawBuilder`, `DebugPrimitiveBuffer`, `StringInternMap`); references only `Fdp.Core` [details](./TASK-DETAIL.md#task-gz041--create-fdpdiagnosticscontracts-assembly-and-migrate-phase-1-types)
+- [x] **TASK-GZ042** Create `Fdp.Diagnostics.Network` assembly — migrate Phase 6 DDS schemas (`DebugPrimitivesBatch`, `GizmoUiState`, `StringInternBatch`, `GizmoInteractionBatch`); references only `Fdp.Diagnostics.Contracts` + CycloneDDS [details](./TASK-DETAIL.md#task-gz042--create-fdpdiagnosticsnetwork-assembly-and-migrate-phase-6-dds-schemas)
 
