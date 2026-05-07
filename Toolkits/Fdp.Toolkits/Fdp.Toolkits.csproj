@@ -19,6 +19,16 @@
     <InternalsVisibleTo Include="Fdp.Presentation.Tests" />
   </ItemGroup>
 
+  <!-- Fdp.Diagnostics.Contracts: Phase 1 primitive protocol types -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Diagnostics\Fdp.Diagnostics.Contracts\Fdp.Diagnostics.Contracts.csproj" />
+  </ItemGroup>
+
+  <!-- Fdp.Diagnostics.Network: DDS schema types for gizmo network protocol -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Diagnostics\Fdp.Diagnostics.Network\Fdp.Diagnostics.Network.csproj" />
+  </ItemGroup>
+
   <!-- Engine kernel -->
   <ItemGroup>
     <ProjectReference Include="..\..\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />

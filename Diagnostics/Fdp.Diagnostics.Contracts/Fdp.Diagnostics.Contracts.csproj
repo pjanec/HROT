@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>12.0</LangVersion>
+    <RootNamespace>Fdp.Diagnostics.Contracts</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Fdp.Toolkits.Tests" />
+    <InternalsVisibleTo Include="Fdp.Diagnostics.Contracts.Tests" />
+    <InternalsVisibleTo Include="Fdp.Presentation.Tests" />
+    <InternalsVisibleTo Include="Hrot.IG.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Only Fdp.Core is allowed — no Fdp.Toolkits, no CycloneDDS -->
+    <ProjectReference Include="..\..\Engine\Fdp.Core\Fdp.Core.csproj" />
+  </ItemGroup>
+</Project>
