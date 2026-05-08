@@ -1,5 +1,4 @@
 using CycloneDDS.Schema;
-using Fdp.Toolkit.Diagnostics.Gizmos;
 
 namespace GizmoMap.Network
 {
@@ -30,6 +29,8 @@ namespace GizmoMap.Network
         public float WorldZ;
 
         // GZ047: coordinate space in which WorldPos is expressed (for DragUpdate and Commit).
-        public CoordinateSpace Space;
+        // Stored as raw byte to avoid requiring [DdsStruct] on CoordinateSpace (external type).
+        // Cast to/from Fdp.Toolkit.Diagnostics.Gizmos.CoordinateSpace at call sites.
+        public byte Space;
     }
 }

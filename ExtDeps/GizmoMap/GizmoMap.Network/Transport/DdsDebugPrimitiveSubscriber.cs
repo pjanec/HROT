@@ -1,3 +1,5 @@
+using System;
+using System.Runtime.InteropServices;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 
 namespace GizmoMap.Network
@@ -11,7 +13,7 @@ namespace GizmoMap.Network
 
         public DdsDebugPrimitiveSubscriber(IDdsReader<DebugPrimitivesBatch> reader)
         {
-            _reader = reader ?? throw new System.ArgumentNullException(nameof(reader));
+            _reader = reader ?? throw new ArgumentNullException(nameof(reader));
         }
 
         // Reads one pending DebugPrimitivesBatch and appends its primitives into 'target'.
@@ -21,10 +23,12 @@ namespace GizmoMap.Network
             if (!_reader.TryRead(out var batch))
                 return false;
 
-            if (batch.Primitives == null)
+            if (batch.PrimitivesData == null)
                 return true;
 
-            foreach (var primitive in batch.Primitives)
+            // Zero-allocation memory reinterpret cast back to DebugPrimitive span.
+            var primitives = MemoryMarshal.Cast<byte, DebugPrimitive>(batch.PrimitivesData.AsSpan());
+            foreach (ref readonly var primitive in primitives)
                 target.AppendRaw(in primitive);
 
             return true;

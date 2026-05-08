@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using GizmoMap.Example;
+using GizmoMap.Network;
 using Xunit;
 
 namespace GizmoMap.Example.Tests
@@ -99,6 +100,81 @@ namespace GizmoMap.Example.Tests
 
             // One should have bit 0 set (Damaged) and the other not.
             Assert.NotEqual(sem1.ConditionMask & 1u, sem2.ConditionMask & 1u);
+        }
+
+        // SC-GZ056-7: DDS mode byte roundtrip - primitive count is preserved end-to-end.
+        [Fact]
+        public void SC_GZ056_7_DdsMode_ByteRoundtrip_PreservesPrimitiveCount()
+        {
+            var bridge = new InMemoryDdsBridge();
+            using var transport = new DdsGizmoTransport(bridge, bridge);
+
+            var producer = new GizmoPrimitiveBuffer(capacity: 16);
+            var builder  = new LocalDrawBuilder(producer);
+            var gen      = new DemoSceneGenerator();
+            gen.Emit(1f, builder);
+            int inputCount = producer.GetFrame().Length;
+            Assert.True(inputCount > 0, "DemoSceneGenerator must emit at least one primitive.");
+
+            transport.PublishPrimitives(producer.GetFrame());
+
+            var consumer = new GizmoPrimitiveBuffer(capacity: 64);
+            transport.PollAndApply(consumer);
+
+            Assert.Equal(inputCount, consumer.GetFrame().Length);
+        }
+
+        // SC-GZ056-8: DDS mode preserves primitive field values through byte encode/decode.
+        [Fact]
+        public void SC_GZ056_8_DdsMode_ByteRoundtrip_PreservesFieldValues()
+        {
+            var bridge = new InMemoryDdsBridge();
+            using var transport = new DdsGizmoTransport(bridge, bridge);
+
+            var source = new GizmoPrimitiveBuffer(capacity: 4);
+            var prim   = new DebugPrimitive
+            {
+                Shape        = DebugPrimitiveShape.Sphere,
+                SphereRadius = 9.81f,
+            };
+            source.AppendRaw(in prim);
+
+            transport.PublishPrimitives(source.GetFrame());
+
+            var consumer = new GizmoPrimitiveBuffer(capacity: 4);
+            transport.PollAndApply(consumer);
+
+            var frame = consumer.GetFrame();
+            Assert.Equal(1, frame.Length);
+            Assert.Equal(DebugPrimitiveShape.Sphere, frame[0].Shape);
+            Assert.Equal(9.81f, frame[0].SphereRadius, precision: 3);
+        }
+
+        // In-memory bridge: captures the written batch and replays it once on read.
+        // Used by SC-GZ056-7 and SC-GZ056-8 to exercise the byte serialization path
+        // without requiring a live CycloneDDS participant.
+        private sealed class InMemoryDdsBridge : IDdsWriter<DebugPrimitivesBatch>, IDdsReader<DebugPrimitivesBatch>
+        {
+            private DebugPrimitivesBatch _pending;
+            private bool _hasPending;
+
+            public void Write(DebugPrimitivesBatch sample)
+            {
+                _pending    = sample;
+                _hasPending = true;
+            }
+
+            public bool TryRead(out DebugPrimitivesBatch sample)
+            {
+                if (_hasPending)
+                {
+                    sample      = _pending;
+                    _hasPending = false;
+                    return true;
+                }
+                sample = default;
+                return false;
+            }
         }
     }
 }

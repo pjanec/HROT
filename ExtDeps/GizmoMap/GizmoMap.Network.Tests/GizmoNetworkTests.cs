@@ -32,9 +32,9 @@ namespace GizmoMap.Network.Tests
                                  .Select(f => f.Name)
                                  .ToHashSet();
 
-            Assert.Contains("FrameNumber", fieldNames);
-            Assert.Contains("NodeId",      fieldNames);
-            Assert.Contains("Primitives",  fieldNames);
+            Assert.Contains("FrameNumber",   fieldNames);
+            Assert.Contains("NodeId",        fieldNames);
+            Assert.Contains("PrimitivesData", fieldNames);
         }
 
         // SC-GZ054-3: EntityAttributeSchema has NodeId (int) and SchemaJson (string).
@@ -77,10 +77,68 @@ namespace GizmoMap.Network.Tests
             Assert.Equal(1, stubWriter.WriteCount);
         }
 
+        // SC-GZ054-6: Publisher/subscriber byte roundtrip preserves primitive count and field values.
+        [Fact]
+        public void SC_GZ054_6_PublisherSubscriberByteRoundtrip_PreservesPrimitives()
+        {
+            var capturingWriter = new CapturingDdsWriter();
+            var publisher       = new DdsDebugPrimitivePublisher(capturingWriter);
+            var subscriber      = new DdsDebugPrimitiveSubscriber(capturingWriter);
+
+            // Emit a primitive with known field values into the source buffer.
+            var source = new GizmoPrimitiveBuffer(capacity: 4);
+            var prim   = new DebugPrimitive { Shape = DebugPrimitiveShape.Sphere, SphereRadius = 2.5f };
+            source.AppendRaw(in prim);
+
+            publisher.Publish(source, frameNumber: 7, nodeId: 3);
+
+            // Verify the batch header was encoded correctly.
+            Assert.Equal(1, capturingWriter.WriteCount);
+            Assert.Equal(7u, capturingWriter.LastBatch.FrameNumber);
+            Assert.Equal(3,  capturingWriter.LastBatch.NodeId);
+
+            // Decode via the subscriber into a target buffer.
+            var target = new GizmoPrimitiveBuffer(capacity: 4);
+            bool consumed = subscriber.PollAndApply(target);
+
+            Assert.True(consumed);
+            var frame = target.GetFrame();
+            Assert.Equal(1, frame.Length);
+            Assert.Equal(DebugPrimitiveShape.Sphere, frame[0].Shape);
+            Assert.Equal(2.5f, frame[0].SphereRadius);
+        }
+
         private sealed class StubDdsWriter : IDdsWriter<DebugPrimitivesBatch>
         {
             public int WriteCount { get; private set; }
             public void Write(DebugPrimitivesBatch sample) => WriteCount++;
+        }
+
+        // Captures the last written batch and acts as its own IDdsReader (returns it once).
+        private sealed class CapturingDdsWriter : IDdsWriter<DebugPrimitivesBatch>, IDdsReader<DebugPrimitivesBatch>
+        {
+            public int WriteCount { get; private set; }
+            public DebugPrimitivesBatch LastBatch { get; private set; }
+            private bool _pending;
+
+            public void Write(DebugPrimitivesBatch sample)
+            {
+                LastBatch = sample;
+                WriteCount++;
+                _pending  = true;
+            }
+
+            public bool TryRead(out DebugPrimitivesBatch sample)
+            {
+                if (_pending)
+                {
+                    sample   = LastBatch;
+                    _pending = false;
+                    return true;
+                }
+                sample = default;
+                return false;
+            }
         }
     }
 }

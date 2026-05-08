@@ -1,5 +1,4 @@
 using CycloneDDS.Schema;
-using Fdp.Toolkit.Diagnostics.Gizmos;
 
 namespace GizmoMap.Network
 {
@@ -12,6 +11,8 @@ namespace GizmoMap.Network
     {
         [DdsKey] public uint FrameNumber;
         [DdsKey] public byte NodeId;
-        [DdsManaged] public DebugPrimitive[] Primitives;
+        // Transporting as a raw byte sequence bypasses the CycloneDDS requirement
+        // for [DdsStruct] on the nested type, preserving the pure BCL contract boundary.
+        [DdsManaged] public byte[] PrimitivesData;
     }
 }

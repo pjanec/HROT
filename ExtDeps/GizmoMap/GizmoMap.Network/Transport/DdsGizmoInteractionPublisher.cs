@@ -34,7 +34,7 @@ namespace GizmoMap.Network
                 WorldX          = worldPos.X,
                 WorldY          = worldPos.Y,
                 WorldZ          = worldPos.Z,
-                Space           = space,
+                Space           = (byte)space,
             };
             _writer.Write(batch);
         }
