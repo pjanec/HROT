@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+// Disambiguate from GizmoMap.Contracts.Fdp.Toolkit.Diagnostics.Gizmos.FixedString32.
+using FixedString32 = Fdp.Core.FixedString32;
 
 namespace Hrot.IG.Tests.Gizmos
 {

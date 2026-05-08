@@ -9,7 +9,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     // When capacity is exhausted, primitives are silently dropped (DroppedCount tracks overflow).
     // Entity-dependent methods (DrawEntityBadge, DrawEntityLocal, DrawEntityLocalInteractive)
     // are omitted in this assembly — they live in Fdp.Diagnostics.Contracts.
-    public sealed class DebugPrimitiveBuffer : IDebugDrawBuilder
+    // Named GizmoPrimitiveBuffer (not DebugPrimitiveBuffer) to avoid FQN collision with the
+    // ECS-extended DebugPrimitiveBuffer in Fdp.Diagnostics.Contracts.
+    public sealed class GizmoPrimitiveBuffer : IGizmoDrawBuilder
     {
         private readonly DebugPrimitive[] _primitives;
         private int _count;
@@ -28,7 +30,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         // The intern map used by DrawTextLong. Exposed for consumers that resolve long-text hashes.
         public StringInternMap InternMap => _internMap;
 
-        public DebugPrimitiveBuffer(int capacity = 4096, StringInternMap? internMap = null)
+        public GizmoPrimitiveBuffer(int capacity = 4096, StringInternMap? internMap = null)
         {
             _primitives    = new DebugPrimitive[capacity];
             _persistent    = new DebugPrimitive[PersistentCapacity];
@@ -101,7 +103,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             }
         }
 
-        // ---- IDebugDrawBuilder implementation --------------------------------
+        // ---- IGizmoDrawBuilder implementation --------------------------------
 
         public void DrawLine(
             Vector3 start, Vector3 end, Rgba32 color,

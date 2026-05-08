@@ -3,7 +3,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 namespace GizmoMap.Network
 {
     // Stateless transport adapter that reads DebugPrimitivesBatch from DDS
-    // and unpacks the primitives into a target DebugPrimitiveBuffer.
+    // and unpacks the primitives into a target GizmoPrimitiveBuffer.
     // No ECS dependencies.
     public sealed class DdsDebugPrimitiveSubscriber
     {
@@ -16,7 +16,7 @@ namespace GizmoMap.Network
 
         // Reads one pending DebugPrimitivesBatch and appends its primitives into 'target'.
         // Returns true if a sample was consumed, false if the reader was empty.
-        public bool PollAndApply(DebugPrimitiveBuffer target)
+        public bool PollAndApply(GizmoPrimitiveBuffer target)
         {
             if (!_reader.TryRead(out var batch))
                 return false;

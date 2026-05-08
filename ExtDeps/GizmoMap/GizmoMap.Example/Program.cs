@@ -26,8 +26,8 @@ IGizmoTransport transport = mode switch
 
 using (transport)
 {
-    var producer = new DebugPrimitiveBuffer();
-    var consumer = new DebugPrimitiveBuffer();
+    var producer = new GizmoPrimitiveBuffer();
+    var consumer = new GizmoPrimitiveBuffer();
     var gen      = new DemoSceneGenerator();
 
     if (headless)

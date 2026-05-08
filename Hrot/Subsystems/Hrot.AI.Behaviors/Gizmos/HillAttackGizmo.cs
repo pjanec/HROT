@@ -7,6 +7,8 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Hrot.AI.Behaviors.Brains;
+// Disambiguate from GizmoMap.Contracts.Fdp.Toolkit.Diagnostics.Gizmos.FixedString32.
+using FixedString32 = Fdp.Core.FixedString32;
 
 namespace Hrot.AI.Behaviors.Gizmos
 {

@@ -72,7 +72,7 @@ namespace GizmoMap.Network.Tests
             Assert.NotNull(publisher);
 
             // Also exercise Publish to verify it doesn't throw with an empty buffer.
-            var buffer = new DebugPrimitiveBuffer(capacity: 16);
+            var buffer = new GizmoPrimitiveBuffer(capacity: 16);
             publisher.Publish(buffer, frameNumber: 1, nodeId: 0);
             Assert.Equal(1, stubWriter.WriteCount);
         }

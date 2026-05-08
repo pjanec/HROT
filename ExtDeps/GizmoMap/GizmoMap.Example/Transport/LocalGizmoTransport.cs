@@ -16,7 +16,7 @@ namespace GizmoMap.Example
             _pending = primitives.ToArray();
         }
 
-        public void PollAndApply(DebugPrimitiveBuffer target)
+        public void PollAndApply(GizmoPrimitiveBuffer target)
         {
             if (_pending == null) return;
 

@@ -24,7 +24,7 @@ namespace GizmoMap.Example
         // Moving entity network ID.
         private const long EntityNetworkId = 100L;
 
-        public void Emit(float deltaTime, IDebugDrawBuilder draw)
+        public void Emit(float deltaTime, IGizmoDrawBuilder draw)
         {
             _elapsedTime += deltaTime;
 

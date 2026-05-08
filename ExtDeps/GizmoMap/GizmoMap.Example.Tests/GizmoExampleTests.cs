@@ -12,8 +12,8 @@ namespace GizmoMap.Example.Tests
         [Fact]
         public void SC_GZ056_1_LocalModeRunsOneFrame()
         {
-            var producer = new DebugPrimitiveBuffer();
-            var consumer = new DebugPrimitiveBuffer();
+            var producer = new GizmoPrimitiveBuffer();
+            var consumer = new GizmoPrimitiveBuffer();
             using var transport = new LocalGizmoTransport();
             var gen     = new DemoSceneGenerator();
             var builder = new LocalDrawBuilder(producer);
@@ -30,7 +30,7 @@ namespace GizmoMap.Example.Tests
         [Fact]
         public void SC_GZ056_2_EmitsSpatialAnchor()
         {
-            var producer = new DebugPrimitiveBuffer();
+            var producer = new GizmoPrimitiveBuffer();
             var gen      = new DemoSceneGenerator();
             var builder  = new LocalDrawBuilder(producer);
 
@@ -63,7 +63,7 @@ namespace GizmoMap.Example.Tests
         [Fact]
         public void SC_GZ056_5_AllRequiredShapesEmitted()
         {
-            var producer = new DebugPrimitiveBuffer();
+            var producer = new GizmoPrimitiveBuffer();
             var gen      = new DemoSceneGenerator();
             var builder  = new LocalDrawBuilder(producer);
 
@@ -84,12 +84,12 @@ namespace GizmoMap.Example.Tests
         public void SC_GZ056_6_DamagedBitToggles()
         {
             // Frame at t=0.5s (not yet toggled => not damaged)
-            var buf1  = new DebugPrimitiveBuffer();
+            var buf1  = new GizmoPrimitiveBuffer();
             var gen   = new DemoSceneGenerator();
             gen.Emit(0.5f, new LocalDrawBuilder(buf1));
 
             // Frame at t=0.5+2.0=2.5s (toggles at 2s boundary => damaged)
-            var buf2  = new DebugPrimitiveBuffer();
+            var buf2  = new GizmoPrimitiveBuffer();
             gen.Emit(2.0f, new LocalDrawBuilder(buf2));
 
             var sem1 = buf1.GetFrame().ToArray()

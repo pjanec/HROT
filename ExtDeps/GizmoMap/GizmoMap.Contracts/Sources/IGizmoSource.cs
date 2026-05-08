@@ -7,6 +7,6 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     public interface IGizmoSource
     {
         // Called once per frame; emit primitives into 'draw'.
-        void Emit(float deltaTime, IDebugDrawBuilder draw);
+        void Emit(float deltaTime, IGizmoDrawBuilder draw);
     }
 }

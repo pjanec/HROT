@@ -5,6 +5,8 @@ using System.Reflection;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+// Disambiguate from GizmoMap.Contracts.Fdp.Toolkit.Diagnostics.Gizmos.FixedString32.
+using FixedString32 = Fdp.Core.FixedString32;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Hrot.Common.Diagnostics.Gizmos;
 using Hrot.IG.Components;

@@ -4,7 +4,7 @@ using Raylib_cs;
 namespace GizmoMap.Presentation
 {
     /// <summary>
-    /// Standalone Raylib rendering component that wires a <see cref="DebugPrimitiveBuffer"/>
+    /// Standalone Raylib rendering component that wires a <see cref="GizmoPrimitiveBuffer"/>
     /// to a <see cref="DebugPrimitiveRenderer2D"/>.
     ///
     /// Adapted from Fdp.Presentation DebugGizmoLayer with the following differences:
@@ -14,10 +14,10 @@ namespace GizmoMap.Presentation
     /// </summary>
     public sealed class DebugGizmoLayer
     {
-        private readonly DebugPrimitiveBuffer _buffer;
+        private readonly GizmoPrimitiveBuffer _buffer;
         private readonly DebugPrimitiveRenderer2D _renderer;
 
-        public DebugGizmoLayer(DebugPrimitiveBuffer buffer, DebugPrimitiveRenderer2D renderer)
+        public DebugGizmoLayer(GizmoPrimitiveBuffer buffer, DebugPrimitiveRenderer2D renderer)
         {
             _buffer   = buffer;
             _renderer = renderer;

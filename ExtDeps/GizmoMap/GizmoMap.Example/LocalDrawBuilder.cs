@@ -4,22 +4,22 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 namespace GizmoMap.Example
 {
     /// <summary>
-    /// Minimal IDebugDrawBuilder adapter backed by a DebugPrimitiveBuffer.
+    /// Minimal IGizmoDrawBuilder adapter backed by a GizmoPrimitiveBuffer.
     /// Used by DemoSceneGenerator to emit raw DebugPrimitive values.
     /// </summary>
-    public sealed class LocalDrawBuilder : IDebugDrawBuilder
+    public sealed class LocalDrawBuilder : IGizmoDrawBuilder
     {
-        private readonly DebugPrimitiveBuffer _buffer;
+        private readonly GizmoPrimitiveBuffer _buffer;
 
-        public LocalDrawBuilder(DebugPrimitiveBuffer buffer)
+        public LocalDrawBuilder(GizmoPrimitiveBuffer buffer)
         {
             _buffer = buffer;
         }
 
         // Expose the underlying buffer for direct raw primitive emission.
-        public DebugPrimitiveBuffer Buffer => _buffer;
+        public GizmoPrimitiveBuffer Buffer => _buffer;
 
-        // ---- IDebugDrawBuilder -----------------------------------------
+        // ---- IGizmoDrawBuilder -----------------------------------------
 
         public void DrawLine(
             System.Numerics.Vector3 start, System.Numerics.Vector3 end, Rgba32 color,
@@ -76,7 +76,7 @@ namespace GizmoMap.Example
 
         /// <summary>
         /// Emits a raw DebugPrimitive directly into the underlying buffer.
-        /// Used for shapes not covered by IDebugDrawBuilder (SpatialAnchor, MilStd2525, etc.).
+        /// Used for shapes not covered by IGizmoDrawBuilder (SpatialAnchor, MilStd2525, etc.).
         /// </summary>
         public void EmitRaw(in DebugPrimitive prim)
         {

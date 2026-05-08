@@ -5,7 +5,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     // ECS-free interface for emitting debug primitives into a draw builder.
     // Entity-dependent methods (DrawEntityBadge, DrawEntityLocal, DrawEntityLocalInteractive)
     // are intentionally omitted — they require ECS access and live in Fdp.Diagnostics.Contracts.
-    public interface IDebugDrawBuilder
+    // Named IGizmoDrawBuilder (not IDebugDrawBuilder) to avoid FQN collision with the
+    // ECS-extended IDebugDrawBuilder in Fdp.Diagnostics.Contracts.
+    public interface IGizmoDrawBuilder
     {
         void DrawLine(
             Vector3 start, Vector3 end, Rgba32 color,

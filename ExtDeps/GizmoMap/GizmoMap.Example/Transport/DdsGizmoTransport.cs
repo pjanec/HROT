@@ -37,7 +37,7 @@ namespace GizmoMap.Example
             _writer.Write(batch);
         }
 
-        public void PollAndApply(DebugPrimitiveBuffer target)
+        public void PollAndApply(GizmoPrimitiveBuffer target)
         {
             // Drain all pending batches.
             while (_subscriber.PollAndApply(target)) { }

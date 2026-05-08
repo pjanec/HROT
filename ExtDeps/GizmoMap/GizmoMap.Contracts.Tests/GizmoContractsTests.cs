@@ -68,7 +68,7 @@ namespace GizmoMap.Contracts.Tests
         public void SC_GZ053_6_IGizmoSourceIsAccessibleAndCallable()
         {
             var source = new TestGizmoSource();
-            var buffer = new DebugPrimitiveBuffer(capacity: 16);
+            var buffer = new GizmoPrimitiveBuffer(capacity: 16);
             source.Emit(0.016f, buffer);
             Assert.True(source.EmitCalled);
         }
@@ -77,7 +77,7 @@ namespace GizmoMap.Contracts.Tests
         {
             public bool EmitCalled { get; private set; }
 
-            public void Emit(float deltaTime, IDebugDrawBuilder draw)
+            public void Emit(float deltaTime, IGizmoDrawBuilder draw)
             {
                 EmitCalled = true;
                 // Exercise the builder to ensure it's usable.
