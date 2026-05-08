@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using StructEdit.Core;
 
 namespace GizmoMap.Example
 {
@@ -221,6 +222,38 @@ namespace GizmoMap.Example
             lodPrim.MinZoomLod = 4;   // 1.0x zoom minimum
             lodPrim.MaxZoomLod = 12;  // 3.0x zoom maximum
             builder.EmitRaw(in lodPrim);
+        }
+
+        // ---- StructEdit mock schema for schema hash 0xDEADBEEF ----------------
+
+        /// <summary>
+        /// Builds a synthetic <see cref="EditDocument"/> for schema hash <c>0xDEADBEEF</c>.
+        /// Used by <see cref="GizmoMap.Presentation.GizmoSchemaRegistry"/> to populate the
+        /// StructEdit property panel in the interactive demo.
+        /// </summary>
+        public static EditDocument BuildMockDocument()
+        {
+            var nameNode = new EditNode(
+                new EditNodeId(1), "Name", "$.Name",
+                EditNodeKind.String, typeof(string),
+                isReadOnly: true);
+
+            var healthNode = new EditNode(
+                new EditNodeId(2), "Health", "$.Health",
+                EditNodeKind.Scalar, typeof(float),
+                isReadOnly: true);
+
+            var factionNode = new EditNode(
+                new EditNodeId(3), "Faction", "$.Faction",
+                EditNodeKind.String, typeof(string),
+                isReadOnly: true);
+
+            var root = new EditNode(
+                new EditNodeId(0), "MockComponent", "$",
+                EditNodeKind.Struct, typeof(object),
+                children: new[] { nameNode, healthNode, factionNode });
+
+            return new EditDocument(root, typeof(object), EditScope.WholeComponent);
         }
     }
 }

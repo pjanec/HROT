@@ -1,10 +1,10 @@
 ﻿using System.Numerics;
 using Hrot.IG.Components;
 using Fdp.Core;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.ModuleHost.Abstractions;
-using Raylib_cs;
 
 namespace Hrot.ScenarioEditor.Rendering;
 
@@ -94,40 +94,37 @@ public class SelectionRenderSystem : IMapLayer
 
             TestHook_RingDrawCount++;
 
-            if (!TestHook_SkipRaylibCalls)
+            if (sel.IsPrimarySelection)
             {
-                if (sel.IsPrimarySelection)
-                {
-                    // Filled green circle (semi-transparent) + green outline.
-                    var fill = new Color(
-                        SelectionRenderConstants.PrimaryFillR,
-                        SelectionRenderConstants.PrimaryFillG,
-                        SelectionRenderConstants.PrimaryFillB,
-                        SelectionRenderConstants.PrimaryFillAlpha);
+                // Filled green circle (semi-transparent) + green outline.
+                var fill = new Rgba32(
+                    SelectionRenderConstants.PrimaryFillR,
+                    SelectionRenderConstants.PrimaryFillG,
+                    SelectionRenderConstants.PrimaryFillB,
+                    SelectionRenderConstants.PrimaryFillAlpha);
 
-                    Raylib.DrawCircle(
-                        (int)pos.X, (int)pos.Y,
-                        SelectionRenderConstants.SelectionRadiusPx,
-                        fill);
+                ctx.DrawBuilder?.DrawSphere(
+                    new Vector3(pos.X, pos.Y, 0f),
+                    SelectionRenderConstants.SelectionRadiusPx,
+                    fill);
 
-                    Raylib.DrawCircleLines(
-                        (int)pos.X, (int)pos.Y,
-                        SelectionRenderConstants.SelectionRadiusPx,
-                        Color.Green);
-                }
-                else
-                {
-                    // Yellow outline only for secondary selections.
-                    Raylib.DrawCircleLines(
-                        (int)pos.X, (int)pos.Y,
-                        SelectionRenderConstants.SelectionRadiusPx,
-                        Color.Yellow);
-                }
+                ctx.DrawBuilder?.DrawSphere(
+                    new Vector3(pos.X, pos.Y, 0f),
+                    SelectionRenderConstants.SelectionRadiusPx,
+                    Rgba32.Green);
+            }
+            else
+            {
+                // Yellow outline only for secondary selections.
+                ctx.DrawBuilder?.DrawSphere(
+                    new Vector3(pos.X, pos.Y, 0f),
+                    SelectionRenderConstants.SelectionRadiusPx,
+                    Rgba32.Yellow);
             }
         }
     }
 
-    /// <summary>Suppresses Raylib calls in tests. Increment only <see cref="TestHook_RingDrawCount"/>.</summary>
+    /// <summary>No-op after Raylib purge; kept for backward compatibility with existing tests.</summary>
     internal bool TestHook_SkipRaylibCalls;
 
     /// <summary>Counts selection ring draws reached. Reset between test assertions.</summary>

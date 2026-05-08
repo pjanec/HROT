@@ -65,7 +65,14 @@ using (transport)
             Zoom     = 1f,
         };
 
-        var renderer = new GizmoMap.Presentation.DebugPrimitiveRenderer2D();
+        // Wire the StructEdit side-channel so ComponentInspector shows a real property tree.
+        var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
+        schemaRegistry.Register(0xDEADBEEF, DemoSceneGenerator.BuildMockDocument());
+
+        var propertyAdapter = new GizmoMap.Presentation.ImGuiPropertyTreeAdapter(schemaRegistry);
+        var renderer        = new GizmoMap.Presentation.DebugPrimitiveRenderer2D(imGuiAdapter: propertyAdapter);
+        var layer           = new GizmoMap.Presentation.DebugGizmoLayer(consumer, renderer);
+
         float dt = 1f / 30f;
 
         while (!Raylib_cs.Raylib.WindowShouldClose())
@@ -81,11 +88,15 @@ using (transport)
             consumer.Clear();
             transport.PollAndApply(consumer);
 
+            // Route mouse/keyboard input through the gizmo interaction layer.
+            layer.HandleInput(camera, static (token, kind, pos) =>
+                Console.WriteLine($"Gizmo interaction: anchor={token.AnchorId} sub={token.SubElementId} {kind} at {pos}"));
+
             Raylib_cs.Raylib.BeginDrawing();
             Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.DarkGray);
             Raylib_cs.Raylib.BeginMode2D(camera);
 
-            renderer.Render(consumer.GetFrame(), camera, camera.Zoom);
+            layer.Render(camera, camera.Zoom);
 
             Raylib_cs.Raylib.EndMode2D();
             Raylib_cs.Raylib.EndDrawing();
