@@ -215,11 +215,14 @@ namespace GizmoMap.Presentation
 
                 case DebugPrimitiveShape.Box2D:
                 {
+                    // Raylib.DrawRectanglePro uses the Rectangle's X/Y as the placement target for the Origin.
+                    // Since our Origin is the center of the extents, X/Y must be the exact BoxCenter.
                     var rect = new Rectangle(
-                        prim.BoxCenterX - prim.BoxExtentX * geomScale,
-                        prim.BoxCenterY - prim.BoxExtentY * geomScale,
+                        prim.BoxCenterX, 
+                        prim.BoxCenterY, 
                         prim.BoxExtentX * 2f * geomScale,
                         prim.BoxExtentY * 2f * geomScale);
+        
                     var origin = new Vector2(prim.BoxExtentX * geomScale, prim.BoxExtentY * geomScale);
                     Raylib.DrawRectanglePro(rect, origin, prim.BoxAngleDeg, color);
                     break;
