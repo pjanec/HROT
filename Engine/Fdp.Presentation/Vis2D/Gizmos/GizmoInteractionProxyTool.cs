@@ -14,7 +14,6 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
         private readonly FdpEventBus _eventBus;
         private readonly CoordinateSpace _space;
         private MapCanvas? _canvas;
-        // GZ046: only commit/drag after a press, not a bare click.
         private bool _dragActive;
 
         public GizmoInteractionProxyTool(
@@ -23,10 +22,10 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
             MapCanvas? canvas = null,
             CoordinateSpace space = CoordinateSpace.World)
         {
-            _token    = token;
+            _token = token;
             _eventBus = eventBus;
-            _canvas   = canvas;
-            _space    = space;
+            _canvas = canvas;
+            _space = space;
         }
 
         public void OnEnter(MapCanvas canvas)
@@ -34,18 +33,17 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
             _canvas = canvas;
             _eventBus.Publish(new GizmoInteractionStartedEvent
             {
-                Token    = _token,
+                Token = _token,
                 WorldPos = Vector3.Zero,
             });
         }
 
-        public void OnExit()                   => _canvas = null;
-        public void Update(float dt)           { }
-        public void Draw(RenderContext ctx)    { }
+        public void OnExit() => _canvas = null;
+        public void Update(float dt) { }
+        public void Draw(RenderContext ctx) { }
 
         public bool HandleHover(Vector2 worldPos) => true;
 
-        // GZ046: press arm the drag — called before layers get the event.
         public bool HandlePress(Vector2 worldPos, MapMouseButton button)
         {
             if (button == MapMouseButton.Left)
@@ -61,9 +59,9 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
             if (!_dragActive) return false;
             _eventBus.Publish(new GizmoDragUpdateEvent
             {
-                Token    = _token,
+                Token = _token,
                 WorldPos = new Vector3(worldPos.X, worldPos.Y, 0f),
-                Space    = _space,
+                Space = _space
             });
             return true;
         }
@@ -74,35 +72,28 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
             {
                 if (_dragActive)
                 {
-                    // Drag was started; commit on release.
                     _dragActive = false;
                     _eventBus.Publish(new GizmoInteractionCommitEvent
                     {
-                        Token    = _token,
+                        Token = _token,
                         WorldPos = new Vector3(worldPos.X, worldPos.Y, 0f),
-                        Space    = _space,
+                        Space = _space
                     });
                     _canvas?.PopTool();
                     return true;
                 }
-                else
-                {
-                    // GZ046: click-away (no press seen) — cancel without committing.
-                    _eventBus.Publish(new GizmoInteractionCancelEvent { Token = _token });
-                    _canvas?.PopTool();
-                    return false; // pass through so the click hits the map normally
-                }
-            }
 
-            // Right button = cancel
-            if (button == MapMouseButton.Right)
+                _eventBus.Publish(new GizmoInteractionCancelEvent { Token = _token });
+                _canvas?.PopTool();
+                return false;
+            }
+            else if (button == MapMouseButton.Right)
             {
                 _dragActive = false;
                 _eventBus.Publish(new GizmoInteractionCancelEvent { Token = _token });
                 _canvas?.PopTool();
                 return true;
             }
-
             return false;
         }
 
