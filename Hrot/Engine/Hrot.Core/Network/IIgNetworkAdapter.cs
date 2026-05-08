@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 
 namespace Hrot.Core.Network
 {
@@ -79,6 +81,20 @@ namespace Hrot.Core.Network
         /// requests initiated by the IG operator (e.g. MiniExConPanel, drag-drop).
         /// </summary>
         ICommandGateway CommandGateway { get; }
+
+        /// <summary>
+        /// DDS writer used by <see cref="Hrot.Network.NED.Gizmos.GizmoInteractionEgressSystem"/>
+        /// to forward gizmo interaction events to SimHost.
+        /// Null in headless/offline mode.
+        /// </summary>
+        IDdsWriter<GizmoInteractionBatch>? GizmoInteractionWriter { get; }
+
+        /// <summary>
+        /// DDS reader for incoming <see cref="DebugPrimitivesBatch"/> frames from SimHost.
+        /// Consumed by <see cref="Hrot.Network.NED.Gizmos.DebugPrimitivesIngressTranslator"/>.
+        /// Null in headless/offline mode.
+        /// </summary>
+        IDdsReader<DebugPrimitivesBatch>? DebugPrimitivesReader { get; }
     }
 
     /// <summary>No-op implementation used in offline / headless / editor mode.</summary>
@@ -101,6 +117,8 @@ namespace Hrot.Core.Network
             double anchorLat, double anchorLon, double anchorAlt, int commanderEntityId, CancellationToken ct = default)
             => Task.FromResult(0);
         public ICommandGateway CommandGateway => NullIgCommandGateway.Instance;
+        public IDdsWriter<GizmoInteractionBatch>? GizmoInteractionWriter => null;
+        public IDdsReader<DebugPrimitivesBatch>? DebugPrimitivesReader => null;
         public void Dispose() { }
     }
 

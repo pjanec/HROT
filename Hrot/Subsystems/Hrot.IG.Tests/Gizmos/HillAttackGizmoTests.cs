@@ -129,6 +129,12 @@ namespace Hrot.IG.Tests.Gizmos
             tempRepo.RegisterComponent<SimTransform>();
             tempRepo.RegisterComponent<Hrot.IG.Components.IgHealthState>();
             tempRepo.RegisterComponent<Fdp.Toolkit.Perception.Components.PerceptionReceptor>();
+            // GZ057-058: components required by the new stateless gizmos added in BATCH-21.
+            tempRepo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            tempRepo.RegisterComponent<Hrot.IG.Components.CullingState>();
+            tempRepo.RegisterComponent<Hrot.IG.Components.VisualEffectState>();
+            tempRepo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            tempRepo.RegisterComponent<Hrot.IG.Components.MapOverlayStyle>();
 
             var registry          = new GizmoRegistry();
             var statelessRegistry = new StatelessGizmoRegistry();

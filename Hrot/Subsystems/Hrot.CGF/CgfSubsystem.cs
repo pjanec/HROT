@@ -418,6 +418,17 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             new EventHistoryCaptureSystem("World", _fdpEventHistory, _context.World.Bus));
         _context.Kernel.RegisterGlobalSystem(
             new EventHistoryCaptureSystem("Orchestration", _fdpEventHistory, _context.EventBus));
+
+        // GZ057: CGF entity presentation gizmos. Buffer and registry must be set up
+        // before Kernel.Initialize() because StatelessGizmoSystem is registered here.
+        var cgfGizmoBuffer     = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var cgfStatelessRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.StatelessGizmoRegistry();
+        cgfStatelessRegistry.Register(
+            new Hrot.CGF.Gizmos.CgfEntityPresentationGizmo(),
+            new System.Type[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
+        _context.Kernel.RegisterGlobalSystem(
+            new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(cgfStatelessRegistry, cgfGizmoBuffer));
+
         _context.Kernel.Initialize();
         // ── Visualization (non-headless only) ─────────────────────────────────────
         if (!_headless)
@@ -437,6 +448,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 "CGF Entities", -1, _context.World, _entityQuery, _visualizerAdapter, _selectionState)
                 { Canvas = _canvas };
             _canvas.AddLayer(renderLayer);
+
+            // GZ057: add gizmo layer so CGF entity presentation primitives are rendered.
+            var cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, cgfGizmoBuffer, _context.World.Bus, _canvas);
+            _canvas.AddLayer(cgfGizmoLayer);
 
             // Mission route layer — draws orange lines from entity to its mission waypoints.
             _canvas.AddLayer(new Hrot.ScenarioEditor.Rendering.MissionRenderLayer(

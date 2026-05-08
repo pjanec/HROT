@@ -1,0 +1,86 @@
+using System;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+
+namespace GizmoMap.Example
+{
+    /// <summary>
+    /// Minimal IDebugDrawBuilder adapter backed by a DebugPrimitiveBuffer.
+    /// Used by DemoSceneGenerator to emit raw DebugPrimitive values.
+    /// </summary>
+    public sealed class LocalDrawBuilder : IDebugDrawBuilder
+    {
+        private readonly DebugPrimitiveBuffer _buffer;
+
+        public LocalDrawBuilder(DebugPrimitiveBuffer buffer)
+        {
+            _buffer = buffer;
+        }
+
+        // Expose the underlying buffer for direct raw primitive emission.
+        public DebugPrimitiveBuffer Buffer => _buffer;
+
+        // ---- IDebugDrawBuilder -----------------------------------------
+
+        public void DrawLine(
+            System.Numerics.Vector3 start, System.Numerics.Vector3 end, Rgba32 color,
+            float thickness = 1f,
+            SizeMode sizeMode = SizeMode.ScreenPixels,
+            PipelineTarget target = PipelineTarget.All,
+            byte layer = 0)
+        {
+            _buffer.DrawLine(start, end, color, thickness, sizeMode, target, layer);
+        }
+
+        public void DrawLineGradient(
+            System.Numerics.Vector3 start, System.Numerics.Vector3 end,
+            Rgba32 startColor, Rgba32 endColor,
+            float thickness = 1f,
+            SizeMode sizeMode = SizeMode.ScreenPixels,
+            PipelineTarget target = PipelineTarget.All,
+            byte layer = 0)
+        {
+            _buffer.DrawLineGradient(start, end, startColor, endColor, thickness, sizeMode, target, layer);
+        }
+
+        public void DrawSphere(
+            System.Numerics.Vector3 center, float radius, Rgba32 color,
+            PipelineTarget target = PipelineTarget.All,
+            byte layer = 0)
+        {
+            _buffer.DrawSphere(center, radius, color, target, layer);
+        }
+
+        public void DrawArrow(
+            System.Numerics.Vector3 from, System.Numerics.Vector3 to, Rgba32 color,
+            float headSize = 1f,
+            byte layer = 0)
+        {
+            _buffer.DrawArrow(from, to, color, headSize, layer);
+        }
+
+        public void DrawText(
+            float x, float y, FixedString32 text, Rgba32 color,
+            CoordinateSpace space = CoordinateSpace.World,
+            byte layer = 0)
+        {
+            _buffer.DrawText(x, y, text, color, space, layer);
+        }
+
+        public void DrawTextLong(
+            float x, float y, string text, Rgba32 color,
+            CoordinateSpace space = CoordinateSpace.World,
+            byte layer = 0)
+        {
+            _buffer.DrawTextLong(x, y, text, color, space, layer);
+        }
+
+        /// <summary>
+        /// Emits a raw DebugPrimitive directly into the underlying buffer.
+        /// Used for shapes not covered by IDebugDrawBuilder (SpatialAnchor, MilStd2525, etc.).
+        /// </summary>
+        public void EmitRaw(in DebugPrimitive prim)
+        {
+            _buffer.AppendRaw(in prim);
+        }
+    }
+}

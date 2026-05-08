@@ -49,8 +49,9 @@ namespace Hrot.IG.Tests.Gizmos
             // [MarshalAs(UnmanagedType.I1)] bool = 1 byte
             // 1 byte alignment padding
             // ushort = 2 bytes
-            // Total = 4 bytes
-            Assert.Equal(4, Marshal.SizeOf<GlobalDebugSettings>());
+            // float MaxGizmoFrameMs = 4 bytes (GZ036: added in BATCH-13)
+            // Total = 8 bytes
+            Assert.Equal(8, Marshal.SizeOf<GlobalDebugSettings>());
         }
 
         [Fact]
@@ -111,6 +112,96 @@ namespace Hrot.IG.Tests.Gizmos
             sys.Execute(repo, 0f);
             sys.Execute(repo, 0f);
 
+            Assert.Single(writer.Written);
+        }
+    }
+
+    // ========================================================================
+    // SC-GZ044: IGCapabilitiesPublisherSystem DDS hygiene + reflection
+    // ========================================================================
+
+    public class IGCapabilitiesPublisherSystemGZ044Tests
+    {
+        // SC-GZ044-1: IGCapabilitiesAnnounce has a RegisteredGizmosJson field of type string
+        [Fact]
+        public void SC_GZ044_1_RegisteredGizmosJson_FieldExists()
+        {
+            var field = typeof(IGCapabilitiesAnnounce).GetField("RegisteredGizmosJson");
+            Assert.NotNull(field);
+            Assert.Equal(typeof(string), field!.FieldType);
+        }
+
+        // SC-GZ044-2: Execute sets RegisteredGizmosJson = "[]"
+        [Fact]
+        public void SC_GZ044_2_Execute_Sets_RegisteredGizmosJson_Empty()
+        {
+            using var repo = new EntityRepository();
+            var writer = new CapturingDdsWriter<IGCapabilitiesAnnounce>();
+            var sys = new IGCapabilitiesPublisherSystem(nodeId: 5, writer: writer);
+            sys.Execute(repo, 0f);
+            Assert.Single(writer.Written);
+            Assert.Equal("[]", writer.Written[0].RegisteredGizmosJson);
+        }
+
+        // SC-GZ044-3: RegisteredGizmosJson and LayerNamesJson are independent fields
+        [Fact]
+        public void SC_GZ044_3_RegisteredGizmosJson_And_LayerNamesJson_AreDistinctFields()
+        {
+            var announce = new IGCapabilitiesAnnounce
+            {
+                LayerNamesJson       = "layers",
+                RegisteredGizmosJson = "gizmos",
+            };
+            Assert.Equal("layers", announce.LayerNamesJson);
+            Assert.Equal("gizmos", announce.RegisteredGizmosJson);
+        }
+
+        // SC-GZ044-4: SupportedShapeMask field is uint
+        [Fact]
+        public void SC_GZ044_4_SupportedShapeMask_IsUint()
+        {
+            var field = typeof(IGCapabilitiesAnnounce).GetField("SupportedShapeMask");
+            Assert.NotNull(field);
+            Assert.Equal(typeof(uint), field!.FieldType);
+        }
+
+        // SC-GZ044-5: SupportedShapeMask has bits for all DebugPrimitiveShape values
+        [Fact]
+        public void SC_GZ044_5_SupportedShapeMask_CoversAllShapes()
+        {
+            using var repo = new EntityRepository();
+            var writer = new CapturingDdsWriter<IGCapabilitiesAnnounce>();
+            var sys = new IGCapabilitiesPublisherSystem(nodeId: 9, writer: writer);
+            sys.Execute(repo, 0f);
+
+            uint mask = writer.Written[0].SupportedShapeMask;
+            foreach (DebugPrimitiveShape shape in Enum.GetValues<DebugPrimitiveShape>())
+            {
+                uint bit = 1u << (int)shape;
+                Assert.True((mask & bit) != 0, $"Shape {shape} (bit {(int)shape}) missing from SupportedShapeMask");
+            }
+        }
+
+        // SC-GZ044-6: SupportedLayerMask == 0xFFFF
+        [Fact]
+        public void SC_GZ044_6_SupportedLayerMask_Is_0xFFFF()
+        {
+            using var repo = new EntityRepository();
+            var writer = new CapturingDdsWriter<IGCapabilitiesAnnounce>();
+            var sys = new IGCapabilitiesPublisherSystem(nodeId: 3, writer: writer);
+            sys.Execute(repo, 0f);
+            Assert.Equal(0xFFFF, writer.Written[0].SupportedLayerMask);
+        }
+
+        // SC-GZ044-7: Execute twice only writes once (gated by _published)
+        [Fact]
+        public void SC_GZ044_7_Execute_Twice_WritesOnce()
+        {
+            using var repo = new EntityRepository();
+            var writer = new CapturingDdsWriter<IGCapabilitiesAnnounce>();
+            var sys = new IGCapabilitiesPublisherSystem(nodeId: 2, writer: writer);
+            sys.Execute(repo, 0f);
+            sys.Execute(repo, 0f);
             Assert.Single(writer.Written);
         }
     }

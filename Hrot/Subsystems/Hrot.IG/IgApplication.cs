@@ -94,6 +94,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Diagnostics.Gizmos.UndoRedo;
 using Hrot.IG.Gizmos;
+using Hrot.Network.NED.Gizmos;
 using Hrot.ScenarioEditor.Events;
 using Fdp.Toolkit.Vis2D.Layers;
 
@@ -239,6 +240,8 @@ public class IgApplication : IDisposable
     private GizmoSettingsRegistry?      _gizmoSettingsRegistry;
     private MeasureToolGizmoAdapter?    _measureToolGizmoAdapter;
     private GizmoUndoStack?             _gizmoUndoStack;
+    // GZ045: receives DebugPrimitivesBatch frames from SimHost via DDS.
+    private DebugPrimitivesIngressTranslator? _ingressTranslator;
 
     // -- Optional IG translator provider (injected via InitializeEmbedded; null = no NED translators)
     private Hrot.Core.Network.IIgTranslators? _igTranslatorsProvider;
@@ -1126,11 +1129,20 @@ public class IgApplication : IDisposable
 
         // Gizmo subsystem (GZ020) — renders entity-bound diagnostic overlays.
         _gizmoBuffer           = new DebugPrimitiveBuffer(capacity: 4096);
+        // GZ045: receive gizmo primitive stream from SimHost.
+        _ingressTranslator     = new DebugPrimitivesIngressTranslator(
+            _gizmoBuffer!,
+            _networkAdapter?.DebugPrimitivesReader,
+            filterNodeId: null);
         _gizmoRegistry         = new GizmoRegistry();
         _statelessGizmoRegistry = new StatelessGizmoRegistry();
         _gizmoSettingsRegistry  = new GizmoSettingsRegistry();
         _gizmoUndoStack        = new GizmoUndoStack();
         GizmoRegistrar.Register(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
+        // GZ058: manually register MissionPresentationGizmo (constructor requires IGeographicTransform).
+        _statelessGizmoRegistry.Register(
+            new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(_geoTransform!),
+            new[] { typeof(SimTransform), typeof(SelectionState) });
         _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_canvas, _gizmoSettingsRegistry);
         var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, _world.Bus, _canvas);
         _canvas.AddLayer(gizmoLayer);
@@ -1239,8 +1251,13 @@ public class IgApplication : IDisposable
         // Primitives arrive via DebugPrimitivesIngressTranslator (see _ingressTranslator).
         // GZ038: removed DataDrivenGizmoSystem registration.
 
-        // StatelessGizmoSystem is NOT registered in IG. IG is a dumb terminal.
-        // GZ038: removed StatelessGizmoSystem registration.
+        // GZ057-058: register StatelessGizmoSystem so local presentation gizmos execute each frame.
+        _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!));
+
+        // GZ045: forward local gizmo interaction events to SimHost via DDS.
+        _kernel.RegisterGlobalSystem(new GizmoInteractionEgressSystem(
+            (byte)_effectiveInstanceId,
+            _networkAdapter?.GizmoInteractionWriter));
 
         _kernel.Initialize();
 
@@ -1321,6 +1338,9 @@ public class IgApplication : IDisposable
         // Always tick ECS/network — even in headless mode DDS messages must be processed.
 
         _kernel.Update();
+
+        // GZ045: poll DebugPrimitivesBatch from SimHost and populate _gizmoBuffer.
+        _ingressTranslator?.PollAndApply();
 
         // Clear gizmo undo stack on world/scenario reset.
         foreach (var _ in _world.Bus.ReadManaged<WorldResetEvent>())

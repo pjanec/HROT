@@ -36,10 +36,10 @@ namespace Hrot.Network.NED.Gizmos
                 WriteRecord(GizmoInteractionEventKind.Started, evt.Token, evt.WorldPos);
 
             foreach (ref readonly var evt in view.ReadEvents<GizmoDragUpdateEvent>())
-                WriteRecord(GizmoInteractionEventKind.DragUpdate, evt.Token, evt.WorldPos);
+                WriteRecord(GizmoInteractionEventKind.DragUpdate, evt.Token, evt.WorldPos, evt.Space);
 
             foreach (ref readonly var evt in view.ReadEvents<GizmoInteractionCommitEvent>())
-                WriteRecord(GizmoInteractionEventKind.Commit, evt.Token, evt.WorldPos);
+                WriteRecord(GizmoInteractionEventKind.Commit, evt.Token, evt.WorldPos, evt.Space);
 
             foreach (ref readonly var evt in view.ReadEvents<GizmoInteractionCancelEvent>())
                 WriteRecord(GizmoInteractionEventKind.Cancel, evt.Token, Vector3.Zero);
@@ -48,7 +48,8 @@ namespace Hrot.Network.NED.Gizmos
         private void WriteRecord(
             GizmoInteractionEventKind kind,
             PickToken token,
-            Vector3 worldPos)
+            Vector3 worldPos,
+            CoordinateSpace space = default)
         {
             _writer!.Write(new GizmoInteractionBatch
             {
@@ -61,6 +62,7 @@ namespace Hrot.Network.NED.Gizmos
                 WorldX               = worldPos.X,
                 WorldY               = worldPos.Y,
                 WorldZ               = worldPos.Z,
+                Space                = space,
             });
         }
     }

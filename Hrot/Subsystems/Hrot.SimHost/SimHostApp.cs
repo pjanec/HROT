@@ -39,7 +39,10 @@ using Fdp.Toolkit.Replication.Utilities;
 using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Network;
+using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
+using Hrot.Network.NED.Gizmos;
 using Hrot.IG.Components;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Components;
@@ -108,6 +111,8 @@ namespace Hrot.SimHost
         private DebugPrimitiveBuffer? _gizmoBuffer;
         private GizmoRegistry? _gizmoRegistry;
         private StatelessGizmoRegistry? _statelessGizmoRegistry;
+        // ── Schema publisher (GZ052) ────────────────────────────────────
+        private Fdp.Toolkit.Replication.Patching.JsonAttributeCompiler? _jsonAttributeCompiler;
         /// <summary>
         /// The visualization layer. Valid after <see cref="InitializeEmbedded"/> in non-headless mode.
         /// Exposed for window-manager panel registration in <c>SimHostSubsystem.RegisterWindows</c>.
@@ -516,6 +521,15 @@ namespace Hrot.SimHost
             _gizmoBuffer = new DebugPrimitiveBuffer();
             _gizmoRegistry = new GizmoRegistry();
             _statelessGizmoRegistry = new StatelessGizmoRegistry();
+            // GZ057: register entity presentation gizmos for SimHost.
+            Hrot.SimHost.Gizmos.GizmoRegistrar.RegisterAll(
+                _gizmoRegistry,
+                _statelessGizmoRegistry,
+                settings: new GizmoSettingsRegistry());
+            // GZ045: accept gizmo interaction events from remote IG terminals.
+            IDdsReader<GizmoInteractionBatch>? gizmoInteractionReader =
+                ddsParticipant != null ? new DdsReaderGizmoAdapter<GizmoInteractionBatch>(ddsParticipant) : null;
+            _kernel.RegisterGlobalSystem(new GizmoInteractionIngressSystem(reader: gizmoInteractionReader));
             _kernel.RegisterGlobalSystem(new DataDrivenGizmoSystem(
                 _gizmoRegistry,
                 _gizmoBuffer,
@@ -528,6 +542,19 @@ namespace Hrot.SimHost
                 isSelectedPredicate: static (view, entity) =>
                     view.HasComponent<SelectionState>(entity) &&
                     view.GetComponentRO<SelectionState>(entity).IsSelected));
+            // ── GZ052: Entity attribute schema publisher ──────────────────────
+            // Build the compiler using the same geographic transform as the network factory.
+            // SimHost is always the default processor in standalone mode.
+            _jsonAttributeCompiler = Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
+            IDdsWriter<Hrot.NED.Messages.EntityAttributeSchema>? schemaWriter =
+                ddsParticipant != null
+                    ? new DdsWriterGizmoAdapter<Hrot.NED.Messages.EntityAttributeSchema>(ddsParticipant)
+                    : null;
+            _kernel.RegisterGlobalSystem(new Hrot.Network.NED.Attributes.EntityAttributeSchemaPublisherSystem(
+                nodeId:             localNodeId,
+                compiler:           _jsonAttributeCompiler,
+                writer:             schemaWriter,
+                isDefaultProcessor: true));
             // ── 11. Kernel init ───────────────────────────────────────────────
             _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("World", _eventHistoryService, _world.Bus));
             if (_eventBus != null)

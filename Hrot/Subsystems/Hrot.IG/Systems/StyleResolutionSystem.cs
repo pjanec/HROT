@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using Hrot.NED.Descriptors;
+using FdpEntityInfo = Fdp.Core.EntityInfo;
 using Hrot.IG.Components;
 using Hrot.Map.Definitions.Tkb;
 using Fdp.Core.Logging;
@@ -106,9 +107,9 @@ public class StyleResolutionSystem : IEcsModuleSystem
 
         // ── Layer 1.5: IgEntityData (from Hrot.NED.Descriptors.EntityInfo DDS / spawn descriptor) ──
         // Provides force affiliation and human-readable name when no IgSymbolOverride is present.
-        if ( view.HasComponent<EntityInfo>( entity ) )
+        if ( view.HasComponent<FdpEntityInfo>( entity ) )
         {
-            ref readonly var entityData = ref view.GetComponentRO<EntityInfo>( entity );
+            ref readonly var entityData = ref view.GetComponentRO<FdpEntityInfo>( entity );
             affiliation = entityData.ForceId;
 			ApplyAffiliationColor( affiliation, out tintR, out tintG, out tintB, out tintA);
             if (!entityData.Name.IsEmpty)

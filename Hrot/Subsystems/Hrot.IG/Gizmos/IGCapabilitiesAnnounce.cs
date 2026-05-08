@@ -13,7 +13,11 @@ namespace Hrot.IG.Gizmos
         [DdsKey] public uint NodeId;
         public PipelineTarget SupportedTargets;
         public ushort SupportedLayerMask;
-        public byte SupportedShapes;
+        public uint SupportedShapeMask;
         [DdsManaged] public string LayerNamesJson;
+        // JSON array of gizmo type names registered by this IG instance.
+        // "[]" for dumb-terminal IG (no local gizmo plugins after GZ038).
+        // MUST NOT be conflated with LayerNamesJson (which describes the layer folder hierarchy).
+        [DdsManaged] public string RegisteredGizmosJson;
     }
 }

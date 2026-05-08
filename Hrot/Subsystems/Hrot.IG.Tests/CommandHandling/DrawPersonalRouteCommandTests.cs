@@ -66,6 +66,8 @@ public class DrawPersonalRouteCommandTests : IDisposable
         public int                                                     CreateRouteStatusCode  { get; set; } = 0;
 
         public ICommandGateway CommandGateway => Gateway;
+        public Fdp.Toolkit.Diagnostics.Gizmos.Network.IDdsWriter<Fdp.Toolkit.Diagnostics.Gizmos.Network.GizmoInteractionBatch>? GizmoInteractionWriter => null;
+        public Fdp.Toolkit.Diagnostics.Gizmos.Network.IDdsReader<Fdp.Toolkit.Diagnostics.Gizmos.Network.DebugPrimitivesBatch>? DebugPrimitivesReader => null;
 
         public void Dispose() { }
 
