@@ -284,6 +284,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             Append(p);
         }
 
+        public void DrawContextMenuBinding(long networkId, string menuJson)
+        {
+            uint hash = StringInternMap.Fnv1a32(menuJson);
+            _internMap.Intern(hash, menuJson);   // idempotent; allocates only on first call
+            Append(DebugPrimitive.MakeContextMenuBinding(networkId, hash));
+        }
+
         internal void Append(DebugPrimitive p)
         {            int slot = Interlocked.Increment(ref _count) - 1;
             if ((uint)slot < (uint)_primitives.Length)

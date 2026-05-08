@@ -1,6 +1,8 @@
 using System;
 using System.Numerics;
+using System.Text.Json;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using GizmoMap.Network;
 using StructEdit.Core;
 
@@ -31,49 +33,71 @@ namespace GizmoMap.Example
 
         // Three menu definition JSON strings that cycle every 3 seconds.
         // Each represents a different tactical state for the orange box entity.
-        private static readonly string MenuJsonIdle =
-            "[" +
-            "{\"id\":1,\"label\":\"Center View\",\"shortcut\":\"C\"}," +
-            "{\"separator\":true}," +
-            "{\"id\":10,\"label\":\"Order: Move\",\"shortcut\":\"M\"}," +
-            "{\"id\":11,\"label\":\"Order: Engage\",\"shortcut\":\"E\"}," +
-            "{\"separator\":true}," +
-            "{\"label\":\"Logistics\",\"children\":[" +
-            "{\"id\":20,\"label\":\"Resupply\"}," +
-            "{\"id\":21,\"label\":\"Repair\"}" +
-            "]}," +
-            "{\"id\":99,\"label\":\"DELETE\",\"style\":\"destructive\"}" +
-            "]";
+        // Built once from ContextMenuItemDto for type-safe, refactor-friendly definitions.
+        private static readonly JsonSerializerOptions MenuJsonOptions =
+            new JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault };
 
-        private static readonly string MenuJsonMoving =
-            "[" +
-            "{\"id\":1,\"label\":\"Center View\",\"shortcut\":\"C\"}," +
-            "{\"separator\":true}," +
-            "{\"id\":10,\"label\":\"Order: Move\",\"enabled\":false}," +
-            "{\"id\":11,\"label\":\"Order: Engage\",\"shortcut\":\"E\"}," +
-            "{\"id\":12,\"label\":\"Order: Stop\",\"shortcut\":\"S\"}," +
-            "{\"separator\":true}," +
-            "{\"label\":\"Logistics\",\"children\":[" +
-            "{\"id\":20,\"label\":\"Resupply\",\"enabled\":false,\"tooltip\":\"Cannot resupply: Unit is moving\"}," +
-            "{\"id\":21,\"label\":\"Repair\",\"enabled\":false}" +
-            "]}," +
-            "{\"id\":99,\"label\":\"DELETE\",\"style\":\"destructive\"}" +
-            "]";
+        private static readonly string MenuJsonIdle = JsonSerializer.Serialize(
+            new ContextMenuItemDto[]
+            {
+                new ContextMenuItemDto { Id = 1,  Label = "Center View", Shortcut = "C" },
+                new ContextMenuItemDto { IsSeparator = true },
+                new ContextMenuItemDto { Id = 10, Label = "Order: Move",   Shortcut = "M" },
+                new ContextMenuItemDto { Id = 11, Label = "Order: Engage", Shortcut = "E" },
+                new ContextMenuItemDto { IsSeparator = true },
+                new ContextMenuItemDto
+                {
+                    Label    = "Logistics",
+                    Children = new[]
+                    {
+                        new ContextMenuItemDto { Id = 20, Label = "Resupply" },
+                        new ContextMenuItemDto { Id = 21, Label = "Repair" },
+                    },
+                },
+                new ContextMenuItemDto { Id = 99, Label = "DELETE", Style = "destructive" },
+            }, MenuJsonOptions);
 
-        private static readonly string MenuJsonEngaging =
-            "[" +
-            "{\"id\":1,\"label\":\"Center View\",\"shortcut\":\"C\"}," +
-            "{\"separator\":true}," +
-            "{\"id\":10,\"label\":\"Order: Move\",\"enabled\":false}," +
-            "{\"id\":11,\"label\":\"Order: Engage\",\"enabled\":false}," +
-            "{\"id\":13,\"label\":\"Order: Cease Fire\",\"shortcut\":\"F\"}," +
-            "{\"separator\":true}," +
-            "{\"label\":\"Logistics\",\"children\":[" +
-            "{\"id\":20,\"label\":\"Resupply\",\"enabled\":false}," +
-            "{\"id\":21,\"label\":\"Repair\",\"enabled\":false}" +
-            "]}," +
-            "{\"id\":99,\"label\":\"DELETE\",\"style\":\"destructive\"}" +
-            "]";
+        private static readonly string MenuJsonMoving = JsonSerializer.Serialize(
+            new ContextMenuItemDto[]
+            {
+                new ContextMenuItemDto { Id = 1,  Label = "Center View", Shortcut = "C" },
+                new ContextMenuItemDto { IsSeparator = true },
+                new ContextMenuItemDto { Id = 10, Label = "Order: Move",   Enabled = false },
+                new ContextMenuItemDto { Id = 11, Label = "Order: Engage", Shortcut = "E" },
+                new ContextMenuItemDto { Id = 12, Label = "Order: Stop",   Shortcut = "S" },
+                new ContextMenuItemDto { IsSeparator = true },
+                new ContextMenuItemDto
+                {
+                    Label    = "Logistics",
+                    Children = new[]
+                    {
+                        new ContextMenuItemDto { Id = 20, Label = "Resupply", Enabled = false, Tooltip = "Cannot resupply: Unit is moving" },
+                        new ContextMenuItemDto { Id = 21, Label = "Repair",   Enabled = false },
+                    },
+                },
+                new ContextMenuItemDto { Id = 99, Label = "DELETE", Style = "destructive" },
+            }, MenuJsonOptions);
+
+        private static readonly string MenuJsonEngaging = JsonSerializer.Serialize(
+            new ContextMenuItemDto[]
+            {
+                new ContextMenuItemDto { Id = 1,  Label = "Center View", Shortcut = "C" },
+                new ContextMenuItemDto { IsSeparator = true },
+                new ContextMenuItemDto { Id = 10, Label = "Order: Move",        Enabled = false },
+                new ContextMenuItemDto { Id = 11, Label = "Order: Engage",      Enabled = false },
+                new ContextMenuItemDto { Id = 13, Label = "Order: Cease Fire",  Shortcut = "F" },
+                new ContextMenuItemDto { IsSeparator = true },
+                new ContextMenuItemDto
+                {
+                    Label    = "Logistics",
+                    Children = new[]
+                    {
+                        new ContextMenuItemDto { Id = 20, Label = "Resupply", Enabled = false },
+                        new ContextMenuItemDto { Id = 21, Label = "Repair",   Enabled = false },
+                    },
+                },
+                new ContextMenuItemDto { Id = 99, Label = "DELETE", Style = "destructive" },
+            }, MenuJsonOptions);
 
         // Menu cycle period in seconds (one menu per 3 seconds, 3 menus => 9-second cycle).
         private const float MenuCyclePeriod = 3f;

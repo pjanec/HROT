@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Gizmos;
+using ContextMenuAdapter = GizmoMap.Presentation.ContextMenuAdapter;
 
 namespace Fdp.Toolkit.Vis2D.Layers
 {
@@ -17,6 +19,9 @@ namespace Fdp.Toolkit.Vis2D.Layers
         private readonly DebugPrimitiveRenderer2D? _renderer;
         private readonly FdpEventBus? _eventBus;
         private readonly MapCanvas? _canvas;
+
+        // Context menu presenter (ImGui popup).
+        private readonly ContextMenuAdapter _contextMenuAdapter = new();
 
         internal RenderContext _lastCtx;
         private const float HitRadiusWorld = 5f;
@@ -84,13 +89,19 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed)
         {
-            if (!isPressed || button != MapMouseButton.Left) return false;
-            if (_buffer == null || _eventBus == null) return false;
+            if (!isPressed || _buffer == null || _eventBus == null) return false;
 
             if (LayerBitIndex >= 0 && LayerBitIndex < 32)
             {
                 if ((_lastCtx.VisibleLayersMask & (1u << LayerBitIndex)) == 0) return false;
             }
+
+            if (button == MapMouseButton.Right)
+            {
+                return HandleRightClick(worldPos);
+            }
+
+            if (button != MapMouseButton.Left) return false;
 
             var primitives = _buffer.GetFrame();
             DebugPrimitive? best = null;
@@ -125,6 +136,62 @@ namespace Fdp.Toolkit.Vis2D.Layers
             }
 
             return false;
+        }
+
+        private bool HandleRightClick(Vector2 worldPos)
+        {
+            var frame = _buffer!.GetFrame();
+
+            // Build a transient map from network entity ID to menu JSON hash from
+            // ContextMenuBinding meta-primitives emitted by ContextMenuProjectorGizmo.
+            var menuBindings = new Dictionary<long, uint>();
+            foreach (ref readonly var prim in frame)
+            {
+                if (prim.Shape == DebugPrimitiveShape.ContextMenuBinding)
+                    menuBindings[prim.InspNetworkId] = prim.StringHash;
+            }
+
+            // Hit-test Box2D primitives and schedule the context menu when the entity
+            // has a registered menu binding.
+            foreach (ref readonly var prim in frame)
+            {
+                if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
+                if (prim.SubElementId == 0) continue;
+                if (!HitTest(in prim, worldPos, HitRadiusWorld)) continue;
+
+                long entityId = prim.InspNetworkId;
+                if (entityId == 0) continue;
+
+                if (menuBindings.TryGetValue(entityId, out uint menuHash))
+                {
+                    string? json = _buffer.InternMap.TryResolve(menuHash);
+                    if (json != null)
+                    {
+                        _contextMenuAdapter.Schedule(entityId, json);
+                        return true;
+                    }
+                    // JSON not yet in InternMap (first frame before StringInternBatch
+                    // arrives). Silently ignore; the menu appears on the next right-click.
+                }
+                break;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Renders any pending context-menu popup via ImGui and publishes a
+        /// <see cref="GizmoMenuActionEvent"/> when the operator selects an item.
+        /// Must be called inside an ImGui Begin/End block each frame.
+        /// </summary>
+        public void DrawContextMenu()
+        {
+            _contextMenuAdapter.DrawScheduled((anchorId, actionId) =>
+                _eventBus?.Publish(new GizmoMenuActionEvent
+                {
+                    AnchorId = anchorId,
+                    ActionId = actionId,
+                }));
         }
 
         public Entity? PickEntity(Vector2 worldPos) => null;

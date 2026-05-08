@@ -101,5 +101,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             float  widthMeters   = 0f,
             uint   conditionMask = 0,
             byte   layer         = 0) { }
+
+        /// <summary>
+        /// Emits a <see cref="DebugPrimitiveShape.ContextMenuBinding"/> meta-primitive that
+        /// associates a context-menu JSON string with a networked entity.
+        /// The JSON is interned in the buffer's <c>StringInternMap</c> (cold-path only);
+        /// subsequent calls with identical JSON allocate nothing.
+        /// The string hash is transmitted to the IG terminal via the gizmo-stream and
+        /// resolved back to JSON via the shared <c>StringInternBatch</c> DDS topic.
+        /// Default no-op so existing stub implementations compile without changes.
+        /// </summary>
+        void DrawContextMenuBinding(long networkId, string menuJson) { }
     }
 }

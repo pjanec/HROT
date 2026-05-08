@@ -34,4 +34,21 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Events
     {
         public PickToken Token;
     }
+
+    /// <summary>
+    /// Published by the IG presentation layer (DebugGizmoLayer) when the operator
+    /// selects an item from a gizmo-stream context menu.
+    /// Consumed by <see cref="Hrot.Network.NED.Gizmos.GizmoInteractionEgressSystem"/>
+    /// which forwards it to the SimHost as a <c>GizmoInteractionBatch</c> record
+    /// with <c>Kind = MenuAction</c> and the clicked <see cref="ActionId"/>.
+    /// </summary>
+    [EventId(8055)]
+    public struct GizmoMenuActionEvent
+    {
+        /// <summary>Network-level entity ID of the entity whose menu was shown.</summary>
+        public long AnchorId;
+
+        /// <summary>Integer ID of the menu item that was clicked.</summary>
+        public int ActionId;
+    }
 }
