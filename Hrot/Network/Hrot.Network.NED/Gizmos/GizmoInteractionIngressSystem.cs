@@ -5,7 +5,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
-using Hrot.IG;
+using Hrot.Common.Events;
 using GizmoInteractionBatch = GizmoMap.Network.GizmoInteractionBatch;
 using GizmoInteractionEventKind = GizmoMap.Network.GizmoInteractionEventKind;
 

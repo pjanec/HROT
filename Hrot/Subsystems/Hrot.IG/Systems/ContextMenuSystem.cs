@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using Hrot.Common.Events;
 using Hrot.IG.Components;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
@@ -10,13 +11,15 @@ namespace Hrot.IG.Systems;
 
 /// <summary>
 /// Simulation-phase system that keeps <see cref="ContextMenuState"/> managed
-/// components in sync with ExCon-provided action lists and operator right-click input.
+/// components in sync with ExCon-provided menu JSON and operator right-click input.
 ///
 /// Responsibilities:
 /// <list type="number">
 ///   <item>
 ///     Consume <see cref="ContextActionsUpdate"/> managed events (sent by ExCon) and
-///     update the <see cref="ContextMenuState.Actions"/> list on the matching entity.
+///     update the <see cref="ContextMenuState.MenuJson"/> string on the matching entity.
+///     When the update arrives for the currently active open menu, <see cref="OpenSequence"/>
+///     is incremented so the rendering layer re-schedules the adapter with fresh JSON.
 ///   </item>
 ///   <item>
 ///     Process any pending open/close requests queued by the input layer
@@ -27,7 +30,7 @@ namespace Hrot.IG.Systems;
 /// Design notes:
 /// <list type="bullet">
 ///   <item>
-///     Opening a menu for entity A does <em>not</em> lock other interactions —
+///     Opening a menu for entity A does <em>not</em> lock other interactions â€”
 ///     the system only modifies the <see cref="ContextMenuState"/> managed component
 ///     and leaves all other ECS state untouched.
 ///   </item>
@@ -40,13 +43,13 @@ namespace Hrot.IG.Systems;
 [UpdateInPhase(SystemPhase.PostSimulation)]
 public class ContextMenuSystem : IEcsModuleSystem
 {
-    // ── Cache-miss fallback writer (optional) ────────────────────────────────
+    // â”€â”€ Cache-miss fallback writer (optional) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Injected after construction via SetCacheMissWriter. Null in tests and offline mode.
 
     private Action<Guid, int, IReadOnlyList<int>>? _contextMenuRequestWriter;
     private int                             _mapId;
 
-    // ── Internal pending-request state ────────────────────────────────────────
+    // â”€â”€ Internal pending-request state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Queued by input code (or test hooks) before Execute runs.
 
     private Entity _pendingOpenEntity     = Entity.Null;
@@ -57,7 +60,7 @@ public class ContextMenuSystem : IEcsModuleSystem
     private Entity _pendingCloseEntity    = Entity.Null;
     private bool   _hasPendingClose;
 
-    // ── Public observable state ───────────────────────────────────────────────
+    // â”€â”€ Public observable state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// The entity whose context menu is currently open, or
@@ -66,19 +69,21 @@ public class ContextMenuSystem : IEcsModuleSystem
     public Entity ActiveMenuEntity { get; private set; } = Entity.Null;
 
     /// <summary>
-    /// Incremented whenever a context menu is opened. Used by the UI layer to
-    /// detect a fresh open request without re-opening the popup every frame.
+    /// Incremented whenever a context menu is opened OR when the menu JSON for the
+    /// currently active entity is updated by a <see cref="ContextActionsUpdate"/> event.
+    /// The rendering layer tracks this value to detect when to call
+    /// <c>ContextMenuAdapter.Schedule</c>.
     /// </summary>
     public int OpenSequence { get; private set; }
 
-    // ── IEcsModuleSystem ──────────────────────────────────────────────────────────
+    // â”€â”€ IEcsModuleSystem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
     {
         var cmd = view.GetCommandBuffer();
 
-        // ── 1. Process ExCon ContextActionsUpdate events ────────────────────────
+        // â”€â”€ 1. Process ExCon ContextActionsUpdate events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         var updates = view.ReadManagedEvents<ContextActionsUpdate>();
 
         foreach (var update in updates)
@@ -93,8 +98,8 @@ public class ContextMenuSystem : IEcsModuleSystem
 
                 var updated = new ContextMenuState
                 {
-                    Actions = new List<ContextAction>(update.Actions),
-                    IsOpen  = false,
+                    MenuJson = update.MenuJson,
+                    IsOpen   = false,
                 };
 
                 if (view.HasManagedComponent<ContextMenuState>(entity))
@@ -109,10 +114,15 @@ public class ContextMenuSystem : IEcsModuleSystem
                 {
                     cmd.AddManagedComponent(entity, updated);
                 }
+
+                // If the active open menu just received its JSON, increment OpenSequence
+                // so the rendering layer re-schedules the adapter with the fresh content.
+                if (entity == ActiveMenuEntity && updated.IsOpen && !string.IsNullOrEmpty(update.MenuJson))
+                    OpenSequence++;
             }
         }
 
-        // ── 2. Apply pending close request ────────────────────────────────────
+        // â”€â”€ 2. Apply pending close request â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Close is processed BEFORE open so that a same-frame close+open sequence
         // (e.g. the UI layer dismisses the current popup and the input layer queues
         // a new open for the same entity) results in the menu being re-opened rather
@@ -130,7 +140,7 @@ public class ContextMenuSystem : IEcsModuleSystem
             }
         }
 
-        // ── 3. Apply pending open request ─────────────────────────────────────
+        // â”€â”€ 3. Apply pending open request â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (_hasPendingOpen)
         {
             _hasPendingOpen = false;
@@ -156,57 +166,38 @@ public class ContextMenuSystem : IEcsModuleSystem
 
                 if (view.HasManagedComponent<ContextMenuState>(target))
                 {
-                    // Clone the list so we never mutate the previous tick's shared reference.
-                    var prev   = view.GetManagedComponentRO<ContextMenuState>(target);
-                    state.Actions = new List<ContextAction>(prev.Actions);
+                    // Preserve existing MenuJson so the popup can be shown immediately
+                    // if the entity already has a cached definition.
+                    var prev = view.GetManagedComponentRO<ContextMenuState>(target);
+                    state.MenuJson = prev.MenuJson;
                     cmd.SetManagedComponent(target, state);
                 }
                 else
                 {
-                    state.Actions = new List<ContextAction>();
                     cmd.AddManagedComponent(target, state);
                 }
 
-                // ── Cache-miss fallback: if the entity has no ExCon-provided actions cached,
-                // emit a ContextMenuRequest so the ExCon can push back a ContextActionsUpdate.
+                // â”€â”€ Cache-miss fallback: if the entity has no cached menu JSON,
+                // emit a ContextMenuRequest so ExCon can push back a ContextActionsUpdate.
                 // This handles the right-click-without-prior-selection scenario.
                 // Skip for the map-background entity (NetworkIdentity = 0) and when
                 // the writer is unavailable (offline / test mode).
                 if (_contextMenuRequestWriter != null && view.HasComponent<NetworkIdentity>(target))
                 {
                     ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(target);
-                    bool hasIosActions = state.Actions.Exists(
-                        a => !a.ActionName.StartsWith("IG_", StringComparison.Ordinal));
+                    bool hasJson = !string.IsNullOrEmpty(state.MenuJson);
 
-                    if (netId.Value != 0 && !hasIosActions)
+                    if (netId.Value != 0 && !hasJson)
                     {
                         _contextMenuRequestWriter?.Invoke(
                             Guid.NewGuid(), _mapId, new List<int> { (int)netId.Value });
-                    }
-                }
-
-                // Only inject the spatial "Center on Entity" default if the target
-                // entity actually has a position in the world.  The _mapContextEntity
-                // (NetworkIdentity = 0, no SimTransform) is intentionally excluded.
-                if (view.HasComponent<SimTransform>(target))
-                {
-                    bool hasCenter = state.Actions.Exists(
-                        a => a.ActionName == "IG_CenterOnEntity" || a.ActionName == "IG_Center");
-
-                    if (!hasCenter)
-                    {
-                        state.Actions.Insert(0, new ContextAction
-                        {
-                            Label      = "Center on Entity",
-                            ActionName = "IG_CenterOnEntity"
-                        });
                     }
                 }
             }
         }
     }
 
-    // ── DDS writer wiring ─────────────────────────────────────────────────────
+    // â”€â”€ DDS writer wiring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Wires up the DDS writer used to emit <see cref="ContextMenuRequest"/> messages
@@ -220,7 +211,7 @@ public class ContextMenuSystem : IEcsModuleSystem
         _mapId                    = mapId;
     }
 
-    // ── Test / input hooks ────────────────────────────────────────────────────
+    // â”€â”€ Test / input hooks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Queues a context-menu open request for <paramref name="entity"/> at screen
@@ -275,10 +266,10 @@ public class ContextMenuSystem : IEcsModuleSystem
             var prev  = view.GetManagedComponentRO<ContextMenuState>(target);
             var state = new ContextMenuState
             {
-                Actions = prev.Actions,
-                IsOpen  = false,
-                ScreenX = prev.ScreenX,
-                ScreenY = prev.ScreenY,
+                MenuJson = prev.MenuJson,
+                IsOpen   = false,
+                ScreenX  = prev.ScreenX,
+                ScreenY  = prev.ScreenY,
             };
             cmd.SetManagedComponent(target, state);
         }

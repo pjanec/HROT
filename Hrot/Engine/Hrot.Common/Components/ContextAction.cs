@@ -1,4 +1,4 @@
-namespace Hrot.IG.Components
+namespace Hrot.Map.Common.Components
 {
     /// <summary>A single action entry displayed in a context menu.</summary>
     public sealed class ContextAction

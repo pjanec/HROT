@@ -375,9 +375,13 @@ public class IgApplication : IDisposable
 
     private PerformanceOverlay    _performanceOverlay = null!;
 
-    private ContextMenuPanel      _contextMenuPanel   = null!;
+    private GizmoMap.Presentation.ContextMenuAdapter _contextMenuAdapter = new();
 
     private ContextMenuSystem     _contextMenuSystem  = null!;
+
+    // Tracks the last OpenSequence value for which Schedule() was called, so
+    // the adapter is only re-scheduled when the sequence advances.
+    private int _lastContextMenuOpenSequence;
 
     // Reference to the gizmo layer held here so DrawContextMenu can be called
     // from DrawUI inside the ImGui pass.
@@ -749,8 +753,6 @@ public class IgApplication : IDisposable
         _performanceOverlay = new PerformanceOverlay(_performanceMetrics);
 
         _contextMenuSystem  = new ContextMenuSystem();
-
-        _contextMenuPanel   = new ContextMenuPanel(_world, _contextMenuSystem, HandleContextMenuAction);
 
 
 
@@ -1605,7 +1607,7 @@ public class IgApplication : IDisposable
             _performanceOverlay.Draw();
         }
 
-        _contextMenuPanel.Draw();
+        DrawExConContextMenu();
         _gizmoLayer?.DrawContextMenu();
 
         if (!_panelsWindowManaged)
@@ -2683,56 +2685,79 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
 
 
-    private void HandleContextMenuAction(Entity entity, ContextAction action)
+    // ── ExCon context-menu rendering (DDS/ContextActionsUpdate path) ──────────
 
+    /// <summary>
+    /// Renders the context menu driven by the ExCon DDS path.
+    /// Schedules the generic <see cref="GizmoMap.Presentation.ContextMenuAdapter"/>
+    /// with the raw JSON stored in <see cref="ContextMenuState.MenuJson"/> whenever
+    /// the menu sequence advances, then calls DrawScheduled every frame.
+    /// </summary>
+    private void DrawExConContextMenu()
     {
-
-        if (action.ActionName.StartsWith("IG_", StringComparison.Ordinal) ||
-
-            action.ActionName == "100" ||
-
-            action.ActionName == "101" ||
-
-            action.ActionName == "102" ||
-
-            action.ActionName == "200")
-
+        var activeEntity = _contextMenuSystem.ActiveMenuEntity;
+        if (activeEntity != Entity.Null)
         {
-
-            ExecuteLocalContextAction(entity, action.ActionName);
-
-            return;
-
+            bool freshOpen = _contextMenuSystem.OpenSequence != _lastContextMenuOpenSequence;
+            if (freshOpen)
+            {
+                var view = (ISimulationView)_world;
+                if (view.HasManagedComponent<ContextMenuState>(activeEntity))
+                {
+                    var state = view.GetManagedComponentRO<ContextMenuState>(activeEntity);
+                    if (!string.IsNullOrEmpty(state.MenuJson))
+                    {
+                        long networkId = view.HasComponent<NetworkIdentity>(activeEntity)
+                            ? view.GetComponentRO<NetworkIdentity>(activeEntity).Value
+                            : 0L;
+                        _contextMenuAdapter.Schedule(networkId, state.MenuJson);
+                    }
+                }
+                _lastContextMenuOpenSequence = _contextMenuSystem.OpenSequence;
+            }
         }
 
-
-
-        int networkId = 0;
-
-        var view = (ISimulationView)_world;
-
-        if (view.HasComponent<NetworkIdentity>(entity))
-
+        _contextMenuAdapter.DrawScheduled((anchorId, actionId) =>
         {
-
-            ref readonly var id = ref view.GetComponentRO<NetworkIdentity>(entity);
-
-            networkId = (int)id.Value;
-
-        }
-
-
-
-        _world.Bus.PublishManaged(new ContextActionTriggered
-
-        {
-
-            EntityNetworkId = networkId,
-
-            ActionName = action.ActionName
-
+            HandleContextMenuActionById(anchorId, actionId);
+            _contextMenuSystem.RequestClose(_contextMenuSystem.ActiveMenuEntity);
         });
+    }
 
+    /// <summary>
+    /// Routes an integer action ID (from the generic ContextMenuAdapter callback)
+    /// to local IG execution or forwards it as a <see cref="Hrot.Common.Events.ContextActionTriggered"/>
+    /// managed event for ExCon.
+    /// </summary>
+    /// <param name="anchorId">Network entity ID of the target entity.</param>
+    /// <param name="actionId">Integer action ID from the JSON menu definition.</param>
+    private void HandleContextMenuActionById(long anchorId, int actionId)
+    {
+        // Map well-known ExCon IDs to local IG action strings.
+        // These match the ID conventions used by ContextMenuProjectorGizmo and ExCon.
+        string? localAction = actionId switch
+        {
+            1   => "IG_CenterOnEntity",
+            10  => "IG_DeleteEntity",
+            100 => "100",
+            101 => "101",
+            102 => "102",
+            200 => "200",
+            _   => null,
+        };
+
+        if (localAction != null)
+        {
+            if (_entityMap.TryGetEntity((int)anchorId, out var entity))
+                ExecuteLocalContextAction(entity, localAction);
+            return;
+        }
+
+        _world.Bus.PublishManaged(new Hrot.Common.Events.ContextActionTriggered
+        {
+            EntityNetworkId = (int)anchorId,
+            ActionName      = actionId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        });
     }
 
 

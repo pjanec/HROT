@@ -1,19 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Numerics;
-using System.Threading;
-using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
-using Fdp.Toolkit.NetworkSpawning.Events;
-using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Vis2D.Abstractions;
+using Hrot.Common.Events;
 using Hrot.Editor.UI;
 using Hrot.IG.Components;
-using Hrot.Map.Common.Components;
 using Hrot.UI.Common.Facades;
-using Moq;
 using Xunit;
 
 namespace Hrot.Editor.Tests.UI;
@@ -28,8 +22,16 @@ internal sealed class RecordingContextMenuBuilder : IContextMenuBuilder
 {
     public readonly List<string> Items = new();
 
+    private readonly Dictionary<string, Action> _callbacks = new();
+
     public void AddItem(string label, Action callback, bool enabled = true)
-        => Items.Add(label);
+    {
+        Items.Add(label);
+        _callbacks[label] = callback;
+    }
+
+    /// <summary>Invokes the callback registered for the item with the given label.</summary>
+    public void TriggerItem(string label) => _callbacks[label]();
 
     public IContextMenuBuilder BeginSubmenu(string label)
     {
@@ -59,75 +61,76 @@ internal sealed class FakeSelectionState : ISelectionState
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// A006 — EditorEntityContextMenuHandler
+// JsonEntityContextMenuHandler
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// <summary>
-/// Unit tests for <see cref="EditorEntityContextMenuHandler"/>.
+/// Unit tests for <see cref="JsonEntityContextMenuHandler"/>.
 /// </summary>
-public sealed class EditorEntityContextMenuHandlerTests : IDisposable
+public sealed class JsonEntityContextMenuHandlerTests : IDisposable
 {
-    private readonly EntityRepository     _repo;
-    private readonly Mock<IEditorLogic>   _mockLogic;
-    private readonly Mock<IMapPickService> _mockPick;
-    private          FakeSelectionState    _selection;
-    private          FdpEventBus           _bus;
+    private readonly EntityRepository _repo;
+    private readonly FdpEventBus      _bus;
 
-    public EditorEntityContextMenuHandlerTests()
+    public JsonEntityContextMenuHandlerTests()
     {
         _repo = new EntityRepository();
         _repo.RegisterComponent<NetworkIdentity>();
-        _repo.RegisterComponent<TkbIdentity>();
-        _repo.RegisterManagedComponent<EditablePolyline>();
-        _repo.RegisterManagedComponent<RoutePlan>();
-        _repo.RegisterComponent<TargetMemory>();
-
-        _bus       = _repo.Bus;
-        _mockLogic = new Mock<IEditorLogic>();
-        _mockPick  = new Mock<IMapPickService>();
-        _selection = new FakeSelectionState();
+        _repo.RegisterManagedComponent<ContextMenuState>();
+        _bus = _repo.Bus;
     }
 
     public void Dispose() => _repo.Dispose();
 
-    private EditorEntityContextMenuHandler CreateHandler()
-        => new(_repo, _mockLogic.Object, _bus, _mockPick.Object, _selection);
+    private JsonEntityContextMenuHandler CreateHandler() => new(_repo, _bus);
 
-    // ── Test 1: entity with EditablePolyline → "Edit Shape" present ──────────
+    // ── Test 1: entity with MenuJson → correct labels added ──────────────────
 
     [Fact]
-    public void PopulateMenu_EntityWithEditablePolyline_ContainsEditShapeItem()
+    public void PopulateMenu_EntityWithMenuJson_AddsLabelItems()
     {
         var entity = _repo.CreateEntity();
         _repo.AddComponent(entity, new NetworkIdentity(42L));
-        _repo.AddComponent(entity, new TkbIdentity { TkbType = 100L });
-        _repo.AddComponent(entity, new EditablePolyline());
+        _repo.SetManagedComponent(entity, new ContextMenuState
+        {
+            MenuJson = """[{"id":1,"label":"Move Here"},{"id":2,"label":"Engage"}]""",
+        });
 
         var handler = CreateHandler();
         var builder = new RecordingContextMenuBuilder();
         handler.PopulateMenu(entity, builder);
 
-        Assert.Contains("Edit Shape", builder.Items);
+        Assert.Contains("Move Here", builder.Items);
+        Assert.Contains("Engage", builder.Items);
     }
 
-    // ── Test 2: entity without overlay or route → no Edit Shape / Edit Route ─
+    // ── Test 2: item click publishes ContextActionTriggered ──────────────────
 
     [Fact]
-    public void PopulateMenu_NeitherPolylineNorRoute_NoEditItems()
+    public void PopulateMenu_ItemClicked_PublishesContextActionTriggered()
     {
         var entity = _repo.CreateEntity();
-        _repo.AddComponent(entity, new NetworkIdentity(10L));
-        _repo.AddComponent(entity, new TkbIdentity { TkbType = 100L });
+        _repo.AddComponent(entity, new NetworkIdentity(42L));
+        _repo.SetManagedComponent(entity, new ContextMenuState
+        {
+            MenuJson = """[{"id":7,"label":"Engage"}]""",
+        });
 
-        var handler = CreateHandler();
-        var builder = new RecordingContextMenuBuilder();
-        handler.PopulateMenu(entity, builder);
+        var handler  = CreateHandler();
+        var recording = new RecordingContextMenuBuilder();
+        handler.PopulateMenu(entity, recording);
 
-        Assert.DoesNotContain("Edit Shape", builder.Items);
-        Assert.DoesNotContain("Edit Route", builder.Items);
+        recording.TriggerItem("Engage");
+
+        _bus.SwapBuffers();
+        var events = _bus.ReadManaged<ContextActionTriggered>();
+
+        Assert.Single(events);
+        Assert.Equal(42, events[0].EntityNetworkId);
+        Assert.Equal("7", events[0].ActionName);
     }
 
-    // ── Test 3: dead entity → builder never called ────────────────────────────
+    // ── Test 3: dead entity → no items ───────────────────────────────────────
 
     [Fact]
     public void PopulateMenu_DeadEntity_NoItemsAdded()
@@ -142,40 +145,55 @@ public sealed class EditorEntityContextMenuHandlerTests : IDisposable
         Assert.Empty(builder.Items);
     }
 
-    // ── Test 4: DeleteEntity publishes DestroyEntityCommand ──────────────────
+    // ── Test 4: entity without ContextMenuState → no items ───────────────────
 
     [Fact]
-    public void DeleteEntity_PublishesDestroyEntityCommandWithCorrectId()
-    {
-        var handler = CreateHandler();
-        handler.DeleteEntity(42L);
-
-        _bus.SwapBuffers();
-        var cmds = _bus.ReadManaged<DestroyEntityCommand>();
-
-        Assert.Single(cmds);
-        Assert.Equal(42L, cmds[0].NetworkId);
-    }
-
-    // ── Test 5: entity with TargetMemory + 2 perceivers → "Mark Target for 2 Units..." label
-
-    [Fact]
-    public void PopulateMenu_EntityWithTargetMemoryAndTwoPerceivers_MarkTargetLabel()
+    public void PopulateMenu_NoContextMenuState_NoItemsAdded()
     {
         var entity = _repo.CreateEntity();
-        _repo.AddComponent(entity, new NetworkIdentity(99L));
-        _repo.AddComponent(entity, new TkbIdentity { TkbType = 0L });
-        _repo.AddComponent(entity, new TargetMemory());
-
-        var p1 = _repo.CreateEntity();
-        var p2 = _repo.CreateEntity();
-        _selection.AddSelected(p1);
-        _selection.AddSelected(p2);
+        _repo.AddComponent(entity, new NetworkIdentity(10L));
 
         var handler = CreateHandler();
         var builder = new RecordingContextMenuBuilder();
         handler.PopulateMenu(entity, builder);
 
-        Assert.Contains("Mark Target for 2 Units...", builder.Items);
+        Assert.Empty(builder.Items);
+    }
+
+    // ── Test 5: empty MenuJson → no items ────────────────────────────────────
+
+    [Fact]
+    public void PopulateMenu_EmptyMenuJson_NoItemsAdded()
+    {
+        var entity = _repo.CreateEntity();
+        _repo.AddComponent(entity, new NetworkIdentity(10L));
+        _repo.SetManagedComponent(entity, new ContextMenuState { MenuJson = string.Empty });
+
+        var handler = CreateHandler();
+        var builder = new RecordingContextMenuBuilder();
+        handler.PopulateMenu(entity, builder);
+
+        Assert.Empty(builder.Items);
+    }
+
+    // ── Test 6: separator in JSON → separator item in menu ───────────────────
+
+    [Fact]
+    public void PopulateMenu_SeparatorInJson_AddsSeparatorItem()
+    {
+        var entity = _repo.CreateEntity();
+        _repo.AddComponent(entity, new NetworkIdentity(5L));
+        _repo.SetManagedComponent(entity, new ContextMenuState
+        {
+            MenuJson = """[{"id":1,"label":"A"},{"separator":true},{"id":2,"label":"B"}]""",
+        });
+
+        var handler = CreateHandler();
+        var builder = new RecordingContextMenuBuilder();
+        handler.PopulateMenu(entity, builder);
+
+        Assert.Contains("[separator]", builder.Items);
+        Assert.Contains("A", builder.Items);
+        Assert.Contains("B", builder.Items);
     }
 }

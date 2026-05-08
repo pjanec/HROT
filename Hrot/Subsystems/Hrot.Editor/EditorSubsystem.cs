@@ -30,6 +30,8 @@ using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Layers;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Diagnostics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -54,6 +56,7 @@ using Hrot.IG.Components;
 using Hrot.IG.Systems;
 using Hrot.IG.Modules;
 using Hrot.Map.Common;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Config;
 using Hrot.Map.Common.Services;
 using Hrot.Orchestrator;
@@ -133,7 +136,7 @@ namespace Hrot.Editor
         private EditorMapConfigAdapter?         _mapConfigAdapter;
         private EditorMapPickAdapter?           _mapPickAdapter;
         private EditorZoneAdapter?              _zoneAdapter;
-        private EditorEntityContextMenuHandler? _contextMenuHandler;
+        private JsonEntityContextMenuHandler? _contextMenuHandler;
         private EditorPreviewController?        _previewController;
         private MapViewConfig?                  _mapViewConfig;
 
@@ -609,12 +612,82 @@ namespace Hrot.Editor
                 _mapConfigAdapter = new EditorMapConfigAdapter(_mapViewConfig, _canvas!);
                 _selectionState   = new DefaultSelectionState();
                 _orbatAdapter     = new EditorOrbatAdapter(_world, _world.Bus, _editorLogic, _spawnAdapter);
-                _contextMenuHandler = new EditorEntityContextMenuHandler(
-                    _world, _editorLogic, _world.Bus, _mapPickAdapter, _selectionState);
+                _contextMenuHandler = new JsonEntityContextMenuHandler(_world, _world.Bus);
                 _fdpRepoAdapter = new FdpRepositoryAdapter(_world);
 
-                // Register context menu handler with the FDP entity inspector.
+                // Register context menu handlers with the FDP entity inspector.
+                // 1) JSON-driven domain actions (populated by ExCon via ContextMenuState.MenuJson).
                 _fdpEntityInspector.RegisterContextMenuHandler(_contextMenuHandler);
+                // 2) Local editor authoring actions (centre, rename, edit, delete).
+                _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
+                {
+                    if (!_world.IsAlive(entity)) return;
+                    if (entity == FdpRepositoryAdapter.SingletonEntity) return;
+
+                    long networkId = _world.HasComponent<NetworkIdentity>(entity)
+                        ? _world.GetComponentRO<NetworkIdentity>(entity).Value
+                        : 0L;
+
+                    bool hasPolyline = _world.HasManagedComponent<EditablePolyline>(entity);
+                    bool hasRoute    = _world.HasManagedComponent<RoutePlan>(entity);
+
+                    builder.AddItem("Center on Entity", () => _editorLogic?.CenterOnEntity(networkId));
+                    if (networkId != 0)
+                        builder.AddItem("Rename...", () => _editorLogic?.OpenRenameDialog(networkId));
+                    if (hasPolyline)
+                        builder.AddItem("Edit Shape", () => { _editorLogic?.SelectEntity(networkId); _editorLogic?.ActivateTool(EditorTool.Edit); });
+                    if (hasRoute)
+                        builder.AddItem("Edit Route", () => { _editorLogic?.SelectEntity(networkId); _editorLogic?.ActivateTool(EditorTool.Route); });
+                    builder.AddItem("Rotate", () => { _editorLogic?.SelectEntity(networkId); _editorLogic?.ActivateTool(EditorTool.Rotate); });
+                    builder.AddSeparator();
+                    builder.AddItem("Delete", () => _world?.Bus.PublishManaged(
+                        new DestroyEntityCommand { NetworkId = networkId, Reason = "EditorContextMenu" }));
+                }));
+                // 3) Perception seeding actions (mark target memory entries for selected perceivers).
+                _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
+                {
+                    if (!_world.HasComponent<TargetMemory>(entity)) return;
+
+                    int perceiverCount = _selectionState?.SelectedEntities.Count ?? 0;
+
+                    builder.AddSeparator();
+
+                    builder.AddItem(
+                        $"Mark Target for {perceiverCount} Units...",
+                        async void () =>
+                        {
+                            int targetNetId = await _mapPickAdapter!.PickEntityAsync();
+                            Entity target   = FindEntityByNetworkId(targetNetId);
+                            if (!_world.IsAlive(target)) return;
+
+                            foreach (var perceiver in _selectionState?.SelectedEntities ?? System.Array.Empty<Entity>())
+                                _world.Bus.Publish(new SeedTargetCommand
+                                {
+                                    Perceiver  = perceiver,
+                                    Target     = target,
+                                    ScoreBoost = 1.0f,
+                                });
+                        });
+
+                    builder.AddItem(
+                        $"Mark Area Targets for {perceiverCount} Units...",
+                        async void () =>
+                        {
+                            IReadOnlyList<int> targetNetIds = await _mapPickAdapter!.PickAreaEntitiesAsync();
+                            foreach (var perceiver in _selectionState?.SelectedEntities ?? System.Array.Empty<Entity>())
+                                foreach (int netId in targetNetIds)
+                                {
+                                    Entity target = FindEntityByNetworkId(netId);
+                                    if (!_world.IsAlive(target)) continue;
+                                    _world.Bus.Publish(new SeedTargetCommand
+                                    {
+                                        Perceiver  = perceiver,
+                                        Target     = target,
+                                        ScoreBoost = 1.0f,
+                                    });
+                                }
+                        });
+                }));
 
                 // Entity query — all networked simulation entities with a location.
                 var entityQuery = _world.Query()
@@ -670,14 +743,15 @@ namespace Hrot.Editor
                 // (e.g. editing a value in a component window) is always respected.
                 _interactionTool.OnDeleteRequested += () =>
                 {
-                    if (_selectionState == null || _world == null || _contextMenuHandler == null) return;
+                    if (_selectionState == null || _world == null) return;
                     foreach (var entity in new List<Entity>(_selectionState.SelectedEntities))
                     {
                         if (!_world.IsAlive(entity)) continue;
                         if (_world.HasComponent<NetworkIdentity>(entity))
                         {
                             ref readonly var netId = ref _world.GetComponentRO<NetworkIdentity>(entity);
-                            _contextMenuHandler.DeleteEntity(netId.Value);
+                            _world.Bus.PublishManaged(new DestroyEntityCommand
+                                { NetworkId = netId.Value, Reason = "EditorContextMenu" });
                         }
                         else
                         {
@@ -881,10 +955,7 @@ namespace Hrot.Editor
                 }
                 else
                 {
-                    if (_contextMenuHandler != null)
-                        Hrot.UI.Common.Menus.SharedContextMenuPopulator.PopulateEmptyMapMenu(builder, _contextMenuHandler);
-                    else
-                        builder.AddItem("Measurement Tool", () => { });
+                    builder.AddItem("Measurement Tool", () => _editorLogic?.ActivateTool(EditorTool.Measure));
                 }
 
                 ImGuiNET.ImGui.EndPopup();
@@ -1125,6 +1196,16 @@ namespace Hrot.Editor
         /// request to the appropriate canvas tool or adapter.
         /// Called once per frame from <see cref="Update"/> (non-headless only).
         /// </summary>
+        private Entity FindEntityByNetworkId(long networkId)
+        {
+            if (_world == null) return default;
+            var query = _world.Query().With<NetworkIdentity>().Build();
+            foreach (var e in query)
+                if (_world.GetComponent<NetworkIdentity>(e).Value == networkId)
+                    return e;
+            return default;
+        }
+
         private void DrainToolActivationEvents()
         {
             if (_world == null || _canvas == null || _selectionState == null) return;

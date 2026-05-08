@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Hrot.Common.Events;
 using Hrot.IG.Components;
 using Hrot.IG.Systems;
 using Fdp.Core;
@@ -210,11 +211,11 @@ public class ContextMenuSystemTests
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// A <see cref="ContextActionsUpdate"/> event must populate the entity's action
-    /// list without changing the IsOpen flag.
+    /// A <see cref="ContextActionsUpdate"/> event must populate the entity's
+    /// <see cref="ContextMenuState.MenuJson"/> without changing the IsOpen flag.
     /// </summary>
     [Fact]
-    public void ContextActionsUpdate_PopulatesActionList()
+    public void ContextActionsUpdate_SetsMenuJson()
     {
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
@@ -224,25 +225,19 @@ public class ContextMenuSystemTests
         // Pre-seed entity with an open ContextMenuState so the update path applies.
         repo.SetManagedComponent(entity, new ContextMenuState { IsOpen = true });
 
-        var actions = new List<ContextAction>
-        {
-            new ContextAction { Label = "Engage", ActionName = "IG_Engage" },
-            new ContextAction { Label = "Move To", ActionName = "MoveTo" },
-        };
+        const string menuJson = """[{"id":1,"label":"Engage"},{"id":2,"label":"Move To"}]""";
 
         repo.Bus.PublishManaged(new ContextActionsUpdate
         {
             EntityNetworkId = 42,
-            Actions         = actions,
+            MenuJson        = menuJson,
         });
 
         RunSystem(repo, system);
 
         var state = TryGetMenuState(repo, entity);
         Assert.NotNull(state);
-        Assert.Equal(2, state!.Actions.Count);
-        Assert.Equal("Engage",  state.Actions[0].Label);
-        Assert.Equal("Move To", state.Actions[1].Label);
+        Assert.Equal(menuJson, state!.MenuJson);
     }
 
     /// <summary>
@@ -262,7 +257,7 @@ public class ContextMenuSystemTests
         repo.Bus.PublishManaged(new ContextActionsUpdate
         {
             EntityNetworkId = 1,
-            Actions         = new List<ContextAction> { new ContextAction { Label = "Attack", ActionName = "attack" } },
+            MenuJson        = """[{"id":1,"label":"Attack"}]""",
         });
 
         RunSystem(repo, system);
@@ -353,120 +348,21 @@ public class ContextMenuSystemTests
         Assert.Equal(Entity.Null, system.ActiveMenuEntity);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // SimTransform guard — "Center on Entity" injection
-    // ═══════════════════════════════════════════════════════════════════════════
-
     /// <summary>
-    /// When an entity has a <see cref="SimTransform"/> the system must inject a
-    /// "Center on Entity" action at position 0 if none is already present.
+    /// Verifies that re-opening a menu for the same entity preserves the cached
+    /// MenuJson across open/close cycles.
     /// </summary>
     [Fact]
-    public void OpenMenu_EntityWithSimTransform_InjectsCenterOnEntity()
+    public void Reopen_MenuJsonIsPreservedAcrossReopens()
     {
         var repo   = CreateRepo();
-        repo.RegisterComponent<SimTransform>();
         var entity = repo.CreateEntity();
-        repo.AddComponent(entity, new SimTransform());
-        var system = new ContextMenuSystem();
 
-        // Seed the entity with an EMPTY action list so the injection path is exercised.
+        const string menuJson = """[{"id":1,"label":"Action A"}]""";
         repo.SetManagedComponent(entity, new ContextMenuState
         {
-            IsOpen  = false,
-            Actions = new List<ContextAction>()
-        });
-
-        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
-        RunSystem(repo, system);
-
-        var state = TryGetMenuState(repo, entity);
-        Assert.NotNull(state);
-        var hasCenter = state!.Actions.Exists(
-            a => a.ActionName == "IG_CenterOnEntity" || a.ActionName == "IG_Center");
-        Assert.True(hasCenter, "SimTransform entity must get 'Center on Entity' injected.");
-    }
-
-    /// <summary>
-    /// When an entity does NOT have a <see cref="SimTransform"/> (e.g. the
-    /// <c>_mapContextEntity</c> used for empty-space clicks) the system must NOT
-    /// inject the spatial "Center on Entity" action.
-    /// </summary>
-    [Fact]
-    public void OpenMenu_EntityWithoutSimTransform_DoesNotInjectCenterOnEntity()
-    {
-        var repo   = CreateRepo();
-        repo.RegisterComponent<SimTransform>();
-        var entity = repo.CreateEntity(); // deliberately no SimTransform
-        var system = new ContextMenuSystem();
-
-        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
-        RunSystem(repo, system);
-
-        var state = TryGetMenuState(repo, entity);
-        Assert.NotNull(state);
-        var hasCenter = state!.Actions.Exists(
-            a => a.ActionName == "IG_CenterOnEntity" || a.ActionName == "IG_Center");
-        Assert.False(hasCenter,
-            "Entity without SimTransform must NOT receive 'Center on Entity'.");
-    }
-
-    /// <summary>
-    /// When ExCon provides a list that already contains "IG_CenterOnEntity", the system
-    /// must not add a duplicate.
-    /// </summary>
-    [Fact]
-    public void OpenMenu_AlreadyHasCenterAction_DoesNotDuplicate()
-    {
-        var repo   = CreateRepo();
-        repo.RegisterComponent<SimTransform>();
-        repo.RegisterComponent<NetworkIdentity>();
-        var entity = repo.CreateEntity();
-        repo.AddComponent(entity, new SimTransform());
-        repo.AddComponent(entity, new NetworkIdentity(99));
-
-        // Pre-populate via a ContextActionsUpdate that includes the center action.
-        repo.SetManagedComponent(entity, new ContextMenuState
-        {
-            IsOpen  = false,
-            Actions = new List<ContextAction>
-            {
-                new ContextAction { Label = "Center on Entity", ActionName = "IG_CenterOnEntity" },
-                new ContextAction { Label = "Properties...",    ActionName = "2" }
-            }
-        });
-
-        var system = new ContextMenuSystem();
-        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
-        RunSystem(repo, system);
-
-        var state = TryGetMenuState(repo, entity);
-        Assert.NotNull(state);
-        var centerCount = state!.Actions.Count(
-            a => a.ActionName == "IG_CenterOnEntity" || a.ActionName == "IG_Center");
-        Assert.Equal(1, centerCount);
-    }
-
-    /// <summary>
-    /// Verifies that re-opening a menu for the same entity does not permanently
-    /// mutate the action list stored from a previous open cycle.  Specifically,
-    /// the second open must still see the original ExCon-provided actions.
-    /// </summary>
-    [Fact]
-    public void Reopen_ActionListIsCloned_NotSharedWithPreviousTick()
-    {
-        var repo   = CreateRepo();
-        repo.RegisterComponent<SimTransform>();
-        var entity = repo.CreateEntity();
-        // No SimTransform — prevents "Center on Entity" injection noise.
-
-        repo.SetManagedComponent(entity, new ContextMenuState
-        {
-            IsOpen  = false,
-            Actions = new List<ContextAction>
-            {
-                new ContextAction { Label = "Action A", ActionName = "a" }
-            }
+            IsOpen   = false,
+            MenuJson = menuJson,
         });
 
         var system = new ContextMenuSystem();
@@ -474,18 +370,15 @@ public class ContextMenuSystemTests
         // First open.
         system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
         RunSystem(repo, system);
-        var state1 = TryGetMenuState(repo, entity);
-        Assert.Single(state1!.Actions);
+        Assert.Equal(menuJson, TryGetMenuState(repo, entity)!.MenuJson);
 
-        // Close it (so the state goes back to a closed state).
+        // Close then reopen — MenuJson must still be present.
         system.TestHook_CloseContextMenu(entity);
         RunSystem(repo, system);
 
-        // Second open — must get the same 1-action list, not an inflated one.
         system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
         RunSystem(repo, system);
-        var state2 = TryGetMenuState(repo, entity);
-        Assert.Single(state2!.Actions);
+        Assert.Equal(menuJson, TryGetMenuState(repo, entity)!.MenuJson);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -658,15 +551,11 @@ public class ContextMenuSystemTests
         var entity = repo.CreateEntity();
         repo.AddComponent(entity, new NetworkIdentity(10));
 
-        // Pre-populate with an ExCon-provided action list (the "cache hit" scenario).
+        // Pre-populate with an ExCon-provided menu JSON (the "cache hit" scenario).
         repo.SetManagedComponent(entity, new ContextMenuState
         {
-            IsOpen  = false,
-            Actions = new List<ContextAction>
-            {
-                new ContextAction { Label = "Attack",  ActionName = "attack" },
-                new ContextAction { Label = "Move To", ActionName = "moveTo" },
-            }
+            IsOpen   = false,
+            MenuJson = """[{"id":1,"label":"Attack"},{"id":2,"label":"Move To"}]""",
         });
 
         var writer = new FakeCacheMissCallback();
@@ -701,28 +590,22 @@ public class ContextMenuSystemTests
     }
 
     /// <summary>
-    /// If the cached state contains ONLY IG-local defaults (e.g. <c>IG_CenterOnEntity</c>
-    /// was injected on a previous open but the ExCon never responded), the entity still has
-    /// no ExCon-provided actions — so a <see cref="ContextMenuRequest"/> must be emitted
-    /// on the next right-click.
+    /// When an entity has an empty <see cref="ContextMenuState.MenuJson"/> (ExCon never
+    /// responded), the system must emit a <see cref="ContextMenuRequest"/> on right-click
+    /// so ExCon can push back the menu definition.
     /// </summary>
     [Fact]
-    public void OpenMenu_OnlyIgLocalActionsInCache_EmitsContextMenuRequest()
+    public void OpenMenu_EmptyMenuJsonInCache_EmitsContextMenuRequest()
     {
         var repo   = CreateRepo();
-        repo.RegisterComponent<SimTransform>();
         var entity = repo.CreateEntity();
         repo.AddComponent(entity, new NetworkIdentity(99));
-        repo.AddComponent(entity, new SimTransform());
 
-        // Seed state as if a previous open injected IG_CenterOnEntity but ExCon never responded.
+        // Seed state with empty MenuJson — ExCon has not yet responded.
         repo.SetManagedComponent(entity, new ContextMenuState
         {
-            IsOpen  = false,
-            Actions = new List<ContextAction>
-            {
-                new ContextAction { Label = "Center on Entity", ActionName = "IG_CenterOnEntity" }
-            }
+            IsOpen   = false,
+            MenuJson = string.Empty,
         });
 
         var writer = new FakeCacheMissCallback();

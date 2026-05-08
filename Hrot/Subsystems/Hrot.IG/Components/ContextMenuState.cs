@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Fdp.Core;
 
 namespace Hrot.IG.Components;
@@ -8,20 +7,21 @@ namespace Hrot.IG.Components;
 /// queued context menu.
 ///
 /// Created / updated by <see cref="Hrot.IG.Systems.ContextMenuSystem"/> in
-/// response to right-click triggers and <see cref="ContextActionsUpdate"/> events.
+/// response to right-click triggers and <see cref="Hrot.Common.Events.ContextActionsUpdate"/> events.
 ///
 /// This component intentionally uses a managed class (<c>class</c>) so that the
-/// <see cref="Actions"/> list can be a reference type — registered via
+/// <see cref="MenuJson"/> string can be a reference type — registered via
 /// <c>repo.RegisterManagedComponent&lt;ContextMenuState&gt;()</c>.
 /// </summary>
 [ComponentId(GlobalComponentIds.ContextMenuState)]
 public sealed class ContextMenuState
 {
     /// <summary>
-    /// Available actions for this entity's context menu.
-    /// Populated from the most recent <see cref="ContextActionsUpdate"/> event.
+    /// Pre-serialised JSON menu definition for this entity.
+    /// Populated from the most recent <see cref="Hrot.Common.Events.ContextActionsUpdate"/> event.
+    /// Empty string means no definition has arrived yet.
     /// </summary>
-    public List<ContextAction> Actions { get; set; } = new();
+    public string MenuJson { get; set; } = string.Empty;
 
     /// <summary>
     /// <c>true</c> when the menu should be rendered this frame.

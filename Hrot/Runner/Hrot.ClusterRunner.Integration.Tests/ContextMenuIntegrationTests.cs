@@ -48,15 +48,10 @@ public class ContextMenuIntegrationTests
             return false;
 
         var state = view.GetManagedComponentRO<ContextMenuState>(entity);
-        if (state.Actions == null || state.Actions.Count == 0)
+        if (string.IsNullOrEmpty(state.MenuJson))
             return false;
 
-        foreach (var action in state.Actions)
-        {
-            if (action.Label == "Properties...")
-                return true;
-        }
-
-        return false;
+        // Check whether the raw JSON contains the expected label.
+        return state.MenuJson.Contains("Properties...", System.StringComparison.Ordinal);
     }
 }
