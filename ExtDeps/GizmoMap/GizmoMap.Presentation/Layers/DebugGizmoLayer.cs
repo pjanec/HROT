@@ -59,6 +59,7 @@ namespace GizmoMap.Presentation
                     ref readonly var prim = ref frame[i];
                     if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
                     if (prim.Space != CoordinateSpace.World) continue;
+                    if (prim.SubElementId == 0) continue;
 
                     float dx = Math.Abs(worldPos.X - prim.BoxCenterX);
                     float dy = Math.Abs(worldPos.Y - prim.BoxCenterY);

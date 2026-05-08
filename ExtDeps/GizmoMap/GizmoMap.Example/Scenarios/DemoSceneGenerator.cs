@@ -71,6 +71,7 @@ namespace GizmoMap.Example
         /// </summary>
         public void OnGizmoInteraction(GizmoPickToken token, GizmoInteractionEventKind kind, Vector3 pos)
         {
+            if (token.SubElementId != 1) return;
             Console.WriteLine($"Gizmo interaction: anchor={token.AnchorId} sub={token.SubElementId} {kind} at {pos}");
             switch (kind)
             {
@@ -200,6 +201,7 @@ namespace GizmoMap.Example
             boxPrim.BoxAngleDeg  = 0f;
             boxPrim.Color        = new Rgba32(255, 100, 0, 200);
             boxPrim.SubElementId = 1;
+            boxPrim.ZIndex       = 2;
             builder.EmitRaw(in boxPrim);
 
             // ---- 8. Gradient Line: moving entity -> static NATO symbol -------------

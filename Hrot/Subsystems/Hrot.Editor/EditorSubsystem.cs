@@ -527,11 +527,23 @@ namespace Hrot.Editor
             // (IgEntityPresentationGizmo, RouteGizmo, MapOverlayGizmo, EffectPresentationGizmo, ...).
             Hrot.ScenarioEditor.Gizmos.GizmoRegistrar.RegisterAll(
                 new GizmoRegistry(), editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
+            // Register gizmos from Hrot.Common.Diagnostics (SelectionHighlightGizmo, HealthBarGizmo, ...).
+            Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar.RegisterAll(
+                new GizmoRegistry(), editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
+            // Register gizmos from Hrot.IG.Gizmos (EffectPresentationGizmo, ...).
+            Hrot.IG.Gizmos.GizmoRegistrar.RegisterAll(
+                new GizmoRegistry(), editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
             // MissionPresentationGizmo requires IGeographicTransform — register manually.
             editorStatelessGizmoRegistry.Register(
                 new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(geoTransform),
                 new[] { typeof(SimTransform), typeof(SelectionState) });
+            // EntityEditorLabelGizmo requires BehaviorRegistry — register manually.
+            editorStatelessGizmoRegistry.Register(
+                new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(_behaviorRegistry!),
+                new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
             _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(editorStatelessGizmoRegistry, _gizmoBuffer));
+            // SpatialGridGizmo reads the SpatialGridData singleton — register as a standalone system.
+            _kernel.RegisterGlobalSystem(new Hrot.Common.Diagnostics.Gizmos.SpatialGridGizmo(_gizmoBuffer, new GizmoSettingsRegistry()));
 
             // ── 5. Kernel initialization ──────────────────────────────────────
             _kernel.Initialize();
