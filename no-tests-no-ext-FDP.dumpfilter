@@ -25,6 +25,7 @@
 + FDP/ExtDeps/StructEdit
 + FDP/ExtDeps/FastBTree/src 
 + FDP/ExtDeps/FastHSM/src
++ FDP/ExtDeps/GizmoMap
 - scripts
 - TestResults
 - *.txt

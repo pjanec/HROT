@@ -32,11 +32,11 @@ namespace Hrot.DDS.DataModel.Tests
         {
             var buffer = new DebugPrimitiveBuffer(capacity: 64);
 
-            // Two batches with different primitive counts.
+            // Two batches with different primitive counts (DebugPrimitive is 64 bytes each).
             var batch1 = new DebugPrimitivesBatch { NodeId = 1, FrameNumber = 1,
-                Primitives = new DebugPrimitive[1] };
+                PrimitivesData = new byte[1 * 64] };
             var batch2 = new DebugPrimitivesBatch { NodeId = 1, FrameNumber = 2,
-                Primitives = new DebugPrimitive[3] };
+                PrimitivesData = new byte[3 * 64] };
 
             var reader = new QueuedReader(batch1, batch2);
             var translator = new DebugPrimitivesIngressTranslator(buffer, reader);
@@ -63,9 +63,9 @@ namespace Hrot.DDS.DataModel.Tests
             var buffer = new DebugPrimitiveBuffer(capacity: 64);
 
             var fromNode5 = new DebugPrimitivesBatch { NodeId = 5, FrameNumber = 1,
-                Primitives = new DebugPrimitive[2] };
+                PrimitivesData = new byte[2 * 64] };
             var fromNode9 = new DebugPrimitivesBatch { NodeId = 9, FrameNumber = 2,
-                Primitives = new DebugPrimitive[4] };
+                PrimitivesData = new byte[4 * 64] };
 
             var reader = new QueuedReader(fromNode5, fromNode9);
             var translator = new DebugPrimitivesIngressTranslator(buffer, reader, filterNodeId: 9);

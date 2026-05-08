@@ -60,14 +60,14 @@ namespace Hrot.Network.NED.Gizmos
                         // Entity gone during drag — substitute cancel for safety.
                         repo.Bus.Publish(new GizmoInteractionCancelEvent { Token = token });
                     else
-                        repo.Bus.Publish(new GizmoDragUpdateEvent { Token = token, WorldPos = worldPos, Space = batch.Space });
+                        repo.Bus.Publish(new GizmoDragUpdateEvent { Token = token, WorldPos = worldPos, Space = (CoordinateSpace)batch.Space });
                     break;
 
                 case GizmoInteractionEventKind.Commit:
                     if (!alive)
                         repo.Bus.Publish(new GizmoInteractionCancelEvent { Token = token });
                     else
-                        repo.Bus.Publish(new GizmoInteractionCommitEvent { Token = token, WorldPos = worldPos, Space = batch.Space });
+                        repo.Bus.Publish(new GizmoInteractionCommitEvent { Token = token, WorldPos = worldPos, Space = (CoordinateSpace)batch.Space });
                     break;
 
                 case GizmoInteractionEventKind.Cancel:

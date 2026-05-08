@@ -94,11 +94,13 @@ namespace Hrot.DDS.DataModel.Tests
                 SphereCenter = new Vector3(1, 2, 3),
                 SphereRadius = 5f,
             };
+            // DebugPrimitive is 64 bytes; serialize as raw bytes for the DDS byte-array transport.
+            var primArray = new DebugPrimitive[] { prim };
             var batch  = new DebugPrimitivesBatch
             {
-                NodeId      = 1,
-                FrameNumber = 1,
-                Primitives  = new[] { prim },
+                NodeId         = 1,
+                FrameNumber    = 1,
+                PrimitivesData = System.Runtime.InteropServices.MemoryMarshal.AsBytes(primArray.AsSpan()).ToArray(),
             };
 
             var reader     = new PrimitiveBatchReader(batch);
@@ -129,12 +131,12 @@ namespace Hrot.DDS.DataModel.Tests
             Assert.Equal(CoordinateSpace.Screen, evt.Space);
         }
 
-        // SC-GZ047-3: GizmoInteractionBatch has a CoordinateSpace Space field.
+        // SC-GZ047-3: GizmoInteractionBatch has a byte Space field encoding CoordinateSpace.
         [Fact]
         public void SC_GZ047_3_GizmoInteractionBatch_HasSpaceField()
         {
-            var batch = new GizmoInteractionBatch { Space = CoordinateSpace.Screen };
-            Assert.Equal(CoordinateSpace.Screen, batch.Space);
+            var batch = new GizmoInteractionBatch { Space = (byte)CoordinateSpace.Screen };
+            Assert.Equal((byte)CoordinateSpace.Screen, batch.Space);
         }
 
         // SC-GZ047-4: EgressSystem propagates Space from DragUpdateEvent into the written batch.
@@ -158,7 +160,7 @@ namespace Hrot.DDS.DataModel.Tests
             sys.Execute(repo, 0f);
 
             Assert.Equal(1, captured.Count);
-            Assert.Equal(CoordinateSpace.Screen, captured[0].Space);
+            Assert.Equal((byte)CoordinateSpace.Screen, captured[0].Space);
         }
 
         // SC-GZ047-5: IngressSystem restores Space in the published DragUpdateEvent.
@@ -174,7 +176,7 @@ namespace Hrot.DDS.DataModel.Tests
                 Kind                 = GizmoInteractionEventKind.DragUpdate,
                 PickAnchorId         = (uint)entity.Index,
                 PickStreamId         = entity.Generation,
-                Space                = CoordinateSpace.Screen,
+                Space                = (byte)CoordinateSpace.Screen,
             };
 
             var reader = new SingleBatchReader(batch);

@@ -64,7 +64,7 @@ namespace Hrot.Network.NED.Gizmos
                 WorldX               = worldPos.X,
                 WorldY               = worldPos.Y,
                 WorldZ               = worldPos.Z,
-                Space                = space,
+                Space                = (byte)space,
             });
         }
     }

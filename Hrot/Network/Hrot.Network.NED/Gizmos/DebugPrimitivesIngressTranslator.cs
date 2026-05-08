@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using DebugPrimitivesBatch = GizmoMap.Network.DebugPrimitivesBatch;
@@ -48,9 +49,10 @@ namespace Hrot.Network.NED.Gizmos
             if (!latest.HasValue) return;
 
             _buffer.Clear();
-            var primitives = latest.Value.Primitives;
-            if (primitives == null) return;
+            var data = latest.Value.PrimitivesData;
+            if (data == null) return;
 
+            var primitives = MemoryMarshal.Cast<byte, DebugPrimitive>(data.AsSpan());
             for (int i = 0; i < primitives.Length; i++)
                 _buffer.AppendRaw(in primitives[i]);
         }
