@@ -101,8 +101,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     $"{nameof(DataDrivenGizmoSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only view ({view.GetType().Name}).");
 
-            // Advance the persistence clock and clear the previous frame's transient primitives.
-            _drawBuilder.EndFrame(deltaTime);
+            // Note: _drawBuilder.EndFrame(deltaTime) is now the responsibility of the
+            // application shell (EditorSubsystem.Update, IgApplication.Update,
+            // SimHostApp.OnUpdate). It must be called before kernel.Update() so that
+            // the buffer is cleared before backend ECS systems populate it, and before
+            // the canvas renders it. Calling it here would wipe primitives emitted
+            // by other systems running in the same PostSimulation pass.
 
             // 1. Teardown destroyed entities first (so same-frame replace works correctly).
             var destructions = view.ReadEvents<DestructionOrder>();

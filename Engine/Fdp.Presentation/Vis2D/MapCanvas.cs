@@ -225,6 +225,13 @@ namespace Fdp.Toolkit.Vis2D
                 DrawBuilder       = DrawBuffer
             };
 
+            // Draw Tool Overlay (emits primitives FIRST so the buffer is fully
+            // populated before DebugGizmoLayer renders it below).
+            if (ActiveTool != null)
+            {
+                ActiveTool.Draw(ctx);
+            }
+
             // Draw Layers (0 -> N) - Bottom to Top
             foreach (var layer in _layers)
             {
@@ -233,12 +240,6 @@ namespace Fdp.Toolkit.Vis2D
                 {
                     layer.Draw(ctx);
                 }
-            }
-            
-            // Draw Tool Overlay (Topmost)
-            if (ActiveTool != null)
-            {
-                ActiveTool.Draw(ctx);
             }
 
             Camera.EndMode();
