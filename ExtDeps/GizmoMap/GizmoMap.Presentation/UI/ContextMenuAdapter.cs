@@ -47,13 +47,16 @@ namespace GizmoMap.Presentation
         {
             if (_requestOpen)
             {
+                Console.WriteLine($"[Debug] Calling ImGui.OpenPopup({PopupId})");
                 ImGui.OpenPopup(PopupId);
                 _requestOpen = false;
             }
 
             if (_pendingMenuJson == null) return;
 
-            if (ImGui.BeginPopup(PopupId))
+            bool isOpen = ImGui.BeginPopup(PopupId);
+            Console.WriteLine($"[Debug] ImGui.BeginPopup returned: {isOpen}");
+            if (isOpen)
             {
                 DrawMenuItems(_pendingMenuJson, _pendingAnchorId, onAction);
                 ImGui.EndPopup();

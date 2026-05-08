@@ -65,6 +65,10 @@ namespace GizmoMap.Presentation
                 if (prim.Shape == DebugPrimitiveShape.ContextMenuBinding)
                     menuBindings[prim.InspNetworkId] = prim.StringHash;
             }
+            if (Raylib.IsMouseButtonReleased(MouseButton.Right))
+            {
+                Console.WriteLine($"[Debug] Right-click detected. Menu bindings count: {menuBindings.Count}");
+            }
 
             // Try to start a new interaction on left press when no tool is active.
             if (_activeTool == null && Raylib.IsMouseButtonPressed(MouseButton.Left))
@@ -95,7 +99,7 @@ namespace GizmoMap.Presentation
             }
 
             // Right-click: show context menu for the hit Box2D if a binding exists.
-            if (Raylib.IsMouseButtonPressed(MouseButton.Right))
+            if (_activeTool == null && Raylib.IsMouseButtonReleased(MouseButton.Right))
             {
                 for (int i = 0; i < frame.Length; i++)
                 {
@@ -109,11 +113,24 @@ namespace GizmoMap.Presentation
                     if (dx <= prim.BoxExtentX && dy <= prim.BoxExtentY)
                     {
                         long entityId = prim.SubElementId; // SubElementId used as entity binding key
+                        Console.WriteLine($"[Debug] Hit Box2D. SubElementId: {entityId}");
                         if (menuBindings.TryGetValue(entityId, out uint menuHash))
                         {
+                            Console.WriteLine($"[Debug] Found binding hash: {menuHash}");
                             string? json = _buffer.InternMap.TryResolve(menuHash);
                             if (json != null)
+                            {
+                                Console.WriteLine($"[Debug] JSON resolved successfully. Length: {json.Length}");
                                 _contextMenuAdapter.Schedule(entityId, json);
+                            }
+                            else
+                            {
+                                Console.WriteLine("[Debug] ERROR: TryResolve returned null. InternMap sync failed.");
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine("[Debug] ERROR: No menu binding found for this SubElementId.");
                         }
                         break;
                     }
@@ -128,6 +145,9 @@ namespace GizmoMap.Presentation
 
                 if (Raylib.IsMouseButtonReleased(MouseButton.Left))
                     _activeTool.HandleClick(worldPos, MouseButton.Left);
+
+                if (Raylib.IsMouseButtonReleased(MouseButton.Right))
+                    _activeTool.HandleClick(worldPos, MouseButton.Right);
 
                 if (Raylib.IsKeyPressed(KeyboardKey.Escape))
                     _activeTool.HandleKeyPressed(KeyboardKey.Escape);

@@ -43,6 +43,13 @@ using (transport)
             transport.PublishPrimitives(producer.GetFrame());
 
             consumer.Clear();
+
+            // Synchronize the string intern map across the simulated network boundary
+            foreach (var kvp in producer.InternMap.Entries)
+            {
+                consumer.InternMap.Intern(kvp.Key, kvp.Value);
+            }
+
             transport.PollAndApply(consumer);
 
             int count = consumer.GetFrame().Length;
@@ -89,6 +96,13 @@ using (transport)
             transport.PublishPrimitives(producer.GetFrame());
 
             consumer.Clear();
+
+            // Synchronize the string intern map across the simulated network boundary
+            foreach (var kvp in producer.InternMap.Entries)
+            {
+                consumer.InternMap.Intern(kvp.Key, kvp.Value);
+            }
+
             transport.PollAndApply(consumer);
 
             // Route mouse/keyboard input through the gizmo interaction layer.
