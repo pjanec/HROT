@@ -178,21 +178,21 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fbt.SourceGen", "FDP\ExtDep
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GizmoMap", "GizmoMap", "{A1000001-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Contracts", "ExtDeps\GizmoMap\GizmoMap.Contracts\GizmoMap.Contracts.csproj", "{A1000002-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Contracts", "FDP\ExtDeps\GizmoMap\GizmoMap.Contracts\GizmoMap.Contracts.csproj", "{A1000002-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Contracts.Tests", "ExtDeps\GizmoMap\GizmoMap.Contracts.Tests\GizmoMap.Contracts.Tests.csproj", "{A1000003-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Contracts.Tests", "FDP\ExtDeps\GizmoMap\GizmoMap.Contracts.Tests\GizmoMap.Contracts.Tests.csproj", "{A1000003-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Network", "ExtDeps\GizmoMap\GizmoMap.Network\GizmoMap.Network.csproj", "{A1000004-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Network", "FDP\ExtDeps\GizmoMap\GizmoMap.Network\GizmoMap.Network.csproj", "{A1000004-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Network.Tests", "ExtDeps\GizmoMap\GizmoMap.Network.Tests\GizmoMap.Network.Tests.csproj", "{A1000005-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Network.Tests", "FDP\ExtDeps\GizmoMap\GizmoMap.Network.Tests\GizmoMap.Network.Tests.csproj", "{A1000005-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Presentation", "ExtDeps\GizmoMap\GizmoMap.Presentation\GizmoMap.Presentation.csproj", "{A1000006-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Presentation", "FDP\ExtDeps\GizmoMap\GizmoMap.Presentation\GizmoMap.Presentation.csproj", "{A1000006-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Presentation.Tests", "ExtDeps\GizmoMap\GizmoMap.Presentation.Tests\GizmoMap.Presentation.Tests.csproj", "{A1000007-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Presentation.Tests", "FDP\ExtDeps\GizmoMap\GizmoMap.Presentation.Tests\GizmoMap.Presentation.Tests.csproj", "{A1000007-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Example", "ExtDeps\GizmoMap\GizmoMap.Example\GizmoMap.Example.csproj", "{A1000008-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Example", "FDP\ExtDeps\GizmoMap\GizmoMap.Example\GizmoMap.Example.csproj", "{A1000008-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Example.Tests", "ExtDeps\GizmoMap\GizmoMap.Example.Tests\GizmoMap.Example.Tests.csproj", "{A1000009-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Example.Tests", "FDP\ExtDeps\GizmoMap\GizmoMap.Example.Tests\GizmoMap.Example.Tests.csproj", "{A1000009-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
