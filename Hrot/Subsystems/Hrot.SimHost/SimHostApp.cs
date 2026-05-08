@@ -68,6 +68,7 @@ using System.Threading;
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 using Fdp.Toolkit.NetworkSpawning;
+using GizmoInteractionBatch = GizmoMap.Network.GizmoInteractionBatch;
 
 namespace Hrot.SimHost
 {

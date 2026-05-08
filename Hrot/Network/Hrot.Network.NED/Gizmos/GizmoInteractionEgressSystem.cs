@@ -3,6 +3,8 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
+using GizmoInteractionBatch = GizmoMap.Network.GizmoInteractionBatch;
+using GizmoInteractionEventKind = GizmoMap.Network.GizmoInteractionEventKind;
 
 namespace Hrot.Network.NED.Gizmos
 {
@@ -56,9 +58,9 @@ namespace Hrot.Network.NED.Gizmos
                 SourceNodeId         = _nodeId,
                 SequenceNumber       = _sequenceNumber++,
                 Kind                 = kind,
-                PickEntityIndex      = token.Target.Index,
-                PickEntityGeneration = token.Target.Generation,
-                PickSubElementId     = (ushort)token.SubElementId,
+                PickAnchorId         = token.Target.Index,
+                PickStreamId         = (uint)token.Target.Generation,
+                PickSubElementId     = token.SubElementId,
                 WorldX               = worldPos.X,
                 WorldY               = worldPos.Y,
                 WorldZ               = worldPos.Z,

@@ -5,6 +5,8 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
+using GizmoInteractionBatch = GizmoMap.Network.GizmoInteractionBatch;
+using GizmoInteractionEventKind = GizmoMap.Network.GizmoInteractionEventKind;
 
 namespace Hrot.Network.NED.Gizmos
 {
@@ -37,12 +39,12 @@ namespace Hrot.Network.NED.Gizmos
 
         private static void Translate(EntityRepository repo, in GizmoInteractionBatch batch)
         {
-            var entity   = new Entity(batch.PickEntityIndex, batch.PickEntityGeneration);
+            var entity   = new Entity((int)batch.PickAnchorId, (ushort)batch.PickStreamId);
             var worldPos = new Vector3(batch.WorldX, batch.WorldY, batch.WorldZ);
             var token    = new PickToken
             {
                 Target       = entity,
-                SubElementId = (uint)batch.PickSubElementId,
+                SubElementId = batch.PickSubElementId,
             };
 
             bool alive = repo.IsAlive(entity);

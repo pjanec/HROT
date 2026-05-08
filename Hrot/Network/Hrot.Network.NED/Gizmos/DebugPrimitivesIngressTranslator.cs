@@ -1,6 +1,7 @@
 using System;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
+using DebugPrimitivesBatch = GizmoMap.Network.DebugPrimitivesBatch;
 
 namespace Hrot.Network.NED.Gizmos
 {

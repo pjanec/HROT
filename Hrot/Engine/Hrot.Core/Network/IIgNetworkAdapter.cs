@@ -87,14 +87,14 @@ namespace Hrot.Core.Network
         /// to forward gizmo interaction events to SimHost.
         /// Null in headless/offline mode.
         /// </summary>
-        IDdsWriter<GizmoInteractionBatch>? GizmoInteractionWriter { get; }
+        IDdsWriter<GizmoMap.Network.GizmoInteractionBatch>? GizmoInteractionWriter { get; }
 
         /// <summary>
         /// DDS reader for incoming <see cref="DebugPrimitivesBatch"/> frames from SimHost.
         /// Consumed by <see cref="Hrot.Network.NED.Gizmos.DebugPrimitivesIngressTranslator"/>.
         /// Null in headless/offline mode.
         /// </summary>
-        IDdsReader<DebugPrimitivesBatch>? DebugPrimitivesReader { get; }
+        IDdsReader<GizmoMap.Network.DebugPrimitivesBatch>? DebugPrimitivesReader { get; }
     }
 
     /// <summary>No-op implementation used in offline / headless / editor mode.</summary>
@@ -117,8 +117,8 @@ namespace Hrot.Core.Network
             double anchorLat, double anchorLon, double anchorAlt, int commanderEntityId, CancellationToken ct = default)
             => Task.FromResult(0);
         public ICommandGateway CommandGateway => NullIgCommandGateway.Instance;
-        public IDdsWriter<GizmoInteractionBatch>? GizmoInteractionWriter => null;
-        public IDdsReader<DebugPrimitivesBatch>? DebugPrimitivesReader => null;
+        public IDdsWriter<GizmoMap.Network.GizmoInteractionBatch>? GizmoInteractionWriter => null;
+        public IDdsReader<GizmoMap.Network.DebugPrimitivesBatch>? DebugPrimitivesReader => null;
         public void Dispose() { }
     }
 

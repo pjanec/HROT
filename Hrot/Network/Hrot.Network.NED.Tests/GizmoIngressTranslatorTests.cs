@@ -3,6 +3,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using Hrot.Network.NED.Gizmos;
 using Xunit;
+using DebugPrimitivesBatch = GizmoMap.Network.DebugPrimitivesBatch;
 
 namespace Hrot.DDS.DataModel.Tests
 {

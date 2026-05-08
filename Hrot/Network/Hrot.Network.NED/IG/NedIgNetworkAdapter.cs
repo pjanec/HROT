@@ -12,6 +12,8 @@ using CycloneDDS.Runtime;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
+using DebugPrimitivesBatch = GizmoMap.Network.DebugPrimitivesBatch;
+using GizmoInteractionBatch = GizmoMap.Network.GizmoInteractionBatch;
 
 namespace Hrot.Network.NED.IG
 {

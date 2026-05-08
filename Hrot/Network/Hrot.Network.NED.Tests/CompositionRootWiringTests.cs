@@ -6,6 +6,9 @@ using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using Hrot.Network.NED.Gizmos;
 using Xunit;
+using DebugPrimitivesBatch = GizmoMap.Network.DebugPrimitivesBatch;
+using GizmoInteractionBatch = GizmoMap.Network.GizmoInteractionBatch;
+using GizmoInteractionEventKind = GizmoMap.Network.GizmoInteractionEventKind;
 
 namespace Hrot.DDS.DataModel.Tests
 {
@@ -169,8 +172,8 @@ namespace Hrot.DDS.DataModel.Tests
             var batch = new GizmoInteractionBatch
             {
                 Kind                 = GizmoInteractionEventKind.DragUpdate,
-                PickEntityIndex      = entity.Index,
-                PickEntityGeneration = entity.Generation,
+                PickAnchorId         = (uint)entity.Index,
+                PickStreamId         = entity.Generation,
                 Space                = CoordinateSpace.Screen,
             };
 

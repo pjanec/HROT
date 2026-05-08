@@ -8,6 +8,8 @@ using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using Hrot.Network.NED.Gizmos;
 using Xunit;
+using GizmoInteractionBatch = GizmoMap.Network.GizmoInteractionBatch;
+using GizmoInteractionEventKind = GizmoMap.Network.GizmoInteractionEventKind;
 
 namespace Hrot.DDS.DataModel.Tests
 {
@@ -82,7 +84,7 @@ namespace Hrot.DDS.DataModel.Tests
             var record = writer.Written[0];
             Assert.Equal(GizmoInteractionEventKind.DragUpdate, record.Kind);
             Assert.Equal(7, record.SourceNodeId);
-            Assert.Equal(entity.Index, record.PickEntityIndex);
+            Assert.Equal((uint)entity.Index, record.PickAnchorId);
             Assert.Equal(3u, record.PickSubElementId);
             Assert.Equal(1f, record.WorldX, precision: 4);
             Assert.Equal(2f, record.WorldY, precision: 4);
@@ -99,8 +101,8 @@ namespace Hrot.DDS.DataModel.Tests
             var batch = new GizmoInteractionBatch
             {
                 Kind                 = GizmoInteractionEventKind.Commit,
-                PickEntityIndex      = entity.Index,
-                PickEntityGeneration = entity.Generation,
+                PickAnchorId         = (uint)entity.Index,
+                PickStreamId         = entity.Generation,
                 PickSubElementId     = 5,
                 WorldX = 10f, WorldY = 20f, WorldZ = 30f,
             };
@@ -130,8 +132,8 @@ namespace Hrot.DDS.DataModel.Tests
             var batch = new GizmoInteractionBatch
             {
                 Kind                 = GizmoInteractionEventKind.DragUpdate,
-                PickEntityIndex      = index,
-                PickEntityGeneration = gen,
+                PickAnchorId         = (uint)index,
+                PickStreamId         = gen,
             };
             var reader = new SingleItemReader(batch);
             var sys = new GizmoInteractionIngressSystem(reader: reader);
@@ -158,8 +160,8 @@ namespace Hrot.DDS.DataModel.Tests
             var batch = new GizmoInteractionBatch
             {
                 Kind                 = GizmoInteractionEventKind.Cancel,
-                PickEntityIndex      = index,
-                PickEntityGeneration = gen,
+                PickAnchorId         = (uint)index,
+                PickStreamId         = gen,
             };
             var reader = new SingleItemReader(batch);
             var sys = new GizmoInteractionIngressSystem(reader: reader);
@@ -179,8 +181,8 @@ namespace Hrot.DDS.DataModel.Tests
                 SourceNodeId         = 3,
                 SequenceNumber       = 42,
                 Kind                 = GizmoInteractionEventKind.DragUpdate,
-                PickEntityIndex      = 100,
-                PickEntityGeneration = 2,
+                PickAnchorId         = 100,
+                PickStreamId         = 2,
                 PickSubElementId     = 7,
                 WorldX = 1.5f, WorldY = 2.5f, WorldZ = 3.5f,
             };
@@ -188,9 +190,9 @@ namespace Hrot.DDS.DataModel.Tests
             Assert.Equal(3, batch.SourceNodeId);
             Assert.Equal(42u, batch.SequenceNumber);
             Assert.Equal(GizmoInteractionEventKind.DragUpdate, batch.Kind);
-            Assert.Equal(100, batch.PickEntityIndex);
-            Assert.Equal(2, batch.PickEntityGeneration);
-            Assert.Equal(7, batch.PickSubElementId);
+            Assert.Equal(100u, batch.PickAnchorId);
+            Assert.Equal((ushort)2, batch.PickStreamId);
+            Assert.Equal(7u, batch.PickSubElementId);
             Assert.Equal(1.5f, batch.WorldX);
             Assert.Equal(2.5f, batch.WorldY);
             Assert.Equal(3.5f, batch.WorldZ);
