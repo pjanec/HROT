@@ -1,4 +1,5 @@
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
+using GizmoMap.Network;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos
 {
@@ -8,3 +9,4 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         void Publish(GizmoUiState state);
     }
 }
+
