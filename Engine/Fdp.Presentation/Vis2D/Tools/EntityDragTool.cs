@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
-using Raylib_cs;
 using Fdp.Core;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D.Abstractions;
 
 namespace Fdp.Toolkit.Vis2D.Tools;
@@ -61,13 +61,20 @@ public class EntityDragTool : IMapTool
 
     public void Draw(RenderContext ctx)
     {
-        // Draw drag line from start to current
-        Raylib.DrawLineEx(_startPos, _currentPos, 2.0f / ctx.Zoom, Color.Yellow);
-        
-        // Draw target reticle at current pos using float-precision draws to avoid truncation/stutter.
-        float radius = 10.0f / ctx.Zoom;
-        Raylib.DrawPolyLines(_currentPos, 20, radius, 0.0f, Color.Yellow);
-        Raylib.DrawCircleV(_currentPos, 2.0f / ctx.Zoom, Color.Yellow);
+        var color = new Rgba32(255, 255, 0, 255);
+        float zoom = ctx.Zoom > 0 ? ctx.Zoom : 1f;
+
+        // Draw drag line from start to current position.
+        ctx.DrawBuilder?.DrawLine(
+            new Vector3(_startPos.X, _startPos.Y, 0f),
+            new Vector3(_currentPos.X, _currentPos.Y, 0f),
+            color, 2.0f / zoom);
+
+        // Draw target reticle at current position.
+        float radius = 10.0f / zoom;
+        ctx.DrawBuilder?.DrawSphere(
+            new Vector3(_currentPos.X, _currentPos.Y, 0f),
+            radius, color);
     }
 
     public bool HandleClick(Vector2 worldPos, MapMouseButton button)

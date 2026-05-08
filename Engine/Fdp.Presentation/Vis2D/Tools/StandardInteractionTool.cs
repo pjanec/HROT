@@ -208,7 +208,21 @@ namespace Fdp.Toolkit.Vis2D.Tools
 
         private Entity FindEntityAt(Vector2 pos)
         {
-            return _canvas?.PickTopmostEntity(pos) ?? Entity.Null;
+            Entity best = Entity.Null;
+            float bestDistSq = 225f; // 15-metre pick radius squared
+
+            foreach (var entity in _query)
+            {
+                var ePos = _getEntityPosition(entity);
+                if (!ePos.HasValue) continue;
+                float d = Vector2.DistanceSquared(pos, ePos.Value);
+                if (d < bestDistSq)
+                {
+                    bestDistSq = d;
+                    best = entity;
+                }
+            }
+            return best;
         }
 
         /// <inheritdoc/>
