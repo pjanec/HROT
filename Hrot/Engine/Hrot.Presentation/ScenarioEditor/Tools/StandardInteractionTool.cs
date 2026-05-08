@@ -6,7 +6,6 @@ using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.ModuleHost.Abstractions;
-using Raylib_cs;
 using FdpStandardInteractionTool = Fdp.Toolkit.Vis2D.Tools.StandardInteractionTool;
 
 namespace Hrot.ScenarioEditor.Tools;
@@ -46,7 +45,7 @@ public class StandardInteractionTool : IMapTool
     /// IgApplication can subscribe without accessing the private <c>_inner</c> field.
     /// Fires with (worldPos, button, isShift, isCtrl, hitEntity).
     /// </summary>
-    public event Action<Vector2, MouseButton, bool, bool, Entity>? OnWorldClick
+    public event Action<Vector2, MapMouseButton, bool, bool, Entity>? OnWorldClick
     {
         add    => _inner.OnWorldClick += value;
         remove => _inner.OnWorldClick -= value;
@@ -77,7 +76,7 @@ public class StandardInteractionTool : IMapTool
 
     /// <summary>
     /// Passes through the inner FDP tool's delete-requested event.
-    /// Fired when the operator presses <see cref="KeyboardKey.Delete"/> and the
+    /// Fired when the operator presses <see cref="MapKeyboardKey.Delete"/> and the
     /// map canvas owns the keyboard (ImGui did not capture the key press).
     /// Subscribe here to perform the actual entity deletion for this context.
     /// </summary>
@@ -128,7 +127,7 @@ public class StandardInteractionTool : IMapTool
     public void Draw(RenderContext ctx) => _inner.Draw(ctx);
 
     /// <inheritdoc/>
-    public bool HandleClick(Vector2 worldPos, MouseButton button)
+    public bool HandleClick(Vector2 worldPos, MapMouseButton button)
         => _inner.HandleClick(worldPos, button);
 
     /// <inheritdoc/>
@@ -140,7 +139,7 @@ public class StandardInteractionTool : IMapTool
         => _inner.HandleHover(worldPos);
 
     /// <inheritdoc/>
-    public bool HandleKeyPressed(KeyboardKey key)
+    public bool HandleKeyPressed(MapKeyboardKey key)
         => ((IMapTool)_inner).HandleKeyPressed(key);
 
     // â”€â”€ Event handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

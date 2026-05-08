@@ -159,7 +159,7 @@ namespace Hrot.SimHost.Visualization
             }
         }
 
-        public bool HandleInput(Vector2 worldPos, MouseButton button, bool pressed) => false;
+        public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool pressed) => false;
         public Entity? PickEntity(Vector2 worldPos) => null;
     }
 }

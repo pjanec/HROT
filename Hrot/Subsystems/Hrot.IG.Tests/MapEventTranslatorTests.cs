@@ -5,6 +5,7 @@ using Hrot.ScenarioEditor.Tools;
 using Hrot.IG.UI;
 using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Defaults;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;
 
 namespace Hrot.IG.Tests;
@@ -92,7 +93,7 @@ public class MapEventTranslatorTests
         var selection = new DefaultSelectionState();
         var tool      = new StandardInteractionTool(repo, query, selection);
 
-        Action<Vector2, MouseButton, bool, bool, Entity> handler =
+        Action<Vector2, MapMouseButton, bool, bool, Entity> handler =
             (pos, btn, s, c, e) => { };
 
         // Verify subscribe + unsubscribe do not throw.

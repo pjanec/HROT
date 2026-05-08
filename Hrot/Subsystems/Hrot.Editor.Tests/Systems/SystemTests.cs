@@ -342,7 +342,7 @@ public sealed class PerceptionMapLayerTests : IDisposable
         // calls are made — this is sufficient for a smoke test.
         var ctx = new RenderContext
         {
-            Camera = new Camera2D { Zoom = 1.0f },
+            Zoom = 1.0f,
         };
 
         // Verify query construction doesn't throw (the draw itself would call Raylib

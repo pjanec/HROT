@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.ScenarioEditor.Tools;
 using Fdp.Toolkit.NetworkSpawning.Events;
-using Raylib_cs;
 using Fdp.Core;
+using Fdp.Toolkit.Vis2D.Abstractions;
 
 namespace Hrot.IG.Tests;
 
@@ -53,7 +53,7 @@ public class CreationToolTests
     public void HandleClick_LeftClick_WritesExactlyOneCommand()
     {
         var (captured, tool) = CreateTool();
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+        tool.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
         Assert.Single(captured);
     }
 
@@ -65,7 +65,7 @@ public class CreationToolTests
     public void HandleClick_LeftClick_CommandHasNonEmptyRequestId()
     {
         var (captured, tool) = CreateTool();
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+        tool.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
         Assert.NotEqual(Guid.Empty, captured[0].RequestId);
     }
 
@@ -76,7 +76,7 @@ public class CreationToolTests
     public void HandleClick_LeftClick_CommandHasCorrectTkbType()
     {
         var (captured, tool) = CreateTool();
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+        tool.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
         Assert.Equal(TestTkbType, captured[0].TkbType);
     }
 
@@ -89,7 +89,7 @@ public class CreationToolTests
     public void HandleClick_LeftClick_CommandHasInitialTransformMatchingClickPosition()
     {
         var (captured, tool) = CreateTool();
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+        tool.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
         Assert.True(captured[0].InitialTransform.HasValue);
         Assert.Equal(ClickX, captured[0].InitialTransform!.Value.Position.X, precision: 2);
         Assert.Equal(ClickY, captured[0].InitialTransform!.Value.Position.Y, precision: 2);
@@ -106,7 +106,7 @@ public class CreationToolTests
         SpawnEntityCommand? observed = null;
         tool.OnCommandPublished += cmd => observed = cmd;
 
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+        tool.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
 
         Assert.NotNull(observed);
         Assert.Equal(captured[0].RequestId, observed!.Value.RequestId);
@@ -121,7 +121,7 @@ public class CreationToolTests
     public void HandleClick_RightClick_DoesNotPublish()
     {
         var (captured, tool) = CreateTool();
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Right);
+        tool.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Right);
         Assert.Empty(captured);
     }
 
@@ -135,7 +135,7 @@ public class CreationToolTests
     public void Ctor_TkbTypeZero_UsesDefaultTkbType()
     {
         var (captured, tool) = CreateTool(tkbType: 0);
-        tool.HandleClick(Vector2.Zero, MouseButton.Left);
+        tool.HandleClick(Vector2.Zero, MapMouseButton.Left);
         Assert.Equal(CreationToolConstants.DefaultTkbType, captured[0].TkbType);
     }
 
@@ -162,7 +162,7 @@ public class CreationToolTests
     {
         var (captured, tool) = CreateToolWithResolver(() => "Generated-5");
 
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+        tool.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
 
         Assert.Single(captured);
         Assert.Null(captured[0].InitialAttributesJson);
@@ -178,8 +178,8 @@ public class CreationToolTests
         int callIndex = 0;
         var (captured, tool) = CreateToolWithResolver(() => "G-" + ++callIndex);
 
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+        tool.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
+        tool.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
 
         Assert.Equal(2, captured.Count);
         Assert.Null(captured[0].InitialAttributesJson);
@@ -198,7 +198,7 @@ public class CreationToolTests
         const string json = "{\"name\":\"MyUnit\"}";
         var (captured, tool) = CreateTool(initialPropertiesJson: json);
 
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+        tool.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
 
         Assert.Equal(json, captured[0].InitialAttributesJson);
     }
@@ -213,7 +213,7 @@ public class CreationToolTests
         const string json = "{\"name\":\"Alpha\",\"affiliation\":\"FORCE_FRIENDLY\"}";
         var (captured, tool) = CreateTool(initialPropertiesJson: json);
 
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+        tool.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
 
         Assert.Equal(json, captured[0].InitialAttributesJson);
     }
@@ -227,7 +227,7 @@ public class CreationToolTests
     {
         var (captured, tool) = CreateTool();
 
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+        tool.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
 
         Assert.Null(captured[0].InitialAttributesJson);
     }

@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Numerics;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Raylib_cs;
 
 namespace Hrot.ScenarioEditor.Tools;
 
@@ -77,9 +77,9 @@ public class MeasureTool : IMapTool
     // â”€â”€ Input handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
-    public bool HandleClick(Vector2 worldPos, MouseButton button)
+    public bool HandleClick(Vector2 worldPos, MapMouseButton button)
     {
-        if (button == MouseButton.Left)
+        if (button == MapMouseButton.Left)
         {
             if (!_startPoint.HasValue)
             {
@@ -98,7 +98,7 @@ public class MeasureTool : IMapTool
             return true;
         }
 
-        if (button == MouseButton.Right)
+        if (button == MapMouseButton.Right)
         {
             // Cancel measurement.
             _canvas?.PopTool();
@@ -121,11 +121,11 @@ public class MeasureTool : IMapTool
 
     /// <inheritdoc/>
     /// <remarks>
-    /// <see cref="KeyboardKey.Escape"/> cancels and pops the tool regardless of state.
+    /// <see cref="MapKeyboardKey.Escape"/> cancels and pops the tool regardless of state.
     /// </remarks>
-    public bool HandleKeyPressed(KeyboardKey key)
+    public bool HandleKeyPressed(MapKeyboardKey key)
     {
-        if (key == KeyboardKey.Escape)
+        if (key == MapKeyboardKey.Escape)
         {
             _canvas?.PopTool();
             return true;
@@ -151,27 +151,37 @@ public class MeasureTool : IMapTool
             float size  = 14f / zoom;
             float gap   = 5f  / zoom;
             float thick = MeasureToolConstants.LineThickness / zoom;
-            Color color = MeasureToolConstants.LineColor;
+            var   color = new Rgba32(0, 255, 255, 255);
             var   pos   = _currentPoint;
 
             TestHook_LineDrawCount += 4;
             TestHook_CircleDrawCount++;
 
-            if (!TestHook_SkipRaylibCalls)
-            {
-                Raylib.DrawLineEx(new Vector2(pos.X - size, pos.Y), new Vector2(pos.X - gap,  pos.Y), thick, color);
-                Raylib.DrawLineEx(new Vector2(pos.X + gap,  pos.Y), new Vector2(pos.X + size, pos.Y), thick, color);
-                Raylib.DrawLineEx(new Vector2(pos.X, pos.Y - size), new Vector2(pos.X, pos.Y - gap),  thick, color);
-                Raylib.DrawLineEx(new Vector2(pos.X, pos.Y + gap),  new Vector2(pos.X, pos.Y + size), thick, color);
-                Raylib.DrawCircleLinesV(pos, gap, color);
-            }
+            ctx.DrawBuilder?.DrawLine(
+                new System.Numerics.Vector3(pos.X - size, pos.Y, 0f),
+                new System.Numerics.Vector3(pos.X - gap,  pos.Y, 0f), color, thick);
+            ctx.DrawBuilder?.DrawLine(
+                new System.Numerics.Vector3(pos.X + gap,  pos.Y, 0f),
+                new System.Numerics.Vector3(pos.X + size, pos.Y, 0f), color, thick);
+            ctx.DrawBuilder?.DrawLine(
+                new System.Numerics.Vector3(pos.X, pos.Y - size, 0f),
+                new System.Numerics.Vector3(pos.X, pos.Y - gap,  0f), color, thick);
+            ctx.DrawBuilder?.DrawLine(
+                new System.Numerics.Vector3(pos.X, pos.Y + gap,  0f),
+                new System.Numerics.Vector3(pos.X, pos.Y + size, 0f), color, thick);
+            ctx.DrawBuilder?.DrawSphere(
+                new System.Numerics.Vector3(pos.X, pos.Y, 0f), gap, color);
             return;
         }
 
         var start = _startPoint.Value;
         var end   = _currentPoint;
 
-        Raylib.DrawLineEx(start, end, MeasureToolConstants.LineThickness, MeasureToolConstants.LineColor);
+        ctx.DrawBuilder?.DrawLine(
+            new System.Numerics.Vector3(start.X, start.Y, 0f),
+            new System.Numerics.Vector3(end.X,   end.Y,   0f),
+            new Rgba32(0, 255, 255, 255),
+            MeasureToolConstants.LineThickness);
 
         float  distance = Vector2.Distance(start, end);
         string label    = DisplayUnits == MeasureDisplayUnits.Kilometers
@@ -179,18 +189,14 @@ public class MeasureTool : IMapTool
             : $"{distance:F1} m";
         var    midpoint = (start + end) * 0.5f;
 
-        Raylib.DrawText(
+        ctx.DrawBuilder?.DrawTextLong(
+            midpoint.X,
+            midpoint.Y + MeasureToolConstants.LabelOffsetY,
             label,
-            (int)midpoint.X,
-            (int)(midpoint.Y + MeasureToolConstants.LabelOffsetY),
-            MeasureToolConstants.LabelFontSize,
-            Color.White);
+            Rgba32.White);
     }
 
     // â”€â”€ Test hooks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    /// <summary>When <c>true</c>, crosshair Raylib calls are skipped; counters are still incremented.</summary>
-    internal bool TestHook_SkipRaylibCalls;
 
     /// <summary>Number of line draw commands issued by the crosshair renderer.</summary>
     internal int TestHook_LineDrawCount;

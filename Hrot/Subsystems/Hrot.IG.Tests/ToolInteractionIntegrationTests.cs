@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -7,6 +7,7 @@ using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Tools;
 using Fdp.Interfaces;
 using Fdp.Core;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -15,7 +16,6 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication;
-using Raylib_cs;
 
 namespace Hrot.IG.Tests;
 
@@ -87,7 +87,7 @@ public class ToolInteractionIntegrationTests
         var captured = new List<SpawnEntityCommand>();
         var tool     = new CreationTool(cmd => captured.Add(cmd), tkbType: TestTkbType);
 
-        tool.HandleClick(new Vector2(SpawnX, SpawnY), MouseButton.Left);
+        tool.HandleClick(new Vector2(SpawnX, SpawnY), MapMouseButton.Left);
 
         Assert.Single(captured);
     }
@@ -102,7 +102,7 @@ public class ToolInteractionIntegrationTests
         var captured = new List<SpawnEntityCommand>();
         var tool     = new CreationTool(cmd => captured.Add(cmd), tkbType: TestTkbType);
 
-        tool.HandleClick(new Vector2(SpawnX, SpawnY), MouseButton.Left);
+        tool.HandleClick(new Vector2(SpawnX, SpawnY), MapMouseButton.Left);
 
         var cmd = captured[0];
         Assert.Equal(TestTkbType, cmd.TkbType);

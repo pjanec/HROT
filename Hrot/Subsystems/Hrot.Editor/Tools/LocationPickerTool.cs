@@ -76,9 +76,9 @@ namespace Hrot.Editor.Tools
         }
 
         /// <inheritdoc/>
-        public bool HandleClick(Vector2 worldPos, MouseButton button)
+        public bool HandleClick(Vector2 worldPos, MapMouseButton button)
         {
-            if (button == MouseButton.Left)
+            if (button == MapMouseButton.Left)
             {
                 // Convert flat-map Cartesian X/Y to WGS-84 geodetic coordinates.
                 var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(worldPos.X, worldPos.Y, 0f));
@@ -87,7 +87,7 @@ namespace Hrot.Editor.Tools
                 _canvas?.PopTool();
                 return true;
             }
-            if (button == MouseButton.Right)
+            if (button == MapMouseButton.Right)
             {
                 OnCancelled?.Invoke();
                 _canvas?.PopTool();
@@ -107,9 +107,9 @@ namespace Hrot.Editor.Tools
         }
 
         /// <inheritdoc/>
-        public bool HandleKeyPressed(KeyboardKey key)
+        public bool HandleKeyPressed(MapKeyboardKey key)
         {
-            if (key == KeyboardKey.Escape)
+            if (key == MapKeyboardKey.Escape)
             {
                 OnCancelled?.Invoke();
                 _canvas?.PopTool();

@@ -1,13 +1,13 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
 using Hrot.IG.Systems;
 using Hrot.ScenarioEditor.Tools;
 using Fdp.Core;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Combat.Events;
-using Raylib_cs;
 
 namespace Hrot.IG.Tests;
 
@@ -230,7 +230,7 @@ public class AdvancedFeaturesIntegrationTests
         var nearV1 = new Vector2(
             PolyVertex1X + EditToolConstants.VertexPickRadiusWorldUnits * 0.4f,
             PolyVertex1Y);
-        editTool.HandleClick(nearV1, MouseButton.Left);
+        editTool.HandleClick(nearV1, MapMouseButton.Left);
         Assert.Equal(1, editTool.SelectedVertexIndex);
 
         // Drag vertex 1 to a new position.
@@ -241,7 +241,7 @@ public class AdvancedFeaturesIntegrationTests
         // Right-click commits.
         List<Vector2>? committed = null;
         editTool.OnPolylineCommitted += (_, pts) => committed = pts;
-        editTool.HandleClick(Vector2.Zero, MouseButton.Right);
+        editTool.HandleClick(Vector2.Zero, MapMouseButton.Right);
 
         Assert.NotNull(committed);
         Assert.Equal(2, committed!.Count);

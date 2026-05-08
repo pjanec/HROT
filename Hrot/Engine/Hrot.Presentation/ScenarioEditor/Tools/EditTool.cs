@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
 using Fdp.Core;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.ModuleHost.Abstractions;
-using Raylib_cs;
 
 namespace Hrot.ScenarioEditor.Tools;
 
@@ -155,9 +155,9 @@ public class EditTool : IMapTool
     /// Right-click over a vertex opens the vertex context menu (insert/delete).
     /// Right-click away from any vertex commits the ghost polyline and pops the tool.
     /// </remarks>
-    public bool HandleClick(Vector2 worldPos, MouseButton button)
+    public bool HandleClick(Vector2 worldPos, MapMouseButton button)
     {
-        if (button == MouseButton.Left)
+        if (button == MapMouseButton.Left)
         {
             // Update selection explicitly on click so that direct click-without-hover
             // (e.g. unit tests or fast input paths) also resolves the nearest vertex.
@@ -165,7 +165,7 @@ public class EditTool : IMapTool
             return true;
         }
 
-        if (button == MouseButton.Right)
+        if (button == MapMouseButton.Right)
         {
             int nearestVtx = FindNearestVertex(worldPos);
             if (nearestVtx >= 0)
@@ -202,7 +202,7 @@ public class EditTool : IMapTool
         // Without this guard, HandleHover (called before HandleDrag every frame) would
         // clear _selectedVertexIndex the moment the cursor outran the pick radius,
         // causing HandleDrag to find no vertex and stop moving it.
-        if (_canvas?.Input.IsMouseButtonDown(MouseButton.Left) == true)
+        if (_canvas?.Input.IsMouseButtonDown(MapMouseButton.Left) == true)
             return false;
 
         _selectedVertexIndex = FindNearestVertex(worldPos);
@@ -221,7 +221,7 @@ public class EditTool : IMapTool
         // When _canvas is null (headless / unit-test mode) we allow the drag to proceed
         // because there is no input device to query; the caller is responsible for
         // invoking HandleDrag only when a drag gesture is active.
-        if (_canvas != null && !_canvas.Input.IsMouseButtonDown(MouseButton.Left))
+        if (_canvas != null && !_canvas.Input.IsMouseButtonDown(MapMouseButton.Left))
             return false;
 
         if (_selectedVertexIndex < 0)
@@ -245,19 +245,24 @@ public class EditTool : IMapTool
         {
             var p1 = _ghostPoints[i];
             var p2 = _ghostPoints[i + 1];
-            Raylib.DrawLineEx(p1, p2, EditToolConstants.VertexHandleRadiusWorldUnits, Color.Yellow);
+            ctx.DrawBuilder?.DrawLine(
+                new System.Numerics.Vector3(p1.X, p1.Y, 0f),
+                new System.Numerics.Vector3(p2.X, p2.Y, 0f),
+                Rgba32.Yellow,
+                EditToolConstants.VertexHandleRadiusWorldUnits);
         }
 
         // Draw vertex handles (preserve sub-pixel precision).
         for (int i = 0; i < _ghostPoints.Count; i++)
         {
-            var pos    = _ghostPoints[i];
-            bool sel   = i == _selectedVertexIndex;
-            float r    = sel
+            var  pos = _ghostPoints[i];
+            bool sel = i == _selectedVertexIndex;
+            float r  = sel
                 ? EditToolConstants.SelectedHandleRadiusWorldUnits
                 : EditToolConstants.VertexHandleRadiusWorldUnits;
-            Color col  = sel ? Color.Red : Color.White;
-            Raylib.DrawCircleV(pos, r, col);
+            Rgba32 col = sel ? Rgba32.Red : Rgba32.White;
+            ctx.DrawBuilder?.DrawSphere(
+                new System.Numerics.Vector3(pos.X, pos.Y, 0f), r, col);
         }
     }
 
@@ -269,9 +274,9 @@ public class EditTool : IMapTool
     /// without committing any changes.  The ghost list is discarded automatically
     /// by <see cref="OnExit"/>.
     /// </remarks>
-    public bool HandleKeyPressed(KeyboardKey key)
+    public bool HandleKeyPressed(MapKeyboardKey key)
     {
-        if (key == KeyboardKey.Escape)
+        if (key == MapKeyboardKey.Escape)
         {
             if (PendingVertexContextMenu)
             {

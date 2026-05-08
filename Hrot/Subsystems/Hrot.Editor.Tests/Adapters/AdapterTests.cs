@@ -42,12 +42,12 @@ namespace Hrot.Editor.Tests.Adapters
         public float   MouseWheelMove { get; set; } = 0f;
         public bool    IsMouseCaptured    { get; set; } = false;
         public bool    IsKeyboardCaptured { get; set; } = false;
-        public bool IsMouseButtonPressed(MouseButton b)   => false;
-        public bool IsMouseButtonDown   (MouseButton b)   => false;
-        public bool IsMouseButtonReleased(MouseButton b)  => false;
-        public bool IsKeyPressed  (KeyboardKey k) => false;
-        public bool IsKeyDown     (KeyboardKey k) => false;
-        public bool IsKeyReleased (KeyboardKey k) => false;
+        public bool IsMouseButtonPressed(MapMouseButton b)   => false;
+        public bool IsMouseButtonDown   (MapMouseButton b)   => false;
+        public bool IsMouseButtonReleased(MapMouseButton b)  => false;
+        public bool IsKeyPressed  (MapKeyboardKey k) => false;
+        public bool IsKeyDown     (MapKeyboardKey k) => false;
+        public bool IsKeyReleased (MapKeyboardKey k) => false;
         public int  GetKeyPressed()               => 0;
     }
 

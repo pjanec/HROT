@@ -1,10 +1,10 @@
-﻿using Hrot.ScenarioEditor.Tools;
+using Hrot.ScenarioEditor.Tools;
 using Hrot.Map.Common.Components;
 using Fdp.Core;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
-using Raylib_cs;
 using System.Collections.Generic;
 using System.Numerics;
 using Xunit;
@@ -96,7 +96,7 @@ public class IgApplicationTests : System.IDisposable
         // Trigger right-click commit â€” the onCommit lambda must detect the dead
         // entity via World.IsAlive and return early without throwing.
         var ex = Record.Exception(() =>
-            _app.TestHook_ActiveRouteEditTool!.HandleClick(Vector2.Zero, MouseButton.Right));
+            _app.TestHook_ActiveRouteEditTool!.HandleClick(Vector2.Zero, MapMouseButton.Right));
 
         // â”€â”€ Assert â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Assert.Null(ex);

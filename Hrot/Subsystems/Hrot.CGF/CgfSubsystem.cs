@@ -18,6 +18,7 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.Runner;
 using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Layers;
@@ -443,6 +444,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // GZ057: add gizmo layer so CGF entity presentation primitives are rendered.
             var cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, cgfGizmoBuffer, _context.World.Bus, _canvas);
             _canvas.AddLayer(cgfGizmoLayer);
+            _canvas.DrawBuffer = cgfGizmoBuffer;
 
             _interactionTool = new StandardInteractionTool(_context.World, _entityQuery);
 
@@ -467,7 +469,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
             _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
             {
-                if (btn == MouseButton.Right && hitEntity != Entity.Null)
+                if (btn == MapMouseButton.Right && hitEntity != Entity.Null)
                 {
                     _selectionState.PrimarySelected = hitEntity;
                     _fdpInspectorState.SelectedEntity = hitEntity;

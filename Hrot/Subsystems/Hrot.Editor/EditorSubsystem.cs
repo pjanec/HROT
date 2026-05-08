@@ -30,6 +30,7 @@ using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Layers;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Diagnostics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
@@ -612,6 +613,7 @@ namespace Hrot.Editor
 
                 // Gizmo layer — renders entity presentation primitives produced locally by StatelessGizmoSystem.
                 _canvas!.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer!, _world.Bus, _canvas, _world));
+                if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
 
                 // Perception map layer — draws target-memory links between perceivers and targets.
                 var perceptionLayer = new PerceptionMapLayer(_world);
@@ -645,7 +647,7 @@ namespace Hrot.Editor
                 // Right-click on map → trigger context menu popup.
                 _interactionTool.OnWorldClick += (_, btn, _, _, hitEntity) =>
                 {
-                    if (btn == Raylib_cs.MouseButton.Right)
+                    if (btn == MapMouseButton.Right)
                     {
                         _pendingContextMenuEntity = hitEntity;
                         _openContextMenuThisFrame = true;

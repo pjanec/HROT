@@ -1,11 +1,11 @@
 using System;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Events;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Raylib_cs;
 
 namespace Hrot.ScenarioEditor.Tools;
 
@@ -35,7 +35,7 @@ internal static class EntityRotationToolConstants
     /// Colour of the heading preview line (orange — clearly distinct from the
     /// cyan measurement line and entity tints).
     /// </summary>
-    public static readonly Color LineColor = new Color(255, 165, 0, 255);
+    public static readonly Rgba32 LineColor = new Rgba32(255, 128, 0, 255);
 }
 
 /// <summary>
@@ -98,9 +98,9 @@ public class EntityRotationTool : IMapTool
     // -- Input handling -------------------------------------------------------
 
     /// <inheritdoc/>
-    public bool HandleClick(Vector2 worldPos, MouseButton button)
+    public bool HandleClick(Vector2 worldPos, MapMouseButton button)
     {
-        if (button == MouseButton.Left)
+        if (button == MapMouseButton.Left)
         {
             if (_world.IsAlive(_entity) && _world.HasComponent<SimTransform>(_entity))
             {
@@ -134,7 +134,7 @@ public class EntityRotationTool : IMapTool
             return true;
         }
 
-        if (button == MouseButton.Right)
+        if (button == MapMouseButton.Right)
         {
             _canvas?.PopTool();
             return true;
@@ -156,9 +156,9 @@ public class EntityRotationTool : IMapTool
 
     /// <inheritdoc/>
     /// <remarks><see cref="KeyboardKey.Escape"/> cancels and pops the tool.</remarks>
-    public bool HandleKeyPressed(KeyboardKey key)
+    public bool HandleKeyPressed(MapKeyboardKey key)
     {
-        if (key == KeyboardKey.Escape)
+        if (key == MapKeyboardKey.Escape)
         {
             _canvas?.PopTool();
             return true;
@@ -182,18 +182,19 @@ public class EntityRotationTool : IMapTool
         var   origin     = new Vector2(tf.Position.X, tf.Position.Y);
         float headingDeg = ComputeHeadingDeg(origin, _currentPoint);
 
-        Raylib.DrawLineEx(origin, _currentPoint,
-            EntityRotationToolConstants.LineThickness,
-            EntityRotationToolConstants.LineColor);
+        ctx.DrawBuilder?.DrawLine(
+            new System.Numerics.Vector3(origin.X, origin.Y, 0f),
+            new System.Numerics.Vector3(_currentPoint.X, _currentPoint.Y, 0f),
+            EntityRotationToolConstants.LineColor,
+            EntityRotationToolConstants.LineThickness);
 
         string label    = $"{headingDeg:F1} deg";
         var    midpoint = (origin + _currentPoint) * 0.5f;
-        Raylib.DrawText(
+        ctx.DrawBuilder?.DrawTextLong(
+            midpoint.X,
+            midpoint.Y + EntityRotationToolConstants.LabelOffsetY,
             label,
-            (int)midpoint.X,
-            (int)(midpoint.Y + EntityRotationToolConstants.LabelOffsetY),
-            EntityRotationToolConstants.LabelFontSize,
-            Color.White);
+            Rgba32.White);
     }
 
     // -- Private helpers ------------------------------------------------------

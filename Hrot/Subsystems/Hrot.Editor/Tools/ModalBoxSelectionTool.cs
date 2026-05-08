@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Raylib_cs;
 
 namespace Hrot.Editor.Tools
 {
@@ -45,16 +44,16 @@ namespace Hrot.Editor.Tools
         public void Draw(RenderContext ctx) { }
 
         /// <inheritdoc/>
-        public bool HandleClick(Vector2 worldPos, MouseButton button)
+        public bool HandleClick(Vector2 worldPos, MapMouseButton button)
         {
-            if (button == MouseButton.Left)
+            if (button == MapMouseButton.Left)
             {
                 // Placeholder: fires with empty list; spatial query wired in later batch.
                 OnSelectionComplete?.Invoke(Array.Empty<int>());
                 _canvas?.PopTool();
                 return true;
             }
-            if (button == MouseButton.Right)
+            if (button == MapMouseButton.Right)
             {
                 OnCancelled?.Invoke();
                 _canvas?.PopTool();
@@ -70,9 +69,9 @@ namespace Hrot.Editor.Tools
         public bool HandleHover(Vector2 worldPos) => false;
 
         /// <inheritdoc/>
-        public bool HandleKeyPressed(KeyboardKey key)
+        public bool HandleKeyPressed(MapKeyboardKey key)
         {
-            if (key == KeyboardKey.Escape)
+            if (key == MapKeyboardKey.Escape)
             {
                 OnCancelled?.Invoke();
                 _canvas?.PopTool();

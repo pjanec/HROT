@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Text.Json;
 using Fdp.Core;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Replication;
-using Raylib_cs;
 
 namespace Hrot.ScenarioEditor.Tools;
 
@@ -137,9 +137,9 @@ public class CreationTool : IMapTool
     //  Input handling 
 
     /// <inheritdoc/>
-    public bool HandleClick(Vector2 worldPos, MouseButton button)
+    public bool HandleClick(Vector2 worldPos, MapMouseButton button)
     {
-        if (button == MouseButton.Left)
+        if (button == MapMouseButton.Left)
         {
             BuildAndPublishSpawnCommand(worldPos);
             if (_autoPopOnPlace)
@@ -147,7 +147,7 @@ public class CreationTool : IMapTool
             return true;
         }
 
-        if (button == MouseButton.Right)
+        if (button == MapMouseButton.Right)
         {
             // Cancel  return to previous tool without spawning.
             _canvas?.PopTool();
@@ -173,9 +173,9 @@ public class CreationTool : IMapTool
     /// <see cref="KeyboardKey.Escape"/> cancels placement and pops the tool without
     /// publishing a <see cref="CreateEntityRequest"/>.
     /// </remarks>
-    public bool HandleKeyPressed(KeyboardKey key)
+    public bool HandleKeyPressed(MapKeyboardKey key)
     {
-        if (key == KeyboardKey.Escape)
+        if (key == MapKeyboardKey.Escape)
         {
             _canvas?.PopTool();
             return true;
@@ -196,18 +196,16 @@ public class CreationTool : IMapTool
         var ghostColor = GetAffiliationColor(_affiliationForDisplay);
         ghostColor.A = CreationToolConstants.GhostAlpha;
 
-        Raylib.DrawCircle(
-            (int)_currentMouseWorld.X,
-            (int)_currentMouseWorld.Y,
+        ctx.DrawBuilder?.DrawSphere(
+            new System.Numerics.Vector3(_currentMouseWorld.X, _currentMouseWorld.Y, 0f),
             CreationToolConstants.GhostRadiusPx,
             ghostColor);
 
-        Raylib.DrawText(
+        ctx.DrawBuilder?.DrawTextLong(
+            _currentMouseWorld.X,
+            _currentMouseWorld.Y + CreationToolConstants.GhostLabelOffsetY,
             _tkbType.ToString(),
-            (int)_currentMouseWorld.X,
-            (int)(_currentMouseWorld.Y + CreationToolConstants.GhostLabelOffsetY),
-            CreationToolConstants.GhostLabelFontSize,
-            Color.White);
+            Rgba32.White);
     }
 
     //  Private helpers 
@@ -268,12 +266,12 @@ public class CreationTool : IMapTool
         return ForceId.Neutral;
     }
 
-    private static Color GetAffiliationColor(ForceId affiliation) =>
+    private static Rgba32 GetAffiliationColor(ForceId affiliation) =>
         affiliation switch
         {
-            ForceId.Friend  => Color.Blue,
-            ForceId.Hostile => Color.Red,
-            ForceId.Neutral => Color.Green,
-            _               => Color.White,
+            ForceId.Friend  => new Rgba32(0, 0, 255, 255),
+            ForceId.Hostile => Rgba32.Red,
+            ForceId.Neutral => Rgba32.Green,
+            _               => Rgba32.White,
         };
 }

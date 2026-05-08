@@ -1,8 +1,8 @@
 using System;
 using System.Numerics;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Raylib_cs;
 
 namespace Hrot.Editor.Tools
 {
@@ -48,19 +48,22 @@ namespace Hrot.Editor.Tools
         public void Draw(RenderContext ctx)
         {
             if (_canvas != null)
-                Raylib_cs.Raylib.DrawCircleLinesV(_currentMousePos, _radius, Raylib_cs.Color.Red);
+                ctx.DrawBuilder?.DrawSphere(
+                    new System.Numerics.Vector3(_currentMousePos.X, _currentMousePos.Y, 0f),
+                    _radius,
+                    Rgba32.Red);
         }
 
         /// <inheritdoc/>
-        public bool HandleClick(Vector2 worldPos, MouseButton button)
+        public bool HandleClick(Vector2 worldPos, MapMouseButton button)
         {
-            if (button == MouseButton.Left)
+            if (button == MapMouseButton.Left)
             {
                 OnObstaclePlaced?.Invoke(worldPos);
                 _canvas?.PopTool();
                 return true;
             }
-            if (button == MouseButton.Right)
+            if (button == MapMouseButton.Right)
             {
                 _canvas?.PopTool();
                 return true;
@@ -79,9 +82,9 @@ namespace Hrot.Editor.Tools
         }
 
         /// <inheritdoc/>
-        public bool HandleKeyPressed(KeyboardKey key)
+        public bool HandleKeyPressed(MapKeyboardKey key)
         {
-            if (key == KeyboardKey.Escape)
+            if (key == MapKeyboardKey.Escape)
             {
                 _canvas?.PopTool();
                 return true;

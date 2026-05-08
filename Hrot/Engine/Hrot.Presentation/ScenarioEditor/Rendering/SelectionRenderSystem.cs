@@ -135,7 +135,7 @@ public class SelectionRenderSystem : IMapLayer
 
     /// <inheritdoc/>
     /// <remarks>Selection rings do not consume mouse input.</remarks>
-    public bool HandleInput(Vector2 worldPos, MouseButton button, bool isPressed) => false;
+    public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
 
     /// <inheritdoc/>
     /// <remarks>Selection rings are overlays; they are not pick targets.</remarks>

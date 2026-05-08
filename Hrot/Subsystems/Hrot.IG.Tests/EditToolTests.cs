@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Tools;
 using Fdp.Core;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.ModuleHost.Abstractions;
-using Raylib_cs;
 
 namespace Hrot.IG.Tests;
 
@@ -177,8 +177,8 @@ public class EditToolTests
         var entity = CreatePolylineEntity(repo);
         var tool   = CreateAndEnter(repo, entity);
 
-        bool hit  = tool.HandleClick(NearVertex1, MouseButton.Left);
-        bool miss = tool.HandleClick(FarFromAll,  MouseButton.Left);
+        bool hit  = tool.HandleClick(NearVertex1, MapMouseButton.Left);
+        bool miss = tool.HandleClick(FarFromAll,  MapMouseButton.Left);
 
         Assert.True(hit);
         Assert.True(miss);
@@ -199,7 +199,7 @@ public class EditToolTests
         var entity = CreatePolylineEntity(repo);
         var tool   = CreateAndEnter(repo, entity);
 
-        tool.HandleClick(NearVertex1, MouseButton.Left); // select vertex 1
+        tool.HandleClick(NearVertex1, MapMouseButton.Left); // select vertex 1
         tool.HandleDrag(DragTarget, Vector2.Zero);
 
         Assert.Equal(DragTarget, tool.GhostPoints[1]);
@@ -234,7 +234,7 @@ public class EditToolTests
         var entity = CreatePolylineEntity(repo);
         var tool   = CreateAndEnter(repo, entity);
 
-        tool.HandleClick(NearVertex1, MouseButton.Left);
+        tool.HandleClick(NearVertex1, MapMouseButton.Left);
         bool result = tool.HandleDrag(DragTarget, Vector2.Zero);
 
         Assert.True(result);
@@ -257,7 +257,7 @@ public class EditToolTests
         int callCount = 0;
         tool.OnPolylineCommitted += (_, _) => callCount++;
 
-        tool.HandleClick(Vector2.Zero, MouseButton.Right);
+        tool.HandleClick(Vector2.Zero, MapMouseButton.Right);
 
         Assert.Equal(1, callCount);
     }
@@ -276,7 +276,7 @@ public class EditToolTests
         Entity? committed = null;
         tool.OnPolylineCommitted += (e, _) => committed = e;
 
-        tool.HandleClick(Vector2.Zero, MouseButton.Right);
+        tool.HandleClick(Vector2.Zero, MapMouseButton.Right);
 
         Assert.Equal(entity, committed);
     }
@@ -299,7 +299,7 @@ public class EditToolTests
         List<Vector2>? committed = null;
         tool.OnPolylineCommitted += (_, pts) => committed = pts;
 
-        tool.HandleClick(Vector2.Zero, MouseButton.Right);
+        tool.HandleClick(Vector2.Zero, MapMouseButton.Right);
 
         Assert.NotNull(committed);
         Assert.Equal(DragTarget, committed![1]);
@@ -319,7 +319,7 @@ public class EditToolTests
         List<Vector2>? committed = null;
         tool.OnPolylineCommitted += (_, pts) => committed = pts;
 
-        tool.HandleClick(Vector2.Zero, MouseButton.Right);
+        tool.HandleClick(Vector2.Zero, MapMouseButton.Right);
 
         Vector2 original = tool.GhostPoints[0];
         committed![0] = new Vector2(9999f, 9999f);
@@ -347,7 +347,7 @@ public class EditToolTests
         int commitCount = 0;
         tool.OnPolylineCommitted += (_, _) => commitCount++;
 
-        tool.HandleClick(NearVertex1, MouseButton.Right);
+        tool.HandleClick(NearVertex1, MapMouseButton.Right);
 
         Assert.True(tool.PendingVertexContextMenu);
         Assert.Equal(0, commitCount); // must NOT commit
@@ -366,7 +366,7 @@ public class EditToolTests
         int commitCount = 0;
         tool.OnPolylineCommitted += (_, _) => commitCount++;
 
-        tool.HandleClick(FarFromAll, MouseButton.Right);
+        tool.HandleClick(FarFromAll, MapMouseButton.Right);
 
         Assert.Equal(1, commitCount);
         Assert.False(tool.PendingVertexContextMenu);
@@ -383,7 +383,7 @@ public class EditToolTests
         var entity = CreatePolylineEntity(repo);
         var tool   = CreateAndEnter(repo, entity);
 
-        tool.HandleClick(NearVertex1, MouseButton.Right);
+        tool.HandleClick(NearVertex1, MapMouseButton.Right);
 
         Assert.Equal(1, tool.ContextMenuVertexIndex);
     }
@@ -401,7 +401,7 @@ public class EditToolTests
         var entity = CreatePolylineEntity(repo);
         var tool   = CreateAndEnter(repo, entity);
 
-        tool.HandleClick(NearVertex1, MouseButton.Right); // opens ctx menu for vertex 1
+        tool.HandleClick(NearVertex1, MapMouseButton.Right); // opens ctx menu for vertex 1
         int countBefore = tool.GhostPoints.Count;
 
         tool.InsertPointAfterSelected();
@@ -434,7 +434,7 @@ public class EditToolTests
         var tool = new EditTool(entity, (ISimulationView)repo);
         tool.OnEnter(null!);
 
-        tool.HandleClick(NearVertex1, MouseButton.Right); // ctx menu for vertex 1
+        tool.HandleClick(NearVertex1, MapMouseButton.Right); // ctx menu for vertex 1
         tool.DeleteSelectedPoint();
 
         Assert.Equal(3, tool.GhostPoints.Count);
@@ -454,7 +454,7 @@ public class EditToolTests
         var entity = CreatePolylineEntity(repo); // exactly 3 points
         var tool   = CreateAndEnter(repo, entity);
 
-        tool.HandleClick(NearVertex1, MouseButton.Right);
+        tool.HandleClick(NearVertex1, MapMouseButton.Right);
         tool.DeleteSelectedPoint();
 
         Assert.Equal(3, tool.GhostPoints.Count); // still 3
@@ -474,7 +474,7 @@ public class EditToolTests
         var entity = CreatePolylineEntity(repo);
         var tool   = CreateAndEnter(repo, entity);
 
-        tool.HandleClick(NearVertex1, MouseButton.Right);
+        tool.HandleClick(NearVertex1, MapMouseButton.Right);
         Assert.True(tool.PendingVertexContextMenu);
 
         int commitCount = 0;

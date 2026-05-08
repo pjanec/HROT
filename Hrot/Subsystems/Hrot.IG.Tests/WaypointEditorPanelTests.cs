@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.ScenarioEditor.Tools;
@@ -6,6 +6,7 @@ using Hrot.IG.UI;
 using Hrot.Map.Common.Components;
 using Fdp.Core;
 using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Xunit;
 
 namespace Hrot.IG.Tests;
@@ -58,7 +59,7 @@ public class WaypointEditorPanelTests
         // Simulate a left-click near the waypoint to select it.
         var pos = new Vector2(plan.Waypoints[selectIndex].Position.X,
                               plan.Waypoints[selectIndex].Position.Z);
-        tool.HandleClick(pos, Raylib_cs.MouseButton.Left);
+        tool.HandleClick(pos, MapMouseButton.Left);
         return tool;
     }
 

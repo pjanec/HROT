@@ -13,7 +13,6 @@ using Fdp.Toolkit.Replication.Components;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
-using Raylib_cs;
 
 namespace Hrot.IG.Tests;
 

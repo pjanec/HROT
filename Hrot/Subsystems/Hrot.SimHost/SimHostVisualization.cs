@@ -18,6 +18,7 @@ using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Vis2D.Tools;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Presentation.Facades;
 using Hrot.UI.Common.Menus;
 using CarKinem.Commands;
@@ -220,6 +221,7 @@ namespace Hrot.SimHost
             // Gizmo debug overlay (GZ032).
             _gizmoBuffer = gizmoBuffer ?? new DebugPrimitiveBuffer();
             _map.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer, repo.Bus, _map, repo));
+            _map.DrawBuffer = _gizmoBuffer;
 
             // ── Interaction tool ──────────────────────────────────────────────
             _interactionTool = new StandardInteractionTool(repo, _vehicleQuery);
@@ -256,7 +258,7 @@ namespace Hrot.SimHost
 
             _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
             {
-                if (btn != MouseButton.Right) return;
+                if (btn != MapMouseButton.Right) return;
 
                 // Right-click directly on an entity (no modifier) -> open map context menu.
                 if (!shift && !ctrl && hitEntity != Entity.Null)

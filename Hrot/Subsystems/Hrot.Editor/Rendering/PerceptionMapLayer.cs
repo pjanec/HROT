@@ -35,7 +35,7 @@ public sealed unsafe class PerceptionMapLayer : IMapLayer
     public void Update(float dt) { }
 
     /// <inheritdoc/>
-    public bool HandleInput(Vector2 worldPos, MouseButton button, bool isPressed) => false;
+    public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
 
     /// <inheritdoc/>
     public Entity? PickEntity(Vector2 worldPos) => null;

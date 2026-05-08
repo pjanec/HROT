@@ -1,7 +1,7 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Hrot.ScenarioEditor.Tools;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Raylib_cs;
+using Hrot.IG.Tests.Gizmos;
 
 namespace Hrot.IG.Tests;
 
@@ -50,7 +50,7 @@ public class MeasureToolTests
     {
         var tool = new MeasureTool();
 
-        tool.HandleClick(new Vector2(0f, 0f), MouseButton.Left);
+        tool.HandleClick(new Vector2(0f, 0f), MapMouseButton.Left);
 
         Assert.True(tool.IsMeasuring);
     }
@@ -60,7 +60,7 @@ public class MeasureToolTests
     {
         var tool = new MeasureTool();
 
-        tool.HandleClick(new Vector2(0f, 0f), MouseButton.Left);
+        tool.HandleClick(new Vector2(0f, 0f), MapMouseButton.Left);
 
         // Distance is not set until the second click.
         Assert.True(float.IsNaN(tool.LastMeasuredDistanceMeters));
@@ -75,8 +75,8 @@ public class MeasureToolTests
     public void HandleClick_SecondLeftClick_ComputesHorizontalDistance()
     {
         var tool = new MeasureTool();
-        tool.HandleClick(new Vector2(0f,    0f), MouseButton.Left);
-        tool.HandleClick(new Vector2(300f,  0f), MouseButton.Left);
+        tool.HandleClick(new Vector2(0f,    0f), MapMouseButton.Left);
+        tool.HandleClick(new Vector2(300f,  0f), MapMouseButton.Left);
 
         Assert.Equal(300f, tool.LastMeasuredDistanceMeters, precision: 3);
     }
@@ -88,8 +88,8 @@ public class MeasureToolTests
     public void HandleClick_SecondLeftClick_ComputesVerticalDistance()
     {
         var tool = new MeasureTool();
-        tool.HandleClick(new Vector2(0f,    0f), MouseButton.Left);
-        tool.HandleClick(new Vector2(0f,  400f), MouseButton.Left);
+        tool.HandleClick(new Vector2(0f,    0f), MapMouseButton.Left);
+        tool.HandleClick(new Vector2(0f,  400f), MapMouseButton.Left);
 
         Assert.Equal(400f, tool.LastMeasuredDistanceMeters, precision: 3);
     }
@@ -101,8 +101,8 @@ public class MeasureToolTests
     public void HandleClick_SecondLeftClick_ComputesDiagonalDistance_Pythagoras()
     {
         var tool = new MeasureTool();
-        tool.HandleClick(new Vector2(0f, 0f), MouseButton.Left);
-        tool.HandleClick(new Vector2(3f, 4f), MouseButton.Left);
+        tool.HandleClick(new Vector2(0f, 0f), MapMouseButton.Left);
+        tool.HandleClick(new Vector2(3f, 4f), MapMouseButton.Left);
 
         Assert.Equal(5f, tool.LastMeasuredDistanceMeters, precision: 3);
     }
@@ -114,8 +114,8 @@ public class MeasureToolTests
     public void HandleClick_SecondLeftClick_CoincidentPoints_DistanceIsZero()
     {
         var tool = new MeasureTool();
-        tool.HandleClick(new Vector2(100f, 100f), MouseButton.Left);
-        tool.HandleClick(new Vector2(100f, 100f), MouseButton.Left);
+        tool.HandleClick(new Vector2(100f, 100f), MapMouseButton.Left);
+        tool.HandleClick(new Vector2(100f, 100f), MapMouseButton.Left);
 
         Assert.Equal(0f, tool.LastMeasuredDistanceMeters, precision: 3);
     }
@@ -128,8 +128,8 @@ public class MeasureToolTests
     public void HandleClick_LargeCoordinates_DistanceAccurate()
     {
         var tool = new MeasureTool();
-        tool.HandleClick(new Vector2(0f,      0f     ), MouseButton.Left);
-        tool.HandleClick(new Vector2(5000f, 5000f), MouseButton.Left);
+        tool.HandleClick(new Vector2(0f,      0f     ), MapMouseButton.Left);
+        tool.HandleClick(new Vector2(5000f, 5000f), MapMouseButton.Left);
 
         float expected = Vector2.Distance(new Vector2(0f, 0f), new Vector2(5000f, 5000f));
         Assert.Equal(expected, tool.LastMeasuredDistanceMeters, precision: 2);
@@ -145,7 +145,7 @@ public class MeasureToolTests
     {
         var tool = new MeasureTool();
 
-        tool.HandleClick(new Vector2(0f, 0f), MouseButton.Right);
+        tool.HandleClick(new Vector2(0f, 0f), MapMouseButton.Right);
 
         Assert.True(float.IsNaN(tool.LastMeasuredDistanceMeters));
     }
@@ -157,9 +157,9 @@ public class MeasureToolTests
     public void HandleClick_RightClickAfterStart_CancelsWithoutDistance()
     {
         var tool = new MeasureTool();
-        tool.HandleClick(new Vector2(0f, 0f), MouseButton.Left); // Set start
+        tool.HandleClick(new Vector2(0f, 0f), MapMouseButton.Left); // Set start
 
-        tool.HandleClick(new Vector2(100f, 0f), MouseButton.Right); // Cancel
+        tool.HandleClick(new Vector2(100f, 0f), MapMouseButton.Right); // Cancel
 
         // IsMeasuring is no longer meaningful after pop, but distance should stay NaN.
         Assert.True(float.IsNaN(tool.LastMeasuredDistanceMeters));
@@ -172,7 +172,7 @@ public class MeasureToolTests
     {
         var tool = new MeasureTool();
 
-        bool consumed = tool.HandleClick(new Vector2(0f, 0f), MouseButton.Left);
+        bool consumed = tool.HandleClick(new Vector2(0f, 0f), MapMouseButton.Left);
 
         Assert.True(consumed);
     }
@@ -182,7 +182,7 @@ public class MeasureToolTests
     {
         var tool = new MeasureTool();
 
-        bool consumed = tool.HandleClick(new Vector2(0f, 0f), MouseButton.Right);
+        bool consumed = tool.HandleClick(new Vector2(0f, 0f), MapMouseButton.Right);
 
         Assert.True(consumed);
     }
@@ -205,30 +205,30 @@ public class MeasureToolTests
     [Fact]
     public void Draw_NoStartPoint_DoesNotThrow()
     {
+        var spy  = new FullCapturingDrawBuilder();
         var tool = new MeasureTool();
-        tool.TestHook_SkipRaylibCalls = true;
 
         // Move cursor so _currentPoint is at a known non-default position.
         tool.HandleHover(new Vector2(50f, 50f));
 
-        var ex = Record.Exception(() => tool.Draw(new RenderContext { Camera = new Camera2D { Zoom = 1f } }));
+        var ex = Record.Exception(() => tool.Draw(new RenderContext { Zoom = 1f, DrawBuilder = spy }));
         Assert.Null(ex);
     }
 
     /// <summary>
-    /// When no start point is set, <see cref="MeasureTool.Draw"/> must issue exactly
-    /// four line draw commands and one circle draw command (the crosshair cursor).
+    /// When no start point is set, <see cref="MeasureTool.Draw"/> must emit exactly
+    /// four line primitives and one sphere primitive (the crosshair cursor).
     /// </summary>
     [Fact]
     public void Draw_NoStartPoint_DrawsCrosshair()
     {
+        var spy  = new FullCapturingDrawBuilder();
         var tool = new MeasureTool();
-        tool.TestHook_SkipRaylibCalls = true;
         tool.HandleHover(new Vector2(100f, 100f));
 
-        tool.Draw(new RenderContext { Camera = new Camera2D { Zoom = 1f } });
+        tool.Draw(new RenderContext { Zoom = 1f, DrawBuilder = spy });
 
-        Assert.Equal(4, tool.TestHook_LineDrawCount);
-        Assert.Equal(1, tool.TestHook_CircleDrawCount);
+        Assert.Equal(4, spy.LineCalls.Count);
+        Assert.Equal(1, spy.SphereCalls.Count);
     }
 }

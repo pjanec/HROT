@@ -50,7 +50,7 @@
 **Goal:** Completely replace the legacy hardcoded map layers and entity visualizers in SimHost, CGF, and IG with pure `GizmoMap`-based declarative rendering.
 * [x] **TASK-GZ057** Convert Base Entity Visualizers to Stateless Gizmos
 * [x] **TASK-GZ058** Migrate Domain Map Layers to Gizmo Projectors
-* [ ] **TASK-GZ059** Eradicate Legacy Rendering Infrastructure & Wire Composition Roots
+* [x] **TASK-GZ059** Eradicate Legacy Rendering Infrastructure & Wire Composition Roots
 
 #### Phase 21: Tool Rendering Decoupling
 **Goal:** Eradicate direct `Raylib_cs` dependencies from all interactive map tools, converting them into "gizmo generators" that emit backend-neutral `DebugPrimitive`s while retaining their stateful ECS logic.

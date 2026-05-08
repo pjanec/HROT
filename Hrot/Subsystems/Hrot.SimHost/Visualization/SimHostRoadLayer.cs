@@ -42,7 +42,7 @@ namespace Hrot.SimHost.Visualization
             }
         }
 
-        public bool HandleInput(Vector2 worldPos, Raylib_cs.MouseButton button, bool pressed)
+        public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool pressed)
             => false;
 
         public Fdp.Core.Entity? PickEntity(Vector2 worldPos) => null;

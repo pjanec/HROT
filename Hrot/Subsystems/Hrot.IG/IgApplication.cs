@@ -93,6 +93,7 @@ using Hrot.ScenarioEditor.Events;
 using Fdp.Toolkit.Vis2D.Layers;
 
 using Fdp.Toolkit.Vis2D.Tools;
+using Fdp.Toolkit.Vis2D.Abstractions;
 
 using ImGuiNET;
 
@@ -1092,6 +1093,7 @@ public class IgApplication : IDisposable
         _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_canvas, _gizmoSettingsRegistry);
         var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, _world.Bus, _canvas);
         _canvas.AddLayer(gizmoLayer);
+        _canvas.DrawBuffer = _gizmoBuffer;
 
         // Cache SelectionState query once to avoid per-click allocations (CT-2).
         _selectionStateQuery = _world.Query()
@@ -1965,7 +1967,7 @@ public class IgApplication : IDisposable
     /// Internal test hook to simulate a map click without Raylib input.
     /// </summary>
     internal void TestHook_SimulateMapClick(Vector2 worldPos)
-        => OnCanvasClicked(worldPos, MouseButton.Left, false, false, Entity.Null);
+        => OnCanvasClicked(worldPos, MapMouseButton.Left, false, false, Entity.Null);
 
 
 
@@ -1987,7 +1989,7 @@ public class IgApplication : IDisposable
 
             return;
 
-        OnCanvasClicked(Vector2.Zero, MouseButton.Left, false, false, entity);
+        OnCanvasClicked(Vector2.Zero, MapMouseButton.Left, false, false, entity);
 
     }
 
@@ -2037,7 +2039,7 @@ public class IgApplication : IDisposable
 
         if (_canvas.ActiveTool is CreationTool creationTool)
 
-            creationTool.HandleClick(worldPos, MouseButton.Left);
+            creationTool.HandleClick(worldPos, MapMouseButton.Left);
 
     }
 
@@ -2065,7 +2067,7 @@ public class IgApplication : IDisposable
 
         {
 
-            tool.HandleClick(Vector2.Zero, MouseButton.Right);
+            tool.HandleClick(Vector2.Zero, MapMouseButton.Right);
 
             return;
 
@@ -2079,7 +2081,7 @@ public class IgApplication : IDisposable
 
             tool.HandleHover(points[i]);
 
-            tool.HandleClick(points[i], MouseButton.Left);
+            tool.HandleClick(points[i], MapMouseButton.Left);
 
         }
 
@@ -2087,7 +2089,7 @@ public class IgApplication : IDisposable
 
         tool.HandleHover(points[^1]);
 
-        tool.HandleClick(points[^1], MouseButton.Right);
+        tool.HandleClick(points[^1], MapMouseButton.Right);
 
     }
 
@@ -2129,7 +2131,7 @@ public class IgApplication : IDisposable
 
     internal void TestHook_SimulateShiftRightClick(System.Numerics.Vector2 worldPos)
 
-        => OnCanvasWorldClick(worldPos, MouseButton.Right, shift: true, ctrl: false, hit: Entity.Null);
+        => OnCanvasWorldClick(worldPos, MapMouseButton.Right, shift: true, ctrl: false, hit: Entity.Null);
 
     /// <summary>
 
@@ -2139,7 +2141,7 @@ public class IgApplication : IDisposable
 
     internal void TestHook_SimulatePlainRightClick(System.Numerics.Vector2 worldPos)
 
-        => OnCanvasWorldClick(worldPos, MouseButton.Right, shift: false, ctrl: false, hit: Entity.Null);
+        => OnCanvasWorldClick(worldPos, MapMouseButton.Right, shift: false, ctrl: false, hit: Entity.Null);
 
     /// <summary>
 
@@ -2332,7 +2334,7 @@ public class IgApplication : IDisposable
 
     /// </summary>
 
-    private void OnCanvasClicked(Vector2 worldPos, MouseButton button, bool shift, bool ctrl, Entity hit, bool updateSelection = true)
+    private void OnCanvasClicked(Vector2 worldPos, MapMouseButton button, bool shift, bool ctrl, Entity hit, bool updateSelection = true)
 
     {
 
@@ -2397,11 +2399,11 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
 
 
-    private void OnCanvasWorldClick(Vector2 worldPos, MouseButton button, bool shift, bool ctrl, Entity hit)
+    private void OnCanvasWorldClick(Vector2 worldPos, MapMouseButton button, bool shift, bool ctrl, Entity hit)
 
     {
 
-        if (button != MouseButton.Right)
+        if (button != MapMouseButton.Right)
 
             return;
 
@@ -3985,7 +3987,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
         var tool = new LocationPickerTool();
         tool.OnLocationPicked += worldPos =>
-            OnCanvasClicked(worldPos, MouseButton.Left, false, false, Entity.Null, updateSelection: false);
+            OnCanvasClicked(worldPos, MapMouseButton.Left, false, false, Entity.Null, updateSelection: false);
         tool.OnCancelled += () =>
             FdpLog<IgApplication>.Debug("[Node-{0}] LocationPicker cancelled.", _effectiveInstanceId);
 
@@ -4062,7 +4064,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         {
             // Re-use OnCanvasClicked to publish the MapClickEvent.
             // The entity will appear in HitStack so the ExCon receives the networkId.
-            OnCanvasClicked(Vector2.Zero, MouseButton.Left, false, false, entity, updateSelection: false);
+            OnCanvasClicked(Vector2.Zero, MapMouseButton.Left, false, false, entity, updateSelection: false);
             FdpLog<IgApplication>.Info("[Node-{0}] EntityPicker picked entity {1}", _effectiveInstanceId, entity.Index);
         };
 

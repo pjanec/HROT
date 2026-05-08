@@ -5,9 +5,9 @@ using Hrot.Core.Network;
 using Hrot.IG.Systems;
 using Hrot.ScenarioEditor.Tools;
 using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Core;
-using Raylib_cs;
 
 namespace Hrot.IG.Tests;
 
@@ -64,7 +64,7 @@ public class MapCommandControllerTests
     {
         var (canvas, bus, _, ctrl) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null);
-        ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MouseButton.Left);
+        ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MapMouseButton.Left);
         Assert.Single(DrainSpawnCmds(bus));
     }
 
@@ -74,7 +74,7 @@ public class MapCommandControllerTests
         var (canvas, bus, ackCapture, ctrl) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.ActivatePlacementCommand(requestId, Guid.NewGuid(), 202L, null);
-        ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MouseButton.Left);
+        ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MapMouseButton.Left);
         var entityReqId = DrainSpawnCmds(bus)[0].RequestId;
         ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = entityReqId, EntityId = 99, StatusCode = 0 });
         Assert.Single(ackCapture.Written);
@@ -87,7 +87,7 @@ public class MapCommandControllerTests
     {
         var (canvas, bus, ackCapture, ctrl) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null);
-        ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MouseButton.Left);
+        ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MapMouseButton.Left);
         bus.SwapBuffers();
         ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 1, StatusCode = 0 });
         Assert.Empty(ackCapture.Written);
@@ -99,7 +99,7 @@ public class MapCommandControllerTests
         var (canvas, bus, ackCapture, ctrl) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.ActivatePlacementCommand(requestId, Guid.NewGuid(), 202L, null);
-        ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MouseButton.Right);
+        ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MapMouseButton.Right);
         Assert.Empty(bus.ReadManaged<SpawnEntityCommand>());
         Assert.Single(ackCapture.Written);
         Assert.Equal(requestId, ackCapture.Written[0].RequestId);
@@ -111,7 +111,7 @@ public class MapCommandControllerTests
     {
         var (canvas, bus, ackCapture, ctrl) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null);
-        ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MouseButton.Left);
+        ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MapMouseButton.Left);
         var entityReqId = DrainSpawnCmds(bus)[0].RequestId;
         ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = entityReqId, EntityId = 42, StatusCode = 0 });
         Assert.Contains("42", ackCapture.Written[0].DataJson);
@@ -158,7 +158,7 @@ public class MapCommandControllerTests
     {
         var (canvas, bus, _, ctrl) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null, initialPropertiesJson: "{\"Name\":\"BetaUnit\"}");
-        ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(100f, 200f), MouseButton.Left);
+        ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(100f, 200f), MapMouseButton.Left);
         var cmds = DrainSpawnCmds(bus);
         Assert.Single(cmds);
         Assert.Equal("{\"Name\":\"BetaUnit\"}", cmds[0].InitialAttributesJson);

@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Numerics;
 using Hrot.Map.Common.Components;
 using Fdp.Core;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Raylib_cs;
 
 namespace Hrot.ScenarioEditor.Tools;
 
@@ -121,7 +121,7 @@ public class RouteEditTool : IMapTool
     public bool HandleHover(Vector2 worldPos)
     {
         // Don't reset selection while actively dragging.
-        if (_canvas?.Input.IsMouseButtonDown(MouseButton.Left) == true)
+        if (_canvas?.Input.IsMouseButtonDown(MapMouseButton.Left) == true)
             return false;
 
         _selectedVertexIndex = FindNearestVertex(worldPos);
@@ -133,9 +133,9 @@ public class RouteEditTool : IMapTool
     /// Left-click: select a vertex or insert on a segment.
     /// Right-click: commit ghost and signal pop.
     /// </remarks>
-    public bool HandleClick(Vector2 worldPos, MouseButton button)
+    public bool HandleClick(Vector2 worldPos, MapMouseButton button)
     {
-        if (button == MouseButton.Left)
+        if (button == MapMouseButton.Left)
         {
             int nearest = FindNearestVertex(worldPos);
             if (nearest >= 0)
@@ -162,7 +162,7 @@ public class RouteEditTool : IMapTool
             return true;
         }
 
-        if (button == MouseButton.Right)
+        if (button == MapMouseButton.Right)
         {
             int nearestVtx = FindNearestVertex(worldPos);
             if (nearestVtx >= 0)
@@ -186,7 +186,7 @@ public class RouteEditTool : IMapTool
     /// <inheritdoc/>
     public bool HandleDrag(Vector2 worldPos, Vector2 delta)
     {
-        if (_canvas != null && !_canvas.Input.IsMouseButtonDown(MouseButton.Left))
+        if (_canvas != null && !_canvas.Input.IsMouseButtonDown(MapMouseButton.Left))
             return false;
 
         if (_selectedVertexIndex < 0)
@@ -205,9 +205,9 @@ public class RouteEditTool : IMapTool
     }
 
     /// <inheritdoc/>
-    public bool HandleKeyPressed(KeyboardKey key)
+    public bool HandleKeyPressed(MapKeyboardKey key)
     {
-        if (key == KeyboardKey.Delete)
+        if (key == MapKeyboardKey.Delete)
         {
             if (_selectedVertexIndex >= 0 && _selectedVertexIndex < _ghost.Count)
             {
@@ -217,7 +217,7 @@ public class RouteEditTool : IMapTool
             return true;
         }
 
-        if (key == KeyboardKey.Escape)
+        if (key == MapKeyboardKey.Escape)
         {
             // Cancel without committing.
             _canvas?.PopTool();
@@ -237,7 +237,10 @@ public class RouteEditTool : IMapTool
         {
             var a = ToCanvas(_ghost[i].Position);
             var b = ToCanvas(_ghost[i + 1].Position);
-            Raylib.DrawLineEx(a, b, 2f, Color.Yellow);
+            ctx.DrawBuilder?.DrawLine(
+                new System.Numerics.Vector3(a.X, a.Y, 0f),
+                new System.Numerics.Vector3(b.X, b.Y, 0f),
+                Rgba32.Yellow, 2f);
         }
 
         // Draw vertex handles.
@@ -245,10 +248,10 @@ public class RouteEditTool : IMapTool
         {
             var  pos = ToCanvas(_ghost[i].Position);
             bool sel = i == _selectedVertexIndex;
-            Raylib.DrawCircleV(
-                pos,
+            ctx.DrawBuilder?.DrawSphere(
+                new System.Numerics.Vector3(pos.X, pos.Y, 0f),
                 sel ? RouteEditToolConstants.SelectedHandleRadius : RouteEditToolConstants.HandleRadius,
-                sel ? Color.Red : Color.White);
+                sel ? Rgba32.Red : Rgba32.White);
         }
     }
 

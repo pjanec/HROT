@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.ScenarioEditor.Tools;
 using Hrot.Map.Common.Components;
 using Fdp.Core;
-using Raylib_cs;
+using Fdp.Toolkit.Vis2D.Abstractions;
 
 namespace Hrot.IG.Tests;
 
@@ -112,7 +112,7 @@ public class RouteEditToolTests
     {
         var tool = CreateAndEnter(MakeThreeWaypointPlan());
 
-        tool.HandleClick(NearWp1, MouseButton.Left);
+        tool.HandleClick(NearWp1, MapMouseButton.Left);
 
         Assert.Equal(1, tool.SelectedVertexIndex);
     }
@@ -132,7 +132,7 @@ public class RouteEditToolTests
         Assert.True(Vector2.Distance(mid, Canvas(Wp0Pos)) > RouteEditToolConstants.VertexPickRadius);
         Assert.True(Vector2.Distance(mid, Canvas(Wp1Pos)) > RouteEditToolConstants.VertexPickRadius);
 
-        tool.HandleClick(mid, MouseButton.Left);
+        tool.HandleClick(mid, MapMouseButton.Left);
 
         Assert.Equal(4, tool.GhostWaypoints.Count); // was 3, now 4
         Assert.Equal(1, tool.SelectedVertexIndex);
@@ -149,7 +149,7 @@ public class RouteEditToolTests
     {
         var tool = CreateAndEnter(MakeThreeWaypointPlan());
 
-        tool.HandleClick(FarClick, MouseButton.Left);
+        tool.HandleClick(FarClick, MapMouseButton.Left);
 
         Assert.Equal(3, tool.GhostWaypoints.Count);
         Assert.Equal(-1, tool.SelectedVertexIndex);
@@ -178,7 +178,7 @@ public class RouteEditToolTests
         });
         tool.OnEnter(null!);
 
-        tool.HandleClick(Vector2.Zero, MouseButton.Right);
+        tool.HandleClick(Vector2.Zero, MapMouseButton.Right);
 
         Assert.Equal(entity, committedEntity);
         Assert.NotNull(committedWaypoints);
@@ -204,9 +204,9 @@ public class RouteEditToolTests
         tool.OnEnter(null!);
 
         // Right-click twice (simulating a second commit after re-entry).
-        tool.HandleClick(Vector2.Zero, MouseButton.Right);
+        tool.HandleClick(Vector2.Zero, MapMouseButton.Right);
         tool.OnEnter(null!); // re-enter to reset ghost
-        tool.HandleClick(Vector2.Zero, MouseButton.Right);
+        tool.HandleClick(Vector2.Zero, MapMouseButton.Right);
 
         Assert.NotSame(first, second);
     }
@@ -224,10 +224,10 @@ public class RouteEditToolTests
     {
         var tool = CreateAndEnter(MakeThreeWaypointPlan());
 
-        tool.HandleClick(NearWp1, MouseButton.Left); // select vertex 1
+        tool.HandleClick(NearWp1, MapMouseButton.Left); // select vertex 1
         Assert.Equal(1, tool.SelectedVertexIndex);
 
-        tool.HandleKeyPressed(KeyboardKey.Delete);
+        tool.HandleKeyPressed(MapKeyboardKey.Delete);
 
         Assert.Equal(2, tool.GhostWaypoints.Count);
         Assert.Equal(Wp0Pos, tool.GhostWaypoints[0].Position);
@@ -243,7 +243,7 @@ public class RouteEditToolTests
         var tool = CreateAndEnter(MakeThreeWaypointPlan());
         // SelectedVertexIndex starts at -1.
 
-        tool.HandleKeyPressed(KeyboardKey.Delete);
+        tool.HandleKeyPressed(MapKeyboardKey.Delete);
 
         Assert.Equal(3, tool.GhostWaypoints.Count);
     }
@@ -262,7 +262,7 @@ public class RouteEditToolTests
         var tool = new RouteEditTool(new Entity(1, 0), MakeThreeWaypointPlan(), (_, _) => committed = true);
         tool.OnEnter(null!);
 
-        tool.HandleKeyPressed(KeyboardKey.Escape);
+        tool.HandleKeyPressed(MapKeyboardKey.Escape);
 
         Assert.False(committed, "Escape must discard edits without invoking the commit callback.");
     }
@@ -280,7 +280,7 @@ public class RouteEditToolTests
         var tool  = CreateAndEnter(MakeThreeWaypointPlan());
         var delta = new Vector2(5f, -3f);
 
-        tool.HandleClick(NearWp1, MouseButton.Left); // select vertex 1
+        tool.HandleClick(NearWp1, MapMouseButton.Left); // select vertex 1
         tool.HandleDrag(Canvas(Wp1Pos) + delta, delta);
 
         var expected = new Vector3(Wp1Pos.X + delta.X, 0f, Wp1Pos.Z + delta.Y);
@@ -302,7 +302,7 @@ public class RouteEditToolTests
     public void GetSelectedWaypointRef_WithSelection_AllowsInPlaceSpeedEdit()
     {
         var tool = CreateAndEnter(MakeThreeWaypointPlan());
-        tool.HandleClick(NearWp1, MouseButton.Left); // select vertex 1
+        tool.HandleClick(NearWp1, MapMouseButton.Left); // select vertex 1
 
         ref var wp = ref tool.GetSelectedWaypointRef();
         wp.TargetSpeed = 99f;
@@ -320,7 +320,7 @@ public class RouteEditToolTests
     public void GetSelectedWaypointRef_WithSelection_AllowsInPlaceJsonEdit()
     {
         var tool = CreateAndEnter(MakeThreeWaypointPlan());
-        tool.HandleClick(NearWp1, MouseButton.Left); // select vertex 1
+        tool.HandleClick(NearWp1, MapMouseButton.Left); // select vertex 1
 
         ref var wp = ref tool.GetSelectedWaypointRef();
         wp.ExtensionJson = @"{""dangerLevel"":3}";
@@ -358,7 +358,7 @@ public class RouteEditToolTests
         var tool = CreateAndEnter(MakeThreeWaypointPlan(),
             onCommit: (_, _) => commitCount++);
 
-        tool.HandleClick(NearWp1, MouseButton.Right);
+        tool.HandleClick(NearWp1, MapMouseButton.Right);
 
         Assert.True(tool.PendingVertexContextMenu);
         Assert.Equal(0, commitCount);
@@ -374,7 +374,7 @@ public class RouteEditToolTests
         var tool = CreateAndEnter(MakeThreeWaypointPlan(),
             onCommit: (_, _) => commitCount++);
 
-        tool.HandleClick(FarClick, MouseButton.Right);
+        tool.HandleClick(FarClick, MapMouseButton.Right);
 
         Assert.Equal(1, commitCount);
         Assert.False(tool.PendingVertexContextMenu);
@@ -388,7 +388,7 @@ public class RouteEditToolTests
     {
         var tool = CreateAndEnter(MakeThreeWaypointPlan());
 
-        tool.HandleClick(NearWp1, MouseButton.Right);
+        tool.HandleClick(NearWp1, MapMouseButton.Right);
 
         Assert.Equal(1, tool.ContextMenuVertexIndex);
     }
@@ -403,7 +403,7 @@ public class RouteEditToolTests
     public void InsertWaypointAfterSelected_AddsWaypointAtMidpointWithInheritedSpeed()
     {
         var tool = CreateAndEnter(MakeThreeWaypointPlan());
-        tool.HandleClick(NearWp1, MouseButton.Right); // ctx menu for waypoint 1
+        tool.HandleClick(NearWp1, MapMouseButton.Right); // ctx menu for waypoint 1
 
         int countBefore = tool.GhostWaypoints.Count;
         tool.InsertWaypointAfterSelected();
@@ -425,7 +425,7 @@ public class RouteEditToolTests
     public void DeleteSelectedWaypoint_RemovesWaypoint()
     {
         var tool = CreateAndEnter(MakeThreeWaypointPlan());
-        tool.HandleClick(NearWp1, MouseButton.Right);
+        tool.HandleClick(NearWp1, MapMouseButton.Right);
 
         tool.DeleteSelectedWaypoint();
 
@@ -449,7 +449,7 @@ public class RouteEditToolTests
         var tool = CreateAndEnter(twoWpPlan);
 
         // Right-click near Wp1 to open context menu.
-        tool.HandleClick(NearWp1, MouseButton.Right);
+        tool.HandleClick(NearWp1, MapMouseButton.Right);
         tool.DeleteSelectedWaypoint();
 
         Assert.Equal(2, tool.GhostWaypoints.Count);
@@ -469,7 +469,7 @@ public class RouteEditToolTests
         var tool = CreateAndEnter(MakeThreeWaypointPlan(),
             onCommit: (_, _) => commitCount++);
 
-        tool.HandleClick(NearWp1, MouseButton.Right);
+        tool.HandleClick(NearWp1, MapMouseButton.Right);
         Assert.True(tool.PendingVertexContextMenu);
 
         tool.CloseVertexContextMenu();
