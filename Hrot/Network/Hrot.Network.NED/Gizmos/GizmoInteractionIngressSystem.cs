@@ -5,6 +5,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
+using Hrot.IG;
 using GizmoInteractionBatch = GizmoMap.Network.GizmoInteractionBatch;
 using GizmoInteractionEventKind = GizmoMap.Network.GizmoInteractionEventKind;
 
@@ -73,6 +74,18 @@ namespace Hrot.Network.NED.Gizmos
                 case GizmoInteractionEventKind.Cancel:
                     // Always forward cancel regardless of entity liveness.
                     repo.Bus.Publish(new GizmoInteractionCancelEvent { Token = token });
+                    break;
+
+                case GizmoInteractionEventKind.MenuAction:
+                    // Route the selected context-menu item back as a ContextActionTriggered event
+                    // so that SimHost-side handlers can execute the corresponding domain action.
+                    // ActionName is the integer action ID serialised as a string to match the
+                    // convention used by IgApplication.HandleContextMenuAction.
+                    repo.Bus.PublishManaged(new ContextActionTriggered
+                    {
+                        EntityNetworkId = (int)batch.PickAnchorId,
+                        ActionName      = batch.ActionId.ToString(),
+                    });
                     break;
             }
         }

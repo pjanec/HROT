@@ -379,6 +379,10 @@ public class IgApplication : IDisposable
 
     private ContextMenuSystem     _contextMenuSystem  = null!;
 
+    // Reference to the gizmo layer held here so DrawContextMenu can be called
+    // from DrawUI inside the ImGui pass.
+    private DebugGizmoLayer?      _gizmoLayer;
+
 
 
     // ── FDP framework panels (Task 16) ────────────────────────────────────────────
@@ -1092,6 +1096,7 @@ public class IgApplication : IDisposable
             new[] { typeof(SimTransform), typeof(SelectionState) });
         _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_canvas, _gizmoSettingsRegistry);
         var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, _world.Bus, _canvas);
+        _gizmoLayer = gizmoLayer;
         _canvas.AddLayer(gizmoLayer);
         _canvas.DrawBuffer = _gizmoBuffer;
 
@@ -1601,6 +1606,7 @@ public class IgApplication : IDisposable
         }
 
         _contextMenuPanel.Draw();
+        _gizmoLayer?.DrawContextMenu();
 
         if (!_panelsWindowManaged)
         {

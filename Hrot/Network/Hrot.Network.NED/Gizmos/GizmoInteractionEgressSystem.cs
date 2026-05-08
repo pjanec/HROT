@@ -45,6 +45,10 @@ namespace Hrot.Network.NED.Gizmos
 
             foreach (ref readonly var evt in view.ReadEvents<GizmoInteractionCancelEvent>())
                 WriteRecord(GizmoInteractionEventKind.Cancel, evt.Token, Vector3.Zero);
+
+            // Forward context-menu action selections back to SimHost.
+            foreach (ref readonly var evt in view.ReadEvents<GizmoMenuActionEvent>())
+                WriteMenuAction(evt.AnchorId, evt.ActionId);
         }
 
         private void WriteRecord(
@@ -65,6 +69,18 @@ namespace Hrot.Network.NED.Gizmos
                 WorldY               = worldPos.Y,
                 WorldZ               = worldPos.Z,
                 Space                = (byte)space,
+            });
+        }
+
+        private void WriteMenuAction(long anchorId, int actionId)
+        {
+            _writer!.Write(new GizmoInteractionBatch
+            {
+                SourceNodeId   = _nodeId,
+                SequenceNumber = _sequenceNumber++,
+                Kind           = GizmoInteractionEventKind.MenuAction,
+                PickAnchorId   = anchorId,
+                ActionId       = actionId,
             });
         }
     }

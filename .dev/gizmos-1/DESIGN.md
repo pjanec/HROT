@@ -593,3 +593,209 @@ in frame N+1. For diagnostic tooling this latency is acceptable.
 `Fdp.Diagnostics.Contracts`, `Fdp.Diagnostics.Network`, and `Fdp.Presentation` become thin
 facades that re-export types from their `GizmoMap.*` counterparts via type aliases, preserving
 backward compatibility for the FDP solution.
+
+---
+
+## §10 Gizmo-Driven Context Menus
+
+### 10.1 Design Goal
+
+Context menus must be associated with remote map entities (identified by `NetworkId`) without
+introducing any new DDS topics. The back-end declares which menu belongs to which entity by
+emitting a metadata primitive each frame. The menu content is transported via the existing
+`StringInternBatch` side-channel and cached by the dumb terminal, so a menu definition that
+never changes is transmitted only once regardless of how many entity instances reference it.
+
+### 10.2 New Primitive: ContextMenuBinding
+
+`DebugPrimitiveShape.ContextMenuBinding = 11` is a non-visual metadata primitive. It reuses the
+two existing payload overlay fields in the 64-byte header:
+
+| Offset | Field | Reused as |
+|--------|-------|-----------|
+| 8-11 | `uint StringHash` | FNV-1a hash of the menu JSON string (same overlay as `AnchorIndex`) |
+| 24-31 | `long InspNetworkId` | Stable network-level entity ID to bind the menu to |
+
+All other fields remain zero. The primitive is **never dispatched to the renderer** (the pass-2
+loop skips it, alongside `SpatialAnchor`). The factory method is:
+
+```csharp
+DebugPrimitive.MakeContextMenuBinding(long networkId, uint menuJsonHash)
+```
+
+**Payload budget:** the binding fits entirely within the existing 40-byte payload union (8 bytes
+used) and does not violate the 64-byte size invariant.
+
+### 10.3 Menu Definition JSON Schema
+
+The menu is defined as a JSON array of item objects. The same schema is used by the server to
+author menus and by the presentation layer to render them. The complete schema is:
+
+```json
+[
+  { "id": 1,   "label": "Center View",   "shortcut": "C" },
+  { "separator": true },
+  { "id": 10,  "label": "Order: Move",   "shortcut": "M", "enabled": true },
+  { "id": 11,  "label": "Order: Engage", "shortcut": "E" },
+  { "separator": true },
+  {
+    "label": "Logistics",
+    "children": [
+      { "id": 20, "label": "Resupply", "enabled": false, "tooltip": "Cannot resupply: Unit is moving" },
+      { "id": 21, "label": "Repair" }
+    ]
+  },
+  { "id": 99, "label": "DELETE", "style": "destructive" }
+]
+```
+
+**Per-item properties:**
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `id` | integer | yes (leaf items) | Action identifier echoed back in `GizmoInteractionBatch.ActionId` |
+| `label` | string | yes | Display text |
+| `shortcut` | string | no | Keyboard shortcut hint displayed alongside the label |
+| `enabled` | boolean | no | Defaults to `true`; if `false` the item renders grayed-out |
+| `style` | string | no | Visual hint for the presentation layer; `"destructive"` renders the item in a warning colour |
+| `tooltip` | string | no | Hover tooltip text (informational; current implementation ignores) |
+| `separator` | boolean | no | When `true` the object is a visual divider; all other fields are ignored |
+| `children` | array | no | Nested items; presence makes the entry a sub-menu header (`id` must be absent) |
+
+### 10.4 Back-End Emission (Producer Side)
+
+The producer node evaluates entity state, selects the appropriate menu JSON string, and interns
+it via `StringInternMap`. Because `Intern` is idempotent, the string is allocated in the map
+only on the very first call; subsequent calls for the same hash are no-ops:
+
+```csharp
+string menuJson = GetMenuJsonForEntity(entity);
+uint   hash     = StringInternMap.Fnv1a32(menuJson);
+buffer.InternMap.Intern(hash, menuJson);                           // idempotent
+buffer.AppendRaw(DebugPrimitive.MakeContextMenuBinding(networkId, hash));
+```
+
+The `StringInternBatch` DDS topic transports only new hash/string pairs (entries not yet
+delivered to the subscriber). The `ContextMenuBinding` primitive is emitted every frame
+(like any other visual primitive) but costs only 64 bytes because it carries only the 4-byte
+hash, not the full string.
+
+**Finite permutation property:** because context menus vary by entity *type*, not by entity
+*instance*, a deployment with N entity types produces at most N distinct menu JSON strings,
+regardless of how many instances are alive. After each distinct string has been delivered once,
+the `StringInternBatch` topic carries no new menu payload.
+
+### 10.5 Dumb Terminal Processing (Consumer Side)
+
+`DebugGizmoLayer.HandleInput` performs a per-frame sweep of the primitive span before any
+hit-testing:
+
+```
+for each prim in frame:
+    if prim.Shape == ContextMenuBinding:
+        menuBindings[prim.InspNetworkId] = prim.StringHash
+```
+
+`menuBindings` is a transient `Dictionary<long, uint>` built fresh each frame; it is not a
+persistent cache. The actual JSON is cached in the `StringInternMap` on the consumer's
+`GizmoPrimitiveBuffer`.
+
+On right-click, the layer performs spatial hit-testing against `Box2D` primitives with a non-zero
+`SubElementId`. When a hit is found it looks up the entity ID in `menuBindings`:
+
+```csharp
+if (menuBindings.TryGetValue(entityId, out uint hash))
+{
+    string? json = _buffer.InternMap.TryResolve(hash);
+    if (json != null)
+        _contextMenuAdapter.Schedule(entityId, json);
+}
+```
+
+If the JSON is not yet in the local `StringInternMap` (first frame before `StringInternBatch`
+arrives), the right-click is silently ignored. No error state is needed; the menu appears on the
+next right-click after the batch is received.
+
+### 10.6 ContextMenuAdapter (Presentation)
+
+`ContextMenuAdapter` in `GizmoMap.Presentation.UI` wraps an ImGui `BeginPopup` / `EndPopup`
+lifecycle. It is owned by `DebugGizmoLayer`.
+
+**Interface:**
+```csharp
+void Schedule(long anchorId, string menuJson); // called from HandleInput (before ImGui pass)
+void DrawScheduled(Action<long, int>? onAction); // called inside rlImGui.Begin/End block
+```
+
+`DrawScheduled` calls `ImGui.OpenPopup` on the first frame after `Schedule`, then renders the
+menu hierarchy recursively from the JSON using `ImGui.MenuItem` / `ImGui.BeginMenu`. When the
+operator clicks a leaf item, `onAction(anchorId, actionId)` is invoked before
+`ImGui.CloseCurrentPopup`.
+
+The rendering pipeline requires `rlImGui.Setup` / `.Begin` / `.End` / `.Shutdown` in the Raylib
+loop. `DrawContextMenu` (the public entry point on `DebugGizmoLayer`) wraps the adapter call and
+translates the `(long anchorId, int actionId)` tuple back to a `GizmoPickToken`:
+
+```csharp
+public void DrawContextMenu(Action<GizmoPickToken, int>? onMenuAction = null)
+{
+    _contextMenuAdapter.DrawScheduled((anchorId, actionId) =>
+        onMenuAction?.Invoke(new GizmoPickToken { AnchorId = anchorId }, actionId));
+}
+```
+
+### 10.7 Return Trip: MenuAction Event
+
+When an operator clicks a menu item the presentation layer publishes a
+`GizmoInteractionEventKind.MenuAction` event via the existing `GizmoInteractionBatch` DDS topic.
+The `ActionId` field added to `GizmoInteractionBatch` carries the integer item id:
+
+```
+GizmoInteractionBatch
+  Kind        = MenuAction (4)
+  PickAnchorId = networkId of the right-clicked entity
+  ActionId     = id of the clicked menu item (from the JSON "id" field)
+  (WorldX/Y/Z, Space remain zero for MenuAction)
+```
+
+No new DDS topics are required. The back-end ingress system routes `MenuAction` events:
+
+```csharp
+case GizmoInteractionEventKind.MenuAction:
+    repo.Bus.Publish(new ContextActionTriggered
+    {
+        EntityNetworkId = (int)batch.PickAnchorId,
+        ActionId        = batch.ActionId,
+    });
+    break;
+```
+
+### 10.8 GizmoMap.Example Demonstration
+
+`DemoSceneGenerator` demonstrates the full cycle using the orange interactive Box2D (entity id
+`1L`). Three menu JSON strings are pre-defined (Idle, Moving, Engaging); the active one cycles
+every 3 seconds based on `_elapsedTime`. Each `EmitScene` call:
+
+1. Selects the active menu via `GetActiveMenuJson(t)`.
+2. Computes its FNV-1a hash.
+3. Interns the string into `buffer.InternMap`.
+4. Emits a `ContextMenuBinding` primitive.
+
+`OnMenuAction(GizmoPickToken token, int actionId)` receives the callback from
+`DebugGizmoLayer.DrawContextMenu` and logs the entity id and resolved label to the console,
+confirming the full round-trip without requiring a live DDS stack.
+
+`Program.cs` initialises `rlImGui_cs.rlImGui` and places `layer.DrawContextMenu` and
+`propertyAdapter.DrawScheduled` inside the `rlImGui.Begin / End` block so both the context menu
+popup and the component inspector overlay share the same ImGui frame.
+
+### 10.9 Architectural Invariants
+
+| Invariant | Rationale |
+|-----------|-----------|
+| `ContextMenuBinding` is never dispatched by the renderer | It is a metadata primitive, not a visual shape; pass-2 skips it the same way it skips `SpatialAnchor` |
+| Menu JSON is transported via `StringInternBatch`, not a new topic | Re-uses the existing intern mechanism; avoids polluting the transport layer |
+| `ActionId` is appended to `GizmoInteractionBatch` (not a new topic) | DDS schemas support appended fields; no wire-format break for existing consumers that ignore unknown fields |
+| Per-frame `menuBindings` dictionary is transient | Avoids stale entries when an entity loses its menu binding; cost is a single O(n) scan where n is the total primitive count |
+| Producer interns once, emits hash every frame | After the first delivery the `StringInternBatch` carries no new data for that menu; 64-byte binding primitive is the only per-frame overhead |
+| `GizmoMap.*` assemblies have no domain-logic dependency | `ContextMenuAdapter` only takes `string menuJson`; the JSON schema is defined by the producer, not by the presentation library |
