@@ -73,6 +73,9 @@ using (transport)
         var renderer        = new GizmoMap.Presentation.DebugPrimitiveRenderer2D(imGuiAdapter: propertyAdapter);
         var layer           = new GizmoMap.Presentation.DebugGizmoLayer(consumer, renderer);
 
+        // Initialize rlImGui so ImGui-based overlays (context menus, inspectors) work.
+        rlImGui_cs.rlImGui.Setup(true);
+
         float dt = 1f / 30f;
 
         while (!Raylib_cs.Raylib.WindowShouldClose())
@@ -100,9 +103,17 @@ using (transport)
             layer.Render(camera, camera.Zoom);
 
             Raylib_cs.Raylib.EndMode2D();
+
+            // ImGui pass: context menus and component inspector overlays.
+            rlImGui_cs.rlImGui.Begin();
+            layer.DrawContextMenu(gen.OnMenuAction);
+            propertyAdapter.DrawScheduled();
+            rlImGui_cs.rlImGui.End();
+
             Raylib_cs.Raylib.EndDrawing();
         }
 
+        rlImGui_cs.rlImGui.Shutdown();
         Raylib_cs.Raylib.CloseWindow();
     }
 }

@@ -61,6 +61,7 @@ namespace GizmoMap.Contracts.Tests
             Assert.Equal((DebugPrimitiveShape)8,  DebugPrimitiveShape.SemanticShape);
             Assert.Equal((DebugPrimitiveShape)9,  DebugPrimitiveShape.MilStd2525);
             Assert.Equal((DebugPrimitiveShape)10, DebugPrimitiveShape.SpatialAnchor);
+            Assert.Equal((DebugPrimitiveShape)11, DebugPrimitiveShape.ContextMenuBinding);
         }
 
         // SC-GZ053-6: IGizmoSource is accessible; create a mock implementation and call Emit.
@@ -71,6 +72,49 @@ namespace GizmoMap.Contracts.Tests
             var buffer = new GizmoPrimitiveBuffer(capacity: 16);
             source.Emit(0.016f, buffer);
             Assert.True(source.EmitCalled);
+        }
+
+        // SC-GZ053-7: MakeContextMenuBinding factory sets Shape, StringHash and InspNetworkId correctly.
+        [Fact]
+        public void SC_GZ053_7_MakeContextMenuBinding_SetsFieldsCorrectly()
+        {
+            const long   networkId = 42L;
+            const uint   menuHash  = 0xDEAD_BEEF;
+
+            var prim = DebugPrimitive.MakeContextMenuBinding(networkId, menuHash);
+
+            Assert.Equal(DebugPrimitiveShape.ContextMenuBinding, prim.Shape);
+            Assert.Equal(menuHash,  prim.StringHash);
+            Assert.Equal(networkId, prim.InspNetworkId);
+        }
+
+        // SC-GZ053-8: StringInternMap.Fnv1a32 produces consistent hashes and zero stays zero.
+        [Fact]
+        public void SC_GZ053_8_StringInternMap_Fnv1a32_IsConsistent()
+        {
+            const string text = "hello";
+            uint h1 = StringInternMap.Fnv1a32(text);
+            uint h2 = StringInternMap.Fnv1a32(text);
+            Assert.Equal(h1, h2);
+
+            // Different strings must produce different hashes (not guaranteed in general but
+            // holds for these two inputs).
+            uint h3 = StringInternMap.Fnv1a32("world");
+            Assert.NotEqual(h1, h3);
+        }
+
+        // SC-GZ053-9: StringInternMap intern + resolve round-trip.
+        [Fact]
+        public void SC_GZ053_9_StringInternMap_InternResolveRoundtrip()
+        {
+            var map  = new StringInternMap();
+            string text = "[{\"id\":1,\"label\":\"Foo\"}]";
+            uint hash   = StringInternMap.Fnv1a32(text);
+
+            map.Intern(hash, text);
+            string? resolved = map.TryResolve(hash);
+
+            Assert.Equal(text, resolved);
         }
 
         private sealed class TestGizmoSource : IGizmoSource

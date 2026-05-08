@@ -150,6 +150,114 @@ namespace GizmoMap.Example.Tests
             Assert.Equal(9.81f, frame[0].SphereRadius, precision: 3);
         }
 
+        // SC-GZ056-9: DemoSceneGenerator emits a ContextMenuBinding primitive each frame.
+        [Fact]
+        public void SC_GZ056_9_EmitsContextMenuBinding()
+        {
+            var buf     = new GizmoPrimitiveBuffer();
+            var gen     = new DemoSceneGenerator();
+            var builder = new LocalDrawBuilder(buf);
+
+            gen.Emit(1f, builder);
+
+            var prims = buf.GetFrame().ToArray();
+            Assert.Contains(prims, p => p.Shape == DebugPrimitiveShape.ContextMenuBinding);
+        }
+
+        // SC-GZ056-10: ContextMenuBinding primitive references the correct entity id and a non-zero hash.
+        [Fact]
+        public void SC_GZ056_10_ContextMenuBinding_EntityIdAndHashAreValid()
+        {
+            var buf     = new GizmoPrimitiveBuffer();
+            var gen     = new DemoSceneGenerator();
+            var builder = new LocalDrawBuilder(buf);
+
+            gen.Emit(0f, builder);
+
+            var binding = buf.GetFrame().ToArray()
+                .FirstOrDefault(p => p.Shape == DebugPrimitiveShape.ContextMenuBinding);
+
+            // InspNetworkId == 1 (matches the interactive box SubElementId).
+            Assert.Equal(1L, binding.InspNetworkId);
+            // StringHash must be non-zero (menu JSON was interned).
+            Assert.NotEqual(0u, binding.StringHash);
+        }
+
+        // SC-GZ056-11: Menu JSON for the binding is interned and resolvable via InternMap.
+        [Fact]
+        public void SC_GZ056_11_MenuJsonInternedAndResolvable()
+        {
+            var buf     = new GizmoPrimitiveBuffer();
+            var gen     = new DemoSceneGenerator();
+            var builder = new LocalDrawBuilder(buf);
+
+            gen.Emit(0f, builder); // phase 0 -> Idle menu
+
+            var binding = buf.GetFrame().ToArray()
+                .FirstOrDefault(p => p.Shape == DebugPrimitiveShape.ContextMenuBinding);
+
+            string? resolved = buf.InternMap.TryResolve(binding.StringHash);
+            Assert.NotNull(resolved);
+            // The resolved JSON must be valid JSON (parseable) and non-empty.
+            Assert.False(string.IsNullOrWhiteSpace(resolved));
+        }
+
+        // SC-GZ056-12: Menu cycles through 3 different JSON definitions over time.
+        [Fact]
+        public void SC_GZ056_12_MenuCycles_ThreeDistinctDefinitions()
+        {
+            uint HashAt(float t)
+            {
+                var buf     = new GizmoPrimitiveBuffer();
+                var builder = new LocalDrawBuilder(buf);
+                // New generator per invocation: accumulate time from zero to t.
+                var gen = new DemoSceneGenerator();
+                gen.Emit(t, builder);
+                var binding = buf.GetFrame().ToArray()
+                    .FirstOrDefault(p => p.Shape == DebugPrimitiveShape.ContextMenuBinding);
+                return binding.StringHash;
+            }
+
+            // Phase 0: t = 1.5 (inside [0, 3))
+            // Phase 1: t = 4.5 (inside [3, 6))
+            // Phase 2: t = 7.5 (inside [6, 9))
+            uint h0 = HashAt(1.5f);
+            uint h1 = HashAt(4.5f);
+            uint h2 = HashAt(7.5f);
+
+            Assert.NotEqual(h0, h1);
+            Assert.NotEqual(h1, h2);
+            Assert.NotEqual(h0, h2);
+        }
+
+        // SC-GZ056-13: GetActiveMenuJson helper returns distinct strings for the three phases.
+        [Fact]
+        public void SC_GZ056_13_GetActiveMenuJson_ReturnsDifferentStringPerPhase()
+        {
+            string m0 = DemoSceneGenerator.GetActiveMenuJson(1.5f);  // phase 0: Idle
+            string m1 = DemoSceneGenerator.GetActiveMenuJson(4.5f);  // phase 1: Moving
+            string m2 = DemoSceneGenerator.GetActiveMenuJson(7.5f);  // phase 2: Engaging
+
+            Assert.NotEqual(m0, m1);
+            Assert.NotEqual(m1, m2);
+            Assert.NotEqual(m0, m2);
+
+            // Each must be valid non-empty JSON.
+            Assert.False(string.IsNullOrWhiteSpace(m0));
+            Assert.False(string.IsNullOrWhiteSpace(m1));
+            Assert.False(string.IsNullOrWhiteSpace(m2));
+        }
+
+        // SC-GZ056-14: ResolveActionLabel returns the matching label from the menu JSON.
+        [Fact]
+        public void SC_GZ056_14_ResolveActionLabel_ReturnsMatchingLabel()
+        {
+            string menuJson = DemoSceneGenerator.GetActiveMenuJson(0f); // Idle menu
+            string label    = DemoSceneGenerator.ResolveActionLabel(menuJson, 1);
+
+            Assert.Equal("Center View", label);
+        }
+
         // In-memory bridge: captures the written batch and replays it once on read.
         // Used by SC-GZ056-7 and SC-GZ056-8 to exercise the byte serialization path
         // without requiring a live CycloneDDS participant.

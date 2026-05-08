@@ -68,8 +68,9 @@ namespace GizmoMap.Presentation
 
             foreach (ref readonly var prim in primitives)
             {
-                // SpatialAnchor is a meta-primitive; never render it directly.
+                // SpatialAnchor and ContextMenuBinding are meta-primitives; never render them directly.
                 if (prim.Shape == DebugPrimitiveShape.SpatialAnchor) continue;
+                if (prim.Shape == DebugPrimitiveShape.ContextMenuBinding) continue;
 
                 // Filter: must target the 2-D map pipeline.
                 if ((prim.TargetView & PipelineTarget.Map2D) == 0) continue;

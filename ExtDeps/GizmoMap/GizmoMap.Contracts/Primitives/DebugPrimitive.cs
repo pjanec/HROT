@@ -200,5 +200,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // StringHash remains 0 (inline mode)
             return p;
         }
+
+        // ContextMenuBinding payload reuses existing overlapping fields:
+        //   StringHash    (offset 8)  - FNV-1a hash of the JSON menu string (same overlay as AnchorIndex)
+        //   InspNetworkId (offset 24) - stable entity ID to bind the menu to
+        // All other fields remain zero. This primitive is non-visual and never dispatched to the renderer.
+        public static DebugPrimitive MakeContextMenuBinding(long networkId, uint menuJsonHash)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape         = DebugPrimitiveShape.ContextMenuBinding;
+            p.StringHash    = menuJsonHash;   // FNV-1a hash of the JSON menu string
+            p.InspNetworkId = networkId;      // entity to bind the menu to
+            return p;
+        }
     }
 }

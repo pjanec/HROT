@@ -26,6 +26,58 @@ namespace GizmoMap.Example
         // Moving entity network ID.
         private const long EntityNetworkId = 100L;
 
+        // Context menu binding key: matches the interactive box SubElementId (cast to long).
+        private const long BoxMenuEntityId = 1L;
+
+        // Three menu definition JSON strings that cycle every 3 seconds.
+        // Each represents a different tactical state for the orange box entity.
+        private static readonly string MenuJsonIdle =
+            "[" +
+            "{\"id\":1,\"label\":\"Center View\",\"shortcut\":\"C\"}," +
+            "{\"separator\":true}," +
+            "{\"id\":10,\"label\":\"Order: Move\",\"shortcut\":\"M\"}," +
+            "{\"id\":11,\"label\":\"Order: Engage\",\"shortcut\":\"E\"}," +
+            "{\"separator\":true}," +
+            "{\"label\":\"Logistics\",\"children\":[" +
+            "{\"id\":20,\"label\":\"Resupply\"}," +
+            "{\"id\":21,\"label\":\"Repair\"}" +
+            "]}," +
+            "{\"id\":99,\"label\":\"DELETE\",\"style\":\"destructive\"}" +
+            "]";
+
+        private static readonly string MenuJsonMoving =
+            "[" +
+            "{\"id\":1,\"label\":\"Center View\",\"shortcut\":\"C\"}," +
+            "{\"separator\":true}," +
+            "{\"id\":10,\"label\":\"Order: Move\",\"enabled\":false}," +
+            "{\"id\":11,\"label\":\"Order: Engage\",\"shortcut\":\"E\"}," +
+            "{\"id\":12,\"label\":\"Order: Stop\",\"shortcut\":\"S\"}," +
+            "{\"separator\":true}," +
+            "{\"label\":\"Logistics\",\"children\":[" +
+            "{\"id\":20,\"label\":\"Resupply\",\"enabled\":false,\"tooltip\":\"Cannot resupply: Unit is moving\"}," +
+            "{\"id\":21,\"label\":\"Repair\",\"enabled\":false}" +
+            "]}," +
+            "{\"id\":99,\"label\":\"DELETE\",\"style\":\"destructive\"}" +
+            "]";
+
+        private static readonly string MenuJsonEngaging =
+            "[" +
+            "{\"id\":1,\"label\":\"Center View\",\"shortcut\":\"C\"}," +
+            "{\"separator\":true}," +
+            "{\"id\":10,\"label\":\"Order: Move\",\"enabled\":false}," +
+            "{\"id\":11,\"label\":\"Order: Engage\",\"enabled\":false}," +
+            "{\"id\":13,\"label\":\"Order: Cease Fire\",\"shortcut\":\"F\"}," +
+            "{\"separator\":true}," +
+            "{\"label\":\"Logistics\",\"children\":[" +
+            "{\"id\":20,\"label\":\"Resupply\",\"enabled\":false}," +
+            "{\"id\":21,\"label\":\"Repair\",\"enabled\":false}" +
+            "]}," +
+            "{\"id\":99,\"label\":\"DELETE\",\"style\":\"destructive\"}" +
+            "]";
+
+        // Menu cycle period in seconds (one menu per 3 seconds, 3 menus => 9-second cycle).
+        private const float MenuCyclePeriod = 3f;
+
         // ---- Interactive box drag state -------------------------------------
         // Current committed position of the draggable Box2D (item 7).
         // Starts near world origin so it is visible with the default camera.
@@ -107,6 +159,17 @@ namespace GizmoMap.Example
                     _gotFirstDragUpdate = false;
                     break;
             }
+        }
+
+        /// <summary>
+        /// Receives context menu action events from the presentation layer.
+        /// Called when the operator clicks a menu item on the interactive box.
+        /// </summary>
+        public void OnMenuAction(GizmoPickToken token, int actionId)
+        {
+            string menuJson = GetActiveMenuJson(_elapsedTime);
+            string label    = ResolveActionLabel(menuJson, actionId);
+            Console.WriteLine($"[ContextMenu] anchor={token.AnchorId} action={actionId} ({label})");
         }
 
         // ---- Scene emission -------------------------------------------------
@@ -286,6 +349,66 @@ namespace GizmoMap.Example
             lodPrim.MinZoomLod = 4;   // 1.0x zoom minimum
             lodPrim.MaxZoomLod = 12;  // 3.0x zoom maximum
             builder.EmitRaw(in lodPrim);
+
+            // ---- 14. ContextMenuBinding: cycle through 3 menu definitions for the orange box ----
+            // Pick one of the three menu JSON strings based on elapsed time.
+            string activeMenu = GetActiveMenuJson(t);
+            uint   menuHash   = StringInternMap.Fnv1a32(activeMenu);
+            builder.Buffer.InternMap.Intern(menuHash, activeMenu); // idempotent; rarely allocates
+            var menuBinding = DebugPrimitive.MakeContextMenuBinding(BoxMenuEntityId, menuHash);
+            builder.EmitRaw(in menuBinding);
+        }
+
+        // ---- Context menu helpers ------------------------------------------
+
+        // Returns the active menu JSON string for the given elapsed time.
+        // Cycles through Idle -> Moving -> Engaging every MenuCyclePeriod seconds.
+        internal static string GetActiveMenuJson(float t)
+        {
+            int phase = (int)(t / MenuCyclePeriod) % 3;
+            return phase switch
+            {
+                0 => MenuJsonIdle,
+                1 => MenuJsonMoving,
+                _ => MenuJsonEngaging,
+            };
+        }
+
+        // Walks the menu JSON string and resolves the label for the given action id.
+        // Used for console logging in OnMenuAction. Returns the id as string if not found.
+        internal static string ResolveActionLabel(string menuJson, int actionId)
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(menuJson);
+                return FindLabel(doc.RootElement, actionId) ?? actionId.ToString();
+            }
+            catch
+            {
+                return actionId.ToString();
+            }
+        }
+
+        private static string? FindLabel(System.Text.Json.JsonElement element, int actionId)
+        {
+            if (element.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray())
+                {
+                    string? found = FindLabel(item, actionId);
+                    if (found != null) return found;
+                }
+            }
+            else if (element.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                if (element.TryGetProperty("id", out var idProp) && idProp.GetInt32() == actionId
+                    && element.TryGetProperty("label", out var lbl))
+                    return lbl.GetString();
+
+                if (element.TryGetProperty("children", out var children))
+                    return FindLabel(children, actionId);
+            }
+            return null;
         }
 
         // ---- StructEdit mock schema for schema hash 0xDEADBEEF ----------------

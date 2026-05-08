@@ -32,5 +32,8 @@ namespace GizmoMap.Network
         // Stored as raw byte to avoid requiring [DdsStruct] on CoordinateSpace (external type).
         // Cast to/from Fdp.Toolkit.Diagnostics.Gizmos.CoordinateSpace at call sites.
         public byte Space;
+
+        // Carries the integer id of the clicked context menu item when Kind == MenuAction; zero otherwise.
+        public int ActionId;
     }
 }

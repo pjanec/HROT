@@ -12,6 +12,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         ComponentInspector = 7,
         SemanticShape      = 8,  // Entity semantic profile primitive (DIS type / tactical shape)
         MilStd2525         = 9,  // NATO MIL-STD-2525 symbology frame
-        SpatialAnchor      = 10  // Pre-resolved world position + orientation; severs SimTransform dependency
+        SpatialAnchor      = 10, // Pre-resolved world position + orientation; severs SimTransform dependency
+        ContextMenuBinding = 11  // Non-visual meta-primitive: binds an interned JSON menu hash to a NetworkId
     }
 }
