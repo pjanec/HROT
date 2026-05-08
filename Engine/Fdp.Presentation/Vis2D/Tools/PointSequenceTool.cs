@@ -70,9 +70,9 @@ public class PointSequenceTool : IMapTool
         Raylib.DrawPolyLines(_currentMousePos, 20, 5.0f / ctx.Zoom, 0.0f, Color.Blue);
     }
 
-    public bool HandleClick(Vector2 worldPos, MouseButton button)
+    public bool HandleClick(Vector2 worldPos, MapMouseButton button)
     {
-        if (button == MouseButton.Left)
+        if (button == MapMouseButton.Left)
         {
             // Add point
             if (_points.Count < MAX_POINTS)
@@ -81,7 +81,7 @@ public class PointSequenceTool : IMapTool
             }
             return true; // Consume click
         }
-        else if (button == MouseButton.Right)
+        else if (button == MapMouseButton.Right)
         {
             // Finish
             Finish();
@@ -105,9 +105,9 @@ public class PointSequenceTool : IMapTool
     /// Cancels the point-sequence session on ESC and pops the tool without invoking
     /// the finish callback.  The accumulated points are discarded by <see cref="OnExit"/>.
     /// </summary>
-    public bool HandleKeyPressed(KeyboardKey key)
+    public bool HandleKeyPressed(MapKeyboardKey key)
     {
-        if (key == KeyboardKey.Escape)
+        if (key == MapKeyboardKey.Escape)
         {
             _canvas?.PopTool();
             return true;

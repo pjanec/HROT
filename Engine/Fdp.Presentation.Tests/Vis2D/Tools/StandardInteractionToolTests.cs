@@ -2,11 +2,10 @@ using Xunit;
 using Moq;
 using System.Numerics;
 using Fdp.Core;
-using Fdp.Toolkit.Vis2D.Tools;
 using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Tools;
 using Fdp.Toolkit.Vis2D.Tests.Input;
 using Fdp.ModuleHost.Abstractions;
-using Raylib_cs;
 
 namespace Fdp.Toolkit.Vis2D.Tests.Tools
 {
@@ -19,9 +18,8 @@ namespace Fdp.Toolkit.Vis2D.Tests.Tools
             var view = new Mock<ISimulationView>();
             var repo = new EntityRepository();
             var query = repo.Query().Build();
-            var adapter = new Mock<IVisualizerAdapter>();
             
-            var tool = new StandardInteractionTool(view.Object, query, adapter.Object);
+            var tool = new StandardInteractionTool(view.Object, query);
             
             var canvas = new MapCanvas(new MockInputProvider());
             tool.OnEnter(canvas);
@@ -32,7 +30,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Tools
             };
 
             // Act
-            tool.HandleClick(new Vector2(100, 100), MouseButton.Left);
+            tool.HandleClick(new Vector2(100, 100), MapMouseButton.Left);
             
             // Assert
             Assert.True(clicked);
@@ -43,7 +41,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Tools
         {
              // Arrange
             var repo = new EntityRepository();
-            var tool = new StandardInteractionTool(new Mock<ISimulationView>().Object, repo.Query().Build(), new Mock<IVisualizerAdapter>().Object);
+            var tool = new StandardInteractionTool(new Mock<ISimulationView>().Object, repo.Query().Build());
             
             var input = new MockInputProvider();
             input.IsShiftDown = true;
@@ -57,7 +55,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Tools
             };
 
             // Act
-            tool.HandleClick(new Vector2(100, 100), MouseButton.Left);
+            tool.HandleClick(new Vector2(100, 100), MapMouseButton.Left);
             
             // Assert
             Assert.True(wasShift, "Shift modifier should be detected");
@@ -71,19 +69,12 @@ namespace Fdp.Toolkit.Vis2D.Tests.Tools
             var e1 = repo.CreateEntity();
             var e2 = repo.CreateEntity();
             
-            var adapter = new Mock<IVisualizerAdapter>();
             var view = new Mock<ISimulationView>();
             
             view.Setup(v => v.IsAlive(e1)).Returns(true);
             view.Setup(v => v.IsAlive(e2)).Returns(true);
             
-            adapter.Setup(a => a.GetPosition(view.Object, e1)).Returns(new Vector2(10, 10));
-            adapter.Setup(a => a.GetHitRadius(view.Object, e1)).Returns(5f);
-            
-            adapter.Setup(a => a.GetPosition(view.Object, e2)).Returns(new Vector2(20, 20));
-            adapter.Setup(a => a.GetHitRadius(view.Object, e2)).Returns(5f);
-            
-            var tool = new StandardInteractionTool(view.Object, repo.Query().Build(), adapter.Object);
+            var tool = new StandardInteractionTool(view.Object, repo.Query().Build());
             
             // Create a mock layer that can pick entities
             var layer = new Mock<IMapLayer>();
@@ -111,7 +102,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Tools
             };
             
             // Act: Click at (21, 21) -> Should hit e2
-            tool.HandleClick(new Vector2(21,21), MouseButton.Left);
+            tool.HandleClick(new Vector2(21,21), MapMouseButton.Left);
             
             // Assert
             Assert.Equal(e2, hitEntity);

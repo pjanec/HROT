@@ -122,11 +122,18 @@ public sealed class JsonAttributeCompiler
 
     // ── State ────────────────────────────────────────────────
     private readonly IReadOnlyDictionary<ulong, RoutingEntry> _routes;
+    private readonly IReadOnlyList<string> _registeredPaths;
 
     /// <summary>
     /// Exposes the routing table so <see cref="EcsPatchContext"/> can be constructed with it.
     /// </summary>
     internal IReadOnlyDictionary<ulong, RoutingEntry> Routes => _routes;
+
+    /// <summary>
+    /// The JSON attribute paths registered with this compiler instance.
+    /// Used by <see cref="ExportSchema"/> to enumerate supported attribute keys.
+    /// </summary>
+    public IReadOnlyList<string> RegisteredPaths => _registeredPaths;
 
     /// <summary>
     /// Creates an <see cref="EcsPatchContext"/> bound to the specified repository and entity,
@@ -141,8 +148,12 @@ public sealed class JsonAttributeCompiler
         => new EcsPatchContext(repo, entity, _routes);
 
     internal JsonAttributeCompiler(IReadOnlyDictionary<ulong, RoutingEntry> routes)
+        : this(routes, System.Array.Empty<string>()) { }
+
+    internal JsonAttributeCompiler(IReadOnlyDictionary<ulong, RoutingEntry> routes, IReadOnlyList<string> paths)
     {
-        _routes = routes;
+        _routes          = routes;
+        _registeredPaths = paths;
     }
 
     // ── Public API ───────────────────────────────────────────
@@ -340,5 +351,46 @@ public sealed class JsonAttributeCompiler
         foreach (byte b in bytes)
             value = value * 10 + (b - '0');
         return value;
+    }
+
+    /// <summary>
+    /// Returns a JSON Schema document describing all attribute paths registered with this compiler.
+    /// The document is compatible with JSON Schema Draft-07 and can be parsed by
+    /// <see cref="System.Text.Json.JsonDocument.Parse"/>.
+    /// Cold path: called once at startup; not performance-sensitive.
+    /// </summary>
+    public string ExportSchema()
+    {
+        var writer = new System.Text.Json.Utf8JsonWriter(
+            new System.IO.MemoryStream(),
+            new System.Text.Json.JsonWriterOptions { Indented = false });
+
+        // We write to a MemoryStream then read it back as a string.
+        using var ms = new System.IO.MemoryStream();
+        using (var w = new System.Text.Json.Utf8JsonWriter(ms))
+        {
+            w.WriteStartObject();
+            w.WriteString("$schema", "http://json-schema.org/draft-07/schema#");
+            w.WriteStartObject("properties");
+
+            foreach (string path in _registeredPaths)
+            {
+                // Each top-level segment becomes a property key.
+                // For nested paths (e.g. "GeoPosition.Latitude") use the root segment as the key.
+                int dotIndex = path.IndexOf('.');
+                string key = dotIndex >= 0 ? path[..dotIndex] : path;
+
+                // Write the property entry. Use the full path as the description.
+                w.WriteStartObject(key);
+                w.WriteString("type", "string");
+                w.WriteString("description", path);
+                w.WriteEndObject();
+            }
+
+            w.WriteEndObject(); // properties
+            w.WriteEndObject(); // root
+        }
+
+        return Encoding.UTF8.GetString(ms.ToArray());
     }
 }

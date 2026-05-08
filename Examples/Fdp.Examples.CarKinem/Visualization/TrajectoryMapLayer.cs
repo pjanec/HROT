@@ -132,7 +132,7 @@ namespace Fdp.Examples.CarKinem.Visualization
         }
         
         public bool OnMouseClick(Vector2 worldPos, RenderContext ctx) => false;
-        public bool HandleInput(Vector2 worldPos, MouseButton button, bool isPressed)
+        public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed)
         {
             return false;
         }

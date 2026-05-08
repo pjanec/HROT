@@ -2,12 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
-using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Tests.Input;
 using Fdp.Toolkit.Vis2D.Tools;
 using Fdp.ModuleHost.Abstractions;
-using Moq;
 using Xunit;
 
 namespace Fdp.Toolkit.Vis2D.Tests.Tools
@@ -17,19 +15,18 @@ namespace Fdp.Toolkit.Vis2D.Tests.Tools
     /// </summary>
     public class BoxSelectionToolTests
     {
-        private static (EntityRepository, EntityQuery, Mock<IVisualizerAdapter>) CreateWorld()
+        private static (EntityRepository, EntityQuery) CreateWorld()
         {
             var world = new EntityRepository();
             world.RegisterComponent<MapDisplayComponent>();
             var query = world.Query().Build();
-            var adapter = new Mock<IVisualizerAdapter>();
-            return (world, query, adapter);
+            return (world, query);
         }
 
         [Fact]
         public void FinishSelection_HiddenLayerEntities_NotIncluded()
         {
-            var (world, query, adapter) = CreateWorld();
+            var (world, query) = CreateWorld();
 
             // Entity on layer 0 (mask=1), but canvas hides layer 0 (active mask = 0x2).
             var e1 = world.CreateEntity();
@@ -39,12 +36,9 @@ namespace Fdp.Toolkit.Vis2D.Tests.Tools
             var e2 = world.CreateEntity();
             world.SetComponent(e2, new MapDisplayComponent { LayerMask = 0x2u });
 
-            adapter.Setup(a => a.GetPosition(It.IsAny<ISimulationView>(), It.IsAny<Entity>()))
-                   .Returns(new Vector2(50f, 50f));
-
             List<Entity>? result = null;
             var tool = new BoxSelectionTool(
-                new Vector2(0f, 0f), world, query, adapter.Object,
+                new Vector2(0f, 0f), world, query, _ => new Vector2(50f, 50f),
                 selected => result = selected,
                 () => { });
 
@@ -67,18 +61,15 @@ namespace Fdp.Toolkit.Vis2D.Tests.Tools
         [Fact]
         public void FinishSelection_VisibleLayerEntities_Included()
         {
-            var (world, query, adapter) = CreateWorld();
+            var (world, query) = CreateWorld();
 
             // Entity on layer 0, which is visible (active mask = 0x1).
             var e1 = world.CreateEntity();
             world.SetComponent(e1, new MapDisplayComponent { LayerMask = 0x1u });
 
-            adapter.Setup(a => a.GetPosition(It.IsAny<ISimulationView>(), It.IsAny<Entity>()))
-                   .Returns(new Vector2(50f, 50f));
-
             List<Entity>? result = null;
             var tool = new BoxSelectionTool(
-                new Vector2(0f, 0f), world, query, adapter.Object,
+                new Vector2(0f, 0f), world, query, _ => new Vector2(50f, 50f),
                 selected => result = selected,
                 () => { });
 

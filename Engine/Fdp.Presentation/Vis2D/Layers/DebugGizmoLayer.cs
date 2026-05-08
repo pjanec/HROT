@@ -97,6 +97,8 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
             if (_buffer != null && _renderer != null)
             {
+                if (_canvas != null)
+                    _renderer.Camera = _canvas.Camera.InnerCamera;
                 var primitives = _buffer.GetFrame();
                 _renderer.Render(primitives, ctx);
             }
@@ -104,17 +106,17 @@ namespace Fdp.Toolkit.Vis2D.Layers
             _lastCtx = ctx;
         }
 
-        public bool HandleInput(Vector2 worldPos, MouseButton button, bool isPressed)
+        public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed)
         {
             if (_buffer == null || _eventBus == null) return false;
-            if (!isPressed || button != MouseButton.Left) return false;
+            if (!isPressed || button != MapMouseButton.Left) return false;
 
             var primitives = _buffer.GetFrame();
             DebugPrimitive? best = null;
 
             foreach (ref readonly var prim in primitives)
             {
-                if (!prim.Token.IsValid) continue;
+                if (!prim.GetPickToken().IsValid) continue;
 
                 if (!HitTest(in prim, worldPos, HitRadiusWorld)) continue;
 
@@ -127,16 +129,16 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 var worldPos3 = new System.Numerics.Vector3(worldPos.X, worldPos.Y, 0f);
                 if (_canvas != null)
                 {
-                    var proxy = new GizmoInteractionProxyTool(best.Value.Token, _eventBus!, worldPos3);
-                    _canvas.PushTool(proxy);
-                    // GizmoInteractionStartedEvent is published in proxy.OnEnter.
+                    var tool = new GizmoInteractionProxyTool(best.Value.GetPickToken(), _eventBus!, _canvas, best.Value.Space);
+                    _canvas.PushTool(tool);
+                    // GizmoInteractionStartedEvent is published in tool.OnEnter.
                 }
                 else
                 {
                     // Fallback: no canvas (unit test or stub setup); publish directly.
                     _eventBus!.Publish(new GizmoInteractionStartedEvent
                     {
-                        Token    = best.Value.Token,
+                        Token    = best.Value.GetPickToken(),
                         WorldPos = worldPos3,
                     });
                 }
@@ -160,9 +162,10 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
             Vector2 checkPos = testPos;
 
-            // Screen-space primitives use screen-pixel coordinates; convert world pos first.
-            if (prim.Space == CoordinateSpace.Screen)
-                checkPos = Raylib.GetWorldToScreen2D(testPos, _lastCtx.Camera);
+            // Screen-space primitives would require a world-to-screen transform that is
+            // no longer available in RenderContext (Camera2D removed in GZ060).
+            // Interactive screen-space gizmos are not supported; skip conversion.
+            _ = prim.Space;
 
             switch (prim.Shape)
             {

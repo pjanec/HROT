@@ -1,4 +1,5 @@
 using CycloneDDS.Schema;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos.Network
 {
@@ -27,5 +28,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Network
         public float WorldX;
         public float WorldY;
         public float WorldZ;
+
+        // GZ047: coordinate space in which WorldPos is expressed (for DragUpdate and Commit).
+        public CoordinateSpace Space;
     }
 }

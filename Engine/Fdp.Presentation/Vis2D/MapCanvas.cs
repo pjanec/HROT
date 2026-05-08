@@ -15,6 +15,13 @@ namespace Fdp.Toolkit.Vis2D
         public Vis2DInputMap InputMap { get; set; } = Vis2DInputMap.Default;
         public uint ActiveLayerMask { get; set; } = 0xFFFFFFFF;
         public IInputProvider Input => _input;
+
+        /// <summary>
+        /// Debug primitive builder injected into every <see cref="RenderContext"/> during
+        /// <see cref="Draw"/>. Set by the hosting application after creating the canvas and
+        /// before the first draw call. May be null until set.
+        /// </summary>
+        public Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder? DrawBuffer { get; set; }
         
         private readonly IInputProvider _input;
 
@@ -210,11 +217,12 @@ namespace Fdp.Toolkit.Vis2D
 
             var ctx = new RenderContext
             {
-                Camera = Camera.InnerCamera,
-                MouseWorldPos = Camera.ScreenToWorld(GetMousePosition()),
-                DeltaTime = GetFrameTime(),
+                Zoom              = Camera.Zoom,
+                MouseWorldPos     = Camera.ScreenToWorld(GetMousePosition()),
+                DeltaTime         = GetFrameTime(),
                 VisibleLayersMask = ActiveLayerMask,
-                Resources = this
+                Resources         = this,
+                DrawBuilder       = DrawBuffer
             };
 
             // Draw Layers (0 -> N) - Bottom to Top
@@ -254,12 +262,12 @@ namespace Fdp.Toolkit.Vis2D
             Vector2 mouseScreen = _input.MousePosition;
             Vector2 mouseWorld = Camera.ScreenToWorld(mouseScreen);
             
-            bool leftPressed = _input.IsMouseButtonPressed(MouseButton.Left);
-            bool rightPressed = _input.IsMouseButtonPressed(MouseButton.Right);
-            bool leftDown = _input.IsMouseButtonDown(MouseButton.Left);
-            bool rightDown = _input.IsMouseButtonDown(MouseButton.Right);
-            bool leftReleased = _input.IsMouseButtonReleased(MouseButton.Left);
-            bool rightReleased = _input.IsMouseButtonReleased(MouseButton.Right);
+            bool leftPressed = _input.IsMouseButtonPressed(MapMouseButton.Left);
+            bool rightPressed = _input.IsMouseButtonPressed(MapMouseButton.Right);
+            bool leftDown = _input.IsMouseButtonDown(MapMouseButton.Left);
+            bool rightDown = _input.IsMouseButtonDown(MapMouseButton.Right);
+            bool leftReleased = _input.IsMouseButtonReleased(MapMouseButton.Left);
+            bool rightReleased = _input.IsMouseButtonReleased(MapMouseButton.Right);
 
             Vector2 delta = _input.MouseDelta;
             Vector2 deltaWorld = delta * (1.0f / Camera.Zoom);
@@ -278,7 +286,7 @@ namespace Fdp.Toolkit.Vis2D
                 int rawKey;
                 while ((rawKey = _input.GetKeyPressed()) != 0)
                 {
-                    if (ActiveTool.HandleKeyPressed((KeyboardKey)rawKey))
+                    if (ActiveTool.HandleKeyPressed((MapKeyboardKey)rawKey))
                         KeyboardConsumedByTool = true;
                 }
             }
@@ -304,12 +312,12 @@ namespace Fdp.Toolkit.Vis2D
                 {
                     if (leftReleased) 
                     {
-                        if (ActiveTool.HandleClick(mouseWorld, MouseButton.Left)) consumed = true;
+                        if (ActiveTool.HandleClick(mouseWorld, MapMouseButton.Left)) consumed = true;
                     }
                     // Suppress the right-click when the button was dragged to pan the map.
                     if (rightReleased && !consumed && !_rightButtonDragged)
                     {
-                        if (ActiveTool.HandleClick(mouseWorld, MouseButton.Right)) consumed = true;
+                        if (ActiveTool.HandleClick(mouseWorld, MapMouseButton.Right)) consumed = true;
                     }
                 }
 
@@ -331,19 +339,24 @@ namespace Fdp.Toolkit.Vis2D
             // 3. Layer Priority (Reverse)
             if (!consumed)
             {
+                // GZ046: active tool gets first refusal on press events before layer routing.
+                bool pressConsumed = false;
+                if (ActiveTool != null && leftPressed)
+                    pressConsumed = ActiveTool.HandlePress(mouseWorld, MapMouseButton.Left);
+
                 for (int i = _layers.Count - 1; i >= 0; i--)
                 {
                     var layer = _layers[i];
                     if (!IsLayerVisible(layer)) continue;
 
                     // Support acting on Pressed
-                    if (leftPressed)
+                    if (!pressConsumed && leftPressed)
                     {
-                        if (layer.HandleInput(mouseWorld, MouseButton.Left, true)) return;
+                        if (layer.HandleInput(mouseWorld, MapMouseButton.Left, true)) return;
                     }
                     if (rightPressed)
                     {
-                        if (layer.HandleInput(mouseWorld, MouseButton.Right, true)) return;
+                        if (layer.HandleInput(mouseWorld, MapMouseButton.Right, true)) return;
                     }
                 }
             }
@@ -352,8 +365,8 @@ namespace Fdp.Toolkit.Vis2D
         // Virtual for testing
         protected virtual Vector2 GetMousePosition() => _input.MousePosition;
         protected virtual float GetFrameTime() => Raylib.GetFrameTime();
-        protected virtual bool IsMouseButtonPressed(MouseButton button) => _input.IsMouseButtonPressed(button);
-        protected virtual bool IsMouseButtonDown(MouseButton button) => _input.IsMouseButtonDown(button);
+        protected virtual bool IsMouseButtonPressed(MapMouseButton button) => _input.IsMouseButtonPressed(button);
+        protected virtual bool IsMouseButtonDown(MapMouseButton button) => _input.IsMouseButtonDown(button);
         protected virtual Vector2 GetMouseDelta() => _input.MouseDelta;
         protected virtual bool IsMouseCaptured() => _input.IsMouseCaptured;
     }

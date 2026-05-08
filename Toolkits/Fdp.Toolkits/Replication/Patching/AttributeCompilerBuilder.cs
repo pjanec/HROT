@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Replication.Patching;
 public sealed class AttributeCompilerBuilder
 {
     private readonly Dictionary<ulong, RoutingEntry> _routes = new();
+    private readonly List<string> _paths = new();
 
     /// <summary>
     /// Registers a JSON path for a struct-based (unmanaged) ECS component.
@@ -49,6 +50,7 @@ public sealed class AttributeCompilerBuilder
                 $"A route for path '{jsonPath}' (hash {hash}) is already registered. Duplicate paths are not allowed.");
 
         _routes[hash] = new RoutingEntry(new ValueInvoker<T>(setter), descriptorOrdinal);
+        _paths.Add(jsonPath);
         return this;
     }
 
@@ -77,6 +79,7 @@ public sealed class AttributeCompilerBuilder
                 $"A route for path '{jsonPath}' (hash {hash}) is already registered. Duplicate paths are not allowed.");
 
         _routes[hash] = new RoutingEntry(new ReferenceInvoker<T>(setter), descriptorOrdinal);
+        _paths.Add(jsonPath);
         return this;
     }
 
@@ -84,5 +87,5 @@ public sealed class AttributeCompilerBuilder
     /// Builds the immutable <see cref="JsonAttributeCompiler"/> with all registered routes.
     /// </summary>
     public JsonAttributeCompiler Build()
-        => new JsonAttributeCompiler(_routes);
+        => new JsonAttributeCompiler(_routes, _paths);
 }

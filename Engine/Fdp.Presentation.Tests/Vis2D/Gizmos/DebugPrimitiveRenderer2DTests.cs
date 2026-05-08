@@ -32,8 +32,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         /// <summary>Builds a RenderContext with the given zoom and layer mask.</summary>
         public static RenderContext MakeCtx(float zoom = 1f, uint layerMask = 0xFFFF_FFFFu)
         {
-            var cam = new Camera2D { Zoom = zoom };
-            return new RenderContext { Camera = cam, VisibleLayersMask = layerMask };
+            return new RenderContext { Zoom = zoom, VisibleLayersMask = layerMask };
         }
 
         /// <summary>Creates a Map2D Line primitive on the given layer / ZIndex.</summary>
@@ -327,7 +326,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             p.TargetView       = PipelineTarget.Map2D;
             p.TextX            = 0f;
             p.TextY            = 2f;   // local Y offset
-            p.TextContent      = new FixedString32("hi");
+            p.TextContent      = new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("hi");
             p.AnchorIndex      = entity.Index;
             p.AnchorGeneration = entity.Generation;
 

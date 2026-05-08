@@ -16,6 +16,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Events
     {
         public PickToken Token;
         public Vector3 WorldPos;
+        // GZ047: coordinate space in which WorldPos is expressed.
+        public CoordinateSpace Space;
     }
 
     [EventId(8053)]
@@ -23,6 +25,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Events
     {
         public PickToken Token;
         public Vector3 WorldPos;
+        // GZ047: coordinate space in which WorldPos is expressed.
+        public CoordinateSpace Space;
     }
 
     [EventId(8054)]

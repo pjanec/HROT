@@ -14,7 +14,7 @@ using ExampleCore = Fdp.Examples.CarKinem.Core;
 
 namespace Fdp.Examples.CarKinem.Visualization;
 
-public class VehicleVisualizer : IVisualizerAdapter
+public class VehicleVisualizer
 {
     public VehicleVisualizer()
     {

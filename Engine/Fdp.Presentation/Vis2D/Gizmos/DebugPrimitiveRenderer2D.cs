@@ -23,6 +23,9 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
         private ushort _activeLayerMask = 0xFFFF; // All 16 debug layers visible by default.
         protected readonly ISimulationView? _view;
 
+        /// <summary>Current camera; must be set before each Render() call by the hosting layer.</summary>
+        public Camera2D Camera { get; set; }
+
         public DebugPrimitiveRenderer2D(ISimulationView? view = null)
         {
             _view = view;
@@ -56,7 +59,7 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
                 // Coordinate-space resolution for EntityLocal.
                 if (prim.Space == CoordinateSpace.EntityLocal)
                 {
-                    var anchor = prim.Anchor;
+                    var anchor = prim.GetAnchor();
                     if (_view == null
                         || !_view.IsAlive(anchor)
                         || !_view.HasComponent<SimTransform>(anchor))
@@ -212,7 +215,7 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
                     break;
             }
 
-            if (screenSpace) Raylib.BeginMode2D(ctx.Camera);
+            if (screenSpace) Raylib.BeginMode2D(Camera);
         }
 
         // ---- Private helpers ------------------------------------------------
@@ -272,10 +275,13 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
 
             ref readonly var tf = ref _view.GetComponentRO<SimTransform>(badgeEntity);
             var worldPos  = new Vector2(tf.Position.X, tf.Position.Y);
-            var screenPos = Raylib.GetWorldToScreen2D(worldPos, ctx.Camera);
+            var screenPos = Raylib.GetWorldToScreen2D(worldPos, Camera);
 
             var richText = prim.BadgeRichText;
-            RichTextRenderer.DrawRichTextBadge(ref richText, (int)screenPos.X, (int)screenPos.Y, 12);
+            // GizmoMap.Contracts.FixedString32 and Fdp.Core.FixedString32 share identical
+            // 32-byte sequential layout; reinterpret to satisfy the renderer signature.
+            ref var richTextCore = ref Unsafe.As<Fdp.Toolkit.Diagnostics.Gizmos.FixedString32, Fdp.Core.FixedString32>(ref richText);
+            RichTextRenderer.DrawRichTextBadge(ref richTextCore, (int)screenPos.X, (int)screenPos.Y, 12);
         }
 
         /// <summary>Converts an <see cref="Rgba32"/> to a Raylib <see cref="Color"/>.</summary>

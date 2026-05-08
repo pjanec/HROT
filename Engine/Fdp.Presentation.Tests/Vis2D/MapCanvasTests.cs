@@ -4,7 +4,6 @@ using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Components;
 using System.Numerics;
-using Raylib_cs;
 
 namespace Fdp.Toolkit.Vis2D.Tests
 {
@@ -24,30 +23,30 @@ namespace Fdp.Toolkit.Vis2D.Tests
         public bool IsMouseCaptured { get; set; }
         public bool IsKeyboardCaptured { get; set; }
 
-        public bool IsMouseButtonPressed(MouseButton button)
+        public bool IsMouseButtonPressed(MapMouseButton button)
         {
-            if (button == MouseButton.Left) return IsLeftPressed;
-            if (button == MouseButton.Right) return IsRightPressed;
+            if (button == MapMouseButton.Left) return IsLeftPressed;
+            if (button == MapMouseButton.Right) return IsRightPressed;
             return false;
         }
 
-        public bool IsMouseButtonDown(MouseButton button)
+        public bool IsMouseButtonDown(MapMouseButton button)
         {
-            if (button == MouseButton.Left) return IsLeftDown;
-            if (button == MouseButton.Right) return IsRightDown;
+            if (button == MapMouseButton.Left) return IsLeftDown;
+            if (button == MapMouseButton.Right) return IsRightDown;
             return false;
         }
 
-        public bool IsMouseButtonReleased(MouseButton button)
+        public bool IsMouseButtonReleased(MapMouseButton button)
         {
-            if (button == MouseButton.Left) return IsLeftReleased;
-            if (button == MouseButton.Right) return IsRightReleased;
+            if (button == MapMouseButton.Left) return IsLeftReleased;
+            if (button == MapMouseButton.Right) return IsRightReleased;
             return false;
         }
 
-        public bool IsKeyPressed(KeyboardKey key) => false;
-        public bool IsKeyDown(KeyboardKey key) => false;
-        public bool IsKeyReleased(KeyboardKey key) => false;
+        public bool IsKeyPressed(MapKeyboardKey key) => false;
+        public bool IsKeyDown(MapKeyboardKey key) => false;
+        public bool IsKeyReleased(MapKeyboardKey key) => false;
         public int GetKeyPressed() => 0;
     }
 
@@ -94,8 +93,8 @@ namespace Fdp.Toolkit.Vis2D.Tests
         protected override Vector2 GetMouseDelta() => InputProvider.MouseDelta;
         protected override bool IsMouseCaptured() => false;
 
-        protected override bool IsMouseButtonPressed(MouseButton button) => InputProvider.IsMouseButtonPressed(button);
-        protected override bool IsMouseButtonDown(MouseButton button) => InputProvider.IsMouseButtonDown(button);
+        protected override bool IsMouseButtonPressed(MapMouseButton button) => InputProvider.IsMouseButtonPressed(button);
+        protected override bool IsMouseButtonDown(MapMouseButton button) => InputProvider.IsMouseButtonDown(button);
 
         // Public wrapper for testing
         public new void HandleInput()
@@ -178,7 +177,7 @@ namespace Fdp.Toolkit.Vis2D.Tests
              // Should NOT be called because Top consumes it
              
              var topLayer = new Mock<IMapLayer>();    // Layer 1
-             topLayer.Setup(l => l.HandleInput(It.IsAny<Vector2>(), It.IsAny<MouseButton>(), It.IsAny<bool>())).Returns(true); // Consumes
+             topLayer.Setup(l => l.HandleInput(It.IsAny<Vector2>(), It.IsAny<MapMouseButton>(), It.IsAny<bool>())).Returns(true); // Consumes
 
              canvas.AddLayer(bottomLayer.Object); // 0
              canvas.AddLayer(topLayer.Object);    // 1
@@ -188,10 +187,10 @@ namespace Fdp.Toolkit.Vis2D.Tests
 
              // Assert
              // Top layer (index 1) should be checked first
-             topLayer.Verify(l => l.HandleInput(It.IsAny<Vector2>(), MouseButton.Left, true), Times.Once);
+             topLayer.Verify(l => l.HandleInput(It.IsAny<Vector2>(), MapMouseButton.Left, true), Times.Once);
              
              // Bottom layer should NOT be called
-             bottomLayer.Verify(l => l.HandleInput(It.IsAny<Vector2>(), It.IsAny<MouseButton>(), It.IsAny<bool>()), Times.Never);
+             bottomLayer.Verify(l => l.HandleInput(It.IsAny<Vector2>(), It.IsAny<MapMouseButton>(), It.IsAny<bool>()), Times.Never);
          }
     }
 }

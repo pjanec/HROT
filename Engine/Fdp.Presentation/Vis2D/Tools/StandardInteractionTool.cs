@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Raylib_cs;
 using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Input;
@@ -27,11 +26,11 @@ namespace Fdp.Toolkit.Vis2D.Tools
         // Dependencies
         private readonly ISimulationView _view;
         private readonly EntityQuery _query;
-        private readonly IVisualizerAdapter _adapter;
+        private readonly Func<Entity, Vector2?> _getEntityPosition;
         
         // Callbacks / Action Handlers
         // Generic Events (Decoupled)
-        public event Action<Vector2, MouseButton, bool, bool, Entity>? OnWorldClick; // Pos, Button, Shift, Ctrl, HitEntity
+        public event Action<Vector2, MapMouseButton, bool, bool, Entity>? OnWorldClick; // Pos, Button, Shift, Ctrl, HitEntity
         public event Action<Entity, bool>? OnEntitySelectRequest; // Entity, AugmentSelection
         public event Action<List<Entity>>? OnRegionSelected;     // Result of Box Select
         public event Action<Entity, Vector2>? OnEntityMoved;     // Result of Drag Operation
@@ -44,7 +43,7 @@ namespace Fdp.Toolkit.Vis2D.Tools
         public event Action<Entity>? OnEntityDragEnd;
 
         /// <summary>
-        /// Raised when the operator presses <see cref="KeyboardKey.Delete"/> and the
+        /// Raised when the operator presses <see cref="MapKeyboardKey.Delete"/> and the
         /// map canvas owns the keyboard (ImGui did not capture the key press).
         /// Subscribers perform the actual entity deletion; this tool is agnostic of
         /// the deletion policy (network vs. local, selection ownership, etc.).
@@ -64,11 +63,15 @@ namespace Fdp.Toolkit.Vis2D.Tools
         public StandardInteractionTool(
             ISimulationView view,
             EntityQuery query,
-            IVisualizerAdapter adapter)
+            Func<Entity, Vector2?>? getEntityPosition = null)
         {
-            _view = view;
+            _view  = view;
             _query = query;
-            _adapter = adapter;
+            _getEntityPosition = getEntityPosition ?? (e =>
+                view.HasComponent<SimTransform>(e)
+                    ? new Vector2(view.GetComponentRO<SimTransform>(e).Position.X,
+                                  view.GetComponentRO<SimTransform>(e).Position.Y)
+                    : (Vector2?)null);
         }
 
         public void OnEnter(MapCanvas canvas)
@@ -102,9 +105,9 @@ namespace Fdp.Toolkit.Vis2D.Tools
             // Nothing to draw
         }
 
-        public bool HandleClick(Vector2 worldPos, MouseButton button)
+        public bool HandleClick(Vector2 worldPos, MapMouseButton button)
         {
-            var selectBtn = _canvas?.InputMap.SelectButton ?? MouseButton.Left;
+            var selectBtn = _canvas?.InputMap.SelectButton ?? MapMouseButton.Left;
             Entity hit = Entity.Null;
 
             // 1. Selection Logic (Only if Select Button)
@@ -152,7 +155,7 @@ namespace Fdp.Toolkit.Vis2D.Tools
                     if (_view.IsAlive(_potentialTarget))
                     {
                         // Dragging on an entity -> Entity Drag
-                        var startPos = _adapter.GetPosition(_view, _potentialTarget) ?? _mouseDownPos;
+                        var startPos = _getEntityPosition(_potentialTarget) ?? _mouseDownPos;
                         var dragTarget = _potentialTarget; // capture for closure
                         var tool = new EntityDragTool(
                             dragTarget,
@@ -176,7 +179,7 @@ namespace Fdp.Toolkit.Vis2D.Tools
                             _mouseDownPos,
                             _view,
                             _query,
-                            _adapter,
+                            _getEntityPosition,
                             (list) => { OnRegionSelected?.Invoke(list); _canvas!.PopTool(); },
                             () => _canvas!.PopTool()
                         );
@@ -209,9 +212,9 @@ namespace Fdp.Toolkit.Vis2D.Tools
         }
 
         /// <inheritdoc/>
-        public bool HandleKeyPressed(KeyboardKey key)
+        public bool HandleKeyPressed(MapKeyboardKey key)
         {
-            if (key == KeyboardKey.Delete)
+            if (key == MapKeyboardKey.Delete)
             {
                 OnDeleteRequested?.Invoke();
                 return true; // consumed — stops bubbling to camera / global shortcuts

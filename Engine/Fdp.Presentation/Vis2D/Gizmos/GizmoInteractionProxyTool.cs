@@ -3,7 +3,6 @@ using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Raylib_cs;
 
 namespace Fdp.Toolkit.Vis2D.Gizmos
 {
@@ -13,14 +12,21 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
 
         private readonly PickToken _token;
         private readonly FdpEventBus _eventBus;
-        private readonly Vector3 _worldPos;
+        private readonly CoordinateSpace _space;
         private MapCanvas? _canvas;
+        // GZ046: only commit/drag after a press, not a bare click.
+        private bool _dragActive;
 
-        public GizmoInteractionProxyTool(PickToken token, FdpEventBus eventBus, Vector3 worldPos = default)
+        public GizmoInteractionProxyTool(
+            PickToken token,
+            FdpEventBus eventBus,
+            MapCanvas? canvas = null,
+            CoordinateSpace space = CoordinateSpace.World)
         {
             _token    = token;
             _eventBus = eventBus;
-            _worldPos = worldPos;
+            _canvas   = canvas;
+            _space    = space;
         }
 
         public void OnEnter(MapCanvas canvas)
@@ -29,7 +35,7 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
             _eventBus.Publish(new GizmoInteractionStartedEvent
             {
                 Token    = _token,
-                WorldPos = _worldPos,
+                WorldPos = Vector3.Zero,
             });
         }
 
@@ -39,33 +45,59 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
 
         public bool HandleHover(Vector2 worldPos) => true;
 
+        // GZ046: press arm the drag — called before layers get the event.
+        public bool HandlePress(Vector2 worldPos, MapMouseButton button)
+        {
+            if (button == MapMouseButton.Left)
+            {
+                _dragActive = true;
+                return true;
+            }
+            return false;
+        }
+
         public bool HandleDrag(Vector2 worldPos, Vector2 delta)
         {
+            if (!_dragActive) return false;
             _eventBus.Publish(new GizmoDragUpdateEvent
             {
                 Token    = _token,
                 WorldPos = new Vector3(worldPos.X, worldPos.Y, 0f),
+                Space    = _space,
             });
             return true;
         }
 
-        public bool HandleClick(Vector2 worldPos, MouseButton button)
+        public bool HandleClick(Vector2 worldPos, MapMouseButton button)
         {
-            // Left button released = commit
-            if (button == MouseButton.Left)
+            if (button == MapMouseButton.Left)
             {
-                _eventBus.Publish(new GizmoInteractionCommitEvent
+                if (_dragActive)
                 {
-                    Token    = _token,
-                    WorldPos = new Vector3(worldPos.X, worldPos.Y, 0f),
-                });
-                _canvas?.PopTool();
-                return true;
+                    // Drag was started; commit on release.
+                    _dragActive = false;
+                    _eventBus.Publish(new GizmoInteractionCommitEvent
+                    {
+                        Token    = _token,
+                        WorldPos = new Vector3(worldPos.X, worldPos.Y, 0f),
+                        Space    = _space,
+                    });
+                    _canvas?.PopTool();
+                    return true;
+                }
+                else
+                {
+                    // GZ046: click-away (no press seen) — cancel without committing.
+                    _eventBus.Publish(new GizmoInteractionCancelEvent { Token = _token });
+                    _canvas?.PopTool();
+                    return false; // pass through so the click hits the map normally
+                }
             }
 
             // Right button = cancel
-            if (button == MouseButton.Right)
+            if (button == MapMouseButton.Right)
             {
+                _dragActive = false;
                 _eventBus.Publish(new GizmoInteractionCancelEvent { Token = _token });
                 _canvas?.PopTool();
                 return true;
@@ -74,10 +106,11 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
             return false;
         }
 
-        public bool HandleKeyPressed(KeyboardKey key)
+        public bool HandleKeyPressed(MapKeyboardKey key)
         {
-            if (key == KeyboardKey.Escape)
+            if (key == MapKeyboardKey.Escape)
             {
+                _dragActive = false;
                 _eventBus.Publish(new GizmoInteractionCancelEvent { Token = _token });
                 _canvas?.PopTool();
                 return true;

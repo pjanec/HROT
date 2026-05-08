@@ -1,8 +1,15 @@
+extern alias GizmoMapContracts;
+
 using System.Numerics;
 using Fdp.Core;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos
 {
+    // ECS-extended draw builder interface. Contains all non-ECS methods from
+    // GizmoMapContracts::IGizmoDrawBuilder plus FDP-specific entity-coupled draw methods.
+    // NOTE: Does not inherit IGizmoDrawBuilder directly to avoid FixedString32 type conflict
+    // (Fdp.Core.FixedString32 vs GizmoMap.Contracts.FixedString32). DebugPrimitiveBuffer
+    // satisfies both interfaces at the class level via explicit IGizmoDrawBuilder implementation.
     public interface IDebugDrawBuilder
     {
         void DrawLine(
@@ -63,5 +70,36 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// Default no-op for implementations that do not support persistence.
         /// </summary>
         void EndFrame(float deltaTime) { }
+
+        // GZ057: entity presentation primitives.
+
+        /// <summary>
+        /// Emits a <see cref="DebugPrimitiveShape.SpatialAnchor"/> primitive carrying the
+        /// pre-resolved world position and heading for a networked entity.
+        /// Must be emitted BEFORE the corresponding <see cref="DrawSemanticShape"/> call
+        /// with the same <paramref name="networkId"/>.
+        /// Default no-op so existing stub implementations compile without changes.
+        /// </summary>
+        void DrawSpatialAnchor(
+            long  networkId,
+            float worldX,
+            float worldY,
+            float worldZ,
+            float headingDeg,
+            byte  layer = 0) { }
+
+        /// <summary>
+        /// Emits a <see cref="DebugPrimitiveShape.SemanticShape"/> primitive in
+        /// <see cref="CoordinateSpace.EntityLocal"/>, linked to a SpatialAnchor via
+        /// <c>AnchorIndex = (int)networkId</c>.
+        /// Default no-op so existing stub implementations compile without changes.
+        /// </summary>
+        void DrawSemanticShape(
+            long   networkId,
+            ulong  profileId,
+            float  lengthMeters  = 0f,
+            float  widthMeters   = 0f,
+            uint   conditionMask = 0,
+            byte   layer         = 0) { }
     }
 }

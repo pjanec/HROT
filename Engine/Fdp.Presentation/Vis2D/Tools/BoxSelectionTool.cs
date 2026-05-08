@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Raylib_cs;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Raylib_cs;
 
 namespace Fdp.Toolkit.Vis2D.Tools
 {
@@ -20,7 +20,7 @@ namespace Fdp.Toolkit.Vis2D.Tools
         private readonly Action _onCancel;
         private readonly ISimulationView _view;
         private readonly EntityQuery _query;
-        private readonly IVisualizerAdapter _adapter;
+        private readonly Func<Entity, Vector2?> _getEntityPosition;
         private MapCanvas? _canvas;
         
         private Vector2 _startPos;
@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Vis2D.Tools
             Vector2 startPos,
             ISimulationView view,
             EntityQuery query,
-            IVisualizerAdapter adapter,
+            Func<Entity, Vector2?>? getEntityPosition,
             Action<List<Entity>> onSelectionComplete,
             Action onCancel)
         {
@@ -39,10 +39,14 @@ namespace Fdp.Toolkit.Vis2D.Tools
             _currentPos = startPos;
             _view = view;
             _query = query;
-            _adapter = adapter;
+            _getEntityPosition = getEntityPosition ?? (e =>
+                view.HasComponent<SimTransform>(e)
+                    ? new Vector2(view.GetComponentRO<SimTransform>(e).Position.X,
+                                  view.GetComponentRO<SimTransform>(e).Position.Y)
+                    : (Vector2?)null);
             _onSelectionComplete = onSelectionComplete;
-            _onCancel = onCancel;
-            _isActive = true;
+            _onCancel            = onCancel;
+            _isActive            = true;
         }
 
         public void OnEnter(MapCanvas canvas)
@@ -66,8 +70,8 @@ namespace Fdp.Toolkit.Vis2D.Tools
             // Rely on IMapTool callbacks for position updates.
             
             bool released = _canvas is not null
-                ? _canvas.Input.IsMouseButtonReleased(MouseButton.Left)
-                : Raylib.IsMouseButtonReleased(MouseButton.Left);
+                ? _canvas.Input.IsMouseButtonReleased(MapMouseButton.Left)
+                : false;
             if (released)
             {
                 FinishSelection();
@@ -91,7 +95,7 @@ namespace Fdp.Toolkit.Vis2D.Tools
             Raylib.DrawRectangleLinesEx(new Rectangle(min.X, min.Y, size.X, size.Y), 2.0f / ctx.Zoom, new Color(0, 120, 255, 200));
         }
 
-        public bool HandleClick(Vector2 worldPos, MouseButton button)
+        public bool HandleClick(Vector2 worldPos, MapMouseButton button)
         {
             return true; // Consume all clicks while selecting
         }
@@ -129,7 +133,7 @@ namespace Fdp.Toolkit.Vis2D.Tools
                     if ((em & activeMask) == 0) continue;
                 }
 
-                var pos = _adapter.GetPosition(_view, entity);
+                var pos = _getEntityPosition(entity);
                 if (!pos.HasValue) continue;
                 
                 // Simple Point-in-Rect check

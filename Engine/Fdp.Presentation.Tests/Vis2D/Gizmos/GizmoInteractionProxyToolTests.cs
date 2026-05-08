@@ -3,9 +3,9 @@ using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Gizmos;
 using Fdp.Toolkit.Vis2D.Tests.Input;
-using Raylib_cs;
 using Xunit;
 
 namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
@@ -21,6 +21,9 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             var bus = new FdpEventBus();
             var token = MakeToken();
             var tool = new GizmoInteractionProxyTool(token, bus);
+
+            // GZ046: arm the drag before dragging.
+            tool.HandlePress(Vector2.Zero, MapMouseButton.Left);
 
             var worldPos = new Vector2(5f, 10f);
             var result = tool.HandleDrag(worldPos, Vector2.Zero);
@@ -50,7 +53,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
 
             Assert.Same(tool, canvas.ActiveTool);
 
-            var result = tool.HandleClick(new Vector2(1f, 2f), MouseButton.Right);
+            var result = tool.HandleClick(new Vector2(1f, 2f), MapMouseButton.Right);
             bus.SwapBuffers();
 
             Assert.True(result);
@@ -74,7 +77,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             var tool = new GizmoInteractionProxyTool(token, bus);
             canvas.PushTool(tool);
 
-            var result = tool.HandleKeyPressed(KeyboardKey.Escape);
+            var result = tool.HandleKeyPressed(MapKeyboardKey.Escape);
             bus.SwapBuffers();
 
             Assert.True(result);
@@ -86,7 +89,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             bus.Dispose();
         }
 
-        // SC-GZ010-4: HandleClick(Left) publishes GizmoInteractionCommitEvent and pops canvas.
+        // SC-GZ010-4: HandleClick(Left) after press publishes GizmoInteractionCommitEvent and pops canvas.
         [Fact]
         public void SC_GZ010_4_HandleClickLeft_PublishesCommitAndPopsCanvas()
         {
@@ -97,8 +100,11 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             var tool = new GizmoInteractionProxyTool(token, bus);
             canvas.PushTool(tool);
 
+            // GZ046: arm the drag before clicking to commit.
+            tool.HandlePress(Vector2.Zero, MapMouseButton.Left);
+
             var worldPos = new Vector2(3f, 7f);
-            var result = tool.HandleClick(worldPos, MouseButton.Left);
+            var result = tool.HandleClick(worldPos, MapMouseButton.Left);
             bus.SwapBuffers();
 
             Assert.True(result);
@@ -120,7 +126,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             var token = MakeToken();
             var tool = new GizmoInteractionProxyTool(token, bus);
 
-            var result = tool.HandleClick(Vector2.Zero, MouseButton.Middle);
+            var result = tool.HandleClick(Vector2.Zero, MapMouseButton.Middle);
 
             Assert.False(result);
 
@@ -135,7 +141,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             var token = MakeToken();
             var tool = new GizmoInteractionProxyTool(token, bus);
 
-            var result = tool.HandleKeyPressed(KeyboardKey.A);
+            var result = tool.HandleKeyPressed((MapKeyboardKey)65); // 'A' key
 
             Assert.False(result);
 

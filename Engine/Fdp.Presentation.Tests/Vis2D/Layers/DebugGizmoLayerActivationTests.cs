@@ -8,7 +8,6 @@ using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Gizmos;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Vis2D.Tests.Gizmos;
-using Raylib_cs;
 using Xunit;
 
 namespace Fdp.Toolkit.Vis2D.Tests.Layers
@@ -18,8 +17,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         // Build a RenderContext with identity camera so HitTest uses world coords directly.
         private static RenderContext MakeCtx(float zoom = 1f)
         {
-            var cam = new Camera2D { Zoom = zoom, Target = Vector2.Zero, Offset = Vector2.Zero };
-            return new RenderContext { Camera = cam, VisibleLayersMask = 0xFFFF_FFFFu };
+            return new RenderContext { Zoom = zoom, VisibleLayersMask = 0xFFFF_FFFFu };
         }
 
         // Build a buffer with a single sphere at the origin that has a valid PickToken.
@@ -54,7 +52,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             layer.Draw(MakeCtx());
 
             // Click at the sphere center.
-            bool consumed = layer.HandleInput(Vector2.Zero, MouseButton.Left, isPressed: true);
+            bool consumed = layer.HandleInput(Vector2.Zero, MapMouseButton.Left, isPressed: true);
 
             Assert.True(consumed);
             Assert.IsType<GizmoInteractionProxyTool>(canvas.ActiveTool);
@@ -72,7 +70,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             var layer  = new DebugGizmoLayer(31, buf, bus, canvas, new CapturingRenderer2D());
 
             layer.Draw(MakeCtx());
-            layer.HandleInput(Vector2.Zero, MouseButton.Left, isPressed: true);
+            layer.HandleInput(Vector2.Zero, MapMouseButton.Left, isPressed: true);
 
             // Swap so the event is visible in Read<T>.
             bus.SwapBuffers();
@@ -95,7 +93,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             layer.Draw(MakeCtx());
 
             // Click far away from the sphere.
-            bool consumed = layer.HandleInput(new Vector2(100f, 100f), MouseButton.Left, isPressed: true);
+            bool consumed = layer.HandleInput(new Vector2(100f, 100f), MapMouseButton.Left, isPressed: true);
 
             Assert.False(consumed);
             Assert.Null(canvas.ActiveTool);
@@ -114,7 +112,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             var layer    = new DebugGizmoLayer(31, buf, bus, renderer);
 
             layer.Draw(MakeCtx());
-            layer.HandleInput(Vector2.Zero, MouseButton.Left, isPressed: true);
+            layer.HandleInput(Vector2.Zero, MapMouseButton.Left, isPressed: true);
 
             bus.SwapBuffers();
             var events = bus.Read<GizmoInteractionStartedEvent>();
@@ -131,12 +129,12 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             public float MouseWheelMove   => 0f;
             public bool IsMouseCaptured   => false;
             public bool IsKeyboardCaptured => false;
-            public bool IsMouseButtonPressed(MouseButton b)  => false;
-            public bool IsMouseButtonDown(MouseButton b)     => false;
-            public bool IsMouseButtonReleased(MouseButton b) => false;
-            public bool IsKeyPressed(KeyboardKey k)  => false;
-            public bool IsKeyDown(KeyboardKey k)     => false;
-            public bool IsKeyReleased(KeyboardKey k) => false;
+            public bool IsMouseButtonPressed(MapMouseButton b)  => false;
+            public bool IsMouseButtonDown(MapMouseButton b)     => false;
+            public bool IsMouseButtonReleased(MapMouseButton b) => false;
+            public bool IsKeyPressed(MapKeyboardKey k)  => false;
+            public bool IsKeyDown(MapKeyboardKey k)     => false;
+            public bool IsKeyReleased(MapKeyboardKey k) => false;
             public int GetKeyPressed() => 0;
         }
     }

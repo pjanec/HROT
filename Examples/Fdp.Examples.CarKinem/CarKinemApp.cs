@@ -6,7 +6,7 @@ using Fdp.Core;
 using Fdp.Core.Diagnostics;
 using Fdp.Presentation.Raylib;
 using Fdp.Toolkit.Vis2D;
-using Fdp.Toolkit.Vis2D.Layers;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Presentation.Panels;
 using Fdp.Examples.CarKinem.Visualization;
 using Fdp.Examples.CarKinem.Core;
@@ -152,16 +152,6 @@ public class CarKinemApp : FdpApplication
             .With<VehicleParams>()
             .Build();
             
-        var vehicleLayer = new EntityRenderLayer(
-            "Vehicles",     
-            0,              
-            _repository, 
-            _vehicleQuery, 
-            _vehicleVisualizer, 
-            _inspectorAdapter
-        );
-        _map.AddLayer(vehicleLayer);
-        
         var trajectoryLayer = new TrajectoryMapLayer(_trajectoryPool, _repository, _inspectorAdapter);
         _map.AddLayer(trajectoryLayer);
         
@@ -170,7 +160,8 @@ public class CarKinemApp : FdpApplication
         _legacyUI = new MainUI(_historyService);
         
         // --- Tool Setup ---
-        _interactionTool = new StandardInteractionTool(_repository, _vehicleQuery, _vehicleVisualizer);
+        _interactionTool = new StandardInteractionTool(_repository, _vehicleQuery,
+            e => _vehicleVisualizer.GetPosition(_repository, e));
         
         // 1. Selection Interaction
         _interactionTool.OnEntitySelectRequest += (entity, augment) =>
@@ -209,7 +200,7 @@ public class CarKinemApp : FdpApplication
         // 3. Generic Interaction (Context Menu / Actions)
         _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hit) =>
         {
-             if (btn == MouseButton.Right)
+             if (btn == MapMouseButton.Right)
              {
                  var entities = _selectionManager.SelectedEntities;
 

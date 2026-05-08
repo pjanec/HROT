@@ -49,20 +49,21 @@ public sealed class GridMapLayer : IMapLayer
     {
         if (!_isVisible()) return;
 
-        var camera = ctx.Camera;
-
-        // Reconstruct visible world bounds from the Raylib camera.
+        float zoom    = ctx.Zoom > 0f ? ctx.Zoom : 1f;
         float screenW = Raylib.GetScreenWidth();
         float screenH = Raylib.GetScreenHeight();
 
-        // Screen corners → world coords via Camera2D math.
-        var topLeftWorld  = Raylib.GetScreenToWorld2D(Vector2.Zero, camera);
-        var bottomRightWorld = Raylib.GetScreenToWorld2D(new Vector2(screenW, screenH), camera);
+        // Estimate visible world bounds from zoom and screen dimensions.
+        // Use a multiplier of 2 to conservatively cover the full screen
+        // regardless of camera offset.
+        float halfW = screenW / zoom;
+        float halfH = screenH / zoom;
+        var   center = ctx.MouseWorldPos;
 
-        float worldLeft   = MathF.Min(topLeftWorld.X, bottomRightWorld.X);
-        float worldRight  = MathF.Max(topLeftWorld.X, bottomRightWorld.X);
-        float worldTop    = MathF.Min(topLeftWorld.Y, bottomRightWorld.Y);
-        float worldBottom = MathF.Max(topLeftWorld.Y, bottomRightWorld.Y);
+        float worldLeft   = center.X - halfW;
+        float worldRight  = center.X + halfW;
+        float worldTop    = center.Y - halfH;
+        float worldBottom = center.Y + halfH;
 
         float visW = worldRight  - worldLeft;
         float visH = worldBottom - worldTop;
@@ -90,7 +91,7 @@ public sealed class GridMapLayer : IMapLayer
     }
 
     /// <inheritdoc/>
-    public bool HandleInput(Vector2 worldPos, MouseButton button, bool isPressed) => false;
+    public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
 
     /// <inheritdoc/>
     public Entity? PickEntity(Vector2 worldPos) => null;

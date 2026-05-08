@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             var frame = buf.GetFrame();
             Assert.Equal(1, frame.Length);
-            Assert.Equal(3u, frame[0].Token.SubElementId);
+            Assert.Equal(3u, frame[0].GetPickToken().SubElementId);
         }
 
         // SC-GZ030-3: Two calls with the same entity but different subElementId values
@@ -44,8 +44,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             var frame = buf.GetFrame();
             Assert.Equal(2, frame.Length);
-            Assert.Equal(1u, frame[0].Token.SubElementId);
-            Assert.Equal(2u, frame[1].Token.SubElementId);
+            Assert.Equal(1u, frame[0].GetPickToken().SubElementId);
+            Assert.Equal(2u, frame[1].GetPickToken().SubElementId);
         }
 
         // SC-GZ030-4: A zero-value DebugPrimitive has Token.SubElementId == 0.
@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public void SC_GZ030_4_DefaultPrimitive_HasSubElementIdZero()
         {
             var p = default(DebugPrimitive);
-            Assert.Equal(0u, p.Token.SubElementId);
+            Assert.Equal(0u, p.GetPickToken().SubElementId);
         }
 
         // SC-GZ030-5 (regression): Non-interactive DrawEntityLocal still emits SubElementId == 0.
@@ -66,7 +66,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             var frame = buf.GetFrame();
             Assert.Equal(1, frame.Length);
-            Assert.Equal(0u, frame[0].Token.SubElementId);
+            Assert.Equal(0u, frame[0].GetPickToken().SubElementId);
         }
     }
 }

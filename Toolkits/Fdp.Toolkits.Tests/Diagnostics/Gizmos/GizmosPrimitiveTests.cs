@@ -3,6 +3,8 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+// Disambiguate: FixedString32 used in DrawText/DrawEntityBadge calls refers to Fdp.Core type.
+using FixedString32 = Fdp.Core.FixedString32;
 using Xunit;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
@@ -100,9 +102,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         [Fact]
-        public void PipelineTarget_All_CombinesMap2DAndViewport3D()
+        public void PipelineTarget_All_CombinesMap2DViewport3DAndNodeGraph()
         {
-            Assert.Equal(PipelineTarget.All, PipelineTarget.Map2D | PipelineTarget.Viewport3D);
+            Assert.Equal(PipelineTarget.All, PipelineTarget.Map2D | PipelineTarget.Viewport3D | PipelineTarget.NodeGraph);
         }
 
         [Fact]
@@ -248,7 +250,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var p = default(DebugPrimitive);
             p.AnchorIndex      = 7;
             p.AnchorGeneration = 3;
-            var anchor = p.Anchor;
+            var anchor = p.GetAnchor();
             Assert.Equal(7, anchor.Index);
             Assert.Equal(3, anchor.Generation);
         }
@@ -373,7 +375,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public void Buffer_DrawText_AppearsInFrame()
         {
             var buf = new DebugPrimitiveBuffer(16);
-            buf.DrawText(5f, 10f, new FixedString32("test"), Rgba32.White);
+            buf.DrawText(5f, 10f, new Fdp.Core.FixedString32("test"), Rgba32.White);
 
             var frame = buf.GetFrame();
             Assert.Equal(DebugPrimitiveShape.Text, frame[0].Shape);

@@ -8,8 +8,8 @@ namespace Fdp.Toolkit.Vis2D.Shapes;
 ///
 /// <para>
 /// The flags are intentionally domain-agnostic: each hosting subsystem (CGF,
-/// SimHost, Editor) maps its own ECS components to these flags via
-/// <c>PerspectiveEntityVisualizerBase.ResolveCondition</c>.
+/// SimHost, Editor) maps its own ECS components to these flags via gizmo
+/// rendering logic.
 /// </para>
 /// </summary>
 [Flags]

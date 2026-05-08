@@ -53,7 +53,7 @@ public class EntityDragTool : IMapTool
     public void Update(float dt)
     {
         // Check if mouse released to finish Drag
-        if (_canvas?.Input.IsMouseButtonReleased(MouseButton.Left) == true)
+        if (_canvas?.Input.IsMouseButtonReleased(MapMouseButton.Left) == true)
         {
             Finish();
         }
@@ -70,7 +70,7 @@ public class EntityDragTool : IMapTool
         Raylib.DrawCircleV(_currentPos, 2.0f / ctx.Zoom, Color.Yellow);
     }
 
-    public bool HandleClick(Vector2 worldPos, MouseButton button)
+    public bool HandleClick(Vector2 worldPos, MapMouseButton button)
     {
         // Consume all clicks while dragging to prevent other interactions
         if (_isActive) return true; 
@@ -80,7 +80,7 @@ public class EntityDragTool : IMapTool
 
     public bool HandleDrag(Vector2 worldPos, Vector2 delta)
     {
-        if (_isActive && _canvas?.Input.IsMouseButtonDown(MouseButton.Left) == true)
+        if (_isActive && _canvas?.Input.IsMouseButtonDown(MapMouseButton.Left) == true)
         {
             _currentPos = worldPos;
             

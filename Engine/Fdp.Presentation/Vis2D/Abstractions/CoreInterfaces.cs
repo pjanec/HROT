@@ -1,7 +1,6 @@
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
-using Raylib_cs;
 
 namespace Fdp.Toolkit.Vis2D.Abstractions;
 
@@ -10,11 +9,10 @@ namespace Fdp.Toolkit.Vis2D.Abstractions;
 /// </summary>
 public struct RenderContext
 {
-    public Camera2D Camera;
-    public float Zoom => Camera.Zoom;
+    public float Zoom;
     public Vector2 MouseWorldPos;
     public float DeltaTime;
-    
+
     /// <summary>
     /// The mask of layers currently enabled by the user (32-bit bitmask).
     /// </summary>
@@ -24,33 +22,13 @@ public struct RenderContext
     /// Access to global resources.
     /// </summary>
     public IResourceProvider Resources;
-}
-
-/// <summary>
-/// Adapter interface for rendering entities.
-/// Decouples map rendering from specific component types.
-/// </summary>
-public interface IVisualizerAdapter
-{
-    /// <summary>
-    /// Extract world position from entity. Returns null to hide/cull the entity.
-    /// </summary>
-    Vector2? GetPosition(ISimulationView view, Entity entity);
 
     /// <summary>
-    /// Draw the entity. Called inside Raylib BeginMode2D.
+    /// Debug primitive builder injected by <see cref="MapCanvas.Draw"/>.
+    /// Tools use this to emit backend-neutral draw primitives instead of calling Raylib directly.
+    /// May be null in headless test contexts.
     /// </summary>
-    void Render(ISimulationView view, Entity entity, Vector2 position, RenderContext ctx, bool isSelected, bool isHovered);
-
-    /// <summary>
-    /// Helper to determine picking radius (for mouse clicks).
-    /// </summary>
-    float GetHitRadius(ISimulationView view, Entity entity);
-    
-    /// <summary>
-    /// (Optional) Text to display when hovering. Return null for no tooltip.
-    /// </summary>
-    string? GetHoverLabel(ISimulationView view, Entity entity) => null;
+    public Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder? DrawBuilder;
 }
 
 /// <summary>
@@ -83,7 +61,7 @@ public interface IMapLayer
     /// Handle mouse clicks.
     /// Return true if the input was consumed (blocking layers below).
     /// </summary>
-    bool HandleInput(Vector2 worldPos, MouseButton button, bool isPressed);
+    bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed);
 
     /// <summary>
     /// Pick the top-most entity at the given world position.

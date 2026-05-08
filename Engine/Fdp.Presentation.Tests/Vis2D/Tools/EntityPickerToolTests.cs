@@ -3,7 +3,6 @@ using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Tests.Input;
 using Fdp.Toolkit.Vis2D.Tools;
 using Moq;
-using Raylib_cs;
 using Xunit;
 
 namespace Fdp.Toolkit.Vis2D.Tests.Tools;
@@ -48,7 +47,7 @@ public class EntityPickerToolTests
         // hoveredValid = false → no valid pick target under cursor.
         var tool = CreateTool(hoveredValid: false);
 
-        tool.Draw(new RenderContext { Camera = new Raylib_cs.Camera2D { Zoom = 1f } });
+        tool.Draw(new RenderContext { Zoom = 1f });
 
         Assert.NotNull(tool.TestHook_LastUsedColor);
         var color = tool.TestHook_LastUsedColor!.Value;
@@ -70,7 +69,7 @@ public class EntityPickerToolTests
         tool.TestHook_SkipRaylibCalls = true;
         tool.TestHook_ForceHoveredValid = true;
 
-        tool.Draw(new RenderContext { Camera = new Raylib_cs.Camera2D { Zoom = 1f } });
+        tool.Draw(new RenderContext { Zoom = 1f });
 
         Assert.NotNull(tool.TestHook_LastUsedColor);
         var color = tool.TestHook_LastUsedColor!.Value;

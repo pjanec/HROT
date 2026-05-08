@@ -3,7 +3,6 @@ using Xunit;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Tests.Input;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Raylib_cs;
 
 namespace Fdp.Toolkit.Vis2D.Tests.Components
 {
@@ -103,7 +102,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Components
             var camera = new TestableMapCamera();
             camera.Zoom = 1.0f;
             camera.Target = Vector2.Zero;
-            camera.InputMap.PanButton = MouseButton.Right;
+            camera.InputMap.PanButton = MapMouseButton.Right;
             
             var input = new MockInputProvider();
 

@@ -122,9 +122,9 @@ public sealed class EntityPickerTool : IMapTool
     }
 
     /// <inheritdoc/>
-    public bool HandleClick(Vector2 worldPos, MouseButton button)
+    public bool HandleClick(Vector2 worldPos, MapMouseButton button)
     {
-        if (button == MouseButton.Left && _hoveredValid)
+        if (button == MapMouseButton.Left && _hoveredValid)
         {
             var picked = _hoveredEntity;
             _canvas?.PopTool();
@@ -132,7 +132,7 @@ public sealed class EntityPickerTool : IMapTool
             return true;
         }
 
-        if (button == MouseButton.Right)
+        if (button == MapMouseButton.Right)
         {
             _canvas?.PopTool();
             OnCancelled?.Invoke();
@@ -146,9 +146,9 @@ public sealed class EntityPickerTool : IMapTool
     public bool HandleDrag(Vector2 worldPos, Vector2 delta) => false;
 
     /// <inheritdoc/>
-    public bool HandleKeyPressed(KeyboardKey key)
+    public bool HandleKeyPressed(MapKeyboardKey key)
     {
-        if (key == KeyboardKey.Escape)
+        if (key == MapKeyboardKey.Escape)
         {
             _canvas?.PopTool();
             OnCancelled?.Invoke();

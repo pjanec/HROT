@@ -4,7 +4,6 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Layers;
-using Raylib_cs;
 using Xunit;
 
 namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
@@ -14,10 +13,9 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         // Builds a RenderContext that shows the layer at bit index.
         private static RenderContext MakeCtx(int layerBitIndex, float zoom = 1f)
         {
-            var cam = new Camera2D { Zoom = zoom };
             return new RenderContext
             {
-                Camera            = cam,
+                Zoom              = zoom,
                 VisibleLayersMask = 0xFFFF_FFFFu, // All layers visible
             };
         }
@@ -81,7 +79,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             // directly append via a thin helper below.
             AppendTo(buffer, prim);
 
-            bool result = layer.HandleInput(worldPos, MouseButton.Left, isPressed: true);
+            bool result = layer.HandleInput(worldPos, MapMouseButton.Left, isPressed: true);
             Assert.True(result);
 
             bus.SwapBuffers();
@@ -105,7 +103,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             AppendTo(buffer, prim);
 
             // Click at (0, 0) — well outside 5-unit hit radius of (100, 100).
-            bool result = layer.HandleInput(new Vector2(0f, 0f), MouseButton.Left, isPressed: true);
+            bool result = layer.HandleInput(new Vector2(0f, 0f), MapMouseButton.Left, isPressed: true);
             Assert.False(result);
 
             bus.Dispose();
@@ -122,10 +120,9 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
 
             buffer.DrawLine(Vector3.Zero, Vector3.One, Rgba32.Green);
 
-            var cam = new Camera2D { Zoom = 1f };
-            var ctx = new RenderContext
+                        var ctx = new RenderContext
             {
-                Camera            = cam,
+                Zoom              = 1f,
                 VisibleLayersMask = 0u, // All bits off => layer 5 bit also off
             };
 

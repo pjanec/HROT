@@ -307,4 +307,131 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Equal(hash, events[0].KeyHash);
         }
     }
+
+    // ==========================================================================
+    // SC-GZ049: Settings Scopes — Global / Project / Session
+    // ==========================================================================
+
+    public class GizmoSettingsScopeTests
+    {
+        private static GizmoSettingsRegistry MakeReg(string key, GizmoSettingValue def)
+        {
+            var reg = new GizmoSettingsRegistry();
+            reg.RegisterSetting(key, def);
+            return reg;
+        }
+
+        // SC-GZ049-1: Write with Session scope; GetScope returns Session.
+        [Fact]
+        public void SC_GZ049_1_Write_Session_Scope_IsReturned()
+        {
+            var reg  = MakeReg("k", GizmoSettingValue.From(false));
+            var hash = GizmoSettingsRegistry.ComputeHash("k");
+            reg.Write(hash, GizmoSettingValue.From(true), scope: SettingScope.Session);
+            Assert.Equal(SettingScope.Session, reg.GetScope(hash));
+        }
+
+        // SC-GZ049-2: Project-scoped write not included in Global SaveToDisk.
+        [Fact]
+        public void SC_GZ049_2_ProjectScope_NotSavedToGlobalFile()
+        {
+            string file = Path.GetTempFileName();
+            try
+            {
+                var reg  = MakeReg("Proj.Key", GizmoSettingValue.From(false));
+                var hash = GizmoSettingsRegistry.ComputeHash("Proj.Key");
+                reg.Write(hash, GizmoSettingValue.From(true), scope: SettingScope.Project);
+                reg.SaveToDisk(file, SettingScope.Global);
+                Assert.DoesNotContain("Proj.Key", File.ReadAllText(file));
+            }
+            finally { File.Delete(file); }
+        }
+
+        // SC-GZ049-3: Global-scoped write is included in Global SaveToDisk.
+        [Fact]
+        public void SC_GZ049_3_GlobalScope_SavedToGlobalFile()
+        {
+            string file = Path.GetTempFileName();
+            try
+            {
+                var reg  = MakeReg("Glob.Key", GizmoSettingValue.From(false));
+                var hash = GizmoSettingsRegistry.ComputeHash("Glob.Key");
+                reg.Write(hash, GizmoSettingValue.From(true), scope: SettingScope.Global);
+                reg.SaveToDisk(file, SettingScope.Global);
+                Assert.Contains("Glob.Key", File.ReadAllText(file));
+            }
+            finally { File.Delete(file); }
+        }
+
+        // SC-GZ049-4: DiscardScope(Session) resets session settings to default.
+        [Fact]
+        public void SC_GZ049_4_DiscardScope_Session_ResetsToDefault()
+        {
+            var reg  = MakeReg("sess", GizmoSettingValue.From(0));
+            var hash = GizmoSettingsRegistry.ComputeHash("sess");
+            reg.Write(hash, GizmoSettingValue.From(99), scope: SettingScope.Session);
+            Assert.Equal(99, reg.Read(hash).IntValue);
+
+            reg.DiscardScope(SettingScope.Session);
+
+            Assert.Equal(0, reg.Read(hash).IntValue);
+            Assert.Equal(SettingScope.Global, reg.GetScope(hash));
+        }
+
+        // SC-GZ049-5: DiscardScope(Project) does NOT affect Global or Session settings.
+        [Fact]
+        public void SC_GZ049_5_DiscardProjectScope_DoesNotAffectOtherScopes()
+        {
+            var reg = new GizmoSettingsRegistry();
+            reg.RegisterSetting("g", GizmoSettingValue.From(0));
+            reg.RegisterSetting("p", GizmoSettingValue.From(0));
+            reg.RegisterSetting("s", GizmoSettingValue.From(0));
+            var hg = GizmoSettingsRegistry.ComputeHash("g");
+            var hp = GizmoSettingsRegistry.ComputeHash("p");
+            var hs = GizmoSettingsRegistry.ComputeHash("s");
+
+            reg.Write(hg, GizmoSettingValue.From(1), scope: SettingScope.Global);
+            reg.Write(hp, GizmoSettingValue.From(2), scope: SettingScope.Project);
+            reg.Write(hs, GizmoSettingValue.From(3), scope: SettingScope.Session);
+
+            reg.DiscardScope(SettingScope.Project);
+
+            Assert.Equal(1, reg.Read(hg).IntValue);  // Global unchanged
+            Assert.Equal(0, reg.Read(hp).IntValue);  // Project reset
+            Assert.Equal(3, reg.Read(hs).IntValue);  // Session unchanged
+        }
+
+        // SC-GZ049-6: Write without scope argument defaults to Global.
+        [Fact]
+        public void SC_GZ049_6_Write_NoScope_DefaultsToGlobal()
+        {
+            var reg  = MakeReg("def", GizmoSettingValue.From(false));
+            var hash = GizmoSettingsRegistry.ComputeHash("def");
+            reg.Write(hash, GizmoSettingValue.From(true));
+            Assert.Equal(SettingScope.Global, reg.GetScope(hash));
+        }
+
+        // SC-GZ049-8: LoadFromDisk with Project scope assigns Project to loaded settings.
+        [Fact]
+        public void SC_GZ049_8_LoadFromDisk_AssignsGivenScope()
+        {
+            string file = Path.GetTempFileName();
+            try
+            {
+                // Prepare and save a file with a Global setting.
+                var src  = MakeReg("loaded", GizmoSettingValue.From(false));
+                var hash = GizmoSettingsRegistry.ComputeHash("loaded");
+                src.Write(hash, GizmoSettingValue.From(true), scope: SettingScope.Global);
+                src.SaveToDisk(file, SettingScope.Global);
+
+                // Load it as Project scope into a fresh registry.
+                var dst = MakeReg("loaded", GizmoSettingValue.From(false));
+                dst.LoadFromDisk(file, SettingScope.Project);
+
+                Assert.True(dst.Read(hash).BoolValue);
+                Assert.Equal(SettingScope.Project, dst.GetScope(hash));
+            }
+            finally { File.Delete(file); }
+        }
+    }
 }

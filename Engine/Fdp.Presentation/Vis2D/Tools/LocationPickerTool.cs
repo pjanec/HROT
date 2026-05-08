@@ -74,16 +74,16 @@ public sealed class LocationPickerTool : IMapTool
     }
 
     /// <inheritdoc/>
-    public bool HandleClick(Vector2 worldPos, MouseButton button)
+    public bool HandleClick(Vector2 worldPos, MapMouseButton button)
     {
-        if (button == MouseButton.Left)
+        if (button == MapMouseButton.Left)
         {
             _canvas?.PopTool();
             OnLocationPicked?.Invoke(worldPos);
             return true;
         }
 
-        if (button == MouseButton.Right)
+        if (button == MapMouseButton.Right)
         {
             _canvas?.PopTool();
             OnCancelled?.Invoke();
@@ -97,9 +97,9 @@ public sealed class LocationPickerTool : IMapTool
     public bool HandleDrag(Vector2 worldPos, Vector2 delta) => false;
 
     /// <inheritdoc/>
-    public bool HandleKeyPressed(KeyboardKey key)
+    public bool HandleKeyPressed(MapKeyboardKey key)
     {
-        if (key == KeyboardKey.Escape)
+        if (key == MapKeyboardKey.Escape)
         {
             _canvas?.PopTool();
             OnCancelled?.Invoke();

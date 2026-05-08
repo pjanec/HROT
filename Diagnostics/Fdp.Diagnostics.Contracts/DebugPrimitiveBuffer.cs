@@ -1,7 +1,12 @@
+extern alias GizmoMapContracts;
+
 using System;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using Fdp.Core;
+// Alias for the GizmoMap-side FixedString32 used in DebugPrimitive fields.
+using GizmoStr = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.FixedString32;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos
 {
@@ -147,7 +152,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             byte layer = 0)
         {
             // StringHash is always 0 for inline FixedString32 mode.
-            Append(DebugPrimitive.MakeText(x, y, text, color, space, layer));
+            // Fdp.Core.FixedString32 and GizmoMap.Contracts.FixedString32 share identical
+            // 32-byte sequential layout; reinterpret for the MakeText factory method.
+            var gizmoText = Unsafe.As<FixedString32, GizmoStr>(ref text);
+            Append(DebugPrimitive.MakeText(x, y, gizmoText, color, space, layer));
         }
 
         public void DrawTextLong(
@@ -169,7 +177,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // StringHash overlay at offset 8 (overlapping AnchorIndex)
             p.StringHash  = hash;
             // Store first MaxLength chars inline as a preview; FixedString32 auto-truncates.
-            p.TextContent = new FixedString32(text);
+            // Construct via Fdp.Core.FixedString32 (same layout) then reinterpret.
+            var coreStr = new FixedString32(text);
+            p.TextContent = Unsafe.As<FixedString32, GizmoStr>(ref coreStr);
             Append(p);
         }
 
@@ -182,7 +192,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.TargetView       = targetPipeline;
             p.BadgeTargetIndex = target.Index;
             p.BadgeTargetGen   = target.Generation;
-            p.BadgeRichText    = richText;
+            // Fdp.Core.FixedString32 and GizmoMap.Contracts.FixedString32 have identical layout.
+            p.BadgeRichText    = Unsafe.As<FixedString32, GizmoStr>(ref richText);
             Append(p);
         }
 
@@ -230,9 +241,51 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
         // ---- Internal helpers -----------------------------------------------
 
-        internal void Append(DebugPrimitive p)
+        // GZ057: SpatialAnchor and SemanticShape emit implementations.
+
+        public void DrawSpatialAnchor(
+            long  networkId,
+            float worldX,
+            float worldY,
+            float worldZ,
+            float headingDeg,
+            byte  layer = 0)
         {
-            int slot = Interlocked.Increment(ref _count) - 1;
+            var p = default(DebugPrimitive);
+            p.Shape        = DebugPrimitiveShape.SpatialAnchor;
+            p.TargetView   = PipelineTarget.All;
+            p.DebugLayer   = layer;
+            p.NetworkId    = networkId;
+            p.AnchorWorldX = worldX;
+            p.AnchorWorldY = worldY;
+            p.AnchorWorldZ = worldZ;
+            p.Heading      = headingDeg;
+            Append(p);
+        }
+
+        public void DrawSemanticShape(
+            long   networkId,
+            ulong  profileId,
+            float  lengthMeters  = 0f,
+            float  widthMeters   = 0f,
+            uint   conditionMask = 0,
+            byte   layer         = 0)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape         = DebugPrimitiveShape.SemanticShape;
+            p.Space         = CoordinateSpace.EntityLocal;
+            p.TargetView    = PipelineTarget.All;
+            p.DebugLayer    = layer;
+            p.AnchorIndex   = (int)networkId;
+            p.ProfileId     = profileId;
+            p.LengthMeters  = lengthMeters;
+            p.WidthMeters   = widthMeters;
+            p.ConditionMask = conditionMask;
+            Append(p);
+        }
+
+        internal void Append(DebugPrimitive p)
+        {            int slot = Interlocked.Increment(ref _count) - 1;
             if ((uint)slot < (uint)_primitives.Length)
                 _primitives[slot] = p;
             else

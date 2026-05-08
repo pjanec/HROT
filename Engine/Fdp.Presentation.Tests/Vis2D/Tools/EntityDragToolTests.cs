@@ -4,7 +4,6 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Tools;
 using Fdp.Toolkit.Vis2D.Tests.Input;
-using Raylib_cs;
 
 namespace Fdp.Toolkit.Vis2D.Tests.Tools
 {

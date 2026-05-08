@@ -1,5 +1,4 @@
 using System.Numerics;
-using Raylib_cs;
 
 namespace Fdp.Toolkit.Vis2D.Abstractions;
 
@@ -25,7 +24,7 @@ public interface IMapTool
     void Draw(RenderContext ctx);
 
     // Input (return true if consumed)
-    bool HandleClick(Vector2 worldPos, MouseButton button);
+    bool HandleClick(Vector2 worldPos, MapMouseButton button);
     bool HandleDrag(Vector2 worldPos, Vector2 delta);
     bool HandleHover(Vector2 worldPos);
 
@@ -36,5 +35,12 @@ public interface IMapTool
     /// to other handlers (camera, main loop, etc.).
     /// The default implementation returns <c>false</c> (not consumed).
     /// </summary>
-    bool HandleKeyPressed(KeyboardKey key) => false;
+    bool HandleKeyPressed(MapKeyboardKey key) => false;
+
+    /// <summary>
+    /// Called when a mouse button is first pressed (down-stroke only).
+    /// Invoked before layer routing so the active tool gets first refusal.
+    /// Return <c>true</c> to consume the press; <c>false</c> = pass through to layers.
+    /// </summary>
+    bool HandlePress(Vector2 worldPos, MapMouseButton button) => false;
 }

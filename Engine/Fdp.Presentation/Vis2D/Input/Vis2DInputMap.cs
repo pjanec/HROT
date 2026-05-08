@@ -1,15 +1,15 @@
-using Raylib_cs;
+using Fdp.Toolkit.Vis2D.Abstractions;
 
 namespace Fdp.Toolkit.Vis2D.Input
 {
     public class Vis2DInputMap
     {
-        public MouseButton SelectButton { get; set; } = MouseButton.Left;
-        public MouseButton PanButton { get; set; } = MouseButton.Right;
+        public MapMouseButton SelectButton { get; set; } = MapMouseButton.Left;
+        public MapMouseButton PanButton { get; set; } = MapMouseButton.Right;
         
         // Modifiers
-        public KeyboardKey MultiSelectMod { get; set; } = KeyboardKey.LeftShift;
-        public KeyboardKey BoxSelectMod { get; set; } = KeyboardKey.LeftControl;
+        public MapKeyboardKey MultiSelectMod { get; set; } = MapKeyboardKey.LeftShift;
+        public MapKeyboardKey BoxSelectMod { get; set; } = MapKeyboardKey.LeftControl;
         
         public static Vis2DInputMap Default => new Vis2DInputMap();
     }
