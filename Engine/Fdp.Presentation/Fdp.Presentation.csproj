@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\ExtDeps\GizmoMap\GizmoMap.Presentation\GizmoMap.Presentation.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\GizmoMap\GizmoMap.Presentation\GizmoMap.Presentation.csproj" />
     <ProjectReference Include="..\..\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Core\StructEdit.Core.csproj" />
     <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />

@@ -15,7 +15,7 @@
   <ItemGroup>
     <!-- Only Fdp.Core and GizmoMap.Contracts are allowed — no Fdp.Toolkits, no CycloneDDS -->
     <ProjectReference Include="..\..\Engine\Fdp.Core\Fdp.Core.csproj" />
-    <ProjectReference Include="..\..\..\ExtDeps\GizmoMap\GizmoMap.Contracts\GizmoMap.Contracts.csproj">
+    <ProjectReference Include="..\..\ExtDeps\GizmoMap\GizmoMap.Contracts\GizmoMap.Contracts.csproj">
       <Aliases>GizmoMapContracts</Aliases>
     </ProjectReference>
   </ItemGroup>
