@@ -1285,6 +1285,11 @@ public class IgApplication : IDisposable
 
         // Always tick ECS/network — even in headless mode DDS messages must be processed.
 
+        // Clear the primitive buffer before backend ECS systems populate it.
+        // Must be called after canvas input (which emits tool primitives) and before
+        // kernel.Update() (which runs StatelessGizmoSystem in PostSimulation).
+        _gizmoBuffer?.EndFrame(dt);
+
         _kernel.Update();
 
         // GZ045: poll DebugPrimitivesBatch from SimHost and populate _gizmoBuffer.

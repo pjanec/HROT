@@ -89,8 +89,9 @@ using (transport)
             transport.PollAndApply(consumer);
 
             // Route mouse/keyboard input through the gizmo interaction layer.
-            layer.HandleInput(camera, static (token, kind, pos) =>
-                Console.WriteLine($"Gizmo interaction: anchor={token.AnchorId} sub={token.SubElementId} {kind} at {pos}"));
+            // Interaction events are forwarded to DemoSceneGenerator so it can
+            // update the interactive box position and produce visual feedback.
+            layer.HandleInput(camera, gen.OnGizmoInteraction);
 
             Raylib_cs.Raylib.BeginDrawing();
             Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.DarkGray);

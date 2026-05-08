@@ -82,6 +82,12 @@ public sealed class EntityDragTool : IMapTool
     {
         _currentPos = worldPos;
         _dragging   = true;
+
+        // Fire live position updates so the ECS SimTransform is mutated continuously
+        // during the drag. This keeps projectors (e.g. EntityEditorPolylineGizmo)
+        // rendering the entity at the cursor position every frame.
+        OnEntityMoved?.Invoke(_entity, _currentPos);
+
         return true;
     }
 

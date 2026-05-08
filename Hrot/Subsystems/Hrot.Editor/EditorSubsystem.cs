@@ -729,6 +729,12 @@ namespace Hrot.Editor
                 _cameraViewport.Zoom      = _camera.Zoom;
             }
 
+            // Clear the primitive buffer before backend ECS systems populate it.
+            // This must happen before kernel.Update() and after canvas.Update() so that
+            // tool-emitted primitives (written during canvas.Update → ActiveTool.Draw) are
+            // already in the buffer when StatelessGizmoSystem runs.
+            _gizmoBuffer?.EndFrame(deltaTime);
+
             // Kernel.Update() internally calls bus.SwapBuffers() then ticks registered modules.
             _kernel?.Update();
 

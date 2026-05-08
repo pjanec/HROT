@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using GizmoMap.Network;
 using StructEdit.Core;
 
 namespace GizmoMap.Example
@@ -25,6 +26,21 @@ namespace GizmoMap.Example
         // Moving entity network ID.
         private const long EntityNetworkId = 100L;
 
+        // ---- Interactive box drag state -------------------------------------
+        // Current committed position of the draggable Box2D (item 7).
+        // Starts near world origin so it is visible with the default camera.
+        private float _interactiveBoxX = 0f;
+        private float _interactiveBoxY = 0f;
+
+        // Box position captured at the start of the current drag.
+        private float _dragBaseBoxX;
+        private float _dragBaseBoxY;
+
+        // World position received on the first DragUpdate of the current drag.
+        private float _dragStartWorldX;
+        private float _dragStartWorldY;
+        private bool  _gotFirstDragUpdate;
+
         public void Emit(float deltaTime, IGizmoDrawBuilder draw)
         {
             _elapsedTime += deltaTime;
@@ -46,9 +62,55 @@ namespace GizmoMap.Example
             EmitScene(builder, _elapsedTime);
         }
 
+        // ---- Interaction handler -------------------------------------------
+
+        /// <summary>
+        /// Receives gizmo interaction events from the presentation layer and
+        /// updates the interactive box position so the next Emit() tick renders
+        /// it at the new world coordinates.
+        /// </summary>
+        public void OnGizmoInteraction(GizmoPickToken token, GizmoInteractionEventKind kind, Vector3 pos)
+        {
+            Console.WriteLine($"Gizmo interaction: anchor={token.AnchorId} sub={token.SubElementId} {kind} at {pos}");
+            switch (kind)
+            {
+                case GizmoInteractionEventKind.Started:
+                    _dragBaseBoxX = _interactiveBoxX;
+                    _dragBaseBoxY = _interactiveBoxY;
+                    _gotFirstDragUpdate = false;
+                    break;
+
+                case GizmoInteractionEventKind.DragUpdate:
+                    if (!_gotFirstDragUpdate)
+                    {
+                        _dragStartWorldX = pos.X;
+                        _dragStartWorldY = pos.Y;
+                        _gotFirstDragUpdate = true;
+                    }
+                    _interactiveBoxX = _dragBaseBoxX + (pos.X - _dragStartWorldX);
+                    _interactiveBoxY = _dragBaseBoxY + (pos.Y - _dragStartWorldY);
+                    break;
+
+                case GizmoInteractionEventKind.Commit:
+                    if (_gotFirstDragUpdate)
+                    {
+                        _interactiveBoxX = _dragBaseBoxX + (pos.X - _dragStartWorldX);
+                        _interactiveBoxY = _dragBaseBoxY + (pos.Y - _dragStartWorldY);
+                    }
+                    _gotFirstDragUpdate = false;
+                    break;
+
+                case GizmoInteractionEventKind.Cancel:
+                    _interactiveBoxX = _dragBaseBoxX;
+                    _interactiveBoxY = _dragBaseBoxY;
+                    _gotFirstDragUpdate = false;
+                    break;
+            }
+        }
+
         // ---- Scene emission -------------------------------------------------
 
-        private static void EmitScene(LocalDrawBuilder builder, float t)
+        private void EmitScene(LocalDrawBuilder builder, float t)
         {
             // ---- 1. SpatialAnchor: moving entity at circular orbit ---------------
             float orbitRadius = 200f;
@@ -126,13 +188,13 @@ namespace GizmoMap.Example
             badgePrim.BadgeRichText   = new FixedString32("\x01Hostile\x04 - \x02Target");
             builder.EmitRaw(in badgePrim);
 
-            // ---- 7. Interactive Box2D: bounding box around NATO symbol -------------
+            // ---- 7. Interactive Box2D: draggable box at current live position ----
             var boxPrim = default(DebugPrimitive);
             boxPrim.Shape        = DebugPrimitiveShape.Box2D;
             boxPrim.Space        = CoordinateSpace.World;
             boxPrim.TargetView   = PipelineTarget.Map2D;
-            boxPrim.BoxCenterX   = NatoX;
-            boxPrim.BoxCenterY   = NatoY;
+            boxPrim.BoxCenterX   = _interactiveBoxX;
+            boxPrim.BoxCenterY   = _interactiveBoxY;
             boxPrim.BoxExtentX   = 30f;
             boxPrim.BoxExtentY   = 30f;
             boxPrim.BoxAngleDeg  = 0f;

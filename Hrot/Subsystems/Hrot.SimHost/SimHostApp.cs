@@ -593,6 +593,8 @@ namespace Hrot.SimHost
             _slaveTranslator?.Tick();
             _clusterSlave?.Tick();
             _vis?.Update(dt);
+            // Clear the primitive buffer before backend ECS systems populate it.
+            _gizmoBuffer?.EndFrame(dt);
             _kernel?.Update();     // then run egress scan (picks up dirty -> publishes immediately)
             // Bridge SwitchTimeModeEvent and FrameOrder/FrameAck for distributed time control.
             // Placed after kernel.Update() so ScanAndPublish picks up FrameStepCompletedEvent
