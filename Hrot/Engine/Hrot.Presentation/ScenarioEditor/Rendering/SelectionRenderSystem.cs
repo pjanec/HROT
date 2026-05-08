@@ -1,5 +1,4 @@
 ﻿using System.Numerics;
-using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
 using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Abstractions;
@@ -108,12 +107,12 @@ public class SelectionRenderSystem : IMapLayer
 
                     Raylib.DrawCircle(
                         (int)pos.X, (int)pos.Y,
-                        NedVisualizerAdapterConstants.SelectionRadiusPx,
+                        SelectionRenderConstants.SelectionRadiusPx,
                         fill);
 
                     Raylib.DrawCircleLines(
                         (int)pos.X, (int)pos.Y,
-                        NedVisualizerAdapterConstants.SelectionRadiusPx,
+                        SelectionRenderConstants.SelectionRadiusPx,
                         Color.Green);
                 }
                 else
@@ -121,7 +120,7 @@ public class SelectionRenderSystem : IMapLayer
                     // Yellow outline only for secondary selections.
                     Raylib.DrawCircleLines(
                         (int)pos.X, (int)pos.Y,
-                        NedVisualizerAdapterConstants.SelectionRadiusPx,
+                        SelectionRenderConstants.SelectionRadiusPx,
                         Color.Yellow);
                 }
             }

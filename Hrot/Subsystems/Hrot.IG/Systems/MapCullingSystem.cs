@@ -25,9 +25,8 @@ namespace Hrot.IG.Systems;
 ///   </item>
 /// </list>
 ///
-/// <see cref="Hrot.IG.Adapters.NedVisualizerAdapter.GetPosition"/> reads
-/// <see cref="CullingState.IsVisible"/> to skip all draw calls for off-screen entities,
-/// eliminating wasted GPU work.
+/// The <c>DebugGizmoLayer</c> reads <see cref="CullingState.IsVisible"/> to skip
+/// all draw calls for off-screen entities, eliminating wasted GPU work.
 ///
 /// Design constraints (§CODE-STANDARDS §4):
 /// <list type="bullet">

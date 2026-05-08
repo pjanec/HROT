@@ -559,9 +559,9 @@ public sealed class EditorSubsystemBootTests
     /// Verifies that spawning an entity carrying a <see cref="MapOverlayStyle"/>
     /// component does not cause exceptions during update frames.
     ///
-    /// The BUG11 fix adds a dedicated <c>MapOverlayRenderLayer</c> and excludes
-    /// overlay entities from the main <c>EntityRenderLayer</c> query so that
-    /// area-overlay entities are no longer rendered as plain red circles.
+    /// The BUG11 fix is preserved via the `StatelessGizmoSystem` + `MapOverlayGizmo`
+    /// which handles area-overlay entities independently of the main entity gizmo,
+    /// so overlay entities are no longer rendered as plain red circles.
     /// This headless test proves the ECS plumbing does not crash.
     /// </summary>
     [Fact]
@@ -600,9 +600,9 @@ public sealed class EditorSubsystemBootTests
     /// Verifies that spawning an entity carrying a <see cref="RoutePlan"/> managed
     /// component does not cause exceptions during update frames.
     ///
-    /// The BUG12 fix adds a dedicated <c>RouteRenderLayer</c> and excludes route
-    /// entities from the main <c>EntityRenderLayer</c> query so that route entities
-    /// are no longer rendered as plain red circles.
+    /// The BUG12 fix is preserved via the `StatelessGizmoSystem` + `RouteGizmo`
+    /// which handles route entities independently of the main entity gizmo,
+    /// so route entities are no longer rendered as plain red circles.
     /// This headless test proves the ECS plumbing does not crash.
     /// </summary>
     [Fact]

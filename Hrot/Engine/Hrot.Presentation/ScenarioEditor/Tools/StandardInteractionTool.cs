@@ -25,13 +25,8 @@ namespace Hrot.ScenarioEditor.Tools;
 ///   <item>
 ///     Subscribes to <see cref="Fdp.Toolkit.Vis2D.Tools.StandardInteractionTool.OnEntitySelectRequest"/>
 ///     and <see cref="Fdp.Toolkit.Vis2D.Tools.StandardInteractionTool.OnRegionSelected"/>
-///     to synchronise both:
-///     <list type="bullet">
-///       <item>The in-memory <see cref="DefaultSelectionState"/> consumed by
-///             <see cref="Fdp.Toolkit.Vis2D.Layers.EntityRenderLayer"/>.</item>
-///       <item>The ECS <see cref="SelectionState"/> components read by
-///             <see cref="Hrot.IG.Systems.SelectionRenderSystem"/>.</item>
-///     </list>
+///     to synchronise the ECS <see cref="SelectionState"/> components read by
+///             <see cref="Hrot.IG.Systems.SelectionRenderSystem"/>.
 ///   </item>
 /// </list>
 ///
@@ -102,22 +97,18 @@ public class StandardInteractionTool : IMapTool
     /// Entity query supplying the pickable entity set
     /// (<c>With&lt;NetworkIdentity, SimTransform&gt;</c> recommended).
     /// </param>
-    /// <param name="adapter">
-    /// Visualizer adapter used by the inner tool for hit-radius queries.
-    /// </param>
     /// <param name="selection">
-    /// Shared selection state consumed by the <see cref="Fdp.Toolkit.Vis2D.Layers.EntityRenderLayer"/>.
+    /// Shared in-memory selection state synchronised to ECS <see cref="SelectionState"/> components.
     /// </param>
     public StandardInteractionTool(
         EntityRepository      world,
         EntityQuery           query,
-        IVisualizerAdapter    adapter,
         DefaultSelectionState selection)
     {
         _world     = world;
         _selection = selection;
 
-        _inner = new FdpStandardInteractionTool(world, query, adapter);
+        _inner = new FdpStandardInteractionTool(world, query);
         _inner.OnEntitySelectRequest += HandleEntitySelectRequest;
         _inner.OnRegionSelected      += HandleRegionSelected;
     }

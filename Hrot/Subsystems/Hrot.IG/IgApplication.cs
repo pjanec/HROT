@@ -10,10 +10,6 @@ using System.Text.Json;
 
 using CarKinem.Core;
 
-using Hrot.ScenarioEditor.Adapters;
-
-using Hrot.ScenarioEditor.Rendering;
-
 using Hrot.IG.Components;
 
 using Hrot.IG.Modules;
@@ -83,8 +79,6 @@ using Fdp.Toolkit.Time.Controllers;
 
 using Fdp.Toolkit.Vis2D;
 
-using Fdp.Toolkit.Vis2D.Abstractions;
-
 using Fdp.Toolkit.Vis2D.Components;
 
 using Fdp.Toolkit.Vis2D.Defaults;
@@ -136,8 +130,8 @@ using StandardInteractionTool = Hrot.ScenarioEditor.Tools.StandardInteractionToo
 using Raylib_cs;
 
 using rlImGui_cs;
-using Hrot.IG.Layers;
 using Hrot.Presentation.Facades;
+using Hrot.ScenarioEditor.Rendering;
 using Hrot.UI.Common.Facades;
 
 
@@ -709,7 +703,7 @@ public class IgApplication : IDisposable
         _world.RegisterComponent<Hrot.Map.Common.Components.PersonalRouteRef>();
         _world.RegisterComponent<Hrot.Map.Common.Components.RouteTrajectoryCache>();
 
-        // Zone obstacle components required by ZoneObstacleRenderLayer.
+        // Zone obstacle components required by StatelessGizmoSystem gizmos.
         _world.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
 
         // ── Ground clamping components (MOD1-P7T2) ────────────────────────────
@@ -769,8 +763,6 @@ public class IgApplication : IDisposable
             .Register("GeoPosition.Longitude", AttributeIds.GeoLon,      AttributeValueKind.Float64)
             .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,      AttributeValueKind.Float64)
             .Build();
-
-        _canvas.AddLayer(new EffectRenderLayer(_world));
 
     }
 
@@ -1039,9 +1031,9 @@ public class IgApplication : IDisposable
 
 
 
-        // D. EntityRenderLayer wired to the StubVisualizerAdapter
-        // Area-overlay entities are excluded so they render via MapOverlayRenderLayer instead.
-        // Route entities are excluded so they render via RouteRenderLayer instead.
+        // D. Entity query for the StandardInteractionTool (selection/picking).
+        // Area-overlay and route entities are excluded from the interaction query
+        // so that clicking on them does not accidentally select non-tactical entities.
 
         var query = _world.Query()
 
@@ -1059,17 +1051,7 @@ public class IgApplication : IDisposable
 
 
 
-        var adapter   = new NedVisualizerAdapter();
-
         var selection = new DefaultSelectionState();
-
-        var layer     = new EntityRenderLayer(
-
-            "Entities", layerBitIndex: -1,
-
-            _world, query, adapter, selection) { Canvas = _canvas };
-
-        _canvas.AddLayer(layer);
 
 
 
@@ -1090,42 +1072,6 @@ public class IgApplication : IDisposable
         _canvas.AddLayer(selectionLayer);
 
 
-
-        // MapOverlayRenderLayer — draws tactical graphic area overlays.
-        // Guards on SimTransform: only renders area entities where geo ingress has already arrived.
-
-        var overlayQuery = _world.Query()
-
-            .WithManaged<EditablePolyline>()
-
-            .With<MapOverlayStyle>()
-
-            .With<SimTransform>()
-
-            .WithLifecycle(EntityLifecycle.All)
-
-            .Build();
-
-        var overlayLayer = new MapOverlayRenderLayer(_world, overlayQuery);
-        _canvas.AddLayer(overlayLayer);
-
-        var missionLayer = new MissionRenderLayer(_world, _geoTransform);
-        _canvas.AddLayer(missionLayer);
-
-        // RouteRenderLayer — draws RoutePlan waypoints for TacGraphic_Route entities.
-        var routeQuery = _world.Query()
-            .With<TkbIdentity>()
-            .WithManaged<Hrot.Map.Common.Components.RoutePlan>()
-            .WithLifecycle(EntityLifecycle.All)
-            .Build();
-        var routeRenderLayer = new RouteRenderLayer(_world, routeQuery, _fdpInspectorState);
-        _canvas.AddLayer(routeRenderLayer);
-
-        // EffectRenderLayer — draws explosion circles and tracer lines from VisualEffectState.
-        _canvas.AddLayer(new Hrot.IG.Layers.EffectRenderLayer(_world));
-
-        // ZoneObstacleRenderLayer — draws LOS obstacle circles (always-on overlay).
-        _canvas.AddLayer(new Hrot.IG.Layers.ZoneObstacleRenderLayer(_world));
 
         // Gizmo subsystem (GZ020) — renders entity-bound diagnostic overlays.
         _gizmoBuffer           = new DebugPrimitiveBuffer(capacity: 4096);
@@ -1154,9 +1100,9 @@ public class IgApplication : IDisposable
             .Build();
 
 
-        // StandardInteractionTool ÔÇö default canvas tool wiring selection to ECS.
+        // StandardInteractionTool -- default canvas tool wiring selection to ECS.
 
-        var interactionTool = new StandardInteractionTool(_world, query, adapter, selection);
+        var interactionTool = new StandardInteractionTool(_world, query, selection);
 
         _canvas.SwitchTool(interactionTool);
 

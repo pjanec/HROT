@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Numerics;
-using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Tools;
 using Hrot.IG.UI;
@@ -90,9 +89,8 @@ public class MapEventTranslatorTests
     {
         var repo      = CreateRepo();
         var query     = repo.Query().Build(); // empty query â€” sufficient for event wiring test
-        var adapter   = new NedVisualizerAdapter();
         var selection = new DefaultSelectionState();
-        var tool      = new StandardInteractionTool(repo, query, adapter, selection);
+        var tool      = new StandardInteractionTool(repo, query, selection);
 
         Action<Vector2, MouseButton, bool, bool, Entity> handler =
             (pos, btn, s, c, e) => { };

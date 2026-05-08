@@ -24,7 +24,7 @@ public static class CullingStateConstants
     public const byte LodSimplified = 1;
 
     /// <summary>
-    /// Icon-only rendering at <see cref="Hrot.IG.Adapters.NedVisualizerAdapterConstants.LodIconOnlyScale"/>.
+    /// Icon-only rendering: icon only, no label or sensor overlays.
     /// Assigned when zoom &lt; <see cref="LodIconOnlyZoomThreshold"/>.
     /// </summary>
     public const byte LodIconOnly = 2;

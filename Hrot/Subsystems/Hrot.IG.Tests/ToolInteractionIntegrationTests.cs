@@ -1,9 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Hrot.IG.Abstractions;
-using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Tools;
 using Fdp.Interfaces;
@@ -14,7 +13,6 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Vis2D.Defaults;
-using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication;
 using Raylib_cs;
@@ -113,37 +111,6 @@ public class ToolInteractionIntegrationTests
         Assert.Equal(SpawnY, cmd.InitialTransform!.Value.Position.Y, precision: 2);
     }
 
-    // â”€â”€ Tests: pick after direct spawn â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    /// <summary>
-    /// After an entity is present in the ECS (as would happen once the SimHost creates
-    /// it and the ghost translator replicates it), <see cref="EntityRenderLayer.PickEntity"/>
-    /// at the spawn position must resolve it.
-    /// </summary>
-    [Fact]
-    public void CreationTool_SpawnAndTag_EntityPickableByRenderLayer()
-    {
-        var repo          = BuildRepo();
-        var spawnedEntity = SpawnDirect(repo, new Vector2(SpawnX, SpawnY));
-
-        // Tag the entity as visible (simulating MapCullingSystem).
-        repo.SetComponent(spawnedEntity, new CullingState
-        {
-            IsVisible = true,
-            LodLevel  = CullingStateConstants.LodFull,
-        });
-
-        var adapter   = new NedVisualizerAdapter();
-        var selection = new DefaultSelectionState();
-        var pickQuery = repo.Query().With<SimTransform>().Build();
-        var layer     = new EntityRenderLayer("Entities", 0, repo, pickQuery, adapter, selection);
-
-        var picked = layer.PickEntity(new Vector2(SpawnX, SpawnY));
-
-        Assert.NotNull(picked);
-        Assert.Equal(spawnedEntity, picked!.Value);
-    }
-
     // â”€â”€ Tests: StandardInteractionTool selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
@@ -163,10 +130,9 @@ public class ToolInteractionIntegrationTests
             LodLevel  = CullingStateConstants.LodFull,
         });
 
-        var adapter         = new NedVisualizerAdapter();
         var selection       = new DefaultSelectionState();
         var pickQuery       = repo.Query().With<SimTransform>().Build();
-        var interactionTool = new StandardInteractionTool(repo, pickQuery, adapter, selection);
+        var interactionTool = new StandardInteractionTool(repo, pickQuery, selection);
 
         interactionTool.TestHook_SelectEntity(spawnedEntity, augment: false);
 

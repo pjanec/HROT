@@ -33,4 +33,12 @@ public static class SelectionRenderConstants
     /// Kept intentionally translucent so the entity icon underneath remains visible.
     /// </summary>
     public const byte PrimaryFillAlpha = 50;
+
+    // ── Selection ring geometry ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Radius of the selection ring drawn around a selected entity, in pixels.
+    /// Matches the fallback circle radius used by entity presentation gizmos.
+    /// </summary>
+    public const int SelectionRadiusPx = 20;
 }

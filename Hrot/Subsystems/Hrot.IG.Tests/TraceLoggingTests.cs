@@ -5,13 +5,11 @@ using System.Threading;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
 using Hrot.IG;
-using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
-using Fdp.Toolkit.Vis2D.Abstractions;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
@@ -63,11 +61,9 @@ public sealed class TraceLoggingTests : IDisposable
             "[Node-", // Ingress: EntityMaster NetID=
             "[Node-", // Ingress: GeoSpatial Entity=
             "[Node-", // Style: Resolved Entity=
-            "[Node-", // Render: Drawing Entity=
         };
 
         bool geoSent = false;
-        bool renderAttempted = false;
         var start = DateTime.UtcNow;
 
         while ((DateTime.UtcNow - start).TotalMilliseconds < TimeoutMs)
@@ -75,25 +71,15 @@ public sealed class TraceLoggingTests : IDisposable
             _ig.Update(Dt);
             LogManager.Flush();
 
-            if (!renderAttempted && TryGetEntity(_ig.World, networkId, out var entity))
+            if (!geoSent && TryGetEntity(_ig.World, networkId, out var entity))
             {
-                if (!geoSent)
+                geoWriter.Write(new WorldPos
                 {
-                    geoWriter.Write(new WorldPos
-                    {
-                        EntityId = (int)networkId,
-                        Pos = new GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0 },
-                        Ori = new EulerOri()
-                    });
-                    geoSent = true;
-                }
-
-                if (_ig.World.HasComponent<ResolvedStyle>(entity)
-                    && _ig.World.HasComponent<SimTransform>(entity))
-                {
-                    TryRenderOnce(_ig.World, entity);
-                    renderAttempted = true;
-                }
+                    EntityId = (int)networkId,
+                    Pos = new GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0 },
+                    Ori = new EulerOri()
+                });
+                geoSent = true;
             }
 
             if (ContainsAll(logScope.Target.Logs, expected))
@@ -123,45 +109,6 @@ public sealed class TraceLoggingTests : IDisposable
         return false;
     }
 
-    private static void TryRenderOnce(EntityRepository world, Entity entity)
-    {
-        var adapter = new NedVisualizerAdapter();
-        NedVisualizerAdapter.RenderTraceEntityIdOverride = entity.Index;
-
-        Raylib.SetConfigFlags(ConfigFlags.HiddenWindow);
-        Raylib.InitWindow(1, 1, "TraceRender");
-
-        try
-        {
-            var position = world.GetComponent<SimTransform>(entity).Position;
-            var ctx = new RenderContext
-            {
-                Camera = new Camera2D
-                {
-                    Target = new Vector2(position.X, position.Y),
-                    Offset = Vector2.Zero,
-                    Rotation = 0f,
-                    Zoom = 1f
-                },
-                MouseWorldPos = Vector2.Zero,
-                DeltaTime = 0f,
-                VisibleLayersMask = uint.MaxValue,
-                Resources = new NullResourceProvider()
-            };
-
-            Raylib.BeginDrawing();
-            Raylib.BeginMode2D(ctx.Camera);
-            adapter.Render(world, entity, new Vector2(position.X, position.Y), ctx, isSelected: false, isHovered: false);
-            Raylib.EndMode2D();
-            Raylib.EndDrawing();
-        }
-        finally
-        {
-            Raylib.CloseWindow();
-            NedVisualizerAdapter.RenderTraceEntityIdOverride = null;
-        }
-    }
-
     private static bool ContainsAll(IList<string> logs, IReadOnlyList<string> expected)
     {
         for (int i = 0; i < expected.Count; i++)
@@ -189,12 +136,6 @@ public sealed class TraceLoggingTests : IDisposable
         return "Missing expected trace logs.\n" +
                "Expected fragments:\n" + string.Join("\n", expected) +
                "\nCaptured logs:\n" + message;
-    }
-
-    private sealed class NullResourceProvider : IResourceProvider
-    {
-        public T? Get<T>() where T : class => null;
-        public bool Has<T>() where T : class => false;
     }
 
     private sealed class LogCaptureScope : IDisposable

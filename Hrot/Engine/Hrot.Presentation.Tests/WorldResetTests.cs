@@ -21,7 +21,7 @@ public class WorldResetTests
 
         var selection = new DefaultSelectionState();
         // Construct StandardInteractionTool in stub mode (no real canvas)
-        var tool = new StandardInteractionTool(world, null!, null!, selection);
+        var tool = new StandardInteractionTool(world, null!, selection);
         tool.TestHook_SelectEntity(entity, augment: false);
         Assert.NotNull(selection.PrimarySelected);
 

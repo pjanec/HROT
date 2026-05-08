@@ -9,9 +9,8 @@ namespace Hrot.IG.Components;
 /// Written each frame by <see cref="Hrot.IG.Systems.MapCullingSystem"/> by comparing
 /// the entity's world-space XY position against the active camera viewport rectangle.
 ///
-/// Read by <see cref="Hrot.IG.Adapters.NedVisualizerAdapter.GetPosition"/> to gate
-/// rendering: returning <c>null</c> for entities with <see cref="IsVisible"/> =
-/// <c>false</c> prevents all downstream draw calls for off-screen entities.
+/// Read by the <c>DebugGizmoLayer</c> and the <c>StandardInteractionTool</c> position
+/// delegate to gate rendering: off-screen entities are skipped, eliminating wasted draw calls.
 ///
 /// LOD levels are named constants in <see cref="CullingStateConstants"/> (§CODE-STANDARDS §1).
 /// </summary>
@@ -24,8 +23,8 @@ public struct CullingState
     /// <c>true</c> when the entity's XY position falls within the active camera
     /// viewport bounds this frame.
     ///
-    /// <c>false</c> causes <see cref="Hrot.IG.Adapters.NedVisualizerAdapter.GetPosition"/>
-    /// to return <c>null</c>, skipping icon, label, damage-bar, and selection-ring draw calls.
+    /// <c>false</c> causes the <c>DebugGizmoLayer</c> to skip icon, label, damage-bar,
+    /// and selection-ring draw calls for this entity.
     /// </summary>
     [MarshalAs(UnmanagedType.I1)]
     public bool IsVisible;

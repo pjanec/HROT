@@ -19,15 +19,13 @@ using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Vis2D.Tools;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Hrot.Presentation.Facades;
-using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Menus;
 using CarKinem.Commands;
 using CarKinem.Core;
 using CarKinem.Trajectory;
 using Fdp.Core.Diagnostics;
 using Fdp.ModuleHost;
-using Hrot.SimHost.UI;
-using Hrot.SimHost.Visualization;
+using Hrot.UI.Common.Facades;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Utilities;
@@ -35,7 +33,8 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Hrot.Map.Common.Events;
 using Fdp.Toolkit.NetworkSpawning;
-using Hrot.Presentation.Adapters;
+using Hrot.SimHost.UI;
+using Hrot.SimHost.Visualization;
 
 namespace Hrot.SimHost
 {
@@ -60,7 +59,6 @@ namespace Hrot.SimHost
 
         // ── Visualization ─────────────────────────────────────────────────────
         private MapCanvas?              _map;
-        private SimHostVehicleVisualizer? _visualizer;
         private SimHostSelectionManager?  _selection;
         private SimHostInspectorAdapter?  _inspector;
         private StandardInteractionTool?  _interactionTool;
@@ -217,13 +215,6 @@ namespace Hrot.SimHost
 
             _map.AddLayer(new SimHostRoadLayer(road));
 
-            _visualizer = new SimHostVehicleVisualizer(
-                new Fdp.Toolkit.Vis2D.Shapes.DefaultEntityShapeLibrary());
-            _map.AddLayer(new EntityRenderLayer(
-                "Vehicles", 0, repo, _vehicleQuery, _visualizer, _inspector));
-
-            _map.AddLayer(ProjectileLayerFactory.CreateLayer(repo, _inspector, _map));
-
             _map.AddLayer(new SimHostTrajectoryLayer(trajectoryPool, repo, _inspector));
 
             // Gizmo debug overlay (GZ032).
@@ -231,7 +222,7 @@ namespace Hrot.SimHost
             _map.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer, repo.Bus, _map, repo));
 
             // ── Interaction tool ──────────────────────────────────────────────
-            _interactionTool = new StandardInteractionTool(repo, _vehicleQuery, _visualizer);
+            _interactionTool = new StandardInteractionTool(repo, _vehicleQuery);
 
             _interactionTool.OnEntitySelectRequest += (entity, augment) =>
             {

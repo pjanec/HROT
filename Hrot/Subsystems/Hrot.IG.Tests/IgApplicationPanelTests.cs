@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
@@ -12,7 +12,6 @@ using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Vis2D;
-using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.ModuleHost;
 using Fdp.Network.Cyclone.Modules;
 
@@ -207,66 +206,6 @@ public class IgApplicationPanelTests
         {
             app.Shutdown(ownsWindow: false);
         }
-    }
-
-    [Fact]
-    public void EntityRenderQuery_MatchesEntityWithNetworkIdentityAndSimTransform()
-    {
-        var app = new IgApplication();
-        try
-        {
-            app.InitializeEmbedded(headless: true);
-            var query = GetEntityRenderQuery(app);
-
-            var entity = app.World.CreateEntity();
-            app.World.AddComponent(entity, new NetworkIdentity(1));
-            app.World.AddComponent(entity, new SimTransform());
-
-            Assert.True(QueryContains(query, entity));
-        }
-        finally
-        {
-            app.Shutdown(ownsWindow: false);
-        }
-    }
-
-    [Fact]
-    public void EntityRenderQuery_DoesNotMatchEntityWithoutNetworkIdentity()
-    {
-        var app = new IgApplication();
-        try
-        {
-            app.InitializeEmbedded(headless: true);
-            var query = GetEntityRenderQuery(app);
-
-            var entity = app.World.CreateEntity();
-            app.World.AddComponent(entity, new SimTransform());
-
-            Assert.False(QueryContains(query, entity));
-        }
-        finally
-        {
-            app.Shutdown(ownsWindow: false);
-        }
-    }
-
-
-    private static EntityQuery GetEntityRenderQuery(IgApplication app)
-    {
-        var canvas = (MapCanvas)GetPrivateField(app, "_canvas");
-        var layer = canvas.Layers.OfType<EntityRenderLayer>().First();
-        return (EntityQuery)GetPrivateField(layer, "_query");
-    }
-
-    private static bool QueryContains(EntityQuery query, Entity entity)
-    {
-        foreach (var candidate in query)
-        {
-            if (candidate == entity)
-                return true;
-        }
-
-        return false;
     }
 
     private static IEnumerable GetCustomTranslators(IgApplication app)

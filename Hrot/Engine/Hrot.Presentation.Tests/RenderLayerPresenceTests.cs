@@ -3,31 +3,17 @@ using Hrot.ScenarioEditor;
 namespace Hrot.ScenarioEditor.Tests;
 
 /// <summary>
-/// Reflection-based tests verifying that the rendering-layer migration (PACK2-E003) was
-/// complete: all render layers and adapters now live in <c>Hrot.ScenarioEditor</c>.
+/// Reflection-based tests verifying that the surviving rendering-layer types
+/// still live in <c>Hrot.ScenarioEditor</c> after the GZ059 legacy-layer cleanup.
 /// </summary>
 public class RenderLayerPresenceTests
 {
     [Fact]
-    public void ScenarioEditor_Assembly_ContainsRenderLayers()
+    public void ScenarioEditor_Assembly_ContainsSelectionRenderTypes()
     {
         var asm = typeof(ScenarioEditorModule).Assembly;
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Rendering.MapOverlayRenderLayer"));
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Rendering.RouteRenderLayer"));
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Rendering.MissionRenderLayer"));
         Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Rendering.SelectionRenderSystem"));
         Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Rendering.SelectionRenderConstants"));
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Adapters.NedVisualizerAdapterConstants"));
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Adapters.StubVisualizerAdapter"));
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Adapters.StubVisualizerConstants"));
-    }
-
-    [Fact]
-    public void ScenarioEditor_Assembly_ContainsSstVisualizerAdapter()
-    {
-        var asm = typeof(ScenarioEditorModule).Assembly;
-        // SstVisualizerAdapter.cs defines NedVisualizerAdapter
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Adapters.NedVisualizerAdapter"));
     }
 
     [Fact]

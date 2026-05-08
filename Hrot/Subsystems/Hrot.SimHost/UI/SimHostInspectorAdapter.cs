@@ -8,8 +8,8 @@ namespace Hrot.SimHost.UI
     /// <summary>
     /// Bridges <see cref="SimHostSelectionManager"/> with the FDP toolkit's
     /// <see cref="IInspectorContext"/> and <see cref="ISelectionState"/> interfaces
-    /// so that <c>EntityRenderLayer</c>, <c>StandardInteractionTool</c>, and
-    /// <c>EntityInspectorPanel</c> all share the same selection state.
+    /// so that <c>StandardInteractionTool</c> and <c>EntityInspectorPanel</c>
+    /// all share the same selection state.
     /// </summary>
     public class SimHostInspectorAdapter : IInspectorContext, ISelectionState
     {

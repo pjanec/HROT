@@ -83,7 +83,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     // ── Visualization ─────────────────────────────────────────────────────────
     private MapCanvas?                 _canvas;
     private DefaultSelectionState?     _selectionState;
-    private CgfDebugVisualizerAdapter? _visualizerAdapter;
     private StandardInteractionTool?   _interactionTool;
     private EntityQuery?               _entityQuery;
 
@@ -439,25 +438,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _canvas.Camera.Offset = new Vector2(1280 / 2f, 720 / 2f);
 
             _selectionState    = new DefaultSelectionState();
-            _visualizerAdapter = new CgfDebugVisualizerAdapter(
-                new Fdp.Toolkit.Vis2D.Shapes.DefaultEntityShapeLibrary(),
-                _behaviorRegistry);
             _fdpRepoAdapter    = new FdpRepositoryAdapter(_context.World);
-
-            var renderLayer = new EntityRenderLayer(
-                "CGF Entities", -1, _context.World, _entityQuery, _visualizerAdapter, _selectionState)
-                { Canvas = _canvas };
-            _canvas.AddLayer(renderLayer);
 
             // GZ057: add gizmo layer so CGF entity presentation primitives are rendered.
             var cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, cgfGizmoBuffer, _context.World.Bus, _canvas);
             _canvas.AddLayer(cgfGizmoLayer);
 
-            // Mission route layer — draws orange lines from entity to its mission waypoints.
-            _canvas.AddLayer(new Hrot.ScenarioEditor.Rendering.MissionRenderLayer(
-                _context.World, _context.GeoTransform!));
-
-            _interactionTool = new StandardInteractionTool(_context.World, _entityQuery, _visualizerAdapter);
+            _interactionTool = new StandardInteractionTool(_context.World, _entityQuery);
 
             _interactionTool.OnEntitySelectRequest += (entity, augment) =>
             {
@@ -554,24 +541,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     public void DrawUI()
     {
         if (_headless) return;
-
-        // Render the CGF Hover Label Tooltip
-        if (!ImGui.GetIO().WantCaptureMouse && _canvas != null && _context?.World != null && _visualizerAdapter != null)
-        {
-            var mouseWorld = _canvas.Camera.ScreenToWorld(Raylib.GetMousePosition());
-            var hovered    = _canvas.PickTopmostEntity(mouseWorld);
-
-            if (hovered.HasValue && hovered.Value != Entity.Null)
-            {
-                var label = _visualizerAdapter.GetHoverLabel((ISimulationView)_context.World, hovered.Value);
-                if (!string.IsNullOrEmpty(label))
-                {
-                    ImGui.BeginTooltip();
-                    ImGui.TextUnformatted(label);
-                    ImGui.EndTooltip();
-                }
-            }
-        }
 
         if (_openContextMenuThisFrame)
         {

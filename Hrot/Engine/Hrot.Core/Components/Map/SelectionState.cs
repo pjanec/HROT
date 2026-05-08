@@ -24,7 +24,7 @@ namespace Hrot.IG.Components;
 /// </list>
 ///
 /// All sizes / thresholds used when rendering the ring come from
-/// <see cref="Hrot.IG.Adapters.NedVisualizerAdapterConstants"/> (§CODE-STANDARDS §1).
+/// <see cref="Hrot.ScenarioEditor.Rendering.SelectionRenderConstants"/> (§CODE-STANDARDS §1).
 ///
 /// Defined in <c>Hrot.Map.Common</c> so that both the IG and ScenarioEditor
 /// projects can reference it without introducing circular project dependencies.

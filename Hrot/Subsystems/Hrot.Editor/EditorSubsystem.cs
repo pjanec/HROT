@@ -30,6 +30,10 @@ using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Layers;
+using Fdp.Toolkit.Diagnostics;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Hrot.CGF;
 using Hrot.CGF.Orchestration;
 using Hrot.CGF.Systems;
@@ -46,7 +50,6 @@ using Hrot.Editor.Modules;
 using Hrot.Editor.Rendering;
 using Hrot.Editor.UI;
 using Hrot.IG.Components;
-using Hrot.IG.Layers;
 using Hrot.IG.Systems;
 using Hrot.IG.Modules;
 using Hrot.Map.Common;
@@ -56,9 +59,7 @@ using Hrot.Orchestrator;
 using Hrot.ScenarioEditor;
 using Hrot.ScenarioEditor.Rendering;
 using Hrot.ScenarioEditor.Services;
-using Hrot.ScenarioEditor.Adapters;
 using Hrot.ScenarioEditor.Tools;
-using Hrot.Presentation.Adapters;
 using Hrot.SimHost;
 using Hrot.SimHost.Modules;
 using Hrot.Presentation.Facades;
@@ -191,6 +192,7 @@ namespace Hrot.Editor
 
         private readonly MapUserConfig     _userConfig     = new();
         private readonly MapCameraViewport _cameraViewport = new();
+        private DebugPrimitiveBuffer? _gizmoBuffer;
 
         // ── Tool handling ─────────────────────────────────────────────────────────
 
@@ -329,9 +331,9 @@ namespace Hrot.Editor
             CgfComponentRegistry.RegisterAll(_world);
             _world.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
             // MapDisplayComponent is used by MapLayerAssignmentSystem to tag entities
-            // with the layer bitmask read by EntityRenderLayer for visibility culling.
+            // with the layer bitmask used by the DebugGizmoLayer for visibility culling.
             _world.RegisterComponent<MapDisplayComponent>();
-            // IG presentation components required by NedVisualizerAdapter.
+            // IG presentation components required by MapCullingModule / StyleResolutionModule.
             _world.RegisterComponent<Hrot.IG.Components.CullingState>();
             _world.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();
             _world.RegisterManagedComponent<Hrot.IG.Components.IgSymbolOverride>();
@@ -503,7 +505,7 @@ namespace Hrot.Editor
             var logicPacks = new List<IEcsModule> { simHostCorePack, perceptionMod, cgfLogicPackInst };
 
             // ── 4d. MapLayerAssignmentSystem — must be registered BEFORE Initialize() ──
-            // Stamps MapDisplayComponent.LayerMask on each entity so EntityRenderLayer
+            // Stamps MapDisplayComponent.LayerMask on each entity so the DebugGizmoLayer
             // can cull entities whose layer is toggled off in the editor's config panel.
             _kernel.RegisterGlobalSystem(new MapLayerAssignmentSystem());
 
@@ -514,6 +516,21 @@ namespace Hrot.Editor
 
             // ── 4f. Visual effects module — spawns and cleans up tracers / explosions ──
             _kernel.RegisterModule(new EventEffectModule());
+
+            // ── 4g. Gizmo subsystem — local stateless gizmo rendering ─────────────────
+            // The Editor has no DDS transport; primitives are produced locally and consumed
+            // by a DebugGizmoLayer on the canvas.
+            _gizmoBuffer = new DebugPrimitiveBuffer();
+            var editorStatelessGizmoRegistry = new StatelessGizmoRegistry();
+            // Auto-register all [GizmoProjector]-decorated gizmos in Hrot.ScenarioEditor.Gizmos
+            // (IgEntityPresentationGizmo, RouteGizmo, MapOverlayGizmo, EffectPresentationGizmo, ...).
+            Hrot.ScenarioEditor.Gizmos.GizmoRegistrar.RegisterAll(
+                new GizmoRegistry(), editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
+            // MissionPresentationGizmo requires IGeographicTransform — register manually.
+            editorStatelessGizmoRegistry.Register(
+                new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(geoTransform),
+                new[] { typeof(SimTransform), typeof(SelectionState) });
+            _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(editorStatelessGizmoRegistry, _gizmoBuffer));
 
             // ── 5. Kernel initialization ──────────────────────────────────────
             _kernel.Initialize();
@@ -587,46 +604,14 @@ namespace Hrot.Editor
                 _fdpEntityInspector.RegisterContextMenuHandler(_contextMenuHandler);
 
                 // Entity query — all networked simulation entities with a location.
-                // Excludes area overlays and routes so they render on their own dedicated layers.
                 var entityQuery = _world.Query()
                     .With<NetworkIdentity>()
                     .With<SimTransform>()
-                    .Without<Hrot.IG.Components.MapOverlayStyle>()
-                    .WithoutManaged<Hrot.Map.Common.Components.RoutePlan>()
                     .WithLifecycle(EntityLifecycle.All)
                     .Build();
 
-                // Entity render layer — uses EditorPerspectiveVisualizer for force-coloured
-                // oriented shape silhouettes driven by DefaultEntityShapeLibrary.
-                var visualizerAdapter = new Hrot.Editor.Adapters.EditorPerspectiveVisualizer(
-                    new Fdp.Toolkit.Vis2D.Shapes.DefaultEntityShapeLibrary());
-                var renderLayer = new EntityRenderLayer(
-                    "Entities", layerBitIndex: -1,
-                    _world, entityQuery, visualizerAdapter, _selectionState)
-                {
-                    Canvas = _canvas
-                };
-                _canvas!.AddLayer(renderLayer);
-
-                // Area overlay render layer — draws tactical graphic polygon overlays.
-                var overlayQuery = _world.Query()
-                    .WithManaged<Hrot.IG.Components.EditablePolyline>()
-                    .With<Hrot.IG.Components.MapOverlayStyle>()
-                    .With<SimTransform>()
-                    .WithLifecycle(EntityLifecycle.All)
-                    .Build();
-                _canvas.AddLayer(new MapOverlayRenderLayer(_world, overlayQuery));
-
-                // Route render layer — draws RoutePlan waypoints for TacGraphic_Route entities.
-                var routeQuery = _world.Query()
-                    .With<TkbIdentity>()
-                    .WithManaged<Hrot.Map.Common.Components.RoutePlan>()
-                    .WithLifecycle(EntityLifecycle.All)
-                    .Build();
-                _canvas.AddLayer(new RouteRenderLayer(_world, routeQuery, _fdpInspectorState));
-
-                // Zone obstacle render layer — draws LOS obstacle circles (always-on overlay).
-                _canvas.AddLayer(new Hrot.IG.Layers.ZoneObstacleRenderLayer(_world));
+                // Gizmo layer — renders entity presentation primitives produced locally by StatelessGizmoSystem.
+                _canvas!.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer!, _world.Bus, _canvas, _world));
 
                 // Perception map layer — draws target-memory links between perceivers and targets.
                 var perceptionLayer = new PerceptionMapLayer(_world);
@@ -636,15 +621,8 @@ namespace Hrot.Editor
                 var gridLayer = new GridMapLayer(() => _mapViewConfig!.ShowGrid);
                 _canvas!.AddLayer(gridLayer);
 
-                // Mission route layer — draws orange lines from entity to its mission waypoints.
-                _canvas.AddLayer(new MissionRenderLayer(_world, geoTransform));
-
-                // Visual effects layer — draws explosion circles and tracer lines.
-                _canvas.AddLayer(new EffectRenderLayer(_world));
-                _canvas.AddLayer(ProjectileLayerFactory.CreateLayer(_world, _selectionState, _canvas));
-
                 // Standard interaction tool — pan, zoom, select, drag-and-drop.
-                _interactionTool = new EditorInteractionTool(_world, entityQuery, visualizerAdapter, _selectionState);
+                _interactionTool = new EditorInteractionTool(_world, entityQuery, _selectionState);
                 _canvas.SwitchTool(_interactionTool);
 
                 // Drag handler — update SimTransform so the entity follows the cursor.
