@@ -54,7 +54,7 @@
 
 #### Phase 21: Tool Rendering Decoupling
 **Goal:** Eradicate direct `Raylib_cs` dependencies from all interactive map tools, converting them into "gizmo generators" that emit backend-neutral `DebugPrimitive`s while retaining their stateful ECS logic.
-* [ ] **TASK-GZ060** Decouple Vis2D Abstractions from Raylib
-* [ ] **TASK-GZ061** Convert Measurement and Placement Tools to Gizmo Generators
-* [ ] **TASK-GZ062** Convert EntityRotationTool to Gizmo Generator
-* [ ] **TASK-GZ063** Convert Polyline & Route Edit Tools to Gizmo Generators
+* [x] **TASK-GZ060** Decouple Vis2D Abstractions from Raylib
+* [x] **TASK-GZ061** Convert Measurement and Placement Tools to Gizmo Generators
+* [x] **TASK-GZ062** Convert EntityRotationTool to Gizmo Generator
+* [x] **TASK-GZ063** Convert Polyline & Route Edit Tools to Gizmo Generators
