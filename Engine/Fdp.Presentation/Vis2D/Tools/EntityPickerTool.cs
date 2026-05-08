@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Core;
-using Raylib_cs;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D.Abstractions;
 
 namespace Fdp.Toolkit.Vis2D.Tools;
@@ -176,36 +176,33 @@ public sealed class EntityPickerTool : IMapTool
         float gap   = CrosshairGapRadius / zoom;
 
         // Amber = waiting for pick; Red = valid target under cursor.
-        Color color = _hoveredValid
-            ? new Color(255, 0,   0,   255)   // red   — hovering a valid pick target
-            : new Color(255, 161, 0,   255);  // amber — waiting for operator to hover
+        Rgba32 drawColor = _hoveredValid
+            ? new Rgba32(255, 0,   0,   255)   // red   — hovering a valid pick target
+            : new Rgba32(255, 161, 0,   255);  // amber — waiting for operator to hover
 
-        TestHook_LastUsedColor = color;
+        TestHook_LastUsedColor = drawColor;
 
         var pos = _mouseWorldPos;
 
-        if (!TestHook_SkipRaylibCalls)
-        {
-            // Horizontal arm: left segment + right segment (gap in centre).
-            Raylib.DrawLineEx(new Vector2(pos.X - size, pos.Y), new Vector2(pos.X - gap, pos.Y), thick, color);
-            Raylib.DrawLineEx(new Vector2(pos.X + gap,  pos.Y), new Vector2(pos.X + size, pos.Y), thick, color);
+        // Horizontal arm: left segment + right segment (gap in centre).
+        ctx.DrawBuilder?.DrawLine(new Vector3(pos.X - size, pos.Y, 0f), new Vector3(pos.X - gap, pos.Y, 0f), drawColor, thick);
+        ctx.DrawBuilder?.DrawLine(new Vector3(pos.X + gap,  pos.Y, 0f), new Vector3(pos.X + size, pos.Y, 0f), drawColor, thick);
 
-            // Vertical arm: top segment + bottom segment.
-            Raylib.DrawLineEx(new Vector2(pos.X, pos.Y - size), new Vector2(pos.X, pos.Y - gap), thick, color);
-            Raylib.DrawLineEx(new Vector2(pos.X, pos.Y + gap),  new Vector2(pos.X, pos.Y + size), thick, color);
+        // Vertical arm: top segment + bottom segment.
+        ctx.DrawBuilder?.DrawLine(new Vector3(pos.X, pos.Y - size, 0f), new Vector3(pos.X, pos.Y - gap, 0f), drawColor, thick);
+        ctx.DrawBuilder?.DrawLine(new Vector3(pos.X, pos.Y + gap,  0f), new Vector3(pos.X, pos.Y + size, 0f), drawColor, thick);
 
-            // Circle outline around the gap.
-            Raylib.DrawCircleLinesV(pos, gap, color);
-        }
+        // Circle outline around the gap.
+        ctx.DrawBuilder?.DrawSphere(new Vector3(pos.X, pos.Y, 0f), gap, drawColor);
     }
 
     // ── Test hooks ────────────────────────────────────────────────────────────
 
-    /// <summary>When <c>true</c>, Raylib calls are skipped; <see cref="TestHook_LastUsedColor"/> is still set.</summary>
+    /// <summary>When <c>true</c>, draw calls are skipped; <see cref="TestHook_LastUsedColor"/> is still set.</summary>
     internal bool TestHook_SkipRaylibCalls;
 
     /// <summary>Color used in the last <see cref="Draw"/> call. Null before first call.</summary>
-    internal Color? TestHook_LastUsedColor;
+    internal Rgba32? TestHook_LastUsedColor;
 
     /// <summary>
     /// Force <c>_hoveredValid</c> for unit-test scenarios where a real canvas with entities

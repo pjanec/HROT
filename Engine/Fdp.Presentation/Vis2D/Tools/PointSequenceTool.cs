@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Raylib_cs;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D.Abstractions;
 
 namespace Fdp.Toolkit.Vis2D.Tools;
@@ -46,28 +46,39 @@ public class PointSequenceTool : IMapTool
 
     public void Draw(RenderContext ctx)
     {
+        // Raylib Color.Blue = R:0, G:121, B:241. SkyBlue = R:102, G:191, B:255.
+        var blue    = new Rgba32(0,   121, 241, 255);
+        var skyBlue = new Rgba32(102, 191, 255, 255);
+
         // Draw captured points
         if (_points.Count > 0)
         {
             // Draw lines connecting points
             for (int i = 0; i < _points.Count - 1; i++)
             {
-                Raylib.DrawLineEx(_points[i], _points[i + 1], 2.0f / ctx.Zoom, Color.Blue);
+                ctx.DrawBuilder?.DrawLine(
+                    new Vector3(_points[i].X,     _points[i].Y,     0f),
+                    new Vector3(_points[i + 1].X, _points[i + 1].Y, 0f),
+                    blue, 2.0f / ctx.Zoom);
             }
 
             // Draw each point as a small circle
             foreach (var p in _points)
             {
-                Raylib.DrawCircleV(p, 4.0f / ctx.Zoom, Color.Blue);
+                ctx.DrawBuilder?.DrawSphere(new Vector3(p.X, p.Y, 0f), 4.0f / ctx.Zoom, blue);
             }
 
             // Draw "elastic" line from last point to current mouse cursor
-            Raylib.DrawLineEx(_points[^1], _currentMousePos, 1.0f / ctx.Zoom, Color.SkyBlue);
+            ctx.DrawBuilder?.DrawLine(
+                new Vector3(_points[^1].X,       _points[^1].Y,       0f),
+                new Vector3(_currentMousePos.X,  _currentMousePos.Y,  0f),
+                skyBlue, 1.0f / ctx.Zoom);
         }
-        
+
         // Draw cursor indicator at mouse pos
-        // Use DrawPolyLines to avoid casting to int (which DrawCircleLines requires) and losing precision in World Space
-        Raylib.DrawPolyLines(_currentMousePos, 20, 5.0f / ctx.Zoom, 0.0f, Color.Blue);
+        ctx.DrawBuilder?.DrawSphere(
+            new Vector3(_currentMousePos.X, _currentMousePos.Y, 0f),
+            5.0f / ctx.Zoom, blue);
     }
 
     public bool HandleClick(Vector2 worldPos, MapMouseButton button)

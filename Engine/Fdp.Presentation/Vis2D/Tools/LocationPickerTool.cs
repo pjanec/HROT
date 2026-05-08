@@ -1,6 +1,6 @@
 using System;
 using System.Numerics;
-using Raylib_cs;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D.Abstractions;
 
 namespace Fdp.Toolkit.Vis2D.Tools;
@@ -122,18 +122,19 @@ public sealed class LocationPickerTool : IMapTool
         float thick = CrosshairThickness / zoom;
         float gap   = CrosshairGapRadius / zoom;
 
-        Color color = Color.SkyBlue;
-        var   pos   = _mouseWorldPos;
+        // Sky-blue crosshair (Raylib Color.SkyBlue = R:102, G:191, B:255).
+        var drawColor = new Rgba32(102, 191, 255, 255);
+        var pos = _mouseWorldPos;
 
         // Horizontal arms.
-        Raylib.DrawLineEx(new Vector2(pos.X - size, pos.Y), new Vector2(pos.X - gap, pos.Y), thick, color);
-        Raylib.DrawLineEx(new Vector2(pos.X + gap,  pos.Y), new Vector2(pos.X + size, pos.Y), thick, color);
+        ctx.DrawBuilder?.DrawLine(new Vector3(pos.X - size, pos.Y, 0f), new Vector3(pos.X - gap, pos.Y, 0f), drawColor, thick);
+        ctx.DrawBuilder?.DrawLine(new Vector3(pos.X + gap,  pos.Y, 0f), new Vector3(pos.X + size, pos.Y, 0f), drawColor, thick);
 
         // Vertical arms.
-        Raylib.DrawLineEx(new Vector2(pos.X, pos.Y - size), new Vector2(pos.X, pos.Y - gap), thick, color);
-        Raylib.DrawLineEx(new Vector2(pos.X, pos.Y + gap),  new Vector2(pos.X, pos.Y + size), thick, color);
+        ctx.DrawBuilder?.DrawLine(new Vector3(pos.X, pos.Y - size, 0f), new Vector3(pos.X, pos.Y - gap, 0f), drawColor, thick);
+        ctx.DrawBuilder?.DrawLine(new Vector3(pos.X, pos.Y + gap,  0f), new Vector3(pos.X, pos.Y + size, 0f), drawColor, thick);
 
         // Centre circle.
-        Raylib.DrawCircleLinesV(pos, gap, color);
+        ctx.DrawBuilder?.DrawSphere(new Vector3(pos.X, pos.Y, 0f), gap, drawColor);
     }
 }
