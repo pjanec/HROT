@@ -1,23 +1,21 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Hrot.ScenarioEditor.Tools;
+using System.Runtime.InteropServices;
+using Hrot.ScenarioEditor.Gizmos;
 using Hrot.IG.UI;
 using Hrot.Map.Common.Components;
-using Fdp.Core;
-using Fdp.Toolkit.Vis2D;
-using Fdp.Toolkit.Vis2D.Abstractions;
 using Xunit;
 
 namespace Hrot.IG.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="WaypointEditorPanel"/> â€” state-management logic (CT-2,
+/// Unit tests for <see cref="WaypointEditorPanel"/> -- state-management logic (CT-2,
 /// ROUTES1-BATCH-04).
 ///
 /// <para>
 /// Tests exercise <see cref="WaypointEditorPanel.UpdatePanelState"/> directly, which
-/// contains the caching logic separated from the ImGui rendering calls.  This allows
+/// contains the caching logic separated from the ImGui rendering calls. This allows
 /// headless execution without an active ImGui/Raylib context.
 /// </para>
 ///
@@ -29,12 +27,32 @@ namespace Hrot.IG.Tests;
 /// </summary>
 public class WaypointEditorPanelTests
 {
-    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // -- Test stub implementing IRouteWaypointEditorState --
 
-    /// <summary>Creates a headless <see cref="WaypointEditorPanel"/> backed by an
-    /// empty <see cref="MapCanvas"/>.</summary>
+    private sealed class StubRouteState : IRouteWaypointEditorState
+    {
+        private readonly RouteWaypoint[] _waypoints;
+
+        public int SelectedVertexIndex { get; }
+
+        public StubRouteState(RoutePlan plan, int selectedIndex)
+        {
+            var list = plan.Waypoints;
+            _waypoints = list != null ? list.ToArray() : Array.Empty<RouteWaypoint>();
+            SelectedVertexIndex = selectedIndex;
+        }
+
+        public ref RouteWaypoint GetSelectedWaypointRef()
+        {
+            var span = _waypoints.AsSpan();
+            return ref span[SelectedVertexIndex];
+        }
+    }
+
+    // -- Helpers --
+
     private static WaypointEditorPanel CreatePanel()
-        => new WaypointEditorPanel(new MapCanvas());
+        => new WaypointEditorPanel(() => null);
 
     private static RoutePlan MakePlan(params string?[] jsonValues)
     {
@@ -52,25 +70,15 @@ public class WaypointEditorPanelTests
         return plan;
     }
 
-    private static RouteEditTool CreateAndEnterTool(RoutePlan plan, int selectIndex = 0)
-    {
-        var tool = new RouteEditTool(new Entity(1, 0), plan, (_, _) => { });
-        tool.OnEnter(null!);
-        // Simulate a left-click near the waypoint to select it.
-        var pos = new Vector2(plan.Waypoints[selectIndex].Position.X,
-                              plan.Waypoints[selectIndex].Position.Z);
-        tool.HandleClick(pos, MapMouseButton.Left);
-        return tool;
-    }
+    private static StubRouteState CreateStubState(RoutePlan plan, int selectIndex = 0)
+        => new StubRouteState(plan, selectIndex);
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    // Initial state
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // -- InitialState --
 
     /// <summary>
     /// Directly after construction both <see cref="WaypointEditorPanel.TestHook_LastWpIndex"/>
     /// and <see cref="WaypointEditorPanel.TestHook_WasRouteToolActive"/> must be at their
-    /// sentinel defaults (â’1 and false respectively) before any <c>UpdatePanelState</c>
+    /// sentinel defaults (-1 and false respectively) before any <c>UpdatePanelState</c>
     /// call.
     /// </summary>
     [Fact]
@@ -83,9 +91,7 @@ public class WaypointEditorPanelTests
         Assert.Equal(string.Empty, panel.TestHook_JsonBuffer);
     }
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    // _lastWpIndex caching â€” buffer allocation behaviour
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // -- _lastWpIndex caching --
 
     /// <summary>
     /// When <c>UpdatePanelState</c> is called twice for the same selection, the
@@ -97,14 +103,14 @@ public class WaypointEditorPanelTests
     public void JsonBuffer_NotUpdatedWhenWaypointIndexUnchanged_SameReference()
     {
         var panel = CreatePanel();
-        var tool  = CreateAndEnterTool(MakePlan(@"{""dangerLevel"":1}", null));
+        var state = CreateStubState(MakePlan(@"{""dangerLevel"":1}", null));
 
-        // First draw: index changes from -1 â†’ 0, buffer is populated.
-        panel.UpdatePanelState(tool);
+        // First draw: index changes from -1 -> 0, buffer is populated.
+        panel.UpdatePanelState(state);
         string firstRef = panel.TestHook_JsonBuffer;
 
-        // Second draw: same index â€” buffer must NOT be re-assigned.
-        panel.UpdatePanelState(tool);
+        // Second draw: same index -- buffer must NOT be re-assigned.
+        panel.UpdatePanelState(state);
         string secondRef = panel.TestHook_JsonBuffer;
 
         Assert.Equal(0, panel.TestHook_LastWpIndex);
@@ -123,41 +129,39 @@ public class WaypointEditorPanelTests
         var panel = CreatePanel();
         var plan  = MakePlan(@"{""dangerLevel"":1}", @"{""dangerLevel"":99}");
 
-        var toolAtWp0 = CreateAndEnterTool(plan, selectIndex: 0);
-        panel.UpdatePanelState(toolAtWp0);
+        var stateAtWp0 = CreateStubState(plan, selectIndex: 0);
+        panel.UpdatePanelState(stateAtWp0);
 
         Assert.Equal(0, panel.TestHook_LastWpIndex);
         Assert.Equal(@"{""dangerLevel"":1}", panel.TestHook_JsonBuffer);
 
-        // Select wp1 (different tool instance simulating a re-select).
-        var toolAtWp1 = CreateAndEnterTool(plan, selectIndex: 1);
-        panel.UpdatePanelState(toolAtWp1);
+        // Select wp1 (different stub state simulating a re-select).
+        var stateAtWp1 = CreateStubState(plan, selectIndex: 1);
+        panel.UpdatePanelState(stateAtWp1);
 
         Assert.Equal(1, panel.TestHook_LastWpIndex);
         Assert.Equal(@"{""dangerLevel"":99}", panel.TestHook_JsonBuffer);
     }
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    // _wasRouteToolActive transitions (CT-2 focus guard)
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // -- _wasRouteToolActive transitions --
 
     /// <summary>
-    /// When <c>UpdatePanelState(null)</c> is called (tool deactivated / no selection),
+    /// When <c>UpdatePanelState(null)</c> is called (gizmo deactivated / no selection),
     /// <see cref="WaypointEditorPanel.TestHook_WasRouteToolActive"/> must be
-    /// <c>false</c> and <c>_lastWpIndex</c> must reset to â’1.
+    /// <c>false</c> and <c>_lastWpIndex</c> must reset to -1.
     /// </summary>
     [Fact]
     public void WasRouteToolActive_TransitionsToFalse_WhenToolDeactivated()
     {
         var panel = CreatePanel();
-        var tool  = CreateAndEnterTool(MakePlan("{}"));
+        var state = CreateStubState(MakePlan("{}"));
 
         // Activate.
-        panel.UpdatePanelState(tool);
+        panel.UpdatePanelState(state);
         Assert.True(panel.TestHook_WasRouteToolActive);
         Assert.Equal(0, panel.TestHook_LastWpIndex);
 
-        // Deactivate (simulates right-click commit that pops the tool).
+        // Deactivate (simulates gizmo disposal / marker removal).
         panel.UpdatePanelState(null);
 
         Assert.False(panel.TestHook_WasRouteToolActive);

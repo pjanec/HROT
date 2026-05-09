@@ -344,6 +344,9 @@ namespace Hrot.Editor
             // Visual effect components required by EventEffectModule (EventToEffectSystem).
             _world.RegisterComponent<VisualEffectState>();
             _world.RegisterComponent<TracerTarget>();
+            // Vertex and route edit gizmo activation markers (Phase 2 geometry editing gizmos).
+            _world.RegisterComponent<Hrot.ScenarioEditor.Gizmos.ActiveVertexEditRequest>();
+            _world.RegisterComponent<Hrot.ScenarioEditor.Gizmos.ActiveRouteEditRequest>();
 
             // ── 2. Time controller (MasterSyncController in Deterministic/frozen mode) ──
             var timeConfig = new TimeControllerConfig { Role = TimeRole.Standalone };
@@ -546,6 +549,8 @@ namespace Hrot.Editor
                 new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(_behaviorRegistry!),
                 new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
             editorGizmoRegistry.Register(new Hrot.SimHost.Gizmos.EntityRotatorGizmoDefinition());
+            editorGizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.VertexEditGizmoDefinition());
+            editorGizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmoDefinition());
             var editorDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
                 editorGizmoRegistry,
                 _gizmoBuffer,
@@ -1235,39 +1240,28 @@ namespace Hrot.Editor
 
                     case Hrot.Editor.EditorTool.Edit:
                     {
-                        // Push EditTool for the primary selected entity (must have EditablePolyline).
+                        // Add ActiveVertexEditRequest marker; DataDrivenGizmoSystem creates
+                        // VertexEditGizmo. No bridge needed (RequiresExclusiveFocus = false).
                         var entity = _selectionState.PrimarySelected;
                         if (entity is { } e && e != Entity.Null && _world.HasManagedComponent<Hrot.IG.Components.EditablePolyline>(e))
                         {
-                            var transform = _world.HasComponent<Fdp.Core.SimTransform>(e)
-                                ? _world.GetComponent<Fdp.Core.SimTransform>(e)
-                                : default;
-                            var offset = new System.Numerics.Vector2(transform.Position.X, transform.Position.Y);
-                            _canvas!.PushTool(new Hrot.ScenarioEditor.Tools.EditTool(e, _world, offset));
+                            if (!_world!.HasComponent<Hrot.ScenarioEditor.Gizmos.ActiveVertexEditRequest>(e))
+                                _world!.AddComponent<Hrot.ScenarioEditor.Gizmos.ActiveVertexEditRequest>(e, default);
+                            _world!.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = e });
                         }
                         break;
                     }
 
                     case Hrot.Editor.EditorTool.Route:
                     {
-                        // Push RouteEditTool for the primary selected entity (must have RoutePlan).
+                        // Add ActiveRouteEditRequest marker; DataDrivenGizmoSystem creates
+                        // RouteWaypointGizmo. No bridge needed (RequiresExclusiveFocus = false).
                         var entity = _selectionState.PrimarySelected;
                         if (entity is { } e && e != Entity.Null && _world.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(e))
                         {
-                            var plan = ((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetManagedComponentRO<Hrot.Map.Common.Components.RoutePlan>(e);
-                            _canvas!.PushTool(new Hrot.ScenarioEditor.Tools.RouteEditTool(
-                                e, plan,
-                                onCommit: (routeEntity, wps) =>
-                                {
-                                    var updated = new Hrot.Map.Common.Components.RoutePlan { IsLoop = plan.IsLoop };
-                                    updated.Mutate(list => list.AddRange(wps));
-                                    _world!.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.UpdateEntityCommand
-                                    {
-                                        NetworkId          = _world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(routeEntity).Value,
-                                        ComponentsToUpdate = new System.Collections.Generic.List<object> { updated },
-                                    });
-                                    _canvas!.PopTool();
-                                }));
+                            if (!_world!.HasComponent<Hrot.ScenarioEditor.Gizmos.ActiveRouteEditRequest>(e))
+                                _world!.AddComponent<Hrot.ScenarioEditor.Gizmos.ActiveRouteEditRequest>(e, default);
+                            _world!.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = e });
                         }
                         break;
                     }

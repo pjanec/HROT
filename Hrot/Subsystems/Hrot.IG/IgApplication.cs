@@ -124,6 +124,8 @@ using DdsIdAllocator = Fdp.Network.Cyclone.Services.DdsIdAllocator;
 
 using NodeIdMapper    = Fdp.Network.Cyclone.Services.NodeIdMapper;
 
+using Hrot.ScenarioEditor.Gizmos;
+
 // Disambiguate StandardInteractionTool: both Hrot.IG.Tools and FDP.Toolkit.Vis2D.Tools define it.
 // Use the Hrot.IG variant which exposes OnWorldClick.
 using StandardInteractionTool = Hrot.ScenarioEditor.Tools.StandardInteractionTool;
@@ -707,6 +709,11 @@ public class IgApplication : IDisposable
         _world.RegisterComponent<MapDisplayComponent>();
         _world.RegisterComponent<EntityInfo>();
 
+        // Gizmo activation event and marker components for local vertex/route editing (Phase 2).
+        _world.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent>();
+        _world.RegisterComponent<ActiveVertexEditRequest>();
+        _world.RegisterComponent<ActiveRouteEditRequest>();
+
         // ── Route planning components (ROUTES1) ───────────────────────────────
         _world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
         _world.RegisterComponent<Hrot.Map.Common.Components.PersonalRouteRef>();
@@ -742,7 +749,7 @@ public class IgApplication : IDisposable
 
         _inspectorPanel     = new EntityInspectorPanel(_inspectorState);
 
-        _waypointEditorPanel = new WaypointEditorPanel(_canvas);
+        _waypointEditorPanel = new WaypointEditorPanel(() => RouteWaypointGizmo.Current);
 
         _miniIosState       = new MiniExConPanelState(_effectiveInstanceId);
 
@@ -1091,7 +1098,9 @@ public class IgApplication : IDisposable
         _statelessGizmoRegistry = new StatelessGizmoRegistry();
         _gizmoSettingsRegistry  = new GizmoSettingsRegistry();
         _gizmoUndoStack        = new GizmoUndoStack();
-        GizmoRegistrar.Register(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
+        Hrot.IG.Gizmos.GizmoRegistrar.Register(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
+        _gizmoRegistry!.Register(new VertexEditGizmoDefinition());
+        _gizmoRegistry!.Register(new RouteWaypointGizmoDefinition());
         // GZ058: manually register MissionPresentationGizmo (constructor requires IGeographicTransform).
         _statelessGizmoRegistry.Register(
             new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(_geoTransform!),
@@ -1202,9 +1211,13 @@ public class IgApplication : IDisposable
 
         _kernel.RegisterGlobalSystem(_contextMenuSystem);
 
-        // DataDrivenGizmoSystem is NOT registered in IG. IG is a dumb terminal.
-        // Primitives arrive via DebugPrimitivesIngressTranslator (see _ingressTranslator).
-        // GZ038: removed DataDrivenGizmoSystem registration.
+        // GZ038 reversed: DataDrivenGizmoSystem is registered for local vertex/route editing.
+        // isSelectedPredicate: null because IG is dumb terminal -- draw all active gizmos.
+        var igDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
+            _gizmoRegistry!,
+            _gizmoBuffer!,
+            isSelectedPredicate: null);
+        _kernel.RegisterGlobalSystem(igDataDrivenGizmoSystem);
 
         // GZ057-058: register StatelessGizmoSystem so local presentation gizmos execute each frame.
         _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!));
@@ -1560,40 +1573,6 @@ public class IgApplication : IDisposable
             _debugPanel.Draw();
             _inspectorPanel.Draw();
             _waypointEditorPanel.Draw();
-        }
-
-        // ── Vertex context menu for RouteEditTool ─────────────────────────────
-        if (_canvas.ActiveTool is RouteEditTool routeTool && routeTool.PendingVertexContextMenu)
-        {
-            ImGui.OpenPopup("##routeVtxCtx");
-        }
-        if (ImGui.BeginPopup("##routeVtxCtx"))
-        {
-            if (ImGui.MenuItem("Insert point after"))
-                (_canvas.ActiveTool as RouteEditTool)?.InsertWaypointAfterSelected();
-            if (ImGui.MenuItem("Delete point"))
-                (_canvas.ActiveTool as RouteEditTool)?.DeleteSelectedWaypoint();
-            ImGui.Separator();
-            if (ImGui.MenuItem("Cancel"))
-                (_canvas.ActiveTool as RouteEditTool)?.CloseVertexContextMenu();
-            ImGui.EndPopup();
-        }
-
-        // ── Vertex context menu for EditTool (overlay shapes) ─────────────────
-        if (_canvas.ActiveTool is EditTool editTool && editTool.PendingVertexContextMenu)
-        {
-            ImGui.OpenPopup("##overlayVtxCtx");
-        }
-        if (ImGui.BeginPopup("##overlayVtxCtx"))
-        {
-            if (ImGui.MenuItem("Insert point after"))
-                (_canvas.ActiveTool as EditTool)?.InsertPointAfterSelected();
-            if (ImGui.MenuItem("Delete point"))
-                (_canvas.ActiveTool as EditTool)?.DeleteSelectedPoint();
-            ImGui.Separator();
-            if (ImGui.MenuItem("Cancel"))
-                (_canvas.ActiveTool as EditTool)?.CloseVertexContextMenu();
-            ImGui.EndPopup();
         }
 
         if (!_panelsWindowManaged)
@@ -2240,7 +2219,7 @@ public class IgApplication : IDisposable
     internal NetworkEntityMap TestHook_EntityMap => _entityMap;
 
     /// <summary>
-    /// Internal test hook: activates the <see cref="RouteEditTool"/> for the given
+    /// Internal test hook: activates the route waypoint gizmo for the given
     /// network entity ID (same code path as a CMD_START_AUTHORING command).
     /// Used by commit-handler safety tests (CT-1).
     /// </summary>
@@ -2248,11 +2227,12 @@ public class IgApplication : IDisposable
         => ActivateAreaEditingTool(networkEntityId);
 
     /// <summary>
-    /// Internal test hook: returns the currently active <see cref="RouteEditTool"/>,
-    /// or <see langword="null"/> when a different tool is active.
+    /// Internal test hook: returns the currently active <see cref="RouteWaypointGizmo"/>,
+    /// or <see langword="null"/> when no route waypoint gizmo is active.
     /// Used by commit-handler safety tests (CT-1).
     /// </summary>
-    internal RouteEditTool? TestHook_ActiveRouteEditTool => _canvas.ActiveTool as RouteEditTool;
+    internal Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo? TestHook_ActiveRouteEditTool
+        => Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo.Current;
 
     /// <summary>Test hook: calls <see cref="ParseCommandAndSetSelection"/> directly.</summary>
     internal void TestHook_ParseCommandAndSetSelection(string argsJson)
@@ -3385,22 +3365,20 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     }
 
     /// <summary>
-    /// Activates an <see cref="EditTool"/> for the area entity identified by
-    /// <paramref name="networkEntityId"/>.
+    /// Activates gizmo-based editing for the entity identified by
+    /// <paramref name="networkEntityId"/> using ECS marker components.
     ///
     /// <para>
-    /// On commit (operator right-clicks to finish editing), the updated
-    /// relative-Cartesian vertex list is converted back to relative geo offsets
-    /// and published as an <see cref="UpdateEntityDescriptorRequest"/> for
-    /// <c>dtMapVisualOverlay</c>, so the SimHost updates its authority copy and
-    /// broadcasts the changes.
+    /// For <see cref="Hrot.Map.Common.Components.RoutePlan"/> entities, adds
+    /// <see cref="ActiveRouteEditRequest"/> so <c>DataDrivenGizmoSystem</c>
+    /// instantiates <see cref="RouteWaypointGizmo"/>. Toggle behaviour: calling
+    /// this a second time on the same entity removes the marker.
     /// </para>
     ///
     /// <para>
-    /// When the entity has a <see cref="Hrot.Map.Common.Components.RoutePlan"/> component,
-    /// the method pushes a <see cref="RouteEditTool"/> instead of the generic
-    /// <see cref="EditTool"/> so that route-specific interactions (waypoint insert/delete,
-    /// per-waypoint speed/advice editing) are available.
+    /// For <see cref="EditablePolyline"/> entities, adds
+    /// <see cref="ActiveVertexEditRequest"/> so <c>DataDrivenGizmoSystem</c>
+    /// instantiates <see cref="VertexEditGizmo"/>. Toggle behaviour likewise.
     /// </para>
     /// </summary>
     private void ActivateAreaEditingTool(long networkEntityId)
@@ -3412,53 +3390,33 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         }
 
-        // ── Route entity path — use RouteEditTool ─────────────────────────────
+        // ── Route entity path — use RouteWaypointGizmo via ActiveRouteEditRequest marker ──
         if (World.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(entity))
         {
-            // Pop any stale edit tool to prevent stack accumulation.
-            if (_canvas.ActiveTool is RouteEditTool || _canvas.ActiveTool is EditTool)
-                _canvas.PopTool();
-
-            var view = (ISimulationView)World;
-            var plan = view.GetManagedComponentRO<Hrot.Map.Common.Components.RoutePlan>(entity);
-            var routeEditTool = new RouteEditTool(entity, plan,
-                onCommit: (committedEntity, updatedWaypoints) =>
+            // Toggle: if the gizmo is already active, remove the marker to close it.
+            if (World.HasComponent<ActiveRouteEditRequest>(entity))
+            {
+                World.RemoveComponent<ActiveRouteEditRequest>(entity);
+                FdpLog<IgApplication>.Info(
+                    "[Node-{0}] Route editing deactivated for NetID {1}.", _effectiveInstanceId, networkEntityId);
+            }
+            else
+            {
+                if (!World.HasComponent<SimTransform>(entity))
                 {
-                    // CT-1: entity may be destroyed between edit-start and commit (e.g. SimHost
-                    // removes it mid-frame). Silently discard rather than crashing.
-                    if (!World.IsAlive(committedEntity)) return;
-
-                    var view2 = (ISimulationView)World;
-                    var existingPlan = view2.GetManagedComponentRO<Hrot.Map.Common.Components.RoutePlan>(committedEntity);
-                    existingPlan.Mutate(wps =>
-                    {
-                        wps.Clear();
-                        wps.AddRange(updatedWaypoints);
-                    });
-
-                    // Publish network update when connected.
-                    if (_entityMap.TryGetNetworkId(committedEntity, out long netId))
-                    {
-                        // D002: publish UpdateEntityCommand; UpdateEntityCommandEgressTranslator
-                        // converts RoutePlan waypoints (Cartesian) to geodetic and writes DDS.
-                        _world.Bus.PublishManaged(new UpdateEntityCommand
-                        {
-                            NetworkId          = netId,
-                            ComponentsToUpdate = new System.Collections.Generic.List<object> { existingPlan },
-                            RequestId          = Guid.NewGuid(),
-                        });
-                        FdpLog<IgApplication>.Info(
-                            "[Node-{0}] Committed route edit for NetID {1}: {2} waypoints.", _effectiveInstanceId, netId, updatedWaypoints.Count);
-                    }
-                });
-
-            _canvas.PushTool(routeEditTool);
-            FdpLog<IgApplication>.Info("[Node-{0}] Route editing tool activated for NetID {1}.", _effectiveInstanceId, networkEntityId);
+                    FdpLog<IgApplication>.Warn(
+                        "[Node-{0}] ActivateAreaEditingTool: entity {1} has no SimTransform yet.", _effectiveInstanceId, networkEntityId);
+                    return;
+                }
+                World.AddComponent<ActiveRouteEditRequest>(entity, default);
+                _world.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = entity });
+                FdpLog<IgApplication>.Info(
+                    "[Node-{0}] Route editing activated for NetID {1}.", _effectiveInstanceId, networkEntityId);
+            }
             return;
         }
 
-        // ── Area overlay entity path — use generic EditTool ─────────────────────
-
+        // ── Area overlay path — use VertexEditGizmo via ActiveVertexEditRequest marker ──
         if (!World.HasManagedComponent<EditablePolyline>(entity))
         {
             FdpLog<IgApplication>.Warn(
@@ -3466,56 +3424,26 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         }
 
-        // Pop any existing EditTool (prevents stack accumulation on rapid re-activation).
-        if (_canvas.ActiveTool is EditTool)
-            _canvas.PopTool();
-
-        // EditablePolyline.Points are stored as relative Cartesian offsets from SimTransform.
-        // Translate to absolute world space so the EditTool ghost renders at the correct canvas
-        // position and mouse hit-testing works with the unmodified world coordinates.
-        if (!World.HasComponent<SimTransform>(entity))
+        // Toggle: if the gizmo is already active, remove the marker to close it.
+        if (World.HasComponent<ActiveVertexEditRequest>(entity))
         {
-            FdpLog<IgApplication>.Warn(
-                "[Node-{0}] ActivateAreaEditingTool: entity {1} has no SimTransform yet.", _effectiveInstanceId, networkEntityId);
-            return;
+            World.RemoveComponent<ActiveVertexEditRequest>(entity);
+            FdpLog<IgApplication>.Info(
+                "[Node-{0}] Area editing deactivated for NetID {1}.", _effectiveInstanceId, networkEntityId);
         }
-
-        ref readonly var initSimTr = ref World.GetComponentRO<SimTransform>(entity);
-        var originOffset = new Vector2(initSimTr.Position.X, initSimTr.Position.Y);
-        var editTool = new EditTool(entity, World, originOffset: originOffset);
-
-        editTool.OnPolylineCommitted += (committedEntity, absCartPoints) =>
+        else
         {
-            // absCartPoints are in absolute world space (originOffset already baked in by EditTool).
-            // Convert back to relative Cartesian before storing in ECS.
-            ref readonly var simTr = ref World.GetComponentRO<SimTransform>(committedEntity);
-            var origin = new Vector2(simTr.Position.X, simTr.Position.Y);
-
-            var relPoints = new List<Vector2>(absCartPoints.Count);
-            for (int i = 0; i < absCartPoints.Count; i++)
-                relPoints.Add(absCartPoints[i] - origin);
-            var updatedPolyline = new EditablePolyline { Points = relPoints };
-            World.SetManagedComponent(committedEntity, updatedPolyline);
-
-            // Send UpdateEntityCommand(EditablePolyline) via bus.
-            // D002: UpdateEntityCommandEgressTranslator converts relative Cartesian offsets
-            // to relative geodetic and writes UpdateEntityDescriptorRequest(dtMapVisualOverlay).
-            if (_entityMap.TryGetNetworkId(committedEntity, out long netId))
+            if (!World.HasComponent<SimTransform>(entity))
             {
-                _world.Bus.PublishManaged(new UpdateEntityCommand
-                {
-                    NetworkId          = netId,
-                    ComponentsToUpdate = new System.Collections.Generic.List<object> { updatedPolyline },
-                    RequestId          = Guid.NewGuid(),
-                });
-
-                FdpLog<IgApplication>.Info(
-                    "[Node-{0}] Committed overlay edit for NetID {1}: {2} vertices.", _effectiveInstanceId, netId, absCartPoints.Count);
+                FdpLog<IgApplication>.Warn(
+                    "[Node-{0}] ActivateAreaEditingTool: entity {1} has no SimTransform yet.", _effectiveInstanceId, networkEntityId);
+                return;
             }
-        };
-
-        _canvas.PushTool(editTool);
-        FdpLog<IgApplication>.Info("[Node-{0}] Area editing tool activated for NetID {1}.", _effectiveInstanceId, networkEntityId);
+            World.AddComponent<ActiveVertexEditRequest>(entity, default);
+            _world.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = entity });
+            FdpLog<IgApplication>.Info(
+                "[Node-{0}] Area editing activated for NetID {1}.", _effectiveInstanceId, networkEntityId);
+        }
     }
 
     /// <summary>

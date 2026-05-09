@@ -1,4 +1,4 @@
-using Hrot.ScenarioEditor.Tools;
+﻿using Hrot.ScenarioEditor.Gizmos;
 using Hrot.Map.Common.Components;
 using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Abstractions;
@@ -56,25 +56,23 @@ public class IgApplicationTests : System.IDisposable
         Assert.Equal(networkId, captured!.NetworkId);
     }
 
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // Route edit commit safety guard (CT-1, ROUTES1-BATCH-04)
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// When a route entity is destroyed between the start of editing and the
-    /// right-click commit, the commit handler must silently discard the update
+    /// commit, the gizmo commit handler must silently discard the update
     /// (the <c>World.IsAlive</c> guard added in CT-1) rather than crashing.
     ///
-    /// Steps: create route entity â†’ activate RouteEditTool â†’ destroy entity
-    /// â†’ trigger right-click commit â†’ assert no exception.
+    /// Steps: create route entity -> activate RouteWaypointGizmo -> destroy entity
+    /// -> trigger OnCommit -> assert no exception.
     /// </summary>
     [Fact]
     public void CommitHandler_EntityDestroyedBeforeCommit_DropsUpdateSilently()
     {
-        // â”€â”€ Arrange â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Arrange --
         const long networkId = 9001L;
 
-        // Register a route entity with a minimal RoutePlan.
+        // Register a route entity with a minimal RoutePlan and SimTransform.
         var routeEntity = _app.World.CreateEntity();
         _app.World.RegisterManagedComponent<RoutePlan>(); // idempotent if already registered
         var plan = new RoutePlan();
@@ -84,21 +82,23 @@ public class IgApplicationTests : System.IDisposable
             wps.Add(new RouteWaypoint { Position = new Vector3(100f, 0f, 100f), TargetSpeed = 5f });
         });
         _app.World.SetManagedComponent(routeEntity, plan);
+        _app.World.AddComponent(routeEntity, new NetworkIdentity { Value = networkId });
+        _app.World.AddComponent(routeEntity, default(SimTransform));
         _app.TestHook_EntityMap.Register(networkId, routeEntity);
 
-        // Activate the route edit tool for that entity.
-        _app.TestHook_ActivateRouteEditToolForNetworkId(networkId);
-        Assert.NotNull(_app.TestHook_ActiveRouteEditTool);
+        // Directly instantiate a RouteWaypointGizmo for the entity.
+        var gizmo = new RouteWaypointGizmo(_app.World, routeEntity, networkId, onRemove: () => { });
 
-        // â”€â”€ Act: destroy the entity BEFORE committing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Act: destroy the entity BEFORE committing --
         _app.World.DestroyEntity(routeEntity);
 
-        // Trigger right-click commit â€” the onCommit lambda must detect the dead
+        // Trigger OnCommit -- the WriteBackAndPublish guard must detect the dead
         // entity via World.IsAlive and return early without throwing.
-        var ex = Record.Exception(() =>
-            _app.TestHook_ActiveRouteEditTool!.HandleClick(Vector2.Zero, MapMouseButton.Right));
+        var ex = Record.Exception(() => gizmo.OnCommit(Vector3.Zero));
 
-        // â”€â”€ Assert â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Assert --
         Assert.Null(ex);
+
+        gizmo.Dispose();
     }
 }

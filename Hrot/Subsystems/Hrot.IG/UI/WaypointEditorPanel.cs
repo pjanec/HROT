@@ -1,33 +1,33 @@
-using System;
-using Hrot.ScenarioEditor.Tools;
+﻿using System;
+using Hrot.ScenarioEditor.Gizmos;
 using ImGuiNET;
 
 namespace Hrot.IG.UI;
 
 /// <summary>
 /// ImGui panel that exposes per-waypoint editing controls when a
-/// <see cref="RouteEditTool"/> is active and a vertex is selected (ROUTES1-T013).
+/// <see cref="RouteWaypointGizmo"/> is active and a vertex is selected (ROUTES1-T013).
 ///
 /// <para>
-/// The panel observes <see cref="RouteEditTool.SelectedVertexIndex"/> from the canvas
-/// active tool each frame. When a vertex is selected, it renders:
+/// The panel reads <see cref="IRouteWaypointEditorState.SelectedVertexIndex"/> from the
+/// active gizmo state each frame. When a vertex is selected, it renders:
 /// <list type="bullet">
 ///   <item>Read-only position label.</item>
-///   <item><c>Target Speed (m/s)</c> float input — updates
+///   <item><c>Target Speed (m/s)</c> float input -- updates
 ///         <see cref="Hrot.Map.Common.Components.RouteWaypoint.TargetSpeed"/> in-place.</item>
-///   <item><c>AI Advice (JSON)</c> multiline text input — updates
+///   <item><c>AI Advice (JSON)</c> multiline text input -- updates
 ///         <see cref="Hrot.Map.Common.Components.RouteWaypoint.ExtensionJson"/> in-place.</item>
 /// </list>
 /// </para>
 ///
 /// <para>
-/// The panel does NOT commit changes—<see cref="RouteEditTool"/> owns the ghost
-/// state and emits the <c>UpdateEntityDescriptorRequest</c> on right-click commit.
+/// The panel does NOT commit changes -- <see cref="RouteWaypointGizmo"/> owns the working
+/// state and writes back on each <c>OnCommit</c>.
 /// </para>
 /// </summary>
 public class WaypointEditorPanel
 {
-    private readonly Fdp.Toolkit.Vis2D.MapCanvas _canvas;
+    private readonly Func<IRouteWaypointEditorState?> _getActiveState;
 
     // Working buffer for the multiline JSON input (avoids per-frame allocation).
     private string _jsonBuffer = string.Empty;
@@ -37,11 +37,11 @@ public class WaypointEditorPanel
     // string allocation.
     private int _lastWpIndex = -1;
 
-    // CT-2: tracks whether the route edit tool was active in the previous draw
-    // call so that a right-click commit can be detected and keyboard focus cleared.
+    // CT-2: tracks whether the gizmo was active in the previous draw call so that
+    // a deactivation can be detected and keyboard focus cleared.
     private bool _wasRouteToolActive;
 
-    // ── Test hooks ────────────────────────────────────────────────────────────
+    // -- Test hooks --
 
     /// <summary>Exposes the cached selection index for headless tests (CT-2).</summary>
     internal int    TestHook_LastWpIndex        => _lastWpIndex;
@@ -52,24 +52,26 @@ public class WaypointEditorPanel
     /// <summary>Exposes the focus-tracking state for headless tests (CT-2).</summary>
     internal bool   TestHook_WasRouteToolActive => _wasRouteToolActive;
 
-    /// <param name="canvas">The map canvas whose <see cref="Fdp.Toolkit.Vis2D.MapCanvas.ActiveTool"/>
-    /// is inspected each frame.</param>
-    public WaypointEditorPanel(Fdp.Toolkit.Vis2D.MapCanvas canvas)
-        => _canvas = canvas ?? throw new ArgumentNullException(nameof(canvas));
+    /// <param name="getActiveState">
+    /// Factory that returns the currently active <see cref="IRouteWaypointEditorState"/>,
+    /// or <see langword="null"/> when no route editing gizmo is active.
+    /// </param>
+    public WaypointEditorPanel(Func<IRouteWaypointEditorState?> getActiveState)
+        => _getActiveState = getActiveState ?? throw new ArgumentNullException(nameof(getActiveState));
 
     /// <summary>
     /// Core panel state update: refreshes <see cref="_lastWpIndex"/>,
     /// <see cref="_jsonBuffer"/>, and <see cref="_wasRouteToolActive"/> based on the
-    /// given tool reference. Separated from <see cref="Draw"/> so headless unit tests
+    /// given gizmo state. Separated from <see cref="Draw"/> so headless unit tests
     /// can exercise the caching logic without an active ImGui context (CT-2).
     /// </summary>
-    /// <param name="activeRouteTool">
-    /// The active <see cref="RouteEditTool"/> with a valid selection, or
+    /// <param name="activeState">
+    /// The active <see cref="IRouteWaypointEditorState"/> with a valid selection, or
     /// <see langword="null"/> when no vertex is selected.
     /// </param>
-    internal void UpdatePanelState(RouteEditTool? activeRouteTool)
+    internal void UpdatePanelState(IRouteWaypointEditorState? activeState)
     {
-        if (activeRouteTool == null)
+        if (activeState == null)
         {
             _wasRouteToolActive = false;
             _lastWpIndex = -1;
@@ -80,10 +82,10 @@ public class WaypointEditorPanel
 
         // Only refresh the JSON buffer when the selection index changes; avoids
         // per-frame string allocation for unchanged waypoints (CT-2).
-        if (activeRouteTool.SelectedVertexIndex != _lastWpIndex)
+        if (activeState.SelectedVertexIndex != _lastWpIndex)
         {
-            _lastWpIndex = activeRouteTool.SelectedVertexIndex;
-            ref var wp   = ref activeRouteTool.GetSelectedWaypointRef();
+            _lastWpIndex = activeState.SelectedVertexIndex;
+            ref var wp   = ref activeState.GetSelectedWaypointRef();
             _jsonBuffer  = wp.ExtensionJson ?? string.Empty;
         }
     }
@@ -108,16 +110,15 @@ public class WaypointEditorPanel
     /// </summary>
     public void DrawContent()
     {
-        var  routeTool    = _canvas.ActiveTool as RouteEditTool;
-        bool hasSelection = routeTool?.SelectedVertexIndex >= 0;
+        var activeState = _getActiveState();
+        bool hasSelection = activeState?.SelectedVertexIndex >= 0;
 
-        // CT-2: when a right-click commit completes the tool transitions away,
-        // strip keyboard focus from any still-active ImGui input widget to prevent
-        // stale float/text values from leaking into the next edit session.
+        // CT-2: when the gizmo deactivates, strip keyboard focus from any
+        // still-active ImGui input widget to prevent stale values from leaking.
         if (_wasRouteToolActive && !hasSelection)
             ImGui.SetKeyboardFocusHere(-1);
 
-        UpdatePanelState(hasSelection ? routeTool : null);
+        UpdatePanelState(hasSelection ? activeState : null);
 
         if (!hasSelection)
         {
@@ -125,19 +126,19 @@ public class WaypointEditorPanel
             return;
         }
 
-        ref var wp = ref routeTool!.GetSelectedWaypointRef();
+        ref var wp = ref activeState!.GetSelectedWaypointRef();
 
-        // ── Position (read-only) ──────────────────────────────────────────────
+        // -- Position (read-only) --
         ImGui.LabelText("Position", $"({wp.Position.X:F1}, {wp.Position.Y:F1}, {wp.Position.Z:F1})");
 
         ImGui.Separator();
 
-        // ── Target Speed ──────────────────────────────────────────────────────
+        // -- Target Speed --
         float speed = wp.TargetSpeed;
         if (ImGui.InputFloat("Target Speed (m/s)", ref speed))
             wp.TargetSpeed = System.Math.Max(0f, speed);
 
-        // ── AI Advice JSON ────────────────────────────────────────────────────
+        // -- AI Advice JSON --
         if (ImGui.InputTextMultiline(
                 "AI Advice (JSON)",
                 ref _jsonBuffer,

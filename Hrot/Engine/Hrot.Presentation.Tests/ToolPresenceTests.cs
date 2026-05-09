@@ -15,15 +15,17 @@ public class ToolPresenceTests
     {
         var asm = typeof(ScenarioEditorModule).Assembly;
         Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.CreationTool"));
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.EditTool"));
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.RouteEditTool"));
         Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.MeasureTool"));
         Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.StandardInteractionTool"));
         Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.CreationToolConstants"));
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.EditToolConstants"));
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.RouteEditToolConstants"));
         Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.MeasureToolConstants"));
         Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.StandardInteractionToolConstants"));
+
+        // Deleted in Phase 2 -- must no longer exist in ScenarioEditor assembly.
+        Assert.Null(asm.GetType("Hrot.ScenarioEditor.Tools.EditTool"));
+        Assert.Null(asm.GetType("Hrot.ScenarioEditor.Tools.RouteEditTool"));
+        Assert.Null(asm.GetType("Hrot.ScenarioEditor.Tools.EditToolConstants"));
+        Assert.Null(asm.GetType("Hrot.ScenarioEditor.Tools.RouteEditToolConstants"));
     }
 
     [Fact]

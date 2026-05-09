@@ -1,9 +1,10 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
 using Hrot.IG.Systems;
-using Hrot.ScenarioEditor.Tools;
+using Hrot.ScenarioEditor.Gizmos;
 using Fdp.Core;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Contracts;
@@ -209,7 +210,7 @@ public class AdvancedFeaturesIntegrationTests
         RunSystem(repo, menuSystem);
         Assert.Equal(Entity.Null, menuSystem.ActiveMenuEntity);
 
-        // â”€â”€ Step 4: Edit tool â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- Step 4: VertexEditGizmo drags and commits a polyline vertex -----------
 
         var polyEntity = repo.CreateEntity();
         repo.SetManagedComponent(polyEntity, new EditablePolyline
@@ -221,33 +222,23 @@ public class AdvancedFeaturesIntegrationTests
             },
         });
 
-        var editTool = new EditTool(polyEntity, view);
-        editTool.OnEnter(null!);
+        const long polyNetworkId = 999L;
+        using var gizmo = new VertexEditGizmo(view, polyEntity, polyNetworkId, onRemove: () => { });
 
-        Assert.Equal(2, editTool.GhostPoints.Count);
+        // SubElementId=2 -> vertex index 1.
+        gizmo.OnInteractionStarted(
+            new GizmoPickToken { AnchorId = polyNetworkId, SubElementId = 2 },
+            Vector3.Zero);
+        gizmo.OnDragUpdate(new Vector3(DragTargetX, DragTargetY, 0f));
+        gizmo.OnCommit(Vector3.Zero);
 
-        // Click near vertex 1 to select it.
-        var nearV1 = new Vector2(
-            PolyVertex1X + EditToolConstants.VertexPickRadiusWorldUnits * 0.4f,
-            PolyVertex1Y);
-        editTool.HandleClick(nearV1, MapMouseButton.Left);
-        Assert.Equal(1, editTool.SelectedVertexIndex);
+        var poly = view.GetManagedComponentRO<EditablePolyline>(polyEntity);
+        Assert.NotNull(poly.Points);
+        Assert.Equal(2, poly.Points!.Count);
+        Assert.Equal(new Vector2(DragTargetX, DragTargetY), poly.Points[1]);
 
-        // Drag vertex 1 to a new position.
-        var dragTarget = new Vector2(DragTargetX, DragTargetY);
-        editTool.HandleDrag(dragTarget, Vector2.Zero);
-        Assert.Equal(dragTarget, editTool.GhostPoints[1]);
 
-        // Right-click commits.
-        List<Vector2>? committed = null;
-        editTool.OnPolylineCommitted += (_, pts) => committed = pts;
-        editTool.HandleClick(Vector2.Zero, MapMouseButton.Right);
-
-        Assert.NotNull(committed);
-        Assert.Equal(2, committed!.Count);
-        Assert.Equal(dragTarget, committed[1]);
-
-        // â”€â”€ Step 5: History-trail entity is still alive and unaffected â”€â”€â”€â”€â”€â”€â”€â”€
+        // ├óÔÇŁÔéČ├óÔÇŁÔéČ Step 5: History-trail entity is still alive and unaffected ├óÔÇŁÔéČ├óÔÇŁÔéČ├óÔÇŁÔéČ├óÔÇŁÔéČ├óÔÇŁÔéČ├óÔÇŁÔéČ├óÔÇŁÔéČ├óÔÇŁÔéČ
 
         Assert.True(view.IsAlive(trailEntity));
         var finalTrail = repo.GetComponent<HistoryTrail>(trailEntity);
@@ -255,7 +246,7 @@ public class AdvancedFeaturesIntegrationTests
     }
 
     /// <summary>
-    /// Multiple events in a single frame each spawn their own effect entities â€”
+    /// Multiple events in a single frame each spawn their own effect entities ├óÔéČÔÇŁ
     /// verifies the spawn loop iterates all events, not just the first.
     /// </summary>
     [Fact]
@@ -305,7 +296,7 @@ public class AdvancedFeaturesIntegrationTests
         var repo   = CreateFullRepo();
         var system = new HistoryRecordingSystem();
 
-        // Entity A â€” trail enabled.
+        // Entity A ├óÔéČÔÇŁ trail enabled.
         var entityA = repo.CreateEntity();
         repo.AddComponent(entityA, new SimTransform { Position = new Vector3(10f, 20f, 0f), Rotation = Quaternion.Identity });
         var styleA = ResolvedStyle.CreateDefault();
@@ -313,7 +304,7 @@ public class AdvancedFeaturesIntegrationTests
         repo.AddComponent(entityA, styleA);
         repo.AddComponent(entityA, HistoryTrail.Create());
 
-        // Entity B â€” trail disabled.
+        // Entity B ├óÔéČÔÇŁ trail disabled.
         var entityB = repo.CreateEntity();
         repo.AddComponent(entityB, new SimTransform { Position = new Vector3(30f, 40f, 0f), Rotation = Quaternion.Identity });
         var styleB = ResolvedStyle.CreateDefault();

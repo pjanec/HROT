@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 18
-VisualStudioVersion = 18.4.11626.88 stable
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36915.13 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fdp.Core", "FDP\Engine\Fdp.Core\Fdp.Core.csproj", "{EFD178A2-CDEC-42BD-8269-F5F9CB975D08}"
 EndProject
@@ -193,6 +193,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Example", "FDP\ExtDeps\GizmoMap\GizmoMap.Example\GizmoMap.Example.csproj", "{A1000008-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Example.Tests", "FDP\ExtDeps\GizmoMap\GizmoMap.Example.Tests\GizmoMap.Example.Tests.csproj", "{A1000009-B2C3-D4E5-F6A7-B8C9D0E1F2A3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GizmoMap.Viewer", "FDP\ExtDeps\GizmoMap\GizmoMap.Viewer\GizmoMap.Viewer.csproj", "{F5A3DA2F-C3AC-F169-B443-290B0FA27BBE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -1116,6 +1118,18 @@ Global
 		{A1000009-B2C3-D4E5-F6A7-B8C9D0E1F2A3}.Release|x64.Build.0 = Release|Any CPU
 		{A1000009-B2C3-D4E5-F6A7-B8C9D0E1F2A3}.Release|x86.ActiveCfg = Release|Any CPU
 		{A1000009-B2C3-D4E5-F6A7-B8C9D0E1F2A3}.Release|x86.Build.0 = Release|Any CPU
+		{F5A3DA2F-C3AC-F169-B443-290B0FA27BBE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F5A3DA2F-C3AC-F169-B443-290B0FA27BBE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F5A3DA2F-C3AC-F169-B443-290B0FA27BBE}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F5A3DA2F-C3AC-F169-B443-290B0FA27BBE}.Debug|x64.Build.0 = Debug|Any CPU
+		{F5A3DA2F-C3AC-F169-B443-290B0FA27BBE}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F5A3DA2F-C3AC-F169-B443-290B0FA27BBE}.Debug|x86.Build.0 = Debug|Any CPU
+		{F5A3DA2F-C3AC-F169-B443-290B0FA27BBE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F5A3DA2F-C3AC-F169-B443-290B0FA27BBE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F5A3DA2F-C3AC-F169-B443-290B0FA27BBE}.Release|x64.ActiveCfg = Release|Any CPU
+		{F5A3DA2F-C3AC-F169-B443-290B0FA27BBE}.Release|x64.Build.0 = Release|Any CPU
+		{F5A3DA2F-C3AC-F169-B443-290B0FA27BBE}.Release|x86.ActiveCfg = Release|Any CPU
+		{F5A3DA2F-C3AC-F169-B443-290B0FA27BBE}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1214,6 +1228,7 @@ Global
 		{A1000007-B2C3-D4E5-F6A7-B8C9D0E1F2A3} = {A1000001-B2C3-D4E5-F6A7-B8C9D0E1F2A3}
 		{A1000008-B2C3-D4E5-F6A7-B8C9D0E1F2A3} = {A1000001-B2C3-D4E5-F6A7-B8C9D0E1F2A3}
 		{A1000009-B2C3-D4E5-F6A7-B8C9D0E1F2A3} = {A1000001-B2C3-D4E5-F6A7-B8C9D0E1F2A3}
+		{F5A3DA2F-C3AC-F169-B443-290B0FA27BBE} = {A1000001-B2C3-D4E5-F6A7-B8C9D0E1F2A3}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {69773B79-3483-4B3A-B763-2975F154224F}
