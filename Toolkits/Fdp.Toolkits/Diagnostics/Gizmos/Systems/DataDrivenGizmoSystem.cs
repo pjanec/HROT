@@ -108,6 +108,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             _injectedGizmos.Remove(entity);
         }
 
+        /// <summary>
+        /// Returns <c>true</c> when an on-demand gizmo is currently injected for
+        /// <paramref name="entity"/> via <see cref="ActivateGizmo"/>.
+        /// </summary>
+        public bool HasInjectedGizmo(Entity entity) => _injectedGizmos.ContainsKey(entity);
+
         // ---- Private per-instance gizmo record ------------------------------------
 
         private struct CompiledGizmoInstance
