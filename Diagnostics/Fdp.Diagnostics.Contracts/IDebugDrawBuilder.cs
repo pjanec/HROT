@@ -112,5 +112,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// Default no-op so existing stub implementations compile without changes.
         /// </summary>
         void DrawContextMenuBinding(long networkId, string menuJson) { }
+
+        /// <summary>
+        /// Emits a raw <see cref="DebugPrimitive"/> directly into the buffer without
+        /// any shape-specific translation. Used by the interaction manager to inject
+        /// <see cref="DebugPrimitiveShape.InputCaptureBinding"/> meta-primitives.
+        /// Default no-op so existing stub implementations compile without changes.
+        /// </summary>
+        void EmitRaw(in DebugPrimitive prim) { }
     }
 }

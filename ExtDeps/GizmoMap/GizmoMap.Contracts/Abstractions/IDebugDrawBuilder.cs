@@ -54,5 +54,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// Default no-op for implementations that do not support persistence.
         /// </summary>
         void EndFrame(float deltaTime) { }
+
+        /// <summary>
+        /// Emits a raw <see cref="DebugPrimitive"/> directly into the buffer.
+        /// Used for shapes not covered by the typed draw methods (e.g. SpatialAnchor,
+        /// InputCaptureBinding, Box2D with SubElementId).
+        /// Default no-op for implementations that do not expose raw emission.
+        /// </summary>
+        void EmitRaw(in DebugPrimitive prim) { }
     }
 }

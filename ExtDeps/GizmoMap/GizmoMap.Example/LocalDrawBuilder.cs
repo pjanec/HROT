@@ -76,7 +76,9 @@ namespace GizmoMap.Example
 
         /// <summary>
         /// Emits a raw DebugPrimitive directly into the underlying buffer.
-        /// Used for shapes not covered by IGizmoDrawBuilder (SpatialAnchor, MilStd2525, etc.).
+        /// Used for shapes not covered by IGizmoDrawBuilder (SpatialAnchor, MilStd2525, etc.)
+        /// and for InputCaptureBinding meta-primitives emitted by gizmo managers.
+        /// Implements <see cref="IGizmoDrawBuilder.EmitRaw"/>.
         /// </summary>
         public void EmitRaw(in DebugPrimitive prim)
         {

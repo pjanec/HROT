@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Lifecycle.Events;
 using Xunit;
@@ -29,28 +31,46 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
     // Mock implementations
     // ==========================================================================
 
-    internal sealed class MockGizmo : IStatefulGizmo
+    internal sealed class MockGizmo : IEntityStatefulGizmo
     {
         public int InitializeCount;
         public int UpdateAndDrawCount;
         public int TeardownCount;
         public Entity LastInitializedEntity;
 
-        public void OnInitialize(ISimulationView view, Entity entity)
+        private readonly Action? _onDispose;
+
+        public MockGizmo(Entity entity = default, Action? onDispose = null)
         {
-            InitializeCount++;
+            InitializeCount = 1;
             LastInitializedEntity = entity;
+            _onDispose = onDispose;
         }
 
-        public void UpdateAndDraw(ISimulationView view, Entity entity, float deltaTime, IDebugDrawBuilder drawBuilder)
+        // IEntityStatefulGizmo
+        public bool RequiresExclusiveFocus => false;
+        public bool IsFocused { get; private set; }
+        public void SetFocus(bool isFocused) => IsFocused = isFocused;
+
+        public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder drawBuilder)
         {
             UpdateAndDrawCount++;
         }
 
-        public void OnTeardown()
+        public void Dispose()
         {
             TeardownCount++;
+            _onDispose?.Invoke();
         }
+
+        // IGizmoInteractionHandler stubs
+        public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos) { }
+        public void OnDragUpdate(Vector3 worldPos) { }
+        public void OnCommit(Vector3 worldPos) { }
+        public void OnCancel() { }
+        public void OnMenuAction(int actionId) { }
+        public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos) { }
+        public void OnKeyEvent(MapKeyboardKey key, bool isPressed) { }
     }
 
     internal sealed class MockGizmoDefinition : IGizmoDefinition
@@ -68,9 +88,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public IGizmoVisibilityPolicy VisibilityPolicy { get; }
         public IReadOnlyList<MockGizmo> CreatedInstances => _createdInstances;
 
-        public IStatefulGizmo CreateInstance()
+        public IEntityStatefulGizmo CreateInstance(ISimulationView view, Entity entity)
         {
-            var g = new MockGizmo();
+            var g = new MockGizmo(entity);
             _createdInstances.Add(g);
             return g;
         }
@@ -107,15 +127,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             BehaviorName = behaviorName;
         }
 
-        public IStatefulGizmo Rent()
+        public IEntityStatefulGizmo Create(ISimulationView view, Entity entity)
         {
             RentCount++;
-            return new MockGizmo();
-        }
-
-        public void Return(IStatefulGizmo gizmo)
-        {
-            ReturnCount++;
+            return new MockGizmo(entity, onDispose: () => ReturnCount++);
         }
     }
 
@@ -649,27 +664,25 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Equal(0, factoryB.ReturnCount);
         }
 
-        // Factory that lets the test inspect the rented gizmo instance.
+        // Factory that lets the test inspect the created gizmo instance.
         private sealed class InspectableFactory : IBehaviorGizmoFactory
         {
-            private readonly Action<IStatefulGizmo> _onRent;
+            private readonly Action<IEntityStatefulGizmo> _onCreate;
 
-            public InspectableFactory(string behaviorName, Action<IStatefulGizmo> onRent)
+            public InspectableFactory(string behaviorName, Action<IEntityStatefulGizmo> onCreate)
             {
                 BehaviorName = behaviorName;
-                _onRent = onRent;
+                _onCreate = onCreate;
             }
 
             public string BehaviorName { get; }
 
-            public IStatefulGizmo Rent()
+            public IEntityStatefulGizmo Create(ISimulationView view, Entity entity)
             {
-                var g = new MockGizmo();
-                _onRent(g);
+                var g = new MockGizmo(entity);
+                _onCreate(g);
                 return g;
             }
-
-            public void Return(IStatefulGizmo gizmo) { }
         }
     }
 

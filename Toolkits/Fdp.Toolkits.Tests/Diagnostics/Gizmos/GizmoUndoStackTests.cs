@@ -1,9 +1,11 @@
+using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Diagnostics.Gizmos.UndoRedo;
 using Fdp.Toolkit.Lifecycle.Events;
@@ -27,18 +29,27 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
     /// <summary>
     /// A stateful gizmo that returns a configurable undo record from CreateUndoRecord.
     /// </summary>
-    internal sealed class MockUndoGizmo : IStatefulGizmo
+    internal sealed class MockUndoGizmo : IEntityStatefulGizmo
     {
         private readonly IGizmoUndoRecord? _record;
 
         public MockUndoGizmo(IGizmoUndoRecord? record) => _record = record;
 
-        public void OnInitialize(ISimulationView view, Entity entity) { }
+        public bool RequiresExclusiveFocus => false;
+        public bool IsFocused { get; private set; }
+        public void SetFocus(bool isFocused) => IsFocused = isFocused;
 
-        public void UpdateAndDraw(ISimulationView view, Entity entity, float deltaTime,
-                                  IDebugDrawBuilder drawBuilder) { }
+        public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder drawBuilder) { }
+        public void Dispose() { }
 
-        public void OnTeardown() { }
+        // IGizmoInteractionHandler stubs
+        public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos) { }
+        public void OnDragUpdate(Vector3 worldPos) { }
+        public void OnCommit(Vector3 worldPos) { }
+        public void OnCancel() { }
+        public void OnMenuAction(int actionId) { }
+        public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos) { }
+        public void OnKeyEvent(MapKeyboardKey key, bool isPressed) { }
 
         public IGizmoUndoRecord? CreateUndoRecord(GizmoInteractionCommitEvent commit) => _record;
     }
@@ -55,7 +66,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public System.Type[] RequiredComponents => new[] { typeof(GizmoTestCompA) };
         public IGizmoVisibilityPolicy VisibilityPolicy => AlwaysVisiblePolicy.Instance;
 
-        public IStatefulGizmo CreateInstance() => new MockUndoGizmo(_record);
+        public IEntityStatefulGizmo CreateInstance(ISimulationView view, Entity entity) => new MockUndoGizmo(_record);
     }
 
     // ==========================================================================

@@ -24,6 +24,11 @@
     <ProjectReference Include="..\..\Diagnostics\Fdp.Diagnostics.Contracts\Fdp.Diagnostics.Contracts.csproj" />
   </ItemGroup>
 
+  <!-- GizmoMap.Contracts: ECS-free gizmo interaction interfaces (IGizmoInteractionHandler etc.) -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\ExtDeps\GizmoMap\GizmoMap.Contracts\GizmoMap.Contracts.csproj" />
+  </ItemGroup>
+
   <!-- Fdp.Diagnostics.Network: DDS schema types for gizmo network protocol -->
   <ItemGroup>
     <ProjectReference Include="..\..\Diagnostics\Fdp.Diagnostics.Network\Fdp.Diagnostics.Network.csproj" />

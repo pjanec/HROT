@@ -1,8 +1,12 @@
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+
 namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 {
     /// <summary>
-    /// Pool factory for behavior-bound gizmo instances.
+    /// Factory for behavior-bound gizmo instances.
     /// Registered with <see cref="BehaviorGizmoRegistry"/> by behavior name.
+    /// Pooling has been dropped per gizmo-input-focus-design.md §12: use plain new + Dispose.
     /// </summary>
     public interface IBehaviorGizmoFactory
     {
@@ -13,15 +17,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         string BehaviorName { get; }
 
         /// <summary>
-        /// Returns a fresh or pooled gizmo instance ready for initialisation.
+        /// Creates a new gizmo instance bound to the given entity.
         /// Called when an <see cref="Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent"/> arrives.
+        /// The returned gizmo is owned by the manager; <see cref="IEntityStatefulGizmo.Dispose"/>
+        /// is called when the behavior is cleared or the entity is destroyed.
         /// </summary>
-        IStatefulGizmo Rent();
-
-        /// <summary>
-        /// Returns an instance to the pool after <see cref="IStatefulGizmo.OnTeardown"/> has
-        /// been called by the system. Implementations may pool or discard the instance.
-        /// </summary>
-        void Return(IStatefulGizmo gizmo);
+        IEntityStatefulGizmo Create(ISimulationView view, Entity entity);
     }
 }

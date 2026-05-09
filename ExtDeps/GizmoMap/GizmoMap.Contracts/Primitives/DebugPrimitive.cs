@@ -53,6 +53,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         [FieldOffset(32)] public float BoxExtentX;
         [FieldOffset(36)] public float BoxExtentY;
         [FieldOffset(40)] public float BoxAngleDeg;
+        // Offset 44: BoxAnchorId -- owning tool's AnchorId for managed hit-routing.
+        // When non-zero the terminal uses this value as GizmoPickToken.AnchorId instead
+        // of SubElementId, routing Started events to the correct GizmoInteractionManager slot.
+        // Overlaps ArrowHeadSize/EndColor (different shape -- no conflict).
+        [FieldOffset(44)] public long BoxAnchorId;
 
         // Arrow payload
         [FieldOffset(24)] public Vector3 ArrowFrom;
@@ -211,6 +216,21 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.Shape         = DebugPrimitiveShape.ContextMenuBinding;
             p.StringHash    = menuJsonHash;   // FNV-1a hash of the JSON menu string
             p.InspNetworkId = networkId;      // entity to bind the menu to
+            return p;
+        }
+
+        // InputCaptureBinding payload reuses existing overlapping fields:
+        //   InspNetworkId (offset 24) - stable AnchorId of the capturing tool
+        //   SubElementId  (offset 52) - handle id within the tool (0 = whole tool)
+        //   ConditionMask (offset 40) - 1 = exclusive, 0 = shared
+        public static DebugPrimitive MakeInputCaptureBinding(
+            long networkId, ushort subElementId, bool exclusive)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape         = DebugPrimitiveShape.InputCaptureBinding;
+            p.InspNetworkId = networkId;
+            p.SubElementId  = subElementId;
+            p.ConditionMask = exclusive ? 1u : 0u;
             return p;
         }
     }

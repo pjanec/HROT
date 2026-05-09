@@ -174,6 +174,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             Append(p);
         }
 
+        /// <summary>
+        /// Emits a raw primitive directly into the transient buffer.
+        /// Implements <see cref="IGizmoDrawBuilder.EmitRaw"/>.
+        /// </summary>
+        public void EmitRaw(in DebugPrimitive prim) => Append(prim);
+
         // ---- Internal helpers -----------------------------------------------
 
         internal void Append(DebugPrimitive p)

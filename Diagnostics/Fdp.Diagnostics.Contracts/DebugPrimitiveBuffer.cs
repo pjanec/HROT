@@ -69,6 +69,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 Interlocked.Increment(ref _droppedCount);
         }
 
+        // IDebugDrawBuilder.EmitRaw -- forwards to AppendRaw so the interaction manager
+        // can inject InputCaptureBinding meta-primitives via the draw builder interface.
+        public void EmitRaw(in DebugPrimitive prim) => AppendRaw(in prim);
+
         /// <summary>
         /// Advances the persistence clock, evicts expired entries, clears the transient buffer,
         /// and re-injects surviving persistent primitives. Call once per frame BEFORE gizmo

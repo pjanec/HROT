@@ -159,7 +159,8 @@ namespace GizmoMap.Presentation.Tests
             var token = new GizmoPickToken { AnchorId = 1, SubElementId = 0, StreamId = 0 };
             var tool  = new GizmoInteractionProxyTool(
                 token,
-                (t, kind, pos) => receivedEvents.Add(kind));
+                Vector2.Zero,
+                (t, kind, pos, actionId, stateFlags) => receivedEvents.Add(kind));
 
             // Started event fires in constructor.
             Assert.Contains(GizmoInteractionEventKind.Started, receivedEvents);

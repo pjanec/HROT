@@ -107,8 +107,12 @@ using (transport)
 
             // Route mouse/keyboard input through the gizmo interaction layer.
             // Interaction events are forwarded to DemoSceneGenerator so it can
-            // update the interactive box position and produce visual feedback.
+            // update the interactive box position and dispatch to managed gizmos.
             layer.HandleInput(camera, gen.OnGizmoInteraction);
+
+            // R key: activate the entity rotator gizmo (exclusive-focus mode).
+            if (Raylib_cs.Raylib.IsKeyPressed(Raylib_cs.KeyboardKey.R))
+                gen.TriggerRotator();
 
             Raylib_cs.Raylib.BeginDrawing();
             Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.DarkGray);

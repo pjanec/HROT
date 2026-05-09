@@ -30,8 +30,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly BehaviorGizmoRegistry _behaviorRegistry;
         private readonly IDebugDrawBuilder _drawBuilder;
         private readonly Func<ISimulationView, Entity, bool>? _isSelectedPredicate;
-        private readonly Dictionary<Entity, (IStatefulGizmo Instance, IBehaviorGizmoFactory Factory)>
-            _activeBehaviorGizmos;
+        private readonly Dictionary<Entity, IEntityStatefulGizmo> _activeBehaviorGizmos;
 
         // ---- Construction ----------------------------------------------------------
 
@@ -49,11 +48,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             IDebugDrawBuilder drawBuilder,
             Func<ISimulationView, Entity, bool>? isSelectedPredicate = null)
         {
-            _behaviorRegistry      = behaviorRegistry ?? throw new ArgumentNullException(nameof(behaviorRegistry));
-            _drawBuilder           = drawBuilder      ?? throw new ArgumentNullException(nameof(drawBuilder));
-            _isSelectedPredicate   = isSelectedPredicate;
-            _activeBehaviorGizmos  =
-                new Dictionary<Entity, (IStatefulGizmo, IBehaviorGizmoFactory)>();
+            _behaviorRegistry     = behaviorRegistry ?? throw new ArgumentNullException(nameof(behaviorRegistry));
+            _drawBuilder          = drawBuilder      ?? throw new ArgumentNullException(nameof(drawBuilder));
+            _isSelectedPredicate  = isSelectedPredicate;
+            _activeBehaviorGizmos = new Dictionary<Entity, IEntityStatefulGizmo>();
         }
 
         // ---- IEcsModuleSystem -----------------------------------------------------
@@ -75,17 +73,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             foreach (var evt in assigns)
             {
                 if (!_behaviorRegistry.TryGetFactory(evt.BehaviorName, out var factory))
-                    continue; // unknown behavior name — silently ignore
+                    continue; // unknown behavior name -- silently ignore
 
                 // Replace any existing gizmo for this entity.
                 TeardownEntity(evt.Entity);
 
-                var instance = factory.Rent();
-                instance.OnInitialize(view, evt.Entity);
-                _activeBehaviorGizmos[evt.Entity] = (instance, factory);
+                // View and entity are passed at construction -- no OnInitialize call needed.
+                var instance = factory.Create(view, evt.Entity);
+                _activeBehaviorGizmos[evt.Entity] = instance;
             }
 
             // 4. Drive active behavior gizmos.
+            // UpdateAndDraw is called regardless of focus state.
             bool alwaysDraw = _isSelectedPredicate == null;
             foreach (var kvp in _activeBehaviorGizmos)
             {
@@ -97,7 +96,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 if (!selected)
                     continue;
 
-                kvp.Value.Instance.UpdateAndDraw(view, entity, deltaTime, _drawBuilder);
+                kvp.Value.UpdateAndDraw(deltaTime, _drawBuilder);
             }
         }
 
@@ -105,11 +104,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
         private void TeardownEntity(Entity entity)
         {
-            if (!_activeBehaviorGizmos.TryGetValue(entity, out var pair))
+            if (!_activeBehaviorGizmos.TryGetValue(entity, out var instance))
                 return;
 
-            pair.Instance.OnTeardown();
-            pair.Factory.Return(pair.Instance);
+            instance.Dispose();
             _activeBehaviorGizmos.Remove(entity);
         }
     }

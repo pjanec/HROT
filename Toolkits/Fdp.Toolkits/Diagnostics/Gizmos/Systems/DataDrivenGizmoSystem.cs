@@ -20,7 +20,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
     ///         one or more registered rules (<see cref="ConstructionOrder"/>).</item>
     ///   <item>Pre-evaluates the global visibility for every rule once (not once per entity).</item>
     ///   <item>Iterates active gizmos; for each entity that passes the selection predicate and
-    ///         visibility policies, calls <see cref="IStatefulGizmo.UpdateAndDraw"/>.</item>
+    ///         visibility policies, calls <see cref="IEntityStatefulGizmo.UpdateAndDraw"/>.
+    ///         UpdateAndDraw is called for ALL active gizmos regardless of focus state.</item>
+    ///   <item>Routes typed interaction events to the gizmo that holds exclusive focus.</item>
     /// </list>
     /// </para>
     ///
@@ -56,11 +58,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly List<Entity> _entityList = new();
         private int _timeSliceOffset = 0;
 
+        // Exclusive-focus tracking: the single gizmo that captures all typed input events.
+        // null when no gizmo holds focus.
+        private IEntityStatefulGizmo? _focusedGizmo;
+
         // ---- Private per-instance gizmo record ------------------------------------
 
         private struct CompiledGizmoInstance
         {
-            public IStatefulGizmo Instance;
+            public IEntityStatefulGizmo Instance;
             public IGizmoDefinition Definition;
             public int RuleIndex;
         }
@@ -75,7 +81,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// <param name="drawBuilder">Target draw builder for all active gizmos.</param>
         /// <param name="isSelectedPredicate">
         /// Per-entity selection gate. When <c>null</c>, all active gizmos whose visibility
-        /// policy allows it are drawn unconditionally. When non-null, <see cref="UpdateAndDraw"/>
+        /// policy allows it are drawn unconditionally. When non-null, <see cref="IEntityStatefulGizmo.UpdateAndDraw"/>
         /// is only called for entities for which the predicate returns <c>true</c>.
         /// </param>
         public DataDrivenGizmoSystem(
@@ -125,8 +131,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     if (!BitMask256.HasAll(header.ComponentMask, rule.RequiredMask))
                         continue;
 
-                    var instance = rule.Definition.CreateInstance();
-                    instance.OnInitialize(view, evt.Entity);
+                    // View and entity are passed at construction — no OnInitialize call needed.
+                    var instance = rule.Definition.CreateInstance(view, evt.Entity);
 
                     if (!_activeGizmos.TryGetValue(evt.Entity, out var list))
                     {
@@ -151,6 +157,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 _globalVisibilityCache[i] = allRules[i].Definition.VisibilityPolicy.IsGloballyEnabled(view);
 
             // 4. Drive active gizmos (with optional wall-clock budget).
+            // UpdateAndDraw is called for ALL gizmos regardless of focus state.
             bool alwaysDraw = _isSelectedPredicate == null;
             float budget = MaxGizmoFrameMs;
 
@@ -169,7 +176,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         var gi = instances[i];
                         if (gi.RuleIndex < cacheSize && !_globalVisibilityCache[gi.RuleIndex]) continue;
                         if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity)) continue;
-                        gi.Instance.UpdateAndDraw(view, entity, deltaTime, _drawBuilder);
+                        gi.Instance.UpdateAndDraw(deltaTime, _drawBuilder);
                     }
                 }
             }
@@ -198,7 +205,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         var gi = instances[i];
                         if (gi.RuleIndex < cacheSize && !_globalVisibilityCache[gi.RuleIndex]) continue;
                         if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity)) continue;
-                        gi.Instance.UpdateAndDraw(view, entity, deltaTime, _drawBuilder);
+                        gi.Instance.UpdateAndDraw(deltaTime, _drawBuilder);
                     }
 
                     // Check budget after each entity.
@@ -210,7 +217,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 _timeSliceOffset = (startOffset + processed) % count;
             }
 
-            // 5. Process commit events and push undo records to the stack.
+            // 5. Route typed interaction events to the appropriate gizmo.
+            RouteInteractionEvents(view);
+
+            // 6. Process commit events and push undo records to the stack.
             if (_undoStack != null)
             {
                 var commits = view.ReadEvents<GizmoInteractionCommitEvent>();
@@ -228,6 +238,107 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             }
         }
 
+        // ---- Interaction event routing -------------------------------------------
+
+        private void RouteInteractionEvents(ISimulationView view)
+        {
+            // Started: find the gizmo on the picked entity, set focus if exclusive.
+            var started = view.ReadEvents<GizmoInteractionStartedEvent>();
+            foreach (ref readonly var evt in started)
+            {
+                var gizmo = FindGizmo(evt.Token.Target);
+                if (gizmo == null) continue;
+                if (gizmo.RequiresExclusiveFocus && _focusedGizmo != gizmo)
+                {
+                    _focusedGizmo?.SetFocus(false);
+                    _focusedGizmo = gizmo;
+                    _focusedGizmo.SetFocus(true);
+                }
+                gizmo.OnInteractionStarted(ToGizmoToken(evt.Token), evt.WorldPos);
+            }
+
+            // DragUpdate: route to the focused gizmo (token match).
+            var drags = view.ReadEvents<GizmoDragUpdateEvent>();
+            foreach (ref readonly var evt in drags)
+            {
+                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target);
+                gizmo?.OnDragUpdate(evt.WorldPos);
+            }
+
+            // Commit: route, then clear focus.
+            var commits = view.ReadEvents<GizmoInteractionCommitEvent>();
+            foreach (ref readonly var evt in commits)
+            {
+                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target);
+                gizmo?.OnCommit(evt.WorldPos);
+                if (_focusedGizmo != null)
+                {
+                    _focusedGizmo.SetFocus(false);
+                    _focusedGizmo = null;
+                }
+            }
+
+            // Cancel: route, then clear focus.
+            var cancels = view.ReadEvents<GizmoInteractionCancelEvent>();
+            foreach (ref readonly var evt in cancels)
+            {
+                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target);
+                gizmo?.OnCancel();
+                if (_focusedGizmo != null)
+                {
+                    _focusedGizmo.SetFocus(false);
+                    _focusedGizmo = null;
+                }
+            }
+
+            // MenuAction: route to the entity's gizmo (no focus change).
+            var menus = view.ReadEvents<GizmoMenuActionEvent>();
+            foreach (ref readonly var evt in menus)
+            {
+                // GizmoMenuActionEvent carries AnchorId (network entity id), not a PickToken.
+                // Iterate all active gizmos to find the one whose entity network id matches.
+                foreach (var kvp in _activeGizmos)
+                {
+                    var gizmoList = kvp.Value;
+                    for (int i = 0; i < gizmoList.Count; i++)
+                        gizmoList[i].Instance.OnMenuAction(evt.ActionId);
+                }
+            }
+
+            // MouseEvent: only the focused exclusive-focus gizmo receives raw mouse events.
+            var mouseEvents = view.ReadEvents<GizmoMouseEvent>();
+            foreach (ref readonly var evt in mouseEvents)
+            {
+                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target);
+                gizmo?.OnMouseEvent(evt.Button, evt.IsPressed, evt.WorldPos);
+            }
+
+            // KeyEvent: only the focused exclusive-focus gizmo receives key events.
+            var keyEvents = view.ReadEvents<GizmoKeyEvent>();
+            foreach (ref readonly var evt in keyEvents)
+            {
+                (_focusedGizmo ?? FindGizmo(evt.Token.Target))?.OnKeyEvent(evt.Key, evt.IsPressed);
+            }
+        }
+
+        // Converts the ECS-based PickToken to the ECS-free GizmoPickToken used by
+        // IGizmoInteractionHandler. Index maps to AnchorId; Generation maps to StreamId.
+        private static GizmoPickToken ToGizmoToken(PickToken token) => new GizmoPickToken
+        {
+            AnchorId     = (long)token.Target.Index,
+            SubElementId = token.SubElementId,
+            StreamId     = (uint)token.Target.Generation,
+        };
+
+        /// <summary>Returns the first gizmo instance active on <paramref name="entity"/>,
+        /// or <c>null</c> if none is registered.</summary>
+        private IEntityStatefulGizmo? FindGizmo(Entity entity)
+        {
+            if (!_activeGizmos.TryGetValue(entity, out var list) || list.Count == 0)
+                return null;
+            return list[0].Instance;
+        }
+
         // ---- Helpers ---------------------------------------------------------------
 
         private void TeardownEntity(Entity entity)
@@ -236,7 +347,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 return;
 
             foreach (var gi in list)
-                gi.Instance.OnTeardown();
+            {
+                // Clear focus if this entity's gizmo held it.
+                if (_focusedGizmo == gi.Instance)
+                {
+                    _focusedGizmo.SetFocus(false);
+                    _focusedGizmo = null;
+                }
+                gi.Instance.Dispose();
+            }
 
             _activeGizmos.Remove(entity);
             _entityList.Remove(entity);

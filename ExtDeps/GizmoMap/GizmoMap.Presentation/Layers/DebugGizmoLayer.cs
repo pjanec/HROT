@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using GizmoMap.Network;
 using Raylib_cs;
 
@@ -44,21 +45,76 @@ namespace GizmoMap.Presentation
         /// operator left-clicks inside a <see cref="DebugPrimitiveShape.Box2D"/> primitive.
         /// Right-clicking a Box2D with a <see cref="DebugPrimitiveShape.ContextMenuBinding"/>
         /// schedules a context menu popup (rendered via <see cref="DrawContextMenu"/>).
+        ///
+        /// When an <see cref="DebugPrimitiveShape.InputCaptureBinding"/> with exclusive mode
+        /// is present in the frame, all raw HW events are routed to the capturing token and
+        /// normal spatial hit-testing is suppressed.
+        ///
+        /// Hit-testing iterates the primitive buffer in reverse so the last-submitted (topmost)
+        /// Box2D wins. <see cref="DebugPrimitive.DebugLayer"/> is NOT used as a Z-order key.
         /// </summary>
         /// <param name="camera">Current camera used to convert screen pixels to world space.</param>
         /// <param name="onInteraction">
-        /// Optional callback invoked with the pick token, event kind, and world position.
+        /// Optional callback invoked with the pick token, event kind, world position, actionId,
+        /// and stateFlags. For non-RawInput events actionId=0 and stateFlags=0.
+        /// For RawInput: actionId=(int)MapMouseButton or (int)MapKeyboardKey;
+        /// stateFlags bit7=1 mouse/0 keyboard, bit0=1 pressed/0 released.
         /// </param>
         public void HandleInput(
             Camera2D camera,
-            Action<GizmoPickToken, GizmoInteractionEventKind, Vector3>? onInteraction = null)
+            Action<GizmoPickToken, GizmoInteractionEventKind, Vector3, int, byte>? onInteraction = null)
         {
             var screenPos = Raylib.GetMousePosition();
             var worldPos  = Raylib.GetScreenToWorld2D(screenPos, camera);
 
             var frame = _buffer.GetFrame();
 
-            // Build menu bindings dictionary from ContextMenuBinding meta-primitives.
+            // ---- Scan for exclusive InputCaptureBinding --------------------------------
+            // When found, route all raw HW events to the capturing token and skip
+            // normal spatial hit-testing. The gizmo declares intent; the terminal obeys.
+            for (int i = 0; i < frame.Length; i++)
+            {
+                ref readonly var prim = ref frame[i];
+                if (prim.Shape != DebugPrimitiveShape.InputCaptureBinding) continue;
+                if (prim.ConditionMask != 1u) continue; // 0 = shared, skip
+
+                var captureToken = new GizmoPickToken
+                {
+                    AnchorId     = prim.InspNetworkId,
+                    SubElementId = prim.SubElementId,
+                };
+                var worldPos3 = new Vector3(worldPos.X, worldPos.Y, 0f);
+
+                // Mouse move -> DragUpdate so the gizmo can recompute heading/position.
+                var delta = Raylib.GetMouseDelta();
+                if (delta.X != 0 || delta.Y != 0)
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.DragUpdate, worldPos3, 0, 0);
+
+                // Mouse button press/release -> RawInput (bit7=1 mouse; bit0=1 pressed).
+                if (Raylib.IsMouseButtonPressed(MouseButton.Left))
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                        worldPos3, (int)MapMouseButton.Left, 0x81);
+                else if (Raylib.IsMouseButtonReleased(MouseButton.Left))
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                        worldPos3, (int)MapMouseButton.Left, 0x80);
+
+                if (Raylib.IsMouseButtonPressed(MouseButton.Right))
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                        worldPos3, (int)MapMouseButton.Right, 0x81);
+                else if (Raylib.IsMouseButtonReleased(MouseButton.Right))
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                        worldPos3, (int)MapMouseButton.Right, 0x80);
+
+                // Keyboard Escape -> RawInput (bit7=0 keyboard; bit0=1 pressed).
+                if (Raylib.IsKeyPressed(KeyboardKey.Escape))
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                        worldPos3, (int)MapKeyboardKey.Escape, 0x01);
+
+                // Exclusive capture active: suppress all normal hit-testing this frame.
+                return;
+            }
+
+            // ---- Build menu bindings dictionary from ContextMenuBinding meta-primitives ---
             var menuBindings = new Dictionary<long, uint>();
             foreach (ref readonly var prim in frame)
             {
@@ -70,10 +126,12 @@ namespace GizmoMap.Presentation
                 Console.WriteLine($"[Debug] Right-click detected. Menu bindings count: {menuBindings.Count}");
             }
 
-            // Try to start a new interaction on left press when no tool is active.
+            // ---- Try to start a new interaction on left press (reverse iteration) -------
+            // Iterating in reverse ensures the last-submitted (topmost) Box2D wins the
+            // hit-test. DebugLayer is a visibility mask and is NOT used as a depth key.
             if (_activeTool == null && Raylib.IsMouseButtonPressed(MouseButton.Left))
             {
-                for (int i = 0; i < frame.Length; i++)
+                for (int i = frame.Length - 1; i >= 0; i--)
                 {
                     ref readonly var prim = ref frame[i];
                     if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
@@ -84,24 +142,25 @@ namespace GizmoMap.Presentation
                     float dy = Math.Abs(worldPos.Y - prim.BoxCenterY);
                     if (dx <= prim.BoxExtentX && dy <= prim.BoxExtentY)
                     {
+                        // BoxAnchorId routes to the owning manager slot; fall back to SubElementId
+                        // for legacy unmanaged Box2D primitives (e.g. the interactive drag box).
                         var token = new GizmoPickToken
                         {
-                            // Use SubElementId as AnchorId when set; fall back to 1 for demo use.
-                            AnchorId     = prim.SubElementId != 0 ? prim.SubElementId : 1,
+                            AnchorId     = prim.BoxAnchorId != 0 ? prim.BoxAnchorId : (long)prim.SubElementId,
                             SubElementId = prim.SubElementId,
                         };
                         _activeTool = new GizmoInteractionProxyTool(
-                            token, onInteraction, onExit: () => _activeTool = null);
+                            token, worldPos, onInteraction, onExit: () => _activeTool = null);
                         _activeTool.HandlePress(worldPos, MouseButton.Left);
                         break;
                     }
                 }
             }
 
-            // Right-click: show context menu for the hit Box2D if a binding exists.
+            // ---- Right-click: show context menu for the topmost hit Box2D ---------------
             if (_activeTool == null && Raylib.IsMouseButtonReleased(MouseButton.Right))
             {
-                for (int i = 0; i < frame.Length; i++)
+                for (int i = frame.Length - 1; i >= 0; i--)
                 {
                     ref readonly var prim = ref frame[i];
                     if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
@@ -112,8 +171,10 @@ namespace GizmoMap.Presentation
                     float dy = Math.Abs(worldPos.Y - prim.BoxCenterY);
                     if (dx <= prim.BoxExtentX && dy <= prim.BoxExtentY)
                     {
-                        long entityId = prim.SubElementId; // SubElementId used as entity binding key
-                        Console.WriteLine($"[Debug] Hit Box2D. SubElementId: {entityId}");
+                        // Use BoxAnchorId for managed handles; fall back to SubElementId for
+                        // unmanaged Box2D primitives whose context-menu binding key equals SubElementId.
+                        long entityId = prim.BoxAnchorId != 0 ? prim.BoxAnchorId : (long)prim.SubElementId;
+                        Console.WriteLine($"[Debug] Hit Box2D. entityId: {entityId}");
                         if (menuBindings.TryGetValue(entityId, out uint menuHash))
                         {
                             Console.WriteLine($"[Debug] Found binding hash: {menuHash}");
@@ -137,7 +198,7 @@ namespace GizmoMap.Presentation
                 }
             }
 
-            // Drive the active drag tool with subsequent mouse state.
+            // ---- Drive the active drag tool with subsequent mouse state ----------------
             if (_activeTool != null)
             {
                 if (Raylib.IsMouseButtonDown(MouseButton.Left))

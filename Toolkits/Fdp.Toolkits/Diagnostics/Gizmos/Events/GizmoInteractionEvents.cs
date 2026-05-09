@@ -1,6 +1,7 @@
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos.Events
 {
@@ -50,5 +51,32 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Events
 
         /// <summary>Integer ID of the menu item that was clicked.</summary>
         public int ActionId;
+    }
+
+    /// <summary>
+    /// Published by <see cref="Hrot.Network.NED.Gizmos.GizmoInteractionIngressSystem"/> when
+    /// a <c>RawInput</c> batch record carries a mouse button event (stateFlags bit7 = 1).
+    /// Routed by <see cref="DataDrivenGizmoSystem"/> to the gizmo that holds exclusive focus.
+    /// </summary>
+    [EventId(8056)]
+    public struct GizmoMouseEvent
+    {
+        public PickToken Token;
+        public MapMouseButton Button;
+        public bool IsPressed;
+        public Vector3 WorldPos;
+    }
+
+    /// <summary>
+    /// Published by <see cref="Hrot.Network.NED.Gizmos.GizmoInteractionIngressSystem"/> when
+    /// a <c>RawInput</c> batch record carries a keyboard event (stateFlags bit7 = 0).
+    /// Routed by <see cref="DataDrivenGizmoSystem"/> to the gizmo that holds exclusive focus.
+    /// </summary>
+    [EventId(8057)]
+    public struct GizmoKeyEvent
+    {
+        public PickToken Token;
+        public MapKeyboardKey Key;
+        public bool IsPressed;
     }
 }

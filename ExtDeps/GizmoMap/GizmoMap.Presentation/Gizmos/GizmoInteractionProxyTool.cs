@@ -14,18 +14,21 @@ namespace GizmoMap.Presentation
     /// - Uses <see cref="GizmoPickToken"/> (network-stable IDs) instead of ECS PickToken.
     /// - Uses a callback delegate instead of FdpEventBus.
     /// - Uses an optional exit callback instead of MapCanvas.PopTool().
+    /// - Callback carries actionId and stateFlags so the same delegate handles RawInput.
+    ///   For Started/DragUpdate/Commit/Cancel, actionId=0 and stateFlags=0.
     /// </summary>
     public sealed class GizmoInteractionProxyTool
     {
         private readonly GizmoPickToken _token;
-        private readonly Action<GizmoPickToken, GizmoInteractionEventKind, Vector3>? _onInteraction;
+        private readonly Action<GizmoPickToken, GizmoInteractionEventKind, Vector3, int, byte>? _onInteraction;
         private readonly Action? _onExit;
         private readonly CoordinateSpace _space;
         private bool _dragActive;
 
         public GizmoInteractionProxyTool(
             GizmoPickToken token,
-            Action<GizmoPickToken, GizmoInteractionEventKind, Vector3>? onInteraction = null,
+            Vector2 initialWorldPos,
+            Action<GizmoPickToken, GizmoInteractionEventKind, Vector3, int, byte>? onInteraction = null,
             Action? onExit = null,
             CoordinateSpace space = CoordinateSpace.World)
         {
@@ -35,7 +38,8 @@ namespace GizmoMap.Presentation
             _space         = space;
 
             // Fire Started event immediately on construction (mirrors OnEnter behaviour).
-            _onInteraction?.Invoke(_token, GizmoInteractionEventKind.Started, Vector3.Zero);
+            _onInteraction?.Invoke(_token, GizmoInteractionEventKind.Started,
+                new Vector3(initialWorldPos.X, initialWorldPos.Y, 0f), 0, 0);
         }
 
         public bool HandlePress(Vector2 worldPos, MouseButton button)
@@ -54,7 +58,7 @@ namespace GizmoMap.Presentation
             _onInteraction?.Invoke(
                 _token,
                 GizmoInteractionEventKind.DragUpdate,
-                new Vector3(worldPos.X, worldPos.Y, 0f));
+                new Vector3(worldPos.X, worldPos.Y, 0f), 0, 0);
             return true;
         }
 
@@ -68,14 +72,14 @@ namespace GizmoMap.Presentation
                     _onInteraction?.Invoke(
                         _token,
                         GizmoInteractionEventKind.Commit,
-                        new Vector3(worldPos.X, worldPos.Y, 0f));
+                        new Vector3(worldPos.X, worldPos.Y, 0f), 0, 0);
                     _onExit?.Invoke();
                     return true;
                 }
                 else
                 {
                     // Click-away (no prior press): cancel without committing.
-                    _onInteraction?.Invoke(_token, GizmoInteractionEventKind.Cancel, Vector3.Zero);
+                    _onInteraction?.Invoke(_token, GizmoInteractionEventKind.Cancel, Vector3.Zero, 0, 0);
                     _onExit?.Invoke();
                     return false;
                 }
@@ -85,7 +89,7 @@ namespace GizmoMap.Presentation
             if (button == MouseButton.Right)
             {
                 _dragActive = false;
-                _onInteraction?.Invoke(_token, GizmoInteractionEventKind.Cancel, Vector3.Zero);
+                _onInteraction?.Invoke(_token, GizmoInteractionEventKind.Cancel, Vector3.Zero, 0, 0);
                 _onExit?.Invoke();
                 return true;
             }
@@ -98,7 +102,7 @@ namespace GizmoMap.Presentation
             if (key == KeyboardKey.Escape)
             {
                 _dragActive = false;
-                _onInteraction?.Invoke(_token, GizmoInteractionEventKind.Cancel, Vector3.Zero);
+                _onInteraction?.Invoke(_token, GizmoInteractionEventKind.Cancel, Vector3.Zero, 0, 0);
                 _onExit?.Invoke();
                 return true;
             }

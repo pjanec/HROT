@@ -1,4 +1,6 @@
 using System;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos
 {
@@ -19,7 +21,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>Governs when this gizmo is visible.</summary>
         IGizmoVisibilityPolicy VisibilityPolicy { get; }
 
-        /// <summary>Creates a new, uninitialised gizmo instance.</summary>
-        IStatefulGizmo CreateInstance();
+        /// <summary>
+        /// Creates a new gizmo instance bound to the given entity.
+        /// The view and entity are stored by the implementation; they do not appear on
+        /// <see cref="IEntityStatefulGizmo.UpdateAndDraw"/>.
+        /// </summary>
+        IEntityStatefulGizmo CreateInstance(ISimulationView view, Entity entity);
     }
 }

@@ -31,6 +31,39 @@ namespace GizmoMap.Example
         // Context menu binding key: matches the interactive box SubElementId (cast to long).
         private const long BoxMenuEntityId = 1L;
 
+        // ---- Managed gizmo infrastructure ----------------------------------
+        // GizmoInteractionManager owns the vertex editors and the on-demand rotator.
+        private readonly GizmoInteractionManager _manager = new();
+
+        // Stable anchor IDs for the two polygon vertex editors.
+        private const long Polygon1AnchorId = 1001L;
+        private const long Polygon2AnchorId = 1002L;
+
+        // Stable anchor ID for the entity rotator (created on demand, removed on commit/cancel).
+        private const long RotatorAnchorId = 2001L;
+
+        // Mutable vertices for the two interactive polygons.
+        // Positioned so both polygons are visible in the default 640x480 view (camera at origin).
+        private readonly Vector2[] _polygon1Vertices = new Vector2[]
+        {
+            new Vector2(-230f, 130f),
+            new Vector2(-160f, 130f),
+            new Vector2(-160f, 200f),
+            new Vector2(-230f, 200f),
+        };
+        private readonly Vector2[] _polygon2Vertices = new Vector2[]
+        {
+            new Vector2(160f, 130f),
+            new Vector2(230f, 130f),
+            new Vector2(230f, 200f),
+            new Vector2(160f, 200f),
+        };
+
+        // Static entity that the rotator gizmo operates on.
+        private const float StaticEntityX = -250f;
+        private const float StaticEntityY = -170f;
+        private float _staticEntityYaw = 0f; // radians
+
         // Three menu definition JSON strings that cycle every 3 seconds.
         // Each represents a different tactical state for the orange box entity.
         // Built once from ContextMenuItemDto for type-safe, refactor-friendly definitions.
@@ -117,9 +150,44 @@ namespace GizmoMap.Example
         private float _dragStartWorldY;
         private bool  _gotFirstDragUpdate;
 
+        public DemoSceneGenerator()
+        {
+            // Register the two polygon vertex editors at startup.
+            _manager.AddTool(Polygon1AnchorId, new VertexEditGizmo(Polygon1AnchorId, _polygon1Vertices));
+            _manager.AddTool(Polygon2AnchorId, new VertexEditGizmo(Polygon2AnchorId, _polygon2Vertices));
+        }
+
+        /// <summary>
+        /// Creates an <see cref="EntityRotatorGizmo"/> for the static entity and registers it
+        /// in the manager. The gizmo acquires exclusive focus; the operator releases it by
+        /// clicking Left (commit) or pressing Right/Escape (cancel).
+        /// Safe to call repeatedly: does nothing if a rotator is already active.
+        /// </summary>
+        public void TriggerRotator()
+        {
+            if (_manager.HasTool(RotatorAnchorId)) return;
+
+            var gizmo = new EntityRotatorGizmo(
+                entityPos:     new Vector2(StaticEntityX, StaticEntityY),
+                initialYawRad: _staticEntityYaw,
+                onCommit: yaw =>
+                {
+                    _staticEntityYaw = yaw;
+                    Console.WriteLine($"[Rotator] Committed yaw: {yaw * 180f / MathF.PI:F1} deg");
+                },
+                onRemove: () => _manager.RemoveTool(RotatorAnchorId));
+
+            _manager.AddTool(RotatorAnchorId, gizmo);
+            Console.WriteLine("[Rotator] Active. Move mouse, Left=commit, Right/Escape=cancel.");
+        }
+
         public void Emit(float deltaTime, IGizmoDrawBuilder draw)
         {
             _elapsedTime += deltaTime;
+
+            // Managed gizmos (vertex editors, rotator) emit first so their InputCaptureBinding
+            // appears before scene primitives. The terminal scans forward for InputCaptureBinding.
+            _manager.Emit(deltaTime, draw);
 
             // Require the draw builder to be a LocalDrawBuilder for raw emission.
             var local = draw as LocalDrawBuilder
@@ -135,20 +203,40 @@ namespace GizmoMap.Example
         public void Emit(float deltaTime, LocalDrawBuilder builder)
         {
             _elapsedTime += deltaTime;
+            _manager.Emit(deltaTime, builder);
             EmitScene(builder, _elapsedTime);
         }
 
         // ---- Interaction handler -------------------------------------------
 
         /// <summary>
-        /// Receives gizmo interaction events from the presentation layer and
-        /// updates the interactive box position so the next Emit() tick renders
-        /// it at the new world coordinates.
+        /// Receives gizmo interaction events from the presentation layer.
+        /// Routes interactive-box events directly; forwards all events to the manager
+        /// so vertex editors and the rotator receive their typed callbacks.
         /// </summary>
-        public void OnGizmoInteraction(GizmoPickToken token, GizmoInteractionEventKind kind, Vector3 pos)
+        public void OnGizmoInteraction(
+            GizmoPickToken token,
+            GizmoInteractionEventKind kind,
+            Vector3 pos,
+            int actionId,
+            byte stateFlags)
         {
-            if (token.SubElementId != 1) return;
-            Console.WriteLine($"Gizmo interaction: anchor={token.AnchorId} sub={token.SubElementId} {kind} at {pos}");
+            // Handle the legacy interactive drag box directly (AnchorId==1, SubElementId==1).
+            // RawInput events are not relevant for this box so they are skipped here.
+            if (token.AnchorId == BoxMenuEntityId
+                && token.SubElementId == 1
+                && kind != GizmoInteractionEventKind.RawInput)
+            {
+                HandleInteractiveBoxEvent(kind, pos);
+            }
+
+            // Forward all events to the manager; it ignores anchors it does not own.
+            _manager.DispatchEvent(token, kind, pos, actionId, stateFlags);
+        }
+
+        private void HandleInteractiveBoxEvent(GizmoInteractionEventKind kind, Vector3 pos)
+        {
+            Console.WriteLine($"Gizmo interaction: box {kind} at {pos}");
             switch (kind)
             {
                 case GizmoInteractionEventKind.Started:
@@ -381,6 +469,35 @@ namespace GizmoMap.Example
             builder.Buffer.InternMap.Intern(menuHash, activeMenu); // idempotent; rarely allocates
             var menuBinding = DebugPrimitive.MakeContextMenuBinding(BoxMenuEntityId, menuHash);
             builder.EmitRaw(in menuBinding);
+
+            // ---- 15. Static entity marker: shown as a small white box with heading arrow ----
+            // The EntityRotatorGizmo draws an arrow on top when the rotator is active.
+            var staticBox = default(DebugPrimitive);
+            staticBox.Shape      = DebugPrimitiveShape.Box2D;
+            staticBox.Space      = CoordinateSpace.World;
+            staticBox.TargetView = PipelineTarget.Map2D;
+            staticBox.BoxCenterX = StaticEntityX;
+            staticBox.BoxCenterY = StaticEntityY;
+            staticBox.BoxExtentX = 12f;
+            staticBox.BoxExtentY = 12f;
+            staticBox.Color      = new Rgba32(220, 220, 220, 200);
+            // SubElementId=0 makes the box non-interactive (terminal skips hit-testing for it).
+            builder.EmitRaw(in staticBox);
+
+            // Draw a short line showing the current heading of the static entity.
+            var headFrom = new Vector3(StaticEntityX, StaticEntityY, 0f);
+            var headTo   = new Vector3(
+                StaticEntityX + MathF.Cos(_staticEntityYaw) * 25f,
+                StaticEntityY + MathF.Sin(_staticEntityYaw) * 25f,
+                0f);
+            builder.DrawLine(headFrom, headTo, new Rgba32(200, 200, 50, 200), thickness: 1.5f);
+
+            // Label: press R to activate the rotator.
+            builder.DrawText(
+                StaticEntityX - 30f, StaticEntityY - 22f,
+                new FixedString32("[Press R to rotate]"),
+                new Rgba32(200, 200, 200, 150),
+                CoordinateSpace.World);
         }
 
         // ---- Context menu helpers ------------------------------------------
