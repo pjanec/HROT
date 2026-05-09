@@ -46,6 +46,8 @@ namespace Hrot.ClusterRunner.Gizmos
                 new ContextMenuItemDto { IsSeparator = true },
                 new ContextMenuItemDto { Id = 10, Label = "Center View",  Shortcut = "C" },
                 new ContextMenuItemDto { Id = 11, Label = "Select",       Shortcut = "Space" },
+                new ContextMenuItemDto { IsSeparator = true },
+                new ContextMenuItemDto { Id = 20, Label = "Rotate",       Shortcut = "R" },
             }, SerializerOptions);
 
         /// <summary>Menu for a significantly damaged unit (health &lt; 50 %).</summary>
@@ -60,6 +62,8 @@ namespace Hrot.ClusterRunner.Gizmos
                 new ContextMenuItemDto { IsSeparator = true },
                 new ContextMenuItemDto { Id = 10, Label = "Center View", Shortcut = "C" },
                 new ContextMenuItemDto { Id = 11, Label = "Select",      Shortcut = "Space" },
+                new ContextMenuItemDto { IsSeparator = true },
+                new ContextMenuItemDto { Id = 20, Label = "Rotate",      Shortcut = "R" },
             }, SerializerOptions);
 
         // ---- IStatelessGizmo --------------------------------------------------

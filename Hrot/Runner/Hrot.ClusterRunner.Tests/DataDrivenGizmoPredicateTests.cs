@@ -3,6 +3,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 // Disambiguate from GizmoMap.Contracts.Fdp.Toolkit.Diagnostics.Gizmos.FixedString32.
 using FixedString32 = Fdp.Core.FixedString32;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
@@ -28,19 +29,29 @@ namespace Hrot.ClusterRunner.Tests
 
     // ---- Minimal mocks -----------------------------------------------------
 
-    internal sealed class D003MockGizmo : IStatefulGizmo
+    internal sealed class D003MockGizmo : IEntityStatefulGizmo
     {
         public int UpdateAndDrawCount;
 
-        public void OnInitialize(ISimulationView view, Entity entity) { }
+        public bool RequiresExclusiveFocus => false;
+        public bool IsFocused { get; private set; }
+        public void SetFocus(bool isFocused) => IsFocused = isFocused;
 
-        public void UpdateAndDraw(ISimulationView view, Entity entity, float deltaTime,
-            IDebugDrawBuilder drawBuilder)
+        public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder drawBuilder)
         {
             UpdateAndDrawCount++;
         }
 
-        public void OnTeardown() { }
+        public void Dispose() { }
+
+        // IGizmoInteractionHandler stubs
+        public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos) { }
+        public void OnDragUpdate(Vector3 worldPos) { }
+        public void OnCommit(Vector3 worldPos) { }
+        public void OnCancel() { }
+        public void OnMenuAction(int actionId) { }
+        public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos) { }
+        public void OnKeyEvent(MapKeyboardKey key, bool isPressed) { }
     }
 
     internal sealed class D003GizmoDef : IGizmoDefinition
@@ -52,7 +63,7 @@ namespace Hrot.ClusterRunner.Tests
         public Type[] RequiredComponents => new[] { typeof(D003FilterTestComp) };
         public IGizmoVisibilityPolicy VisibilityPolicy => AlwaysVisiblePolicy.Instance;
 
-        public IStatefulGizmo CreateInstance()
+        public IEntityStatefulGizmo CreateInstance(ISimulationView view, Entity entity)
         {
             _instance = new D003MockGizmo();
             return _instance;

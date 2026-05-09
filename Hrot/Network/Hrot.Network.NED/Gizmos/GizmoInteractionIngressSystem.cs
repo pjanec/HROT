@@ -4,6 +4,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using Hrot.Common.Events;
 using GizmoInteractionBatch = GizmoMap.Network.GizmoInteractionBatch;
@@ -58,7 +59,7 @@ namespace Hrot.Network.NED.Gizmos
 
                 case GizmoInteractionEventKind.DragUpdate:
                     if (!alive)
-                        // Entity gone during drag — substitute cancel for safety.
+                        // Entity gone during drag -- substitute cancel for safety.
                         repo.Bus.Publish(new GizmoInteractionCancelEvent { Token = token });
                     else
                         repo.Bus.Publish(new GizmoDragUpdateEvent { Token = token, WorldPos = worldPos, Space = (CoordinateSpace)batch.Space });
@@ -86,6 +87,30 @@ namespace Hrot.Network.NED.Gizmos
                         EntityNetworkId = (int)batch.PickAnchorId,
                         ActionName      = batch.ActionId.ToString(),
                     });
+                    break;
+
+                case GizmoInteractionEventKind.RawInput:
+                    // Space field encodes input type and state:
+                    //   bit7 (0x80) = 1 -> mouse event, 0 -> keyboard event
+                    //   bit0 (0x01) = 1 -> pressed, 0 -> released
+                    // ActionId holds (int)MapMouseButton or (int)MapKeyboardKey.
+                    bool isMouse  = (batch.Space & 0x80) != 0;
+                    bool isPressed = (batch.Space & 0x01) != 0;
+                    if (isMouse)
+                        repo.Bus.Publish(new GizmoMouseEvent
+                        {
+                            Token     = token,
+                            Button    = (MapMouseButton)batch.ActionId,
+                            IsPressed = isPressed,
+                            WorldPos  = worldPos,
+                        });
+                    else
+                        repo.Bus.Publish(new GizmoKeyEvent
+                        {
+                            Token     = token,
+                            Key       = (MapKeyboardKey)batch.ActionId,
+                            IsPressed = isPressed,
+                        });
                     break;
             }
         }
