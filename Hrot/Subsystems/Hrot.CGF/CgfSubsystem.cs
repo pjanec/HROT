@@ -428,6 +428,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             new System.Type[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
         _context.Kernel.RegisterGlobalSystem(
             new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(cgfStatelessRegistry, cgfGizmoBuffer));
+        var cgfGizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
+        cgfGizmoRegistry.Register(new Hrot.SimHost.Gizmos.EntityRotatorGizmoDefinition());
+        _context.Kernel.RegisterGlobalSystem(
+            new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
+                cgfGizmoRegistry, cgfGizmoBuffer, isSelectedPredicate: null));
 
         _context.Kernel.Initialize();
         // ── Visualization (non-headless only) ─────────────────────────────────────
@@ -504,7 +509,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     builder.AddItem("Rotate", () =>
                     {
                         _selectionState.PrimarySelected = entity;
-                        _canvas?.PushTool(new Hrot.ScenarioEditor.Tools.EntityRotationTool(entity, _context.World));
+                        if (!_context.World.HasComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(entity))
+                            _context.World.AddComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(entity, default);
+                        _context.World.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = entity });
+                        _canvas?.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.GizmoFocusInputBridge(_context.World.Bus, entity));
                     });
             }));
         }    }
@@ -566,8 +574,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     actions:             new MapContextActionController(
                         centerOnEntity: _ => CenterCameraOnEntity(ent),
                         deleteEntity:   _ => DeleteEntity(ent),
-                        rotateTool:     _ => _canvas?.PushTool(
-                            new Hrot.ScenarioEditor.Tools.EntityRotationTool(ent, _context.World))
+                        rotateTool:     _ =>
+                        {
+                            if (!_context.World.HasComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(ent))
+                                _context.World.AddComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(ent, default);
+                            _context.World.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = ent });
+                            _canvas?.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.GizmoFocusInputBridge(_context.World.Bus, ent));
+                        }
                     ));
             }
 

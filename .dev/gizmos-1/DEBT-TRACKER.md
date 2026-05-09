@@ -10,6 +10,12 @@
 | D-006 | BATCH-05 | RichTextRenderer uses Unsafe.As<FixedString32, byte> — brittle if FixedString32 layout changes; layout assertion mandate folded into TASK-GZ014 constraints (static constructor Debug.Assert on size) | P3 | TASK-GZ014 | RESOLVED |
 | D-007 | BATCH-09 | SpatialHashGrid not exposed via public service interface; SpatialGridGizmo deferred until infrastructure change enables gizmo systems to read grid cells | P2 | backlog | OPEN |
 
+| D-008 | BATCH-24 | Dead `_gizmoSystem` field in `SimHostVisualization` (and matching `gizmoSystem` param on `Initialize`). ExclusiveCaptureProxyTool was the only caller; now gone. Remove field + param. | P2 | BATCH-25 | OPEN |
+| D-009 | BATCH-24 | Per-frame `new List<(Entity, int)>()` allocation in `DataDrivenGizmoSystem` step 1b (teardown scan). Pre-allocate as a field or allocate only when a violation is found. | P2 | TBD | OPEN |
+| D-010 | BATCH-24 | `ConstructionOrder` path (step 2) in `DataDrivenGizmoSystem` does not grant exclusive focus, unlike late-activation (step 2b). If a gizmo rule that requires exclusive focus matches a newly constructed entity, the gizmo will not receive input. Harmonize the two paths. | P2 | TBD | OPEN |
+| D-011 | BATCH-24 | Misleading comment in step 1b of `DataDrivenGizmoSystem.Execute`: "Injected (on-demand) gizmos have RuleIndex == -1; skip them." Injected gizmos live in `_injectedGizmos`, never in `_activeGizmos`, so the guard is unreachable dead code. Remove or correct the comment. | P3 | TBD | OPEN |
+| D-012 | BATCH-24 | `using System.Linq;` added to `DataDrivenGizmoSystem` for `.Any()` in step 2b (closure alloc per event). Replace with a manual loop to keep LINQ out of ECS system files. | P3 | TBD | OPEN |
+
 Legend:
 - P1 = Critical (never enters tracker; always becomes Corrective Task 0 in next batch)
 - P2 = Should fix (tracked here, assigned target batch)

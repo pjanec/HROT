@@ -200,12 +200,18 @@ namespace Hrot.SimHost
                 if (_repo!.HasComponent<SimTransform>(entity))
                     builder.AddItem("Rotate entity", () =>
                     {
-                        if (_gizmoSystem == null || _map == null) return;
-                        var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
-                            _repo!, entity,
-                            onRemove: () => _gizmoSystem.DeactivateGizmo(entity));
-                        _gizmoSystem.ActivateGizmo(entity, gizmo);
-                        _map.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.ExclusiveCaptureProxyTool(gizmo));
+                        if (_map == null) return;
+                        // Data-driven activation: add marker component and publish event.
+                        // DataDrivenGizmoSystem creates EntityRotatorGizmo via the registered
+                        // EntityRotatorGizmoDefinition rule. The gizmo removes the marker on teardown.
+                        if (!_repo!.HasComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(entity))
+                            _repo!.AddComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(entity, default);
+                        _repo!.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent
+                        {
+                            Entity = entity,
+                        });
+                        // Temporary input bridge: converts canvas events to ECS events until Phase 5.
+                        _map.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.GizmoFocusInputBridge(_repo!.Bus, entity));
                     });
             }));
 
@@ -417,6 +423,37 @@ namespace Hrot.SimHost
             _scenario?.Update();
             _map.Update(dt);
 
+            // Handle rotate activation triggered from IG context menu (ActionId 20).
+            foreach (var ev in _repo.Bus.ReadManaged<Hrot.Common.Events.ContextActionTriggered>())
+            {
+                if (ev.ActionName != "20" || _map == null) continue;
+
+                // Find the local entity whose NetworkIdentity matches the event's NetworkId.
+                Entity target = Entity.Null;
+                var q = _repo.Query()
+                    .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+                    .With<Fdp.Core.SimTransform>()
+                    .Build();
+                foreach (var e in q)
+                {
+                    if (_repo.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == ev.EntityNetworkId)
+                    {
+                        target = e;
+                        break;
+                    }
+                }
+
+                if (target == Entity.Null) continue;
+
+                if (!_repo!.HasComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(target))
+                    _repo!.AddComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(target, default);
+                _repo!.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent
+                {
+                    Entity = target,
+                });
+                _map.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.GizmoFocusInputBridge(_repo!.Bus, target));
+            }
+
             _fdpFrameCount++;
         }
 
@@ -472,12 +509,15 @@ namespace Hrot.SimHost
                             },
                             rotateTool:     _ =>
                             {
-                                if (_gizmoSystem == null || _map == null) return;
-                                var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
-                                    _repo!, ent,
-                                    onRemove: () => _gizmoSystem.DeactivateGizmo(ent));
-                                _gizmoSystem.ActivateGizmo(ent, gizmo);
-                                _map.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.ExclusiveCaptureProxyTool(gizmo));
+                                if (_map == null) return;
+                                if (!_repo!.HasComponent<SimTransform>(ent)) return;
+                                if (!_repo!.HasComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(ent))
+                                    _repo!.AddComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(ent, default);
+                                _repo!.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent
+                                {
+                                    Entity = ent,
+                                });
+                                _map.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.GizmoFocusInputBridge(_repo!.Bus, ent));
                             }
                         ));
                 }

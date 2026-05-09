@@ -248,3 +248,41 @@ In `MapCanvas.ProcessInputPipeline()`, we strip out all tool-priority routing bl
 Once the tool stack is removed, `MapCanvas` achieves a single, cohesive responsibility. Its `Update` and `ProcessInputPipeline` methods will strictly handle camera pan/zoom interpolation (`Camera.HandleInput`) and coordinate mapping. Its `Draw` method will only evaluate the `ActiveLayerMask` to iterate the `_layers` list from bottom to top, emitting pure visual primitives through the injected `IDebugDrawBuilder`.
 
 This yields a strictly unidirectional data flow. The canvas knows nothing about interaction intent; it merely projects the current visual state of the ECS, while hardware input flows seamlessly up to the domain via the `GizmoInteractionBatch` transport pipeline.
+
+
+
+# SUCCESS CONDITIONS
+
+
+To prevent the implementor from taking architectural shortcuts like the proxy wrapper, you must enforce strict binary invariants for each phase. If these specific criteria are not met, the pull request should be rejected.
+
+Here are the hard success conditions for the complete eradication of the legacy tool stack:
+
+**Phase 1: Context Menu Decoupling & Marker Components**
+*   **Pass Condition:** Context menu handlers, including `JsonEntityContextMenuHandler` and any specific subsystem UIs, must solely append ECS marker components to the target entity.
+*   **Fail Condition:** Any invocation of `MapCanvas.PushTool` or `SwitchTool` occurs inside a UI lambda. 
+*   **Fail Condition:** The `GizmoInteractionProxyTool` or any similar bridging wrapper remains in the codebase. 
+
+**Phase 2: Purging Geometry Manipulation Tools**
+*   **Pass Condition:** The `EditTool` and `RouteEditTool` classes are physically deleted from the repository. 
+*   **Pass Condition:** Vertex manipulation is handled purely by `IEntityStatefulGizmo` implementations using `GizmoPickToken.SubElementId` to identify the dragged vertex.
+*   **Fail Condition:** Presentation-tier tools allocate in-memory ghost lists, such as `_ghostPoints`, trapping domain state in the UI layer.
+
+**Phase 3: Migrating Creation & Authoring Tools**
+*   **Pass Condition:** The `CreationTool`, `AreaPlacementTool`, `RoutePlacementTool`, and `ObstaclePlacementTool` classes are physically deleted.
+*   **Pass Condition:** Global authoring interactions implement the ECS-agnostic `IStatefulGizmo` contract and explicitly hold exclusive focus via the `GizmoInteractionManager`. 
+*   **Fail Condition:** Authoring FSMs rely on injected UI delegates to execute domain mutation rather than publishing strictly-typed commands, such as `SpawnEntityCommand`, to the local event bus.
+
+**Phase 4: Refactoring Asynchronous Picking Services**
+*   **Pass Condition:** The legacy `EntityPickerTool`, `LocationPickerTool`, and `ModalBoxSelectionTool` classes are deleted entirely. 
+*   **Pass Condition:** Implementations of `IMapPickService`, such as `CanvasMapPickAdapter`, register transient `IStatefulGizmo` instances directly with the gizmo interaction boundary instead of pushing tools onto the rendering canvas.
+
+**Phase 5: Eradicating the Input Router (`StandardInteractionTool`)**
+*   **Pass Condition:** The `StandardInteractionTool` god-class is deleted from the repository.
+*   **Pass Condition:** Selection state logic is transitioned to an ECS system that consumes strongly-typed events like `GizmoMouseEvent` to evaluate picking and directly mutates the `SelectionState` component.
+*   **Fail Condition:** The canvas abstraction parses raw hardware input arrays to perform its own spatial entity queries or distance evaluations.
+
+**Phase 6: Dismantling the MapCanvas Tool Stack**
+*   **Pass Condition:** The `IMapTool` interface file is completely removed from the solution.
+*   **Pass Condition:** The `MapCanvas` implementation is purged of its internal `_toolStack`, `ActiveTool` property, and the imperative `PushTool`, `PopTool`, and `SwitchTool` mutation methods. 
+*   **Pass Condition:** `MapCanvas.ProcessInputPipeline()` is stripped down to handle only core camera pan/zoom evaluations and layer mask filtering.

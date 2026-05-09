@@ -526,6 +526,8 @@ namespace Hrot.SimHost
                 _gizmoRegistry,
                 _statelessGizmoRegistry,
                 settings: new GizmoSettingsRegistry());
+            // BATCH-24: register the EntityRotatorGizmoDefinition (data-driven rotation).
+            _gizmoRegistry.Register(new Hrot.SimHost.Gizmos.EntityRotatorGizmoDefinition());
             _dataDrivenGizmoSystem = new DataDrivenGizmoSystem(
                 _gizmoRegistry,
                 _gizmoBuffer,

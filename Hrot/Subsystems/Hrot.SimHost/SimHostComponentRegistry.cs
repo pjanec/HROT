@@ -119,5 +119,11 @@ public static class SimHostComponentRegistry
         // ── Raycast events ────────────────────────────────────────────────────
         world.RegisterEvent<Fdp.Toolkit.Physics.RaycastRequestEvent>();
         world.RegisterEvent<Fdp.Toolkit.Physics.RaycastResultEvent>();
+
+        // ── Gizmo activation marker components ───────────────────────────────
+        world.RegisterComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>();
+
+        // ── Gizmo activation events ───────────────────────────────────────────
+        world.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent>();
     }
 }

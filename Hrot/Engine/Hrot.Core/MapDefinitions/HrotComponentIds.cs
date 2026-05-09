@@ -94,5 +94,10 @@ namespace Hrot.Map.Definitions
 
         /// <summary><c>GlobalDebugSettings</c> — singleton struct controlling global gizmo visibility and layer mask for the IG subsystem.</summary>
         public const byte GlobalDebugSettings = 185;
+
+        // ── Gizmo activation marker components (GZ-BATCH-24) ─────────────────────
+
+        /// <summary><c>ActiveRotationToolRequest</c> — zero-payload marker added to an entity when the operator activates the rotation gizmo.</summary>
+        public const byte ActiveRotationToolRequest = 186;
     }
 }

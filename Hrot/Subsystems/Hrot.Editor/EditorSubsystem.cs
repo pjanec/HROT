@@ -525,17 +525,18 @@ namespace Hrot.Editor
             // The Editor has no DDS transport; primitives are produced locally and consumed
             // by a DebugGizmoLayer on the canvas.
             _gizmoBuffer = new DebugPrimitiveBuffer();
+            var editorGizmoRegistry = new GizmoRegistry();
             var editorStatelessGizmoRegistry = new StatelessGizmoRegistry();
             // Auto-register all [GizmoProjector]-decorated gizmos in Hrot.ScenarioEditor.Gizmos
             // (IgEntityPresentationGizmo, RouteGizmo, MapOverlayGizmo, EffectPresentationGizmo, ...).
             Hrot.ScenarioEditor.Gizmos.GizmoRegistrar.RegisterAll(
-                new GizmoRegistry(), editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
+                editorGizmoRegistry, editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
             // Register gizmos from Hrot.Common.Diagnostics (SelectionHighlightGizmo, HealthBarGizmo, ...).
             Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar.RegisterAll(
-                new GizmoRegistry(), editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
+                editorGizmoRegistry, editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
             // Register gizmos from Hrot.IG.Gizmos (EffectPresentationGizmo, ...).
             Hrot.IG.Gizmos.GizmoRegistrar.RegisterAll(
-                new GizmoRegistry(), editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
+                editorGizmoRegistry, editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
             // MissionPresentationGizmo requires IGeographicTransform — register manually.
             editorStatelessGizmoRegistry.Register(
                 new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(geoTransform),
@@ -544,6 +545,14 @@ namespace Hrot.Editor
             editorStatelessGizmoRegistry.Register(
                 new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(_behaviorRegistry!),
                 new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
+            editorGizmoRegistry.Register(new Hrot.SimHost.Gizmos.EntityRotatorGizmoDefinition());
+            var editorDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
+                editorGizmoRegistry,
+                _gizmoBuffer,
+                isSelectedPredicate: static (view, entity) =>
+                    view.HasComponent<SelectionState>(entity) &&
+                    view.GetComponentRO<SelectionState>(entity).IsSelected);
+            _kernel.RegisterGlobalSystem(editorDataDrivenGizmoSystem);
             _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(editorStatelessGizmoRegistry, _gizmoBuffer));
             // SpatialGridGizmo reads the SpatialGridData singleton — register as a standalone system.
             _kernel.RegisterGlobalSystem(new Hrot.Common.Diagnostics.Gizmos.SpatialGridGizmo(_gizmoBuffer, new GizmoSettingsRegistry()));
@@ -1270,10 +1279,17 @@ namespace Hrot.Editor
 
                     case Hrot.Editor.EditorTool.Rotate:
                     {
-                        // Push EntityRotationTool for the primary selected entity (must have SimTransform).
+                        // Add ActiveRotationToolRequest marker; DataDrivenGizmoSystem creates
+                        // EntityRotatorGizmo. GizmoFocusInputBridge translates canvas events to
+                        // ECS events until Phase 5 migrates all input routing.
                         var entity = _selectionState.PrimarySelected;
                         if (entity is { } e && e != Entity.Null && _world.HasComponent<Fdp.Core.SimTransform>(e))
-                            _canvas!.PushTool(new Hrot.ScenarioEditor.Tools.EntityRotationTool(e, _world));
+                        {
+                            if (!_world!.HasComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(e))
+                                _world!.AddComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(e, default);
+                            _world!.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = e });
+                            _canvas!.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.GizmoFocusInputBridge(_world!.Bus, e));
+                        }
                         break;
                     }
                 }
