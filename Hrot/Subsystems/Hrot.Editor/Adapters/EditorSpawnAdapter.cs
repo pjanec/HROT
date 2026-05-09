@@ -6,7 +6,6 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Tools;
-using Hrot.Editor.Tools;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;

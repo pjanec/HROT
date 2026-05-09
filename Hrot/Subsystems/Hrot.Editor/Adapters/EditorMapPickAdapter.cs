@@ -8,8 +8,9 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Tools;
-using Hrot.Editor.Tools;
+using Hrot.Editor.Gizmos;
 using Hrot.IG.Systems;
+using Hrot.ScenarioEditor.Gizmos;
 using Hrot.UI.Common.Facades;
 
 namespace Hrot.Editor.Adapters
@@ -53,29 +54,22 @@ namespace Hrot.Editor.Adapters
         /// <inheritdoc/>
         public Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default)
         {
-            var tcs  = new TaskCompletionSource<Hrot.Core.Mission.GeoPoint>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var tool = new Hrot.Editor.Tools.LocationPickerTool(_geoTransform);
+            var tcs = new TaskCompletionSource<Hrot.Core.Mission.GeoPoint>(TaskCreationOptions.RunContinuationsAsynchronously);
+            PlacementCanvasBridge? bridge = null;
+            var gizmo = new LocationPickerGizmo(
+                _geoTransform,
+                geo => tcs.TrySetResult(new Hrot.Core.Mission.GeoPoint(geo.Latitude, geo.Longitude, geo.Altitude)),
+                onRemove: () => bridge?.RequestPop());
+            bridge = new PlacementCanvasBridge(gizmo);
 
-            tool.OnLocationPicked += geo =>
+            ct.Register(() =>
             {
-                tcs.TrySetResult(new Hrot.Core.Mission.GeoPoint(geo.Latitude, geo.Longitude, geo.Altitude));
-            };
-
-            tool.OnCancelled += () =>
-            {
-                tcs.TrySetCanceled();
-            };
-
-            CancellationTokenRegistration reg = default;
-            reg = ct.Register(() =>
-            {
-                if (_canvas.ActiveTool == tool)
-                    _canvas.PopTool();
+                if (_canvas.ActiveTool == bridge)
+                    bridge.RequestPop();
                 tcs.TrySetCanceled(ct);
-                reg.Dispose();
             });
 
-            _canvas.PushTool(tool);
+            _canvas.PushTool(bridge);
             return tcs.Task;
         }
 
@@ -128,29 +122,21 @@ namespace Hrot.Editor.Adapters
             string[]? filterPresets = null,
             CancellationToken ct    = default)
         {
-            var tcs  = new TaskCompletionSource<IReadOnlyList<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var tool = new ModalBoxSelectionTool();
+            var tcs = new TaskCompletionSource<IReadOnlyList<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            PlacementCanvasBridge? bridge = null;
+            var gizmo = new ModalBoxSelectionGizmo(
+                list => tcs.TrySetResult(list),
+                onRemove: () => bridge?.RequestPop());
+            bridge = new PlacementCanvasBridge(gizmo);
 
-            tool.OnSelectionComplete += list =>
+            ct.Register(() =>
             {
-                tcs.TrySetResult(list);
-            };
-
-            tool.OnCancelled += () =>
-            {
-                tcs.TrySetCanceled();
-            };
-
-            CancellationTokenRegistration reg = default;
-            reg = ct.Register(() =>
-            {
-                if (_canvas.ActiveTool == tool)
-                    _canvas.PopTool();
+                if (_canvas.ActiveTool == bridge)
+                    bridge.RequestPop();
                 tcs.TrySetCanceled(ct);
-                reg.Dispose();
             });
 
-            _canvas.PushTool(tool);
+            _canvas.PushTool(bridge);
             return tcs.Task;
         }
     }
