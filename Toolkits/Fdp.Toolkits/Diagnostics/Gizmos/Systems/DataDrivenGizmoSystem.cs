@@ -62,6 +62,51 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         // null when no gizmo holds focus.
         private IEntityStatefulGizmo? _focusedGizmo;
 
+        // On-demand gizmos injected externally (e.g. EntityRotatorGizmo activated via context
+        // menu). Keyed by entity; always drawn while the entity is alive; not governed by
+        // GizmoRegistry rules or the selection predicate.
+        private readonly Dictionary<Entity, IEntityStatefulGizmo> _injectedGizmos = new();
+
+        // ---- On-demand gizmo management ------------------------------------------------
+
+        /// <summary>
+        /// Registers an on-demand gizmo for <paramref name="entity"/> and grants it exclusive
+        /// focus if it requests it. Replaces any previously injected gizmo for the same entity.
+        /// Call this when the operator activates an interaction tool (e.g. "Rotate") for a
+        /// specific entity from a context menu or inspector panel.
+        /// </summary>
+        public void ActivateGizmo(Entity entity, IEntityStatefulGizmo gizmo)
+        {
+            // Tear down any existing injected gizmo for this entity first.
+            DeactivateGizmo(entity);
+
+            _injectedGizmos[entity] = gizmo;
+
+            if (gizmo.RequiresExclusiveFocus && _focusedGizmo == null)
+            {
+                _focusedGizmo = gizmo;
+                _focusedGizmo.SetFocus(true);
+            }
+        }
+
+        /// <summary>
+        /// Removes and disposes the on-demand gizmo previously injected for
+        /// <paramref name="entity"/>, if any, and releases exclusive focus.
+        /// </summary>
+        public void DeactivateGizmo(Entity entity)
+        {
+            if (!_injectedGizmos.TryGetValue(entity, out var gizmo)) return;
+
+            if (_focusedGizmo == gizmo)
+            {
+                _focusedGizmo.SetFocus(false);
+                _focusedGizmo = null;
+            }
+
+            gizmo.Dispose();
+            _injectedGizmos.Remove(entity);
+        }
+
         // ---- Private per-instance gizmo record ------------------------------------
 
         private struct CompiledGizmoInstance
@@ -217,6 +262,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 _timeSliceOffset = (startOffset + processed) % count;
             }
 
+            // 4b. Drive injected on-demand gizmos; always drawn while the entity is alive.
+            foreach (var kvp in _injectedGizmos)
+            {
+                if (view.IsAlive(kvp.Key))
+                    kvp.Value.UpdateAndDraw(deltaTime, _drawBuilder);
+            }
+
             // 5. Route typed interaction events to the appropriate gizmo.
             RouteInteractionEvents(view);
 
@@ -343,6 +395,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
         private void TeardownEntity(Entity entity)
         {
+            // Also tear down any injected on-demand gizmo for this entity.
+            if (_injectedGizmos.TryGetValue(entity, out var injected))
+            {
+                if (_focusedGizmo == injected)
+                {
+                    _focusedGizmo.SetFocus(false);
+                    _focusedGizmo = null;
+                }
+                injected.Dispose();
+                _injectedGizmos.Remove(entity);
+            }
+
             if (!_activeGizmos.TryGetValue(entity, out var list))
                 return;
 
