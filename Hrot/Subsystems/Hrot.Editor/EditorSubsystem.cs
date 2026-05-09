@@ -546,6 +546,8 @@ namespace Hrot.Editor
             editorStatelessGizmoRegistry.Register(
                 new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(_behaviorRegistry!),
                 new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
+            // EntityDragGizmoDefinition has an optional callback constructor — register manually.
+            editorGizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
             _editorDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
                 editorGizmoRegistry,
                 _gizmoBuffer,
