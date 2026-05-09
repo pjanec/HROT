@@ -11,7 +11,7 @@ using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.UI.Common.Facades;
-using Hrot.ScenarioEditor.Tools;
+using Hrot.ScenarioEditor.Gizmos;
 using Fdp.Toolkit.Replication;
 using Hrot.Core.Network;
 
@@ -21,7 +21,7 @@ namespace Hrot.Editor.Adapters
     /// Implements <see cref="ISpawnController"/> for the offline editor.
     /// Translates spawn requests into <see cref="MapCanvas"/> tool activations:
     /// <list type="bullet">
-    ///   <item>Entity placement â†’ <see cref="CreationTool"/> pushed onto the canvas.</item>
+    ///   <item>Entity placement → <see cref="PlacementCanvasBridge"/> (wrapping <see cref="EntityPlacementGizmo"/>) pushed onto the canvas.</item>
     ///   <item>Area authoring â†’ <see cref="PointSequenceTool"/> pushed onto the canvas.</item>
     ///   <item>Route authoring â†’ <see cref="PointSequenceTool"/> pushed onto the canvas.</item>
     /// </list>
@@ -72,9 +72,9 @@ namespace Hrot.Editor.Adapters
 
         /// <inheritdoc/>
         /// <remarks>
-        /// Creates a <see cref="CreationTool"/> whose delegate seeds a baseline
-        /// <see cref="EntityInfo"/> (so the entity always appears in the ORBAT tree)
-        /// then uses the shared <see cref="JsonAttributeCompiler"/> to compile
+        /// Creates an <see cref="EntityPlacementGizmo"/> wrapped in a <see cref="PlacementCanvasBridge"/>.
+        /// The gizmo delegate seeds a baseline <see cref="EntityInfo"/> (so the entity always appears
+        /// in the ORBAT tree) then uses the shared <see cref="JsonAttributeCompiler"/> to compile
         /// <c>InitialAttributesJson</c> overrides on top, then publishes the completed
         /// <see cref="SpawnEntityCommand"/> onto the local bus.
         /// </remarks>
@@ -82,7 +82,8 @@ namespace Hrot.Editor.Adapters
         {
             LastSelectedTkbType = tkbType;
 
-            var tool = new CreationTool(
+            PlacementCanvasBridge? bridge = null;
+            var gizmo = new EntityPlacementGizmo(
                 onEntityCreated: cmd =>
                 {
                     cmd.InitialComponents ??= new System.Collections.Generic.List<object>();
@@ -143,9 +144,10 @@ namespace Hrot.Editor.Adapters
                 },
                 tkbType:               tkbType,
                 initialPropertiesJson: initialPropertiesJson,
-                autoPopOnPlace:        true);
-
-            _canvas.PushTool(tool);
+                autoPopOnPlace:        true,
+                onRemove:              () => bridge?.RequestPop());
+            bridge = new PlacementCanvasBridge(gizmo);
+            _canvas.PushTool(bridge);
         }
 
         /// <summary>

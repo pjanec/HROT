@@ -14,10 +14,8 @@ public class ToolPresenceTests
     public void ScenarioEditor_Assembly_ContainsAllToolTypes()
     {
         var asm = typeof(ScenarioEditorModule).Assembly;
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.CreationTool"));
         Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.MeasureTool"));
         Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.StandardInteractionTool"));
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.CreationToolConstants"));
         Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.MeasureToolConstants"));
         Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.StandardInteractionToolConstants"));
 
@@ -26,6 +24,14 @@ public class ToolPresenceTests
         Assert.Null(asm.GetType("Hrot.ScenarioEditor.Tools.RouteEditTool"));
         Assert.Null(asm.GetType("Hrot.ScenarioEditor.Tools.EditToolConstants"));
         Assert.Null(asm.GetType("Hrot.ScenarioEditor.Tools.RouteEditToolConstants"));
+
+        // Phase 3 erasures (BATCH-26)
+        Assert.Null(asm.GetType("Hrot.ScenarioEditor.Tools.CreationTool"));
+        Assert.Null(asm.GetType("Hrot.ScenarioEditor.Tools.CreationToolConstants"));
+
+        // Phase 3 additions (BATCH-26)
+        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Gizmos.EntityPlacementGizmo"));
+        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Gizmos.PlacementCanvasBridge"));
     }
 
     [Fact]

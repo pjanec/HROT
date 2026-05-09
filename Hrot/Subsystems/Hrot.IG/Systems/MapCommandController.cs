@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Hrot.Core.Network;
 using Hrot.IG.Components;
-using Hrot.ScenarioEditor.Tools;
+using Hrot.ScenarioEditor.Gizmos;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Core.Logging;
@@ -18,14 +18,15 @@ namespace Hrot.IG.Systems;
 ///
 /// <para>
 /// This control layer decouples IG map tools from any specific network protocol.
-/// Tools (e.g. <see cref="CreationTool"/>) receive C# delegates and are unaware of
-/// DDS. The controller:
+/// A <see cref="PlacementCanvasBridge"/> wrapping an <see cref="EntityPlacementGizmo"/> is
+/// pushed onto the canvas; the gizmo receives C# delegates and is unaware of DDS.
+/// The controller:
 /// <list type="bullet">
-///   <item>Creates the appropriate tool with injected delegates.</item>
+///   <item>Creates the appropriate gizmo+bridge with injected delegates.</item>
 ///   <item>Forwards <see cref="CreateEntityRequest"/> to SimHost when the tool delegate fires.</item>
 ///   <item>Correlates incoming <see cref="CreateEntityAck"/> samples back to the originating
 ///         session and publishes a <see cref="MapCommandAck"/> to the ExCon.</item>
-///   <item>Detects tool cancellation (via the <see cref="CreationTool.Exited"/> event) and
+///   <item>Detects tool cancellation (via the <c>onRemove</c> callback) and
 ///         publishes a cancellation <see cref="MapCommandAck"/> so the ExCon can close its
 ///         pending interaction session.</item>
 /// </list>
@@ -64,7 +65,7 @@ public class MapCommandController
     private Guid _sessionContextId;
 
     /// <summary>Tool pushed onto the canvas for this session.</summary>
-    private CreationTool? _activeCreationTool;
+    private PlacementCanvasBridge? _activePlacementBridge;
 
     /// <summary>Whether the active tool has already exited the stack (either via success-pop or
     /// cancellation). Used to decide whether to send a final vs intermediate ack when a
@@ -75,8 +76,8 @@ public class MapCommandController
     /// <summary>
     /// Per-session name-generator delegate created by <see cref="IgApplication"/> when
     /// auto-naming is requested (<see cref="Hrot.NED.Messages.EntityPropertyPatch.AutogenerateName"/>).
-    /// Invoked once per left-click inside <see cref="CreationTool"/> to produce a unique
-    /// sequential entity name (e.g. "Tank-3", "Tank-4", …). <c>null</c> when no
+    /// Invoked once per left-click inside <see cref="EntityPlacementGizmo"/> to produce a unique
+    /// sequential entity name (e.g. "Tank-3", "Tank-4", ...). <c>null</c> when no
     /// auto-naming is active for the current session.
     /// </summary>
     private Func<string>? _nameGenerator;
@@ -122,7 +123,7 @@ public class MapCommandController
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Activates a <see cref="CreationTool"/> session for a <c>CMD_PLACE_ENTITY</c> command.
+    /// Activates an <see cref="EntityPlacementGizmo"/> session for a <c>CMD_PLACE_ENTITY</c> command.
     ///
     /// <para>Guarded against duplicate activations: if a session with the same context ID is
     /// already active, the call is a no-op.</para>
@@ -131,15 +132,15 @@ public class MapCommandController
     /// <param name="contextId">The ExCon-provided interaction context ID.</param>
     /// <param name="tkbType">TKB template type for the entity to create.</param>
     /// <param name="geoTransform">
-    /// Optional geographic transform; passed through to <see cref="CreationTool"/>.
+    /// Optional geographic transform; passed through for future use.
     /// </param>
     /// <param name="initialPropertiesJson">
-    /// Optional JSON override blob forwarded to <see cref="CreationTool"/>. The tool
+    /// Optional JSON override blob forwarded to <see cref="EntityPlacementGizmo"/>. The gizmo
     /// recognises <c>name</c> (string), <c>affiliation</c> (string) and ignores unknown fields.
     /// </param>
     /// <param name="nameGenerator">
     /// Optional per-click name-generator delegate. When provided it is passed to
-    /// <see cref="CreationTool"/> as its <c>nameResolver</c>, overriding any <c>name</c>
+    /// <see cref="EntityPlacementGizmo"/> as its <c>nameResolver</c>, overriding any <c>name</c>
     /// encoded in <paramref name="initialPropertiesJson"/>. Typically built by
     /// <see cref="IgApplication"/> via <see cref="UniqueNameGenerator.CreateSessionGenerator"/>
     /// when <c>AutogenerateName</c> is set in the placement patch.
@@ -156,8 +157,8 @@ public class MapCommandController
         if (contextId != Guid.Empty && contextId == _sessionContextId && !_toolFinished)
             return;
 
-        // Pop any leftover CreationTool from a previous session.
-        if (_canvas.ActiveTool is CreationTool)
+        // Pop any leftover PlacementCanvasBridge from a previous session.
+        if (_canvas.ActiveTool is PlacementCanvasBridge)
             _canvas.PopTool();
 
         ClearSession();
@@ -167,16 +168,21 @@ public class MapCommandController
         _toolFinished     = false;
         _nameGenerator    = nameGenerator;
 
-        var tool = new CreationTool(
+        PlacementCanvasBridge? bridge = null;
+        var gizmo = new EntityPlacementGizmo(
             onEntityCreated:       OnEntityCreatedByTool,
             tkbType:               tkbType,
             initialPropertiesJson: initialPropertiesJson,
             autoPopOnPlace:        true,
-            nameResolver:          _nameGenerator);   // null when no auto-naming
-
-        tool.Exited += OnCreationToolExited;
-        _activeCreationTool = tool;
-        _canvas.PushTool(tool);
+            nameResolver:          _nameGenerator,
+            onRemove:              () =>
+            {
+                bridge?.RequestPop();
+                OnCreationToolExited();
+            });
+        bridge = new PlacementCanvasBridge(gizmo);
+        _activePlacementBridge = bridge;
+        _canvas.PushTool(bridge);
 
         FdpLog<MapCommandController>.Info(
             "[Node-{0}] PlacementTool activated. RequestId={1} ContextId={2} TKB={3}",
@@ -292,8 +298,8 @@ public class MapCommandController
     // ── Private helpers ───────────────────────────────────────────────────────
 
     /// <summary>
-    /// Delegate injected into <see cref="CreationTool"/>; called when the operator
-    /// left-clicks on the canvas and the tool builds a <see cref="SpawnEntityCommand"/>.
+    /// Delegate injected into <see cref="EntityPlacementGizmo"/>; called when the operator
+    /// left-clicks on the canvas and the gizmo builds a <see cref="SpawnEntityCommand"/>.
     /// Publishes the command on the event bus so the ACL egress translator
     /// converts it to a DDS <see cref="CreateEntityRequest"/> for SimHost.
     /// </summary>
@@ -307,8 +313,8 @@ public class MapCommandController
     }
 
     /// <summary>
-    /// Called (via the <see cref="CreationTool.Exited"/> event) when the active
-    /// <see cref="CreationTool"/> pops off the canvas.
+    /// Called (via the <c>onRemove</c> callback) when the active
+    /// <see cref="EntityPlacementGizmo"/> pops off the canvas.
     /// </summary>
     private void OnCreationToolExited()
     {
@@ -348,11 +354,11 @@ public class MapCommandController
 
     private void ClearSession()
     {
-        _sessionRequestId   = Guid.Empty;
-        _sessionContextId   = Guid.Empty;
-        _toolFinished       = false;
-        _activeCreationTool = null;
-        _nameGenerator      = null;
+        _sessionRequestId      = Guid.Empty;
+        _sessionContextId      = Guid.Empty;
+        _toolFinished          = false;
+        _activePlacementBridge = null;
+        _nameGenerator         = null;
         _pendingEntityRequests.Clear();
     }
 

@@ -1,8 +1,9 @@
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Vis2D;
-using Hrot.Editor.Tools;
+using Hrot.Editor.Gizmos;
 using Hrot.Map.Common.Events;
+using Hrot.ScenarioEditor.Gizmos;
 using Hrot.UI.Common.Facades;
 
 namespace Hrot.Editor.Adapters
@@ -16,8 +17,9 @@ namespace Hrot.Editor.Adapters
     ///     onto the local bus for the zone ingress system to consume.
     ///   </item>
     ///   <item>
-    ///     <see cref="StartObstaclePlacementMode"/> pushes an <see cref="ObstaclePlacementTool"/>
-    ///     whose click callback publishes a <see cref="SpawnZoneObstacleCommand"/>.
+    ///     <see cref="StartObstaclePlacementMode"/> pushes a <see cref="PlacementCanvasBridge"/>
+    ///     (wrapping <see cref="ObstaclePlacementGizmo"/>) whose click callback publishes
+    ///     a <see cref="SpawnZoneObstacleCommand"/>.
     ///   </item>
     /// </list>
     ///
@@ -52,9 +54,10 @@ namespace Hrot.Editor.Adapters
             var zoneName   = activeZoneName; // captured
             var zoneRadius = radius;         // captured
 
-            var tool = new ObstaclePlacementTool(
-                radius:    radius,
-                onPlaced:  worldPos =>
+            PlacementCanvasBridge? bridge = null;
+            var gizmo = new ObstaclePlacementGizmo(
+                radius:           radius,
+                onObstaclePlaced: worldPos =>
                 {
                     _bus.PublishManaged(new SpawnZoneObstacleCommand
                     {
@@ -62,9 +65,10 @@ namespace Hrot.Editor.Adapters
                         Position = new Vector2(worldPos.X, worldPos.Y),
                         Radius   = zoneRadius,
                     });
-                });
-
-            _canvas.PushTool(tool);
+                },
+                onRemove: () => bridge?.RequestPop());
+            bridge = new PlacementCanvasBridge(gizmo);
+            _canvas.PushTool(bridge);
         }
     }
 }

@@ -13,7 +13,6 @@ using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Common.Events;
 using Hrot.Common.Orchestration.Handlers;
 using Hrot.Editor.Adapters;
-using Hrot.Editor.Tools;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Config;
 using Hrot.Map.Common.Events;
@@ -21,6 +20,8 @@ using Hrot.Map.Definitions.Tkb;
 using Hrot.NED.Common;
 using Hrot.Core.Mission;
 using Hrot.ScenarioEditor;
+using Hrot.ScenarioEditor.Gizmos;
+using Hrot.Editor.Tools;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
 using Moq;
@@ -78,12 +79,12 @@ namespace Hrot.Editor.Tests.Adapters
         private readonly FdpEventBus   _bus    = new();
 
         [Fact]
-        public void StartPlacementMode_PushesCreationTool()
+        public void StartPlacementMode_PushesPlacementCanvasBridge()
         {
             var adapter = new EditorSpawnAdapter(_canvas, _bus);
             adapter.StartPlacementMode(2001L, null);
 
-            Assert.IsType<Hrot.ScenarioEditor.Tools.CreationTool>(_canvas.ActiveTool);
+            Assert.IsType<PlacementCanvasBridge>(_canvas.ActiveTool);
         }
 
         [Fact]
@@ -487,12 +488,12 @@ namespace Hrot.Editor.Tests.Adapters
         }
 
         [Fact]
-        public void StartObstaclePlacementMode_PushesObstaclePlacementTool()
+        public void StartObstaclePlacementMode_PushesPlacementCanvasBridge()
         {
             var adapter = new EditorZoneAdapter(_canvas, _bus);
             adapter.StartObstaclePlacementMode("zone_alpha", 10f);
 
-            Assert.IsType<ObstaclePlacementTool>(_canvas.ActiveTool);
+            Assert.IsType<PlacementCanvasBridge>(_canvas.ActiveTool);
         }
 
         [Fact]
@@ -501,14 +502,16 @@ namespace Hrot.Editor.Tests.Adapters
             var adapter = new EditorZoneAdapter(_canvas, _bus);
             adapter.StartObstaclePlacementMode("zone_beta", 5f);
 
-            var tool = Assert.IsType<ObstaclePlacementTool>(_canvas.ActiveTool);
-            tool.OnObstaclePlaced?.Invoke(new Vector2(100f, 200f));
+            var bridge = Assert.IsType<PlacementCanvasBridge>(_canvas.ActiveTool);
+            bridge.HandleClick(new Vector2(100f, 200f), MapMouseButton.Left);
 
-            _bus.SwapBuffers(); // PublishManaged writes to next-frame buffer
+            _bus.SwapBuffers();
             var events = _bus.ReadManaged<SpawnZoneObstacleCommand>();
             Assert.Single(events);
             Assert.Equal("zone_beta", events[0].ZoneName);
-            Assert.Equal(5f,          events[0].Radius);
+            Assert.Equal(100f, events[0].Position.X, precision: 2);
+            Assert.Equal(200f, events[0].Position.Y, precision: 2);
+            Assert.Equal(5f, events[0].Radius, precision: 2);
         }
     }
 

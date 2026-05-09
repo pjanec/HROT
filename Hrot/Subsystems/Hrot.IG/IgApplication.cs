@@ -1984,7 +1984,7 @@ public class IgApplication : IDisposable
 
     /// <summary>
 
-    /// Returns <c>true</c> when <see cref="CreationTool"/> is the currently active
+    /// Returns <c>true</c> when <see cref="PlacementCanvasBridge"/> is the currently active
 
     /// canvas tool  i.e. the operator is in placement mode (activated by an ExCon
 
@@ -1992,7 +1992,7 @@ public class IgApplication : IDisposable
 
     /// </summary>
 
-    internal bool TestHook_IsCreationToolActive => _canvas.ActiveTool is CreationTool;
+    internal bool TestHook_IsCreationToolActive => _canvas.ActiveTool is PlacementCanvasBridge;
 
 
 
@@ -2008,13 +2008,13 @@ public class IgApplication : IDisposable
 
     /// <summary>
 
-    /// Directly invokes <see cref="CreationTool.HandleClick"/> with a left-click at
+    /// Directly invokes <see cref="PlacementCanvasBridge.HandleClick"/> with a left-click at
 
     /// <paramref name="worldPos"/>, bypassing the ExCon-mediated <see cref="OnCanvasClicked"/>
 
     /// path.  This simulates what happens when the real operator clicks on the canvas
 
-    /// while the placement tool is active.  No-op when <see cref="CreationTool"/> is not
+    /// while the placement bridge is active.  No-op when <see cref="PlacementCanvasBridge"/> is not
 
     /// the active tool.
 
@@ -2024,9 +2024,9 @@ public class IgApplication : IDisposable
 
     {
 
-        if (_canvas.ActiveTool is CreationTool creationTool)
+        if (_canvas.ActiveTool is PlacementCanvasBridge bridge)
 
-            creationTool.HandleClick(worldPos, MapMouseButton.Left);
+            bridge.HandleClick(worldPos, MapMouseButton.Left);
 
     }
 

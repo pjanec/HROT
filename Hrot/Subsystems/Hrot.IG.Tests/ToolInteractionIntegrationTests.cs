@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Hrot.IG.Abstractions;
 using Hrot.IG.Components;
+using Hrot.ScenarioEditor.Gizmos;
 using Hrot.ScenarioEditor.Tools;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -22,7 +23,7 @@ namespace Hrot.IG.Tests;
 /// <summary>
 /// Integration tests verifying the canvas interaction flow after D001 refactor.
 ///
-/// <see cref="CreationTool"/> now publishes <see cref="SpawnEntityCommand"/> via
+/// <see cref="EntityPlacementGizmo"/> now publishes <see cref="SpawnEntityCommand"/> via
 /// a delegate rather than building a <see cref="Hrot.NED.Messages.CreateEntityRequest"/>.
 /// Pick/select tests create entities directly in the repository to simulate
 /// what the SimHost + ghost translator would do.
@@ -76,18 +77,23 @@ public class ToolInteractionIntegrationTests
         return e;
     }
 
-    // â”€â”€ Tests: DDS payload from CreationTool â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â”€â”€ Tests: EntityPlacementGizmo spawn command â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// A left-click must publish exactly one <see cref="SpawnEntityCommand"/> to the delegate.
     /// </summary>
     [Fact]
-    public void CreationTool_LeftClick_WritesDdsCreateEntityRequest()
+    public void EntityPlacementGizmo_LeftClick_WritesExactlyOneCommand()
     {
         var captured = new List<SpawnEntityCommand>();
-        var tool     = new CreationTool(cmd => captured.Add(cmd), tkbType: TestTkbType);
+        PlacementCanvasBridge? bridge = null;
+        var gizmo = new EntityPlacementGizmo(
+            onEntityCreated: cmd => captured.Add(cmd),
+            tkbType:         TestTkbType,
+            onRemove:        () => bridge?.RequestPop());
+        bridge = new PlacementCanvasBridge(gizmo);
 
-        tool.HandleClick(new Vector2(SpawnX, SpawnY), MapMouseButton.Left);
+        bridge.HandleClick(new Vector2(SpawnX, SpawnY), MapMouseButton.Left);
 
         Assert.Single(captured);
     }
@@ -97,18 +103,22 @@ public class ToolInteractionIntegrationTests
     /// encoded as <see cref="SpawnEntityCommand.InitialTransform"/>.
     /// </summary>
     [Fact]
-    public void CreationTool_LeftClick_RequestContainsMasterAndGeoSpatialDescriptors()
+    public void EntityPlacementGizmo_LeftClick_CommandCarriesTkbTypeAndPosition()
     {
         var captured = new List<SpawnEntityCommand>();
-        var tool     = new CreationTool(cmd => captured.Add(cmd), tkbType: TestTkbType);
+        PlacementCanvasBridge? bridge = null;
+        var gizmo = new EntityPlacementGizmo(
+            onEntityCreated: cmd => captured.Add(cmd),
+            tkbType:         TestTkbType,
+            onRemove:        () => bridge?.RequestPop());
+        bridge = new PlacementCanvasBridge(gizmo);
 
-        tool.HandleClick(new Vector2(SpawnX, SpawnY), MapMouseButton.Left);
+        bridge.HandleClick(new Vector2(SpawnX, SpawnY), MapMouseButton.Left);
 
-        var cmd = captured[0];
-        Assert.Equal(TestTkbType, cmd.TkbType);
-        Assert.True(cmd.InitialTransform.HasValue);
-        Assert.Equal(SpawnX, cmd.InitialTransform!.Value.Position.X, precision: 2);
-        Assert.Equal(SpawnY, cmd.InitialTransform!.Value.Position.Y, precision: 2);
+        Assert.Equal(TestTkbType, captured[0].TkbType);
+        Assert.True(captured[0].InitialTransform.HasValue);
+        Assert.Equal(SpawnX, captured[0].InitialTransform!.Value.Position.X, precision: 2);
+        Assert.Equal(SpawnY, captured[0].InitialTransform!.Value.Position.Y, precision: 2);
     }
 
     // â”€â”€ Tests: StandardInteractionTool selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
