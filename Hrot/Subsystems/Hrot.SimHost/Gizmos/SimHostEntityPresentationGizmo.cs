@@ -29,6 +29,10 @@ namespace Hrot.SimHost.Gizmos
 
             draw.DrawSpatialAnchor(networkId, tf.Position.X, tf.Position.Y, tf.Position.Z, headingDeg);
 
+            // Emit transparent pick sphere so DebugGizmoLayer can hit-test this entity for selection.
+            // The pick sphere radius must match EntityDragGizmo.PickRadius.
+            draw.DrawEntitySphere(entity, new Vector3(tf.Position.X, tf.Position.Y, 0f), 8f, new Rgba32(0, 0, 0, 0));
+
             float length = 0f;
             float width  = 0f;
             if (view.HasComponent<VehicleParams>(entity))

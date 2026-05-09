@@ -7,6 +7,9 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Events;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
@@ -20,7 +23,6 @@ using Hrot.Map.Definitions.Tkb;
 using Hrot.NED.Common;
 using Hrot.Core.Mission;
 using Hrot.ScenarioEditor;
-using Hrot.ScenarioEditor.Gizmos;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
 using Moq;
@@ -74,34 +76,39 @@ namespace Hrot.Editor.Tests.Adapters
 
     public sealed class EditorSpawnAdapterTests
     {
-        private readonly TestMapCanvas _canvas = new();
-        private readonly FdpEventBus   _bus    = new();
+        private readonly FdpEventBus          _bus     = new();
+        private readonly DebugPrimitiveBuffer _buffer  = new();
+
+        private GlobalGizmoManager MakeManager() => new GlobalGizmoManager(_buffer);
 
         [Fact]
-        public void StartPlacementMode_PushesPlacementCanvasBridge()
+        public void StartPlacementMode_RegistersGizmoWithManager()
         {
-            var adapter = new EditorSpawnAdapter(_canvas, _bus);
+            var manager = MakeManager();
+            var adapter = new EditorSpawnAdapter(_bus, globalGizmoManager: manager);
             adapter.StartPlacementMode(2001L, null);
 
-            Assert.IsType<PlacementCanvasBridge>(_canvas.ActiveTool);
+            Assert.Equal(1, manager.ActiveCount);
         }
 
         [Fact]
-        public void StartAreaAuthoringMode_PushesPointSequenceTool()
+        public void StartAreaAuthoringMode_RegistersGizmoWithManager()
         {
-            var adapter = new EditorSpawnAdapter(_canvas, _bus);
+            var manager = MakeManager();
+            var adapter = new EditorSpawnAdapter(_bus, globalGizmoManager: manager);
             adapter.StartAreaAuthoringMode("");
 
-            Assert.IsType<Fdp.Toolkit.Vis2D.Tools.PointSequenceTool>(_canvas.ActiveTool);
+            Assert.Equal(1, manager.ActiveCount);
         }
 
         [Fact]
-        public void StartRouteAuthoringMode_PushesPointSequenceTool()
+        public void StartRouteAuthoringMode_RegistersGizmoWithManager()
         {
-            var adapter = new EditorSpawnAdapter(_canvas, _bus);
+            var manager = MakeManager();
+            var adapter = new EditorSpawnAdapter(_bus, globalGizmoManager: manager);
             adapter.StartRouteAuthoringMode();
 
-            Assert.IsType<Fdp.Toolkit.Vis2D.Tools.PointSequenceTool>(_canvas.ActiveTool);
+            Assert.Equal(1, manager.ActiveCount);
         }
     }
 
@@ -420,17 +427,37 @@ namespace Hrot.Editor.Tests.Adapters
 
     public sealed class EditorMapPickAdapterTests
     {
-        private readonly TestMapCanvas _canvas = new();
+        private readonly TestMapCanvas        _canvas = new();
+        private readonly DebugPrimitiveBuffer _buffer = new();
+
+        private GlobalGizmoManager MakeManager() => new GlobalGizmoManager(_buffer);
+
+        private static void SimulateLeftClick(GlobalGizmoManager manager, float x = 0f, float y = 0f)
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterEvent<GizmoDragUpdateEvent>();
+            repo.RegisterEvent<GizmoMouseEvent>();
+            repo.RegisterEvent<GizmoKeyEvent>();
+            repo.Bus.Publish(new GizmoMouseEvent
+            {
+                Button    = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left,
+                IsPressed = false,
+                WorldPos  = new System.Numerics.Vector3(x, y, 0f),
+            });
+            repo.Bus.SwapBuffers();
+            manager.Execute(repo, 0f);
+        }
 
         [Fact]
         public async Task PickLocationAsync_ToolFires_TaskCompletesWithGeoPoint()
         {
-            var adapter = new EditorMapPickAdapter(_canvas, HrotEnvironment.CreateGeoTransform());
+            var manager = MakeManager();
+            var adapter = new EditorMapPickAdapter(_canvas, HrotEnvironment.CreateGeoTransform(), globalGizmoManager: manager);
             Task<Hrot.Core.Mission.GeoPoint> task = adapter.PickLocationAsync();
 
-            // Simulate the operator left-clicking.
-            var bridge = Assert.IsType<PlacementCanvasBridge>(_canvas.ActiveTool);
-            bridge.HandleClick(new Vector2(0f, 0f), MapMouseButton.Left);
+            // Verify gizmo is registered, then simulate left-click.
+            Assert.Equal(1, manager.ActiveCount);
+            SimulateLeftClick(manager, 0f, 0f);
 
             var result = await task;
             // The task should complete (the exact geo values depend on the transform).
@@ -443,11 +470,12 @@ namespace Hrot.Editor.Tests.Adapters
         public async Task PickLocationAsync_CancellationToken_TaskCancelled()
         {
             var cts     = new CancellationTokenSource();
-            var adapter = new EditorMapPickAdapter(_canvas, HrotEnvironment.CreateGeoTransform());
+            var manager = MakeManager();
+            var adapter = new EditorMapPickAdapter(_canvas, HrotEnvironment.CreateGeoTransform(), globalGizmoManager: manager);
             Task<Hrot.Core.Mission.GeoPoint> task = adapter.PickLocationAsync(cts.Token);
 
-            // Verify the bridge is the active tool before cancellation.
-            Assert.IsType<PlacementCanvasBridge>(_canvas.ActiveTool);
+            // Verify the gizmo is registered before cancellation.
+            Assert.Equal(1, manager.ActiveCount);
 
             cts.Cancel();
 
@@ -457,12 +485,13 @@ namespace Hrot.Editor.Tests.Adapters
         [Fact]
         public async Task PickAreaEntitiesAsync_ToolFires_TaskCompletesWithList()
         {
-            var adapter = new EditorMapPickAdapter(_canvas, HrotEnvironment.CreateGeoTransform());
+            var manager = MakeManager();
+            var adapter = new EditorMapPickAdapter(_canvas, HrotEnvironment.CreateGeoTransform(), globalGizmoManager: manager);
             Task<IReadOnlyList<int>> task = adapter.PickAreaEntitiesAsync();
 
             // Simulate a left-click to trigger the gizmo's selection complete callback.
-            var bridge = Assert.IsType<PlacementCanvasBridge>(_canvas.ActiveTool);
-            bridge.HandleClick(new Vector2(0f, 0f), MapMouseButton.Left);
+            Assert.Equal(1, manager.ActiveCount);
+            SimulateLeftClick(manager, 0f, 0f);
 
             var result = await task;
             // Placeholder implementation returns empty list.
@@ -476,8 +505,27 @@ namespace Hrot.Editor.Tests.Adapters
 
     public sealed class EditorZoneAdapterTests
     {
-        private readonly TestMapCanvas _canvas = new();
-        private readonly FdpEventBus   _bus    = new();
+        private readonly TestMapCanvas        _canvas = new();
+        private readonly FdpEventBus          _bus    = new();
+        private readonly DebugPrimitiveBuffer _buffer = new();
+
+        private GlobalGizmoManager MakeManager() => new GlobalGizmoManager(_buffer);
+
+        private static void SimulateLeftClick(GlobalGizmoManager manager, float x = 0f, float y = 0f)
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterEvent<GizmoDragUpdateEvent>();
+            repo.RegisterEvent<GizmoMouseEvent>();
+            repo.RegisterEvent<GizmoKeyEvent>();
+            repo.Bus.Publish(new GizmoMouseEvent
+            {
+                Button    = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left,
+                IsPressed = false,
+                WorldPos  = new System.Numerics.Vector3(x, y, 0f),
+            });
+            repo.Bus.SwapBuffers();
+            manager.Execute(repo, 0f);
+        }
 
         [Fact]
         public void SetRoadNetworkPath_PublishesUpdateZoneConfigCommand()
@@ -493,22 +541,23 @@ namespace Hrot.Editor.Tests.Adapters
         }
 
         [Fact]
-        public void StartObstaclePlacementMode_PushesPlacementCanvasBridge()
+        public void StartObstaclePlacementMode_RegistersGizmoWithManager()
         {
-            var adapter = new EditorZoneAdapter(_canvas, _bus);
+            var manager = MakeManager();
+            var adapter = new EditorZoneAdapter(_canvas, _bus, manager);
             adapter.StartObstaclePlacementMode("zone_alpha", 10f);
 
-            Assert.IsType<PlacementCanvasBridge>(_canvas.ActiveTool);
+            Assert.Equal(1, manager.ActiveCount);
         }
 
         [Fact]
         public void StartObstaclePlacementMode_OnClick_PublishesSpawnZoneObstacleCommand()
         {
-            var adapter = new EditorZoneAdapter(_canvas, _bus);
+            var manager = MakeManager();
+            var adapter = new EditorZoneAdapter(_canvas, _bus, manager);
             adapter.StartObstaclePlacementMode("zone_beta", 5f);
 
-            var bridge = Assert.IsType<PlacementCanvasBridge>(_canvas.ActiveTool);
-            bridge.HandleClick(new Vector2(100f, 200f), MapMouseButton.Left);
+            SimulateLeftClick(manager, 100f, 200f);
 
             _bus.SwapBuffers();
             var events = _bus.ReadManaged<SpawnZoneObstacleCommand>();

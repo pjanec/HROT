@@ -7,7 +7,7 @@ using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Fdp.Toolkit.Vis2D.Tools;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Hrot.Editor.Gizmos;
 using Hrot.IG.Systems;
 using Hrot.ScenarioEditor.Gizmos;
@@ -36,6 +36,7 @@ namespace Hrot.Editor.Adapters
         private readonly IGeographicTransform _geoTransform;
         private readonly EntityRepository? _repo;
         private readonly IEntityFilterFactory? _filterFactory;
+        private readonly GlobalGizmoManager? _globalGizmoManager;
 
         /// <param name="canvas">The map canvas that hosts the tool stack.</param>
         /// <param name="geoTransform">Used to convert flat-map Cartesian picks to WGS-84 geodetic coordinates.</param>
@@ -43,33 +44,33 @@ namespace Hrot.Editor.Adapters
         /// ECS entity repository used to translate picked ECS entity handles to
         /// <see cref="NetworkIdentity.Value"/> (Network ID) before completing pick tasks.
         /// </param>
-        public EditorMapPickAdapter(MapCanvas canvas, IGeographicTransform geoTransform, EntityRepository? repo = null)
+        /// <param name="globalGizmoManager">The global gizmo manager for placement gizmos.</param>
+        public EditorMapPickAdapter(MapCanvas canvas, IGeographicTransform geoTransform, EntityRepository? repo = null, GlobalGizmoManager? globalGizmoManager = null)
         {
             _canvas        = canvas;
             _geoTransform  = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
             _repo          = repo;
             _filterFactory = repo != null ? new HrotEntityFilterFactory(repo) : null;
+            _globalGizmoManager = globalGizmoManager;
         }
 
         /// <inheritdoc/>
         public Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default)
         {
             var tcs = new TaskCompletionSource<Hrot.Core.Mission.GeoPoint>(TaskCreationOptions.RunContinuationsAsynchronously);
-            PlacementCanvasBridge? bridge = null;
+            var id = GlobalGizmoManager.NewId();
             var gizmo = new LocationPickerGizmo(
                 _geoTransform,
                 geo => tcs.TrySetResult(new Hrot.Core.Mission.GeoPoint(geo.Latitude, geo.Longitude, geo.Altitude)),
-                onRemove: () => bridge?.RequestPop());
-            bridge = new PlacementCanvasBridge(gizmo);
+                onRemove: () => _globalGizmoManager!.Unregister(id));
 
             ct.Register(() =>
             {
-                if (_canvas.ActiveTool == bridge)
-                    bridge.RequestPop();
+                _globalGizmoManager!.Unregister(id);
                 tcs.TrySetCanceled(ct);
             });
 
-            _canvas.PushTool(bridge);
+            _globalGizmoManager!.Register(id, gizmo);
             return tcs.Task;
         }
 
@@ -82,38 +83,30 @@ namespace Hrot.Editor.Adapters
                 throw new InvalidOperationException(
                     "PickEntityAsync requires an EntityRepository. Pass a non-null repo to the EditorMapPickAdapter constructor.");
 
-            var tcs  = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var tool = new Fdp.Toolkit.Vis2D.Tools.EntityPickerTool(_filterFactory, filterPresets);
-
-            tool.OnEntityPicked += entity =>
-            {
-                // Translate ECS entity handle to Network ID via NetworkIdentity component.
-                if (_repo.IsAlive(entity) && _repo.HasComponent<NetworkIdentity>(entity))
+            var tcs    = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var id     = GlobalGizmoManager.NewId();
+            var filter = _filterFactory.CreateFilter(filterPresets ?? Array.Empty<string>());
+            var gizmo  = new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(
+                hitTest:     pos => _canvas.PickTopmostEntity(pos) ?? Fdp.Core.Entity.Null,
+                filter:      filter,
+                onPicked:    entity =>
                 {
-                    long netId = _repo.GetComponent<NetworkIdentity>(entity).Value;
-                    tcs.TrySetResult((int)netId);
-                }
-                else
-                {
-                    tcs.TrySetResult(-1);
-                }
-            };
+                    // Translate ECS entity handle to Network ID via NetworkIdentity component.
+                    int netId = -1;
+                    if (_repo != null && _repo.IsAlive(entity) && _repo.HasComponent<NetworkIdentity>(entity))
+                        netId = (int)_repo.GetComponent<NetworkIdentity>(entity).Value;
+                    tcs.TrySetResult(netId);
+                },
+                onCancelled: () => tcs.TrySetCanceled(),
+                onRemove:    () => _globalGizmoManager!.Unregister(id));
 
-            tool.OnCancelled += () =>
+            ct.Register(() =>
             {
-                tcs.TrySetCanceled();
-            };
-
-            CancellationTokenRegistration reg = default;
-            reg = ct.Register(() =>
-            {
-                if (_canvas.ActiveTool == tool)
-                    _canvas.PopTool();
+                _globalGizmoManager!.Unregister(id);
                 tcs.TrySetCanceled(ct);
-                reg.Dispose();
             });
 
-            _canvas.PushTool(tool);
+            _globalGizmoManager!.Register(id, gizmo);
             return tcs.Task;
         }
 
@@ -123,20 +116,18 @@ namespace Hrot.Editor.Adapters
             CancellationToken ct    = default)
         {
             var tcs = new TaskCompletionSource<IReadOnlyList<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
-            PlacementCanvasBridge? bridge = null;
+            var id = GlobalGizmoManager.NewId();
             var gizmo = new ModalBoxSelectionGizmo(
                 list => tcs.TrySetResult(list),
-                onRemove: () => bridge?.RequestPop());
-            bridge = new PlacementCanvasBridge(gizmo);
+                onRemove: () => _globalGizmoManager!.Unregister(id));
 
             ct.Register(() =>
             {
-                if (_canvas.ActiveTool == bridge)
-                    bridge.RequestPop();
+                _globalGizmoManager!.Unregister(id);
                 tcs.TrySetCanceled(ct);
             });
 
-            _canvas.PushTool(bridge);
+            _globalGizmoManager!.Register(id, gizmo);
             return tcs.Task;
         }
     }

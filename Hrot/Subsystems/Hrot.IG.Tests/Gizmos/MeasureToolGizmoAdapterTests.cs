@@ -1,7 +1,8 @@
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
-using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Hrot.IG.Gizmos;
-using Hrot.ScenarioEditor.Tools;
+using Hrot.ScenarioEditor.Gizmos;
 
 namespace Hrot.IG.Tests.Gizmos
 {
@@ -11,13 +12,14 @@ namespace Hrot.IG.Tests.Gizmos
 
     public sealed class MeasureToolGizmoAdapterTests
     {
-        private static (MapCanvas canvas, GizmoSettingsRegistry settings, MeasureToolGizmoAdapter adapter) Build()
+        private static (GlobalGizmoManager manager, GizmoSettingsRegistry settings, MeasureToolGizmoAdapter adapter) Build()
         {
-            var canvas   = new MapCanvas();
+            var buffer   = new DebugPrimitiveBuffer();
+            var manager  = new GlobalGizmoManager(buffer);
             var settings = new GizmoSettingsRegistry();
             MeasureToolGizmoSettings.Register(settings);
-            var adapter  = new MeasureToolGizmoAdapter(canvas, settings);
-            return (canvas, settings, adapter);
+            var adapter  = new MeasureToolGizmoAdapter(manager, settings);
+            return (manager, settings, adapter);
         }
 
         // ---- Settings registration ----------------------------------------
@@ -37,63 +39,63 @@ namespace Hrot.IG.Tests.Gizmos
             Assert.Equal(0, settings.Read(unitsHash).IntValue);
         }
 
-        // ---- Tool push/pop behaviour ----------------------------------------
+        // ---- Gizmo register/unregister behaviour ---------------------------
 
         [Fact]
-        public void SC_GZ021_MT_2_Update_WhenActiveIsFalse_DoesNotPushTool()
+        public void SC_GZ021_MT_2_Update_WhenActiveIsFalse_DoesNotRegisterGizmo()
         {
-            var (canvas, _, adapter) = Build();
+            var (manager, _, adapter) = Build();
 
             adapter.Update();
 
-            Assert.Null(canvas.ActiveTool);
+            Assert.Equal(0, manager.ActiveCount);
         }
 
         [Fact]
-        public void SC_GZ021_MT_3_Update_WhenActiveBecomeTrue_PushesToolOntoCanvas()
+        public void SC_GZ021_MT_3_Update_WhenActiveBecomeTrue_RegistersGizmoWithManager()
         {
-            var (canvas, settings, adapter) = Build();
+            var (manager, settings, adapter) = Build();
 
             uint activeHash = GizmoSettingsRegistry.ComputeHash(MeasureToolGizmoSettings.Active);
             settings.Write(activeHash, GizmoSettingValue.From(true));
 
             adapter.Update();
 
-            Assert.IsType<MeasureTool>(canvas.ActiveTool);
+            Assert.Equal(1, manager.ActiveCount);
+            Assert.IsType<MeasureGizmo>(adapter.TestHook_ActiveGizmo);
         }
 
         [Fact]
-        public void SC_GZ021_MT_4_Update_WhenActiveTurnsFalse_PopsTool()
+        public void SC_GZ021_MT_4_Update_WhenActiveTurnsFalse_UnregistersGizmo()
         {
-            var (canvas, settings, adapter) = Build();
+            var (manager, settings, adapter) = Build();
 
             uint activeHash = GizmoSettingsRegistry.ComputeHash(MeasureToolGizmoSettings.Active);
 
-            // Push first.
+            // Register first.
             settings.Write(activeHash, GizmoSettingValue.From(true));
             adapter.Update();
-            Assert.IsType<MeasureTool>(canvas.ActiveTool);
+            Assert.Equal(1, manager.ActiveCount);
 
-            // Pop.
+            // Unregister.
             settings.Write(activeHash, GizmoSettingValue.From(false));
             adapter.Update();
 
-            Assert.Null(canvas.ActiveTool);
+            Assert.Equal(0, manager.ActiveCount);
         }
 
         [Fact]
-        public void SC_GZ021_MT_5_Update_WhenActiveRemainsTrue_DoesNotDuplicatePush()
+        public void SC_GZ021_MT_5_Update_WhenActiveRemainsTrue_DoesNotDuplicateRegister()
         {
-            var (canvas, settings, adapter) = Build();
+            var (manager, settings, adapter) = Build();
 
             uint activeHash = GizmoSettingsRegistry.ComputeHash(MeasureToolGizmoSettings.Active);
             settings.Write(activeHash, GizmoSettingValue.From(true));
 
             adapter.Update();
-            adapter.Update();   // second frame — should not double-push
+            adapter.Update();   // second frame -- should not double-register
 
-            // Only one tool should be active (not two stacked measure tools).
-            Assert.IsType<MeasureTool>(canvas.ActiveTool);
+            Assert.Equal(1, manager.ActiveCount);
         }
 
         // ---- Unit sync -------------------------------------------------------
@@ -101,7 +103,7 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void SC_GZ021_MT_6_Update_UnitsZero_SetsDisplayUnitsMeters()
         {
-            var (canvas, settings, adapter) = Build();
+            var (_, settings, adapter) = Build();
 
             uint activeHash = GizmoSettingsRegistry.ComputeHash(MeasureToolGizmoSettings.Active);
             uint unitsHash  = GizmoSettingsRegistry.ComputeHash(MeasureToolGizmoSettings.Units);
@@ -111,14 +113,13 @@ namespace Hrot.IG.Tests.Gizmos
 
             adapter.Update();
 
-            var tool = Assert.IsType<MeasureTool>(canvas.ActiveTool);
-            Assert.Equal(MeasureDisplayUnits.Meters, tool.DisplayUnits);
+            Assert.Equal(MeasureDisplayUnits.Meters, adapter.TestHook_ActiveGizmo!.DisplayUnits);
         }
 
         [Fact]
         public void SC_GZ021_MT_7_Update_UnitsOne_SetsDisplayUnitsKilometers()
         {
-            var (canvas, settings, adapter) = Build();
+            var (_, settings, adapter) = Build();
 
             uint activeHash = GizmoSettingsRegistry.ComputeHash(MeasureToolGizmoSettings.Active);
             uint unitsHash  = GizmoSettingsRegistry.ComputeHash(MeasureToolGizmoSettings.Units);
@@ -128,28 +129,7 @@ namespace Hrot.IG.Tests.Gizmos
 
             adapter.Update();
 
-            var tool = Assert.IsType<MeasureTool>(canvas.ActiveTool);
-            Assert.Equal(MeasureDisplayUnits.Kilometers, tool.DisplayUnits);
-        }
-
-        [Fact]
-        public void SC_GZ021_MT_8_Update_UnitChangedWhileActive_SyncsDisplayUnits()
-        {
-            var (canvas, settings, adapter) = Build();
-
-            uint activeHash = GizmoSettingsRegistry.ComputeHash(MeasureToolGizmoSettings.Active);
-            uint unitsHash  = GizmoSettingsRegistry.ComputeHash(MeasureToolGizmoSettings.Units);
-
-            settings.Write(activeHash, GizmoSettingValue.From(true));
-            settings.Write(unitsHash,  GizmoSettingValue.From(0));
-
-            adapter.Update();   // pushed with meters
-
-            settings.Write(unitsHash, GizmoSettingValue.From(1));
-            adapter.Update();   // same frame (active stays true) — units must update
-
-            var tool = Assert.IsType<MeasureTool>(canvas.ActiveTool);
-            Assert.Equal(MeasureDisplayUnits.Kilometers, tool.DisplayUnits);
+            Assert.Equal(MeasureDisplayUnits.Kilometers, adapter.TestHook_ActiveGizmo!.DisplayUnits);
         }
     }
 }

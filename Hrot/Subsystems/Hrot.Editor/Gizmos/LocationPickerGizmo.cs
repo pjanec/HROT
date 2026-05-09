@@ -14,7 +14,7 @@ namespace Hrot.Editor.Gizmos
     /// Supports cancellation via ESC or right-click.
     ///
     /// Replaces the deleted <c>LocationPickerTool</c> (Phase 4 of the gizmo migration).
-    /// Exercised via <see cref="Hrot.ScenarioEditor.Gizmos.PlacementCanvasBridge"/> which
+    /// Exercised via <see cref="Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager"/> which
     /// forwards canvas events into this gizmo.
     /// </summary>
     public sealed class LocationPickerGizmo : IEntityStatefulGizmo
@@ -42,8 +42,7 @@ namespace Hrot.Editor.Gizmos
         /// <param name="onLocationPicked">Callback fired with the picked geographic position on left-click.</param>
         /// <param name="onRemove">
         /// Callback invoked when the gizmo wants to exit. Typically calls
-        /// <see cref="Hrot.ScenarioEditor.Gizmos.PlacementCanvasBridge.RequestPop"/> to pop
-        /// the bridge from the canvas.
+        /// <c>GlobalGizmoManager.Unregister</c> to remove the gizmo from the manager.
         /// </param>
         public LocationPickerGizmo(
             IGeographicTransform geoTransform,

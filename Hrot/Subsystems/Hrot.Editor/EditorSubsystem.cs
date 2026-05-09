@@ -63,7 +63,6 @@ using Hrot.Orchestrator;
 using Hrot.ScenarioEditor;
 using Hrot.ScenarioEditor.Rendering;
 using Hrot.ScenarioEditor.Services;
-using Hrot.ScenarioEditor.Tools;
 using Hrot.SimHost;
 using Hrot.SimHost.Modules;
 using Hrot.Presentation.Facades;
@@ -80,7 +79,7 @@ using FdpEntityInspectorPanel = Fdp.Presentation.Panels.EntityInspectorPanel;
 using FdpEventBrowserPanel = Fdp.Presentation.Panels.EventBrowserPanel;
 using FdpRepositoryAdapter = Fdp.Presentation.Adapters.RepositoryAdapter;
 using FdpInspectorState = Fdp.Presentation.Abstractions.InspectorState;
-using EditorInteractionTool = Hrot.ScenarioEditor.Tools.StandardInteractionTool;
+// (Phase 5: EditorInteractionTool alias removed with StandardInteractionTool)
 using Fdp.Toolkit.NetworkSpawning;
 
 namespace Hrot.Editor
@@ -197,10 +196,11 @@ namespace Hrot.Editor
         private readonly MapUserConfig     _userConfig     = new();
         private readonly MapCameraViewport _cameraViewport = new();
         private DebugPrimitiveBuffer? _gizmoBuffer;
+        private GlobalGizmoManager?  _globalGizmoManager;
 
         // ── Tool handling ─────────────────────────────────────────────────────────
 
-        private EditorInteractionTool? _interactionTool;
+        // (Phase 5: _interactionTool removed; entity interaction via ECS gizmos)
 
         // ── Context menu (ImGui popup trigger) ────────────────────────────────────
 
@@ -558,6 +558,8 @@ namespace Hrot.Editor
                     view.HasComponent<SelectionState>(entity) &&
                     view.GetComponentRO<SelectionState>(entity).IsSelected);
             _kernel.RegisterGlobalSystem(editorDataDrivenGizmoSystem);
+            _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer);
+            _kernel.RegisterGlobalSystem(_globalGizmoManager);
             _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(editorStatelessGizmoRegistry, _gizmoBuffer));
             // SpatialGridGizmo reads the SpatialGridData singleton — register as a standalone system.
             _kernel.RegisterGlobalSystem(new Hrot.Common.Diagnostics.Gizmos.SpatialGridGizmo(_gizmoBuffer, new GizmoSettingsRegistry()));
@@ -616,13 +618,13 @@ namespace Hrot.Editor
             if (!_headless)
             {
                 _mapViewConfig    = new MapViewConfig();
-                _mapPickAdapter   = new EditorMapPickAdapter(_canvas!, geoTransform, _world);
+                _mapPickAdapter   = new EditorMapPickAdapter(_canvas!, geoTransform, _world, _globalGizmoManager!);
 
                 // Build the JSON→ECS attribute compiler with the geo-transform so that
                 // geodetic spawn coordinates are projected correctly on entity placement.
                 var jsonCompiler  = Hrot.SimHost.AttributeCompilerFactory.Build(geoTransform);
-                _spawnAdapter     = new EditorSpawnAdapter(_canvas!, _world.Bus, jsonCompiler, tkbDb, scenarioLoadSource);
-                _zoneAdapter      = new EditorZoneAdapter(_canvas!, _world.Bus);
+                _spawnAdapter     = new EditorSpawnAdapter(_world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!);
+                _zoneAdapter      = new EditorZoneAdapter(_canvas!, _world.Bus, _globalGizmoManager!);
                 _mapConfigAdapter = new EditorMapConfigAdapter(_mapViewConfig, _canvas!);
                 _selectionState   = new DefaultSelectionState();
                 _orbatAdapter     = new EditorOrbatAdapter(_world, _world.Bus, _editorLogic, _spawnAdapter);
@@ -711,7 +713,7 @@ namespace Hrot.Editor
                     .Build();
 
                 // Gizmo layer — renders entity presentation primitives produced locally by StatelessGizmoSystem.
-                _canvas!.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer!, _world.Bus, _canvas, _world));
+                _canvas!.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer!, _world.Bus, _world));
                 if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
 
                 // Perception map layer — draws target-memory links between perceivers and targets.
@@ -722,57 +724,7 @@ namespace Hrot.Editor
                 var gridLayer = new GridMapLayer(() => _mapViewConfig!.ShowGrid);
                 _canvas!.AddLayer(gridLayer);
 
-                // Standard interaction tool — pan, zoom, select, drag-and-drop.
-                _interactionTool = new EditorInteractionTool(_world, entityQuery, _selectionState);
-                _canvas.SwitchTool(_interactionTool);
-
-                // Drag handler — update SimTransform so the entity follows the cursor.
-                _interactionTool.OnEntityMoved += (entity, pos) =>
-                {
-                    if (_world != null && _world.IsAlive(entity) && _world.HasComponent<Fdp.Core.SimTransform>(entity))
-                    {
-                        ref var tf = ref _world.GetComponentRW<Fdp.Core.SimTransform>(entity);
-                        tf.Position = new System.Numerics.Vector3(pos.X, pos.Y, tf.Position.Z);
-                    }
-                };
-
-                // Sync primary map selection → FDP entity inspector.
-                _interactionTool.OnWorldClick += (_, _, _, _, hitEntity) =>
-                {
-                    if (hitEntity != Entity.Null)
-                        _fdpInspectorState.SelectedEntity = hitEntity;
-                };
-
-                // Right-click on map → trigger context menu popup.
-                _interactionTool.OnWorldClick += (_, btn, _, _, hitEntity) =>
-                {
-                    if (btn == MapMouseButton.Right)
-                    {
-                        _pendingContextMenuEntity = hitEntity;
-                        _openContextMenuThisFrame = true;
-                    }
-                };
-
-                // Route Delete key through the tool pipeline so ImGui keyboard capture
-                // (e.g. editing a value in a component window) is always respected.
-                _interactionTool.OnDeleteRequested += () =>
-                {
-                    if (_selectionState == null || _world == null) return;
-                    foreach (var entity in new List<Entity>(_selectionState.SelectedEntities))
-                    {
-                        if (!_world.IsAlive(entity)) continue;
-                        if (_world.HasComponent<NetworkIdentity>(entity))
-                        {
-                            ref readonly var netId = ref _world.GetComponentRO<NetworkIdentity>(entity);
-                            _world.Bus.PublishManaged(new DestroyEntityCommand
-                                { NetworkId = netId.Value, Reason = "EditorContextMenu" });
-                        }
-                        else
-                        {
-                            _world.DestroyEntity(entity);
-                        }
-                    }
-                };
+                // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)
             }
 
             // ── 11. UI panels ─────────────────────────────────────────────────
@@ -1188,7 +1140,7 @@ namespace Hrot.Editor
             _zoneEditorPanel  = null;
             _fdpRepoAdapter   = null;
             _selectionState   = null;
-            _interactionTool  = null;
+            // (Phase 5: _interactionTool was here; removed)
             _clusterMaster?.Dispose();
             _clusterMaster  = null;
             _assetInventoryProcessManager = null;
@@ -1229,8 +1181,7 @@ namespace Hrot.Editor
                 switch (evt.Tool)
                 {
                     case Hrot.Editor.EditorTool.Select:
-                        if (_interactionTool != null)
-                            _canvas!.SwitchTool(_interactionTool);
+                        // (Phase 5: _interactionTool removed; selection via ECS gizmos)
                         break;
 
                     case Hrot.Editor.EditorTool.Spawn:
@@ -1267,22 +1218,24 @@ namespace Hrot.Editor
                     }
 
                     case Hrot.Editor.EditorTool.Measure:
-                        if (_canvas != null)
-                            _canvas.PushTool(new Hrot.ScenarioEditor.Tools.MeasureTool());
+                        if (_globalGizmoManager != null)
+                        {
+                            var id = GlobalGizmoManager.NewId();
+                            var gizmo = new Hrot.ScenarioEditor.Gizmos.MeasureGizmo(onRemove: () => _globalGizmoManager?.Unregister(id));
+                            _globalGizmoManager.Register(id, gizmo);
+                        }
                         break;
 
                     case Hrot.Editor.EditorTool.Rotate:
                     {
                         // Add ActiveRotationToolRequest marker; DataDrivenGizmoSystem creates
-                        // EntityRotatorGizmo. GizmoFocusInputBridge translates canvas events to
-                        // ECS events until Phase 5 migrates all input routing.
+                        // EntityRotatorGizmo.
                         var entity = _selectionState.PrimarySelected;
                         if (entity is { } e && e != Entity.Null && _world.HasComponent<Fdp.Core.SimTransform>(e))
                         {
                             if (!_world!.HasComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(e))
                                 _world!.AddComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(e, default);
                             _world!.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = e });
-                            _canvas!.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.GizmoFocusInputBridge(_world!.Bus, e));
                         }
                         break;
                     }

@@ -16,7 +16,6 @@ using FdpRepositoryAdapter = Fdp.Presentation.Adapters.RepositoryAdapter;
 using FdpInspectorState = Fdp.Presentation.Abstractions.InspectorState;
 using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Vis2D.Layers;
-using Fdp.Toolkit.Vis2D.Tools;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Presentation.Facades;
@@ -36,6 +35,7 @@ using Hrot.Map.Common.Events;
 using Fdp.Toolkit.NetworkSpawning;
 using Hrot.SimHost.UI;
 using Hrot.SimHost.Visualization;
+using Hrot.ScenarioEditor.Systems;
 
 namespace Hrot.SimHost
 {
@@ -62,8 +62,8 @@ namespace Hrot.SimHost
         private MapCanvas?              _map;
         private SimHostSelectionManager?  _selection;
         private SimHostInspectorAdapter?  _inspector;
-        private StandardInteractionTool?  _interactionTool;
-        private EntityQuery?              _vehicleQuery;
+        /// <summary>Phase 5: ECS system for selection/delete interactions.</summary>
+        private SelectionInteractionSystem? _selectionSystem;
 
         // ── UI ────────────────────────────────────────────────────────────────
         private SimHostMainUI?         _ui;
@@ -89,6 +89,7 @@ namespace Hrot.SimHost
         // ── Gizmo debug overlay (GZ032) ───────────────────────────────────────
         private DebugPrimitiveBuffer? _gizmoBuffer;        // On-demand gizmo activation (EntityRotatorGizmo, etc.).
         private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? _gizmoSystem;
+        private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _globalGizmoManager;
         // ── Map entity context menu ────────────────────────────────────────────
         private Entity _pendingMapContextEntity = Entity.Null;
         private bool   _openMapContextThisFrame;
@@ -210,8 +211,6 @@ namespace Hrot.SimHost
                         {
                             Entity = entity,
                         });
-                        // Temporary input bridge: converts canvas events to ECS events until Phase 5.
-                        _map.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.GizmoFocusInputBridge(_repo!.Bus, entity));
                     });
             }));
 
@@ -222,7 +221,7 @@ namespace Hrot.SimHost
             _ui = new SimHostMainUI();
 
             // ── Entity query (vehicles) ───────────────────────────────────────
-            _vehicleQuery = repo.Query().With<VehicleState>().With<VehicleParams>().Build();
+            // (removed in Phase 5; EntityDragGizmo owns drag/move logic)
 
             // ── Map canvas & layers ───────────────────────────────────────────
             _map       = new MapCanvas();
@@ -235,109 +234,31 @@ namespace Hrot.SimHost
 
             // Gizmo debug overlay (GZ032).
             _gizmoBuffer = gizmoBuffer ?? new DebugPrimitiveBuffer();
-            _map.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer, repo.Bus, _map, repo));
+            _globalGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_gizmoBuffer!);
+            _map.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer, repo.Bus, repo));
             _map.DrawBuffer = _gizmoBuffer;
 
-            // ── Interaction tool ──────────────────────────────────────────────
-            _interactionTool = new StandardInteractionTool(repo, _vehicleQuery);
+            // ── Interaction ───────────────────────────────────────────────────
+            // Phase 5: entity selection via SelectionInteractionSystem;
+            // entity drag via EntityDragGizmo registered in DataDrivenGizmoSystem.
+            _selectionSystem = new SelectionInteractionSystem(repo);
 
-            _interactionTool.OnEntitySelectRequest += (entity, augment) =>
+            // Sync selection to SimHostSelectionManager and FDP inspector.
+            _selectionSystem.OnSelectionChanged += (entity, worldPos) =>
             {
-                if (!repo.IsAlive(entity))
+                if (entity == Entity.Null)
                 {
-                    if (!augment) { _selection.Clear(); _fdpInspectorState.SelectedEntity = null; }
-                    return;
+                    _selection!.Clear();
+                    _fdpInspectorState.SelectedEntity = null;
                 }
-                if (augment) _selection.Add(entity);
-                else         _selection.Set(entity);
-
-                // Task 43: keep FDP entity inspector in sync with map selection
-                if (!augment)
+                else if (repo.IsAlive(entity))
+                {
+                    _selection!.Set(entity);
                     _fdpInspectorState.SelectedEntity = entity;
-            };
-
-            _interactionTool.OnEntityMoved += (entity, pos) =>
-            {
-                if (!repo.IsAlive(entity) || !repo.HasComponent<SimTransform>(entity)) return;
-                ref var tf = ref repo.GetComponentRW<SimTransform>(entity);
-                tf.Position = new Vector3(pos.X, pos.Y, 0);
-                if (repo.HasComponent<VehicleState>(entity))
-                {
-                    ref var vs = ref repo.GetComponentRW<VehicleState>(entity);
-                    vs.Speed = 0;
-                }
-                SmartEgressUtil.MarkDirty(repo, entity, _worldPosDescriptorId);
-            };
-
-            _interactionTool.OnRegionSelected += entities => _selection.SetMultiple(entities);
-
-            _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
-            {
-                if (btn != MapMouseButton.Right) return;
-
-                // Right-click directly on an entity (no modifier) -> open map context menu.
-                if (!shift && !ctrl && hitEntity != Entity.Null)
-                {
-                    _selection!.Set(hitEntity);
-                    _fdpInspectorState.SelectedEntity = hitEntity;
-                    _pendingMapContextEntity           = hitEntity;
-                    _openMapContextThisFrame           = true;
-                    return;
-                }
-
-                var entities = new List<Fdp.Core.Entity>(_selection.SelectedEntities);
-                if (entities.Count == 0) return;
-
-                var interp = _ui!.UIState.InterpolationMode;
-                foreach (var e in entities)
-                {
-                    if (!repo.IsAlive(e)) continue;
-                    HandleRightClickForEntity(
-                        repo, e, pos, shift, interp,
-                        (ent, p, i) => _scenario!.SetDestination(ent, p, i),
-                        // Shift+right-click: route through the ECS personal-route system
-                        // (PersonalRouteAuthoringSystem) instead of the legacy AddWaypoint path.
-                        (ent, p, i) => repo.Bus.Publish(new CmdAppendPersonalWaypoint
-                        {
-                            VehicleEntity = ent,
-                            WorldPosition = new System.Numerics.Vector3(p.X, 0f, p.Y),
-                        }),
-                        _missionSender);
                 }
             };
 
-            _map.SwitchTool(_interactionTool);
-
-            // Route Delete key through the tool pipeline so ImGui keyboard capture
-            // (e.g. editing a value in a component window) is always respected.
-            _interactionTool.OnDeleteRequested += () =>
-            {
-                if (_selection == null || _repo == null) return;
-                foreach (var e in new List<Fdp.Core.Entity>(_selection.SelectedEntities))
-                {
-                    if (!_repo.IsAlive(e)) continue;
-
-                    if (_repo.HasComponent<NetworkIdentity>(e))
-                    {
-                        // Network-replicated entity -- route through NetworkSpawningSystem
-                        // so the IG ghost is also removed via DDS EntityMaster DISPOSE.
-                        ref readonly var netId = ref _repo.GetComponentRO<NetworkIdentity>(e);
-                        _repo.Bus.PublishManaged(new DestroyEntityCommand
-                        {
-                            NetworkId = netId.Value,
-                            Reason    = "user-deleted",
-                        });
-                    }
-                    else
-                    {
-                        // Local-only entity -- destroy directly.
-                        _repo.DestroyEntity(e);
-                    }
-                }
-                _selection.Clear();
-            };
-
-            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_map, repo), repo);
+            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_map, repo, globalGizmoManager: _globalGizmoManager), repo);
 
             // Seed a small initial scenario so the window isn't empty
             //_scenario.SpawnFastOne();
@@ -422,6 +343,7 @@ namespace Hrot.SimHost
 
             _scenario?.Update();
             _map.Update(dt);
+            _selectionSystem?.Tick(dt);
 
             // Handle rotate activation triggered from IG context menu (ActionId 20).
             foreach (var ev in _repo.Bus.ReadManaged<Hrot.Common.Events.ContextActionTriggered>())
@@ -451,7 +373,6 @@ namespace Hrot.SimHost
                 {
                     Entity = target,
                 });
-                _map.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.GizmoFocusInputBridge(_repo!.Bus, target));
             }
 
             _fdpFrameCount++;
@@ -517,7 +438,6 @@ namespace Hrot.SimHost
                                 {
                                     Entity = ent,
                                 });
-                                _map.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.GizmoFocusInputBridge(_repo!.Bus, ent));
                             }
                         ));
                 }

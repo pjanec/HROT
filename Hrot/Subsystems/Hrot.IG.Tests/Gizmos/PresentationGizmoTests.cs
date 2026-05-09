@@ -62,9 +62,12 @@ namespace Hrot.IG.Tests.Gizmos
             gizmo.Draw(_repo, entity, buffer);
 
             var frame = buffer.GetFrame();
-            Assert.True(frame.Length >= 2);
+            // Phase 5: IgEntityPresentationGizmo now emits a pick sphere (DrawEntitySphere) between
+            // the SpatialAnchor and the SemanticShape, so frame[0]=SpatialAnchor,
+            // frame[1]=Sphere (pick sphere), frame[2]=SemanticShape.
+            Assert.True(frame.Length >= 3);
 
-            var semantic = frame[1];
+            var semantic = frame[2];
             Assert.Equal(DebugPrimitiveShape.SemanticShape, semantic.Shape);
             // Damage 75f >= 50 → Damaged bit set; < 90 → Immobile bit NOT set.
             Assert.NotEqual(0u, semantic.ConditionMask & (uint)EntityShapeCondition.Damaged);

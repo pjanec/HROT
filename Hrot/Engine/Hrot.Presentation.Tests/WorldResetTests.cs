@@ -1,9 +1,7 @@
-using System;
 using Fdp.Core;
-using Fdp.Toolkit.Vis2D.Defaults;
 using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Events;
-using Hrot.ScenarioEditor.Tools;
+using Hrot.ScenarioEditor.Systems;
 using Xunit;
 
 namespace Hrot.ScenarioEditor.Tests;
@@ -11,26 +9,17 @@ namespace Hrot.ScenarioEditor.Tests;
 public class WorldResetTests
 {
     [Fact]
-    public void FlushForWorldReset_ClearsSelection()
+    public void SelectionInteractionSystem_ClearAllSelections_ResetsEcsState()
     {
-        // Arrange: create a world with one entity having SelectionState
         var world = new EntityRepository();
         world.RegisterComponent<SelectionState>();
         var entity = world.CreateEntity();
         world.AddComponent(entity, new SelectionState { IsSelected = true, IsPrimarySelection = true });
-
-        var selection = new DefaultSelectionState();
-        // Construct StandardInteractionTool in stub mode (no real canvas)
-        var tool = new StandardInteractionTool(world, null!, selection);
-        tool.TestHook_SelectEntity(entity, augment: false);
-        Assert.NotNull(selection.PrimarySelected);
-
-        // Act
-        tool.FlushForWorldReset();
-
-        // Assert
-        Assert.Null(selection.PrimarySelected);
-        Assert.Empty(selection.SelectedEntities);
+        var system = new SelectionInteractionSystem(world);
+        system.ClearAllSelections();
+        var state = world.GetComponent<SelectionState>(entity);
+        Assert.False(state.IsSelected);
+        Assert.False(state.IsPrimarySelection);
     }
 
     [Fact]

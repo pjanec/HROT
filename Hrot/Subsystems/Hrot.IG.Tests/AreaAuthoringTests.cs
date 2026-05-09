@@ -13,8 +13,8 @@ namespace Hrot.IG.Tests;
 /// Integration tests for the area (tactical-shape) authoring tool (OC1-B003).
 ///
 /// Verifies that <c>ParseCommandAndActivateAreaTool</c> activates a
-/// <see cref="PointSequenceTool"/> when <c>tkbType != TacGraphic_Route</c> (i.e., area shapes),
-/// and that finishing the tool emits a well-formed <see cref="SpawnEntityCommand"/>
+/// <see cref="PointSequenceGizmo"/> when <c>tkbType != TacGraphic_Route</c> (i.e., area shapes),
+/// and that finishing the gizmo emits a well-formed <see cref="SpawnEntityCommand"/>
 /// with correct geometry in <see cref="SpawnEntityCommand.InitialComponents"/>.
 /// </summary>
 public class AreaAuthoringTests : System.IDisposable
@@ -61,7 +61,7 @@ public class AreaAuthoringTests : System.IDisposable
     // ── Tool activation ───────────────────────────────────────────────────────
 
     /// <summary>
-    /// OC1-B003: A ParseCommand call with area TkbType must push a PointSequenceTool.
+    /// OC1-B003: A ParseCommand call with area TkbType must activate a PointSequenceGizmo.
     /// </summary>
     [Fact]
     public void ParseCommand_WithAreaTkbType_PushesPointSequenceTool()
@@ -149,7 +149,7 @@ public class AreaAuthoringTests : System.IDisposable
     }
 
     /// <summary>
-    /// After commit, the PointSequenceTool must be popped from the canvas.
+    /// After commit, the PointSequenceGizmo must be removed.
     /// </summary>
     [Fact]
     public void AreaTool_AfterCommit_ToolIsPopped()

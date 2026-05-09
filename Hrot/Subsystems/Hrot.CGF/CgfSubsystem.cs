@@ -22,7 +22,7 @@ using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Layers;
-using Fdp.Toolkit.Vis2D.Tools;
+// (Phase 5: Fdp.Toolkit.Vis2D.Tools removed with StandardInteractionTool)
 using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Physics;
@@ -84,8 +84,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     // ── Visualization ─────────────────────────────────────────────────────────
     private MapCanvas?                 _canvas;
     private DefaultSelectionState?     _selectionState;
-    private StandardInteractionTool?   _interactionTool;
+    // (Phase 5: _interactionTool removed; entity selection via ECS gizmos)
     private EntityQuery?               _entityQuery;
+    private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _cgfGizmoBuffer;
+    private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _cgfGizmoManager;
 
     // ── FDP panels ────────────────────────────────────────────────────────────
     private FdpEntityInspectorPanel              _fdpEntityInspector = new();
@@ -421,18 +423,19 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // GZ057: CGF entity presentation gizmos. Buffer and registry must be set up
         // before Kernel.Initialize() because StatelessGizmoSystem is registered here.
-        var cgfGizmoBuffer     = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        _cgfGizmoBuffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        _cgfGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_cgfGizmoBuffer);
         var cgfStatelessRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.StatelessGizmoRegistry();
         cgfStatelessRegistry.Register(
             new Hrot.CGF.Gizmos.CgfEntityPresentationGizmo(),
             new System.Type[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
         _context.Kernel.RegisterGlobalSystem(
-            new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(cgfStatelessRegistry, cgfGizmoBuffer));
+            new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(cgfStatelessRegistry, _cgfGizmoBuffer));
         var cgfGizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
         cgfGizmoRegistry.Register(new Hrot.SimHost.Gizmos.EntityRotatorGizmoDefinition());
         _context.Kernel.RegisterGlobalSystem(
             new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
-                cgfGizmoRegistry, cgfGizmoBuffer, isSelectedPredicate: null));
+                cgfGizmoRegistry, _cgfGizmoBuffer, isSelectedPredicate: null));
 
         _context.Kernel.Initialize();
         // ── Visualization (non-headless only) ─────────────────────────────────────
@@ -447,52 +450,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _fdpRepoAdapter    = new FdpRepositoryAdapter(_context.World);
 
             // GZ057: add gizmo layer so CGF entity presentation primitives are rendered.
-            var cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, cgfGizmoBuffer, _context.World.Bus, _canvas);
+            var cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, _cgfGizmoBuffer, _context.World.Bus);
             _canvas.AddLayer(cgfGizmoLayer);
-            _canvas.DrawBuffer = cgfGizmoBuffer;
+            _canvas.DrawBuffer = _cgfGizmoBuffer;
 
-            _interactionTool = new StandardInteractionTool(_context.World, _entityQuery);
-
-            _interactionTool.OnEntitySelectRequest += (entity, augment) =>
-            {
-                if (!_context.World.IsAlive(entity)) return;
-                if (augment)
-                    _selectionState.AddSelection(entity);
-                else
-                {
-                    _selectionState.PrimarySelected = entity;
-                    _fdpInspectorState.SelectedEntity = entity;
-                }
-            };
-
-            _interactionTool.OnRegionSelected += entities =>
-            {
-                _selectionState.ClearSelection();
-                foreach (var e in entities)
-                    _selectionState.AddSelection(e);
-            };
-
-            _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
-            {
-                if (btn == MapMouseButton.Right && hitEntity != Entity.Null)
-                {
-                    _selectionState.PrimarySelected = hitEntity;
-                    _fdpInspectorState.SelectedEntity = hitEntity;
-                    _pendingContextMenuEntity = hitEntity;
-                    _openContextMenuThisFrame = true;
-                }
-            };
-
-            _canvas.SwitchTool(_interactionTool);
-
-            // Route Delete key through the tool pipeline so ImGui keyboard capture
-            // (e.g. editing a value in a component window) is always respected.
-            _interactionTool.OnDeleteRequested += () =>
-            {
-                if (_selectionState == null) return;
-                foreach (var entity in new List<Entity>(_selectionState.SelectedEntities))
-                    DeleteEntity(entity);
-            };
+            // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)
 
             // Register context menu handler for right-click in the entity inspector panel.
             _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
@@ -512,7 +474,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                         if (!_context.World.HasComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(entity))
                             _context.World.AddComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(entity, default);
                         _context.World.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = entity });
-                        _canvas?.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.GizmoFocusInputBridge(_context.World.Bus, entity));
                     });
             }));
         }    }
@@ -579,7 +540,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                             if (!_context.World.HasComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(ent))
                                 _context.World.AddComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(ent, default);
                             _context.World.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = ent });
-                            _canvas?.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.GizmoFocusInputBridge(_context.World.Bus, ent));
                         }
                     ));
             }
@@ -604,7 +564,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // Create a map-pick bridge so component fields tagged [MapPickable] can be edited.
         CanvasMapPickAdapter? cgfCanvasAdapter = _canvas != null && _context?.World != null
-            ? new CanvasMapPickAdapter(_canvas, _context.World)
+            ? new CanvasMapPickAdapter(_canvas, _context.World, globalGizmoManager: _cgfGizmoManager)
             : null;
         MapPickServiceBridge? cgfPickBridge = cgfCanvasAdapter != null
             ? new MapPickServiceBridge(cgfCanvasAdapter, _context!.World)

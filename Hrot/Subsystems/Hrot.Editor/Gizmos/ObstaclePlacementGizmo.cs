@@ -10,7 +10,7 @@ namespace Hrot.Editor.Gizmos
     /// <see cref="_onObstaclePlaced"/> with that position before calling <see cref="_onRemove"/>.
     ///
     /// Replaces the deleted <c>ObstaclePlacementTool</c> (Phase 3 of the gizmo migration).
-    /// Exercised via <see cref="Hrot.ScenarioEditor.Gizmos.PlacementCanvasBridge"/> which
+    /// Exercised via <see cref="Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager"/> which
     /// forwards canvas events into this gizmo.
     /// </summary>
     public sealed class ObstaclePlacementGizmo : IEntityStatefulGizmo
@@ -37,8 +37,7 @@ namespace Hrot.Editor.Gizmos
         /// </param>
         /// <param name="onRemove">
         /// Callback invoked when the gizmo wants to exit. Typically calls
-        /// <see cref="Hrot.ScenarioEditor.Gizmos.PlacementCanvasBridge.RequestPop"/> to pop
-        /// the bridge from the canvas.
+        /// <c>GlobalGizmoManager.Unregister</c> to remove the gizmo from the manager.
         /// </param>
         public ObstaclePlacementGizmo(
             float           radius,

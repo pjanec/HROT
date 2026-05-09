@@ -13,8 +13,8 @@ namespace Hrot.IG.Tests;
 /// Integration tests for the shared-route authoring flow (ROUTES1-T007).
 ///
 /// Verifies that <c>ParseCommandAndActivateAreaTool</c> activates a
-/// <see cref="PointSequenceTool"/> when <c>tkbType == TacGraphic_Route</c>,
-/// and that finishing the tool emits a well-formed <see cref="SpawnEntityCommand"/>
+/// <see cref="PointSequenceGizmo"/> when <c>tkbType == TacGraphic_Route</c>,
+/// and that finishing the gizmo emits a well-formed <see cref="SpawnEntityCommand"/>
 /// with a <see cref="RoutePlan"/> in <see cref="SpawnEntityCommand.InitialComponents"/>.
 /// </summary>
 public class RouteAuthoringTests : System.IDisposable
@@ -56,8 +56,8 @@ public class RouteAuthoringTests : System.IDisposable
     // ── Tool activation ───────────────────────────────────────────────────────
 
     /// <summary>
-    /// A ParseCommand call with <c>tkbType == TacGraphic_Route</c> must push a
-    /// PointSequenceTool, making <see cref="IgApplication.TestHook_IsPointSequenceToolActive"/> true.
+    /// A ParseCommand call with <c>tkbType == TacGraphic_Route</c> must activate a
+    /// PointSequenceGizmo, making <see cref="IgApplication.TestHook_IsPointSequenceToolActive"/> true.
     /// </summary>
     [Fact]
     public void ParseCommand_WithRouteTkbType_PushesPointSequenceTool()
@@ -68,8 +68,8 @@ public class RouteAuthoringTests : System.IDisposable
     }
 
     /// <summary>
-    /// A ParseCommand call with a non-route TkbType (e.g. area) must NOT push
-    /// the route PointSequenceTool path — the area authoring path activates instead.
+    /// A ParseCommand call with a non-route TkbType (e.g. area) must NOT activate
+    /// the route PointSequenceGizmo path — the area authoring path activates instead.
     /// </summary>
     [Fact]
     public void ParseCommand_WithNonRouteTkbType_DoesNotUseRouteToolPath()
@@ -155,7 +155,7 @@ public class RouteAuthoringTests : System.IDisposable
     }
 
     /// <summary>
-    /// After the tool finishes (callback fires), it must pop itself so that
+    /// After the gizmo finishes (callback fires), it must remove itself so that
     /// <see cref="IgApplication.TestHook_IsPointSequenceToolActive"/> returns false.
     /// </summary>
     [Fact]

@@ -1,6 +1,7 @@
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Hrot.Editor.Gizmos;
 using Hrot.Map.Common.Events;
 using Hrot.ScenarioEditor.Gizmos;
@@ -17,7 +18,7 @@ namespace Hrot.Editor.Adapters
     ///     onto the local bus for the zone ingress system to consume.
     ///   </item>
     ///   <item>
-    ///     <see cref="StartObstaclePlacementMode"/> pushes a <see cref="PlacementCanvasBridge"/>
+    ///     <see cref="StartObstaclePlacementMode"/> registers an <see cref="ObstaclePlacementGizmo"/>
     ///     (wrapping <see cref="ObstaclePlacementGizmo"/>) whose click callback publishes
     ///     a <see cref="SpawnZoneObstacleCommand"/>.
     ///   </item>
@@ -29,13 +30,16 @@ namespace Hrot.Editor.Adapters
     {
         private readonly MapCanvas   _canvas;
         private readonly FdpEventBus _bus;
+        private readonly GlobalGizmoManager? _globalGizmoManager;
 
         /// <param name="canvas">The map canvas that hosts the tool stack.</param>
         /// <param name="bus">The local FDP event bus for publishing zone commands.</param>
-        public EditorZoneAdapter(MapCanvas canvas, FdpEventBus bus)
+        /// <param name="globalGizmoManager">The global gizmo manager for placement gizmos.</param>
+        public EditorZoneAdapter(MapCanvas canvas, FdpEventBus bus, GlobalGizmoManager? globalGizmoManager = null)
         {
             _canvas = canvas;
             _bus    = bus;
+            _globalGizmoManager = globalGizmoManager;
         }
 
         /// <inheritdoc/>
@@ -54,7 +58,7 @@ namespace Hrot.Editor.Adapters
             var zoneName   = activeZoneName; // captured
             var zoneRadius = radius;         // captured
 
-            PlacementCanvasBridge? bridge = null;
+            var id = GlobalGizmoManager.NewId();
             var gizmo = new ObstaclePlacementGizmo(
                 radius:           radius,
                 onObstaclePlaced: worldPos =>
@@ -66,9 +70,8 @@ namespace Hrot.Editor.Adapters
                         Radius   = zoneRadius,
                     });
                 },
-                onRemove: () => bridge?.RequestPop());
-            bridge = new PlacementCanvasBridge(gizmo);
-            _canvas.PushTool(bridge);
+                onRemove: () => _globalGizmoManager!.Unregister(id));
+            _globalGizmoManager!.Register(id, gizmo);
         }
     }
 }

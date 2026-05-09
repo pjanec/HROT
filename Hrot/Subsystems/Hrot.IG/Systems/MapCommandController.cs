@@ -1,14 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Hrot.Core.Network;
 using Hrot.IG.Components;
-using Hrot.ScenarioEditor.Gizmos;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Core.Logging;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.NetworkSpawning.Events;
+using Hrot.ScenarioEditor.Gizmos;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 
 namespace Hrot.IG.Systems;
 
@@ -18,11 +21,11 @@ namespace Hrot.IG.Systems;
 ///
 /// <para>
 /// This control layer decouples IG map tools from any specific network protocol.
-/// A <see cref="PlacementCanvasBridge"/> wrapping an <see cref="EntityPlacementGizmo"/> is
-/// pushed onto the canvas; the gizmo receives C# delegates and is unaware of DDS.
+/// An <see cref="EntityPlacementGizmo"/> is registered with <see cref="GlobalGizmoManager"/>
+/// when a placement session starts; the gizmo receives C# delegates and is unaware of DDS.
 /// The controller:
 /// <list type="bullet">
-///   <item>Creates the appropriate gizmo+bridge with injected delegates.</item>
+///   <item>Creates the appropriate gizmo and registers it with <see cref="GlobalGizmoManager"/>.</item>
 ///   <item>Forwards <see cref="CreateEntityRequest"/> to SimHost when the tool delegate fires.</item>
 ///   <item>Correlates incoming <see cref="CreateEntityAck"/> samples back to the originating
 ///         session and publishes a <see cref="MapCommandAck"/> to the ExCon.</item>
@@ -55,6 +58,7 @@ public class MapCommandController
     private readonly FdpEventBus                _eventBus;
     private readonly Action<MapCommandAckDto>   _ackCallback;
     private readonly long                       _localNodeId;
+    private readonly GlobalGizmoManager?        _globalGizmoManager;
 
     // ── Active-session state ──────────────────────────────────────────────────
 
@@ -64,8 +68,9 @@ public class MapCommandController
     /// <summary>Context ID provided by the ExCon for the active session.</summary>
     private Guid _sessionContextId;
 
-    /// <summary>Tool pushed onto the canvas for this session.</summary>
-    private PlacementCanvasBridge? _activePlacementBridge;
+    /// <summary>Stable id under which the active <see cref="EntityPlacementGizmo"/> is registered
+    /// with <see cref="_globalGizmoManager"/>. Zero when no placement session is active.</summary>
+    private long _activePlacementId;
 
     /// <summary>Whether the active tool has already exited the stack (either via success-pop or
     /// cancellation). Used to decide whether to send a final vs intermediate ack when a
@@ -91,33 +96,29 @@ public class MapCommandController
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
-    /// <param name="canvas">The <see cref="MapCanvas"/> on which tools are pushed and popped.</param>
-    /// <param name="createEntityWriter">
-    /// Writer used to forward <see cref="CreateEntityRequest"/> messages to the SimHost when
-    /// the tool delegate fires.
-    /// </param>
-    /// <param name="ackWriter">
-    /// Writer used to publish <see cref="MapCommandAck"/> messages back to the ExCon.
-    /// </param>
-    /// <param name="edgeCompiler">
-    /// Optional <see cref="JsonToRecordCompiler"/> forwarded to <see cref="CreationTool"/>
-    /// <param name="canvas">The <see cref="MapCanvas"/> on which tools are pushed and popped.</param>
+    /// <param name="canvas">The <see cref="MapCanvas"/> on which tools may be pushed and popped.</param>
     /// <param name="eventBus">
     /// The FDP event bus used to publish <see cref="SpawnEntityCommand"/> events when the tool fires.
     /// </param>
-    /// <param name="ackWriter">
+    /// <param name="ackCallback">
     /// Writer used to publish <see cref="MapCommandAck"/> messages back to the ExCon.
+    /// </param>
+    /// <param name="globalGizmoManager">
+    /// Manager used to register/unregister the <see cref="EntityPlacementGizmo"/> for each
+    /// placement session. When <c>null</c> the gizmo is not activated.
     /// </param>
     public MapCommandController(
         MapCanvas                  canvas,
         FdpEventBus                eventBus,
         Action<MapCommandAckDto>   ackCallback,
-        long                       localNodeId = 0)
+        long                       localNodeId        = 0,
+        GlobalGizmoManager?        globalGizmoManager = null)
     {
-        _canvas      = canvas      ?? throw new ArgumentNullException(nameof(canvas));
-        _eventBus    = eventBus    ?? throw new ArgumentNullException(nameof(eventBus));
-        _ackCallback = ackCallback ?? throw new ArgumentNullException(nameof(ackCallback));
-        _localNodeId = localNodeId;
+        _canvas             = canvas      ?? throw new ArgumentNullException(nameof(canvas));
+        _eventBus           = eventBus    ?? throw new ArgumentNullException(nameof(eventBus));
+        _ackCallback        = ackCallback ?? throw new ArgumentNullException(nameof(ackCallback));
+        _localNodeId        = localNodeId;
+        _globalGizmoManager = globalGizmoManager;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -157,9 +158,9 @@ public class MapCommandController
         if (contextId != Guid.Empty && contextId == _sessionContextId && !_toolFinished)
             return;
 
-        // Pop any leftover PlacementCanvasBridge from a previous session.
-        if (_canvas.ActiveTool is PlacementCanvasBridge)
-            _canvas.PopTool();
+        // Unregister any leftover placement gizmo from a previous session.
+        if (_activePlacementId != 0)
+            _globalGizmoManager?.Unregister(_activePlacementId);
 
         ClearSession();
 
@@ -168,7 +169,7 @@ public class MapCommandController
         _toolFinished     = false;
         _nameGenerator    = nameGenerator;
 
-        PlacementCanvasBridge? bridge = null;
+        var id = GlobalGizmoManager.NewId();
         var gizmo = new EntityPlacementGizmo(
             onEntityCreated:       OnEntityCreatedByTool,
             tkbType:               tkbType,
@@ -177,12 +178,11 @@ public class MapCommandController
             nameResolver:          _nameGenerator,
             onRemove:              () =>
             {
-                bridge?.RequestPop();
+                _globalGizmoManager?.Unregister(id);
                 OnCreationToolExited();
             });
-        bridge = new PlacementCanvasBridge(gizmo);
-        _activePlacementBridge = bridge;
-        _canvas.PushTool(bridge);
+        _activePlacementId = id;
+        _globalGizmoManager?.Register(id, gizmo);
 
         FdpLog<MapCommandController>.Info(
             "[Node-{0}] PlacementTool activated. RequestId={1} ContextId={2} TKB={3}",
@@ -354,11 +354,11 @@ public class MapCommandController
 
     private void ClearSession()
     {
-        _sessionRequestId      = Guid.Empty;
-        _sessionContextId      = Guid.Empty;
-        _toolFinished          = false;
-        _activePlacementBridge = null;
-        _nameGenerator         = null;
+        _sessionRequestId  = Guid.Empty;
+        _sessionContextId  = Guid.Empty;
+        _toolFinished      = false;
+        _activePlacementId = 0;
+        _nameGenerator     = null;
         _pendingEntityRequests.Clear();
     }
 

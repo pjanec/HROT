@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+﻿﻿using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
 using Hrot.ScenarioEditor.Tools;
@@ -76,35 +76,7 @@ public class MapEventTranslatorTests
     }
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-    // P1-005-T2: StandardInteractionTool.OnWorldClick event pass-through
-    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-    /// <summary>
-    /// <see cref="Tools.StandardInteractionTool.OnWorldClick"/> must be subscribable
-    /// and unsubscribable without throwing.
-    /// Also confirms the event is properly forwarded by calling the IG wrapper's
-    /// internal <c>HandleClick</c> path.
-    /// </summary>
-    [Fact]
-    public void StandardInteractionTool_OnWorldClick_CanBeSubscribed()
-    {
-        var repo      = CreateRepo();
-        var query     = repo.Query().Build(); // empty query â€” sufficient for event wiring test
-        var selection = new DefaultSelectionState();
-        var tool      = new StandardInteractionTool(repo, query, selection);
-
-        Action<Vector2, MapMouseButton, bool, bool, Entity> handler =
-            (pos, btn, s, c, e) => { };
-
-        // Verify subscribe + unsubscribe do not throw.
-        var ex = Record.Exception(() =>
-        {
-            tool.OnWorldClick += handler;
-            tool.OnWorldClick -= handler;
-        });
-
-        Assert.Null(ex);
-    }
 
     // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // P1-005-T3: Backward-compatibility â€” Submit(eventBus) still works

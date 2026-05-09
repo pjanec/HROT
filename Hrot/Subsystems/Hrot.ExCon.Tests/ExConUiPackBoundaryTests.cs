@@ -19,7 +19,7 @@ public class ExConUiPackBoundaryTests
         "EditTool",
         "RouteEditTool",
         "MeasureTool",
-        "StandardInteractionTool",
+        // Phase 5 (BATCH-28): StandardInteractionTool deleted -- no longer forbidden, just absent.
     };
 
     [Fact]

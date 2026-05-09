@@ -528,6 +528,8 @@ namespace Hrot.SimHost
                 settings: new GizmoSettingsRegistry());
             // BATCH-24: register the EntityRotatorGizmoDefinition (data-driven rotation).
             _gizmoRegistry.Register(new Hrot.SimHost.Gizmos.EntityRotatorGizmoDefinition());
+            // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
+            _gizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
             _dataDrivenGizmoSystem = new DataDrivenGizmoSystem(
                 _gizmoRegistry,
                 _gizmoBuffer,

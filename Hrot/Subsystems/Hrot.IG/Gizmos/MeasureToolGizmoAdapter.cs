@@ -1,37 +1,40 @@
 using System;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
-using Fdp.Toolkit.Vis2D;
-using Hrot.ScenarioEditor.Tools;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
+using Hrot.ScenarioEditor.Gizmos;
 
 namespace Hrot.IG.Gizmos
 {
     /// <summary>
-    /// Bridges the gizmo settings system and the MapCanvas tool stack.
-    /// Pushes <see cref="MeasureTool"/> when the Active setting is true;
-    /// pops it when the setting turns false.
+    /// Bridges the gizmo settings system and the <see cref="GlobalGizmoManager"/>.
+    /// Registers a <see cref="MeasureGizmo"/> when the Active setting is true;
+    /// unregisters it when the setting turns false.
     /// Call <see cref="Update"/> once per frame from IgApplication.
     /// </summary>
     internal sealed class MeasureToolGizmoAdapter
     {
-        private readonly MapCanvas             _canvas;
+        private readonly GlobalGizmoManager    _manager;
         private readonly GizmoSettingsRegistry _settings;
-        private readonly MeasureTool           _tool;
 
         private readonly uint _activeHash;
         private readonly uint _unitsHash;
 
-        private bool _wasActive;
+        private bool         _wasActive;
+        private long?        _activeId;
+        private MeasureGizmo? _activeGizmo;
 
         public MeasureToolGizmoAdapter(
-            MapCanvas canvas,
+            GlobalGizmoManager    manager,
             GizmoSettingsRegistry settings)
         {
-            _canvas   = canvas   ?? throw new ArgumentNullException(nameof(canvas));
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-            _tool     = new MeasureTool();
+            _manager  = manager   ?? throw new ArgumentNullException(nameof(manager));
+            _settings = settings  ?? throw new ArgumentNullException(nameof(settings));
             _activeHash = GizmoSettingsRegistry.ComputeHash(MeasureToolGizmoSettings.Active);
             _unitsHash  = GizmoSettingsRegistry.ComputeHash(MeasureToolGizmoSettings.Units);
         }
+
+        /// <summary>Exposes the active gizmo for unit-test assertions.</summary>
+        internal MeasureGizmo? TestHook_ActiveGizmo => _activeGizmo;
 
         /// <summary>
         /// Call once per frame (from IgApplication.Update) before canvas.Update().
@@ -42,29 +45,41 @@ namespace Hrot.IG.Gizmos
 
             if (active && !_wasActive)
             {
-                // Sync units before pushing.
-                SyncUnits();
-                _canvas.PushTool(_tool);
+                long id = GlobalGizmoManager.NewId();
+                var gizmo = new MeasureGizmo(onRemove: () =>
+                {
+                    _activeId    = null;
+                    _activeGizmo = null;
+                    _wasActive   = false;
+                });
+                SyncUnits(gizmo);
+                _activeId    = id;
+                _activeGizmo = gizmo;
+                _manager.Register(id, gizmo);
             }
             else if (!active && _wasActive)
             {
-                // Only pop if our tool is the active one.
-                if (_canvas.ActiveTool == _tool)
-                    _canvas.PopTool();
+                if (_activeId.HasValue)
+                {
+                    _manager.Unregister(_activeId.Value);
+                    _activeId    = null;
+                    _activeGizmo = null;
+                }
             }
             else if (active && _wasActive)
             {
                 // Refresh units every frame in case they changed.
-                SyncUnits();
+                if (_activeGizmo != null)
+                    SyncUnits(_activeGizmo);
             }
 
             _wasActive = active;
         }
 
-        private void SyncUnits()
+        private void SyncUnits(MeasureGizmo gizmo)
         {
             int units = _settings.Read(_unitsHash).IntValue;
-            _tool.DisplayUnits = units == 1 ? MeasureDisplayUnits.Kilometers : MeasureDisplayUnits.Meters;
+            gizmo.DisplayUnits = units == 1 ? MeasureDisplayUnits.Kilometers : MeasureDisplayUnits.Meters;
         }
     }
 }

@@ -5,7 +5,8 @@ using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Vis2D.Components;
-using Fdp.Toolkit.Vis2D.Tools;
+using Fdp.Toolkit.Vis2D.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
@@ -20,20 +21,21 @@ namespace Hrot.Editor.Adapters
     /// Implements <see cref="ISpawnController"/> for the offline editor.
     /// Translates spawn requests into <see cref="MapCanvas"/> tool activations:
     /// <list type="bullet">
-    ///   <item>Entity placement → <see cref="PlacementCanvasBridge"/> (wrapping <see cref="EntityPlacementGizmo"/>) pushed onto the canvas.</item>
-    ///   <item>Area authoring â†’ <see cref="PointSequenceTool"/> pushed onto the canvas.</item>
-    ///   <item>Route authoring â†’ <see cref="PointSequenceTool"/> pushed onto the canvas.</item>
+    ///   <item>Entity placement → <see cref="GlobalGizmoManager"/> (wrapping <see cref="EntityPlacementGizmo"/>).</item>
+    ///   <item>Area authoring → <see cref="PointSequenceGizmo"/> registered with <see cref="GlobalGizmoManager"/>.</item>
+    ///   <item>Route authoring → <see cref="PointSequenceGizmo"/> registered with <see cref="GlobalGizmoManager"/>.</item>
     /// </list>
     /// No DDS or CycloneDDS references; all dispatch is done through the in-process
     /// <see cref="FdpEventBus"/>.
     /// </summary>
     public sealed class EditorSpawnAdapter : ISpawnController
     {
-        private readonly MapCanvas          _canvas;
         private readonly FdpEventBus        _bus;
         private readonly JsonAttributeCompiler? _jsonCompiler;
         private readonly ITkbDatabase?      _tkbDb;
         private readonly ScenarioEntityCreationRequestSource? _requestSource;
+        private readonly GlobalGizmoManager? _globalGizmoManager;
+        private long?                        _activeSequenceId;
 
         /// <summary>
         /// The TKB entity type most recently passed to <see cref="StartPlacementMode"/>.
@@ -42,10 +44,9 @@ namespace Hrot.Editor.Adapters
         /// </summary>
         public long LastSelectedTkbType { get; private set; } = TkbEntityTypes.Tank_M1Abrams;
 
-        /// <param name="canvas">The map canvas that hosts the tool stack.</param>
         /// <param name="bus">The local FDP event bus used to route spawn commands.</param>
         /// <param name="jsonCompiler">
-        /// The JSONâ†’ECS attribute compiler (from <c>AttributeCompilerFactory.Build</c>).
+        /// The JSON->ECS attribute compiler (from <c>AttributeCompilerFactory.Build</c>).
         /// Used to parse <c>InitialAttributesJson</c> into concrete ECS component objects
         /// so the offline spawning pipeline attaches <see cref="EntityInfo"/> (name,
         /// affiliation) without going through the DDS pipeline.
@@ -56,22 +57,22 @@ namespace Hrot.Editor.Adapters
         /// name defaults to <c>"New Unit"</c>.
         /// </param>
         public EditorSpawnAdapter(
-            MapCanvas canvas,
             FdpEventBus bus,
             JsonAttributeCompiler? jsonCompiler = null,
             ITkbDatabase? tkbDb = null,
-            ScenarioEntityCreationRequestSource? requestSource = null)
+            ScenarioEntityCreationRequestSource? requestSource = null,
+            GlobalGizmoManager? globalGizmoManager = null)
         {
-            _canvas       = canvas;
             _bus          = bus;
             _jsonCompiler = jsonCompiler;
             _tkbDb        = tkbDb;
             _requestSource = requestSource;
+            _globalGizmoManager = globalGizmoManager;
         }
 
         /// <inheritdoc/>
         /// <remarks>
-        /// Creates an <see cref="EntityPlacementGizmo"/> wrapped in a <see cref="PlacementCanvasBridge"/>.
+        /// Creates an <see cref="EntityPlacementGizmo"/> registered with <see cref="GlobalGizmoManager"/>.
         /// The gizmo delegate seeds a baseline <see cref="EntityInfo"/> (so the entity always appears
         /// in the ORBAT tree) then uses the shared <see cref="JsonAttributeCompiler"/> to compile
         /// <c>InitialAttributesJson</c> overrides on top, then publishes the completed
@@ -81,7 +82,7 @@ namespace Hrot.Editor.Adapters
         {
             LastSelectedTkbType = tkbType;
 
-            PlacementCanvasBridge? bridge = null;
+            var id = GlobalGizmoManager.NewId();
             var gizmo = new EntityPlacementGizmo(
                 onEntityCreated: cmd =>
                 {
@@ -144,9 +145,8 @@ namespace Hrot.Editor.Adapters
                 tkbType:               tkbType,
                 initialPropertiesJson: initialPropertiesJson,
                 autoPopOnPlace:        true,
-                onRemove:              () => bridge?.RequestPop());
-            bridge = new PlacementCanvasBridge(gizmo);
-            _canvas.PushTool(bridge);
+                onRemove:              () => _globalGizmoManager!.Unregister(id));
+            _globalGizmoManager!.Register(id, gizmo);
         }
 
         /// <summary>
@@ -159,106 +159,111 @@ namespace Hrot.Editor.Adapters
 
         /// <inheritdoc/>
         /// <remarks>
-        /// Pushes a <see cref="PointSequenceTool"/> requiring â‰Ą 3 points.
-        /// On completion, emits a <see cref="SpawnEntityCommand"/> carrying an
-        /// <see cref="EditablePolyline"/> and optional <see cref="MapOverlayStyle"/>.
+        /// Registers a <see cref="PointSequenceGizmo"/> requiring >= 3 points with
+        /// <see cref="GlobalGizmoManager"/>. On completion, emits a
+        /// <see cref="SpawnEntityCommand"/> carrying an <see cref="EditablePolyline"/>
+        /// and optional <see cref="MapOverlayStyle"/>.
         /// </remarks>
         public void StartAreaAuthoringMode(string styleOverrideJson = "")
         {
-            if (_canvas.ActiveTool is PointSequenceTool)
-                _canvas.PopTool();
+            if (_activeSequenceId.HasValue)
+            {
+                _globalGizmoManager!.Unregister(_activeSequenceId.Value);
+                _activeSequenceId = null;
+            }
 
             var styleJson = styleOverrideJson;
-            var tool = new PointSequenceTool(points =>
-            {
-                if (points.Length < 3)
+            var gizmo = new PointSequenceGizmo(
+                onFinish: points =>
                 {
-                    _canvas.PopTool();
-                    return;
-                }
+                    if (points.Length < 3)
+                        return;
 
-                // Build entity-relative geometry (centroid-based anchor).
-                float sumX = 0f, sumY = 0f;
-                for (int i = 0; i < points.Length; i++) { sumX += points[i].X; sumY += points[i].Y; }
-                var anchor = new Vector2(sumX / points.Length, sumY / points.Length);
+                    // Build entity-relative geometry (centroid-based anchor).
+                    float sumX = 0f, sumY = 0f;
+                    for (int i = 0; i < points.Length; i++) { sumX += points[i].X; sumY += points[i].Y; }
+                    var anchor = new Vector2(sumX / points.Length, sumY / points.Length);
 
-                var relPoints = new System.Collections.Generic.List<Vector2>(points.Length);
-                for (int i = 0; i < points.Length; i++)
-                    relPoints.Add(points[i] - anchor);
+                    var relPoints = new System.Collections.Generic.List<Vector2>(points.Length);
+                    for (int i = 0; i < points.Length; i++)
+                        relPoints.Add(points[i] - anchor);
 
-                var polyline = new EditablePolyline { Points = relPoints };
-                var style    = MapOverlayStyle.FromJson(styleJson);
+                    var polyline = new EditablePolyline { Points = relPoints };
+                    var style    = MapOverlayStyle.FromJson(styleJson);
 
-                var cmd = new SpawnEntityCommand
-                {
-                    NetworkId         = 0,
-                    TkbType           = TkbEntityTypes.TacGraphic_Area,
-                    OwnerNodeId       = 0,
-                    InitType          = ReliableInitType.AllPeers,
-                    RequestId         = System.Guid.NewGuid(),
-                    InitialTransform  = new SimTransform { Position = new System.Numerics.Vector3(anchor.X, anchor.Y, 0f) },
-                    InitialComponents = new System.Collections.Generic.List<object> { polyline, style },
-                };
+                    var cmd = new SpawnEntityCommand
+                    {
+                        NetworkId         = 0,
+                        TkbType           = TkbEntityTypes.TacGraphic_Area,
+                        OwnerNodeId       = 0,
+                        InitType          = ReliableInitType.AllPeers,
+                        RequestId         = System.Guid.NewGuid(),
+                        InitialTransform  = new SimTransform { Position = new System.Numerics.Vector3(anchor.X, anchor.Y, 0f) },
+                        InitialComponents = new System.Collections.Generic.List<object> { polyline, style },
+                    };
 
-                _bus.PublishManaged(cmd);
-                _canvas.PopTool();
-            });
+                    _bus.PublishManaged(cmd);
+                },
+                onRemove: () => { _activeSequenceId = null; });
 
-            _canvas.PushTool(tool);
+            _activeSequenceId = GlobalGizmoManager.NewId();
+            _globalGizmoManager!.Register(_activeSequenceId.Value, gizmo);
         }
 
         /// <inheritdoc/>
         /// <remarks>
-        /// Pushes a <see cref="PointSequenceTool"/> requiring â‰Ą 2 points.
-        /// On completion, emits a <see cref="SpawnEntityCommand"/> carrying a
-        /// <see cref="RoutePlan"/>.
+        /// Registers a <see cref="PointSequenceGizmo"/> requiring >= 2 points with
+        /// <see cref="GlobalGizmoManager"/>. On completion, emits a
+        /// <see cref="SpawnEntityCommand"/> carrying a <see cref="RoutePlan"/>.
         /// </remarks>
         public void StartRouteAuthoringMode()
         {
-            if (_canvas.ActiveTool is PointSequenceTool)
-                _canvas.PopTool();
-
-            var tool = new PointSequenceTool(points =>
+            if (_activeSequenceId.HasValue)
             {
-                if (points.Length < 2)
-                {
-                    _canvas.PopTool();
-                    return;
-                }
+                _globalGizmoManager!.Unregister(_activeSequenceId.Value);
+                _activeSequenceId = null;
+            }
 
-                var routePlan = new RoutePlan { IsLoop = false };
-                routePlan.Mutate(wps =>
+            var gizmo = new PointSequenceGizmo(
+                onFinish: points =>
                 {
-                    for (int i = 0; i < points.Length; i++)
+                    if (points.Length < 2)
+                        return;
+
+                    var routePlan = new RoutePlan { IsLoop = false };
+                    routePlan.Mutate(wps =>
                     {
-                        wps.Add(new RouteWaypoint
+                        for (int i = 0; i < points.Length; i++)
                         {
-                            Position    = new System.Numerics.Vector3(points[i].X, points[i].Y, 0f),
-                            TargetSpeed = 0f,
-                        });
-                    }
-                });
+                            wps.Add(new RouteWaypoint
+                            {
+                                Position    = new System.Numerics.Vector3(points[i].X, points[i].Y, 0f),
+                                TargetSpeed = 0f,
+                            });
+                        }
+                    });
 
-                var anchor = routePlan.Waypoints.Count > 0
-                    ? routePlan.Waypoints[0].Position
-                    : default;
+                    var anchor = routePlan.Waypoints.Count > 0
+                        ? routePlan.Waypoints[0].Position
+                        : default;
 
-                var cmd = new SpawnEntityCommand
-                {
-                    NetworkId         = 0,
-                    TkbType           = TkbEntityTypes.TacGraphic_Route,
-                    OwnerNodeId       = 0,
-                    InitType          = ReliableInitType.AllPeers,
-                    RequestId         = System.Guid.NewGuid(),
-                    InitialTransform  = new SimTransform { Position = anchor },
-                    InitialComponents = new System.Collections.Generic.List<object> { routePlan },
-                };
+                    var cmd = new SpawnEntityCommand
+                    {
+                        NetworkId         = 0,
+                        TkbType           = TkbEntityTypes.TacGraphic_Route,
+                        OwnerNodeId       = 0,
+                        InitType          = ReliableInitType.AllPeers,
+                        RequestId         = System.Guid.NewGuid(),
+                        InitialTransform  = new SimTransform { Position = anchor },
+                        InitialComponents = new System.Collections.Generic.List<object> { routePlan },
+                    };
 
-                _bus.PublishManaged(cmd);
-                _canvas.PopTool();
-            });
+                    _bus.PublishManaged(cmd);
+                },
+                onRemove: () => { _activeSequenceId = null; });
 
-            _canvas.PushTool(tool);
+            _activeSequenceId = GlobalGizmoManager.NewId();
+            _globalGizmoManager!.Register(_activeSequenceId.Value, gizmo);
         }
     }
 }

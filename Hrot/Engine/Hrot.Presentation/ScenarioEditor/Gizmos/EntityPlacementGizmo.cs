@@ -15,12 +15,12 @@ namespace Hrot.ScenarioEditor.Gizmos
     /// decoupling the gizmo from any specific network protocol.
     ///
     /// Replaces the deleted <c>CreationTool</c> (Phase 3 of the gizmo migration).
-    /// Exercised via <see cref="PlacementCanvasBridge"/> which forwards canvas
+    /// Exercised via <see cref="GlobalGizmoManager"/> which routes ECS bus events
     /// events into this gizmo.
     ///
     /// Workflow:
     /// <list type="number">
-    ///   <item>Caller constructs the gizmo and wraps it in a <see cref="PlacementCanvasBridge"/>.</item>
+    ///   <item>Caller constructs the gizmo and registers it with <c>GlobalGizmoManager</c>.</item>
     ///   <item>Operator sees a ghost preview circle at the cursor.</item>
     ///   <item>Left-click builds a <see cref="SpawnEntityCommand"/> and fires
     ///         the <see cref="_onEntityCreated"/> delegate. When <c>autoPopOnPlace</c>
@@ -95,7 +95,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// </param>
         /// <param name="onRemove">
         /// Callback invoked when the gizmo wants to exit. Typically calls
-        /// <see cref="PlacementCanvasBridge.RequestPop"/> to pop the bridge from the canvas.
+        /// <c>GlobalGizmoManager.Unregister</c> to remove the gizmo from the manager.
         /// </param>
         public EntityPlacementGizmo(
             Action<SpawnEntityCommand> onEntityCreated,

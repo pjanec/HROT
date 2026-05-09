@@ -1,15 +1,15 @@
 using Fdp.Core;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Fdp.Toolkit.Vis2D.Tools;
 using Hrot.Core.Mission;
 
 namespace Hrot.UI.Common.Facades;
 
 /// <summary>
 /// Implements <see cref="IMapPickService"/> using a local <see cref="MapCanvas"/> and
-/// the Fdp picker tools.  Suitable for Editor, CGF, SimHost, and IG subsystems that
+/// gizmo-based pickers.  Suitable for Editor, CGF, SimHost, and IG subsystems that
 /// own a canvas but do not depend on <c>Hrot.Editor.Tools</c>.
 ///
 /// <para>Location picks return the raw world-space cartesian position encoded as a
@@ -20,6 +20,7 @@ public sealed class CanvasMapPickAdapter : IMapPickService
     private readonly MapCanvas _canvas;
     private readonly EntityRepository? _repo;
     private readonly IEntityFilterFactory _filterFactory;
+    private readonly GlobalGizmoManager? _globalGizmoManager;
 
     // Match-all factory used when no domain-specific factory is provided.
     private static readonly IEntityFilterFactory DefaultFactory = new MatchAllFilterFactory();
@@ -36,62 +37,71 @@ public sealed class CanvasMapPickAdapter : IMapPickService
     /// Optional domain-specific filter factory.  When <see langword="null"/> a
     /// match-all factory is used so every entity qualifies.
     /// </param>
+    /// <param name="globalGizmoManager">
+    /// Optional gizmo manager used to host picker gizmos.  When <see langword="null"/>
+    /// the pick operations are not available.
+    /// </param>
     public CanvasMapPickAdapter(
         MapCanvas canvas,
         EntityRepository? repo = null,
-        IEntityFilterFactory? filterFactory = null)
+        IEntityFilterFactory? filterFactory = null,
+        GlobalGizmoManager? globalGizmoManager = null)
     {
-        _canvas        = canvas ?? throw new ArgumentNullException(nameof(canvas));
-        _repo          = repo;
-        _filterFactory = filterFactory ?? DefaultFactory;
+        _canvas             = canvas ?? throw new ArgumentNullException(nameof(canvas));
+        _repo               = repo;
+        _filterFactory      = filterFactory ?? DefaultFactory;
+        _globalGizmoManager = globalGizmoManager;
     }
 
     /// <inheritdoc/>
     public Task<GeoPoint> PickLocationAsync(CancellationToken ct = default)
     {
-        var tcs  = new TaskCompletionSource<GeoPoint>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var tool = new LocationPickerTool();
-
-        tool.OnLocationPicked += worldPos =>
-            tcs.TrySetResult(new GeoPoint(worldPos.X, worldPos.Y, 0));
-        tool.OnCancelled += () => tcs.TrySetCanceled();
+        var tcs = new TaskCompletionSource<GeoPoint>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var id  = GlobalGizmoManager.NewId();
+        var gizmo = new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
+            onPicked: worldPos => tcs.TrySetResult(new GeoPoint(worldPos.X, worldPos.Y, 0)),
+            onRemove: () => _globalGizmoManager!.Unregister(id));
 
         ct.Register(() =>
         {
-            if (_canvas.ActiveTool == tool) _canvas.PopTool();
+            _globalGizmoManager!.Unregister(id);
             tcs.TrySetCanceled(ct);
         });
 
-        _canvas.PushTool(tool);
+        _globalGizmoManager!.Register(id, gizmo);
         return tcs.Task;
     }
 
     /// <inheritdoc/>
     public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default)
     {
-        var tcs  = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var tool = new EntityPickerTool(_filterFactory, filterPresets);
-
-        tool.OnEntityPicked += entity =>
-        {
-            int networkId = -1;
-            if (_repo != null
-                && _repo.IsAlive(entity)
-                && _repo.HasComponent<NetworkIdentity>(entity))
+        var tcs    = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var id     = GlobalGizmoManager.NewId();
+        var filter = _filterFactory.CreateFilter(filterPresets ?? Array.Empty<string>());
+        var gizmo  = new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(
+            hitTest:     pos => _canvas.PickTopmostEntity(pos) ?? Fdp.Core.Entity.Null,
+            filter:      filter,
+            onPicked:    entity =>
             {
-                networkId = (int)_repo.GetComponentRO<NetworkIdentity>(entity).Value;
-            }
-            tcs.TrySetResult(networkId);
-        };
-        tool.OnCancelled += () => tcs.TrySetCanceled();
+                int networkId = -1;
+                if (_repo != null
+                    && _repo.IsAlive(entity)
+                    && _repo.HasComponent<NetworkIdentity>(entity))
+                {
+                    networkId = (int)_repo.GetComponentRO<NetworkIdentity>(entity).Value;
+                }
+                tcs.TrySetResult(networkId);
+            },
+            onCancelled: () => tcs.TrySetCanceled(),
+            onRemove:    () => _globalGizmoManager!.Unregister(id));
 
         ct.Register(() =>
         {
-            if (_canvas.ActiveTool == tool) _canvas.PopTool();
+            _globalGizmoManager!.Unregister(id);
             tcs.TrySetCanceled(ct);
         });
 
-        _canvas.PushTool(tool);
+        _globalGizmoManager!.Register(id, gizmo);
         return tcs.Task;
     }
 

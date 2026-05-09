@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Numerics;
 using Hrot.Core.Network;
 using Hrot.IG.Systems;
-using Hrot.ScenarioEditor.Gizmos;
 using Fdp.Toolkit.Vis2D;
-using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Events;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Core;
 
@@ -23,14 +25,49 @@ public class MapCommandControllerTests
         MapCanvas                canvas,
         FdpEventBus              bus,
         CapturingAckCallback     ackCapture,
+        GlobalGizmoManager       manager,
+        EntityRepository         repo,
         MapCommandController     controller)
     BuildController()
     {
         var canvas     = new MapCanvas();
         var bus        = new FdpEventBus();
         var ackCapture = new CapturingAckCallback();
-        var ctrl       = new MapCommandController(canvas, bus, ackCapture.Callback);
-        return (canvas, bus, ackCapture, ctrl);
+        var buffer     = new DebugPrimitiveBuffer();
+        var manager    = new GlobalGizmoManager(buffer);
+        var repo       = new EntityRepository();
+        repo.RegisterEvent<GizmoDragUpdateEvent>();
+        repo.RegisterEvent<GizmoMouseEvent>();
+        repo.RegisterEvent<GizmoKeyEvent>();
+        var ctrl       = new MapCommandController(canvas, bus, ackCapture.Callback, globalGizmoManager: manager);
+        return (canvas, bus, ackCapture, manager, repo, ctrl);
+    }
+
+    // Publishes a left-mouse-released event and drives a single Execute tick,
+    // which routes the event to the focused gizmo synchronously.
+    private static void SimulateLeftClick(GlobalGizmoManager manager, EntityRepository repo, float x = 1f, float y = 2f)
+    {
+        repo.Bus.Publish(new GizmoMouseEvent
+        {
+            Button    = MapMouseButton.Left,
+            IsPressed = false,
+            WorldPos  = new Vector3(x, y, 0f),
+        });
+        repo.Bus.SwapBuffers();
+        manager.Execute(repo, 0f);
+    }
+
+    // Publishes a right-mouse-pressed event (= cancel) and drives a single Execute tick.
+    private static void SimulateRightClick(GlobalGizmoManager manager, EntityRepository repo, float x = 1f, float y = 2f)
+    {
+        repo.Bus.Publish(new GizmoMouseEvent
+        {
+            Button    = MapMouseButton.Right,
+            IsPressed = true,
+            WorldPos  = new Vector3(x, y, 0f),
+        });
+        repo.Bus.SwapBuffers();
+        manager.Execute(repo, 0f);
     }
 
     private static IReadOnlyList<SpawnEntityCommand> DrainSpawnCmds(FdpEventBus bus)
@@ -40,41 +77,41 @@ public class MapCommandControllerTests
     }
 
     [Fact]
-    public void ActivatePlacementCommand_PushesCreationToolOntoCanvas()
+    public void ActivatePlacementCommand_RegistersGizmoWithManager()
     {
-        var (canvas, _, _, ctrl) = BuildController();
+        var (_, _, _, manager, _, ctrl) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null);
-        Assert.IsType<PlacementCanvasBridge>(canvas.ActiveTool);
+        Assert.Equal(1, manager.ActiveCount);
     }
 
     [Fact]
     public void ActivatePlacementCommand_SameContext_IsNoop()
     {
-        var (canvas, _, ackCapture, ctrl) = BuildController();
+        var (_, _, ackCapture, manager, _, ctrl) = BuildController();
         var contextId = Guid.NewGuid();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), contextId, 202L, null);
-        var toolAfterFirst = canvas.ActiveTool;
+        Assert.Equal(1, manager.ActiveCount);
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), contextId, 202L, null);
-        Assert.Same(toolAfterFirst, canvas.ActiveTool);
+        Assert.Equal(1, manager.ActiveCount);
         Assert.Empty(ackCapture.Written);
     }
 
     [Fact]
     public void ActivatePlacementCommand_LeftClick_PublishesSpawnCommandOnBus()
     {
-        var (canvas, bus, _, ctrl) = BuildController();
+        var (_, bus, _, manager, repo, ctrl) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null);
-        ((PlacementCanvasBridge)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MapMouseButton.Left);
+        SimulateLeftClick(manager, repo);
         Assert.Single(DrainSpawnCmds(bus));
     }
 
     [Fact]
     public void OnCreateEntityAck_AfterToolAutoPop_PublishesFinishedAck()
     {
-        var (canvas, bus, ackCapture, ctrl) = BuildController();
+        var (_, bus, ackCapture, manager, repo, ctrl) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.ActivatePlacementCommand(requestId, Guid.NewGuid(), 202L, null);
-        ((PlacementCanvasBridge)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MapMouseButton.Left);
+        SimulateLeftClick(manager, repo);
         var entityReqId = DrainSpawnCmds(bus)[0].RequestId;
         ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = entityReqId, EntityId = 99, StatusCode = 0 });
         Assert.Single(ackCapture.Written);
@@ -85,9 +122,9 @@ public class MapCommandControllerTests
     [Fact]
     public void OnCreateEntityAck_UnknownRequestId_IsIgnored()
     {
-        var (canvas, bus, ackCapture, ctrl) = BuildController();
+        var (_, bus, ackCapture, manager, repo, ctrl) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null);
-        ((PlacementCanvasBridge)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MapMouseButton.Left);
+        SimulateLeftClick(manager, repo);
         bus.SwapBuffers();
         ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 1, StatusCode = 0 });
         Assert.Empty(ackCapture.Written);
@@ -96,10 +133,10 @@ public class MapCommandControllerTests
     [Fact]
     public void HandleClick_RightClick_PublishesCancelledAck()
     {
-        var (canvas, bus, ackCapture, ctrl) = BuildController();
+        var (_, bus, ackCapture, manager, repo, ctrl) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.ActivatePlacementCommand(requestId, Guid.NewGuid(), 202L, null);
-        ((PlacementCanvasBridge)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MapMouseButton.Right);
+        SimulateRightClick(manager, repo);
         Assert.Empty(bus.ReadManaged<SpawnEntityCommand>());
         Assert.Single(ackCapture.Written);
         Assert.Equal(requestId, ackCapture.Written[0].RequestId);
@@ -109,9 +146,9 @@ public class MapCommandControllerTests
     [Fact]
     public void FinishedAck_DataJsonContainsEntityId()
     {
-        var (canvas, bus, ackCapture, ctrl) = BuildController();
+        var (_, bus, ackCapture, manager, repo, ctrl) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null);
-        ((PlacementCanvasBridge)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MapMouseButton.Left);
+        SimulateLeftClick(manager, repo);
         var entityReqId = DrainSpawnCmds(bus)[0].RequestId;
         ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = entityReqId, EntityId = 42, StatusCode = 0 });
         Assert.Contains("42", ackCapture.Written[0].DataJson);
@@ -120,7 +157,7 @@ public class MapCommandControllerTests
     [Fact]
     public void AreaAuthoring_CommitAndAck_PublishesFinishedAck()
     {
-        var (_, bus, ackCapture, ctrl) = BuildController();
+        var (_, bus, ackCapture, _, _, ctrl) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.BeginAreaAuthoringSession(requestId, Guid.NewGuid());
         var areaCmd = new SpawnEntityCommand { RequestId = Guid.NewGuid() };
@@ -135,7 +172,7 @@ public class MapCommandControllerTests
     [Fact]
     public void AreaAuthoring_CancelledBeforeAnyRequest_PublishesCancelledAck()
     {
-        var (_, bus, ackCapture, ctrl) = BuildController();
+        var (_, bus, ackCapture, _, _, ctrl) = BuildController();
         var requestId = Guid.NewGuid();
         ctrl.BeginAreaAuthoringSession(requestId, Guid.NewGuid());
         ctrl.OnAreaToolCancelled();
@@ -148,7 +185,7 @@ public class MapCommandControllerTests
     [Fact]
     public void OnCreateEntityAck_NoActiveSession_IsIgnored()
     {
-        var (_, _, ackCapture, ctrl) = BuildController();
+        var (_, _, ackCapture, _, _, ctrl) = BuildController();
         ctrl.OnCreateEntityAck(new EntityLifecycleAckDto { RequestId = Guid.NewGuid(), EntityId = 1, StatusCode = 0 });
         Assert.Empty(ackCapture.Written);
     }
@@ -156,9 +193,9 @@ public class MapCommandControllerTests
     [Fact]
     public void ActivatePlacementCommand_WithInitialJson_SpawnCommandCarriesJson()
     {
-        var (canvas, bus, _, ctrl) = BuildController();
+        var (_, bus, _, manager, repo, ctrl) = BuildController();
         ctrl.ActivatePlacementCommand(Guid.NewGuid(), Guid.NewGuid(), 202L, null, initialPropertiesJson: "{\"Name\":\"BetaUnit\"}");
-        ((PlacementCanvasBridge)canvas.ActiveTool!).HandleClick(new Vector2(100f, 200f), MapMouseButton.Left);
+        SimulateLeftClick(manager, repo, 100f, 200f);
         var cmds = DrainSpawnCmds(bus);
         Assert.Single(cmds);
         Assert.Equal("{\"Name\":\"BetaUnit\"}", cmds[0].InitialAttributesJson);
@@ -167,7 +204,7 @@ public class MapCommandControllerTests
     [Fact]
     public void OnAreaEntityCreated_WithoutBeginSession_IsDropped()
     {
-        var (_, bus, _, ctrl) = BuildController();
+        var (_, bus, _, _, _, ctrl) = BuildController();
         ctrl.OnAreaEntityCreated(new SpawnEntityCommand { RequestId = Guid.NewGuid() });
         Assert.Empty(bus.ReadManaged<SpawnEntityCommand>());
     }
@@ -175,7 +212,7 @@ public class MapCommandControllerTests
     [Fact]
     public void OnAreaEntityCreated_AfterBeginSession_PublishesSpawnCommand()
     {
-        var (_, bus, _, ctrl) = BuildController();
+        var (_, bus, _, _, _, ctrl) = BuildController();
         ctrl.BeginAreaAuthoringSession(Guid.NewGuid(), Guid.NewGuid());
         ctrl.OnAreaEntityCreated(new SpawnEntityCommand { RequestId = Guid.NewGuid() });
         Assert.Single(DrainSpawnCmds(bus));

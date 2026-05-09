@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.NetworkSpawning.Events;
-using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.ScenarioEditor.Gizmos;
 using Xunit;
 
@@ -11,9 +11,9 @@ namespace Hrot.ScenarioEditor.Tests;
 /// <summary>
 /// Unit tests for <see cref="EntityPlacementGizmo"/> (EPG-001..EPG-006).
 ///
-/// Tests exercise the gizmo through <see cref="PlacementCanvasBridge"/> to match
-/// real production usage. No Raylib window context is required -- bridge.HandleClick
-/// is pure in-memory state.
+/// Tests exercise the gizmo directly via <see cref="IEntityStatefulGizmo"/> method calls
+/// (PlacementCanvasBridge was deleted in Phase 3, BATCH-29).
+/// No Raylib window context is required.
 /// </summary>
 public class EntityPlacementGizmoTests
 {
@@ -25,18 +25,15 @@ public class EntityPlacementGizmoTests
 
     // -- Helper -----------------------------------------------------------
 
-    private static (List<SpawnEntityCommand> captured, PlacementCanvasBridge bridge)
-        CreateBridge(long tkbType = 202L, string? initialPropertiesJson = null)
+    private static (List<SpawnEntityCommand> captured, EntityPlacementGizmo gizmo)
+        CreateGizmo(long tkbType = 202L, string? initialPropertiesJson = null)
     {
         var captured = new List<SpawnEntityCommand>();
-        PlacementCanvasBridge? bridge = null;
         var gizmo = new EntityPlacementGizmo(
             onEntityCreated:       cmd => captured.Add(cmd),
             tkbType:               tkbType,
-            initialPropertiesJson: initialPropertiesJson,
-            onRemove:              () => bridge?.RequestPop());
-        bridge = new PlacementCanvasBridge(gizmo);
-        return (captured, bridge);
+            initialPropertiesJson: initialPropertiesJson);
+        return (captured, gizmo);
     }
 
     // -- EPG-001: left-click publishes exactly one command ----------------
@@ -44,9 +41,9 @@ public class EntityPlacementGizmoTests
     [Fact]
     public void LeftClick_WritesExactlyOneCommand()
     {
-        var (captured, bridge) = CreateBridge();
+        var (captured, gizmo) = CreateGizmo();
 
-        bridge.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
+        gizmo.OnMouseEvent(MapMouseButton.Left, isPressed: false, new Vector3(ClickX, ClickY, 0f));
 
         Assert.Single(captured);
     }
@@ -56,9 +53,9 @@ public class EntityPlacementGizmoTests
     [Fact]
     public void LeftClick_CommandHasCorrectTkbType()
     {
-        var (captured, bridge) = CreateBridge(tkbType: TestTkbType);
+        var (captured, gizmo) = CreateGizmo(tkbType: TestTkbType);
 
-        bridge.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
+        gizmo.OnMouseEvent(MapMouseButton.Left, isPressed: false, new Vector3(ClickX, ClickY, 0f));
 
         Assert.Equal(TestTkbType, captured[0].TkbType);
     }
@@ -68,9 +65,9 @@ public class EntityPlacementGizmoTests
     [Fact]
     public void LeftClick_CommandHasInitialTransformMatchingClickPosition()
     {
-        var (captured, bridge) = CreateBridge();
+        var (captured, gizmo) = CreateGizmo();
 
-        bridge.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
+        gizmo.OnMouseEvent(MapMouseButton.Left, isPressed: false, new Vector3(ClickX, ClickY, 0f));
 
         Assert.True(captured[0].InitialTransform.HasValue);
         Assert.Equal(ClickX, captured[0].InitialTransform!.Value.Position.X, precision: 2);
@@ -82,9 +79,9 @@ public class EntityPlacementGizmoTests
     [Fact]
     public void LeftClick_CommandHasNonEmptyRequestId()
     {
-        var (captured, bridge) = CreateBridge();
+        var (captured, gizmo) = CreateGizmo();
 
-        bridge.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
+        gizmo.OnMouseEvent(MapMouseButton.Left, isPressed: false, new Vector3(ClickX, ClickY, 0f));
 
         Assert.NotEqual(Guid.Empty, captured[0].RequestId);
     }
@@ -94,9 +91,9 @@ public class EntityPlacementGizmoTests
     [Fact]
     public void RightClick_DoesNotPublish()
     {
-        var (captured, bridge) = CreateBridge();
+        var (captured, gizmo) = CreateGizmo();
 
-        bridge.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Right);
+        gizmo.OnMouseEvent(MapMouseButton.Right, isPressed: true, new Vector3(ClickX, ClickY, 0f));
 
         Assert.Empty(captured);
     }
@@ -107,9 +104,9 @@ public class EntityPlacementGizmoTests
     public void InitialAttributesJson_ForwardedVerbatim()
     {
         const string json = "{\"affiliation\":\"FORCE_FRIENDLY\"}";
-        var (captured, bridge) = CreateBridge(initialPropertiesJson: json);
+        var (captured, gizmo) = CreateGizmo(initialPropertiesJson: json);
 
-        bridge.HandleClick(new Vector2(ClickX, ClickY), MapMouseButton.Left);
+        gizmo.OnMouseEvent(MapMouseButton.Left, isPressed: false, new Vector3(ClickX, ClickY, 0f));
 
         Assert.Equal(json, captured[0].InitialAttributesJson);
     }

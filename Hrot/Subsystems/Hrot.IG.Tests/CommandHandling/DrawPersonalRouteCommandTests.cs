@@ -7,7 +7,6 @@ using Hrot.NED.Common;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Commands;
-using Fdp.Toolkit.Vis2D.Tools;
 using DebugPrimitivesBatch = GizmoMap.Network.DebugPrimitivesBatch;
 using GizmoInteractionBatch = GizmoMap.Network.GizmoInteractionBatch;
 

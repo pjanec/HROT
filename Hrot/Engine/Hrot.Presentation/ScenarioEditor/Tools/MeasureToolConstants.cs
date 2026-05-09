@@ -6,7 +6,7 @@
 /// </summary>
 public static class MeasureToolConstants
 {
-    /// <summary>Display name reported via <see cref="Fdp.Toolkit.Vis2D.Abstractions.IMapTool.Name"/>.</summary>
+    /// <summary>Display name for the measurement gizmo.</summary>
     public const string ToolName = "Measure";
 
     /// <summary>

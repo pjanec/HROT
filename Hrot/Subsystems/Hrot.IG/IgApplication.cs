@@ -20,8 +20,6 @@ using Hrot.IG.Systems;
 
 using Hrot.Common.Systems;
 
-using Hrot.ScenarioEditor.Tools;
-
 using Hrot.IG.UI;
 
 using Hrot.Map.Common;
@@ -92,7 +90,7 @@ using Hrot.Network.NED.Gizmos;
 using Hrot.ScenarioEditor.Events;
 using Fdp.Toolkit.Vis2D.Layers;
 
-using Fdp.Toolkit.Vis2D.Tools;
+using Fdp.Toolkit.Vis2D.Gizmos;
 using Fdp.Toolkit.Vis2D.Abstractions;
 
 using ImGuiNET;
@@ -125,10 +123,7 @@ using DdsIdAllocator = Fdp.Network.Cyclone.Services.DdsIdAllocator;
 using NodeIdMapper    = Fdp.Network.Cyclone.Services.NodeIdMapper;
 
 using Hrot.ScenarioEditor.Gizmos;
-
-// Disambiguate StandardInteractionTool: both Hrot.IG.Tools and FDP.Toolkit.Vis2D.Tools define it.
-// Use the Hrot.IG variant which exposes OnWorldClick.
-using StandardInteractionTool = Hrot.ScenarioEditor.Tools.StandardInteractionTool;
+using Hrot.ScenarioEditor.Systems;
 
 using Raylib_cs;
 
@@ -237,6 +232,11 @@ public class IgApplication : IDisposable
     private GizmoSettingsRegistry?      _gizmoSettingsRegistry;
     private MeasureToolGizmoAdapter?    _measureToolGizmoAdapter;
     private GizmoUndoStack?             _gizmoUndoStack;
+    private GlobalGizmoManager?         _globalGizmoManager;
+    private long?                        _activeSequenceId;
+    private PointSequenceGizmo?          _activeSequenceGizmo;
+    private long?                        _activeLocationPickerId;
+    private long?                        _activeEntityPickerId;
     // GZ045: receives DebugPrimitivesBatch frames from SimHost via DDS.
     private DebugPrimitivesIngressTranslator? _ingressTranslator;
 
@@ -333,6 +333,9 @@ public class IgApplication : IDisposable
     // -- Drag tracking: world-space drop position set by OnEntityMoved --------------------------
 
     private System.Numerics.Vector2          _lastDragWorldPos;
+
+    /// <summary>Phase 5: ECS system that translates gizmo interaction events into SelectionState mutations.</summary>
+    private SelectionInteractionSystem? _selectionSystem;
 
     /// <summary>
     /// Accumulated time (seconds) since the last throttled network update during a drag.
@@ -466,7 +469,7 @@ public class IgApplication : IDisposable
     public MapPickServiceBridge? GetMapPickBridge()
     {
         if (_mapPickBridge == null && _canvas != null)
-            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_canvas, _world), _world);
+            _mapPickBridge = new MapPickServiceBridge(new CanvasMapPickAdapter(_canvas, _world, globalGizmoManager: _globalGizmoManager), _world);
         return _mapPickBridge;
     }
 
@@ -509,8 +512,8 @@ public class IgApplication : IDisposable
         Raylib.SetTargetFPS(TargetFps);
 
         // Prevent Raylib from treating ESC as a window-close signal.
-        // Map tools handle ESC via IMapTool.HandleKeyPressed routed through MapCanvas,
-        // ensuring it is consumed by the active tool and does not bubble to the main loop.
+        // Map layers handle ESC via IMapLayer.HandleKeyInput routed through MapCanvas,
+        // ensuring it is consumed by the active layer and does not bubble to the main loop.
         Raylib.SetExitKey(KeyboardKey.Null);
 
         rlImGui.Setup(darkTheme: true);
@@ -896,7 +899,8 @@ public class IgApplication : IDisposable
                     _canvas,
                     _world.Bus,
                     dto => _networkAdapter?.WriteMapCommandAck(dto),
-                    _effectiveInstanceId);
+                    _effectiveInstanceId,
+                    globalGizmoManager: _globalGizmoManager);
 
                 _contextMenuSystem.SetCacheMissWriter(
                     (reqId, mapId, sel) => _networkAdapter?.WriteContextMenuRequest(reqId, mapId, sel),
@@ -1045,31 +1049,7 @@ public class IgApplication : IDisposable
 
 
 
-        // D. Entity query for the StandardInteractionTool (selection/picking).
-        // Area-overlay and route entities are excluded from the interaction query
-        // so that clicking on them does not accidentally select non-tactical entities.
-
-        var query = _world.Query()
-
-            .With<NetworkIdentity>()
-
-            .With<SimTransform>()
-
-            .Without<MapOverlayStyle>()
-
-            .WithoutManaged<Hrot.Map.Common.Components.RoutePlan>()
-
-            .WithLifecycle(EntityLifecycle.All)
-
-            .Build();
-
-
-
-        var selection = new DefaultSelectionState();
-
-
-
-        // SelectionRenderSystem ÔÇö PostRender overlay drawing selection rings.
+        // SelectionRenderSystem — PostRender overlay drawing selection rings.
 
         var selectionQuery  = _world.Query()
 
@@ -1099,14 +1079,28 @@ public class IgApplication : IDisposable
         _gizmoSettingsRegistry  = new GizmoSettingsRegistry();
         _gizmoUndoStack        = new GizmoUndoStack();
         Hrot.IG.Gizmos.GizmoRegistrar.Register(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
+        // Phase 5: EntityDragGizmo makes entities draggable and emits pick spheres for selection.
+        if (_networkEnabled)
+        {
+            _gizmoRegistry!.Register(
+                new EntityDragGizmoDefinition(onDragCommitted: (entity, worldPos) =>
+                {
+                    _lastDragWorldPos = worldPos;
+                    OnEntityDragEnded(entity);
+                }));
+        }
+        else
+        {
+            _gizmoRegistry!.Register(new EntityDragGizmoDefinition());
+        }
         _gizmoRegistry!.Register(new VertexEditGizmoDefinition());
         _gizmoRegistry!.Register(new RouteWaypointGizmoDefinition());
         // GZ058: manually register MissionPresentationGizmo (constructor requires IGeographicTransform).
         _statelessGizmoRegistry.Register(
             new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(_geoTransform!),
             new[] { typeof(SimTransform), typeof(SelectionState) });
-        _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_canvas, _gizmoSettingsRegistry);
-        var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, _world.Bus, _canvas);
+        _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_globalGizmoManager!, _gizmoSettingsRegistry);
+        var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, _world.Bus, _world);
         _gizmoLayer = gizmoLayer;
         _canvas.AddLayer(gizmoLayer);
         _canvas.DrawBuffer = _gizmoBuffer;
@@ -1117,83 +1111,24 @@ public class IgApplication : IDisposable
             .WithLifecycle(EntityLifecycle.All)
             .Build();
 
+        // Phase 5: selection and drag handled by SelectionInteractionSystem + EntityDragGizmo.
+        // Canvas no longer has a base tool for entity picking.
 
-        // StandardInteractionTool -- default canvas tool wiring selection to ECS.
+        _selectionSystem = new SelectionInteractionSystem(_world);
 
-        var interactionTool = new StandardInteractionTool(_world, query, selection);
-
-        _canvas.SwitchTool(interactionTool);
-
-
-
-        interactionTool.OnWorldClick += OnCanvasWorldClick;
-
-        // Route Delete key through the tool pipeline so ImGui keyboard capture
-        // (e.g. editing a value in a component window) is always respected.
-        interactionTool.OnDeleteRequested += () =>
-        {
-            foreach (var entity in new List<Entity>(selection.SelectedEntities))
-            {
-                if (!_world.IsAlive(entity)) continue;
-
-                if (_world.HasComponent<NetworkIdentity>(entity))
-                {
-                    ref readonly var netId = ref _world.GetComponentRO<NetworkIdentity>(entity);
-                    _world.Bus.PublishManaged(new DestroyEntityCommand
-                    {
-                        NetworkId = netId.Value,
-                        Reason    = "user-deleted",
-                    });
-                }
-                else
-                {
-                    _world.DestroyEntity(entity);
-                }
-            }
-            selection.ClearSelection();
-        };
-
-
-        // Task 5: Wire IG-to-ExCon event translators when DDS participant is ready.
-
+        // When a network-enabled entity is clicked, also publish MapClickEvent and
+        // SelectionChangedEvent so that ExCon can track map selections.
         if (_networkEnabled)
-
         {
-
-            interactionTool.OnWorldClick += (worldPos, button, shift, ctrl, hit) => OnCanvasClicked(worldPos, button, shift, ctrl, hit, true);
-
-            interactionTool.OnEntityDragEnd += OnEntityDragEnded;
-
-            // Track world-space drag position and drive continuous-drag throttle timer.
-            interactionTool.OnEntityMoved += (entity, worldPos) =>
+            _selectionSystem.OnSelectionChanged += (entity, worldPos) =>
             {
-                bool isShiftHeld = Raylib.IsKeyDown(KeyboardKey.LeftShift)
-                                || Raylib.IsKeyDown(KeyboardKey.RightShift);
-
-                if (_userConfig.ContinuousDragUpdates)
-                {
-                    // Existing throttle path: keep unchanged.
-                    _continuousDragTimer += _frameDt;
-                    if (_continuousDragTimer >= ContinuousDragIntervalSec)
-                    {
-                        SendGeoSpatialUpdate(entity, worldPos);
-                        _continuousDragTimer = 0f;
-                    }
-                }
-                else if (isShiftHeld && _lastDragWorldPos != worldPos)
-                {
-                    // Shift-held path: bypass throttle, send immediately if position changed.
-                    SendGeoSpatialUpdate(entity, worldPos);
-                }
-
-                _lastDragWorldPos = worldPos;
+                OnCanvasClicked(new System.Numerics.Vector2(worldPos.X, worldPos.Y),
+                    MapMouseButton.Left, false, false, entity, updateSelection: true);
             };
-
             _miniIosPanel.SetGateway(_commandGateway);
-
         }
 
-
+        _kernel.RegisterGlobalSystem(new SelectionInteractionSystemAdapter(_selectionSystem));
 
         // E. SlaveSyncController — unified slave that handles Continuous/Stepping transitions.
         // Must use _context!.EventBus (the same bus as the time translators above),
@@ -1221,6 +1156,10 @@ public class IgApplication : IDisposable
 
         // GZ057-058: register StatelessGizmoSystem so local presentation gizmos execute each frame.
         _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!));
+
+        // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
+        _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer!);
+        _kernel.RegisterGlobalSystem(_globalGizmoManager);
 
         _kernel.Initialize();
 
@@ -1983,60 +1922,45 @@ public class IgApplication : IDisposable
 
 
     /// <summary>
-
-    /// Returns <c>true</c> when <see cref="PlacementCanvasBridge"/> is the currently active
-
-    /// canvas tool  i.e. the operator is in placement mode (activated by an ExCon
-
-    /// <c>MapInteractionConfig</c>).
-
+    /// Returns <c>true</c> when the <see cref="GlobalGizmoManager"/> has an active
+    /// placement gizmo registered — i.e. the operator is in placement mode (activated
+    /// by an ExCon <c>MapInteractionConfig</c>).
     /// </summary>
-
-    internal bool TestHook_IsCreationToolActive => _canvas.ActiveTool is PlacementCanvasBridge;
-
-
+    internal bool TestHook_IsCreationToolActive => _globalGizmoManager?.ActiveCount > 0;
 
     /// <summary>
-
-    /// Returns <c>true</c> when <see cref="PointSequenceTool"/> is the active map tool.
-
+    /// Returns <c>true</c> when a <see cref="PointSequenceGizmo"/> is active.
     /// </summary>
-
-    internal bool TestHook_IsPointSequenceToolActive => _canvas.ActiveTool is PointSequenceTool;
-
-
+    internal bool TestHook_IsPointSequenceToolActive => _activeSequenceGizmo != null;
 
     /// <summary>
-
-    /// Directly invokes <see cref="PlacementCanvasBridge.HandleClick"/> with a left-click at
-
-    /// <paramref name="worldPos"/>, bypassing the ExCon-mediated <see cref="OnCanvasClicked"/>
-
-    /// path.  This simulates what happens when the real operator clicks on the canvas
-
-    /// while the placement bridge is active.  No-op when <see cref="PlacementCanvasBridge"/> is not
-
-    /// the active tool.
-
+    /// Publishes a left-click <see cref="GizmoMouseEvent"/> to the world bus and drives
+    /// one <see cref="GlobalGizmoManager.Execute"/> tick, simulating what happens when the
+    /// real operator clicks on the canvas while a placement gizmo is active.
+    /// No-op when no placement gizmo is registered.
     /// </summary>
-
     internal void TestHook_DirectCreationToolClick(Vector2 worldPos)
-
     {
+        if (_globalGizmoManager == null || _globalGizmoManager.ActiveCount == 0)
+            return;
 
-        if (_canvas.ActiveTool is PlacementCanvasBridge bridge)
-
-            bridge.HandleClick(worldPos, MapMouseButton.Left);
-
+        _world.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMouseEvent
+        {
+            Button    = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left,
+            IsPressed = false,
+            WorldPos  = new System.Numerics.Vector3(worldPos.X, worldPos.Y, 0f),
+        });
+        _world.Bus.SwapBuffers();
+        _globalGizmoManager.Execute(_world, 0f);
     }
 
 
 
     /// <summary>
 
-    /// Directly drives a <see cref="PointSequenceTool"/> with a list of points and commits
+    /// Directly drives a <see cref="PointSequenceGizmo"/> with a list of points and commits
 
-    /// the sequence with a right-click. No-op if the active tool is not a point sequence tool.
+    /// the sequence with a right-click. No-op if no point sequence gizmo is active.
 
     /// </summary>
 
@@ -2044,7 +1968,7 @@ public class IgApplication : IDisposable
 
     {
 
-        if (_canvas.ActiveTool is not PointSequenceTool tool)
+        if (_activeSequenceGizmo is not PointSequenceGizmo gizmo)
 
             return;
 
@@ -2054,7 +1978,7 @@ public class IgApplication : IDisposable
 
         {
 
-            tool.HandleClick(Vector2.Zero, MapMouseButton.Right);
+            gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Right, true, Vector3.Zero);
 
             return;
 
@@ -2066,17 +1990,15 @@ public class IgApplication : IDisposable
 
         {
 
-            tool.HandleHover(points[i]);
+            gizmo.OnDragUpdate(new Vector3(points[i].X, points[i].Y, 0f));
 
-            tool.HandleClick(points[i], MapMouseButton.Left);
+            gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, new Vector3(points[i].X, points[i].Y, 0f));
 
         }
 
 
 
-        tool.HandleHover(points[^1]);
-
-        tool.HandleClick(points[^1], MapMouseButton.Right);
+        gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Right, true, new Vector3(points[^1].X, points[^1].Y, 0f));
 
     }
 
@@ -2863,9 +2785,14 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
             }
 
-            case "200": // Measure — push the measurement tool onto the canvas
+            case "200": // Measure — activate the measurement gizmo
 
-                _canvas.PushTool(new MeasureTool());
+                if (_globalGizmoManager != null)
+                {
+                    var id = GlobalGizmoManager.NewId();
+                    var gizmo = new Hrot.ScenarioEditor.Gizmos.MeasureGizmo(onRemove: () => _globalGizmoManager?.Unregister(id));
+                    _globalGizmoManager.Register(id, gizmo);
+                }
 
                 break;
 
@@ -3239,29 +3166,39 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
             int vehicleId = eidEl.GetInt32();
 
-            // Pop any stale PointSequenceTool to avoid tool stack accumulation.
-            if (_canvas.ActiveTool is PointSequenceTool)
-                _canvas.PopTool();
-
-            var tool = new PointSequenceTool(points =>
+            // Pop any stale PointSequenceGizmo to avoid accumulation.
+            if (_activeSequenceId.HasValue)
             {
-                if (points.Length < 2)
+                _globalGizmoManager?.Unregister(_activeSequenceId.Value);
+                _activeSequenceId    = null;
+                _activeSequenceGizmo = null;
+            }
+
+            var seqGizmo = new PointSequenceGizmo(
+                onFinish: points =>
                 {
-                    // Too few points — cancel the command.
-                    _networkAdapter?.WriteMapCommandAck(new Hrot.Core.Network.MapCommandAckDto
+                    if (points.Length < 2)
                     {
-                        RequestId  = requestId,
-                        StatusCode = (int)MapCommandController.StatusCancelled,
-                    });
-                    _canvas.PopTool();
-                    return;
-                }
+                        // Too few points — cancel the command.
+                        _networkAdapter?.WriteMapCommandAck(new Hrot.Core.Network.MapCommandAckDto
+                        {
+                            RequestId  = requestId,
+                            StatusCode = (int)MapCommandController.StatusCancelled,
+                        });
+                        return;
+                    }
 
-                _ = OrchestratePersonalRouteAsync(requestId, vehicleId, points);
-                _canvas.PopTool();
-            });
+                    _ = OrchestratePersonalRouteAsync(requestId, vehicleId, points);
+                },
+                onRemove: () =>
+                {
+                    _activeSequenceId    = null;
+                    _activeSequenceGizmo = null;
+                });
 
-            _canvas.PushTool(tool);
+            _activeSequenceId    = GlobalGizmoManager.NewId();
+            _activeSequenceGizmo = seqGizmo;
+            _globalGizmoManager?.Register(_activeSequenceId.Value, seqGizmo);
             FdpLog<IgApplication>.Info(
                 "[Node-{0}] CMD_DRAW_PERSONAL_ROUTE: point-sequence tool activated for vehicle {1}.", _effectiveInstanceId, vehicleId);
         }
@@ -3655,11 +3592,11 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
     /// <summary>
 
-    /// Pushes a <see cref="PointSequenceTool"/> onto the canvas tool stack for area authoring.
+    /// Registers a <see cref="PointSequenceGizmo"/> with <see cref="GlobalGizmoManager"/> for area authoring.
 
     /// Guarded by <see cref="_lastAreaContextId"/> so repeated keep-last DDS deliveries do not
 
-    /// re-activate the tool for the same interaction context.
+    /// re-activate the gizmo for the same interaction context.
 
     /// </summary>
 
@@ -3681,15 +3618,25 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
 
 
-        if (_canvas.ActiveTool is PointSequenceTool)
+        if (_activeSequenceId.HasValue)
 
-            _canvas.PopTool();
+        {
+
+            _globalGizmoManager?.Unregister(_activeSequenceId.Value);
+
+            _activeSequenceId    = null;
+
+            _activeSequenceGizmo = null;
+
+        }
 
 
 
         _mapCommandController?.BeginAreaAuthoringSession(requestId, _activeContextId);
 
-        var tool = new PointSequenceTool(points =>
+        var areaGizmo = new PointSequenceGizmo(
+
+            onFinish: points =>
 
         {
 
@@ -3698,8 +3645,6 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             {
 
                 _mapCommandController?.OnAreaToolCancelled();
-
-                _canvas.PopTool();
 
                 return;
 
@@ -3813,10 +3758,23 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             else if (_mapCommandController != null)
                 _mapCommandController.OnAreaEntityCreated(cmd, isToolDone: true);
 
-            _canvas.PopTool();
+        },
+
+            onRemove: () =>
+
+        {
+
+            _activeSequenceId    = null;
+
+            _activeSequenceGizmo = null;
 
         });
-        _canvas.PushTool(tool);
+
+        _activeSequenceId    = GlobalGizmoManager.NewId();
+
+        _activeSequenceGizmo = areaGizmo;
+
+        _globalGizmoManager?.Register(_activeSequenceId.Value, areaGizmo);
 
 
 
@@ -3825,7 +3783,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     }
 
     /// <summary>
-    /// Activates a <see cref="PointSequenceTool"/> configured for route authoring
+    /// Registers a <see cref="PointSequenceGizmo"/> with <see cref="GlobalGizmoManager"/> for route authoring
     /// (minimum 2 points). When finished, emits a <see cref="SpawnEntityCommand"/>
     /// with <see cref="Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand.InitialComponents"/>
     /// carrying a <see cref="Hrot.Map.Common.Components.RoutePlan"/>.
@@ -3835,17 +3793,21 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         if (!_networkEnabled && _testSpawnCommandSink == null)
             return;
 
-        if (_canvas.ActiveTool is PointSequenceTool)
-            _canvas.PopTool();
+        if (_activeSequenceId.HasValue)
+        {
+            _globalGizmoManager?.Unregister(_activeSequenceId.Value);
+            _activeSequenceId    = null;
+            _activeSequenceGizmo = null;
+        }
 
         _mapCommandController?.BeginAreaAuthoringSession(requestId, _activeContextId);
 
-        var tool = new PointSequenceTool(points =>
+        var routeGizmo = new PointSequenceGizmo(
+            onFinish: points =>
         {
             if (points.Length < 2)
             {
                 _mapCommandController?.OnAreaToolCancelled();
-                _canvas.PopTool();
                 return;
             }
 
@@ -3856,7 +3818,6 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
                 FdpLog<IgApplication>.Error(
                     "[Node-{0}] Cannot create route: geographic transform is unavailable. " +
                     "Ensure the IG is initialised with a valid map origin before authoring routes.", _effectiveInstanceId);
-                _canvas.PopTool();
                 return;
             }
 
@@ -3894,10 +3855,17 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             else if (_mapCommandController != null)
                 _mapCommandController.OnAreaEntityCreated(cmd, isToolDone: true);
 
-            _canvas.PopTool();
+        },
+
+            onRemove: () =>
+        {
+            _activeSequenceId    = null;
+            _activeSequenceGizmo = null;
         });
 
-        _canvas.PushTool(tool);
+        _activeSequenceId    = GlobalGizmoManager.NewId();
+        _activeSequenceGizmo = routeGizmo;
+        _globalGizmoManager?.Register(_activeSequenceId.Value, routeGizmo);
 
         FdpLog<IgApplication>.Info("[Node-{0}] Route authoring tool activated.", _effectiveInstanceId);
     }
@@ -3907,8 +3875,8 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     /// <summary>
     /// Handles an incoming <see cref="CommandType.CMD_PICK_LOCATION"/> command.
     /// Extracts <c>contextId</c> from the JSON args, sets the active context ID,
-    /// then pushes a <see cref="LocationPickerTool"/> onto the canvas.
-    /// The tool publishes a <see cref="MapClickEvent"/> (via the existing
+    /// then activates a <see cref="Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo"/>.
+    /// The gizmo publishes a <see cref="MapClickEvent"/> (via the existing
     /// <c>OnCanvasClicked</c> pathway) when the operator left-clicks.
     /// </summary>
     private void ParseCommandAndActivateLocationPicker(string argsJson)
@@ -3941,17 +3909,25 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         _lastPickLocationContextId = _activeContextId;
 
-        if (_canvas.ActiveTool is LocationPickerTool)
-            _canvas.PopTool();
+        if (_activeLocationPickerId.HasValue)
+        {
+            _globalGizmoManager!.Unregister(_activeLocationPickerId.Value);
+            _activeLocationPickerId = null;
+        }
 
-        var tool = new LocationPickerTool();
-        tool.OnLocationPicked += worldPos =>
-            OnCanvasClicked(worldPos, MapMouseButton.Left, false, false, Entity.Null, updateSelection: false);
-        tool.OnCancelled += () =>
-            FdpLog<IgApplication>.Debug("[Node-{0}] LocationPicker cancelled.", _effectiveInstanceId);
-
-        _canvas.PushTool(tool);
-        FdpLog<IgApplication>.Info("[Node-{0}] Location picker tool activated. ContextId={1}", _effectiveInstanceId, _activeContextId);
+        var id = GlobalGizmoManager.NewId();
+        var gizmo = new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
+            onPicked: worldPos =>
+                OnCanvasClicked(worldPos, MapMouseButton.Left, false, false, Entity.Null, updateSelection: false),
+            onRemove: () =>
+            {
+                _globalGizmoManager!.Unregister(id);
+                _activeLocationPickerId = null;
+                FdpLog<IgApplication>.Debug("[Node-{0}] LocationPicker cancelled.", _effectiveInstanceId);
+            });
+        _activeLocationPickerId = id;
+        _globalGizmoManager!.Register(id, gizmo);
+        FdpLog<IgApplication>.Info("[Node-{0}] Location picker gizmo activated. ContextId={1}", _effectiveInstanceId, _activeContextId);
     }
 
     // ─── EntityPickerTool activation from CMD_PICK_ENTITY ────────────────────
@@ -3959,8 +3935,8 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     /// <summary>
     /// Handles an incoming <see cref="CommandType.CMD_PICK_ENTITY"/> command.
     /// Extracts <c>contextId</c> and <c>filters</c> from the JSON args, then
-    /// activates the <see cref="Fdp.Toolkit.Vis2D.Tools.EntityPickerTool"/>.
-    /// When the operator clicks a valid entity the tool publishes a
+    /// activates the <see cref="Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo"/>.
+    /// When the operator clicks a valid entity the gizmo publishes a
     /// <see cref="MapClickEvent"/> (via <c>OnCanvasClicked</c>) with the entity
     /// in the <c>HitStack</c> so the ExCon can resolve its pending pick promise.
     /// </summary>
@@ -4010,28 +3986,37 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
         if (_entityFilterFactory == null)
         {
-            FdpLog<IgApplication>.Warn("[Node-{0}] EntityPickerTool requested but filter factory is not ready.", _effectiveInstanceId);
+            FdpLog<IgApplication>.Warn("[Node-{0}] EntityPickerGizmo requested but filter factory is not ready.", _effectiveInstanceId);
             return;
         }
 
-        if (_canvas.ActiveTool is Fdp.Toolkit.Vis2D.Tools.EntityPickerTool)
-            _canvas.PopTool();
-
-        var tool = new Fdp.Toolkit.Vis2D.Tools.EntityPickerTool(_entityFilterFactory, filters);
-
-        tool.OnEntityPicked += entity =>
+        if (_activeEntityPickerId.HasValue)
         {
-            // Re-use OnCanvasClicked to publish the MapClickEvent.
-            // The entity will appear in HitStack so the ExCon receives the networkId.
-            OnCanvasClicked(Vector2.Zero, MapMouseButton.Left, false, false, entity, updateSelection: false);
-            FdpLog<IgApplication>.Info("[Node-{0}] EntityPicker picked entity {1}", _effectiveInstanceId, entity.Index);
-        };
+            _globalGizmoManager!.Unregister(_activeEntityPickerId.Value);
+            _activeEntityPickerId = null;
+        }
 
-        tool.OnCancelled += () =>
-            FdpLog<IgApplication>.Debug("[Node-{0}] EntityPicker cancelled.", _effectiveInstanceId);
-
-        _canvas.PushTool(tool);
-        FdpLog<IgApplication>.Info("[Node-{0}] Entity picker tool activated. ContextId={1} Filters=[{2}]",
+        var id     = GlobalGizmoManager.NewId();
+        var filter = _entityFilterFactory.CreateFilter(filters);
+        var gizmo  = new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(
+            hitTest:     pos => _canvas.PickTopmostEntity(pos) ?? Entity.Null,
+            filter:      filter,
+            onPicked:    entity =>
+            {
+                // Re-use OnCanvasClicked to publish the MapClickEvent.
+                // The entity will appear in HitStack so the ExCon receives the networkId.
+                OnCanvasClicked(Vector2.Zero, MapMouseButton.Left, false, false, entity, updateSelection: false);
+                FdpLog<IgApplication>.Info("[Node-{0}] EntityPicker picked entity {1}", _effectiveInstanceId, entity.Index);
+            },
+            onCancelled: () => FdpLog<IgApplication>.Debug("[Node-{0}] EntityPicker cancelled.", _effectiveInstanceId),
+            onRemove:    () =>
+            {
+                _globalGizmoManager!.Unregister(id);
+                _activeEntityPickerId = null;
+            });
+        _activeEntityPickerId = id;
+        _globalGizmoManager!.Register(id, gizmo);
+        FdpLog<IgApplication>.Info("[Node-{0}] Entity picker gizmo activated. ContextId={1} Filters=[{2}]",
             _effectiveInstanceId, _activeContextId, string.Join(",", filters));
     }
 
@@ -4101,6 +4086,15 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         public IgUnitHierarchyModule(Fdp.ModuleHost.Abstractions.IEcsModuleSystem system) => _system = system;
         public void RegisterSystems(Fdp.ModuleHost.Abstractions.ISystemRegistry registry) => registry.RegisterSystem(_system);
         public void Tick(Fdp.ModuleHost.Abstractions.ISimulationView view, float deltaTime) { }
+    }
+
+    // Phase 5: wraps SelectionInteractionSystem (POJO) as an IEcsModuleSystem so it can be
+    // registered via _kernel.RegisterGlobalSystem and ticked by the kernel each frame.
+    private sealed class SelectionInteractionSystemAdapter : Fdp.ModuleHost.Abstractions.IEcsModuleSystem
+    {
+        private readonly SelectionInteractionSystem _system;
+        public SelectionInteractionSystemAdapter(SelectionInteractionSystem system) => _system = system;
+        public void Execute(Fdp.ModuleHost.Abstractions.ISimulationView view, float deltaTime) => _system.Tick(deltaTime);
     }
 }
 

@@ -6,7 +6,6 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Lifecycle.Events;
-using Fdp.Toolkit.Vis2D.Gizmos;
 using Hrot.SimHost.Gizmos;
 using Xunit;
 
@@ -125,49 +124,6 @@ namespace Hrot.SimHost.Tests.Gizmos
             _sys.Execute(_repo, 0f);
 
             Assert.Equal(0, _buffer.GetFrame().Length);
-        }
-    }
-
-    // =========================================================================
-    // SC_ER005 / SC_ER006: GizmoFocusInputBridge event publishing
-    // =========================================================================
-
-    public sealed class GizmoFocusInputBridgeTests
-    {
-        // SC_ER005: HandleHover publishes a GizmoDragUpdateEvent with the correct position.
-        [Fact]
-        public void SC_ER005_HandleHover_PublishesGizmoDragUpdateEvent()
-        {
-            var bus    = new FdpEventBus();
-            var entity = new Entity(1, 0);
-            var bridge = new GizmoFocusInputBridge(bus, entity);
-
-            bridge.HandleHover(new Vector2(10f, 20f));
-            bus.SwapBuffers();
-
-            var events = bus.Read<GizmoDragUpdateEvent>();
-            Assert.Equal(1, events.Length);
-            Assert.Equal(10f, events[0].WorldPos.X);
-            Assert.Equal(20f, events[0].WorldPos.Y);
-            Assert.Equal(entity, events[0].Token.Target);
-        }
-
-        // SC_ER006: HandleClick with Left button publishes a GizmoMouseEvent
-        // that has IsPressed=false (signalling a left-release / commit).
-        [Fact]
-        public void SC_ER006_HandleClick_Left_PublishesGizmoMouseEventWithIsPressedFalse()
-        {
-            var bus    = new FdpEventBus();
-            var entity = new Entity(2, 0);
-            var bridge = new GizmoFocusInputBridge(bus, entity);
-
-            bridge.HandleClick(new Vector2(5f, 7f), Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton.Left);
-            bus.SwapBuffers();
-
-            var events = bus.Read<GizmoMouseEvent>();
-            Assert.Equal(1, events.Length);
-            Assert.False(events[0].IsPressed);
-            Assert.Equal(entity, events[0].Token.Target);
         }
     }
 }

@@ -14,10 +14,10 @@ public class ToolPresenceTests
     public void ScenarioEditor_Assembly_ContainsAllToolTypes()
     {
         var asm = typeof(ScenarioEditorModule).Assembly;
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.MeasureTool"));
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.StandardInteractionTool"));
+        // Deleted in Phase 6 (BATCH-30) -- MeasureTool replaced by MeasureGizmo.
+        Assert.Null(asm.GetType("Hrot.ScenarioEditor.Tools.MeasureTool"));
         Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.MeasureToolConstants"));
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Tools.StandardInteractionToolConstants"));
+        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Gizmos.MeasureGizmo"));
 
         // Deleted in Phase 2 -- must no longer exist in ScenarioEditor assembly.
         Assert.Null(asm.GetType("Hrot.ScenarioEditor.Tools.EditTool"));
@@ -31,7 +31,16 @@ public class ToolPresenceTests
 
         // Phase 3 additions (BATCH-26)
         Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Gizmos.EntityPlacementGizmo"));
-        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Gizmos.PlacementCanvasBridge"));
+        // Deleted in Phase 3 (BATCH-29) -- PlacementCanvasBridge replaced by GlobalGizmoManager.
+        Assert.Null(asm.GetType("Hrot.ScenarioEditor.Gizmos.PlacementCanvasBridge"));
+
+        // Phase 5 erasures (BATCH-28)
+        Assert.Null(asm.GetType("Hrot.ScenarioEditor.Tools.StandardInteractionTool"));
+        Assert.Null(asm.GetType("Hrot.ScenarioEditor.Tools.StandardInteractionToolConstants"));
+
+        // Phase 5 additions (BATCH-28)
+        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Systems.SelectionInteractionSystem"));
+        Assert.NotNull(asm.GetType("Hrot.ScenarioEditor.Gizmos.EntityDragGizmo"));
     }
 
     [Fact]
