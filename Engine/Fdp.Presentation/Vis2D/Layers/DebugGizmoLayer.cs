@@ -34,6 +34,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
         private PickToken _interactionToken;
         private CoordinateSpace _interactionSpace;
         private bool _interactionDragActive;
+        private Vector2 _lastHoverPos = new(float.NaN, float.NaN);
 
         public DebugGizmoLayer(int layerBitIndex = 31)
         {
@@ -213,6 +214,8 @@ namespace Fdp.Toolkit.Vis2D.Layers
         public void HandleHover(Vector2 mouseWorldPos)
         {
             if (_eventBus == null) return;
+            if (Vector2.DistanceSquared(_lastHoverPos, mouseWorldPos) < 0.0001f) return;
+            _lastHoverPos = mouseWorldPos;
             if (_captureActive || _interactionToken.IsValid)
             {
                 _eventBus.Publish(new GizmoDragUpdateEvent
