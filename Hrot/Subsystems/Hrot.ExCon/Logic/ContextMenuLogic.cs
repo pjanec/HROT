@@ -1,4 +1,5 @@
-using Hrot.Core.Network;
+﻿using Hrot.Core.Network;
+using Hrot.Common.Constants;
 using Fdp.Toolkit.DER;
 using Hrot.ExCon.Adapters;
 using Hrot.Map.Common;
@@ -159,7 +160,7 @@ public sealed class ContextMenuLogic : IContextMenuLogic
     private static List<ContextMenuItem> BuildMapCanvasMenu()
         => new()
         {
-            new() { Id = ContextMenuActions.Measure, Label = "Measure...", Icon = "measure" }
+            new() { Id = GlobalActionIds.Measure, Label = "Measure...", Icon = "measure" }
         };
 
     /// <summary>
@@ -172,23 +173,23 @@ public sealed class ContextMenuLogic : IContextMenuLogic
         {
             MenuStrategy.Standard => new List<ContextMenuItem>
             {
-                new() { Id = ContextMenuActions.CenterOnEntity, Label = "Center on Entity",  Icon = "center"     },
-                new() { Id = ContextMenuActions.Properties,     Label = "Properties...",      Icon = "properties" },
-                new() { Id = ContextMenuActions.Delete,         Label = "DELETE",             Icon = "delete",   Style = "destructive" },
+                new() { Id = GlobalActionIds.CenterOnEntity, Label = "Center on Entity",  Icon = "center"     },
+                new() { Id = GlobalActionIds.Properties,     Label = "Properties...",      Icon = "properties" },
+                new() { Id = GlobalActionIds.Delete,         Label = "DELETE",             Icon = "delete",   Style = "destructive" },
             },
             MenuStrategy.Admin => new List<ContextMenuItem>
             {
-                new() { Id = ContextMenuActions.Teleport, Label = "Teleport...", Icon = "teleport" }
+                new() { Id = GlobalActionIds.Teleport, Label = "Teleport...", Icon = "teleport" }
             },
             MenuStrategy.DamageControl => new List<ContextMenuItem>
             {
-                new() { Id = ContextMenuActions.Repair,    Label = "Repair",    Icon = "repair"    },
-                new() { Id = ContextMenuActions.Reinforce, Label = "Reinforce", Icon = "reinforce" }
+                new() { Id = GlobalActionIds.Repair,    Label = "Repair",    Icon = "repair"    },
+                new() { Id = GlobalActionIds.Reinforce, Label = "Reinforce", Icon = "reinforce" }
             },
             MenuStrategy.Logistics => new List<ContextMenuItem>
             {
-                new() { Id = ContextMenuActions.Resupply, Label = "Resupply", Icon = "resupply" },
-                new() { Id = ContextMenuActions.Transfer, Label = "Transfer", Icon = "transfer" }
+                new() { Id = GlobalActionIds.Resupply, Label = "Resupply", Icon = "resupply" },
+                new() { Id = GlobalActionIds.Transfer, Label = "Transfer", Icon = "transfer" }
             },
             _ => new List<ContextMenuItem>()
         };
@@ -198,12 +199,12 @@ public sealed class ContextMenuLogic : IContextMenuLogic
         {
             var overlay = entity.GetDescriptor<MapOverlayDescriptor>()!;
             if (overlay.IsEditable)
-                items.Add(new ContextMenuItem { Id = ContextMenuActions.EditOverlay, Label = "Edit Shape", Icon = "edit" });
+                items.Add(new ContextMenuItem { Id = GlobalActionIds.EditOverlay, Label = "Edit Shape", Icon = "edit" });
         }
 
         // "Edit Route" — standalone route entity.
         if (entity != null && entity.TkbType == TkbEntityTypes.TacGraphic_Route)
-            items.Add(new ContextMenuItem { Id = ContextMenuActions.EditRoute, Label = "Edit Route", Icon = "edit" });
+            items.Add(new ContextMenuItem { Id = GlobalActionIds.EditRoute, Label = "Edit Route", Icon = "edit" });
 
         // "Edit Personal Route" — non-TacGraphic unit/vehicle.
         if (entity != null
@@ -213,7 +214,7 @@ public sealed class ContextMenuLogic : IContextMenuLogic
         {
             items.Add(new ContextMenuItem
             {
-                Id    = ContextMenuActions.EditPersonalRoute,
+                Id    = GlobalActionIds.EditPersonalRoute,
                 Label = "Edit Personal Route",
                 Icon  = "edit-route"
             });

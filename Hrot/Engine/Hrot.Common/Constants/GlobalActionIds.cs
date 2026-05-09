@@ -17,9 +17,16 @@ namespace Hrot.Common.Constants
         // --- IG context menu: view / selection ---
         public const int CenterOnEntity = 10;
         public const int Select         = 11;
+        public const int Properties     = 12;
+        public const int Delete         = 13;
+        public const int Teleport       = 14;
 
         // --- IG context menu: gizmo tools ---
         public const int Rotate         = 20;
+        public const int Repair         = 21;
+        public const int Reinforce      = 22;
+        public const int Resupply       = 23;
+        public const int Transfer       = 24;
 
         // --- Editor / overlay actions ---
         public const int EditOverlay       = 100;

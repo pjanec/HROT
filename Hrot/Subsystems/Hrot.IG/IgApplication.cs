@@ -19,6 +19,7 @@ using Hrot.IG.Services;
 using Hrot.IG.Systems;
 
 using Hrot.Common.Systems;
+using Hrot.Common.Constants;
 
 using Hrot.IG.UI;
 
@@ -2631,12 +2632,12 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         // These match the ID conventions used by ContextMenuProjectorGizmo and ExCon.
         string? localAction = actionId switch
         {
-            1   => "IG_CenterOnEntity",
-            10  => "IG_DeleteEntity",
-            100 => "100",
-            101 => "101",
-            102 => "102",
-            200 => "200",
+            GlobalActionIds.CenterOnEntity  => "IG_CenterOnEntity",
+            GlobalActionIds.Delete          => "IG_DeleteEntity",
+            GlobalActionIds.EditOverlay     => GlobalActionIds.EditOverlay.ToString(),
+            GlobalActionIds.EditRoute       => GlobalActionIds.EditRoute.ToString(),
+            GlobalActionIds.EditPersonalRoute => GlobalActionIds.EditPersonalRoute.ToString(),
+            GlobalActionIds.Measure         => GlobalActionIds.Measure.ToString(),
             _   => null,
         };
 
