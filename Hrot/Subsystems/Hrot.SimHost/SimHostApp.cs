@@ -110,6 +110,7 @@ namespace Hrot.SimHost
         private DebugPrimitiveBuffer? _gizmoBuffer;
         private GizmoRegistry? _gizmoRegistry;
         private StatelessGizmoRegistry? _statelessGizmoRegistry;
+        private DataDrivenGizmoSystem? _dataDrivenGizmoSystem;
         // ── Schema publisher (GZ052) ────────────────────────────────────
         private Fdp.Toolkit.Replication.Patching.JsonAttributeCompiler? _jsonAttributeCompiler;
         /// <summary>
@@ -525,12 +526,13 @@ namespace Hrot.SimHost
                 _gizmoRegistry,
                 _statelessGizmoRegistry,
                 settings: new GizmoSettingsRegistry());
-            _kernel.RegisterGlobalSystem(new DataDrivenGizmoSystem(
+            _dataDrivenGizmoSystem = new DataDrivenGizmoSystem(
                 _gizmoRegistry,
                 _gizmoBuffer,
                 isSelectedPredicate: static (view, entity) =>
                     view.HasComponent<SelectionState>(entity) &&
-                    view.GetComponentRO<SelectionState>(entity).IsSelected));
+                    view.GetComponentRO<SelectionState>(entity).IsSelected);
+            _kernel.RegisterGlobalSystem(_dataDrivenGizmoSystem);
             _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(
                 _statelessGizmoRegistry,
                 _gizmoBuffer,
@@ -572,7 +574,8 @@ namespace Hrot.SimHost
                     idAllocator: _idAllocator,
                     localNodeId: localNodeId,
                     worldPosDescriptorId: _networkFactory?.WorldPosDescriptorId ?? 0,
-                    gizmoBuffer: _gizmoBuffer);
+                    gizmoBuffer: _gizmoBuffer,
+                    gizmoSystem: _dataDrivenGizmoSystem);
                 _vis.FdpEntityInspector.ExtractionService = simHostEntityService;
 
                 Logger.Info($"[Node-{localNodeId}] Visualization ready. Window open.");

@@ -87,8 +87,8 @@ namespace Hrot.SimHost
         private bool _initialized;
 
         // ── Gizmo debug overlay (GZ032) ───────────────────────────────────────
-        private DebugPrimitiveBuffer? _gizmoBuffer;
-
+        private DebugPrimitiveBuffer? _gizmoBuffer;        // On-demand gizmo activation (EntityRotatorGizmo, etc.).
+        private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? _gizmoSystem;
         // ── Map entity context menu ────────────────────────────────────────────
         private Entity _pendingMapContextEntity = Entity.Null;
         private bool   _openMapContextThisFrame;
@@ -145,12 +145,14 @@ namespace Hrot.SimHost
             INetworkIdAllocator?    idAllocator = null,
             int                     localNodeId = 0,
             long                    worldPosDescriptorId = 0,
-            DebugPrimitiveBuffer?   gizmoBuffer = null)
+            DebugPrimitiveBuffer?   gizmoBuffer = null,
+            Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? gizmoSystem = null)
         {
             _repo                 = repo         ?? throw new ArgumentNullException(nameof(repo));
             _kernel               = kernel        ?? throw new ArgumentNullException(nameof(kernel));
             _missionSender        = missionSender ?? throw new ArgumentNullException(nameof(missionSender));
             _worldPosDescriptorId = worldPosDescriptorId;
+            _gizmoSystem          = gizmoSystem;
 
             // ── Selection & inspector ─────────────────────────────────────────
             _selection = new SimHostSelectionManager();
@@ -197,7 +199,14 @@ namespace Hrot.SimHost
 
                 if (_repo!.HasComponent<SimTransform>(entity))
                     builder.AddItem("Rotate entity", () =>
-                        _map?.PushTool(new Hrot.ScenarioEditor.Tools.EntityRotationTool(entity, _repo!)));
+                    {
+                        if (_gizmoSystem == null || _map == null) return;
+                        var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
+                            _repo!, entity,
+                            onRemove: () => _gizmoSystem.DeactivateGizmo(entity));
+                        _gizmoSystem.ActivateGizmo(entity, gizmo);
+                        _map.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.ExclusiveCaptureProxyTool(gizmo));
+                    });
             }));
 
             // ── Scenario manager ──────────────────────────────────────────────
@@ -461,8 +470,15 @@ namespace Hrot.SimHost
                                 _selection?.Remove(ent);
                                 _fdpInspectorState.SelectedEntity = null;
                             },
-                            rotateTool:     _ => _map?.PushTool(
-                                new Hrot.ScenarioEditor.Tools.EntityRotationTool(ent, _repo!))
+                            rotateTool:     _ =>
+                            {
+                                if (_gizmoSystem == null || _map == null) return;
+                                var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
+                                    _repo!, ent,
+                                    onRemove: () => _gizmoSystem.DeactivateGizmo(ent));
+                                _gizmoSystem.ActivateGizmo(ent, gizmo);
+                                _map.PushTool(new Fdp.Toolkit.Vis2D.Gizmos.ExclusiveCaptureProxyTool(gizmo));
+                            }
                         ));
                 }
 
