@@ -79,4 +79,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Events
         public MapKeyboardKey Key;
         public bool IsPressed;
     }
+
+    /// <summary>
+    /// Published when an ECS component that is part of a GizmoRegistry rule is added
+    /// to an entity that already exists (i.e., the entity was not just constructed).
+    /// DataDrivenGizmoSystem processes this to late-activate any matching gizmo rules.
+    /// </summary>
+    [EventId(8058)]
+    public struct GizmoComponentActivatedEvent
+    {
+        /// <summary>The entity whose component mask may now satisfy a registered gizmo rule.</summary>
+        public Entity Entity;
+    }
 }

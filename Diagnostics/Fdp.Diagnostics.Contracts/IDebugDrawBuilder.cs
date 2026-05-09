@@ -120,5 +120,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// Default no-op so existing stub implementations compile without changes.
         /// </summary>
         void EmitRaw(in DebugPrimitive prim) { }
+
+        /// <summary>
+        /// Emits a world-space sphere primitive anchored to <paramref name="anchor"/>.
+        /// The sphere is hit-testable by <c>DebugGizmoLayer</c> -- clicking it triggers
+        /// <c>GizmoInteractionStartedEvent { Token.Target = anchor }</c>.
+        /// Default no-op so existing stub implementations compile without changes.
+        /// </summary>
+        void DrawEntitySphere(
+            Entity anchor,
+            Vector3 worldCenter,
+            float   radius,
+            Rgba32  color,
+            byte    layer = 0) { }
     }
 }

@@ -1,6 +1,8 @@
 using System;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using GizmoMap.Example;
+using GizmoMap.Presentation;
+using Raylib_cs;
 
 // ---- Entry point -----------------------------------------------------------
 
@@ -40,15 +42,9 @@ using (transport)
             var builder = new LocalDrawBuilder(producer);
             gen.Emit(Dt, builder);
 
-            transport.PublishPrimitives(producer.GetFrame());
+            transport.PublishPrimitives(producer.GetFrame(), producer.InternMap);
 
             consumer.Clear();
-
-            // Synchronize the string intern map across the simulated network boundary
-            foreach (var kvp in producer.InternMap.Entries)
-            {
-                consumer.InternMap.Intern(kvp.Key, kvp.Value);
-            }
 
             transport.PollAndApply(consumer);
 
@@ -60,78 +56,30 @@ using (transport)
     }
     else
     {
-        // Interactive Raylib window mode.
-        Raylib_cs.Raylib.InitWindow(640, 480, $"GizmoMap Example - {mode}");
-        Raylib_cs.Raylib.SetTargetFPS(30);
-
-        var camera = new Raylib_cs.Camera2D
-        {
-            Target   = System.Numerics.Vector2.Zero,
-            Offset   = new System.Numerics.Vector2(320f, 240f),
-            Rotation = 0f,
-            Zoom     = 1f,
-        };
-
         // Wire the StructEdit side-channel so ComponentInspector shows a real property tree.
-        var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
+        var schemaRegistry = new GizmoSchemaRegistry();
         schemaRegistry.Register(0xDEADBEEF, DemoSceneGenerator.BuildMockDocument());
 
-        var propertyAdapter = new GizmoMap.Presentation.ImGuiPropertyTreeAdapter(schemaRegistry);
-        var renderer        = new GizmoMap.Presentation.DebugPrimitiveRenderer2D(imGuiAdapter: propertyAdapter);
-        var layer           = new GizmoMap.Presentation.DebugGizmoLayer(consumer, renderer);
-
-        // Initialize rlImGui so ImGui-based overlays (context menus, inspectors) work.
-        rlImGui_cs.rlImGui.Setup(true);
-
-        float dt = 1f / 30f;
-
-        while (!Raylib_cs.Raylib.WindowShouldClose())
-        {
-            dt = Raylib_cs.Raylib.GetFrameTime();
-
-            producer.Clear();
-            var builder = new LocalDrawBuilder(producer);
-            gen.Emit(dt, builder);
-
-            transport.PublishPrimitives(producer.GetFrame());
-
-            consumer.Clear();
-
-            // Synchronize the string intern map across the simulated network boundary
-            foreach (var kvp in producer.InternMap.Entries)
+        GizmoViewerFrontend.Run(
+            $"GizmoMap Example - {mode}",
+            consumer,
+            schemaRegistry,
+            onUpdateTick: dt =>
             {
-                consumer.InternMap.Intern(kvp.Key, kvp.Value);
-            }
-
-            transport.PollAndApply(consumer);
-
-            // Route mouse/keyboard input through the gizmo interaction layer.
-            // Interaction events are forwarded to DemoSceneGenerator so it can
-            // update the interactive box position and dispatch to managed gizmos.
-            layer.HandleInput(camera, gen.OnGizmoInteraction);
-
-            // R key: activate the entity rotator gizmo (exclusive-focus mode).
-            if (Raylib_cs.Raylib.IsKeyPressed(Raylib_cs.KeyboardKey.R))
-                gen.TriggerRotator();
-
-            Raylib_cs.Raylib.BeginDrawing();
-            Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.DarkGray);
-            Raylib_cs.Raylib.BeginMode2D(camera);
-
-            layer.Render(camera, camera.Zoom);
-
-            Raylib_cs.Raylib.EndMode2D();
-
-            // ImGui pass: context menus and component inspector overlays.
-            rlImGui_cs.rlImGui.Begin();
-            layer.DrawContextMenu(gen.OnMenuAction);
-            propertyAdapter.DrawScheduled();
-            rlImGui_cs.rlImGui.End();
-
-            Raylib_cs.Raylib.EndDrawing();
-        }
-
-        rlImGui_cs.rlImGui.Shutdown();
-        Raylib_cs.Raylib.CloseWindow();
+                producer.Clear();
+                var builder = new LocalDrawBuilder(producer);
+                gen.Emit(dt, builder);
+                transport.PublishPrimitives(producer.GetFrame(), producer.InternMap);
+                consumer.Clear();
+                transport.PollAndApply(consumer);
+            },
+            onInteraction: gen.OnGizmoInteraction,
+            onMenuAction: (token, actionId) => gen.OnMenuAction(token, actionId),
+            onCustomInput: () =>
+            {
+                // R key: activate the entity rotator gizmo (exclusive-focus mode).
+                if (Raylib.IsKeyPressed(KeyboardKey.R))
+                    gen.TriggerRotator();
+            });
     }
 }

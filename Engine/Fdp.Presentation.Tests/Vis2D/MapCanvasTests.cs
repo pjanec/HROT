@@ -147,24 +147,6 @@ namespace Fdp.Toolkit.Vis2D.Tests
         }
 
         [Fact]
-        public void MapCanvas_SwitchTool_CallsOnEnterExit()
-        {
-            var canvas = new TestableMapCanvas();
-            canvas.Camera = new TestableMapCameraForCanvas();
-            
-            var oldTool = new Mock<IMapTool>();
-            var newTool = new Mock<IMapTool>();
-            
-            canvas.SwitchTool(oldTool.Object);
-            canvas.SwitchTool(newTool.Object);
-            
-            oldTool.Verify(t => t.OnExit(), Times.Once);
-            newTool.Verify(t => t.OnEnter(canvas), Times.Once);
-            
-            Assert.Same(newTool.Object, canvas.ActiveTool);
-        }
-
-        [Fact]
         public void MapCanvas_HandleInput_ReversesOrder()
         {
              var canvas = new TestableMapCanvas();

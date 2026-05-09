@@ -262,6 +262,21 @@ namespace Fdp.Diagnostics.Contracts.Tests
             Assert.Equal(1u, prim.ConditionMask);
         }
 
+        // SC-PHASE5-A: DrawEntitySphere emits sphere primitive with entity anchor.
+        [Fact]
+        public void DrawEntitySphere_SetsAnchorAndShape()
+        {
+            var buffer = new DebugPrimitiveBuffer(4);
+            var entity = new Fdp.Core.Entity(7, 3);
+            buffer.DrawEntitySphere(entity, System.Numerics.Vector3.Zero, 5f, new Rgba32(255, 0, 0, 255));
+            var frames = buffer.GetFrame();
+            Assert.Equal(1, frames.Length);
+            Assert.Equal(DebugPrimitiveShape.Sphere, frames[0].Shape);
+            var token = frames[0].GetPickToken();
+            Assert.True(token.IsValid);
+            Assert.Equal(entity, token.Target);
+        }
+
         // ---- Helpers -----------------------------------------------------------
 
         // FNV-1a 32-bit hash -- mirrors GizmoSettingsRegistry.ComputeHash.

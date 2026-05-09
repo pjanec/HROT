@@ -50,19 +50,6 @@ namespace Fdp.Toolkit.Vis2D
             return _resources.ContainsKey(typeof(T));
         }
 
-        // Backing field for ActiveTool to allow private set
-        public IMapTool? ActiveTool
-        {
-             get => _toolStack.Count > 0 ? _toolStack.Peek() : null;
-             // Set is removed, use SwitchTool/PushTool
-        }
-
-        private readonly Stack<IMapTool> _toolStack = new();
-        private bool _isSwitching = false;
-        
-        // Input state tracking to separate Click from Drag
-        private bool _isDraggingInteraction = false;
-
         /// <summary>
         /// Set when the right mouse button has been held and dragged beyond a small
         /// threshold while the camera was panning.  Prevents the pan-release from
@@ -73,9 +60,9 @@ namespace Fdp.Toolkit.Vis2D
         private const float RightDragThresholdSq = 25f; // 5 px, matches DRAG_THRESHOLD in StandardInteractionTool
 
         /// <summary>
-        /// <c>true</c> when the active tool consumed one or more key presses during the
+        /// <c>true</c> when a layer consumed one or more key presses during the
         /// last <see cref="Update"/> call.  Use this in the hosting application to gate
-        /// camera or application-level keyboard handling so that tools that capture
+        /// camera or application-level keyboard handling so that layers that capture
         /// specific keys (e.g. ESC) do not inadvertently trigger host-level actions.
         /// Reset to <c>false</c> at the start of every <see cref="ProcessInputPipeline"/> call.
         /// </summary>
@@ -110,87 +97,6 @@ namespace Fdp.Toolkit.Vis2D
             return null;
         }
 
-        /// <summary>
-        /// Clears the tool stack and sets the new tool as the base.
-        /// Use this for major mode switches.
-        /// </summary>
-        public void SwitchTool(IMapTool? tool)
-        {
-            if (_isSwitching) return; // Prevent recursion loops
-            
-            // Check if we are already effective
-            // if (ActiveTool == tool) return; // Hard to check with stack clearing semantics
-
-            _isSwitching = true;
-            try
-            {
-                // Exit all tools in stack from top to bottom
-                while (_toolStack.Count > 0)
-                {
-                    var t = _toolStack.Pop();
-                    t.OnExit();
-                }
-                
-                if (tool != null)
-                {
-                    _toolStack.Push(tool);
-                    tool.OnEnter(this);
-                }
-            }
-            finally
-            {
-                _isSwitching = false;
-            }
-        }
-        
-        /// <summary>
-        /// Pushes a new tool onto the stack (e.g. starting a sub-task).
-        /// The previous tool is suspended (OnExit *is* called?).
-        /// Convention: OnExit is usually called when losing focus.
-        /// </summary>
-        public void PushTool(IMapTool tool)
-        {
-             if (_isSwitching) return;
-             _isSwitching = true;
-             try 
-             {
-                 var current = ActiveTool;
-                 // We choose NOT to call OnExit on the suspended tool? 
-                 // Or we DO call OnExit, and OnEnter when it returns?
-                 // Standard state machine: Exit old, Enter new.
-                 if (current != null) current.OnExit();
-                 
-                 _toolStack.Push(tool);
-                 tool.OnEnter(this);
-             }
-             finally { _isSwitching = false; }
-        }
-        
-        /// <summary>
-        /// Pops the current tool and returns to the previous one.
-        /// </summary>
-        public void PopTool()
-        {
-            if (_isSwitching) return;
-            if (_toolStack.Count == 0) return;
-            
-            _isSwitching = true;
-            try
-            {
-                var current = _toolStack.Pop();
-                current.OnExit();
-                
-                var prev = ActiveTool;
-                if (prev != null) prev.OnEnter(this);
-            }
-            finally { _isSwitching = false; }
-        }
-
-        public void ResetTool()
-        {
-            SwitchTool(null);
-        }
-
         public void Update(float dt)
         {
             // Update Camera Interpolation
@@ -204,11 +110,6 @@ namespace Fdp.Toolkit.Vis2D
             {
                 layer.Update(dt);
             }
-
-            // Update Tool
-            if (ActiveTool != null)
-                ActiveTool.Update(dt);
-            
         }
 
         public void Draw()
@@ -224,13 +125,6 @@ namespace Fdp.Toolkit.Vis2D
                 Resources         = this,
                 DrawBuilder       = DrawBuffer
             };
-
-            // Draw Tool Overlay (emits primitives FIRST so the buffer is fully
-            // populated before DebugGizmoLayer renders it below).
-            if (ActiveTool != null)
-            {
-                ActiveTool.Draw(ctx);
-            }
 
             // Draw Layers (0 -> N) - Bottom to Top
             foreach (var layer in _layers)
@@ -279,55 +173,40 @@ namespace Fdp.Toolkit.Vis2D
             if (rightDown && delta.LengthSquared() > RightDragThresholdSq)
                 _rightButtonDragged = true;
 
-            // 0. Keyboard routing to the active tool.
-            // Drain the Raylib key-press queue and route each key to the active tool
-            // before handling mouse input so that a Cancel (ESC) takes effect this frame.
-            if (!_input.IsKeyboardCaptured && ActiveTool != null)
+            // Save right-drag state before reset so 3.5 can check it correctly.
+            bool wasRightDragged = _rightButtonDragged;
+
+            // 0. Keyboard routing to layers (highest index = top priority).
+            if (!_input.IsKeyboardCaptured)
             {
                 int rawKey;
                 while ((rawKey = _input.GetKeyPressed()) != 0)
                 {
-                    if (ActiveTool.HandleKeyPressed((MapKeyboardKey)rawKey))
-                        KeyboardConsumedByTool = true;
+                    for (int i = _layers.Count - 1; i >= 0; i--)
+                    {
+                        if (_layers[i].HandleKeyInput((MapKeyboardKey)rawKey))
+                        {
+                            KeyboardConsumedByTool = true;
+                            break;
+                        }
+                    }
                 }
             }
 
-            // 1. Tool Priority
-            if (ActiveTool != null)
+            // 1. Hover and drag to layers (informational; no consume semantics for hover).
+            for (int i = _layers.Count - 1; i >= 0; i--)
             {
-                // Hover
-                ActiveTool.HandleHover(mouseWorld);
-
-                // Drag
-                if (leftDown || rightDown)
+                var layer = _layers[i];
+                if (!IsLayerVisible(layer)) continue;
+                layer.HandleHover(mouseWorld);
+                if ((leftDown || rightDown) && delta.LengthSquared() > 0f)
                 {
-                    if (ActiveTool.HandleDrag(mouseWorld, deltaWorld))
-                    {
+                    if (layer.HandleDrag(mouseWorld, deltaWorld))
                         consumed = true;
-                        _isDraggingInteraction = true;
-                    }
                 }
-
-                // Click (Release)
-                if (!_isDraggingInteraction)
-                {
-                    if (leftReleased) 
-                    {
-                        if (ActiveTool.HandleClick(mouseWorld, MapMouseButton.Left)) consumed = true;
-                    }
-                    // Suppress the right-click when the button was dragged to pan the map.
-                    if (rightReleased && !consumed && !_rightButtonDragged)
-                    {
-                        if (ActiveTool.HandleClick(mouseWorld, MapMouseButton.Right)) consumed = true;
-                    }
-                }
-
-                // Reset Drag State
-                if (leftReleased || rightReleased)
-                    _isDraggingInteraction = false;
             }
 
-            // Reset right-drag flag unconditionally so it never leaks across tool changes.
+            // Reset right-drag flag unconditionally so it never leaks across frames.
             if (rightReleased)
                 _rightButtonDragged = false;
 
@@ -337,27 +216,40 @@ namespace Fdp.Toolkit.Vis2D
                 if (Camera.HandleInput(_input)) consumed = true;
             }
 
-            // 3. Layer Priority (Reverse)
+            // 3. Layer Priority (Reverse) -- press events only.
             if (!consumed)
             {
-                // GZ046: active tool gets first refusal on press events before layer routing.
-                bool pressConsumed = false;
-                if (ActiveTool != null && leftPressed)
-                    pressConsumed = ActiveTool.HandlePress(mouseWorld, MapMouseButton.Left);
-
                 for (int i = _layers.Count - 1; i >= 0; i--)
                 {
                     var layer = _layers[i];
                     if (!IsLayerVisible(layer)) continue;
 
-                    // Support acting on Pressed
-                    if (!pressConsumed && leftPressed)
+                    if (leftPressed)
                     {
                         if (layer.HandleInput(mouseWorld, MapMouseButton.Left, true)) return;
                     }
                     if (rightPressed)
                     {
                         if (layer.HandleInput(mouseWorld, MapMouseButton.Right, true)) return;
+                    }
+                }
+            }
+
+            // 3.5. Layer release routing (for interaction commit/cancel).
+            if (leftReleased || (rightReleased && !wasRightDragged))
+            {
+                for (int i = _layers.Count - 1; i >= 0; i--)
+                {
+                    var layer = _layers[i];
+                    if (!IsLayerVisible(layer)) continue;
+
+                    if (leftReleased)
+                    {
+                        if (layer.HandleInput(mouseWorld, MapMouseButton.Left, false)) break;
+                    }
+                    if (rightReleased && !wasRightDragged)
+                    {
+                        if (layer.HandleInput(mouseWorld, MapMouseButton.Right, false)) break;
                     }
                 }
             }

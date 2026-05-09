@@ -1,7 +1,7 @@
 namespace Fdp.Toolkit.Vis2D.Abstractions;
 
 /// <summary>
-/// Keyboard key identifiers for <see cref="IMapTool.HandleKeyPressed"/>.
+/// Keyboard key identifiers for <see cref="IMapLayer.HandleKeyInput"/>.
 /// Values match the Raylib-cs / GLFW3 keyboard scan codes so that a direct
 /// cast from the raw int returned by <c>IInputProvider.GetKeyPressed()</c> is safe.
 /// Only the subset used by tools is enumerated; all other keys arrive as

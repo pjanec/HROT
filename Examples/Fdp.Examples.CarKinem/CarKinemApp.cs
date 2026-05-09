@@ -25,7 +25,7 @@ using Fdp.ModuleHost.Time; // ITimeController
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Core.FlightRecorder; // Recorder
 
-using Fdp.Toolkit.Vis2D.Tools; // Added Tools namespace
+using Fdp.Toolkit.Vis2D; // MapCanvas
 
 namespace Fdp.Examples.CarKinem;
 
@@ -37,8 +37,7 @@ public class CarKinemApp : FdpApplication
     private EventAccumulator _eventAccumulator = null!;
     private EntityQuery _vehicleQuery = null!; // Promoted to field for Tools
     
-    // Tools
-    private StandardInteractionTool _interactionTool = null!;
+    // (Phase 5: StandardInteractionTool removed; entity interaction handled by ECS gizmos)
     
     // Time & Recording (Restored)
     private ITimeController _activeTimeController = null!;
@@ -158,106 +157,8 @@ public class CarKinemApp : FdpApplication
         // 3. UI & Input
         _historyService = new DiagnosticEventHistoryService();
         _legacyUI = new MainUI(_historyService);
-        
-        // --- Tool Setup ---
-        _interactionTool = new StandardInteractionTool(_repository, _vehicleQuery,
-            e => _vehicleVisualizer.GetPosition(_repository, e));
-        
-        // 1. Selection Interaction
-        _interactionTool.OnEntitySelectRequest += (entity, augment) =>
-        {
-            if (_repository.IsAlive(entity))
-            {
-                if (augment)
-                    _selectionManager.Add(entity);
-                else
-                    _selectionManager.Set(entity);
-            }
-            else if (!augment)
-            {
-                _selectionManager.Clear();
-            }
-        };
 
-        // 2. Drag Interaction
-        _interactionTool.OnEntityMoved += (entity, pos) =>
-        {
-            // Update simulation state
-            if (_repository.HasComponent<SimTransform>(entity))
-            {
-                 ref var tf = ref _repository.GetComponentRW<SimTransform>(entity);
-                 tf.Position = new Vector3(pos.X, pos.Y, 0);
-                 
-                 // Also reset velocity?
-                 if (_repository.HasComponent<VehicleState>(entity))
-                 {
-                     ref var state = ref _repository.GetComponentRW<VehicleState>(entity);
-                     state.Speed = 0.0f;
-                 }
-            }
-        };
-
-        // 3. Generic Interaction (Context Menu / Actions)
-        _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hit) =>
-        {
-             if (btn == MapMouseButton.Right)
-             {
-                 var entities = _selectionManager.SelectedEntities;
-
-                 if (entities.Count == 0) return;
-
-                 if (shift)
-                 {
-                     // Add Waypoint (Shift+Right) -> Sequence
-                     var mode = _legacyUI?.UIState?.InterpolationMode ?? global::CarKinem.Trajectory.TrajectoryInterpolation.CatmullRom;
-                     foreach(var e in entities)
-                     {
-                         if (_repository.IsAlive(e))
-                            _scenarioManager.AddWaypoint(e, pos, mode);
-                     }
-                 }
-                 else
-                 {
-                     // Context (Navigate) -> Write NavState directly (Cmd bus removed)
-                     foreach(var e in entities)
-                     {
-                        if (!_repository.IsAlive(e)) continue;
-                        if (!_repository.HasComponent<NavState>(e)) continue;
-
-                        var nav = _repository.GetComponent<NavState>(e);
-                        nav.Mode             = KinematicsMode.None;
-                        nav.FinalDestination = pos;
-                        nav.ArrivalRadius    = 3.0f;
-                        nav.TargetSpeed      = 10.0f;
-                        nav.HasArrived       = 0;
-                        _repository.SetComponent(e, nav);
-                     }
-                 }
-             }
-        };
-
-        // 2. Region Select
-        _interactionTool.OnRegionSelected += (entities) =>
-        {
-             // Assumes Replace logic for now
-             _selectionManager.SetMultiple(entities);
-        };
-        
-        // 3. Drag
-        _interactionTool.OnEntityMoved += (entity, newPos) =>
-        {
-            if (_repository.HasComponent<SimTransform>(entity))
-            {
-                ref var tf = ref _repository.GetComponentRW<SimTransform>(entity);
-                tf.Position = new Vector3(newPos.X, newPos.Y, 0);
-            }
-        };
-        
-        _map.SwitchTool(_interactionTool);
-        
-        // Input Manager removed
-        // _inputManager = new InputManager();
-        // _inputManager.EnableCameraControl = false; // MapCanvas handles it
+        // (Phase 5: StandardInteractionTool removed; entity interaction handled by ECS gizmos)
     }
 
 
@@ -471,37 +372,8 @@ public class CarKinemApp : FdpApplication
 
         // 4. Input Manager (Right Click -> Navigate) REMOVED
         // _inputManager.HandleInput(_selectionManager, _scenarioManager, _map.Camera.InnerCamera, _legacyUI.UIState);
-        
-        // --- Tool Interactions (Draw Path) ---
-        // Press P to draw path for selected entity
-        if (Raylib.IsKeyPressed(KeyboardKey.P) && _selectionManager.SelectedEntity.HasValue)
-        {
-            var entity = _selectionManager.SelectedEntity.Value;
-            var pathTool = new PointSequenceTool(points => 
-            {
-                if (points.Length > 0)
-                {
-                    // Call ScenarioManager SetDestination/AddWaypoint sequence
-                    // Clear path by calling SetDestination with first point
-                    _scenarioManager.SetDestination(entity, points[0], _legacyUI.UIState.InterpolationMode);
-                    
-                    // Add remaining points
-                    for (int i = 1; i < points.Length; i++)
-                    {
-                        _scenarioManager.AddWaypoint(entity, points[i], _legacyUI.UIState.InterpolationMode);
-                    }
-                }
-                
-                // Switch back to default
-                _map.PopTool();
-            });
-            _map.PushTool(pathTool);
-        }
-        else if (Raylib.IsKeyPressed(KeyboardKey.Escape))
-        {
-             // Reset tool
-             _map.SwitchTool(_interactionTool);
-        }
+
+        // (Phase 5: PointSequenceTool and _interactionTool removed; path drawing not yet migrated)
 
         // 5. Map Update (Camera/Zoom/Layers)
         _map.Update(dt);

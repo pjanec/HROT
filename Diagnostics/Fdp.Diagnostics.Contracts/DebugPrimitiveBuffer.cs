@@ -243,6 +243,27 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             Append(p);
         }
 
+        public void DrawEntitySphere(
+            Entity  anchor,
+            Vector3 worldCenter,
+            float   radius,
+            Rgba32  color,
+            byte    layer = 0)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape            = DebugPrimitiveShape.Sphere;
+            p.Space            = CoordinateSpace.World;
+            p.SizeMode         = SizeMode.WorldMeters;
+            p.TargetView       = PipelineTarget.Map2D;
+            p.Color            = color;
+            p.SphereCenter     = worldCenter;
+            p.SphereRadius     = radius;
+            p.DebugLayer       = layer;
+            p.AnchorIndex      = anchor.Index;
+            p.AnchorGeneration = anchor.Generation;
+            Append(p);
+        }
+
         // ---- Internal helpers -----------------------------------------------
 
         // GZ057: SpatialAnchor and SemanticShape emit implementations.

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
@@ -164,6 +165,29 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             foreach (ref readonly var evt in destructions)
                 TeardownEntity(evt.Entity);
 
+            // 1b. Tear down gizmos whose required-component mask is no longer satisfied.
+            // This handles the case where a marker component (e.g. ActiveRotationToolRequest)
+            // is removed by the gizmo's own onRemove callback.
+            var entitiesToTeardown = new List<(Entity entity, int ruleIndex)>();
+            foreach (var kvp in _activeGizmos)
+            {
+                Entity entity = kvp.Key;
+                if (!view.IsAlive(entity)) continue;
+                ref var header = ref repo.GetHeader(entity.Index);
+                var instances = kvp.Value;
+                for (int i = 0; i < instances.Count; i++)
+                {
+                    var gi = instances[i];
+                    // Injected (on-demand) gizmos have RuleIndex == -1; skip them.
+                    if (gi.RuleIndex < 0) continue;
+                    var rule = _registry.Rules[gi.RuleIndex];
+                    if (!BitMask256.HasAll(header.ComponentMask, rule.RequiredMask))
+                        entitiesToTeardown.Add((entity, gi.RuleIndex));
+                }
+            }
+            foreach (var (entity, ruleIndex) in entitiesToTeardown)
+                TeardownGizmoByRule(entity, ruleIndex);
+
             // 2. Initialise gizmos for newly constructed entities.
             var constructions = view.ReadEvents<ConstructionOrder>();
             foreach (ref readonly var evt in constructions)
@@ -195,6 +219,50 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 }
             }
 
+            // 2b. Late-activate gizmos for entities that gained components after construction.
+            var activations = view.ReadEvents<GizmoComponentActivatedEvent>();
+            foreach (ref readonly var evt in activations)
+            {
+                if (!view.IsAlive(evt.Entity)) continue;
+                ref var header = ref repo.GetHeader(evt.Entity.Index);
+                var rules = _registry.Rules;
+                for (int r = 0; r < rules.Count; r++)
+                {
+                    var rule = rules[r];
+                    if (!BitMask256.HasAll(header.ComponentMask, rule.RequiredMask))
+                        continue;
+
+                    // Skip if a gizmo instance from this rule already exists for this entity.
+                    if (_activeGizmos.TryGetValue(evt.Entity, out var existing) &&
+                        existing.Any(gi => gi.RuleIndex == rule.RuleIndex))
+                        continue;
+
+                    var instance = rule.Definition.CreateInstance(view, evt.Entity);
+
+                    if (!_activeGizmos.TryGetValue(evt.Entity, out var list))
+                    {
+                        list = new List<CompiledGizmoInstance>();
+                        _activeGizmos[evt.Entity] = list;
+                        _entityList.Add(evt.Entity);
+                    }
+
+                    list.Add(new CompiledGizmoInstance
+                    {
+                        Instance   = instance,
+                        Definition = rule.Definition,
+                        RuleIndex  = rule.RuleIndex,
+                    });
+
+                    // Grant exclusive focus if the gizmo requests it.
+                    if (instance.RequiresExclusiveFocus && _focusedGizmo == null)
+                    {
+                        _focusedGizmo = instance;
+                        _focusedGizmo.SetFocus(true);
+                    }
+                }
+            }
+
+
             // 3. Pre-evaluate global visibility for all rules — once per frame, not per entity.
             var allRules = _registry.Rules;
             int cacheSize = _globalVisibilityCache.Length;
@@ -222,6 +290,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         if (gi.RuleIndex < cacheSize && !_globalVisibilityCache[gi.RuleIndex]) continue;
                         if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity)) continue;
                         gi.Instance.UpdateAndDraw(deltaTime, _drawBuilder);
+                        // Emit InputCaptureBinding for the exclusive-focus holder.
+                        if (gi.Instance == _focusedGizmo && _focusedGizmo.RequiresExclusiveFocus)
+                        {
+                            var binding = DebugPrimitive.MakeInputCaptureBinding(
+                                networkId: (long)entity.Index,
+                                subElementId: 0,
+                                exclusive: true);
+                            _drawBuilder.EmitRaw(in binding);
+                        }
                     }
                 }
             }
@@ -251,6 +328,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         if (gi.RuleIndex < cacheSize && !_globalVisibilityCache[gi.RuleIndex]) continue;
                         if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity)) continue;
                         gi.Instance.UpdateAndDraw(deltaTime, _drawBuilder);
+                        // Emit InputCaptureBinding for the exclusive-focus holder.
+                        if (gi.Instance == _focusedGizmo && _focusedGizmo.RequiresExclusiveFocus)
+                        {
+                            var binding = DebugPrimitive.MakeInputCaptureBinding(
+                                networkId: (long)entity.Index,
+                                subElementId: 0,
+                                exclusive: true);
+                            _drawBuilder.EmitRaw(in binding);
+                        }
                     }
 
                     // Check budget after each entity.
@@ -266,7 +352,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             foreach (var kvp in _injectedGizmos)
             {
                 if (view.IsAlive(kvp.Key))
+                {
                     kvp.Value.UpdateAndDraw(deltaTime, _drawBuilder);
+                    // Emit InputCaptureBinding for the exclusive-focus holder.
+                    if (kvp.Value == _focusedGizmo && _focusedGizmo.RequiresExclusiveFocus)
+                    {
+                        var binding = DebugPrimitive.MakeInputCaptureBinding(
+                            networkId: (long)kvp.Key.Index,
+                            subElementId: 0,
+                            exclusive: true);
+                        _drawBuilder.EmitRaw(in binding);
+                    }
+                }
             }
 
             // 5. Route typed interaction events to the appropriate gizmo.
@@ -392,6 +489,28 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         }
 
         // ---- Helpers ---------------------------------------------------------------
+
+        private void TeardownGizmoByRule(Entity entity, int ruleIndex)
+        {
+            if (!_activeGizmos.TryGetValue(entity, out var list)) return;
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                if (list[i].RuleIndex != ruleIndex) continue;
+                var gizmo = list[i].Instance;
+                if (_focusedGizmo == gizmo)
+                {
+                    _focusedGizmo.SetFocus(false);
+                    _focusedGizmo = null;
+                }
+                gizmo.Dispose();
+                list.RemoveAt(i);
+            }
+            if (list.Count == 0)
+            {
+                _activeGizmos.Remove(entity);
+                _entityList.Remove(entity);
+            }
+        }
 
         private void TeardownEntity(Entity entity)
         {

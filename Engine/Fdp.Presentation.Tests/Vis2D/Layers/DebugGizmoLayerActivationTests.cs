@@ -1,11 +1,10 @@
-// SC-GZ025: DebugGizmoLayer pushes GizmoInteractionProxyTool on hit.
+// SC-GZ025: DebugGizmoLayer starts an interaction on pickable primitive hit.
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Fdp.Toolkit.Vis2D.Gizmos;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Vis2D.Tests.Gizmos;
 using Xunit;
@@ -37,16 +36,15 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             return buf;
         }
 
-        // SC-GZ025-1: Clicking on a pickable primitive causes MapCanvas.ActiveTool to become
-        // a GizmoInteractionProxyTool.
+        // SC-GZ025-1: Clicking on a pickable primitive starts an interaction (inlined
+        // into DebugGizmoLayer; no separate proxy tool pushed on MapCanvas).
         [Fact]
         public void SC_GZ025_1_HitPickable_PushesProxyTool()
         {
             var bus    = new FdpEventBus();
-            var canvas = new MapCanvas(new StubInputProvider());
             var anchor = new Entity(1, 1);
             var buf    = MakeSphereBuffer(anchor);
-            var layer  = new DebugGizmoLayer(31, buf, bus, canvas, new CapturingRenderer2D());
+            var layer  = new DebugGizmoLayer(31, buf, bus, new CapturingRenderer2D());
 
             // Simulate a Draw call so _lastCtx is populated.
             layer.Draw(MakeCtx());
@@ -55,7 +53,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             bool consumed = layer.HandleInput(Vector2.Zero, MapMouseButton.Left, isPressed: true);
 
             Assert.True(consumed);
-            Assert.IsType<GizmoInteractionProxyTool>(canvas.ActiveTool);
+            Assert.True(layer.TestHook_IsInteractionActive);
         }
 
         // SC-GZ025-2: GizmoInteractionStartedEvent is published exactly once when the tool
@@ -64,10 +62,9 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         public void SC_GZ025_2_OnEnter_PublishesStartedEventOnce()
         {
             var bus    = new FdpEventBus();
-            var canvas = new MapCanvas(new StubInputProvider());
             var anchor = new Entity(2, 1);
             var buf    = MakeSphereBuffer(anchor);
-            var layer  = new DebugGizmoLayer(31, buf, bus, canvas, new CapturingRenderer2D());
+            var layer  = new DebugGizmoLayer(31, buf, bus, new CapturingRenderer2D());
 
             layer.Draw(MakeCtx());
             layer.HandleInput(Vector2.Zero, MapMouseButton.Left, isPressed: true);
@@ -85,10 +82,9 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         public void SC_GZ025_3_MissedClick_NoToolPushed()
         {
             var bus    = new FdpEventBus();
-            var canvas = new MapCanvas(new StubInputProvider());
             var anchor = new Entity(3, 1);
             var buf    = MakeSphereBuffer(anchor);  // sphere at (0,0), radius 5
-            var layer  = new DebugGizmoLayer(31, buf, bus, canvas, new CapturingRenderer2D());
+            var layer  = new DebugGizmoLayer(31, buf, bus, new CapturingRenderer2D());
 
             layer.Draw(MakeCtx());
 
@@ -96,7 +92,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             bool consumed = layer.HandleInput(new Vector2(100f, 100f), MapMouseButton.Left, isPressed: true);
 
             Assert.False(consumed);
-            Assert.Null(canvas.ActiveTool);
+            Assert.False(layer.TestHook_IsInteractionActive);
         }
 
         // SC-GZ025-5: When canvas is null (fallback path), GizmoInteractionStartedEvent is
@@ -107,9 +103,8 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             var bus    = new FdpEventBus();
             var anchor = new Entity(5, 1);
             var buf    = MakeSphereBuffer(anchor);
-            // Use test constructor (no canvas parameter).
-            var renderer = new CapturingRenderer2D();
-            var layer    = new DebugGizmoLayer(31, buf, bus, renderer);
+            // No canvas needed after refactor.
+            var renderer = new CapturingRenderer2D();            var layer    = new DebugGizmoLayer(31, buf, bus, renderer);
 
             layer.Draw(MakeCtx());
             layer.HandleInput(Vector2.Zero, MapMouseButton.Left, isPressed: true);

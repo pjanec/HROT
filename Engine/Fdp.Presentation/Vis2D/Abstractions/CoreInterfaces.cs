@@ -68,6 +68,27 @@ public interface IMapLayer
     /// Used for visual aggregation and selection.
     /// </summary>
     Entity? PickEntity(Vector2 worldPos);
+
+    /// <summary>
+    /// Called every frame with the current mouse world position.
+    /// Used by layers that need to track cursor position for drag-update events.
+    /// Default: no-op.
+    /// </summary>
+    void HandleHover(Vector2 mouseWorldPos) { }
+
+    /// <summary>
+    /// Called when the mouse moves with a button held down.
+    /// Return true to consume the drag (prevents camera panning).
+    /// Default: not consumed.
+    /// </summary>
+    bool HandleDrag(Vector2 worldPos, Vector2 delta) => false;
+
+    /// <summary>
+    /// Called for each key pressed this frame, after ImGui keyboard capture check.
+    /// Return true to mark the key as consumed.
+    /// Default: not consumed.
+    /// </summary>
+    bool HandleKeyInput(MapKeyboardKey key) => false;
 }
 
 

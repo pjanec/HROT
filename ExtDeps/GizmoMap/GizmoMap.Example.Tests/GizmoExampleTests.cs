@@ -20,7 +20,7 @@ namespace GizmoMap.Example.Tests
             var builder = new LocalDrawBuilder(producer);
 
             gen.Emit(0.016f, builder);
-            transport.PublishPrimitives(producer.GetFrame());
+            transport.PublishPrimitives(producer.GetFrame(), producer.InternMap);
             transport.PollAndApply(consumer);
 
             Assert.True(consumer.GetFrame().Length > 0,
@@ -107,7 +107,7 @@ namespace GizmoMap.Example.Tests
         public void SC_GZ056_7_DdsMode_ByteRoundtrip_PreservesPrimitiveCount()
         {
             var bridge = new InMemoryDdsBridge();
-            using var transport = new DdsGizmoTransport(bridge, bridge);
+            using var transport = new DdsGizmoTransport(bridge, bridge, bridge, bridge);
 
             var producer = new GizmoPrimitiveBuffer(capacity: 16);
             var builder  = new LocalDrawBuilder(producer);
@@ -116,7 +116,7 @@ namespace GizmoMap.Example.Tests
             int inputCount = producer.GetFrame().Length;
             Assert.True(inputCount > 0, "DemoSceneGenerator must emit at least one primitive.");
 
-            transport.PublishPrimitives(producer.GetFrame());
+            transport.PublishPrimitives(producer.GetFrame(), producer.InternMap);
 
             var consumer = new GizmoPrimitiveBuffer(capacity: 64);
             transport.PollAndApply(consumer);
@@ -129,7 +129,7 @@ namespace GizmoMap.Example.Tests
         public void SC_GZ056_8_DdsMode_ByteRoundtrip_PreservesFieldValues()
         {
             var bridge = new InMemoryDdsBridge();
-            using var transport = new DdsGizmoTransport(bridge, bridge);
+            using var transport = new DdsGizmoTransport(bridge, bridge, bridge, bridge);
 
             var source = new GizmoPrimitiveBuffer(capacity: 4);
             var prim   = new DebugPrimitive
@@ -139,7 +139,7 @@ namespace GizmoMap.Example.Tests
             };
             source.AppendRaw(in prim);
 
-            transport.PublishPrimitives(source.GetFrame());
+            transport.PublishPrimitives(source.GetFrame(), source.InternMap);
 
             var consumer = new GizmoPrimitiveBuffer(capacity: 4);
             transport.PollAndApply(consumer);
@@ -261,10 +261,15 @@ namespace GizmoMap.Example.Tests
         // In-memory bridge: captures the written batch and replays it once on read.
         // Used by SC-GZ056-7 and SC-GZ056-8 to exercise the byte serialization path
         // without requiring a live CycloneDDS participant.
-        private sealed class InMemoryDdsBridge : IDdsWriter<DebugPrimitivesBatch>, IDdsReader<DebugPrimitivesBatch>
+        private sealed class InMemoryDdsBridge :
+            IDdsWriter<DebugPrimitivesBatch>,
+            IDdsReader<DebugPrimitivesBatch>,
+            IDdsWriter<StringInternEntry>,
+            IDdsReader<StringInternEntry>
         {
             private DebugPrimitivesBatch _pending;
             private bool _hasPending;
+            private readonly System.Collections.Generic.Queue<StringInternEntry> _stringPending = new();
 
             public void Write(DebugPrimitivesBatch sample)
             {
@@ -278,6 +283,22 @@ namespace GizmoMap.Example.Tests
                 {
                     sample      = _pending;
                     _hasPending = false;
+                    return true;
+                }
+                sample = default;
+                return false;
+            }
+
+            void IDdsWriter<StringInternEntry>.Write(StringInternEntry sample)
+            {
+                _stringPending.Enqueue(sample);
+            }
+
+            bool IDdsReader<StringInternEntry>.TryRead(out StringInternEntry sample)
+            {
+                if (_stringPending.Count > 0)
+                {
+                    sample = _stringPending.Dequeue();
                     return true;
                 }
                 sample = default;

@@ -11,7 +11,7 @@ namespace GizmoMap.Example
     {
         private DebugPrimitive[]? _pending;
 
-        public void PublishPrimitives(ReadOnlySpan<DebugPrimitive> primitives)
+        public void PublishPrimitives(ReadOnlySpan<DebugPrimitive> primitives, StringInternMap? internMap = null)
         {
             _pending = primitives.ToArray();
         }
