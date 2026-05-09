@@ -8,6 +8,9 @@ using Hrot.SimHost.Modules;
 using Hrot.SimHost.Utilities;
 using Hrot.Common.Infrastructure;
 using Hrot.Common.Scenario;
+using Hrot.Common.Constants;
+using Hrot.Common.Interactions;
+using Hrot.Common.Systems;
 using CarKinem.Commands;
 using CarKinem.Formation;
 using CarKinem.Road;
@@ -526,8 +529,6 @@ namespace Hrot.SimHost
                 _gizmoRegistry,
                 _statelessGizmoRegistry,
                 settings: new GizmoSettingsRegistry());
-            // BATCH-24: register the EntityRotatorGizmoDefinition (data-driven rotation).
-            _gizmoRegistry.Register(new Hrot.SimHost.Gizmos.EntityRotatorGizmoDefinition());
             // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
             _gizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
             _dataDrivenGizmoSystem = new DataDrivenGizmoSystem(
@@ -537,6 +538,21 @@ namespace Hrot.SimHost
                     view.HasComponent<SelectionState>(entity) &&
                     view.GetComponentRO<SelectionState>(entity).IsSelected);
             _kernel.RegisterGlobalSystem(_dataDrivenGizmoSystem);
+            // Register the global action registry and wire operator action handlers.
+            var actionRegistry = new GlobalActionRegistry();
+            actionRegistry.Register(GlobalActionIds.Rotate, (view, target) =>
+            {
+                if (target == Entity.Null) return;
+                if (!view.HasComponent<SimTransform>(target)) return;
+                // Always start fresh: deactivate any existing gizmo, then inject the new one.
+                _dataDrivenGizmoSystem!.DeactivateGizmo(target);
+                var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
+                    view, target,
+                    onRemove: () => _dataDrivenGizmoSystem!.DeactivateGizmo(target));
+                _dataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
+            });
+            _kernel.RegisterGlobalSystem(new ContextActionIngressSystem(_entityMap!));
+            _kernel.RegisterGlobalSystem(new GlobalActionDispatchSystem(actionRegistry));
             _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(
                 _statelessGizmoRegistry,
                 _gizmoBuffer,

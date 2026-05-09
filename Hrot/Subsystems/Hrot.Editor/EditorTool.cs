@@ -16,6 +16,6 @@ public enum EditorTool
     Route,
     /// <summary>Measurement line mode (activates <c>MeasureTool</c>).</summary>
     Measure,
-    /// <summary>Entity rotation mode (adds <c>ActiveRotationToolRequest</c> marker via ECS).</summary>
+    /// <summary>Entity rotation mode (injects <c>EntityRotatorGizmo</c> directly via <c>DataDrivenGizmoSystem</c>).</summary>
     Rotate,
 }

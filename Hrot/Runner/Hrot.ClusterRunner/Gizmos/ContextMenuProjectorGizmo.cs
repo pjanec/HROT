@@ -5,6 +5,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Replication.Components;
+using Hrot.Common.Constants;
 using Hrot.IG.Components;
 
 namespace Hrot.ClusterRunner.Gizmos
@@ -40,30 +41,30 @@ namespace Hrot.ClusterRunner.Gizmos
         private static readonly string MenuJsonHealthy = JsonSerializer.Serialize(
             new ContextMenuItemDto[]
             {
-                new ContextMenuItemDto { Id = 1,  Label = "Move Here",    Shortcut = "M" },
-                new ContextMenuItemDto { Id = 2,  Label = "Engage",       Shortcut = "E" },
-                new ContextMenuItemDto { Id = 3,  Label = "Stop",         Shortcut = "S" },
+                new ContextMenuItemDto { Id = GlobalActionIds.MoveHere,       Label = "Move Here",    Shortcut = "M" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Engage,          Label = "Engage",       Shortcut = "E" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Stop,            Label = "Stop",         Shortcut = "S" },
                 new ContextMenuItemDto { IsSeparator = true },
-                new ContextMenuItemDto { Id = 10, Label = "Center View",  Shortcut = "C" },
-                new ContextMenuItemDto { Id = 11, Label = "Select",       Shortcut = "Space" },
+                new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity,  Label = "Center View",  Shortcut = "C" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Select,          Label = "Select",       Shortcut = "Space" },
                 new ContextMenuItemDto { IsSeparator = true },
-                new ContextMenuItemDto { Id = 20, Label = "Rotate",       Shortcut = "R" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Rotate,          Label = "Rotate",       Shortcut = "R" },
             }, SerializerOptions);
 
         /// <summary>Menu for a significantly damaged unit (health &lt; 50 %).</summary>
         private static readonly string MenuJsonDegraded = JsonSerializer.Serialize(
             new ContextMenuItemDto[]
             {
-                new ContextMenuItemDto { Id = 1,  Label = "Move Here",  Enabled = false,
+                new ContextMenuItemDto { Id = GlobalActionIds.MoveHere, Label = "Move Here",  Enabled = false,
                     Tooltip = "Cannot move: Unit is heavily damaged" },
-                new ContextMenuItemDto { Id = 2,  Label = "Engage",     Enabled = false,
+                new ContextMenuItemDto { Id = GlobalActionIds.Engage,   Label = "Engage",     Enabled = false,
                     Tooltip = "Cannot engage: Unit is heavily damaged" },
-                new ContextMenuItemDto { Id = 3,  Label = "Stop",       Shortcut = "S" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Stop,           Label = "Stop",       Shortcut = "S" },
                 new ContextMenuItemDto { IsSeparator = true },
-                new ContextMenuItemDto { Id = 10, Label = "Center View", Shortcut = "C" },
-                new ContextMenuItemDto { Id = 11, Label = "Select",      Shortcut = "Space" },
+                new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View", Shortcut = "C" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",      Shortcut = "Space" },
                 new ContextMenuItemDto { IsSeparator = true },
-                new ContextMenuItemDto { Id = 20, Label = "Rotate",      Shortcut = "R" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Rotate,         Label = "Rotate",      Shortcut = "R" },
             }, SerializerOptions);
 
         // ---- IStatelessGizmo --------------------------------------------------

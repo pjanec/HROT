@@ -233,6 +233,7 @@ public class IgApplication : IDisposable
     private MeasureToolGizmoAdapter?    _measureToolGizmoAdapter;
     private GizmoUndoStack?             _gizmoUndoStack;
     private GlobalGizmoManager?         _globalGizmoManager;
+    private DataDrivenGizmoSystem?       _igDataDrivenGizmoSystem;
     private long?                        _activeSequenceId;
     private PointSequenceGizmo?          _activeSequenceGizmo;
     private long?                        _activeLocationPickerId;
@@ -712,10 +713,8 @@ public class IgApplication : IDisposable
         _world.RegisterComponent<MapDisplayComponent>();
         _world.RegisterComponent<EntityInfo>();
 
-        // Gizmo activation event and marker components for local vertex/route editing (Phase 2).
+        // Gizmo activation event for local editing gizmos.
         _world.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent>();
-        _world.RegisterComponent<ActiveVertexEditRequest>();
-        _world.RegisterComponent<ActiveRouteEditRequest>();
 
         // ── Route planning components (ROUTES1) ───────────────────────────────
         _world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
@@ -1093,8 +1092,6 @@ public class IgApplication : IDisposable
         {
             _gizmoRegistry!.Register(new EntityDragGizmoDefinition());
         }
-        _gizmoRegistry!.Register(new VertexEditGizmoDefinition());
-        _gizmoRegistry!.Register(new RouteWaypointGizmoDefinition());
         // GZ058: manually register MissionPresentationGizmo (constructor requires IGeographicTransform).
         _statelessGizmoRegistry.Register(
             new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(_geoTransform!),
@@ -1148,11 +1145,11 @@ public class IgApplication : IDisposable
 
         // GZ038 reversed: DataDrivenGizmoSystem is registered for local vertex/route editing.
         // isSelectedPredicate: null because IG is dumb terminal -- draw all active gizmos.
-        var igDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
+        _igDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
             _gizmoRegistry!,
             _gizmoBuffer!,
             isSelectedPredicate: null);
-        _kernel.RegisterGlobalSystem(igDataDrivenGizmoSystem);
+        _kernel.RegisterGlobalSystem(_igDataDrivenGizmoSystem);
 
         // GZ057-058: register StatelessGizmoSystem so local presentation gizmos execute each frame.
         _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!));
@@ -3303,19 +3300,17 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
     /// <summary>
     /// Activates gizmo-based editing for the entity identified by
-    /// <paramref name="networkEntityId"/> using ECS marker components.
+    /// <paramref name="networkEntityId"/> using direct gizmo injection.
     ///
     /// <para>
-    /// For <see cref="Hrot.Map.Common.Components.RoutePlan"/> entities, adds
-    /// <see cref="ActiveRouteEditRequest"/> so <c>DataDrivenGizmoSystem</c>
-    /// instantiates <see cref="RouteWaypointGizmo"/>. Toggle behaviour: calling
-    /// this a second time on the same entity removes the marker.
+    /// For <see cref="Hrot.Map.Common.Components.RoutePlan"/> entities, injects a
+    /// <see cref="RouteWaypointGizmo"/> via <c>DataDrivenGizmoSystem.ActivateGizmo</c>.
+    /// Toggle behaviour: calling this a second time on the same entity deactivates the gizmo.
     /// </para>
     ///
     /// <para>
-    /// For <see cref="EditablePolyline"/> entities, adds
-    /// <see cref="ActiveVertexEditRequest"/> so <c>DataDrivenGizmoSystem</c>
-    /// instantiates <see cref="VertexEditGizmo"/>. Toggle behaviour likewise.
+    /// For <see cref="EditablePolyline"/> entities, injects a <see cref="VertexEditGizmo"/>.
+    /// Toggle behaviour likewise.
     /// </para>
     /// </summary>
     private void ActivateAreaEditingTool(long networkEntityId)
@@ -3327,13 +3322,12 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         }
 
-        // ── Route entity path — use RouteWaypointGizmo via ActiveRouteEditRequest marker ──
+        // ── Route entity path — inject RouteWaypointGizmo (toggle) ──
         if (World.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(entity))
         {
-            // Toggle: if the gizmo is already active, remove the marker to close it.
-            if (World.HasComponent<ActiveRouteEditRequest>(entity))
+            if (_igDataDrivenGizmoSystem!.HasInjectedGizmo(entity))
             {
-                World.RemoveComponent<ActiveRouteEditRequest>(entity);
+                _igDataDrivenGizmoSystem!.DeactivateGizmo(entity);
                 FdpLog<IgApplication>.Info(
                     "[Node-{0}] Route editing deactivated for NetID {1}.", _effectiveInstanceId, networkEntityId);
             }
@@ -3345,15 +3339,17 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
                         "[Node-{0}] ActivateAreaEditingTool: entity {1} has no SimTransform yet.", _effectiveInstanceId, networkEntityId);
                     return;
                 }
-                World.AddComponent<ActiveRouteEditRequest>(entity, default);
-                _world.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = entity });
+                var gizmo = new Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo(
+                    _world!, entity, networkEntityId,
+                    onRemove: () => _igDataDrivenGizmoSystem!.DeactivateGizmo(entity));
+                _igDataDrivenGizmoSystem!.ActivateGizmo(entity, gizmo);
                 FdpLog<IgApplication>.Info(
                     "[Node-{0}] Route editing activated for NetID {1}.", _effectiveInstanceId, networkEntityId);
             }
             return;
         }
 
-        // ── Area overlay path — use VertexEditGizmo via ActiveVertexEditRequest marker ──
+        // ── Area overlay path — inject VertexEditGizmo (toggle) ──
         if (!World.HasManagedComponent<EditablePolyline>(entity))
         {
             FdpLog<IgApplication>.Warn(
@@ -3361,10 +3357,9 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         }
 
-        // Toggle: if the gizmo is already active, remove the marker to close it.
-        if (World.HasComponent<ActiveVertexEditRequest>(entity))
+        if (_igDataDrivenGizmoSystem!.HasInjectedGizmo(entity))
         {
-            World.RemoveComponent<ActiveVertexEditRequest>(entity);
+            _igDataDrivenGizmoSystem!.DeactivateGizmo(entity);
             FdpLog<IgApplication>.Info(
                 "[Node-{0}] Area editing deactivated for NetID {1}.", _effectiveInstanceId, networkEntityId);
         }
@@ -3376,8 +3371,10 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
                     "[Node-{0}] ActivateAreaEditingTool: entity {1} has no SimTransform yet.", _effectiveInstanceId, networkEntityId);
                 return;
             }
-            World.AddComponent<ActiveVertexEditRequest>(entity, default);
-            _world.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = entity });
+            var gizmo = new Hrot.ScenarioEditor.Gizmos.VertexEditGizmo(
+                _world!, entity, networkEntityId,
+                onRemove: () => _igDataDrivenGizmoSystem!.DeactivateGizmo(entity));
+            _igDataDrivenGizmoSystem!.ActivateGizmo(entity, gizmo);
             FdpLog<IgApplication>.Info(
                 "[Node-{0}] Area editing activated for NetID {1}.", _effectiveInstanceId, networkEntityId);
         }

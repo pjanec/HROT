@@ -1,129 +1,96 @@
 using System;
-using System.Numerics;
-using System.Runtime.CompilerServices;
 using Fdp.Core;
-using Fdp.Toolkit.Diagnostics.Gizmos;
-using Fdp.Toolkit.Diagnostics.Gizmos.Events;
-using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
-using Fdp.Toolkit.Lifecycle.Events;
-using Hrot.SimHost.Gizmos;
+using Hrot.Common.Constants;
+using Hrot.Common.Events;
+using Hrot.Common.Interactions;
+using Hrot.Common.Systems;
 using Xunit;
 
 namespace Hrot.SimHost.Tests.Gizmos
 {
-    // SC-ER001 through SC-ER006: EntityRotatorGizmo activation and input-bridge tests.
-    // Verifies BATCH-24 ECS-driven rotation workflow.
+    // SC-ER001 through SC-ER004: Global action registry and dispatch system tests.
+    // Verifies the typed GlobalActionRegistry + GlobalActionDispatchSystem pipeline.
 
     // =========================================================================
-    // SC_ER001 / SC_ER002: marker component and definition contract
+    // SC_ER001 / SC_ER002: GlobalActionRegistry contract
     // =========================================================================
 
-    public sealed class EntityRotatorGizmoMarkerTests
+    public sealed class GlobalActionRegistryTests
     {
-        // SC_ER001: ActiveRotationToolRequest is a pure marker struct with no instance fields.
-        // Empty C# structs have a managed size of 1 byte (CLR minimum); the important
-        // guarantee is that the struct carries no payload fields.
+        // SC_ER001: Registering a handler and calling TryGetHandler returns that handler.
         [Fact]
-        public void SC_ER001_ActiveRotationToolRequest_IsMarkerWithNoFields()
+        public void SC_ER001_Register_ThenTryGetHandler_ReturnsRegisteredHandler()
         {
-            Assert.Equal(1, Unsafe.SizeOf<ActiveRotationToolRequest>());
-            Assert.Empty(typeof(ActiveRotationToolRequest).GetFields());
+            var registry = new GlobalActionRegistry();
+            GlobalActionHandler? captured = null;
+            GlobalActionHandler expected = (view, target) => captured = null /* side-effect placeholder */;
+
+            registry.Register(GlobalActionIds.Rotate, expected);
+
+            bool found = registry.TryGetHandler(GlobalActionIds.Rotate, out var actual);
+
+            Assert.True(found);
+            Assert.Equal(expected, actual);
         }
 
-        // SC_ER002: EntityRotatorGizmoDefinition declares exactly SimTransform
-        // and ActiveRotationToolRequest as required components.
+        // SC_ER002: TryGetHandler returns false for an ID that was never registered.
         [Fact]
-        public void SC_ER002_EntityRotatorGizmoDefinition_RequiredComponents_ContainsBothTypes()
+        public void SC_ER002_TryGetHandler_ReturnsFalse_ForUnregisteredId()
         {
-            // Component types must be registered before GizmoRegistry.Register() to
-            // populate the ComponentTypeRegistry with valid IDs.
-            using var repo = new EntityRepository();
-            repo.RegisterComponent<SimTransform>();
-            repo.RegisterComponent<ActiveRotationToolRequest>();
+            var registry = new GlobalActionRegistry();
 
-            var def = new EntityRotatorGizmoDefinition();
+            bool found = registry.TryGetHandler(GlobalActionIds.Rotate, out _);
 
-            Assert.Equal(2, def.RequiredComponents.Length);
-            Assert.Contains(typeof(SimTransform),               def.RequiredComponents);
-            Assert.Contains(typeof(ActiveRotationToolRequest),  def.RequiredComponents);
+            Assert.False(found);
         }
     }
 
     // =========================================================================
-    // SC_ER003 / SC_ER004: DataDrivenGizmoSystem late-activation and teardown
+    // SC_ER003 / SC_ER004: GlobalActionDispatchSystem
     // =========================================================================
 
-    public sealed class EntityRotatorGizmoSystemTests : IDisposable
+    public sealed class GlobalActionDispatchSystemTests : IDisposable
     {
         private readonly EntityRepository _repo;
-        private readonly DebugPrimitiveBuffer _buffer;
-        private readonly DataDrivenGizmoSystem _sys;
-        private readonly Entity _entity;
 
-        public EntityRotatorGizmoSystemTests()
+        public GlobalActionDispatchSystemTests()
         {
             _repo = new EntityRepository();
-            _repo.RegisterComponent<SimTransform>();
-            _repo.RegisterComponent<ActiveRotationToolRequest>();
-            _repo.RegisterEvent<ConstructionOrder>();
-            _repo.RegisterEvent<DestructionOrder>();
-            _repo.RegisterEvent<GizmoComponentActivatedEvent>();
-
-            var registry = new GizmoRegistry();
-            registry.Register(new EntityRotatorGizmoDefinition());
-
-            _buffer = new DebugPrimitiveBuffer();
-            // Null predicate: all active gizmos are always drawn.
-            _sys = new DataDrivenGizmoSystem(registry, _buffer, isSelectedPredicate: null);
-
-            // Create an entity with both required components already present.
-            _entity = _repo.CreateEntity();
-            _repo.AddComponent<SimTransform>(_entity, new SimTransform
-            {
-                Position = Vector3.Zero,
-                Rotation = Quaternion.Identity,
-            });
-            _repo.AddComponent<ActiveRotationToolRequest>(_entity, default);
+            _repo.RegisterEvent<GlobalActionRequestedEvent>();
         }
 
         public void Dispose() => _repo.Dispose();
 
-        // SC_ER003: Publishing GizmoComponentActivatedEvent causes the system to
-        // construct an EntityRotatorGizmo and call UpdateAndDraw on the same frame.
+        // SC_ER003: Publishing GlobalActionRequestedEvent causes the registered handler to run.
         [Fact]
-        public void SC_ER003_GizmoComponentActivatedEvent_ActivatesGizmoAndDraws()
+        public void SC_ER003_PublishedEvent_InvokesRegisteredHandler()
         {
-            _repo.Bus.Publish(new GizmoComponentActivatedEvent { Entity = _entity });
-            _repo.Bus.SwapBuffers();
-            _sys.Execute(_repo, 0f);
+            Entity handlerTarget = Entity.Null;
+            var registry = new GlobalActionRegistry();
+            registry.Register(GlobalActionIds.Rotate, (view, target) => { handlerTarget = target; });
 
-            // UpdateAndDraw emits a DrawArrow primitive into the buffer.
-            // A non-empty frame confirms the gizmo was created and drawn.
-            Assert.True(_buffer.GetFrame().Length > 0,
-                "Expected at least one draw primitive after gizmo activation.");
+            var entity = _repo.CreateEntity();
+            _repo.Bus.Publish(new GlobalActionRequestedEvent { ActionId = GlobalActionIds.Rotate, Target = entity });
+            _repo.Bus.SwapBuffers();
+
+            var sys = new GlobalActionDispatchSystem(registry);
+            sys.Execute(_repo, 0f);
+
+            Assert.Equal(entity, handlerTarget);
         }
 
-        // SC_ER004: Removing ActiveRotationToolRequest causes the system to tear down
-        // the gizmo on the next Execute so no further primitives are emitted.
+        // SC_ER004: An unregistered action ID in the event produces no exception.
         [Fact]
-        public void SC_ER004_RemovingMarkerComponent_TearsDownGizmo()
+        public void SC_ER004_UnregisteredActionId_DoesNotThrow()
         {
-            // Frame 1: activate gizmo.
-            _repo.Bus.Publish(new GizmoComponentActivatedEvent { Entity = _entity });
-            _repo.Bus.SwapBuffers();
-            _sys.Execute(_repo, 0f);
-            Assert.True(_buffer.GetFrame().Length > 0,
-                "Pre-condition: gizmo must be active after frame 1.");
+            var registry = new GlobalActionRegistry();
+            var sys = new GlobalActionDispatchSystem(registry);
 
-            // Frame 2: remove the marker component, then execute.
-            // The 1b teardown scan will find the mask is no longer satisfied and dispose
-            // the gizmo.  No draw primitives should appear in the buffer.
-            _repo.RemoveComponent<ActiveRotationToolRequest>(_entity);
-            _buffer.Clear();
+            _repo.Bus.Publish(new GlobalActionRequestedEvent { ActionId = 9999, Target = Entity.Null });
             _repo.Bus.SwapBuffers();
-            _sys.Execute(_repo, 0f);
 
-            Assert.Equal(0, _buffer.GetFrame().Length);
+            // Should not throw.
+            sys.Execute(_repo, 0f);
         }
     }
 }

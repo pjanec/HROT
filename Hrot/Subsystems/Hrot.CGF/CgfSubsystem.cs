@@ -88,6 +88,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private EntityQuery?               _entityQuery;
     private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _cgfGizmoBuffer;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _cgfGizmoManager;
+    private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? _cgfDataDrivenGizmoSystem;
 
     // ── FDP panels ────────────────────────────────────────────────────────────
     private FdpEntityInspectorPanel              _fdpEntityInspector = new();
@@ -432,10 +433,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context.Kernel.RegisterGlobalSystem(
             new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(cgfStatelessRegistry, _cgfGizmoBuffer));
         var cgfGizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
-        cgfGizmoRegistry.Register(new Hrot.SimHost.Gizmos.EntityRotatorGizmoDefinition());
-        _context.Kernel.RegisterGlobalSystem(
-            new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
-                cgfGizmoRegistry, _cgfGizmoBuffer, isSelectedPredicate: null));
+        _cgfDataDrivenGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
+                cgfGizmoRegistry, _cgfGizmoBuffer, isSelectedPredicate: null);
+        _context.Kernel.RegisterGlobalSystem(_cgfDataDrivenGizmoSystem);
 
         _context.Kernel.Initialize();
         // ── Visualization (non-headless only) ─────────────────────────────────────
@@ -471,9 +471,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     builder.AddItem("Rotate", () =>
                     {
                         _selectionState.PrimarySelected = entity;
-                        if (!_context.World.HasComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(entity))
-                            _context.World.AddComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(entity, default);
-                        _context.World.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = entity });
+                        _cgfDataDrivenGizmoSystem!.DeactivateGizmo(entity);
+                        var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
+                            _context.World, entity,
+                            onRemove: () => _cgfDataDrivenGizmoSystem!.DeactivateGizmo(entity));
+                        _cgfDataDrivenGizmoSystem!.ActivateGizmo(entity, gizmo);
                     });
             }));
         }    }
@@ -537,9 +539,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                         deleteEntity:   _ => DeleteEntity(ent),
                         rotateTool:     _ =>
                         {
-                            if (!_context.World.HasComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(ent))
-                                _context.World.AddComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(ent, default);
-                            _context.World.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = ent });
+                            _cgfDataDrivenGizmoSystem!.DeactivateGizmo(ent);
+                            var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
+                                _context.World, ent,
+                                onRemove: () => _cgfDataDrivenGizmoSystem!.DeactivateGizmo(ent));
+                            _cgfDataDrivenGizmoSystem!.ActivateGizmo(ent, gizmo);
                         }
                     ));
             }

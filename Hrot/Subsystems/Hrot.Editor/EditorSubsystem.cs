@@ -196,6 +196,7 @@ namespace Hrot.Editor
         private readonly MapUserConfig     _userConfig     = new();
         private readonly MapCameraViewport _cameraViewport = new();
         private DebugPrimitiveBuffer? _gizmoBuffer;
+        private DataDrivenGizmoSystem? _editorDataDrivenGizmoSystem;
         private GlobalGizmoManager?  _globalGizmoManager;
 
         // ── Tool handling ─────────────────────────────────────────────────────────
@@ -344,9 +345,6 @@ namespace Hrot.Editor
             // Visual effect components required by EventEffectModule (EventToEffectSystem).
             _world.RegisterComponent<VisualEffectState>();
             _world.RegisterComponent<TracerTarget>();
-            // Vertex and route edit gizmo activation markers (Phase 2 geometry editing gizmos).
-            _world.RegisterComponent<Hrot.ScenarioEditor.Gizmos.ActiveVertexEditRequest>();
-            _world.RegisterComponent<Hrot.ScenarioEditor.Gizmos.ActiveRouteEditRequest>();
 
             // ── 2. Time controller (MasterSyncController in Deterministic/frozen mode) ──
             var timeConfig = new TimeControllerConfig { Role = TimeRole.Standalone };
@@ -548,16 +546,13 @@ namespace Hrot.Editor
             editorStatelessGizmoRegistry.Register(
                 new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(_behaviorRegistry!),
                 new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
-            editorGizmoRegistry.Register(new Hrot.SimHost.Gizmos.EntityRotatorGizmoDefinition());
-            editorGizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.VertexEditGizmoDefinition());
-            editorGizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmoDefinition());
-            var editorDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
+            _editorDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
                 editorGizmoRegistry,
                 _gizmoBuffer,
                 isSelectedPredicate: static (view, entity) =>
                     view.HasComponent<SelectionState>(entity) &&
                     view.GetComponentRO<SelectionState>(entity).IsSelected);
-            _kernel.RegisterGlobalSystem(editorDataDrivenGizmoSystem);
+            _kernel.RegisterGlobalSystem(_editorDataDrivenGizmoSystem);
             _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer);
             _kernel.RegisterGlobalSystem(_globalGizmoManager);
             _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(editorStatelessGizmoRegistry, _gizmoBuffer));
@@ -1191,28 +1186,48 @@ namespace Hrot.Editor
 
                     case Hrot.Editor.EditorTool.Edit:
                     {
-                        // Add ActiveVertexEditRequest marker; DataDrivenGizmoSystem creates
-                        // VertexEditGizmo. No bridge needed (RequiresExclusiveFocus = false).
+                        // Inject VertexEditGizmo directly via the gizmo system (toggle if already active).
                         var entity = _selectionState.PrimarySelected;
                         if (entity is { } e && e != Entity.Null && _world.HasManagedComponent<Hrot.IG.Components.EditablePolyline>(e))
                         {
-                            if (!_world!.HasComponent<Hrot.ScenarioEditor.Gizmos.ActiveVertexEditRequest>(e))
-                                _world!.AddComponent<Hrot.ScenarioEditor.Gizmos.ActiveVertexEditRequest>(e, default);
-                            _world!.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = e });
+                            if (_editorDataDrivenGizmoSystem!.HasInjectedGizmo(e))
+                            {
+                                _editorDataDrivenGizmoSystem!.DeactivateGizmo(e);
+                            }
+                            else
+                            {
+                                long netId = _world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
+                                    ? _world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value
+                                    : 0L;
+                                var gizmo = new Hrot.ScenarioEditor.Gizmos.VertexEditGizmo(
+                                    _world!, e, netId,
+                                    onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(e));
+                                _editorDataDrivenGizmoSystem!.ActivateGizmo(e, gizmo);
+                            }
                         }
                         break;
                     }
 
                     case Hrot.Editor.EditorTool.Route:
                     {
-                        // Add ActiveRouteEditRequest marker; DataDrivenGizmoSystem creates
-                        // RouteWaypointGizmo. No bridge needed (RequiresExclusiveFocus = false).
+                        // Inject RouteWaypointGizmo directly via the gizmo system (toggle if already active).
                         var entity = _selectionState.PrimarySelected;
                         if (entity is { } e && e != Entity.Null && _world.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(e))
                         {
-                            if (!_world!.HasComponent<Hrot.ScenarioEditor.Gizmos.ActiveRouteEditRequest>(e))
-                                _world!.AddComponent<Hrot.ScenarioEditor.Gizmos.ActiveRouteEditRequest>(e, default);
-                            _world!.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = e });
+                            if (_editorDataDrivenGizmoSystem!.HasInjectedGizmo(e))
+                            {
+                                _editorDataDrivenGizmoSystem!.DeactivateGizmo(e);
+                            }
+                            else
+                            {
+                                long netId = _world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
+                                    ? _world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value
+                                    : 0L;
+                                var gizmo = new Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo(
+                                    _world!, e, netId,
+                                    onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(e));
+                                _editorDataDrivenGizmoSystem!.ActivateGizmo(e, gizmo);
+                            }
                         }
                         break;
                     }
@@ -1228,14 +1243,15 @@ namespace Hrot.Editor
 
                     case Hrot.Editor.EditorTool.Rotate:
                     {
-                        // Add ActiveRotationToolRequest marker; DataDrivenGizmoSystem creates
-                        // EntityRotatorGizmo.
+                        // Inject EntityRotatorGizmo directly via the gizmo system.
                         var entity = _selectionState.PrimarySelected;
                         if (entity is { } e && e != Entity.Null && _world.HasComponent<Fdp.Core.SimTransform>(e))
                         {
-                            if (!_world!.HasComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(e))
-                                _world!.AddComponent<Hrot.SimHost.Gizmos.ActiveRotationToolRequest>(e, default);
-                            _world!.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent { Entity = e });
+                            _editorDataDrivenGizmoSystem!.DeactivateGizmo(e);
+                            var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
+                                _world!, e,
+                                onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(e));
+                            _editorDataDrivenGizmoSystem!.ActivateGizmo(e, gizmo);
                         }
                         break;
                     }
