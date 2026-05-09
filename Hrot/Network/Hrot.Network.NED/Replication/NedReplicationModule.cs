@@ -15,6 +15,7 @@ using Hrot.Common.Systems;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Translators;
 using Hrot.Network.Systems;
+using Hrot.Network.NED.Gizmos;
 using Hrot.Network.Translators;
 using Hrot.Common;
 using Hrot.Common.Abstractions;
@@ -75,6 +76,7 @@ public sealed class NedReplicationModule : INedReplicationModule
 
     // ── Translator lists ───────────────────────────────────────────────────────
     private readonly IEnumerable<INetworkTranslator> _sharedTranslators;
+    private readonly IEnumerable<INetworkTranslator> _gizmoTranslators;
     private readonly IEnumerable<FdpIDescriptorTranslator>? _kinematicTranslators;
     private readonly IEnumerable<FdpIDescriptorTranslator>? _cognitiveTranslators;
 
@@ -205,6 +207,7 @@ public sealed class NedReplicationModule : INedReplicationModule
         {
             _sharedTranslators = SharedTranslatorPack.Create(
                 participant, entityMap, localNodeId, eventBus, GhostCreationSystem, geoTransform);
+            _gizmoTranslators = GizmoTranslatorPack.Create(participant, localNodeId);
 
             if (_roleHasMuscle)
                 _kinematicTranslators = KinematicTranslatorPack.Create(
@@ -228,6 +231,7 @@ public sealed class NedReplicationModule : INedReplicationModule
         {
             // Headless / test mode — no DDS translators
             _sharedTranslators    = System.Array.Empty<INetworkTranslator>();
+            _gizmoTranslators     = System.Array.Empty<INetworkTranslator>();
             _kinematicTranslators = null;
             _cognitiveTranslators = null;
         }
@@ -267,20 +271,33 @@ public sealed class NedReplicationModule : INedReplicationModule
         }
         if (_dtoEgress != null) egressTranslators.Add(_dtoEgress);
 
-        // Register ingress + egress systems only when a live DDS participant is available.
-        // For pure ImageGenerator (no Muscle, no Brain): skip the shared CycloneNetworkIngressSystem
-        // because EntityStatesIngressPack (registered below) already provides its own
-        // CycloneNetworkIngressSystem with EntityMasterIngressTranslator.
-        // Having two CycloneNetworkIngressSystem instances polling the same EntityMaster DDS topic
-        // would cause double ghost-creation and corrupt the NetworkEntityMap.
+
         if (_participant != null)
         {
             bool pureIg = _roleHasIG && !_roleHasMuscle && !_roleHasBrain;
             if (!pureIg)
-            {
                 registry.RegisterSystem(new CycloneNetworkIngressSystem(ingressTranslators.ToArray()));
-                registry.RegisterSystem(new CycloneEgressSystem(egressTranslators.ToArray()));
+            registry.RegisterSystem(new CycloneEgressSystem(egressTranslators.ToArray()));
+        }
+
+        // Register gizmo transport as an isolated translator pack so it is independent
+        // from shared replication ingress/egress routing.
+        if (_participant != null)
+        {
+            var gizmoIngress = new List<INetworkTranslator>();
+            var gizmoEgress = new List<INetworkTranslator>();
+            foreach (var t in _gizmoTranslators)
+            {
+                if ((t.Direction & TranslatorDirection.Ingress) != 0)
+                    gizmoIngress.Add(t);
+                if ((t.Direction & TranslatorDirection.Egress) != 0)
+                    gizmoEgress.Add(t);
             }
+
+            if (gizmoIngress.Count > 0)
+                registry.RegisterSystem(new CycloneNetworkIngressSystem(gizmoIngress.ToArray()));
+            if (gizmoEgress.Count > 0)
+                registry.RegisterSystem(new CycloneEgressSystem(gizmoEgress.ToArray()));
         }
 
         // ── ImageGenerator: inline EntityStatesIngressPack + ghost lifecycle ──

@@ -1209,11 +1209,6 @@ public class IgApplication : IDisposable
         // GZ057-058: register StatelessGizmoSystem so local presentation gizmos execute each frame.
         _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!));
 
-        // GZ045: forward local gizmo interaction events to SimHost via DDS.
-        _kernel.RegisterGlobalSystem(new GizmoInteractionEgressSystem(
-            (byte)_effectiveInstanceId,
-            _networkAdapter?.GizmoInteractionWriter));
-
         _kernel.Initialize();
 
         // Advertise this IG's capabilities so the ExCon can build its layer-control UI.

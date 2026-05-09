@@ -42,7 +42,6 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
-using Hrot.Network.NED.Gizmos;
 using Hrot.IG.Components;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Components;
@@ -68,7 +67,6 @@ using System.Threading;
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 using Fdp.Toolkit.NetworkSpawning;
-using GizmoInteractionBatch = GizmoMap.Network.GizmoInteractionBatch;
 
 namespace Hrot.SimHost
 {
@@ -527,10 +525,6 @@ namespace Hrot.SimHost
                 _gizmoRegistry,
                 _statelessGizmoRegistry,
                 settings: new GizmoSettingsRegistry());
-            // GZ045: accept gizmo interaction events from remote IG terminals.
-            IDdsReader<GizmoInteractionBatch>? gizmoInteractionReader =
-                ddsParticipant != null ? new DdsReaderGizmoAdapter<GizmoInteractionBatch>(ddsParticipant) : null;
-            _kernel.RegisterGlobalSystem(new GizmoInteractionIngressSystem(reader: gizmoInteractionReader));
             _kernel.RegisterGlobalSystem(new DataDrivenGizmoSystem(
                 _gizmoRegistry,
                 _gizmoBuffer,

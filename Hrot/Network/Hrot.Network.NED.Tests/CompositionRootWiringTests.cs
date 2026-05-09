@@ -47,7 +47,7 @@ namespace Hrot.DDS.DataModel.Tests
         public void SC_GZ045_3_EgressSystem_WithNullWriter_DoesNotThrow()
         {
             using var repo = new EntityRepository();
-            var sys = new GizmoInteractionEgressSystem(nodeId: 1, writer: null);
+            var sys = new GizmoInteractionEgressTranslator(nodeId: 1, writer: null);
 
             // Publish an event so there is something to drain.
             var token = new PickToken { Target = Entity.Null, SubElementId = 0 };
@@ -55,7 +55,7 @@ namespace Hrot.DDS.DataModel.Tests
             repo.Bus.SwapBuffers();
 
             // Must not throw — null writer silently drops the event.
-            var ex = Record.Exception(() => sys.Execute(repo, 0f));
+            var ex = Record.Exception(() => sys.ScanAndPublish(repo));
             Assert.Null(ex);
         }
 
@@ -64,9 +64,13 @@ namespace Hrot.DDS.DataModel.Tests
         public void SC_GZ045_3b_IngressSystem_WithNullReader_DoesNotThrow()
         {
             using var repo = new EntityRepository();
-            var sys = new GizmoInteractionIngressSystem(reader: null);
+            var sys = new GizmoInteractionIngressTranslator(reader: null);
 
-            var ex = Record.Exception(() => sys.Execute(repo, 0f));
+            var ex = Record.Exception(() =>
+            {
+                var cmd = new EntityCommandBuffer();
+                sys.PollIngress(cmd, repo);
+            });
             Assert.Null(ex);
         }
 
@@ -146,7 +150,7 @@ namespace Hrot.DDS.DataModel.Tests
             using var repo = new EntityRepository();
             var captured  = new List<GizmoInteractionBatch>();
             var writer    = new CapturingGizmoWriter(captured);
-            var sys       = new GizmoInteractionEgressSystem(nodeId: 1, writer: writer);
+            var sys       = new GizmoInteractionEgressTranslator(nodeId: 1, writer: writer);
 
             var token = new PickToken { Target = Entity.Null, SubElementId = 0 };
             repo.Bus.Publish(new GizmoDragUpdateEvent
@@ -157,7 +161,7 @@ namespace Hrot.DDS.DataModel.Tests
             });
             repo.Bus.SwapBuffers();
 
-            sys.Execute(repo, 0f);
+            sys.ScanAndPublish(repo);
 
             Assert.Equal(1, captured.Count);
             Assert.Equal((byte)CoordinateSpace.Screen, captured[0].Space);
@@ -180,8 +184,10 @@ namespace Hrot.DDS.DataModel.Tests
             };
 
             var reader = new SingleBatchReader(batch);
-            var sys    = new GizmoInteractionIngressSystem(reader: reader);
-            sys.Execute(repo, 0f);
+            var sys    = new GizmoInteractionIngressTranslator(reader: reader);
+            var cmd = new EntityCommandBuffer();
+            sys.PollIngress(cmd, repo);
+            cmd.Playback(repo);
             repo.Bus.SwapBuffers();
 
             var events = repo.Bus.Read<GizmoDragUpdateEvent>();

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
@@ -14,14 +15,17 @@ namespace Hrot.Network.NED.Gizmos
     /// Runs in BeforeSync so events generated in the UI thread are forwarded
     /// before the next ECS tick begins.
     /// </summary>
-    [UpdateInPhase(SystemPhase.BeforeSync)]
-    public sealed class GizmoInteractionEgressSystem : IEcsModuleSystem
+    public sealed class GizmoInteractionEgressTranslator : INetworkTranslator
     {
         private readonly byte _nodeId;
         private readonly IDdsWriter<GizmoInteractionBatch>? _writer;
         private uint _sequenceNumber;
+        public string TopicName => "GizmoInteractionBatch";
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
 
-        public GizmoInteractionEgressSystem(
+        public GizmoInteractionEgressTranslator(
             byte nodeId,
             IDdsWriter<GizmoInteractionBatch>? writer = null)
         {
@@ -29,7 +33,9 @@ namespace Hrot.Network.NED.Gizmos
             _writer = writer;
         }
 
-        public void Execute(ISimulationView view, float deltaTime)
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
+
+        public void ScanAndPublish(ISimulationView view)
         {
             if (_writer == null) return;
 
@@ -70,6 +76,7 @@ namespace Hrot.Network.NED.Gizmos
                 WorldZ               = worldPos.Z,
                 Space                = (byte)space,
             });
+            SentSampleCount++;
         }
 
         private void WriteMenuAction(long anchorId, int actionId)
@@ -82,6 +89,7 @@ namespace Hrot.Network.NED.Gizmos
                 PickAnchorId   = anchorId,
                 ActionId       = actionId,
             });
+            SentSampleCount++;
         }
     }
 }
