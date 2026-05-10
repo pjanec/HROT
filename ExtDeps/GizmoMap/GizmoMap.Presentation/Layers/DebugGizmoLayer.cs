@@ -134,9 +134,9 @@ namespace GizmoMap.Presentation
                 if (best.HasValue)
                 {
                     var hit = best.Value;
-                    long anchorId = hit.BoxAnchorId != 0
-                        ? hit.BoxAnchorId
-                        : (hit.InspNetworkId != 0 ? hit.InspNetworkId : hit.AnchorIndex);
+                    long anchorId = hit.AnchorIndex != 0
+                        ? hit.AnchorIndex
+                        : hit.BoxAnchorId;
                     var token = new GizmoPickToken
                     {
                         AnchorId = anchorId,
@@ -161,24 +161,22 @@ namespace GizmoMap.Presentation
             // that empty-space right-clicks resolve through the same ContextMenuBinding pipeline.
             if (_activeTool == null && Raylib.IsMouseButtonReleased(MouseButton.Right))
             {
-                long hitEntityId = -1L; // canvas anchor fallback
+                long hitNetworkId = -1L; // canvas anchor fallback
 
                 var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom);
                 if (best.HasValue)
                 {
                     var hit = best.Value;
-                    hitEntityId = hit.BoxAnchorId != 0
-                        ? hit.BoxAnchorId
-                        : (hit.InspNetworkId != 0 ? hit.InspNetworkId : hit.AnchorIndex);
+                    hitNetworkId = hit.BoxAnchorId != 0 ? hit.BoxAnchorId : -1L;
                 }
 
-                if (hitEntityId != 0 && menuBindings.TryGetValue(hitEntityId, out uint menuHash))
+                if (hitNetworkId != -1L && menuBindings.TryGetValue(hitNetworkId, out uint menuHash))
                 {
                     string? json = internMap.TryResolve(menuHash);
                     if (json != null)
-                        _contextMenuAdapter.Schedule(hitEntityId, json);
+                        _contextMenuAdapter.Schedule(hitNetworkId, json);
                 }
-                else if (hitEntityId != -1L && menuBindings.TryGetValue(-1L, out uint canvasHash))
+                else if (menuBindings.TryGetValue(-1L, out uint canvasHash))
                 {
                     string? json = internMap.TryResolve(canvasHash);
                     if (json != null)
@@ -233,7 +231,7 @@ namespace GizmoMap.Presentation
                 ref readonly var prim = ref primitives[i];
                 if (prim.Shape == DebugPrimitiveShape.InputCaptureBinding || prim.Shape == DebugPrimitiveShape.ContextMenuBinding) continue;
 
-                bool hasAnchor = prim.InspNetworkId != 0 || prim.AnchorIndex != 0 || prim.SubElementId != 0 || prim.BoxAnchorId != 0;
+                bool hasAnchor = prim.AnchorIndex != 0 || prim.SubElementId != 0 || prim.BoxAnchorId != 0;
                 if (!hasAnchor) continue;
 
                 float hitRadius = prim.SizeMode == SizeMode.ScreenPixels ? 5f / effZoom : 5f;
@@ -243,13 +241,14 @@ namespace GizmoMap.Presentation
                 {
                     float dx = Math.Abs(testPos.X - prim.BoxCenterX);
                     float dy = Math.Abs(testPos.Y - prim.BoxCenterY);
-                    hit = dx <= prim.BoxExtentX && dy <= prim.BoxExtentY;
+                    hit = dx <= (prim.BoxExtentX + hitRadius) && dy <= (prim.BoxExtentY + hitRadius);
                 }
                 else if (prim.Shape == DebugPrimitiveShape.Sphere)
                 {
-                    float distSq = Vector2.DistanceSquared(testPos, new Vector2(prim.SphereCenter.X, prim.SphereCenter.Y));
+                    float dx = testPos.X - prim.BoxCenterX;
+                    float dy = testPos.Y - prim.BoxCenterY;
                     float r = prim.SphereRadius + hitRadius;
-                    hit = distSq <= r * r;
+                    hit = (dx * dx + dy * dy) <= (r * r);
                 }
 
                 if (hit && (best == null || prim.DebugLayer > best.Value.DebugLayer))

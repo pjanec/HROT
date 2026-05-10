@@ -375,6 +375,7 @@ namespace GizmoMap.Example
             boxPrim.BoxExtentY   = 30f;
             boxPrim.BoxAngleDeg  = 0f;
             boxPrim.Color        = new Rgba32(255, 100, 0, 200);
+            boxPrim.BoxAnchorId  = BoxMenuEntityId;
             boxPrim.SubElementId = 1;
             boxPrim.ZIndex       = 2;
             builder.EmitRaw(in boxPrim);
