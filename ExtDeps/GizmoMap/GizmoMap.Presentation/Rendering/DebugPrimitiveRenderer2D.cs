@@ -405,15 +405,18 @@ namespace GizmoMap.Presentation
             var unit = dir / len;
             var perp = new Vector2(-unit.Y, unit.X) * (thickness * 0.5f);
 
-            var v0 = from + perp;
-            var v1 = from - perp;
-            var v2 = to   - perp;
-            var v3 = to   + perp;
+            var v0 = from - perp;
+            var v1 = from + perp;
+            var v2 = to + perp;
+            var v3 = to - perp;
 
+            Rlgl.CheckRenderBatchLimit(6);
             Rlgl.SetTexture(Rlgl.GetTextureIdDefault());
-            Rlgl.Begin((int)DrawMode.Quads);
+            Rlgl.Begin((int)DrawMode.Triangles);
             Rlgl.Color4ub(startColor.R, startColor.G, startColor.B, startColor.A); Rlgl.Vertex2f(v0.X, v0.Y);
             Rlgl.Color4ub(startColor.R, startColor.G, startColor.B, startColor.A); Rlgl.Vertex2f(v1.X, v1.Y);
+            Rlgl.Color4ub(endColor.R,   endColor.G,   endColor.B,   endColor.A);   Rlgl.Vertex2f(v2.X, v2.Y);
+            Rlgl.Color4ub(startColor.R, startColor.G, startColor.B, startColor.A); Rlgl.Vertex2f(v0.X, v0.Y);
             Rlgl.Color4ub(endColor.R,   endColor.G,   endColor.B,   endColor.A);   Rlgl.Vertex2f(v2.X, v2.Y);
             Rlgl.Color4ub(endColor.R,   endColor.G,   endColor.B,   endColor.A);   Rlgl.Vertex2f(v3.X, v3.Y);
             Rlgl.End();
@@ -483,20 +486,14 @@ namespace GizmoMap.Presentation
             {
                 float segEndDist = Math.Min(currentDist + dashLen, totalDist);
                 float t0 = currentDist / totalDist;
-                float t1 = segEndDist / totalDist;
                 var segStart = start + normDir * currentDist;
                 var segEnd = start + normDir * segEndDist;
-                var segStartCol = new Color(
+                var segCol = new Color(
                     (byte)(startColor.R + (endColor.R - startColor.R) * t0),
                     (byte)(startColor.G + (endColor.G - startColor.G) * t0),
                     (byte)(startColor.B + (endColor.B - startColor.B) * t0),
                     (byte)(startColor.A + (endColor.A - startColor.A) * t0));
-                var segEndCol = new Color(
-                    (byte)(startColor.R + (endColor.R - startColor.R) * t1),
-                    (byte)(startColor.G + (endColor.G - startColor.G) * t1),
-                    (byte)(startColor.B + (endColor.B - startColor.B) * t1),
-                    (byte)(startColor.A + (endColor.A - startColor.A) * t1));
-                DrawGradientLine(segStart, segEnd, thickness, segStartCol, segEndCol);
+                Raylib.DrawLineEx(segStart, segEnd, thickness, segCol);
                 currentDist += dashLen + gapLen;
             }
         }
