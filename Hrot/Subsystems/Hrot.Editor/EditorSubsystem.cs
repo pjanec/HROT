@@ -548,6 +548,9 @@ namespace Hrot.Editor
             // Register CanvasContextMenuGizmo so empty-space right-click resolves through the binding pipeline.
             Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(
                 editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
+            // behavior gizmos
+            Hrot.AI.Behaviors.Gizmos.GizmoRegistrar.RegisterAll(editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
+
             // MissionPresentationGizmo requires IGeographicTransform — register manually.
             editorStatelessGizmoRegistry.Register(
                 new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(geoTransform),

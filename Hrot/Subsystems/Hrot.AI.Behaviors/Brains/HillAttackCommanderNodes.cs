@@ -633,7 +633,9 @@ namespace Hrot.AI.Behaviors.Brains
             PlatoonHillAttackParamsJsonDto? dto;
             try
             {
-                dto = JsonSerializer.Deserialize<PlatoonHillAttackParamsJsonDto>(json, JsonOptions);
+                dto = JsonSerializer.Deserialize<PlatoonHillAttackParamsJsonDto>(
+                    json,
+                    Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
             }
             catch (Exception ex)
             {
@@ -714,8 +716,6 @@ namespace Hrot.AI.Behaviors.Brains
             Unsafe.Write(ptr, result);
         }
 
-        private static readonly JsonSerializerOptions JsonOptions =
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
     }
 
     // ── ParseParams DTO (private to this assembly; cold path only) ───────────────
