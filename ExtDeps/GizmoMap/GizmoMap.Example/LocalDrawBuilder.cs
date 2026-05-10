@@ -26,14 +26,8 @@ namespace GizmoMap.Example
             float thickness = 1f,
             SizeMode sizeMode = SizeMode.ScreenPixels,
             PipelineTarget target = PipelineTarget.All,
-            byte layer = 0)
-        {
-            _buffer.DrawLine(start, end, color, thickness, sizeMode, target, layer);
-        }
-
-        public void DrawLine(
-            System.Numerics.Vector3 start, System.Numerics.Vector3 end, Rgba32 color,
-            float thickness, SizeMode sizeMode, PipelineTarget target, byte layer, LineStyle style)
+            byte layer = 0,
+            LineStyle style = LineStyle.Solid)
         {
             _buffer.DrawLine(start, end, color, thickness, sizeMode, target, layer, style);
         }
@@ -44,15 +38,8 @@ namespace GizmoMap.Example
             float thickness = 1f,
             SizeMode sizeMode = SizeMode.ScreenPixels,
             PipelineTarget target = PipelineTarget.All,
-            byte layer = 0)
-        {
-            _buffer.DrawLineGradient(start, end, startColor, endColor, thickness, sizeMode, target, layer);
-        }
-
-        public void DrawLineGradient(
-            System.Numerics.Vector3 start, System.Numerics.Vector3 end,
-            Rgba32 startColor, Rgba32 endColor,
-            float thickness, SizeMode sizeMode, PipelineTarget target, byte layer, LineStyle style)
+            byte layer = 0,
+            LineStyle style = LineStyle.Solid)
         {
             _buffer.DrawLineGradient(start, end, startColor, endColor, thickness, sizeMode, target, layer, style);
         }
@@ -62,14 +49,9 @@ namespace GizmoMap.Example
             float thickness = 0f,
             SizeMode sizeMode = SizeMode.WorldMeters,
             PipelineTarget target = PipelineTarget.All,
-            byte layer = 0)
-        {
-            _buffer.DrawSphere(center, radius, color, thickness, sizeMode, target, layer);
-        }
-
-        public void DrawSphere(
-            System.Numerics.Vector3 center, float radius, Rgba32 color,
-            float thickness, SizeMode sizeMode, PipelineTarget target, byte layer, Rgba32 fillColor, LineStyle style)
+            byte layer = 0,
+            Rgba32 fillColor = default,
+            LineStyle style = LineStyle.Solid)
         {
             _buffer.DrawSphere(center, radius, color, thickness, sizeMode, target, layer, fillColor, style);
         }

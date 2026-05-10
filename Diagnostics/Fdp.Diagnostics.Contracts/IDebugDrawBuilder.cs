@@ -17,55 +17,25 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             float thickness = 1f,
             SizeMode sizeMode = SizeMode.ScreenPixels,
             PipelineTarget target = PipelineTarget.All,
-            byte layer = 0);
-
-        void DrawLine(
-            Vector3 start, Vector3 end, Rgba32 color,
-            float thickness,
-            SizeMode sizeMode,
-            PipelineTarget target,
-            byte layer,
-            LineStyle style)
-        {
-            DrawLine(start, end, color, thickness, sizeMode, target, layer);
-        }
+            byte layer = 0,
+            LineStyle style = LineStyle.Solid);
 
         void DrawLineGradient(
             Vector3 start, Vector3 end, Rgba32 startColor, Rgba32 endColor,
             float thickness = 1f,
             SizeMode sizeMode = SizeMode.ScreenPixels,
             PipelineTarget target = PipelineTarget.All,
-            byte layer = 0);
-
-        void DrawLineGradient(
-            Vector3 start, Vector3 end, Rgba32 startColor, Rgba32 endColor,
-            float thickness,
-            SizeMode sizeMode,
-            PipelineTarget target,
-            byte layer,
-            LineStyle style)
-        {
-            DrawLineGradient(start, end, startColor, endColor, thickness, sizeMode, target, layer);
-        }
+            byte layer = 0,
+            LineStyle style = LineStyle.Solid);
 
         void DrawSphere(
             Vector3 center, float radius, Rgba32 color,
             float thickness = 0f,
             SizeMode sizeMode = SizeMode.WorldMeters,
             PipelineTarget target = PipelineTarget.All,
-            byte layer = 0);
-
-        void DrawSphere(
-            Vector3 center, float radius, Rgba32 color,
-            float thickness,
-            SizeMode sizeMode,
-            PipelineTarget target,
-            byte layer,
-            Rgba32 fillColor,
-            LineStyle style)
-        {
-            DrawSphere(center, radius, color, thickness, sizeMode, target, layer);
-        }
+            byte layer = 0,
+            Rgba32 fillColor = default,
+            LineStyle style = LineStyle.Solid);
 
         void DrawBox2D(
             Vector2 center, Vector2 extents, Rgba32 color,
