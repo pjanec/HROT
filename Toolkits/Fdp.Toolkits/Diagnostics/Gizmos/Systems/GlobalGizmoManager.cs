@@ -28,14 +28,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly IDebugDrawBuilder _drawBuilder;
         private readonly Dictionary<long, IEntityStatefulGizmo> _activeGizmos = new();
         private IEntityStatefulGizmo? _focusedGizmo;
+        private readonly FdpEventBus? _interactionBus;
 
         /// <summary>Number of currently registered gizmos. Used for testing.</summary>
         public int ActiveCount => _activeGizmos.Count;
 
         /// <param name="drawBuilder">Target draw builder shared with the gizmo layer.</param>
-        public GlobalGizmoManager(IDebugDrawBuilder drawBuilder)
+        /// <param name="interactionBus">
+        /// Optional isolated interaction bus. When non-null, interaction events are read from
+        /// this bus instead of the world bus so that UI noise is quarantined.
+        /// </param>
+        public GlobalGizmoManager(IDebugDrawBuilder drawBuilder, FdpEventBus? interactionBus = null)
         {
-            _drawBuilder = drawBuilder;
+            _drawBuilder    = drawBuilder;
+            _interactionBus = interactionBus;
         }
 
         /// <summary>Generates a unique stable id for use with <see cref="Register"/>.</summary>
@@ -103,15 +109,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
             var focused = _focusedGizmo;
 
-            var drags = view.ReadEvents<GizmoDragUpdateEvent>();
+            var bus = _interactionBus ?? ((EntityRepository)view).Bus;
+
+            var drags = bus.Read<GizmoDragUpdateEvent>();
             foreach (ref readonly var evt in drags)
                 focused.OnDragUpdate(evt.WorldPos);
 
-            var mouseEvents = view.ReadEvents<GizmoMouseEvent>();
+            var mouseEvents = bus.Read<GizmoMouseEvent>();
             foreach (ref readonly var evt in mouseEvents)
                 focused.OnMouseEvent(evt.Button, evt.IsPressed, evt.WorldPos);
 
-            var keyEvents = view.ReadEvents<GizmoKeyEvent>();
+            var keyEvents = bus.Read<GizmoKeyEvent>();
             foreach (ref readonly var evt in keyEvents)
                 focused.OnKeyEvent(evt.Key, evt.IsPressed);
         }

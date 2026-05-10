@@ -63,6 +63,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         // null when no gizmo holds focus.
         private IEntityStatefulGizmo? _focusedGizmo;
 
+        // Optional isolated interaction bus. When non-null, interaction events are read from
+        // this bus instead of the world bus so that UI noise is quarantined.
+        private readonly FdpEventBus? _interactionBus;
+
         // On-demand gizmos injected externally (e.g. EntityRotatorGizmo activated via context
         // menu). Keyed by entity; always drawn while the entity is alive; not governed by
         // GizmoRegistry rules or the selection predicate.
@@ -140,7 +144,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             GizmoRegistry registry,
             IDebugDrawBuilder drawBuilder,
             Func<ISimulationView, Entity, bool>? isSelectedPredicate = null,
-            GizmoUndoStack? undoStack = null)
+            GizmoUndoStack? undoStack = null,
+            FdpEventBus? interactionBus = null)
         {
             _registry             = registry    ?? throw new ArgumentNullException(nameof(registry));
             _drawBuilder          = drawBuilder ?? throw new ArgumentNullException(nameof(drawBuilder));
@@ -148,6 +153,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             _activeGizmos         = new Dictionary<Entity, List<CompiledGizmoInstance>>();
             _globalVisibilityCache = new bool[registry.Rules.Count];
             _undoStack            = undoStack;
+            _interactionBus       = interactionBus;
         }
 
         // ---- IEcsModuleSystem -----------------------------------------------------
@@ -373,12 +379,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             }
 
             // 5. Route typed interaction events to the appropriate gizmo.
-            RouteInteractionEvents(view);
+            var uiBus = _interactionBus ?? repo.Bus;
+            RouteInteractionEvents(uiBus);
 
             // 6. Process commit events and push undo records to the stack.
             if (_undoStack != null)
             {
-                var commits = view.ReadEvents<GizmoInteractionCommitEvent>();
+                var commits = uiBus.Read<GizmoInteractionCommitEvent>();
                 foreach (ref readonly var commit in commits)
                 {
                     var target = commit.Token.Target;
@@ -395,10 +402,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
         // ---- Interaction event routing -------------------------------------------
 
-        private void RouteInteractionEvents(ISimulationView view)
+        private void RouteInteractionEvents(FdpEventBus bus)
         {
             // Started: find the gizmo on the picked entity, set focus if exclusive.
-            var started = view.ReadEvents<GizmoInteractionStartedEvent>();
+            var started = bus.Read<GizmoInteractionStartedEvent>();
             foreach (ref readonly var evt in started)
             {
                 var gizmo = FindGizmo(evt.Token.Target);
@@ -413,7 +420,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             }
 
             // DragUpdate: route to the focused gizmo (token match).
-            var drags = view.ReadEvents<GizmoDragUpdateEvent>();
+            var drags = bus.Read<GizmoDragUpdateEvent>();
             foreach (ref readonly var evt in drags)
             {
                 var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target);
@@ -421,7 +428,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             }
 
             // Commit: route, then clear focus.
-            var commits = view.ReadEvents<GizmoInteractionCommitEvent>();
+            var commits = bus.Read<GizmoInteractionCommitEvent>();
             foreach (ref readonly var evt in commits)
             {
                 var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target);
@@ -434,7 +441,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             }
 
             // Cancel: route, then clear focus.
-            var cancels = view.ReadEvents<GizmoInteractionCancelEvent>();
+            var cancels = bus.Read<GizmoInteractionCancelEvent>();
             foreach (ref readonly var evt in cancels)
             {
                 var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target);
@@ -447,7 +454,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             }
 
             // MenuAction: route to the entity's gizmo (no focus change).
-            var menus = view.ReadEvents<GizmoMenuActionEvent>();
+            var menus = bus.Read<GizmoMenuActionEvent>();
             foreach (ref readonly var evt in menus)
             {
                 // GizmoMenuActionEvent carries AnchorId (network entity id), not a PickToken.
@@ -461,7 +468,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             }
 
             // MouseEvent: only the focused exclusive-focus gizmo receives raw mouse events.
-            var mouseEvents = view.ReadEvents<GizmoMouseEvent>();
+            var mouseEvents = bus.Read<GizmoMouseEvent>();
             foreach (ref readonly var evt in mouseEvents)
             {
                 var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target);
@@ -469,7 +476,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             }
 
             // KeyEvent: only the focused exclusive-focus gizmo receives key events.
-            var keyEvents = view.ReadEvents<GizmoKeyEvent>();
+            var keyEvents = bus.Read<GizmoKeyEvent>();
             foreach (ref readonly var evt in keyEvents)
             {
                 (_focusedGizmo ?? FindGizmo(evt.Token.Target))?.OnKeyEvent(evt.Key, evt.IsPressed);

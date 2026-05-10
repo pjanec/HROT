@@ -114,7 +114,8 @@ public class EventBrowserPanel
             var providerOptions = new HashSet<string>(_knownProviders, StringComparer.OrdinalIgnoreCase)
             {
                 "World",
-                "Orchestration"
+                "Orchestration",
+                "Interaction" // quarantined UI interaction bus
             };
             foreach (var provider in providerOptions.OrderBy(p => p))
             {
