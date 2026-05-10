@@ -11,13 +11,13 @@ using Hrot.IG.Components;
 
 namespace Hrot.ScenarioEditor.Gizmos
 {
-    // Non-exclusive-focus gizmo that lets the operator drag individual vertices of
+    // Exclusive-focus gizmo that lets the operator drag individual vertices of
     // an EditablePolyline entity. One vertex drag = one interaction session.
     // The marker stays between sessions so multiple vertices can be edited in sequence.
     //
     // Design:
-    // - RequiresExclusiveFocus = false: DebugGizmoLayer hit-tests Box2D handles and
-    //   pushes GizmoInteractionProxyTool which routes Started/DragUpdate/Commit/Cancel.
+    // - RequiresExclusiveFocus = true: terminal hit-testing is filtered to this entity while active.
+    // - WantsRawInput = true: right-click release and Escape are delivered to this gizmo.
     // - SubElementId = vertexIndex + 1 (0 is reserved as "no handle").
     // - AnchorIndex / AnchorGeneration encode the ECS Entity.
     // - OnCommit: writes back relative points to EditablePolyline, publishes UpdateEntityCommand.
@@ -35,6 +35,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         private static readonly Rgba32 IdleColor   = new Rgba32(0, 210, 120, 220);
         private static readonly Rgba32 ActiveColor = Rgba32.Red;
+        private static readonly Rgba32 EdgeColor   = new Rgba32(255, 255, 0, 255);
 
         private readonly EntityRepository _repo;
         private readonly Entity           _entity;
@@ -51,7 +52,8 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         private bool _active = true;
 
-        public bool RequiresExclusiveFocus => false;
+        public bool RequiresExclusiveFocus => true;
+        public bool WantsRawInput => true;
         public bool IsFocused { get; private set; }
         public void SetFocus(bool isFocused) => IsFocused = isFocused;
 
@@ -89,6 +91,15 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             // ContextMenuBinding so right-clicking a vertex handle shows the insert/delete menu.
             draw.DrawContextMenuBinding(_networkId, MenuJson);
+
+            // Draw live preview edges so the edited shape is visible during drag.
+            int n = _points.Count;
+            for (int i = 0; i < n; i++)
+            {
+                var a = new Vector3(_points[i].X, _points[i].Y, 0f);
+                var b = new Vector3(_points[(i + 1) % n].X, _points[(i + 1) % n].Y, 0f);
+                draw.DrawLine(a, b, EdgeColor, thickness: 2f, sizeMode: SizeMode.ScreenPixels);
+            }
 
             // Box2D handle for each vertex.
             for (int i = 0; i < _points.Count; i++)
@@ -158,8 +169,24 @@ namespace Hrot.ScenarioEditor.Gizmos
             }
         }
 
-        public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos) { }
-        public void OnKeyEvent(MapKeyboardKey key, bool isPressed) { }
+        public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
+        {
+            if (button == MapMouseButton.Right && !isPressed)
+            {
+                WriteBackAndPublish();
+                _activeVertex = -1;
+                _onRemove();
+            }
+        }
+
+        public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
+        {
+            if (key == MapKeyboardKey.Escape && isPressed)
+            {
+                OnCancel();
+                _onRemove();
+            }
+        }
         public void Dispose() { }
 
         // ---- private helpers ---------------------------------------------------

@@ -11,7 +11,7 @@ using Hrot.Map.Common.Components;
 
 namespace Hrot.ScenarioEditor.Gizmos
 {
-    // Non-exclusive-focus gizmo that lets the operator drag individual waypoints of
+    // Exclusive-focus gizmo that lets the operator drag individual waypoints of
     // a RoutePlan entity. Implements IRouteWaypointEditorState so WaypointEditorPanel
     // can read per-waypoint TargetSpeed and ExtensionJson without depending on this class.
     //
@@ -60,7 +60,8 @@ namespace Hrot.ScenarioEditor.Gizmos
         }
 
         // ---- IEntityStatefulGizmo --------------------------------------------
-        public bool RequiresExclusiveFocus => false;
+        public bool RequiresExclusiveFocus => true;
+        public bool WantsRawInput => true;
         public bool IsFocused { get; private set; }
         public void SetFocus(bool isFocused) => IsFocused = isFocused;
 
@@ -182,8 +183,23 @@ namespace Hrot.ScenarioEditor.Gizmos
             }
         }
 
-        public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos) { }
-        public void OnKeyEvent(MapKeyboardKey key, bool isPressed) { }
+        public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
+        {
+            if (button == MapMouseButton.Right && !isPressed)
+            {
+                WriteBackAndPublish();
+                _onRemove();
+            }
+        }
+
+        public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
+        {
+            if (key == MapKeyboardKey.Escape && isPressed)
+            {
+                OnCancel();
+                _onRemove();
+            }
+        }
 
         public void Dispose()
         {

@@ -28,6 +28,7 @@ namespace Hrot.SimHost.Gizmos
         private bool _active = true;
 
         public bool RequiresExclusiveFocus => true;
+        public bool WantsRawInput => true;
         public bool IsFocused { get; private set; }
         public void SetFocus(bool isFocused) => IsFocused = isFocused;
 
