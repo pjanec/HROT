@@ -208,8 +208,7 @@ namespace Hrot.Editor
 
         // ── Context menu (ImGui popup trigger) ────────────────────────────────────
 
-        private Entity _pendingContextMenuEntity = Entity.Null;
-        private bool   _openContextMenuThisFrame;
+        private DebugGizmoLayer? _gizmoLayer;
 
         // ── Rename dialog state ───────────────────────────────────────────────────
 
@@ -541,6 +540,9 @@ namespace Hrot.Editor
             // Register gizmos from Hrot.IG.Gizmos (EffectPresentationGizmo, ...).
             Hrot.IG.Gizmos.GizmoRegistrar.RegisterAll(
                 editorGizmoRegistry, editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
+            // Register CanvasContextMenuGizmo so empty-space right-click resolves through the binding pipeline.
+            Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(
+                editorGizmoRegistry, editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
             // MissionPresentationGizmo requires IGeographicTransform — register manually.
             editorStatelessGizmoRegistry.Register(
                 new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(geoTransform),
@@ -577,6 +579,8 @@ namespace Hrot.Editor
                 gizmoIngress: null,
                 gizmoEgress:  null));
             _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, interactionBus));
+            // Register canvas menu update so CanvasContextMenuGizmo has state to project.
+            _kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
 
             // ── 5. Kernel initialization ──────────────────────────────────────
             _kernel.Initialize();
@@ -727,7 +731,8 @@ namespace Hrot.Editor
                     .Build();
 
                 // Gizmo layer — renders entity presentation primitives produced locally by StatelessGizmoSystem.
-                _canvas!.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer!, interactionBus, _world));
+                _gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer!, interactionBus, _world);
+                _canvas!.AddLayer(_gizmoLayer);
                 if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
 
                 // Perception map layer — draws target-memory links between perceivers and targets.
@@ -803,16 +808,6 @@ namespace Hrot.Editor
 
             // Kernel.Update() internally calls bus.SwapBuffers() then ticks registered modules.
             _kernel?.Update();
-
-            // Read context menu requests emitted by DebugGizmoLayer.
-            if (_interactionBus != null)
-            {
-                foreach (ref readonly var evt in _interactionBus.Read<GizmoContextMenuRequestedEvent>())
-                {
-                    _pendingContextMenuEntity = evt.Token.Target;
-                    _openContextMenuThisFrame = true;
-                }
-            }
 
             // Drain AI hot-reload callbacks safely on the main thread.
             // Any BTreeInterpreter pointer swaps queued by the background ALC worker
@@ -928,28 +923,7 @@ namespace Hrot.Editor
             }
 
             // Trigger ImGui popup when a right-click was recorded this frame.
-            if (_openContextMenuThisFrame)
-            {
-                ImGuiNET.ImGui.OpenPopup("##editor_map_ctx");
-                _openContextMenuThisFrame = false;
-            }
-
-            // Render the context menu popup.
-            if (ImGuiNET.ImGui.BeginPopup("##editor_map_ctx"))
-            {
-                var builder = new Fdp.Presentation.Utils.ContextMenuBuilder();
-
-                if (_pendingContextMenuEntity != Entity.Null && _contextMenuHandler != null)
-                {
-                    _contextMenuHandler.PopulateMenu(_pendingContextMenuEntity, builder);
-                }
-                else
-                {
-                    builder.AddItem("Measurement Tool", () => _editorLogic?.ActivateTool(EditorTool.Measure));
-                }
-
-                ImGuiNET.ImGui.EndPopup();
-            }
+            _gizmoLayer?.DrawContextMenu();
 
             // Trigger rename modal when requested by DrainToolActivationEvents.
             if (_openRenameModalThisFrame)

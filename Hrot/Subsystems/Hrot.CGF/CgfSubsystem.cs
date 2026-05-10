@@ -105,8 +105,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private uint                    _fdpFrameCount;
 
     // ── Map context menu ──────────────────────────────────────────────────────
-    private Entity _pendingContextMenuEntity;
-    private bool   _openContextMenuThisFrame;
+    private DebugGizmoLayer? _cgfGizmoLayer;
 
     /// <inheritdoc/>
     public string Name => "CGF";
@@ -438,6 +437,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             new Hrot.CGF.Gizmos.CgfEntityPresentationGizmo(),
             new System.Type[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
         var cgfGizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
+        // Register CanvasContextMenuGizmo for empty-space right-click context menus.
+        Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(cgfGizmoRegistry, cgfStatelessRegistry, new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry());
         _cgfDataDrivenGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
                 cgfGizmoRegistry, _cgfGizmoBuffer, isSelectedPredicate: null, interactionBus: _cgfInteractionBus);
         // Route gizmo interaction translators and publisher through the network factory
@@ -474,6 +475,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             gizmoIngress: cgfGizmoIngress,
             gizmoEgress:  cgfGizmoEgress));
         _context.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _cgfInteractionBus));
+        // Register canvas menu update so CanvasContextMenuGizmo has state to project.
+        _context.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
 
         _context.Kernel.Initialize();
         // ── Visualization (non-headless only) ─────────────────────────────────────
@@ -488,8 +491,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _fdpRepoAdapter    = new FdpRepositoryAdapter(_context.World);
 
             // GZ057: add gizmo layer so CGF entity presentation primitives are rendered.
-            var cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, _cgfGizmoBuffer, _cgfInteractionBus!);
-            _canvas.AddLayer(cgfGizmoLayer);
+            _cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, _cgfGizmoBuffer, _cgfInteractionBus!);
+            _canvas.AddLayer(_cgfGizmoLayer);
             _canvas.DrawBuffer = _cgfGizmoBuffer;
 
             // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)
@@ -537,15 +540,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // dt=0 from the SubsystemOrchestrator in headless mode, zeroing out every
         // DeltaTime-dependent system (e.g. ThreatEvaluationSystem boost/decay).
         _context?.Kernel.Update();
-        // Read context menu requests emitted by DebugGizmoLayer.
-        if (_cgfInteractionBus != null)
-        {
-            foreach (ref readonly var evt in _cgfInteractionBus.Read<GizmoContextMenuRequestedEvent>())
-            {
-                _pendingContextMenuEntity = evt.Token.Target;
-                _openContextMenuThisFrame = true;
-            }
-        }
         if (!_headless && _context != null)
         {
             _fdpFrameCount++;
@@ -565,41 +559,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     {
         if (_headless) return;
 
-        if (_openContextMenuThisFrame)
-        {
-            ImGui.OpenPopup("##cgf_map_ctx");
-            _openContextMenuThisFrame = false;
-        }
-
-        if (ImGui.BeginPopup("##cgf_map_ctx"))
-        {
-            if (_pendingContextMenuEntity != Entity.Null
-                && _context?.World != null
-                && _context.World.IsAlive(_pendingContextMenuEntity))
-            {
-                var ent = _pendingContextMenuEntity;
-                SharedContextMenuPopulator.PopulateEntityMenu(
-                    entityId:            0L,
-                    tkbType:             0L,
-                    hasEditablePolyline: false,
-                    hasRoutePlan:        false,
-                    builder:             new ContextMenuBuilder(),
-                    actions:             new MapContextActionController(
-                        centerOnEntity: _ => CenterCameraOnEntity(ent),
-                        deleteEntity:   _ => DeleteEntity(ent),
-                        rotateTool:     _ =>
-                        {
-                            _cgfDataDrivenGizmoSystem!.DeactivateGizmo(ent);
-                            var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
-                                _context.World, ent,
-                                onRemove: () => _cgfDataDrivenGizmoSystem!.DeactivateGizmo(ent));
-                            _cgfDataDrivenGizmoSystem!.ActivateGizmo(ent, gizmo);
-                        }
-                    ));
-            }
-
-            ImGui.EndPopup();
-        }
+        // Render the context menu popup via the gizmo layer's ContextMenuAdapter.
+        _cgfGizmoLayer?.DrawContextMenu();
     }
 
     /// <inheritdoc/>

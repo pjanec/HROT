@@ -91,9 +91,7 @@ namespace Hrot.SimHost
         private DebugPrimitiveBuffer? _gizmoBuffer;        // On-demand gizmo activation (EntityRotatorGizmo, etc.).
         private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? _gizmoSystem;
         private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _globalGizmoManager;
-        // ── Map entity context menu ────────────────────────────────────────────
-        private Entity _pendingMapContextEntity = Entity.Null;
-        private bool   _openMapContextThisFrame;
+        private DebugGizmoLayer? _gizmoLayer;
         private Fdp.Core.FdpEventBus? _interactionBus;
 
         // ── Public access (tests / other subsystems) ──────────────────────────
@@ -235,7 +233,8 @@ namespace Hrot.SimHost
             // Gizmo debug overlay (GZ032).
             _gizmoBuffer = gizmoBuffer ?? new DebugPrimitiveBuffer();
             _globalGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_gizmoBuffer!);
-            _map.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer, interactionBus ?? repo.Bus, repo));
+            _gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, interactionBus ?? repo.Bus, repo);
+            _map.AddLayer(_gizmoLayer);
             _map.DrawBuffer = _gizmoBuffer;
             _interactionBus = interactionBus;
 
@@ -346,16 +345,6 @@ namespace Hrot.SimHost
             _map.Update(dt);
             _selectionSystem?.Tick(dt);
 
-            // Read context menu requests emitted by DebugGizmoLayer.
-            if (_interactionBus != null)
-            {
-                foreach (ref readonly var evt in _interactionBus.Read<GizmoContextMenuRequestedEvent>())
-                {
-                    _pendingMapContextEntity = evt.Token.Target;
-                    _openMapContextThisFrame = true;
-                }
-            }
-
             _fdpFrameCount++;
         }
 
@@ -371,59 +360,8 @@ namespace Hrot.SimHost
         {
             if (!_initialized || _repo == null || _kernel == null) return;
 
-            // ── Map entity context menu popup ─────────────────────────────────
-            if (_openMapContextThisFrame)
-            {
-                ImGui.OpenPopup("##simhost_map_ctx");
-                _openMapContextThisFrame = false;
-            }
-
-            if (ImGui.BeginPopup("##simhost_map_ctx"))
-            {
-                if (_pendingMapContextEntity != Entity.Null && _repo.IsAlive(_pendingMapContextEntity))
-                {
-                    var ent = _pendingMapContextEntity;
-                    SharedContextMenuPopulator.PopulateEntityMenu(
-                        entityId:            0L,
-                        tkbType:             0L,
-                        hasEditablePolyline: false,
-                        hasRoutePlan:        false,
-                        builder:             new ContextMenuBuilder(),
-                        actions:             new MapContextActionController(
-                            centerOnEntity: _ => CenterCameraOnEntity(ent),
-                            deleteEntity:   _ =>
-                            {
-                                if (_repo!.HasComponent<NetworkIdentity>(ent))
-                                {
-                                    long netIdValue = _repo.GetComponentRO<NetworkIdentity>(ent).Value;
-                                    _repo.Bus.PublishManaged(new DestroyEntityCommand
-                                    {
-                                        NetworkId = netIdValue,
-                                        Reason    = "map-context-deleted",
-                                    });
-                                }
-                                else
-                                {
-                                    _repo.DestroyEntity(ent);
-                                }
-                                _selection?.Remove(ent);
-                                _fdpInspectorState.SelectedEntity = null;
-                            },
-                            rotateTool:     _ =>
-                            {
-                                if (_map == null) return;
-                                if (!_repo!.HasComponent<SimTransform>(ent)) return;
-                                _gizmoSystem!.DeactivateGizmo(ent);
-                                var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
-                                    _repo!, ent,
-                                    onRemove: () => _gizmoSystem!.DeactivateGizmo(ent));
-                                _gizmoSystem!.ActivateGizmo(ent, gizmo);
-                            }
-                        ));
-                }
-
-                ImGui.EndPopup();
-            }
+            // Render the context menu popup via the gizmo layer's ContextMenuAdapter.
+            _gizmoLayer?.DrawContextMenu();
 
             // When panels are Window Manager managed, skip rendering them here.
             if (!_panelsWindowManaged && _ui != null)

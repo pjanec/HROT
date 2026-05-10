@@ -1059,6 +1059,8 @@ public class IgApplication : IDisposable
         _gizmoUndoStack        = new GizmoUndoStack();
         _interactionBus = new FdpEventBus();
         Hrot.IG.Gizmos.GizmoRegistrar.Register(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
+        // Register CanvasContextMenuGizmo so empty-space right-click resolves through the binding pipeline.
+        Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
         // Phase 5: EntityDragGizmo makes entities draggable and emits pick spheres for selection.
         if (_networkEnabled)
         {
@@ -1167,6 +1169,8 @@ public class IgApplication : IDisposable
             gizmoIngress: gizmoIngress,
             gizmoEgress:  gizmoEgress));
         _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _interactionBus!));
+        // Register canvas menu update so CanvasContextMenuGizmo has state to project.
+        _kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
 
         _kernel.Initialize();
 
@@ -1252,13 +1256,6 @@ public class IgApplication : IDisposable
         _gizmoBuffer?.EndFrame(dt);
 
         _kernel.Update();
-
-        // Read context menu requests emitted by DebugGizmoLayer.
-        if (_interactionBus != null)
-        {
-            foreach (ref readonly var evt in _interactionBus.Read<GizmoContextMenuRequestedEvent>())
-                _contextMenuSystem.RequestOpen(evt.Token.Target, evt.ScreenPos.X, evt.ScreenPos.Y);
-        }
 
         // Clear gizmo undo stack on world/scenario reset.
         foreach (var _ in _world.Bus.ReadManaged<WorldResetEvent>())

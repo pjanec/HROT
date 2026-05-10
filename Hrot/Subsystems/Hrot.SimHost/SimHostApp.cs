@@ -529,6 +529,11 @@ namespace Hrot.SimHost
                 _gizmoRegistry,
                 _statelessGizmoRegistry,
                 settings: new GizmoSettingsRegistry());
+            // Register CanvasContextMenuGizmo for empty-space right-click context menus.
+            Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(
+                _gizmoRegistry,
+                _statelessGizmoRegistry,
+                settings: new GizmoSettingsRegistry());
             // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
             _gizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
             _interactionBus = new FdpEventBus();
@@ -612,6 +617,8 @@ namespace Hrot.SimHost
             if (_eventBus != null)
                 _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Orchestration", _eventHistoryService, _eventBus));
             _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _eventHistoryService, _interactionBus));
+            // Register canvas menu update so CanvasContextMenuGizmo has state to project.
+            _kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
             _kernel.Initialize();
             Logger.Info($"[Node-{localNodeId}] Kernel initialized.");
 

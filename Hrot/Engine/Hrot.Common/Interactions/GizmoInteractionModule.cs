@@ -58,7 +58,6 @@ namespace Hrot.Common.Interactions
             _interactionBus.Register<GizmoInteractionCommitEvent>();
             _interactionBus.Register<GizmoInteractionCancelEvent>();
             _interactionBus.Register<GlobalActionRequestedEvent>();
-            _interactionBus.Register<GizmoContextMenuRequestedEvent>();
         }
 
         // RegisterSystems is intentionally empty: all systems run manually inside Tick()
