@@ -19,9 +19,11 @@ namespace GizmoMap.Example
     public sealed class EntityRotatorGizmo : IStatefulGizmo
     {
         private readonly Vector2 _entityPos;
+        private Vector3 _currentCursorPos;
         private float _currentYawRad;
         private readonly Action<float> _onCommit;
         private readonly Action _onRemove;
+        private bool _active = true;
 
         public bool RequiresExclusiveFocus => true;
         public bool IsFocused { get; private set; }
@@ -38,6 +40,7 @@ namespace GizmoMap.Example
             Action onRemove)
         {
             _entityPos     = entityPos;
+            _currentCursorPos = new Vector3(entityPos.X, entityPos.Y, 0f);
             _currentYawRad = initialYawRad;
             _onCommit      = onCommit;
             _onRemove      = onRemove;
@@ -47,18 +50,22 @@ namespace GizmoMap.Example
         // The arrow length is 50 world units.
         public void UpdateAndDraw(float deltaTime, IGizmoDrawBuilder draw)
         {
+            if (!_active) return;
             var from = new Vector3(_entityPos.X, _entityPos.Y, 0f);
-            var tip  = new Vector3(
-                _entityPos.X + MathF.Cos(_currentYawRad) * 50f,
-                _entityPos.Y + MathF.Sin(_currentYawRad) * 50f,
-                0f);
-            draw.DrawArrow(from, tip, Rgba32.Yellow, headSize: 6f);
+            draw.DrawLine(from, _currentCursorPos, Rgba32.Yellow, thickness: 2f, sizeMode: SizeMode.ScreenPixels);
+
+            float compassDeg = ((90f - _currentYawRad * (180f / MathF.PI)) % 360f + 360f) % 360f;
+            string label = $"{compassDeg:F0}deg";
+            float midX = (from.X + _currentCursorPos.X) * 0.5f;
+            float midY = (from.Y + _currentCursorPos.Y) * 0.5f;
+            draw.DrawTextLong(midX, midY + 15f, label, Rgba32.White);
         }
 
         // DragUpdate fires while the mouse moves with exclusive capture held.
         // Recompute the yaw from the current cursor world position.
         public void OnDragUpdate(Vector3 worldPos)
         {
+            _currentCursorPos = worldPos;
             float dx = worldPos.X - _entityPos.X;
             float dy = worldPos.Y - _entityPos.Y;
             if (MathF.Abs(dx) > 0.001f || MathF.Abs(dy) > 0.001f)
@@ -69,13 +76,17 @@ namespace GizmoMap.Example
         // Right pressed: cancel without writing back and exit.
         public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
         {
+            if (!_active) return;
+            _currentCursorPos = worldPos;
             if (button == MapMouseButton.Left && !isPressed)
             {
                 _onCommit(_currentYawRad);
+                _active = false;
                 _onRemove();
             }
             else if (button == MapMouseButton.Right && isPressed)
             {
+                _active = false;
                 _onRemove();
             }
         }
@@ -83,12 +94,19 @@ namespace GizmoMap.Example
         // Escape pressed: cancel.
         public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
         {
+            if (!_active) return;
             if (key == MapKeyboardKey.Escape && isPressed)
+            {
+                _active = false;
                 _onRemove();
+            }
         }
 
         // These are not used for the exclusive-capture rotator but must be implemented.
-        public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos) { }
+        public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos)
+        {
+            _currentCursorPos = worldPos;
+        }
         public void OnCommit(Vector3 worldPos)  { }
         public void OnCancel()                  { }
         public void OnMenuAction(int actionId)  { }
