@@ -311,26 +311,32 @@ namespace Fdp.Toolkit.Vis2D.Layers
             // Find the topmost interactive primitive under the cursor.
             var hit = FindTopmostInteractivePrimitive(worldPos);
 
-            if (hit.HasValue)
+            long entityId = hit.HasValue ? hit.Value.InspNetworkId : -1L;
+
+            // Try the hit entity first; fall back to the canvas anchor (-1L) when no
+            // entity was hit or when the hit entity has no binding in this frame.
+            if (entityId != 0 && menuBindings.TryGetValue(entityId, out uint menuHash))
             {
-                long entityId = hit.Value.InspNetworkId;
-                if (entityId != 0 && menuBindings.TryGetValue(entityId, out uint menuHash))
+                string? json = _buffer.InternMap.TryResolve(menuHash);
+                if (json != null)
                 {
-                    string? json = _buffer.InternMap.TryResolve(menuHash);
-                    if (json != null)
-                    {
-                        _contextMenuAdapter.Schedule(entityId, json);
-                        return true;
-                    }
+                    _contextMenuAdapter.Schedule(entityId, json);
+                    return true;
                 }
             }
 
-            // No DDS menu found: publish GizmoContextMenuRequestedEvent for the app shell.
-            _eventBus?.Publish(new GizmoContextMenuRequestedEvent
+            // Canvas anchor fallback: empty-space right-click resolves through the
+            // ContextMenuBinding projected by CanvasContextMenuGizmo (anchor ID -1L).
+            if (entityId != -1L && menuBindings.TryGetValue(-1L, out uint canvasHash))
             {
-                Token     = hit.HasValue ? hit.Value.GetPickToken() : default,
-                ScreenPos = worldPos,
-            });
+                string? json = _buffer.InternMap.TryResolve(canvasHash);
+                if (json != null)
+                {
+                    _contextMenuAdapter.Schedule(-1L, json);
+                    return true;
+                }
+            }
+
             return true;
         }
 

@@ -9,17 +9,19 @@ using Raylib_cs;
 namespace GizmoMap.Presentation
 {
     /// <summary>
-    /// Standalone Raylib rendering component that wires a <see cref="GizmoPrimitiveBuffer"/>
-    /// to a <see cref="DebugPrimitiveRenderer2D"/>.
+    /// Standalone Raylib rendering component that drives a <see cref="DebugPrimitiveRenderer2D"/>.
+    ///
+    /// Buffer-agnostic: callers pass the primitive span and intern map on each call so
+    /// the same layer instance can be shared across multiple buffer sources (local viewer,
+    /// remote gizmo stream, etc.).
     ///
     /// Adapted from Fdp.Presentation DebugGizmoLayer with the following differences:
     /// - No ISimulationView or FdpEventBus parameters.
     /// - No IMapLayer interface (lives in Fdp.Toolkit.Vis2D.Abstractions).
-    /// - Simple constructor taking only buffer and renderer.
+    /// - Constructor takes only renderer; buffer data is passed per-call.
     /// </summary>
     public sealed class DebugGizmoLayer
     {
-        private readonly GizmoPrimitiveBuffer _buffer;
         private readonly DebugPrimitiveRenderer2D _renderer;
 
         // Active drag interaction tool driven by mouse input.
@@ -28,15 +30,14 @@ namespace GizmoMap.Presentation
         // Context menu presenter (ImGui popup).
         private readonly ContextMenuAdapter _contextMenuAdapter = new();
 
-        public DebugGizmoLayer(GizmoPrimitiveBuffer buffer, DebugPrimitiveRenderer2D renderer)
+        public DebugGizmoLayer(DebugPrimitiveRenderer2D renderer)
         {
-            _buffer   = buffer;
             _renderer = renderer;
         }
 
-        public void Render(Camera2D camera, float zoom)
+        public void Render(ReadOnlySpan<DebugPrimitive> primitives, Camera2D camera, float zoom)
         {
-            _renderer.Render(_buffer.GetFrame(), camera, zoom);
+            _renderer.Render(primitives, camera, zoom);
         }
 
         /// <summary>
@@ -45,6 +46,8 @@ namespace GizmoMap.Presentation
         /// operator left-clicks inside a <see cref="DebugPrimitiveShape.Box2D"/> primitive.
         /// Right-clicking a Box2D with a <see cref="DebugPrimitiveShape.ContextMenuBinding"/>
         /// schedules a context menu popup (rendered via <see cref="DrawContextMenu"/>).
+        /// When no entity box is hit, falls back to the canvas anchor (<c>-1L</c>) so the
+        /// empty-space menu is resolved through the same pipeline.
         ///
         /// When an <see cref="DebugPrimitiveShape.InputCaptureBinding"/> with exclusive mode
         /// is present in the frame, all raw HW events are routed to the capturing token and
@@ -53,6 +56,8 @@ namespace GizmoMap.Presentation
         /// Hit-testing iterates the primitive buffer in reverse so the last-submitted (topmost)
         /// Box2D wins. <see cref="DebugPrimitive.DebugLayer"/> is NOT used as a Z-order key.
         /// </summary>
+        /// <param name="primitives">Current frame of debug primitives from the gizmo buffer.</param>
+        /// <param name="internMap">Intern map used to resolve string hashes in context-menu bindings.</param>
         /// <param name="camera">Current camera used to convert screen pixels to world space.</param>
         /// <param name="onInteraction">
         /// Optional callback invoked with the pick token, event kind, world position, actionId,
@@ -61,20 +66,20 @@ namespace GizmoMap.Presentation
         /// stateFlags bit7=1 mouse/0 keyboard, bit0=1 pressed/0 released.
         /// </param>
         public void HandleInput(
+            ReadOnlySpan<DebugPrimitive> primitives,
+            StringInternMap internMap,
             Camera2D camera,
             Action<GizmoPickToken, GizmoInteractionEventKind, Vector3, int, byte>? onInteraction = null)
         {
             var screenPos = Raylib.GetMousePosition();
             var worldPos  = Raylib.GetScreenToWorld2D(screenPos, camera);
 
-            var frame = _buffer.GetFrame();
-
             // ---- Scan for exclusive InputCaptureBinding --------------------------------
             // When found, route all raw HW events to the capturing token and skip
             // normal spatial hit-testing. The gizmo declares intent; the terminal obeys.
-            for (int i = 0; i < frame.Length; i++)
+            for (int i = 0; i < primitives.Length; i++)
             {
-                ref readonly var prim = ref frame[i];
+                ref readonly var prim = ref primitives[i];
                 if (prim.Shape != DebugPrimitiveShape.InputCaptureBinding) continue;
                 if (prim.ConditionMask != 1u) continue; // 0 = shared, skip
 
@@ -116,14 +121,10 @@ namespace GizmoMap.Presentation
 
             // ---- Build menu bindings dictionary from ContextMenuBinding meta-primitives ---
             var menuBindings = new Dictionary<long, uint>();
-            foreach (ref readonly var prim in frame)
+            foreach (ref readonly var prim in primitives)
             {
                 if (prim.Shape == DebugPrimitiveShape.ContextMenuBinding)
                     menuBindings[prim.InspNetworkId] = prim.StringHash;
-            }
-            if (Raylib.IsMouseButtonReleased(MouseButton.Right))
-            {
-                Console.WriteLine($"[Debug] Right-click detected. Menu bindings count: {menuBindings.Count}");
             }
 
             // ---- Try to start a new interaction on left press (reverse iteration) -------
@@ -131,9 +132,9 @@ namespace GizmoMap.Presentation
             // hit-test. DebugLayer is a visibility mask and is NOT used as a depth key.
             if (_activeTool == null && Raylib.IsMouseButtonPressed(MouseButton.Left))
             {
-                for (int i = frame.Length - 1; i >= 0; i--)
+                for (int i = primitives.Length - 1; i >= 0; i--)
                 {
-                    ref readonly var prim = ref frame[i];
+                    ref readonly var prim = ref primitives[i];
                     if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
                     if (prim.Space != CoordinateSpace.World) continue;
                     if (prim.SubElementId == 0) continue;
@@ -157,12 +158,16 @@ namespace GizmoMap.Presentation
                 }
             }
 
-            // ---- Right-click: show context menu for the topmost hit Box2D ---------------
+            // ---- Right-click: show context menu for the topmost hit Box2D, or the canvas ---
+            // Falls back to canvas anchor (-1L) when no entity box is under the cursor so
+            // that empty-space right-clicks resolve through the same ContextMenuBinding pipeline.
             if (_activeTool == null && Raylib.IsMouseButtonReleased(MouseButton.Right))
             {
-                for (int i = frame.Length - 1; i >= 0; i--)
+                long hitEntityId = -1L; // canvas anchor fallback
+
+                for (int i = primitives.Length - 1; i >= 0; i--)
                 {
-                    ref readonly var prim = ref frame[i];
+                    ref readonly var prim = ref primitives[i];
                     if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
                     if (prim.Space != CoordinateSpace.World) continue;
                     if (prim.SubElementId == 0) continue;
@@ -173,28 +178,16 @@ namespace GizmoMap.Presentation
                     {
                         // Use BoxAnchorId for managed handles; fall back to SubElementId for
                         // unmanaged Box2D primitives whose context-menu binding key equals SubElementId.
-                        long entityId = prim.BoxAnchorId != 0 ? prim.BoxAnchorId : (long)prim.SubElementId;
-                        Console.WriteLine($"[Debug] Hit Box2D. entityId: {entityId}");
-                        if (menuBindings.TryGetValue(entityId, out uint menuHash))
-                        {
-                            Console.WriteLine($"[Debug] Found binding hash: {menuHash}");
-                            string? json = _buffer.InternMap.TryResolve(menuHash);
-                            if (json != null)
-                            {
-                                Console.WriteLine($"[Debug] JSON resolved successfully. Length: {json.Length}");
-                                _contextMenuAdapter.Schedule(entityId, json);
-                            }
-                            else
-                            {
-                                Console.WriteLine("[Debug] ERROR: TryResolve returned null. InternMap sync failed.");
-                            }
-                        }
-                        else
-                        {
-                            Console.WriteLine("[Debug] ERROR: No menu binding found for this SubElementId.");
-                        }
+                        hitEntityId = prim.BoxAnchorId != 0 ? prim.BoxAnchorId : (long)prim.SubElementId;
                         break;
                     }
+                }
+
+                if (menuBindings.TryGetValue(hitEntityId, out uint menuHash))
+                {
+                    string? json = internMap.TryResolve(menuHash);
+                    if (json != null)
+                        _contextMenuAdapter.Schedule(hitEntityId, json);
                 }
             }
 

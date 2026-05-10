@@ -91,16 +91,4 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Events
         /// <summary>The entity whose component mask may now satisfy a registered gizmo rule.</summary>
         public Entity Entity;
     }
-
-    /// <summary>
-    /// Published by <see cref="Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer"/> when a right-click
-    /// occurs and no DDS context-menu binding is found for the hit primitive.
-    /// Consumed by the application shell to open the ImGui context menu for the entity.
-    /// </summary>
-    [EventId(8059)]
-    public struct GizmoContextMenuRequestedEvent
-    {
-        public PickToken Token;
-        public Vector2 ScreenPos;
-    }
 }

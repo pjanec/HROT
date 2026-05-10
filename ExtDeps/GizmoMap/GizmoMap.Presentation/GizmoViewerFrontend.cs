@@ -32,7 +32,7 @@ namespace GizmoMap.Presentation
 
             var propertyAdapter = new ImGuiPropertyTreeAdapter(schemaRegistry);
             var renderer = new DebugPrimitiveRenderer2D(imGuiAdapter: propertyAdapter);
-            var layer = new DebugGizmoLayer(renderBuffer, renderer);
+            var layer = new DebugGizmoLayer(renderer); // buffer data passed per-call
 
             rlImGui.Setup(true);
 
@@ -41,14 +41,14 @@ namespace GizmoMap.Presentation
                 float dt = Raylib.GetFrameTime();
 
                 onUpdateTick(dt);
-                layer.HandleInput(camera, onInteraction);
+                layer.HandleInput(renderBuffer.GetFrame(), renderBuffer.InternMap, camera, onInteraction);
                 onCustomInput?.Invoke();
 
                 Raylib.BeginDrawing();
                 Raylib.ClearBackground(Color.DarkGray);
                 Raylib.BeginMode2D(camera);
 
-                layer.Render(camera, camera.Zoom);
+                layer.Render(renderBuffer.GetFrame(), camera, camera.Zoom);
 
                 Raylib.EndMode2D();
 
