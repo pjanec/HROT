@@ -587,6 +587,79 @@ namespace Hrot.Editor
             {
                 _world.Bus.PublishManaged(new ActivateEditorToolEvent(EditorTool.Spawn));
             });
+            actionRegistry.Register(GlobalActionIds.EditOverlay, (view, target) =>
+            {
+                if (target == Entity.Null || !view.HasManagedComponent<EditablePolyline>(target)) return;
+
+                if (_editorDataDrivenGizmoSystem!.HasInjectedGizmo(target))
+                {
+                    _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
+                }
+                else
+                {
+                    long netId = view.HasComponent<NetworkIdentity>(target)
+                        ? view.GetComponentRO<NetworkIdentity>(target).Value
+                        : 0L;
+                    var gizmo = new Hrot.ScenarioEditor.Gizmos.VertexEditGizmo(
+                        _world!, target, netId,
+                        onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target));
+                    _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
+                }
+            });
+            actionRegistry.Register(GlobalActionIds.EditRoute, (view, target) =>
+            {
+                if (target == Entity.Null || !view.HasManagedComponent<RoutePlan>(target)) return;
+
+                if (_editorDataDrivenGizmoSystem!.HasInjectedGizmo(target))
+                {
+                    _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
+                }
+                else
+                {
+                    long netId = view.HasComponent<NetworkIdentity>(target)
+                        ? view.GetComponentRO<NetworkIdentity>(target).Value
+                        : 0L;
+                    var gizmo = new Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo(
+                        _world!, target, netId,
+                        onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target));
+                    _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
+                }
+            });
+            actionRegistry.Register(GlobalActionIds.CenterOnEntity, (view, target) =>
+            {
+                if (target == Entity.Null) return;
+                long netId = view.HasComponent<NetworkIdentity>(target)
+                    ? view.GetComponentRO<NetworkIdentity>(target).Value
+                    : 0L;
+                if (netId != 0)
+                    _world!.Bus.PublishManaged(new Hrot.Editor.Commands.CenterOnEntityCommand { NetworkId = netId });
+            });
+            actionRegistry.Register(GlobalActionIds.Delete, (view, target) =>
+            {
+                if (target == Entity.Null) return;
+                long netId = view.HasComponent<NetworkIdentity>(target)
+                    ? view.GetComponentRO<NetworkIdentity>(target).Value
+                    : 0L;
+                if (netId != 0)
+                    _world!.Bus.PublishManaged(new DestroyEntityCommand { NetworkId = netId, Reason = "ContextMenu" });
+                else
+                    _world!.DestroyEntity(target);
+            });
+            actionRegistry.Register(GlobalActionIds.Select, (_, target) =>
+            {
+                if (target == Entity.Null) return;
+
+                var q = _world!.Query().With<SelectionState>().WithLifecycle(EntityLifecycle.All).Build();
+                foreach (var e in q)
+                {
+                    if (_world.IsAlive(e))
+                        _world.SetComponent(e, new SelectionState { IsSelected = false, IsPrimarySelection = false });
+                }
+
+                _world.SetComponent(target, new SelectionState { IsSelected = true, IsPrimarySelection = true });
+                if (_selectionState != null) _selectionState.PrimarySelected = target;
+                _fdpInspectorState.SelectedEntity = target;
+            });
 
             var contextIngress = new ContextActionIngressSystem(entityMap, interactionBus);
             _rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
