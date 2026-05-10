@@ -8,22 +8,22 @@ using Fdp.Toolkit.Replication.Components;
 using Hrot.Common.Constants;
 using Hrot.IG.Components;
 
-namespace Hrot.ClusterRunner.Gizmos
+namespace Hrot.Common.Diagnostics.Gizmos
 {
     /// <summary>
     /// Emits a <see cref="Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.ContextMenuBinding"/>
     /// meta-primitive for every networked entity so that the IG dumb terminal can present a
     /// right-click context menu via the gizmo stream.
     ///
-    /// Menu JSON strings are pre-serialised as static fields — one per distinct entity state
-    /// permutation — and interned in the <see cref="Fdp.Toolkit.Diagnostics.Gizmos.StringInternMap"/>
+    /// Menu JSON strings are pre-serialised as static fields - one per distinct entity state
+    /// permutation - and interned in the <see cref="Fdp.Toolkit.Diagnostics.Gizmos.StringInternMap"/>
     /// on the first frame each string is encountered. After that, only the 4-byte FNV-1a hash
     /// travels with every DebugPrimitive; the full string is cached on both sides.
     ///
     /// Currently two permutations are defined:
     /// <list type="bullet">
-    ///   <item>Healthy   — unit is combat-effective (health &gt;= 50 %)</item>
-    ///   <item>Degraded  — unit has taken significant damage (health &lt; 50 %)</item>
+    ///   <item>Healthy   - unit is combat-effective (health &gt;= 50 %)</item>
+    ///   <item>Degraded  - unit has taken significant damage (health &lt; 50 %)</item>
     /// </list>
     /// </summary>
     [GizmoProjector(typeof(NetworkIdentity))]
