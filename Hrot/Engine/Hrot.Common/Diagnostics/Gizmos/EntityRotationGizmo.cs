@@ -25,12 +25,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
             var pos = tf.Position;
             var q   = tf.Rotation;
-
-            // Extract yaw (rotation around Z axis) from quaternion.
-            // yaw=0 = east (+X), yaw=PI/2 = north (+Y).
-            float yawRad = MathF.Atan2(
-                2f * (q.W * q.Z + q.X * q.Y),
-                1f - 2f * (q.Y * q.Y + q.Z * q.Z));
+            float yawRad = SimMath.ExtractYaw(q);
 
             float arrowLen = _settings.Read(
                 GizmoSettingsRegistry.ComputeHash(EntityRotationGizmoSettings.ArrowLength)).FloatValue;
@@ -47,7 +42,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             draw.DrawArrow(pos, tip, color, headSize: 3f);
 
             // Heading label: compass degrees where 0=north, 90=east, clockwise.
-            float compassDeg = ((90f - yawRad * (180f / MathF.PI)) % 360f + 360f) % 360f;
+            float compassDeg = SimMath.YawRadToCompassDeg(yawRad);
             var label = new FixedString32($"{compassDeg:F0}*");
             draw.DrawText(pos.X, pos.Y, label, new Rgba32(255, 165, 0, 200));
         }

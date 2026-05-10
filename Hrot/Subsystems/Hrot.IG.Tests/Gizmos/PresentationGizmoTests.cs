@@ -8,7 +8,6 @@ using Fdp.Toolkit.Replication.Components;
 using Hrot.IG.Components;
 using Hrot.IG.Gizmos;
 using Hrot.ScenarioEditor.Gizmos;
-using Fdp.Toolkit.Vis2D.Shapes;
 using Hrot.Map.Common.Components;
 using Xunit;
 
@@ -17,6 +16,9 @@ namespace Hrot.IG.Tests.Gizmos
     // SC-GZ057/GZ058: tests for IgEntityPresentationGizmo, EffectPresentationGizmo, RouteGizmo.
     public sealed class PresentationGizmoTests : IDisposable
     {
+        private const uint ConditionDamaged = 1u << 0;
+        private const uint ConditionImmobile = 1u << 1;
+
         private readonly EntityRepository _repo;
 
         public PresentationGizmoTests()
@@ -70,8 +72,8 @@ namespace Hrot.IG.Tests.Gizmos
             var semantic = frame[2];
             Assert.Equal(DebugPrimitiveShape.SemanticShape, semantic.Shape);
             // Damage 75f >= 50 → Damaged bit set; < 90 → Immobile bit NOT set.
-            Assert.NotEqual(0u, semantic.ConditionMask & (uint)EntityShapeCondition.Damaged);
-            Assert.Equal(0u, semantic.ConditionMask & (uint)EntityShapeCondition.Immobile);
+            Assert.NotEqual(0u, semantic.ConditionMask & ConditionDamaged);
+            Assert.Equal(0u, semantic.ConditionMask & ConditionImmobile);
         }
 
         // SC_GZ057_6: Draw skips entity when CullingState.IsVisible == false.

@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Replication.Components;
+using Hrot.ScenarioEditor.Gizmos;
 
 namespace Hrot.CGF.Gizmos
 {
@@ -41,25 +42,11 @@ namespace Hrot.CGF.Gizmos
                 rotation = st.Rotation;
             }
 
-            // Extract yaw around Z axis (Z=Up convention).
-            Quaternion q = rotation;
-            float yaw = MathF.Atan2(
-                2f * (q.W * q.Z + q.X * q.Y),
-                1f - 2f * (q.Y * q.Y + q.Z * q.Z));
-            float headingDeg = yaw * (180f / MathF.PI);
+            EntityPresentationGizmoShared.DrawSpatialAnchorFromRotation(draw, networkId, position, rotation);
+            EntityPresentationGizmoShared.TryGetVehicleDimensions(view, entity, out float length, out float width);
+            ulong profileId = EntityPresentationGizmoShared.ResolveProfileId(view, entity);
 
-            draw.DrawSpatialAnchor(networkId, position.X, position.Y, position.Z, headingDeg);
-
-            float length = 0f;
-            float width  = 0f;
-            if (view.HasComponent<VehicleParams>(entity))
-            {
-                ref readonly var vp = ref view.GetComponentRO<VehicleParams>(entity);
-                length = vp.Length;
-                width  = vp.Width;
-            }
-
-            draw.DrawSemanticShape(networkId, profileId: 0UL, length, width, conditionMask: 0u);
+            draw.DrawSemanticShape(networkId, profileId, length, width, conditionMask: 0u);
         }
     }
 }

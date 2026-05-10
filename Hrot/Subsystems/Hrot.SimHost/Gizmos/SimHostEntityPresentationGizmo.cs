@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Replication.Components;
+using Hrot.ScenarioEditor.Gizmos;
 
 namespace Hrot.SimHost.Gizmos
 {
@@ -19,40 +20,12 @@ namespace Hrot.SimHost.Gizmos
             long networkId = netId.Value;
 
             ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
+            EntityPresentationGizmoShared.DrawSpatialAnchorFromRotation(draw, networkId, tf.Position, tf.Rotation);
+            EntityPresentationGizmoShared.EmitPickBox(draw, entity, networkId, tf.Position);
+            EntityPresentationGizmoShared.TryGetVehicleDimensions(view, entity, out float length, out float width);
+            ulong profileId = EntityPresentationGizmoShared.ResolveProfileId(view, entity);
 
-            // Extract yaw around Z axis (Z=Up in SimTransform convention).
-            Quaternion q = tf.Rotation;
-            float yaw = MathF.Atan2(
-                2f * (q.W * q.Z + q.X * q.Y),
-                1f - 2f * (q.Y * q.Y + q.Z * q.Z));
-            float headingDeg = yaw * (180f / MathF.PI);
-
-            draw.DrawSpatialAnchor(networkId, tf.Position.X, tf.Position.Y, tf.Position.Z, headingDeg);
-
-            var pickBox = default(DebugPrimitive);
-            pickBox.Shape            = DebugPrimitiveShape.Box2D;
-            pickBox.Space            = CoordinateSpace.World;
-            pickBox.TargetView       = PipelineTarget.Map2D;
-            pickBox.BoxCenterX       = tf.Position.X;
-            pickBox.BoxCenterY       = tf.Position.Y;
-            pickBox.BoxExtentX       = 8f;
-            pickBox.BoxExtentY       = 8f;
-            pickBox.Color            = new Rgba32(0, 0, 0, 0);
-            pickBox.AnchorIndex      = entity.Index;
-            pickBox.AnchorGeneration = (ushort)entity.Generation;
-            pickBox.BoxAnchorId      = networkId;
-            draw.EmitRaw(in pickBox);
-
-            float length = 0f;
-            float width  = 0f;
-            if (view.HasComponent<VehicleParams>(entity))
-            {
-                ref readonly var vp = ref view.GetComponentRO<VehicleParams>(entity);
-                length = vp.Length;
-                width  = vp.Width;
-            }
-
-            draw.DrawSemanticShape(networkId, profileId: 0UL, length, width, conditionMask: 0u);
+            draw.DrawSemanticShape(networkId, profileId, length, width, conditionMask: 0u);
         }
     }
 }

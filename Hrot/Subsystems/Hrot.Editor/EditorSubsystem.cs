@@ -846,7 +846,13 @@ namespace Hrot.Editor
                     .Build();
 
                 // Gizmo layer — renders entity presentation primitives produced locally by StatelessGizmoSystem.
-                _gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer!, interactionBus, _world, _canvas.Camera);
+                _gizmoLayer = new DebugGizmoLayer(
+                    31,
+                    _gizmoBuffer!,
+                    interactionBus,
+                    _world,
+                    _canvas.Camera,
+                    new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary());
                 _canvas!.AddLayer(_gizmoLayer);
                 if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
 

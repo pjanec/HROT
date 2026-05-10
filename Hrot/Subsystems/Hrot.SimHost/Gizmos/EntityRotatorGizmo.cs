@@ -46,11 +46,7 @@ namespace Hrot.SimHost.Gizmos
                 ref readonly var tf = ref _repo.GetComponentRO<SimTransform>(_entity);
                 _entityPos = tf.Position;
                 _currentCursorPos = _entityPos;
-                // Extract yaw from the quaternion (rotation around Z, Z=up convention).
-                Quaternion q = tf.Rotation;
-                _currentYawRad = MathF.Atan2(
-                    2f * (q.W * q.Z + q.X * q.Y),
-                    1f - 2f * (q.Y * q.Y + q.Z * q.Z));
+                _currentYawRad = SimMath.ExtractYaw(tf.Rotation);
             }
         }
 
@@ -61,7 +57,7 @@ namespace Hrot.SimHost.Gizmos
             if (!_active) return;
             draw.DrawLine(_entityPos, _currentCursorPos, Rgba32.Yellow, thickness: 2f, sizeMode: SizeMode.ScreenPixels);
 
-            float compassDeg = ((90f - _currentYawRad * (180f / MathF.PI)) % 360f + 360f) % 360f;
+            float compassDeg = SimMath.YawRadToCompassDeg(_currentYawRad);
             string label = $"{compassDeg:F0}deg";
             float midX = (_entityPos.X + _currentCursorPos.X) * 0.5f;
             float midY = (_entityPos.Y + _currentCursorPos.Y) * 0.5f;
@@ -122,8 +118,7 @@ namespace Hrot.SimHost.Gizmos
             if (!_repo.HasComponent<SimTransform>(_entity)) return;
 
             ref var tf = ref _repo.GetComponentRW<SimTransform>(_entity);
-            // Build a pure yaw quaternion (rotation around Z=up).
-            tf.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, _currentYawRad);
+            tf.Rotation = SimMath.FromYaw(_currentYawRad);
         }
 
         private void RequestRemove()

@@ -5,7 +5,6 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Replication.Components;
-using Fdp.Toolkit.Vis2D.Shapes;
 using Hrot.IG.Components;
 
 namespace Hrot.ScenarioEditor.Gizmos
@@ -14,6 +13,9 @@ namespace Hrot.ScenarioEditor.Gizmos
     [GizmoProjector(typeof(SimTransform), typeof(NetworkIdentity), typeof(CullingState))]
     public sealed class IgEntityPresentationGizmo : IStatelessGizmo
     {
+        private const uint ConditionDamaged = 1u << 0;
+        private const uint ConditionImmobile = 1u << 1;
+
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
             // Skip off-screen entities.
@@ -24,49 +26,22 @@ namespace Hrot.ScenarioEditor.Gizmos
             long networkId = netId.Value;
 
             ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
-
-            // Extract yaw around Z axis (Z=Up in SimTransform convention).
-            Quaternion q = tf.Rotation;
-            float yaw = MathF.Atan2(
-                2f * (q.W * q.Z + q.X * q.Y),
-                1f - 2f * (q.Y * q.Y + q.Z * q.Z));
-            float headingDeg = yaw * (180f / MathF.PI);
-
-            draw.DrawSpatialAnchor(networkId, tf.Position.X, tf.Position.Y, tf.Position.Z, headingDeg);
-
-            var pickBox = default(DebugPrimitive);
-            pickBox.Shape            = DebugPrimitiveShape.Box2D;
-            pickBox.Space            = CoordinateSpace.World;
-            pickBox.TargetView       = PipelineTarget.Map2D;
-            pickBox.BoxCenterX       = tf.Position.X;
-            pickBox.BoxCenterY       = tf.Position.Y;
-            pickBox.BoxExtentX       = 8f;
-            pickBox.BoxExtentY       = 8f;
-            pickBox.Color            = new Rgba32(0, 0, 0, 0);
-            pickBox.AnchorIndex      = entity.Index;
-            pickBox.AnchorGeneration = (ushort)entity.Generation;
-            pickBox.BoxAnchorId      = networkId;
-            draw.EmitRaw(in pickBox);
+            EntityPresentationGizmoShared.DrawSpatialAnchorFromRotation(draw, networkId, tf.Position, tf.Rotation);
+            EntityPresentationGizmoShared.EmitPickBox(draw, entity, networkId, tf.Position);
 
             // Compute condition mask from health state.
             uint conditionMask = 0u;
             if (view.HasComponent<IgHealthState>(entity))
             {
                 ref readonly var health = ref view.GetComponentRO<IgHealthState>(entity);
-                if (health.Damage >= 50f) conditionMask |= (uint)EntityShapeCondition.Damaged;
-                if (health.Damage >= 90f) conditionMask |= (uint)EntityShapeCondition.Immobile;
+                if (health.Damage >= 50f) conditionMask |= ConditionDamaged;
+                if (health.Damage >= 90f) conditionMask |= ConditionImmobile;
             }
 
-            float length = 0f;
-            float width  = 0f;
-            if (view.HasComponent<VehicleParams>(entity))
-            {
-                ref readonly var vp = ref view.GetComponentRO<VehicleParams>(entity);
-                length = vp.Length;
-                width  = vp.Width;
-            }
+            EntityPresentationGizmoShared.TryGetVehicleDimensions(view, entity, out float length, out float width);
+            ulong profileId = EntityPresentationGizmoShared.ResolveProfileId(view, entity);
 
-            draw.DrawSemanticShape(networkId, profileId: 0UL, length, width, conditionMask);
+            draw.DrawSemanticShape(networkId, profileId, length, width, conditionMask);
         }
     }
 }

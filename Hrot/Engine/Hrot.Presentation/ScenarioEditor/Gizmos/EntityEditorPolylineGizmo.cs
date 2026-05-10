@@ -35,11 +35,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
             var pos = tf.Position;
 
-            // Extract yaw around Z axis (Z=Up in SimTransform convention).
-            Quaternion q = tf.Rotation;
-            float yawRad = MathF.Atan2(
-                2f * (q.W * q.Z + q.X * q.Y),
-                1f - 2f * (q.Y * q.Y + q.Z * q.Z));
+            float yawRad = SimMath.ExtractYaw(tf.Rotation);
 
             float cosA = MathF.Cos(yawRad);
             float sinA = MathF.Sin(yawRad);
