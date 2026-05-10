@@ -46,7 +46,9 @@ using Hrot.Orchestrator.Panels;
 using Hrot.Presentation.Windows;
 using Hrot.Common.Orchestration.Handlers;
 using Hrot.Common.Diagnostics;
+using Hrot.Common.Constants;
 using Hrot.Common.Interactions;
+using Hrot.Common.Systems;
 using Hrot.Common.Scenario;
 using Hrot.Editor;
 using Hrot.Editor.Adapters;
@@ -182,6 +184,8 @@ namespace Hrot.Editor
         // ── Selection state ───────────────────────────────────────────────────────
 
         private DefaultSelectionState? _selectionState;
+        private Hrot.ScenarioEditor.Gizmos.RubberBandState? _rubberBandState;
+        private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
         // ── Behavior registry (promoted for tooltip rendering) ─────────────────
 
         private BehaviorRegistry? _behaviorRegistry;
@@ -564,14 +568,51 @@ namespace Hrot.Editor
                     view.GetComponentRO<SelectionState>(entity).IsSelected,
                 interactionBus: interactionBus);
             _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, interactionBus);
+            var actionRegistry = new GlobalActionRegistry();
+            actionRegistry.Register(GlobalActionIds.Rotate, (view, target) =>
+            {
+                if (target == Entity.Null) return;
+                if (!view.HasComponent<SimTransform>(target)) return;
+                _editorDataDrivenGizmoSystem!.DeactivateGizmo(target);
+                var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
+                    view, target, onRemove: () => _editorDataDrivenGizmoSystem!.DeactivateGizmo(target));
+                _editorDataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
+            });
+            actionRegistry.Register(GlobalActionIds.Measure, (_, _) =>
+            {
+                _world.Bus.PublishManaged(new ActivateEditorToolEvent(EditorTool.Measure));
+            });
+            actionRegistry.Register(GlobalActionIds.PlaceEntity, (_, _) =>
+            {
+                _world.Bus.PublishManaged(new ActivateEditorToolEvent(EditorTool.Spawn));
+            });
+
+            var contextIngress = new ContextActionIngressSystem(entityMap, interactionBus);
+            _rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
+            editorStatelessGizmoRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(_rubberBandState));
+            _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_world, interactionBus, _rubberBandState);
+            _selectionSystem.OnSelectionChanged += (entity, _) =>
+            {
+                if (entity == Entity.Null)
+                {
+                    if (_selectionState != null) _selectionState.PrimarySelected = null;
+                    _fdpInspectorState.SelectedEntity = null;
+                }
+                else if (_world.IsAlive(entity))
+                {
+                    if (_selectionState != null) _selectionState.PrimarySelected = entity;
+                    _fdpInspectorState.SelectedEntity = entity;
+                }
+            };
             // SpatialGridGizmo reads the SpatialGridData singleton -- register as a standalone system.
             _kernel.RegisterGlobalSystem(new Hrot.Common.Diagnostics.Gizmos.SpatialGridGizmo(_gizmoBuffer, new GizmoSettingsRegistry()));
 
             _kernel.RegisterModule(new GizmoInteractionModule(
                 interactionBus,
-                contextIngress: null,
+                contextIngress: contextIngress,
                 interactionSystems: new IEcsModuleSystem[]
                 {
+                    new GlobalActionDispatchSystem(actionRegistry, interactionBus),
                     _editorDataDrivenGizmoSystem,
                     _globalGizmoManager,
                     new StatelessGizmoSystem(editorStatelessGizmoRegistry, _gizmoBuffer),
@@ -731,7 +772,7 @@ namespace Hrot.Editor
                     .Build();
 
                 // Gizmo layer — renders entity presentation primitives produced locally by StatelessGizmoSystem.
-                _gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer!, interactionBus, _world);
+                _gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer!, interactionBus, _world, _canvas.Camera);
                 _canvas!.AddLayer(_gizmoLayer);
                 if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
 
@@ -786,6 +827,7 @@ namespace Hrot.Editor
             // Process input pipeline BEFORE kernel update so authored tools
             // (CreationTool, ObstaclePlacementTool, etc.) receive mouse events this frame.
             _canvas?.Update(deltaTime);
+            _selectionSystem?.Tick(deltaTime);
             // Update camera viewport so MapCullingModule knows what area is on-screen.
             if (_camera != null)
             {

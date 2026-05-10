@@ -233,7 +233,7 @@ namespace Hrot.SimHost
             // Gizmo debug overlay (GZ032).
             _gizmoBuffer = gizmoBuffer ?? new DebugPrimitiveBuffer();
             _globalGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_gizmoBuffer!);
-            _gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, interactionBus ?? repo.Bus, repo);
+            _gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, interactionBus ?? repo.Bus, repo, _map.Camera);
             _map.AddLayer(_gizmoLayer);
             _map.DrawBuffer = _gizmoBuffer;
             _interactionBus = interactionBus;

@@ -2,6 +2,7 @@ using System.Globalization;
 using Fdp.Core;
 using Fdp.Core.Logging;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Common.Events;
 
@@ -50,6 +51,21 @@ namespace Hrot.Common.Systems
                 _interactionBus.Publish(new GlobalActionRequestedEvent
                 {
                     ActionId = actionId,
+                    Target   = target,
+                });
+            }
+
+            // Offline/editor path: context-menu item clicks can arrive as unmanaged
+            // GizmoMenuActionEvent on the same interaction bus (no DDS ingress translator).
+            foreach (ref readonly var evt in _interactionBus.Read<GizmoMenuActionEvent>())
+            {
+                Entity target = Entity.Null;
+                if (evt.AnchorId > 0)
+                    _entityMap.TryGetEntity(evt.AnchorId, out target);
+
+                _interactionBus.Publish(new GlobalActionRequestedEvent
+                {
+                    ActionId = evt.ActionId,
                     Target   = target,
                 });
             }

@@ -1,3 +1,6 @@
+using Fdp.Core;
+using Hrot.Map.Definitions;
+
 namespace Hrot.IG.Components
 {
     /// <summary>
@@ -8,6 +11,7 @@ namespace Hrot.IG.Components
     /// variant). Read by <c>CanvasContextMenuGizmo</c>, which projects a
     /// <c>ContextMenuBinding</c> meta-primitive keyed by anchor ID <c>-1L</c>.</para>
     /// </summary>
+    [ComponentId(HrotComponentIds.CanvasContextMenuState)]
     public sealed class CanvasContextMenuState
     {
         public string MenuJson { get; set; } = string.Empty;

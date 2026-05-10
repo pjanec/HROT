@@ -1131,7 +1131,7 @@ public class IgApplication : IDisposable
         // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
         _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer!, _interactionBus);
         _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_globalGizmoManager, _gizmoSettingsRegistry);
-        var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer!, _interactionBus, _world);
+        var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer!, _interactionBus, _world, _canvas.Camera);
         _gizmoLayer = gizmoLayer;
         _canvas.AddLayer(gizmoLayer);
         _canvas.DrawBuffer = _gizmoBuffer;

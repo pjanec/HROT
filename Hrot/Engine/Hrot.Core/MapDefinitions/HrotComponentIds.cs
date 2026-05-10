@@ -94,5 +94,8 @@ namespace Hrot.Map.Definitions
 
         /// <summary><c>GlobalDebugSettings</c> — singleton struct controlling global gizmo visibility and layer mask for the IG subsystem.</summary>
         public const byte GlobalDebugSettings = 185;
+
+        /// <summary><c>CanvasContextMenuState</c> — managed singleton holding empty map space menus.</summary>
+        public const byte CanvasContextMenuState = 186;
     }
 }

@@ -18,7 +18,7 @@ namespace Hrot.Presentation.Systems
     /// Subsystem-specific variants can override by registering a different
     /// implementation without changing the architecture.</para>
     /// </summary>
-    [UpdateInPhase(SystemPhase.Simulation)]
+    [UpdateInPhase(SystemPhase.PostSimulation)]
     public class CanvasMenuUpdateSystem : IEcsModuleSystem
     {
         // Pre-serialized JSON: [{"id":200,"label":"Measurement Tool"}]
