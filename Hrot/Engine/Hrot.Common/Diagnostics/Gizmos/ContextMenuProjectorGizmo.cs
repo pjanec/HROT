@@ -7,6 +7,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Common.Constants;
 using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 
 namespace Hrot.Common.Diagnostics.Gizmos
 {
@@ -67,6 +68,30 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 new ContextMenuItemDto { Id = GlobalActionIds.Rotate,         Label = "Rotate",      Shortcut = "R" },
             }, SerializerOptions);
 
+        /// <summary>Menu for a tactical graphics area overlay.</summary>
+        private static readonly string MenuJsonArea = JsonSerializer.Serialize(
+            new ContextMenuItemDto[]
+            {
+                new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View",  Shortcut = "C" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",       Shortcut = "Space" },
+                new ContextMenuItemDto { IsSeparator = true },
+                new ContextMenuItemDto { Id = GlobalActionIds.EditOverlay,    Label = "Edit Shape",   Shortcut = "E" },
+                new ContextMenuItemDto { IsSeparator = true },
+                new ContextMenuItemDto { Id = GlobalActionIds.Delete,         Label = "Delete",       Style = "destructive" },
+            }, SerializerOptions);
+
+        /// <summary>Menu for a tactical route graphic.</summary>
+        private static readonly string MenuJsonRoute = JsonSerializer.Serialize(
+            new ContextMenuItemDto[]
+            {
+                new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View",  Shortcut = "C" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",       Shortcut = "Space" },
+                new ContextMenuItemDto { IsSeparator = true },
+                new ContextMenuItemDto { Id = GlobalActionIds.EditRoute,      Label = "Edit Route",   Shortcut = "E" },
+                new ContextMenuItemDto { IsSeparator = true },
+                new ContextMenuItemDto { Id = GlobalActionIds.Delete,         Label = "Delete",       Style = "destructive" },
+            }, SerializerOptions);
+
         // ---- IStatelessGizmo --------------------------------------------------
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
@@ -75,13 +100,26 @@ namespace Hrot.Common.Diagnostics.Gizmos
             long networkId = netId.Value;
             if (networkId == 0) return;
 
-            // Select the menu permutation based on health state when available.
-            string menuJson = MenuJsonHealthy;
-            if (view.HasComponent<IgHealthState>(entity))
+            string menuJson;
+
+            if (view.HasManagedComponent<EditablePolyline>(entity))
             {
-                ref readonly var health = ref view.GetComponentRO<IgHealthState>(entity);
-                if (health.Damage >= 50f)
-                    menuJson = MenuJsonDegraded;
+                menuJson = MenuJsonArea;
+            }
+            else if (view.HasManagedComponent<RoutePlan>(entity))
+            {
+                menuJson = MenuJsonRoute;
+            }
+            else
+            {
+                // Select the menu permutation based on health state when available.
+                menuJson = MenuJsonHealthy;
+                if (view.HasComponent<IgHealthState>(entity))
+                {
+                    ref readonly var health = ref view.GetComponentRO<IgHealthState>(entity);
+                    if (health.Damage >= 50f)
+                        menuJson = MenuJsonDegraded;
+                }
             }
 
             draw.DrawContextMenuBinding(networkId, menuJson);
