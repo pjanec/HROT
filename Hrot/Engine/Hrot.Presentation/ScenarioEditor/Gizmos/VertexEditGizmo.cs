@@ -19,7 +19,7 @@ namespace Hrot.ScenarioEditor.Gizmos
     // - RequiresExclusiveFocus = false: DebugGizmoLayer hit-tests Box2D handles and
     //   pushes GizmoInteractionProxyTool which routes Started/DragUpdate/Commit/Cancel.
     // - SubElementId = vertexIndex + 1 (0 is reserved as "no handle").
-    // - AnchorIndex / AnchorGeneration encode the ECS Entity (not BoxAnchorId).
+    // - AnchorIndex / AnchorGeneration encode the ECS Entity.
     // - OnCommit: writes back relative points to EditablePolyline, publishes UpdateEntityCommand.
     // - OnCancel: reverts the dragged vertex.
     // - OnMenuAction(1): insert a new vertex after the active one.
@@ -106,7 +106,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                 prim.SubElementId     = (ushort)(i + 1);
                 prim.AnchorIndex      = _entity.Index;
                 prim.AnchorGeneration = (ushort)_entity.Generation;
-                prim.InspNetworkId    = _networkId;
+                prim.BoxAnchorId      = _networkId;
                 draw.EmitRaw(in prim);
             }
         }

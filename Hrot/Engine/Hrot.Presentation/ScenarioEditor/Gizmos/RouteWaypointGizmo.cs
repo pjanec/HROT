@@ -122,7 +122,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                 prim.SubElementId     = (ushort)(i + 1);
                 prim.AnchorIndex      = _entity.Index;
                 prim.AnchorGeneration = (ushort)_entity.Generation;
-                prim.InspNetworkId    = _networkId;
+                prim.BoxAnchorId      = _networkId;
                 draw.EmitRaw(in prim);
             }
         }

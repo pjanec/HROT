@@ -34,12 +34,19 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             draw.DrawSpatialAnchor(networkId, tf.Position.X, tf.Position.Y, tf.Position.Z, headingDeg);
 
-            // Emit transparent pick sphere so DebugGizmoLayer can hit-test this entity for selection.
-            // EntityDragGizmo also emits this, but IgEntityPresentationGizmo is stateless (runs every
-            // entity without a full gizmo lifecycle), so both are needed for the IG path.
-            // Note: IgEntityPresentationGizmo is stateless; it cannot hold IsFocused state.
-            // The pick sphere radius must match EntityDragGizmo.PickRadius.
-            draw.DrawEntitySphere(entity, new Vector3(tf.Position.X, tf.Position.Y, 0f), 8f, new Rgba32(0, 0, 0, 0));
+            var pickBox = default(DebugPrimitive);
+            pickBox.Shape            = DebugPrimitiveShape.Box2D;
+            pickBox.Space            = CoordinateSpace.World;
+            pickBox.TargetView       = PipelineTarget.Map2D;
+            pickBox.BoxCenterX       = tf.Position.X;
+            pickBox.BoxCenterY       = tf.Position.Y;
+            pickBox.BoxExtentX       = 8f;
+            pickBox.BoxExtentY       = 8f;
+            pickBox.Color            = new Rgba32(0, 0, 0, 0);
+            pickBox.AnchorIndex      = entity.Index;
+            pickBox.AnchorGeneration = (ushort)entity.Generation;
+            pickBox.BoxAnchorId      = networkId;
+            draw.EmitRaw(in pickBox);
 
             // Compute condition mask from health state.
             uint conditionMask = 0u;

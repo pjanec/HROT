@@ -73,8 +73,24 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         ref readonly var tf = ref _view.GetComponentRO<SimTransform>(_entity);
         var worldPos = new Vector3(tf.Position.X, tf.Position.Y, 0f);
 
-        // Emit transparent pick sphere so DebugGizmoLayer can hit-test this entity.
-        draw.DrawEntitySphere(_entity, worldPos, PickRadius, PickSphereColor);
+        long networkId = 0;
+        if (_view.HasComponent<NetworkIdentity>(_entity))
+            networkId = _view.GetComponentRO<NetworkIdentity>(_entity).Value;
+
+        // Emit transparent Box2D so DebugGizmoLayer can hit-test this entity.
+        var pickBox = default(DebugPrimitive);
+        pickBox.Shape            = DebugPrimitiveShape.Box2D;
+        pickBox.Space            = CoordinateSpace.World;
+        pickBox.TargetView       = PipelineTarget.Map2D;
+        pickBox.BoxCenterX       = tf.Position.X;
+        pickBox.BoxCenterY       = tf.Position.Y;
+        pickBox.BoxExtentX       = PickRadius;
+        pickBox.BoxExtentY       = PickRadius;
+        pickBox.Color            = PickSphereColor;
+        pickBox.AnchorIndex      = _entity.Index;
+        pickBox.AnchorGeneration = (ushort)_entity.Generation;
+        pickBox.BoxAnchorId      = networkId;
+        draw.EmitRaw(in pickBox);
 
         // While dragging: show a yellow preview line from original to current position.
         if (_isDragging)
