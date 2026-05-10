@@ -58,6 +58,15 @@ namespace Fdp.Core
             return MathF.Atan2(forward.Y, forward.X);
         }
 
+        /// <summary>
+        /// Converts yaw in radians (0=east, +pi/2=north, CCW positive) to compass heading
+        /// in degrees (0=north, 90=east, clockwise positive), normalized to [0, 360).
+        /// </summary>
+        public static float YawRadToCompassDeg(float yawRad)
+        {
+            return ((90f - yawRad * (180f / MathF.PI)) % 360f + 360f) % 360f;
+        }
+
         // Named compass directions — eliminates magic numbers at call sites:
         public static readonly Quaternion FacingEast  = FromYaw(0f);
         public static readonly Quaternion FacingNorth = FromYaw(MathF.PI / 2f);

@@ -295,6 +295,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             float worldY,
             float worldZ,
             float headingDeg,
+            float pitchDeg = 0f,
+            float rollDeg = 0f,
             byte  layer = 0)
         {
             var p = default(DebugPrimitive);
@@ -306,6 +308,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.AnchorWorldY = worldY;
             p.AnchorWorldZ = worldZ;
             p.Heading      = headingDeg;
+            p.Pitch        = pitchDeg;
+            p.Roll         = rollDeg;
             Append(p);
         }
 

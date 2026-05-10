@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using GizmoMap.Presentation.Shapes;
 using Raylib_cs;
 
 namespace GizmoMap.Presentation
@@ -22,16 +23,16 @@ namespace GizmoMap.Presentation
     {
         private ushort _activeLayerMask = 0xFFFF;
 
-        private readonly ISemanticShapeProfileRegistry? _semanticRegistry;
+        private readonly IEntityShapeLibrary _shapeLibrary;
         private readonly ImGuiPropertyTreeAdapter _imGuiAdapter;
 
         private const float DegToRad = MathF.PI / 180f;
 
         public DebugPrimitiveRenderer2D(
-            ISemanticShapeProfileRegistry? semanticRegistry = null,
+            IEntityShapeLibrary? shapeLibrary = null,
             ImGuiPropertyTreeAdapter? imGuiAdapter = null)
         {
-            _semanticRegistry = semanticRegistry;
+            _shapeLibrary = shapeLibrary ?? new DefaultEntityShapeLibrary();
             _imGuiAdapter = imGuiAdapter ?? new ImGuiPropertyTreeAdapter();
         }
 
@@ -55,10 +56,12 @@ namespace GizmoMap.Presentation
                 {
                     anchors[prim.NetworkId] = new SpatialAnchorEntry
                     {
-                        X      = prim.AnchorWorldX,
-                        Y      = prim.AnchorWorldY,
-                        Z      = prim.AnchorWorldZ,
-                        YawRad = prim.Heading * DegToRad,
+                        X        = prim.AnchorWorldX,
+                        Y        = prim.AnchorWorldY,
+                        Z        = prim.AnchorWorldZ,
+                        YawRad   = prim.Heading * DegToRad,
+                        PitchRad = prim.Pitch * DegToRad,
+                        RollRad  = prim.Roll * DegToRad,
                     };
                 }
             }
@@ -132,10 +135,11 @@ namespace GizmoMap.Presentation
                         }
                         case DebugPrimitiveShape.SemanticShape:
                         {
-                            // Encode resolved world position in spare fields (Pitch=X, InspOffsetY=Y).
-                            // ProfileId, LengthMeters, WidthMeters, ConditionMask remain intact.
-                            resolved.Pitch       = entry.X;
-                            resolved.InspOffsetY = entry.Y;
+                            resolved.ResolvedWorldX = entry.X;
+                            resolved.ResolvedWorldY = entry.Y;
+                            resolved.ResolvedYawRad = entry.YawRad;
+                            resolved.ResolvedPitchRad = entry.PitchRad;
+                            resolved.ResolvedRollRad = entry.RollRad;
                             break;
                         }
                         default:
@@ -319,40 +323,39 @@ namespace GizmoMap.Presentation
 
                 case DebugPrimitiveShape.SemanticShape:
                 {
-                    // Resolved world position stored in Pitch (X) and InspOffsetY (Y).
-                    float worldX = prim.Pitch;
-                    float worldY = prim.InspOffsetY;
-                    float radius = prim.LengthMeters > 0f ? prim.LengthMeters : 5f;
+                    float worldX = prim.ResolvedWorldX;
+                    float worldY = prim.ResolvedWorldY;
+                    float yawRad = prim.ResolvedYawRad;
+                    float pitchRad = prim.ResolvedPitchRad;
+                    float rollRad = prim.ResolvedRollRad;
+                    float len = prim.LengthMeters > 0f ? prim.LengthMeters : 5f;
+                    float wid = prim.WidthMeters > 0f ? prim.WidthMeters : len * 0.5f;
 
-                    if (_semanticRegistry != null
-                        && _semanticRegistry.TryGetProfile(prim.ProfileId, out var profile))
+                    var profile = _shapeLibrary.GetShape(null, prim.ProfileId);
+                    if (profile != null && profile.Name != "_fallback")
                     {
-                        float len = profile.LengthMeters > 0f ? profile.LengthMeters : radius;
-                        float wid = profile.WidthMeters  > 0f ? profile.WidthMeters  : radius * 0.5f;
+                        var rotation = PresentationMath.FromYawPitchRoll(yawRad, pitchRad, rollRad);
+
+                        PerspectiveShapeRenderer.RenderShape(
+                            profile,
+                            new Vector2(worldX, worldY),
+                            rotation,
+                            len,
+                            wid,
+                            color,
+                            exaggerationCoefficient: 0.05f,
+                            visualScaleMultiplier: 1.0f,
+                            currentCondition: (EntityShapeCondition)prim.ConditionMask,
+                            zoom: zoom);
+                    }
+                    else
+                    {
                         var rect = new Rectangle(
                             worldX - len * geomScale * 0.5f,
                             worldY - wid * geomScale * 0.5f,
                             len * geomScale,
                             wid * geomScale);
-                        Raylib.DrawRectangleLinesEx(rect, 1f, color);
-
-                        // Bit 0 of ConditionMask = Damaged: draw a red X overlay.
-                        if ((prim.ConditionMask & 1u) != 0)
-                        {
-                            Raylib.DrawLineEx(
-                                new Vector2(rect.X, rect.Y),
-                                new Vector2(rect.X + rect.Width, rect.Y + rect.Height),
-                                1.5f, Color.Red);
-                            Raylib.DrawLineEx(
-                                new Vector2(rect.X + rect.Width, rect.Y),
-                                new Vector2(rect.X, rect.Y + rect.Height),
-                                1.5f, Color.Red);
-                        }
-                    }
-                    else
-                    {
-                        // Fallback: magenta outline circle.
-                        Raylib.DrawCircleLines((int)worldX, (int)worldY, radius * geomScale, Color.Magenta);
+                        Raylib.DrawRectangleLinesEx(rect, 1f, new Color((byte)255, (byte)0, (byte)255, color.A));
                     }
                     break;
                 }
@@ -524,5 +527,7 @@ namespace GizmoMap.Presentation
         public float Y;
         public float Z;
         public float YawRad;
+        public float PitchRad;
+        public float RollRad;
     }
 }

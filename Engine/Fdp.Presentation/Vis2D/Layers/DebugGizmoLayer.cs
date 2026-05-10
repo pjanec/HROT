@@ -39,13 +39,14 @@ namespace Fdp.Toolkit.Vis2D.Layers
             DebugPrimitiveBuffer buffer,
             FdpEventBus eventBus,
             Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D? renderer = null,
-            MapCamera? camera = null)
+            MapCamera? camera = null,
+            GizmoMap.Presentation.Shapes.IEntityShapeLibrary? shapeLibrary = null)
         {
             LayerBitIndex = layerBitIndex;
             _buffer = buffer;
             _eventBus = eventBus;
             _mapCamera = camera;
-            _renderer = renderer ?? new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D();
+            _renderer = renderer ?? new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(null, shapeLibrary);
             _innerTerminal = new GizmoMap.Presentation.DebugGizmoLayer(
                 new GizmoMap.Presentation.DebugPrimitiveRenderer2D());
         }
@@ -55,13 +56,14 @@ namespace Fdp.Toolkit.Vis2D.Layers
             DebugPrimitiveBuffer buffer,
             FdpEventBus eventBus,
             Fdp.ModuleHost.Abstractions.ISimulationView? view,
-            MapCamera? camera = null)
+            MapCamera? camera = null,
+            GizmoMap.Presentation.Shapes.IEntityShapeLibrary? shapeLibrary = null)
         {
             LayerBitIndex = layerBitIndex;
             _buffer = buffer;
             _eventBus = eventBus;
             _mapCamera = camera;
-            _renderer = new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(view);
+            _renderer = new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(view, shapeLibrary);
             _innerTerminal = new GizmoMap.Presentation.DebugGizmoLayer(
                 new GizmoMap.Presentation.DebugPrimitiveRenderer2D());
         }

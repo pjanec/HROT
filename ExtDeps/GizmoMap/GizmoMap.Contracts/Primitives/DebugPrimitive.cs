@@ -98,7 +98,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         [FieldOffset(32)] public float LengthMeters;    // overall platform length (0 = use profile default)
         [FieldOffset(36)] public float WidthMeters;     // overall platform width (0 = use profile default)
         [FieldOffset(40)] public uint  ConditionMask;   // EntityShapeCondition bitfield (e.g. Damaged, Firing)
-        // bytes 44-63 unused
+        [FieldOffset(44)] public float ResolvedWorldX;
+        [FieldOffset(48)] public float ResolvedWorldY;
+        [FieldOffset(52)] public float ResolvedYawRad;
+        [FieldOffset(56)] public float ResolvedPitchRad;
+        [FieldOffset(60)] public float ResolvedRollRad;
 
         // MilStd2525 payload: NATO symbol at a world position.
         // SidcCode aliases TextContent at offset 32 (same physical storage).

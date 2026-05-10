@@ -106,6 +106,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             float worldY,
             float worldZ,
             float headingDeg,
+            float pitchDeg = 0f,
+            float rollDeg = 0f,
             byte  layer = 0) { }
 
         /// <summary>
