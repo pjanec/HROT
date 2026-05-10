@@ -534,19 +534,20 @@ namespace Hrot.Editor
             _gizmoBuffer = new DebugPrimitiveBuffer();
             var editorGizmoRegistry = new GizmoRegistry();
             var editorStatelessGizmoRegistry = new StatelessGizmoRegistry();
+            var editorGizmoSettings = new GizmoSettingsRegistry();
             // Auto-register all [GizmoProjector]-decorated gizmos in Hrot.ScenarioEditor.Gizmos
             // (IgEntityPresentationGizmo, RouteGizmo, MapOverlayGizmo, EffectPresentationGizmo, ...).
             Hrot.ScenarioEditor.Gizmos.GizmoRegistrar.RegisterAll(
-                editorGizmoRegistry, editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
+                editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
             // Register gizmos from Hrot.Common.Diagnostics (SelectionHighlightGizmo, HealthBarGizmo, ...).
             Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar.RegisterAll(
-                editorGizmoRegistry, editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
+                editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
             // Register gizmos from Hrot.IG.Gizmos (EffectPresentationGizmo, ...).
             Hrot.IG.Gizmos.GizmoRegistrar.RegisterAll(
-                editorGizmoRegistry, editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
+                editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
             // Register CanvasContextMenuGizmo so empty-space right-click resolves through the binding pipeline.
             Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(
-                editorGizmoRegistry, editorStatelessGizmoRegistry, new GizmoSettingsRegistry());
+                editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
             // MissionPresentationGizmo requires IGeographicTransform — register manually.
             editorStatelessGizmoRegistry.Register(
                 new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(geoTransform),
@@ -604,9 +605,6 @@ namespace Hrot.Editor
                     _fdpInspectorState.SelectedEntity = entity;
                 }
             };
-            // SpatialGridGizmo reads the SpatialGridData singleton -- register as a standalone system.
-            _kernel.RegisterGlobalSystem(new Hrot.Common.Diagnostics.Gizmos.SpatialGridGizmo(_gizmoBuffer, new GizmoSettingsRegistry()));
-
             _kernel.RegisterModule(new GizmoInteractionModule(
                 interactionBus,
                 contextIngress: contextIngress,

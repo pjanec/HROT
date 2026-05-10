@@ -8,7 +8,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public const string ShowTilesKey  = "SpatialGrid.ShowTiles";
         public const string ShowCountsKey = "SpatialGrid.ShowCounts";
 
-        public static readonly GizmoSettingValue DefaultShowTiles  = GizmoSettingValue.From(false);
+        public static readonly GizmoSettingValue DefaultShowTiles  = GizmoSettingValue.From(true);
         public static readonly GizmoSettingValue DefaultShowCounts = GizmoSettingValue.From(false);
 
         public static void Register(GizmoSettingsRegistry settings)
