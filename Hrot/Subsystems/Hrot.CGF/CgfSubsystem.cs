@@ -433,12 +433,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _cgfInteractionBus = new Fdp.Core.FdpEventBus();
         _cgfGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_cgfGizmoBuffer, _cgfInteractionBus);
         var cgfStatelessRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.StatelessGizmoRegistry();
-        cgfStatelessRegistry.Register(
-            new Hrot.CGF.Gizmos.CgfEntityPresentationGizmo(),
-            new System.Type[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
         var cgfGizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
+        var cgfSettingsRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();
+        // Auto-register all [GizmoProjector]-decorated gizmos in Hrot.CGF.
+        Hrot.CGF.Gizmos.GizmoRegistrar.RegisterAll(cgfGizmoRegistry, cgfStatelessRegistry, cgfSettingsRegistry);
         // Register CanvasContextMenuGizmo for empty-space right-click context menus.
-        Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(cgfGizmoRegistry, cgfStatelessRegistry, new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry());
+        Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(cgfGizmoRegistry, cgfStatelessRegistry, cgfSettingsRegistry);
         _cgfDataDrivenGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
                 cgfGizmoRegistry, _cgfGizmoBuffer, isSelectedPredicate: null, interactionBus: _cgfInteractionBus);
         // Route gizmo interaction translators and publisher through the network factory
