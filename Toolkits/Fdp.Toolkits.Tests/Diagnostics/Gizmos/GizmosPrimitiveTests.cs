@@ -300,7 +300,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public void PayloadIsolation_SphereDoesNotCorruptHeader()
         {
             var p = DebugPrimitive.MakeSphere(
-                new Vector3(5, 6, 7), 3.0f, Rgba32.Green, PipelineTarget.Viewport3D, layer: 1);
+                new Vector3(5, 6, 7), 3.0f, Rgba32.Green, target: PipelineTarget.Viewport3D, layer: 1);
 
             Assert.Equal(DebugPrimitiveShape.Sphere,  p.Shape);
             Assert.Equal(Rgba32.Green,               p.Color);

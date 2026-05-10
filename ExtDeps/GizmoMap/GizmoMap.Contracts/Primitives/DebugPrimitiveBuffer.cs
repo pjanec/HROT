@@ -129,10 +129,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
         public void DrawSphere(
             Vector3 center, float radius, Rgba32 color,
+            float thickness = 0f,
+            SizeMode sizeMode = SizeMode.WorldMeters,
             PipelineTarget target = PipelineTarget.All,
             byte layer = 0)
         {
-            Append(DebugPrimitive.MakeSphere(center, radius, color, target, layer));
+            Append(DebugPrimitive.MakeSphere(center, radius, color, thickness, sizeMode, target, layer));
         }
 
         public void DrawArrow(

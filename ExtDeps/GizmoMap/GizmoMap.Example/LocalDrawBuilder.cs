@@ -44,10 +44,12 @@ namespace GizmoMap.Example
 
         public void DrawSphere(
             System.Numerics.Vector3 center, float radius, Rgba32 color,
+            float thickness = 0f,
+            SizeMode sizeMode = SizeMode.WorldMeters,
             PipelineTarget target = PipelineTarget.All,
             byte layer = 0)
         {
-            _buffer.DrawSphere(center, radius, color, target, layer);
+            _buffer.DrawSphere(center, radius, color, thickness, sizeMode, target, layer);
         }
 
         public void DrawArrow(

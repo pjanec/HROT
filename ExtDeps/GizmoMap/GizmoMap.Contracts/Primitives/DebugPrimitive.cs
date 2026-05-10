@@ -159,6 +159,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
         public static DebugPrimitive MakeSphere(
             Vector3 center, float radius, Rgba32 color,
+            float thickness = 0f,
+            SizeMode sizeMode = SizeMode.WorldMeters,
             PipelineTarget target = PipelineTarget.All,
             byte layer = 0)
         {
@@ -167,6 +169,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.Color        = color;
             p.TargetView   = target;
             p.DebugLayer   = layer;
+            p.SizeMode     = sizeMode;
+            p.ThicknessU16 = (ushort)(thickness * 10f);
             p.SphereCenter = center;
             p.SphereRadius = radius;
             return p;

@@ -34,6 +34,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
         private PickToken _interactionToken;
         private CoordinateSpace _interactionSpace;
         private bool _interactionDragActive;
+        private bool _backgroundDragActive;
         private Vector2 _lastHoverPos = new(float.NaN, float.NaN);
 
         public DebugGizmoLayer(int layerBitIndex = 31)
@@ -130,13 +131,14 @@ namespace Fdp.Toolkit.Vis2D.Layers
             }
 
             // Interaction mode: handle release events for commit/cancel.
-            if (!isPressed && _interactionToken.IsValid)
+            if (!isPressed && (_interactionToken.IsValid || _backgroundDragActive))
             {
                 if (button == MapMouseButton.Left)
                 {
-                    if (_interactionDragActive)
+                    if (_interactionDragActive || _backgroundDragActive)
                     {
                         _interactionDragActive = false;
+                        _backgroundDragActive  = false;
                         var token = _interactionToken;
                         var space = _interactionSpace;
                         _interactionToken = default;
@@ -150,7 +152,8 @@ namespace Fdp.Toolkit.Vis2D.Layers
                     else
                     {
                         var token = _interactionToken;
-                        _interactionToken = default;
+                        _interactionToken     = default;
+                        _backgroundDragActive = false;
                         _eventBus.Publish(new GizmoInteractionCancelEvent { Token = token });
                     }
                     return true;
@@ -158,8 +161,9 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 if (button == MapMouseButton.Right)
                 {
                     var token = _interactionToken;
-                    _interactionToken    = default;
+                    _interactionToken      = default;
                     _interactionDragActive = false;
+                    _backgroundDragActive  = false;
                     _eventBus.Publish(new GizmoInteractionCancelEvent { Token = token });
                     return true;
                 }
@@ -208,7 +212,15 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 return true;
             }
 
-            return false;
+            // No gizmo primitive hit: treat as background click and start a background drag
+            // so rubber-band selection can begin (SelectionInteractionSystem will handle it).
+            _backgroundDragActive = true;
+            _eventBus.Publish(new GizmoInteractionStartedEvent
+            {
+                Token    = default,
+                WorldPos = new Vector3(worldPos.X, worldPos.Y, 0f),
+            });
+            return true;
         }
 
         public void HandleHover(Vector2 mouseWorldPos)
@@ -216,7 +228,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
             if (_eventBus == null) return;
             if (Vector2.DistanceSquared(_lastHoverPos, mouseWorldPos) < 0.0001f) return;
             _lastHoverPos = mouseWorldPos;
-            if (_captureActive || _interactionToken.IsValid)
+            if (_captureActive || _interactionToken.IsValid || _backgroundDragActive)
             {
                 _eventBus.Publish(new GizmoDragUpdateEvent
                 {
@@ -229,7 +241,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         public bool HandleDrag(Vector2 worldPos, Vector2 delta)
         {
-            if (_interactionToken.IsValid)
+            if (_interactionToken.IsValid || _backgroundDragActive)
             {
                 _interactionDragActive = true;
                 return true; // Consume drag to prevent camera panning during interaction.
@@ -265,6 +277,24 @@ namespace Fdp.Toolkit.Vis2D.Layers
         internal bool TestHook_IsCaptureActive    => _captureActive;
         internal bool TestHook_IsInteractionActive => _interactionToken.IsValid;
 
+        /// <summary>
+        /// Returns the topmost interactive primitive (highest DebugLayer) within
+        /// hit-test range of <paramref name="worldPos"/>, or <see langword="null"/> if none.
+        /// </summary>
+        private DebugPrimitive? FindTopmostInteractivePrimitive(Vector2 worldPos)
+        {
+            var frame = _buffer!.GetFrame();
+            DebugPrimitive? best = null;
+            foreach (ref readonly var prim in frame)
+            {
+                if (!prim.GetPickToken().IsValid) continue;
+                if (!HitTest(in prim, worldPos, HitRadiusWorld)) continue;
+                if (best == null || prim.DebugLayer > best.Value.DebugLayer)
+                    best = prim;
+            }
+            return best;
+        }
+
         private bool HandleRightClick(Vector2 worldPos)
         {
             var frame = _buffer!.GetFrame();
@@ -278,18 +308,13 @@ namespace Fdp.Toolkit.Vis2D.Layers
                     menuBindings[prim.InspNetworkId] = prim.StringHash;
             }
 
-            // Hit-test Box2D primitives and schedule the context menu when the entity
-            // has a registered menu binding.
-            foreach (ref readonly var prim in frame)
+            // Find the topmost interactive primitive under the cursor.
+            var hit = FindTopmostInteractivePrimitive(worldPos);
+
+            if (hit.HasValue)
             {
-                if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
-                if (prim.SubElementId == 0) continue;
-                if (!HitTest(in prim, worldPos, HitRadiusWorld)) continue;
-
-                long entityId = prim.InspNetworkId;
-                if (entityId == 0) continue;
-
-                if (menuBindings.TryGetValue(entityId, out uint menuHash))
+                long entityId = hit.Value.InspNetworkId;
+                if (entityId != 0 && menuBindings.TryGetValue(entityId, out uint menuHash))
                 {
                     string? json = _buffer.InternMap.TryResolve(menuHash);
                     if (json != null)
@@ -297,13 +322,16 @@ namespace Fdp.Toolkit.Vis2D.Layers
                         _contextMenuAdapter.Schedule(entityId, json);
                         return true;
                     }
-                    // JSON not yet in InternMap (first frame before StringInternBatch
-                    // arrives). Silently ignore; the menu appears on the next right-click.
                 }
-                break;
             }
 
-            return false;
+            // No DDS menu found: publish GizmoContextMenuRequestedEvent for the app shell.
+            _eventBus?.Publish(new GizmoContextMenuRequestedEvent
+            {
+                Token     = hit.HasValue ? hit.Value.GetPickToken() : default,
+                ScreenPos = worldPos,
+            });
+            return true;
         }
 
         /// <summary>

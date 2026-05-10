@@ -202,7 +202,19 @@ namespace GizmoMap.Presentation
                 case DebugPrimitiveShape.Sphere:
                 {
                     var center = new Vector2(prim.SphereCenter.X, prim.SphereCenter.Y);
-                    Raylib.DrawCircleV(center, prim.SphereRadius * geomScale, color);
+                    float scaledRadius = prim.SphereRadius * geomScale;
+                    if (prim.Thickness > 0f)
+                    {
+                        float scaledThickness = prim.SizeMode == SizeMode.ScreenPixels
+                            ? prim.Thickness / zoom
+                            : prim.Thickness;
+                        float innerRadius = Math.Max(0f, scaledRadius - scaledThickness);
+                        Raylib.DrawRing(center, innerRadius, scaledRadius, 0f, 360f, 32, color);
+                    }
+                    else
+                    {
+                        Raylib.DrawCircleV(center, scaledRadius, color);
+                    }
                     break;
                 }
 

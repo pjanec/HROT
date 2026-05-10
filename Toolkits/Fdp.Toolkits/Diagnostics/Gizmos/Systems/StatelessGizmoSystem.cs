@@ -28,6 +28,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly IDebugDrawBuilder _drawBuilder;
         private readonly Func<ISimulationView, Entity, bool>? _isSelectedPredicate;
         private readonly bool[] _globalVisibilityCache;
+        private readonly bool[] _globalRulesVisibilityCache;
 
         /// <summary>Max wall-clock budget in ms for entity iteration. 0 = unlimited.</summary>
         public float MaxGizmoFrameMs { get; set; } = 0f;
@@ -42,10 +43,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             IDebugDrawBuilder drawBuilder,
             Func<ISimulationView, Entity, bool>? isSelectedPredicate = null)
         {
-            _registry              = registry    ?? throw new ArgumentNullException(nameof(registry));
-            _drawBuilder           = drawBuilder ?? throw new ArgumentNullException(nameof(drawBuilder));
-            _isSelectedPredicate   = isSelectedPredicate;
-            _globalVisibilityCache = new bool[registry.Rules.Count];
+            _registry                   = registry    ?? throw new ArgumentNullException(nameof(registry));
+            _drawBuilder                = drawBuilder ?? throw new ArgumentNullException(nameof(drawBuilder));
+            _isSelectedPredicate        = isSelectedPredicate;
+            _globalVisibilityCache      = new bool[registry.Rules.Count];
+            _globalRulesVisibilityCache = new bool[registry.GlobalRules.Count];
         }
 
         // ---- IEcsModuleSystem -------------------------------------------------------
@@ -59,6 +61,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
             var rules = _registry.Rules;
             int ruleCount = rules.Count;
+
+            // Evaluate and dispatch global (entity-less) rules first.
+            var globalRules = _registry.GlobalRules;
+            int globalRuleCount = globalRules.Count;
+            for (int g = 0; g < globalRuleCount && g < _globalRulesVisibilityCache.Length; g++)
+                _globalRulesVisibilityCache[g] = globalRules[g].VisibilityPolicy.IsGloballyEnabled(view);
+
+            for (int g = 0; g < globalRuleCount; g++)
+            {
+                if (!_globalRulesVisibilityCache[g]) continue;
+                globalRules[g].Projector.Draw(view, _drawBuilder);
+            }
 
             // Pre-evaluate global visibility once per rule, not once per entity.
             for (int r = 0; r < ruleCount && r < _globalVisibilityCache.Length; r++)

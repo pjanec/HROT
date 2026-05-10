@@ -23,8 +23,8 @@ namespace Fdp.Toolkit.Diagnostics.Analyzers
 
         private static readonly DiagnosticDescriptor FDP002_NotStateless = new DiagnosticDescriptor(
             id:               "FDP_002",
-            title:            "GizmoProjector class must implement IStatelessGizmo",
-            messageFormat:    "Type '{0}' is decorated with [GizmoProjector] but does not implement IStatelessGizmo and was not registered.",
+            title:            "GizmoProjector class must implement IStatelessGizmo or IGlobalStatelessGizmo",
+            messageFormat:    "Type '{0}' is decorated with [GizmoProjector] but does not implement IStatelessGizmo or IGlobalStatelessGizmo and was not registered.",
             category:         "Fdp.Gizmos",
             defaultSeverity:  DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
@@ -61,6 +61,8 @@ namespace Fdp.Toolkit.Diagnostics.Analyzers
                 "Fdp.Toolkit.Diagnostics.Gizmos.GizmoProjectorAttribute");
             INamedTypeSymbol? statelessGizmoType = compilation.GetTypeByMetadataName(
                 "Fdp.Toolkit.Diagnostics.Gizmos.IStatelessGizmo");
+            INamedTypeSymbol? globalGizmoType = compilation.GetTypeByMetadataName(
+                "Fdp.Toolkit.Diagnostics.Gizmos.IGlobalStatelessGizmo");
             INamedTypeSymbol? settingsRegistryType = compilation.GetTypeByMetadataName(
                 "Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry");
 
@@ -80,9 +82,10 @@ namespace Fdp.Toolkit.Diagnostics.Analyzers
                     a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, gizmoProjectorAttr));
                 if (attr == null) continue;
 
-                // Must implement IStatelessGizmo.
-                if (statelessGizmoType != null &&
-                    !ImplementsInterface(classSymbol, statelessGizmoType))
+                // Must implement IStatelessGizmo or IGlobalStatelessGizmo.
+                bool isStateless = statelessGizmoType != null && ImplementsInterface(classSymbol, statelessGizmoType);
+                bool isGlobal    = globalGizmoType    != null && ImplementsInterface(classSymbol, globalGizmoType);
+                if (!isStateless && !isGlobal)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         FDP002_NotStateless,
@@ -127,7 +130,7 @@ namespace Fdp.Toolkit.Diagnostics.Analyzers
                     list = new List<GizmoEntry>();
                     groups[ns] = list;
                 }
-                list.Add(new GizmoEntry(classSymbol.ToDisplayString(), requiresSettings, componentTypeNames));
+                list.Add(new GizmoEntry(classSymbol.ToDisplayString(), requiresSettings, componentTypeNames, isGlobal));
             }
 
             // Emit one source file per namespace group.
@@ -170,13 +173,20 @@ namespace Fdp.Toolkit.Diagnostics.Analyzers
             foreach (var entry in entries)
             {
                 string ctorArgs = entry.RequiresSettings ? "settings" : string.Empty;
-                sb.Append($"            statelessRegistry.Register(new {entry.FullTypeName}({ctorArgs}),");
-                sb.AppendLine();
-                sb.AppendLine($"                new Type[]");
-                sb.AppendLine("                {");
-                foreach (var comp in entry.ComponentTypeNames)
-                    sb.AppendLine($"                    typeof({comp}),");
-                sb.AppendLine("                });");
+                if (entry.IsGlobal)
+                {
+                    sb.AppendLine($"            statelessRegistry.RegisterGlobal(new {entry.FullTypeName}({ctorArgs}));");
+                }
+                else
+                {
+                    sb.Append($"            statelessRegistry.Register(new {entry.FullTypeName}({ctorArgs}),");
+                    sb.AppendLine();
+                    sb.AppendLine($"                new Type[]");
+                    sb.AppendLine("                {");
+                    foreach (var comp in entry.ComponentTypeNames)
+                        sb.AppendLine($"                    typeof({comp}),");
+                    sb.AppendLine("                });");
+                }
             }
 
             sb.AppendLine("        }");
@@ -192,12 +202,14 @@ namespace Fdp.Toolkit.Diagnostics.Analyzers
             public string FullTypeName { get; }
             public bool RequiresSettings { get; }
             public List<string> ComponentTypeNames { get; }
+            public bool IsGlobal { get; }
 
-            public GizmoEntry(string fullTypeName, bool requiresSettings, List<string> componentTypeNames)
+            public GizmoEntry(string fullTypeName, bool requiresSettings, List<string> componentTypeNames, bool isGlobal = false)
             {
                 FullTypeName       = fullTypeName;
                 RequiresSettings   = requiresSettings;
                 ComponentTypeNames = componentTypeNames;
+                IsGlobal           = isGlobal;
             }
         }
     }

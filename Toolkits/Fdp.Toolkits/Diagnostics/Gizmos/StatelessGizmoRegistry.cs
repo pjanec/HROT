@@ -20,17 +20,33 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     }
 
     /// <summary>
+    /// A compiled global gizmo rule: the projector and the visibility policy.
+    /// Global rules run once per frame without any entity context. Internal so that only the
+    /// gizmo systems (and tests via InternalsVisibleTo) can read it.
+    /// </summary>
+    internal struct CompiledGlobalRule
+    {
+        public IGlobalStatelessGizmo Projector;
+        public IGizmoVisibilityPolicy VisibilityPolicy;
+    }
+
+    /// <summary>
     /// Startup-time registry of all stateless gizmo projectors.
     /// <see cref="Register"/> must only be called during application initialisation,
     /// before the first ECS frame tick. Not thread-safe.
     /// </summary>
     public sealed class StatelessGizmoRegistry
     {
-        private readonly List<CompiledStatelessRule> _rules = new List<CompiledStatelessRule>();
+        private readonly List<CompiledStatelessRule> _rules      = new List<CompiledStatelessRule>();
+        private readonly List<CompiledGlobalRule>    _globalRules = new List<CompiledGlobalRule>();
 
         /// <summary>Read-only view of all compiled rules, in registration order.
         /// Internal: consumed by <see cref="Systems.StatelessGizmoSystem"/> in the same assembly.</summary>
         internal IReadOnlyList<CompiledStatelessRule> Rules => _rules;
+
+        /// <summary>Read-only view of all compiled global rules, in registration order.
+        /// Internal: consumed by <see cref="Systems.StatelessGizmoSystem"/> in the same assembly.</summary>
+        internal IReadOnlyList<CompiledGlobalRule> GlobalRules => _globalRules;
 
         /// <summary>
         /// Compiles a stateless projector and adds it to the registry.
@@ -70,6 +86,23 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 RequiredMask     = mask,
                 VisibilityPolicy = visibilityPolicy ?? AlwaysVisiblePolicy.Instance,
                 RuleIndex        = _rules.Count,
+            });
+        }
+
+        /// <summary>
+        /// Registers a global gizmo projector that runs once per frame with no entity context.
+        /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="projector"/> is null.</exception>
+        public void RegisterGlobal(
+            IGlobalStatelessGizmo projector,
+            IGizmoVisibilityPolicy? visibilityPolicy = null)
+        {
+            if (projector == null) throw new ArgumentNullException(nameof(projector));
+
+            _globalRules.Add(new CompiledGlobalRule
+            {
+                Projector        = projector,
+                VisibilityPolicy = visibilityPolicy ?? AlwaysVisiblePolicy.Instance,
             });
         }
     }
