@@ -65,6 +65,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         [FieldOffset(48)] public float ArrowHeadSize;
         // SubElementId: used by interactive EntityLocal primitives to distinguish handles.
         [FieldOffset(52)] public ushort SubElementId;
+        [FieldOffset(54)] public LineStyle LineStyle;
+        [FieldOffset(56)] public Rgba32 FillColor;
 
         // Text payload: 2D position at 24/28, content at 32 (ends at 64 exactly)
         [FieldOffset(24)] public float TextX;
@@ -142,12 +144,14 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             float thickness = 1f,
             SizeMode sizeMode = SizeMode.ScreenPixels,
             PipelineTarget target = PipelineTarget.All,
-            byte layer = 0)
+            byte layer = 0,
+            LineStyle style = LineStyle.Solid)
         {
             var p = default(DebugPrimitive);
             p.Shape        = DebugPrimitiveShape.Line;
             p.Color        = color;
             p.EndColor     = color;      // solid line: end == start color
+            p.LineStyle    = style;
             p.TargetView   = target;
             p.DebugLayer   = layer;
             p.SizeMode     = sizeMode;
@@ -162,17 +166,53 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             float thickness = 0f,
             SizeMode sizeMode = SizeMode.WorldMeters,
             PipelineTarget target = PipelineTarget.All,
-            byte layer = 0)
+            byte layer = 0,
+            Rgba32 fillColor = default,
+            LineStyle style = LineStyle.Solid)
         {
             var p = default(DebugPrimitive);
             p.Shape        = DebugPrimitiveShape.Sphere;
             p.Color        = color;
+            p.FillColor    = fillColor;
+            p.LineStyle    = style;
             p.TargetView   = target;
             p.DebugLayer   = layer;
             p.SizeMode     = sizeMode;
             p.ThicknessU16 = (ushort)(thickness * 10f);
             p.SphereCenter = center;
             p.SphereRadius = radius;
+            return p;
+        }
+
+        public static DebugPrimitive MakeBox2D(
+            Vector2 center, Vector2 extents, Rgba32 color,
+            float angleDeg = 0f,
+            float thickness = 1f,
+            SizeMode sizeMode = SizeMode.ScreenPixels,
+            PipelineTarget target = PipelineTarget.All,
+            byte layer = 0,
+            Rgba32 fillColor = default,
+            LineStyle style = LineStyle.Solid,
+            long anchorId = 0,
+            ushort subElementId = 0)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape = DebugPrimitiveShape.Box2D;
+            p.Space = CoordinateSpace.World;
+            p.Color = color;
+            p.FillColor = fillColor;
+            p.LineStyle = style;
+            p.TargetView = target;
+            p.DebugLayer = layer;
+            p.SizeMode = sizeMode;
+            p.ThicknessU16 = (ushort)(thickness * 10f);
+            p.BoxCenterX = center.X;
+            p.BoxCenterY = center.Y;
+            p.BoxExtentX = extents.X;
+            p.BoxExtentY = extents.Y;
+            p.BoxAngleDeg = angleDeg;
+            p.BoxAnchorId = anchorId;
+            p.SubElementId = subElementId;
             return p;
         }
 

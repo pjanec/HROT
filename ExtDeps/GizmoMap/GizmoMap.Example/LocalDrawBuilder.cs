@@ -31,6 +31,13 @@ namespace GizmoMap.Example
             _buffer.DrawLine(start, end, color, thickness, sizeMode, target, layer);
         }
 
+        public void DrawLine(
+            System.Numerics.Vector3 start, System.Numerics.Vector3 end, Rgba32 color,
+            float thickness, SizeMode sizeMode, PipelineTarget target, byte layer, LineStyle style)
+        {
+            _buffer.DrawLine(start, end, color, thickness, sizeMode, target, layer, style);
+        }
+
         public void DrawLineGradient(
             System.Numerics.Vector3 start, System.Numerics.Vector3 end,
             Rgba32 startColor, Rgba32 endColor,
@@ -42,6 +49,14 @@ namespace GizmoMap.Example
             _buffer.DrawLineGradient(start, end, startColor, endColor, thickness, sizeMode, target, layer);
         }
 
+        public void DrawLineGradient(
+            System.Numerics.Vector3 start, System.Numerics.Vector3 end,
+            Rgba32 startColor, Rgba32 endColor,
+            float thickness, SizeMode sizeMode, PipelineTarget target, byte layer, LineStyle style)
+        {
+            _buffer.DrawLineGradient(start, end, startColor, endColor, thickness, sizeMode, target, layer, style);
+        }
+
         public void DrawSphere(
             System.Numerics.Vector3 center, float radius, Rgba32 color,
             float thickness = 0f,
@@ -50,6 +65,28 @@ namespace GizmoMap.Example
             byte layer = 0)
         {
             _buffer.DrawSphere(center, radius, color, thickness, sizeMode, target, layer);
+        }
+
+        public void DrawSphere(
+            System.Numerics.Vector3 center, float radius, Rgba32 color,
+            float thickness, SizeMode sizeMode, PipelineTarget target, byte layer, Rgba32 fillColor, LineStyle style)
+        {
+            _buffer.DrawSphere(center, radius, color, thickness, sizeMode, target, layer, fillColor, style);
+        }
+
+        public void DrawBox2D(
+            System.Numerics.Vector2 center, System.Numerics.Vector2 extents, Rgba32 color,
+            float angleDeg = 0f,
+            float thickness = 1f,
+            SizeMode sizeMode = SizeMode.ScreenPixels,
+            PipelineTarget target = PipelineTarget.All,
+            byte layer = 0,
+            Rgba32 fillColor = default,
+            LineStyle style = LineStyle.Solid,
+            long anchorId = 0,
+            ushort subElementId = 0)
+        {
+            _buffer.DrawBox2D(center, extents, color, angleDeg, thickness, sizeMode, target, layer, fillColor, style, anchorId, subElementId);
         }
 
         public void DrawArrow(

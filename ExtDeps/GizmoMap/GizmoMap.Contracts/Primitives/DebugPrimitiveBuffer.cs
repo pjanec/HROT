@@ -115,6 +115,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             Append(DebugPrimitive.MakeLine(start, end, color, thickness, sizeMode, target, layer));
         }
 
+        public void DrawLine(
+            Vector3 start, Vector3 end, Rgba32 color,
+            float thickness,
+            SizeMode sizeMode,
+            PipelineTarget target,
+            byte layer,
+            LineStyle style)
+        {
+            Append(DebugPrimitive.MakeLine(start, end, color, thickness, sizeMode, target, layer, style));
+        }
+
         public void DrawLineGradient(
             Vector3 start, Vector3 end, Rgba32 startColor, Rgba32 endColor,
             float thickness = 1f,
@@ -127,6 +138,19 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             Append(p);
         }
 
+        public void DrawLineGradient(
+            Vector3 start, Vector3 end, Rgba32 startColor, Rgba32 endColor,
+            float thickness,
+            SizeMode sizeMode,
+            PipelineTarget target,
+            byte layer,
+            LineStyle style)
+        {
+            var p = DebugPrimitive.MakeLine(start, end, startColor, thickness, sizeMode, target, layer, style);
+            p.EndColor = endColor;
+            Append(p);
+        }
+
         public void DrawSphere(
             Vector3 center, float radius, Rgba32 color,
             float thickness = 0f,
@@ -135,6 +159,33 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             byte layer = 0)
         {
             Append(DebugPrimitive.MakeSphere(center, radius, color, thickness, sizeMode, target, layer));
+        }
+
+        public void DrawSphere(
+            Vector3 center, float radius, Rgba32 color,
+            float thickness,
+            SizeMode sizeMode,
+            PipelineTarget target,
+            byte layer,
+            Rgba32 fillColor,
+            LineStyle style)
+        {
+            Append(DebugPrimitive.MakeSphere(center, radius, color, thickness, sizeMode, target, layer, fillColor, style));
+        }
+
+        public void DrawBox2D(
+            Vector2 center, Vector2 extents, Rgba32 color,
+            float angleDeg = 0f,
+            float thickness = 1f,
+            SizeMode sizeMode = SizeMode.ScreenPixels,
+            PipelineTarget target = PipelineTarget.All,
+            byte layer = 0,
+            Rgba32 fillColor = default,
+            LineStyle style = LineStyle.Solid,
+            long anchorId = 0,
+            ushort subElementId = 0)
+        {
+            Append(DebugPrimitive.MakeBox2D(center, extents, color, angleDeg, thickness, sizeMode, target, layer, fillColor, style, anchorId, subElementId));
         }
 
         public void DrawArrow(

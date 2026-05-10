@@ -175,9 +175,12 @@ namespace GizmoMap.Presentation
             var color = ToRaylibColor(prim.Color);
 
             float geomScale = prim.SizeMode == SizeMode.ScreenPixels ? 1f / zoom : 1f;
+            // Interpret zero payload thickness as a standard 1-unit stroke so
+            // default(DebugPrimitive) or EmitRaw paths still render visibly.
+            float baseThickness = prim.ThicknessU16 > 0 ? prim.ThicknessU16 / 10f : 1f;
             float thickness = prim.SizeMode == SizeMode.ScreenPixels
-                ? prim.Thickness / zoom
-                : prim.Thickness;
+                ? baseThickness / zoom
+                : baseThickness;
 
             bool screenSpace = prim.Space == CoordinateSpace.Screen;
             if (screenSpace) Raylib.EndMode2D();
@@ -188,12 +191,15 @@ namespace GizmoMap.Presentation
                 {
                     var start = new Vector2(prim.LineStart.X, prim.LineStart.Y);
                     var end   = new Vector2(prim.LineEnd.X,   prim.LineEnd.Y);
+                    var endColor = ToRaylibColor(prim.EndColor);
                     bool gradient = prim.EndColor.R != prim.Color.R
                                  || prim.EndColor.G != prim.Color.G
                                  || prim.EndColor.B != prim.Color.B
                                  || prim.EndColor.A != prim.Color.A;
-                    if (gradient)
-                        DrawGradientLine(start, end, thickness, color, ToRaylibColor(prim.EndColor));
+                    if (prim.LineStyle == LineStyle.Dashed || prim.LineStyle == LineStyle.Dotted)
+                        DrawStyledLineGradient(start, end, thickness, color, endColor, prim.LineStyle, geomScale);
+                    else if (gradient)
+                        DrawGradientLine(start, end, thickness, color, endColor);
                     else
                         Raylib.DrawLineEx(start, end, thickness, color);
                     break;
@@ -203,17 +209,34 @@ namespace GizmoMap.Presentation
                 {
                     var center = new Vector2(prim.SphereCenter.X, prim.SphereCenter.Y);
                     float scaledRadius = prim.SphereRadius * geomScale;
-                    if (prim.Thickness > 0f)
+                    bool hasExplicitFill = prim.FillColor.A > 0;
+                    bool legacyFill = prim.FillColor.A == 0 && prim.ThicknessU16 == 0 && color.A > 0;
+                    if (hasExplicitFill || legacyFill)
                     {
-                        float scaledThickness = prim.SizeMode == SizeMode.ScreenPixels
-                            ? prim.Thickness / zoom
-                            : prim.Thickness;
-                        float innerRadius = Math.Max(0f, scaledRadius - scaledThickness);
-                        Raylib.DrawRing(center, innerRadius, scaledRadius, 0f, 360f, 32, color);
+                        var fillColor = hasExplicitFill ? ToRaylibColor(prim.FillColor) : color;
+                        Raylib.DrawCircleV(center, scaledRadius, fillColor);
                     }
-                    else
+                    if (baseThickness > 0f)
                     {
-                        Raylib.DrawCircleV(center, scaledRadius, color);
+                        float scaledThickness = thickness;
+                        if (prim.LineStyle == LineStyle.Solid)
+                        {
+                            float innerRadius = Math.Max(0f, scaledRadius - scaledThickness);
+                            Raylib.DrawRing(center, innerRadius, scaledRadius, 0f, 360f, 32, color);
+                        }
+                        else
+                        {
+                            int segments = Math.Max(16, (int)(scaledRadius * 2f));
+                            float step = (MathF.PI * 2f) / segments;
+                            for (int i = 0; i < segments; i++)
+                            {
+                                float a0 = i * step;
+                                float a1 = (i + 1) * step;
+                                var p0 = center + new Vector2(MathF.Cos(a0), MathF.Sin(a0)) * scaledRadius;
+                                var p1 = center + new Vector2(MathF.Cos(a1), MathF.Sin(a1)) * scaledRadius;
+                                DrawStyledLine(p0, p1, scaledThickness, color, prim.LineStyle, geomScale);
+                            }
+                        }
                     }
                     break;
                 }
@@ -237,7 +260,31 @@ namespace GizmoMap.Presentation
                         prim.BoxExtentY * 2f * geomScale);
         
                     var origin = new Vector2(prim.BoxExtentX * geomScale, prim.BoxExtentY * geomScale);
-                    Raylib.DrawRectanglePro(rect, origin, prim.BoxAngleDeg, color);
+                    bool hasExplicitFill = prim.FillColor.A > 0;
+                    bool legacyFill = prim.FillColor.A == 0 && prim.ThicknessU16 == 0 && color.A > 0;
+                    if (hasExplicitFill || legacyFill)
+                    {
+                        var fillColor = hasExplicitFill ? ToRaylibColor(prim.FillColor) : color;
+                        Raylib.DrawRectanglePro(rect, origin, prim.BoxAngleDeg, fillColor);
+                    }
+
+                    if (thickness > 0f && color.A > 0)
+                    {
+                        float ex = prim.BoxExtentX * geomScale;
+                        float ey = prim.BoxExtentY * geomScale;
+                        float angleRad = prim.BoxAngleDeg * DegToRad;
+                        float cos = MathF.Cos(angleRad);
+                        float sin = MathF.Sin(angleRad);
+                        var c = new Vector2(prim.BoxCenterX, prim.BoxCenterY);
+                        var tl = c + new Vector2(-ex * cos + ey * sin, -ex * sin - ey * cos);
+                        var tr = c + new Vector2( ex * cos + ey * sin,  ex * sin - ey * cos);
+                        var br = c + new Vector2( ex * cos - ey * sin,  ex * sin + ey * cos);
+                        var bl = c + new Vector2(-ex * cos - ey * sin, -ex * sin + ey * cos);
+                        DrawStyledLine(tl, tr, thickness, color, prim.LineStyle, geomScale);
+                        DrawStyledLine(tr, br, thickness, color, prim.LineStyle, geomScale);
+                        DrawStyledLine(br, bl, thickness, color, prim.LineStyle, geomScale);
+                        DrawStyledLine(bl, tl, thickness, color, prim.LineStyle, geomScale);
+                    }
                     break;
                 }
 
@@ -384,6 +431,70 @@ namespace GizmoMap.Presentation
             var baseR = to - unit * headSize - perp * (headSize * 0.4f);
 
             Raylib.DrawTriangle(tip, baseL, baseR, color);
+        }
+
+        private static void DrawStyledLine(
+            Vector2 start, Vector2 end, float thickness, Color color, LineStyle style, float geomScale)
+        {
+            if (style == LineStyle.Solid)
+            {
+                Raylib.DrawLineEx(start, end, thickness, color);
+                return;
+            }
+
+            float dashLen = style == LineStyle.Dashed ? 8f * geomScale : 3f * geomScale;
+            float gapLen  = style == LineStyle.Dashed ? 8f * geomScale : 4f * geomScale;
+            var dir = end - start;
+            float totalDist = dir.Length();
+            if (totalDist < float.Epsilon) return;
+            var normDir = dir / totalDist;
+            float currentDist = 0f;
+            while (currentDist < totalDist)
+            {
+                float segEndDist = Math.Min(currentDist + dashLen, totalDist);
+                var segStart = start + normDir * currentDist;
+                var segEnd = start + normDir * segEndDist;
+                Raylib.DrawLineEx(segStart, segEnd, thickness, color);
+                currentDist += dashLen + gapLen;
+            }
+        }
+
+        private static void DrawStyledLineGradient(
+            Vector2 start, Vector2 end, float thickness, Color startColor, Color endColor, LineStyle style, float geomScale)
+        {
+            if (style == LineStyle.Solid)
+            {
+                DrawGradientLine(start, end, thickness, startColor, endColor);
+                return;
+            }
+
+            float dashLen = style == LineStyle.Dashed ? 8f * geomScale : 3f * geomScale;
+            float gapLen  = style == LineStyle.Dashed ? 8f * geomScale : 4f * geomScale;
+            var dir = end - start;
+            float totalDist = dir.Length();
+            if (totalDist < float.Epsilon) return;
+            var normDir = dir / totalDist;
+            float currentDist = 0f;
+            while (currentDist < totalDist)
+            {
+                float segEndDist = Math.Min(currentDist + dashLen, totalDist);
+                float t0 = currentDist / totalDist;
+                float t1 = segEndDist / totalDist;
+                var segStart = start + normDir * currentDist;
+                var segEnd = start + normDir * segEndDist;
+                var segStartCol = new Color(
+                    (byte)(startColor.R + (endColor.R - startColor.R) * t0),
+                    (byte)(startColor.G + (endColor.G - startColor.G) * t0),
+                    (byte)(startColor.B + (endColor.B - startColor.B) * t0),
+                    (byte)(startColor.A + (endColor.A - startColor.A) * t0));
+                var segEndCol = new Color(
+                    (byte)(startColor.R + (endColor.R - startColor.R) * t1),
+                    (byte)(startColor.G + (endColor.G - startColor.G) * t1),
+                    (byte)(startColor.B + (endColor.B - startColor.B) * t1),
+                    (byte)(startColor.A + (endColor.A - startColor.A) * t1));
+                DrawGradientLine(segStart, segEnd, thickness, segStartCol, segEndCol);
+                currentDist += dashLen + gapLen;
+            }
         }
 
         // ---- SpatialAnchor transform helpers --------------------------------
