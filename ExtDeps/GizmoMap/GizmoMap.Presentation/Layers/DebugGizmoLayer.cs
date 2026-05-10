@@ -29,6 +29,9 @@ namespace GizmoMap.Presentation
 
         // Context menu presenter (ImGui popup).
         private readonly ContextMenuAdapter _contextMenuAdapter = new();
+        private Vector2 _rightPressScreenPos;
+        private bool _rightWasDragged;
+        private const float RightDragThresholdSq = 25f;
 
         public DebugGizmoLayer(DebugPrimitiveRenderer2D renderer)
         {
@@ -73,6 +76,7 @@ namespace GizmoMap.Presentation
         {
             var screenPos = Raylib.GetMousePosition();
             var worldPos  = Raylib.GetScreenToWorld2D(screenPos, camera);
+            var worldPos3 = new Vector3(worldPos.X, worldPos.Y, 0f);
 
             // ---- Scan for exclusive InputCaptureBinding --------------------------------
             // When found, route all raw HW events to the capturing token and skip
@@ -88,7 +92,6 @@ namespace GizmoMap.Presentation
                     AnchorId     = prim.InspNetworkId,
                     SubElementId = prim.SubElementId,
                 };
-                var worldPos3 = new Vector3(worldPos.X, worldPos.Y, 0f);
 
                 // Mouse move -> DragUpdate so the gizmo can recompute heading/position.
                 var delta = Raylib.GetMouseDelta();
@@ -117,6 +120,18 @@ namespace GizmoMap.Presentation
 
                 // Exclusive capture active: suppress all normal hit-testing this frame.
                 return;
+            }
+
+            if (Raylib.IsMouseButtonPressed(MouseButton.Right))
+            {
+                _rightPressScreenPos = screenPos;
+                _rightWasDragged = false;
+            }
+
+            if (Raylib.IsMouseButtonDown(MouseButton.Right) &&
+                Vector2.DistanceSquared(_rightPressScreenPos, screenPos) > RightDragThresholdSq)
+            {
+                _rightWasDragged = true;
             }
 
             // ---- Build menu bindings dictionary from ContextMenuBinding meta-primitives ---
@@ -161,6 +176,10 @@ namespace GizmoMap.Presentation
             // that empty-space right-clicks resolve through the same ContextMenuBinding pipeline.
             if (_activeTool == null && Raylib.IsMouseButtonReleased(MouseButton.Right))
             {
+                bool suppressMenu = _rightWasDragged;
+                _rightWasDragged = false;
+                if (suppressMenu) return;
+
                 long hitNetworkId = -1L; // canvas anchor fallback
 
                 var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom);
