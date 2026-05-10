@@ -145,7 +145,7 @@ namespace Hrot.SimHost
             => App.TestHook_GizmoBuffer;
 
         /// <summary>TestHook: exposes the gizmo interaction ingress translator for integration tests.</summary>
-        internal Hrot.Network.NED.Gizmos.GizmoInteractionIngressTranslator? TestHook_GizmoIngressTranslator
+        internal Fdp.Interfaces.INetworkTranslator? TestHook_GizmoIngressTranslator
             => App.TestHook_GizmoIngressTranslator;
 
         /// <summary>TestHook: attaches a MoveTo NavigationIntent to the entity, triggering movement.</summary>

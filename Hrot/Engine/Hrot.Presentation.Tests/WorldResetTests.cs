@@ -15,7 +15,7 @@ public class WorldResetTests
         world.RegisterComponent<SelectionState>();
         var entity = world.CreateEntity();
         world.AddComponent(entity, new SelectionState { IsSelected = true, IsPrimarySelection = true });
-        var system = new SelectionInteractionSystem(world);
+        var system = new SelectionInteractionSystem(world, world.Bus);
         system.ClearAllSelections();
         var state = world.GetComponent<SelectionState>(entity);
         Assert.False(state.IsSelected);

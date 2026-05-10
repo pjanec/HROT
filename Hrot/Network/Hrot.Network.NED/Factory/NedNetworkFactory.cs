@@ -313,6 +313,34 @@ public sealed class NedNetworkFactory : INetworkFactory
         => _participant != null
             ? new NedOrchestrationObserver(_participant, bus)
             : new Hrot.Core.Network.NullOrchestrationObserver();
+
+    /// <inheritdoc/>
+    public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
+        FdpEventBus interactionBus,
+        long localNodeId,
+        bool headless)
+    {
+        var list = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
+        if (_participant == null) return list;
+
+        if (headless)
+            list.Add(Hrot.Network.NED.Gizmos.GizmoTranslatorPack.CreateIngress(_participant, interactionBus));
+        else
+            list.Add(Hrot.Network.NED.Gizmos.GizmoTranslatorPack.CreateEgress(_participant, (byte)localNodeId, interactionBus));
+
+        return list;
+    }
+
+    /// <inheritdoc/>
+    public Fdp.ModuleHost.Abstractions.IEcsModuleSystem? CreateGizmoPublisherSystem(
+        Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer,
+        long localNodeId)
+    {
+        if (_participant == null) return null;
+
+        var writer = new Fdp.Toolkit.Diagnostics.Gizmos.Network.DdsWriterGizmoAdapter<GizmoMap.Network.DebugPrimitivesBatch>(_participant);
+        return new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DebugPrimitivesBatchPublisherSystem(buffer, writer, (byte)localNodeId);
+    }
 }
 
 /// <summary>

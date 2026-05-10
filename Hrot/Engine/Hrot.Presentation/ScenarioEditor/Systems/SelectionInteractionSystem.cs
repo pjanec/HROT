@@ -23,6 +23,7 @@ namespace Hrot.ScenarioEditor.Systems;
 public sealed class SelectionInteractionSystem
 {
     private readonly EntityRepository _world;
+    private readonly FdpEventBus _interactionBus;
 
     /// <summary>
     /// Optional callback fired after selection changes. Subscribe to publish network
@@ -33,15 +34,16 @@ public sealed class SelectionInteractionSystem
     /// </summary>
     public Action<Entity, System.Numerics.Vector3>? OnSelectionChanged;
 
-    public SelectionInteractionSystem(EntityRepository world)
+    public SelectionInteractionSystem(EntityRepository world, FdpEventBus interactionBus)
     {
-        _world = world;
+        _world          = world          ?? throw new ArgumentNullException(nameof(world));
+        _interactionBus = interactionBus ?? throw new ArgumentNullException(nameof(interactionBus));
     }
 
     public void Tick(float dt)
     {
         // Selection from gizmo entity clicks.
-        foreach (ref readonly var evt in _world.Bus.Read<GizmoInteractionStartedEvent>())
+        foreach (ref readonly var evt in _interactionBus.Read<GizmoInteractionStartedEvent>())
         {
             var entity = evt.Token.Target;
 
@@ -62,7 +64,7 @@ public sealed class SelectionInteractionSystem
         }
 
         // Delete key: destroy all currently selected entities.
-        foreach (ref readonly var key in _world.Bus.Read<GizmoKeyEvent>())
+        foreach (ref readonly var key in _interactionBus.Read<GizmoKeyEvent>())
         {
             if (key.Key != MapKeyboardKey.Delete || key.IsPressed) continue;
 

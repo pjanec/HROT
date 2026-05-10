@@ -549,21 +549,23 @@ namespace Hrot.Editor
                 new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
             // EntityDragGizmoDefinition has an optional callback constructor — register manually.
             editorGizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
+            // Editor has no DDS transport so no network ingress/egress translators.
+            var interactionBus = new FdpEventBus();
             _editorDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
                 editorGizmoRegistry,
                 _gizmoBuffer,
                 isSelectedPredicate: static (view, entity) =>
                     view.HasComponent<SelectionState>(entity) &&
-                    view.GetComponentRO<SelectionState>(entity).IsSelected);
-            _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer);
+                    view.GetComponentRO<SelectionState>(entity).IsSelected,
+                interactionBus: interactionBus);
+            _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, interactionBus);
             // SpatialGridGizmo reads the SpatialGridData singleton -- register as a standalone system.
             _kernel.RegisterGlobalSystem(new Hrot.Common.Diagnostics.Gizmos.SpatialGridGizmo(_gizmoBuffer, new GizmoSettingsRegistry()));
 
-            // Editor has no DDS transport so no network ingress/egress translators.
-            var interactionBus = new FdpEventBus();
             _kernel.RegisterModule(new GizmoInteractionModule(
                 interactionBus,
-                systems: new IEcsModuleSystem[]
+                contextIngress: null,
+                interactionSystems: new IEcsModuleSystem[]
                 {
                     _editorDataDrivenGizmoSystem,
                     _globalGizmoManager,
@@ -637,7 +639,7 @@ namespace Hrot.Editor
                 _mapConfigAdapter = new EditorMapConfigAdapter(_mapViewConfig, _canvas!);
                 _selectionState   = new DefaultSelectionState();
                 _orbatAdapter     = new EditorOrbatAdapter(_world, _world.Bus, _editorLogic, _spawnAdapter);
-                _contextMenuHandler = new JsonEntityContextMenuHandler(_world, _world.Bus);
+                _contextMenuHandler = new JsonEntityContextMenuHandler(_world, interactionBus);
                 _fdpRepoAdapter = new FdpRepositoryAdapter(_world);
 
                 // Register context menu handlers with the FDP entity inspector.

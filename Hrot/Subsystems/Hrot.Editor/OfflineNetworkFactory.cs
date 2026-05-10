@@ -125,6 +125,16 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     public IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus bus)
         => new NullOrchestrationObserver();
 
+    /// <inheritdoc/>
+    public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
+        FdpEventBus interactionBus, long localNodeId, bool headless)
+        => System.Array.Empty<Fdp.Interfaces.INetworkTranslator>();
+
+    /// <inheritdoc/>
+    public Fdp.ModuleHost.Abstractions.IEcsModuleSystem? CreateGizmoPublisherSystem(
+        Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer, long localNodeId)
+        => null;
+
     // ---- null stubs -------------------------------------------------------
 
     private sealed class NullReplicationModule : IReplicationModule

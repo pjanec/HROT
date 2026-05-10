@@ -35,9 +35,9 @@ using Hrot.Common.Interactions;
 using Hrot.Common.Scenario;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
-using Hrot.Network.NED.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using Fdp.Network.Cyclone.Modules;
+using Fdp.Network.Cyclone.Systems;
 using Hrot.AI.Behaviors.Mappers;
 using Hrot.Presentation.Windows;
 using Hrot.Presentation.Facades;
@@ -430,33 +430,48 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // GZ057: CGF entity presentation gizmos. Buffer and registry must be set up
         // before Kernel.Initialize() because the GizmoInteractionModule is registered here.
         _cgfGizmoBuffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
-        _cgfGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_cgfGizmoBuffer);
+        _cgfInteractionBus = new Fdp.Core.FdpEventBus();
+        _cgfGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_cgfGizmoBuffer, _cgfInteractionBus);
         var cgfStatelessRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.StatelessGizmoRegistry();
         cgfStatelessRegistry.Register(
             new Hrot.CGF.Gizmos.CgfEntityPresentationGizmo(),
             new System.Type[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
         var cgfGizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
         _cgfDataDrivenGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
-                cgfGizmoRegistry, _cgfGizmoBuffer, isSelectedPredicate: null);
-        _cgfInteractionBus = new Fdp.Core.FdpEventBus();
+                cgfGizmoRegistry, _cgfGizmoBuffer, isSelectedPredicate: null, interactionBus: _cgfInteractionBus);
+        // Route gizmo interaction translators and publisher through the network factory
+        // so that CgfSubsystem has no direct dependency on Hrot.Network.NED.
         CycloneNetworkIngressSystem? cgfGizmoIngress = null;
-        if (shellParticipant != null)
+        CycloneEgressSystem? cgfGizmoEgress = null;
+        if (_networkFactory != null)
         {
-            cgfGizmoIngress = new CycloneNetworkIngressSystem(new[] { GizmoTranslatorPack.CreateIngress(shellParticipant, _cgfInteractionBus) });
-            _context.Kernel.RegisterGlobalSystem(new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DebugPrimitivesBatchPublisherSystem(
-                _cgfGizmoBuffer,
-                new DdsWriterGizmoAdapter<GizmoMap.Network.DebugPrimitivesBatch>(shellParticipant),
-                nodeId: (byte)_context.NodeId));
+            // CGF is always headless (receives UI interactions from remote viewer).
+            var gizmoTranslators = _networkFactory.CreateGizmoTranslators(_cgfInteractionBus, _context.NodeId, headless: true);
+            var ingressList = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
+            var egressList  = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
+            foreach (var t in gizmoTranslators)
+            {
+                if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Ingress) != 0) ingressList.Add(t);
+                if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Egress)  != 0) egressList.Add(t);
+            }
+            if (ingressList.Count > 0)
+                cgfGizmoIngress = new CycloneNetworkIngressSystem(ingressList.ToArray());
+            if (egressList.Count > 0)
+                cgfGizmoEgress = new CycloneEgressSystem(egressList.ToArray());
+            var publisherSystem = _networkFactory.CreateGizmoPublisherSystem(_cgfGizmoBuffer, _context.NodeId);
+            if (publisherSystem != null)
+                _context.Kernel.RegisterGlobalSystem(publisherSystem);
         }
         _context.Kernel.RegisterModule(new GizmoInteractionModule(
             _cgfInteractionBus,
-            systems: new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
+            contextIngress: null,
+            interactionSystems: new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
             {
                 new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(cgfStatelessRegistry, _cgfGizmoBuffer),
                 _cgfDataDrivenGizmoSystem,
             },
             gizmoIngress: cgfGizmoIngress,
-            gizmoEgress:  null));
+            gizmoEgress:  cgfGizmoEgress));
         _context.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _cgfInteractionBus));
 
         _context.Kernel.Initialize();
@@ -512,6 +527,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context?.SlaveTranslator?.Tick();
         _context?.ClusterSlave.Tick();
         _clusterTimeAdapter?.Update();
+
+        // Evict transient primitives and advance persistence clock before backend population.
+        _cgfGizmoBuffer?.EndFrame(deltaTime);
 
         // Use the no-args kernel update so the SlaveSyncController measures the real
         // wall-clock delta between frames.  The legacy Update(float) path would receive

@@ -28,7 +28,7 @@ public class SelectionInteractionSystemTests
         HrotSharedComponentRegistry.RegisterAll(_world);
         _world.RegisterComponent<SelectionState>();
         _world.RegisterComponent<VehicleState>();
-        _system = new SelectionInteractionSystem(_world);
+        _system = new SelectionInteractionSystem(_world, _world.Bus);
     }
 
     private Entity CreateSelectableEntity()

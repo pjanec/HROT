@@ -128,7 +128,7 @@ public class ToolInteractionIntegrationTests
         var repo    = BuildRepo();
         repo.RegisterComponent<Hrot.IG.Components.SelectionState>();
         var entity  = SpawnDirect(repo, new Vector2(SpawnX, SpawnY));
-        var system  = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(repo);
+        var system  = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(repo, repo.Bus);
 
         // Use ClearAllSelections as a proxy to verify it operates on SelectionState.
         repo.AddComponent(entity, new Hrot.IG.Components.SelectionState { IsSelected = true, IsPrimarySelection = true });

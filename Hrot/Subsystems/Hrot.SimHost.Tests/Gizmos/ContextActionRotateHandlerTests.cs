@@ -36,7 +36,8 @@ namespace Hrot.SimHost.Tests.Gizmos
             var entity = _repo.CreateEntity();
             _entityMap.Register(42L, entity);
 
-            var sys = new ContextActionIngressSystem(_entityMap);
+            var interactionBus = new FdpEventBus();
+            var sys = new ContextActionIngressSystem(_entityMap, interactionBus);
 
             _repo.Bus.PublishManaged(new ContextActionTriggered
             {
@@ -46,9 +47,9 @@ namespace Hrot.SimHost.Tests.Gizmos
             _repo.Bus.SwapBuffers();
 
             sys.Execute(_repo, 0f);
-            _repo.Bus.SwapBuffers();
+            interactionBus.SwapBuffers();
 
-            var events = _repo.Bus.Read<GlobalActionRequestedEvent>();
+            var events = interactionBus.Read<GlobalActionRequestedEvent>();
             Assert.Equal(1, events.Length);
             Assert.Equal(GlobalActionIds.Rotate, events[0].ActionId);
             Assert.Equal(entity, events[0].Target);
@@ -59,7 +60,8 @@ namespace Hrot.SimHost.Tests.Gizmos
         [Fact]
         public void SC_ER008_NonIntegerActionName_PublishesNoEvent()
         {
-            var sys = new ContextActionIngressSystem(_entityMap);
+            var interactionBus = new FdpEventBus();
+            var sys = new ContextActionIngressSystem(_entityMap, interactionBus);
 
             _repo.Bus.PublishManaged(new ContextActionTriggered
             {
@@ -69,9 +71,9 @@ namespace Hrot.SimHost.Tests.Gizmos
             _repo.Bus.SwapBuffers();
 
             sys.Execute(_repo, 0f);
-            _repo.Bus.SwapBuffers();
+            interactionBus.SwapBuffers();
 
-            var events = _repo.Bus.Read<GlobalActionRequestedEvent>();
+            var events = interactionBus.Read<GlobalActionRequestedEvent>();
             Assert.Equal(0, events.Length);
         }
     }

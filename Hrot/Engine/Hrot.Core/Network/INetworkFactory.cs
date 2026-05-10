@@ -7,6 +7,7 @@ using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.DER;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.NetworkSpawning;
 using Hrot.Common;
@@ -183,4 +184,23 @@ public interface INetworkFactory
     /// Returns a no-op translator when there is no DDS participant.
     /// </summary>
     IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus bus);
-}
+    /// <summary>
+    /// Creates the gizmo interaction network translators (ingress and/or egress) for
+    /// remote UI interaction streaming. Each translator carries a <see cref="TranslatorDirection"/>
+    /// flag so the caller can route it to the appropriate
+    /// <c>CycloneNetworkIngressSystem</c> or <c>CycloneEgressSystem</c>.
+    /// Returns an empty list when the protocol does not support gizmo streaming.
+    /// </summary>
+    /// <param name="interactionBus">The isolated per-node interaction event bus.</param>
+    /// <param name="localNodeId">The local node id used to stamp outgoing batches.</param>
+    /// <param name="headless">
+    /// When <c>true</c>, creates an ingress translator (node receives UI events from a remote viewer).
+    /// When <c>false</c>, creates an egress translator (node forwards locally-generated UI events).
+    /// </param>
+    IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus interactionBus, long localNodeId, bool headless);
+
+    /// <summary>
+    /// Creates the ECS system that publishes the gizmo primitive buffer to the network each frame.
+    /// Returns <c>null</c> when the protocol does not support gizmo streaming.
+    /// </summary>
+    IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buffer, long localNodeId);}

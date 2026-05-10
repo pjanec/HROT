@@ -239,7 +239,7 @@ namespace Hrot.SimHost
             // ── Interaction ───────────────────────────────────────────────────
             // Phase 5: entity selection via SelectionInteractionSystem;
             // entity drag via EntityDragGizmo registered in DataDrivenGizmoSystem.
-            _selectionSystem = new SelectionInteractionSystem(repo);
+            _selectionSystem = new SelectionInteractionSystem(repo, interactionBus ?? repo.Bus);
 
             // Sync selection to SimHostSelectionManager and FDP inspector.
             _selectionSystem.OnSelectionChanged += (entity, worldPos) =>

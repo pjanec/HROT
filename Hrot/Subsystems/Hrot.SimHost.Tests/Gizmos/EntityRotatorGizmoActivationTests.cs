@@ -70,10 +70,11 @@ namespace Hrot.SimHost.Tests.Gizmos
             registry.Register(GlobalActionIds.Rotate, (view, target) => { handlerTarget = target; });
 
             var entity = _repo.CreateEntity();
-            _repo.Bus.Publish(new GlobalActionRequestedEvent { ActionId = GlobalActionIds.Rotate, Target = entity });
-            _repo.Bus.SwapBuffers();
+            var interactionBus = new FdpEventBus();
+            interactionBus.Publish(new GlobalActionRequestedEvent { ActionId = GlobalActionIds.Rotate, Target = entity });
+            interactionBus.SwapBuffers();
 
-            var sys = new GlobalActionDispatchSystem(registry);
+            var sys = new GlobalActionDispatchSystem(registry, interactionBus);
             sys.Execute(_repo, 0f);
 
             Assert.Equal(entity, handlerTarget);
@@ -84,10 +85,11 @@ namespace Hrot.SimHost.Tests.Gizmos
         public void SC_ER004_UnregisteredActionId_DoesNotThrow()
         {
             var registry = new GlobalActionRegistry();
-            var sys = new GlobalActionDispatchSystem(registry);
+            var interactionBus = new FdpEventBus();
+            var sys = new GlobalActionDispatchSystem(registry, interactionBus);
 
-            _repo.Bus.Publish(new GlobalActionRequestedEvent { ActionId = 9999, Target = Entity.Null });
-            _repo.Bus.SwapBuffers();
+            interactionBus.Publish(new GlobalActionRequestedEvent { ActionId = 9999, Target = Entity.Null });
+            interactionBus.SwapBuffers();
 
             // Should not throw.
             sys.Execute(_repo, 0f);

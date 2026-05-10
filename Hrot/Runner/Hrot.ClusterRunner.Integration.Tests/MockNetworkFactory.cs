@@ -118,6 +118,16 @@ internal class MockNetworkFactory : INetworkFactory
     public IOrchestrationObserver CreateOrchestrationObserver(Fdp.Core.FdpEventBus bus)
         => new NullOrchestrationObserver();
 
+    /// <inheritdoc/>
+    public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
+        Fdp.Core.FdpEventBus interactionBus, long localNodeId, bool headless)
+        => System.Array.Empty<Fdp.Interfaces.INetworkTranslator>();
+
+    /// <inheritdoc/>
+    public Fdp.ModuleHost.Abstractions.IEcsModuleSystem? CreateGizmoPublisherSystem(
+        Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer, long localNodeId)
+        => null;
+
     // ---- null stubs -------------------------------------------------------
 
     private sealed class NullReplicationModule : IReplicationModule

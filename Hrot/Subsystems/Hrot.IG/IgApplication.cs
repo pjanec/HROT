@@ -89,7 +89,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Diagnostics.Gizmos.UndoRedo;
 using Hrot.IG.Gizmos;
-using Hrot.Network.NED.Gizmos;
+using Hrot.Network.NED.Gizmos;   // DebugPrimitivesIngressTranslator (primitive streaming, not interaction)
 using Hrot.ScenarioEditor.Events;
 using Fdp.Toolkit.Vis2D.Layers;
 
@@ -1081,6 +1081,7 @@ public class IgApplication : IDisposable
         _statelessGizmoRegistry = new StatelessGizmoRegistry();
         _gizmoSettingsRegistry  = new GizmoSettingsRegistry();
         _gizmoUndoStack        = new GizmoUndoStack();
+        _interactionBus = new FdpEventBus();
         Hrot.IG.Gizmos.GizmoRegistrar.Register(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
         // Phase 5: EntityDragGizmo makes entities draggable and emits pick spheres for selection.
         if (_networkEnabled)
@@ -1109,7 +1110,7 @@ public class IgApplication : IDisposable
         // Phase 5: selection and drag handled by SelectionInteractionSystem + EntityDragGizmo.
         // Canvas no longer has a base tool for entity picking.
 
-        _selectionSystem = new SelectionInteractionSystem(_world);
+        _selectionSystem = new SelectionInteractionSystem(_world, _interactionBus!);
 
         // When a network-enabled entity is clicked, also publish MapClickEvent and
         // SelectionChangedEvent so that ExCon can track map selections.
@@ -1149,29 +1150,38 @@ public class IgApplication : IDisposable
             isSelectedPredicate: null);
 
         // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
-        _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer!);
+        _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer!, _interactionBus);
         _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_globalGizmoManager, _gizmoSettingsRegistry);
-        _interactionBus = new FdpEventBus();
         var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer!, _interactionBus, _world);
         _gizmoLayer = gizmoLayer;
         _canvas.AddLayer(gizmoLayer);
         _canvas.DrawBuffer = _gizmoBuffer;
+        // Route gizmo interaction translators and publisher through the network factory
+        // so that IgApplication has no direct dependency on Hrot.Network.NED.
         CycloneNetworkIngressSystem? gizmoIngress = null;
         CycloneEgressSystem? gizmoEgress = null;
-        if (participant != null)
+        if (_networkFactory != null)
         {
-            if (_headless)
-                gizmoIngress = new CycloneNetworkIngressSystem(new[] { GizmoTranslatorPack.CreateIngress(participant, _interactionBus!) });
-            else
-                gizmoEgress = new CycloneEgressSystem(new[] { GizmoTranslatorPack.CreateEgress(participant, (byte)_effectiveInstanceId, _interactionBus!) });
-            _kernel.RegisterGlobalSystem(new DebugPrimitivesBatchPublisherSystem(
-                _gizmoBuffer!,
-                new DdsWriterGizmoAdapter<GizmoMap.Network.DebugPrimitivesBatch>(participant),
-                nodeId: (byte)_effectiveInstanceId));
+            var gizmoTranslators = _networkFactory.CreateGizmoTranslators(_interactionBus!, _effectiveInstanceId, _headless);
+            var ingressList = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
+            var egressList  = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
+            foreach (var t in gizmoTranslators)
+            {
+                if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Ingress) != 0) ingressList.Add(t);
+                if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Egress)  != 0) egressList.Add(t);
+            }
+            if (ingressList.Count > 0)
+                gizmoIngress = new CycloneNetworkIngressSystem(ingressList.ToArray());
+            if (egressList.Count > 0)
+                gizmoEgress = new CycloneEgressSystem(egressList.ToArray());
+            var publisherSystem = _networkFactory.CreateGizmoPublisherSystem(_gizmoBuffer!, _effectiveInstanceId);
+            if (publisherSystem != null)
+                _kernel.RegisterGlobalSystem(publisherSystem);
         }
         _kernel.RegisterModule(new GizmoInteractionModule(
             _interactionBus!,
-            systems: new IEcsModuleSystem[]
+            contextIngress: null,
+            interactionSystems: new IEcsModuleSystem[]
             {
                 _globalGizmoManager,
             },

@@ -295,6 +295,14 @@ public sealed class HexagonalBoundaryTests
             DdsParticipant participant, FdpEventBus bus, IGeographicTransform geoTransform, long nodeId)
             => _base.CreateIgEgressTranslators(participant, bus, geoTransform, nodeId);
 
+        public IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
+            FdpEventBus interactionBus, long localNodeId, bool headless)
+            => _base.CreateGizmoTranslators(interactionBus, localNodeId, headless);
+
+        public Fdp.ModuleHost.Abstractions.IEcsModuleSystem? CreateGizmoPublisherSystem(
+            Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer, long localNodeId)
+            => _base.CreateGizmoPublisherSystem(buffer, localNodeId);
+
         public IEnumerable<IIngressHandler> CreateExConIngressHandlers(
             DdsParticipant?                  participant,
             long                             localNodeId,
@@ -348,6 +356,14 @@ public sealed class HexagonalBoundaryTests
         public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
             DdsParticipant participant, FdpEventBus bus, IGeographicTransform geoTransform, long nodeId)
             => _base.CreateIgEgressTranslators(participant, bus, geoTransform, nodeId);
+
+        public IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
+            FdpEventBus interactionBus, long localNodeId, bool headless)
+            => _base.CreateGizmoTranslators(interactionBus, localNodeId, headless);
+
+        public Fdp.ModuleHost.Abstractions.IEcsModuleSystem? CreateGizmoPublisherSystem(
+            Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer, long localNodeId)
+            => _base.CreateGizmoPublisherSystem(buffer, localNodeId);
 
         public IEnumerable<IIngressHandler> CreateExConIngressHandlers(
             DdsParticipant?                  participant,

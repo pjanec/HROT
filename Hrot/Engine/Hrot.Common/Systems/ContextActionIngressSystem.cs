@@ -7,26 +7,31 @@ using Hrot.Common.Events;
 
 namespace Hrot.Common.Systems
 {
-    // Bridges the managed ContextActionTriggered event (forwarded by the IG over DDS)
-    // into the typed, unmanaged GlobalActionRequestedEvent that GlobalActionDispatchSystem
-    // consumes.
+    // Bridges the managed ContextActionTriggered event (forwarded by the IG over DDS or
+    // published locally by JsonEntityContextMenuHandler) into the typed, unmanaged
+    // GlobalActionRequestedEvent that GlobalActionDispatchSystem consumes.
     //
-    // Runs before GlobalActionDispatchSystem in the same Input phase so that the
-    // translated events are available for dispatch in the same kernel update.
+    // ContextActionTriggered is read from the isolated _interactionBus (not the global
+    // world bus) so that UI event noise cannot pollute the core simulation bus.
+    // GlobalActionRequestedEvent is published back to _interactionBus so that
+    // GlobalActionDispatchSystem can read it in the same GizmoInteractionModule.Tick().
     [UpdateInPhase(SystemPhase.Input)]
     [UpdateBefore(typeof(GlobalActionDispatchSystem))]
     public sealed class ContextActionIngressSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap _entityMap;
+        private readonly FdpEventBus _interactionBus;
 
-        public ContextActionIngressSystem(NetworkEntityMap entityMap)
+        public ContextActionIngressSystem(NetworkEntityMap entityMap, FdpEventBus interactionBus)
         {
-            _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
+            _entityMap      = entityMap      ?? throw new System.ArgumentNullException(nameof(entityMap));
+            _interactionBus = interactionBus ?? throw new System.ArgumentNullException(nameof(interactionBus));
         }
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            foreach (var evt in view.ReadManagedEvents<ContextActionTriggered>())
+            // Read from the isolated interaction bus, NOT the global world view.
+            foreach (var evt in _interactionBus.ReadManaged<ContextActionTriggered>())
             {
                 if (!int.TryParse(evt.ActionName,
                         NumberStyles.Integer,
@@ -42,7 +47,7 @@ namespace Hrot.Common.Systems
                 if (evt.EntityNetworkId != 0)
                     _entityMap.TryGetEntity((long)evt.EntityNetworkId, out target);
 
-                view.GetCommandBuffer().PublishEvent(new GlobalActionRequestedEvent
+                _interactionBus.Publish(new GlobalActionRequestedEvent
                 {
                     ActionId = actionId,
                     Target   = target,

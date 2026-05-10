@@ -46,10 +46,9 @@
 
     <!-- Visualization / UI (graphical window support) -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
-    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
-    <!-- GZ045: SimHost composition root wires NED gizmo ingress system -->
-    <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
-    <!-- GZ057: source generator for [GizmoProjector] attribute on SimHostEntityPresentationGizmo. -->
+    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />    <!-- NED protocol references required for EntityAttributeSchema and related network systems. -->
+    <!-- NOTE: GZ045 gizmo interaction translators are now routed through INetworkFactory. -->
+    <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />    <!-- GZ057: source generator for [GizmoProjector] attribute on SimHostEntityPresentationGizmo. -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />  </ItemGroup>
 

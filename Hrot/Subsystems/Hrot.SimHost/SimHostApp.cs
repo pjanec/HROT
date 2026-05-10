@@ -11,7 +11,6 @@ using Hrot.Common.Scenario;
 using Hrot.Common.Constants;
 using Hrot.Common.Interactions;
 using Hrot.Common.Systems;
-using Hrot.Network.NED.Gizmos;
 using CarKinem.Commands;
 using CarKinem.Formation;
 using CarKinem.Road;
@@ -115,7 +114,7 @@ namespace Hrot.SimHost
         private GizmoRegistry? _gizmoRegistry;
         private StatelessGizmoRegistry? _statelessGizmoRegistry;
         private DataDrivenGizmoSystem? _dataDrivenGizmoSystem;        private FdpEventBus? _interactionBus;
-        private GizmoInteractionIngressTranslator? _gizmoIngressTranslator;        // ── Schema publisher (GZ052) ────────────────────────────────────
+        private Fdp.Interfaces.INetworkTranslator? _gizmoIngressTranslator;        // ── Schema publisher (GZ052) ────────────────────────────────────
         private Fdp.Toolkit.Replication.Patching.JsonAttributeCompiler? _jsonAttributeCompiler;
         /// <summary>
         /// The visualization layer. Valid after <see cref="InitializeEmbedded"/> in non-headless mode.
@@ -532,12 +531,14 @@ namespace Hrot.SimHost
                 settings: new GizmoSettingsRegistry());
             // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
             _gizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
+            _interactionBus = new FdpEventBus();
             _dataDrivenGizmoSystem = new DataDrivenGizmoSystem(
                 _gizmoRegistry,
                 _gizmoBuffer,
                 isSelectedPredicate: static (view, entity) =>
                     view.HasComponent<SelectionState>(entity) &&
-                    view.GetComponentRO<SelectionState>(entity).IsSelected);
+                    view.GetComponentRO<SelectionState>(entity).IsSelected,
+                interactionBus: _interactionBus);
             // Register the global action registry and wire operator action handlers.
             var actionRegistry = new GlobalActionRegistry();
             actionRegistry.Register(GlobalActionIds.Rotate, (view, target) =>
@@ -551,25 +552,38 @@ namespace Hrot.SimHost
                     onRemove: () => _dataDrivenGizmoSystem!.DeactivateGizmo(target));
                 _dataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
             });
-            _interactionBus = new FdpEventBus();
-            // Headless: receive remote-viewer UI interactions from IG over DDS.
-            // The ingress translator writes directly to _interactionBus, not to the world bus.
+            // Route gizmo interaction translators and publisher through the network factory
+            // so that SimHostApp has no direct dependency on Hrot.Network.NED.
             CycloneNetworkIngressSystem? gizmoIngress = null;
-            if (ddsParticipant != null)
+            CycloneEgressSystem? gizmoEgress = null;
+            if (_networkFactory != null)
             {
-                _gizmoIngressTranslator = GizmoTranslatorPack.CreateIngress(ddsParticipant, _interactionBus);
-                gizmoIngress = new CycloneNetworkIngressSystem(new[] { _gizmoIngressTranslator });
-                _kernel.RegisterGlobalSystem(new DebugPrimitivesBatchPublisherSystem(
-                    _gizmoBuffer,
-                    new DdsWriterGizmoAdapter<GizmoMap.Network.DebugPrimitivesBatch>(ddsParticipant),
-                    nodeId: (byte)localNodeId));
+                // SimHostApp always receives UI interactions from remote viewers (headless=true).
+                var gizmoTranslators = _networkFactory.CreateGizmoTranslators(_interactionBus, localNodeId, headless: true);
+                var ingressList = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
+                var egressList  = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
+                foreach (var t in gizmoTranslators)
+                {
+                    if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Ingress) != 0) ingressList.Add(t);
+                    if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Egress)  != 0) egressList.Add(t);
+                }
+                if (ingressList.Count > 0)
+                {
+                    _gizmoIngressTranslator = ingressList[0];
+                    gizmoIngress = new CycloneNetworkIngressSystem(ingressList.ToArray());
+                }
+                if (egressList.Count > 0)
+                    gizmoEgress = new CycloneEgressSystem(egressList.ToArray());
+                var publisherSystem = _networkFactory.CreateGizmoPublisherSystem(_gizmoBuffer, localNodeId);
+                if (publisherSystem != null)
+                    _kernel.RegisterGlobalSystem(publisherSystem);
             }
             _kernel.RegisterModule(new GizmoInteractionModule(
                 _interactionBus,
-                systems: new IEcsModuleSystem[]
+                contextIngress: new ContextActionIngressSystem(_entityMap!, _interactionBus),
+                interactionSystems: new IEcsModuleSystem[]
                 {
-                    new ContextActionIngressSystem(_entityMap!),
-                    new GlobalActionDispatchSystem(actionRegistry),
+                    new GlobalActionDispatchSystem(actionRegistry, _interactionBus),
                     _dataDrivenGizmoSystem,
                     new StatelessGizmoSystem(
                         _statelessGizmoRegistry,
@@ -579,7 +593,7 @@ namespace Hrot.SimHost
                             view.GetComponentRO<SelectionState>(entity).IsSelected),
                 },
                 gizmoIngress: gizmoIngress,
-                gizmoEgress: null));
+                gizmoEgress:  gizmoEgress));
             // ── GZ052: Entity attribute schema publisher ──────────────────────
             // Build the compiler using the same geographic transform as the network factory.
             // SimHost is always the default processor in standalone mode.
@@ -762,7 +776,7 @@ namespace Hrot.SimHost
         internal DebugPrimitiveBuffer? TestHook_GizmoBuffer => _gizmoBuffer;
 
         /// <summary>TestHook: exposes the gizmo interaction ingress translator for integration tests.</summary>
-        internal GizmoInteractionIngressTranslator? TestHook_GizmoIngressTranslator => _gizmoIngressTranslator;
+        internal Fdp.Interfaces.INetworkTranslator? TestHook_GizmoIngressTranslator => _gizmoIngressTranslator;
 
         /// <summary>
         /// Current kernel simulation time in seconds.  Updated every frame.

@@ -22,7 +22,8 @@
     <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
     <ProjectReference Include="..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
-    <!-- GZ045: IG composition root wires NED gizmo systems directly -->
+    <!-- NED protocol references required for DebugPrimitivesIngressTranslator and related types. -->
+    <!-- NOTE: GZ045 gizmo interaction translators are now routed through INetworkFactory. -->
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
 
     <!-- FDP Kernel and Toolkits -->

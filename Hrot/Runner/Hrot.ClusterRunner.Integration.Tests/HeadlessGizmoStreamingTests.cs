@@ -32,7 +32,9 @@ public class HeadlessGizmoStreamingTests
         using var harness = new HrotRunnerHarness();
 
         // The ingress translator must exist when DDS is active (harness uses NedNetworkFactory with participant).
-        Assert.NotNull(harness.SimHost.TestHook_GizmoIngressTranslator);
+        var ingressTranslator = harness.SimHost.TestHook_GizmoIngressTranslator
+            as Hrot.Network.NED.Gizmos.GizmoInteractionIngressTranslator;
+        Assert.NotNull(ingressTranslator);
 
         using var testParticipant = new DdsParticipant((uint)harness.DomainId);
         using var interactionWriter = new DdsWriterGizmoAdapter<GizmoInteractionBatch>(testParticipant);
@@ -48,7 +50,7 @@ public class HeadlessGizmoStreamingTests
 
         // Pump frames until SimHost's ingress translator processes the DDS sample.
         bool received = harness.PumpUntil(
-            () => harness.SimHost.TestHook_GizmoIngressTranslator!.ReceivedSampleCount > 0,
+            () => ingressTranslator!.ReceivedSampleCount > 0,
             InteractionTimeoutFrames);
 
         // Assert: the ingress translator must have seen at least one sample.
