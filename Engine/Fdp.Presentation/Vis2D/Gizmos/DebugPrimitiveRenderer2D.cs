@@ -1,6 +1,8 @@
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Components;
+using Raylib_cs;
 
 namespace Fdp.Toolkit.Vis2D.Gizmos
 {
@@ -18,11 +20,15 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
         public void Render(ReadOnlySpan<DebugPrimitive> primitives, RenderContext ctx)
         {
             var zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;
+            var mapCamera = ctx.Resources.Get<MapCamera>();
+            Camera2D camera = mapCamera != null ? mapCamera.InnerCamera : default;
+
             foreach (ref readonly var prim in primitives)
             {
                 DispatchShape(in prim, ctx);
-                _inner.Render(new[] { prim }, default, zoom);
             }
+
+            _inner.Render(primitives, camera, zoom);
         }
 
         protected virtual void DispatchShape(in DebugPrimitive prim, RenderContext ctx)

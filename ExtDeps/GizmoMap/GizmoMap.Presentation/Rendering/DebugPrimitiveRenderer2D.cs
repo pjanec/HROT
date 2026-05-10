@@ -407,6 +407,7 @@ namespace GizmoMap.Presentation
             var v2 = to   - perp;
             var v3 = to   + perp;
 
+            Rlgl.SetTexture(Rlgl.GetTextureIdDefault());
             Rlgl.Begin((int)DrawMode.Quads);
             Rlgl.Color4ub(startColor.R, startColor.G, startColor.B, startColor.A); Rlgl.Vertex2f(v0.X, v0.Y);
             Rlgl.Color4ub(startColor.R, startColor.G, startColor.B, startColor.A); Rlgl.Vertex2f(v1.X, v1.Y);
