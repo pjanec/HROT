@@ -27,6 +27,7 @@ public class VertexEditGizmoTests : IDisposable
             SizeMode m = SizeMode.ScreenPixels,
             PipelineTarget tg = PipelineTarget.All, byte l = 0) { }
         public void DrawSphere(Vector3 c, float r, Rgba32 col,
+            float thickness = 0f, SizeMode sm2 = SizeMode.WorldMeters,
             PipelineTarget tg = PipelineTarget.All, byte l = 0) { }
         public void DrawArrow(Vector3 f, Vector3 t, Rgba32 c, float h = 1f, byte l = 0) { }
         public void DrawText(float x, float y, Fdp.Core.FixedString32 t, Rgba32 c,

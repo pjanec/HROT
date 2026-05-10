@@ -35,6 +35,7 @@ using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Diagnostics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Hrot.CGF;
@@ -199,6 +200,7 @@ namespace Hrot.Editor
         private DebugPrimitiveBuffer? _gizmoBuffer;
         private DataDrivenGizmoSystem? _editorDataDrivenGizmoSystem;
         private GlobalGizmoManager?  _globalGizmoManager;
+        private FdpEventBus?         _interactionBus;
 
         // ── Tool handling ─────────────────────────────────────────────────────────
 
@@ -551,6 +553,7 @@ namespace Hrot.Editor
             editorGizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
             // Editor has no DDS transport so no network ingress/egress translators.
             var interactionBus = new FdpEventBus();
+            _interactionBus = interactionBus;
             _editorDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
                 editorGizmoRegistry,
                 _gizmoBuffer,
@@ -800,6 +803,16 @@ namespace Hrot.Editor
 
             // Kernel.Update() internally calls bus.SwapBuffers() then ticks registered modules.
             _kernel?.Update();
+
+            // Read context menu requests emitted by DebugGizmoLayer.
+            if (_interactionBus != null)
+            {
+                foreach (ref readonly var evt in _interactionBus.Read<GizmoContextMenuRequestedEvent>())
+                {
+                    _pendingContextMenuEntity = evt.Token.Target;
+                    _openContextMenuThisFrame = true;
+                }
+            }
 
             // Drain AI hot-reload callbacks safely on the main thread.
             // Any BTreeInterpreter pointer swaps queued by the background ALC worker

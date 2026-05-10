@@ -173,6 +173,7 @@ namespace Hrot.Editor.Adapters
             }
 
             var styleJson = styleOverrideJson;
+            var areaId = GlobalGizmoManager.NewId();
             var gizmo = new PointSequenceGizmo(
                 onFinish: points =>
                 {
@@ -204,13 +205,12 @@ namespace Hrot.Editor.Adapters
 
                     _bus.PublishManaged(cmd);
                 },
-                onRemove: () => { _activeSequenceId = null; });
+                onRemove: () => { _globalGizmoManager!.Unregister(areaId); _activeSequenceId = null; });
 
-            _activeSequenceId = GlobalGizmoManager.NewId();
-            _globalGizmoManager!.Register(_activeSequenceId.Value, gizmo);
+            _activeSequenceId = areaId;
+            _globalGizmoManager!.Register(areaId, gizmo);
         }
 
-        /// <inheritdoc/>
         /// <remarks>
         /// Registers a <see cref="PointSequenceGizmo"/> requiring >= 2 points with
         /// <see cref="GlobalGizmoManager"/>. On completion, emits a
@@ -224,6 +224,7 @@ namespace Hrot.Editor.Adapters
                 _activeSequenceId = null;
             }
 
+            var routeId = GlobalGizmoManager.NewId();
             var gizmo = new PointSequenceGizmo(
                 onFinish: points =>
                 {
@@ -260,10 +261,10 @@ namespace Hrot.Editor.Adapters
 
                     _bus.PublishManaged(cmd);
                 },
-                onRemove: () => { _activeSequenceId = null; });
+                onRemove: () => { _globalGizmoManager!.Unregister(routeId); _activeSequenceId = null; });
 
-            _activeSequenceId = GlobalGizmoManager.NewId();
-            _globalGizmoManager!.Register(_activeSequenceId.Value, gizmo);
+            _activeSequenceId = routeId;
+            _globalGizmoManager!.Register(routeId, gizmo);
         }
     }
 }

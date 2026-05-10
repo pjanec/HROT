@@ -31,6 +31,7 @@ namespace Hrot.IG.Tests.Gizmos
             => LineCalls.Add((start, end, color));
 
         public void DrawSphere(Vector3 center, float radius, Rgba32 color,
+            float thickness = 0f, SizeMode sizeMode = SizeMode.WorldMeters,
             PipelineTarget target = PipelineTarget.All, byte layer = 0)
             => SphereCalls.Add((center, radius, color));
 

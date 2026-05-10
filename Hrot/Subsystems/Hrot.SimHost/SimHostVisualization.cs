@@ -17,6 +17,7 @@ using FdpInspectorState = Fdp.Presentation.Abstractions.InspectorState;
 using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Presentation.Facades;
 using Hrot.UI.Common.Menus;
@@ -93,6 +94,7 @@ namespace Hrot.SimHost
         // ── Map entity context menu ────────────────────────────────────────────
         private Entity _pendingMapContextEntity = Entity.Null;
         private bool   _openMapContextThisFrame;
+        private Fdp.Core.FdpEventBus? _interactionBus;
 
         // ── Public access (tests / other subsystems) ──────────────────────────
         public SimHostSelectionManager? Selection => _selection;
@@ -235,6 +237,7 @@ namespace Hrot.SimHost
             _globalGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_gizmoBuffer!);
             _map.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer, interactionBus ?? repo.Bus, repo));
             _map.DrawBuffer = _gizmoBuffer;
+            _interactionBus = interactionBus;
 
             // ── Interaction ───────────────────────────────────────────────────
             // Phase 5: entity selection via SelectionInteractionSystem;
@@ -342,6 +345,16 @@ namespace Hrot.SimHost
             _scenario?.Update();
             _map.Update(dt);
             _selectionSystem?.Tick(dt);
+
+            // Read context menu requests emitted by DebugGizmoLayer.
+            if (_interactionBus != null)
+            {
+                foreach (ref readonly var evt in _interactionBus.Read<GizmoContextMenuRequestedEvent>())
+                {
+                    _pendingMapContextEntity = evt.Token.Target;
+                    _openMapContextThisFrame = true;
+                }
+            }
 
             _fdpFrameCount++;
         }

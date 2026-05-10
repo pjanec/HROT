@@ -35,6 +35,7 @@ namespace Hrot.IG.Tests.Gizmos
         public void DrawLineGradient(Vector3 start, Vector3 end, Rgba32 startColor, Rgba32 endColor,
             float thickness = 1f, SizeMode sizeMode = SizeMode.ScreenPixels, PipelineTarget target = PipelineTarget.All, byte layer = 0) { }
         public void DrawSphere(Vector3 center, float radius, Rgba32 color,
+            float thickness = 0f, SizeMode sizeMode = SizeMode.WorldMeters,
             PipelineTarget target = PipelineTarget.All, byte layer = 0) { }
         public void DrawArrow(Vector3 from, Vector3 to, Rgba32 color, float headSize = 1f, byte layer = 0) { }
         public void DrawText(float x, float y, FixedString32 text, Rgba32 color,

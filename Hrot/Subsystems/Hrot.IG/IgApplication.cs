@@ -84,6 +84,7 @@ using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Defaults;
 
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
@@ -242,8 +243,6 @@ public class IgApplication : IDisposable
     private PointSequenceGizmo?          _activeSequenceGizmo;
     private long?                        _activeLocationPickerId;
     private long?                        _activeEntityPickerId;
-    // GZ045: receives DebugPrimitivesBatch frames from SimHost via DDS.
-    private DebugPrimitivesIngressTranslator? _ingressTranslator;
 
     // -- Optional IG translator provider (injected via InitializeEmbedded; null = no NED translators)
     private Hrot.Core.Network.IIgTranslators? _igTranslatorsProvider;
@@ -1052,31 +1051,8 @@ public class IgApplication : IDisposable
 
 
 
-        // SelectionRenderSystem — PostRender overlay drawing selection rings.
-
-        var selectionQuery  = _world.Query()
-
-            .With<SelectionState>()
-
-            .With<SimTransform>()
-
-            .WithLifecycle(EntityLifecycle.All)
-
-            .Build();
-
-        var selectionLayer  = new SelectionRenderSystem(_world, selectionQuery);
-
-        _canvas.AddLayer(selectionLayer);
-
-
-
         // Gizmo subsystem (GZ020) — renders entity-bound diagnostic overlays.
         _gizmoBuffer           = new DebugPrimitiveBuffer(capacity: 4096);
-        // GZ045: receive gizmo primitive stream from SimHost.
-        _ingressTranslator     = new DebugPrimitivesIngressTranslator(
-            _gizmoBuffer!,
-            _networkAdapter?.DebugPrimitivesReader,
-            filterNodeId: null);
         _gizmoRegistry         = new GizmoRegistry();
         _statelessGizmoRegistry = new StatelessGizmoRegistry();
         _gizmoSettingsRegistry  = new GizmoSettingsRegistry();
@@ -1147,7 +1123,8 @@ public class IgApplication : IDisposable
         _igDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
             _gizmoRegistry!,
             _gizmoBuffer!,
-            isSelectedPredicate: null);
+            isSelectedPredicate: null,
+            interactionBus: _interactionBus);
 
         // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
         _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer!, _interactionBus);
@@ -1184,11 +1161,11 @@ public class IgApplication : IDisposable
             interactionSystems: new IEcsModuleSystem[]
             {
                 _globalGizmoManager,
+                _igDataDrivenGizmoSystem,
+                new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!),
             },
             gizmoIngress: gizmoIngress,
             gizmoEgress:  gizmoEgress));
-        _kernel.RegisterGlobalSystem(_igDataDrivenGizmoSystem);
-        _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!));
         _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _interactionBus!));
 
         _kernel.Initialize();
@@ -1276,8 +1253,12 @@ public class IgApplication : IDisposable
 
         _kernel.Update();
 
-        // GZ045: poll DebugPrimitivesBatch from SimHost and populate _gizmoBuffer.
-        _ingressTranslator?.PollAndApply();
+        // Read context menu requests emitted by DebugGizmoLayer.
+        if (_interactionBus != null)
+        {
+            foreach (ref readonly var evt in _interactionBus.Read<GizmoContextMenuRequestedEvent>())
+                _contextMenuSystem.RequestOpen(evt.Token.Target, evt.ScreenPos.X, evt.ScreenPos.Y);
+        }
 
         // Clear gizmo undo stack on world/scenario reset.
         foreach (var _ in _world.Bus.ReadManaged<WorldResetEvent>())
@@ -3664,6 +3645,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
         _mapCommandController?.BeginAreaAuthoringSession(requestId, _activeContextId);
 
+        var _areaGizmoId = GlobalGizmoManager.NewId();
         var areaGizmo = new PointSequenceGizmo(
 
             onFinish: points =>
@@ -3798,13 +3780,15 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
             _activeSequenceGizmo = null;
 
+            _globalGizmoManager?.Unregister(_areaGizmoId);
+
         });
 
-        _activeSequenceId    = GlobalGizmoManager.NewId();
+        _activeSequenceId    = _areaGizmoId;
 
         _activeSequenceGizmo = areaGizmo;
 
-        _globalGizmoManager?.Register(_activeSequenceId.Value, areaGizmo);
+        _globalGizmoManager?.Register(_areaGizmoId, areaGizmo);
 
 
 
@@ -3832,6 +3816,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
         _mapCommandController?.BeginAreaAuthoringSession(requestId, _activeContextId);
 
+        var _routeGizmoId = GlobalGizmoManager.NewId();
         var routeGizmo = new PointSequenceGizmo(
             onFinish: points =>
         {
@@ -3891,11 +3876,12 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         {
             _activeSequenceId    = null;
             _activeSequenceGizmo = null;
+            _globalGizmoManager?.Unregister(_routeGizmoId);
         });
 
-        _activeSequenceId    = GlobalGizmoManager.NewId();
+        _activeSequenceId    = _routeGizmoId;
         _activeSequenceGizmo = routeGizmo;
-        _globalGizmoManager?.Register(_activeSequenceId.Value, routeGizmo);
+        _globalGizmoManager?.Register(_routeGizmoId, routeGizmo);
 
         FdpLog<IgApplication>.Info("[Node-{0}] Route authoring tool activated.", _effectiveInstanceId);
     }

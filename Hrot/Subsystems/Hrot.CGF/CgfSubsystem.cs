@@ -36,6 +36,7 @@ using Hrot.Common.Scenario;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
+using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Network.Cyclone.Modules;
 using Fdp.Network.Cyclone.Systems;
 using Hrot.AI.Behaviors.Mappers;
@@ -536,6 +537,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // dt=0 from the SubsystemOrchestrator in headless mode, zeroing out every
         // DeltaTime-dependent system (e.g. ThreatEvaluationSystem boost/decay).
         _context?.Kernel.Update();
+        // Read context menu requests emitted by DebugGizmoLayer.
+        if (_cgfInteractionBus != null)
+        {
+            foreach (ref readonly var evt in _cgfInteractionBus.Read<GizmoContextMenuRequestedEvent>())
+            {
+                _pendingContextMenuEntity = evt.Token.Target;
+                _openContextMenuThisFrame = true;
+            }
+        }
         if (!_headless && _context != null)
         {
             _fdpFrameCount++;
