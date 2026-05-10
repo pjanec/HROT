@@ -847,10 +847,6 @@ namespace Hrot.Editor
                 _canvas!.AddLayer(_gizmoLayer);
                 if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
 
-                // Perception map layer — draws target-memory links between perceivers and targets.
-                var perceptionLayer = new PerceptionMapLayer(_world);
-                _canvas.AddLayer(perceptionLayer);
-
                 // Grid map layer — reads MapViewConfig.ShowGrid each frame.
                 var gridLayer = new GridMapLayer(() => _mapViewConfig!.ShowGrid);
                 _canvas!.AddLayer(gridLayer);
