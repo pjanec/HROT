@@ -20,6 +20,7 @@ using Hrot.IG.Systems;
 
 using Hrot.Common.Systems;
 using Hrot.Common.Constants;
+using Hrot.Common.Interactions;
 
 using Hrot.IG.UI;
 
@@ -83,6 +84,7 @@ using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Defaults;
 
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Diagnostics.Gizmos.UndoRedo;
@@ -235,6 +237,7 @@ public class IgApplication : IDisposable
     private GizmoUndoStack?             _gizmoUndoStack;
     private GlobalGizmoManager?         _globalGizmoManager;
     private DataDrivenGizmoSystem?       _igDataDrivenGizmoSystem;
+    private FdpEventBus?                 _interactionBus;
     private long?                        _activeSequenceId;
     private PointSequenceGizmo?          _activeSequenceGizmo;
     private long?                        _activeLocationPickerId;
@@ -1097,12 +1100,6 @@ public class IgApplication : IDisposable
         _statelessGizmoRegistry.Register(
             new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(_geoTransform!),
             new[] { typeof(SimTransform), typeof(SelectionState) });
-        _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_globalGizmoManager!, _gizmoSettingsRegistry);
-        var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer, _world.Bus, _world);
-        _gizmoLayer = gizmoLayer;
-        _canvas.AddLayer(gizmoLayer);
-        _canvas.DrawBuffer = _gizmoBuffer;
-
         // Cache SelectionState query once to avoid per-click allocations (CT-2).
         _selectionStateQuery = _world.Query()
             .With<SelectionState>()
@@ -1150,14 +1147,39 @@ public class IgApplication : IDisposable
             _gizmoRegistry!,
             _gizmoBuffer!,
             isSelectedPredicate: null);
-        _kernel.RegisterGlobalSystem(_igDataDrivenGizmoSystem);
-
-        // GZ057-058: register StatelessGizmoSystem so local presentation gizmos execute each frame.
-        _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!));
 
         // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
         _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer!);
-        _kernel.RegisterGlobalSystem(_globalGizmoManager);
+        _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_globalGizmoManager, _gizmoSettingsRegistry);
+        _interactionBus = new FdpEventBus();
+        var gizmoLayer = new DebugGizmoLayer(31, _gizmoBuffer!, _interactionBus, _world);
+        _gizmoLayer = gizmoLayer;
+        _canvas.AddLayer(gizmoLayer);
+        _canvas.DrawBuffer = _gizmoBuffer;
+        CycloneNetworkIngressSystem? gizmoIngress = null;
+        CycloneEgressSystem? gizmoEgress = null;
+        if (participant != null)
+        {
+            if (_headless)
+                gizmoIngress = new CycloneNetworkIngressSystem(new[] { GizmoTranslatorPack.CreateIngress(participant, _interactionBus!) });
+            else
+                gizmoEgress = new CycloneEgressSystem(new[] { GizmoTranslatorPack.CreateEgress(participant, (byte)_effectiveInstanceId, _interactionBus!) });
+            _kernel.RegisterGlobalSystem(new DebugPrimitivesBatchPublisherSystem(
+                _gizmoBuffer!,
+                new DdsWriterGizmoAdapter<GizmoMap.Network.DebugPrimitivesBatch>(participant),
+                nodeId: (byte)_effectiveInstanceId));
+        }
+        _kernel.RegisterModule(new GizmoInteractionModule(
+            _interactionBus!,
+            systems: new IEcsModuleSystem[]
+            {
+                _globalGizmoManager,
+            },
+            gizmoIngress: gizmoIngress,
+            gizmoEgress:  gizmoEgress));
+        _kernel.RegisterGlobalSystem(_igDataDrivenGizmoSystem);
+        _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!));
+        _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _interactionBus!));
 
         _kernel.Initialize();
 
@@ -4088,6 +4110,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
     // Phase 5: wraps SelectionInteractionSystem (POJO) as an IEcsModuleSystem so it can be
     // registered via _kernel.RegisterGlobalSystem and ticked by the kernel each frame.
+    [Fdp.ModuleHost.Abstractions.UpdateInPhase(Fdp.ModuleHost.Abstractions.SystemPhase.PostSimulation)]
     private sealed class SelectionInteractionSystemAdapter : Fdp.ModuleHost.Abstractions.IEcsModuleSystem
     {
         private readonly SelectionInteractionSystem _system;

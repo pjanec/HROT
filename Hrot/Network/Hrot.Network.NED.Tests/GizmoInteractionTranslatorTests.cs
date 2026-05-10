@@ -70,14 +70,16 @@ namespace Hrot.DDS.DataModel.Tests
             using var repo = GizmoInteractionTestRepo.Create();
             var entity = repo.CreateEntity();
             var writer = new CapturingWriter();
-            var sys = new GizmoInteractionEgressTranslator(nodeId: 7, writer: writer);
+            var interactionBus = new FdpEventBus();
+            interactionBus.Register<GizmoDragUpdateEvent>();
+            var sys = new GizmoInteractionEgressTranslator(nodeId: 7, writer: writer, interactionBus: interactionBus);
 
-            repo.Bus.Publish(new GizmoDragUpdateEvent
+            interactionBus.Publish(new GizmoDragUpdateEvent
             {
                 Token    = new PickToken { Target = entity, SubElementId = 3 },
                 WorldPos = new System.Numerics.Vector3(1f, 2f, 3f),
             });
-            repo.Bus.SwapBuffers();
+            interactionBus.SwapBuffers();
             sys.ScanAndPublish(repo);
 
             Assert.Single(writer.Written);
@@ -107,13 +109,15 @@ namespace Hrot.DDS.DataModel.Tests
                 WorldX = 10f, WorldY = 20f, WorldZ = 30f,
             };
             var reader = new SingleItemReader(batch);
-            var sys = new GizmoInteractionIngressTranslator(reader: reader);
+            var interactionBus = new FdpEventBus();
+            interactionBus.Register<GizmoInteractionCommitEvent>();
+            interactionBus.Register<GizmoInteractionCancelEvent>();
+            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus);
             var cmd = new EntityCommandBuffer();
             sys.PollIngress(cmd, repo);
-            cmd.Playback(repo);
-            repo.Bus.SwapBuffers();
+            interactionBus.SwapBuffers();
 
-            var commits = repo.Bus.Read<GizmoInteractionCommitEvent>().ToArray();
+            var commits = interactionBus.Read<GizmoInteractionCommitEvent>().ToArray();
             Assert.Single(commits);
             Assert.Equal(entity, commits[0].Token.Target);
             Assert.Equal(5u, commits[0].Token.SubElementId);
@@ -138,14 +142,16 @@ namespace Hrot.DDS.DataModel.Tests
                 PickStreamId         = gen,
             };
             var reader = new SingleItemReader(batch);
-            var sys = new GizmoInteractionIngressTranslator(reader: reader);
+            var interactionBus = new FdpEventBus();
+            interactionBus.Register<GizmoInteractionCancelEvent>();
+            interactionBus.Register<GizmoDragUpdateEvent>();
+            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus);
             var cmd = new EntityCommandBuffer();
             sys.PollIngress(cmd, repo);
-            cmd.Playback(repo);
-            repo.Bus.SwapBuffers();
+            interactionBus.SwapBuffers();
 
-            var cancels  = repo.Bus.Read<GizmoInteractionCancelEvent>().ToArray();
-            var dragEvts = repo.Bus.Read<GizmoDragUpdateEvent>().ToArray();
+            var cancels  = interactionBus.Read<GizmoInteractionCancelEvent>().ToArray();
+            var dragEvts = interactionBus.Read<GizmoDragUpdateEvent>().ToArray();
             Assert.Single(cancels);
             Assert.Empty(dragEvts);
         }
@@ -168,13 +174,14 @@ namespace Hrot.DDS.DataModel.Tests
                 PickStreamId         = gen,
             };
             var reader = new SingleItemReader(batch);
-            var sys = new GizmoInteractionIngressTranslator(reader: reader);
+            var interactionBus = new FdpEventBus();
+            interactionBus.Register<GizmoInteractionCancelEvent>();
+            var sys = new GizmoInteractionIngressTranslator(reader: reader, interactionBus: interactionBus);
             var cmd = new EntityCommandBuffer();
             sys.PollIngress(cmd, repo);
-            cmd.Playback(repo);
-            repo.Bus.SwapBuffers();
+            interactionBus.SwapBuffers();
 
-            var cancels = repo.Bus.Read<GizmoInteractionCancelEvent>().ToArray();
+            var cancels = interactionBus.Read<GizmoInteractionCancelEvent>().ToArray();
             Assert.Single(cancels);
         }
 
@@ -209,7 +216,7 @@ namespace Hrot.DDS.DataModel.Tests
         public void SC_GZ037_7_EgressSystem_NullWriter_NoOp()
         {
             using var repo = new EntityRepository();
-            var sys = new GizmoInteractionEgressTranslator(nodeId: 1, writer: null);
+            var sys = new GizmoInteractionEgressTranslator(nodeId: 1, writer: null, new FdpEventBus());
             repo.Bus.SwapBuffers();
             sys.ScanAndPublish(repo); // must not throw
         }
@@ -219,7 +226,7 @@ namespace Hrot.DDS.DataModel.Tests
         public void SC_GZ037_8_IngressSystem_NullReader_NoOp()
         {
             using var repo = new EntityRepository();
-            var sys = new GizmoInteractionIngressTranslator(reader: null);
+            var sys = new GizmoInteractionIngressTranslator(reader: null, new FdpEventBus());
             var cmd = new EntityCommandBuffer();
             sys.PollIngress(cmd, repo); // must not throw
         }

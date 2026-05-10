@@ -11,6 +11,7 @@ using Hrot.Common.Scenario;
 using Hrot.Common.Constants;
 using Hrot.Common.Interactions;
 using Hrot.Common.Systems;
+using Hrot.Network.NED.Gizmos;
 using CarKinem.Commands;
 using CarKinem.Formation;
 using CarKinem.Road;
@@ -113,8 +114,8 @@ namespace Hrot.SimHost
         private DebugPrimitiveBuffer? _gizmoBuffer;
         private GizmoRegistry? _gizmoRegistry;
         private StatelessGizmoRegistry? _statelessGizmoRegistry;
-        private DataDrivenGizmoSystem? _dataDrivenGizmoSystem;
-        // ── Schema publisher (GZ052) ────────────────────────────────────
+        private DataDrivenGizmoSystem? _dataDrivenGizmoSystem;        private FdpEventBus? _interactionBus;
+        private GizmoInteractionIngressTranslator? _gizmoIngressTranslator;        // ── Schema publisher (GZ052) ────────────────────────────────────
         private Fdp.Toolkit.Replication.Patching.JsonAttributeCompiler? _jsonAttributeCompiler;
         /// <summary>
         /// The visualization layer. Valid after <see cref="InitializeEmbedded"/> in non-headless mode.
@@ -537,7 +538,6 @@ namespace Hrot.SimHost
                 isSelectedPredicate: static (view, entity) =>
                     view.HasComponent<SelectionState>(entity) &&
                     view.GetComponentRO<SelectionState>(entity).IsSelected);
-            _kernel.RegisterGlobalSystem(_dataDrivenGizmoSystem);
             // Register the global action registry and wire operator action handlers.
             var actionRegistry = new GlobalActionRegistry();
             actionRegistry.Register(GlobalActionIds.Rotate, (view, target) =>
@@ -551,14 +551,35 @@ namespace Hrot.SimHost
                     onRemove: () => _dataDrivenGizmoSystem!.DeactivateGizmo(target));
                 _dataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
             });
-            _kernel.RegisterGlobalSystem(new ContextActionIngressSystem(_entityMap!));
-            _kernel.RegisterGlobalSystem(new GlobalActionDispatchSystem(actionRegistry));
-            _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(
-                _statelessGizmoRegistry,
-                _gizmoBuffer,
-                isSelectedPredicate: static (view, entity) =>
-                    view.HasComponent<SelectionState>(entity) &&
-                    view.GetComponentRO<SelectionState>(entity).IsSelected));
+            _interactionBus = new FdpEventBus();
+            // Headless: receive remote-viewer UI interactions from IG over DDS.
+            // The ingress translator writes directly to _interactionBus, not to the world bus.
+            CycloneNetworkIngressSystem? gizmoIngress = null;
+            if (ddsParticipant != null)
+            {
+                _gizmoIngressTranslator = GizmoTranslatorPack.CreateIngress(ddsParticipant, _interactionBus);
+                gizmoIngress = new CycloneNetworkIngressSystem(new[] { _gizmoIngressTranslator });
+                _kernel.RegisterGlobalSystem(new DebugPrimitivesBatchPublisherSystem(
+                    _gizmoBuffer,
+                    new DdsWriterGizmoAdapter<GizmoMap.Network.DebugPrimitivesBatch>(ddsParticipant),
+                    nodeId: (byte)localNodeId));
+            }
+            _kernel.RegisterModule(new GizmoInteractionModule(
+                _interactionBus,
+                systems: new IEcsModuleSystem[]
+                {
+                    new ContextActionIngressSystem(_entityMap!),
+                    new GlobalActionDispatchSystem(actionRegistry),
+                    _dataDrivenGizmoSystem,
+                    new StatelessGizmoSystem(
+                        _statelessGizmoRegistry,
+                        _gizmoBuffer,
+                        isSelectedPredicate: static (view, entity) =>
+                            view.HasComponent<SelectionState>(entity) &&
+                            view.GetComponentRO<SelectionState>(entity).IsSelected),
+                },
+                gizmoIngress: gizmoIngress,
+                gizmoEgress: null));
             // ── GZ052: Entity attribute schema publisher ──────────────────────
             // Build the compiler using the same geographic transform as the network factory.
             // SimHost is always the default processor in standalone mode.
@@ -576,6 +597,7 @@ namespace Hrot.SimHost
             _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("World", _eventHistoryService, _world.Bus));
             if (_eventBus != null)
                 _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Orchestration", _eventHistoryService, _eventBus));
+            _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _eventHistoryService, _interactionBus));
             _kernel.Initialize();
             Logger.Info($"[Node-{localNodeId}] Kernel initialized.");
 
@@ -595,7 +617,8 @@ namespace Hrot.SimHost
                     localNodeId: localNodeId,
                     worldPosDescriptorId: _networkFactory?.WorldPosDescriptorId ?? 0,
                     gizmoBuffer: _gizmoBuffer,
-                    gizmoSystem: _dataDrivenGizmoSystem);
+                    gizmoSystem: _dataDrivenGizmoSystem,
+                    interactionBus: _interactionBus);
                 _vis.FdpEntityInspector.ExtractionService = simHostEntityService;
 
                 Logger.Info($"[Node-{localNodeId}] Visualization ready. Window open.");
@@ -734,6 +757,12 @@ namespace Hrot.SimHost
 
         /// <summary>TestHook: current kernel simulation time in seconds. Updates every frame.</summary>
         public double TestHook_CurrentSimTime => _kernel?.CurrentTime.TotalTime ?? 0.0;
+
+        /// <summary>TestHook: exposes the gizmo primitive buffer for integration tests.</summary>
+        internal DebugPrimitiveBuffer? TestHook_GizmoBuffer => _gizmoBuffer;
+
+        /// <summary>TestHook: exposes the gizmo interaction ingress translator for integration tests.</summary>
+        internal GizmoInteractionIngressTranslator? TestHook_GizmoIngressTranslator => _gizmoIngressTranslator;
 
         /// <summary>
         /// Current kernel simulation time in seconds.  Updated every frame.

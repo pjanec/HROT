@@ -31,9 +31,13 @@ using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
+using Hrot.Common.Interactions;
 using Hrot.Common.Scenario;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
+using Hrot.Network.NED.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Network;
+using Fdp.Network.Cyclone.Modules;
 using Hrot.AI.Behaviors.Mappers;
 using Hrot.Presentation.Windows;
 using Hrot.Presentation.Facades;
@@ -89,6 +93,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _cgfGizmoBuffer;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _cgfGizmoManager;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? _cgfDataDrivenGizmoSystem;
+    private Fdp.Core.FdpEventBus? _cgfInteractionBus;
 
     // ── FDP panels ────────────────────────────────────────────────────────────
     private FdpEntityInspectorPanel              _fdpEntityInspector = new();
@@ -423,19 +428,36 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             new EventHistoryCaptureSystem("Orchestration", _fdpEventHistory, _context.EventBus));
 
         // GZ057: CGF entity presentation gizmos. Buffer and registry must be set up
-        // before Kernel.Initialize() because StatelessGizmoSystem is registered here.
+        // before Kernel.Initialize() because the GizmoInteractionModule is registered here.
         _cgfGizmoBuffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
         _cgfGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_cgfGizmoBuffer);
         var cgfStatelessRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.StatelessGizmoRegistry();
         cgfStatelessRegistry.Register(
             new Hrot.CGF.Gizmos.CgfEntityPresentationGizmo(),
             new System.Type[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
-        _context.Kernel.RegisterGlobalSystem(
-            new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(cgfStatelessRegistry, _cgfGizmoBuffer));
         var cgfGizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
         _cgfDataDrivenGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
                 cgfGizmoRegistry, _cgfGizmoBuffer, isSelectedPredicate: null);
-        _context.Kernel.RegisterGlobalSystem(_cgfDataDrivenGizmoSystem);
+        _cgfInteractionBus = new Fdp.Core.FdpEventBus();
+        CycloneNetworkIngressSystem? cgfGizmoIngress = null;
+        if (shellParticipant != null)
+        {
+            cgfGizmoIngress = new CycloneNetworkIngressSystem(new[] { GizmoTranslatorPack.CreateIngress(shellParticipant, _cgfInteractionBus) });
+            _context.Kernel.RegisterGlobalSystem(new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DebugPrimitivesBatchPublisherSystem(
+                _cgfGizmoBuffer,
+                new DdsWriterGizmoAdapter<GizmoMap.Network.DebugPrimitivesBatch>(shellParticipant),
+                nodeId: (byte)_context.NodeId));
+        }
+        _context.Kernel.RegisterModule(new GizmoInteractionModule(
+            _cgfInteractionBus,
+            systems: new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
+            {
+                new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(cgfStatelessRegistry, _cgfGizmoBuffer),
+                _cgfDataDrivenGizmoSystem,
+            },
+            gizmoIngress: cgfGizmoIngress,
+            gizmoEgress:  null));
+        _context.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _cgfInteractionBus));
 
         _context.Kernel.Initialize();
         // ── Visualization (non-headless only) ─────────────────────────────────────
@@ -450,7 +472,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _fdpRepoAdapter    = new FdpRepositoryAdapter(_context.World);
 
             // GZ057: add gizmo layer so CGF entity presentation primitives are rendered.
-            var cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, _cgfGizmoBuffer, _context.World.Bus);
+            var cgfGizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, _cgfGizmoBuffer, _cgfInteractionBus!);
             _canvas.AddLayer(cgfGizmoLayer);
             _canvas.DrawBuffer = _cgfGizmoBuffer;
 

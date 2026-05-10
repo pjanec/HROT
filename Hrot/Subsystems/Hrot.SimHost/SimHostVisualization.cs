@@ -147,7 +147,8 @@ namespace Hrot.SimHost
             int                     localNodeId = 0,
             long                    worldPosDescriptorId = 0,
             DebugPrimitiveBuffer?   gizmoBuffer = null,
-            Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? gizmoSystem = null)
+            Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? gizmoSystem = null,
+            Fdp.Core.FdpEventBus? interactionBus = null)
         {
             _repo                 = repo         ?? throw new ArgumentNullException(nameof(repo));
             _kernel               = kernel        ?? throw new ArgumentNullException(nameof(kernel));
@@ -232,7 +233,7 @@ namespace Hrot.SimHost
             // Gizmo debug overlay (GZ032).
             _gizmoBuffer = gizmoBuffer ?? new DebugPrimitiveBuffer();
             _globalGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_gizmoBuffer!);
-            _map.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer, repo.Bus, repo));
+            _map.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer, interactionBus ?? repo.Bus, repo));
             _map.DrawBuffer = _gizmoBuffer;
 
             // ── Interaction ───────────────────────────────────────────────────

@@ -26,10 +26,6 @@ namespace Hrot.Common.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            var repo = view as EntityRepository
-                ?? throw new System.InvalidOperationException(
-                    $"{nameof(ContextActionIngressSystem)} requires EntityRepository access.");
-
             foreach (var evt in view.ReadManagedEvents<ContextActionTriggered>())
             {
                 if (!int.TryParse(evt.ActionName,
@@ -46,7 +42,7 @@ namespace Hrot.Common.Systems
                 if (evt.EntityNetworkId != 0)
                     _entityMap.TryGetEntity((long)evt.EntityNetworkId, out target);
 
-                repo.Bus.Publish(new GlobalActionRequestedEvent
+                view.GetCommandBuffer().PublishEvent(new GlobalActionRequestedEvent
                 {
                     ActionId = actionId,
                     Target   = target,

@@ -14,13 +14,16 @@ using GizmoInteractionEventKind = GizmoMap.Network.GizmoInteractionEventKind;
 namespace Hrot.Network.NED.Gizmos
 {
     /// <summary>
-    /// SimHost-side ECS system that reads pending <see cref="GizmoInteractionBatch"/> DDS
-    /// records and publishes the appropriate typed interaction events to the local ECS bus.
-    /// Runs in BeforeSync so gizmo systems see the events in the same frame.
+    /// Reads pending <see cref="GizmoInteractionBatch"/> DDS records and publishes
+    /// the appropriate typed interaction events directly to the isolated
+    /// <see cref="FdpEventBus"/> provided at construction time.
+    /// Bypasses the global world bus entirely so that interaction noise is
+    /// quarantined inside the <c>GizmoInteractionModule</c> pipeline.
     /// </summary>
     public sealed class GizmoInteractionIngressTranslator : INetworkTranslator
     {
         private readonly IDdsReader<GizmoInteractionBatch>? _reader;
+        private readonly FdpEventBus _interactionBus;
 
         public string TopicName => "GizmoInteractionBatch";
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
@@ -28,28 +31,27 @@ namespace Hrot.Network.NED.Gizmos
         public long SentSampleCount { get; private set; }
 
         public GizmoInteractionIngressTranslator(
-            IDdsReader<GizmoInteractionBatch>? reader = null)
+            IDdsReader<GizmoInteractionBatch>? reader,
+            FdpEventBus interactionBus)
         {
-            _reader = reader;
+            _reader         = reader;
+            _interactionBus = interactionBus ?? throw new ArgumentNullException(nameof(interactionBus));
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (_reader == null) return;
-            if (view is not EntityRepository repo)
-                throw new InvalidOperationException(
-                    $"{nameof(GizmoInteractionIngressTranslator)} requires direct EntityRepository access.");
 
             while (_reader.TryRead(out var batch))
             {
                 ReceivedSampleCount++;
-                Translate(cmd, repo, batch);
+                Translate(view, batch);
             }
         }
 
         public void ScanAndPublish(ISimulationView view) { }
 
-        private static void Translate(IEntityCommandBuffer cmd, EntityRepository repo, in GizmoInteractionBatch batch)
+        private void Translate(ISimulationView view, in GizmoInteractionBatch batch)
         {
             var entity   = new Entity((int)batch.PickAnchorId, (ushort)batch.PickStreamId);
             var worldPos = new Vector3(batch.WorldX, batch.WorldY, batch.WorldZ);
@@ -59,40 +61,40 @@ namespace Hrot.Network.NED.Gizmos
                 SubElementId = batch.PickSubElementId,
             };
 
-            bool alive = repo.IsAlive(entity);
+            bool alive = view.IsAlive(entity);
 
             switch (batch.Kind)
             {
                 case GizmoInteractionEventKind.Started:
-                    cmd.PublishEvent(new GizmoInteractionStartedEvent { Token = token, WorldPos = worldPos });
+                    _interactionBus.Publish(new GizmoInteractionStartedEvent { Token = token, WorldPos = worldPos });
                     break;
 
                 case GizmoInteractionEventKind.DragUpdate:
                     if (!alive)
                         // Entity gone during drag -- substitute cancel for safety.
-                        cmd.PublishEvent(new GizmoInteractionCancelEvent { Token = token });
+                        _interactionBus.Publish(new GizmoInteractionCancelEvent { Token = token });
                     else
-                        cmd.PublishEvent(new GizmoDragUpdateEvent { Token = token, WorldPos = worldPos, Space = (CoordinateSpace)batch.Space });
+                        _interactionBus.Publish(new GizmoDragUpdateEvent { Token = token, WorldPos = worldPos, Space = (CoordinateSpace)batch.Space });
                     break;
 
                 case GizmoInteractionEventKind.Commit:
                     if (!alive)
-                        cmd.PublishEvent(new GizmoInteractionCancelEvent { Token = token });
+                        _interactionBus.Publish(new GizmoInteractionCancelEvent { Token = token });
                     else
-                        cmd.PublishEvent(new GizmoInteractionCommitEvent { Token = token, WorldPos = worldPos, Space = (CoordinateSpace)batch.Space });
+                        _interactionBus.Publish(new GizmoInteractionCommitEvent { Token = token, WorldPos = worldPos, Space = (CoordinateSpace)batch.Space });
                     break;
 
                 case GizmoInteractionEventKind.Cancel:
                     // Always forward cancel regardless of entity liveness.
-                    cmd.PublishEvent(new GizmoInteractionCancelEvent { Token = token });
+                    _interactionBus.Publish(new GizmoInteractionCancelEvent { Token = token });
                     break;
 
                 case GizmoInteractionEventKind.MenuAction:
                     // Route the selected context-menu item back as a ContextActionTriggered event
-                    // so that SimHost-side handlers can execute the corresponding domain action.
+                    // so that the local GizmoInteractionModule pipeline can execute the domain action.
                     // ActionName is the integer action ID serialised as a string to match the
                     // convention used by IgApplication.HandleContextMenuAction.
-                    repo.Bus.PublishManaged(new ContextActionTriggered
+                    _interactionBus.PublishManaged(new ContextActionTriggered
                     {
                         EntityNetworkId = (int)batch.PickAnchorId,
                         ActionName      = batch.ActionId.ToString(),
@@ -104,10 +106,10 @@ namespace Hrot.Network.NED.Gizmos
                     //   bit7 (0x80) = 1 -> mouse event, 0 -> keyboard event
                     //   bit0 (0x01) = 1 -> pressed, 0 -> released
                     // ActionId holds (int)MapMouseButton or (int)MapKeyboardKey.
-                    bool isMouse  = (batch.Space & 0x80) != 0;
+                    bool isMouse   = (batch.Space & 0x80) != 0;
                     bool isPressed = (batch.Space & 0x01) != 0;
                     if (isMouse)
-                        cmd.PublishEvent(new GizmoMouseEvent
+                        _interactionBus.Publish(new GizmoMouseEvent
                         {
                             Token     = token,
                             Button    = (MapMouseButton)batch.ActionId,
@@ -115,7 +117,7 @@ namespace Hrot.Network.NED.Gizmos
                             WorldPos  = worldPos,
                         });
                     else
-                        cmd.PublishEvent(new GizmoKeyEvent
+                        _interactionBus.Publish(new GizmoKeyEvent
                         {
                             Token     = token,
                             Key       = (MapKeyboardKey)batch.ActionId,

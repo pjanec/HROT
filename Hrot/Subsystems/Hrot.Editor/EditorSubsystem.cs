@@ -45,6 +45,7 @@ using Hrot.Orchestrator.Panels;
 using Hrot.Presentation.Windows;
 using Hrot.Common.Orchestration.Handlers;
 using Hrot.Common.Diagnostics;
+using Hrot.Common.Interactions;
 using Hrot.Common.Scenario;
 using Hrot.Editor;
 using Hrot.Editor.Adapters;
@@ -554,12 +555,23 @@ namespace Hrot.Editor
                 isSelectedPredicate: static (view, entity) =>
                     view.HasComponent<SelectionState>(entity) &&
                     view.GetComponentRO<SelectionState>(entity).IsSelected);
-            _kernel.RegisterGlobalSystem(_editorDataDrivenGizmoSystem);
             _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer);
-            _kernel.RegisterGlobalSystem(_globalGizmoManager);
-            _kernel.RegisterGlobalSystem(new StatelessGizmoSystem(editorStatelessGizmoRegistry, _gizmoBuffer));
-            // SpatialGridGizmo reads the SpatialGridData singleton — register as a standalone system.
+            // SpatialGridGizmo reads the SpatialGridData singleton -- register as a standalone system.
             _kernel.RegisterGlobalSystem(new Hrot.Common.Diagnostics.Gizmos.SpatialGridGizmo(_gizmoBuffer, new GizmoSettingsRegistry()));
+
+            // Editor has no DDS transport so no network ingress/egress translators.
+            var interactionBus = new FdpEventBus();
+            _kernel.RegisterModule(new GizmoInteractionModule(
+                interactionBus,
+                systems: new IEcsModuleSystem[]
+                {
+                    _editorDataDrivenGizmoSystem,
+                    _globalGizmoManager,
+                    new StatelessGizmoSystem(editorStatelessGizmoRegistry, _gizmoBuffer),
+                },
+                gizmoIngress: null,
+                gizmoEgress:  null));
+            _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, interactionBus));
 
             // ── 5. Kernel initialization ──────────────────────────────────────
             _kernel.Initialize();
@@ -710,7 +722,7 @@ namespace Hrot.Editor
                     .Build();
 
                 // Gizmo layer — renders entity presentation primitives produced locally by StatelessGizmoSystem.
-                _canvas!.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer!, _world.Bus, _world));
+                _canvas!.AddLayer(new DebugGizmoLayer(31, _gizmoBuffer!, interactionBus, _world));
                 if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
 
                 // Perception map layer — draws target-memory links between perceivers and targets.

@@ -140,6 +140,14 @@ namespace Hrot.SimHost
         internal void TestHook_SimulateDrag(long networkId, System.Numerics.Vector2 worldPos)
             => App.TestHook_SimulateDrag(networkId, worldPos);
 
+        /// <summary>TestHook: exposes the gizmo primitive buffer for integration tests.</summary>
+        internal Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? TestHook_GizmoBuffer
+            => App.TestHook_GizmoBuffer;
+
+        /// <summary>TestHook: exposes the gizmo interaction ingress translator for integration tests.</summary>
+        internal Hrot.Network.NED.Gizmos.GizmoInteractionIngressTranslator? TestHook_GizmoIngressTranslator
+            => App.TestHook_GizmoIngressTranslator;
+
         /// <summary>TestHook: attaches a MoveTo NavigationIntent to the entity, triggering movement.</summary>
         internal void TestHook_SetMovementIntent(long networkId, System.Numerics.Vector2 destination, float speed = 15f)
             => App.TestHook_SetMovementIntent(networkId, destination, speed);
