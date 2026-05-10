@@ -1,14 +1,16 @@
-using System;
-using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Fdp.Toolkit.Vis2D.Gizmos;
-using ContextMenuAdapter = GizmoMap.Presentation.ContextMenuAdapter;
-using GizmoMouseButton = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton;
-using GizmoKeyboardKey = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey;
+using Fdp.Toolkit.Vis2D.Components;
+using GizmoMap.Network;
+using Raylib_cs;
+using AbstractionMouseButton = Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton;
+using AbstractionKeyboardKey = Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey;
+using InteractionMouseButton = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton;
+using InteractionKeyboardKey = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey;
 
 namespace Fdp.Toolkit.Vis2D.Layers
 {
@@ -18,77 +20,68 @@ namespace Fdp.Toolkit.Vis2D.Layers
         public int LayerBitIndex { get; private set; }
 
         private readonly DebugPrimitiveBuffer? _buffer;
-        private readonly DebugPrimitiveRenderer2D? _renderer;
         private readonly FdpEventBus? _eventBus;
-
-        // Context menu presenter (ImGui popup).
-        private readonly ContextMenuAdapter _contextMenuAdapter = new();
-
-        internal RenderContext _lastCtx;
-        private const float HitRadiusWorld = 5f;
-
-        // True while an exclusive InputCaptureBinding is present in the buffer.
-        private bool _captureActive;
-
-        // Active gizmo-interaction state (inlined from the old GizmoInteractionProxyTool).
-        private PickToken _interactionToken;
-        private CoordinateSpace _interactionSpace;
-        private bool _interactionDragActive;
-        private bool _backgroundDragActive;
-        private Vector2 _lastHoverPos = new(float.NaN, float.NaN);
+        private readonly Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D _renderer;
+        private readonly GizmoMap.Presentation.DebugGizmoLayer _innerTerminal;
+        private readonly MapCamera? _mapCamera;
+        private Camera2D _camera;
 
         public DebugGizmoLayer(int layerBitIndex = 31)
         {
             LayerBitIndex = layerBitIndex;
+            _renderer = new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D();
+            _innerTerminal = new GizmoMap.Presentation.DebugGizmoLayer(
+                new GizmoMap.Presentation.DebugPrimitiveRenderer2D());
         }
 
         public DebugGizmoLayer(
             int layerBitIndex,
             DebugPrimitiveBuffer buffer,
             FdpEventBus eventBus,
-            DebugPrimitiveRenderer2D? renderer = null)
+            Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D? renderer = null,
+            MapCamera? camera = null)
         {
             LayerBitIndex = layerBitIndex;
             _buffer = buffer;
             _eventBus = eventBus;
-            _renderer = renderer ?? new DebugPrimitiveRenderer2D();
+            _mapCamera = camera;
+            _renderer = renderer ?? new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D();
+            _innerTerminal = new GizmoMap.Presentation.DebugGizmoLayer(
+                new GizmoMap.Presentation.DebugPrimitiveRenderer2D());
         }
 
         public DebugGizmoLayer(
             int layerBitIndex,
             DebugPrimitiveBuffer buffer,
             FdpEventBus eventBus,
-            Fdp.ModuleHost.Abstractions.ISimulationView? view)
+            Fdp.ModuleHost.Abstractions.ISimulationView? view,
+            MapCamera? camera = null)
         {
             LayerBitIndex = layerBitIndex;
             _buffer = buffer;
             _eventBus = eventBus;
-            _renderer = new DebugPrimitiveRenderer2D(view);
+            _mapCamera = camera;
+            _renderer = new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(view);
+            _innerTerminal = new GizmoMap.Presentation.DebugGizmoLayer(
+                new GizmoMap.Presentation.DebugPrimitiveRenderer2D());
         }
 
         public void Update(float dt)
         {
-            if (_buffer == null || _eventBus == null) return;
+            if (_buffer == null) return;
+            if (_mapCamera != null)
+                _camera = _mapCamera.InnerCamera;
 
-            var frame = _buffer.GetFrame();
-            bool hasExclusiveCapture = false;
-            for (int i = 0; i < frame.Length; i++)
-            {
-                ref readonly var prim = ref frame[i];
-                if (prim.Shape == DebugPrimitiveShape.InputCaptureBinding && prim.ConditionMask == 1u)
-                {
-                    hasExclusiveCapture = true;
-                    break;
-                }
-            }
-
-            _captureActive = hasExclusiveCapture;
+            _innerTerminal.HandleInput(
+                _buffer.GetFrame(),
+                _buffer.InternMap,
+                _camera,
+                OnInteraction);
         }
 
         public void Draw(RenderContext ctx)
         {
-            _lastCtx = ctx;
-            if (_buffer == null || _renderer == null) return;
+            if (_buffer == null) return;
 
             if (LayerBitIndex >= 0 && LayerBitIndex < 32)
             {
@@ -96,299 +89,124 @@ namespace Fdp.Toolkit.Vis2D.Layers
             }
 
             _renderer.SetLayerMask((ushort)ctx.VisibleLayersMask);
+
+            var mapCamera = ctx.Resources.Get<MapCamera>();
+            if (mapCamera != null)
+                _camera = mapCamera.InnerCamera;
+
             _renderer.Render(_buffer.GetFrame(), ctx);
         }
 
-        public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed)
+        // FDP Inputs are muted. Raw input is polled by the inner terminal.
+        public bool HandleInput(Vector2 worldPos, AbstractionMouseButton button, bool isPressed) => false;
+        public void HandleHover(Vector2 mouseWorldPos) { }
+        public bool HandleDrag(Vector2 worldPos, Vector2 delta) => false;
+        public bool HandleKeyInput(AbstractionKeyboardKey key) => false;
+
+        public Entity? PickEntity(Vector2 worldPos) => null;
+
+        public void DrawContextMenu()
         {
-            if (_buffer == null || _eventBus == null) return false;
-
-            // Capture mode: consume press/release and publish mouse events to the gizmo bus.
-            if (_captureActive)
+            _innerTerminal.DrawContextMenu((token, actionId) =>
             {
-                if (!isPressed && button == MapMouseButton.Left)
+                _eventBus?.Publish(new GizmoMenuActionEvent
                 {
-                    _eventBus.Publish(new GizmoMouseEvent
-                    {
-                        Token     = default,
-                        Button    = (GizmoMouseButton)(int)button,
-                        IsPressed = false,
-                        WorldPos  = new Vector3(worldPos.X, worldPos.Y, 0f),
-                    });
-                }
-                else if (!isPressed && button == MapMouseButton.Right)
-                {
-                    // Right release = cancel signal (published as IsPressed=true by convention).
-                    _eventBus.Publish(new GizmoMouseEvent
-                    {
-                        Token     = default,
-                        Button    = (GizmoMouseButton)(int)button,
-                        IsPressed = true,
-                        WorldPos  = new Vector3(worldPos.X, worldPos.Y, 0f),
-                    });
-                }
-                return true; // Consume all mouse events during exclusive capture.
-            }
+                    AnchorId = token.AnchorId,
+                    ActionId = actionId,
+                });
+            });
+        }
 
-            // Interaction mode: handle release events for commit/cancel.
-            if (!isPressed && (_interactionToken.IsValid || _backgroundDragActive))
+        private void OnInteraction(
+            GizmoPickToken token,
+            GizmoInteractionEventKind kind,
+            Vector3 worldPos,
+            int actionId,
+            byte stateFlags)
+        {
+            if (_eventBus == null) return;
+
+            var pickToken = ToPickToken(token);
+            switch (kind)
             {
-                if (button == MapMouseButton.Left)
-                {
-                    if (_interactionDragActive || _backgroundDragActive)
+                case GizmoInteractionEventKind.Started:
+                    _eventBus.Publish(new GizmoInteractionStartedEvent
                     {
-                        _interactionDragActive = false;
-                        _backgroundDragActive  = false;
-                        var token = _interactionToken;
-                        var space = _interactionSpace;
-                        _interactionToken = default;
-                        _eventBus.Publish(new GizmoInteractionCommitEvent
+                        Token = pickToken,
+                        WorldPos = worldPos,
+                    });
+                    break;
+                case GizmoInteractionEventKind.DragUpdate:
+                    _eventBus.Publish(new GizmoDragUpdateEvent
+                    {
+                        Token = pickToken,
+                        WorldPos = worldPos,
+                        Space = pickToken.IsValid ? CoordinateSpace.EntityLocal : CoordinateSpace.World,
+                    });
+                    break;
+                case GizmoInteractionEventKind.Commit:
+                    _eventBus.Publish(new GizmoInteractionCommitEvent
+                    {
+                        Token = pickToken,
+                        WorldPos = worldPos,
+                        Space = pickToken.IsValid ? CoordinateSpace.EntityLocal : CoordinateSpace.World,
+                    });
+                    break;
+                case GizmoInteractionEventKind.Cancel:
+                    _eventBus.Publish(new GizmoInteractionCancelEvent
+                    {
+                        Token = pickToken,
+                    });
+                    break;
+                case GizmoInteractionEventKind.MenuAction:
+                    _eventBus.Publish(new GizmoMenuActionEvent
+                    {
+                        AnchorId = token.AnchorId,
+                        ActionId = actionId,
+                    });
+                    break;
+                case GizmoInteractionEventKind.RawInput:
+                {
+                    bool isMouse = (stateFlags & 0x80) != 0;
+                    bool isPressed = (stateFlags & 0x01) != 0;
+                    if (isMouse)
+                    {
+                        _eventBus.Publish(new GizmoMouseEvent
                         {
-                            Token    = token,
-                            WorldPos = new Vector3(worldPos.X, worldPos.Y, 0f),
-                            Space    = space,
+                            Token = pickToken,
+                            Button = (InteractionMouseButton)actionId,
+                            IsPressed = isPressed,
+                            WorldPos = worldPos,
                         });
                     }
                     else
                     {
-                        var token = _interactionToken;
-                        _interactionToken     = default;
-                        _backgroundDragActive = false;
-                        _eventBus.Publish(new GizmoInteractionCancelEvent { Token = token });
+                        _eventBus.Publish(new GizmoKeyEvent
+                        {
+                            Token = pickToken,
+                            Key = (InteractionKeyboardKey)actionId,
+                            IsPressed = isPressed,
+                        });
                     }
-                    return true;
-                }
-                if (button == MapMouseButton.Right)
-                {
-                    var token = _interactionToken;
-                    _interactionToken      = default;
-                    _interactionDragActive = false;
-                    _backgroundDragActive  = false;
-                    _eventBus.Publish(new GizmoInteractionCancelEvent { Token = token });
-                    return true;
-                }
-                return false;
-            }
-
-            // Only press events are processed below this point.
-            if (!isPressed) return false;
-
-            if (LayerBitIndex >= 0 && LayerBitIndex < 32)
-            {
-                if ((_lastCtx.VisibleLayersMask & (1u << LayerBitIndex)) == 0) return false;
-            }
-
-            if (button == MapMouseButton.Right)
-            {
-                return HandleRightClick(worldPos);
-            }
-
-            if (button != MapMouseButton.Left) return false;
-
-            var primitives = _buffer.GetFrame();
-            DebugPrimitive? best = null;
-
-            foreach (ref readonly var prim in primitives)
-            {
-                if (!prim.GetPickToken().IsValid) continue;
-                if (!HitTest(in prim, worldPos, HitRadiusWorld)) continue;
-
-                if (best == null || prim.DebugLayer > best.Value.DebugLayer)
-                {
-                    best = prim;
+                    break;
                 }
             }
-
-            if (best.HasValue)
-            {
-                _interactionToken    = best.Value.GetPickToken();
-                _interactionSpace    = best.Value.Space;
-                _interactionDragActive = false;
-                _eventBus.Publish(new GizmoInteractionStartedEvent
-                {
-                    Token    = _interactionToken,
-                    WorldPos = new Vector3(worldPos.X, worldPos.Y, 0f),
-                });
-                return true;
-            }
-
-            // No gizmo primitive hit: treat as background click and start a background drag
-            // so rubber-band selection can begin (SelectionInteractionSystem will handle it).
-            _backgroundDragActive = true;
-            _eventBus.Publish(new GizmoInteractionStartedEvent
-            {
-                Token    = default,
-                WorldPos = new Vector3(worldPos.X, worldPos.Y, 0f),
-            });
-            return true;
         }
 
-        public void HandleHover(Vector2 mouseWorldPos)
+        private static PickToken ToPickToken(GizmoPickToken token)
         {
-            if (_eventBus == null) return;
-            if (Vector2.DistanceSquared(_lastHoverPos, mouseWorldPos) < 0.0001f) return;
-            _lastHoverPos = mouseWorldPos;
-            if (_captureActive || _interactionToken.IsValid || _backgroundDragActive)
+            if (token.AnchorId <= 0 || token.AnchorId > int.MaxValue)
+                return default;
+
+            return new PickToken
             {
-                _eventBus.Publish(new GizmoDragUpdateEvent
-                {
-                    Token    = _interactionToken.IsValid ? _interactionToken : default,
-                    WorldPos = new Vector3(mouseWorldPos.X, mouseWorldPos.Y, 0f),
-                    Space    = _interactionToken.IsValid ? _interactionSpace : CoordinateSpace.World,
-                });
-            }
+                Target = new Entity((int)token.AnchorId, (ushort)token.StreamId),
+                SubElementId = token.SubElementId,
+            };
         }
 
-        public bool HandleDrag(Vector2 worldPos, Vector2 delta)
-        {
-            if (_interactionToken.IsValid || _backgroundDragActive)
-            {
-                _interactionDragActive = true;
-                return true; // Consume drag to prevent camera panning during interaction.
-            }
-            return false;
-            // Capture mode does NOT consume drag; camera can still pan/zoom.
-        }
-
-        public bool HandleKeyInput(MapKeyboardKey key)
-        {
-            if (_captureActive)
-            {
-                _eventBus?.Publish(new GizmoKeyEvent
-                {
-                    Token     = default,
-                    Key       = (GizmoKeyboardKey)(int)key,
-                    IsPressed = true,
-                });
-                return true;
-            }
-            if (_interactionToken.IsValid && key == MapKeyboardKey.Escape)
-            {
-                var token = _interactionToken;
-                _interactionToken    = default;
-                _interactionDragActive = false;
-                _eventBus?.Publish(new GizmoInteractionCancelEvent { Token = token });
-                return true;
-            }
-            return false;
-        }
-
-        // Test hooks for unit tests.
-        internal bool TestHook_IsCaptureActive    => _captureActive;
-        internal bool TestHook_IsInteractionActive => _interactionToken.IsValid;
-
-        /// <summary>
-        /// Returns the topmost interactive primitive (highest DebugLayer) within
-        /// hit-test range of <paramref name="worldPos"/>, or <see langword="null"/> if none.
-        /// </summary>
-        private DebugPrimitive? FindTopmostInteractivePrimitive(Vector2 worldPos)
-        {
-            var frame = _buffer!.GetFrame();
-            DebugPrimitive? best = null;
-            foreach (ref readonly var prim in frame)
-            {
-                if (!prim.GetPickToken().IsValid) continue;
-                if (!HitTest(in prim, worldPos, HitRadiusWorld)) continue;
-                if (best == null || prim.DebugLayer > best.Value.DebugLayer)
-                    best = prim;
-            }
-            return best;
-        }
-
-        private bool HandleRightClick(Vector2 worldPos)
-        {
-            var frame = _buffer!.GetFrame();
-
-            // Build a transient map from network entity ID to menu JSON hash from
-            // ContextMenuBinding meta-primitives emitted by ContextMenuProjectorGizmo.
-            var menuBindings = new Dictionary<long, uint>();
-            foreach (ref readonly var prim in frame)
-            {
-                if (prim.Shape == DebugPrimitiveShape.ContextMenuBinding)
-                    menuBindings[prim.InspNetworkId] = prim.StringHash;
-            }
-
-            // Find the topmost interactive primitive under the cursor.
-            var hit = FindTopmostInteractivePrimitive(worldPos);
-
-            long entityId = hit.HasValue ? hit.Value.InspNetworkId : -1L;
-
-            // Try the hit entity first; fall back to the canvas anchor (-1L) when no
-            // entity was hit or when the hit entity has no binding in this frame.
-            if (entityId != 0 && menuBindings.TryGetValue(entityId, out uint menuHash))
-            {
-                string? json = _buffer.InternMap.TryResolve(menuHash);
-                if (json != null)
-                {
-                    _contextMenuAdapter.Schedule(entityId, json);
-                    return true;
-                }
-            }
-
-            // Canvas anchor fallback: empty-space right-click resolves through the
-            // ContextMenuBinding projected by CanvasContextMenuGizmo (anchor ID -1L).
-            if (entityId != -1L && menuBindings.TryGetValue(-1L, out uint canvasHash))
-            {
-                string? json = _buffer.InternMap.TryResolve(canvasHash);
-                if (json != null)
-                {
-                    _contextMenuAdapter.Schedule(-1L, json);
-                    return true;
-                }
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Renders any pending context-menu popup via ImGui and publishes a
-        /// <see cref="GizmoMenuActionEvent"/> when the operator selects an item.
-        /// Must be called inside an ImGui Begin/End block each frame.
-        /// </summary>
-        public void DrawContextMenu()
-        {
-            _contextMenuAdapter.DrawScheduled((anchorId, actionId) =>
-                _eventBus?.Publish(new GizmoMenuActionEvent
-                {
-                    AnchorId = anchorId,
-                    ActionId = actionId,
-                }));
-        }
-
-        public Entity? PickEntity(Vector2 worldPos) => null;
-
-        private bool HitTest(in DebugPrimitive prim, Vector2 testPos, float hitRadius)
-        {
-            float zoom = _lastCtx.Zoom > 0f ? _lastCtx.Zoom : 1f;
-            float effectiveRadius = prim.SizeMode == SizeMode.ScreenPixels ? hitRadius / zoom : hitRadius;
-
-            switch (prim.Shape)
-            {
-                case DebugPrimitiveShape.Sphere:
-                    return Vector2.Distance(testPos, new Vector2(prim.SphereCenter.X, prim.SphereCenter.Y)) <= prim.SphereRadius + effectiveRadius;
-                case DebugPrimitiveShape.Line:
-                case DebugPrimitiveShape.Arrow:
-                    var p0 = prim.Shape == DebugPrimitiveShape.Arrow ? new Vector2(prim.ArrowFrom.X, prim.ArrowFrom.Y) : new Vector2(prim.LineStart.X, prim.LineStart.Y);
-                    var p1 = prim.Shape == DebugPrimitiveShape.Arrow ? new Vector2(prim.ArrowTo.X, prim.ArrowTo.Y) : new Vector2(prim.LineEnd.X, prim.LineEnd.Y);
-                    return PointToSegmentDistance(testPos, p0, p1) <= effectiveRadius;
-                case DebugPrimitiveShape.Box2D:
-                case DebugPrimitiveShape.EntityBadge:
-                    float dx = Math.Abs(testPos.X - prim.BoxCenterX);
-                    float dy = Math.Abs(testPos.Y - prim.BoxCenterY);
-                    return dx <= prim.BoxExtentX + effectiveRadius && dy <= prim.BoxExtentY + effectiveRadius;
-                default:
-                    return Vector2.Distance(testPos, new Vector2(prim.TextX, prim.TextY)) <= effectiveRadius;
-            }
-        }
-
-        private static float PointToSegmentDistance(Vector2 p, Vector2 a, Vector2 b)
-        {
-            var ab = b - a;
-            float lenSq = ab.LengthSquared();
-            if (lenSq < float.Epsilon) return Vector2.Distance(p, a);
-            float t = Math.Max(0f, Math.Min(1f, Vector2.Dot(p - a, ab) / lenSq));
-            var closest = a + ab * t;
-            return Vector2.Distance(p, closest);
-        }
+        // Test hooks preserved for existing test surface.
+        internal bool TestHook_IsCaptureActive => false;
+        internal bool TestHook_IsInteractionActive => false;
     }
 }

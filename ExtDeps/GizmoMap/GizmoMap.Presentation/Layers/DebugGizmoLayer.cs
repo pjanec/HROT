@@ -127,67 +127,62 @@ namespace GizmoMap.Presentation
                     menuBindings[prim.InspNetworkId] = prim.StringHash;
             }
 
-            // ---- Try to start a new interaction on left press (reverse iteration) -------
-            // Iterating in reverse ensures the last-submitted (topmost) Box2D wins the
-            // hit-test. DebugLayer is a visibility mask and is NOT used as a depth key.
+            // ---- Try to start a new interaction on left press ----------------------------
             if (_activeTool == null && Raylib.IsMouseButtonPressed(MouseButton.Left))
             {
-                for (int i = primitives.Length - 1; i >= 0; i--)
+                var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom);
+                if (best.HasValue)
                 {
-                    ref readonly var prim = ref primitives[i];
-                    if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
-                    if (prim.Space != CoordinateSpace.World) continue;
-                    if (prim.SubElementId == 0) continue;
-
-                    float dx = Math.Abs(worldPos.X - prim.BoxCenterX);
-                    float dy = Math.Abs(worldPos.Y - prim.BoxCenterY);
-                    if (dx <= prim.BoxExtentX && dy <= prim.BoxExtentY)
+                    var hit = best.Value;
+                    long anchorId = hit.BoxAnchorId != 0
+                        ? hit.BoxAnchorId
+                        : (hit.InspNetworkId != 0 ? hit.InspNetworkId : hit.AnchorIndex);
+                    var token = new GizmoPickToken
                     {
-                        // BoxAnchorId routes to the owning manager slot; fall back to SubElementId
-                        // for legacy unmanaged Box2D primitives (e.g. the interactive drag box).
-                        var token = new GizmoPickToken
-                        {
-                            AnchorId     = prim.BoxAnchorId != 0 ? prim.BoxAnchorId : (long)prim.SubElementId,
-                            SubElementId = prim.SubElementId,
-                        };
-                        _activeTool = new GizmoInteractionProxyTool(
-                            token, worldPos, onInteraction, onExit: () => _activeTool = null);
-                        _activeTool.HandlePress(worldPos, MouseButton.Left);
-                        break;
-                    }
+                        AnchorId = anchorId,
+                        SubElementId = hit.SubElementId,
+                        StreamId = hit.AnchorGeneration,
+                    };
+                    _activeTool = new GizmoInteractionProxyTool(
+                        token, worldPos, onInteraction, onExit: () => _activeTool = null, hit.Space);
+                    _activeTool.HandlePress(worldPos, MouseButton.Left);
+                }
+                else
+                {
+                    // Canvas fallback to allow selection-rect interactions.
+                    _activeTool = new GizmoInteractionProxyTool(
+                        default, worldPos, onInteraction, onExit: () => _activeTool = null);
+                    _activeTool.HandlePress(worldPos, MouseButton.Left);
                 }
             }
 
-            // ---- Right-click: show context menu for the topmost hit Box2D, or the canvas ---
-            // Falls back to canvas anchor (-1L) when no entity box is under the cursor so
+            // ---- Right-click: show context menu for the topmost hit primitive, or canvas ---
+            // Falls back to canvas anchor (-1L) when no entity is under the cursor so
             // that empty-space right-clicks resolve through the same ContextMenuBinding pipeline.
             if (_activeTool == null && Raylib.IsMouseButtonReleased(MouseButton.Right))
             {
                 long hitEntityId = -1L; // canvas anchor fallback
 
-                for (int i = primitives.Length - 1; i >= 0; i--)
+                var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom);
+                if (best.HasValue)
                 {
-                    ref readonly var prim = ref primitives[i];
-                    if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
-                    if (prim.Space != CoordinateSpace.World) continue;
-                    if (prim.SubElementId == 0) continue;
-
-                    float dx = Math.Abs(worldPos.X - prim.BoxCenterX);
-                    float dy = Math.Abs(worldPos.Y - prim.BoxCenterY);
-                    if (dx <= prim.BoxExtentX && dy <= prim.BoxExtentY)
-                    {
-                        // Use BoxAnchorId for managed handles; fall back to SubElementId for
-                        // unmanaged Box2D primitives whose context-menu binding key equals SubElementId.
-                        hitEntityId = prim.BoxAnchorId != 0 ? prim.BoxAnchorId : (long)prim.SubElementId;
-                        break;
-                    }
+                    var hit = best.Value;
+                    hitEntityId = hit.BoxAnchorId != 0
+                        ? hit.BoxAnchorId
+                        : (hit.InspNetworkId != 0 ? hit.InspNetworkId : hit.AnchorIndex);
                 }
 
-                if (menuBindings.TryGetValue(hitEntityId, out uint menuHash))
+                if (hitEntityId != 0 && menuBindings.TryGetValue(hitEntityId, out uint menuHash))
                 {
                     string? json = internMap.TryResolve(menuHash);
                     if (json != null)
                         _contextMenuAdapter.Schedule(hitEntityId, json);
+                }
+                else if (hitEntityId != -1L && menuBindings.TryGetValue(-1L, out uint canvasHash))
+                {
+                    string? json = internMap.TryResolve(canvasHash);
+                    if (json != null)
+                        _contextMenuAdapter.Schedule(-1L, json);
                 }
             }
 
@@ -195,7 +190,11 @@ namespace GizmoMap.Presentation
             if (_activeTool != null)
             {
                 if (Raylib.IsMouseButtonDown(MouseButton.Left))
-                    _activeTool.HandleDrag(worldPos, Raylib.GetMouseDelta());
+                {
+                    var delta = Raylib.GetMouseDelta();
+                    if (delta.X != 0f || delta.Y != 0f)
+                        _activeTool.HandleDrag(worldPos, delta);
+                }
 
                 if (Raylib.IsMouseButtonReleased(MouseButton.Left))
                     _activeTool.HandleClick(worldPos, MouseButton.Left);
@@ -219,6 +218,45 @@ namespace GizmoMap.Presentation
         {
             _contextMenuAdapter.DrawScheduled((anchorId, actionId) =>
                 onMenuAction?.Invoke(new GizmoPickToken { AnchorId = anchorId }, actionId));
+        }
+
+        private static DebugPrimitive? FindTopmostInteractivePrimitive(
+            ReadOnlySpan<DebugPrimitive> primitives,
+            Vector2 testPos,
+            float zoom)
+        {
+            DebugPrimitive? best = null;
+            float effZoom = zoom > 0f ? zoom : 1f;
+
+            for (int i = primitives.Length - 1; i >= 0; i--)
+            {
+                ref readonly var prim = ref primitives[i];
+                if (prim.Shape == DebugPrimitiveShape.InputCaptureBinding || prim.Shape == DebugPrimitiveShape.ContextMenuBinding) continue;
+
+                bool hasAnchor = prim.InspNetworkId != 0 || prim.AnchorIndex != 0 || prim.SubElementId != 0 || prim.BoxAnchorId != 0;
+                if (!hasAnchor) continue;
+
+                float hitRadius = prim.SizeMode == SizeMode.ScreenPixels ? 5f / effZoom : 5f;
+                bool hit = false;
+
+                if (prim.Shape == DebugPrimitiveShape.Box2D)
+                {
+                    float dx = Math.Abs(testPos.X - prim.BoxCenterX);
+                    float dy = Math.Abs(testPos.Y - prim.BoxCenterY);
+                    hit = dx <= prim.BoxExtentX && dy <= prim.BoxExtentY;
+                }
+                else if (prim.Shape == DebugPrimitiveShape.Sphere)
+                {
+                    float distSq = Vector2.DistanceSquared(testPos, new Vector2(prim.SphereCenter.X, prim.SphereCenter.Y));
+                    float r = prim.SphereRadius + hitRadius;
+                    hit = distSq <= r * r;
+                }
+
+                if (hit && (best == null || prim.DebugLayer > best.Value.DebugLayer))
+                    best = prim;
+            }
+
+            return best;
         }
     }
 }
