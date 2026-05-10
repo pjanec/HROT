@@ -465,6 +465,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     for (int i = 0; i < gizmoList.Count; i++)
                         gizmoList[i].Instance.OnMenuAction(evt.ActionId);
                 }
+
+                // Route to injected tools (VertexEditGizmo, RouteWaypointGizmo, ...).
+                foreach (var kvp in _injectedGizmos)
+                    kvp.Value.OnMenuAction(evt.ActionId);
             }
 
             // MouseEvent: only the focused exclusive-focus gizmo receives raw mouse events.
@@ -496,6 +500,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// or <c>null</c> if none is registered.</summary>
         private IEntityStatefulGizmo? FindGizmo(Entity entity)
         {
+            // Injected (on-demand) gizmos have strict priority over base rules.
+            if (_injectedGizmos.TryGetValue(entity, out var injected))
+                return injected;
+
             if (!_activeGizmos.TryGetValue(entity, out var list) || list.Count == 0)
                 return null;
             return list[0].Instance;
