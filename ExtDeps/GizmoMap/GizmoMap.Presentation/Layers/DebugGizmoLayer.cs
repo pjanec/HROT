@@ -77,6 +77,7 @@ namespace GizmoMap.Presentation
             var screenPos = Raylib.GetMousePosition();
             var worldPos  = Raylib.GetScreenToWorld2D(screenPos, camera);
             var worldPos3 = new Vector3(worldPos.X, worldPos.Y, 0f);
+            var delta = Raylib.GetMouseDelta();
             long exclusiveAnchorId = 0;
             bool routeRawInput = false;
             var captureToken = default(GizmoPickToken);
@@ -200,7 +201,6 @@ namespace GizmoMap.Presentation
             {
                 if (Raylib.IsMouseButtonDown(MouseButton.Left))
                 {
-                    var delta = Raylib.GetMouseDelta();
                     if (delta.X != 0f || delta.Y != 0f)
                         _activeTool.HandleDrag(worldPos, delta);
                 }
@@ -213,6 +213,11 @@ namespace GizmoMap.Presentation
 
                 if (Raylib.IsKeyPressed(KeyboardKey.Escape))
                     _activeTool.HandleKeyPressed(KeyboardKey.Escape);
+            }
+
+            if ((exclusiveAnchorId != 0 || routeRawInput) && (delta.X != 0f || delta.Y != 0f))
+            {
+                onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.DragUpdate, worldPos3, 0, 0);
             }
 
             if (routeRawInput)
