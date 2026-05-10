@@ -23,6 +23,7 @@ namespace Hrot.SimHost.Gizmos
         private readonly Action _onRemove;
 
         private Vector3 _entityPos;
+        private Vector3 _currentCursorPos;
         private float _currentYawRad;
         private bool _active = true;
 
@@ -43,6 +44,7 @@ namespace Hrot.SimHost.Gizmos
             {
                 ref readonly var tf = ref _repo.GetComponentRO<SimTransform>(_entity);
                 _entityPos = tf.Position;
+                _currentCursorPos = _entityPos;
                 // Extract yaw from the quaternion (rotation around Z, Z=up convention).
                 Quaternion q = tf.Rotation;
                 _currentYawRad = MathF.Atan2(
@@ -56,18 +58,19 @@ namespace Hrot.SimHost.Gizmos
         public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw)
         {
             if (!_active) return;
-            const float arrowLen = 50f;
-            var from = _entityPos;
-            var tip  = new Vector3(
-                _entityPos.X + MathF.Cos(_currentYawRad) * arrowLen,
-                _entityPos.Y + MathF.Sin(_currentYawRad) * arrowLen,
-                _entityPos.Z);
-            draw.DrawArrow(from, tip, Rgba32.Yellow, headSize: 6f);
+            draw.DrawLine(_entityPos, _currentCursorPos, Rgba32.Yellow, thickness: 2f, sizeMode: SizeMode.ScreenPixels);
+
+            float compassDeg = ((90f - _currentYawRad * (180f / MathF.PI)) % 360f + 360f) % 360f;
+            string label = $"{compassDeg:F0}deg";
+            float midX = (_entityPos.X + _currentCursorPos.X) * 0.5f;
+            float midY = (_entityPos.Y + _currentCursorPos.Y) * 0.5f;
+            draw.DrawTextLong(midX, midY + 15f, label, Rgba32.White);
         }
 
         // DragUpdate: recompute heading from the cursor world position.
         public void OnDragUpdate(Vector3 worldPos)
         {
+            _currentCursorPos = worldPos;
             float dx = worldPos.X - _entityPos.X;
             float dy = worldPos.Y - _entityPos.Y;
             if (MathF.Abs(dx) > 0.001f || MathF.Abs(dy) > 0.001f)
@@ -79,6 +82,7 @@ namespace Hrot.SimHost.Gizmos
         public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
         {
             if (!_active) return;
+            _currentCursorPos = worldPos;
             if (button == MapMouseButton.Left && !isPressed)
             {
                 CommitRotation();
@@ -99,7 +103,10 @@ namespace Hrot.SimHost.Gizmos
         }
 
         // These are unused for this exclusive-capture gizmo.
-        public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos) { }
+        public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos)
+        {
+            _currentCursorPos = worldPos;
+        }
         public void OnCommit(Vector3 worldPos) { }
         public void OnCancel() { }
         public void OnMenuAction(int actionId) { }
