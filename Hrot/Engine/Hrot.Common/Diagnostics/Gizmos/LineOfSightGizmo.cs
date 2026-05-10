@@ -16,9 +16,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
             if (mem.Count == 0) return;
 
-            uint currentTick = view is EntityRepository repo && repo.HasSingleton<GlobalTime>()
-                ? (uint)repo.GetSingletonUnmanaged<GlobalTime>().FrameNumber
-                : 0u;
+            uint currentTick = view.Tick;
 
             var perceiverPos = tf.Position;
             for (int i = 0; i < mem.Count; i++)
