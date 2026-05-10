@@ -442,11 +442,6 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             {
                 var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target);
                 gizmo?.OnCommit(evt.WorldPos);
-                if (_focusedGizmo != null)
-                {
-                    _focusedGizmo.SetFocus(false);
-                    _focusedGizmo = null;
-                }
             }
 
             // Cancel: route, then clear focus.
@@ -455,11 +450,6 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             {
                 var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target);
                 gizmo?.OnCancel();
-                if (_focusedGizmo != null)
-                {
-                    _focusedGizmo.SetFocus(false);
-                    _focusedGizmo = null;
-                }
             }
 
             // MenuAction: route to the entity's gizmo (no focus change).
