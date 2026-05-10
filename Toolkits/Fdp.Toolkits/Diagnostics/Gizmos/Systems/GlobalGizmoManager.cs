@@ -59,7 +59,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
             _activeGizmos[id] = gizmo;
 
-            if (gizmo.RequiresExclusiveFocus && _focusedGizmo == null)
+            if ((gizmo.RequiresExclusiveFocus || gizmo.WantsRawInput) && _focusedGizmo == null)
             {
                 _focusedGizmo = gizmo;
                 gizmo.SetFocus(true);
@@ -93,12 +93,14 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             {
                 kvp.Value.UpdateAndDraw(deltaTime, _drawBuilder);
 
-                if (kvp.Value == _focusedGizmo && _focusedGizmo.RequiresExclusiveFocus)
+                if (kvp.Value == _focusedGizmo &&
+                    (_focusedGizmo.RequiresExclusiveFocus || _focusedGizmo.WantsRawInput))
                 {
                     var binding = DebugPrimitive.MakeInputCaptureBinding(
                         networkId:    kvp.Key,
                         subElementId: 0,
-                        exclusive:    true);
+                        exclusive:    _focusedGizmo.RequiresExclusiveFocus,
+                        wantsRawInput: _focusedGizmo.WantsRawInput);
                     _drawBuilder.EmitRaw(in binding);
                 }
             }

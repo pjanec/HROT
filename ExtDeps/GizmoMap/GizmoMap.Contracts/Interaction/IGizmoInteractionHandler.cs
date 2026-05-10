@@ -18,6 +18,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Interaction
         // on behalf of this gizmo, routing all raw HW events to it.
         bool RequiresExclusiveFocus { get; }
 
+        // When true the hosting manager emits InputCaptureBinding with raw-input routing
+        // enabled so the terminal forwards keyboard/mouse button events to this gizmo.
+        // Spatial exclusivity and raw-input routing are independent concerns.
+        bool WantsRawInput => false;
+
         // True while this gizmo holds input focus (exclusive or shared-active).
         // Set by the manager via SetFocus; readable from UpdateAndDraw so the gizmo
         // can alter its visual style when focused.

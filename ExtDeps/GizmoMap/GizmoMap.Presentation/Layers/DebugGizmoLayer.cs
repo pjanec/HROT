@@ -77,49 +77,22 @@ namespace GizmoMap.Presentation
             var screenPos = Raylib.GetMousePosition();
             var worldPos  = Raylib.GetScreenToWorld2D(screenPos, camera);
             var worldPos3 = new Vector3(worldPos.X, worldPos.Y, 0f);
-
-            // ---- Scan for exclusive InputCaptureBinding --------------------------------
-            // When found, route all raw HW events to the capturing token and skip
-            // normal spatial hit-testing. The gizmo declares intent; the terminal obeys.
+            long exclusiveAnchorId = 0;
+            bool routeRawInput = false;
+            var captureToken = default(GizmoPickToken);
             for (int i = 0; i < primitives.Length; i++)
             {
                 ref readonly var prim = ref primitives[i];
                 if (prim.Shape != DebugPrimitiveShape.InputCaptureBinding) continue;
-                if (prim.ConditionMask != 1u) continue; // 0 = shared, skip
-
-                var captureToken = new GizmoPickToken
+                if ((prim.ConditionMask & 1u) != 0) exclusiveAnchorId = prim.InspNetworkId;
+                if ((prim.ConditionMask & 2u) != 0) routeRawInput = true;
+                captureToken = new GizmoPickToken
                 {
-                    AnchorId     = prim.InspNetworkId,
+                    AnchorId = prim.InspNetworkId,
                     SubElementId = prim.SubElementId,
+                    StreamId = prim.AnchorGeneration,
                 };
-
-                // Mouse move -> DragUpdate so the gizmo can recompute heading/position.
-                var delta = Raylib.GetMouseDelta();
-                if (delta.X != 0 || delta.Y != 0)
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.DragUpdate, worldPos3, 0, 0);
-
-                // Mouse button press/release -> RawInput (bit7=1 mouse; bit0=1 pressed).
-                if (Raylib.IsMouseButtonPressed(MouseButton.Left))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Left, 0x81);
-                else if (Raylib.IsMouseButtonReleased(MouseButton.Left))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Left, 0x80);
-
-                if (Raylib.IsMouseButtonPressed(MouseButton.Right))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Right, 0x81);
-                else if (Raylib.IsMouseButtonReleased(MouseButton.Right))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Right, 0x80);
-
-                // Keyboard Escape -> RawInput (bit7=0 keyboard; bit0=1 pressed).
-                if (Raylib.IsKeyPressed(KeyboardKey.Escape))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapKeyboardKey.Escape, 0x01);
-
-                // Exclusive capture active: suppress all normal hit-testing this frame.
-                return;
+                break;
             }
 
             if (Raylib.IsMouseButtonPressed(MouseButton.Right))
@@ -145,7 +118,7 @@ namespace GizmoMap.Presentation
             // ---- Try to start a new interaction on left press ----------------------------
             if (_activeTool == null && Raylib.IsMouseButtonPressed(MouseButton.Left))
             {
-                var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom);
+                var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId);
                 if (best.HasValue)
                 {
                     var hit = best.Value;
@@ -162,7 +135,7 @@ namespace GizmoMap.Presentation
                         token, worldPos, onInteraction, onExit: () => _activeTool = null, hit.Space);
                     _activeTool.HandlePress(worldPos, MouseButton.Left);
                 }
-                else
+                else if (exclusiveAnchorId == 0)
                 {
                     // Canvas fallback to allow selection-rect interactions.
                     _activeTool = new GizmoInteractionProxyTool(
@@ -174,32 +147,51 @@ namespace GizmoMap.Presentation
             // ---- Right-click: show context menu for the topmost hit primitive, or canvas ---
             // Falls back to canvas anchor (-1L) when no entity is under the cursor so
             // that empty-space right-clicks resolve through the same ContextMenuBinding pipeline.
+            bool contextMenuOpened = false;
             if (_activeTool == null && Raylib.IsMouseButtonReleased(MouseButton.Right))
             {
                 bool suppressMenu = _rightWasDragged;
                 _rightWasDragged = false;
-                if (suppressMenu) return;
-
-                long hitNetworkId = -1L; // canvas anchor fallback
-
-                var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom);
-                if (best.HasValue)
+                if (!suppressMenu)
                 {
-                    var hit = best.Value;
-                    hitNetworkId = hit.BoxAnchorId != 0 ? hit.BoxAnchorId : -1L;
-                }
+                    long hitNetworkId = -1L; // canvas anchor fallback
 
-                if (hitNetworkId != -1L && menuBindings.TryGetValue(hitNetworkId, out uint menuHash))
-                {
-                    string? json = internMap.TryResolve(menuHash);
-                    if (json != null)
-                        _contextMenuAdapter.Schedule(hitNetworkId, json);
-                }
-                else if (menuBindings.TryGetValue(-1L, out uint canvasHash))
-                {
-                    string? json = internMap.TryResolve(canvasHash);
-                    if (json != null)
-                        _contextMenuAdapter.Schedule(-1L, json);
+                    var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId);
+                    if (best.HasValue)
+                    {
+                        var hit = best.Value;
+                        hitNetworkId = hit.BoxAnchorId != 0 ? hit.BoxAnchorId : -1L;
+                        long anchorId = hit.AnchorIndex != 0 ? hit.AnchorIndex : hit.BoxAnchorId;
+                        var token = new GizmoPickToken
+                        {
+                            AnchorId = anchorId,
+                            SubElementId = hit.SubElementId,
+                            StreamId = hit.AnchorGeneration,
+                        };
+                        onInteraction?.Invoke(token, GizmoInteractionEventKind.Started, worldPos3, 0, 0);
+                    }
+
+                    if (exclusiveAnchorId != 0 && hitNetworkId != exclusiveAnchorId)
+                        hitNetworkId = 0;
+
+                    if (hitNetworkId != 0 && hitNetworkId != -1L && menuBindings.TryGetValue(hitNetworkId, out uint menuHash))
+                    {
+                        string? json = internMap.TryResolve(menuHash);
+                        if (json != null)
+                        {
+                            _contextMenuAdapter.Schedule(hitNetworkId, json);
+                            contextMenuOpened = true;
+                        }
+                    }
+                    else if (hitNetworkId == -1L && menuBindings.TryGetValue(-1L, out uint canvasHash))
+                    {
+                        string? json = internMap.TryResolve(canvasHash);
+                        if (json != null)
+                        {
+                            _contextMenuAdapter.Schedule(-1L, json);
+                            contextMenuOpened = true;
+                        }
+                    }
                 }
             }
 
@@ -222,6 +214,27 @@ namespace GizmoMap.Presentation
                 if (Raylib.IsKeyPressed(KeyboardKey.Escape))
                     _activeTool.HandleKeyPressed(KeyboardKey.Escape);
             }
+
+            if (routeRawInput)
+            {
+                if (Raylib.IsMouseButtonPressed(MouseButton.Left))
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                        worldPos3, (int)MapMouseButton.Left, 0x81);
+                else if (Raylib.IsMouseButtonReleased(MouseButton.Left))
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                        worldPos3, (int)MapMouseButton.Left, 0x80);
+
+                if (Raylib.IsMouseButtonPressed(MouseButton.Right))
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                        worldPos3, (int)MapMouseButton.Right, 0x81);
+                else if (!contextMenuOpened && Raylib.IsMouseButtonReleased(MouseButton.Right))
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                        worldPos3, (int)MapMouseButton.Right, 0x80);
+
+                if (Raylib.IsKeyPressed(KeyboardKey.Escape))
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                        worldPos3, (int)MapKeyboardKey.Escape, 0x01);
+            }
         }
 
         /// <summary>
@@ -240,7 +253,8 @@ namespace GizmoMap.Presentation
         private static DebugPrimitive? FindTopmostInteractivePrimitive(
             ReadOnlySpan<DebugPrimitive> primitives,
             Vector2 testPos,
-            float zoom)
+            float zoom,
+            long exclusiveAnchorId = 0)
         {
             DebugPrimitive? best = null;
             float effZoom = zoom > 0f ? zoom : 1f;
@@ -250,8 +264,10 @@ namespace GizmoMap.Presentation
                 ref readonly var prim = ref primitives[i];
                 if (prim.Shape == DebugPrimitiveShape.InputCaptureBinding || prim.Shape == DebugPrimitiveShape.ContextMenuBinding) continue;
 
-                bool hasAnchor = prim.AnchorIndex != 0 || prim.SubElementId != 0 || prim.BoxAnchorId != 0;
-                if (!hasAnchor) continue;
+                if (prim.AnchorIndex == 0 && prim.SubElementId == 0 && prim.BoxAnchorId == 0) continue;
+
+                long anchorId = prim.AnchorIndex != 0 ? prim.AnchorIndex : prim.BoxAnchorId;
+                if (exclusiveAnchorId != 0 && anchorId != exclusiveAnchorId) continue;
 
                 float hitRadius = prim.SizeMode == SizeMode.ScreenPixels ? 5f / effZoom : 5f;
                 bool hit = false;

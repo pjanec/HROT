@@ -226,15 +226,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         // InputCaptureBinding payload reuses existing overlapping fields:
         //   InspNetworkId (offset 24) - stable AnchorId of the capturing tool
         //   SubElementId  (offset 52) - handle id within the tool (0 = whole tool)
-        //   ConditionMask (offset 40) - 1 = exclusive, 0 = shared
+        //   ConditionMask (offset 40) - bit 0: exclusive hit-testing, bit 1: raw input routing
         public static DebugPrimitive MakeInputCaptureBinding(
-            long networkId, ushort subElementId, bool exclusive)
+            long networkId, ushort subElementId, bool exclusive, bool wantsRawInput = false)
         {
             var p = default(DebugPrimitive);
             p.Shape         = DebugPrimitiveShape.InputCaptureBinding;
             p.InspNetworkId = networkId;
             p.SubElementId  = subElementId;
-            p.ConditionMask = exclusive ? 1u : 0u;
+            p.ConditionMask = (exclusive ? 1u : 0u) | (wantsRawInput ? 2u : 0u);
             return p;
         }
     }

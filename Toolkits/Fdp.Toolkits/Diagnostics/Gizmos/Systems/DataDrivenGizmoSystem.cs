@@ -87,7 +87,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
             _injectedGizmos[entity] = gizmo;
 
-            if (gizmo.RequiresExclusiveFocus && _focusedGizmo == null)
+            if ((gizmo.RequiresExclusiveFocus || gizmo.WantsRawInput) && _focusedGizmo == null)
             {
                 _focusedGizmo = gizmo;
                 _focusedGizmo.SetFocus(true);
@@ -266,7 +266,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     });
 
                     // Grant exclusive focus if the gizmo requests it.
-                    if (instance.RequiresExclusiveFocus && _focusedGizmo == null)
+                    if ((instance.RequiresExclusiveFocus || instance.WantsRawInput) && _focusedGizmo == null)
                     {
                         _focusedGizmo = instance;
                         _focusedGizmo.SetFocus(true);
@@ -303,12 +303,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity)) continue;
                         gi.Instance.UpdateAndDraw(deltaTime, _drawBuilder);
                         // Emit InputCaptureBinding for the exclusive-focus holder.
-                        if (gi.Instance == _focusedGizmo && _focusedGizmo.RequiresExclusiveFocus)
+                        if (gi.Instance == _focusedGizmo &&
+                            (_focusedGizmo.RequiresExclusiveFocus || _focusedGizmo.WantsRawInput))
                         {
                             var binding = DebugPrimitive.MakeInputCaptureBinding(
                                 networkId: (long)entity.Index,
                                 subElementId: 0,
-                                exclusive: true);
+                                exclusive: _focusedGizmo.RequiresExclusiveFocus,
+                                wantsRawInput: _focusedGizmo.WantsRawInput);
+                            binding.AnchorGeneration = (ushort)entity.Generation;
                             _drawBuilder.EmitRaw(in binding);
                         }
                     }
@@ -341,12 +344,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity)) continue;
                         gi.Instance.UpdateAndDraw(deltaTime, _drawBuilder);
                         // Emit InputCaptureBinding for the exclusive-focus holder.
-                        if (gi.Instance == _focusedGizmo && _focusedGizmo.RequiresExclusiveFocus)
+                        if (gi.Instance == _focusedGizmo &&
+                            (_focusedGizmo.RequiresExclusiveFocus || _focusedGizmo.WantsRawInput))
                         {
                             var binding = DebugPrimitive.MakeInputCaptureBinding(
                                 networkId: (long)entity.Index,
                                 subElementId: 0,
-                                exclusive: true);
+                                exclusive: _focusedGizmo.RequiresExclusiveFocus,
+                                wantsRawInput: _focusedGizmo.WantsRawInput);
+                            binding.AnchorGeneration = (ushort)entity.Generation;
                             _drawBuilder.EmitRaw(in binding);
                         }
                     }
@@ -367,12 +373,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 {
                     kvp.Value.UpdateAndDraw(deltaTime, _drawBuilder);
                     // Emit InputCaptureBinding for the exclusive-focus holder.
-                    if (kvp.Value == _focusedGizmo && _focusedGizmo.RequiresExclusiveFocus)
+                    if (kvp.Value == _focusedGizmo &&
+                        (_focusedGizmo.RequiresExclusiveFocus || _focusedGizmo.WantsRawInput))
                     {
                         var binding = DebugPrimitive.MakeInputCaptureBinding(
                             networkId: (long)kvp.Key.Index,
                             subElementId: 0,
-                            exclusive: true);
+                            exclusive: _focusedGizmo.RequiresExclusiveFocus,
+                            wantsRawInput: _focusedGizmo.WantsRawInput);
+                        binding.AnchorGeneration = (ushort)kvp.Key.Generation;
                         _drawBuilder.EmitRaw(in binding);
                     }
                 }
@@ -410,7 +419,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             {
                 var gizmo = FindGizmo(evt.Token.Target);
                 if (gizmo == null) continue;
-                if (gizmo.RequiresExclusiveFocus && _focusedGizmo != gizmo)
+                if ((gizmo.RequiresExclusiveFocus || gizmo.WantsRawInput) && _focusedGizmo != gizmo)
                 {
                     _focusedGizmo?.SetFocus(false);
                     _focusedGizmo = gizmo;
