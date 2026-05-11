@@ -83,15 +83,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         [FieldOffset(28)] public float IconWorldPosY;
         // IconAtlasCoord aliases TextContent (same physical offset 32)
 
-        // ComponentInspector payload
-        [FieldOffset(24)] public long InspNetworkId;    // stable network-level entity ID (not ECS slot)
-        [FieldOffset(32)] public uint InspSchemaHash;   // FNV-1a hash of the component type name
-        [FieldOffset(36)] public ScreenAnchor InspAnchor;
-        [FieldOffset(37)] public byte InspIsReadOnly;
+        // StructInspector payload (generic struct editor projected via StructEdit schema)
+        [FieldOffset(24)] public long StructNetworkId;    // stable network-level anchor ID
+        [FieldOffset(32)] public uint StructSchemaHash;   // FNV-1a hash of the StructEdit schema
+        [FieldOffset(36)] public ScreenAnchor StructAnchor;
+        [FieldOffset(37)] public byte StructIsReadOnly;
         // bytes 38-39 unused padding
-        [FieldOffset(40)] public float InspOffsetX;
-        [FieldOffset(44)] public float InspOffsetY;
+        [FieldOffset(40)] public float StructOffsetX;
+        [FieldOffset(44)] public float StructOffsetY;
         // bytes 48-63 unused
+
+        // LayerControlMask payload: 32-byte 256-bit visibility mask at offsets 24-55
+        [FieldOffset(24)] public LayerMask256 ActiveLayers;
 
         // SemanticShape payload: entity semantic shape/profile primitive.
         [FieldOffset(24)] public ulong ProfileId;       // DIS enumeration / shape profile registry key
@@ -255,30 +258,40 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         // ContextMenuBinding payload reuses existing overlapping fields:
-        //   StringHash    (offset 8)  - FNV-1a hash of the JSON menu string (same overlay as AnchorIndex)
-        //   InspNetworkId (offset 24) - stable entity ID to bind the menu to
+        //   StringHash      (offset 8)  - FNV-1a hash of the JSON menu string (same overlay as AnchorIndex)
+        //   StructNetworkId (offset 24) - stable entity ID to bind the menu to
         // All other fields remain zero. This primitive is non-visual and never dispatched to the renderer.
         public static DebugPrimitive MakeContextMenuBinding(long networkId, uint menuJsonHash)
         {
             var p = default(DebugPrimitive);
-            p.Shape         = DebugPrimitiveShape.ContextMenuBinding;
-            p.StringHash    = menuJsonHash;   // FNV-1a hash of the JSON menu string
-            p.InspNetworkId = networkId;      // entity to bind the menu to
+            p.Shape           = DebugPrimitiveShape.ContextMenuBinding;
+            p.StringHash      = menuJsonHash;   // FNV-1a hash of the JSON menu string
+            p.StructNetworkId = networkId;      // entity to bind the menu to
             return p;
         }
 
         // InputCaptureBinding payload reuses existing overlapping fields:
-        //   InspNetworkId (offset 24) - stable AnchorId of the capturing tool
-        //   SubElementId  (offset 52) - handle id within the tool (0 = whole tool)
-        //   ConditionMask (offset 40) - bit 0: exclusive hit-testing, bit 1: raw input routing
+        //   StructNetworkId (offset 24) - stable AnchorId of the capturing tool
+        //   SubElementId    (offset 52) - handle id within the tool (0 = whole tool)
+        //   ConditionMask   (offset 40) - bit 0: exclusive hit-testing, bit 1: raw input routing
         public static DebugPrimitive MakeInputCaptureBinding(
             long networkId, ushort subElementId, bool exclusive, bool wantsRawInput = false)
         {
             var p = default(DebugPrimitive);
-            p.Shape         = DebugPrimitiveShape.InputCaptureBinding;
-            p.InspNetworkId = networkId;
-            p.SubElementId  = subElementId;
-            p.ConditionMask = (exclusive ? 1u : 0u) | (wantsRawInput ? 2u : 0u);
+            p.Shape           = DebugPrimitiveShape.InputCaptureBinding;
+            p.StructNetworkId = networkId;
+            p.SubElementId    = subElementId;
+            p.ConditionMask   = (exclusive ? 1u : 0u) | (wantsRawInput ? 2u : 0u);
+            return p;
+        }
+
+        // MainMenuBinding payload reuses StringHash (offset 8) for the interned JSON menu array hash.
+        // All other fields remain zero. Non-visual meta-primitive consumed by MainMenuAdapter.
+        public static DebugPrimitive MakeMainMenuBinding(uint menuJsonHash)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape      = DebugPrimitiveShape.MainMenuBinding;
+            p.StringHash = menuJsonHash;
             return p;
         }
     }

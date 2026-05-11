@@ -201,6 +201,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// </summary>
         public void EmitRaw(in DebugPrimitive prim) => Append(prim);
 
+        /// <summary>
+        /// Interns <paramref name="menuJson"/> and emits a <see cref="DebugPrimitiveShape.MainMenuBinding"/>
+        /// meta-primitive so the dumb terminal merges it into the global main menu bar.
+        /// </summary>
+        public void DrawMainMenuBinding(string menuJson)
+        {
+            uint hash = StringInternMap.Fnv1a32(menuJson);
+            _internMap.Intern(hash, menuJson);
+            Append(DebugPrimitive.MakeMainMenuBinding(hash));
+        }
+
         // ---- Internal helpers -----------------------------------------------
 
         internal void Append(DebugPrimitive p)

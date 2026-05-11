@@ -12,7 +12,7 @@ namespace GizmoMap.Example
     // - RequiresExclusiveFocus = false: spatial hit-testing on the terminal picks the vertex.
     // - Each vertex emits a Box2D handle with SubElementId = vertexIndex + 1.
     //   SubElementId == 0 is reserved for "no handle" and is skipped by the terminal.
-    // - The InspNetworkId field on each handle primitive carries the polygon AnchorId so
+    // - The StructNetworkId field on each handle primitive carries the polygon AnchorId so
     //   the terminal builds the correct GizmoPickToken (AnchorId = polygon, SubElementId = vertex).
     // - Started carries the full token; OnInteractionStarted extracts SubElementId to identify
     //   the active vertex.
@@ -36,7 +36,7 @@ namespace GizmoMap.Example
         public void SetFocus(bool isFocused) => IsFocused = isFocused;
 
         // anchorId   - stable ID used to register this gizmo in GizmoInteractionManager.
-        //              Every Box2D handle emitted sets InspNetworkId to this value so the
+        //              Every Box2D handle emitted sets StructNetworkId to this value so the
         //              terminal routes Started events here.
         // vertices   - mutable polygon vertices edited in-place during drag interactions.
         public VertexEditGizmo(long anchorId, Vector2[] vertices)

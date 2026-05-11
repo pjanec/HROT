@@ -56,9 +56,10 @@ using (transport)
     }
     else
     {
-        // Wire the StructEdit side-channel so ComponentInspector shows a real property tree.
+        // Wire the StructEdit side-channel so StructInspector shows a real property tree.
         var schemaRegistry = new GizmoSchemaRegistry();
         schemaRegistry.Register(0xDEADBEEF, DemoSceneGenerator.BuildMockDocument());
+        schemaRegistry.Register(LayerControlGizmo.SchemaHash, DemoSceneGenerator.BuildLayerControlDocument());
 
         GizmoViewerFrontend.Run(
             $"GizmoMap Example - {mode}",
@@ -73,7 +74,8 @@ using (transport)
                 consumer.Clear();
                 transport.PollAndApply(consumer);
             },
-            onInteraction: gen.OnGizmoInteraction,
+            onInteraction: (token, kind, pos, actionId, flags, payloadJson) =>
+                gen.OnGizmoInteraction(token, kind, pos, actionId, flags, payloadJson),
             onMenuAction: (token, actionId) => gen.OnMenuAction(token, actionId),
             onCustomInput: () =>
             {

@@ -42,6 +42,9 @@ namespace GizmoMap.Example
         // Stable anchor ID for the entity rotator (created on demand, removed on commit/cancel).
         private const long RotatorAnchorId = 2001L;
 
+        // Layer control gizmo: drives layer visibility mask from a StructInspector panel.
+        private readonly LayerControlGizmo _layerControlGizmo = new();
+
         // Mutable vertices for the two interactive polygons.
         // Positioned so both polygons are visible in the default 640x480 view (camera at origin).
         private readonly Vector2[] _polygon1Vertices = new Vector2[]
@@ -155,6 +158,9 @@ namespace GizmoMap.Example
             // Register the two polygon vertex editors at startup.
             _manager.AddTool(Polygon1AnchorId, new VertexEditGizmo(Polygon1AnchorId, _polygon1Vertices));
             _manager.AddTool(Polygon2AnchorId, new VertexEditGizmo(Polygon2AnchorId, _polygon2Vertices));
+
+            // Register the layer control gizmo; it is always present.
+            _manager.AddTool(LayerControlGizmo.AnchorId, _layerControlGizmo);
         }
 
         /// <summary>
@@ -219,7 +225,8 @@ namespace GizmoMap.Example
             GizmoInteractionEventKind kind,
             Vector3 pos,
             int actionId,
-            byte stateFlags)
+            byte stateFlags,
+            string? payloadJson = null)
         {
             // Handle the legacy interactive drag box directly (AnchorId==1, SubElementId==1).
             // RawInput events are not relevant for this box so they are skipped here.
@@ -231,7 +238,7 @@ namespace GizmoMap.Example
             }
 
             // Forward all events to the manager; it ignores anchors it does not own.
-            _manager.DispatchEvent(token, kind, pos, actionId, stateFlags);
+            _manager.DispatchEvent(token, kind, pos, actionId, stateFlags, payloadJson);
         }
 
         private void HandleInteractiveBoxEvent(GizmoInteractionEventKind kind, Vector3 pos)
@@ -282,6 +289,10 @@ namespace GizmoMap.Example
             string menuJson = GetActiveMenuJson(_elapsedTime);
             string label    = ResolveActionLabel(menuJson, actionId);
             Console.WriteLine($"[ContextMenu] anchor={token.AnchorId} action={actionId} ({label})");
+
+            // Route layer control menu actions to the layer control gizmo.
+            if (actionId == LayerControlGizmo.OpenActionId)
+                _layerControlGizmo.ToggleEditor();
         }
 
         // ---- Scene emission -------------------------------------------------
@@ -318,6 +329,7 @@ namespace GizmoMap.Example
             semPrim.WidthMeters   = 4f;
             semPrim.ConditionMask = isDamaged ? 1u : 0u;
             semPrim.Color         = Rgba32.Green;
+            semPrim.DebugLayer    = 1;  // units layer
             builder.EmitRaw(in semPrim);
 
             // ---- 3. Sphere: sensor ring, EntityLocal, WorldMeters ---------------
@@ -330,16 +342,19 @@ namespace GizmoMap.Example
             sensorPrim.SphereCenter = Vector3.Zero;
             sensorPrim.SphereRadius = 50f;
             sensorPrim.Color        = new Rgba32(0, 200, 255, 128);
+            sensorPrim.DebugLayer   = 2;  // sensors layer
             builder.EmitRaw(in sensorPrim);
 
-            // ---- 4. ComponentInspector: mock schema hash 0xDEADBEEF ---------------
+            // ---- 4. StructInspector: mock schema hash 0xDEADBEEF ---------------
             var inspPrim = default(DebugPrimitive);
-            inspPrim.Shape         = DebugPrimitiveShape.ComponentInspector;
-            inspPrim.TargetView    = PipelineTarget.Map2D;
-            inspPrim.InspNetworkId = EntityNetworkId;
-            inspPrim.InspSchemaHash = 0xDEADBEEF;
-            inspPrim.InspOffsetX   = 20f;
-            inspPrim.InspOffsetY   = 20f;
+            inspPrim.Shape            = DebugPrimitiveShape.StructInspector;
+            inspPrim.TargetView       = PipelineTarget.Map2D;
+            inspPrim.StructNetworkId  = EntityNetworkId;
+            inspPrim.StructSchemaHash = 0xDEADBEEF;
+            inspPrim.StructAnchor     = ScreenAnchor.TopLeft;
+            inspPrim.StructOffsetX    = 20f;
+            inspPrim.StructOffsetY    = 20f;
+            inspPrim.SizeMode         = SizeMode.ScreenPixels;
             builder.EmitRaw(in inspPrim);
 
             // ---- 5. MilStd2525: hostile infantry at static world position ---------
@@ -351,6 +366,7 @@ namespace GizmoMap.Example
             milPrim.MilWorldPosY = NatoY;
             milPrim.SidcCode     = new FixedString32("SHGPE----------");
             milPrim.Color        = Rgba32.Red;
+            milPrim.DebugLayer   = 1;  // units layer
             builder.EmitRaw(in milPrim);
 
             // ---- 6. EntityBadge: rich text at NATO symbol position ----------------
@@ -583,6 +599,49 @@ namespace GizmoMap.Example
                 children: new[] { nameNode, healthNode, factionNode });
 
             return new EditDocument(root, typeof(object), EditScope.WholeComponent);
+        }
+
+        /// <summary>
+        /// Builds a synthetic <see cref="EditDocument"/> for <see cref="LayerControlGizmo.SchemaHash"/>.
+        /// Used by the schema registry so the StructInspector panel renders the three layer checkboxes.
+        /// </summary>
+        public static EditDocument BuildLayerControlDocument()
+        {
+            var baseNode = new EditNode(
+                new EditNodeId(1), "BaseLayer", "$.BaseLayer",
+                EditNodeKind.Boolean, typeof(bool),
+                isReadOnly: false,
+                binding: new SimpleBoolBinding(true));
+
+            var unitsNode = new EditNode(
+                new EditNodeId(2), "UnitsLayer", "$.UnitsLayer",
+                EditNodeKind.Boolean, typeof(bool),
+                isReadOnly: false,
+                binding: new SimpleBoolBinding(true));
+
+            var sensorsNode = new EditNode(
+                new EditNodeId(3), "SensorsLayer", "$.SensorsLayer",
+                EditNodeKind.Boolean, typeof(bool),
+                isReadOnly: false,
+                binding: new SimpleBoolBinding(true));
+
+            var root = new EditNode(
+                new EditNodeId(0), "LayerControl", "$",
+                EditNodeKind.Struct, typeof(LayerControlDto),
+                children: new[] { baseNode, unitsNode, sensorsNode });
+
+            return new EditDocument(root, typeof(LayerControlDto), EditScope.WholeComponent);
+        }
+
+        // Minimal mutable bool binding used by BuildLayerControlDocument.
+        private sealed class SimpleBoolBinding : IValueBinding
+        {
+            private bool _value;
+            public Type ValueType => typeof(bool);
+            public SimpleBoolBinding(bool initialValue) { _value = initialValue; }
+            public object? GetBoxed() => _value;
+            public void SetBoxed(object? value) { if (value is bool b) _value = b; }
+            public bool TryGetSpan(out Span<byte> bytes) { bytes = default; return false; }
         }
     }
 }

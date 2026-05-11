@@ -43,6 +43,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Interaction
         // Semantic action (context menu item selected).
         void OnMenuAction(int actionId);
 
+        // Called when the terminal submits a StructEdit mutation for this gizmo's StructInspector.
+        // Default no-op so existing gizmos that do not support StructInspector still compile.
+        void OnStructUpdate(string payloadJson) { }
+
         // Raw HW events -- only delivered while exclusive InputCaptureBinding is held.
         void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos);
         void OnKeyEvent(MapKeyboardKey key, bool isPressed);

@@ -50,12 +50,14 @@ namespace GizmoMap.Example
         // Dispatches a gizmo interaction event to the tool registered under token.AnchorId.
         // For RawInput events: stateFlags bit7=1 mouse/0 keyboard; bit0=1 pressed/0 released.
         // actionId is (int)MapMouseButton or (int)MapKeyboardKey.
+        // payloadJson carries the StructEdit mutation JSON for StructUpdate events.
         public void DispatchEvent(
             GizmoPickToken token,
             GizmoInteractionEventKind kind,
             Vector3 worldPos,
             int actionId,
-            byte stateFlags)
+            byte stateFlags,
+            string? payloadJson = null)
         {
             if (!_activeTools.TryGetValue(token.AnchorId, out var tool)) return;
 
@@ -75,6 +77,9 @@ namespace GizmoMap.Example
                     break;
                 case GizmoInteractionEventKind.MenuAction:
                     tool.OnMenuAction(actionId);
+                    break;
+                case GizmoInteractionEventKind.StructUpdate:
+                    tool.OnStructUpdate(payloadJson ?? string.Empty);
                     break;
                 case GizmoInteractionEventKind.RawInput:
                     bool isMouse   = (stateFlags & 0x80) != 0;

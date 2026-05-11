@@ -177,8 +177,8 @@ namespace GizmoMap.Example.Tests
             var binding = buf.GetFrame().ToArray()
                 .FirstOrDefault(p => p.Shape == DebugPrimitiveShape.ContextMenuBinding);
 
-            // InspNetworkId == 1 (matches the interactive box SubElementId).
-            Assert.Equal(1L, binding.InspNetworkId);
+            // StructNetworkId == 1 (matches the interactive box SubElementId).
+            Assert.Equal(1L, binding.StructNetworkId);
             // StringHash must be non-zero (menu JSON was interned).
             Assert.NotEqual(0u, binding.StringHash);
         }

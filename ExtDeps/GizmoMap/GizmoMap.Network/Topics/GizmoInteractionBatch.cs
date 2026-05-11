@@ -35,5 +35,8 @@ namespace GizmoMap.Network
 
         // Carries the integer id of the clicked context menu item when Kind == MenuAction; zero otherwise.
         public int ActionId;
+
+        // JSON payload for StructUpdate events (StructEdit mutations). Null for other kinds.
+        [DdsManaged] public string? PayloadJson;
     }
 }

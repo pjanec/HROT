@@ -79,7 +79,7 @@ namespace GizmoMap.Viewer
                     foreach (ref readonly var primitive in primitives)
                         renderBuffer.AppendRaw(in primitive);
                 },
-                onInteraction: (token, kind, pos, actionId, stateFlags) =>
+                onInteraction: (token, kind, pos, actionId, stateFlags, payloadJson) =>
                 {
                     interactionWriter.Write(new GizmoInteractionBatch
                     {
@@ -94,6 +94,7 @@ namespace GizmoMap.Viewer
                         WorldZ = pos.Z,
                         Space = stateFlags,
                         ActionId = actionId,
+                        PayloadJson = payloadJson,
                     });
                 },
                 onMenuAction: (token, actionId) =>

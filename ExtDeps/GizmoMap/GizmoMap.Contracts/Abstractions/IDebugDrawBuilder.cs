@@ -76,6 +76,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         void EndFrame(float deltaTime) { }
 
         /// <summary>
+        /// Interns a JSON menu array string and emits a <see cref="DebugPrimitiveShape.MainMenuBinding"/>
+        /// meta-primitive so the dumb terminal merges it into the global main menu bar.
+        /// Default no-op for implementations that do not support main-menu injection.
+        /// </summary>
+        void DrawMainMenuBinding(string menuJson) { }
+
+        /// <summary>
         /// Emits a raw <see cref="DebugPrimitive"/> directly into the buffer.
         /// Used for shapes not covered by the typed draw methods (e.g. SpatialAnchor,
         /// InputCaptureBinding, Box2D with SubElementId).

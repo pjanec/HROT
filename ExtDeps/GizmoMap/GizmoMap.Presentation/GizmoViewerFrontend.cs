@@ -15,7 +15,7 @@ namespace GizmoMap.Presentation
             GizmoPrimitiveBuffer renderBuffer,
             GizmoSchemaRegistry schemaRegistry,
             Action<float> onUpdateTick,
-            Action<GizmoPickToken, GizmoInteractionEventKind, Vector3, int, byte> onInteraction,
+            Action<GizmoPickToken, GizmoInteractionEventKind, Vector3, int, byte, string?> onInteraction,
             Action<GizmoPickToken, int> onMenuAction,
             Action? onCustomInput = null)
         {
@@ -41,7 +41,12 @@ namespace GizmoMap.Presentation
                 float dt = Raylib.GetFrameTime();
 
                 onUpdateTick(dt);
-                layer.HandleInput(renderBuffer.GetFrame(), renderBuffer.InternMap, camera, onInteraction);
+                // Wrap the 6-param callback into the 5-param HandleInput signature.
+                layer.HandleInput(
+                    renderBuffer.GetFrame(),
+                    renderBuffer.InternMap,
+                    camera,
+                    (token, kind, pos, actionId, flags) => onInteraction(token, kind, pos, actionId, flags, null));
                 onCustomInput?.Invoke();
 
                 Raylib.BeginDrawing();
@@ -53,8 +58,12 @@ namespace GizmoMap.Presentation
                 Raylib.EndMode2D();
 
                 rlImGui.Begin();
+                layer.DrawMainMenu(actionId =>
+                    onMenuAction?.Invoke(new GizmoPickToken { AnchorId = 0 }, actionId));
                 layer.DrawContextMenu(onMenuAction);
-                propertyAdapter.DrawScheduled();
+                propertyAdapter.DrawScheduled((networkId, json) =>
+                    onInteraction(new GizmoPickToken { AnchorId = networkId },
+                        GizmoInteractionEventKind.StructUpdate, Vector3.Zero, 0, 0, json));
                 rlImGui.End();
 
                 Raylib.EndDrawing();

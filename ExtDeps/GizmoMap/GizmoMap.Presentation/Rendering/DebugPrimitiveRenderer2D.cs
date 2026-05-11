@@ -21,8 +21,6 @@ namespace GizmoMap.Presentation
     /// </summary>
     public class DebugPrimitiveRenderer2D
     {
-        private ushort _activeLayerMask = 0xFFFF;
-
         private readonly IEntityShapeLibrary _shapeLibrary;
         private readonly ImGuiPropertyTreeAdapter _imGuiAdapter;
 
@@ -36,9 +34,6 @@ namespace GizmoMap.Presentation
             _imGuiAdapter = imGuiAdapter ?? new ImGuiPropertyTreeAdapter();
         }
 
-        /// <summary>Overrides the 16-bit layer visibility mask.</summary>
-        public void SetLayerMask(ushort mask) => _activeLayerMask = mask;
-
         /// <summary>
         /// Filters, resolves coordinate spaces using the two-pass SpatialAnchor cache,
         /// sorts by (DebugLayer, ZIndex) and dispatches each surviving primitive to
@@ -48,7 +43,11 @@ namespace GizmoMap.Presentation
         {
             if (zoom <= 0f) zoom = 1f;
 
-            // ---- Pass 1: build SpatialAnchor cache -------------------------
+            // Enforce stateless default: fully visible unless overridden by the backend this frame.
+            var activeLayers = new LayerMask256();
+            activeLayers.SetAll();
+
+            // ---- Pass 1: build SpatialAnchor cache & extract global frame state ----
             var anchors = new Dictionary<long, SpatialAnchorEntry>();
             foreach (ref readonly var prim in primitives)
             {
@@ -64,6 +63,11 @@ namespace GizmoMap.Presentation
                         RollRad  = prim.Roll * DegToRad,
                     };
                 }
+                else if (prim.Shape == DebugPrimitiveShape.LayerControlMask)
+                {
+                    // Backend asserts authority over the layer visibility mask for this frame.
+                    activeLayers = prim.ActiveLayers;
+                }
             }
 
             // ---- Pass 2: resolve, filter, sort, dispatch -------------------
@@ -71,16 +75,18 @@ namespace GizmoMap.Presentation
 
             foreach (ref readonly var prim in primitives)
             {
-                // SpatialAnchor and ContextMenuBinding are meta-primitives; never render them directly.
+                // SpatialAnchor, meta-binding and control primitives are never dispatched directly.
                 if (prim.Shape == DebugPrimitiveShape.SpatialAnchor) continue;
                 if (prim.Shape == DebugPrimitiveShape.ContextMenuBinding) continue;
+                if (prim.Shape == DebugPrimitiveShape.InputCaptureBinding) continue;
+                if (prim.Shape == DebugPrimitiveShape.MainMenuBinding) continue;
+                if (prim.Shape == DebugPrimitiveShape.LayerControlMask) continue;
 
                 // Filter: must target the 2-D map pipeline.
                 if ((prim.TargetView & PipelineTarget.Map2D) == 0) continue;
 
-                // Filter: layer mask.
-                if (prim.DebugLayer >= 16 || (_activeLayerMask & (1u << prim.DebugLayer)) == 0)
-                    continue;
+                // Filter: robust 256-bit layer mask evaluation.
+                if (!activeLayers.IsSet(prim.DebugLayer)) continue;
 
                 // Filter: LOD zoom culling.
                 if (prim.MinZoomLod != 0 && zoom < prim.MinZoomLod * 0.25f) continue;
@@ -371,14 +377,16 @@ namespace GizmoMap.Presentation
                     break;
                 }
 
-                case DebugPrimitiveShape.ComponentInspector:
+                case DebugPrimitiveShape.StructInspector:
                 {
                     _imGuiAdapter.Schedule(
-                        prim.InspNetworkId,
-                        prim.InspSchemaHash,
-                        prim.InspOffsetX,
-                        prim.InspOffsetY,
-                        prim.InspIsReadOnly != 0);
+                        prim.StructNetworkId,
+                        prim.StructSchemaHash,
+                        prim.StructAnchor,
+                        prim.StructOffsetX,
+                        prim.StructOffsetY,
+                        prim.SizeMode,
+                        prim.StructIsReadOnly != 0);
                     break;
                 }
 

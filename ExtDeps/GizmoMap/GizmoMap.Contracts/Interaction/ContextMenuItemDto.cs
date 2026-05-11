@@ -79,5 +79,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Interaction
         [JsonPropertyName("children")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public ContextMenuItemDto[]? Children { get; init; }
+
+        /// <summary>
+        /// Optional sort priority for top-level main-menu items. Lower value appears further left.
+        /// Ignored for context-menu and submenu entries.
+        /// </summary>
+        [JsonPropertyName("priority")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public int? Priority { get; init; }
+
+        /// <summary>
+        /// When non-null, the item renders as a checkable menu item with the given state.
+        /// </summary>
+        [JsonPropertyName("checked")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? IsChecked { get; init; }
     }
 }

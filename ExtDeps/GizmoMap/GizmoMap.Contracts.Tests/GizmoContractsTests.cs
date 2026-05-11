@@ -57,7 +57,7 @@ namespace GizmoMap.Contracts.Tests
             Assert.Equal((DebugPrimitiveShape)4,  DebugPrimitiveShape.Text);
             Assert.Equal((DebugPrimitiveShape)5,  DebugPrimitiveShape.EntityBadge);
             Assert.Equal((DebugPrimitiveShape)6,  DebugPrimitiveShape.Icon);
-            Assert.Equal((DebugPrimitiveShape)7,  DebugPrimitiveShape.ComponentInspector);
+            Assert.Equal((DebugPrimitiveShape)7,  DebugPrimitiveShape.StructInspector);
             Assert.Equal((DebugPrimitiveShape)8,  DebugPrimitiveShape.SemanticShape);
             Assert.Equal((DebugPrimitiveShape)9,  DebugPrimitiveShape.MilStd2525);
             Assert.Equal((DebugPrimitiveShape)10, DebugPrimitiveShape.SpatialAnchor);
@@ -85,7 +85,7 @@ namespace GizmoMap.Contracts.Tests
 
             Assert.Equal(DebugPrimitiveShape.ContextMenuBinding, prim.Shape);
             Assert.Equal(menuHash,  prim.StringHash);
-            Assert.Equal(networkId, prim.InspNetworkId);
+            Assert.Equal(networkId, prim.StructNetworkId);
         }
 
         // SC-GZ053-8: StringInternMap.Fnv1a32 produces consistent hashes and zero stays zero.

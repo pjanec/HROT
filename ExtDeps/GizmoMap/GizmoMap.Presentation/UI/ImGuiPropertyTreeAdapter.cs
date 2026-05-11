@@ -1,11 +1,14 @@
+using System;
 using System.Collections.Generic;
+using System.Numerics;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using ImGuiNET;
 using StructEdit.Core;
 
 namespace GizmoMap.Presentation
 {
     /// <summary>
-    /// Minimal adapter that schedules ComponentInspector rendering via ImGui.
+    /// Minimal adapter that schedules StructInspector rendering via ImGui.
     /// Call <see cref="Schedule"/> from the Raylib 2D pass; call <see cref="DrawScheduled"/>
     /// from the ImGui pass.
     /// When a <see cref="GizmoSchemaRegistry"/> is provided the adapter renders the full
@@ -18,18 +21,22 @@ namespace GizmoMap.Presentation
 
         private readonly struct ScheduledItem
         {
-            public readonly long   NetworkId;
-            public readonly uint   SchemaHash;
-            public readonly float  ScreenX;
-            public readonly float  ScreenY;
-            public readonly bool   IsReadOnly;
+            public readonly long         NetworkId;
+            public readonly uint         SchemaHash;
+            public readonly ScreenAnchor Anchor;
+            public readonly float        OffsetX;
+            public readonly float        OffsetY;
+            public readonly SizeMode     SizeMode;
+            public readonly bool         IsReadOnly;
 
-            public ScheduledItem(long networkId, uint schemaHash, float screenX, float screenY, bool isReadOnly)
+            public ScheduledItem(long networkId, uint schemaHash, ScreenAnchor anchor, float offsetX, float offsetY, SizeMode sizeMode, bool isReadOnly)
             {
                 NetworkId  = networkId;
                 SchemaHash = schemaHash;
-                ScreenX    = screenX;
-                ScreenY    = screenY;
+                Anchor     = anchor;
+                OffsetX    = offsetX;
+                OffsetY    = offsetY;
+                SizeMode   = sizeMode;
                 IsReadOnly = isReadOnly;
             }
         }
@@ -39,25 +46,95 @@ namespace GizmoMap.Presentation
             _registry = registry;
         }
 
-        public void Schedule(long networkId, uint schemaHash, float screenX, float screenY, bool isReadOnly)
+        public void Schedule(long networkId, uint schemaHash, ScreenAnchor anchor, float offsetX, float offsetY, SizeMode sizeMode, bool isReadOnly)
         {
-            _items.Add(new ScheduledItem(networkId, schemaHash, screenX, screenY, isReadOnly));
+            _items.Add(new ScheduledItem(networkId, schemaHash, anchor, offsetX, offsetY, sizeMode, isReadOnly));
         }
 
-        public void DrawScheduled()
+        // Legacy overload without anchor positioning (defaults to TopLeft, ScreenPixels).
+        public void Schedule(long networkId, uint schemaHash, float screenX, float screenY, bool isReadOnly)
         {
+            _items.Add(new ScheduledItem(networkId, schemaHash, ScreenAnchor.TopLeft, screenX, screenY, SizeMode.ScreenPixels, isReadOnly));
+        }
+
+        public void DrawScheduled(Action<long, string>? onStructUpdate = null)
+        {
+            var viewport = ImGui.GetMainViewport();
+
             foreach (var item in _items)
             {
-                ImGui.SetNextWindowPos(new System.Numerics.Vector2(item.ScreenX, item.ScreenY));
-                if (ImGui.Begin($"Entity {item.NetworkId}"))
+                // Resolve offset units against viewport.
+                float deltaX = item.SizeMode == SizeMode.ScreenPercent ? item.OffsetX * viewport.WorkSize.X : item.OffsetX;
+                float deltaY = item.SizeMode == SizeMode.ScreenPercent ? item.OffsetY * viewport.WorkSize.Y : item.OffsetY;
+
+                // Resolve anchor base position and ImGui pivot.
+                var basePos = viewport.WorkPos;
+                var pivot   = new Vector2(0f, 0f);
+
+                switch (item.Anchor)
                 {
-                    if (_registry != null && _registry.TryGet(item.SchemaHash, out var doc) && doc != null)
+                    case ScreenAnchor.TopCenter:
+                        basePos.X += viewport.WorkSize.X * 0.5f;
+                        pivot = new Vector2(0.5f, 0f);
+                        break;
+                    case ScreenAnchor.TopRight:
+                        basePos.X += viewport.WorkSize.X;
+                        pivot = new Vector2(1f, 0f);
+                        break;
+                    case ScreenAnchor.Center:
+                        basePos.X += viewport.WorkSize.X * 0.5f;
+                        basePos.Y += viewport.WorkSize.Y * 0.5f;
+                        pivot = new Vector2(0.5f, 0.5f);
+                        break;
+                    case ScreenAnchor.BottomLeft:
+                        basePos.Y += viewport.WorkSize.Y;
+                        pivot = new Vector2(0f, 1f);
+                        break;
+                    case ScreenAnchor.BottomCenter:
+                        basePos.X += viewport.WorkSize.X * 0.5f;
+                        basePos.Y += viewport.WorkSize.Y;
+                        pivot = new Vector2(0.5f, 1f);
+                        break;
+                    case ScreenAnchor.BottomRight:
+                        basePos.X += viewport.WorkSize.X;
+                        basePos.Y += viewport.WorkSize.Y;
+                        pivot = new Vector2(1f, 1f);
+                        break;
+                    // TopLeft: default (no adjustment)
+                }
+
+                // ImGuiCond.Appearing applies the layout intent once, but permits manual user drag afterwards.
+                ImGui.SetNextWindowPos(basePos + new Vector2(deltaX, deltaY), ImGuiCond.Appearing, pivot);
+
+                // Resolve schema early so we can use the struct name as the visible window title.
+                EditDocument? doc = null;
+                bool hasSchema = _registry != null && _registry.TryGet(item.SchemaHash, out doc) && doc != null;
+
+                // Use ImGui ### syntax to decouple the visible title from the stable window ID.
+                string windowTitle = hasSchema
+                    ? $"{doc!.Root.Name} ({item.NetworkId})###StructInsp_{item.NetworkId}"
+                    : $"Inspector {item.NetworkId} (0x{item.SchemaHash:X})###StructInsp_{item.NetworkId}";
+
+                if (ImGui.Begin(windowTitle))
+                {
+                    if (hasSchema)
                     {
-                        DrawEditNode(doc.Root, item.IsReadOnly);
+                        DrawEditNode(doc!.Root, item.IsReadOnly);
+
+                        if (!item.IsReadOnly && onStructUpdate != null)
+                        {
+                            ImGui.Separator();
+                            if (ImGui.Button("Apply"))
+                            {
+                                // Serialize current UI state to JSON for the backend.
+                                string json = SerializeDocumentToJson(doc!);
+                                onStructUpdate.Invoke(item.NetworkId, json);
+                            }
+                        }
                     }
                     else
                     {
-                        ImGui.Text($"Entity {item.NetworkId} schema 0x{item.SchemaHash:X}");
+                        ImGui.Text($"Schema 0x{item.SchemaHash:X} not registered.");
                         if (item.IsReadOnly)
                             ImGui.TextDisabled("(read-only)");
                     }
@@ -66,6 +143,44 @@ namespace GizmoMap.Presentation
             }
             _items.Clear();
         }
+
+        // Serializes the current leaf-node binding values in an EditDocument to a simple JSON object.
+        private static string SerializeDocumentToJson(EditDocument doc)
+        {
+            var sb = new System.Text.StringBuilder("{");
+            bool first = true;
+            SerializeNodeChildren(doc.Root, sb, ref first);
+            sb.Append('}');
+            return sb.ToString();
+        }
+
+        private static void SerializeNodeChildren(EditNode node, System.Text.StringBuilder sb, ref bool first)
+        {
+            if (node.Children.Count > 0)
+            {
+                foreach (var child in node.Children)
+                    SerializeNodeChildren(child, sb, ref first);
+            }
+            else if (node.Binding != null)
+            {
+                if (!first) sb.Append(',');
+                sb.Append($"\"{EscapeJson(node.Name)}\":");
+                object? v = null;
+                try { v = node.Binding.GetBoxed(); } catch { }
+                switch (v)
+                {
+                    case bool b:   sb.Append(b ? "true" : "false"); break;
+                    case int i:    sb.Append(i); break;
+                    case float f:  sb.Append(f.ToString(System.Globalization.CultureInfo.InvariantCulture)); break;
+                    case double d: sb.Append(d.ToString(System.Globalization.CultureInfo.InvariantCulture)); break;
+                    case null:     sb.Append("null"); break;
+                    default:       sb.Append($"\"{EscapeJson(v.ToString() ?? "")}\""); break;
+                }
+                first = false;
+            }
+        }
+
+        private static string EscapeJson(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
         // Recursively renders an EditNode and its children as an ImGui tree.
         private static void DrawEditNode(EditNode node, bool parentReadOnly)
@@ -85,12 +200,22 @@ namespace GizmoMap.Presentation
             }
             else
             {
-                // Leaf node: show name, kind and binding value if available.
+                // Leaf node: show name and binding value, allow editing when not read-only.
                 string valueText = TryGetBindingText(node) ?? $"<{node.Kind}>";
                 if (ro)
+                {
                     ImGui.TextDisabled($"{node.Name}: {valueText}");
+                }
+                else if (node.Binding != null && node.Binding.ValueType == typeof(bool))
+                {
+                    bool val = node.Binding.GetBoxed() is bool b && b;
+                    if (ImGui.Checkbox(node.Name, ref val))
+                        node.Binding.SetBoxed(val);
+                }
                 else
+                {
                     ImGui.Text($"{node.Name}: {valueText}");
+                }
             }
         }
 
