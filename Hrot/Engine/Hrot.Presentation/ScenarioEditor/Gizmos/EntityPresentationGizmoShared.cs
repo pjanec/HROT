@@ -20,18 +20,14 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         public static void EmitPickBox(IDebugDrawBuilder draw, Entity entity, long networkId, in Vector3 position)
         {
-            var pickBox = default(DebugPrimitive);
-            pickBox.Shape = DebugPrimitiveShape.Box2D;
-            pickBox.Space = CoordinateSpace.World;
-            pickBox.TargetView = PipelineTarget.Map2D;
-            pickBox.BoxCenterX = position.X;
-            pickBox.BoxCenterY = position.Y;
-            pickBox.BoxExtentX = 8f;
-            pickBox.BoxExtentY = 8f;
-            pickBox.Color = new Rgba32(0, 0, 0, 0);
-            pickBox.AnchorIndex = entity.Index;
-            pickBox.AnchorGeneration = (ushort)entity.Generation;
-            pickBox.BoxAnchorId = networkId;
+            var pickBox = DebugPrimitive.MakeBox2D(
+                new Vector2(position.X, position.Y),
+                new Vector2(8f, 8f),
+                new Rgba32(0, 0, 0, 0),
+                entity.Index,
+                (ushort)entity.Generation,
+                networkId,
+                target: PipelineTarget.Map2D);
             draw.EmitRaw(in pickBox);
         }
 
@@ -62,15 +58,14 @@ namespace Hrot.ScenarioEditor.Gizmos
             float width,
             uint conditionMask)
         {
-            var prim = default(DebugPrimitive);
-            prim.Shape = DebugPrimitiveShape.SemanticShape;
-            prim.AnchorIndex = entity.Index;
-            prim.AnchorGeneration = (ushort)entity.Generation;
-            prim.BoxAnchorId = networkId;
-            prim.ProfileId = profileId;
-            prim.LengthMeters = length;
-            prim.WidthMeters = width;
-            prim.ConditionMask = conditionMask;
+            var prim = DebugPrimitive.MakeSemanticShape(
+                entity.Index,
+                (ushort)entity.Generation,
+                networkId,
+                profileId,
+                length,
+                width,
+                conditionMask);
             draw.EmitRaw(in prim);
         }
     }
