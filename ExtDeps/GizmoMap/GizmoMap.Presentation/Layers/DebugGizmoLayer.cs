@@ -260,6 +260,10 @@ namespace GizmoMap.Presentation
 
             if (routeRawInput)
             {
+                // ---- Modifier Packing (Zero-Allocation Backend Context) ----
+                // We explicitly poll modifiers every frame and pack them as bitmasks directly
+                // into the event payload. This allows the backend tools to evaluate interaction rules
+                // statelessly without maintaining an asynchronous key-state dictionary.
                 int modifiers = 0;
                 if (Raylib.IsKeyDown(KeyboardKey.LeftShift) || Raylib.IsKeyDown(KeyboardKey.RightShift))
                     modifiers |= (int)MapKeyboardKey.ShiftMask;
@@ -284,6 +288,9 @@ namespace GizmoMap.Presentation
                     onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
                         worldPos3, (int)MapMouseButton.Right | modifiers, 0x80);
 
+                // ---- Generic Input Queue ----
+                // Raylib's GetKeyPressed() only queues *printable character presses*.
+                // We stream these blindly over the boundary.
                 int key;
                 while ((key = Raylib.GetKeyPressed()) != 0)
                 {
@@ -294,6 +301,16 @@ namespace GizmoMap.Presentation
                     }
                 }
 
+                // =====================================================================
+                // HARDWARE ABSTRACTION WORKAROUND: STRUCTURAL KEY POLLING
+                // =====================================================================
+                // Raylib's GetKeyPressed() completely ignores non-printable structural keys
+                // (Escape, Tab, Delete, Enter) and provides absolutely no queue for *release* events.
+                //
+                // We must explicitly poll IsKeyReleased for these structural keys to guarantee
+                // the decoupled backend state machines receive the 0x00 (release) payload.
+                // Without this explicit polling, a remote backend tool would permanently hang
+                // waiting for a key-up event that the windowing library failed to queue.
                 if (!isKeyboardCaptured)
                 {
                     if (Raylib.IsKeyReleased(KeyboardKey.Escape))
@@ -309,6 +326,8 @@ namespace GizmoMap.Presentation
                         onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
                             worldPos3, (int)MapKeyboardKey.Tab | modifiers, 0x00);
 
+                    // We also explicitly poll modifier presses/releases so backend tools
+                    // that use them as hotkeys (e.g. holding Shift to snap to grid) receive the transitions.
                     void RouteMod(KeyboardKey rlKey, MapKeyboardKey mapKey)
                     {
                         if (Raylib.IsKeyPressed(rlKey))
