@@ -73,6 +73,7 @@ namespace GizmoMap.Example
             {
                 var inspPrim = default(DebugPrimitive);
                 inspPrim.Shape            = DebugPrimitiveShape.StructInspector;
+                inspPrim.TargetView       = PipelineTarget.All;
                 inspPrim.StructNetworkId  = AnchorId;
                 inspPrim.StructSchemaHash = SchemaHash;
                 inspPrim.StructAnchor     = ScreenAnchor.Center;

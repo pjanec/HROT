@@ -224,7 +224,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         private static PickToken ToPickToken(GizmoPickToken token)
         {
-            if (token.AnchorId <= 0 || token.AnchorId > int.MaxValue)
+            if (token.AnchorId < 0 || token.AnchorId > int.MaxValue)
                 return default;
 
             return new PickToken

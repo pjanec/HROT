@@ -133,7 +133,7 @@ namespace GizmoMap.Presentation
             foreach (ref readonly var prim in primitives)
             {
                 if (prim.Shape == DebugPrimitiveShape.ContextMenuBinding)
-                    menuBindings[prim.InspNetworkId] = prim.StringHash;
+                    menuBindings[prim.StructNetworkId] = prim.StringHash;
             }
 
             // ---- Try to start a new interaction on left press ----------------------------
@@ -182,7 +182,7 @@ namespace GizmoMap.Presentation
                     {
                         var hit = best.Value;
                         hitNetworkId = hit.BoxAnchorId != 0 ? hit.BoxAnchorId : -1L;
-                        long anchorId = hit.AnchorIndex != 0 ? hit.AnchorIndex : hit.BoxAnchorId;
+                        long anchorId = hit.AnchorGeneration  != 0 ? hit.AnchorIndex : hit.BoxAnchorId;
                         var token = new GizmoPickToken
                         {
                             AnchorId = anchorId,

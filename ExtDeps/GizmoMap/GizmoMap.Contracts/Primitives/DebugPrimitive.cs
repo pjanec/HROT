@@ -25,10 +25,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         [FieldOffset(7)]  public byte DebugLayer;      // 0-15
 
         // Bytes 8-11 overlay: AnchorIndex for EntityLocal; StringHash for intern escaping.
+
+
+        // ECS Entity Index for primitives anchored to an entity.
+        // An index of 0 is a perfectly valid memory offset in a data-oriented ECS.
+        // Never use AnchorIndex to evaluate handle validity; evaluate AnchorGeneration instead.
         [FieldOffset(8)]  public int AnchorIndex;
+
         [FieldOffset(8)]  public uint StringHash;
 
-        [FieldOffset(12)] public ushort AnchorGeneration;
+        [FieldOffset(12)] public ushort AnchorGeneration; // ECS Entity Generation. A generation of 0 guarantees the handle is null or uninitialized.
         [FieldOffset(14)] public SizeMode SizeMode;
         [FieldOffset(15)] public byte ZIndex;           // intra-layer sort; 0=background
         [FieldOffset(16)] public ushort ThicknessU16;   // thickness * 10 (max 6553.5)
