@@ -9,6 +9,7 @@
     <ProjectReference Include="..\GizmoMap.Contracts\GizmoMap.Contracts.csproj" />
     <ProjectReference Include="..\GizmoMap.Network\GizmoMap.Network.csproj" />
     <ProjectReference Include="..\..\StructEdit\src\StructEdit.Core\StructEdit.Core.csproj" />
+    <ProjectReference Include="..\..\StructEdit\src\StructEdit.Json\StructEdit.Json.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Raylib-cs" Version="7.0.2" />

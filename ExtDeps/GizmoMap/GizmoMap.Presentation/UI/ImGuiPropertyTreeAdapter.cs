@@ -4,6 +4,7 @@ using System.Numerics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using ImGuiNET;
 using StructEdit.Core;
+using StructEdit.Json;
 
 namespace GizmoMap.Presentation
 {
@@ -126,8 +127,8 @@ namespace GizmoMap.Presentation
                             ImGui.Separator();
                             if (ImGui.Button("Apply"))
                             {
-                                // Serialize current UI state to JSON for the backend.
-                                string json = SerializeDocumentToJson(doc!);
+                                // Enforce the canonical StructEdit JSON schema across the network boundary.
+                                string json = EditDocumentJsonSerializer.Serialize(doc!);
                                 onStructUpdate.Invoke(item.NetworkId, json);
                             }
                         }
@@ -143,44 +144,6 @@ namespace GizmoMap.Presentation
             }
             _items.Clear();
         }
-
-        // Serializes the current leaf-node binding values in an EditDocument to a simple JSON object.
-        private static string SerializeDocumentToJson(EditDocument doc)
-        {
-            var sb = new System.Text.StringBuilder("{");
-            bool first = true;
-            SerializeNodeChildren(doc.Root, sb, ref first);
-            sb.Append('}');
-            return sb.ToString();
-        }
-
-        private static void SerializeNodeChildren(EditNode node, System.Text.StringBuilder sb, ref bool first)
-        {
-            if (node.Children.Count > 0)
-            {
-                foreach (var child in node.Children)
-                    SerializeNodeChildren(child, sb, ref first);
-            }
-            else if (node.Binding != null)
-            {
-                if (!first) sb.Append(',');
-                sb.Append($"\"{EscapeJson(node.Name)}\":");
-                object? v = null;
-                try { v = node.Binding.GetBoxed(); } catch { }
-                switch (v)
-                {
-                    case bool b:   sb.Append(b ? "true" : "false"); break;
-                    case int i:    sb.Append(i); break;
-                    case float f:  sb.Append(f.ToString(System.Globalization.CultureInfo.InvariantCulture)); break;
-                    case double d: sb.Append(d.ToString(System.Globalization.CultureInfo.InvariantCulture)); break;
-                    case null:     sb.Append("null"); break;
-                    default:       sb.Append($"\"{EscapeJson(v.ToString() ?? "")}\""); break;
-                }
-                first = false;
-            }
-        }
-
-        private static string EscapeJson(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
         // Recursively renders an EditNode and its children as an ImGui tree.
         private static void DrawEditNode(EditNode node, bool parentReadOnly)
