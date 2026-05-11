@@ -224,6 +224,9 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         private static PickToken ToPickToken(GizmoPickToken token)
         {
+            // Reconstruct the ECS handle from the multiplexed payload.
+            // WARNING: A token.AnchorId of 0 is a perfectly valid ECS Index (Entity 0).
+            // Negative values denote canvas clicks or stateless tools, which safely fall through to Entity.Null.
             if (token.AnchorId < 0 || token.AnchorId > int.MaxValue)
                 return default;
 

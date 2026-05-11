@@ -59,9 +59,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         [FieldOffset(32)] public float BoxExtentX;
         [FieldOffset(36)] public float BoxExtentY;
         [FieldOffset(40)] public float BoxAngleDeg;
-        // Offset 44: BoxAnchorId -- owning tool's AnchorId for managed hit-routing.
-        // When non-zero the terminal uses this value as GizmoPickToken.AnchorId instead
-        // of SubElementId, routing Started events to the correct GizmoInteractionManager slot.
+        // Offset 44: BoxAnchorId -- Multiplexed interaction handle.
+        // When AnchorGeneration == 0, the primitive is a stateless tool or network object,
+        // and this field carries the authoritative 64-bit ID for managed hit-routing.
+        // When AnchorGeneration != 0, this field is ignored and the terminal routes
+        // the ECS AnchorIndex instead.
         // Overlaps ArrowHeadSize/EndColor (different shape -- no conflict).
         [FieldOffset(44)] public long BoxAnchorId;
 

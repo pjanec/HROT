@@ -143,6 +143,11 @@ namespace GizmoMap.Presentation
                 if (best.HasValue)
                 {
                     var hit = best.Value;
+                    // We multiplex two distinct addressing domains inside the fixed 64-byte payload.
+                    // If AnchorGeneration != 0, the primitive is bound to a live local ECS entity. We route the
+                    // local AnchorIndex so the engine can reconstruct the exact ECS memory handle.
+                    // If AnchorGeneration == 0, the primitive is a stateless tool handle or remote network object.
+                    // We fall back to the 64-bit BoxAnchorId to route the global network ID or tool ID.
                     long anchorId = hit.AnchorGeneration != 0 ? hit.AnchorIndex : hit.BoxAnchorId;
                     var token = new GizmoPickToken
                     {
@@ -183,9 +188,9 @@ namespace GizmoMap.Presentation
 
 
                         // We multiplex two distinct addressing domains inside the fixed 64-byte payload.
-                        // If AnchorGeneration != 0, the primitive is bound to a live local ECS entity. We route the 
+                        // If AnchorGeneration != 0, the primitive is bound to a live local ECS entity. We route the
                         // local AnchorIndex so the engine can reconstruct the exact ECS memory handle.
-                        // If AnchorGeneration == 0, the primitive is a stateless tool handle or remote network object. 
+                        // If AnchorGeneration == 0, the primitive is a stateless tool handle or remote network object.
                         // We fall back to the 64-bit BoxAnchorId to route the global network ID or tool ID.
                         long anchorId = hit.AnchorGeneration  != 0 ? hit.AnchorIndex : hit.BoxAnchorId;
 
@@ -366,6 +371,11 @@ namespace GizmoMap.Presentation
 
                 if (prim.AnchorIndex == 0 && prim.SubElementId == 0 && prim.BoxAnchorId == 0) continue;
 
+                // We multiplex two distinct addressing domains inside the fixed 64-byte payload.
+                // If AnchorGeneration != 0, the primitive is bound to a live local ECS entity. We route the
+                // local AnchorIndex so the engine can reconstruct the exact ECS memory handle.
+                // If AnchorGeneration == 0, the primitive is a stateless tool handle or remote network object.
+                // We fall back to the 64-bit BoxAnchorId to route the global network ID or tool ID.
                 long anchorId = prim.AnchorGeneration != 0 ? prim.AnchorIndex : prim.BoxAnchorId;
                 if (exclusiveAnchorId.HasValue && anchorId != exclusiveAnchorId.Value) continue;
 
