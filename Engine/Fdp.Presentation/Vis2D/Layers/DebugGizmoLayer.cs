@@ -119,6 +119,13 @@ namespace Fdp.Toolkit.Vis2D.Layers
             });
         }
 
+        /// <summary>
+        /// Returns main-menu items contributed by gizmos via <see cref="DebugPrimitiveShape.MainMenuBinding"/>
+        /// primitives during the most recent <see cref="Update"/> call, then clears internal state.
+        /// </summary>
+        public System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto> ConsumeMainMenu()
+            => _innerTerminal.ConsumeMainMenu();
+
         private void OnInteraction(
             GizmoPickToken token,
             GizmoInteractionEventKind kind,

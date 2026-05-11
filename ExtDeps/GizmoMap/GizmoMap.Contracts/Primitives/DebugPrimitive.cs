@@ -85,6 +85,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
         // StructInspector payload (generic struct editor projected via StructEdit schema)
         [FieldOffset(24)] public long StructNetworkId;    // stable network-level anchor ID
+        // InspNetworkId aliases StructNetworkId at the same offset; used by InputCaptureBinding
+        // and ContextMenuBinding meta-primitives to carry the owning tool's anchor ID.
+        [FieldOffset(24)] public long InspNetworkId;
         [FieldOffset(32)] public uint StructSchemaHash;   // FNV-1a hash of the StructEdit schema
         [FieldOffset(36)] public ScreenAnchor StructAnchor;
         [FieldOffset(37)] public byte StructIsReadOnly;

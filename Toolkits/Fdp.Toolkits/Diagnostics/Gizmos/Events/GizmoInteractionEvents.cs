@@ -91,4 +91,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Events
         /// <summary>The entity whose component mask may now satisfy a registered gizmo rule.</summary>
         public Entity Entity;
     }
+
+    /// <summary>
+    /// Published by <see cref="GizmoInteractionIngressTranslator"/> (or equivalent) when a
+    /// <c>StructUpdate</c> DDS record carries a JSON mutation committed by the operator via
+    /// a <c>StructInspector</c> panel on the terminal.
+    /// Routed by <see cref="GlobalGizmoManager"/> to the target gizmo via
+    /// <see cref="IGizmoInteractionHandler.OnStructUpdate"/>.
+    /// </summary>
+    [EventId(8060)]
+    public sealed class GizmoStructUpdateEvent
+    {
+        /// <summary>Stable gizmo anchor id; matches the key in <c>GlobalGizmoManager</c>.</summary>
+        public long AnchorId;
+        /// <summary>JSON string produced by the StructEdit Apply action on the terminal.</summary>
+        public string PayloadJson = string.Empty;
+    }
 }

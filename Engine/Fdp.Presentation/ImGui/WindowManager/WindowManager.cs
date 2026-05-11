@@ -304,7 +304,16 @@ public class WindowManager
     /// Renders the global menu bar and all registered windows for the current frame.
     /// Must be called inside an active ImGui frame (between <c>NewFrame</c> and <c>Render</c>).
     /// </summary>
-    public void Render()
+    /// <param name="gizmoMenuItems">
+    /// Optional list of gizmo-contributed menu items to append inside the main menu bar.
+    /// Pass the result of <c>DebugGizmoLayer.ConsumeMainMenu()</c> here when available.
+    /// </param>
+    /// <param name="onGizmoMenuAction">
+    /// Callback invoked with the action id when the operator clicks a gizmo-contributed menu item.
+    /// </param>
+    public void Render(
+        IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>? gizmoMenuItems = null,
+        Action<int>? onGizmoMenuAction = null)
     {
         if (Gui.BeginMainMenuBar())
         {
@@ -312,6 +321,9 @@ public class WindowManager
             RenderPerspectiveSwitcher();
             RenderFixedWindowsMenu();
             RenderFixedHelpMenu();
+
+            if (gizmoMenuItems != null && gizmoMenuItems.Count > 0)
+                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenuBar(gizmoMenuItems, onGizmoMenuAction);
 
             Gui.EndMainMenuBar();
         }

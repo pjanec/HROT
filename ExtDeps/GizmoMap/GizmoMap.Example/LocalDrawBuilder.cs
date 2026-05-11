@@ -105,5 +105,10 @@ namespace GizmoMap.Example
         {
             _buffer.AppendRaw(in prim);
         }
+
+        public void DrawMainMenuBinding(string menuJson)
+        {
+            _buffer.DrawMainMenuBinding(menuJson);
+        }
     }
 }

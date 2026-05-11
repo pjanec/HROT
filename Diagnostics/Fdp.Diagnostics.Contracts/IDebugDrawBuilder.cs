@@ -155,5 +155,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             float   radius,
             Rgba32  color,
             byte    layer = 0) { }
+
+        /// <summary>
+        /// Emits a <see cref="DebugPrimitiveShape.MainMenuBinding"/> meta-primitive that
+        /// injects items into the host application's main menu bar.
+        /// The JSON is interned in the buffer's <c>StringInternMap</c> (cold-path only).
+        /// Default no-op so existing stub implementations compile without changes.
+        /// </summary>
+        void DrawMainMenuBinding(string menuJson) { }
     }
 }

@@ -33,7 +33,7 @@ namespace GizmoMap.Presentation
         private bool _rightWasDragged;
         private const float RightDragThresholdSq = 25f;
 
-        // Main menu aggregator: collects MainMenuBinding primitives per frame.
+        // Main menu aggregator: collects MainMenuBinding primitives each frame.
         private readonly MainMenuAdapter _mainMenuAdapter = new();
 
         public DebugGizmoLayer(DebugPrimitiveRenderer2D renderer)
@@ -88,11 +88,11 @@ namespace GizmoMap.Presentation
             {
                 ref readonly var prim = ref primitives[i];
                 if (prim.Shape != DebugPrimitiveShape.InputCaptureBinding) continue;
-                if ((prim.ConditionMask & 1u) != 0) exclusiveAnchorId = prim.StructNetworkId;
+                if ((prim.ConditionMask & 1u) != 0) exclusiveAnchorId = prim.InspNetworkId;
                 if ((prim.ConditionMask & 2u) != 0) routeRawInput = true;
                 captureToken = new GizmoPickToken
                 {
-                    AnchorId = prim.StructNetworkId,
+                    AnchorId = prim.InspNetworkId,
                     SubElementId = prim.SubElementId,
                     StreamId = prim.AnchorGeneration,
                 };
@@ -112,15 +112,17 @@ namespace GizmoMap.Presentation
             }
 
             // ---- Build menu bindings dictionary from ContextMenuBinding meta-primitives ---
+            // Also aggregate MainMenuBinding primitives for ConsumeMainMenu().
             var menuBindings = new Dictionary<long, uint>();
             foreach (ref readonly var prim in primitives)
             {
                 if (prim.Shape == DebugPrimitiveShape.ContextMenuBinding)
-                    menuBindings[prim.StructNetworkId] = prim.StringHash;
+                    menuBindings[prim.InspNetworkId] = prim.StringHash;
                 else if (prim.Shape == DebugPrimitiveShape.MainMenuBinding)
                 {
                     string? json = internMap.TryResolve(prim.StringHash);
-                    if (json != null) _mainMenuAdapter.Schedule(json);
+                    if (json != null)
+                        _mainMenuAdapter.Schedule(json);
                 }
             }
 
@@ -290,6 +292,30 @@ namespace GizmoMap.Presentation
         }
 
         /// <summary>
+        /// Returns the aggregated main-menu items collected from <see cref="DebugPrimitiveShape.MainMenuBinding"/>
+        /// primitives during the most recent <see cref="HandleInput"/> call, then clears internal state.
+        /// Pass the returned list to <see cref="ImGuiMenuRenderer.DrawMenuBar"/> inside a
+        /// <c>rlImGui.Begin()</c>/<c>rlImGui.End()</c> block to merge gizmo-provided menus
+        /// with the host application menu bar.
+        /// </summary>
+        public IReadOnlyList<ContextMenuItemDto> ConsumeMainMenu() => _mainMenuAdapter.ConsumeItems();
+
+        /// <summary>
+        /// Renders gizmo-contributed items inside the ImGui main menu bar.
+        /// Opens a <c>BeginMainMenuBar</c>/<c>EndMainMenuBar</c> block only when items are present.
+        /// Must be called inside an <c>rlImGui.Begin()</c>/<c>rlImGui.End()</c> block each frame.
+        /// </summary>
+        /// <param name="onAction">Callback invoked with the clicked action id.</param>
+        public void DrawMainMenu(Action<int>? onAction = null)
+        {
+            var items = ConsumeMainMenu();
+            if (items.Count == 0) return;
+            if (!ImGuiNET.ImGui.BeginMainMenuBar()) return;
+            ImGuiMenuRenderer.DrawMenuBar(items, onAction);
+            ImGuiNET.ImGui.EndMainMenuBar();
+        }
+
+        /// <summary>
         /// Renders any pending context menu popup via ImGui.
         /// Must be called inside an <c>rlImGui.Begin()</c>/<c>rlImGui.End()</c> block each frame.
         /// </summary>
@@ -300,23 +326,6 @@ namespace GizmoMap.Presentation
         {
             _contextMenuAdapter.DrawScheduled((anchorId, actionId) =>
                 onMenuAction?.Invoke(new GizmoPickToken { AnchorId = anchorId }, actionId));
-        }
-
-        /// <summary>
-        /// Returns the aggregated main-menu items collected by the last <see cref="HandleInput"/>
-        /// call and clears the internal aggregation state.
-        /// Call this once per frame, then pass the result to <see cref="ImGuiMenuRenderer.DrawMenuBar"/>.
-        /// </summary>
-        public IReadOnlyList<ContextMenuItemDto> ConsumeMainMenu() => _mainMenuAdapter.ConsumeItems();
-
-        /// <summary>
-        /// Convenience helper: calls <see cref="ConsumeMainMenu"/> then
-        /// <see cref="ImGuiMenuRenderer.DrawMenuBar"/>.
-        /// </summary>
-        public void DrawMainMenu(Action<int>? onAction = null)
-        {
-            var items = ConsumeMainMenu();
-            ImGuiMenuRenderer.DrawMenuBar(items, onAction);
         }
 
         private static DebugPrimitive? FindTopmostInteractivePrimitive(

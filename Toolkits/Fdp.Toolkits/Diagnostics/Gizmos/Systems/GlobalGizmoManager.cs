@@ -124,6 +124,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var keyEvents = bus.Read<GizmoKeyEvent>();
             foreach (ref readonly var evt in keyEvents)
                 focused.OnKeyEvent(evt.Key, evt.IsPressed);
+
+            // Route StructUpdate events by AnchorId so the gizmo receives JSON mutations
+            // committed via its StructInspector panel on the terminal.
+            var structUpdates = bus.ReadManaged<GizmoStructUpdateEvent>();
+            foreach (var evt in structUpdates)
+            {
+                if (_activeGizmos.TryGetValue(evt.AnchorId, out var target))
+                    target.OnStructUpdate(evt.PayloadJson);
+            }
         }
     }
 }
