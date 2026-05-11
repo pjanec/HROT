@@ -3,6 +3,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Vis2D.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 
@@ -27,6 +28,12 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             var plan = view.GetManagedComponentRO<RoutePlan>(entity);
             if (plan.Waypoints == null || plan.Waypoints.Count == 0) return;
+            byte debugLayer = 0;
+            if (view.HasComponent<MapDisplayComponent>(entity))
+            {
+                uint mask = view.GetComponentRO<MapDisplayComponent>(entity).LayerMask;
+                if (mask != 0) debugLayer = (byte)BitOperations.TrailingZeroCount(mask);
+            }
 
             int n        = plan.Waypoints.Count;
             int segCount = plan.IsLoop ? n : n - 1;
@@ -36,7 +43,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                 // RouteWaypoint uses X=East, Z=North (canvas Y).
                 var a = new Vector3(plan.Waypoints[i].Position.X,             plan.Waypoints[i].Position.Z,             0f);
                 var b = new Vector3(plan.Waypoints[(i + 1) % n].Position.X,   plan.Waypoints[(i + 1) % n].Position.Z,   0f);
-                draw.DrawLine(a, b, NormalColor, 1f, SizeMode.ScreenPixels);
+                draw.DrawLine(a, b, NormalColor, 1f, SizeMode.ScreenPixels, layer: debugLayer);
             }
         }
     }

@@ -1134,7 +1134,14 @@ public class IgApplication : IDisposable
         var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
         var layerControlEditService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
         using var layerControlSchemaSession = layerControlEditService.Open(
-            new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { BaseLayer = true, UnitsLayer = true, SensorsLayer = true },
+            new Hrot.Common.Diagnostics.Gizmos.LayerControlDto
+            {
+                GroundUnits = true,
+                AirUnits = true,
+                Vehicles = true,
+                TacticalGraphics = true,
+                RoadGraphs = true
+            },
             typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
         schemaRegistry.Register(
             Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,

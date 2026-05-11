@@ -20,17 +20,22 @@ namespace Hrot.Common.Diagnostics.Gizmos
     // Must be JSON-serializable; property names match the schema produced by the terminal.
     public class LayerControlDto
     {
-        public bool BaseLayer { get; set; }
-        public bool UnitsLayer { get; set; }
-        public bool SensorsLayer { get; set; }
+        public bool GroundUnits { get; set; } = true;
+        public bool AirUnits { get; set; } = true;
+        public bool Vehicles { get; set; } = true;
+        public bool TacticalGraphics { get; set; } = true;
+        public bool RoadGraphs { get; set; } = true;
 
         // Returns the 256-bit layer visibility mask derived from the DTO flags.
         public LayerMask256 ToMask()
         {
             var mask = new LayerMask256();
-            if (BaseLayer) mask.SetBit(0);
-            if (UnitsLayer) mask.SetBit(1);
-            if (SensorsLayer) mask.SetBit(2);
+            if (GroundUnits) mask.SetBit(0);
+            if (AirUnits) mask.SetBit(1);
+            if (Vehicles) mask.SetBit(2);
+            if (TacticalGraphics) mask.SetBit(3);
+            if (RoadGraphs) mask.SetBit(4);
+            for (int i = 5; i < 256; i++) mask.SetBit(i);
             return mask;
         }
     }
@@ -66,7 +71,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         private readonly FdpEventBus _interactionBus;
         private readonly IComponentEditService _editService;
 
-        private LayerControlDto _dto = new() { BaseLayer = true, UnitsLayer = true, SensorsLayer = true };
+        private LayerControlDto _dto = new();
         private LayerMask256 _activeLayers;
         private bool _isEditing;
 

@@ -18,7 +18,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             draw.DrawSpatialAnchor(networkId, position.X, position.Y, position.Z, yawDeg, pitchDeg, rollDeg);
         }
 
-        public static void EmitPickBox(IDebugDrawBuilder draw, Entity entity, long networkId, in Vector3 position)
+        public static void EmitPickBox(IDebugDrawBuilder draw, Entity entity, long networkId, in Vector3 position, byte layer = 0)
         {
             var pickBox = DebugPrimitive.MakeBox2D(
                 new Vector2(position.X, position.Y),
@@ -27,7 +27,8 @@ namespace Hrot.ScenarioEditor.Gizmos
                 entity.Index,
                 (ushort)entity.Generation,
                 networkId,
-                target: PipelineTarget.Map2D);
+                target: PipelineTarget.Map2D,
+                layer: layer);
             draw.EmitRaw(in pickBox);
         }
 
@@ -56,7 +57,8 @@ namespace Hrot.ScenarioEditor.Gizmos
             ulong profileId,
             float length,
             float width,
-            uint conditionMask)
+            uint conditionMask,
+            byte layer = 0)
         {
             var prim = DebugPrimitive.MakeSemanticShape(
                 entity.Index,
@@ -65,7 +67,8 @@ namespace Hrot.ScenarioEditor.Gizmos
                 profileId,
                 length,
                 width,
-                conditionMask);
+                conditionMask,
+                layer: layer);
             draw.EmitRaw(in prim);
         }
     }
