@@ -66,6 +66,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         /// <inheritdoc/>
         public bool RequiresExclusiveFocus => true;
+        public bool WantsRawInput => true;
 
         /// <inheritdoc/>
         public bool IsFocused { get; private set; }
