@@ -41,7 +41,14 @@ namespace Hrot.ScenarioEditor.Gizmos
             EntityPresentationGizmoShared.TryGetVehicleDimensions(view, entity, out float length, out float width);
             ulong profileId = EntityPresentationGizmoShared.ResolveProfileId(view, entity);
 
-            draw.DrawSemanticShape(networkId, profileId, length, width, conditionMask);
+            EntityPresentationGizmoShared.DrawSemanticShape(
+                draw,
+                entity,
+                networkId,
+                profileId,
+                length,
+                width,
+                conditionMask);
         }
     }
 }

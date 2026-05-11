@@ -52,5 +52,26 @@ namespace Hrot.ScenarioEditor.Gizmos
                 return repo.GetDisType(entity).Value;
             return 0UL;
         }
+
+        public static void DrawSemanticShape(
+            IDebugDrawBuilder draw,
+            Entity entity,
+            long networkId,
+            ulong profileId,
+            float length,
+            float width,
+            uint conditionMask)
+        {
+            var prim = default(DebugPrimitive);
+            prim.Shape = DebugPrimitiveShape.SemanticShape;
+            prim.AnchorIndex = entity.Index;
+            prim.AnchorGeneration = (ushort)entity.Generation;
+            prim.BoxAnchorId = networkId;
+            prim.ProfileId = profileId;
+            prim.LengthMeters = length;
+            prim.WidthMeters = width;
+            prim.ConditionMask = conditionMask;
+            draw.EmitRaw(in prim);
+        }
     }
 }
