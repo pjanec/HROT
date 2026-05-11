@@ -4,7 +4,7 @@ namespace Fdp.Presentation.ImGui.Editing;
 
 public static class LayerControlSchemaFactory
 {
-    public static EditDocument BuildLayerControlDocument()
+    public static EditDocument BuildLayerControlDocument(Type targetType)
     {
         var baseNode = new EditNode(
             new EditNodeId(1), "BaseLayer", "$.BaseLayer",
@@ -26,10 +26,10 @@ public static class LayerControlSchemaFactory
 
         var root = new EditNode(
             new EditNodeId(0), "LayerControl", "$",
-            EditNodeKind.Struct, typeof(object),
+            EditNodeKind.Struct, targetType,
             children: new[] { baseNode, unitsNode, sensorsNode });
 
-        return new EditDocument(root, typeof(object), EditScope.WholeComponent);
+        return new EditDocument(root, targetType, EditScope.WholeComponent);
     }
 
     private sealed class BoolBinding : IValueBinding
