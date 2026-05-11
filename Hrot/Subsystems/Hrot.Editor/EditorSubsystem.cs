@@ -573,6 +573,13 @@ namespace Hrot.Editor
                 interactionBus: interactionBus);
             _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, interactionBus);
             var actionRegistry = new GlobalActionRegistry();
+            long layerControlId = GlobalGizmoManager.NewId();
+            var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(layerControlId, interactionBus);
+            _globalGizmoManager.Register(layerControlId, layerControlGizmo);
+            actionRegistry.Register(GlobalActionIds.OpenLayerControl, (_, _) =>
+            {
+                interactionBus.PublishManaged(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
+            });
             actionRegistry.Register(GlobalActionIds.Rotate, (view, target) =>
             {
                 if (target == Entity.Null) return;
@@ -1042,6 +1049,20 @@ namespace Hrot.Editor
 
             // Trigger ImGui popup when a right-click was recorded this frame.
             _gizmoLayer?.DrawContextMenu();
+
+            // Render gizmo-contributed main menu items (e.g. "View > Tactical Map Layers...").
+            var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
+            if (gizmoMenus != null && gizmoMenus.Count > 0)
+            {
+                if (ImGuiNET.ImGui.BeginMainMenuBar())
+                {
+                    GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenuBar(gizmoMenus, actionId =>
+                    {
+                        _interactionBus?.Publish(new GizmoMenuActionEvent { AnchorId = 0, ActionId = actionId });
+                    });
+                    ImGuiNET.ImGui.EndMainMenuBar();
+                }
+            }
 
             // Trigger rename modal when requested by DrainToolActivationEvents.
             if (_openRenameModalThisFrame)

@@ -61,6 +61,10 @@ namespace Hrot.Network.NED.Gizmos
             // Forward context-menu action selections back to SimHost.
             foreach (ref readonly var evt in _interactionBus.Read<GizmoMenuActionEvent>())
                 WriteMenuAction(evt.AnchorId, evt.ActionId);
+
+            // Forward StructInspector Apply mutations back to SimHost.
+            foreach (var evt in _interactionBus.ReadManaged<GizmoStructUpdateEvent>())
+                WriteStructUpdate(evt.AnchorId, evt.PayloadJson);
         }
 
         private void WriteRecord(
@@ -94,6 +98,19 @@ namespace Hrot.Network.NED.Gizmos
                 Kind           = GizmoInteractionEventKind.MenuAction,
                 PickAnchorId   = anchorId,
                 ActionId       = actionId,
+            });
+            SentSampleCount++;
+        }
+
+        private void WriteStructUpdate(long anchorId, string payloadJson)
+        {
+            _writer!.Write(new GizmoInteractionBatch
+            {
+                SourceNodeId   = _nodeId,
+                SequenceNumber = _sequenceNumber++,
+                Kind           = GizmoInteractionEventKind.StructUpdate,
+                PickAnchorId   = anchorId,
+                PayloadJson    = payloadJson,
             });
             SentSampleCount++;
         }

@@ -37,5 +37,8 @@ namespace Hrot.Common.Constants
         public const int Measure       = 200;
         public const int PlaceEntity   = 201;
         public const int PlaceObstacle = 202;
+
+        // --- Layer control ---
+        public const int OpenLayerControl = 250;
     }
 }

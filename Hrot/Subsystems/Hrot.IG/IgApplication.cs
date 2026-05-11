@@ -1537,6 +1537,24 @@ public class IgApplication : IDisposable
         DrawExConContextMenu();
         _gizmoLayer?.DrawContextMenu();
 
+        // Render gizmo-contributed main menu items (e.g. "View > Tactical Map Layers...").
+        var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
+        if (gizmoMenus != null && gizmoMenus.Count > 0)
+        {
+            if (ImGui.BeginMainMenuBar())
+            {
+                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenuBar(gizmoMenus, actionId =>
+                {
+                    _interactionBus?.Publish(new GizmoMenuActionEvent
+                    {
+                        AnchorId = 0,
+                        ActionId = actionId,
+                    });
+                });
+                ImGui.EndMainMenuBar();
+            }
+        }
+
         if (!_panelsWindowManaged)
         {
             IgPanelColors.Push();

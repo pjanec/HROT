@@ -124,6 +124,14 @@ namespace Hrot.Network.NED.Gizmos
                             IsPressed = isPressed,
                         });
                     break;
+
+                case GizmoInteractionEventKind.StructUpdate:
+                    _interactionBus.PublishManaged(new GizmoStructUpdateEvent
+                    {
+                        AnchorId    = batch.PickAnchorId,
+                        PayloadJson = batch.PayloadJson ?? string.Empty,
+                    });
+                    break;
             }
         }
     }
