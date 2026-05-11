@@ -112,7 +112,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         {
             Assert.Equal(0, (int)DebugPrimitiveShape.Line);
             Assert.Equal(4, (int)DebugPrimitiveShape.Text);
-            Assert.Equal(7, (int)DebugPrimitiveShape.ComponentInspector);
+            Assert.Equal(7, (int)DebugPrimitiveShape.StructInspector);
         }
 
         [Fact]

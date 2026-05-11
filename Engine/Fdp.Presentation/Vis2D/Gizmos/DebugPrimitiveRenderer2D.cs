@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
                 shapeLibrary ?? new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary());
         }
 
-        public void SetLayerMask(ushort mask) => _inner.SetLayerMask(mask);
+        public void SetLayerMask(ushort mask) { }
 
         public void Render(ReadOnlySpan<DebugPrimitive> primitives, RenderContext ctx)
         {

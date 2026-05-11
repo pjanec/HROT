@@ -113,7 +113,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             {
                 if (prim.Shape == DebugPrimitiveShape.InputCaptureBinding && prim.ConditionMask == 1u)
                 {
-                    Assert.Equal((long)_entity.Index, prim.InspNetworkId);
+                    Assert.Equal((long)_entity.Index, prim.StructNetworkId);
                     return;
                 }
             }
